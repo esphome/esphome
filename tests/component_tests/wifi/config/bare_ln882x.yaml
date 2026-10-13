@@ -1,0 +1,12 @@
+---
+esphome:
+  name: test
+
+ln882x:
+  board: generic-ln882h
+
+wifi:
+  ssid: test
+  password: testtest
+  ap:
+    ssid: fallback

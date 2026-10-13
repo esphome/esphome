@@ -3,7 +3,7 @@
 
 namespace esphome::as3935_spi {
 
-static const char *const TAG = "as3935_spi";
+ESPHOME_LOG_TAG(TAG, "as3935_spi");
 
 void SPIAS3935Component::setup() {
   this->spi_setup();

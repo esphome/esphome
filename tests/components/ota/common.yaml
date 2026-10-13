@@ -1,11 +1,6 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
 ota:
   - platform: esphome
     password: "superlongpasswordthatnoonewillknow"
-    port: 3286
     on_begin:
       then:
         - logger.log: "OTA start"

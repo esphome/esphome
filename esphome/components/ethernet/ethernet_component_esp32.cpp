@@ -10,6 +10,13 @@
 #include <lwip/dns.h>
 #include <cinttypes>
 #include "esp_event.h"
+#if USE_NETWORK_IPV6
+#include <esp_netif_net_stack.h>
+#include <lwip/netif.h>
+#endif
+#ifdef USE_PSRAM
+#include <esp_psram.h>
+#endif
 
 // IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry;
 // they are no longer included via esp_eth.h and need explicit includes.
@@ -37,6 +44,10 @@
 #ifdef USE_ETHERNET_DM9051
 #include "esp_eth_mac_dm9051.h"
 #include "esp_eth_phy_dm9051.h"
+#endif
+#ifdef USE_ETHERNET_KSZ8851SNL
+#include "esp_eth_mac_ksz8851snl.h"
+#include "esp_eth_phy_ksz8851snl.h"
 #endif
 #endif  // ESP_IDF_VERSION >= 6.0.0
 
@@ -66,10 +77,36 @@
 
 namespace esphome::ethernet {
 
-static const char *const TAG = "ethernet";
+ESPHOME_LOG_TAG(TAG, "ethernet");
 
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;
+
+// Dual wifi + ethernet SPI builds: the one place internal RAM is short and lwip's other buffers are
+// already in PSRAM. Not with L2 TAP, whose filter lives in the glue's input path this replaces.
+#if defined(USE_PSRAM) && defined(USE_ETHERNET_SPI) && defined(USE_WIFI) && !defined(CONFIG_ESP_NETIF_L2_TAP)
+#define USE_ETHERNET_RX_PSRAM
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - reported by dump_config()
+static bool rx_psram_installed = false;
+
+// ESP-IDF ethernet drivers malloc() every received frame in internal RAM, where it stays until lwIP
+// hands it to the application. Move it to PSRAM; if that fails the frame is passed on where it is.
+static esp_err_t eth_input_to_psram(esp_eth_handle_t handle, uint8_t *buffer, uint32_t length, void *priv) {
+  auto *copy = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (copy != nullptr) {
+    memcpy(copy, buffer, length);
+    free(buffer);  // NOLINT(cppcoreguidelines-no-malloc) - allocated by the driver with malloc()
+    buffer = copy;
+  } else {
+    static bool warned = false;  // once, this runs per frame in the driver's task
+    if (!warned) {
+      warned = true;
+      ESP_LOGW(TAG, "PSRAM allocation failed, frame kept in internal RAM (reported once)");
+    }
+  }
+  return esp_netif_receive(static_cast<esp_netif_t *>(priv), buffer, length, nullptr);
+}
+#endif
 
 void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *message) {
   ESP_LOGE(TAG, "%s: (%d) %s", message, err, esp_err_to_name(err));
@@ -235,6 +272,8 @@ void EthernetComponent::ethernet_lazy_init_() {
   eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(host, &devcfg);
 #elif defined(USE_ETHERNET_CH390)
   eth_ch390_config_t ch390_config = ETH_CH390_DEFAULT_CONFIG(host, &devcfg);
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+  eth_ksz8851snl_config_t ksz8851snl_config = ETH_KSZ8851SNL_DEFAULT_CONFIG(host, &devcfg);
 #endif
 
 #if defined(USE_ETHERNET_W5500)
@@ -260,6 +299,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   ch390_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   ch390_config.poll_period_ms = this->polling_interval_;
+#endif
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+  ksz8851snl_config.int_gpio_num = this->interrupt_pin_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  ksz8851snl_config.poll_period_ms = this->polling_interval_;
 #endif
 #endif
 
@@ -391,6 +435,12 @@ void EthernetComponent::ethernet_lazy_init_() {
       this->phy_ = esp_eth_phy_new_ch390(&phy_config);
       break;
     }
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+    case ETHERNET_TYPE_KSZ8851SNL: {
+      mac = esp_eth_mac_new_ksz8851snl(&ksz8851snl_config, &mac_config);
+      this->phy_ = esp_eth_phy_new_ksz8851snl(&phy_config);
+      break;
+    }
 #endif
 #endif
     default: {
@@ -412,9 +462,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   }
 #endif  // USE_ETHERNET_KSZ8081
 
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
   for (const auto &phy_register : this->phy_registers_) {
     this->write_phy_register_(mac, phy_register);
   }
+#endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #ifdef USE_ETHERNET_GENERIC
@@ -453,6 +505,28 @@ void EthernetComponent::ethernet_lazy_init_() {
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
+#ifdef USE_ETHERNET_RX_PSRAM
+  // The glue frees every receive buffer with free(), so the replacement buffer must come from the heap
+  if (esp_psram_is_initialized()) {
+    err = esp_eth_update_input_path(this->eth_handle_, eth_input_to_psram, this->eth_netif_);
+    rx_psram_installed = err == ESP_OK;
+    if (!rx_psram_installed) {
+      ESP_LOGW(TAG, "PSRAM RX path not installed: %s", esp_err_to_name(err));
+    }
+  }
+#endif
+#if USE_NETWORK_IPV6 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+  // Since IDF 5.5 the internal EMAC drops multicast groups that were never added (before,
+  // it passed all multicast), and lwIP never adds all-nodes, so router advertisements
+  // were lost and SLAAC never ran.
+  {
+    uint8_t all_nodes[6] = {0x33, 0x33, 0x00, 0x00, 0x00, 0x01};
+    if (esp_err_t filter_err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_ADD_MAC_FILTER, all_nodes);
+        filter_err != ESP_OK) {
+      ESP_LOGD(TAG, "IPv6 all-nodes multicast filter not added: %s", esp_err_to_name(filter_err));
+    }
+  }
+#endif
 
   // Register user defined event handers
   err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &EthernetComponent::eth_event_handler, nullptr);
@@ -554,6 +628,10 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_CH390:
       eth_type = "CH390";
       break;
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+    case ETHERNET_TYPE_KSZ8851SNL:
+      eth_type = "KSZ8851SNL";
+      break;
 #endif
 #ifdef USE_ETHERNET_OPENETH
     case ETHERNET_TYPE_OPENETH:
@@ -630,6 +708,13 @@ void EthernetComponent::dump_config() {
                 this->clk_pin_, this->mdc_pin_, this->mdio_pin_, this->phy_addr_);
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
+#ifdef USE_ETHERNET_RX_PSRAM
+  // Only known once the driver is up; with enable_on_boot: false that is after this dump
+  if (this->ethernet_initialized_) {
+    ESP_LOGCONFIG(TAG, "  RX frames: %s",
+                  rx_psram_installed ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"));
+  }
+#endif
 }
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
@@ -688,6 +773,13 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
         global_eth_component->notify_ip_state_listeners_();
       }
 #endif
+#if USE_NETWORK_IPV6
+      // Start SLAAC on link-up, not after the DHCPv4 lease. This also restores the
+      // link-local after a link flap, which clears the IPv6 addresses.
+      if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(global_eth_component->eth_netif_); ll_err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed on link-up: %s", esp_err_to_name(ll_err));
+      }
+#endif /* USE_NETWORK_IPV6 */
       break;
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
@@ -724,7 +816,10 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
                                               void *event_data) {
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
-  global_eth_component->ipv6_count_ += 1;
+  // Count the addresses on the interface, not the events: recreating the link-local
+  // after a link flap fires another event for the same address.
+  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(global_eth_component->eth_netif_, if_ip6s);
 #if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
@@ -739,6 +834,29 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 }
 #endif /* USE_NETWORK_IPV6 */
 
+#if USE_NETWORK_IPV6
+// Create the link-local address unless the interface already has one, including one still in
+// duplicate address detection: recreating it would restart DAD. esp_netif_get_ip6_linklocal()
+// only reports a preferred address, so ask lwIP for the slot state instead.
+esp_err_t EthernetComponent::ensure_ip6_linklocal_() {
+  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
+    u8_t state;
+    {
+      LwIPLock lock;
+      state = netif_ip6_addr_state(netif, 0);
+    }
+    if (ip6_addr_istentative(state) || ip6_addr_isvalid(state)) {
+      return ESP_OK;
+    }
+  }
+  esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  if (err == ESP_OK) {
+    ESP_LOGD(TAG, "IPv6 link-local address created");
+  }
+  return err;
+}
+#endif /* USE_NETWORK_IPV6 */
+
 void EthernetComponent::finish_connect_() {
 #if USE_NETWORK_IPV6
   // Retry IPv6 link-local setup if it failed during initial connect
@@ -749,10 +867,7 @@ void EthernetComponent::finish_connect_() {
   // - Cable unplugged/network interruption (#10705)
   // We can now retry since we're in CONNECTED state and the interface is definitely up.
   if (!this->ipv6_setup_done_) {
-    esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-    if (err == ESP_OK) {
-      ESP_LOGD(TAG, "IPv6 link-local address created (retry succeeded)");
-    }
+    this->ensure_ip6_linklocal_();
     // Always set the flag to prevent continuous retries
     // If IPv6 setup fails here with the interface up and stable, it's
     // likely a persistent issue (IPv6 disabled at router, hardware
@@ -766,7 +881,9 @@ void EthernetComponent::finish_connect_() {
 void EthernetComponent::start_connect_() {
   global_eth_component->got_ipv4_address_ = false;
 #if USE_NETWORK_IPV6
-  global_eth_component->ipv6_count_ = 0;
+  // Recount rather than zero: addresses that survive a reconnect are not announced again.
+  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
   this->ipv6_setup_done_ = false;
 #endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
@@ -845,7 +962,7 @@ void EthernetComponent::start_connect_() {
   // - At bootup when link isn't ready (#10281)
   // - After disconnection/cable unplugged (#10705)
   // We'll retry in finish_connect_() if it fails here.
-  err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  err = this->ensure_ip6_linklocal_();
   if (err != ESP_OK) {
     if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
       // This is a programming error, not a transient failure
@@ -927,10 +1044,6 @@ void EthernetComponent::dump_connect_params_() {
   }
 #endif /* USE_NETWORK_IPV6 */
 }
-
-#ifndef USE_ETHERNET_SPI
-void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
-#endif
 
 void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   if (!this->ethernet_initialized_) {
@@ -1029,6 +1142,7 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
 }
 #endif  // USE_ETHERNET_KSZ8081
 
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
 void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;
 
@@ -1053,6 +1167,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   }
 #endif
 }
+#endif  // ESPHOME_ETHERNET_PHY_REGISTER_COUNT
 
 #ifdef USE_ETHERNET_YT8531
 void EthernetComponent::yt8531_phy_init_() {

@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.uc8179";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.uc8179");
 
 bool EPaperUC8179::initialise(bool partial) {
   EPaperBase::initialise(partial);  // send the model init sequence

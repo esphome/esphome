@@ -4,7 +4,6 @@ from esphome.components import lock
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
-    CONF_ID,
     CONF_LAMBDA,
     CONF_LOCK_ACTION,
     CONF_OPEN_ACTION,
@@ -16,12 +15,6 @@ from esphome.const import (
 from .. import template_ns
 
 TemplateLock = template_ns.class_("TemplateLock", lock.Lock, cg.Component)
-
-TemplateLockPublishAction = template_ns.class_(
-    "TemplateLockPublishAction",
-    automation.Action,
-    cg.Parented.template(TemplateLock),
-)
 
 
 def validate(config):
@@ -80,9 +73,8 @@ async def to_code(config):
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "lock.template.publish",
-    TemplateLockPublishAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(TemplateLock),
@@ -90,11 +82,5 @@ async def to_code(config):
         },
         key=CONF_STATE,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_STATE, "publish_state", lock.LockState),
 )
-async def lock_template_publish_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_STATE], args, lock.LockState)
-    cg.add(var.set_state(template_))
-    return var

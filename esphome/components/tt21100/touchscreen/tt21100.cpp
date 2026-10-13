@@ -3,7 +3,7 @@
 
 namespace esphome::tt21100 {
 
-static const char *const TAG = "tt21100";
+ESPHOME_LOG_TAG(TAG, "tt21100");
 
 static const uint8_t MAX_BUTTONS = 4;
 static const uint8_t MAX_TOUCH_POINTS = 5;

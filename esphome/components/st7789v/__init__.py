@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 
+DOMAIN = "st7789v"
+
 st7789v_ns = cg.esphome_ns.namespace("st7789v")
 
 DEPRECATED_COMPONENT = """

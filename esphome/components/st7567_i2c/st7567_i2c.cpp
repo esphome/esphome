@@ -3,7 +3,7 @@
 
 namespace esphome::st7567_i2c {
 
-static const char *const TAG = "st7567_i2c";
+ESPHOME_LOG_TAG(TAG, "st7567_i2c");
 
 void I2CST7567::setup() {
   this->init_reset_();

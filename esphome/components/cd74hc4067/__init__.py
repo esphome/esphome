@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["sensor", "voltage_sampler"]
 CODEOWNERS = ["@asoehlke"]
+DOMAIN = "cd74hc4067"
 MULTI_CONF = True
 
 cd74hc4067_ns = cg.esphome_ns.namespace("cd74hc4067")
