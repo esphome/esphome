@@ -402,6 +402,7 @@ def test_ternary_error_message_names_the_literal() -> None:
         '  static const char *const TAG = "x";',
         'constexpr static const char *const TAG = "x";',
         'const char *const Constants::TAG = "x";',
+        'const char Constants::TAG[] = "x";',
     ],
 )
 def test_log_tag_macro_flags_plain_tags(line: str) -> None:
@@ -454,6 +455,8 @@ def test_log_tag_lints_cover_headers_and_core(fname: str, covered: bool) -> None
         "std::string(TAG);",
         "std::string name = TAG;",
         "std::string name{TAG};",
+        "strlen(Constants::TAG);",
+        "this->set_timeout(Constants::TAG, 100, cb);",
     ],
 )
 def test_log_tag_as_string_flags_string_uses(line: str) -> None:
