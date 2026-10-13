@@ -1,4 +1,4 @@
-# These two schema keys live in esphome.components.const so entity base
+# These two schema keys live in esphome.const so entity base
 # schemas can use them without importing this package.
 from esphome.const import CONF_ZIGBEE_BINARY_SENSOR, CONF_ZIGBEE_ID  # noqa: F401  # pylint: disable=unused-import
 
