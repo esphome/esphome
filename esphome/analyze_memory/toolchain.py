@@ -37,7 +37,7 @@ def find_elf_path(build_path: Path) -> Path | None:
     """
     name = build_path.name
     for candidate in (
-        # Native ESP-IDF: idf.py writes build/<name>.elf, which ESPHome copies
+        # Native ESP-IDF: the build writes build/<name>.elf, which ESPHome copies
         # to build/firmware.elf (see espidf.toolchain.create_elf_copy)
         build_path / "build" / "firmware.elf",
         # PlatformIO

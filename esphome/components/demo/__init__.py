@@ -76,6 +76,7 @@ AUTO_LOAD = [
     "text_sensor",
     "valve",
 ]
+DOMAIN = "demo"
 
 demo_ns = cg.esphome_ns.namespace("demo")
 DemoAlarmControlPanel = demo_ns.class_(

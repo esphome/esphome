@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_ID,
     CONF_NUM_ATTEMPTS,
     CONF_REBOOT_TIMEOUT,
-    CONF_SAFE_MODE,
     CONF_STORAGE,
     KEY_PAST_SAFE_MODE,
 )
@@ -15,6 +14,7 @@ from esphome.cpp_generator import RawExpression
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
+DOMAIN = "safe_mode"
 
 CONF_BOOT_IS_GOOD_AFTER = "boot_is_good_after"
 CONF_BOOT_IS_GOOD_ON_SHUTDOWN = "boot_is_good_on_shutdown"
@@ -92,5 +92,5 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(RawExpression(f"if ({condition}) return"))
 
-    CORE.data[CONF_SAFE_MODE] = {}
-    CORE.data[CONF_SAFE_MODE][KEY_PAST_SAFE_MODE] = True
+    CORE.data[DOMAIN] = {}
+    CORE.data[DOMAIN][KEY_PAST_SAFE_MODE] = True

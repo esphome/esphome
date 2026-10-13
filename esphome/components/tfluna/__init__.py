@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@candrews"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "tfluna"
 MULTI_CONF = True
 
 tfluna_ns = cg.esphome_ns.namespace("tfluna")

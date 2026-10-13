@@ -17,6 +17,7 @@ CONF_XL9535 = "xl9535"
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@mreditor97"]
+DOMAIN = "xl9535"
 
 xl9535_ns = cg.esphome_ns.namespace(CONF_XL9535)
 
@@ -54,7 +55,7 @@ def validate_pin(pin: int) -> int:
 XL9535_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(XL9535GPIOPin),
-        cv.Required(CONF_XL9535): cv.use_id(XL9535Component),
+        cv.Required(CONF_XL9535): pins.use_id_or_address(XL9535Component),
         cv.Required(CONF_NUMBER): cv.All(cv.int_range(min=0, max=17), validate_pin),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {

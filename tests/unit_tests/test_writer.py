@@ -684,11 +684,17 @@ def test_clean_build_partial_removes_pch_artifacts(
 ) -> None:
     """The PlatformIO pch sidecars live at the project root and must go in
     a partial clean, like the native backend's under .pioenvs."""
-    from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES as names
+    from esphome.build_helpers.pch import (
+        PCH_ARTIFACT_DIRS as dirs,
+        PCH_ARTIFACT_NAMES as names,
+    )
 
     assert "esphome_pch.h.gch" in names
     for name in names:
         (tmp_path / name).write_text("x")
+    for name in dirs:
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "cc1plus").write_text("x")
     mock_core.relative_pioenvs_path.return_value = tmp_path / ".pioenvs"
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
@@ -696,7 +702,7 @@ def test_clean_build_partial_removes_pch_artifacts(
 
     clean_build()
 
-    for name in names:
+    for name in (*names, *dirs):
         assert not (tmp_path / name).exists()
 
 

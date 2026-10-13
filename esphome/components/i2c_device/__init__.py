@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@gabest11"]
+DOMAIN = "i2c_device"
 MULTI_CONF = True
 
 i2c_device_ns = cg.esphome_ns.namespace("i2c_device")
