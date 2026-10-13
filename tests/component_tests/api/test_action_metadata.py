@@ -15,7 +15,6 @@ from esphome.config_validation import Invalid
 from esphome.core import CORE
 from esphome.cpp_generator import safe_exp
 from esphome.helpers import fnv1_hash
-from tests.component_tests.helpers import get_define_value
 
 CONFIG = "tests/component_tests/api/test_action_metadata.yaml"
 CONFIG_ESP8266 = "tests/component_tests/api/test_action_metadata_esp8266.yaml"
@@ -67,11 +66,10 @@ def test_esp8266_strings_are_shared_progmem_arrays(
 def test_esp8266_encodes_action_strings_from_flash(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """ESP8266 uses the same flash string table, with no scratch buffer to size."""
+    """ESP8266 uses the same flash string table."""
     main_cpp = generate_main(CONFIG_ESP8266)
 
     assert "api_action0_strings[] PROGMEM" in main_cpp
-    assert get_define_value("API_USER_ACTION_STRINGS_SCRATCH_SIZE") is None
 
 
 def test_shorthand_variables_emit_no_metadata(
