@@ -41,6 +41,8 @@ enum PdPdoType : uint8_t {
 
 enum class PdState : uint8_t {
   PD_STATE_DISCONNECTED,
+  /// Negotiation is over without a PD contract (no capabilities, or the request was not accepted); the source
+  /// supplies Type-C default power.
   PD_STATE_PD_TIMEOUT,
   PD_STATE_DEFAULT_CONTRACT,
   PD_STATE_TRANSITION,
@@ -148,6 +150,7 @@ class PowerDelivery {
   void handle_soft_reset_(const PdMsg &msg);
   void respond_to_source_caps_(const PdMsg &msg);
   bool send_request_();
+  void request_failed_();
 
   PdContract requested_contract_{};
   PdContract accepted_contract_{};

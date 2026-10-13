@@ -130,6 +130,7 @@ void PowerDelivery::check_request_retry_() {
   } else {
     ESP_LOGW(TAG, "Giving up repeating the request");
     this->retry_request_pending_ = false;
+    this->request_failed_();
   }
 }
 
@@ -140,6 +141,12 @@ bool PowerDelivery::send_request_() {
   ESP_LOGW(TAG, "Sending the request failed");
   this->set_ams_(false);
   return false;
+}
+
+void PowerDelivery::request_failed_() {
+  // A contract already in place stays valid. Without one, report that negotiation is over at default power.
+  if (this->state_ == PdState::PD_STATE_DEFAULT_CONTRACT)
+    this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
 }
 
 bool PowerDelivery::transition_timed_out_() {
@@ -176,8 +183,12 @@ void PowerDelivery::handle_message_(const PdMsg &msg) {
 }
 
 void PowerDelivery::handle_data_message_(const PdMsg &msg) {
-  if (msg.extended || msg.type != PD_DATA_SOURCE_CAP)
+  if (msg.extended || msg.type != PD_DATA_SOURCE_CAP) {
+    // BIST and Vendor_Defined messages must not be answered with Reject, so unsupported data messages are ignored
+    ESP_LOGV(TAG, "Ignoring data message type %u%s", msg.type,
+             msg.extended ? LOG_STR_LITERAL(" (extended)") : LOG_STR_LITERAL(""));
     return;
+  }
   this->on_source_caps_received();
   this->respond_to_source_caps_(msg);
 }
@@ -203,12 +214,20 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
       this->set_state_(PdState::PD_STATE_EXPLICIT_CONTRACT);
       break;
     case PD_CNTRL_REJECT:
+      if (!this->check_ams_()) {
+        ESP_LOGD(TAG, "Ignoring Reject outside a request");
+        break;
+      }
       ESP_LOGW(TAG, "Source rejected the request");
       this->set_ams_(false);
+      this->request_failed_();
       break;
     case PD_CNTRL_WAIT:
-      if (!this->active_ams_)
+      if (!this->check_ams_()) {
+        ESP_LOGD(TAG, "Ignoring Wait outside a request");
         break;
+      }
+      this->set_ams_(false);
       if (this->wait_retries_ < MAX_WAIT_RETRIES) {
         ESP_LOGD(TAG, "Source asked to wait, repeating the request");
         this->wait_retries_++;
@@ -216,8 +235,8 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
         this->wait_received_ms_ = millis();
       } else {
         ESP_LOGW(TAG, "Source kept answering Wait, giving up");
+        this->request_failed_();
       }
-      this->set_ams_(false);
       break;
     case PD_CNTRL_PING:
     case PD_CNTRL_NOT_SUPPORTED:
@@ -278,18 +297,22 @@ void PowerDelivery::respond_to_source_caps_(const PdMsg &msg) {
     ESP_LOGW(TAG, "No usable PDO in source capabilities, requesting 5 V");
     // Object 1 (5 V fixed supply), 300 mA maximum, 100 mA operating current
     selected = PdContract{PD_PDO_TYPE_FIXED_SUPPLY, 100, 30};
-    rdo |= (30u << 0) | (10u << 10) | (1u << 28);
+    position = 1;
+    rdo |= (30u << 0) | (10u << 10);
   } else {
     // Request the full current the source offers
     const uint32_t current = selected.max_i;
-    rdo |= (current << 0) | (current << 10) | (static_cast<uint32_t>(position) << 28);
+    rdo |= (current << 0) | (current << 10);
   }
+  rdo |= static_cast<uint32_t>(position) << 28;
   ESP_LOGD(TAG, "Requesting PDO %u: %.2f V", position, selected.max_v * 0.05f);
   this->requested_contract_ = selected;
   this->last_rdo_ = rdo;
   this->retry_request_pending_ = false;
   this->wait_retries_ = 0;
-  this->send_request_();
+  // A repeat would come too late: the source resets if it gets no Request within tSenderResponse (24-30 ms)
+  if (!this->send_request_())
+    this->request_failed_();
 }
 
 }  // namespace esphome::fusb302b

@@ -19,6 +19,7 @@ class FakePhy : public PowerDelivery {
   using PowerDelivery::contract_;
   using PowerDelivery::handle_message_;
   using PowerDelivery::retry_request_pending_;
+  using PowerDelivery::set_state_and_contract_;
   using PowerDelivery::transition_timed_out_;
   using PowerDelivery::wait_received_ms_;
 
@@ -43,6 +44,8 @@ class FakePhy : public PowerDelivery {
                   {fixed_pdo(5000, 3000), fixed_pdo(9000, 3000), fixed_pdo(15000, 3000), fixed_pdo(20000, 2250)});
   }
   PackedContract contract() const { return PackedContract{this->contract_}; }
+  // What the PHY does when a source is attached
+  void attach() { this->set_state_and_contract_(PdState::PD_STATE_DEFAULT_CONTRACT, DEFAULT_CONTRACT); }
   // Moves the timestamps back instead of sleeping, since millis() is real time on the host
   void advance_ms(uint32_t ms) {
     this->ams_start_ -= ms;
@@ -110,6 +113,17 @@ TEST(FUSB302BPd, NonFixedObjectKeepsItsPosition) {
   ASSERT_EQ(pd.sent.size(), 1u);
   EXPECT_EQ(pd.sent[0].data_objects[0] >> 28, 3u);
   EXPECT_EQ(pd.sent[0].data_objects[0] & 0x3FF, 200u);
+}
+
+TEST(FUSB302BPd, NoFixedObjectFallsBackToObjectOne) {
+  FakePhy pd;
+  pd.set_request_voltage(20);
+  pd.receive(PD_DATA_SOURCE_CAP, 0, {AUGMENTED_PDO, AUGMENTED_PDO});
+  ASSERT_EQ(pd.sent.size(), 1u);
+  const uint32_t rdo = pd.sent[0].data_objects[0];
+  EXPECT_EQ(rdo >> 28, 1u);
+  EXPECT_EQ(rdo & 0x3FF, 30u);          // 300 mA maximum
+  EXPECT_EQ((rdo >> 10) & 0x3FF, 10u);  // 100 mA operating
 }
 
 TEST(FUSB302BPd, AcceptThenPsRdyReachesExplicitContract) {
@@ -206,6 +220,7 @@ TEST(FUSB302BPd, WaitRepeatsRequestAfterSinkRequestTime) {
 
 TEST(FUSB302BPd, WaitRetriesStopAtLimit) {
   FakePhy pd;
+  pd.attach();
   pd.receive_source_caps(0);
   for (uint8_t i = 1; i <= 10; i++) {
     pd.receive(PD_CNTRL_WAIT, i % 8);
@@ -215,20 +230,25 @@ TEST(FUSB302BPd, WaitRetriesStopAtLimit) {
   EXPECT_EQ(pd.sent.size(), 11u);
   pd.receive(PD_CNTRL_WAIT, 3);
   EXPECT_FALSE(pd.retry_request_pending_);
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
   pd.advance_ms(101);
   pd.check_request_retry_();
   EXPECT_EQ(pd.sent.size(), 11u);
 }
 
-TEST(FUSB302BPd, FailedRequestEndsSequence) {
+TEST(FUSB302BPd, FailedRequestEndsNegotiation) {
   FakePhy pd;
+  pd.attach();
   pd.set_request_voltage(20);
   pd.send_ok = false;
   pd.receive_source_caps(0);
   EXPECT_EQ(pd.send_attempts, 1);
   EXPECT_FALSE(pd.check_ams_());
+  EXPECT_FALSE(pd.retry_request_pending_);
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
   pd.receive(PD_CNTRL_ACCEPT, 1);
-  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_DISCONNECTED);
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
+  EXPECT_FLOAT_EQ(pd.contract().voltage(), 5.0f);
 }
 
 TEST(FUSB302BPd, FailedRetryIsTriedAgain) {
@@ -253,6 +273,7 @@ TEST(FUSB302BPd, FailedRetryIsTriedAgain) {
 
 TEST(FUSB302BPd, FailedRetriesStopAtLimit) {
   FakePhy pd;
+  pd.attach();
   pd.receive_source_caps(0);
   pd.receive(PD_CNTRL_WAIT, 1);
   pd.send_ok = false;
@@ -263,6 +284,47 @@ TEST(FUSB302BPd, FailedRetriesStopAtLimit) {
   EXPECT_FALSE(pd.retry_request_pending_);
   // The first request, then one attempt for each of the 10 allowed repeats
   EXPECT_EQ(pd.send_attempts, 11);
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
+}
+
+TEST(FUSB302BPd, RejectedFirstRequestEndsNegotiation) {
+  FakePhy pd;
+  pd.attach();
+  pd.set_request_voltage(20);
+  pd.receive_source_caps(0);
+  pd.receive(PD_CNTRL_REJECT, 1);
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
+  EXPECT_FLOAT_EQ(pd.contract().voltage(), 5.0f);
+}
+
+TEST(FUSB302BPd, RejectedRenegotiationKeepsContract) {
+  FakePhy pd;
+  pd.attach();
+  pd.set_request_voltage(20);
+  pd.receive_source_caps(0);
+  pd.receive(PD_CNTRL_ACCEPT, 1);
+  pd.receive(PD_CNTRL_PS_RDY, 2);
+  pd.set_request_voltage(9);
+  pd.receive_source_caps(3);
+  pd.receive(PD_CNTRL_REJECT, 4);
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_EXPLICIT_CONTRACT);
+  EXPECT_FLOAT_EQ(pd.contract().voltage(), 20.0f);
+}
+
+TEST(FUSB302BPd, RejectAndWaitOutsideRequestAreIgnored) {
+  FakePhy pd;
+  pd.attach();
+  pd.receive(PD_CNTRL_REJECT, 0);
+  pd.receive(PD_CNTRL_WAIT, 1);
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_DEFAULT_CONTRACT);
+  EXPECT_FALSE(pd.retry_request_pending_);
+}
+
+TEST(FUSB302BPd, UnsupportedDataMessageIsIgnored) {
+  FakePhy pd;
+  pd.receive(PD_DATA_REQUEST, 0, {0});
+  EXPECT_TRUE(pd.sent.empty());
+  EXPECT_EQ(pd.source_caps, 0);
 }
 
 TEST(FUSB302BPd, AcceptOutsideSequenceIsIgnored) {
