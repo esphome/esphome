@@ -176,7 +176,7 @@ bool ShellyDimmer::upgrade_firmware_() {
   uint8_t buffer[BUFFER_SIZE];
   const uint8_t *p = STM_FIRMWARE;
   uint32_t offset = 0;
-  uint32_t addr = stm32->dev.fl_start;
+  uint32_t addr = stm32->dev->fl_start;
   const uint32_t end = addr + STM_FIRMWARE_SIZE_IN_BYTES;
 
   while (addr < end && offset < STM_FIRMWARE_SIZE_IN_BYTES) {
