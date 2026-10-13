@@ -11,7 +11,7 @@ from unittest.mock import ANY, Mock, patch
 import pytest
 
 from esphome import yaml_util
-from esphome.cli.rotate_key import command_rotate_key
+from esphome.cli.rotate_key import PRECHECK_ADVICE, command_rotate_key
 from esphome.const import (
     CONF_API,
     CONF_ENCRYPTION,
@@ -26,6 +26,7 @@ from esphome.const import (
     PLATFORM_ESP32,
 )
 from esphome.core import CORE, EsphomeError, Toolchain
+from esphome.espota2 import ProbeResult
 from esphome.ota_key_edit import KeyEdit
 from esphome.upload_targets import PortType
 from esphome.util import ESPHOME_COMMAND
@@ -100,7 +101,9 @@ def env(tmp_path: Path) -> Generator[dict[str, Mock]]:
         patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
         patch("esphome.__main__._resolve_network_devices", return_value=["dev.local"]),
         patch("esphome.cli.rotate_key.get_port_type", return_value=PortType.NETWORK),
-        patch("esphome.espota2.probe_ota_key", return_value=True) as probe,
+        patch(
+            "esphome.espota2.probe_ota_key", return_value=ProbeResult.ACCEPTED
+        ) as probe,
         patch(
             "esphome.cli.rotate_key.run_external_process", return_value=0
         ) as compile_,
@@ -233,11 +236,19 @@ def test_rejects_bad_new_key(env: dict[str, Mock], key: str) -> None:
 def test_precheck_fails_writes_nothing(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:
-    env["probe"].return_value = False
+    env["probe"].return_value = ProbeResult.REJECTED
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == API_YAML
     env["compile"].assert_not_called()
-    assert "did not complete an encrypted handshake" in capfd.readouterr().out
+    assert "runs a different key than the yaml" in capfd.readouterr().out
+    for found in (
+        ProbeResult.UNREACHABLE,
+        ProbeResult.NOT_OFFERED,
+        ProbeResult.DEVICE_ERROR,
+    ):
+        env["probe"].return_value = found
+        assert command_rotate_key(MockArgs(), CORE.config) == 1
+        assert PRECHECK_ADVICE[found] in capfd.readouterr().out
 
 
 @pytest.mark.parametrize("step", ["compile", "interrupt"])
@@ -298,7 +309,7 @@ def test_an_interrupt_during_the_image_cleanup_shows_the_keys(
 def test_a_build_from_before_the_rotation_is_kept(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:
-    env["probe"].return_value = False
+    env["probe"].return_value = ProbeResult.UNREACHABLE
     image = CORE.firmware_bin
     image.parent.mkdir(parents=True)
     image.write_bytes(b"built with the current key")
@@ -387,7 +398,7 @@ def test_reports_a_failed_restore(
     assert OLD_KEY in out and NEW_KEY in out
 
 
-@pytest.mark.parametrize("outcome", ["unconfirmed", "interrupted"])
+@pytest.mark.parametrize("outcome", ["unreachable", "rejected", "interrupted"])
 def test_keeps_the_new_key_after_the_upload(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str], outcome: str
 ) -> None:
@@ -395,8 +406,12 @@ def test_keeps_the_new_key_after_the_upload(
     and old_key covers the other case, so the files stay and the key is
     printed."""
     env["probe"].side_effect = [
-        True,
-        KeyboardInterrupt if outcome == "interrupted" else False,
+        ProbeResult.ACCEPTED,
+        {
+            "interrupted": KeyboardInterrupt,
+            "unreachable": ProbeResult.UNREACHABLE,
+            "rejected": ProbeResult.REJECTED,
+        }[outcome],
     ]
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert NEW_KEY in CORE.config_path.read_text()
@@ -404,6 +419,8 @@ def test_keeps_the_new_key_after_the_upload(
     out = capfd.readouterr().out
     assert NEW_KEY in out
     assert ("Interrupted" in out) is (outcome == "interrupted")
+    assert ("still answers with the previous key" in out) is (outcome == "rejected")
+    assert ("did not come back" in out) is (outcome == "unreachable")
 
 
 def test_child_compile_gets_global_options_first(
