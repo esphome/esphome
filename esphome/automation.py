@@ -906,6 +906,21 @@ async def while_action_to_code(
     return var
 
 
+def _shadow_iteration(args: TemplateArgsType) -> TemplateArgsType:
+    """Rename an inherited `iteration` so the inner repeat's own counter can shadow it."""
+    names = {name for _, name in args}
+    renamed: TemplateArgsType = []
+    for type_, name in args:
+        if name == "iteration":
+            depth = 1
+            while f"iteration_{depth}" in names:
+                depth += 1
+            name = f"iteration_{depth}"
+            names.add(name)
+        renamed.append((type_, name))
+    return renamed
+
+
 @register_action(
     "repeat",
     RepeatAction,
@@ -929,7 +944,7 @@ async def repeat_action_to_code(
     actions = await build_action_list(
         config[CONF_THEN],
         cg.TemplateArguments(cg.uint32, *template_arg.args),
-        [(cg.uint32, "iteration"), *args],
+        [(cg.uint32, "iteration"), *_shadow_iteration(args)],
     )
     for action in actions:
         cg.add(var.add_then_action(action))
