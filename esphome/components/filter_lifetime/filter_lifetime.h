@@ -1,24 +1,29 @@
 #pragma once
-#include "esphome/components/binary_sensor/binary_sensor.h"
+
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
 #include <functional>
 
 namespace esphome::filter_lifetime {
 
 class FilterLifetime : public sensor::Sensor, public PollingComponent {
  public:
-  void reset_filter();
-  void dump_config() override;
   void setup() override;
   void update() override;
+  void dump_config() override;
+  void reset_filter();
 
-  void set_max_lifetime(uint32_t max_lifetime_minutes) { this->max_lifetime_minutes_ = max_lifetime_minutes; }
+  void set_max_lifetime(uint32_t minutes) { this->max_lifetime_minutes_ = minutes; }
   void set_is_on_lambda(std::function<bool()> is_on) { this->is_on_lambda_ = std::move(is_on); }
+#ifdef USE_BINARY_SENSOR
   void set_is_on_sensor(binary_sensor::BinarySensor *sensor) { this->is_on_sensor_ = sensor; }
-  void set_current_speed_lambda(std::function<float()> current_speed) {
-    this->current_speed_lambda_ = std::move(current_speed);
-  }
+#endif
+  void set_current_speed_lambda(std::function<float()> speed) { this->current_speed_lambda_ = std::move(speed); }
   void set_current_speed_sensor(sensor::Sensor *sensor) { this->current_speed_sensor_ = sensor; }
   void set_runtime_hours_sensor(sensor::Sensor *sensor) { this->runtime_hours_sensor_ = sensor; }
   void set_remaining_days_sensor(sensor::Sensor *sensor) { this->remaining_days_sensor_ = sensor; }
@@ -26,17 +31,21 @@ class FilterLifetime : public sensor::Sensor, public PollingComponent {
  protected:
   bool get_is_on_();
   float get_current_speed_();
+  void publish_values_();
 
-  uint32_t max_lifetime_minutes_{0};                    // Maximum filter lifetime in minutes
-  std::function<bool()> is_on_lambda_;                  // Lambda to check if device is on
-  binary_sensor::BinarySensor *is_on_sensor_{nullptr};  // Binary sensor to check if device is on
-  std::function<float()> current_speed_lambda_;         // Lambda to get current speed percentage (0-100)
-  sensor::Sensor *current_speed_sensor_{nullptr};       // Sensor to get current speed percentage (0-100)
-  uint32_t last_update_{0};                             // Timestamp of last update (milliseconds)
-  float runtime_minutes_{0.0f};                         // Total runtime in minutes (persisted to flash)
-  ESPPreferenceObject pref_;                            // Preference storage object
-  sensor::Sensor *runtime_hours_sensor_{nullptr};       // Optional: Runtime hours sensor
-  sensor::Sensor *remaining_days_sensor_{nullptr};      // Optional: Remaining days sensor
+  std::function<bool()> is_on_lambda_;
+  std::function<float()> current_speed_lambda_;
+#ifdef USE_BINARY_SENSOR
+  binary_sensor::BinarySensor *is_on_sensor_{nullptr};
+#endif
+  sensor::Sensor *current_speed_sensor_{nullptr};
+  sensor::Sensor *runtime_hours_sensor_{nullptr};
+  sensor::Sensor *remaining_days_sensor_{nullptr};
+  ESPPreferenceObject pref_;
+  uint32_t max_lifetime_minutes_{0};
+  uint32_t last_update_{0};
+  uint32_t runtime_seconds_{0};  // Speed-weighted running time, persisted
+  uint32_t carry_ms_{0};         // Weighted milliseconds not yet counted as a second
 };
 
 }  // namespace esphome::filter_lifetime

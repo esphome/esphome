@@ -3,119 +3,107 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace esphome::filter_lifetime {
+
 ESPHOME_LOG_TAG(TAG, "filter_lifetime");
 
+static constexpr uint32_t SECONDS_PER_HOUR = 3600;
+static constexpr float MINUTES_PER_DAY = 24.0f * 60.0f;
+
+void FilterLifetime::setup() {
+  this->pref_ = this->make_entity_preference<uint32_t>();
+  this->pref_.load(&this->runtime_seconds_);
+  this->last_update_ = millis();
+  this->publish_values_();
+}
+
+void FilterLifetime::update() {
+  const uint32_t now = App.get_loop_component_start_time();
+  const uint32_t elapsed_ms = now - this->last_update_;
+  this->last_update_ = now;
+
+  if (this->get_is_on_()) {
+    float speed = this->get_current_speed_();
+    if (std::isnan(speed))
+      speed = 0.0f;
+    speed = std::clamp(speed, 0.0f, 100.0f);
+    const uint32_t prev_hours = this->runtime_seconds_ / SECONDS_PER_HOUR;
+    this->carry_ms_ += static_cast<uint32_t>(elapsed_ms * (speed / 100.0f));
+    this->runtime_seconds_ += this->carry_ms_ / 1000;
+    this->carry_ms_ %= 1000;
+    // Save once per hour of runtime: every save erases a flash sector on ESP8266.
+    if (this->runtime_seconds_ / SECONDS_PER_HOUR != prev_hours)
+      this->pref_.save(&this->runtime_seconds_);
+    ESP_LOGV(TAG, "Elapsed %" PRIu32 " ms at %.0f%%, runtime %" PRIu32 " s", elapsed_ms, speed, this->runtime_seconds_);
+  }
+  this->publish_values_();
+}
+
+void FilterLifetime::publish_values_() {
+  const float runtime_minutes = this->runtime_seconds_ / 60.0f;
+  const float max_minutes = this->max_lifetime_minutes_;
+  const float remaining_minutes = std::max(0.0f, max_minutes - runtime_minutes);
+  this->publish_state(100.0f * remaining_minutes / max_minutes);
+  if (this->runtime_hours_sensor_ != nullptr)
+    this->runtime_hours_sensor_->publish_state(runtime_minutes / 60.0f);
+  if (this->remaining_days_sensor_ != nullptr)
+    this->remaining_days_sensor_->publish_state(remaining_minutes / MINUTES_PER_DAY);
+}
+
 void FilterLifetime::reset_filter() {
-  this->runtime_minutes_ = 0.0f;
-  this->pref_.save(&this->runtime_minutes_);
-  this->publish_state(100.0f);
-  if (this->runtime_hours_sensor_ != nullptr) {
-    this->runtime_hours_sensor_->publish_state(0.0f);
-  }
-  if (this->remaining_days_sensor_ != nullptr) {
-    this->remaining_days_sensor_->publish_state(this->max_lifetime_minutes_ / (24.0f * 60.0f));
-  }
+  this->runtime_seconds_ = 0;
+  this->carry_ms_ = 0;
+  this->pref_.save(&this->runtime_seconds_);
+  this->publish_values_();
   ESP_LOGI(TAG, "Filter lifetime reset");
 }
 
-void FilterLifetime::dump_config() {
-  LOG_SENSOR("", "Filter Lifetime", this);
-  ESP_LOGCONFIG(TAG, "  Max Lifetime: %" PRIu32 " minutes (%.1f days)", this->max_lifetime_minutes_,
-                this->max_lifetime_minutes_ / (24.0f * 60.0f));
-  ESP_LOGCONFIG(TAG, "  Stored Runtime: %.1f minutes", this->runtime_minutes_);
-  if (this->is_on_sensor_ != nullptr) {
-    LOG_BINARY_SENSOR("  ", "Is-On Sensor", this->is_on_sensor_);
-  } else if (this->is_on_lambda_) {
-    ESP_LOGCONFIG(TAG, "  Is-On: lambda");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Is-On: always on (default)");
-  }
-  if (this->current_speed_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Speed Sensor", this->current_speed_sensor_);
-  } else if (this->current_speed_lambda_) {
-    ESP_LOGCONFIG(TAG, "  Speed: lambda");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Speed: 100%% (default)");
-  }
-  LOG_UPDATE_INTERVAL(this);
-}
-
-void FilterLifetime::setup() {
-  this->last_update_ = millis();
-  this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
-  this->pref_.load(&this->runtime_minutes_);
-  if (std::isnan(this->runtime_minutes_) || std::isinf(this->runtime_minutes_) || this->runtime_minutes_ < 0.0f) {
-    this->runtime_minutes_ = 0.0f;
-  }
-}
-
 bool FilterLifetime::get_is_on_() {
-  // is_on_sensor_ state defaults to false before first publish, which conservatively
-  // skips accumulation until the sensor reports — acceptable at boot.
-  if (this->is_on_sensor_ != nullptr) {
+#ifdef USE_BINARY_SENSOR
+  // Reads false until the sensor first publishes, so nothing accumulates before then.
+  if (this->is_on_sensor_ != nullptr)
     return this->is_on_sensor_->state;
-  }
-  if (this->is_on_lambda_) {
+#endif
+  if (this->is_on_lambda_)
     return this->is_on_lambda_();
-  }
   return true;
 }
 
 float FilterLifetime::get_current_speed_() {
-  if (this->current_speed_sensor_ != nullptr) {
-    // NaN before first publish: return 0 to skip accumulation rather than assume 100%.
-    return std::isnan(this->current_speed_sensor_->state) ? 0.0f : this->current_speed_sensor_->state;
-  }
-  if (this->current_speed_lambda_) {
+  if (this->current_speed_sensor_ != nullptr)
+    return this->current_speed_sensor_->state;  // NaN before the first publish, treated as 0
+  if (this->current_speed_lambda_)
     return this->current_speed_lambda_();
-  }
   return 100.0f;
 }
 
-void FilterLifetime::update() {
-  uint32_t now = App.get_loop_component_start_time();
-  float elapsed_minutes = (now - this->last_update_) / 60000.0f;  // Convert ms to minutes
-  this->last_update_ = now;
-
-  bool is_on = this->get_is_on_();
-  float speed = this->get_current_speed_();
-
-  if (std::isnan(speed)) {
-    speed = 0.0f;
+void FilterLifetime::dump_config() {
+  LOG_SENSOR("", "Filter Lifetime", this);
+  ESP_LOGCONFIG(TAG,
+                "  Max lifetime: %" PRIu32 " min (%.1f days)\n"
+                "  Runtime: %.1f h",
+                this->max_lifetime_minutes_, this->max_lifetime_minutes_ / MINUTES_PER_DAY,
+                this->runtime_seconds_ / 3600.0f);
+#ifdef USE_BINARY_SENSOR
+  if (this->is_on_sensor_ != nullptr) {
+    LOG_BINARY_SENSOR("  ", "Is-on sensor", this->is_on_sensor_);
+  } else
+#endif
+  {
+    ESP_LOGCONFIG(TAG, "  Is-on: %s", this->is_on_lambda_ ? LOG_STR_LITERAL("lambda") : LOG_STR_LITERAL("always"));
   }
-  speed = std::max(0.0f, std::min(100.0f, speed));
-
-  ESP_LOGV(TAG, "Update: elapsed=%.2f min, is_on=%d, speed=%.1f%%", elapsed_minutes, is_on, speed);
-
-  if (is_on) {
-    float added = elapsed_minutes * (speed / 100.0f);
-    uint32_t prev_whole_minutes = static_cast<uint32_t>(this->runtime_minutes_);
-    this->runtime_minutes_ += added;
-    // Save only when the whole-minute count changes to limit flash wear.
-    if (static_cast<uint32_t>(this->runtime_minutes_) != prev_whole_minutes) {
-      this->pref_.save(&this->runtime_minutes_);
-    }
-    ESP_LOGV(TAG, "Added %.2f minutes, total runtime=%.2f", added, this->runtime_minutes_);
+  if (this->current_speed_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Speed sensor", this->current_speed_sensor_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Speed: %s",
+                  this->current_speed_lambda_ ? LOG_STR_LITERAL("lambda") : LOG_STR_LITERAL("100%"));
   }
-
-  float max_minutes = static_cast<float>(this->max_lifetime_minutes_);
-  float lifetime_pct = 100.0f;
-  if (max_minutes > 0.0f) {
-    lifetime_pct = 100.0f * std::max(0.0f, 1.0f - (this->runtime_minutes_ / max_minutes));
-  }
-
-  ESP_LOGV(TAG, "Runtime: %.1f/%.1f min, Remaining: %.1f%%", this->runtime_minutes_, max_minutes, lifetime_pct);
-  this->publish_state(lifetime_pct);
-
-  if (this->runtime_hours_sensor_ != nullptr) {
-    this->runtime_hours_sensor_->publish_state(this->runtime_minutes_ / 60.0f);
-  }
-
-  if (this->remaining_days_sensor_ != nullptr) {
-    float remaining_days = (max_minutes - this->runtime_minutes_) / (24.0f * 60.0f);
-    this->remaining_days_sensor_->publish_state(std::max(0.0f, remaining_days));
-  }
+  LOG_SENSOR("  ", "Runtime hours", this->runtime_hours_sensor_);
+  LOG_SENSOR("  ", "Remaining days", this->remaining_days_sensor_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 }  // namespace esphome::filter_lifetime

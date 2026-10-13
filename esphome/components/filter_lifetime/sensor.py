@@ -35,7 +35,10 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.Required(CONF_MAX_LIFETIME): cv.positive_time_period_minutes,
+            cv.Required(CONF_MAX_LIFETIME): cv.All(
+                cv.positive_time_period_minutes,
+                cv.Range(min=cv.TimePeriod(minutes=1)),
+            ),
             cv.Optional(CONF_IS_ON): cv.returning_lambda,
             cv.Optional(CONF_IS_ON_SENSOR): cv.use_id(binary_sensor.BinarySensor),
             cv.Optional(CONF_CURRENT_SPEED): cv.returning_lambda,
@@ -50,6 +53,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REMAINING_DAYS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DAY,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_DURATION,
                 icon="mdi:calendar-clock",
             ),
         }
