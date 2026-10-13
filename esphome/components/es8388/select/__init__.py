@@ -59,6 +59,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_ES8388_SELECT")
     hub = await cg.get_variable(config[CONF_ES8388_ID])
     selects = select.sub_selects(config, parent=hub)
     await selects(

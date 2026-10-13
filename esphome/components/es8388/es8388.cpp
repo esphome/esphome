@@ -111,7 +111,7 @@ void ES8388::setup() {
   // Power on ADC, Enable LIN&RIN, Power off MICBIAS, set int1lp to low power mode
   ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCPOWER, 0x09));
 
-#ifdef USE_SELECT
+#ifdef USE_ES8388_SELECT
   if (this->dac_output_select_ != nullptr) {
     if (this->dac_output_initial_.has_value()) {
       const DacOutputLine line = this->dac_output_initial_.value();
@@ -150,7 +150,7 @@ void ES8388::setup() {
 void ES8388::dump_config() {
   ESP_LOGCONFIG(TAG, "ES8388 Audio Codec:");
   LOG_I2C_DEVICE(this);
-#ifdef USE_SELECT
+#ifdef USE_ES8388_SELECT
   LOG_SELECT("  ", "DacOutputSelect", this->dac_output_select_);
   LOG_SELECT("  ", "ADCInputMicSelect", this->adc_input_mic_select_);
 #endif
