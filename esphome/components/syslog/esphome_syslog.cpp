@@ -7,7 +7,7 @@
 namespace esphome::syslog {
 
 // Map log levels to syslog severity using an array, indexed by ESPHome log level (1-7)
-static const uint8_t LOG_LEVEL_TO_SYSLOG_SEVERITY[] PROGMEM = {
+static constexpr uint8_t LOG_LEVEL_TO_SYSLOG_SEVERITY[] PROGMEM = {
     3,  // NONE
     3,  // ERROR
     4,  // WARN
