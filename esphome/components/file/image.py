@@ -225,7 +225,7 @@ def validate_dither_palette(value: list[int]) -> list[int]:
             color_map[quantized_color] = color
         else:
             raise cv.Invalid(
-                f"Color {color:#06x} in dither palette would overwrite color {color_map[quantized_color]:#06x} when quantized to 3bpp."
+                f"Color {color:#08x} in dither palette would overwrite color {color_map[quantized_color]:#08x} when quantized to 3bpp."
             )
     return value
 
@@ -350,7 +350,7 @@ async def write_image(
         )
 
     # Parse dither configuration
-    dither_config = normalize_dither(config.get(CONF_DITHER, "NONE"))
+    dither_config = config.get(CONF_DITHER, {"type": "NONE"})
     dither_type = dither_config[CONF_TYPE]
     dither = Image.Dither.NONE if dither_type == "NONE" else Image.Dither.FLOYDSTEINBERG
     palette = dither_config.get(CONF_PALETTE, None)
@@ -375,7 +375,7 @@ async def write_image(
     for frame_index in range(frame_count):
         image.seek(frame_index)
         encoder = IMAGE_TYPE[type](
-            width, height, transparency, dither, palette, invert_alpha
+            width, height, transparency, dither, invert_alpha, palette=palette
         )
         if byte_order is not None:
             # Check for valid type has already been done in validate_settings

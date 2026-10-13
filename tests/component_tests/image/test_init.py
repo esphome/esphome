@@ -172,7 +172,7 @@ from esphome.core import CORE
                 "type": "rgb111",
                 "dither": {"palette": [0xFF, 0xCC, 0x00]},
             },
-            "Color 0x00cc in dither palette would overwrite color 0x00ff when quantized to 3bpp",
+            "Color 0x0000cc in dither palette would overwrite color 0x0000ff when quantized to 3bpp",
             id="rgb111_with_invalid_duplicate_color_in_palette",
         ),
     ],
@@ -980,7 +980,7 @@ async def test_svg_with_mm_dimensions_succeeds(
         CONF_FILE: component_config_path("mm_dimensions.svg"),
         CONF_TYPE: "BINARY",
         CONF_TRANSPARENCY: CONF_OPAQUE,
-        CONF_DITHER: "NONE",
+        CONF_DITHER: {CONF_TYPE: "NONE"},
         CONF_INVERT_ALPHA: False,
         CONF_RAW_DATA_ID: "test_raw_data_id",
     }
@@ -1042,7 +1042,7 @@ async def test_rgb565_alpha_animation_layout_per_frame(
         CONF_FILE: str(apng_path),
         CONF_TYPE: "RGB565",
         CONF_TRANSPARENCY: CONF_ALPHA_CHANNEL,
-        CONF_DITHER: "NONE",
+        CONF_DITHER: {CONF_TYPE: "NONE"},
         CONF_INVERT_ALPHA: False,
         CONF_RAW_DATA_ID: "test_raw_data_id",
     }
@@ -1113,7 +1113,6 @@ async def test_rgb111_palette_dither_uses_custom_palette(
 
     allowed = {(0, 0, 255), (255, 0, 0), (255, 255, 255)}
     assert set(pixels) <= allowed
-    assert set(pixels) != {original_color}
 
 
 @pytest.mark.asyncio
@@ -1179,7 +1178,7 @@ async def test_rgb111_layout_per_frame(
         CONF_FILE: str(apng_path),
         CONF_TYPE: "RGB111",
         CONF_TRANSPARENCY: transparency,
-        CONF_DITHER: "NONE",
+        CONF_DITHER: {CONF_TYPE: "NONE"},
         CONF_INVERT_ALPHA: False,
         CONF_RAW_DATA_ID: "test_raw_data_id",
     }

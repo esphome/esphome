@@ -89,8 +89,9 @@ class ImageEncoder:
         height: int,
         transparency: str,
         dither: Image.Dither,
-        palette: list[int] | None,
         invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
     ):
         """
         :param width:  The image width in pixels (or bytes)
@@ -98,6 +99,7 @@ class ImageEncoder:
         :param transparency: Transparency type
         :param dither: Dither method
         :param invert_alpha: True if the alpha channel should be inverted; for monochrome formats inverts the colours.
+        :param palette: Optional palette for dithering
         """
         self.transparency = transparency
         self.width = width
@@ -167,12 +169,18 @@ class BitPackedEncoder(ImageEncoder):
         height: int,
         transparency: str,
         dither: Image.Dither,
-        palette: list[int] | None,
         invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
     ):
         self.bpp = bpp
         super().__init__(
-            (width * bpp + 7) // 8, height, transparency, dither, palette, invert_alpha
+            (width * bpp + 7) // 8,
+            height,
+            transparency,
+            dither,
+            invert_alpha,
+            palette=palette,
         )
         self.bitno = 0
 
@@ -199,10 +207,13 @@ class ImageBinary(BitPackedEncoder):
         height: int,
         transparency: str,
         dither: Image.Dither,
-        palette: list[int] | None,
         invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
     ):
-        super().__init__(1, width, height, transparency, dither, palette, invert_alpha)
+        super().__init__(
+            1, width, height, transparency, dither, invert_alpha, palette=palette
+        )
 
     def convert(self, image, path):
         if is_alpha_only(image):
@@ -228,12 +239,13 @@ class ImageRGB111(BitPackedEncoder):
         height: int,
         transparency: str,
         dither: Image.Dither,
-        palette: list[int] | None,
         invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
     ):
         bpp = 4 if transparency == CONF_ALPHA_CHANNEL else 3
         super().__init__(
-            bpp, width, height, transparency, dither, palette, invert_alpha
+            bpp, width, height, transparency, dither, invert_alpha, palette=palette
         )
         if palette is None:
             self.custom_palette = _RGB111_PALETTE
@@ -304,16 +316,17 @@ class ImageRGB565(ImageEncoder):
         height: int,
         transparency: str,
         dither: Image.Dither,
-        palette: list[int] | None,
         invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
     ):
         super().__init__(
             width * 2,
             height,
             transparency,
             dither,
-            palette,
             invert_alpha,
+            palette=palette,
         )
         self.alpha = [0] * width * height
 
@@ -366,8 +379,9 @@ class ImageRGB(ImageEncoder):
         height: int,
         transparency: str,
         dither: Image.Dither,
-        palette: list[int] | None,
         invert_alpha: bool,
+        *,
+        palette: list[int] | None = None,
     ):
         stride = 4 if transparency == CONF_ALPHA_CHANNEL else 3
         super().__init__(
@@ -375,8 +389,8 @@ class ImageRGB(ImageEncoder):
             height,
             transparency,
             dither,
-            palette,
             invert_alpha,
+            palette=palette,
         )
 
     def convert(self, image, path):
