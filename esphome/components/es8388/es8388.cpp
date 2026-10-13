@@ -114,8 +114,9 @@ void ES8388::setup() {
 #ifdef USE_SELECT
   if (this->dac_output_select_ != nullptr) {
     if (this->dac_output_initial_.has_value()) {
-      ES8388_ERROR_FAILED(this->set_dac_output(*this->dac_output_initial_));
-      this->dac_output_select_->publish_state(static_cast<size_t>(*this->dac_output_initial_));
+      const DacOutputLine line = this->dac_output_initial_.value();
+      ES8388_ERROR_FAILED(this->set_dac_output(line));
+      this->dac_output_select_->publish_state(static_cast<size_t>(line));
     } else {
       auto dac_power = this->get_dac_power();
       if (dac_power.has_value()) {
@@ -129,8 +130,9 @@ void ES8388::setup() {
   }
   if (this->adc_input_mic_select_ != nullptr) {
     if (this->adc_input_mic_initial_.has_value()) {
-      ES8388_ERROR_FAILED(this->set_adc_input_mic(*this->adc_input_mic_initial_));
-      this->adc_input_mic_select_->publish_state(static_cast<size_t>(*this->adc_input_mic_initial_));
+      const AdcInputMicLine line = this->adc_input_mic_initial_.value();
+      ES8388_ERROR_FAILED(this->set_adc_input_mic(line));
+      this->adc_input_mic_select_->publish_state(static_cast<size_t>(line));
     } else {
       auto mic_input = this->get_mic_input();
       if (mic_input.has_value()) {
