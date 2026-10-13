@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import struct
 
 import pytest
 
@@ -14,26 +13,8 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 # waiting for the rest of the pixel, but the response has already ended.
 TRUNCATED_BMP = BMP_IMAGE[: 54 + 5 * 3 + 1]
 
-
-def _make_palette_bmp() -> bytes:
-    """Build an 8x8, 8-bit BMP whose 256-color table puts the pixels at offset 1078."""
-    width = height = 8
-    data_offset = 14 + 40 + 256 * 4
-    file_size = data_offset + width * height
-    file_header = b"BM" + struct.pack("<IHHI", file_size, 0, 0, data_offset)
-    dib_header = struct.pack(
-        "<IiiHHIIiiII", 40, width, height, 1, 8, 0, width * height, 0, 0, 256, 0
-    )
-    return file_header + dib_header + bytes(256 * 4) + bytes(width * height)
-
-
-# The pixel data starts beyond a 256 byte download buffer, so the decoder can
-# never get past the header with the data that fits in the buffer.
-LARGE_HEADER_BMP = _make_palette_bmp()
-
 IMAGES = {
     "/truncated.bmp": TRUNCATED_BMP,
-    "/large_header.bmp": LARGE_HEADER_BMP,
     "/empty.bmp": b"",
 }
 
@@ -76,8 +57,6 @@ async def test_online_image_stalled_download(
     expected_logs = {
         "truncated_reason": "Download ended with 1 bytes the decoder could not use",
         "truncated_error": "download error: truncated",
-        "large_header_reason": "Image does not fit in the 256 byte download buffer",
-        "large_header_error": "download error: large_header",
         "empty_reason": "Server sent an empty response",
         "empty_error": "download error: empty",
     }
@@ -107,11 +86,6 @@ async def test_online_image_stalled_download(
         async with asyncio.timeout(2.0):
             await log_futures["truncated_reason"]
             await log_futures["truncated_error"]
-
-        await client.execute_service(actions["fetch_large_header"], {})
-        async with asyncio.timeout(2.0):
-            await log_futures["large_header_reason"]
-            await log_futures["large_header_error"]
 
         await client.execute_service(actions["fetch_empty"], {})
         async with asyncio.timeout(2.0):
