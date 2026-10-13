@@ -35,6 +35,7 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
 
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
   void build_full_duplex_config(i2s_std_config_t &std_cfg) override;
+  void full_duplex_rx_enabling(i2s_chan_handle_t rx_handle, uint32_t dma_desc_num) override;
 #endif
 
  protected:
@@ -48,6 +49,14 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   /// @brief Stops the I2S driver.
   void stop_driver_();
 
+  /// @brief Registers the DMA callbacks on a disabled RX channel and restarts the capture time byte counts.
+  /// @return True if successful, false otherwise
+  bool start_capture_count_(i2s_chan_handle_t rx_handle, uint32_t dma_desc_num);
+
+  /// @brief Reads the size of one DMA buffer from a started RX channel.
+  /// @return True if successful, false otherwise
+  bool read_dma_buffer_size_();
+
   /// @brief Attempts to correct a microphone DC offset; e.g., a microphones silent level is offset from 0. Applies a
   /// correction offset that is updated using an exponential moving average for all samples away from 0.
   /// @param data
@@ -60,10 +69,29 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
 
   static void mic_task(void *params);
 
+  /// @brief Records the byte count and time of each DMA buffer the driver queues for reading.
+  static bool i2s_on_recv_cb(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
+  /// @brief Removes a buffer the driver dropped because the task fell behind; it will never be read.
+  static bool i2s_on_recv_q_ovf_cb(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
+
   SemaphoreHandle_t active_listeners_semaphore_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
 
   TaskHandle_t task_handle_{nullptr};
+
+  // Written by the DMA interrupt and read by the mic task, under dma_lock_. Bytes queued for reading since the
+  // channel was enabled (minus dropped buffers, wrapping), and the time the newest buffer was queued.
+  portMUX_TYPE dma_lock_ = portMUX_INITIALIZER_UNLOCKED;
+  uint32_t dma_bytes_received_{0};
+  int64_t dma_receive_time_us_{0};
+
+  // Bytes the mic task has read since the channel was enabled, wrapping. A full duplex channel can stay enabled
+  // across microphone sessions, so this outlives the task.
+  uint32_t dma_bytes_read_{0};
+
+  // DMA layout of the RX channel, set when the driver starts
+  size_t dma_buffer_bytes_{0};
+  uint32_t dma_desc_num_{0};
 
   gpio_num_t din_pin_{I2S_GPIO_UNUSED};
   i2s_chan_handle_t rx_handle_{nullptr};
