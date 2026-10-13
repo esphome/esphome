@@ -19,4 +19,4 @@ number:
     tmp102_id: chip
     temperature_high:
       name: High
-      initial_value: 50
+      initial_value: 30

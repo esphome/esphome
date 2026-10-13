@@ -13,17 +13,17 @@ sensor:
     alert_polarity: active_high
     thermostat_mode: interrupt
     fault_queue: 6
+    temperature_high: 140°C
+    temperature_low: 120°C
 
 number:
   - platform: tmp102
     tmp102_id: tmp102_extended_temperature
     temperature_high:
       name: TMP102 High Threshold
-      initial_value: 140°C
       restore_value: true
     temperature_low:
       name: TMP102 Low Threshold
-      initial_value: 120°C
       restore_value: false
 
 binary_sensor:

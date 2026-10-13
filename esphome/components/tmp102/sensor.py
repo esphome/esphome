@@ -29,7 +29,7 @@ from . import (
     TMP102Component,
     build_configuration,
     encode_temperature,
-    get_number_configuration,
+    number_parent_extended,
     validate_tmp102_thresholds,
 )
 
@@ -68,26 +68,20 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    number_config = get_number_configuration(config[CONF_ID])
-    if not any(key in config for key in _ADVANCED_SCHEMA) and number_config is None:
+    has_numbers = number_parent_extended(config[CONF_ID]) is not None
+    if not has_numbers and not any(key in config for key in _ADVANCED_SCHEMA):
         return
 
     extended = config.get(CONF_EXTENDED_MODE, False)
-    high = (
-        number_config[CONF_TEMPERATURE_HIGH]
-        if number_config is not None
-        else config.get(CONF_TEMPERATURE_HIGH, TMP102_DEFAULT_THIGH)
-    )
-    low = (
-        number_config[CONF_TEMPERATURE_LOW]
-        if number_config is not None
-        else config.get(CONF_TEMPERATURE_LOW, TMP102_DEFAULT_TLOW)
-    )
     cg.add_define("USE_TMP102_CONFIGURE")
     cg.add(
         var.set_configuration(
             build_configuration(config),
-            encode_temperature(high, extended),
-            encode_temperature(low, extended),
+            encode_temperature(
+                config.get(CONF_TEMPERATURE_HIGH, TMP102_DEFAULT_THIGH), extended
+            ),
+            encode_temperature(
+                config.get(CONF_TEMPERATURE_LOW, TMP102_DEFAULT_TLOW), extended
+            ),
         )
     )

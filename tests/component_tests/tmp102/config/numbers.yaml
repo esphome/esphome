@@ -19,8 +19,6 @@ number:
     tmp102_id: chip
     temperature_high:
       name: High
-      initial_value: 30
     temperature_low:
       name: Low
-      initial_value: 28
       restore_value: false
