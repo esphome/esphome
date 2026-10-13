@@ -3,11 +3,22 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cmath>
+#include <utility>
+#include "esphome/components/host/preferences.h"
 #include "esphome/components/tmp102/tmp102.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::tmp102::testing {
+
+class EntityIdentity : public EntityBase {
+ public:
+  static void configure(EntityBase &entity, const char *name, uint32_t hash) {
+    auto configure = &EntityIdentity::configure_entity_;
+    (entity.*configure)(name, hash, 0);
+  }
+};
 
 class RegisterBus final : public i2c::I2CBus {
  public:
@@ -48,21 +59,32 @@ class TMP102Test : public ::testing::Test {
   RegisterBus bus_;
   TMP102Component chip_;
   binary_sensor::BinarySensor alert_;
+  TMP102LimitNumber high_{TMP102_LIMIT_HIGH};
+  TMP102LimitNumber low_{TMP102_LIMIT_LOW};
   unsigned publications_{0};
 
   void SetUp() override {
     new (&App) Application;
-    char name[] = "tmp102-regression-tests";
-    char friendly_name[] = "TMP102 tests";
-    App.pre_setup(name, 23, friendly_name, 12);
+    App.pre_setup("tmp102-regression-tests", 23, "TMP102 tests", 12);
+    host::setup_preferences();
+    host::host_preferences->reset();
     this->chip_.set_i2c_bus(&this->bus_);
     this->chip_.set_i2c_address(0x48);
     this->chip_.add_on_state_callback([this](float) { ++this->publications_; });
+    EntityIdentity::configure(this->high_, "High", 0x102001);
+    EntityIdentity::configure(this->low_, "Low", 0x102002);
+    for (auto *number : {&this->high_, &this->low_}) {
+      number->set_parent(&this->chip_);
+      number->traits.set_min_value(-55);
+      number->traits.set_max_value(127.9375f);
+      number->traits.set_step(0.0625f);
+    }
   }
 
   void TearDown() override {
     App.scheduler.cancel_timeout(&this->chip_, uint32_t{0});
     App.scheduler.call(millis());
+    host::host_preferences->reset();
     App.~Application();
   }
 
@@ -74,6 +96,31 @@ class TMP102Test : public ::testing::Test {
 
   void configure(uint16_t config = 0x0080, uint16_t high = 0x5000, uint16_t low = 0x4B00) {
     this->chip_.set_configuration(config, high, low);
+  }
+
+  static uint16_t encode(float temperature, bool extended = false) {
+    const int16_t steps = static_cast<int16_t>(std::lround(temperature / 0.0625f));
+    return static_cast<uint16_t>(static_cast<uint32_t>(static_cast<uint16_t>(steps)) << (extended ? 3 : 4));
+  }
+
+  void numbers_(float initial_high = 30, float initial_low = 25, bool extended = false) {
+    this->configure(extended ? 0x0090 : 0x0080, encode(initial_high, extended), encode(initial_low, extended));
+    if (extended) {
+      this->high_.traits.set_max_value(150);
+      this->low_.traits.set_max_value(150);
+    }
+    this->chip_.set_limit_control(&this->high_);
+    this->chip_.set_limit_control(&this->low_);
+  }
+
+  static float saved(TMP102LimitNumber &number) {
+    float value = NAN;
+    EXPECT_TRUE(number.make_entity_preference<float>().load(&value));
+    return value;
+  }
+
+  static void save(TMP102LimitNumber &number, float value) {
+    ASSERT_TRUE(number.make_entity_preference<float>().save(&value));
   }
 };
 
@@ -190,6 +237,62 @@ TEST_F(TMP102Test, OneShotPublishesAlertAfterDelayedRead) {
   EXPECT_FALSE(this->chip_.status_has_warning());
 }
 
+TEST_F(TMP102Test, QuantizedRuntimeValuesMatchRegistersAndPreferences) {
+  this->numbers_((10.0f - 32) * 5 / 9, (9.0f - 32) * 5 / 9);
+  this->chip_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, -12.25f);
+  EXPECT_FLOAT_EQ(this->low_.state, -12.75f);
+  EXPECT_EQ(this->bus_.registers[3], 0xF3C0);
+  for (auto [requested, expected] :
+       {std::pair{12.22f, 12.25f}, {-12.22f, -12.25f}, {12.03125f, 12.0625f}, {-12.03125f, -12.0625f}}) {
+    this->high_.make_call().set_value(requested).perform();
+    EXPECT_FLOAT_EQ(this->high_.state, expected);
+    EXPECT_FLOAT_EQ(saved(this->high_), expected);
+    EXPECT_FLOAT_EQ(static_cast<int16_t>(this->bus_.registers[3]) / 256.0f, expected);
+  }
+}
+
+TEST_F(TMP102Test, ExtendedModeRuntimeValueMatchesRegister) {
+  this->numbers_(140, 120, true);
+  this->chip_.setup();
+  this->high_.make_call().set_value(145.0625f).perform();
+  EXPECT_FLOAT_EQ(this->high_.state, 145.0625f);
+  EXPECT_EQ(this->bus_.registers[3], encode(145.0625f, true));
+  EXPECT_FLOAT_EQ(saved(this->high_), 145.0625f);
+}
+
+TEST_F(TMP102Test, HighOnlyInvalidRestoreFallsBackAgainstStaticLow) {
+  this->configure(0x0080, encode(30), encode(25));
+  this->chip_.set_limit_control(&this->high_);
+  save(this->high_, 20);
+  this->chip_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+  EXPECT_EQ(this->bus_.registers[3], encode(30));
+  EXPECT_EQ(this->bus_.registers[2], encode(25));
+  EXPECT_FLOAT_EQ(saved(this->high_), 30);
+}
+
+TEST_F(TMP102Test, OrderingUsesAcceptedQuantizedThreshold) {
+  this->numbers_(30.02f, 30.01f);
+  this->chip_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+  EXPECT_FLOAT_EQ(this->low_.state, 30);
+  this->high_.make_call().set_value(29.96f).perform();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+  this->high_.make_call().set_value(29.99f).perform();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+}
+
+TEST_F(TMP102Test, FailedThresholdWriteWarningClearsAfterSuccessfulRead) {
+  this->numbers_();
+  this->chip_.setup();
+  this->bus_.fail_write = 3;
+  this->high_.make_call().set_value(90).perform();
+  EXPECT_TRUE(this->chip_.status_has_warning());
+  this->chip_.update();
+  EXPECT_FALSE(this->chip_.status_has_warning());
+}
+
 TEST_F(TMP102Test, RestoresRegistersAfterChipOnlyResetBeforePublishing) {
   this->configure(0x0090, 0x2D00, 0x2A80);
   this->chip_.setup();
@@ -302,6 +405,87 @@ TEST_F(TMP102Test, FailureOfAnySetupWriteMarksComponentFailed) {
     failed.setup();
     EXPECT_TRUE(failed.is_failed());
   }
+}
+
+TEST_F(TMP102Test, InvalidRestoredPairIsRepairedAfterSuccessfulSetup) {
+  this->numbers_();
+  save(this->high_, 20);
+  save(this->low_, 35);
+  this->chip_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+  EXPECT_FLOAT_EQ(this->low_.state, 25);
+  EXPECT_FLOAT_EQ(saved(this->high_), 30);
+  EXPECT_FLOAT_EQ(saved(this->low_), 25);
+}
+
+TEST_F(TMP102Test, InvalidRestoredValuesAreRepaired) {
+  this->numbers_();
+  save(this->high_, NAN);
+  save(this->low_, INFINITY);
+  this->chip_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+  EXPECT_FLOAT_EQ(this->low_.state, 25);
+}
+
+TEST_F(TMP102Test, FailedSetupDoesNotOverwritePreferences) {
+  this->numbers_();
+  save(this->high_, 90);
+  save(this->low_, 85);
+  this->bus_.fail_write = 3;
+  this->chip_.setup();
+  EXPECT_TRUE(this->chip_.is_failed());
+  EXPECT_FALSE(this->high_.has_state());
+  EXPECT_FLOAT_EQ(saved(this->high_), 90);
+  EXPECT_FLOAT_EQ(saved(this->low_), 85);
+}
+
+TEST_F(TMP102Test, FailedSetupRejectsThresholdChanges) {
+  this->numbers_();
+  save(this->high_, 90);
+  this->bus_.fail_write = 3;
+  this->chip_.setup();
+  ASSERT_TRUE(this->chip_.is_failed());
+  const unsigned writes = this->bus_.writes;
+  this->high_.make_call().set_value(60).perform();
+  EXPECT_FALSE(this->high_.has_state());
+  EXPECT_EQ(this->bus_.writes, writes);
+  EXPECT_FLOAT_EQ(saved(this->high_), 90);
+}
+
+TEST_F(TMP102Test, SetupOnlySavesChangedThresholds) {
+  this->numbers_();
+  save(this->high_, 35);
+  this->chip_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, 35);
+  EXPECT_FLOAT_EQ(this->low_.state, 25);
+  EXPECT_EQ(this->bus_.registers[3], encode(35));
+  float value;
+  EXPECT_FALSE(this->low_.make_entity_preference<float>().load(&value));
+}
+
+TEST_F(TMP102Test, FailedNumberWriteKeepsAcceptedState) {
+  this->numbers_();
+  save(this->high_, 90);
+  save(this->low_, 85);
+  this->chip_.setup();
+  unsigned publications = 0;
+  this->high_.add_on_state_callback([&publications](float) { ++publications; });
+  this->bus_.fail_write = 3;
+  this->high_.make_call().set_value(100).perform();
+  EXPECT_FLOAT_EQ(this->high_.state, 90);
+  EXPECT_EQ(publications, 1);
+  EXPECT_FLOAT_EQ(saved(this->high_), 90);
+}
+
+TEST_F(TMP102Test, RestoreDisabledNeverChangesSavedValue) {
+  this->numbers_();
+  save(this->high_, 90);
+  this->high_.set_restore_value(false);
+  this->chip_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+  this->high_.make_call().set_value(40).perform();
+  EXPECT_FLOAT_EQ(this->high_.state, 40);
+  EXPECT_FLOAT_EQ(saved(this->high_), 90);
 }
 
 }  // namespace esphome::tmp102::testing
