@@ -929,7 +929,10 @@ async def repeat_action_to_code(
     actions = await build_action_list(
         config[CONF_THEN],
         cg.TemplateArguments(cg.uint32, *template_arg.args),
-        [(cg.uint32, "iteration"), *args],
+        [
+            (cg.uint32, "iteration"),
+            *((type_, "" if name == "iteration" else name) for type_, name in args),
+        ],
     )
     for action in actions:
         cg.add(var.add_then_action(action))

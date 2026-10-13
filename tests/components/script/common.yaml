@@ -71,3 +71,11 @@ script:
           count: 5
           then:
             - logger.log: looping!
+      - repeat:
+          count: 2
+          then:
+            - repeat:
+                count: 2
+                then:
+                  - delay: 200ms
+                  - lambda: 'ESP_LOGD("main", "inner iteration %u", iteration);'
