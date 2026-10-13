@@ -2,6 +2,7 @@ import base64
 import binascii
 from collections.abc import Callable
 import logging
+import secrets
 from typing import Any
 
 from esphome import automation
@@ -44,6 +45,11 @@ noise_ns = cg.esphome_ns.namespace("noise")
 NoiseStream = noise_ns.class_("NoiseStream")
 
 CONFIG_SCHEMA = cv.Schema({})
+
+
+def generate_encryption_key() -> str:
+    """A fresh random key in the base64 form the yaml takes."""
+    return base64.b64encode(secrets.token_bytes(32)).decode()
 
 
 def validate_encryption_key(value: Any) -> str:

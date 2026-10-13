@@ -1057,7 +1057,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     cxx = (toolchain_tool(paths.toolchain, "g++"),)
     lines = [
         *tool_lines((toolchain_tool(paths.toolchain, "gcc"),), cxx, ccache),
-        *compile_rule_lines(),
+        *compile_rule_lines(ccache),
         *ar_rule_lines(toolchain_tool(paths.toolchain, "ar")),
         *pch_rule_lines(),
         "rule link",

@@ -41,7 +41,7 @@ noise.register_set_key_action(DOMAIN, TcpUart)
 
 BASE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(TcpUart),
+        cv.GenerateID(): cv.All(cv.declare_id(TcpUart), uart.mark_unclocked),
         cv.Required(CONF_PORT): cv.port,
         cv.Optional(CONF_BAUD_RATE, default=9600): cv.int_range(min=1),
         cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
