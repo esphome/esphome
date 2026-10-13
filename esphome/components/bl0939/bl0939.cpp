@@ -129,7 +129,11 @@ void BL0939::received_package_(const DataPacket *data) const {
 }
 
 void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
-  ESP_LOGCONFIG(TAG, "BL0939:");
+  ESP_LOGCONFIG(TAG,
+                "BL0939:\n"
+                "  Mode: %s",
+                this->mode_ == BL0939Mode::BL0939_MODE_CURRENT_TRANSFORMER ? LOG_STR_LITERAL("current_transformer")
+                                                                           : LOG_STR_LITERAL("direct"));
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current 1", this->current_sensor_1_);
   LOG_SENSOR("", "Current 2", this->current_sensor_2_);
