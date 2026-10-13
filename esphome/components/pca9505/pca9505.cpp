@@ -5,11 +5,11 @@ namespace esphome::pca9505 {
 
 // Each register block holds one byte per port. Add the port number to reach a single
 // port, or set the auto-increment bit to transfer the whole block in one go.
-const uint8_t INPUT_REG = 0x00;
-const uint8_t OUTPUT_REG = 0x08;
-const uint8_t INVERT_REG = 0x10;
-const uint8_t CONFIG_REG = 0x18;
-const uint8_t AUTO_INCREMENT = 0x80;
+static constexpr uint8_t INPUT_REG = 0x00;
+static constexpr uint8_t OUTPUT_REG = 0x08;
+static constexpr uint8_t INVERT_REG = 0x10;
+static constexpr uint8_t CONFIG_REG = 0x18;
+static constexpr uint8_t AUTO_INCREMENT = 0x80;
 
 ESPHOME_LOG_TAG(TAG, "pca9505");
 
@@ -80,7 +80,7 @@ bool PCA9505Component::read_bank_(uint8_t bank) {
     return false;
 
   if (this->read_register(INPUT_REG + bank, &this->input_[bank], 1) != i2c::ERROR_OK) {
-    this->status_set_warning("read register failed");
+    this->status_set_warning(LOG_STR("Failed to read input register"));
     return false;
   }
   this->status_clear_warning();
@@ -92,7 +92,7 @@ bool PCA9505Component::write_bank_(uint8_t reg, uint8_t bank, uint8_t value) {
     return false;
 
   if (this->write_register(reg + bank, &value, 1) != i2c::ERROR_OK) {
-    this->status_set_warning("write register failed");
+    this->status_set_warning(LOG_STR("Failed to write register"));
     return false;
   }
   this->status_clear_warning();
@@ -108,7 +108,7 @@ bool PCA9505Component::write_all_banks_(uint8_t reg, uint8_t value) {
     bank = value;
   }
   if (this->write_register(reg | AUTO_INCREMENT, values, sizeof(values)) != i2c::ERROR_OK) {
-    this->status_set_warning("write register failed");
+    this->status_set_warning(LOG_STR("Failed to write register"));
     return false;
   }
   this->status_clear_warning();
@@ -117,7 +117,7 @@ bool PCA9505Component::write_all_banks_(uint8_t reg, uint8_t value) {
 
 float PCA9505Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCA9505GPIOPin::setup() { pin_mode(flags_); }
+void PCA9505GPIOPin::setup() { this->pin_mode(this->flags_); }
 
 void PCA9505GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 

@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -41,7 +42,7 @@ class PCA9505Component final : public Component,
   uint8_t input_[BANK_COUNT]{};
 };
 
-class PCA9505GPIOPin final : public GPIOPin {
+class PCA9505GPIOPin final : public GPIOPin, public Parented<PCA9505Component> {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
@@ -49,7 +50,6 @@ class PCA9505GPIOPin final : public GPIOPin {
   void digital_write(bool value) override;
   size_t dump_summary(char *buffer, size_t len) const override;
 
-  void set_parent(PCA9505Component *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
@@ -57,7 +57,6 @@ class PCA9505GPIOPin final : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
-  PCA9505Component *parent_{nullptr};
   uint8_t pin_{0};
   bool inverted_{false};
   gpio::Flags flags_{};
