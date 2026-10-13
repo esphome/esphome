@@ -9,10 +9,8 @@
 
 namespace esphome::midea::ac {
 
-static const auto &TAG = Constants::TAG;
-
 void PurifierSwitch::dump_config() {
-  LOG_SWITCH("  ", "Purifier", this);
+  switch_::log_switch(Constants::TAG, "  ", LOG_STR_LITERAL("Purifier"), this);
   ESP_LOGCONFIG(Constants::TAG, "  Status max age: %" PRIu32 "ms", this->status_max_age_);
 }
 
