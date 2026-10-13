@@ -6,6 +6,7 @@ namespace esphome::sx126x {
 
 ESPHOME_LOG_TAG(TAG, "sx126x");
 static const uint16_t RAMP[8] PROGMEM = {10, 20, 40, 80, 200, 800, 1700, 3400};
+// Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
 static const uint32_t BW_HZ[31] PROGMEM = {4800,   5800,   7300,   9700,   11700,  14600,  19500,  23400,
                                            29300,  39000,  46900,  58600,  78200,  93800,  117300, 156200,
                                            187200, 234300, 312000, 373600, 467000, 7810,   10420,  15630,
@@ -17,12 +18,6 @@ static const uint8_t BW_FSK[21] PROGMEM = {
     FSK_BW_4800,   FSK_BW_5800,   FSK_BW_7300,   FSK_BW_9700,   FSK_BW_11700,  FSK_BW_14600,  FSK_BW_19500,
     FSK_BW_23400,  FSK_BW_29300,  FSK_BW_39000,  FSK_BW_46900,  FSK_BW_58600,  FSK_BW_78200,  FSK_BW_93800,
     FSK_BW_117300, FSK_BW_156200, FSK_BW_187200, FSK_BW_234300, FSK_BW_312000, FSK_BW_373600, FSK_BW_467000};
-
-static uint32_t bw_hz(uint8_t bandwidth) {
-  uint32_t hz;
-  progmem_memcpy(&hz, &BW_HZ[bandwidth], sizeof(hz));
-  return hz;
-}
 
 static constexpr uint32_t RESET_DELAY_HIGH_US = 5000;
 static constexpr uint32_t RESET_DELAY_LOW_US = 2000;
@@ -223,7 +218,7 @@ void SX126x::configure() {
   // configure modem
   if (this->modulation_ == PACKET_TYPE_LORA) {
     // set modulation params
-    float duration = 1000.0f * (1UL << this->spreading_factor_) / bw_hz(this->bandwidth_);
+    float duration = 1000.0f * (1UL << this->spreading_factor_) / BW_HZ[this->bandwidth_];
     buf[0] = this->spreading_factor_;
     buf[1] = progmem_read_byte(&BW_LORA[this->bandwidth_ - SX126X_BW_7810]);
     buf[2] = this->coding_rate_;
@@ -517,7 +512,7 @@ void SX126x::dump_config() {
                 "  Payload Length: %" PRIu32 "\n"
                 "  CRC Enable: %s\n"
                 "  Rx Start: %s",
-                this->version_, this->frequency_, bw_hz(this->bandwidth_), this->pa_power_,
+                this->version_, this->frequency_, BW_HZ[this->bandwidth_], this->pa_power_,
                 progmem_read_uint16(&RAMP[this->pa_ramp_]), this->payload_length_, TRUEFALSE(this->crc_enable_),
                 TRUEFALSE(this->rx_start_));
   if (this->modulation_ == PACKET_TYPE_GFSK) {
