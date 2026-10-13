@@ -3,6 +3,7 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "hon_climate.h"
 #include "hon_packet.h"
 
@@ -19,6 +20,27 @@ constexpr std::chrono::milliseconds CONTROL_MESSAGE_RETRIES_INTERVAL = std::chro
 constexpr size_t ALARM_STATUS_REQUEST_INTERVAL_MS = 600000;
 const uint8_t ONE_BUF[] = {0x00, 0x01};
 const uint8_t ZERO_BUF[] = {0x00, 0x00};
+
+// Alarm texts indexed by alarm code; the last entry is the fallback for unknown codes
+PROGMEM_STRING_TABLE(
+    HonAlarmMessages, "Outdoor module failure", "Outdoor defrost sensor failure",
+    "Outdoor compressor exhaust sensor failure", "Outdoor EEPROM abnormality", "Indoor coil sensor failure",
+    "Indoor-outdoor communication failure", "Power supply overvoltage protection",
+    "Communication failure between panel and indoor unit", "Outdoor compressor overheat protection",
+    "Outdoor environmental sensor abnormality", "Full water protection", "Indoor EEPROM failure",
+    "Outdoor out air sensor failure", "CBD and module communication failure", "Indoor DC fan failure",
+    "Outdoor DC fan failure", "Door switch failure", "Dust filter needs cleaning reminder", "Water shortage protection",
+    "Humidity sensor failure", "Indoor temperature sensor failure", "Manipulator limit failure",
+    "Indoor PM2.5 sensor failure", "Outdoor PM2.5 sensor failure", "Indoor heating overload/high load alarm",
+    "Outdoor AC current protection", "Outdoor compressor operation abnormality", "Outdoor DC current protection",
+    "Outdoor no-load failure", "CT current abnormality", "Indoor cooling freeze protection",
+    "High and low pressure protection", "Compressor out air temperature is too high",
+    "Outdoor evaporator sensor failure", "Outdoor cooling overload", "Water pump drainage failure",
+    "Three-phase power supply failure", "Four-way valve failure", "External alarm/scraper flow switch failure",
+    "Temperature cutoff protection alarm", "Different mode operation failure", "Electronic expansion valve failure",
+    "Dual heat source sensor Tw failure", "Communication failure with the wired controller",
+    "Indoor unit address duplication failure", "50Hz zero crossing failure", "Outdoor unit failure",
+    "Formaldehyde sensor failure", "VOC sensor failure", "CO2 sensor failure", "Firewall failure", "Unknown");
 
 HonClimate::HonClimate()
     : cleaning_status_(CleaningState::NO_CLEANING), got_valid_outdoor_temp_(false), active_alarms_{0x00, 0x00, 0x00,
@@ -687,9 +709,16 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
             if ((packet[2 + i] & alarm_bit) != (this->active_alarms_[i] & alarm_bit)) {
               bool alarm_status = (packet[2 + i] & alarm_bit) != 0;
               int log_level = alarm_status ? ESPHOME_LOG_LEVEL_WARN : ESPHOME_LOG_LEVEL_INFO;
-              const char *alarm_message = alarm_code < esphome::haier::hon_protocol::HON_ALARM_COUNT
-                                              ? esphome::haier::hon_protocol::HON_ALARM_MESSAGES[alarm_code].c_str()
-                                              : "Unknown";
+#ifdef USE_ESP8266
+              // Static, since on_alarm automations may keep the message across a delay
+              static char alarm_message[HonAlarmMessages::MAX_LENGTH + 1];
+              ESPHOME_strncpy_P(alarm_message,
+                                reinterpret_cast<const char *>(
+                                    HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX)),
+                                sizeof(alarm_message));
+#else
+              const char *alarm_message = HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX);
+#endif
               esp_log_printf_(log_level, TAG, __LINE__, "Alarm %s (%d): %s", alarm_status ? "activated" : "deactivated",
                               alarm_code, alarm_message);
               if (alarm_status) {
