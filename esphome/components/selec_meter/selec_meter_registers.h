@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace esphome::selec_meter {
 
 static const float TWO_DEC_UNIT = 0.01;
@@ -93,6 +95,26 @@ static const uint16_t EM4M_EXPORT_REACTIVE_ENERGY_L3 = 0x0066;  // kVArh3 - Expo
 static const uint16_t EM4M_APPARENT_ENERGY_L1 = 0x006C;         // kVAh-1
 static const uint16_t EM4M_APPARENT_ENERGY_L2 = 0x006E;         // kVAh-2
 static const uint16_t EM4M_APPARENT_ENERGY_L3 = 0x0070;         // kVAh-3
+
+// The decoder reads L2/L3 as the L1 register plus one or two strides; the L2/L3 names above
+// document the datasheet and are checked against that stride here.
+static constexpr uint16_t EM4M_PHASE_STRIDE = 2;
+#define SELEC_EM4M_CHECK_STRIDE(name) \
+  static_assert(EM4M_##name##_L2 == EM4M_##name##_L1 + EM4M_PHASE_STRIDE && \
+                    EM4M_##name##_L3 == EM4M_##name##_L1 + 2 * EM4M_PHASE_STRIDE, \
+                #name " per-phase registers must be EM4M_PHASE_STRIDE apart");
+SELEC_EM4M_CHECK_STRIDE(VOLTAGE)
+SELEC_EM4M_CHECK_STRIDE(CURRENT)
+SELEC_EM4M_CHECK_STRIDE(ACTIVE_POWER)
+SELEC_EM4M_CHECK_STRIDE(REACTIVE_POWER)
+SELEC_EM4M_CHECK_STRIDE(APPARENT_POWER)
+SELEC_EM4M_CHECK_STRIDE(POWER_FACTOR)
+SELEC_EM4M_CHECK_STRIDE(IMPORT_ACTIVE_ENERGY)
+SELEC_EM4M_CHECK_STRIDE(EXPORT_ACTIVE_ENERGY)
+SELEC_EM4M_CHECK_STRIDE(IMPORT_REACTIVE_ENERGY)
+SELEC_EM4M_CHECK_STRIDE(EXPORT_REACTIVE_ENERGY)
+SELEC_EM4M_CHECK_STRIDE(APPARENT_ENERGY)
+#undef SELEC_EM4M_CHECK_STRIDE
 
 // Far outside the main 0-113 register block; read via a separate Modbus transaction.
 static const uint16_t EM4M_SERIAL_NUMBER = 0x02AC;  // Serial No. (Hex), 30684

@@ -1,6 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, modbus, sensor, text_sensor
-from esphome.components.const import CONF_BYTE_ORDER, CONF_SERIAL_NUMBER
+from esphome.components.const import (
+    BYTE_ORDER_BIG,
+    BYTE_ORDER_LITTLE,
+    CONF_BYTE_ORDER,
+    CONF_SERIAL_NUMBER,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE_POWER,
@@ -91,21 +96,25 @@ MODELS = {
     MODEL_EM4M: SelecMeterModel.EM4M,
 }
 
-# Naming matches the meter's own register 40070 (Endianness Selection):
-# MSRF = Big Endian (straightforward ABCD word order), LSRF = Mid Little Endian (word-swapped CDAB order).
+# Register word order of the FP32 values: big_endian sends the high word first (ABCD),
+# little_endian the low word first (CDAB). msrf/lsrf are aliases matching the meter's own
+# register 40070 (Endianness Selection) menu names.
 BYTE_ORDER_MSRF = "msrf"
 BYTE_ORDER_LSRF = "lsrf"
 # Maps the YAML option directly to the C++ word_swap bool -- no enum needed on the C++ side.
 BYTE_ORDER_WORD_SWAP = {
+    BYTE_ORDER_BIG: False,
+    BYTE_ORDER_LITTLE: True,
     BYTE_ORDER_MSRF: False,
     BYTE_ORDER_LSRF: True,
 }
+validate_byte_order = cv.enum(BYTE_ORDER_WORD_SWAP, lower=True)
 # Default byte order assumed per model when `byte_order` isn't set explicitly.
 # EM2M: preserves this component's original (word-swapped) decode behavior.
 # EM4M: matches the meter's factory default (MSRF / Big Endian), confirmed against real hardware.
-DEFAULT_WORD_SWAP = {
-    MODEL_EM2M: True,
-    MODEL_EM4M: False,
+DEFAULT_BYTE_ORDER = {
+    MODEL_EM2M: BYTE_ORDER_LITTLE,
+    MODEL_EM4M: BYTE_ORDER_BIG,
 }
 
 # Sensors available on both EM2M and EM4M. On EM4M these read the aggregate
@@ -363,6 +372,8 @@ def _validate_model_sensors(config: ConfigType) -> ConfigType:
                     f"and is not yet supported with 'model: {MODEL_EM4M}'",
                     [key],
                 )
+    if CONF_BYTE_ORDER not in config:
+        config[CONF_BYTE_ORDER] = validate_byte_order(DEFAULT_BYTE_ORDER[model])
     return config
 
 
@@ -382,7 +393,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend({cv.Optional(CONF_MODEL, default=MODEL_EM2M): cv.enum(MODELS, lower=True)})
-    .extend({cv.Optional(CONF_BYTE_ORDER): cv.enum(BYTE_ORDER_WORD_SWAP, lower=True)})
+    .extend({cv.Optional(CONF_BYTE_ORDER): validate_byte_order})
     .extend(
         {
             cv.Optional(CONF_SERIAL_NUMBER): text_sensor.text_sensor_schema(),
@@ -407,9 +418,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)
     cg.add(var.set_model(config[CONF_MODEL]))
-    if (word_swap := config.get(CONF_BYTE_ORDER)) is None:
-        word_swap = DEFAULT_WORD_SWAP[config[CONF_MODEL]]
-    cg.add(var.set_word_swap(word_swap))
+    cg.add(var.set_word_swap(config[CONF_BYTE_ORDER]))
     for name in ALL_SENSORS:
         if name in config:
             sens = await sensor.new_sensor(config[name])

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 #ifdef USE_BINARY_SENSOR
@@ -108,7 +109,7 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
   void dump_config() override;
 
  protected:
-  // Returns false (and publishes nothing) on a malformed payload; drives status_set_warning()/
+  // Returns false (and publishes nothing) on a short payload; drives status_set_warning()/
   // status_clear_warning() in on_read_input_registers() so component health tracks the main block
   // specifically.
   bool decode_em2m_(std::span<const uint16_t> registers);
@@ -141,10 +142,11 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
   // could just as easily mean the bus is briefly busy). Only durable failures count toward
   // MAX_OPTIONAL_READ_FAILURES -- a transient failure retries forever instead of eventually latching
   // an optional read disabled for a reason that was never actually "unsupported register".
-  void fail_current_read_(const char *reason, bool durable = false);
+  // `reason` may be nullptr when the caller has already logged the failure.
+  void fail_current_read_(const LogString *reason, bool durable = false);
 
-  // EM4M per-phase sensors -- phases_[0]/[1]/[2] are L1/L2/L3 (A/B/C), each register 2 words
-  // (one register step) apart from the next phase's, per EM4M_*_L1 in selec_meter_registers.h.
+  // EM4M per-phase sensors -- phases_[0]/[1]/[2] are L1/L2/L3 (A/B/C), each register
+  // EM4M_PHASE_STRIDE apart from the next phase's, per selec_meter_registers.h.
   struct Phase {
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
