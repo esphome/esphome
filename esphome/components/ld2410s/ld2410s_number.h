@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_NUMBER
+#if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
 
 #include "ld2410s.h"
 #include "esphome/components/number/number.h"
@@ -13,12 +13,12 @@ class LD2410SNumber final : public number::Number, public Parented<LD2410SCompon
  public:
   LD2410SNumber(Parameter parameter, float scale) : parameter_(parameter), scale_(scale) {}
 
-  void publish_raw(uint32_t raw) { this->publish_state(raw * this->scale_); }
+  void publish_raw(uint8_t raw) { this->publish_state(raw * this->scale_); }
 
  protected:
   void control(float value) override {
     // Show the step the module got, not a value between two steps
-    const uint32_t raw = lroundf(value / this->scale_);
+    const uint8_t raw = lroundf(value / this->scale_);  // the schema keeps every parameter within a byte
     if (this->parent_->set_parameter(this->parameter_, raw))
       this->publish_raw(raw);
   }
@@ -29,4 +29,4 @@ class LD2410SNumber final : public number::Number, public Parented<LD2410SCompon
 
 }  // namespace esphome::ld2410s
 
-#endif  // USE_NUMBER
+#endif  // USE_NUMBER && USE_LD2410S_PARAMETERS

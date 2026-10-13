@@ -84,12 +84,12 @@ void LD2410SComponent::dump_config() {
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
 #endif
-#ifdef USE_NUMBER
+#if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
   for (auto *number : this->numbers_) {
     LOG_NUMBER("  ", "Setting", number);
   }
 #endif
-#ifdef USE_SELECT
+#if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
   LOG_SELECT("  ", "Response Speed", this->response_speed_select_);
 #endif
 }
@@ -132,7 +132,7 @@ void LD2410SComponent::loop() {
 }
 
 #ifdef USE_LD2410S_PARAMETERS
-bool LD2410SComponent::set_parameter(Parameter parameter, uint32_t value) {
+bool LD2410SComponent::set_parameter(Parameter parameter, uint8_t value) {
   // All six are written together, so the other five must be the module's own values
   if (!this->init_done_ || !this->parameters_known_) {
     ESP_LOGW(TAG, "Parameters not read yet, change ignored");
@@ -401,20 +401,20 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     this->restart_init_(App.get_loop_component_start_time() + COMMAND_GAP_MS);
     return;
   }
+#endif
   if (ack != 0) {
     // Leave the command pending so the timeout resends it
     ESP_LOGW(TAG, "Module rejected command %04X, ack %04X", command, ack);
     return;
   }
-  if (command == PARAMETERS_READ_CMD && !this->handle_parameters_(&payload[4], len - 4)) {
-    // A short answer leaves the read pending the same way, so init cannot finish without the values
+  // A short answer leaves the read pending the same way, so init cannot finish without the values
+#ifdef USE_LD2410S_PARAMETERS
+  if (command == PARAMETERS_READ_CMD && !this->handle_parameters_(&payload[4], len - 4))
     return;
-  }
 #endif
 #ifdef USE_TEXT_SENSOR
-  if (command == VERSION_READ_CMD) {
-    this->handle_version_(&payload[4], len - 4);
-  }
+  if (command == VERSION_READ_CMD && !this->handle_version_(&payload[4], len - 4))
+    return;
 #endif
   this->awaiting_ack_ = false;
   this->step_timeouts_ = 0;
@@ -440,18 +440,21 @@ bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
     ESP_LOGW(TAG, "Parameter answer too short (%u bytes)", len);
     return false;
   }
-  // Every parameter fits the low byte of its little-endian value; writes stay refused otherwise,
-  // so a cut-down value is never sent back
-  bool fits = true;
+  // Every parameter must fit the low byte of its little-endian value; otherwise nothing is stored or
+  // published and writes stay refused, so a cut-down value is never shown or sent back
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
     const uint8_t *v = &values[i * PARAMETER_VALUE_SIZE];
     if ((v[1] | v[2] | v[3]) != 0) {
-      ESP_LOGW(TAG, "Parameter %u out of range: %" PRIu32, i, encode_uint32(v[3], v[2], v[1], v[0]));
-      fits = false;
+      ESP_LOGW(TAG, "Parameter %u out of range: %" PRIu32 ", changes stay disabled", i,
+               encode_uint32(v[3], v[2], v[1], v[0]));
+      this->parameters_known_ = false;
+      return true;
     }
-    this->parameters_[i] = v[0];
   }
-  this->parameters_known_ = fits;
+  for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
+    this->parameters_[i] = values[i * PARAMETER_VALUE_SIZE];
+  }
+  this->parameters_known_ = true;
   this->publish_parameters_();
   ESP_LOGD(TAG, "Parameters: gates %u to %u, no delay %u s, frequencies %u/%u dHz, response speed %u",
            this->parameters_[1], this->parameters_[0], this->parameters_[2], this->parameters_[3], this->parameters_[4],
@@ -461,10 +464,11 @@ bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
+// Returns false when the answer is cut short
+bool LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
   if (len < VERSION_SIZE) {
     ESP_LOGW(TAG, "Version answer too short (%u bytes)", len);
-    return;
+    return false;
   }
   const uint8_t *v = &values[VERSION_TYPE_SIZE];
   char version[18];
@@ -476,6 +480,7 @@ void LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
     this->version_text_sensor_->publish_state(version);
   }
 #endif
+  return true;
 }
 #endif
 
@@ -493,14 +498,14 @@ void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 
 #ifdef USE_LD2410S_PARAMETERS
 void LD2410SComponent::publish_parameters_() {
-#ifdef USE_NUMBER
+#if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
     if (this->numbers_[i] != nullptr) {
       this->numbers_[i]->publish_raw(this->parameters_[i]);
     }
   }
 #endif
-#ifdef USE_SELECT
+#if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
   if (this->response_speed_select_ != nullptr) {
     const uint8_t speed = this->parameters_[static_cast<uint8_t>(Parameter::PARAMETER_RESPONSE_SPEED)];
     for (uint8_t i = 0; i < RESPONSE_SPEED_COUNT; i++) {

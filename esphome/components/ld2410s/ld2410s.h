@@ -14,7 +14,7 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
-#ifdef USE_SELECT
+#if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
 #include "esphome/components/select/select.h"
 #endif
 
@@ -39,7 +39,7 @@ static constexpr uint8_t PARAMETER_COUNT = static_cast<uint8_t>(Parameter::PARAM
 static constexpr uint8_t RESPONSE_SPEEDS[] PROGMEM = {5, 10};
 static constexpr uint8_t RESPONSE_SPEED_COUNT = sizeof(RESPONSE_SPEEDS);
 
-#ifdef USE_NUMBER
+#if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
 class LD2410SNumber;
 #endif
 
@@ -53,7 +53,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
 #endif
-#ifdef USE_SELECT
+#if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
   SUB_SELECT(response_speed)
 #endif
 
@@ -65,12 +65,12 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   /// Store a parameter in the module's units; loop() then writes all of them to the module.
   /// Returns false, and changes nothing, until the module's own values have been read.
 #ifdef USE_LD2410S_PARAMETERS
-  bool set_parameter(Parameter parameter, uint32_t value);
-#endif
+  bool set_parameter(Parameter parameter, uint8_t value);
 #ifdef USE_NUMBER
   void set_number(Parameter parameter, LD2410SNumber *number) {
     this->numbers_[static_cast<uint8_t>(parameter)] = number;
   }
+#endif
 #endif
 
  protected:
@@ -86,7 +86,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   bool handle_parameters_(const uint8_t *values, uint16_t len);
 #endif
 #ifdef USE_TEXT_SENSOR
-  void handle_version_(const uint8_t *values, uint16_t len);
+  bool handle_version_(const uint8_t *values, uint16_t len);
 #endif
   void count_dropped_frame_() {
     if (this->dropped_frames_ < UINT8_MAX) {
@@ -108,7 +108,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   void publish_parameters_();
 #endif
 
-#ifdef USE_NUMBER
+#if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
   LD2410SNumber *numbers_[PARAMETER_COUNT]{};  // null for parameters without a number
 #endif
 

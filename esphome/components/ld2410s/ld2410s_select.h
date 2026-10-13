@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_SELECT
+#if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
 
 #include "ld2410s.h"
 #include "esphome/components/select/select.h"
@@ -18,4 +18,4 @@ class LD2410SSelect final : public select::Select, public Parented<LD2410SCompon
 
 }  // namespace esphome::ld2410s
 
-#endif  // USE_SELECT
+#endif  // USE_SELECT && USE_LD2410S_PARAMETERS
