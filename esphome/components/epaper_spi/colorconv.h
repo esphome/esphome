@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstdint>
 #include <algorithm>
 #include "esphome/components/display/display_color_utils.h"
