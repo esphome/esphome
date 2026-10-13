@@ -8,7 +8,7 @@
 
 namespace esphome::tas58xx {
 
-static const char *const TAG = "tas58xx";
+ESPHOME_LOG_TAG(TAG, "tas58xx");
 
 static constexpr uint8_t TAS58XX_PAGE_SELECT = 0x00;  // Page Select, in every book
 static constexpr uint8_t TAS58XX_BOOK_SELECT = 0x7F;  // Book Select, on page 0 of every book
@@ -196,8 +196,9 @@ bool TAS58xx::read_faults_() {
   if (this->have_fault_binary_sensor_ != nullptr)
     this->have_fault_binary_sensor_->publish_state((active & model.fault_error_mask) != 0);
   for (uint8_t fault = 0; fault < FAULT_SENSOR_COUNT; fault++) {
-    if (this->fault_binary_sensors_[fault] != nullptr)
-      this->fault_binary_sensors_[fault]->publish_state(faults & (uint32_t{1} << model.fault_sensor_bits[fault]));
+    const uint8_t bit = model.fault_sensor_bits[fault];
+    if (this->fault_binary_sensors_[fault] != nullptr && bit != NO_BIT)
+      this->fault_binary_sensors_[fault]->publish_state(faults & (uint32_t{1} << bit));
   }
 #endif
 
@@ -264,7 +265,7 @@ void TAS58xx::dump_config() {
                 "  Analog Gain: %.1f dB\n"
                 "  DAC Mode: %s\n"
                 "  Mixer Mode: %s\n"
-                "  Volume Range: %.1f dB - %.1f dB",
+                "  Volume Range: %.1f dB to %.1f dB",
                 this->analog_gain_db_,
                 this->dac_mode_ == DAC_MODE_PBTL ? LOG_STR_LITERAL("PBTL") : LOG_STR_LITERAL("BTL"),
                 LOG_STR_ARG(mixer_mode), this->volume_min_db_, this->volume_max_db_);

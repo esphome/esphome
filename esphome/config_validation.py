@@ -113,8 +113,14 @@ from esphome.schema_extractors import (
 # Deprecated re-export for external components; remove before 2027.2.0
 # pylint: disable-next=unused-import
 from esphome.util import parse_esphome_version  # noqa: F401
-from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import SensitiveStr, make_data_base
+from esphome.voluptuous_schema import KeyInvalid, _Schema
+from esphome.yaml_util import (
+    Sensitive,
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+    make_data_base,
+)
 
 if typing.TYPE_CHECKING:
     from esphome.types import ConfigType
@@ -452,6 +458,20 @@ def with_visibility(schema: Schema, visibility: Visibility, *keys: str) -> Schem
     return schema.extend(overrides)
 
 
+class SourceTraceInvalid(Invalid):
+    """An error whose message is followed by where the bad value came from.
+
+    ``detail`` is the message without that trace, for output that already
+    gives the location.
+    """
+
+    def __init__(
+        self, detail: str, source_trace: str, path: list[typing.Hashable] | None = None
+    ) -> None:
+        super().__init__(f"{detail}\n{source_trace}", path)
+        self.detail = detail
+
+
 class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
 
@@ -548,11 +568,17 @@ class SensitiveValidator:
 
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
-        # Tag string results so yaml_util.dump can mask them. Non-string
-        # results pass through unchanged; already-tagged values are not
-        # re-wrapped to keep nested cv.sensitive applications idempotent.
-        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+        # Already-tagged values are returned as-is so nested cv.sensitive is
+        # idempotent; bool is an int subclass and must stay bool. Other types
+        # (e.g. lambdas) pass through unmasked.
+        if isinstance(validated, (Sensitive, bool)):
+            return validated
+        if isinstance(validated, str):
             return SensitiveStr(validated)
+        if isinstance(validated, int):
+            return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
+                validated
+            )
         return validated
 
     def __repr__(self) -> str:
@@ -2293,7 +2319,7 @@ def validate_registry_entry(name, registry):
         if key is None:
             raise Invalid(f"Key missing from {name}! Got {value}")
         if key not in registry:
-            raise Invalid(f"Unable to find {name} with the name '{key}'", [key])
+            raise KeyInvalid(f"Unable to find {name} with the name '{key}'", [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid(
@@ -2872,9 +2898,14 @@ def rename_key(
     When ``removed_in`` is set, a deprecation warning is logged if the old key is
     present. Pass ``component`` (the platform/component name) alongside
     ``removed_in`` so the warning identifies where it originates.
+
+    Input that is not a dictionary is returned unchanged, so the schema that
+    follows reports it as a normal configuration error.
     """
 
     def validator(config: dict) -> dict:
+        if not isinstance(config, dict):
+            return config
         config = config.copy()
         if old_key in config:
             has_at_most_one_key(old_key, new_key)(config)

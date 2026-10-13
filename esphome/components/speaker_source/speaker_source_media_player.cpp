@@ -11,7 +11,7 @@ namespace esphome::speaker_source {
 
 static constexpr uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 
-static const char *const TAG = "speaker_source_media_player";
+ESPHOME_LOG_TAG(TAG, "speaker_source_media_player");
 
 // SourceBinding method implementations (defined here because SpeakerSourceMediaPlayer is forward-declared in the
 // header)

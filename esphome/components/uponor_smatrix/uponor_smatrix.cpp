@@ -7,7 +7,7 @@
 
 namespace esphome::uponor_smatrix {
 
-static const char *const TAG = "uponor_smatrix";
+ESPHOME_LOG_TAG(TAG, "uponor_smatrix");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t UPONOR_MAX_LOG_BYTES = 36;

@@ -4,7 +4,7 @@
 
 namespace esphome::mopeka_ble {
 
-static const char *const TAG = "mopeka_ble";
+ESPHOME_LOG_TAG(TAG, "mopeka_ble");
 
 // Mopeka Std (CC2540) sensor details
 static const uint16_t SERVICE_UUID_CC2540 = 0xADA0;

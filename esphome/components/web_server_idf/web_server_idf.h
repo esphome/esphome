@@ -129,7 +129,8 @@ class AsyncWebServerRequest {
   void requestAuthentication() const;
 #endif
 
-  void redirect(const std::string &url);
+  void redirect(const char *url);
+  void redirect(const std::string &url) { this->redirect(url.c_str()); }
 
   inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
     httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
@@ -182,6 +183,12 @@ class AsyncWebServerRequest {
   std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
+#ifdef USE_WEBSERVER_OTA
+  /// Called when the request ends, including early returns.
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void onDisconnect(std::function<void()> fn) { this->on_disconnect_ = std::move(fn); }
+#endif
+
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -197,6 +204,9 @@ class AsyncWebServerRequest {
   optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
+#ifdef USE_WEBSERVER_OTA
+  std::function<void()> on_disconnect_;
+#endif
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
   AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
   void init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type);
@@ -379,7 +389,6 @@ using AsyncEventSourceClient = AsyncEventSourceResponse;
 
 class AsyncEventSource : public AsyncWebHandler {
   friend class AsyncEventSourceResponse;
-  using connect_handler_t = std::function<void(AsyncEventSourceClient *)>;
 
  public:
   AsyncEventSource(StringRef url, esphome::web_server::WebServer *ws) : url_(url), web_server_(ws) {}
@@ -394,11 +403,6 @@ class AsyncEventSource : public AsyncWebHandler {
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
-  // Callback runs on the main loop (not the httpd task) after the session's
-  // initial ping/config/sorting_groups have been sent.
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
-
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
@@ -418,7 +422,6 @@ class AsyncEventSource : public AsyncWebHandler {
   // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
   std::vector<AsyncEventSourceResponse *> pending_sessions_;
   Mutex pending_mutex_;
-  connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
   std::atomic<bool> has_pending_sessions_{false};
 };

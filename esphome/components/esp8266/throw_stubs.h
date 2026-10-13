@@ -15,7 +15,8 @@
  * unused, dead-strip the load, and drop the string entirely -- no LTO needed.
  * Behavior is identical to today: a bare abort() (the message was never
  * printed). This header MUST be force-included before <string>, so it is
- * wired up via build_src_flags "-include ..." in this component's __init__.py.
+ * wired up via build_src_flags "-include ..." in this component's __init__.py;
+ * the native toolchain also force-includes it into the core and libraries.
  *
  * Note: this defines functions in namespace std (technically UB). It is safe
  * here because the definitions match the existing abort() behavior exactly.
