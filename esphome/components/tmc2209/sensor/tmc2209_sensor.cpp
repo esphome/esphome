@@ -5,7 +5,7 @@
 
 namespace esphome::tmc2209 {
 
-static const char *const TAG = "tmc2209.sensor";
+ESPHOME_LOG_TAG(TAG, "tmc2209.sensor");
 
 using tmc22xx::TMC22XXStepper;
 
