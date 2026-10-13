@@ -398,11 +398,56 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
   const uint8_t *little = rgb565_little_endian.get_data_start();
   const uint8_t *big = rgb565_big_endian.get_data_start();
   for (size_t i = 0; i < 4 * 4; i++) {
-    printf("DBG pixel %zu little=%02X %02X big=%02X %02X\n", i, little[i * 2], little[i * 2 + 1], big[i * 2],
-           big[i * 2 + 1]);
     EXPECT_EQ(little[i * 2] | (little[i * 2 + 1] << 8), EXPECTED[i]) << "little-endian pixel " << i;
     EXPECT_EQ((big[i * 2] << 8) | big[i * 2 + 1], EXPECTED[i]) << "big-endian pixel " << i;
   }
+}
+
+// Target pixel index each source pixel paints when `source` pixels map onto `target`, the way
+// prepare_rgb565_scaling_ rounds: source n covers targets ceil(n * target / source) up to the next start
+static uint16_t scaled_boundary(int n, int source, int target) { return (n * target + source - 1) / source; }
+
+// The RGB565 word at (x, y) of a decoded image, in its own byte order
+static uint16_t rgb565_word(const TestableRuntimeImage &img, int x, int y) {
+  const uint8_t *p = img.get_data_start() + (y * img.get_width() + x) * 2;
+  return p[0] | (p[1] << 8);
+}
+
+// Every scaled direct decode must equal the unscaled one sampled through the boundary table,
+// for shrinking, growing and a ratio that is not a whole number
+TEST(RuntimeImageDecoder, JpegDirectRgb565ScalesBySourcePixelSpans) {
+  TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB565, false, 8, 8);
+  ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+
+  for (int size : {4, 6, 16}) {
+    TestableRuntimeImage scaled(JPEG, image::IMAGE_TYPE_RGB565, false, size, size);
+    ASSERT_TRUE(decode_all(scaled, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+    ASSERT_EQ(scaled.get_width(), size);
+    ASSERT_EQ(scaled.get_height(), size);
+    for (int n = 0; n < 8; n++) {
+      for (int m = 0; m < 8; m++) {
+        for (int y = scaled_boundary(m, 8, size); y < scaled_boundary(m + 1, 8, size); y++) {
+          for (int x = scaled_boundary(n, 8, size); x < scaled_boundary(n + 1, 8, size); x++) {
+            EXPECT_EQ(rgb565_word(scaled, x, y), rgb565_word(full, n, m))
+                << size << "x" << size << " pixel " << x << "," << y;
+          }
+        }
+      }
+    }
+  }
+}
+
+// A second decode into the same image reuses the boundary tables and gives the same pixels
+TEST(RuntimeImageDecoder, JpegDirectRgb565RepeatsWithReusedTables) {
+  TestableRuntimeImage img(JPEG, image::IMAGE_TYPE_RGB565, false, 6, 6);
+  ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  std::vector<uint8_t> first_pixels = pixel_bytes(img);
+  ImageDecoder *first = img.decoder();
+  ASSERT_NE(first, nullptr);
+
+  ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  EXPECT_EQ(img.decoder(), first);
+  EXPECT_EQ(pixel_bytes(img), first_pixels);
 }
 #endif  // USE_RUNTIME_IMAGE_JPEG
 

@@ -48,6 +48,8 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
   }
   uint8_t *const buffer = this->image_buffer_();
   const uint32_t buffer_width = this->image_->get_buffer_width();
+  // JPEGDEC gives little-endian words; a big-endian image stores the high byte first
+  const uint8_t first = this->image_is_big_endian_() ? 1 : 0;
   for (int source_y = 0; source_y < h; source_y++) {
     const int absolute_y = y + source_y;
     if (absolute_y < 0 || absolute_y >= this->source_height_) {
@@ -66,8 +68,8 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
       for (uint16_t destination_y = y1; destination_y < y2; destination_y++) {
         uint8_t *destination = buffer + (destination_y * buffer_width + x1) * 2;
         for (uint16_t destination_x = x1; destination_x < x2; destination_x++) {
-          destination[0] = pixel[0];
-          destination[1] = pixel[1];
+          destination[0] = pixel[first];
+          destination[1] = pixel[1 - first];
           destination += 2;
         }
       }
@@ -146,7 +148,9 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   this->jpeg_.setUserPointer(this);
   this->direct_rgb565_ = this->image_->get_type() == image::IMAGE_TYPE_RGB565 && !this->image_->has_transparency();
   if (this->direct_rgb565_) {
-    this->jpeg_.setPixelType(this->image_is_big_endian_() ? RGB565_BIG_ENDIAN : RGB565_LITTLE_ENDIAN);
+    // JPEGDEC's RGB565_BIG_ENDIAN output is not byte swapped on every build (the x86 host build
+    // returns little-endian words for it), so the byte order is applied in draw_rgb565 instead
+    this->jpeg_.setPixelType(RGB565_LITTLE_ENDIAN);
   } else {
     this->jpeg_.setPixelType(RGB8888);
   }
