@@ -286,19 +286,21 @@ UARTFlushResult HostUartComponent::flush() {
   return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
-void HostUartComponent::set_modem_control(bool dtr, bool rts) {
+bool HostUartComponent::set_modem_control(bool dtr, bool rts) {
   if (this->file_descriptor_ == -1) {
-    return;
+    return false;
   }
   const int to_set = (dtr ? TIOCM_DTR : 0) | (rts ? TIOCM_RTS : 0);
   const int to_clear = (dtr ? 0 : TIOCM_DTR) | (rts ? 0 : TIOCM_RTS);
   if (to_set != 0 && ioctl(this->file_descriptor_, TIOCMBIS, &to_set) == -1) {
     this->update_error_(strerror(errno));
-    return;
+    return false;
   }
   if (to_clear != 0 && ioctl(this->file_descriptor_, TIOCMBIC, &to_clear) == -1) {
     this->update_error_(strerror(errno));
+    return false;
   }
+  return true;
 }
 
 bool HostUartComponent::get_dtr() const { return (this->get_modem_bits_() & TIOCM_DTR) != 0; }

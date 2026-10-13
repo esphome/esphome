@@ -19,7 +19,8 @@ class HostUartComponent final : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   UARTFlushResult flush() override;
-  void set_modem_control(bool dtr, bool rts);
+  /// Drive DTR/RTS. Returns false when the port is closed or the ioctl fails.
+  bool set_modem_control(bool dtr, bool rts);
   bool get_dtr() const;
   bool get_rts() const;
   void set_name(std::string port_name) { port_name_ = port_name; };

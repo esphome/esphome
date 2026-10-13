@@ -193,7 +193,8 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
-  void set_modem_control(bool dtr, bool rts);
+  /// Store DTR/RTS and send them to the device. False when not connected; sent on connect instead.
+  bool set_modem_control(bool dtr, bool rts);
   bool get_dtr() const { return this->dtr_; }
   bool get_rts() const { return this->rts_; }
 

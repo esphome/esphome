@@ -386,11 +386,16 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
     this->dtr_pin_->digital_write(dtr);
   }
   // A line with a GPIO pin keeps the UART's current state; with both on GPIO there is nothing to send
+  bool applied = true;
   if (this->rts_pin_ == nullptr || this->dtr_pin_ == nullptr) {
-    this->with_modem_uart_([this, dtr, rts](auto *uart) {
-      uart->set_modem_control(this->dtr_pin_ != nullptr ? uart->get_dtr() : dtr,
-                              this->rts_pin_ != nullptr ? uart->get_rts() : rts);
+    this->with_modem_uart_([this, dtr, rts, &applied](auto *uart) {
+      applied = uart->set_modem_control(this->dtr_pin_ != nullptr ? uart->get_dtr() : dtr,
+                                        this->rts_pin_ != nullptr ? uart->get_rts() : rts);
     });
+  }
+  if (!applied) {
+    ESP_LOGW(TAG, "Modem pins did not reach the UART on serial proxy [%" PRIu32 "]", this->instance_index_);
+    return SerialProxyResult::SERIAL_PROXY_RESULT_ERROR;
   }
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
