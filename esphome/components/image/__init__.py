@@ -222,7 +222,7 @@ class ImageRGB111(BitPackedEncoder):
             g = (color >> 8) & 0xFF
             b = color & 0xFF
             palette.extend([r, g, b])
-        self.custom_palette = Image.new("P", (1,1))
+        self.custom_palette = Image.new("P", (1, 1))
         self.custom_palette.putpalette(palette)
 
     def convert(self, image: Image, path: str):
