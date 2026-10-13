@@ -80,7 +80,11 @@ def test_inline_api_key(tmp_path: Path) -> None:
     assert [(e.path, e.line) for e in edits] == [(path, 5)]
     assert edits[0].new_line == f'    key: "{NEW_KEY}"  # shared with ota'
     originals = apply_line_edits(edits)
-    assert originals == {path: Snapshot(API_YAML, API_YAML.replace(OLD_KEY, NEW_KEY))}
+    assert originals == {
+        path: Snapshot(
+            API_YAML, API_YAML.replace(OLD_KEY, NEW_KEY), originals[path].mode
+        )
+    }
     assert path.read_text() == API_YAML.replace(OLD_KEY, NEW_KEY)
     restore_files(originals)
     assert path.read_text() == API_YAML
