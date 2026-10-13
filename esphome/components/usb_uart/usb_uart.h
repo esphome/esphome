@@ -71,21 +71,33 @@ enum CH34xChipType : uint8_t {
   CHIP_UNKNOWN = 0xFF,
 };
 
-enum UARTParityOptions {
-  UART_CONFIG_PARITY_NONE = 0,
-  UART_CONFIG_PARITY_ODD,
-  UART_CONFIG_PARITY_EVEN,
-  UART_CONFIG_PARITY_MARK,
-  UART_CONFIG_PARITY_SPACE,
-};
-
+// 1 and 2 are the stop bit count the uart component uses, so a count set through the
+// UARTComponent API (as serial_proxy does) means the same here. 1.5 has no count.
 enum UARTStopBitsOptions {
-  UART_CONFIG_STOP_BITS_1 = 0,
-  UART_CONFIG_STOP_BITS_1_5,
-  UART_CONFIG_STOP_BITS_2,
+  UART_CONFIG_STOP_BITS_1 = 1,
+  UART_CONFIG_STOP_BITS_2 = 2,
+  UART_CONFIG_STOP_BITS_1_5 = 3,
 };
 
+// Stop bits and parity as adapters take them on the wire: CDC SET_LINE_CODING, and the
+// CP210x, FTDI and PL2303 requests, all use these values
+enum class LineStopBits : uint8_t {
+  LINE_STOP_BITS_1 = 0,
+  LINE_STOP_BITS_1_5 = 1,
+  LINE_STOP_BITS_2 = 2,
+};
+
+enum class LineParity : uint8_t {
+  LINE_PARITY_NONE = 0,
+  LINE_PARITY_ODD = 1,
+  LINE_PARITY_EVEN = 2,
+  LINE_PARITY_MARK = 3,
+  LINE_PARITY_SPACE = 4,
+};
+
+// Indexed by LineParity
 static const char *const PARITY_NAMES[] = {"NONE", "ODD", "EVEN", "MARK", "SPACE"};
+// Indexed by LineStopBits
 static const char *const STOP_BITS_NAMES[] = {"1", "1.5", "2"};
 
 class RingBuffer {
@@ -156,22 +168,6 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   // Re-apply the current line settings (baud, parity, etc) to this already-open channel.
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
-  void set_parity(UARTParityOptions parity) {
-    this->parity_ = parity;
-    // Keep the base-class parity in sync so uart::UARTComponent::get_parity() reports the configured value.
-    // MARK/SPACE have no uart:: equivalent and report as NONE.
-    switch (parity) {
-      case UART_CONFIG_PARITY_EVEN:
-        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_EVEN);
-        break;
-      case UART_CONFIG_PARITY_ODD:
-        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_ODD);
-        break;
-      default:
-        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_NONE);
-        break;
-    }
-  }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
@@ -194,6 +190,8 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
   void check_logger_conflict() override {}
+  LineStopBits line_stop_bits_() const;
+  LineParity line_parity_() const;
   // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
@@ -205,7 +203,6 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   CdcEps cdc_dev_{};
   StringRef debug_prefix_{};
   // 4-byte fields
-  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
   uint32_t flush_timeout_ms_{100};
   // 1-byte fields (no padding between groups)
   std::atomic<bool> input_started_{true};

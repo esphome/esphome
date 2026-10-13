@@ -10,8 +10,8 @@ namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
 
-// UART parity strings indexed by UARTParityOptions enum (0-2): NONE, EVEN, ODD
-PROGMEM_STRING_TABLE(UARTParityStrings, "NONE", "EVEN", "ODD", "UNKNOWN");
+// UART parity strings indexed by UARTParityOptions enum (0-4): NONE, EVEN, ODD, MARK, SPACE
+PROGMEM_STRING_TABLE(UARTParityStrings, "NONE", "EVEN", "ODD", "MARK", "SPACE", "UNKNOWN");
 
 void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UARTParityOptions parity,
                                      uint8_t data_bits) {

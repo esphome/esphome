@@ -13,9 +13,13 @@ from esphome.automation import (
     ApplyCondition,
     ApplyField,
     CallbackAutomation,
+    LambdaAction,
+    RepeatAction,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
+    _shadow_iteration,
+    build_action,
     build_callback_automation,
     build_callback_automations,
     build_parent_callback_automation,
@@ -41,7 +45,13 @@ from esphome.automation import (
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_AUTOMATION_ID, CONF_ID, CONF_THEN
+from esphome.const import (
+    CONF_AUTOMATION_ID,
+    CONF_COUNT,
+    CONF_ID,
+    CONF_THEN,
+    CONF_TYPE_ID,
+)
 from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
 from esphome.types import ConfigType
@@ -214,6 +224,76 @@ def test_has_non_synchronous_actions_dict_input(
     """Direct dict input (single action)."""
     assert has_non_synchronous_actions({"delay": "1s"}) is True
     assert has_non_synchronous_actions({"logger.log": "hello"}) is False
+
+
+def test_has_non_synchronous_actions_option_named_like_action(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """An option that shares a name with a deferring action is not that action."""
+    actions = [{"logger.log": {"message": "hello", "delay": "1s"}}]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_nested_option_named_like_action(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Option keys in nested option dicts are not looked up as action names either."""
+    actions = [{"logger.log": {"settings": {"wait_until": {"condition": {}}}}}]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_option_named_like_action_inside_then(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    actions = [
+        {
+            "if": {
+                "condition": {},
+                "then": [{"logger.log": {"message": "hello", "delay": "1s"}}],
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_in_else(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Action lists in any option of an action are searched, not only then:."""
+    actions = [
+        {
+            "if": {
+                "condition": {},
+                "then": [{"logger.log": "hello"}],
+                "else": [{"delay": "1s"}],
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is True
+
+
+def test_has_non_synchronous_actions_automation_dict(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """A single automation, as validate_automation(single=True) returns it."""
+    assert has_non_synchronous_actions({CONF_THEN: [{"delay": "1s"}]}) is True
+    assert has_non_synchronous_actions({CONF_THEN: [{"logger.log": "hi"}]}) is False
+
+
+def test_has_non_synchronous_actions_set_playlist_delay() -> None:
+    """speaker_source.set_playlist_delay is synchronous despite its delay: option."""
+    import esphome.components.speaker_source.media_player  # noqa: F401  # registers the action
+
+    actions = [
+        {
+            "speaker_source.set_playlist_delay": {
+                CONF_ID: "player",
+                "pipeline": 0,
+                "delay": 1000,
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is False
 
 
 def test_validate_no_deferring_actions_accepts_synchronous(
@@ -1223,13 +1303,25 @@ async def test_apply_condition_compares_config_value(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
-async def test_apply_condition_string_constant_is_a_plain_literal(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+@pytest.mark.parametrize(
+    ("platform", "value", "expected"),
+    [
+        ("esp32", "two", '"two"'),
+        ("esp8266", "two", '::esphome::ProgmemStringRef{PSTR("two"), 3}'),
+        # The length is in bytes, not characters
+        ("esp8266", "é", '::esphome::ProgmemStringRef{PSTR("\\303\\251"), 2}'),
+    ],
+)
+async def test_apply_condition_string_constant(
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    platform: str,
+    value: str,
+    expected: str,
 ) -> None:
     check = ApplyCall("state == {}", (("state", cg.std_string),))
-    await _run_apply_condition(registries, check, {"state": "two"}, platform=platform)
-    assert f'return ::{PARENT_OBJ}->state == "two";' in _apply_definition(mock_cg)
+    await _run_apply_condition(registries, check, {"state": value}, platform=platform)
+    assert f"return ::{PARENT_OBJ}->state == {expected};" in _apply_definition(mock_cg)
 
 
 @pytest.mark.asyncio
@@ -1463,3 +1555,56 @@ async def test_build_callback_automation_forwarder(mock_cg: MockCodegen) -> None
     assert str(mock_cg.add.call_args.args[0]) == (
         f"parent->add_cb(TriggerForwarder<bool>{{{NEW_OBJ}}})"
     )
+
+
+def test_shadow_iteration_leaves_other_names() -> None:
+    args = [(cg.std_string, "prefix"), (cg.uint32, "iteration_1")]
+    assert _shadow_iteration(args) == args
+
+
+def test_shadow_iteration_renames_inherited_counter() -> None:
+    assert _shadow_iteration([(cg.uint32, "iteration"), (cg.bool_, "x")]) == [
+        (cg.uint32, "iteration_1"),
+        (cg.bool_, "x"),
+    ]
+
+
+def test_shadow_iteration_picks_first_unused_suffix() -> None:
+    """A counter keeps its suffix at deeper levels; the new one takes the next free name."""
+    args = [
+        (cg.uint32, "iteration"),
+        (cg.uint32, "iteration_1"),
+        (cg.int_, "iteration_3"),
+    ]
+    assert _shadow_iteration(args) == [
+        (cg.uint32, "iteration_2"),
+        (cg.uint32, "iteration_1"),
+        (cg.int_, "iteration_3"),
+    ]
+
+
+def _repeat_conf(id_: str, then: list[ConfigType]) -> ConfigType:
+    return {
+        "repeat": {CONF_COUNT: 2, CONF_THEN: then},
+        CONF_TYPE_ID: ID(id_, is_declaration=True, type=RepeatAction),
+    }
+
+
+@pytest.mark.asyncio
+async def test_nested_repeat_lambda_parameters_are_distinct() -> None:
+    """Each repeat level adds its own `iteration`; inherited ones are renamed, not duplicated."""
+    CORE.config = {}
+    log = {
+        "lambda": Lambda('ESP_LOGD("t", "%u", iteration);'),
+        CONF_TYPE_ID: ID("log_action", is_declaration=True, type=LambdaAction),
+    }
+    conf = _repeat_conf(
+        "outer", [_repeat_conf("middle", [_repeat_conf("inner", [log])])]
+    )
+    await build_action(conf, cg.TemplateArguments(cg.uint8), [(cg.uint8, "level")])
+    text = CORE.cpp_main_section
+    assert (
+        "(uint32_t iteration, uint32_t iteration_2, uint32_t iteration_1, uint8_t level)"
+        in text
+    )
+    assert "uint32_t iteration, uint32_t iteration)" not in text
