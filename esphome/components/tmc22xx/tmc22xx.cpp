@@ -77,6 +77,15 @@ static uint8_t datagram_crc(const uint8_t *data, size_t len) {
   return crc;
 }
 
+// Index into RESTORED_REGISTERS, or -1 when the register is not restored after a driver reset
+static int restored_index(uint8_t reg) {
+  for (size_t i = 0; i < RESTORED_REGISTERS.size(); i++) {
+    if (RESTORED_REGISTERS[i] == reg)
+      return static_cast<int>(i);
+  }
+  return -1;
+}
+
 void IRAM_ATTR IndexPulseStore::gpio_intr(IndexPulseStore *arg) { arg->pulses = arg->pulses + arg->direction; }
 
 void IRAM_ATTR DiagPinStore::gpio_intr(DiagPinStore *arg) { arg->triggered = true; }
@@ -441,13 +450,9 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
 
   if (uint32_t *shadow = this->shadow_register(reg)) {
     *shadow = value;
-  } else {
-    for (size_t i = 0; i < RESTORED_REGISTERS.size(); i++) {
-      if (RESTORED_REGISTERS[i] == reg) {
-        this->restored_values_[i] = value;
-        this->restored_written_ |= 1u << i;
-      }
-    }
+  } else if (int index = restored_index(reg); index >= 0) {
+    this->restored_values_[index] = value;
+    this->restored_written_ |= 1u << index;
   }
   return true;
 }
@@ -482,7 +487,15 @@ bool TMC22XXStepper::write_field(const RegisterField &field, uint32_t value) {
   // Skip the UART timeout when the driver never answered during setup
   if (this->is_failed())
     return false;
-  auto data = this->read_register(field.reg);
+  optional<uint32_t> data;
+  int index = restored_index(field.reg);
+  if (index >= 0 && (this->restored_written_ & (1u << index)) != 0) {
+    // Modify the last written value, not the chip: after a driver reset that the poll has not seen yet, the chip
+    // holds its defaults, and those would replace the values to restore
+    data = this->restored_values_[index];
+  } else {
+    data = this->read_register(field.reg);
+  }
   if (!data.has_value())
     return false;
   uint32_t mask = field.mask();
