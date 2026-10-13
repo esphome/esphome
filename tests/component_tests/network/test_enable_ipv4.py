@@ -9,6 +9,10 @@ from esphome.components.network import (
     final_validate_no_manual_ip_if_ipv6_only,
     validate_enable_ipv4,
 )
+from esphome.components.wifi import (
+    CONF_LEASE_CACHE,
+    _final_validate_no_lease_cache_if_ipv6_only,
+)
 from esphome.const import (
     CONF_ENABLE_IPV6,
     CONF_MANUAL_IP,
@@ -90,3 +94,26 @@ def test_manual_ip_fine_with_ipv4(
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": {}})
     assert final_validate_no_manual_ip_if_ipv6_only(config) == config
+
+
+def test_rejects_lease_cache(set_core_config: SetCoreConfigCallable) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": IPV6_ONLY})
+    with pytest.raises(Invalid, match="lease_cache") as exc:
+        _final_validate_no_lease_cache_if_ipv6_only(
+            {CONF_LEASE_CACHE: {"enabled": True, "storage": "rtc"}}
+        )
+    assert exc.value.path == [CONF_LEASE_CACHE]
+
+
+@pytest.mark.parametrize("config", [{}, {CONF_LEASE_CACHE: {"enabled": False}}])
+def test_no_lease_cache_passes_ipv6_only(
+    set_core_config: SetCoreConfigCallable, config
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": IPV6_ONLY})
+    assert _final_validate_no_lease_cache_if_ipv6_only(config) == config
+
+
+def test_lease_cache_fine_with_ipv4(set_core_config: SetCoreConfigCallable) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": {}})
+    config = {CONF_LEASE_CACHE: {"enabled": True, "storage": "rtc"}}
+    assert _final_validate_no_lease_cache_if_ipv6_only(config) == config
