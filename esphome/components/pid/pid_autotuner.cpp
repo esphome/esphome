@@ -74,7 +74,7 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
   }
 
   if (!std::isnan(this->setpoint_) && this->setpoint_ != setpoint) {
-    ESP_LOGW(TAG, "%s: Setpoint changed during autotune! The result will not be accurate!", this->id_.c_str());
+    ESP_LOGW(TAG, "%s: Setpoint changed during autotune! The result will not be accurate!", LOG_STR_ARG(this->id_));
   }
   this->setpoint_ = setpoint;
 
@@ -88,7 +88,7 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
 
   if (!this->frequency_detector_.has_enough_data() || !this->amplitude_detector_.has_enough_data()) {
     // not enough data for calculation yet
-    ESP_LOGV(TAG, "%s:   Not enough data yet for autotuner", this->id_.c_str());
+    ESP_LOGV(TAG, "%s:   Not enough data yet for autotuner", LOG_STR_ARG(this->id_));
     return res;
   }
 
@@ -98,13 +98,13 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
     // The frequency/amplitude is not fully accurate yet, try to wait
     // until the fault clears, or terminate after a while anyway
     if (!zc_symmetrical) {
-      ESP_LOGVV(TAG, "%s:   ZC is not symmetrical", this->id_.c_str());
+      ESP_LOGVV(TAG, "%s:   ZC is not symmetrical", LOG_STR_ARG(this->id_));
     }
     if (!amplitude_convergent) {
-      ESP_LOGVV(TAG, "%s:   Amplitude is not convergent", this->id_.c_str());
+      ESP_LOGVV(TAG, "%s:   Amplitude is not convergent", LOG_STR_ARG(this->id_));
     }
     uint32_t phase = this->relay_function_.phase_count;
-    ESP_LOGVV(TAG, "%s: >", this->id_.c_str());
+    ESP_LOGVV(TAG, "%s: >", LOG_STR_ARG(this->id_));
     ESP_LOGVV(TAG, "  Phase %" PRIu32 ", enough=%" PRIu32, phase, enough_data_phase_);
 
     if (this->enough_data_phase_ == 0) {
@@ -118,7 +118,7 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
     }
   }
 
-  ESP_LOGI(TAG, "%s: PID Autotune finished!", this->id_.c_str());
+  ESP_LOGI(TAG, "%s: PID Autotune finished!", LOG_STR_ARG(this->id_));
 
   float osc_ampl = this->amplitude_detector_.get_mean_oscillation_amplitude();
   float d = (this->relay_function_.output_positive - this->relay_function_.output_negative) / 2.0f;
@@ -137,7 +137,7 @@ void PIDAutotuner::dump_config() {
     ESP_LOGI(TAG,
              "%s: PID Autotune:\n"
              "  State: Succeeded!",
-             this->id_.c_str());
+             LOG_STR_ARG(this->id_));
     bool has_issue = false;
     if (!this->amplitude_detector_.is_amplitude_convergent()) {
       ESP_LOGW(TAG, "  Could not reliably determine oscillation amplitude, PID parameters may be inaccurate!\n"
@@ -181,7 +181,7 @@ void PIDAutotuner::dump_config() {
     print_rule_("Pessen Integral PID", 0.7f, 1.75f, 0.105f);
     print_rule_("Some Overshoot PID", 0.333f, 0.667f, 0.111f);
     print_rule_("No Overshoot PID", 0.2f, 0.4f, 0.0625f);
-    ESP_LOGI(TAG, "%s: Autotune completed", this->id_.c_str());
+    ESP_LOGI(TAG, "%s: Autotune completed", LOG_STR_ARG(this->id_));
   }
 
   if (this->state_ == AUTOTUNE_RUNNING) {
@@ -193,7 +193,7 @@ void PIDAutotuner::dump_config() {
              "    Phases: %" PRIu32 "\n"
              "    Detected %zu zero-crossings\n"
              "    Current Phase Min: %.2f, Max: %.2f",
-             this->id_.c_str(), setpoint_ - relay_function_.current_target_error(), relay_function_.phase_count,
+             LOG_STR_ARG(this->id_), setpoint_ - relay_function_.current_target_error(), relay_function_.phase_count,
              frequency_detector_.zerocrossing_intervals.size(), amplitude_detector_.phase_min,
              amplitude_detector_.phase_max);
   }

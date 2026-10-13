@@ -133,7 +133,7 @@ void SCD4XComponent::dump_config() {
                 ONOFF(this->enable_asc_), measurement_mode_str, this->temperature_offset_);
   if (this->ambient_pressure_source_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
-                  this->ambient_pressure_source_->get_name().c_str());
+                  LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
   } else {
     if (this->ambient_pressure_) {
       ESP_LOGCONFIG(TAG,

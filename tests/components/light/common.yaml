@@ -294,7 +294,7 @@ light:
             if (state == 4)
               state = 0;
             if (initial_run) {
-              ESP_LOGD("custom_effect", "Effect %s started", it.get_name().c_str());
+              ESP_LOGD("custom_effect", "Effect %s started", LOG_STR_ARG(it.get_log_name()));
             }
       - pulse:
           transition_length: 10s

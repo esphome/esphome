@@ -1289,7 +1289,7 @@ void ATM90E32Component::check_phase_status() {
     if (!status.empty()) {
       status.pop_back();  // remove space
       status.pop_back();  // remove semicolon
-      ESP_LOGW(TAG, "%s: %s", sensor->get_name().c_str(), status.c_str());
+      ESP_LOGW(TAG, "%s: %s", LOG_STR_ARG(sensor->get_log_name()), status.c_str());
       sensor->publish_state(status);
     } else {
       sensor->publish_state("Okay");

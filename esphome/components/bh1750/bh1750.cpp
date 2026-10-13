@@ -75,7 +75,7 @@ void BH1750Sensor::dump_config() {
   LOG_SENSOR("", "BH1750", this);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, LOG_STR_ARG(this->get_log_name()));
   }
 
   LOG_UPDATE_INTERVAL(this);
@@ -154,7 +154,7 @@ void BH1750Sensor::loop() {
         break;
       }
 
-      ESP_LOGV(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), lx);
+      ESP_LOGV(TAG, "'%s': Illuminance=%.1flx", LOG_STR_ARG(this->get_log_name()), lx);
       this->status_clear_warning();
       this->publish_state(lx);
       this->state_ = IDLE;
