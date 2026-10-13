@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.const import CONF_REQUEST_HEADERS
+from esphome.components.const import CONF_REQUEST_HEADERS, CONF_VERIFY_SSL
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -39,6 +39,7 @@ HttpRequestIDF = http_request_ns.class_("HttpRequestIDF", HttpRequestComponent)
 HttpRequestHost = http_request_ns.class_("HttpRequestHost", HttpRequestComponent)
 
 HttpContainer = http_request_ns.class_("HttpContainer")
+RequestHeader = http_request_ns.struct("RequestHeader")
 
 HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
@@ -53,7 +54,6 @@ HttpRequestResponseTrigger = http_request_ns.class_(
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
 CONF_USERAGENT = "useragent"
-CONF_VERIFY_SSL = "verify_ssl"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
@@ -227,14 +227,8 @@ async def to_code(config: ConfigType) -> None:
                 #         use_full_certificate_bundle: true
                 esp32.require_certificate_bundle()
 
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_TLS_INSECURE",
-            not config.get(CONF_VERIFY_SSL),
-        )
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
-            not config.get(CONF_VERIFY_SSL),
-        )
+        else:
+            esp32.allow_insecure_tls()
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
     if CORE.is_rp2 and CORE.using_arduino:
@@ -367,12 +361,27 @@ async def http_request_action_to_code(
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
-    request_headers = config.get(CONF_REQUEST_HEADERS, {})
-    if request_headers:
-        cg.add(var.init_request_headers(len(request_headers)))
-    for key, value in request_headers.items():
-        template_ = await cg.templatable(value, args, cg.const_char_ptr)
-        cg.add(var.add_request_header(key, template_))
+    if request_headers := config.get(CONF_REQUEST_HEADERS):
+        # A user lambda may keep static state, so only all-constant lists are shared
+        share = not any(map(cg.is_template, request_headers.values()))
+        # Constant headers ignore their arguments, so drop the names: identical lists
+        # from scripts with different parameter names then render the same table.
+        header_args = [(arg_type, "") for arg_type, _ in args] if share else args
+        headers = [
+            cg.StructInitializer(
+                "",
+                ("name", key),
+                ("value", await cg.templatable(value, header_args, cg.const_char_ptr)),
+            )
+            for key, value in request_headers.items()
+        ]
+        table = cg.shared_progmem_array(
+            "http_request_headers",
+            RequestHeader.template(*[arg_type for arg_type, _ in args]),
+            headers,
+            share=share,
+        )
+        cg.add(var.set_request_headers(table, len(headers)))
 
     for value in config.get(CONF_COLLECT_HEADERS, []):
         cg.add(var.add_collect_header(value.lower()))

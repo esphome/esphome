@@ -386,9 +386,10 @@ WakeWordModel *MicroWakeWord::get_model_by_id(const std::string &model_id) {
 }
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
-void MicroWakeWord::add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
-                                  size_t tensor_arena_size) {
-  this->vad_model_ = make_unique<VADModel>(model_start, probability_cutoff, sliding_window_size, tensor_arena_size);
+void MicroWakeWord::add_vad_model(const uint8_t *model_start, size_t model_size, uint8_t probability_cutoff,
+                                  size_t sliding_window_size, size_t tensor_arena_size) {
+  this->vad_model_ =
+      make_unique<VADModel>(model_start, model_size, probability_cutoff, sliding_window_size, tensor_arena_size);
 }
 #endif
 
