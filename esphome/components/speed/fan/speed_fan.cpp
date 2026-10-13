@@ -3,7 +3,7 @@
 
 namespace esphome::speed {
 
-static const char *const TAG = "speed.fan";
+ESPHOME_LOG_TAG(TAG, "speed.fan");
 
 void SpeedFan::setup() {
   // Construct traits before restore so preset modes can be looked up by index

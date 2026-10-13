@@ -6,7 +6,7 @@
 
 namespace esphome::es8388 {
 
-static const char *const TAG = "es8388";
+ESPHOME_LOG_TAG(TAG, "es8388");
 
 // Mark the component as failed; use only in setup
 #define ES8388_ERROR_FAILED(func) \
@@ -113,14 +113,9 @@ void ES8388::setup() {
 
 #ifdef USE_SELECT
   if (this->dac_output_select_ != nullptr) {
-    if (this->dac_output_initial_index_.has_value()) {
-      size_t idx = this->dac_output_initial_index_.value();
-      if (this->dac_output_select_->has_index(idx)) {
-        ES8388_ERROR_FAILED(this->set_dac_output(static_cast<DacOutputLine>(idx)));
-        this->dac_output_select_->publish_state(idx);
-      } else {
-        ESP_LOGW(TAG, "Invalid dac_output initial_option index: %zu", idx);
-      }
+    if (this->dac_output_initial_.has_value()) {
+      ES8388_ERROR_FAILED(this->set_dac_output(*this->dac_output_initial_));
+      this->dac_output_select_->publish_state(static_cast<size_t>(*this->dac_output_initial_));
     } else {
       auto dac_power = this->get_dac_power();
       if (dac_power.has_value()) {
@@ -133,14 +128,9 @@ void ES8388::setup() {
     }
   }
   if (this->adc_input_mic_select_ != nullptr) {
-    if (this->adc_input_mic_initial_index_.has_value()) {
-      size_t idx = this->adc_input_mic_initial_index_.value();
-      if (this->adc_input_mic_select_->has_index(idx)) {
-        ES8388_ERROR_FAILED(this->set_adc_input_mic(static_cast<AdcInputMicLine>(idx)));
-        this->adc_input_mic_select_->publish_state(idx);
-      } else {
-        ESP_LOGW(TAG, "Invalid adc_input_mic initial_option index: %zu", idx);
-      }
+    if (this->adc_input_mic_initial_.has_value()) {
+      ES8388_ERROR_FAILED(this->set_adc_input_mic(*this->adc_input_mic_initial_));
+      this->adc_input_mic_select_->publish_state(static_cast<size_t>(*this->adc_input_mic_initial_));
     } else {
       auto mic_input = this->get_mic_input();
       if (mic_input.has_value()) {
@@ -251,7 +241,7 @@ bool ES8388::set_dac_output(DacOutputLine line) {
 optional<DacOutputLine> ES8388::get_dac_power() {
   uint8_t dac_power;
   if (!this->read_byte(ES8388_DACPOWER, &dac_power)) {
-    this->status_momentary_warning("dacpower_read");
+    this->status_momentary_warning();
     return {};
   }
   switch (dac_power) {
@@ -294,7 +284,7 @@ bool ES8388::set_adc_input_mic(AdcInputMicLine line) {
 optional<AdcInputMicLine> ES8388::get_mic_input() {
   uint8_t mic_input;
   if (!this->read_byte(ES8388_ADCCONTROL2, &mic_input)) {
-    this->status_momentary_warning("adccontrol2_read");
+    this->status_momentary_warning();
     return {};
   }
   switch (mic_input) {

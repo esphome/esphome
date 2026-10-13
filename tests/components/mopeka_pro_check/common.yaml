@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: mopeka_pro_check
+    ble_hub_id: ble_tracker_hub
     mac_address: D3:75:F2:DC:16:91
     tank_type: CUSTOM
     custom_distance_full: 40cm

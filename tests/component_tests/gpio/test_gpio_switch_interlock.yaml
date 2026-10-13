@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+switch:
+  - platform: gpio
+    pin: 12
+    id: sw_a
+    interlock: [sw_b, sw_c]
+  - platform: gpio
+    pin: 13
+    id: sw_b
+    interlock: [sw_a, sw_c]
+  - platform: gpio
+    pin: 14
+    id: sw_c
+    interlock: [sw_a, sw_b]
+  - platform: gpio
+    pin: 15
+    id: sw_self
+    interlock: [sw_self]

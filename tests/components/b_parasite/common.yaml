@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: b_parasite
+    ble_hub_id: ble_tracker_hub
     mac_address: F0:CA:F0:CA:01:01
     humidity:
       name: b-parasite Air Humidity

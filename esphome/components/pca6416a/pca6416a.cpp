@@ -20,7 +20,7 @@ enum PCA6416AGPIORegisters {
   PCAL6416A_PULL_DIR1 = 0x49,
 };
 
-static const char *const TAG = "pca6416a";
+ESPHOME_LOG_TAG(TAG, "pca6416a");
 
 void PCA6416AComponent::setup() {
   // Test to see if device exists

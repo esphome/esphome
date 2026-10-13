@@ -6,7 +6,7 @@
 
 namespace esphome::media_player {
 
-static const char *const TAG = "media_player";
+ESPHOME_LOG_TAG(TAG, "media_player");
 
 const char *media_player_state_to_string(MediaPlayerState state) {
   switch (state) {
@@ -122,7 +122,7 @@ void MediaPlayerCall::perform() {
     ESP_LOGV(TAG, "  Volume: %.2f", this->volume_.value());
   }
   if (this->announcement_.has_value()) {
-    ESP_LOGV(TAG, " Announcement: %s", this->announcement_.value() ? "yes" : "no");
+    ESP_LOGV(TAG, " Announcement: %s", this->announcement_.value() ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
   }
   this->parent_->control(*this);
 }
