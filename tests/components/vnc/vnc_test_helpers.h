@@ -121,12 +121,6 @@ class FakeDisplay : public display::Display {
   int out_of_bounds() const { return this->out_of_bounds_; }
   int draws_while_busy() const { return this->draws_while_busy_; }
   void set_draw_delay_us(uint32_t us) { this->draw_delay_us_ = us; }
-  /// A new size for the next session, like a rotation changed at runtime. Clears the pixels.
-  void resize(int width, int height) {
-    this->width_ = width;
-    this->height_ = height;
-    this->pixels_.assign(static_cast<size_t>(width) * height, UNSET);
-  }
 
  protected:
   int width_;
@@ -235,19 +229,12 @@ class TestVncClient : public VncClient {
   uint32_t backoff_ms() const { return this->backoff_ms_; }
   bool rx_pending() const { return this->rx_pending_; }
   bool in_update() const { return this->in_update_; }
-  bool input_boost() const { return this->input_boost_; }
   bool refresh_pending() const { return this->refresh_pending_; }
   bool display_busy() const { return this->display_busy_; }
   uint16_t rx_buffered() const { return this->rx_len_ - this->rx_pos_; }
   uint16_t vis_w() const { return this->vis_w_; }
   uint16_t vis_h() const { return this->vis_h_; }
   uint8_t bpp() const { return this->bpp_; }
-  uint8_t sec_type() const { return this->sec_type_; }
-  uint8_t auth_ambiguous() const { return this->auth_ambiguous_; }
-  uint8_t buttons() const { return this->ptr_buttons_; }
-  uint16_t hash_cols() const { return this->hash_cols_; }
-  uint16_t hash_rows() const { return this->hash_rows_; }
-  uint32_t hash_capacity() const { return this->hash_capacity_; }
 };
 
 // ---------------------------------------------------------------------------
@@ -345,12 +332,9 @@ inline Bytes handshake_38(uint16_t w, uint16_t h) {
 inline Bytes fbur(bool incremental, uint16_t w, uint16_t h) {
   return Rfb().u8(3).u8(incremental ? 1 : 0).u16(0).u16(0).u16(w).u16(h).bytes;
 }
-inline Bytes pointer(uint8_t mask, uint16_t x, uint16_t y) { return Rfb().u8(5).u8(mask).u16(x).u16(y).bytes; }
-inline Bytes key(bool down, uint32_t keysym) { return Rfb().u8(4).u8(down ? 1 : 0).u16(0).u32(keysym).bytes; }
-inline Bytes press(uint32_t keysym) { return cat({key(true, keysym), key(false, keysym)}); }
 inline Bytes set_pixel_format_565() { return {0, 0, 0, 0, 16, 16, 0, 1, 0, 31, 0, 63, 0, 31, 11, 5, 0, 0, 0, 0}; }
 inline Bytes set_pixel_format_332() { return {0, 0, 0, 0, 8, 8, 0, 1, 0, 7, 0, 7, 0, 3, 5, 2, 0, 0, 0, 0}; }
-inline Bytes set_encodings() { return {2, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x11}; }
+inline Bytes set_encodings() { return {2, 0, 0, 2, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x11}; }
 inline Bytes version_reply(char minor) { return text(std::string("RFB 003.00") + minor + "\n"); }
 
 /// Splits a stream of client messages that are all FramebufferUpdateRequests.
