@@ -216,7 +216,8 @@ bool FriedrichClimate::on_receive(remote_base::RemoteReceiveData src) {
   }
   this->mode = static_cast<climate::ClimateMode>(mode->value);
 
-  // Strip the power-on flag (bit 7) to isolate the temperature code.
+  // State frames always carry the power-on flag in bit 7 (power off is the separate 5-byte frame), so it is
+  // stripped rather than acted on
   const uint8_t temp_code = d[6] & ~BYTE6_POWER_ON;
   const uint8_t temp_index = reverse_nibble(temp_code);
   if (temp_code <= 0x0F && temp_index <= (TEMP_MAX - TEMP_MIN) / TEMP_STEP)
