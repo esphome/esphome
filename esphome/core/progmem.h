@@ -1,10 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <new>
 #include <string>
+#include <type_traits>
 
 #include "esphome/core/hal.h"  // For PROGMEM definition
 
@@ -78,6 +80,10 @@ template<size_t N> struct FixedString {
 template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t COUNT = sizeof...(Strs);
   static constexpr size_t BLOB_SIZE = (0 + ... + (Strs.size() + 1));
+  /// Length of the longest string, for sizing a RAM copy on ESP8266
+  static constexpr size_t MAX_LENGTH = std::max({Strs.size()...});
+  /// Offsets are one byte while the blob fits in 255 bytes and two bytes beyond that.
+  using offset_t = std::conditional_t<(BLOB_SIZE <= UINT8_MAX), uint8_t, uint16_t>;
 
   /// Generate packed string blob at compile time
   static constexpr auto make_blob() {
@@ -91,15 +97,24 @@ template<FixedString... Strs> struct ProgmemStringTable {
     return result;
   }
 
-  /// Generate offset table at compile time (uint8_t limits blob to 255 bytes)
+  /// Generate offset table at compile time
   static constexpr auto make_offsets() {
     static_assert(COUNT > 0, "PROGMEM_STRING_TABLE must contain at least one string");
     static_assert(COUNT <= 255, "PROGMEM_STRING_TABLE supports at most 255 strings with uint8_t indices");
-    static_assert(BLOB_SIZE <= 255, "PROGMEM_STRING_TABLE blob exceeds 255 bytes; use fewer/shorter strings");
-    std::array<uint8_t, COUNT> result{};
+    static_assert(BLOB_SIZE <= UINT16_MAX, "PROGMEM_STRING_TABLE blob exceeds 65535 bytes; use fewer/shorter strings");
+    std::array<offset_t, COUNT> result{};
     size_t pos = 0, idx = 0;
-    ((result[idx++] = static_cast<uint8_t>(pos), pos += Strs.size() + 1), ...);
+    ((result[idx++] = static_cast<offset_t>(pos), pos += Strs.size() + 1), ...);
     return result;
+  }
+
+  /// Read one offset from the table, which may live in flash
+  static offset_t read_offset(const offset_t *offset) {
+    if constexpr (sizeof(offset_t) == 1) {
+      return progmem_read_byte(offset);
+    } else {
+      return progmem_read_uint16(offset);
+    }
   }
 };
 
@@ -115,6 +130,7 @@ struct LogString;
     static constexpr size_t COUNT = Table::COUNT; \
     static constexpr uint8_t LAST_INDEX = COUNT - 1; \
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
+    static constexpr size_t MAX_LENGTH = Table::MAX_LENGTH; \
     static constexpr auto BLOB ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_blob(); \
     static constexpr auto OFFSETS ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_offsets(); \
     static const char *get_(uint8_t idx, uint8_t fallback) { \
@@ -122,7 +138,7 @@ struct LogString;
         idx = fallback; \
       /* std::launder is used here to prevent the inter-procedural analysis that */ \
       /* causes the false positive that the string is not null terminated */ \
-      return std::launder(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
+      return std::launder(&BLOB[Table::read_offset(&OFFSETS[idx])]); \
     } \
     static ::ProgmemStr get_progmem_str(uint8_t idx, uint8_t fallback) { \
       return reinterpret_cast<::ProgmemStr>(get_(idx, fallback)); \
