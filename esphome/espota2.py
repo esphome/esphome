@@ -226,6 +226,10 @@ class OTAKeyRejected(OTAError):
     """The Noise handshake failed on the key; another key may succeed."""
 
 
+class OTAEncryptionNotOffered(OTAError):
+    """A key is configured but the device cannot encrypt."""
+
+
 def esphome_ota_items(config: ConfigType) -> list[ConfigType]:
     """The esphome ota entries; a raw ``ota:`` may be a mapping, not a list."""
     ota = config.get(CONF_OTA) or []
@@ -656,7 +660,7 @@ def _negotiate_session(
             # capture the image (wifi credentials, api key)
             # Remove before 2027.3.0: installing without the block no longer
             # falls back then; advise 'allow_plaintext_upload: true' instead
-            raise OTAError(
+            raise OTAEncryptionNotOffered(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
                 "The running firmware predates ESPHome 2026.9.0 or has no "
@@ -1008,14 +1012,12 @@ def probe_ota_key(
         time.sleep(max(0.0, min(delay, deadline - time.monotonic())))
 
     res: list[Any] = []
-    attempts = 0
-    answered: set[int] = set()  # addresses whose answer no retry changes
-    unreached = 0  # transport failures in the current round
+    answered: set[Any] = set()  # addresses whose answer no retry changes
     last_error = "no time left"
     device_error: str | None = (
         None  # an answer from the device outranks a network error
     )
-    while (remaining := deadline - time.monotonic()) > 0:
+    while time.monotonic() < deadline:
         if not res:
             # A rebooting device may drop off mDNS for a while; keep asking
             try:
@@ -1031,64 +1033,70 @@ def probe_ota_key(
                 _LOGGER.debug("Host not resolved yet (%s); retrying", last_error)
                 pause(PROBE_RETRY_DELAY)
                 continue
-        index = attempts % len(res)
-        attempts += 1
-        if index in answered:
-            continue  # its answer cannot change
-        af, socktype, _, _, sa = res[index]
+        # One round asks every address that has not answered, back to back
         started = time.monotonic()
-        sock = socket.socket(af, socktype)
-        # A dead host must not eat the budget
-        sock.settimeout(min(PROBE_CONNECT_TIMEOUT, remaining))
-        with contextlib.closing(sock):
-            try:
-                sock.connect(sa)
-                session, _, _, _ = _negotiate_session(
-                    _DeadlineSocket(sock, deadline),
-                    noise_psk,
-                    False,
-                    False,
-                    level=logging.DEBUG,
-                )
-                # A password challenge also proves the key: it comes encrypted
-                receive_exactly(
-                    session,
-                    1,
-                    "auth",
-                    [
-                        RESPONSE_REQUEST_AUTH,
-                        RESPONSE_REQUEST_SHA256_AUTH,
-                        RESPONSE_AUTH_OK,
-                    ],
-                )
-            except (OSError, OTANetworkError) as err:
-                last_error = f"{sa[0]}: {err}"
-                unreached += 1
-            except OTAError as err:
-                # A rejected key or a refused handshake is final in the
-                # precheck; a rebooting device may answer differently once
-                # it is back
-                last_error = device_error = f"{sa[0]}: {err}"
-                if not retry_rejected:
-                    answered.add(index)
-            else:
-                _LOGGER.info("Device %s accepted the key", sa[0])
-                return True
+        unreached = 0
+        for af, socktype, _, _, sa in res:
+            if sa in answered or (remaining := deadline - time.monotonic()) <= 0:
+                continue
+            sock = socket.socket(af, socktype)
+            # A dead host must not eat the budget
+            sock.settimeout(min(PROBE_CONNECT_TIMEOUT, remaining))
+            with contextlib.closing(sock):
+                try:
+                    sock.connect(sa)
+                    session, _, _, _ = _negotiate_session(
+                        _DeadlineSocket(sock, deadline),
+                        noise_psk,
+                        False,
+                        False,
+                        level=logging.DEBUG,
+                    )
+                    # A password challenge also proves the key: it comes encrypted
+                    receive_exactly(
+                        session,
+                        1,
+                        "auth",
+                        [
+                            RESPONSE_REQUEST_AUTH,
+                            RESPONSE_REQUEST_SHA256_AUTH,
+                            RESPONSE_AUTH_OK,
+                        ],
+                    )
+                except (OSError, OTANetworkError) as err:
+                    last_error = f"{sa[0]}: {err}"
+                    unreached += 1
+                except OTAEncryptionNotOffered:
+                    last_error = device_error = f"{sa[0]}: no encryption offered"
+                    if not retry_rejected:
+                        answered.add(sa)
+                except OTAError as err:
+                    # A rejected key or a refused handshake is final in the
+                    # precheck; a rebooting device may answer differently
+                    # once it is back
+                    last_error = device_error = f"{sa[0]}: {err}"
+                    if not retry_rejected:
+                        answered.add(sa)
+                else:
+                    _LOGGER.info("Device %s accepted the key", sa[0])
+                    return True
+            _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
         # A stale cached address must not answer for the device: every
         # address gets its own final say
-        now = time.monotonic()
-        if len(answered) == len(res) or now >= deadline:
+        pending = len(res) - len(answered)
+        if pending == 0 or time.monotonic() >= deadline:
             break
-        _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
-        if attempts % len(res):
-            continue  # the next address is fresh; nothing to wait for
-        if unreached == len(res):
-            # A round with no answer at all: the device may be back under
-            # another address, so resolve it again
-            res, answered = [], set()
-        unreached = 0
-        pause(PROBE_RETRY_DELAY - (now - started))
-    _LOGGER.warning("The device did not accept the key: %s", device_error or last_error)
+        if unreached == pending:
+            # No answer this round: the device may be back under another
+            # address, so resolve it again
+            res = []
+        pause(PROBE_RETRY_DELAY - (time.monotonic() - started))
+    if device_error is None:
+        _LOGGER.warning(
+            "The device could not be reached to check the key: %s", last_error
+        )
+    else:
+        _LOGGER.warning("The device did not accept the key: %s", device_error)
     return False
 
 

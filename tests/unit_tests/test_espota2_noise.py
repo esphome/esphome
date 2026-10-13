@@ -796,7 +796,7 @@ def test_probe_ota_key_resolution_failure(
     ):
         assert espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=0.2) is False
     assert resolve.call_count > 1
-    assert any("did not accept the key" in r.message for r in caplog.records)
+    assert any("could not be reached" in r.message for r in caplog.records)
 
 
 def test_probe_ota_key_resolves_again_after_a_reboot() -> None:
@@ -929,6 +929,63 @@ def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
         ("10.0.0.2", 1),
         ("10.0.0.2", 1),
     ]
+
+
+def test_probe_ota_key_pauses_between_rounds_once_an_address_answered() -> None:
+    """A stale address before a device that said no keeps the round pacing:
+    the device is not asked again and the stale address is not hammered."""
+    clock = [0.0]
+
+    def sleep(seconds: float) -> None:
+        clock[0] += seconds
+
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[
+                (2, 1, 0, "", ("10.0.0.1", 1)),
+                (2, 1, 0, "", ("10.0.0.2", 1)),
+            ],
+        ) as resolve,
+        patch("socket.socket") as sock_cls,
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=itertools.chain(
+                [OSError("refused"), espota2.OTAKeyRejected("no")],
+                itertools.repeat(OSError("refused")),
+            ),
+        ) as negotiate,
+        patch("time.sleep", side_effect=sleep) as sleeper,
+        patch("time.monotonic", side_effect=lambda: clock[0]),
+    ):
+        assert not espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+    # Ten rounds of one stale attempt each, a pause between every two
+    assert negotiate.call_count == 11
+    assert sleeper.call_count == 10
+    assert [c.args[0] for c in sock_cls.return_value.connect.call_args_list].count(
+        ("10.0.0.2", 1)
+    ) == 1
+    # Every later round had no answer, so the host was resolved again each time
+    assert resolve.call_count == 10
+
+
+def test_probe_ota_key_names_a_missing_encryption_offer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The upload's advice about the image does not apply to a probe."""
+    with (
+        patch("esphome.espota2.resolve_ip_address", return_value=RESOLVED),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=espota2.OTAEncryptionNotOffered("refusing to send the image"),
+        ),
+        patch("time.sleep"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert not espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+    assert "did not accept the key: 127.0.0.1: no encryption offered" in caplog.text
+    assert "image" not in caplog.text
 
 
 def test_probe_ota_key_resolves_again_after_a_round_without_an_answer() -> None:
