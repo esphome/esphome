@@ -229,7 +229,14 @@ media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_media_state_(media_
                                                                           media_player::MediaPlayerState old_state) {
   media_player::MediaPlayerState state = this->get_source_state_(source, playlist_active, old_state);
 #ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
-  if (!this->on_off_enabled_ || state == media_player::MEDIA_PLAYER_STATE_PLAYING) {
+  if (!this->on_off_enabled_) {
+    return state;
+  }
+  if (state == media_player::MEDIA_PLAYER_STATE_PLAYING) {
+    // Pass through ON so on_turn_on fires for a source that starts playing without a player command
+    if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+      this->turn_on_();
+    }
     return state;
   }
   if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
@@ -250,7 +257,7 @@ media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_media_state_(media_
 }
 
 #ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
-// THREAD CONTEXT: Called from main loop (process_control_queue_, handle_player_command_)
+// THREAD CONTEXT: Called from main loop (process_control_queue_, handle_player_command_, get_media_state_)
 void SpeakerSourceMediaPlayer::turn_on_() {
   this->is_turn_off_ = false;
   if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
@@ -579,22 +586,7 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
           target_source->handle_command(media_source::MediaSourceCommand::PAUSE);
         }
       } else {
-#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
-        this->turn_on_();
-#endif
-        if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
-          bool last_has_internal_playlist = (ps.last_source != nullptr) && ps.last_source->has_internal_playlist();
-          if (last_has_internal_playlist) {
-            ps.last_source->handle_command(media_source::MediaSourceCommand::PLAY);
-          } else {
-            if (ps.playlist_index >= ps.playlist.size()) {
-              ps.playlist_index = 0;
-            }
-            this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
-          }
-        } else if (target_source != nullptr) {
-          target_source->handle_command(media_source::MediaSourceCommand::PLAY);
-        }
+        this->handle_player_command_(media_player::MEDIA_PLAYER_COMMAND_PLAY, pipeline);
       }
       break;
     }

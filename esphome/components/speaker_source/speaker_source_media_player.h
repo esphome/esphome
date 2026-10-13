@@ -29,7 +29,7 @@ namespace esphome::speaker_source {
 // - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
 //   handle_volume_request_(), handle_mute_request_(), handle_play_uri_request_(),
 //   set_volume_(), set_mute_state_(), control(), get_source_state_(), get_media_state_(),
-//   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
+//   turn_on_(), find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
 //   process_control_queue_(), handle_player_command_(), queue_command_(), queue_play_current_()
 //
 // - Media source task(s): handle_media_output_() via SourceBinding::write_audio().
