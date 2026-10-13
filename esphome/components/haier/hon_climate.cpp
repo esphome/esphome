@@ -710,7 +710,8 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
               bool alarm_status = (packet[2 + i] & alarm_bit) != 0;
               int log_level = alarm_status ? ESPHOME_LOG_LEVEL_WARN : ESPHOME_LOG_LEVEL_INFO;
 #ifdef USE_ESP8266
-              // Static, since on_alarm automations may keep the message across a delay
+              // Static so a delayed on_alarm automation can still read it, but only until the next
+              // alarm change, including a later one in this packet; `code` stays correct
               static char alarm_message[HonAlarmMessages::MAX_LENGTH + 1];
               ESPHOME_strncpy_P(alarm_message,
                                 reinterpret_cast<const char *>(
