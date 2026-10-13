@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import contextlib
+import enum
 import gzip
 import hashlib
 import io
@@ -228,6 +229,16 @@ class OTAKeyRejected(OTAError):
 
 class OTAEncryptionNotOffered(OTAError):
     """A key is configured but the device cannot encrypt."""
+
+
+class ProbeResult(enum.Enum):
+    """What probe_ota_key found; only ACCEPTED means the device runs the key."""
+
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"  # the device runs another key
+    NOT_OFFERED = "not offered"  # the device cannot encrypt
+    DEVICE_ERROR = "device error"  # answered, but not about the key
+    UNREACHABLE = "unreachable"  # no answer at all
 
 
 def esphome_ota_items(config: ConfigType) -> list[ConfigType]:
@@ -995,7 +1006,7 @@ def probe_ota_key(
     *,
     timeout: float = PROBE_TIMEOUT,
     retry_rejected: bool = True,
-) -> bool:
+) -> ProbeResult:
     """Whether the device completes a Noise handshake with the key, no image
     sent. Retries until the deadline, a rejection too with ``retry_rejected``
     (the old firmware may answer once more after an upload)."""
@@ -1010,7 +1021,7 @@ def probe_ota_key(
     res: list[Any] = []
     answered: set[Any] = set()  # addresses whose answer no retry changes
     last_error = "no time left"
-    device_error: str | None = None  # a device answer outranks a network error
+    outcome = ProbeResult.UNREACHABLE  # a device answer outranks a network error
     while time.monotonic() < deadline:
         if not res:
             # A rebooting device may drop off mDNS for a while; keep asking
@@ -1058,21 +1069,25 @@ def probe_ota_key(
                         ],
                     )
                 except (OSError, OTANetworkError) as err:
-                    last_error = f"{sa[0]}: {err}"
+                    if outcome is ProbeResult.UNREACHABLE:
+                        last_error = f"{sa[0]}: {err}"
                     unreached += 1
-                except OTAEncryptionNotOffered:
-                    last_error = device_error = f"{sa[0]}: no encryption offered"
-                    if not retry_rejected:
-                        answered.add(sa)
                 except OTAError as err:
                     # Final in the precheck; a rebooting device may answer
                     # differently once it is back
-                    last_error = device_error = f"{sa[0]}: {err}"
+                    if isinstance(err, OTAKeyRejected):
+                        outcome = ProbeResult.REJECTED
+                    elif isinstance(err, OTAEncryptionNotOffered):
+                        outcome = ProbeResult.NOT_OFFERED
+                        err = "no encryption offered"
+                    else:
+                        outcome = ProbeResult.DEVICE_ERROR
+                    last_error = f"{sa[0]}: {err}"
                     if not retry_rejected:
                         answered.add(sa)
                 else:
                     _LOGGER.info("Device %s accepted the key", sa[0])
-                    return True
+                    return ProbeResult.ACCEPTED
             _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
         # Every address gets its own final say; a stale one cannot answer
         # for the device
@@ -1082,13 +1097,8 @@ def probe_ota_key(
         if unreached == pending:
             res = []  # no answer this round: the device may have a new address
         pause(PROBE_RETRY_DELAY - (time.monotonic() - started))
-    if device_error is None:
-        _LOGGER.warning(
-            "The device could not be reached to check the key: %s", last_error
-        )
-    else:
-        _LOGGER.warning("The device did not accept the key: %s", device_error)
-    return False
+    _LOGGER.warning("Checking the key failed, %s: %s", outcome.value, last_error)
+    return outcome
 
 
 def run_ota_impl_(

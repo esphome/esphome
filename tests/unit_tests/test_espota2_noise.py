@@ -26,6 +26,7 @@ import pytest
 
 from esphome import espota2
 from esphome.core import EsphomeError
+from esphome.espota2 import ProbeResult
 
 PSK = base64.b64encode(bytes(range(32))).decode()
 OTHER_PSK = base64.b64encode(bytes(range(1, 33))).decode()
@@ -723,7 +724,10 @@ def test_probe_ota_key_accepts_the_running_key(
     device = FakeEncryptedDevice()
     device.start()
     with caplog.at_level(logging.INFO):
-        assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+        assert (
+            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5)
+            is ProbeResult.ACCEPTED
+        )
     device.join_and_check()
     assert device.probes == 1
     assert device.received is None
@@ -744,10 +748,11 @@ def test_probe_ota_key_gives_up_at_the_deadline(
     device.start()
     with patch("time.sleep"), caplog.at_level(logging.WARNING):
         assert (
-            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=0.5) is False
+            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=0.5)
+            is not ProbeResult.ACCEPTED
         )
     device.join_and_check()
-    assert any("did not accept the key" in r.message for r in caplog.records)
+    assert any("Checking the key failed" in r.message for r in caplog.records)
     assert device.received is None
 
 
@@ -762,7 +767,7 @@ def test_probe_ota_key_fails_fast_on_a_definitive_answer() -> None:
             espota2.probe_ota_key(
                 "127.0.0.1", device.port, PSK, timeout=30, retry_rejected=False
             )
-            is False
+            is ProbeResult.REJECTED
         )
     device.join_and_check()
     sleep.assert_not_called()
@@ -774,7 +779,10 @@ def test_probe_ota_key_retries_after_a_transport_fault() -> None:
     device = FakeEncryptedDevice(connections=2, drop_handshakes=1)
     device.start()
     with patch("time.sleep"):
-        assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+        assert (
+            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5)
+            is ProbeResult.ACCEPTED
+        )
     device.join_and_check()
     assert device.probes == 1
 
@@ -794,9 +802,12 @@ def test_probe_ota_key_resolution_failure(
         patch("time.sleep"),
         caplog.at_level(logging.WARNING),
     ):
-        assert espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=0.2) is False
+        assert (
+            espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=0.2)
+            is not ProbeResult.ACCEPTED
+        )
     assert resolve.call_count > 1
-    assert any("could not be reached" in r.message for r in caplog.records)
+    assert any("failed, unreachable" in r.message for r in caplog.records)
 
 
 def test_probe_ota_key_resolves_again_after_a_reboot() -> None:
@@ -812,7 +823,10 @@ def test_probe_ota_key_resolves_again_after_a_reboot() -> None:
         ),
         patch("time.sleep"),
     ):
-        assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+        assert (
+            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5)
+            is ProbeResult.ACCEPTED
+        )
     device.join_and_check()
 
 
@@ -846,7 +860,9 @@ def test_probe_ota_key_recomputes_the_budget_after_connect() -> None:
         sock = sock_cls.return_value
         sock.connect.side_effect = lambda _sa: clock.__setitem__(0, clock[0] + 0.4)
         sock.recv.return_value = b""
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is not ProbeResult.ACCEPTED
+        )
     connect_timeout, handshake_timeout = (
         c.args[0] for c in sock.settimeout.call_args_list[:2]
     )
@@ -874,7 +890,10 @@ def test_probe_ota_key_tries_every_address_before_a_final_no() -> None:
         patch("esphome.espota2.receive_exactly"),
         patch("time.sleep") as sleep,
     ):
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+            is ProbeResult.ACCEPTED
+        )
     assert negotiate.call_count == 2
     sleep.assert_not_called()
 
@@ -895,7 +914,7 @@ def test_probe_ota_key_takes_a_password_challenge_as_proof(answer: int) -> None:
         patch("socket.socket"),
         patch("esphome.espota2._negotiate_session", return_value=(session, 2, 0, True)),
     ):
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is True
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is ProbeResult.ACCEPTED
 
 
 def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
@@ -922,7 +941,10 @@ def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
         patch("esphome.espota2.receive_exactly"),
         patch("time.sleep"),
     ):
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+            is ProbeResult.ACCEPTED
+        )
     assert negotiate.call_count == 3
     assert [c.args[0] for c in sock.return_value.connect.call_args_list] == [
         ("10.0.0.1", 1),
@@ -958,7 +980,9 @@ def test_probe_ota_key_pauses_between_rounds_once_an_address_answered() -> None:
         patch("time.sleep", side_effect=sleep) as sleeper,
         patch("time.monotonic", side_effect=lambda: clock[0]),
     ):
-        assert not espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+        assert ProbeResult.ACCEPTED is not espota2.probe_ota_key(
+            "h", 1, PSK, timeout=30, retry_rejected=False
+        )
     # Ten rounds of one stale attempt each, a pause between every two
     assert negotiate.call_count == 11
     assert sleeper.call_count == 10
@@ -995,7 +1019,9 @@ def test_probe_ota_key_keeps_trying_an_address_a_new_lookup_added() -> None:
         patch("time.sleep", side_effect=sleep),
         patch("time.monotonic", side_effect=lambda: clock[0]),
     ):
-        assert not espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+        assert ProbeResult.ACCEPTED is not espota2.probe_ota_key(
+            "h", 1, PSK, timeout=30, retry_rejected=False
+        )
     assert negotiate.call_count == 11  # the new address was tried every round
 
 
@@ -1013,8 +1039,11 @@ def test_probe_ota_key_names_a_missing_encryption_offer(
         patch("time.sleep"),
         caplog.at_level(logging.WARNING),
     ):
-        assert not espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
-    assert "did not accept the key: 127.0.0.1: no encryption offered" in caplog.text
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+            is ProbeResult.NOT_OFFERED
+        )
+    assert "failed, not offered: 127.0.0.1: no encryption offered" in caplog.text
     assert "image" not in caplog.text
 
 
@@ -1038,7 +1067,7 @@ def test_probe_ota_key_resolves_again_after_a_round_without_an_answer() -> None:
         patch("esphome.espota2.receive_exactly"),
         patch("time.sleep"),
     ):
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=30)
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is ProbeResult.ACCEPTED
     assert resolve.call_count == 2
     assert [c.args[0] for c in sock.return_value.connect.call_args_list] == [
         ("10.0.0.1", 1),
@@ -1069,10 +1098,11 @@ def test_probe_ota_key_reports_the_device_answer_over_a_network_error(
         patch("time.sleep"),
         caplog.at_level(logging.WARNING),
     ):
-        assert not espota2.probe_ota_key(
-            "h", 1, PSK, timeout=0.05, retry_rejected=False
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=0.05, retry_rejected=False)
+            is ProbeResult.REJECTED
         )
-    assert "did not accept the key: 10.0.0.1: wrong key" in caplog.text
+    assert "failed, rejected: 10.0.0.1: wrong key" in caplog.text
 
 
 def test_probe_ota_key_reports_a_local_fault_as_its_own() -> None:
@@ -1102,7 +1132,7 @@ def test_probe_ota_key_takes_another_device_answer_as_final() -> None:
     ):
         assert (
             espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
-            is False
+            is ProbeResult.DEVICE_ERROR
         )
     negotiate.assert_called_once()
     sleep.assert_not_called()
@@ -1121,7 +1151,7 @@ def test_probe_ota_key_retries_a_device_error_while_it_reboots() -> None:
         patch("esphome.espota2.receive_exactly"),
         patch("time.sleep"),
     ):
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is True
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is ProbeResult.ACCEPTED
     assert negotiate.call_count == 2
 
 
@@ -1161,7 +1191,9 @@ def test_probe_ota_key_stops_when_connect_used_the_budget() -> None:
     ):
         sock = sock_cls.return_value
         sock.connect.side_effect = lambda _sa: clock.__setitem__(0, clock[0] + 1.0)
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is not ProbeResult.ACCEPTED
+        )
     assert [c.args[0] for c in sock.settimeout.call_args_list] == [0.5]
     sock.sendall.assert_not_called()
     sleep.assert_not_called()
@@ -1180,7 +1212,9 @@ def test_probe_ota_key_never_waits_past_its_deadline() -> None:
     ):
         sock = sock_cls.return_value
         sock.connect.side_effect = OSError("refused")
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is not ProbeResult.ACCEPTED
+        )
     timeouts = [c.args[0] for c in sock.settimeout.call_args_list]
     assert all(t <= 0.5 for t in timeouts)
     assert all(c.args[0] <= 0.5 for c in sleep.call_args_list)
