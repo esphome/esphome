@@ -116,16 +116,6 @@ from esphome.core import CORE
             {
                 "id": "image_id",
                 "file": "image.png",
-                "type": "rgb565",
-                "dither": {"type": "FLOYDSTEINBERG"},
-            },
-            "Image format 'RGB565' does not support dithering type: FLOYDSTEINBERG",
-            id="rgb565_with_unsupported_dither",
-        ),
-        pytest.param(
-            {
-                "id": "image_id",
-                "file": "image.png",
                 "type": "rgb111",
                 "dither": {"type": "None"},
             },

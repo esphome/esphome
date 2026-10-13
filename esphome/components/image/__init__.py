@@ -483,10 +483,12 @@ def validate_settings(value, path=()):
         and CONF_INVERT_ALPHA not in type_class.allow_config
     ):
         raise cv.Invalid("No alpha channel to invert")
-    dither = value.get(CONF_DITHER, {}).get("type", "NONE")
+    dither = value.get(CONF_DITHER, {}).get(CONF_TYPE, "NONE")
     if dither not in type_class.allow_dither_config:
-        raise cv.Invalid(
-            f"Image format '{conf_type}' does not support dithering type: {dither}"
+        _LOGGER.warning(
+            "Image format '%s' does not support dithering type: %s. This setting will be ignored.",
+            conf_type,
+            dither,
         )
     if value.get(CONF_BYTE_ORDER) is not None and not type_class.is_endian():
         raise cv.Invalid(
