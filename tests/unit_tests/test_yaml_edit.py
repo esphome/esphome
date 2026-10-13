@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import stat
 import sys
 from typing import Any
 from unittest.mock import patch
@@ -289,8 +290,11 @@ def test_apply_writes_reloads_drops_the_cache_and_restores(tmp_path: Path) -> No
     cache = compiled_config_path(CORE.config_filename)
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text("{}")
+    mode = stat.S_IMODE(path.stat().st_mode)
     originals = apply_line_edits([_name_edit("garage")])
-    assert originals == {path: Snapshot(YAML, YAML.replace("kitchen  #", "garage  #"))}
+    assert originals == {
+        path: Snapshot(YAML, YAML.replace("kitchen  #", "garage  #"), mode)
+    }
     assert path.read_text() == YAML.replace("kitchen  #", "garage  #")
     assert not cache.exists()
     cache.write_text("{}")
@@ -443,11 +447,11 @@ def test_restore_goes_on_after_an_interrupt(tmp_path: Path) -> None:
     calls: list[Path] = []
 
     def interrupt_at(n: int) -> Any:
-        def write(target: Path, text: str) -> None:
+        def write(target: Path, text: str, **kwargs: Any) -> None:
             calls.append(target)
             if len(calls) == n:
                 raise KeyboardInterrupt
-            write_keeping_mode(target, text)
+            write_keeping_mode(target, text, **kwargs)
 
         return write
 
@@ -484,11 +488,11 @@ def test_restore_finishes_after_any_failure(tmp_path: Path) -> None:
     )
     writes: list[Path] = []
 
-    def fail_first(target: Path, text: str) -> None:
+    def fail_first(target: Path, text: str, **kwargs: Any) -> None:
         writes.append(target)
         if len(writes) == 1:
             raise OSError("odd")
-        write_keeping_mode(target, text)
+        write_keeping_mode(target, text, **kwargs)
 
     with (
         patch("esphome.yaml_edit.write_keeping_mode", side_effect=fail_first),
@@ -509,6 +513,45 @@ def test_restore_finishes_after_any_failure(tmp_path: Path) -> None:
         restore_files(originals)
     assert path.read_text() == YAML
     assert "the validated caches: interrupted" in "".join(info.value.__notes__)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="posix file modes")
+def test_restore_puts_back_the_mode_from_before_the_edit(tmp_path: Path) -> None:
+    """A write whose chmod failed leaves the file 0600; the restore does not
+    copy that, it has the mode from before."""
+    path = _setup(tmp_path, YAML)
+    path.chmod(0o644)
+    originals = apply_line_edits([_name_edit("garage")])
+    path.chmod(0o600)
+    restore_files(originals)
+    assert path.read_text() == YAML
+    assert path.stat().st_mode & 0o777 == 0o644
+
+
+def test_restore_finishes_after_an_exit(tmp_path: Path) -> None:
+    """A SystemExit from a signal handler still leaves the other files put
+    back and comes out again with the report."""
+    path = _setup(tmp_path, YAML)
+    other = tmp_path / "other.yaml"
+    other.write_bytes(b"x: 1\n")
+    originals = apply_line_edits(
+        [_name_edit("garage"), LineEdit(other, 0, "x: 1", "x: 2")]
+    )
+    writes: list[Path] = []
+
+    def exit_first(target: Path, text: str, **kwargs: Any) -> None:
+        writes.append(target)
+        if len(writes) == 1:
+            raise SystemExit(1)
+        write_keeping_mode(target, text, **kwargs)
+
+    with (
+        patch("esphome.yaml_edit.write_keeping_mode", side_effect=exit_first),
+        pytest.raises(SystemExit) as info,
+    ):
+        restore_files(originals)
+    assert other.read_text() == "x: 1\n"
+    assert f"Could not restore {path}: SystemExit" in "".join(info.value.__notes__)
 
 
 def test_a_value_written_to_the_secrets_file_is_registered(tmp_path: Path) -> None:

@@ -47,11 +47,13 @@ class LineEdit:
 
 @dataclass
 class Snapshot:
-    """A rewritten file's text before and after; the restore only puts
-    ``original`` back over ``written``, never over the user's own edit."""
+    """A rewritten file's text before and after, and its mode before; the
+    restore only puts ``original`` back over ``written``, never over the
+    user's own edit."""
 
     original: str
     written: str
+    mode: int | None = None
 
 
 def field_line_re(
@@ -170,13 +172,20 @@ def source_line(mapping: ConfigType, name: str) -> tuple[Path, int, str]:
     return doc, line_no, line_at(doc, line_no)
 
 
-def write_keeping_mode(path: Path, text: str, like: Path | None = None) -> None:
-    """Write with the mode of ``like`` (default: the file itself) rather
-    than write_file's 0644; a 0600 secrets file stays 0600."""
+def mode_of(path: Path) -> int:
     try:
-        mode = stat.S_IMODE((like or path).stat().st_mode)
+        return stat.S_IMODE(path.stat().st_mode)
     except OSError as err:
-        raise EsphomeError(f"Could not read the mode of {like or path}: {err}") from err
+        raise EsphomeError(f"Could not read the mode of {path}: {err}") from err
+
+
+def write_keeping_mode(
+    path: Path, text: str, like: Path | None = None, mode: int | None = None
+) -> None:
+    """Write with ``mode``, else the mode of ``like`` (default: the file
+    itself), rather than write_file's 0644; a 0600 secrets file stays 0600."""
+    if mode is None:
+        mode = mode_of(like or path)
     try:
         write_file(path, text, private=True)
     except EsphomeError as err:
@@ -226,7 +235,9 @@ def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
     originals = {}
     for path, own in by_path.items():
         original = read_text(path)
-        originals[path] = Snapshot(original, rewritten_text(original, own))
+        originals[path] = Snapshot(
+            original, rewritten_text(original, own), mode_of(path)
+        )
     try:
         for path, snapshot in originals.items():
             write_keeping_mode(path, snapshot.written)
@@ -258,19 +269,25 @@ def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
 
 
 def restore_files(originals: dict[Path, Snapshot]) -> None:
-    """Put back what apply_line_edits wrote; a file that failed or changed
-    meanwhile is left alone and reported. Every file is tried whatever went
-    wrong before; an interrupt is raised again at the end with the report
-    as a note."""
+    """Put back what apply_line_edits wrote, mode included; a file that
+    failed or changed meanwhile is left alone and reported. Every file is
+    tried whatever went wrong before; an interrupt or exit is raised again
+    at the end with the report as a note."""
     failed: list[str] = []
     stop: BaseException | None = None
 
     def report(what: str, err: BaseException) -> None:
         nonlocal stop
-        why = "interrupted" if isinstance(err, KeyboardInterrupt) else str(err)
-        failed.append(f"{what}: {why or type(err).__name__}")
-        if not isinstance(err, Exception):
+        if isinstance(err, Exception):
+            why = str(err) or type(err).__name__
+        else:  # an interrupt or exit says what it is, not its code
+            why = (
+                "interrupted"
+                if isinstance(err, KeyboardInterrupt)
+                else type(err).__name__
+            )
             stop = err
+        failed.append(f"{what}: {why}")
 
     for path, snapshot in originals.items():
         try:
@@ -279,12 +296,12 @@ def restore_files(originals: dict[Path, Snapshot]) -> None:
                 continue  # never written, or already put back
             if current != snapshot.written:
                 raise EsphomeError("changed since it was written, left as is")
-            write_keeping_mode(path, snapshot.original)
-        except (EsphomeError, OSError, KeyboardInterrupt) as err:
+            write_keeping_mode(path, snapshot.original, mode=snapshot.mode)
+        except BaseException as err:  # noqa: BLE001  # pylint: disable=broad-except
             report(str(path), err)
     try:
         compiled_config.invalidate_compiled_config()
-    except (EsphomeError, KeyboardInterrupt) as err:
+    except BaseException as err:  # noqa: BLE001  # pylint: disable=broad-except
         report("the validated caches", err)
     if not failed:
         return
