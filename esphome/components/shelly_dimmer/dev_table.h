@@ -57,7 +57,7 @@ constexpr uint32_t f7[] PROGMEM = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_2
 /*
  * Device table, corresponds to the "Bootloader device-dependant parameters"
  * table in ST document AN2606.
- * Note that the option bytes upper range is inclusive!
+ * Only the columns the updater reads are kept.
  */
 constexpr stm32_dev_t DEVICES[] PROGMEM = {
     /* ID   SRAM-start  FLASH-address-range  PSize  Flags */
