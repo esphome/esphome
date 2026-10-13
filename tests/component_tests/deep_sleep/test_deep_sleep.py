@@ -149,3 +149,15 @@ def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
     config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
     with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
         deep_sleep.validate_config(config)
+
+
+@pytest.mark.parametrize(
+    "platform", [PlatformFramework.ESP8266_ARDUINO, PlatformFramework.NRF52_ZEPHYR]
+)
+def test_deep_sleep_wakeup_pin_rejected_on_unsupported_platform(
+    set_core_config: SetCoreConfigCallable, platform: PlatformFramework
+) -> None:
+    """wakeup_pin is rejected where the C++ component has no wakeup pin support."""
+    set_core_config(platform)
+    with pytest.raises(cv.Invalid, match="only available on"):
+        deep_sleep.CONFIG_SCHEMA({CONF_WAKEUP_PIN: "GPIO4"})

@@ -163,12 +163,11 @@ def validate_config(config: ConfigType) -> ConfigType:
             "'wakeup_pin_mode' requires 'wakeup_pin'", path=[CONF_WAKEUP_PIN_MODE]
         )
     multiple_pins = wakeup_pins is not None and len(wakeup_pins) > 1
-    # right now only BK72XX supports the list format for wakeup pins
+    # wakeup_pin is limited to ESP32 and BK72XX, and only BK72XX accepts a list
     if not CORE.is_bk72xx:
         if multiple_pins:
             raise cv.Invalid(
-                f"{CORE.target_platform.upper()} does not support multiple entries "
-                "for 'wakeup_pin'",
+                "ESP32 does not support multiple entries for 'wakeup_pin'",
                 path=[CONF_WAKEUP_PIN],
             )
     elif has_pin_mode:
@@ -308,7 +307,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 _validate_sleep_duration,
             ),
-            cv.Optional(CONF_WAKEUP_PIN): validate_wakeup_pin,
+            cv.Optional(CONF_WAKEUP_PIN): cv.All(
+                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
+                validate_wakeup_pin,
+            ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
                 cv.enum(WAKEUP_PIN_MODES, upper=True),
