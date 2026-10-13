@@ -34,6 +34,14 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   void on_shutdown() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
+  /// Negotiate a new contract with the highest source voltage that does not exceed `voltage`.
+  void request_voltage(uint8_t voltage);
+
+  /// Callbacks receive the new state and the state published before it.
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
+
 #ifdef USE_SENSOR
   void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
   void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
@@ -68,6 +76,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   void detach_();
   void handle_hard_reset_();
   void start_source_cap_wait_(SourceCapStep step);
+  void start_negotiation_();
   void send_soft_reset_();
   void check_source_caps_();
   void enter_error_();
@@ -81,10 +90,13 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   uint32_t source_cap_step_start_{0};
   SourceCapStep source_cap_step_{SourceCapStep::SOURCE_CAP_STEP_WAIT};
   bool attached_{false};
+  bool request_pending_{false};
 
   // Main loop only
+  PdState published_state_{PdState::PD_STATE_DISCONNECTED};
   uint32_t published_contract_{UINT32_MAX};
 
+  LazyCallbackManager<void(PdState, PdState)> state_callback_;
 #ifdef USE_SENSOR
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};

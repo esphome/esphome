@@ -15,6 +15,7 @@ ESPHOME_LOG_TAG(TAG, "fusb302b");
 // Task notification bits
 static constexpr uint32_t NOTIFY_IRQ = 1 << 0;
 static constexpr uint32_t NOTIFY_STOP = 1 << 1;
+static constexpr uint32_t NOTIFY_REQUEST = 1 << 2;
 
 static constexpr uint32_t TASK_STACK_SIZE = 4096;
 static constexpr UBaseType_t TASK_PRIORITY = 18;
@@ -72,10 +73,16 @@ void FUSB302B::setup() {
 }
 
 void FUSB302B::loop() {
+  const PdState state = this->state_;
   const uint32_t contract = this->contract_;
-  if (contract != this->published_contract_) {
-    this->published_contract_ = contract;
-    this->publish_contract_(PackedContract{contract});
+  if (state != this->published_state_ || contract != this->published_contract_) {
+    const PdState previous = this->published_state_;
+    this->published_state_ = state;
+    if (contract != this->published_contract_) {
+      this->published_contract_ = contract;
+      this->publish_contract_(PackedContract{contract});
+    }
+    this->state_callback_.call(state, previous);
   }
   // Re-enabled by on_state_changed() from the PHY task
   this->disable_loop();
@@ -124,6 +131,12 @@ void FUSB302B::on_shutdown() {
     xTaskNotify(this->task_.get_handle(), NOTIFY_STOP, eSetBits);
 }
 
+void FUSB302B::request_voltage(uint8_t voltage) {
+  this->set_request_voltage(voltage);
+  if (this->task_.is_created())
+    xTaskNotify(this->task_.get_handle(), NOTIFY_REQUEST, eSetBits);
+}
+
 void FUSB302B::run_task_() {
   // Give the source time to settle after power-up before the first CC measurement
   vTaskDelay(pdMS_TO_TICKS(STARTUP_DELAY_MS));
@@ -131,7 +144,8 @@ void FUSB302B::run_task_() {
   while (true) {
     uint32_t wait_ms = CC_POLL_INTERVAL_MS;
     if (this->attached_) {
-      const bool busy = this->waiting_for_source_caps_ || this->retry_request_pending_ || this->check_ams_();
+      const bool busy = this->waiting_for_source_caps_ || this->request_pending_ || this->retry_request_pending_ ||
+                        this->check_ams_();
       wait_ms = busy ? PD_POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS;
     }
     uint32_t bits = 0;
@@ -140,6 +154,10 @@ void FUSB302B::run_task_() {
     if (bits & NOTIFY_STOP) {
       while (true)
         vTaskSuspend(nullptr);
+    }
+    if (bits & NOTIFY_REQUEST) {
+      // When unattached, the new voltage is simply used at the next attach
+      this->request_pending_ = this->attached_;
     }
 
     // INT_N is held low until the interrupt registers are read, so a new event that arrives while it is
@@ -160,6 +178,10 @@ void FUSB302B::run_task_() {
       this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
     }
     this->check_request_retry_();
+    if (this->request_pending_ && !this->check_ams_()) {
+      this->request_pending_ = false;
+      this->start_negotiation_();
+    }
     this->check_source_caps_();
   }
 }
@@ -380,6 +402,7 @@ void FUSB302B::detach_() {
   ESP_LOGD(TAG, "Detached (VBUS lost)");
   this->attached_ = false;
   this->waiting_for_source_caps_ = false;
+  this->request_pending_ = false;
   this->reset_pd_();
   this->clear_contract_();
   this->set_state_(PdState::PD_STATE_DISCONNECTED);
@@ -387,7 +410,8 @@ void FUSB302B::detach_() {
 
 void FUSB302B::handle_hard_reset_() {
   ESP_LOGD(TAG, "Hard reset received");
-  // The source returns to Type-C default power and sends its capabilities again
+  // The source returns to Type-C default power and sends its capabilities again, using the current request voltage
+  this->request_pending_ = false;
   // Also flushes the RX FIFO, so the caller has nothing left to read
   if (!this->reset_pd_()) {
     this->enter_error_();
@@ -404,8 +428,15 @@ void FUSB302B::enter_error_() {
   ESP_LOGW(TAG, "Communication with the chip failed");
   this->attached_ = false;
   this->waiting_for_source_caps_ = false;
+  this->request_pending_ = false;
   this->clear_contract_();
   this->set_state_(PdState::PD_STATE_ERROR);
+}
+
+void FUSB302B::start_negotiation_() {
+  ESP_LOGD(TAG, "Requesting source capabilities for %u V", this->get_request_voltage());
+  this->send_message(this->make_control_msg_(PD_CNTRL_GET_SOURCE_CAP));
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_GET_SENT);
 }
 
 void FUSB302B::send_soft_reset_() {
