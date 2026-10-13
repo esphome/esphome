@@ -59,7 +59,7 @@ CONF_ENABLE_IPV4 = "enable_ipv4"
 class NetworkData:
     require_ipv4: set[str] = field(default_factory=set)
     require_ipv6: set[str] = field(default_factory=set)
-    ipv4_off_requested: bool = False
+    request_ipv4_off: set[str] = field(default_factory=set)
 
 
 # Network priority tracking infrastructure
@@ -255,7 +255,7 @@ def require_ipv6(name: str) -> Callable[[ConfigType], ConfigType]:
 
 def request_ipv4_off(name: str) -> Callable[[ConfigType], ConfigType]:
     """Return a validator asking for IPv4 to default to off, on behalf of `name`."""
-    return _ip_request(lambda data: setattr(data, "ipv4_off_requested", True))
+    return _ip_request(lambda data: data.request_ipv4_off.add(name))
 
 
 def get_network_priority(iface: str) -> float | None:
@@ -406,7 +406,7 @@ def _final_validate(config: ConfigType) -> None:
         CONF_ENABLE_IPV4,
         "IPv4",
         data.require_ipv4,
-        default=not data.ipv4_off_requested,
+        default=not data.request_ipv4_off,
     )
 
     if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:

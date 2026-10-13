@@ -421,7 +421,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   return sizeof(sockaddr_in);
 #else
   memset(addr, 0, addrlen);
-  errno = EINVAL;
+  errno = EAFNOSUPPORT;
   return 0;
 #endif /* USE_NETWORK_IPV4 */
 }

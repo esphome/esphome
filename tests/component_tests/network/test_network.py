@@ -35,12 +35,12 @@ def test_require_ipv4_records_name_and_passes_config_through() -> None:
 
 
 def test_require_ipv6_and_request_ipv4_off_record_state() -> None:
-    """require_ipv6() records the caller and request_ipv4_off() sets the flag."""
+    """require_ipv6() and request_ipv4_off() record their callers."""
     require_ipv6("bar")({})
     request_ipv4_off("bar")({})
     data = _get_data()
     assert data.require_ipv6 == {"bar"}
-    assert data.ipv4_off_requested is True
+    assert data.request_ipv4_off == {"bar"}
 
 
 @pytest.mark.parametrize(
