@@ -20,7 +20,6 @@ from esphome.components.image import (
     IMAGE_TYPE,
     Image_,
     ImageEncoder,
-    ImageRGB111,
     add_metadata,
     get_image_type_enum,
     get_transparency_enum,
@@ -202,11 +201,16 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
 )
 
 
-def validate_palette_list(value: Any) -> list[int]:
-    """Validate a list of palette colors (RGB as 24-bit hex values)."""
-    if not isinstance(value, list):
-        value = [value]
-    return [cv.hex_uint32_t(item) for item in value]
+def normalize_dither(value: str | dict[str, Any]) -> dict[str, Any]:
+    """Normalize a dither configuration to a dict with type and optional palette.
+
+    Accepts a string (dither type) or a dict with type and optional palette.
+    """
+    if isinstance(value, str):
+        return {CONF_TYPE: value}
+    if isinstance(value, dict):
+        return value
+    raise cv.Invalid(f"Invalid dither configuration: {value}")
 
 
 def validate_dither_palette(value: list[int]) -> list[int]:
@@ -217,7 +221,7 @@ def validate_dither_palette(value: list[int]) -> list[int]:
     color_map = {}
     for color in value:
         quantized_color = color & 0x808080  # Mask to 3bpp
-        if color not in color_map:
+        if quantized_color not in color_map:
             color_map[quantized_color] = color
         else:
             raise cv.Invalid(
@@ -239,9 +243,12 @@ DITHER_SCHEMA = {
 
 OPTIONS_SCHEMA = {
     cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.Optional(CONF_DITHER, default="NONE"): cv.Any(
-        cv.one_of("NONE", "FLOYDSTEINBERG", upper=True),
-        cv.Schema(DITHER_SCHEMA),
+    cv.Optional(CONF_DITHER, default="NONE"): cv.All(
+        cv.Any(
+            cv.one_of("NONE", "FLOYDSTEINBERG", upper=True),
+            cv.Schema(DITHER_SCHEMA),
+        ),
+        normalize_dither,
     ),
     cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
     cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
@@ -344,20 +351,9 @@ async def write_image(
 
     # Parse dither configuration
     dither_config = config[CONF_DITHER]
-    if isinstance(dither_config, str):
-        dither = (
-            Image.Dither.NONE
-            if dither_config == "NONE"
-            else Image.Dither.FLOYDSTEINBERG
-        )
-        palette = None
-    else:
-        # dither_config is a dict with 'type' and optional 'palette'
-        dither_type = dither_config[CONF_TYPE].upper()
-        dither = (
-            Image.Dither.NONE if dither_type == "NONE" else Image.Dither.FLOYDSTEINBERG
-        )
-        palette = dither_config.get(CONF_PALETTE)
+    dither_type = dither_config[CONF_TYPE]
+    dither = Image.Dither.NONE if dither_type == "NONE" else Image.Dither.FLOYDSTEINBERG
+    palette = dither_config.get(CONF_PALETTE, None)
 
     type = config[CONF_TYPE]
     transparency = config.get(CONF_TRANSPARENCY, CONF_OPAQUE)
@@ -378,9 +374,9 @@ async def write_image(
     encoder: ImageEncoder | None = None
     for frame_index in range(frame_count):
         image.seek(frame_index)
-        encoder = IMAGE_TYPE[type](width, height, transparency, dither, invert_alpha)
-        if isinstance(encoder, ImageRGB111) and palette is not None:
-            encoder.set_palette(palette)
+        encoder = IMAGE_TYPE[type](
+            width, height, transparency, dither, palette, invert_alpha
+        )
         if byte_order is not None:
             # Check for valid type has already been done in validate_settings
             encoder.set_big_endian(byte_order == "BIG_ENDIAN")
