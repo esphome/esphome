@@ -35,6 +35,7 @@ async def test_socket_tcp_client_link(
     link_down = asyncio.Event()
     second_link_up = asyncio.Event()
     link_up_count = 0
+    writers: list[asyncio.StreamWriter] = []
 
     def on_log_line(line: str) -> None:
         nonlocal link_up_count
@@ -48,6 +49,7 @@ async def test_socket_tcp_client_link(
     async def handle(
         reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
+        writers.append(writer)
         if not echo_done.is_set():
             writer.write(PAYLOAD)
             await writer.drain()
@@ -98,5 +100,9 @@ async def test_socket_tcp_client_link(
                 "Second session echo wrong; stale bytes from the first session?"
             )
     finally:
+        # On Python 3.12 wait_closed() waits for every connection the handlers
+        # left open; nothing else closes them once the device has exited.
+        for writer in writers:
+            writer.close()
         server.close()
         await server.wait_closed()

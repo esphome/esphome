@@ -192,3 +192,75 @@ def test_invalid_stays_plain() -> None:
 def test_format_unexpected_error_without_traceback() -> None:
     message = vscode._format_unexpected_error(ValueError("boom"))
     assert message == "Unexpected error while validating: ValueError: boom"
+
+
+def test_reports_error_with_exception_message():
+    source_path = str(Path("dir_path", "x.yaml"))
+    output_lines = _run_repl_test(
+        [
+            _validate(source_path),
+            # read_file x.yaml
+            _file_response("""esphome:
+  name: test1
+host:
+sensor:
+  - platform: template
+    name: foo
+    update_interval: ms   # no number, so the validator raises Invalid(ValueError)
+"""),
+        ]
+    )
+
+    error = json.loads(output_lines[-1])
+    validation_error = error["validation_errors"][0]
+    assert validation_error["message"] == "could not convert string to float: ''."
+    assert validation_error["range"]["start_line"] == 6
+
+
+def test_unknown_action_range_is_the_key():
+    source_path = str(Path("dir_path", "x.yaml"))
+    output_lines = _run_repl_test(
+        [
+            _validate(source_path),
+            # read_file x.yaml
+            _file_response("""esphome:
+  name: test1
+host:
+button:
+  - platform: template
+    on_press:
+      - loggr.log: "msg"
+"""),
+        ]
+    )
+
+    error = json.loads(output_lines[-1])
+    validation_error = error["validation_errors"][0]
+    assert (
+        validation_error["message"]
+        == "Unable to find action with the name 'loggr.log'."
+    )
+    assert validation_error["range"]["start_line"] == 6
+    assert validation_error["range"]["start_col"] == 8
+
+
+def test_error_kept_when_range_lookup_fails():
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch.object(vscode, "get_invalid_range", side_effect=RuntimeError("boom")):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                # read_file x.yaml
+                _file_response("""esphome:
+  name: test1
+host:
+logger:
+  levl: DEBUG
+"""),
+            ]
+        )
+
+    error = json.loads(output_lines[-1])
+    (validation_error,) = error["validation_errors"]
+    assert validation_error["range"] is None
+    assert "extra keys not allowed" in validation_error["message"]
