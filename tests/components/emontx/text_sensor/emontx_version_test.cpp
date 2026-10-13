@@ -15,8 +15,8 @@ class EmonTxVersionTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // The test main does not construct App as generated code does
-    static const bool app_constructed = (new (&App) Application(), true);
-    (void) app_constructed;
+    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
+    (void) APP_CONSTRUCTED;
     this->sut_.set_uart_parent(&this->uart_);
     this->sut_.set_version_text_sensor(&this->version_);
   }
@@ -33,7 +33,7 @@ class EmonTxVersionTest : public ::testing::Test {
     App.scheduler.call(millis());
   }
 
-  std::string tx() const { return std::string(this->uart_.tx.begin(), this->uart_.tx.end()); }
+  std::string tx_() const { return std::string(this->uart_.tx.begin(), this->uart_.tx.end()); }
 
   MockUARTComponent uart_;
   EmonTx sut_;
@@ -44,19 +44,19 @@ class EmonTxVersionTest : public ::testing::Test {
 // 'v' must not reach the emonTx in the same burst as the line feed, or it joins the pending command
 TEST_F(EmonTxVersionTest, SetupRequestsVersionAfterDelay) {
   this->sut_.setup();
-  EXPECT_EQ(this->tx(), "\n");
+  EXPECT_EQ(this->tx_(), "\n");
 
   run_timers();
-  EXPECT_EQ(this->tx(), "\nv\n");
+  EXPECT_EQ(this->tx_(), "\nv\n");
 }
 
 TEST_F(EmonTxVersionTest, SetupUnlocksBeforeRequestingVersion) {
   this->sut_.set_lock_on_reboot(true);
   this->sut_.setup();
-  EXPECT_EQ(this->tx(), "\nemonunlock\n\n");
+  EXPECT_EQ(this->tx_(), "\nemonunlock\n\n");
 
   run_timers();
-  EXPECT_EQ(this->tx(), "\nemonunlock\n\nv\n");
+  EXPECT_EQ(this->tx_(), "\nemonunlock\n\nv\n");
 }
 
 TEST_F(EmonTxVersionTest, VersionLinePublished) {
@@ -82,10 +82,10 @@ TEST_F(EmonTxVersionTest, MsgCounterResetRequestsVersion) {
 
   this->uart_.push_rx("{\"MSG\":1}\n");
   this->sut_.loop();
-  EXPECT_EQ(this->tx(), "\n");
+  EXPECT_EQ(this->tx_(), "\n");
 
   run_timers();
-  EXPECT_EQ(this->tx(), "\nv\n");
+  EXPECT_EQ(this->tx_(), "\nv\n");
 }
 
 TEST_F(EmonTxVersionTest, PauseWithoutRebootSendsNothing) {
