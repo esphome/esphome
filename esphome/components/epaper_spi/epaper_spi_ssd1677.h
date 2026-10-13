@@ -26,12 +26,10 @@ class EPaperSSD1677 : public EPaperMono {
                 size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY)
       : EPaperMono(name, width, height, init_sequence, init_sequence_length, display_type) {}
 
-  void setup() override;
-
  protected:
-  // Allocates the comparison frame when partial updates are enabled. Separate from setup() so it
-  // can run without a bus.
-  void init_comparison_frame_();
+  // Allocates the comparison frame as setup() would, for tests that run without a bus.
+  void init_comparison_frame_() { this->init_sent_frame_(this->sent_frame_length()); }
+  size_t sent_frame_length() const override { return this->plane_row_length_() * this->height_; }
   // Bytes in one row of a RAM plane: 8 pixels per byte, whatever the buffer holds.
   size_t plane_row_length_() const { return (this->width_ + 7) / 8; }
   // Whether the buffer already holds the frame as a RAM plane does, so it can be sent as it is.
@@ -42,8 +40,7 @@ class EPaperSSD1677 : public EPaperMono {
   bool reset() override;
   bool transfer_data() override;
 
-  split_buffer::SplitBuffer sent_{};  // the frame last sent to 0x24, i.e. what the panel shows
-  uint8_t plane_{0};                  // 0 while sending 0x26, 1 while sending 0x24
+  uint8_t plane_{0};  // 0 while sending 0x26, 1 while sending 0x24
 };
 
 }  // namespace esphome::epaper_spi

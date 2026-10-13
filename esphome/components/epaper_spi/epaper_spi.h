@@ -5,6 +5,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::epaper_spi {
 using namespace display;
@@ -62,6 +63,11 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
+  void set_sleep_state_hash(uint32_t hash) { this->sleep_state_hash_ = hash; }
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+  void set_image_in_rtc_memory(bool image_in_rtc_memory) { this->image_in_rtc_memory_ = image_in_rtc_memory; }
+#endif
+  bool teardown() override;
   void dump_config() override;
 
   void command(uint8_t value);
@@ -126,6 +132,16 @@ class EPaperBase : public Display,
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
+  // Allocates the copy of the frame last sent; drivers that record what they send call this from setup()
+  bool init_sent_frame_(size_t length);
+  void record_sent_(size_t index, const uint8_t *data, size_t length) {
+    if (this->sent_.is_valid())
+      this->sent_.write(index, data, length);
+  }
+  bool frame_unchanged_() const;
+  // Shrinks the update bounds to the bytes that differ from the frame last sent; false if none differ
+  bool bounds_from_changes_();
+  void reset_bounds_();
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
 
@@ -156,6 +172,36 @@ class EPaperBase : public Display,
    */
   virtual void deep_sleep() = 0;
 
+  /**
+   * Whether the display, left as it is after an update, still holds the image a partial refresh
+   * compares against once the controller has been through deep sleep and the next update has
+   * reset and initialised it again.
+   */
+  virtual bool image_survives_sleep() const { return false; }
+
+  struct SleepState {
+    uint8_t update_count;
+    uint8_t panel_holds_image;
+    uint8_t image_compressed;
+    uint16_t image_size;  // bytes of the image kept in RTC memory; 0 if none
+    uint32_t image_hash;
+  };
+  bool woke_from_deep_sleep_() const;
+  void load_sleep_state_();
+  void save_sleep_state_(bool panel_holds_image, bool image_compressed = false, uint16_t image_size = 0);
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+  // The image on the panel, kept in RTC memory through the controller's deep sleep so a partial update
+  // can follow the wake even if the panel lost its RAM
+  bool store_image_(bool &compressed, uint16_t &size);
+  bool restore_image_();
+  uint32_t image_store_hash_(size_t size) const;
+  SleepState stored_image_{};
+  bool image_in_rtc_memory_{};  // this display owns the image store
+#endif
+  ESPPreferenceObject sleep_state_;
+  uint32_t sleep_state_hash_{};
+  bool parked_{};
+
   void set_state_(EPaperState state, uint16_t delay = 0);
 
   void start_data_();
@@ -172,6 +218,11 @@ class EPaperBase : public Display,
   size_t buffer_length_{};
   size_t current_data_index_{};  // used by data transfer to track progress
   split_buffer::SplitBuffer buffer_{};
+  split_buffer::SplitBuffer sent_{};  // the frame last sent to the panel's new-image RAM
+  bool sent_valid_{};                 // sent_ holds a whole frame
+  bool full_window_{};                // the update in progress covers the whole panel
+  bool panel_holds_image_{};          // the panel holds the image it shows, as a partial update needs
+  bool restore_previous_{};           // the next transfer must also write sent_ to the panel's previous-image RAM
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
