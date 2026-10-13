@@ -10,7 +10,6 @@
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/components/homeassistant/sensor/homeassistant_sensor.h"
-#include "esphome/components/logger/logger.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/string_ref.h"
 
@@ -141,8 +140,11 @@ static void HomeassistantSensor_StateResponse_ManySubscriptions(benchmark::State
 BENCHMARK(HomeassistantSensor_StateResponse_ManySubscriptions);
 
 // --- Non-numeric state such as "unavailable" ---
-// Exercises: the failed parse and the NAN publish. The warning the platform
-// logs for it is filtered at the logger level.
+// Exercises: the failed parse, the warning the platform logs for it, and the
+// NAN publish. The benchmark logger runs at the production default level with
+// console output off, so a log line at DEBUG or above costs its formatting
+// here, the same as on a device, and a log level change in the platform shows
+// up as a delta.
 
 static void HomeassistantSensor_StateResponse_Unavailable(benchmark::State &state) {
   ScopedApiServer server;
@@ -153,9 +155,6 @@ static void HomeassistantSensor_StateResponse_Unavailable(benchmark::State &stat
   sensor.set_entity_id("sensor.power");
   sensor.setup();
 
-  const uint8_t previous_level = logger::global_logger->get_log_level();
-  logger::global_logger->set_log_level(ESPHOME_LOG_LEVEL_ERROR);
-
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       conn->on_home_assistant_state_response(msgs[i % kStateCount]);
@@ -163,8 +162,6 @@ static void HomeassistantSensor_StateResponse_Unavailable(benchmark::State &stat
     benchmark::DoNotOptimize(sensor.state);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
-
-  logger::global_logger->set_log_level(previous_level);
 }
 BENCHMARK(HomeassistantSensor_StateResponse_Unavailable);
 
