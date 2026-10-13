@@ -39,7 +39,7 @@ CoverCall &CoverCall::set_command(const char *command) {
   } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
     this->set_command_toggle();
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
+    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", LOG_STR_ARG(this->parent_->get_log_name()), command);
   }
   return *this;
 }
@@ -68,7 +68,7 @@ CoverCall &CoverCall::set_tilt(float tilt) {
   return *this;
 }
 void CoverCall::perform() {
-  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
   auto traits = this->parent_->get_traits();
   this->validate_();
   if (this->stop_) {
@@ -94,7 +94,7 @@ const optional<float> &CoverCall::get_tilt() const { return this->tilt_; }
 const optional<bool> &CoverCall::get_toggle() const { return this->toggle_; }
 void CoverCall::validate_() {
   auto traits = this->parent_->get_traits();
-  const char *name = this->parent_->get_name().c_str();
+  const char *name = LOG_STR_ARG(this->parent_->get_log_name());
 
   if (this->position_.has_value()) {
     auto pos = *this->position_;
@@ -139,7 +139,7 @@ void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
   this->tilt = clamp(this->tilt, 0.0f, 1.0f);
 
-  ESP_LOGV(TAG, "'%s' >>", this->name_.c_str());
+  ESP_LOGV(TAG, "'%s' >>", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
   if (traits.get_supports_position()) {
     ESP_LOGV(TAG, "  Position: %.0f%%", this->position * 100.0f);

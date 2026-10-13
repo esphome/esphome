@@ -52,14 +52,15 @@ FanCall &FanCall::set_preset_mode(const char *preset_mode, size_t len) {
     this->preset_mode_ = validated_mode;  // Store pointer from traits
   } else {
     // Preset mode not found in traits - log warning and don't set
-    ESP_LOGW(TAG, "%s: Preset mode '%.*s' not supported", this->parent_.get_name().c_str(), (int) len, preset_mode);
+    ESP_LOGW(TAG, "%s: Preset mode '%.*s' not supported", LOG_STR_ARG(this->parent_.get_log_name()), (int) len,
+             preset_mode);
     this->preset_mode_ = nullptr;
   }
   return *this;
 }
 
 void FanCall::perform() {
-  ESP_LOGV(TAG, "'%s' - Setting:", this->parent_.get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting:", LOG_STR_ARG(this->parent_.get_log_name()));
   this->validate_();
   if (this->binary_state_.has_value()) {
     ESP_LOGV(TAG, "  State: %s", ONOFF(*this->binary_state_));
@@ -103,17 +104,17 @@ void FanCall::validate_() {
   }
 
   if (this->oscillating_.has_value() && !traits.supports_oscillation()) {
-    ESP_LOGW(TAG, "%s: Oscillation not supported", this->parent_.get_name().c_str());
+    ESP_LOGW(TAG, "%s: Oscillation not supported", LOG_STR_ARG(this->parent_.get_log_name()));
     this->oscillating_.reset();
   }
 
   if (this->speed_.has_value() && !traits.supports_speed()) {
-    ESP_LOGW(TAG, "%s: Speed control not supported", this->parent_.get_name().c_str());
+    ESP_LOGW(TAG, "%s: Speed control not supported", LOG_STR_ARG(this->parent_.get_log_name()));
     this->speed_.reset();
   }
 
   if (this->direction_.has_value() && !traits.supports_direction()) {
-    ESP_LOGW(TAG, "%s: Direction control not supported", this->parent_.get_name().c_str());
+    ESP_LOGW(TAG, "%s: Direction control not supported", LOG_STR_ARG(this->parent_.get_log_name()));
     this->direction_.reset();
   }
 }
@@ -221,7 +222,7 @@ void Fan::publish_state() {
   ESP_LOGV(TAG,
            "'%s' >>\n"
            "  State: %s",
-           this->name_.c_str(), ONOFF(this->state));
+           LOG_STR_ARG(this->get_log_name()), ONOFF(this->state));
   if (traits.supports_speed()) {
     ESP_LOGV(TAG, "  Speed: %d", this->speed);
   }

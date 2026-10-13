@@ -10,7 +10,7 @@ void AddressableLight::call_setup() {
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   this->set_interval(5000, [this]() {
-    const char *name = this->state_parent_ == nullptr ? "" : this->state_parent_->get_name().c_str();
+    const char *name = this->state_parent_ == nullptr ? "" : LOG_STR_ARG(this->state_parent_->get_log_name());
     ESP_LOGVV(TAG, "Addressable Light '%s' (effect_active=%s)", name, YESNO(this->effect_active_));
     for (int i = 0; i < this->size(); i++) {
       auto color = this->get(i);
