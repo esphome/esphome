@@ -760,7 +760,7 @@ void VoiceAssistant::signal_stop_() {
 }
 
 void VoiceAssistant::start_playback_timeout_() {
-  this->set_timeout(PLAYBACK_TIMEOUT_ID, 2000, [this]() {
+  this->set_timeout(PLAYBACK_TIMEOUT_ID, this->tts_playback_start_timeout_, [this]() {
     this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 

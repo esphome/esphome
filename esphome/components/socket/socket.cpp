@@ -8,6 +8,7 @@
 #include <string>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
@@ -198,28 +199,41 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
   }
   return ctx.found_any;
 #else
-  bool found_any = false;
-  struct netif *netif;
-  NETIF_FOREACH(netif) {
-    if (netif->name[0] == 'l' && netif->name[1] == 'o') {
-      continue;
+  // The netif list needs the core lock, but the callback's setsockopt() takes that lock itself, so the
+  // indices are collected first. One that goes away before the callback runs is rejected by setsockopt().
+  // Devices have only a few interfaces, so the cap drops nothing in practice.
+  static constexpr size_t MAX_IFS = 8;
+  StaticVector<uint8_t, MAX_IFS> indices;
+  {
+    LwIPLock lock;
+    struct netif *netif;
+    NETIF_FOREACH(netif) {
+      if (indices.size() == MAX_IFS) {
+        break;
+      }
+      if (netif->name[0] == 'l' && netif->name[1] == 'o') {
+        continue;
+      }
+      if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
+        continue;
+      }
+      indices.push_back(netif_get_index(netif));
     }
-    if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
-      continue;
-    }
-    found_any = true;
-    if (callback(netif_get_index(netif))) {
+  }
+  for (uint8_t index : indices) {
+    if (callback(index)) {
       break;
     }
   }
-  if (!found_any) {
+  if (indices.empty()) {
     errno = EADDRNOTAVAIL;
   }
-  return found_any;
+  return !indices.empty();
 #endif
 }
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
-bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out) {
+bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_index_out) {
   if (strchr(ip_address, ':') == nullptr) {
     struct in_addr ipv4mc {};
 #ifdef USE_ZEPHYR
@@ -249,7 +263,7 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
     }
     return true;
   }
-#if USE_NETWORK_IPV6
+#ifdef USE_SOCKET_IPV6
   struct ipv6_mreq imreq6 {};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #ifdef USE_ZEPHYR
@@ -300,9 +314,10 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 #else
   errno = EINVAL;
   return false;
-#endif  // USE_NETWORK_IPV6
+#endif  // USE_SOCKET_IPV6
 }
 
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
 #if defined(USE_ZEPHYR) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
@@ -319,6 +334,7 @@ bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
       return true;
     });
     if (ifindex == 0) {
+      errno = EADDRNOTAVAIL;
       return false;
     }
   }
