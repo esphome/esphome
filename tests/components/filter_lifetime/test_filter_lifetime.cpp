@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/filter_lifetime/filter_lifetime.h"
 #include "esphome/components/host/preferences.h"
 #include "esphome/core/application.h"
@@ -137,6 +138,29 @@ TEST_F(FilterLifetimeTest, SpeedSensorIsUsedOnceItHasAState) {
   EXPECT_EQ(this->filter_.runtime_seconds_, 0u);
   speed.state = 50.0f;
   this->elapse(2000);
+  EXPECT_EQ(this->filter_.runtime_seconds_, 1u);
+}
+
+TEST_F(FilterLifetimeTest, IsOnSensorGatesAccumulationOnceItIsOn) {
+  binary_sensor::BinarySensor running;
+  this->filter_.set_is_on_lambda(nullptr);
+  this->filter_.set_is_on_sensor(&running);
+  this->filter_.setup();
+  this->elapse(1000);
+  EXPECT_EQ(this->filter_.runtime_seconds_, 0u);
+  running.publish_state(true);
+  this->elapse(1000);
+  EXPECT_EQ(this->filter_.runtime_seconds_, 1u);
+  running.publish_state(false);
+  this->elapse(1000);
+  EXPECT_EQ(this->filter_.runtime_seconds_, 1u);
+}
+
+TEST_F(FilterLifetimeTest, NoInputsMeansAlwaysOnAtFullSpeed) {
+  this->filter_.set_is_on_lambda(nullptr);
+  this->filter_.set_current_speed_lambda(nullptr);
+  this->filter_.setup();
+  this->elapse(1000);
   EXPECT_EQ(this->filter_.runtime_seconds_, 1u);
 }
 

@@ -5,7 +5,8 @@ from tests.testing_helpers import ComponentManifestOverride
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
-        CORE.testing_ensure_platform_registered("sensor")
+        for platform in ("sensor", "binary_sensor"):
+            CORE.testing_ensure_platform_registered(platform)
 
     manifest.to_code = to_code_testing
-    manifest.dependencies = manifest.dependencies + ["sensor"]
+    manifest.dependencies = manifest.dependencies + ["sensor", "binary_sensor"]
