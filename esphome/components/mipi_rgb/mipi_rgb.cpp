@@ -1,3 +1,4 @@
+#include <algorithm>
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "mipi_rgb.h"
 #include "esphome/core/gpio.h"
@@ -222,6 +223,7 @@ void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB || big_endian != this->big_endian_ ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    this->mark_dirty_(x_start, y_start, w, h);
     this->flush_dirty_();
   } else {
     this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
@@ -265,10 +267,8 @@ bool MipiRgb::check_buffer_() {
   return true;
 }
 
-void MipiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (this->is_point_clipped(x, y) || this->is_failed())
-    return;
-
+// Maps drawn coordinates to the buffer the way draw_pixel_at() stores them.
+void MipiRgb::rotate_(int &x, int &y) const {
   switch (this->rotation_) {
     case display::DISPLAY_ROTATION_0_DEGREES:
       break;
@@ -285,6 +285,28 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
       y = this->height_ - y - 1;
       break;
   }
+}
+
+// Widens the dirty box to the drawn rectangle, so the next flush sends all of it even where the
+// buffer already held the same values and draw_pixel_at() wrote nothing.
+void MipiRgb::mark_dirty_(int x_start, int y_start, int w, int h) {
+  int x1 = x_start, y1 = y_start;
+  int x2 = x_start + w - 1, y2 = y_start + h - 1;
+  this->rotate_(x1, y1);
+  this->rotate_(x2, y2);
+  const int right = static_cast<int>(this->width_) - 1;
+  const int bottom = static_cast<int>(this->height_) - 1;
+  this->x_low_ = std::min<int>(this->x_low_, std::clamp(std::min(x1, x2), 0, right));
+  this->x_high_ = std::max<int>(this->x_high_, std::clamp(std::max(x1, x2), 0, right));
+  this->y_low_ = std::min<int>(this->y_low_, std::clamp(std::min(y1, y2), 0, bottom));
+  this->y_high_ = std::max<int>(this->y_high_, std::clamp(std::max(y1, y2), 0, bottom));
+}
+
+void MipiRgb::draw_pixel_at(int x, int y, Color color) {
+  if (this->is_point_clipped(x, y) || this->is_failed())
+    return;
+
+  this->rotate_(x, y);
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }

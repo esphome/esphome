@@ -80,6 +80,8 @@ class MipiRgb : public display::Display {
   }
   /// Send the region touched since the last flush to the panel.
   void flush_dirty_();
+  void rotate_(int &x, int &y) const;
+  void mark_dirty_(int x_start, int y_start, int w, int h);
   void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void setup_enables_();
   void common_setup_();

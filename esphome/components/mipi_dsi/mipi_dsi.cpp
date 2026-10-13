@@ -1,3 +1,4 @@
+#include <algorithm>
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include <utility>
 #include "mipi_dsi.h"
@@ -222,6 +223,7 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
+    this->mark_dirty_(x_start, y_start, w, h);
     this->flush_dirty_();
     return;
   }
@@ -270,10 +272,8 @@ bool MipiDsi::check_buffer_() {
   return true;
 }
 
-void MipiDsi::draw_pixel_at(int x, int y, Color color) {
-  if (this->is_point_clipped(x, y))
-    return;
-
+// Maps drawn coordinates to the buffer the way draw_pixel_at() stores them.
+void MipiDsi::rotate_(int &x, int &y) const {
   switch (this->rotation_) {
     case display::DISPLAY_ROTATION_0_DEGREES:
       break;
@@ -290,6 +290,28 @@ void MipiDsi::draw_pixel_at(int x, int y, Color color) {
       y = this->height_ - y - 1;
       break;
   }
+}
+
+// Widens the dirty box to the drawn rectangle, so the next flush sends all of it even where the
+// buffer already held the same values and draw_pixel_at() wrote nothing.
+void MipiDsi::mark_dirty_(int x_start, int y_start, int w, int h) {
+  int x1 = x_start, y1 = y_start;
+  int x2 = x_start + w - 1, y2 = y_start + h - 1;
+  this->rotate_(x1, y1);
+  this->rotate_(x2, y2);
+  const int right = static_cast<int>(this->width_) - 1;
+  const int bottom = static_cast<int>(this->height_) - 1;
+  this->x_low_ = std::min<int>(this->x_low_, std::clamp(std::min(x1, x2), 0, right));
+  this->x_high_ = std::max<int>(this->x_high_, std::clamp(std::max(x1, x2), 0, right));
+  this->y_low_ = std::min<int>(this->y_low_, std::clamp(std::min(y1, y2), 0, bottom));
+  this->y_high_ = std::max<int>(this->y_high_, std::clamp(std::max(y1, y2), 0, bottom));
+}
+
+void MipiDsi::draw_pixel_at(int x, int y, Color color) {
+  if (this->is_point_clipped(x, y))
+    return;
+
+  this->rotate_(x, y);
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
