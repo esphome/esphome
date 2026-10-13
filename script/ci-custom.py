@@ -1269,15 +1269,11 @@ def lint_no_std_nothrow(fname, match):
     )
 
 
-# Every C++ source and header; plain C files cannot use the macro
-LOG_TAG_INCLUDE = ["esphome/*.cpp", "esphome/*.h"]
-
-
 @lint_re_check(
     r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
-    r"\s*(?:=\s*\{?|[{(])\s*\"" + CPP_RE_EOL,
+    r"\s*(?:=\s*\{?|[{(])\s*\"",
     prefilter="TAG",
-    include=LOG_TAG_INCLUDE,
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
 )
 def lint_log_tag_macro(fname, match):
     return (
@@ -1296,7 +1292,7 @@ def lint_log_tag_macro(fname, match):
     r"|\bstd::string\s+\w+\s*[={(]\s*TAG\b",
     mask=True,
     prefilter="TAG",
-    include=LOG_TAG_INCLUDE,
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
 )
 def lint_log_tag_as_string(fname, match):
     return (
