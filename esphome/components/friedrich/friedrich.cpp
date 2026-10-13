@@ -1,8 +1,11 @@
 #include "friedrich.h"
 
-#include <array>
+#include <cmath>
 
 #include "esphome/components/remote_base/aeha_protocol.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::friedrich {
 // clang-format off
@@ -16,56 +19,98 @@ namespace esphome::friedrich {
 * Byte4  Checksum when command, else Fixed = 0x90
 * Byte5  N/A when command, else Fixed = 0x0C
 * Byte6  N/A when command, else Temp(F), add 0x80 for On
-* Byte7  N/A when command, else Mode
+* Byte7  N/A when command, else Mode (Min Heat = 0xD0 and Coil Dry = 0x10 are not exposed)
 * Byte8  N/A when command, else Fan, add 0x08 for Vertical Swing
 * Byte9 N/A when command, else Fixed = 0x00 // not interested
 * Byte10 N/A when command, else Fixed = 0x00 // not interested
 * Byte11 N/A when command, else Fixed = 0x00 // not interested
-* Byte12 N/A when command, else Economy
+* Byte12 N/A when command, else Economy (On = 0x00, Off = 0x04)
 * Byte13 N/A when command, else CheckSum
 */
 // clang-format on
 ESPHOME_LOG_TAG(TAG, "friedrich");
 
-const uint8_t STATE_MESSAGE_LENGTH_UTIL = 5;
-const uint16_t CARRIER_ADDRESS = 0x28C6;
-const uint32_t CARRIER_FREQUENCY = 38000;
+static constexpr uint8_t TEMP_MIN_NOT_HEAT = 64;
+static constexpr uint8_t TEMP_DEFAULT = 72;
+static constexpr uint8_t STATE_MESSAGE_LENGTH = FriedrichClimate::STATE_MESSAGE_LENGTH;
+static constexpr uint8_t STATE_MESSAGE_LENGTH_UTIL = 5;
+static constexpr uint16_t CARRIER_ADDRESS = 0x28C6;
+static constexpr uint32_t CARRIER_FREQUENCY = 38000;
 
-const uint8_t BYTE0_FIXED = 0x00;
-const uint8_t BYTE1_FIXED = 0x08;
-const uint8_t BYTE2_FIXED = 0x08;
-const uint8_t BYTE3_FIXED = 0x7F;
-const uint8_t BYTE3_LVR_MOVE = 0x36;  // hardware feature, not yet exposed
-const uint8_t BYTE3_POWER_OFF = 0x40;
-const uint8_t BYTE4_FIXED = 0x90;
-const uint8_t BYTE5_FIXED = 0x0C;
-struct TempEncoding {
-  uint8_t fahrenheit;
-  uint8_t encoded;
+static constexpr uint8_t BYTE3_POWER_OFF = 0x40;
+static constexpr uint8_t BYTE6_POWER_ON = 0x80;
+static constexpr uint8_t BYTE7_MODE_AUTO = 0x00;
+static constexpr uint8_t BYTE8_FAN_AUTO = 0x00;
+static constexpr uint8_t BYTE8_FAN_SWING = 0x08;
+
+// Every state frame: power on, economy off; bytes 6, 7, 8 and 13 are patched per state
+static constexpr uint8_t STATE_TEMPLATE[STATE_MESSAGE_LENGTH] PROGMEM = {
+    0x00, 0x08, 0x08, 0x7F, 0x90, 0x0C, BYTE6_POWER_ON, BYTE7_MODE_AUTO, BYTE8_FAN_AUTO, 0x00, 0x00, 0x00, 0x04, 0x00};
+// The off command, including its checksum (255 - byte 3)
+static constexpr uint8_t OFF_FRAME[STATE_MESSAGE_LENGTH_UTIL] PROGMEM = {0x00, 0x08, 0x08, BYTE3_POWER_OFF,
+                                                                         255 - BYTE3_POWER_OFF};
+
+struct Code {
+  uint8_t value;  // a climate enum, all of which are uint8_t
+  uint8_t code;
 };
-static const TempEncoding TEMP_ENCODINGS[] = {
-    {88, 0x07}, {86, 0x0B}, {84, 0x03}, {82, 0x0D}, {80, 0x05}, {78, 0x09}, {76, 0x01}, {74, 0x0E},
-    {72, 0x06}, {70, 0x0A}, {68, 0x02}, {66, 0x0C}, {64, 0x04}, {62, 0x08}, {60, 0x00},
+static constexpr Code MODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_HEAT_COOL, BYTE7_MODE_AUTO},
+    {climate::CLIMATE_MODE_COOL, 0x80},
+    {climate::CLIMATE_MODE_DRY, 0x40},
+    {climate::CLIMATE_MODE_FAN_ONLY, 0xC0},
+    {climate::CLIMATE_MODE_HEAT, 0x20},
 };
-const uint8_t BYTE6_POWER_ON = 0x80;
-const uint8_t BYTE7_MODE_AUTO = 0x00;
-const uint8_t BYTE7_MODE_COOL = 0x80;
-const uint8_t BYTE7_MODE_DRY = 0x40;
-const uint8_t BYTE7_MODE_FAN = 0xC0;
-const uint8_t BYTE7_MODE_HEAT = 0x20;
-const uint8_t BYTE7_MODE_MIN_HEAT = 0xD0;  // hardware mode, not yet exposed
-const uint8_t BYTE7_MODE_COIL_DRY = 0x10;  // hardware mode, not yet exposed
-const uint8_t BYTE8_FAN_AUTO = 0x00;
-const uint8_t BYTE8_FAN_HIGH = 0x80;
-const uint8_t BYTE8_FAN_MED = 0x40;
-const uint8_t BYTE8_FAN_LOW = 0xC0;
-const uint8_t BYTE8_FAN_QUIET = 0x20;
-const uint8_t BYTE8_FAN_SWING = 0x08;
-const uint8_t BYTE9_FIXED = 0x00;
-const uint8_t BYTE10_FIXED = 0x00;
-const uint8_t BYTE11_FIXED = 0x00;
-const uint8_t BYTE12_ECO_OFF = 0x04;
-const uint8_t BYTE12_ECO_ON = 0x00;  // hardware feature, not yet exposed
+static constexpr Code FANS[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, BYTE8_FAN_AUTO}, {climate::CLIMATE_FAN_HIGH, 0x80},
+    {climate::CLIMATE_FAN_MEDIUM, 0x40},         {climate::CLIMATE_FAN_LOW, 0xC0},
+    {climate::CLIMATE_FAN_QUIET, 0x20},
+};
+
+// The entry whose value (or code) matches key. Entries are copied out of PROGMEM.
+template<size_t N> static optional<Code> find_entry(const Code (&table)[N], uint8_t key, bool match_code) {
+  for (const Code &slot : table) {
+    Code entry;
+    progmem_memcpy(&entry, &slot, sizeof(entry));
+    if ((match_code ? entry.code : entry.value) == key)
+      return entry;
+  }
+  return {};
+}
+
+// The temperature code is the 4-bit reversal of (F - TEMP_MIN) / TEMP_STEP; the mapping is its own inverse.
+static uint8_t reverse_nibble(uint8_t value) { return reverse_bits(value) >> 4; }
+
+static bool matches_template(const uint8_t *data, uint8_t from, uint8_t to) {
+  for (uint8_t i = from; i <= to; i++) {
+    if (data[i] != progmem_read_byte(&STATE_TEMPLATE[i]))
+      return false;
+  }
+  return true;
+}
+
+/*
+ * https://gist.github.com/GeorgeDewar/11171561
+ * 1. Reverse (flip) bytes 6 - 13)
+ * 2. Sum those bytes
+ * 3. (208 - sum) % 256
+ * 4. Reverse (flip) bytes of result
+ */
+static uint8_t checksum_state(const uint8_t *data) {
+  uint8_t sum = 0;
+  for (uint8_t i = 6; i < STATE_MESSAGE_LENGTH - 1; ++i) {
+    sum += reverse_bits(data[i]);
+  }
+  return reverse_bits(static_cast<uint8_t>(208 - sum));
+}
+
+static const LogString *model_to_string(Model model) {
+  switch (model) {
+    case Model::MODEL_MW12Y3H:
+    default:
+      return LOG_STR("MW12Y3H");
+  }
+}
 
 climate::ClimateTraits FriedrichClimate::traits() {
   auto traits = ClimateIR::traits();
@@ -83,16 +128,12 @@ void FriedrichClimate::setup() {
 }
 
 void FriedrichClimate::dump_config() {
+  // ClimateIR::dump_config() is not called: it prints the temperature range in Celsius
   LOG_CLIMATE("", "Friedrich Climate", this);
-  ESP_LOGCONFIG(TAG, "  Temperature range: %u to %u °F", TEMP_MIN, TEMP_MAX);
-  const char *model_str;
-  switch (this->model_) {
-    case MODEL_MW12Y3H:
-    default:
-      model_str = "MW12Y3H";
-      break;
-  }
-  ESP_LOGCONFIG(TAG, "  Model: %s", model_str);
+  ESP_LOGCONFIG(TAG,
+                "  Temperature range: %u to %u °F\n"
+                "  Model: %s",
+                TEMP_MIN, TEMP_MAX, LOG_STR_ARG(model_to_string(this->model_)));
 }
 
 void FriedrichClimate::transmit_state() {
@@ -110,103 +151,27 @@ void FriedrichClimate::transmit_state() {
   temperature += temperature % 2;
   this->target_temperature = temperature;
 
-  std::array<uint8_t, STATE_MESSAGE_LENGTH> remote_state{};
+  const auto mode = find_entry(MODES, this->mode, false);
+  const auto fan = find_entry(FANS, this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO), false);
 
-  remote_state[0] = BYTE0_FIXED;
-  remote_state[1] = BYTE1_FIXED;
-  remote_state[2] = BYTE2_FIXED;
-  remote_state[3] = BYTE3_FIXED;
-  remote_state[4] = BYTE4_FIXED;
-  remote_state[5] = BYTE5_FIXED;
+  uint8_t frame[STATE_MESSAGE_LENGTH];
+  progmem_memcpy(frame, STATE_TEMPLATE, sizeof(frame));
+  frame[6] |= reverse_nibble((temperature - TEMP_MIN) / TEMP_STEP);
+  frame[7] = mode.has_value() ? mode->code : BYTE7_MODE_AUTO;
+  frame[8] = fan.has_value() ? fan->code : BYTE8_FAN_AUTO;
+  if (this->swing_mode != climate::CLIMATE_SWING_OFF)
+    frame[8] |= BYTE8_FAN_SWING;
+  frame[STATE_MESSAGE_LENGTH - 1] = checksum_state(frame);
 
-  // Set Temp
-  for (const auto &entry : TEMP_ENCODINGS) {
-    if (entry.fahrenheit == temperature) {
-      remote_state[6] = entry.encoded;
-      break;
-    }
-  }
-
-  // Set power on
-  remote_state[6] |= BYTE6_POWER_ON;
-
-  // Set mode
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      remote_state[7] = BYTE7_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      remote_state[7] = BYTE7_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      remote_state[7] = BYTE7_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      remote_state[7] = BYTE7_MODE_FAN;
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-    default:
-      remote_state[7] = BYTE7_MODE_AUTO;
-      break;
-  }
-
-  // Set fan
-  if (this->fan_mode.has_value()) {
-    switch (this->fan_mode.value()) {
-      case climate::CLIMATE_FAN_HIGH:
-        remote_state[8] = BYTE8_FAN_HIGH;
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        remote_state[8] = BYTE8_FAN_MED;
-        break;
-      case climate::CLIMATE_FAN_LOW:
-        remote_state[8] = BYTE8_FAN_LOW;
-        break;
-      case climate::CLIMATE_FAN_QUIET:
-        remote_state[8] = BYTE8_FAN_QUIET;
-        break;
-      case climate::CLIMATE_FAN_AUTO:
-      default:
-        remote_state[8] = BYTE8_FAN_AUTO;
-        break;
-    }
-  } else {
-    remote_state[8] = BYTE8_FAN_AUTO;
-  }
-
-  // Set swing
-  switch (this->swing_mode) {
-    case climate::CLIMATE_SWING_VERTICAL:
-    case climate::CLIMATE_SWING_HORIZONTAL:
-    case climate::CLIMATE_SWING_BOTH:
-      remote_state[8] |= BYTE8_FAN_SWING;
-      break;
-    case climate::CLIMATE_SWING_OFF:
-    default:
-      break;
-  }
-
-  remote_state[9] = BYTE9_FIXED;
-  remote_state[10] = BYTE10_FIXED;
-  remote_state[11] = BYTE11_FIXED;
-  remote_state[12] = BYTE12_ECO_OFF;
-
-  remote_state[STATE_MESSAGE_LENGTH - 1] = this->checksum_state_(remote_state.data());
-
-  this->transmit_(remote_state.data(), remote_state.size());
+  this->transmit_(frame, sizeof(frame));
 }
 
 void FriedrichClimate::transmit_off_() {
   ESP_LOGV(TAG, "Transmit off");
 
-  std::array<uint8_t, STATE_MESSAGE_LENGTH_UTIL> remote_state{};
-  remote_state[0] = BYTE0_FIXED;
-  remote_state[1] = BYTE1_FIXED;
-  remote_state[2] = BYTE2_FIXED;
-  remote_state[3] = BYTE3_POWER_OFF;
-  remote_state[4] = this->checksum_util_(remote_state.data());
-
-  this->transmit_(remote_state.data(), remote_state.size());
+  uint8_t frame[STATE_MESSAGE_LENGTH_UTIL];
+  progmem_memcpy(frame, OFF_FRAME, sizeof(frame));
+  this->transmit_(frame, sizeof(frame));
 }
 
 void FriedrichClimate::transmit_(const uint8_t *data, uint8_t len) {
@@ -215,121 +180,54 @@ void FriedrichClimate::transmit_(const uint8_t *data, uint8_t len) {
   auto transmit = this->transmitter_->transmit();
   auto *dst = transmit.get_data();
   dst->set_carrier_frequency(CARRIER_FREQUENCY);
-
-  remote_base::AEHAData aeha_data;
-  aeha_data.address = CARRIER_ADDRESS;
-  aeha_data.data.assign(data, data + len);
-  remote_base::AEHAProtocol protocol;
-  protocol.encode(dst, aeha_data);
+  remote_base::AEHAProtocol().encode(dst, CARRIER_ADDRESS, data, len);
   transmit.perform();
 }
-/*
- * https://gist.github.com/GeorgeDewar/11171561
- * 1. Reverse (flip) bytes 6 - 13)
- * 2. Sum those bytes
- * 3. (208 - sum) % 256
- * 4. Reverse (flip) bytes of result
- */
-uint8_t FriedrichClimate::checksum_state_(const uint8_t *data) {
-  uint8_t chksm = 0;
-  for (uint8_t i = 6; i < STATE_MESSAGE_LENGTH - 1; ++i) {
-    chksm += reverse_bits(data[i]);
-  }
-  chksm = (208 - chksm) % 256;
-  chksm = reverse_bits(chksm);
-  return chksm;
-}
-
-uint8_t FriedrichClimate::checksum_util_(const uint8_t *data) { return 255 - data[3]; }
 
 bool FriedrichClimate::on_receive(remote_base::RemoteReceiveData src) {
   ESP_LOGV(TAG, "Received message");
-  bool received = false;
-  optional<remote_base::AEHAData> odata = remote_base::AEHAProtocol().decode(src);
-  if (odata.has_value()) {
-    const remote_base::AEHAData &data = odata.value();
-    // Other vendors also use AEHA; only accept frames with our address and fixed header bytes.
-    if (data.address != CARRIER_ADDRESS || data.data.size() < STATE_MESSAGE_LENGTH_UTIL ||
-        data.data.at(0) != BYTE0_FIXED || data.data.at(1) != BYTE1_FIXED || data.data.at(2) != BYTE2_FIXED) {
-      return false;
-    }
-    if (data.data.size() == STATE_MESSAGE_LENGTH_UTIL &&
-        data.data.at(STATE_MESSAGE_LENGTH_UTIL - 1) == checksum_util_(data.data.data())) {
-      // Not looking for other types of messages
-      if (data.data.at(3) == BYTE3_POWER_OFF) {
-        ESP_LOGV(TAG, "Received off message");
-        this->mode = climate::CLIMATE_MODE_OFF;
-        received = true;
-      }
-    } else if (data.data.size() == STATE_MESSAGE_LENGTH &&
-               data.data.at(STATE_MESSAGE_LENGTH - 1) == checksum_state_(data.data.data()) &&
-               data.data.at(3) == BYTE3_FIXED && data.data.at(4) == BYTE4_FIXED && data.data.at(5) == BYTE5_FIXED) {
-      // Ignore frames with a mode this component does not expose (e.g. MIN_HEAT, COIL_DRY)
-      climate::ClimateMode new_mode;
-      switch (data.data.at(7)) {
-        case BYTE7_MODE_COOL:
-          new_mode = climate::CLIMATE_MODE_COOL;
-          break;
-        case BYTE7_MODE_HEAT:
-          new_mode = climate::CLIMATE_MODE_HEAT;
-          break;
-        case BYTE7_MODE_DRY:
-          new_mode = climate::CLIMATE_MODE_DRY;
-          break;
-        case BYTE7_MODE_FAN:
-          new_mode = climate::CLIMATE_MODE_FAN_ONLY;
-          break;
-        case BYTE7_MODE_AUTO:
-          new_mode = climate::CLIMATE_MODE_HEAT_COOL;
-          break;
-        default:
-          ESP_LOGV(TAG, "Ignoring unknown mode 0x%02X", data.data.at(7));
-          return false;
-      }
-      this->mode = new_mode;
-      received = true;
-      // Strip the power-on flag (bit 7) to isolate the temperature encoding.
-      uint8_t byte6 = data.data.at(6) & ~BYTE6_POWER_ON;
-      for (const auto &entry : TEMP_ENCODINGS) {
-        if (entry.encoded == byte6) {
-          this->target_temperature = entry.fahrenheit;
-          break;
-        }
-      }
+  const auto odata = remote_base::AEHAProtocol().decode(src);
+  if (!odata.has_value())
+    return false;
+  const auto &d = odata->data;
+  // Other vendors also use AEHA; only accept frames with our address and fixed header bytes.
+  if (odata->address != CARRIER_ADDRESS || d.size() < STATE_MESSAGE_LENGTH_UTIL || !matches_template(d.data(), 0, 2))
+    return false;
 
-      // Set fan
-      uint8_t byte8 = data.data.at(8);
-      // Check for Swing
-      if (byte8 & BYTE8_FAN_SWING) {
-        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-        byte8 &= ~BYTE8_FAN_SWING;
-      } else {
-        this->swing_mode = climate::CLIMATE_SWING_OFF;
-      }
-      switch (byte8) {
-        case BYTE8_FAN_HIGH:
-          this->fan_mode = climate::CLIMATE_FAN_HIGH;
-          break;
-        case BYTE8_FAN_MED:
-          this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-          break;
-        case BYTE8_FAN_LOW:
-          this->fan_mode = climate::CLIMATE_FAN_LOW;
-          break;
-        case BYTE8_FAN_QUIET:
-          this->fan_mode = climate::CLIMATE_FAN_QUIET;
-          break;
-        case BYTE8_FAN_AUTO:
-        default:
-          this->fan_mode = climate::CLIMATE_FAN_AUTO;
-          break;
-      }
-    }
-  }
-  if (received) {
+  if (d.size() == STATE_MESSAGE_LENGTH_UTIL) {
+    // Not looking for other types of messages
+    if (d[3] != BYTE3_POWER_OFF || d[4] != 255 - d[3])
+      return false;
+    ESP_LOGV(TAG, "Received off message");
+    this->mode = climate::CLIMATE_MODE_OFF;
     this->publish_state();
+    return true;
   }
-  return received;
+
+  if (d.size() != STATE_MESSAGE_LENGTH || d[STATE_MESSAGE_LENGTH - 1] != checksum_state(d.data()) ||
+      !matches_template(d.data(), 3, 5))
+    return false;
+
+  // Ignore frames with a mode this component does not expose (e.g. MIN_HEAT, COIL_DRY)
+  const auto mode = find_entry(MODES, d[7], true);
+  if (!mode.has_value()) {
+    ESP_LOGV(TAG, "Ignoring unknown mode 0x%02X", d[7]);
+    return false;
+  }
+  this->mode = static_cast<climate::ClimateMode>(mode->value);
+
+  // Strip the power-on flag (bit 7) to isolate the temperature code.
+  const uint8_t temp_code = d[6] & ~BYTE6_POWER_ON;
+  const uint8_t temp_index = reverse_nibble(temp_code);
+  if (temp_code <= 0x0F && temp_index <= (TEMP_MAX - TEMP_MIN) / TEMP_STEP)
+    this->target_temperature = TEMP_MIN + temp_index * TEMP_STEP;
+
+  this->swing_mode = (d[8] & BYTE8_FAN_SWING) ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+  const auto fan = find_entry(FANS, d[8] & ~BYTE8_FAN_SWING, true);
+  this->fan_mode = fan.has_value() ? static_cast<climate::ClimateFanMode>(fan->value) : climate::CLIMATE_FAN_AUTO;
+
+  this->publish_state();
+  return true;
 }
 
 }  // namespace esphome::friedrich

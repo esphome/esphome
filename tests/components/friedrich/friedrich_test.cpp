@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include <array>
-#include <vector>
+#include <functional>
 
 #include "esphome/components/friedrich/friedrich.h"
 #include "esphome/components/remote_base/aeha_protocol.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::friedrich::testing {
 
@@ -33,6 +33,7 @@ class TestFriedrich : public FriedrichClimate {
 };
 
 constexpr uint16_t ADDRESS = 0x28C6;
+constexpr uint8_t STATE_MESSAGE_LENGTH = FriedrichClimate::STATE_MESSAGE_LENGTH;
 // Byte 6 holds the temperature code (bit 7 is the power flag), byte 7 the mode, byte 8 the fan
 constexpr uint8_t TEMP_72_CODE = 0x06;
 
@@ -43,33 +44,26 @@ struct Fixture {
   Fixture() { this->sut.set_transmitter(&this->transmitter); }
 
   // The last transmission decoded, or an empty frame if it could not be decoded
-  AEHAData sent() {
-    remote_base::RemoteReceiveData rx(this->transmitter.last, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
-    return AEHAProtocol().decode(rx).value_or(AEHAData{});
-  }
+  AEHAData sent() { return AEHAProtocol().decode(rx_of(this->transmitter.last)).value_or(AEHAData{}); }
 
   bool receive(const AEHAData &frame) {
     remote_base::RemoteTransmitData tx;
     AEHAProtocol().encode(&tx, frame);
-    remote_base::RemoteReceiveData rx(tx.get_data(), 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
-    return this->sut.on_receive(rx);
+    return this->sut.on_receive(rx_of(tx.get_data()));
+  }
+
+  static remote_base::RemoteReceiveData rx_of(const remote_base::RawTimings &timings) {
+    return remote_base::RemoteReceiveData(timings, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
   }
 };
-
-static uint8_t reverse(uint8_t v) {
-  uint8_t r = 0;
-  for (int i = 0; i < 8; i++)
-    r |= ((v >> i) & 1) << (7 - i);
-  return r;
-}
 
 // Independent implementation of the 14 byte frame checksum
 static AEHAData state_frame(uint8_t temp_code, uint8_t mode, uint8_t fan = 0x00) {
   AEHAData f{ADDRESS, {0x00, 0x08, 0x08, 0x7F, 0x90, 0x0C, (uint8_t) (temp_code | 0x80), mode, fan, 0, 0, 0, 0x04, 0}};
   uint8_t sum = 0;
   for (int i = 6; i < 13; i++)
-    sum += reverse(f.data[i]);
-  f.data[13] = reverse((uint8_t) (208 - sum));
+    sum += reverse_bits(f.data[i]);
+  f.data[13] = reverse_bits(static_cast<uint8_t>(208 - sum));
   return f;
 }
 
@@ -113,6 +107,25 @@ TEST(FriedrichTests, OddTargetStepsUpToEven) {
   EXPECT_FLOAT_EQ(f.sut.target_temperature, 72.0f);  // stored value matches what was sent
 }
 
+// Codes captured from the remote
+TEST(FriedrichTests, EveryTemperatureEncodesToRemoteCode) {
+  static constexpr uint8_t CODES[] = {0x00, 0x08, 0x04, 0x0C, 0x02, 0x0A, 0x06, 0x0E,
+                                      0x01, 0x09, 0x05, 0x0D, 0x03, 0x0B, 0x07};
+  for (uint8_t i = 0; i < sizeof(CODES); i++) {
+    const uint8_t fahrenheit = 60 + i * 2;
+    SCOPED_TRACE(fahrenheit);
+    Fixture f;
+    f.sut.mode = climate::CLIMATE_MODE_HEAT;
+    f.sut.target_temperature = fahrenheit;
+    f.sut.transmit_state();
+    EXPECT_EQ(f.sent(), state_frame(CODES[i], 0x20));
+
+    Fixture g;
+    EXPECT_TRUE(g.receive(state_frame(CODES[i], 0x20)));
+    EXPECT_FLOAT_EQ(g.sut.target_temperature, fahrenheit);
+  }
+}
+
 TEST(FriedrichTests, NonHeatModesAreRaisedToSixtyFour) {
   Fixture f;
   f.sut.mode = climate::CLIMATE_MODE_COOL;
@@ -144,24 +157,6 @@ TEST(FriedrichTests, ReceivesOffFrame) {
   EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_OFF);
 }
 
-TEST(FriedrichTests, IgnoresOtherAddress) {
-  Fixture f;
-  f.sut.mode = climate::CLIMATE_MODE_COOL;
-  auto frame = off_frame();
-  frame.address = 0x1234;
-  EXPECT_FALSE(f.receive(frame));
-  EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_COOL);
-}
-
-TEST(FriedrichTests, IgnoresBadHeaderBytes) {
-  Fixture f;
-  f.sut.mode = climate::CLIMATE_MODE_COOL;
-  auto frame = off_frame();
-  frame.data[1] = 0x09;
-  EXPECT_FALSE(f.receive(frame));
-  EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_COOL);
-}
-
 TEST(FriedrichTests, IgnoresUnknownModeWithoutChangingState) {
   Fixture f;
   f.sut.mode = climate::CLIMATE_MODE_COOL;
@@ -171,13 +166,27 @@ TEST(FriedrichTests, IgnoresUnknownModeWithoutChangingState) {
   EXPECT_FLOAT_EQ(f.sut.target_temperature, 80.0f);
 }
 
-TEST(FriedrichTests, IgnoresBadChecksum) {
-  Fixture f;
-  f.sut.mode = climate::CLIMATE_MODE_COOL;
-  auto frame = state_frame(TEMP_72_CODE, 0x20);
-  frame.data[13] ^= 0xFF;
-  EXPECT_FALSE(f.receive(frame));
-  EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_COOL);
+TEST(FriedrichTests, IgnoresCorruptedFrames) {
+  struct Case {
+    const char *name;
+    AEHAData frame;
+    std::function<void(AEHAData &)> corrupt;
+  };
+  const Case cases[] = {
+      {"other address", off_frame(), [](AEHAData &f) { f.address = 0x1234; }},
+      {"bad header byte", off_frame(), [](AEHAData &f) { f.data[1] = 0x09; }},
+      {"bad off checksum", off_frame(), [](AEHAData &f) { f.data[4] ^= 0xFF; }},
+      {"bad state checksum", state_frame(TEMP_72_CODE, 0x20), [](AEHAData &f) { f.data[13] ^= 0xFF; }},
+  };
+  for (const auto &c : cases) {
+    SCOPED_TRACE(c.name);
+    Fixture f;
+    f.sut.mode = climate::CLIMATE_MODE_COOL;
+    AEHAData frame = c.frame;
+    c.corrupt(frame);
+    EXPECT_FALSE(f.receive(frame));
+    EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_COOL);
+  }
 }
 
 TEST(FriedrichTests, OwnTransmissionIsAccepted) {
@@ -189,8 +198,7 @@ TEST(FriedrichTests, OwnTransmissionIsAccepted) {
   f.sut.transmit_state();
 
   Fixture g;
-  remote_base::RemoteReceiveData rx(f.transmitter.last, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
-  EXPECT_TRUE(g.sut.on_receive(rx));
+  EXPECT_TRUE(g.sut.on_receive(Fixture::rx_of(f.transmitter.last)));
   EXPECT_EQ(g.sut.mode, climate::CLIMATE_MODE_FAN_ONLY);
   EXPECT_FLOAT_EQ(g.sut.target_temperature, 76.0f);
   EXPECT_EQ(g.sut.fan_mode, climate::CLIMATE_FAN_LOW);
