@@ -2,6 +2,7 @@
 
 #include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/time.h"
 
 namespace esphome::syslog {
