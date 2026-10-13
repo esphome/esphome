@@ -93,6 +93,14 @@ button:
           rc_code_1: 0xB24DBF4050AF
           rc_code_2: 0xD5660001003C
   - platform: template
+    name: IRA211
+    on_press:
+      - remote_transmitter.transmit_ira211:
+          command: sync
+          temperature: 22.5
+          mode: timer
+          fan_mode: high
+  - platform: template
     name: Sony
     on_press:
       remote_transmitter.transmit_sony:
@@ -127,6 +135,18 @@ button:
           rc_code_2: 0xA506
           repeat:
             times: 2
+  - platform: template
+    name: Pioneer WYT
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        # Captured from the factory remote: cool mode, 26°C. The encoder appends the checksum.
+        code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80]
+  - platform: template
+    name: Pioneer WYT With Checksum
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        # Same capture with its checksum byte included
+        code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC1]
   - platform: template
     name: RC Switch Raw
     on_press:
@@ -511,3 +531,8 @@ button:
           repeat:
             times: 3
             wait_time: 30ms
+  - platform: template
+    name: PD Pioneer
+    on_press:
+      - remote_transmitter.transmit_pd_pioneer:
+          code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]
