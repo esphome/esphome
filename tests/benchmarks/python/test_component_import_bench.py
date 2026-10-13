@@ -9,7 +9,8 @@ benchmarks pin down.
 The interpreter is shared across iterations, so each run first drops the
 esphome modules from ``sys.modules`` and imports the component again from
 scratch; the import machinery and the module bodies run every time, as they
-do in a new process.
+do in a new process. The modules loaded before the benchmark are put back
+afterwards, so the rest of the test session keeps the objects it imported.
 
 Skipped when ``pytest-codspeed`` isn't installed so the regular unit-test
 suite keeps working unchanged.
@@ -17,6 +18,7 @@ suite keeps working unchanged.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 import importlib
 import sys
 
@@ -27,8 +29,16 @@ pytest.importorskip("pytest_codspeed")
 COMPONENTS = ("binary_sensor", "sensor", "logger")
 
 
+def _esphome_modules() -> dict[str, object]:
+    return {
+        n: m
+        for n, m in sys.modules.items()
+        if n == "esphome" or n.startswith("esphome.")
+    }
+
+
 def _forget_esphome_modules() -> None:
-    for name in [n for n in sys.modules if n == "esphome" or n.startswith("esphome.")]:
+    for name in _esphome_modules():
         del sys.modules[name]
 
 
@@ -37,6 +47,15 @@ def _import_component(name: str) -> object:
     return importlib.import_module(f"esphome.components.{name}")
 
 
+@pytest.fixture
+def restore_esphome_modules() -> Generator[None]:
+    saved = _esphome_modules()
+    yield
+    _forget_esphome_modules()
+    sys.modules.update(saved)
+
+
+@pytest.mark.usefixtures("restore_esphome_modules")
 @pytest.mark.parametrize("component", COMPONENTS)
 def test_import_component(benchmark, component: str) -> None:
     benchmark(_import_component, component)
