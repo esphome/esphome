@@ -74,6 +74,10 @@ from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+
+DEFAULT_INVALID_COOLDOWN_MS = (
+    1000  # Keep in sync with invalid_cooldown_ in automation.h
+)
 DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -131,10 +135,9 @@ ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.templa
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
 )
-MultiClickTriggerBase = binary_sensor_ns.class_(
-    "MultiClickTriggerBase", automation.Trigger.template(), cg.Component
+MultiClickTrigger = binary_sensor_ns.class_(
+    "MultiClickTrigger", automation.Trigger.template(), cg.Component
 )
-MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
 
@@ -492,7 +495,8 @@ _BINARY_SENSOR_SCHEMA = (
                         cv.Length(min=1, max=255),
                     ),
                     cv.Optional(
-                        CONF_INVALID_COOLDOWN, default="1s"
+                        CONF_INVALID_COOLDOWN,
+                        default=f"{DEFAULT_INVALID_COOLDOWN_MS}ms",
                     ): cv.positive_time_period_milliseconds,
                 }
             ),
@@ -586,11 +590,14 @@ async def _build_binary_sensor_automations(var, config):
             )
             for tim in conf[CONF_TIMING]
         ]
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], cg.TemplateArguments(len(timings)), var, timings
+        table = cg.shared_progmem_array(
+            "multi_click_timing", MultiClickTriggerEvent, cg.ArrayInitializer(*timings)
         )
-        if CONF_INVALID_COOLDOWN in conf:
-            cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, table, len(timings))
+        if (
+            cooldown := conf[CONF_INVALID_COOLDOWN]
+        ).total_milliseconds != DEFAULT_INVALID_COOLDOWN_MS:
+            cg.add(trigger.set_invalid_cooldown(cooldown))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
 
@@ -607,7 +614,8 @@ async def setup_binary_sensor_core_(var, config):
     if filters_config := config.get(CONF_FILTERS):
         cg.add_define("USE_BINARY_SENSOR_FILTER")
         filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
-        cg.add(var.add_filters(filters))
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_binary_sensor_automations, var, config)
 

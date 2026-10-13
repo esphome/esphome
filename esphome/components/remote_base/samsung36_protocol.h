@@ -23,17 +23,4 @@ class Samsung36Protocol : public RemoteProtocol<Samsung36Data> {
 
 DECLARE_REMOTE_PROTOCOL(Samsung36)
 
-template<typename... Ts> class Samsung36Action : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(uint32_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    Samsung36Data data{};
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    Samsung36Protocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

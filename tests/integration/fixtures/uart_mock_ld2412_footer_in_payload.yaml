@@ -1,0 +1,74 @@
+esphome:
+  name: uart-mock-ld2412-footer
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  # Both answers hold the footer 04 03 02 01 inside the gate bytes, so the parser must read on to the real footer
+  responses:
+    # Gates 5 to 8 hold 04 03 02 01
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x13, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x12, 0x00,
+          0x13, 0x01,
+          0x00, 0x00,
+          0x00, 0x23, 0x23, 0x23, 0x23, 0x04, 0x03,
+          0x02, 0x01, 0x19, 0x19, 0x19, 0x19, 0x19,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+    # Gates 10 to 13 hold 04 03 02 01, right before the real footer
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x14, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x12, 0x00,
+          0x14, 0x01,
+          0x00, 0x00,
+          0x00, 0x23, 0x23, 0x23, 0x23, 0x19, 0x19,
+          0x19, 0x19, 0x19, 0x04, 0x03, 0x02, 0x01,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+# Only 2 of the 14 gates have a number; gate 5 holds a footer byte in the motion answer
+number:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    gate_0:
+      move_threshold:
+        name: "Gate 0 Move Threshold"
+      still_threshold:
+        name: "Gate 0 Still Threshold"
+    gate_5:
+      move_threshold:
+        name: "Gate 5 Move Threshold"
+      still_threshold:
+        name: "Gate 5 Still Threshold"
+
+button:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    factory_reset:
+      name: "Factory Reset"
