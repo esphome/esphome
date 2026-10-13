@@ -3,6 +3,7 @@ from esphome.components import spi
 from esphome.components.motion import MotionComponent
 
 CODEOWNERS = ["@lboue"]
+DOMAIN = "icm20689"
 
 CONF_ICM20689_ID = "icm20689_id"
 #  C++ namespace / class
