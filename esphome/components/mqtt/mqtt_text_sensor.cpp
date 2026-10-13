@@ -21,7 +21,7 @@ void MQTTTextSensor::setup() {
 }
 
 void MQTTTextSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Text Sensor '%s':", this->sensor_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT Text Sensor '%s':", LOG_STR_ARG(this->sensor_->get_log_name()));
   LOG_MQTT_COMPONENT(true, false);
 }
 

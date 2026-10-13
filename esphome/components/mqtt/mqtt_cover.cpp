@@ -63,7 +63,7 @@ void MQTTCoverComponent::setup() {
 }
 
 void MQTTCoverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT cover '%s':", this->cover_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT cover '%s':", LOG_STR_ARG(this->cover_->get_log_name()));
   auto traits = this->cover_->get_traits();
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
   LOG_MQTT_COMPONENT(true, has_command_topic);

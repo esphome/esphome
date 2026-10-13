@@ -24,7 +24,7 @@ void MQTTLockComponent::setup() {
     } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("OPEN")) == 0) {
       this->lock_->open();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
       this->status_momentary_warning(5000);
     }
   });
@@ -32,7 +32,7 @@ void MQTTLockComponent::setup() {
       [this](LockState /*state*/) { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
 void MQTTLockComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Lock '%s': ", this->lock_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT Lock '%s': ", LOG_STR_ARG(this->lock_->get_log_name()));
   LOG_MQTT_COMPONENT(true, true);
 }
 

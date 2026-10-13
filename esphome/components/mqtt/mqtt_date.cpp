@@ -35,7 +35,7 @@ void MQTTDateComponent::setup() {
 }
 
 void MQTTDateComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Date '%s':", this->date_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT Date '%s':", LOG_STR_ARG(this->date_->get_log_name()));
   LOG_MQTT_COMPONENT(true, true);
 }
 

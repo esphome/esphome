@@ -19,13 +19,13 @@ void MQTTButtonComponent::setup() {
     if (payload == "PRESS") {
       this->button_->press();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
       this->status_momentary_warning(5000);
     }
   });
 }
 void MQTTButtonComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Button '%s': ", this->button_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT Button '%s': ", LOG_STR_ARG(this->button_->get_log_name()));
   LOG_MQTT_COMPONENT(false, true);
 }
 

@@ -25,7 +25,7 @@ void MQTTSensorComponent::setup() {
 }
 
 void MQTTSensorComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Sensor '%s':", this->sensor_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT Sensor '%s':", LOG_STR_ARG(this->sensor_->get_log_name()));
   if (this->get_expire_after() > 0) {
     ESP_LOGCONFIG(TAG, "  Expire After: %" PRIu32 "s", this->get_expire_after() / 1000);
   }
