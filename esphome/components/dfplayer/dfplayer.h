@@ -77,9 +77,4 @@ class DFPlayer final : public uart::UARTDevice, public Component {
   CallbackManager<void()> on_finished_playback_callback_;
 };
 
-template<typename... Ts> class DFPlayerIsPlayingCondition final : public Condition<Ts...>, public Parented<DFPlayer> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_playing(); }
-};
-
 }  // namespace esphome::dfplayer

@@ -7,7 +7,7 @@
 
 namespace esphome::audio {
 
-static const char *const TAG = "audio.decoder";
+ESPHOME_LOG_TAG(TAG, "audio.decoder");
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;  // Timeout for transferring audio data
 

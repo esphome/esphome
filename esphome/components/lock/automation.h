@@ -6,36 +6,6 @@
 
 namespace esphome::lock {
 
-template<typename... Ts> class LockAction final : public Action<Ts...> {
- public:
-  explicit LockAction(Lock *a_lock) : lock_(a_lock) {}
-
-  void play(const Ts &...x) override { this->lock_->lock(); }
-
- protected:
-  Lock *lock_;
-};
-
-template<typename... Ts> class UnlockAction final : public Action<Ts...> {
- public:
-  explicit UnlockAction(Lock *a_lock) : lock_(a_lock) {}
-
-  void play(const Ts &...x) override { this->lock_->unlock(); }
-
- protected:
-  Lock *lock_;
-};
-
-template<typename... Ts> class OpenAction final : public Action<Ts...> {
- public:
-  explicit OpenAction(Lock *a_lock) : lock_(a_lock) {}
-
-  void play(const Ts &...x) override { this->lock_->open(); }
-
- protected:
-  Lock *lock_;
-};
-
 /// Callback forwarder that triggers an Automation<> only when a specific lock state is entered.
 /// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
 template<LockState State> struct LockStateForwarder {

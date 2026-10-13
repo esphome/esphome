@@ -38,6 +38,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
 )
 
+DOMAIN = "fan"
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
@@ -61,13 +62,8 @@ RESTORE_MODES = {
 }
 
 # Actions
-TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
-ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
 
-FanStateTrigger = fan_ns.class_(
-    "FanStateTrigger", automation.Trigger.template(Fan.operator("ptr"))
-)
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 FanDirectionSetTrigger = fan_ns.class_(
@@ -116,11 +112,7 @@ _FAN_SCHEMA = (
             cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(),
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
@@ -222,6 +214,17 @@ def validate_preset_modes(value):
     return value
 
 
+# The edge and set triggers keep their classes; each tracks the previous value.
+_TRIGGER_AUTOMATIONS = (
+    (CONF_ON_TURN_ON, []),
+    (CONF_ON_TURN_OFF, []),
+    (CONF_ON_DIRECTION_SET, [(FanDirection, "x")]),
+    (CONF_ON_OSCILLATING_SET, [(cg.bool_, "x")]),
+    (CONF_ON_SPEED_SET, [(cg.int_, "x")]),
+    (CONF_ON_PRESET_SET, [(cg.StringRef, "x")]),
+)
+
+
 @setup_entity("fan")
 async def setup_fan_core_(var, config):
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
@@ -267,26 +270,10 @@ async def setup_fan_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
     for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(Fan.operator("ptr"), "x")], conf)
-    for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_DIRECTION_SET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(FanDirection, "x")], conf)
-    for conf in config.get(CONF_ON_OSCILLATING_SET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.bool_, "x")], conf)
-    for conf in config.get(CONF_ON_SPEED_SET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.int_, "x")], conf)
-    for conf in config.get(CONF_ON_PRESET_SET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.StringRef, "x")], conf)
+        await automation.build_parent_callback_automation(
+            var, "add_on_state_callback", (Fan.operator("ptr"), "x"), conf
+        )
+    await automation.build_trigger_automations(var, config, _TRIGGER_AUTOMATIONS)
 
 
 async def register_fan(var, config):
@@ -310,21 +297,8 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "fan.toggle", ToggleAction, FAN_ACTION_SCHEMA, synchronous=True
-)
-async def fan_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA, synchronous=True
-)
-async def fan_turn_off_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
+automation.register_apply_action("fan.toggle", FAN_ACTION_SCHEMA, call="toggle")
+automation.register_apply_action("fan.turn_off", FAN_ACTION_SCHEMA, call="turn_off")
 
 automation.register_apply_action(
     "fan.turn_on",

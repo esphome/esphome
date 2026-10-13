@@ -6,8 +6,8 @@
 
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
 #include "esphome/core/progmem.h"
 #ifdef USE_CLIMATE
 #include "esphome/core/log.h"

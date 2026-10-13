@@ -1,0 +1,53 @@
+---
+esphome:
+  name: test
+
+logger:
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    id: temp_sensor
+    lambda: return 21.0;
+
+climate:
+  - platform: thermostat
+    id: thermo_a
+    name: Thermo A
+    sensor: temp_sensor
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    min_idle_time: 30s
+    heat_action:
+      - logger.log: heat
+    idle_action:
+      - logger.log: idle
+    preset:
+      - name: Away
+        default_target_temperature_low: 15°C
+        mode: HEAT
+      - name: Eco
+        default_target_temperature_low: 17°C
+      - name: Night Mode
+        default_target_temperature_low: 16°C
+  - platform: thermostat
+    id: thermo_b
+    name: Thermo B
+    sensor: temp_sensor
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    min_idle_time: 30s
+    heat_action:
+      - logger.log: heat
+    idle_action:
+      - logger.log: idle
+    preset:
+      - name: Away
+        default_target_temperature_low: 15°C
+        mode: HEAT
+      - name: Eco
+        default_target_temperature_low: 17°C
+      - name: Night Mode
+        default_target_temperature_low: 16°C

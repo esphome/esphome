@@ -3,7 +3,7 @@
 
 namespace esphome::gree {
 
-static const char *const TAG = "gree.climate";
+ESPHOME_LOG_TAG(TAG, "gree.climate");
 
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN) {
@@ -37,7 +37,6 @@ void GreeClimate::transmit_state() {
   remote_state[1] = this->temperature_();
 
   if (model == GREE_YAN) {
-    remote_state[2] = 0x20;  // bits 0..3 always 0000, bits 4..7 TURBO, LIGHT, HEALTH, X-FAN
     remote_state[3] = 0x50;  // bits 4..7 always 0101
     remote_state[4] = this->vertical_swing_();
   }
@@ -61,7 +60,6 @@ void GreeClimate::transmit_state() {
   }
 
   if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
-    remote_state[2] = 0x20;  // bits 0..3 always 0000, bits 4..7 TURBO, LIGHT, HEALTH, X-FAN
     remote_state[3] = 0x50;  // bits 4..7 always 0101
     remote_state[6] = 0x20;  // YAA1FB, FAA1FB1, YB1F2 bits 4..7 always 0010
 
@@ -226,7 +224,7 @@ uint8_t GreeClimate::vertical_swing_() {
 }
 
 uint8_t GreeClimate::temperature_() {
-  return (uint8_t) roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX));
+  return (uint8_t) roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX)) - GREE_TEMP_MIN;
 }
 
 uint8_t GreeClimate::preset_() {
