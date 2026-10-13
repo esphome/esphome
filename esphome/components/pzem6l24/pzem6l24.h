@@ -37,7 +37,8 @@ constexpr std::array<uint8_t, 3> build_reset_pdu(ResetPhase phase) {
 
 class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevice {
  protected:
-  // Ahead of the sensor pointers so the two bytes share the base class's tail padding
+  // Ahead of the sensor pointers so the two bytes share the base class's tail padding.
+  // Register reads accepted by the hub but not yet resolved by a terminal callback.
   uint8_t reads_outstanding_{0};
   // Failed polls since the last good one; stops counting at MAX_CONSECUTIVE_READ_FAILURES.
   uint8_t consecutive_failures_{0};
@@ -100,8 +101,6 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
   void request_failed_(std::span<const uint8_t> request_pdu);
   void read_failed_();
   void read_finished_();
-
-  // Register reads accepted by the hub but not yet resolved by a terminal callback.
 };
 
 }  // namespace esphome::pzem6l24
