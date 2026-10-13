@@ -394,12 +394,11 @@ void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_out
         uint8_t accuracy = std::min<uint8_t>(outputs[i].accuracy, IaqAccuracyStrings::LAST_INDEX);
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
         this->queue_push_([this, accuracy]() {
-          char text[12];
+          char text[IaqAccuracyStrings::MAX_LENGTH + 1];
           ESPHOME_strncpy_P(text,
                             reinterpret_cast<ESPHOME_PGM_P>(
                                 IaqAccuracyStrings::get_progmem_str(accuracy, IaqAccuracyStrings::LAST_INDEX)),
                             sizeof(text));
-          text[sizeof(text) - 1] = '\0';
           this->publish_sensor_(this->iaq_accuracy_text_sensor_, text);
         });
         this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
