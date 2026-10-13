@@ -21,6 +21,12 @@ api:
         - number.set:
             id: ha_number
             value: 42.5
+        - number.set:
+            id: ha_real_number
+            value: 12.5
+        - number.set:
+            id: ha_real_input_number
+            value: 7
         - switch.turn_on: ha_switch
         - switch.turn_off: ha_switch
         - logger.log: "=== All tests completed ==="
@@ -129,6 +135,13 @@ text_sensor:
 
 # Number component for testing HA number control
 number:
+  # Real homeassistant numbers: the action used depends on the entity domain
+  - platform: homeassistant
+    id: ha_real_number
+    entity_id: number.test_real_number
+  - platform: homeassistant
+    id: ha_real_input_number
+    entity_id: input_number.test_real_input_number
   - platform: template
     name: "HA Controlled Number"
     id: ha_number

@@ -9,33 +9,25 @@ from esphome.const import (
     CONF_MODE,
     CONF_MQTT_ID,
     CONF_ON_VALUE,
-    CONF_TRIGGER_ID,
     CONF_VALUE,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mauritskorse"]
+DOMAIN = "text"
 IS_PLATFORM_COMPONENT = True
 
 text_ns = cg.esphome_ns.namespace("text")
 Text = text_ns.class_("Text", cg.EntityBase)
 TextPtr = Text.operator("ptr")
-
-# Triggers
-TextStateTrigger = text_ns.class_(
-    "TextStateTrigger", automation.Trigger.template(cg.std_string)
-)
-
-# Actions
-TextSetAction = text_ns.class_("TextSetAction", automation.Action)
 
 # Conditions
 TextMode = text_ns.enum("TextMode")
@@ -52,11 +44,7 @@ _TEXT_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextComponent),
             cv.GenerateID(): cv.declare_id(Text),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
             cv.Required(CONF_MODE): cv.enum(TEXT_MODES, upper=True),
         }
     )
@@ -106,8 +94,9 @@ async def setup_text_core_(
     cg.add(var.traits.set_mode(config[CONF_MODE]))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(cg.std_string, "x")], conf
+        )
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -160,24 +149,13 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "text.set",
-    TextSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.std_string),
+    call="make_call",
 )
-async def text_set_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.std_string)
-    cg.add(var.set_value(template_))
-    return var

@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
+DOMAIN = "tlc59208f"
 MULTI_CONF = True
 
 tlc59208f_ns = cg.esphome_ns.namespace("tlc59208f")

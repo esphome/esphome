@@ -1,0 +1,3 @@
+packages:
+  valve: !include common.yaml
+  triggers: !include common-triggers.yaml

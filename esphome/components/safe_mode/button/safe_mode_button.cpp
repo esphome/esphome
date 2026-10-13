@@ -5,7 +5,7 @@
 
 namespace esphome::safe_mode {
 
-static const char *const TAG = "safe_mode.button";
+ESPHOME_LOG_TAG(TAG, "safe_mode.button");
 
 void SafeModeButton::press_action() {
   ESP_LOGI(TAG, "Restarting in safe mode");

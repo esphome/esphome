@@ -4,7 +4,7 @@
 
 namespace esphome::ds248x {
 
-static const char *const TAG = "ds248x";
+ESPHOME_LOG_TAG(TAG, "ds248x");
 
 void DS248xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DS248x...");
