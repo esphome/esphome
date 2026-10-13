@@ -223,7 +223,7 @@ void EmonTx::parse_msg_number_(const char *line, size_t len) {
     this->request_version_();
   } else if (this->version_frames_left_ > 0) {
     if (--this->version_frames_left_ == 0) {
-      ESP_LOGW(TAG, "No firmware version from the emonTx");
+      ESP_LOGW(TAG, "No firmware version from the emonTx, it may still be locked");
     } else if (this->version_frames_left_ % VERSION_RETRY_FRAMES == 0) {
       this->send_version_request_();
     }
@@ -243,13 +243,20 @@ void EmonTx::parse_version_line_(const char *line, size_t len) {
     return;
   ESP_LOGI(TAG, "emonTx firmware version: %.*s", static_cast<int>(end - version), version);
   this->version_frames_left_ = 0;
+#ifdef USE_EMONTX_VERSION_TEXT_SENSOR
   if (this->version_text_sensor_ != nullptr)
     this->version_text_sensor_->publish_state(version, end - version);
+#endif
 
   bool supported = supports_lock(version, end);
-  if (this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO && supported && !this->lock_supported_) {
-    // Once the rest of the reply has gone out
-    this->set_timeout(UNLOCK_ID, COMMAND_GAP_MS, [this]() { this->unlock_(); });
+  if (this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO && supported && !this->unlock_sent_) {
+    // Once the rest of the reply has gone out; a pause drops it, and the version request on resume retries
+    this->set_timeout(UNLOCK_ID, COMMAND_GAP_MS, [this]() {
+      if (this->is_paused())
+        return;
+      this->unlock_();
+      this->unlock_sent_ = true;
+    });
   }
   this->lock_supported_ = supported;
 }
@@ -276,7 +283,7 @@ void EmonTx::dump_config() {
 #else
   ESP_LOGCONFIG(TAG, "  Sensor support: DISABLED");
 #endif
-#ifdef USE_EMONTX_VERSION
+#ifdef USE_EMONTX_VERSION_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Firmware version", this->version_text_sensor_);
 #endif
 }

@@ -13,7 +13,7 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
-#ifdef USE_EMONTX_VERSION
+#ifdef USE_EMONTX_VERSION_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
@@ -36,7 +36,7 @@ enum class LockOnReboot : uint8_t {
  * extracts tags and values, and publishes them to registered sensors.
  */
 class EmonTx final : public Component, public uart::UARTDevice {
-#ifdef USE_EMONTX_VERSION
+#ifdef USE_EMONTX_VERSION_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
 #endif
  public:
@@ -75,7 +75,11 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void unlock_();
 #ifdef USE_EMONTX_VERSION
   bool wants_version_() const {
-    return this->version_text_sensor_ != nullptr || this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO;
+#ifdef USE_EMONTX_VERSION_TEXT_SENSOR
+    if (this->version_text_sensor_ != nullptr)
+      return true;
+#endif
+    return this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO;
   }
   void request_version_();
   void send_version_request_();
@@ -95,6 +99,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
 #ifdef USE_EMONTX_VERSION
   bool lock_supported_{false};      // The last version reported is v1.2.0 or later
+  bool unlock_sent_{false};         // AUTO has sent 'emonunlock' since boot
   uint8_t version_frames_left_{0};  // Data lines still to wait for a version reply; 0 when none is owed
   uint32_t last_msg_number_{0};
 #endif

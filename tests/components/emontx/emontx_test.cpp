@@ -297,6 +297,7 @@ TEST_F(EmonTxLockAutoTest, RequestRetriedEverySecondDataLine) {
   EXPECT_EQ(this->tx_(), "\nv\n\nv\n");
 }
 
+// Each attempt sends its line feed at once; counting those needs no wait for the delayed 'v'
 TEST_F(EmonTxLockAutoTest, RetriesStopAfterThreeAttempts) {
   this->sut_.setup();
   for (int msg = 10; msg < 20; msg++) {
@@ -304,9 +305,25 @@ TEST_F(EmonTxLockAutoTest, RetriesStopAfterThreeAttempts) {
     snprintf(line, sizeof(line), "{\"MSG\":%d}\n", msg);
     this->uart_.push_rx(line);
     this->sut_.loop();
-    run_timers(300);
   }
-  EXPECT_EQ(this->tx_(), "\nv\n\nv\n\nv\n");
+  EXPECT_EQ(this->tx_(), "\n\n\n");
+}
+
+TEST_F(EmonTxLockAutoTest, UnlockDroppedByPauseSentAfterResume) {
+  this->report_version_("v1.2.0");
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+  run_timers(300);
+  EXPECT_TRUE(this->uart_.tx.empty());
+
+  // Resume asks for the version again, and its reply brings the unlock
+  this->sut_.set_paused(false);
+  this->sut_.loop();
+  run_timers(300);
+  this->uart_.push_rx("> Firmware:\r\n");  // Ends the line skipped after a resume
+  this->report_version_("v1.2.0");
+  run_timers(300);
+  EXPECT_EQ(this->tx_(), "\nv\nemonunlock\n");
 }
 
 // The lines of a 'v' reply before the version line are not data lines
