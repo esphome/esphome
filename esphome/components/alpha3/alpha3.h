@@ -44,6 +44,18 @@ enum class Alpha3NumberType : uint8_t {
 };
 
 class Alpha3 final : public ble_client::BLEClientNode, public PollingComponent {
+  SUB_SENSOR(flow)
+  SUB_SENSOR(head)
+  SUB_SENSOR(power)
+  SUB_SENSOR(current)
+  SUB_SENSOR(speed)
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(operating_hours)
+  SUB_SENSOR(energy)
+  SUB_SENSOR(starts)
+  SUB_SENSOR(alarm_code)
+  SUB_SENSOR(warning_code)
+
  public:
   void setup() override;
   void loop() override;
@@ -54,17 +66,6 @@ class Alpha3 final : public ble_client::BLEClientNode, public PollingComponent {
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   bool is_ready() const;
 
-  void set_flow_sensor(sensor::Sensor *sensor) { this->flow_sensor_ = sensor; }
-  void set_head_sensor(sensor::Sensor *sensor) { this->head_sensor_ = sensor; }
-  void set_power_sensor(sensor::Sensor *sensor) { this->power_sensor_ = sensor; }
-  void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
-  void set_speed_sensor(sensor::Sensor *sensor) { this->speed_sensor_ = sensor; }
-  void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
-  void set_operating_hours_sensor(sensor::Sensor *sensor) { this->operating_hours_sensor_ = sensor; }
-  void set_energy_sensor(sensor::Sensor *sensor) { this->energy_sensor_ = sensor; }
-  void set_starts_sensor(sensor::Sensor *sensor) { this->starts_sensor_ = sensor; }
-  void set_alarm_code_sensor(sensor::Sensor *sensor) { this->alarm_code_sensor_ = sensor; }
-  void set_warning_code_sensor(sensor::Sensor *sensor) { this->warning_code_sensor_ = sensor; }
 #ifdef USE_BINARY_SENSOR
   void set_ready_binary_sensor(binary_sensor::BinarySensor *entity) { this->ready_binary_sensor_ = entity; }
 #endif
@@ -110,17 +111,6 @@ class Alpha3 final : public ble_client::BLEClientNode, public PollingComponent {
   number::Number *get_setpoint_number_(ObjectKind kind) const;
 #endif
 
-  sensor::Sensor *flow_sensor_{nullptr};
-  sensor::Sensor *head_sensor_{nullptr};
-  sensor::Sensor *power_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-  sensor::Sensor *speed_sensor_{nullptr};
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *operating_hours_sensor_{nullptr};
-  sensor::Sensor *energy_sensor_{nullptr};
-  sensor::Sensor *starts_sensor_{nullptr};
-  sensor::Sensor *alarm_code_sensor_{nullptr};
-  sensor::Sensor *warning_code_sensor_{nullptr};
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *ready_binary_sensor_{nullptr};
 #endif
