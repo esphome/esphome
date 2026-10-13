@@ -21,18 +21,9 @@ static uint8_t plane_byte(uint8_t first, uint8_t second, bool high_bit) {
   return out;
 }
 
-void EPaperSSD1677Gray4::fill(Color color) {
-  if (this->get_clipping().is_set()) {
-    // Falls back to the generic per-pixel implementation for the clipped rectangle.
-    EPaperBase::fill(color);
-    return;
-  }
+void EPaperSSD1677Gray4::fill_buffer(Color color) {
   const uint8_t level = color_to_gray4(color);
   this->buffer_.fill((uint8_t) (level | (level << 2) | (level << 4) | (level << 6)));
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->width_;
-  this->y_high_ = this->height_;
 }
 
 void HOT EPaperSSD1677Gray4::draw_pixel_at(int x, int y, Color color) {

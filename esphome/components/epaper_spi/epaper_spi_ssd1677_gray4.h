@@ -34,10 +34,10 @@ class EPaperSSD1677Gray4 : public EPaperSSD1677 {
     this->buffer_length_ = (size_t) this->row_width_ * height;
   }
 
-  void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
+  void fill_buffer(Color color) override;
   // A partial update if partial updates are enabled and this is not a full one.
   bool is_partial_push_() const { return this->update_count_ != 0 && this->sent_.is_valid(); }
   bool buffer_is_plane() const override { return false; }
