@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdlib>
 #include <cstring>
 
 namespace esphome::vnc {
@@ -25,6 +26,9 @@ static constexpr uint32_t CONFIG_RETRY_MS = 300000;
 static constexpr uint32_t AUTH_AMBIGUOUS_HOLD_MS = 60000;
 static constexpr uint32_t HEARTBEAT_MS = 60000;
 static constexpr uint32_t MIN_REQUEST_SPACING_MS = 50;
+// How long after an input event frames are painted as soon as they arrive.
+static constexpr uint32_t INPUT_BOOST_MS = 2000;
+static constexpr uint16_t TOUCH_SLOP_PX = 8;
 static constexpr uint16_t MAX_CURSOR_SIDE = 1024;
 static constexpr uint32_t MAX_TEXT_LEN = 63;
 
@@ -45,6 +49,10 @@ static constexpr uint8_t MSG_FRAMEBUFFER_UPDATE = 0;
 static constexpr uint8_t MSG_SET_COLOUR_MAP = 1;
 static constexpr uint8_t MSG_BELL = 2;
 static constexpr uint8_t MSG_SERVER_CUT_TEXT = 3;
+
+static constexpr uint32_t KEYSYM_BACKSPACE = 0xFF08;
+static constexpr uint32_t KEYSYM_TAB = 0xFF09;
+static constexpr uint32_t KEYSYM_RETURN = 0xFF0D;
 
 static inline uint16_t read_be16(const uint8_t *p) { return encode_uint16(p[0], p[1]); }
 static inline uint32_t read_be32(const uint8_t *p) { return encode_uint32(p[0], p[1], p[2], p[3]); }
@@ -69,6 +77,69 @@ static int parse_three_digits(const uint8_t *p) {
   }
   return value;
 }
+
+// Decodes one UTF-8 sequence. Returns the bytes used; cp is 0 for an invalid sequence.
+static size_t decode_utf8(const uint8_t *s, size_t len, uint32_t &cp) {
+  cp = 0;
+  uint8_t lead = s[0];
+  size_t extra;
+  uint32_t value;
+  if (lead < 0x80) {
+    cp = lead;
+    return 1;
+  } else if ((lead & 0xE0) == 0xC0) {
+    extra = 1;
+    value = lead & 0x1F;
+  } else if ((lead & 0xF0) == 0xE0) {
+    extra = 2;
+    value = lead & 0x0F;
+  } else if ((lead & 0xF8) == 0xF0) {
+    extra = 3;
+    value = lead & 0x07;
+  } else {
+    return 1;
+  }
+  for (size_t i = 1; i <= extra; i++) {
+    if (i >= len || (s[i] & 0xC0) != 0x80) {
+      return i;
+    }
+    value = (value << 6) | (s[i] & 0x3F);
+  }
+  cp = value;
+  return extra + 1;
+}
+
+static uint32_t keysym_for_codepoint(uint32_t cp) {
+  switch (cp) {
+    case '\n':
+      return KEYSYM_RETURN;
+    case '\t':
+      return KEYSYM_TAB;
+    case '\b':
+      return KEYSYM_BACKSPACE;
+    default:
+      break;
+  }
+  if (cp < 0x20 || (cp >= 0x7F && cp < 0xA0)) {
+    return 0;
+  }
+  return cp <= 0xFF ? cp : (0x01000000 | cp);
+}
+
+#ifdef USE_VNC_TOUCHSCREEN
+void VncTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
+  for (const auto &tp : tpoints) {
+    // A lifted finger lingers in the list as RELEASED or RELEASING until every finger is up.
+    if ((tp.state & (touchscreen::STATE_PRESSED | touchscreen::STATE_UPDATED)) != 0 &&
+        (tp.state & touchscreen::STATE_RELEASING) == 0) {
+      this->parent_->handle_touch(tp.x, tp.y);
+      return;
+    }
+  }
+}
+
+void VncTouchListener::release() { this->parent_->handle_release(); }
+#endif
 
 void VncClient::setup() {
   this->link_.begin(TAG);
@@ -112,6 +183,10 @@ void VncClient::dump_config() {
 #ifdef USE_VNC_AUTH
   ESP_LOGCONFIG(TAG, "  Password: %s", this->auth_key_ != nullptr ? LOG_STR_LITERAL("set") : LOG_STR_LITERAL("none"));
 #endif
+#ifdef USE_VNC_TOUCHSCREEN
+  ESP_LOGCONFIG(TAG, "  Touchscreen: %s",
+                this->touch_listener_.get_parent() != nullptr ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
+#endif
 }
 
 void VncClient::on_shutdown() { this->link_.close(); }
@@ -148,9 +223,13 @@ void VncClient::loop() {
   }
 
   const bool blocked = this->in_update_ && this->display_busy_;
+  if (this->input_boost_ && now - this->last_input_ms_ >= INPUT_BOOST_MS) {
+    this->input_boost_ = false;
+  }
   // Wait until the screen stops changing, so an animation becomes one refresh showing where it ended.
+  // Right after input, paint at once instead: the reaction matters more than a calm panel.
   if (this->refresh_pending_ && !this->in_update_ && !this->display_busy_ &&
-      (now - this->last_change_ms_ >= this->update_delay_ms_ ||
+      (this->input_boost_ || now - this->last_change_ms_ >= this->update_delay_ms_ ||
        now - this->first_change_ms_ >= this->max_update_delay_ms_)) {
     // Synchronous displays flush inside update(), so this pass does nothing else.
     this->refresh_pending_ = false;
@@ -235,7 +314,9 @@ void VncClient::reset_session_() {
   this->refresh_pending_ = false;
   this->need_full_ = false;
   this->frame_drawn_ = false;
+  this->dragging_ = false;
   this->sec_type_ = 0;
+  this->ptr_buttons_ = 0;
   this->step_ = VncStep::VNC_STEP_VERSION;
   this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
   this->high_freq_.stop();
@@ -983,6 +1064,124 @@ bool VncClient::send_update_request_(bool incremental) {
   write_be16(msg + 6, this->vis_w_);
   write_be16(msg + 8, this->vis_h_);
   return this->send_(msg, sizeof(msg));
+}
+
+bool VncClient::send_key_event_(uint32_t keysym, bool down) {
+  uint8_t msg[8] = {4, static_cast<uint8_t>(down ? 1 : 0)};
+  write_be32(msg + 4, keysym);
+  if (!this->send_(msg, sizeof(msg))) {
+    return false;
+  }
+  this->note_input_();
+  return true;
+}
+
+void VncClient::send_pointer(uint16_t x, uint16_t y, uint8_t buttons) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, pointer event dropped");
+    return;
+  }
+  x = std::min<uint16_t>(x, this->fb_w_ - 1);
+  y = std::min<uint16_t>(y, this->fb_h_ - 1);
+  uint8_t msg[6] = {5, buttons};
+  write_be16(msg + 2, x);
+  write_be16(msg + 4, y);
+  if (!this->send_(msg, sizeof(msg))) {
+    ESP_LOGW(TAG, "Send buffer full, pointer event dropped");
+    return;
+  }
+  this->ptr_x_ = x;
+  this->ptr_y_ = y;
+  this->ptr_buttons_ = buttons;
+  this->note_input_();
+}
+
+void VncClient::note_input_() {
+  this->last_input_ms_ = App.get_loop_component_start_time();
+  this->input_boost_ = true;
+}
+
+void VncClient::send_key(uint32_t keysym, VncKeyAction action) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, key dropped");
+    return;
+  }
+  if (action == VncKeyAction::VNC_KEY_ACTION_PRESS) {
+    if (this->link_.tx_free() < 16) {
+      this->link_.flush_tx();
+    }
+    if (this->link_.tx_free() < 16) {
+      ESP_LOGW(TAG, "Send buffer full, key dropped");
+      return;
+    }
+    this->send_key_event_(keysym, true);
+    this->send_key_event_(keysym, false);
+    return;
+  }
+  if (!this->send_key_event_(keysym, action == VncKeyAction::VNC_KEY_ACTION_DOWN)) {
+    ESP_LOGW(TAG, "Send buffer full, key dropped");
+  }
+}
+
+void VncClient::type_text(const char *text, size_t len) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, text dropped");
+    return;
+  }
+  const auto *bytes = reinterpret_cast<const uint8_t *>(text);
+  size_t typed = 0;
+  for (size_t i = 0; i < len;) {
+    uint32_t cp;
+    i += decode_utf8(bytes + i, len - i, cp);
+    const uint32_t keysym = keysym_for_codepoint(cp);
+    if (keysym == 0) {
+      continue;
+    }
+    if (this->link_.tx_free() < 16) {
+      this->link_.flush_tx();
+    }
+    if (this->link_.tx_free() < 16) {
+      ESP_LOGW(TAG, "Send buffer full, text cut after %u characters", static_cast<unsigned>(typed));
+      return;
+    }
+    this->send_key_event_(keysym, true);
+    this->send_key_event_(keysym, false);
+    typed++;
+  }
+}
+
+void VncClient::handle_touch(uint16_t x, uint16_t y) {
+  if (!this->is_connected()) {
+    return;
+  }
+  if ((this->ptr_buttons_ & 1) == 0) {
+    if (x >= this->vis_w_ || y >= this->vis_h_) {
+      return;
+    }
+    this->press_x_ = x;
+    this->press_y_ = y;
+    this->dragging_ = false;
+    this->send_pointer(x, y, this->ptr_buttons_ | 1);
+    return;
+  }
+  x = std::min<uint16_t>(x, this->vis_w_ - 1);
+  y = std::min<uint16_t>(y, this->vis_h_ - 1);
+  // Small jitter during a tap would start a text selection in a browser.
+  if (!this->dragging_) {
+    if (std::abs(x - this->press_x_) <= TOUCH_SLOP_PX && std::abs(y - this->press_y_) <= TOUCH_SLOP_PX) {
+      return;
+    }
+    this->dragging_ = true;
+  }
+  if (x != this->ptr_x_ || y != this->ptr_y_) {
+    this->send_pointer(x, y, this->ptr_buttons_);
+  }
+}
+
+void VncClient::handle_release() {
+  if ((this->ptr_buttons_ & 1) != 0) {
+    this->send_pointer(this->ptr_x_, this->ptr_y_, this->ptr_buttons_ & ~1);
+  }
 }
 
 }  // namespace esphome::vnc

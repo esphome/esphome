@@ -4,9 +4,13 @@
 #include "esphome/components/socket/tcp_client_link.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_VNC_TOUCHSCREEN
+#include "esphome/components/touchscreen/touchscreen.h"
+#endif
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace esphome::vnc {
 
@@ -14,6 +18,12 @@ enum class VncPixelFormat : uint8_t {
   VNC_PIXEL_FORMAT_AUTO,
   VNC_PIXEL_FORMAT_RGB565,
   VNC_PIXEL_FORMAT_RGB332,
+};
+
+enum class VncKeyAction : uint8_t {
+  VNC_KEY_ACTION_PRESS,
+  VNC_KEY_ACTION_DOWN,
+  VNC_KEY_ACTION_UP,
 };
 
 enum class VncState : uint8_t {
@@ -58,6 +68,16 @@ enum class VncFailure : uint8_t {
   VNC_FAILURE_AUTH_AMBIGUOUS,
 };
 
+class VncClient;
+
+#ifdef USE_VNC_TOUCHSCREEN
+class VncTouchListener final : public touchscreen::TouchListener, public Parented<VncClient> {
+ public:
+  void update(const touchscreen::TouchPoints_t &tpoints) override;
+  void release() override;
+};
+#endif
+
 /// RFB (VNC) client that draws the remote framebuffer into a display.
 class VncClient : public Component {
  public:
@@ -73,6 +93,12 @@ class VncClient : public Component {
   /// 8 bytes, already bit-reversed for VNC, may live in PROGMEM.
   void set_auth_key(const uint8_t *key) { this->auth_key_ = key; }
 #endif
+#ifdef USE_VNC_TOUCHSCREEN
+  void register_touchscreen(touchscreen::Touchscreen *touchscreen) {
+    this->touch_listener_.set_parent(this);
+    touchscreen->register_listener(&this->touch_listener_);
+  }
+#endif
 
   void setup() override;
   void loop() override;
@@ -87,6 +113,14 @@ class VncClient : public Component {
   void disconnect();
   /// Ask the server for the whole screen again.
   void refresh();
+
+  void send_pointer(uint16_t x, uint16_t y, uint8_t buttons);
+  void send_key(uint32_t keysym, VncKeyAction action);
+  void type_text(const char *text, size_t len);
+  void type_text(const std::string &text) { this->type_text(text.data(), text.size()); }
+  /// Touch input in display coordinates.
+  void handle_touch(uint16_t x, uint16_t y);
+  void handle_release();
 
   template<typename F> void add_on_connect_callback(F &&callback) {
     this->connect_callback_.add(std::forward<F>(callback));
@@ -122,6 +156,8 @@ class VncClient : public Component {
   bool budget_exhausted_() const;
   bool send_(const uint8_t *data, size_t len);
   bool send_update_request_(bool incremental);
+  bool send_key_event_(uint32_t keysym, bool down);
+  void note_input_();
   VncParse fail_(VncFailure failure, const LogString *reason);
   VncFailure lost_failure_() const;
   void session_lost_(uint32_t now);
@@ -132,6 +168,9 @@ class VncClient : public Component {
   socket::TcpClientLink link_;
 #ifdef USE_VNC_AUTH
   const uint8_t *auth_key_{nullptr};
+#endif
+#ifdef USE_VNC_TOUCHSCREEN
+  VncTouchListener touch_listener_;
 #endif
   LazyCallbackManager<void()> connect_callback_;
   LazyCallbackManager<void()> disconnect_callback_;
@@ -149,6 +188,7 @@ class VncClient : public Component {
   uint32_t update_start_ms_{0};
   // The first and the latest frame drawn since the display last refreshed.
   uint32_t first_change_ms_{0};
+  uint32_t last_input_ms_{0};
   uint32_t last_change_ms_{0};
   uint32_t rx_total_{0};
   uint32_t update_start_bytes_{0};
@@ -179,6 +219,10 @@ class VncClient : public Component {
   uint16_t hash_cols_{0};
   uint16_t hash_rows_{0};
   uint16_t hash_rotation_{0};
+  uint16_t ptr_x_{0};
+  uint16_t ptr_y_{0};
+  uint16_t press_x_{0};
+  uint16_t press_y_{0};
 
   uint8_t tile_w_{0};
   uint8_t tile_h_{0};
@@ -187,6 +231,7 @@ class VncClient : public Component {
   uint8_t minor_{8};
   uint8_t sec_type_{0};
   uint8_t sec_count_{0};
+  uint8_t ptr_buttons_{0};
   uint8_t auth_ambiguous_{0};
   display::ColorBitness bitness_{display::COLOR_BITNESS_565};
   VncPixelFormat pixel_format_{VncPixelFormat::VNC_PIXEL_FORMAT_AUTO};
@@ -205,6 +250,9 @@ class VncClient : public Component {
   bool display_parks_{false};
   bool display_busy_{false};
   bool network_was_up_{false};
+  bool dragging_{false};
+  // Input was sent recently, so frames are painted without waiting for the screen to settle.
+  bool input_boost_{false};
 
   uint8_t rx_[RX_BUFFER_SIZE];
   alignas(4) uint8_t tile_[TILE_BUFFER_SIZE];
