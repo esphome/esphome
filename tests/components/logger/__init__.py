@@ -17,6 +17,9 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # read the replay through a log listener, which nothing else registers here.
         cg.add_define("USE_LOGGER_BOOT_LOG_BUFFER")
         cg.add_define("ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE", 512)
+        cg.add_define(
+            "ESPHOME_LOGGER_BOOT_LOG_LEVEL", cg.RawExpression("ESPHOME_LOG_LEVEL_WARN")
+        )
         request_log_listener()
 
     manifest.to_code = to_code

@@ -218,6 +218,9 @@ void Logger::process_messages_() {
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
 // Record layout in boot_log_buffer_: u16 text_len | u8 level | u32 millis | const char *tag | text
 static constexpr uint16_t BOOT_LOG_RECORD_HEADER_SIZE = 2 + 1 + 4 + sizeof(const char *);
+// Replay writes "\033[0;3Xm@4294967295ms " (22 bytes) and "\033[0m" (4 bytes) around the stored text
+static constexpr uint16_t BOOT_LOG_REPLAY_PREFIX_SIZE = 22;
+static constexpr uint16_t BOOT_LOG_MAX_TEXT = ESPHOME_LOGGER_TX_BUFFER_SIZE - BOOT_LOG_REPLAY_PREFIX_SIZE - 4;
 
 void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf) {
   if (this->boot_log_done_ || level > boot_level_for(tag) || level == ESPHOME_LOG_LEVEL_NONE)
@@ -235,6 +238,9 @@ void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &
   }
   if (len >= 4 && memcmp(text + len - 4, "\033[0m", 4) == 0)
     len -= 4;
+  // Leave room in the transmit buffer for the replay prefix and reset so no stored text is cut on replay
+  if (len > BOOT_LOG_MAX_TEXT)
+    len = BOOT_LOG_MAX_TEXT;
   if (this->boot_log_pos_ + BOOT_LOG_RECORD_HEADER_SIZE + len > ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE) {
     this->boot_log_dropped_++;
     return;
@@ -252,7 +258,20 @@ void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &
 void Logger::replay_boot_logs() {
   // Stop capturing first so the replay output is not buffered again.
   this->boot_log_done_ = true;
-  ESP_LOGI(TAG, "Replaying boot logs (%u bytes used, %u lines dropped)", this->boot_log_pos_, this->boot_log_dropped_);
+  // Dropped lines are reported at WARN so a device at level WARN still learns the buffer was too small
+  esp_log_printf_(this->boot_log_dropped_ > 0 ? ESPHOME_LOG_LEVEL_WARN : ESPHOME_LOG_LEVEL_INFO, TAG, __LINE__,
+                  ESPHOME_LOG_FORMAT("Replaying boot logs (%u bytes used, %u lines dropped)"), this->boot_log_pos_,
+                  this->boot_log_dropped_);
+  // The replay shares tx_buffer_ with normal logging, so a listener that logs during
+  // the replay is dropped like any other re-entrant log; see process_messages_()
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+  bool &recursion_guard = this->main_task_recursion_guard_;
+#else
+  bool &recursion_guard = this->global_recursion_guard_;
+#endif
+  if (recursion_guard)
+    return;
+  RecursionGuard guard(recursion_guard);
   uint16_t pos = 0;
   while (pos + BOOT_LOG_RECORD_HEADER_SIZE <= this->boot_log_pos_) {
     const char *p = this->boot_log_buffer_ + pos;

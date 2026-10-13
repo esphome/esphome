@@ -99,4 +99,19 @@ TEST_F(BootLogBufferTest, LinesThatDoNotFitAreCounted) {
   EXPECT_TRUE(summary);
 }
 
+TEST_F(BootLogBufferTest, LongestLineIsReplayedWithoutLosingItsTail) {
+  // A line that fills the transmit buffer must still fit once the replay adds its stamp
+  std::string text(ESPHOME_LOGGER_TX_BUFFER_SIZE, 'x');
+  ESP_LOGW(BOOT_TAG, "%s", text.c_str());
+  this->listen();
+  this->logger_->replay_boot_logs();
+
+  const auto lines = this->replayed();
+  ASSERT_EQ(lines.size(), 1u);
+  EXPECT_LE(lines[0].message.size(), static_cast<size_t>(ESPHOME_LOGGER_TX_BUFFER_SIZE));
+  // The reset code at the end shows the stored text was not cut short by the prefix
+  EXPECT_EQ(lines[0].message.substr(lines[0].message.size() - 4), "\033[0m") << lines[0].message.size();
+  EXPECT_NE(lines[0].message.find("xxxxxxxxxx\033[0m"), std::string::npos);
+}
+
 }  // namespace esphome::logger::testing

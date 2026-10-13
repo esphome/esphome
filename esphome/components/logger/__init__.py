@@ -402,8 +402,9 @@ async def to_code(config: ConfigType) -> None:
     if (boot_log_buffer_size := config[CONF_BOOT_LOG_BUFFER_SIZE]) > 0:
         cg.add_define("USE_LOGGER_BOOT_LOG_BUFFER")
         cg.add_define("ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE", boot_log_buffer_size)
-        cg.add_build_flag(
-            f"-DESPHOME_LOGGER_BOOT_LOG_LEVEL={LOG_LEVELS[config[CONF_BOOT_LOG_LEVEL]]}"
+        cg.add_define(
+            "ESPHOME_LOGGER_BOOT_LOG_LEVEL",
+            cg.RawExpression(str(LOG_LEVELS[config[CONF_BOOT_LOG_LEVEL]])),
         )
         if boot_logs_config := config[CONF_BOOT_LOGS]:
             cg.add_define("USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS")
@@ -663,30 +664,17 @@ async def logger_set_level_to_code(
     )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "logger.replay_boot_logs",
-    LambdaAction,
     automation.maybe_conf(
         CONF_LOGGER_ID,
         {
             cv.GenerateID(CONF_LOGGER_ID): cv.use_id(Logger),
         },
     ),
-    synchronous=True,
+    automation.ApplyCall("replay_boot_logs()"),
+    id_key=CONF_LOGGER_ID,
 )
-async def logger_replay_boot_logs_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    logger = await cg.get_variable(config[CONF_LOGGER_ID])
-    text = str(cg.statement(logger.replay_boot_logs()))
-
-    lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return automation.new_lambda_pvariable(
-        action_id, lambda_, StatelessLambdaAction, template_arg
-    )
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
