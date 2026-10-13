@@ -8,6 +8,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_WEBSERVER")
         # api_connection.cpp reports the port whenever USE_WEBSERVER is set
         cg.add_define("USE_WEBSERVER_PORT", 80)
+        # The gamma table and its stored gamma are behind this define
+        cg.add_define("USE_LIGHT_GAMMA_LUT")
 
     manifest.to_code = to_code_testing
     manifest.dependencies = manifest.dependencies + ["json"]

@@ -6,7 +6,7 @@
 
 namespace esphome::sensor {
 
-static const char *const TAG = "sensor";
+ESPHOME_LOG_TAG(TAG, "sensor");
 
 // Function implementation of LOG_SENSOR macro to reduce code size
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj) {

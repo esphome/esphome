@@ -13,7 +13,7 @@ static constexpr uint8_t XPT_READ_Y = 0x90;
 static constexpr uint8_t XPT_ADC_ON = 0x01;
 static constexpr uint8_t XPT_VREF_ON = 0x02;
 
-static const char *const TAG = "xpt2046";
+ESPHOME_LOG_TAG(TAG, "xpt2046");
 
 void XPT2046Component::setup() {
   if (this->irq_pin_ != nullptr) {

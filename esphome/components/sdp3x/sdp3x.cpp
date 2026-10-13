@@ -5,7 +5,7 @@
 
 namespace esphome::sdp3x {
 
-static const char *const TAG = "sdp3x.sensor";
+ESPHOME_LOG_TAG(TAG, "sdp3x.sensor");
 static const uint16_t SDP3X_SOFT_RESET = 0x0006;
 static const uint16_t SDP3X_READ_ID1 = 0x367C;
 static const uint16_t SDP3X_READ_ID2 = 0xE102;

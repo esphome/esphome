@@ -17,6 +17,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["binary_sensor", "nfc"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
+DOMAIN = "pn71xx"
 
 CONF_EMULATION_MESSAGE = "emulation_message"
 CONF_INCLUDE_ANDROID_APP_RECORD = "include_android_app_record"
@@ -117,6 +118,12 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
+_request_ontag_trigger_slot = cg.slot_counter("PN71XX_ON_TAG_TRIGGER_COUNT")
+_request_ontagremoved_trigger_slot = cg.slot_counter(
+    "PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT"
+)
+
+
 async def setup_pn71xx(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
@@ -135,16 +142,18 @@ async def setup_pn71xx(var: MockObj, config: ConfigType) -> None:
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        _request_ontag_trigger_slot(str(var))
         cg.add(var.register_ontag_trigger(trigger))
         await automation.build_automation(
-            trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
+            trigger, [(cg.std_string, "x"), (nfc.NfcTagConstRef, "tag")], conf
         )
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        _request_ontagremoved_trigger_slot(str(var))
         cg.add(var.register_ontagremoved_trigger(trigger))
         await automation.build_automation(
-            trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
+            trigger, [(cg.std_string, "x"), (nfc.NfcTagConstRef, "tag")], conf
         )
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

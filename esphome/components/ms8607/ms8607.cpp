@@ -7,7 +7,13 @@
 namespace esphome::ms8607 {
 
 /// TAG used for logging calls
-static const char *const TAG = "ms8607";
+ESPHOME_LOG_TAG(TAG, "ms8607");
+
+static constexpr uint32_t RESET_TIMEOUT_ID = 0;
+static constexpr uint32_t PROM_READ_TIMEOUT_ID = 1;
+static constexpr uint32_t TEMPERATURE_TIMEOUT_ID = 2;
+static constexpr uint32_t PRESSURE_TIMEOUT_ID = 3;
+static constexpr uint32_t HUMIDITY_TIMEOUT_ID = 4;
 
 /// Reset the Pressure/Temperature sensor
 static const uint8_t MS8607_PT_CMD_RESET = 0x1E;
@@ -97,7 +103,7 @@ void MS8607Component::try_reset_() {
     if (--this->reset_attempts_remaining_ > 0) {
       uint32_t delay = this->reset_interval_;
       this->reset_interval_ *= 5;
-      this->set_timeout("reset", delay, [this]() { this->try_reset_(); });
+      this->set_timeout(RESET_TIMEOUT_ID, delay, [this]() { this->try_reset_(); });
       this->status_set_error();
     } else {
       this->mark_failed();
@@ -110,7 +116,7 @@ void MS8607Component::try_reset_() {
   this->status_clear_error();
 
   // 15ms delay matches datasheet, Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
-  this->set_timeout("prom-read", 15, [this]() {
+  this->set_timeout(PROM_READ_TIMEOUT_ID, 15, [this]() {
     if (this->read_calibration_values_from_prom_()) {
       this->setup_status_ = SetupStatus::SUCCESSFUL;
       this->status_clear_error();
@@ -251,7 +257,7 @@ void MS8607Component::request_read_temperature_() {
   }
 
   // datasheet says 17.2ms max conversion time at OSR 8192
-  this->set_timeout("temperature", 20, [this]() { this->read_temperature_(); });
+  this->set_timeout(TEMPERATURE_TIMEOUT_ID, 20, [this]() { this->read_temperature_(); });
 }
 
 void MS8607Component::read_temperature_() {
@@ -272,7 +278,8 @@ void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
   }
 
   // datasheet says 17.2ms max conversion time at OSR 8192
-  this->set_timeout("pressure", 20, [this, d2_raw_temperature]() { this->read_pressure_(d2_raw_temperature); });
+  this->set_timeout(PRESSURE_TIMEOUT_ID, 20,
+                    [this, d2_raw_temperature]() { this->read_pressure_(d2_raw_temperature); });
 }
 
 void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
@@ -293,7 +300,7 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
   }
 
   // datasheet says 15.89ms max conversion time at OSR 8192
-  this->set_timeout("humidity", 20, [this, temperature_float]() { this->read_humidity_(temperature_float); });
+  this->set_timeout(HUMIDITY_TIMEOUT_ID, 20, [this, temperature_float]() { this->read_humidity_(temperature_float); });
 }
 
 void MS8607Component::read_humidity_(float temperature_float) {

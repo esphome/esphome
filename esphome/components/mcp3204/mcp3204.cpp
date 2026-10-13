@@ -3,7 +3,7 @@
 
 namespace esphome::mcp3204 {
 
-static const char *const TAG = "mcp3204";
+ESPHOME_LOG_TAG(TAG, "mcp3204");
 
 float MCP3204::get_setup_priority() const { return setup_priority::HARDWARE; }
 

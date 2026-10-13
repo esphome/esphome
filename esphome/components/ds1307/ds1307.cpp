@@ -6,7 +6,7 @@
 
 namespace esphome::ds1307 {
 
-static const char *const TAG = "ds1307";
+ESPHOME_LOG_TAG(TAG, "ds1307");
 
 void DS1307Component::setup() {
   if (!this->read_rtc_()) {

@@ -601,10 +601,8 @@ async def to_code(config: ConfigType) -> None:
     pins_struct = _build_pins_struct(pin_expressions, e_pin_num)
     hub75_config = _build_config_struct(config, pins_struct, min_refresh)
 
-    # Rotation is handled by the hub75 driver (config_.rotation already set above).
-    # Force rotation to 0 for ESPHome's Display base class to avoid double-rotation.
-    if CONF_ROTATION in config:
-        config[CONF_ROTATION] = 0
+    # The driver rotates the panel itself (config_.rotation above), so the base class must not rotate too
+    config.pop(CONF_ROTATION, None)
 
     # Create display and register
     var = cg.new_Pvariable(config[CONF_ID], hub75_config)
