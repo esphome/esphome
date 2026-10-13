@@ -26,7 +26,6 @@ enum PdControlMsgType : uint8_t {
   PD_CNTRL_REJECT = 0x04,
   PD_CNTRL_PING = 0x05,
   PD_CNTRL_PS_RDY = 0x06,
-  PD_CNTRL_GET_SOURCE_CAP = 0x07,
   PD_CNTRL_GET_SINK_CAP = 0x08,
   PD_CNTRL_WAIT = 0x0C,
   PD_CNTRL_SOFT_RESET = 0x0D,
@@ -105,17 +104,23 @@ class PowerDelivery {
   bool is_connected() const { return is_connected_state(this->state_); }
 
  protected:
+  /// Returns false when the message could not be handed to the chip; the PHY logs the failure.
   virtual bool send_message(const PdMsg &msg) = 0;
   /// Called after state_ or contract_ changed, to let the main loop publish it.
   virtual void on_state_changed() = 0;
   /// Called after the source soft reset the protocol; it sends new source capabilities next.
   virtual void on_soft_reset_received() = 0;
+  /// Called when source capabilities arrive, before the request for them is sent.
+  virtual void on_source_caps_received() = 0;
 
   void handle_message_(const PdMsg &msg);
   void reset_protocol_();
   void set_state_(PdState state);
   void set_contract_(const PdContract &contract);
   void clear_contract_();
+  /// Stores both before calling on_state_changed() once, so the main loop never sees the new state with the old
+  /// contract.
+  void set_state_and_contract_(PdState state, const PdContract &contract);
   void set_ams_(bool active);
   /// Returns true while an atomic message sequence is in progress; ends it after a timeout.
   bool check_ams_();
@@ -133,7 +138,8 @@ class PowerDelivery {
   std::atomic<uint8_t> request_voltage_{5};
 
   // PHY task only
-  bool waiting_for_source_caps_{false};
+  uint32_t ams_start_{0};
+  uint32_t wait_received_ms_{0};
   bool retry_request_pending_{false};
 
  private:
@@ -141,13 +147,14 @@ class PowerDelivery {
   void handle_control_message_(const PdMsg &msg);
   void handle_soft_reset_(const PdMsg &msg);
   void respond_to_source_caps_(const PdMsg &msg);
+  bool send_request_();
 
   PdContract requested_contract_{};
   PdContract accepted_contract_{};
-  uint32_t ams_start_{0};
   uint32_t last_rdo_{0};
-  uint32_t wait_received_ms_{0};
   bool active_ams_{false};
+  // Set by Accept; PS_RDY is only valid after the source accepted the request of the current sequence
+  bool ps_rdy_expected_{false};
   uint8_t last_received_msg_id_{255};
   uint8_t msg_counter_{0};
   uint8_t wait_retries_{0};

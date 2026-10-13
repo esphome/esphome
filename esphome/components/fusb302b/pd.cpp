@@ -14,6 +14,12 @@ static constexpr uint32_t AMS_TIMEOUT_MS = 2000;
 static constexpr uint32_t SINK_REQUEST_MS = 100;
 static constexpr uint8_t MAX_WAIT_RETRIES = 10;
 
+// USB PD 6.4.1.3.1 Sink Fixed Supply Power Data Object flags; only the first (5 V) object carries them
+static constexpr uint32_t SINK_PDO_HIGHER_CAPABILITY = 1u << 28;
+static constexpr uint32_t SINK_PDO_USB_COMMS_CAPABLE = 1u << 26;
+// Operational current advertised for every sink object: 3 A (300 x 10 mA)
+static constexpr uint16_t SINK_PDO_CURRENT = 300;
+
 // USB PD 6.4.1.2.3 Source Fixed Supply Power Data Object; other PDO types only report their type
 static PdContract parse_pdo(uint32_t pdo) {
   PdContract info{};
@@ -23,6 +29,11 @@ static PdContract parse_pdo(uint32_t pdo) {
     info.max_i = pdo & 0x3FF;
   }
   return info;
+}
+
+// USB PD 6.4.1.3.1 Sink Fixed Supply Power Data Object; voltage in 50 mV units, current in 10 mA units
+static constexpr uint32_t sink_fixed_pdo(uint16_t voltage, uint16_t current) {
+  return (static_cast<uint32_t>(PD_PDO_TYPE_FIXED_SUPPLY) << 30) | (static_cast<uint32_t>(voltage) << 10) | current;
 }
 
 void PdMsg::set_header(uint16_t header) {
@@ -60,6 +71,7 @@ void PowerDelivery::reset_protocol_() {
   this->last_received_msg_id_ = 255;
   this->msg_counter_ = 0;
   this->active_ams_ = false;
+  this->ps_rdy_expected_ = false;
   this->retry_request_pending_ = false;
   this->wait_retries_ = 0;
 }
@@ -82,24 +94,52 @@ void PowerDelivery::clear_contract_() {
     this->on_state_changed();
 }
 
+void PowerDelivery::set_state_and_contract_(PdState state, const PdContract &contract) {
+  this->accepted_contract_ = contract;
+  const uint32_t packed = PackedContract::from(contract).value;
+  // The contract is stored first, so a reader that sees the new state also sees the new contract
+  const bool contract_changed = this->contract_.exchange(packed) != packed;
+  const bool state_changed = this->state_.exchange(state) != state;
+  if (contract_changed || state_changed)
+    this->on_state_changed();
+}
+
 void PowerDelivery::set_ams_(bool active) {
   this->active_ams_ = active;
+  // A new sequence has no accepted request yet, and an ended one can no longer complete
+  this->ps_rdy_expected_ = false;
   if (active)
     this->ams_start_ = millis();
 }
 
 bool PowerDelivery::check_ams_() {
   if (this->active_ams_ && millis() - this->ams_start_ > AMS_TIMEOUT_MS)
-    this->active_ams_ = false;
+    this->set_ams_(false);
   return this->active_ams_;
 }
 
 void PowerDelivery::check_request_retry_() {
   if (!this->retry_request_pending_ || millis() - this->wait_received_ms_ < SINK_REQUEST_MS)
     return;
-  this->retry_request_pending_ = false;
+  if (this->send_request_()) {
+    this->retry_request_pending_ = false;
+  } else if (this->wait_retries_ < MAX_WAIT_RETRIES) {
+    // Try again after another tSinkRequest; failed attempts count against the same limit as Wait replies
+    this->wait_retries_++;
+    this->wait_received_ms_ = millis();
+  } else {
+    ESP_LOGW(TAG, "Giving up repeating the request");
+    this->retry_request_pending_ = false;
+  }
+}
+
+bool PowerDelivery::send_request_() {
   this->set_ams_(true);
-  this->send_message(this->make_data_msg_(PD_DATA_REQUEST, &this->last_rdo_, 1));
+  if (this->send_message(this->make_data_msg_(PD_DATA_REQUEST, &this->last_rdo_, 1)))
+    return true;
+  ESP_LOGW(TAG, "Sending the request failed");
+  this->set_ams_(false);
+  return false;
 }
 
 bool PowerDelivery::transition_timed_out_() {
@@ -109,6 +149,11 @@ bool PowerDelivery::transition_timed_out_() {
 
 void PowerDelivery::handle_message_(const PdMsg &msg) {
   if (msg.num_of_obj == 0 && msg.type == PD_CNTRL_GOODCRC) {
+    // A GoodCRC carries the MessageID it acknowledges; a duplicate or stray one must not advance the counter
+    if (msg.id != this->msg_counter_ % 8) {
+      ESP_LOGV(TAG, "Ignoring GoodCRC for MessageID %u", msg.id);
+      return;
+    }
     // Our last message was received, so the next one gets a new MessageID
     this->msg_counter_++;
     return;
@@ -133,21 +178,27 @@ void PowerDelivery::handle_message_(const PdMsg &msg) {
 void PowerDelivery::handle_data_message_(const PdMsg &msg) {
   if (msg.extended || msg.type != PD_DATA_SOURCE_CAP)
     return;
-  this->set_ams_(true);
-  this->waiting_for_source_caps_ = false;
+  this->on_source_caps_received();
   this->respond_to_source_caps_(msg);
 }
 
 void PowerDelivery::handle_control_message_(const PdMsg &msg) {
   switch (msg.type) {
     case PD_CNTRL_ACCEPT:
-      if (this->active_ams_) {
-        if (this->requested_contract_ != this->accepted_contract_)
-          this->set_state_(PdState::PD_STATE_TRANSITION);
-        this->set_contract_(this->requested_contract_);
+      if (!this->check_ams_()) {
+        ESP_LOGD(TAG, "Ignoring Accept outside a request");
+        break;
       }
+      this->ps_rdy_expected_ = true;
+      if (this->requested_contract_ != this->accepted_contract_)
+        this->set_state_and_contract_(PdState::PD_STATE_TRANSITION, this->requested_contract_);
       break;
     case PD_CNTRL_PS_RDY:
+      // check_ams_() first, so a PS_RDY that arrives after the sequence timed out is ignored too
+      if (!this->check_ams_() || !this->ps_rdy_expected_) {
+        ESP_LOGD(TAG, "Ignoring PS_RDY without an accepted request");
+        break;
+      }
       this->set_ams_(false);
       this->set_state_(PdState::PD_STATE_EXPLICIT_CONTRACT);
       break;
@@ -172,10 +223,16 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
     case PD_CNTRL_NOT_SUPPORTED:
       break;
     case PD_CNTRL_GET_SINK_CAP: {
-      // USB PD 6.4.1.2.3 Sink Fixed Supply PDO: 5 V, 3 A operational current (300 x 10 mA), USB comms capable
-      static constexpr uint32_t SINK_PDO =
-          (300u << 0) | (100u << 10) | (1u << 26) | (static_cast<uint32_t>(PD_PDO_TYPE_FIXED_SUPPLY) << 30);
-      this->send_message(this->make_data_msg_(PD_DATA_SINK_CAP, &SINK_PDO, 1));
+      // 5 V first, then the requested voltage. Higher Capability tells the source that 5 V is not enough for
+      // full operation.
+      const uint16_t request_v = this->request_voltage_ * 20;  // 50 mV units
+      uint32_t pdos[2];
+      uint8_t count = 0;
+      pdos[count++] = sink_fixed_pdo(100, SINK_PDO_CURRENT) | SINK_PDO_USB_COMMS_CAPABLE |
+                      (request_v > 100 ? SINK_PDO_HIGHER_CAPABILITY : 0);
+      if (request_v > 100)
+        pdos[count++] = sink_fixed_pdo(request_v, SINK_PDO_CURRENT);
+      this->send_message(this->make_data_msg_(PD_DATA_SINK_CAP, pdos, count));
       break;
     }
     default:
@@ -188,12 +245,14 @@ void PowerDelivery::handle_control_message_(const PdMsg &msg) {
 void PowerDelivery::handle_soft_reset_(const PdMsg &msg) {
   this->reset_protocol_();
   this->last_received_msg_id_ = msg.id;
-  this->send_message(this->make_control_msg_(PD_CNTRL_ACCEPT));
-  // A soft reset keeps the power level, but the outcome of a transition in progress is unknown
-  if (this->state_ == PdState::PD_STATE_TRANSITION) {
-    this->set_contract_(DEFAULT_CONTRACT);
-    this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
+  // If this fails the source escalates to a hard reset. The hook still runs, so the PHY starts waiting for source
+  // capabilities and recovers on its own if neither follows.
+  if (!this->send_message(this->make_control_msg_(PD_CNTRL_ACCEPT))) {
+    ESP_LOGW(TAG, "Accepting the soft reset failed");
   }
+  // A soft reset keeps the power level, but the outcome of a transition in progress is unknown
+  if (this->state_ == PdState::PD_STATE_TRANSITION)
+    this->set_state_and_contract_(PdState::PD_STATE_DEFAULT_CONTRACT, DEFAULT_CONTRACT);
   this->on_soft_reset_received();
 }
 
@@ -230,7 +289,7 @@ void PowerDelivery::respond_to_source_caps_(const PdMsg &msg) {
   this->last_rdo_ = rdo;
   this->retry_request_pending_ = false;
   this->wait_retries_ = 0;
-  this->send_message(this->make_data_msg_(PD_DATA_REQUEST, &rdo, 1));
+  this->send_request_();
 }
 
 }  // namespace esphome::fusb302b
