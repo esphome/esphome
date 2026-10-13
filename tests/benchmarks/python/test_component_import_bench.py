@@ -33,11 +33,18 @@ import esphome.codegen  # noqa: E402, F401
 import esphome.config_validation  # noqa: E402, F401
 
 COMPONENTS = ("binary_sensor", "sensor", "logger")
-COMPONENT_PREFIX = "esphome.components."
+COMPONENT_PACKAGE = "esphome.components"
+COMPONENT_PREFIX = COMPONENT_PACKAGE + "."
 
 
 def _component_modules() -> dict[str, object]:
-    return {n: m for n, m in sys.modules.items() if n.startswith(COMPONENT_PREFIX)}
+    # The package itself goes too: ``from esphome.components import x`` is
+    # answered from its attributes, so a stale package would hide the import.
+    return {
+        n: m
+        for n, m in sys.modules.items()
+        if n == COMPONENT_PACKAGE or n.startswith(COMPONENT_PREFIX)
+    }
 
 
 def _forget_component_modules() -> None:
