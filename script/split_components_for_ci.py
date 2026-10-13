@@ -13,15 +13,20 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from collections.abc import Set as AbstractSet
+import contextlib
 from dataclasses import dataclass, field
+import functools
 import json
 import math
 from pathlib import Path
 import sys
+from typing import Any, NamedTuple
 
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from esphome import yaml_util
 from script.analyze_component_buses import (
     ISOLATED_COMPONENTS,
     ISOLATED_SIGNATURE_PREFIX,
@@ -31,29 +36,52 @@ from script.analyze_component_buses import (
     merge_compatible_bus_groups,
 )
 from script.helpers import (
+    _extract_components_from_yaml,
     get_component_test_files,
     parse_test_filename,
     split_conflicting_groups,
 )
 
-# Estimated CI seconds for one build per test platform, read from batch job
-# logs. Absolute accuracy does not matter, only the ratios between platforms.
-# A full run takes over an hour, so recording real timings is not practical.
+# Estimated CI seconds for one build per test platform, fitted to the batch
+# job logs of a full run (every component, PR #20389). Absolute accuracy does
+# not matter, only the ratios between platforms. A full run takes over an
+# hour, so recording real timings is not practical.
 PLATFORM_BUILD_SECONDS = {
     "host": 10,
     "esp8266-ard": 30,
-    "esp32-idf": 45,
-    "rtl87xx-ard": 35,
-    "ln882x-ard": 50,
-    "rp2040-ard": 50,
-    "rp2350-ard": 50,
-    "bk72xx-ard": 60,
+    "rtl87xx-ard": 40,
+    "esp32-c3-idf": 40,
+    "esp32-s2-idf": 40,
+    "rp2350-ard": 40,
+    "rp2040-ard": 45,
+    "esp32-idf": 55,
+    "esp32-p4-idf": 55,
+    "ln882x-ard": 55,
+    "esp32-s3-idf": 60,
+    "bk72xx-ard": 70,
+    "esp32-c6-idf": 70,
 }
-NRF52_BUILD_SECONDS = 45
-# Other ESP32 chips and Arduino on ESP32 share less of the ccache
-DEFAULT_BUILD_SECONDS = 90
+NRF52_BUILD_SECONDS = 50
+# Arduino on any ESP32 chip builds the IDF plus the Arduino core on top
+ESP32_ARDUINO_BUILD_SECONDS = 90
+# The remaining ESP32 chips on ESP-IDF
+DEFAULT_BUILD_SECONDS = 50
 # Each extra component merged into a grouped build makes it larger
-GROUPED_COMPONENT_SECONDS = 5
+GROUPED_COMPONENT_SECONDS = 3
+# Components that pull in a large library the build compiles from source
+# (TensorFlow Lite Micro, FastLED, LVGL, the HTTP server), added to every
+# build whose test config enables them. Fitted the same way as the platforms.
+HEAVY_COMPONENT_SECONDS: dict[str, int] = {
+    "micro_wake_word": 200,
+    "fastled_clockless": 90,
+    "fastled_spi": 90,
+    "wled": 60,
+    "lvgl": 50,
+    "web_server": 50,
+    "online_image": 45,
+    "prometheus": 35,
+    "bluetooth_proxy": 30,
+}
 # Estimated build seconds per CI runner; sets how many runners are used.
 # Approximate: the runner count charges each grouped build once, but a large
 # group spreads over several runners, which each pay for that build.
@@ -90,7 +118,60 @@ def build_seconds(platform: str) -> int:
         return seconds
     if platform.startswith("nrf52"):
         return NRF52_BUILD_SECONDS
+    if platform.startswith("esp32") and platform.endswith("-ard"):
+        return ESP32_ARDUINO_BUILD_SECONDS
     return DEFAULT_BUILD_SECONDS
+
+
+def _config_components(data: Any) -> set[str]:
+    """Return the components a loaded test config and its ``packages:`` use."""
+    if not isinstance(data, dict):
+        return set()
+    found = _extract_components_from_yaml(data)
+    if isinstance(packages := data.get("packages"), dict):
+        for package in packages.values():
+            if isinstance(package, yaml_util.IncludeFile):
+                found |= _file_components(
+                    (package.parent_file.parent / package.file).resolve()
+                )
+            else:
+                found |= _config_components(package)
+    return found
+
+
+@functools.cache
+def _file_components(path: Path) -> frozenset[str]:
+    """Return the components a config file uses; shared packages load once."""
+    return frozenset(
+        _config_components(yaml_util.load_yaml(path, track_document_range=False))
+    )
+
+
+def heavy_components(component: str, test_file: Path) -> frozenset[str]:
+    """Return the heavy components a test compiles.
+
+    A test counts as heavy when it belongs to a heavy component or when its
+    config enables one, such as a display test that draws with lvgl.
+    """
+    heavy = {component} & HEAVY_COMPONENT_SECONDS.keys()
+    # A config that does not load is left to the build to report
+    with contextlib.suppress(Exception):
+        heavy |= _file_components(test_file.resolve()) & HEAVY_COMPONENT_SECONDS.keys()
+    return frozenset(heavy)
+
+
+def heavy_seconds(heavy: AbstractSet[str]) -> int:
+    """Return the library seconds a set of heavy components adds to a build."""
+    return sum(HEAVY_COMPONENT_SECONDS[name] for name in heavy)
+
+
+class _GroupedShare(NamedTuple):
+    """A component's part in one (signature, platform) shared build."""
+
+    # Seconds of its files on that platform when no other member shares it
+    solo: int
+    # Heavy components its base test brings into the shared build
+    heavy: frozenset[str]
 
 
 @dataclass
@@ -101,40 +182,52 @@ class _BatchItem:
     # Builds that always run on their own (isolated tests, variants on a
     # platform without a base test)
     own_seconds: int
-    # Per (signature, platform) shared build: the seconds of this component's
-    # files on that platform when no other batch member shares the build
-    grouped_builds: dict[tuple[str, str], int] = field(default_factory=dict)
+    grouped_builds: dict[tuple[str, str], _GroupedShare] = field(default_factory=dict)
 
     def standalone_seconds(self) -> int:
-        return self.own_seconds + sum(self.grouped_builds.values())
+        return self.own_seconds + sum(
+            share.solo for share in self.grouped_builds.values()
+        )
 
 
-def _grouped_build_seconds(platform: str, solo_seconds: list[int]) -> int:
+def _grouped_build_seconds(platform: str, members: list[_GroupedShare]) -> int:
     """Return the seconds of one (signature, platform) build in a batch.
 
+    A library two members both enable compiles once, so the union is charged.
     test_build_components only groups when two or more members share the
     build; a grouped member then skips its variants on that platform.
     """
-    if len(solo_seconds) <= 1:
-        return sum(solo_seconds)
-    return build_seconds(platform) + GROUPED_COMPONENT_SECONDS * (len(solo_seconds) - 1)
+    if len(members) <= 1:
+        return sum(share.solo for share in members)
+    return (
+        build_seconds(platform)
+        + GROUPED_COMPONENT_SECONDS * (len(members) - 1)
+        + heavy_seconds(set().union(*(share.heavy for share in members)))
+    )
 
 
 def _make_item(
     tests_dir: Path, component: str, signature: str, is_isolated: bool
 ) -> _BatchItem:
-    files_by_platform: dict[str, list[str]] = defaultdict(list)
+    # Per platform: the seconds of its test files, and the base test's heavy
+    # components; a platform without a base test cannot join a shared build
+    seconds_by_platform: dict[str, int] = defaultdict(int)
+    base_heavy: dict[str, frozenset[str]] = {}
     for test_file in (tests_dir / component).glob("test[.-]*.yaml"):
         test_name, platform = parse_test_filename(test_file)
-        files_by_platform[platform].append(test_name)
+        heavy = heavy_components(component, test_file)
+        seconds_by_platform[platform] += build_seconds(platform) + heavy_seconds(heavy)
+        if test_name == "test":
+            base_heavy[platform] = heavy
     own_seconds = 0
-    grouped: dict[tuple[str, str], int] = {}
-    for platform, test_names in files_by_platform.items():
-        seconds = build_seconds(platform) * len(test_names)
-        if is_isolated or "test" not in test_names:
+    grouped: dict[tuple[str, str], _GroupedShare] = {}
+    for platform, seconds in seconds_by_platform.items():
+        if is_isolated or platform not in base_heavy:
             own_seconds += seconds
         else:
-            grouped[(signature, platform)] = seconds
+            grouped[(signature, platform)] = _GroupedShare(
+                seconds, base_heavy[platform]
+            )
     return _BatchItem(component, own_seconds, grouped)
 
 
@@ -144,22 +237,24 @@ class _Batch:
     def __init__(self) -> None:
         self.components: list[str] = []
         self.seconds = 0
-        self.grouped_builds: dict[tuple[str, str], list[int]] = defaultdict(list)
+        self.grouped_builds: dict[tuple[str, str], list[_GroupedShare]] = defaultdict(
+            list
+        )
 
     def added_seconds(self, item: _BatchItem) -> int:
         """Return the seconds item would add; joining an existing build is cheap."""
         added = item.own_seconds
-        for (signature, platform), solo in item.grouped_builds.items():
+        for (signature, platform), share in item.grouped_builds.items():
             members = self.grouped_builds.get((signature, platform), [])
             added += _grouped_build_seconds(
-                platform, [*members, solo]
+                platform, [*members, share]
             ) - _grouped_build_seconds(platform, members)
         return added
 
     def add(self, item: _BatchItem) -> None:
         self.seconds += self.added_seconds(item)
-        for build, solo in item.grouped_builds.items():
-            self.grouped_builds[build].append(solo)
+        for build, share in item.grouped_builds.items():
+            self.grouped_builds[build].append(share)
         self.components.append(item.component)
 
 
@@ -167,25 +262,36 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     """Spread items over enough runners to stay near target_seconds each.
 
     The runner count comes from the total estimate with every grouped build
-    counted once. Heaviest items go first, each to the runner that ends up
-    lightest, so grouped components follow the builds they can join.
+    counted once. Heaviest items go first, each to the runner it adds the
+    fewest seconds to among those ending near the lightest, so grouped
+    components follow the builds they can join.
     """
     if not items:
         return []
-    grouped_builds: dict[tuple[str, str], list[int]] = defaultdict(list)
+    # One batch holding every item counts each grouped build once
+    whole = _Batch()
     for item in items:
-        for build, solo in item.grouped_builds.items():
-            grouped_builds[build].append(solo)
-    total = sum(item.own_seconds for item in items) + sum(
-        _grouped_build_seconds(platform, solos)
-        for (_, platform), solos in grouped_builds.items()
-    )
+        whole.add(item)
+    total = whole.seconds
     count = min(len(items), max(1, math.ceil(total / target_seconds)))
     batches = [_Batch() for _ in range(count)]
+    # Among the runners ending within slack of the lightest, the one the item
+    # adds the fewest seconds to wins, so a component lands with the bus
+    # group partners it shares builds with; placed away from them it builds
+    # alone on every platform they only share there.
+    slack = target_seconds // 4
     for item in sorted(items, key=lambda i: (-i.standalone_seconds(), i.component)):
-        min(batches, key=lambda b: (b.seconds + b.added_seconds(item), b.seconds)).add(
-            item
+        costs = [(batch, batch.added_seconds(item)) for batch in batches]
+        ceiling = min(batch.seconds + added for batch, added in costs) + slack
+        batch, _ = min(
+            (
+                (batch, added)
+                for batch, added in costs
+                if batch.seconds + added <= ceiling
+            ),
+            key=lambda cost: (cost[1], cost[0].seconds + cost[1]),
         )
+        batch.add(item)
     return [batch.components for batch in batches if batch.components]
 
 

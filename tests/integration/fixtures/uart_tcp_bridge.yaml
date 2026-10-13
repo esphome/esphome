@@ -12,6 +12,10 @@ uart:
   - id: uart_bus
     baud_rate: 115200
     port: PTY_PATH
+  # uart_tcp needs its own UART.
+  - id: denied_bus
+    baud_rate: 115200
+    port: DENIED_PTY_PATH
 
 uart_tcp:
   - id: bridge
@@ -23,7 +27,7 @@ uart_tcp:
     connected:
       name: Bridge Connected
   - id: denied_bridge
-    uart_id: uart_bus
+    uart_id: denied_bus
     role: server
     port: 18127
     allowed_ips:

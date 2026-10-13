@@ -14,6 +14,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "socket"
 
 socket_ns = cg.esphome_ns.namespace("socket")
 Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
@@ -149,6 +150,21 @@ def require_wake_loop_threadsafe() -> None:
 IPV4_ALLOW_SCHEMA = cv.All(cv.ensure_list(cv.ipv4network), cv.Length(max=255))
 
 
+_HOST = cv.Any(cv.domain, cv.hostname)
+
+
+def ipv4_host(value: object) -> str:
+    """Validate an IPv4 address or a hostname; the resolver behind it is IPv4 only."""
+    value = cv.string(value)
+    try:
+        cv.ipv6address(value)
+    except cv.Invalid:
+        return _HOST(value)
+    raise cv.Invalid(
+        "IPv6 addresses are not supported, use an IPv4 address or a hostname"
+    )
+
+
 def _network_order(addr: IPv4Address) -> int:
     """The s_addr value for addr on the little endian targets."""
     return int.from_bytes(addr.packed, "little")
@@ -253,7 +269,9 @@ async def to_code(config: ConfigType) -> None:
 # consumers that called the matching require_ function.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
+        "lwip_raw_common_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "lwip_raw_tcp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
+        "lwip_raw_udp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
         "ipv4_resolve.cpp": "USE_SOCKET_IPV4_RESOLVE",

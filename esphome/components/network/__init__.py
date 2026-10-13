@@ -23,6 +23,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
+DOMAIN = "network"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -325,7 +326,7 @@ def get_priority_interfaces_from_full_config(full_config: ConfigType) -> set[str
     """
     return {
         entry["interface"]
-        for entry in full_config.get("network", {}).get(CONF_PRIORITY, [])
+        for entry in full_config.get(DOMAIN, {}).get(CONF_PRIORITY, [])
     }
 
 

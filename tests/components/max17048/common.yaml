@@ -1,0 +1,8 @@
+sensor:
+  - platform: max17048
+    battery_voltage:
+      name: Battery Voltage
+    battery_level:
+      name: Battery Level
+    rate:
+      name: Battery Rate

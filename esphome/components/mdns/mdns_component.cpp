@@ -23,7 +23,7 @@
 
 namespace esphome::mdns {
 
-static const char *const TAG = "mdns";
+ESPHOME_LOG_TAG(TAG, "mdns");
 
 #ifndef USE_WEBSERVER_PORT
 #define USE_WEBSERVER_PORT 80  // NOLINT

@@ -2,6 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 
 CODEOWNERS = ["@jesserockz", "@kbx81"]
+DOMAIN = "nfc"
 
 nfc_ns = cg.esphome_ns.namespace("nfc")
 

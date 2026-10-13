@@ -278,18 +278,25 @@ def _convert_pio_libs(
     return deps
 
 
-def _arduino_excluded_stubs(work_dir: Path) -> dict[str, dict]:
+def _arduino_excluded_stubs(
+    work_dir: Path, converted: dict[str, dict[str, str]] | None = None
+) -> dict[str, dict]:
     """Stub the arduino-bundled IDF components ESPHome doesn't use.
 
     arduino-esp32 declares deps (libsodium, RainMaker, modbus, ...) that ESPHome
     replaces with its own library (noise-c) or doesn't use; point each at an
     empty override_path component so the IDF manager doesn't resolve/download
-    them -- notably so ``espressif/libsodium`` doesn't clash with the converted
-    noise-c's ``libsodium``. Mirrors esp32's ``_write_idf_component_yml``.
+    them. Mirrors esp32's ``_write_idf_component_yml``.
 
     Components ESPHome's own idf_component.yml provides (e.g. lan867x for
     ethernet) are NOT stubbed -- those are real deps we need, and arduino-esp32
     resolves to the same component rather than conflicting.
+
+    ``converted`` is the manifest block from ``_convert_pio_libs``. IDF names a
+    component after its directory and a later registration of the same name
+    replaces the earlier one, so a stub beside a converted library of the same
+    name (``espressif/libsodium`` vs ``esphome/libsodium``) would win or lose on
+    path order; such a stub points at the converted library instead.
     """
     from esphome.components.esp32 import (
         _idf_component_dep_name,
@@ -298,6 +305,10 @@ def _arduino_excluded_stubs(work_dir: Path) -> dict[str, dict]:
     )
 
     esphome_deps = _esphome_manifest_deps()
+    converted_paths = {
+        Path(dep["override_path"]).name: dep["override_path"]
+        for dep in (converted or {}).values()
+    }
 
     stubs_dir = work_dir / "component_stubs"
     stubs_dir.mkdir(parents=True, exist_ok=True)
@@ -305,7 +316,14 @@ def _arduino_excluded_stubs(work_dir: Path) -> dict[str, dict]:
     for component in sorted(arduino_excluded_idf_components()):
         if _idf_component_dep_name(component) in esphome_deps:
             continue  # ESPHome needs this one for real (don't stub it away)
-        stub_path = stubs_dir / _idf_component_stub_name(component)
+        stub_name = _idf_component_stub_name(component)
+        if (path := converted_paths.get(stub_name)) is not None:
+            deps[_idf_component_dep_name(component)] = {
+                "version": "*",
+                "override_path": path,
+            }
+            continue
+        stub_path = stubs_dir / stub_name
         stub_path.mkdir(exist_ok=True)
         (stub_path / "CMakeLists.txt").write_text(
             "idf_component_register()\n", encoding="utf-8"
@@ -401,11 +419,12 @@ def _generate_compile_commands(
     # Framework deps (e.g. arduino-esp32) + PlatformIO libs converted to local
     # IDF components, all added to the manifest as deps.
     extra_deps = dict(settings.framework_deps)
-    extra_deps.update(_convert_pio_libs(platformio_ini, settings.target_framework))
+    converted = _convert_pio_libs(platformio_ini, settings.target_framework)
+    extra_deps.update(converted)
     if settings.target_framework == "arduino":
         # Stub the arduino-bundled components ESPHome doesn't use (avoids the
         # libsodium clash with noise-c and ~26 unused heavy downloads).
-        extra_deps.update(_arduino_excluded_stubs(work_dir))
+        extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
 
     # Phase 1: discover the components available for this target.
     _write_tidy_project(work_dir, [], extra_deps, settings)

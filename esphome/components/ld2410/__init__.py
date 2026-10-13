@@ -9,6 +9,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@sebcaps", "@regevbr"]
+DOMAIN = "ld2410"
 MULTI_CONF = True
 
 ld2410_ns = cg.esphome_ns.namespace("ld2410")

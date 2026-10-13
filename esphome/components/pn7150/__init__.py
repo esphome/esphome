@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["pn71xx"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
+DOMAIN = "pn7150"
 
 pn7150_ns = cg.esphome_ns.namespace("pn7150")
 PN7150 = pn7150_ns.class_("PN7150", pn71xx.PN71xx)
