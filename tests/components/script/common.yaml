@@ -23,6 +23,10 @@ esphome:
           then:
             - logger.log: my_script is running
 
+globals:
+  - id: nested_total
+    type: int
+
 script:
   - id: my_script
     mode: single
@@ -79,3 +83,8 @@ script:
                 then:
                   - delay: 200ms
                   - lambda: 'ESP_LOGD("main", "inner iteration %u", iteration);'
+                  - globals.set:
+                      id: nested_total
+                      value: !lambda |-
+                        int total = iteration;
+                        return total;
