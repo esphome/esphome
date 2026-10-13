@@ -39,14 +39,15 @@ struct CdcEps {
   // must remain valid even when the interface itself is not claimed.
   uint8_t interrupt_interface_number{0xFF};
   bool interrupt_interface_claimed{false};
-  // bInterfaceClass of each interface above, which decides how a host binds the port
+  // bInterfaceClass / SubClass / Protocol of each interface above, which decide how a
+  // host binds the port
   uint8_t bulk_interface_class{0};
+  uint8_t bulk_interface_subclass{0};
+  uint8_t bulk_interface_protocol{0};
   uint8_t interrupt_interface_class{0};
+  uint8_t interrupt_interface_subclass{0};
+  uint8_t interrupt_interface_protocol{0};
 };
-
-// How a host binds a port, which decides how it names the port. A class driver claims
-// the interface itself; a chip driver numbers the ports it exposes.
-enum class UsbSerialDriver : uint8_t { CLASS, VENDOR };
 
 enum CH34xChipType : uint8_t {
   CHIP_CH342F = 0,
@@ -193,10 +194,21 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
-  /// How a host binds the port, from the class of the interface it binds through
-  UsbSerialDriver get_driver() const;
+  /// bInterfaceClass / SubClass / Protocol of the interface `get_interface_number()` names
+  uint8_t get_interface_class() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_class
+                                                             : this->cdc_dev_.bulk_interface_class;
+  }
+  uint8_t get_interface_subclass() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_subclass
+                                                             : this->cdc_dev_.bulk_interface_subclass;
+  }
+  uint8_t get_interface_protocol() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_protocol
+                                                             : this->cdc_dev_.bulk_interface_protocol;
+  }
 
-  /// Index of this port within the host driver instance. Every driver here exposes one
+  /// Index of this port among the ports on its interface. Every driver here exposes one
   /// port per interface; a multiplexed driver would index its channels.
   uint8_t get_port_number() const { return 0; }
 

@@ -418,9 +418,9 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
     msg.usb.product_id = scratch.product_id;
     msg.usb.bcd_device = scratch.bcd_device;
     msg.usb.interface_number = this->usb_channel_->get_interface_number();
-    msg.usb.driver = this->usb_channel_->get_driver() == usb_uart::UsbSerialDriver::VENDOR
-                         ? api::enums::USB_SERIAL_DRIVER_VENDOR
-                         : api::enums::USB_SERIAL_DRIVER_CLASS;
+    msg.usb.interface_class = this->usb_channel_->get_interface_class();
+    msg.usb.interface_subclass = this->usb_channel_->get_interface_subclass();
+    msg.usb.interface_protocol = this->usb_channel_->get_interface_protocol();
     msg.usb.port_number = this->usb_channel_->get_port_number();
     msg.manufacturer = StringRef(scratch.manufacturer);
     msg.product = StringRef(scratch.product);
