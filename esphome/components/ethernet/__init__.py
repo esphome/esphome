@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import functools
 
 from esphome import automation, pins
 from esphome.automation import Condition
@@ -566,7 +565,7 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
     ),
     _validate,
-    functools.partial(require_ipv4, name=CONF_ETHERNET),
+    require_ipv4(CONF_ETHERNET),
 )
 
 

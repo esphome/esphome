@@ -1,5 +1,3 @@
-import functools
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import logger, network, socket
@@ -334,7 +332,7 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
     _consume_mqtt_sockets,
-    functools.partial(network.require_ipv4, name=CONF_MQTT),
+    network.require_ipv4(CONF_MQTT),
 )
 
 

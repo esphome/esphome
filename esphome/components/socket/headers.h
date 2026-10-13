@@ -204,7 +204,7 @@ using socklen_t = uint32_t;
 
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
-// socket can compile without network in build tests, otherwise network always provides
+// Build tests compile socket without network, which normally defines this
 #ifndef USE_NETWORK_IPV4
 #define USE_NETWORK_IPV4 1
 #endif

@@ -1,4 +1,3 @@
-import functools
 from typing import Any
 
 from esphome import automation
@@ -259,8 +258,8 @@ CONFIG_SCHEMA = cv.All(
     _validate_platform,
     _validate,
     _require_vfs_select,
-    functools.partial(require_ipv6, name=CONF_OPENTHREAD),
-    functools.partial(request_ipv4_off, name=CONF_OPENTHREAD),
+    require_ipv6(CONF_OPENTHREAD),
+    request_ipv4_off(CONF_OPENTHREAD),
 )
 
 

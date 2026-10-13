@@ -1,4 +1,3 @@
-import functools
 import sys
 
 import esphome.codegen as cg
@@ -46,7 +45,7 @@ CONFIG_SCHEMA = cv.All(
     # is no PlatformIO backend, so a CLI --toolchain must name this one
     cv.resolve_toolchain("host", (Toolchain.HOST,), Toolchain.HOST),
     set_core_data,
-    functools.partial(network.require_ipv4, name=PLATFORM_HOST),
+    network.require_ipv4(PLATFORM_HOST),
 )
 
 

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from dataclasses import dataclass, field
 import ipaddress
 import logging
 from typing import Any
@@ -52,10 +54,13 @@ TCP_SEND_BUFFER_MAX = 65535
 
 CONF_ENABLE_IPV4 = "enable_ipv4"
 
-# IPv4/IPv6 requirement tracking infrastructure
-KEY_REQUIRE_IPV4 = "require_ipv4"
-KEY_REQUIRE_IPV6 = "require_ipv6"
-KEY_REQUEST_IPV4_OFF = "request_ipv4_off"
+
+@dataclass
+class NetworkData:
+    require_ipv4: set[str] = field(default_factory=set)
+    require_ipv6: set[str] = field(default_factory=set)
+    ipv4_off_requested: bool = False
+
 
 # Network priority tracking infrastructure
 # Components can query this to determine their relative setup priority.
@@ -222,74 +227,35 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
-def require_ipv4(config: ConfigType, name: str | None = None) -> ConfigType:
-    """Declare that a component cannot compile or function with IPv4 disabled.
-
-    Only takes effect if 'network' is also loaded in the config -- with no IP
-    transport present (wifi, ethernet, openthread, ...), there is no network
-    stack for this to constrain, and the call is a no-op.
-
-    Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
-    already a (config) -> config validator, so no wrapper function is needed.
-    Pass `name` via functools.partial to identify the caller in the error message.
-
-    Example:
-        from esphome.components import network
-
-        CONFIG_SCHEMA = cv.All(
-            ...,
-            functools.partial(network.require_ipv4, name="wifi"),
-        )
-    """
-    CORE.data.setdefault(KEY_REQUIRE_IPV4, set()).add(name or "a component")
-    return config
+def _get_data() -> NetworkData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = NetworkData()
+    return CORE.data[DOMAIN]
 
 
-def require_ipv6(config: ConfigType, name: str | None = None) -> ConfigType:
-    """Declare that a component cannot compile or function with IPv6 disabled.
+def _ip_request(
+    update: Callable[[NetworkData], None],
+) -> Callable[[ConfigType], ConfigType]:
+    def validator(config: ConfigType) -> ConfigType:
+        update(_get_data())
+        return config
 
-    Only takes effect if 'network' is also loaded in the config -- with no IP
-    transport present (wifi, ethernet, openthread, ...), there is no network
-    stack for this to constrain, and the call is a no-op.
-
-    Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
-    already a (config) -> config validator, so no wrapper function is needed.
-    Pass `name` via functools.partial to identify the caller in the error message.
-
-    Example:
-        from esphome.components import network
-
-        CONFIG_SCHEMA = cv.All(
-            ...,
-            functools.partial(network.require_ipv6, name="nrf52"),
-        )
-    """
-    CORE.data.setdefault(KEY_REQUIRE_IPV6, set()).add(name or "a component")
-    return config
+    return validator
 
 
-def request_ipv4_off(config: ConfigType, name: str | None = None) -> ConfigType:
-    """Request that IPv4 default to disabled for this component/platform.
+def require_ipv4(name: str) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator declaring that component `name` needs IPv4."""
+    return _ip_request(lambda data: data.require_ipv4.add(name))
 
-    A soft preference, not a requirement -- 'network: enable_ipv4: true' still
-    overrides it. Only takes effect if 'network' is also loaded in the config --
-    with no IP transport present (wifi, ethernet, openthread, ...), there is no
-    network stack for this to constrain, and the call is a no-op.
 
-    Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
-    already a (config) -> config validator, so no wrapper function is needed.
-    Pass `name` via functools.partial to identify the caller.
+def require_ipv6(name: str) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator declaring that component `name` needs IPv6."""
+    return _ip_request(lambda data: data.require_ipv6.add(name))
 
-    Example:
-        from esphome.components import network
 
-        CONFIG_SCHEMA = cv.All(
-            ...,
-            functools.partial(network.request_ipv4_off, name="openthread"),
-        )
-    """
-    CORE.data.setdefault(KEY_REQUEST_IPV4_OFF, set()).add(name or "a component")
-    return config
+def request_ipv4_off(name: str) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator asking for IPv4 to default to off, on behalf of `name`."""
+    return _ip_request(lambda data: setattr(data, "ipv4_off_requested", True))
 
 
 def get_network_priority(iface: str) -> float | None:
@@ -410,32 +376,38 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _resolve_ip_family(
+    config: ConfigType, key: str, family: str, requirers: set[str], default: bool
+) -> bool:
+    """Resolve `key` to a bool; return True when a component requires the family."""
+    if not requirers:
+        config.setdefault(key, default)
+        return False
+    if config.get(key) is False:
+        raise cv.Invalid(
+            f"{family} is required by {', '.join(sorted(requirers))}, but "
+            f"'network: {key}: false' explicitly disables it"
+        )
+    config[key] = True
+    return True
+
+
 def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
+    data = _get_data()
 
-    if ipv6_requirers := CORE.data.get(KEY_REQUIRE_IPV6):
-        if config.get(CONF_ENABLE_IPV6) is False:
-            raise cv.Invalid(
-                f"IPv6 is required by {', '.join(sorted(ipv6_requirers))}, but "
-                "'network: enable_ipv6: false' explicitly disables it"
-            )
-        # Flipping to True must not bypass the version gate cv.Any() enforces.
+    if _resolve_ip_family(
+        config, CONF_ENABLE_IPV6, "IPv6", data.require_ipv6, default=False
+    ):
+        # Turning IPv6 on must not bypass the version gate cv.Any() enforces.
         _ENABLE_IPV6_FRAMEWORK_VERSION_VALIDATOR(True)
-        config[CONF_ENABLE_IPV6] = True
-    else:
-        # Normalize the defaulted/absent case to a real bool -- to_code() reads this
-        # unconditionally, matching how enable_ipv4 is resolved to a bool below.
-        config.setdefault(CONF_ENABLE_IPV6, False)
-
-    if ipv4_requirers := CORE.data.get(KEY_REQUIRE_IPV4):
-        if config.get(CONF_ENABLE_IPV4) is False:
-            raise cv.Invalid(
-                f"IPv4 is required by {', '.join(sorted(ipv4_requirers))}, but "
-                "'network: enable_ipv4: false' explicitly disables it"
-            )
-        config[CONF_ENABLE_IPV4] = True
-    else:
-        config.setdefault(CONF_ENABLE_IPV4, not CORE.data.get(KEY_REQUEST_IPV4_OFF))
+    _resolve_ip_family(
+        config,
+        CONF_ENABLE_IPV4,
+        "IPv4",
+        data.require_ipv4,
+        default=not data.ipv4_off_requested,
+    )
 
     if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:
         raise cv.Invalid(
@@ -479,15 +451,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK")
-    # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
-    # enable_ipv6 is user-settable, but _final_validate() has already resolved it to a real
-    # bool -- True if any component called require_ipv6(), False if defaulted/absent.
     enable_ipv6 = config[CONF_ENABLE_IPV6]
-
-    # enable_ipv4 is user-settable (default True, except on OpenThread or nRF52 with
-    # nothing else requiring IPv4, which default it False); _final_validate() has
-    # already resolved the default and rejected an explicit 'enable_ipv4: false' that
-    # conflicts with a component's actual requirement.
     enable_ipv4 = config[CONF_ENABLE_IPV4]
 
     # Store the user-declared network priority list in CORE.data so that ethernet,

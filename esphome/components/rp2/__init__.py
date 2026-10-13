@@ -1,5 +1,4 @@
 from collections.abc import Callable
-import functools
 import logging
 from pathlib import Path
 import re
@@ -320,7 +319,7 @@ CONFIG_SCHEMA = cv.All(
     _detect_variant,
     cv.require_platformio_toolchain("RP2"),
     set_core_data,
-    functools.partial(network.require_ipv4, name=PLATFORM_RP2),
+    network.require_ipv4(PLATFORM_RP2),
 )
 
 

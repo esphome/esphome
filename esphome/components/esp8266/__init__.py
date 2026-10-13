@@ -1,4 +1,3 @@
-import functools
 import logging
 from pathlib import Path
 import platform
@@ -366,7 +365,7 @@ CONFIG_SCHEMA = cv.All(
     _warn_platformio_toolchain,
     _validate_native_toolchain,
     set_core_data,
-    functools.partial(network.require_ipv4, name=PLATFORM_ESP8266),
+    network.require_ipv4(PLATFORM_ESP8266),
 )
 
 

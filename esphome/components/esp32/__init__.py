@@ -707,12 +707,12 @@ def set_core_data(config):
     return config
 
 
-def _require_ip_on_arduino(config):
+def _require_ipv4_on_arduino(config: ConfigType) -> ConfigType:
     """The Arduino core's IPAddress.cpp does not compile with IPv4 disabled."""
     if CORE.using_arduino:
         from esphome.components import network
 
-        network.require_ipv4(config, name=PLATFORM_ESP32)
+        network.require_ipv4(PLATFORM_ESP32)(config)
     return config
 
 
@@ -2478,7 +2478,7 @@ CONFIG_SCHEMA = cv.All(
     _set_default_framework,
     _check_versions,
     set_core_data,
-    _require_ip_on_arduino,
+    _require_ipv4_on_arduino,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
 

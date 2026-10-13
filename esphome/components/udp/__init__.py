@@ -1,4 +1,3 @@
-import functools
 from ipaddress import IPv4Address, IPv6Address
 from typing import Any
 
@@ -180,7 +179,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(RELOCATED),
     _consume_udp_sockets,
-    functools.partial(network.require_ipv4, name="udp"),
+    network.require_ipv4("udp"),
 )
 
 

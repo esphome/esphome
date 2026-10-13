@@ -1,7 +1,5 @@
-import functools
-
 import esphome.codegen as cg
-from esphome.components import binary_sensor, network, sensor, socket, uart
+from esphome.components import binary_sensor, sensor, socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
     CONF_CONNECTED,
@@ -70,7 +68,6 @@ CONFIG_SCHEMA = cv.All(
         lower=True,
     ),
     socket.consume_role_sockets("uart_tcp"),
-    functools.partial(network.require_ipv4, name="uart_tcp"),
 )
 
 

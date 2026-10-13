@@ -55,7 +55,9 @@ using ip4_addr_t = in_addr;
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/posix/arpa/inet.h>
-#if defined(CONFIG_NET_IPV6)
+#ifndef CONFIG_NET_IPV6
+#error "Zephyr builds need CONFIG_NET_IPV6"
+#endif
 using ip_addr_t = struct in6_addr;
 static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) {
 #if defined(CONFIG_NET_IPV4)
@@ -69,11 +71,6 @@ static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) {
 #endif /* CONFIG_NET_IPV4 */
   return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0;
 }
-#else
-using ip_addr_t = struct in_addr;
-using ip4_addr_t = struct in_addr;
-static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET, cp, addr) == 1 ? 1 : 0; }
-#endif /* CONFIG_NET_IPV6 */
 #endif /* USE_ZEPHYR */
 
 #if USE_ESP32_FRAMEWORK_ARDUINO
@@ -112,11 +109,7 @@ inline void lowercase_ip_str(char *buf) {
 struct IPAddress {
  public:
 #if defined(USE_ZEPHYR)
-// nRF52 (the only Zephyr platform) always requires IPv6, so CONFIG_NET_IPV6 is always set here --
-// the CONFIG_NET_IPV4-only #else branch below is dead on nRF52, kept for a future Zephyr platform
-// without that invariant. CONFIG_NET_IPV4 itself is reachable: any component that calls
-// network.require_ipv4() (udp, mqtt, wake_on_lan, ...) turns on dual-stack alongside it.
-#if defined(CONFIG_NET_IPV6)
+  // With CONFIG_NET_IPV4 (dual stack), IPv4 addresses are stored v4-mapped (::ffff:a.b.c.d).
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
 #if defined(CONFIG_NET_IPV4)
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
@@ -150,8 +143,11 @@ struct IPAddress {
 #endif /* CONFIG_NET_IPV4 */
   bool is_multicast() const {
 #if defined(CONFIG_NET_IPV4)
-    if (this->is_ip4())
-      return (ntohl(ip_addr_.s6_addr32[3]) & 0xF0000000) == 0xE0000000;
+    if (net_ipv6_addr_is_v4_mapped(&ip_addr_)) {
+      struct in_addr addr4 {};
+      addr4.s_addr = ip_addr_.s6_addr32[3];
+      return net_ipv4_is_addr_mcast(&addr4);
+    }
 #endif /* CONFIG_NET_IPV4 */
     return net_ipv6_is_addr_mcast(&ip_addr_);
   }
@@ -171,30 +167,6 @@ struct IPAddress {
   }
   bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
-
-#else  // only CONFIG_NET_IPV4 branch
-  // enable_ipv6: false -- plain in_addr, not the IPv6-only in6_addr container the branch above
-  // uses for the dual-stack (V4-mapped) and IPv6-only cases.
-  IPAddress() { ip_addr_.s_addr = 0; }
-  IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
-    this->ip_addr_.s_addr =
-        htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth);
-  }
-  IPAddress(const std::string &in_address) : ip_addr_{} { ipaddr_aton(in_address.c_str(), &ip_addr_); }
-  IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
-  char *str_to(char *buf) const {
-    if (inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
-      buf[0] = '\0';
-    return buf;
-  }
-  bool is_set() const { return ip_addr_.s_addr != 0; }
-  bool is_ip4() const { return true; }
-  bool is_ip6() const { return false; }
-  // 224.0.0.0/4 (RFC 5771)
-  bool is_multicast() const { return (ntohl(ip_addr_.s_addr) & 0xF0000000) == 0xE0000000; }
-  bool operator==(const IPAddress &other) const { return ip_addr_.s_addr == other.ip_addr_.s_addr; }
-  bool operator!=(const IPAddress &other) const { return ip_addr_.s_addr != other.ip_addr_.s_addr; }
-#endif /* CONFIG_NET_IPV6 */
 
 #elif defined(USE_HOST)
 #if USE_NETWORK_IPV6
@@ -301,21 +273,15 @@ struct IPAddress {
 #if LWIP_IPV6
   IPAddress(ip6_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip6_addr_t));
-#if LWIP_IPV4
-    ip_addr_.type = IPADDR_TYPE_V6;
-#endif /* LWIP_IPV4 */
+    IP_SET_TYPE_VAL(ip_addr_, IPADDR_TYPE_V6);
   }
 #endif /* LWIP_IPV6 */
 
 #ifdef USE_ESP32
 #if LWIP_IPV6
   IPAddress(esp_ip6_addr_t *other_ip) {
-#if LWIP_IPV4
-    memcpy((void *) &ip_addr_.u_addr.ip6, (void *) other_ip, sizeof(esp_ip6_addr_t));
-    ip_addr_.type = IPADDR_TYPE_V6;
-#else
-    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip6_addr_t));
-#endif /* LWIP_IPV4 */
+    memcpy((void *) ip_2_ip6(&ip_addr_), (void *) other_ip, sizeof(esp_ip6_addr_t));
+    IP_SET_TYPE_VAL(ip_addr_, IPADDR_TYPE_V6);
   }
 #endif /* LWIP_IPV6 */
 #if LWIP_IPV4

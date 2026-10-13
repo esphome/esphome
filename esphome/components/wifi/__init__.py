@@ -1,4 +1,3 @@
-import functools
 import logging
 import math
 from typing import Any
@@ -599,7 +598,7 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
-    functools.partial(require_ipv4, name=DOMAIN),
+    require_ipv4(DOMAIN),
 )
 
 

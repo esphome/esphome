@@ -1,8 +1,6 @@
 #include "tcp_listener.h"
 
-#if (defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || \
-     defined(USE_SOCKET_IMPL_BSD_SOCKETS)) && \
-    USE_NETWORK_IPV4
+#if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"

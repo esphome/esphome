@@ -1,5 +1,3 @@
-import functools
-
 import esphome.codegen as cg
 from esphome.components import network, socket
 from esphome.components.light.effects import register_addressable_effect
@@ -40,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    functools.partial(network.require_ipv4, name="e131"),
+    network.require_ipv4("e131"),
     socket.consume_sockets(1, "e131", socket.SocketType.UDP),
 )
 

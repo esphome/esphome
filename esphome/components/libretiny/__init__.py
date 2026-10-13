@@ -1,4 +1,3 @@
-import functools
 import json
 import logging
 from pathlib import Path
@@ -321,7 +320,7 @@ BASE_SCHEMA = cv.Schema(
 BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 BASE_SCHEMA.add_extra(_update_core_data)
-BASE_SCHEMA.add_extra(functools.partial(network.require_ipv4, name=CONF_LIBRETINY))
+BASE_SCHEMA.add_extra(network.require_ipv4(CONF_LIBRETINY))
 
 
 def _configure_lwip(config: dict) -> None:

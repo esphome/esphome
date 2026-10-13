@@ -1,5 +1,3 @@
-import functools
-
 import esphome.codegen as cg
 from esphome.components import button, network, socket
 import esphome.config_validation as cv
@@ -24,7 +22,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_TARGET_MAC_ADDRESS): cv.mac_address,
         }
     ),
-    functools.partial(network.require_ipv4, name="wake_on_lan"),
+    network.require_ipv4("wake_on_lan"),
     socket.consume_sockets(1, "wake_on_lan", socket.SocketType.UDP),
 )
 
