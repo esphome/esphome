@@ -8,10 +8,15 @@ from typing import Any
 from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
-from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
+from esphome.components.display import (
+    CONF_SHOW_TEST_CARD,
+    requires_buffer,
+    validate_rotation,
+)
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUSY_PIN,
     CONF_CS_PIN,
     CONF_DATA_RATE,
@@ -50,6 +55,7 @@ CONF_GRAYSCALE = "grayscale"
 CONF_DITHERING = "dithering"
 CONF_UPDATE_MODE = "update_mode"
 CONF_USE_LEGACY_DPY_AREA = "use_legacy_dpy_area"
+CONF_DIRECT_DRAW = "direct_draw"
 
 # VCOM SET sub-command selectors. The IT8951 firmware accepts different
 # values across panels; most respond to 0x0001, but a few — e.g. the Seeed
@@ -60,6 +66,8 @@ VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
+IT8951BufferedDisplay = it8951_ns.class_("IT8951BufferedDisplay", IT8951Display)
+IT8951DirectDisplay = it8951_ns.class_("IT8951DirectDisplay", IT8951Display)
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
 # UpdateMode enum so the runtime can store the mode as a uint16_t rather
@@ -273,6 +281,9 @@ def _model_schema(config: ConfigType) -> cv.Schema:
                 default=model.get_default(CONF_USE_LEGACY_DPY_AREA, False),
             ): cv.boolean,
             cv.Optional(CONF_UPDATE_MODE): update_mode,
+            # Stream LVGL's output straight into controller memory instead of
+            # keeping a framebuffer on the ESP.
+            cv.Optional(CONF_DIRECT_DRAW, default=False): cv.boolean,
             # One or more GPIOs driven high during setup to power on the panel
             # (e.g. board power-enable rails), before reset and init.
             cv.Optional(
@@ -314,26 +325,34 @@ def _customise_schema(config: ConfigType) -> ConfigType:
     model = IT8951Model.models[config[CONF_MODEL].upper()]
     width, height = model.get_dimensions(model_config)
 
+    direct_draw = model_config[CONF_DIRECT_DRAW]
+    if direct_draw and requires_buffer(model_config):
+        raise cv.Invalid(
+            f"'{CONF_DIRECT_DRAW}' cannot be used with 'lambda', 'pages' or "
+            f"'{CONF_SHOW_TEST_CARD}', which need a framebuffer.",
+            [CONF_DIRECT_DRAW],
+        )
     display.add_metadata(
         model_config[CONF_ID],
         width,
         height,
-        # Rotation is applied per-pixel in draw_pixel_at at no extra cost, so we
-        # advertise hardware rotation: LVGL routes its rotation to the driver via
-        # set_rotation rather than rotating the framebuffer in software.
+        # Both classes rotate for free: per pixel in the buffered class, by the
+        # order the source is read in when packing a direct-draw row.
         has_hardware_rotation=True,
-        has_writer=any(
-            model_config.get(key)
-            for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
-        ),
+        has_writer=requires_buffer(model_config)
+        or model_config.get(CONF_AUTO_CLEAR_ENABLED) is True,
         # Report the configured rotation so LVGL can detect (and reject) a
         # rotation set in the display config instead of the LVGL config.
         rotation=model_config.get(CONF_ROTATION, 0),
-        # The IT8951 snaps partial display refreshes to a 32-pixel X boundary
-        # (see prepare_update_region_), so have LVGL round its redraw areas to
-        # 32px too — this keeps flush rectangles aligned with what the panel
-        # actually refreshes and avoids redundant re-rounding/over-draw.
-        draw_rounding=32,
+        # What the hardware actually requires of a LOAD is a 4-pixel boundary in
+        # 4bpp, or 16 for the 8bpp-packed monochrome trick. The 32-pixel X snap
+        # that partial REFRESH needs is applied separately in
+        # prepare_update_region_ and only on X, so asking LVGL for 32 here would
+        # round both axes and inflate every redraw: a one-pixel text change would
+        # become 32x32 of converted pixels. 16 satisfies both pixel formats and
+        # survives mirroring (see _final_validate).
+        draw_rounding=16,
+        requires_update_when_display_idle=direct_draw,
     )
 
     return model_config
@@ -349,7 +368,16 @@ def _final_validate(config: ConfigType) -> None:
     )
 
     global_config = full_config.get()
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
+    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN, defines as lv_defines
+
+    if config[CONF_DIRECT_DRAW] and not any(
+        config[CONF_ID] in lvgl_config.get(lv_defines.CONF_DISPLAYS, [])
+        for lvgl_config in global_config.get(LVGL_DOMAIN, [])
+    ):
+        raise cv.Invalid(
+            f"'{CONF_DIRECT_DRAW}' requires an lvgl component that draws on this display.",
+            [CONF_DIRECT_DRAW],
+        )
 
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
         if LVGL_DOMAIN in global_config:
@@ -357,6 +385,30 @@ def _final_validate(config: ConfigType) -> None:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
             config[CONF_SHOW_TEST_CARD] = True
+    elif CONF_UPDATE_INTERVAL not in config:
+        # The schema leaves this undefined so that a panel driven by LVGL is not
+        # polled at the core default of one second. A lambda still needs a clock
+        # of its own, though — without one it paints once at boot and never
+        # again, which reads as a dead display. Same default as epaper_spi.
+        config[CONF_UPDATE_INTERVAL] = update_interval("1min")
+
+    # Everything below applies only to the direct-draw variant.
+    if not config[CONF_DIRECT_DRAW]:
+        return
+
+    # Rotation and mirroring map a rectangle to width - x - w, and clipping at the
+    # right edge ends it at width, so the panel width has to be a multiple of the
+    # load alignment for LVGL's 16-aligned rectangles to stay aligned. Every model
+    # preset satisfies this; a generic model with hand-entered dimensions need not,
+    # and would otherwise drop flushes along the edge at runtime.
+    model = IT8951Model.models[config[CONF_MODEL]]
+    width, _ = model.get_dimensions(config)
+    align = 4 if config[CONF_GRAYSCALE] else 16
+    if width % align:
+        raise cv.Invalid(
+            f"Width {width} must be a multiple of {align} to use '{CONF_DIRECT_DRAW}'.",
+            [CONF_DIMENSIONS],
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -366,7 +418,11 @@ async def to_code(config: ConfigType) -> None:
     model = IT8951Model.models[config[CONF_MODEL]]
     width, height = model.get_dimensions(config)
 
-    var = cg.new_Pvariable(config[CONF_ID], model.name, width, height)
+    var_id = config[CONF_ID]
+    var_id.type = (
+        IT8951DirectDisplay if config[CONF_DIRECT_DRAW] else IT8951BufferedDisplay
+    )
+    var = cg.new_Pvariable(var_id, model.name, width, height)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)
 
@@ -427,4 +483,36 @@ automation.register_apply_action(
         }
     ),
     automation.ApplyField(CONF_MODE, "update_mode", UpdateMode),
+)
+
+
+automation.register_apply_action(
+    "it8951.pause",
+    automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(IT8951Display)}),
+    automation.ApplyCall("set_refresh_paused(true)"),
+)
+
+# A mode is always passed on: DEFAULT is UPDATE_MODE_NONE, which both methods
+# already read as "the caller named no waveform". Without the default an absent
+# key would emit no statement at all, making a bare resume/refresh a no-op.
+automation.register_apply_action(
+    "it8951.resume",
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(IT8951Display),
+            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(update_mode),
+        }
+    ),
+    automation.ApplyField(CONF_MODE, "set_refresh_paused(false, {})", UpdateMode),
+)
+
+automation.register_apply_action(
+    "it8951.refresh",
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(IT8951Display),
+            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(update_mode),
+        }
+    ),
+    automation.ApplyField(CONF_MODE, "refresh_now", UpdateMode),
 )

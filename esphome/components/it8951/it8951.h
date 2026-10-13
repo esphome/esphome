@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -133,17 +134,15 @@ enum class Phase : uint8_t {
   UPDATE_PREPARE,   // do_update_, compute dirty region, decide 4bpp/1bpp
   UPDATE_TRANSFER,  // one LD_IMG_AREA, time-sliced row streaming, one LD_IMG_END
   UPDATE_REFRESH,   // wait LUT idle, optionally enable 1bpp, send DPY_BUF_AREA
-  UPDATE_SLEEP,     // optional deep sleep
+  UPDATE_SLEEP,     // direct draw: wait for the waveform to end; optional deep sleep
 };
 
+// Controller state machine shared by the buffered and direct-draw classes.
 class IT8951Display : public Display,
                       public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                             spi::DATA_RATE_2MHZ> {
  public:
-  IT8951Display(const char *name, uint16_t width, uint16_t height) : name_(name), width_(width), height_(height) {
-    this->row_width_ = this->compute_row_width_();
-    this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(height);
-  }
+  IT8951Display(const char *name, uint16_t width, uint16_t height) : name_(name), width_(width), height_(height) {}
 
   // --- Component lifecycle ---
   void setup() override;
@@ -193,15 +192,31 @@ class IT8951Display : public Display,
   // --- Display API ---
   void update() override;
   void update_mode(UpdateMode mode);
+
+  // --- Deferred presentation ---
+  // Only a waveform changes what the panel shows, so pixels can keep streaming
+  // into the controller's image memory while the previous frame stays on the
+  // glass. Pausing holds back the waveform: update requests are remembered
+  // rather than run, and resuming presents the result in one go.
+  //
+  // Note the frame is torn while paused — image memory holds part of the old
+  // frame and part of the new one — so nothing else may present it until the
+  // composition is finished. That is why update requests are swallowed rather
+  // than queued: on a panel this size there is no room in controller RAM for a
+  // second frame to compose into.
+  // Resuming presents whatever was requested while paused, using the region
+  // that accumulated across every render since. Passing a mode replaces the one
+  // the swallowed request carried, which is how a caller picks a waveform per
+  // present (DU for a tap, GC16 for a page change) even when something else —
+  // LVGL's update_when_display_idle, say — issued the request.
+  void set_refresh_paused(bool paused, UpdateMode mode = UPDATE_MODE_NONE);
+  bool is_refresh_paused() const { return this->refresh_paused_; }
+  // Present the whole screen from controller image memory, clearing any pause.
+  // Nothing is transferred: this shows whatever was last written, which is the
+  // point of composing while paused.
+  void refresh_now(UpdateMode mode);
   DisplayType get_display_type() override { return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY; }
-  void fill(Color color) override;
   void clear() override { this->fill(Color::WHITE); }
-  void draw_pixel_at(int x, int y, Color color) override;
-  // Bulk pixel blit (used by LVGL and image rendering). Overridden to write
-  // straight into the framebuffer, avoiding the base class's per-pixel
-  // draw_pixel_at overhead (watchdog feed, clipping test, dirty-box clamps).
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
   int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
 
@@ -215,23 +230,15 @@ class IT8951Display : public Display,
   // applying effective_transform_ (swap/mirror). Shared by rotate_coordinates_
   // and the bulk draw_pixels_at path.
   void apply_transform_(int &x, int &y) const;
-  bool rotate_coordinates_(int &x, int &y);
   void reset_dirty_region_();
 
-  // --- Framebuffer geometry / monochrome packing ---
-  // Bytes per row for the configured pixel format: 4bpp grayscale packs two
-  // pixels per byte; monochrome packs eight bits per byte, rounded up to a
-  // whole 16-pixel group (matching the controller's 8bpp-load / 1bpp trick).
-  uint16_t compute_row_width_() const {
-    return this->grayscale_ ? static_cast<uint16_t>((static_cast<uint32_t>(this->width_) + 1) / 2)
-                            : static_cast<uint16_t>(((static_cast<uint32_t>(this->width_) + 15) / 16) * 2);
+  // Bytes needed to hold `pixels` pixels in the configured native format: 4bpp
+  // grayscale packs two pixels per byte; monochrome packs eight bits per byte,
+  // rounded up to a whole 16-pixel group (the controller's 8bpp-load / 1bpp trick).
+  uint16_t row_bytes_for_(uint16_t pixels) const {
+    return this->grayscale_ ? static_cast<uint16_t>((static_cast<uint32_t>(pixels) + 1) / 2)
+                            : static_cast<uint16_t>(((static_cast<uint32_t>(pixels) + 15) / 16) * 2);
   }
-  void set_mono_pixel_(uint16_t x, uint16_t y, bool value) const;
-  // Write a 4bpp grayscale nibble into the framebuffer (two pixels per byte).
-  void set_gray_pixel_(uint16_t x, uint16_t y, uint8_t nibble) const;
-  // Convert a color and write it at native framebuffer coordinates: a 4bpp
-  // nibble in grayscale mode, or an ordered-dithered bit in monochrome mode.
-  void write_pixel_native_(uint16_t x, uint16_t y, const Color &color) const;
 
   // --- Op queue / loop machinery ---
   void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0);
@@ -267,6 +274,25 @@ class IT8951Display : public Display,
   void enqueue_update_transfer_();
   void enqueue_update_refresh_();
   void enqueue_update_sleep_();
+  // Wake the controller if a previous update put it to sleep. Both the transfer
+  // and (when there is no transfer) the refresh phase must do this before
+  // touching the display engine.
+  void enqueue_wake_if_asleep_();
+  // Poll LUTAFSR until the display engine has finished every waveform.
+  void enqueue_wait_lut_idle_();
+
+  // --- Hooks for the buffered and direct-draw classes ---
+  // True when the update about to run has pixel data to stream.
+  virtual bool needs_transfer() const = 0;
+  // Source bytes for one row of the current update area, in native wire format.
+  virtual const uint8_t *transfer_row_data(uint16_t row) const = 0;
+  // Called once the controller handshake has completed and initialised_ is set.
+  virtual void on_initialised() {}
+  // Called when the transfer phase has streamed its last row.
+  virtual void on_transfer_done() {}
+  // True to stay busy until the waveform has finished rather than returning to
+  // IDLE as soon as it has been started.
+  virtual bool waits_for_waveform() const { return false; }
 
   bool prepare_update_region_(UpdateMode &mode);
 
@@ -287,6 +313,11 @@ class IT8951Display : public Display,
   // Pending update bookkeeping
   bool update_pending_{false};
   UpdateMode pending_update_mode_{UPDATE_MODE_NONE};
+  // Deferred presentation (see set_refresh_paused). A mode other than NONE is
+  // exactly "a refresh was requested while paused": every caller of
+  // start_update_ passes a concrete mode.
+  bool refresh_paused_{false};
+  UpdateMode paused_mode_{UPDATE_MODE_NONE};
   UpdateMode active_mode_{UPDATE_MODE_NONE};
   uint16_t area_x_{0}, area_y_{0}, area_w_{0}, area_h_{0};
   uint16_t transfer_row_{0};
@@ -309,9 +340,6 @@ class IT8951Display : public Display,
   const char *name_;
   uint16_t width_;
   uint16_t height_;
-  uint16_t row_width_;
-  size_t buffer_length_{};
-  uint8_t *buffer_{};
   uint8_t transform_{0};
   uint8_t effective_transform_{0};
   uint8_t full_update_every_{1};
@@ -348,6 +376,110 @@ class IT8951Display : public Display,
   // read after reset; the original driver retried up to 3 times with 100ms
   // between attempts).
   uint8_t dev_info_attempts_{0};
+};
+
+// --- Buffered variant ---------------------------------------------------------
+// Draws into an ESP-side framebuffer held in the native wire format, and streams
+// the dirty rectangle to the controller on each update. Required by writers that
+// draw pixel by pixel (lambda, pages, test card).
+class IT8951BufferedDisplay : public IT8951Display {
+ public:
+  using IT8951Display::IT8951Display;
+
+  void setup() override;
+  void dump_config() override;
+  void fill(Color color) override;
+  void draw_pixel_at(int x, int y, Color color) override;
+  // Bulk pixel blit (used by LVGL and image rendering). Overridden to write
+  // straight into the framebuffer, avoiding the base class's per-pixel
+  // draw_pixel_at overhead (watchdog feed, clipping test, dirty-box clamps).
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
+ protected:
+  bool needs_transfer() const override { return true; }
+  const uint8_t *transfer_row_data(uint16_t row) const override;
+
+  bool rotate_coordinates_(int &x, int &y);
+  void set_mono_pixel_(uint16_t x, uint16_t y, bool value) const;
+  // Write a 4bpp grayscale nibble into the framebuffer (two pixels per byte).
+  void set_gray_pixel_(uint16_t x, uint16_t y, uint8_t nibble) const;
+  // Convert a color and write it at native framebuffer coordinates: a 4bpp
+  // nibble in grayscale mode, or an ordered-dithered bit in monochrome mode.
+  void write_pixel_native_(uint16_t x, uint16_t y, const Color &color) const;
+
+  uint16_t row_width_{0};
+  size_t buffer_length_{0};
+  uint8_t *buffer_{nullptr};
+};
+
+// One LVGL flush: where the pixels are and how to read them. Every field is
+// fixed for the whole rectangle and most for the whole build, which is what lets
+// the packing loop decide its shape once instead of per pixel.
+struct FlushSource {
+  const uint8_t *ptr;
+  ColorOrder order;
+  ColorBitness bitness;
+  bool big_endian;
+  // Source pixel index of the clipped rectangle's top-left native pixel, and how
+  // far the index moves per native column and per native row. Rotation and
+  // mirroring are folded into these, so they may be negative.
+  int32_t origin;
+  int32_t column_step;
+  int32_t row_step;
+};
+
+// --- Direct-draw variant ------------------------------------------------------
+// Writes pixels straight into the controller's image RAM as they are drawn,
+// with no ESP-side framebuffer: each LVGL flush is converted to the native wire
+// format and streamed as its own LD_IMG_AREA load. On a 1872x1404 panel this
+// reclaims ~1.25 MiB of PSRAM.
+//
+// Only usable when every writer pushes rectangles (LVGL), so it is selected by
+// 'direct_draw: true', which display.py rejects alongside lambda/pages/test card.
+// Rotation and the panel transform are applied while packing each row, by
+// walking the source rectangle in the matching order.
+class IT8951DirectDisplay : public IT8951Display {
+ public:
+  using IT8951Display::IT8951Display;
+
+  void setup() override;
+  void dump_config() override;
+  void fill(Color color) override;
+  // Single-pixel drawing cannot be streamed; the config never routes a
+  // per-pixel writer to this class (see display.py).
+  void draw_pixel_at(int /*x*/, int /*y*/, Color /*color*/) override {}
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
+ protected:
+  // Only a whole-screen constant fill needs the streaming transfer phase; a
+  // normal update's pixels are already in controller RAM.
+  bool needs_transfer() const override { return this->fill_pending_; }
+  const uint8_t *transfer_row_data(uint16_t row) const override { return this->fill_row_.get(); }
+  void on_initialised() override;
+  void on_transfer_done() override { this->fill_pending_ = false; }
+  // Writes go straight into image RAM, so the next render must not start until
+  // the panel has finished drawing from it.
+  bool waits_for_waveform() const override { return true; }
+
+  // Stream one flush rectangle, in native panel coordinates and already clipped
+  // and alignment-checked, into controller image RAM.
+  void write_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const FlushSource &src);
+  // Pack one native row of that rectangle into row_buf_, starting from source
+  // pixel `first_index`.
+  void pack_row_(uint16_t x, uint16_t y, uint16_t w, int32_t first_index, const FlushSource &src);
+  // Wait for any update in progress to finish, then bring the controller out of
+  // sleep. Returns false if it does not become ready to accept pixel data.
+  bool prepare_direct_write_();
+
+  // One native-format row of the widest possible flush rectangle.
+  std::unique_ptr<uint8_t[]> row_buf_;
+  // Constant row used by the whole-screen fill path.
+  std::unique_ptr<uint8_t[]> fill_row_;
+  bool fill_pending_{false};
+  // Logged once so a misconfigured panel doesn't flood the log every flush.
+  bool alignment_warned_{false};
 };
 
 }  // namespace esphome::it8951
