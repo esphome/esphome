@@ -132,7 +132,7 @@ TEST(VncBackoff, NextSessionStartsClean) {
   set_now(now_ms() + 100);
   // Leave a frame half parsed and a refresh pending, then lose the link.
   s.deliver(Rfb().fbu(1).raw_rect(0, 0, 2, 1, {1, 2}));
-  s.deliver(Rfb().fbu(1).rect(0, 0, 4, 4, 0).u8(0x02));
+  s.deliver(Rfb().fbu(1).rect(0, 0, 4, 4, 5).u8(0x02));
   ASSERT_TRUE(s.client.in_update());
   s.close_peer();
   s.loop();

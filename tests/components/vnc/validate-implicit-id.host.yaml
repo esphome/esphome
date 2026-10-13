@@ -7,7 +7,8 @@ vnc:
 interval:
   - interval: 60s
     then:
+      - vnc.refresh
       - if:
           condition: vnc.is_connected
           then:
-            - logger.log: VNC is connected
+            - vnc.refresh

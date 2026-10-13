@@ -9,6 +9,7 @@ static Bytes frame(uint16_t x = 0, uint16_t pixel = 0x1234) {
 }
 
 static const Bytes INCREMENTAL = fbur(true, 64, 48);
+static const Bytes FULL = fbur(false, 64, 48);
 
 // The session starts at t=1000, when the first (full) request goes out.
 class VncPacing : public ::testing::Test {
@@ -148,6 +149,40 @@ TEST_F(VncPacing, CursorOnlyFrameNeverRefreshes) {
   EXPECT_EQ(d_.updates(), 0);
 }
 
+TEST_F(VncPacing, RefreshSendsAFullRequestEvenWithOneOutstanding) {
+  set_now(1100);
+  s().client.refresh();
+  s().loop();
+  EXPECT_EQ(hex(s().take()), hex(FULL));
+  s().run_for(1000);
+  EXPECT_EQ(s().take().size(), 0u);
+}
+
+TEST_F(VncPacing, RefreshKeepsThe50msFloor) {
+  set_now(1100);
+  s().deliver(frame());
+  EXPECT_EQ(hex(s().take()), hex(INCREMENTAL));
+  s().client.refresh();
+  s().at(1149);
+  EXPECT_EQ(s().take().size(), 0u);
+  s().at(1150);
+  EXPECT_EQ(hex(s().take()), hex(FULL));
+}
+
+TEST_F(VncPacing, RefreshDuringAFrameWaitsForItsEnd) {
+  Bytes f = Rfb().fbu(1).raw_rect(0, 0, 4, 1, {1, 2, 3, 4}).bytes;
+  set_now(1100);
+  s().deliver(Bytes(f.begin(), f.end() - 2));
+  s().client.refresh();
+  s().run_for(500);
+  EXPECT_EQ(s().take().size(), 0u);
+  s().deliver(Bytes(f.end() - 2, f.end()));
+  // Only the full request: the incremental one it replaces is not sent as well.
+  EXPECT_EQ(hex(s().take()), hex(FULL));
+  s().run_for(500);
+  EXPECT_EQ(s().take().size(), 0u);
+}
+
 TEST_F(VncPacing, HeartbeatAfterAMinuteOfSilence) {
   set_now(1100);
   s().deliver(frame());
@@ -218,6 +253,22 @@ TEST_F(VncPacingParked, BusyDisplayHoldsDrawsAndRequests) {
   EXPECT_EQ(d_.updates(), 2);
 }
 
+// The pass that starts a refresh already sees the panel busy, so it sends no request while the refresh runs.
+TEST_F(VncPacingParked, NoRequestInThePassThatStartsARefresh) {
+  set_now(1100);
+  s().deliver(frame());
+  EXPECT_EQ(hex(s().take()), hex(INCREMENTAL));
+  // vnc.refresh from a button handled earlier in the same main loop iteration.
+  s().client.refresh();
+  s().at(1300);
+  ASSERT_EQ(d_.updates(), 1);
+  ASSERT_TRUE(d_.busy());
+  EXPECT_EQ(s().take().size(), 0u) << "request sent while the panel refreshes";
+  d_.finish();
+  s().tick(10);
+  EXPECT_EQ(hex(s().take()), hex(FULL));
+}
+
 TEST(VncPacingParkedDelay, NoRequestInTheRefreshPassWithZeroDelay) {
   FakeParkingDisplay d;
   Session s(&d);
@@ -237,16 +288,16 @@ TEST(VncPacingParkedDelay, NoRequestInTheRefreshPassWithZeroDelay) {
 }
 
 TEST_F(VncPacingParked, NoRequestWhileBusyBetweenFrames) {
-  // Inside the 50 ms floor, so the next request is still due when the panel turns busy.
-  set_now(1010);
+  set_now(1100);
   s().deliver(Rfb().fbu(0));
-  EXPECT_EQ(s().take().size(), 0u);
+  EXPECT_EQ(hex(s().take()), hex(INCREMENTAL));
   d_.external_update();
+  s().client.refresh();
   s().run_for(2000);
   EXPECT_EQ(s().take().size(), 0u);
   d_.finish();
   s().tick(10);
-  EXPECT_EQ(hex(s().take()), hex(INCREMENTAL));
+  EXPECT_EQ(hex(s().take()), hex(FULL));
 }
 
 TEST_F(VncPacingParked, ExternalUpdateMidFrameStopsReading) {
@@ -281,6 +332,9 @@ template<typename D> static void runs_frames_without_deadlock() {
     EXPECT_EQ(d.updates(), i + 1) << "frame " << i;
     EXPECT_EQ(d.pixel(i * 4, 0), expect_px(0x1000 + i, 2));
   }
+  s.client.refresh();
+  s.tick(100);
+  EXPECT_EQ(hex(s.take()), hex(FULL));
 }
 
 TEST(VncPacingDisplays, PlainDisplay) { runs_frames_without_deadlock<FakeDisplay>(); }
