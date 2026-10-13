@@ -40,7 +40,7 @@ class FilterLifetimeTest : public ::testing::Test {
 
   void SetUp() override {
     new (&App) Application;
-    App.pre_setup("filter-lifetime-tests", 23, "Filter lifetime tests", 12);
+    App.pre_setup("filter-lifetime-tests", 21, "Filter lifetime tests", 21);
     host::setup_preferences();
     host::host_preferences->reset();
     g_is_on = true;
