@@ -559,6 +559,33 @@ def test_uc8279_x4pro_code_generation(
     assert resolution == (0x61, 0x03, 0x20, 0x02, 0x58)
 
 
+def test_uc8279_gate_offset_configurable(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The generic uc8279 model accepts a gate_offset, which reaches the constructor and the gate count."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    config = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "uc8279",
+            "dc_pin": 21,
+            "gate_offset": 8,
+            "dimensions": {"width": 16, "height": 2},
+        }
+    )
+    model = MODELS["UC8279"]
+    assert model.get_constructor_args(config) == (8,)
+    resolution = next(cmd for cmd in model.get_init_sequence(config) if cmd[0] == 0x61)
+    # 16 sources, and 8 + 2 = 10 gates
+    assert resolution == (0x61, 0x00, 0x10, 0x00, 0x0A)
+
+
 def test_enable_pin_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

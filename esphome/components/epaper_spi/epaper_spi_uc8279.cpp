@@ -9,21 +9,9 @@
 namespace esphome::epaper_spi {
 ESPHOME_LOG_TAG(TAG, "epaper_spi.uc8279");
 
-static constexpr uint8_t CMD_POWER_OFF = 0x02;
-static constexpr uint8_t CMD_PFS = 0x03;
-static constexpr uint8_t CMD_POWER_ON = 0x04;
-static constexpr uint8_t CMD_DEEP_SLEEP = 0x07;
-static constexpr uint8_t CMD_DTM1 = 0x10;
-static constexpr uint8_t CMD_REFRESH = 0x12;
-static constexpr uint8_t CMD_DTM2 = 0x13;
 static constexpr uint8_t CMD_PSR = 0x00;
-static constexpr uint8_t CMD_CDI = 0x50;
-static constexpr uint8_t CMD_PARTIAL_WINDOW = 0x90;
-static constexpr uint8_t CMD_PARTIAL_IN = 0x91;
-static constexpr uint8_t CMD_PARTIAL_OUT = 0x92;
-static constexpr uint8_t CMD_CCSET = 0xE0;
+static constexpr uint8_t CMD_PFS = 0x03;
 static constexpr uint8_t CMD_GATE_SCAN = 0xE1;
-static constexpr uint8_t CMD_TSSET = 0xE5;
 
 static constexpr uint8_t PSR0_OTP_LUT = 0x17;
 static constexpr uint8_t PSR1 = 0x4D;
@@ -34,31 +22,13 @@ static constexpr uint8_t TSSET_FULL = 0x1E;
 static constexpr uint8_t TSSET_PARTIAL = 0x5A;
 static constexpr uint8_t CDI_FULL = 0x97;
 static constexpr uint8_t CDI_PARTIAL = 0xD7;
-static constexpr uint8_t DEEP_SLEEP_CHECK = 0xA5;
 
 static constexpr uint16_t RESET_SETTLE_MS = 50;
 static constexpr uint16_t BUSY_ASSERT_MS = 10;
 static constexpr uint16_t REFRESH_START_MS = 50;
 
-static constexpr uint8_t hi(uint16_t v) { return static_cast<uint8_t>(v >> 8); }
-static constexpr uint8_t lo(uint16_t v) { return static_cast<uint8_t>(v & 0xFF); }
-
-void EPaperUC8279::loop() {
-  // Rewriting DTM1 holds the state machine back until it is done
-  if (this->writing_previous_image_) {
-    if (!this->write_previous_image_())
-      return;
-    this->writing_previous_image_ = false;
-    this->command(CMD_POWER_OFF);
-    this->set_state_(EPaperState::DEEP_SLEEP, BUSY_ASSERT_MS);
-    return;
-  }
-  EPaperBase::loop();
-}
-
 bool EPaperUC8279::reset() {
   // A partial update follows one that left the controller configured, in standby, with DTM1 holding the image
-  this->partial_ = this->update_count_ != 0;
   if (this->partial_)
     return true;
   if (!EPaperBase::reset())
@@ -68,7 +38,7 @@ bool EPaperUC8279::reset() {
 }
 
 bool EPaperUC8279::initialise(bool partial) {
-  if (this->partial_)
+  if (partial)
     return true;
   return EPaperBase::initialise(partial);
 }
@@ -96,41 +66,33 @@ void EPaperUC8279::write_gate_(size_t gate, bool white) {
   }
 }
 
-// DTM2 gets the new image; a full refresh also gets a white DTM1, a partial one compares against DTM1 as it is
-bool HOT EPaperUC8279::transfer_data() {
+// One plane of one gate's row per step, time-sliced; `base` is the value of current_data_index_ at its first gate
+bool HOT EPaperUC8279::write_plane_(uint8_t command, bool white, size_t base) {
   const uint32_t start_time = millis();
   const size_t gates = this->gate_count_();
-  const size_t total = (this->partial_ ? 1 : 2) * gates;
-  while (this->current_data_index_ != total) {
-    const size_t gate = this->current_data_index_ % gates;
-    const bool new_image = this->current_data_index_ < gates;
-    if (gate == 0)
-      this->command(new_image ? CMD_DTM2 : CMD_DTM1);
-    this->start_data_();
-    this->write_gate_(gate, !new_image);
-    this->disable();
-    ++this->current_data_index_;
-    if (this->current_data_index_ != total && millis() - start_time > MAX_TRANSFER_TIME)
-      return false;
-  }
-  this->current_data_index_ = 0;
-  return true;
-}
-
-bool HOT EPaperUC8279::write_previous_image_() {
-  const uint32_t start_time = millis();
-  const size_t gates = this->gate_count_();
-  if (this->previous_image_gate_ == 0)
-    this->command(CMD_DTM1);
+  if (this->current_data_index_ == base)
+    this->command(command);
   this->start_data_();
-  while (this->previous_image_gate_ != gates) {
-    this->write_gate_(this->previous_image_gate_++, false);
-    if (this->previous_image_gate_ != gates && millis() - start_time > MAX_TRANSFER_TIME) {
+  while (this->current_data_index_ - base != gates) {
+    this->write_gate_(this->current_data_index_ - base, white);
+    ++this->current_data_index_;
+    if (this->current_data_index_ - base != gates && millis() - start_time > MAX_TRANSFER_TIME) {
       this->disable();
       return false;
     }
   }
   this->disable();
+  return true;
+}
+
+// DTM2 gets the new image; a full refresh also writes a white DTM1, so every pixel transitions
+bool HOT EPaperUC8279::transfer_data() {
+  const size_t gates = this->gate_count_();
+  if (this->current_data_index_ < gates && !this->write_plane_(CMD_DTM2, false, 0))
+    return false;
+  if (!this->partial_ && !this->write_plane_(CMD_DTM1, true, gates))
+    return false;
+  this->current_data_index_ = 0;
   return true;
 }
 
@@ -147,44 +109,35 @@ void EPaperUC8279::power_on() {
   this->next_delay_ = BUSY_ASSERT_MS;
 }
 
-void EPaperUC8279::refresh_screen(bool /*partial*/) {
-  ESP_LOGV(TAG, "Refresh screen (%s)", this->partial_ ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
-  if (this->partial_) {
-    const uint16_t x_end = this->width_ - 1;
-    const uint16_t y_start = this->gate_offset_;
-    const uint16_t y_end = this->gate_count_() - 1;
-    this->command(CMD_PARTIAL_IN);
-    this->cmd_data(CMD_PARTIAL_WINDOW, {0x00, 0x00, hi(x_end), static_cast<uint8_t>(lo(x_end) | 0x07), hi(y_start),
-                                        lo(y_start), hi(y_end), lo(y_end), 0x01});
-  }
+void EPaperUC8279::refresh_screen(bool partial) {
+  ESP_LOGV(TAG, "Refresh screen (%s)", partial ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
+  if (partial)
+    this->set_partial_window_(0, this->width_ - 1, this->gate_offset_, this->gate_count_() - 1);
   // Power-on reloads the panel's stored settings, so the panel setting only takes when written after it
   this->cmd_data(CMD_PSR, {PSR0_OTP_LUT, PSR1});
   this->command(CMD_REFRESH);
   this->next_delay_ = REFRESH_START_MS;
 }
 
-void EPaperUC8279::power_off() {
-  if (this->partial_)
+bool HOT EPaperUC8279::after_refresh() {
+  // While partial updates are in use, DTM1 holds the image on the panel for the next partial comparison
+  if (!this->is_using_partial_update_())
+    return true;
+  if (this->current_data_index_ == 0 && this->partial_)
     this->command(CMD_PARTIAL_OUT);
-  if (this->is_using_partial_update_()) {
-    // loop() writes the image to DTM1, then powers off
-    this->previous_image_gate_ = 0;
-    this->writing_previous_image_ = true;
-    return;
-  }
+  if (!this->write_plane_(CMD_DTM1, false, 0))
+    return false;
+  this->current_data_index_ = 0;
+  return true;
+}
+
+void EPaperUC8279::power_off() {
   this->command(CMD_POWER_OFF);
   this->next_delay_ = BUSY_ASSERT_MS;
 }
 
-void EPaperUC8279::deep_sleep() {
-  if (this->is_using_partial_update_())
-    return;
-  ESP_LOGV(TAG, "Deep sleep");
-  this->cmd_data(CMD_DEEP_SLEEP, {DEEP_SLEEP_CHECK});
-}
-
 // Nothing carries the image across a restart or the controller's deep sleep, so the panel sleeps rather than waiting
 // in standby
-void EPaperUC8279::on_safe_shutdown() { this->cmd_data(CMD_DEEP_SLEEP, {DEEP_SLEEP_CHECK}); }
+void EPaperUC8279::on_safe_shutdown() { this->send_deep_sleep_(); }
 
 }  // namespace esphome::epaper_spi

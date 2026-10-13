@@ -209,6 +209,8 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
+      // A full update resets update_count_ to zero, so a non-zero count marks a partial one
+      this->partial_ = this->update_count_ != 0;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
@@ -237,6 +239,9 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::POWER_OFF);
       break;
     case EPaperState::POWER_OFF:
+      if (!this->after_refresh()) {
+        return;  // Not done yet, come back next loop
+      }
       this->power_off();
       this->set_state_(EPaperState::DEEP_SLEEP);
       break;

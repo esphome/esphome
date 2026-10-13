@@ -7,6 +7,11 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 
+def ultrachip_resolution(width: int, gates: int) -> tuple:
+    """The UC81xx resolution command (0x61): source (width) and gate counts, each big-endian."""
+    return (0x61, width >> 8, width & 0xFF, gates >> 8, gates & 0xFF)
+
+
 class EpaperModel:
     models: dict[str, Self] = {}
 

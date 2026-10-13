@@ -1,6 +1,6 @@
 #pragma once
 
-#include "epaper_spi.h"
+#include "epaper_spi_ultrachip.h"
 
 namespace esphome::epaper_spi {
 
@@ -18,16 +18,15 @@ namespace esphome::epaper_spi {
  * image transfer. The panel loses both planes in its own deep sleep, so it then waits in standby
  * between updates instead.
  */
-class EPaperUC8279 : public EPaperBase {
+class EPaperUC8279 : public EPaperUltraChip {
  public:
   EPaperUC8279(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                size_t init_sequence_length, uint16_t gate_offset)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY),
+      : EPaperUltraChip(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY),
         gate_offset_(gate_offset) {
     this->buffer_length_ = this->row_width_ * height;
   }
 
-  void loop() override;
   void on_safe_shutdown() override;
 
  protected:
@@ -37,18 +36,15 @@ class EPaperUC8279 : public EPaperBase {
   void power_on() override;
   void refresh_screen(bool partial) override;
   void power_off() override;
-  void deep_sleep() override;
+  bool after_refresh() override;
 
   uint16_t gate_count_() const { return this->gate_offset_ + this->height_; }
   // Writes one gate's row of the image, or white for a gate outside the panel or when white is true
   void write_gate_(size_t gate, bool white);
-  // Continues writing the image to DTM1; true once all gates are written
-  bool write_previous_image_();
+  // Writes one plane in time slices, sending `command` at its first gate; true once all gates are written
+  bool write_plane_(uint8_t command, bool white, size_t base);
 
   uint16_t gate_offset_;
-  size_t previous_image_gate_{};
-  bool partial_{};                 // the update in progress is a partial one
-  bool writing_previous_image_{};  // DTM1 is being rewritten after a refresh
 };
 
 }  // namespace esphome::epaper_spi
