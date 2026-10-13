@@ -335,7 +335,9 @@ def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
             "esphome.compiled_config.invalidate_compiled_config",
             side_effect=EsphomeError("busy"),
         ),
-        pytest.raises(EsphomeError, match="Could not restore busy"),
+        pytest.raises(
+            EsphomeError, match="Could not restore the validated caches: busy"
+        ),
     ):
         restore_files({path: Snapshot(YAML, YAML)})
     originals = apply_line_edits([_name_edit("garage")])
@@ -432,16 +434,65 @@ def test_restore_goes_on_after_an_interrupt(tmp_path: Path) -> None:
     )
     with (
         patch("esphome.yaml_edit.write_keeping_mode", side_effect=interrupt_at(1)),
-        pytest.raises(EsphomeError, match="Could not restore .*: interrupted"),
+        pytest.raises(KeyboardInterrupt) as info,
     ):
         restore_files(originals)
     assert calls == [path, other] and other.read_text() == "x: 1\n"
-    # Inside apply the failed rollback is reported with the reason it ran
+    assert f"Could not restore {path}: interrupted" in "".join(info.value.__notes__)
+    # The interrupt stays one inside apply as well
     _setup(tmp_path, YAML)
     calls.clear()
     with (
         patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
         patch("esphome.yaml_edit.write_keeping_mode", side_effect=interrupt_at(2)),
-        pytest.raises(RestoreError, match="broken; Could not restore .*interrupted"),
+        pytest.raises(KeyboardInterrupt) as info,
     ):
         apply_line_edits([_name_edit("garage")])
+    assert "Could not restore" in "".join(info.value.__notes__)
+
+
+def test_restore_finishes_after_any_failure(tmp_path: Path) -> None:
+    """A raw OSError still leaves the other files put back, and an interrupt
+    while dropping the caches carries the report."""
+    path = _setup(tmp_path, YAML)
+    other = tmp_path / "other.yaml"
+    other.write_bytes(b"x: 1\n")
+    originals = apply_line_edits(
+        [_name_edit("garage"), LineEdit(other, 0, "x: 1", "x: 2")]
+    )
+    writes: list[Path] = []
+
+    def fail_first(target: Path, text: str) -> None:
+        writes.append(target)
+        if len(writes) == 1:
+            raise OSError("odd")
+        write_keeping_mode(target, text)
+
+    with (
+        patch("esphome.yaml_edit.write_keeping_mode", side_effect=fail_first),
+        pytest.raises(RestoreError, match=f"Could not restore {path}: odd"),
+    ):
+        restore_files(originals)
+    assert "garage" in path.read_text() and other.read_text() == "x: 1\n"
+    with (
+        patch(
+            "esphome.compiled_config.invalidate_compiled_config",
+            side_effect=KeyboardInterrupt,
+        ),
+        pytest.raises(KeyboardInterrupt) as info,
+    ):
+        restore_files(originals)
+    assert path.read_text() == YAML
+    assert "the validated caches: interrupted" in "".join(info.value.__notes__)
+
+
+def test_a_value_written_to_the_secrets_file_is_registered(tmp_path: Path) -> None:
+    """Only a resolved !secret registers its value, so the main file is
+    loaded again after an edit elsewhere; own_documents keeps the registry."""
+    secrets = tmp_path / "secrets.yaml"
+    secrets.write_bytes(b"ssid: hidden\n")
+    _setup(tmp_path, YAML.replace("ssid: kitchen", "ssid: !secret ssid"))
+    own_documents()
+    assert yaml_util.is_secret("hidden") == "ssid"
+    apply_line_edits([LineEdit(secrets, 0, "ssid: hidden", "ssid: hidden2")])
+    assert yaml_util.is_secret("hidden2") == "ssid"
