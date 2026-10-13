@@ -111,8 +111,8 @@ TEST(FriedrichTests, OddTargetStepsUpToEven) {
 TEST(FriedrichTests, EveryTemperatureEncodesToRemoteCode) {
   static constexpr uint8_t CODES[] = {0x00, 0x08, 0x04, 0x0C, 0x02, 0x0A, 0x06, 0x0E,
                                       0x01, 0x09, 0x05, 0x0D, 0x03, 0x0B, 0x07};
-  for (uint8_t i = 0; i < sizeof(CODES); i++) {
-    const uint8_t fahrenheit = 60 + i * 2;
+  for (size_t i = 0; i < sizeof(CODES); i++) {
+    const auto fahrenheit = static_cast<uint8_t>(60 + i * 2);
     SCOPED_TRACE(fahrenheit);
     Fixture f;
     f.sut.mode = climate::CLIMATE_MODE_HEAT;
