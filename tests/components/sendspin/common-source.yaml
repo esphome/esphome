@@ -1,0 +1,40 @@
+packages:
+  sendspin: !include common.yaml
+
+microphone:
+  - platform: i2s_audio
+    id: sendspin_mic_id
+    i2s_audio_id: i2s_audio_bus
+    i2s_din_pin: ${i2s_din_pin}
+    adc_type: external
+    channel: stereo
+    sample_rate: 48000
+    bits_per_sample: 16bit
+
+sendspin:
+  source:
+    microphone:
+      microphone: sendspin_mic_id
+      channels: [0, 1]
+      bits_per_sample: 16
+      gain_factor: 2
+    task_stack_in_psram: true
+    on_streaming_started:
+      then:
+        - logger.log: "Source streaming started"
+        - sendspin.source.set_signal:
+            present: true
+    on_streaming_stopped:
+      then:
+        - logger.log: "Source streaming stopped"
+        - sendspin.source.set_signal:
+            present: !lambda return false;
+
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            sendspin.source.is_streaming:
+          then:
+            - logger.log: "Source is streaming"
