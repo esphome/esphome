@@ -1001,7 +1001,7 @@ def test_resolve_include_empty_defaults_names_file(tmp_path: Path) -> None:
     def loader(_path: Path) -> dict[str, Any]:
         return {"defaults": None, "ota": [{"platform": "esphome"}]}
 
-    include = yaml_util.IncludeFile(parent, "_network/ota.yaml", None, loader)
+    include = yaml_util.IncludeFile(parent, "_network/ota.yaml", loader)
 
     with pytest.raises(cv.Invalid) as exc_info:
         substitutions.resolve_include(include, [], substitutions.ContextVars())
@@ -1026,18 +1026,14 @@ def test_do_packages_pass_nested_empty_defaults_names_file(tmp_path: Path) -> No
     def outer_loader(_path: Path) -> dict[str, Any]:
         return {
             "packages": {
-                "otas": yaml_util.IncludeFile(
-                    parent, "_network/ota.yaml", None, inner_loader
-                )
+                "otas": yaml_util.IncludeFile(parent, "_network/ota.yaml", inner_loader)
             }
         }
 
     config = OrderedDict(
         {
             "packages": {
-                "wifis": yaml_util.IncludeFile(
-                    parent, "network.yaml", None, outer_loader
-                )
+                "wifis": yaml_util.IncludeFile(parent, "network.yaml", outer_loader)
             }
         }
     )
