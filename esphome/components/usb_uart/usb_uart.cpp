@@ -42,22 +42,16 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
         eps.notify_ep = ep;
         eps.interrupt_interface_number = intf_desc->bInterfaceNumber;
         eps.interrupt_interface_class = intf_desc->bInterfaceClass;
-        eps.interrupt_interface_subclass = intf_desc->bInterfaceSubClass;
-        eps.interrupt_interface_protocol = intf_desc->bInterfaceProtocol;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && ep->bEndpointAddress & usb_host::USB_DIR_IN &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.in_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
         eps.bulk_interface_class = intf_desc->bInterfaceClass;
-        eps.bulk_interface_subclass = intf_desc->bInterfaceSubClass;
-        eps.bulk_interface_protocol = intf_desc->bInterfaceProtocol;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && !(ep->bEndpointAddress & usb_host::USB_DIR_IN) &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.out_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
         eps.bulk_interface_class = intf_desc->bInterfaceClass;
-        eps.bulk_interface_subclass = intf_desc->bInterfaceSubClass;
-        eps.bulk_interface_protocol = intf_desc->bInterfaceProtocol;
       } else {
         ESP_LOGE(TAG, "Unexpected endpoint attributes: %02X", ep->bmAttributes);
         continue;

@@ -191,11 +191,7 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
     if (in_ep && out_ep) {
       CdcEps eps{notify_ep, in_ep, out_ep, intf->bInterfaceNumber, intf->bInterfaceNumber};
       eps.bulk_interface_class = intf->bInterfaceClass;
-      eps.bulk_interface_subclass = intf->bInterfaceSubClass;
-      eps.bulk_interface_protocol = intf->bInterfaceProtocol;
       eps.interrupt_interface_class = intf->bInterfaceClass;
-      eps.interrupt_interface_subclass = intf->bInterfaceSubClass;
-      eps.interrupt_interface_protocol = intf->bInterfaceProtocol;
       cdc_devs.push_back(eps);
       break;  // PL2303 is single-port
     }

@@ -4084,8 +4084,6 @@ class UsbDeviceDescriptor final : public ProtoMessage {
   uint32_t bcd_device{0};
   uint32_t interface_number{0};
   uint32_t interface_class{0};
-  uint32_t interface_subclass{0};
-  uint32_t interface_protocol{0};
   uint32_t port_number{0};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {

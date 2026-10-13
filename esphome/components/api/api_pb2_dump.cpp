@@ -2943,8 +2943,6 @@ const char *UsbDeviceDescriptor::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("bcd_device"), this->bcd_device);
   dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
   dump_field(out, ESPHOME_PSTR("interface_class"), this->interface_class);
-  dump_field(out, ESPHOME_PSTR("interface_subclass"), this->interface_subclass);
-  dump_field(out, ESPHOME_PSTR("interface_protocol"), this->interface_protocol);
   dump_field(out, ESPHOME_PSTR("port_number"), this->port_number);
   return out.c_str();
 }

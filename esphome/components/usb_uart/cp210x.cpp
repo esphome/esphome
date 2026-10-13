@@ -92,8 +92,6 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
                      ? CdcEps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber}
                      : CdcEps{nullptr, out_ep, in_ep, data_desc->bInterfaceNumber};
     eps.bulk_interface_class = data_desc->bInterfaceClass;
-    eps.bulk_interface_subclass = data_desc->bInterfaceSubClass;
-    eps.bulk_interface_protocol = data_desc->bInterfaceProtocol;
     cdc_devs.push_back(eps);
   }
   return cdc_devs;

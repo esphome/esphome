@@ -3044,18 +3044,16 @@ enum SerialProxyIdentityFlag {
 }
 
 // What a host needs to identify the USB device behind a port, and the port on it. The
-// interface fields describe the interface the port is bound through: a class interface is
-// claimed by the class driver itself, a vendor-specific one needs a chip driver, which
-// numbers the ports it exposes. A host's naming of the port follows from that.
+// interface is the one the port is bound through: a class interface is claimed by the
+// class driver itself, a vendor-specific one needs a chip driver, which numbers the
+// ports it exposes. A host's naming of the port follows from that.
 message UsbDeviceDescriptor {
   uint32 vendor_id = 1;
   uint32 product_id = 2;
   uint32 bcd_device = 3;
-  uint32 interface_number = 4;    // bInterfaceNumber
-  uint32 interface_class = 5;     // bInterfaceClass
-  uint32 interface_subclass = 6;  // bInterfaceSubClass
-  uint32 interface_protocol = 7;  // bInterfaceProtocol
-  uint32 port_number = 8;         // Index among the ports a chip driver exposes on the interface
+  uint32 interface_number = 4;  // bInterfaceNumber
+  uint32 interface_class = 5;   // bInterfaceClass
+  uint32 port_number = 6;       // Index among the ports a chip driver exposes on the interface
 }
 
 // The identity of the device behind a port. Identifies one physical device among others of
