@@ -25,7 +25,7 @@ uint32_t fnv1_hash_object_id_progmem(const char *str, size_t len) {
   return hash;
 }
 
-// RAM copies made by the deprecated get_name(), only for entities whose name is asked for. Remove before 2027.5.0
+// RAM copies made by get_name(), only for entities whose name is asked for
 struct NameCopy {
   NameCopy *next;
   const char *key;

@@ -218,7 +218,7 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 #endif
 
   // Match by entity name
-  if (entity->name_equals(this->id)) {
+  if (this->id == entity->get_name()) {
     result.matched = true;
   }
 
@@ -651,7 +651,9 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 // Build unique id as: {domain}/{device_name}/{entity_name} or {domain}/{entity_name}
 // Uses names (not object_id) to avoid UTF-8 collision issues
 static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
+  const StringRef &name = obj->get_name();
   size_t prefix_len = strlen(prefix);
+  size_t name_len = name.size();
 
 #ifdef USE_DEVICES
   Device *device = obj->get_device();
@@ -681,13 +683,13 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
     *p++ = '/';
   }
 #endif
-  const char *name = p;
-  obj->write_name_to(p, id_buf + ID_BUF_SIZE - p);
+  memcpy(p, name.c_str(), name_len);
+  p[name_len] = '\0';
   root[ESPHOME_F("id")] = static_cast<const char *>(id_buf);
 
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = linked(prefix, prefix_len);
-    root[ESPHOME_F("name")] = name;  // in id_buf on the stack, so copied
+    root[ESPHOME_F("name")] = linked(name);
 #ifdef USE_DEVICES
     if (device_name) {
       root[ESPHOME_F("device")] = linked(device_name, device_len);

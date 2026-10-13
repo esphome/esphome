@@ -109,23 +109,18 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
   req->send(stream);
 }
 
-void PrometheusHandler::print_relabel_id_(AsyncResponseStream *stream, EntityBase *obj) {
+std::string PrometheusHandler::relabel_id_(EntityBase *obj) {
   auto item = relabel_map_id_.find(obj);
   if (item != relabel_map_id_.end()) {
-    stream->print(item->second.c_str());
-    return;
+    return item->second;
   }
   char object_id_buf[OBJECT_ID_MAX_LEN];
-  stream->print(obj->get_object_id_to(object_id_buf).c_str());
+  return obj->get_object_id_to(object_id_buf).str();
 }
 
-void PrometheusHandler::print_relabel_name_(AsyncResponseStream *stream, EntityBase *obj) {
+std::string PrometheusHandler::relabel_name_(EntityBase *obj) {
   auto item = relabel_map_name_.find(obj);
-  if (item != relabel_map_name_.end()) {
-    stream->print(item->second.c_str());
-    return;
-  }
-  stream->print(reinterpret_cast<ProgmemStr>(obj->get_name_progmem().progmem_ptr()));
+  return item == relabel_map_name_.end() ? obj->get_name() : item->second;
 }
 
 void PrometheusHandler::add_area_label_(AsyncResponseStream *stream, std::string &area) {
@@ -153,12 +148,12 @@ void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, Progme
                                              std::string &area, std::string &node, std::string &friendly_name) {
   stream->print(metric_name);
   stream->print(ESPHOME_F("{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
 }
 
 // Type-specific implementation
@@ -174,21 +169,21 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
   if (!std::isnan(obj->state)) {
     // We have a valid value, output this value
     stream->print(ESPHOME_F("esphome_sensor_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
     stream->print(ESPHOME_F("esphome_sensor_value{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",unit=\""));
     stream->print(obj->get_unit_of_measurement_ref().c_str());
     stream->print(ESPHOME_F("\"} "));
@@ -199,12 +194,12 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
   } else {
     // Invalid state
     stream->print(ESPHOME_F("esphome_sensor_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -223,33 +218,33 @@ void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_s
   if (obj->has_state()) {
     // We have a valid value, output this value
     stream->print(ESPHOME_F("esphome_binary_sensor_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
     stream->print(ESPHOME_F("esphome_binary_sensor_value{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(obj->state);
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
     stream->print(ESPHOME_F("esphome_binary_sensor_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -267,33 +262,33 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj, std
   if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(ESPHOME_F("esphome_fan_failed{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} 0\n"));
   // Data itself
   stream->print(ESPHOME_F("esphome_fan_value{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} "));
   stream->print(obj->state);
   stream->print(ESPHOME_F("\n"));
   // Speed if available
   if (obj->get_traits().supports_speed()) {
     stream->print(ESPHOME_F("esphome_fan_speed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(obj->speed);
     stream->print(ESPHOME_F("\n"));
@@ -301,12 +296,12 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj, std
   // Oscillation if available
   if (obj->get_traits().supports_oscillation()) {
     stream->print(ESPHOME_F("esphome_fan_oscillation{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(obj->oscillating);
     stream->print(ESPHOME_F("\n"));
@@ -390,32 +385,32 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
   if (!std::isnan(obj->position)) {
     // We have a valid value, output this value
     stream->print(ESPHOME_F("esphome_cover_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
     stream->print(ESPHOME_F("esphome_cover_value{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(obj->position);
     stream->print(ESPHOME_F("\n"));
     if (obj->get_traits().get_supports_tilt()) {
       stream->print(ESPHOME_F("esphome_cover_tilt{id=\""));
-      this->print_relabel_id_(stream, obj);
+      stream->print(relabel_id_(obj).c_str());
       add_area_label_(stream, area);
       add_node_label_(stream, node);
       add_friendly_name_label_(stream, friendly_name);
       stream->print(ESPHOME_F("\",name=\""));
-      this->print_relabel_name_(stream, obj);
+      stream->print(relabel_name_(obj).c_str());
       stream->print(ESPHOME_F("\"} "));
       stream->print(obj->tilt);
       stream->print(ESPHOME_F("\n"));
@@ -423,12 +418,12 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
   } else {
     // Invalid state
     stream->print(ESPHOME_F("esphome_cover_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -444,21 +439,21 @@ void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch
   if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(ESPHOME_F("esphome_switch_failed{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} 0\n"));
   // Data itself
   stream->print(ESPHOME_F("esphome_switch_value{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} "));
   stream->print(obj->state);
   stream->print(ESPHOME_F("\n"));
@@ -475,21 +470,21 @@ void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj, 
   if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(ESPHOME_F("esphome_lock_failed{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} 0\n"));
   // Data itself
   stream->print(ESPHOME_F("esphome_lock_value{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} "));
   stream->print(obj->state);
   stream->print(ESPHOME_F("\n"));
@@ -509,21 +504,21 @@ void PrometheusHandler::text_sensor_row_(AsyncResponseStream *stream, text_senso
   if (obj->has_state()) {
     // We have a valid value, output this value
     stream->print(ESPHOME_F("esphome_text_sensor_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
     stream->print(ESPHOME_F("esphome_text_sensor_value{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",value=\""));
     stream->print(obj->state.c_str());
     stream->print(ESPHOME_F("\"} "));
@@ -532,12 +527,12 @@ void PrometheusHandler::text_sensor_row_(AsyncResponseStream *stream, text_senso
   } else {
     // Invalid state
     stream->print(ESPHOME_F("esphome_text_sensor_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -556,21 +551,21 @@ void PrometheusHandler::text_row_(AsyncResponseStream *stream, text::Text *obj, 
   if (obj->has_state()) {
     // We have a valid value, output this value
     stream->print(ESPHOME_F("esphome_text_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
     stream->print(ESPHOME_F("esphome_text_value{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",value=\""));
     stream->print(obj->state.c_str());
     stream->print(ESPHOME_F("\"} "));
@@ -579,12 +574,12 @@ void PrometheusHandler::text_row_(AsyncResponseStream *stream, text::Text *obj, 
   } else {
     // Invalid state
     stream->print(ESPHOME_F("esphome_text_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -603,21 +598,21 @@ void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *ob
   if (obj->has_event()) {
     // We have a valid event type, output this value
     stream->print(ESPHOME_F("esphome_event_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
     stream->print(ESPHOME_F("esphome_event_value{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",last_event_type=\""));
     // get_last_event_type() returns StringRef (null-terminated)
     stream->print(obj->get_last_event_type().c_str());
@@ -627,12 +622,12 @@ void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *ob
   } else {
     // No event triggered yet
     stream->print(ESPHOME_F("esphome_event_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -651,33 +646,33 @@ void PrometheusHandler::number_row_(AsyncResponseStream *stream, number::Number 
   if (!std::isnan(obj->state)) {
     // We have a valid value, output this value
     stream->print(ESPHOME_F("esphome_number_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
     stream->print(ESPHOME_F("esphome_number_value{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(obj->state);
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
     stream->print(ESPHOME_F("esphome_number_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -695,21 +690,21 @@ void PrometheusHandler::select_row_(AsyncResponseStream *stream, select::Select 
   if (obj->has_state()) {
     // We have a valid value, output this value
     stream->print(ESPHOME_F("esphome_select_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // Data itself
     stream->print(ESPHOME_F("esphome_select_value{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",value=\""));
     // c_str() is safe as option values are null-terminated strings from codegen
     stream->print(obj->current_option().c_str());
@@ -719,12 +714,12 @@ void PrometheusHandler::select_row_(AsyncResponseStream *stream, select::Select 
   } else {
     // Invalid state
     stream->print(ESPHOME_F("esphome_select_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -742,43 +737,43 @@ void PrometheusHandler::media_player_row_(AsyncResponseStream *stream, media_pla
   if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(ESPHOME_F("esphome_media_player_failed{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} 0\n"));
   // Data itself
   stream->print(ESPHOME_F("esphome_media_player_state_value{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\",value=\""));
   stream->print(media_player::media_player_state_to_string(obj->state));
   stream->print(ESPHOME_F("\"} "));
   stream->print(ESPHOME_F("1.0"));
   stream->print(ESPHOME_F("\n"));
   stream->print(ESPHOME_F("esphome_media_player_volume{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} "));
   stream->print(obj->volume);
   stream->print(ESPHOME_F("\n"));
   stream->print(ESPHOME_F("esphome_media_player_is_muted{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} "));
   if (obj->is_muted()) {
     stream->print(ESPHOME_F("1.0"));
@@ -823,21 +818,21 @@ void PrometheusHandler::update_entity_row_(AsyncResponseStream *stream, update::
   if (obj->has_state()) {
     // We have a valid value, output this value
     stream->print(ESPHOME_F("esphome_update_entity_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 0\n"));
     // First update state
     stream->print(ESPHOME_F("esphome_update_entity_state{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",value=\""));
     handle_update_state_(stream, obj->state);
     stream->print(ESPHOME_F("\"} "));
@@ -845,12 +840,12 @@ void PrometheusHandler::update_entity_row_(AsyncResponseStream *stream, update::
     stream->print(ESPHOME_F("\n"));
     // Next update info
     stream->print(ESPHOME_F("esphome_update_entity_info{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",current_version=\""));
     stream->print(obj->update_info.current_version.c_str());
     stream->print(ESPHOME_F("\",latest_version=\""));
@@ -863,12 +858,12 @@ void PrometheusHandler::update_entity_row_(AsyncResponseStream *stream, update::
   } else {
     // Invalid state
     stream->print(ESPHOME_F("esphome_update_entity_failed{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} 1\n"));
   }
 }
@@ -886,21 +881,21 @@ void PrometheusHandler::valve_row_(AsyncResponseStream *stream, valve::Valve *ob
   if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(ESPHOME_F("esphome_valve_failed{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} 0\n"));
   // Data itself
   stream->print(ESPHOME_F("esphome_valve_operation{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\",operation=\""));
   stream->print(reinterpret_cast<ProgmemStr>(valve::valve_operation_to_str(obj->current_operation)));
   stream->print(ESPHOME_F("\"} "));
@@ -909,12 +904,12 @@ void PrometheusHandler::valve_row_(AsyncResponseStream *stream, valve::Valve *ob
   // Now see if position is supported
   if (obj->get_traits().get_supports_position()) {
     stream->print(ESPHOME_F("esphome_valve_position{id=\""));
-    this->print_relabel_id_(stream, obj);
+    stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
     add_node_label_(stream, node);
     add_friendly_name_label_(stream, friendly_name);
     stream->print(ESPHOME_F("\",name=\""));
-    this->print_relabel_name_(stream, obj);
+    stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(obj->position);
     stream->print(ESPHOME_F("\n"));
@@ -933,12 +928,12 @@ void PrometheusHandler::climate_setting_row_(AsyncResponseStream *stream, climat
                                              std::string &node, std::string &friendly_name, std::string &setting,
                                              const LogString *setting_value) {
   stream->print(ESPHOME_F("esphome_climate_setting{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\",category=\""));
   stream->print(setting.c_str());
   stream->print(ESPHOME_F("\",setting_value=\""));
@@ -956,12 +951,12 @@ void PrometheusHandler::climate_value_row_(AsyncResponseStream *stream, climate:
                                            std::string &node, std::string &friendly_name, std::string &category,
                                            const char *climate_value) {
   stream->print(ESPHOME_F("esphome_climate_value{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\",category=\""));
   stream->print(category.c_str());
   stream->print(ESPHOME_F("\"} "));
@@ -973,12 +968,12 @@ void PrometheusHandler::climate_failed_row_(AsyncResponseStream *stream, climate
                                             std::string &node, std::string &friendly_name, std::string &category,
                                             bool is_failed_value) {
   stream->print(ESPHOME_F("esphome_climate_failed{id=\""));
-  this->print_relabel_id_(stream, obj);
+  stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\",category=\""));
   stream->print(category.c_str());
   stream->print(ESPHOME_F("\"} "));

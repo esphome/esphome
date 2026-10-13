@@ -28,7 +28,7 @@ void GPIOSwitch::dump_config() {
     for (auto *lock : this->interlock_) {
       if (lock == this)
         continue;
-      ESP_LOGCONFIG(TAG, "    %s", LOG_STR_ARG(lock->get_log_name()));
+      ESP_LOGCONFIG(TAG, "    %s", lock->get_name().c_str());
     }
   }
 #endif

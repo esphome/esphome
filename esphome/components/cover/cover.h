@@ -15,7 +15,7 @@ static constexpr float COVER_CLOSED = 0.0f;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), LOG_STR_ARG((obj)->get_log_name())); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
