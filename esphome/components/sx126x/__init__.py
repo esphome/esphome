@@ -10,6 +10,7 @@ from esphome.core import ID, TimePeriod
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
+DOMAIN = "sx126x"
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["spi"]
@@ -131,23 +132,8 @@ SHAPING = {
     "NONE": SX126xPulseShape.NO_FILTER,
 }
 
-RunImageCalAction = sx126x_ns.class_(
-    "RunImageCalAction", automation.Action, cg.Parented.template(SX126x)
-)
 SendPacketAction = sx126x_ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeTxAction = sx126x_ns.class_(
-    "SetModeTxAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeRxAction = sx126x_ns.class_(
-    "SetModeRxAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeSleepAction = sx126x_ns.class_(
-    "SetModeSleepAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeStandbyAction = sx126x_ns.class_(
-    "SetModeStandbyAction", automation.Action, cg.Parented.template(SX126x)
 )
 
 
@@ -159,6 +145,11 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
     raise cv.Invalid(
         "data must either be a string wrapped in quotes or a list of bytes"
     )
+
+
+MAX_PACKET_SIZE = 255
+# The radio sends packets of 1 to MAX_PACKET_SIZE bytes.
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
 
 
 def validate_config(config: ConfigType) -> ConfigType:
@@ -220,7 +211,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
             cv.Optional(CONF_PA_POWER, default=17): cv.int_range(min=-3, max=22),
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
-            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
+                min=0, max=MAX_PACKET_SIZE
+            ),
             cv.Optional(CONF_PREAMBLE_DETECT, default=2): cv.int_range(min=0, max=4),
             cv.Optional(CONF_PREAMBLE_SIZE, default=8): cv.int_range(min=1, max=65535),
             cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
@@ -302,40 +295,15 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "sx126x.run_image_cal",
-    RunImageCalAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_tx",
-    SetModeTxAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_rx",
-    SetModeRxAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_standby",
-    SetModeStandbyAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def no_args_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
+for _name, _call in (
+    ("sx126x.run_image_cal", "run_image_cal()"),
+    ("sx126x.set_mode_tx", "set_mode_tx()"),
+    ("sx126x.set_mode_rx", "set_mode_rx()"),
+    ("sx126x.set_mode_standby", "set_mode_standby(sx126x::STDBY_XOSC)"),
+):
+    automation.register_apply_action(
+        _name, NO_ARGS_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
     {
@@ -344,30 +312,17 @@ SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sx126x.set_mode_sleep",
-    SetModeSleepAction,
     SET_MODE_SLEEP_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_COLD, "set_mode_sleep", cg.bool_),
 )
-async def set_mode_sleep_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_COLD], args, bool)
-    cg.add(var.set_cold(template_))
-    return var
 
 
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(SX126x),
-        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+        cv.Required(CONF_DATA): cv.templatable(validate_packet_data),
     },
     key=CONF_DATA,
 )
@@ -387,15 +342,11 @@ async def send_packet_action_to_code(
 ) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+    await automation.templatable_bytes(
+        config[CONF_DATA],
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "sx126x_data",
+    )
     return var

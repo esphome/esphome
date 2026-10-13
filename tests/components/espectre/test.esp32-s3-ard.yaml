@@ -1,0 +1,5 @@
+packages:
+  espectre: !include common.yaml
+
+espectre:
+  traffic_generator_mode: external
