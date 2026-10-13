@@ -73,15 +73,14 @@ using stm32_cmd_t = struct Stm32Cmd {
 };
 
 using stm32_dev_t = struct Stm32Dev {  // NOLINT
-  const uint16_t id;
-  const char *name;
-  const uint32_t ram_start, ram_end;
-  const uint32_t fl_start, fl_end;
-  const uint16_t fl_pps;  // pages per sector
+  uint16_t id;
+  uint32_t ram_start, ram_end;
+  uint32_t fl_start, fl_end;
+  uint16_t fl_pps;        // pages per sector
   const uint32_t *fl_ps;  // page size
-  const uint32_t opt_start, opt_end;
-  const uint32_t mem_start, mem_end;
-  const uint32_t flags;
+  uint32_t opt_start, opt_end;
+  uint32_t mem_start, mem_end;
+  uint32_t flags;
 };
 
 using stm32_t = struct Stm32 {
@@ -93,7 +92,7 @@ using stm32_t = struct Stm32 {
   uint8_t option1, option2;
   uint16_t pid;
   stm32_cmd_t *cmd;
-  const stm32_dev_t *dev;
+  stm32_dev_t dev;  // RAM copy of the PROGMEM DEVICES entry
 };
 
 /*
