@@ -216,10 +216,10 @@ void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0 || this->is_failed())
     return;
-  // The panel takes 565 in its configured byte order and its own orientation; anything else goes
+  // The panel takes RGB565 in its configured byte order and its own orientation; anything else goes
   // through the base class, which converts and rotates one pixel at a time into the buffer, then
   // gets flushed.
-  if (bitness != display::COLOR_BITNESS_565 || big_endian != this->big_endian_ ||
+  if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB || big_endian != this->big_endian_ ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     this->flush_dirty_();

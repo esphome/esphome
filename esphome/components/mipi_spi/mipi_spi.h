@@ -205,11 +205,9 @@ class MipiSpi : public display::Display,
       return;
     if (w <= 0 || h <= 0)
       return;
-    if (get_pixel_mode(bitness) != BUFFERPIXEL || big_endian != IS_BIG_ENDIAN ||
+    if (get_pixel_mode(bitness) != BUFFERPIXEL || big_endian != IS_BIG_ENDIAN || order != display::COLOR_ORDER_RGB ||
         (!HAS_HARDWARE_ROTATION && this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES)) {
-      // Not the buffer's own format, or rotated in software: go per pixel through draw_pixel_at()
-      display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                       x_pad);
+      this->draw_pixels_slow_(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
       return;
     }
     this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const BUFFERTYPE *>(ptr), x_offset, y_offset,
@@ -427,6 +425,14 @@ class MipiSpi : public display::Display,
    * The ptr is a pointer to the pixel data
    * The other parameters are all in pixel units.
    */
+  // A block that is not the panel's own format, order or orientation. Only the buffered variant can
+  // convert it one pixel at a time; without a buffer there is nothing to draw into, so it is dropped.
+  virtual void draw_pixels_slow_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                                 display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                 int x_pad) {
+    esph_log_e(TAG, "Unsupported color depth, order, bit order or rotation");
+  }
+
   void write_to_display_(int x_start, int y_start, int w, int h, const BUFFERTYPE *ptr, int x_offset, int y_offset,
                          int x_pad) {
     this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
@@ -667,6 +673,13 @@ class MipiSpiBuffer
   }
 
  protected:
+  // Rotated in software or in another format: convert per pixel through draw_pixel_at()
+  void draw_pixels_slow_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                         display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                         int x_pad) override {
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                     x_pad);
+  }
   // Rotate the coordinates to match the display orientation.
 
   // Convert a color to the buffer pixel format.
