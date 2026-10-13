@@ -1,0 +1,7 @@
+sensor:
+  - platform: aranet
+    mac_address: 00:11:22:33:44:55
+    co2:
+      name: Aranet4 Carbon Dioxide
+    temperature:
+      name: Aranet4 Temperature
