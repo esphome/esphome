@@ -10,11 +10,15 @@ namespace esphome::icm20689 {
 // Register map
 static constexpr uint8_t ICM20689_REG_WHO_AM_I = 0x75;
 static constexpr uint8_t ICM20689_REG_PWR_MGMT_1 = 0x6B;
+static constexpr uint8_t ICM20689_REG_USER_CTRL = 0x6A;
 static constexpr uint8_t ICM20689_REG_GYRO_CONFIG = 0x1B;
 static constexpr uint8_t ICM20689_REG_ACCEL_CONFIG = 0x1C;
 static constexpr uint8_t ICM20689_REG_ACCEL_XOUT_H = 0x3B;
 static constexpr uint8_t ICM20689_READ_BIT = 0x80;
 static constexpr uint8_t ICM20689_WHO_AM_I_VALUE = 0x98;
+static constexpr uint8_t ICM20689_DEVICE_RESET = 0x80;  // PWR_MGMT_1 bit 7
+static constexpr uint8_t ICM20689_CLKSEL_PLL = 0x01;    // PWR_MGMT_1 CLKSEL=1, SLEEP=0
+static constexpr uint8_t ICM20689_I2C_IF_DIS = 0x10;    // USER_CTRL bit 4
 
 // Accelerometer range options: FS_SEL bits [4:3] of ACCEL_CONFIG
 enum ICM20689AccelRange : uint8_t {
