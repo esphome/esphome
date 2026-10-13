@@ -513,7 +513,7 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
   media_source::MediaSource *active_source = ps.active_source;
   bool has_internal_playlist = (active_source != nullptr) && active_source->has_internal_playlist();
 
-  // A pending HTTP request owns commands even before its PLAYING callback.
+  // Prefer the active source, then a pending source awaiting its PLAYING callback, then the last source.
   media_source::MediaSource *target_source = nullptr;
   if (active_source != nullptr) {
     target_source = active_source;

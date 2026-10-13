@@ -77,6 +77,20 @@ int main(){
   assert(ps.pending_source==nullptr && ps.stopping_source==nullptr && ps.playlist.empty());
   assert(p.commands.empty());
  }
+ // A pending source may finish stopping only when its later IDLE callback arrives.
+ {
+  SpeakerSourceMediaPlayer p;MediaSource opening,previous;
+  auto &ps=p.pipelines_[0];opening.state=MediaSourceState::PLAYING;
+  ps.pending_source=&opening;ps.last_source=&previous;
+  ps.playlist={"first","second"};p.handle_player_command_(stop,0);
+  assert(opening.stops==1 && previous.stops==0);
+  assert(ps.pending_source==&opening && ps.stopping_source==&opening);
+  assert(p.commands.empty());
+  opening.state=MediaSourceState::IDLE;
+  p.handle_media_state_changed_(0,&opening,opening.state);
+  assert(ps.pending_source==nullptr && ps.stopping_source==nullptr);
+  assert(ps.active_source==nullptr && ps.playlist.empty() && p.commands.empty());
+ }
  // Explicit stop must not queue the next item, whether IDLE arrives now or later.
  for(bool immediate:{false,true}){
   SpeakerSourceMediaPlayer p;MediaSource playing;auto &ps=p.pipelines_[0];
