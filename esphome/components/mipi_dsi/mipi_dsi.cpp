@@ -211,11 +211,14 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // The buffer holds RGB ordered pixels in the panel's configured byte order and its own orientation; anything
-  // else goes through the base class, which converts and rotates one pixel at a time into the
-  // buffer, then gets flushed.
-  if (bitness != this->color_depth_ || order != display::COLOR_ORDER_RGB ||
-      (bitness == display::COLOR_BITNESS_565 && big_endian != this->big_endian_) ||
+  // A block is copied as is only when its bytes are laid out the way draw_pixel_at() writes them:
+  // 565 in the configured byte order, 888 as r,g,b or b,g,r per the colour order (an RGB ordered
+  // little endian 888 block is b,g,r in memory). Anything else, or a software rotation, goes
+  // through the base class one pixel at a time into the buffer, then gets flushed.
+  const bool same_layout = bitness == display::COLOR_BITNESS_565
+                               ? big_endian == this->big_endian_
+                               : big_endian == (this->color_mode_ == display::COLOR_ORDER_RGB);
+  if (bitness != this->color_depth_ || order != display::COLOR_ORDER_RGB || !same_layout ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
