@@ -1,0 +1,1 @@
+DOMAIN = "duty_cycle"

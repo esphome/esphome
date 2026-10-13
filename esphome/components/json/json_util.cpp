@@ -7,7 +7,7 @@
 
 namespace esphome::json {
 
-static const char *const TAG = "json";
+ESPHOME_LOG_TAG(TAG, "json");
 
 #ifdef USE_PSRAM
 // Global allocator that outlives all JsonDocuments returned by parse_json()

@@ -5,7 +5,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.brennenstuhl";
+ESPHOME_LOG_TAG(TAG, "remote.brennenstuhl");
 
 // receiver timing ranges [µs]
 constexpr uint32_t START_PULSE_MIN = 200;

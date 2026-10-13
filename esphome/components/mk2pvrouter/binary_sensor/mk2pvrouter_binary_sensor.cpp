@@ -4,7 +4,7 @@
 
 namespace esphome::mk2pvrouter {
 
-static const char *const TAG = "mk2pvrouter_binary_sensor";
+ESPHOME_LOG_TAG(TAG, "mk2pvrouter_binary_sensor");
 
 Mk2PVRouterBinarySensor::Mk2PVRouterBinarySensor(const char *tag) : Mk2PVRouterListener(tag) {}
 

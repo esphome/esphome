@@ -12,6 +12,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet", "@ximex"]
+DOMAIN = "rtttl"
 CONF_RTTTL = "rtttl"
 # The player keeps the song length in 16 bits
 MAX_SONG_LENGTH = 65535

@@ -21,7 +21,6 @@ from esphome.const import (
     CONF_PAGES,
     CONF_ROTATION,
     CONF_TO,
-    CONF_TRIGGER_ID,
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
     SCHEDULER_DONT_RUN,
@@ -39,13 +38,12 @@ DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
 DisplayPageShowAction = display_ns.class_("DisplayPageShowAction", automation.Action)
-DisplayOnPageChangeTrigger = display_ns.class_(
-    "DisplayOnPageChangeTrigger", automation.Trigger
-)
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
 CONF_SHOW_TEST_CARD = "show_test_card"
 CONF_UNSPECIFIED = "unspecified"
+
+_request_page_change_slot = cg.slot_counter("DISPLAY_PAGE_CHANGE_CALLBACK_COUNT")
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -99,9 +97,6 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
         ),
         cv.Optional(CONF_ON_PAGE_CHANGE): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    DisplayOnPageChangeTrigger
-                ),
                 cv.Optional(CONF_FROM): cv.use_id(DisplayPage),
                 cv.Optional(CONF_TO): cv.use_id(DisplayPage),
             }
@@ -137,15 +132,18 @@ async def setup_display_core_(var, config):
             pages.append(page)
         cg.add(var.set_pages(pages))
     for conf in config.get(CONF_ON_PAGE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        if CONF_FROM in conf:
-            page = await cg.get_variable(conf[CONF_FROM])
-            cg.add(trigger.set_from(page))
-        if CONF_TO in conf:
-            page = await cg.get_variable(conf[CONF_TO])
-            cg.add(trigger.set_to(page))
-        await automation.build_automation(
-            trigger, [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")], conf
+        _request_page_change_slot(str(var))
+        checks = []
+        for key, name in ((CONF_FROM, "from"), (CONF_TO, "to")):
+            if (page_id := conf.get(key)) is not None:
+                page = await cg.get_variable(page_id)
+                checks.append(f"{name} == ::{page}")
+        await automation.build_callback_automation(
+            var,
+            "add_on_page_change_callback",
+            [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")],
+            conf,
+            when=" && ".join(checks) or None,
         )
     if config.get(CONF_SHOW_TEST_CARD):
         cg.add(var.show_test_card())
