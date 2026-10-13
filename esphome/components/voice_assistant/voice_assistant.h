@@ -319,6 +319,7 @@ class VoiceAssistant final : public Component {
 
   float volume_multiplier_;
   uint32_t conversation_timeout_;
+  // Keep in sync with TTS_PLAYBACK_START_TIMEOUT_DEFAULT in __init__.py.
   uint32_t tts_playback_start_timeout_{2000};
 
   Configuration config_{};
