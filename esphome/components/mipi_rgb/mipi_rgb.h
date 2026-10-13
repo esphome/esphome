@@ -4,6 +4,7 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
 #include "esphome/components/display/display.h"
+#include "esphome/components/display/display_color_utils.h"
 #include <esp_lcd_panel_rgb.h>
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
@@ -39,6 +40,7 @@ class MipiRgb : public display::Display {
 
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
+  void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
   void set_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
 
   void add_data_pin(InternalGPIOPin *data_pin, size_t index) { this->data_pins_[index] = data_pin; };
@@ -71,6 +73,11 @@ class MipiRgb : public display::Display {
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   bool check_buffer_();
+  /// Pack a colour as the 565 value the panel's byte order expects in memory.
+  uint16_t to_panel_565_(Color color) const {
+    const uint16_t rgb565 = display::ColorUtil::color_to_565(color);
+    return this->big_endian_ ? convert_big_endian(rgb565) : rgb565;
+  }
   /// Send the region touched since the last flush to the panel.
   void flush_dirty_();
   void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
@@ -93,6 +100,7 @@ class MipiRgb : public display::Display {
   const char *model_{"Unknown"};
   bool invert_colors_{};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
+  bool big_endian_{true};
   size_t width_;
   size_t height_;
   uint16_t *buffer_{nullptr};

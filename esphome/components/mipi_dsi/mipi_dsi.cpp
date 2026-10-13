@@ -189,6 +189,10 @@ void MipiDsi::update() {
   } else {
     this->stop_poller();
   }
+  this->flush_dirty_();
+}
+
+void MipiDsi::flush_dirty_() {
   if (this->buffer_ == nullptr || this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_)
     return;
   ESP_LOGV(TAG, "x_low %d, y_low %d, x_high %d, y_high %d", this->x_low_, this->y_low_, this->x_high_, this->y_high_);
@@ -207,12 +211,14 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // The buffer holds little endian pixels in the panel's own orientation; anything else goes through
-  // the base class, which converts and rotates one pixel at a time.
-  if (bitness != this->color_depth_ || (bitness == display::COLOR_BITNESS_565 && big_endian) ||
+  // The buffer holds pixels in the panel's configured byte order and its own orientation; anything
+  // else goes through the base class, which converts and rotates one pixel at a time into the
+  // buffer, then gets flushed.
+  if (bitness != this->color_depth_ || (bitness == display::COLOR_BITNESS_565 && big_endian != this->big_endian_) ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
+    this->flush_dirty_();
     return;
   }
   this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
@@ -289,9 +295,7 @@ void MipiDsi::draw_pixel_at(int x, int y, Color color) {
   switch (this->color_depth_) {
     case display::COLOR_BITNESS_565: {
       auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
-      uint8_t hi_byte = static_cast<uint8_t>(color.r & 0xF8) | (color.g >> 5);
-      uint8_t lo_byte = static_cast<uint8_t>((color.g & 0x1C) << 3) | (color.b >> 3);
-      uint16_t new_color = lo_byte | (hi_byte << 8);  // little endian
+      const uint16_t new_color = this->to_panel_565_(color);
       if (ptr_16[pos] == new_color)
         return;
       ptr_16[pos] = new_color;
@@ -334,9 +338,7 @@ void MipiDsi::fill(Color color) {
   switch (this->color_depth_) {
     case display::COLOR_BITNESS_565: {
       auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
-      uint8_t hi_byte = static_cast<uint8_t>(color.r & 0xF8) | (color.g >> 5);
-      uint8_t lo_byte = static_cast<uint8_t>((color.g & 0x1C) << 3) | (color.b >> 3);
-      uint16_t new_color = lo_byte | (hi_byte << 8);  // little endian
+      const uint16_t new_color = this->to_panel_565_(color);
       std::fill_n(ptr_16, this->width_ * this->height_, new_color);
       break;
     }
