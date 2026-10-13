@@ -3,6 +3,7 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_MANUFACTURER
 from esphome.components.esp32 import DOMAIN as ESP32_DOMAIN, only_on_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32C5,
@@ -14,14 +15,19 @@ from esphome.components.esp32.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ESPHOME,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MODEL,
     CONF_NAME,
     CONF_ON_START,
     CONF_POLLING_INTERVAL,
+    CONF_PROJECT,
+    CONF_VERSION,
+    __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .const import (
@@ -36,6 +42,8 @@ from .const import (
     CONF_USE_DEVICE_TYPE,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
+    KEY_ZIGBEE_AREA_STR,
+    KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     REPORT,
     ZigbeeComponent,
@@ -70,9 +78,9 @@ CONFLICTS_WITH = ["openthread"]
 
 
 def _check_report_deprecation(value: str) -> str:
-    if str(value).lower() in ("coordinator", "enable"):
+    if str(value).lower() == "coordinator":
         _LOGGER.warning(
-            "Report options 'coordinator' and 'enable' are deprecated and will be removed in a future release. Use 'default' instead."
+            "Report option 'coordinator' is deprecated and will be removed in a future release. Use 'default' instead."
         )
     return value
 
@@ -143,12 +151,33 @@ def _validate_router_sleepy(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_ascii(value):
+    """Validate that a string contains only ascii characters."""
+    if not isinstance(value, str):
+        raise cv.Invalid("expected string")
+    if not value.isascii():
+        raise cv.Invalid("Only ASCII characters are allowed")
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ZigbeeComponent),
             cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
-                cv.string, cv.Length(max=31)
+                cv.string,
+                cv.Length(max=31),
+                _validate_ascii,
+            ),
+            cv.Optional(
+                CONF_MANUFACTURER, default="esphome", visibility=cv.Visibility.YAML_ONLY
+            ): cv.All(
+                cv.string,
+                cv.Length(max=31),
+                _validate_ascii,
+            ),
+            cv.Optional(CONF_VERSION, default=0): cv.All(
+                cv.int_range(min=0x00, max=0xFF),
             ),
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): automation.validate_automation({}),
@@ -207,7 +236,7 @@ CONFIG_SCHEMA = cv.All(
 def validate_number_of_ep(config: ConfigType) -> ConfigType:
     if not CORE.is_nrf52:
         return config
-    if KEY_ZIGBEE not in CORE.data:
+    if KEY_EP_NUMBER not in CORE.data.get(KEY_ZIGBEE, {}):
         raise cv.Invalid("At least one zigbee device need to be included")
     count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
     if count == 1:
@@ -220,7 +249,38 @@ def validate_number_of_ep(config: ConfigType) -> ConfigType:
     return config
 
 
+def final_validate_strings(config: ConfigType) -> ConfigType:
+    version_str = ESPHOME_VERSION
+    if (
+        proj_version := fv.full_config.get()
+        .get(CONF_ESPHOME, {})
+        .get(CONF_PROJECT, {})
+        .get(CONF_VERSION)
+    ):
+        version_str = proj_version.encode("ascii", "ignore")[:15].decode()
+        if version_str != proj_version:
+            _LOGGER.warning(
+                "esphome.project.version %s was changed to %s for use in Zigbee attributes. Use only a maximum of 15 ASCII characters",
+                proj_version,
+                version_str,
+            )
+    area_str = ""
+    if CORE.area:
+        area_str = CORE.area.encode("ascii", "ignore")[:15].decode()
+        if area_str != CORE.area:
+            _LOGGER.warning(
+                "esphome.area %s was changed to %s for use in Zigbee attributes. Use only a maximum of 15 ASCII characters",
+                CORE.area,
+                area_str,
+            )
+    data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
+    data[KEY_ZIGBEE_VERSION_STR] = version_str
+    data[KEY_ZIGBEE_AREA_STR] = area_str
+    return config
+
+
 FINAL_VALIDATE_SCHEMA = cv.All(
+    final_validate_strings,
     validate_number_of_ep,
     final_validate_esp32,
 )

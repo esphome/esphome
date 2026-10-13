@@ -1,0 +1,22 @@
+# LVGL only uses the PPA to draw on the ESP32-P4 with ESP-IDF 6.0 or later
+esp32:
+  framework:
+    version: 6.0.1
+
+display:
+  - platform: mipi_dsi
+    model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C
+
+lvgl:
+  widgets:
+    - obj:
+        bg_color: 0x2040C0
+        widgets:
+          - label:
+              text: PPA
+
+psram:
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
