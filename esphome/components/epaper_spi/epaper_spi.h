@@ -199,11 +199,11 @@ class EPaperBase : public Display,
 #endif
 
   // properties with specific initialisers go last
-  EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   // Longer than any panel takes to refresh; past it the busy pin is assumed stuck
-  uint32_t busy_timeout_{120000};
+  uint16_t busy_timeout_seconds_{120};
   uint8_t full_update_every_{1};
+  EPaperState state_{EPaperState::IDLE};
 };
 
 }  // namespace esphome::epaper_spi

@@ -154,7 +154,7 @@ void EPaperBase::loop() {
       ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
 #endif
     } else {
-      if (now - this->waiting_for_idle_start_ > this->busy_timeout_) {
+      if (now - this->waiting_for_idle_start_ > this->busy_timeout_seconds_ * 1000u) {
         this->abandon_update_();
         return;
       }
@@ -172,11 +172,13 @@ void EPaperBase::loop() {
 
 // The busy pin never cleared: give up on this update so later ones are not refused, and make the next one full
 void EPaperBase::abandon_update_() {
-  ESP_LOGE(TAG, "Display stayed busy for %" PRIu32 " s in state %s; check the busy pin", this->busy_timeout_ / 1000,
+  ESP_LOGE(TAG, "Display stayed busy for %u s in state %s; check the busy pin", (unsigned) this->busy_timeout_seconds_,
            this->epaper_state_to_string_());
-  this->status_set_warning();
+  this->status_set_warning(LOG_STR("Busy pin timeout"));
   if (this->state_ == EPaperState::TRANSFER_DATA)
     this->abort_transfer();
+  // Leave the panel powered down rather than with its high-voltage drivers enabled
+  this->power_off();
   this->full_update_requested_ = true;
   this->current_data_index_ = 0;
   this->set_state_(EPaperState::IDLE);

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include "../common.h"
 #include "esphome/components/epaper_spi/epaper_spi_ssd1683.h"
 #include "esphome/components/epaper_spi/epaper_spi_t133a01.h"
@@ -31,7 +33,7 @@ class TestableSSD1683 : public EPaperSSD1683 {
     this->set_full_update_every(5);
     this->set_auto_clear(false);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
-    this->busy_timeout_ = 50;
+    this->busy_timeout_seconds_ = 0;  // abandon as soon as the stuck pin is seen, so the test does not wait
   }
 
   void draw_whole_panel() {
@@ -91,7 +93,7 @@ class TestableT133A01 : public EPaperT133A01 {
     this->set_cs_pins(&this->cs, &this->cs1);
     this->set_busy_pin(&this->busy);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
-    this->busy_timeout_ = 50;
+    this->busy_timeout_seconds_ = 0;  // abandon as soon as the stuck pin is seen, so the test does not wait
   }
 
   void start_transfer() { this->set_state_(EPaperState::TRANSFER_DATA); }
@@ -120,6 +122,24 @@ TEST(EPaperBusyTimeout, AbandonedT133A01TransferReleasesTheBus) {
   EXPECT_EQ(delegate.begin_count, delegate.end_count) << "SPI transaction left open";
   EXPECT_TRUE(display.cs.level) << "CS left asserted";
   EXPECT_TRUE(display.cs1.level) << "CS1 left asserted";
+}
+
+/// Abandoning an update powers the panel off, so it is not left with its high-voltage drivers enabled.
+TEST(EPaperBusyTimeout, AbandonedUpdatePowersThePanelOff) {
+  TestableT133A01 display;
+  RecordingDelegate bus(&display.dc, MAX_TRANSFER_TIME + 5);  // burn time so the transfer yields mid-stream
+  display.install(&bus);
+
+  display.start_transfer();
+  display.loop();
+  ASSERT_EQ(display.state(), EPaperState::TRANSFER_DATA);
+
+  display.busy.busy = true;
+  loop_until_idle(display);
+  ASSERT_EQ(display.state(), EPaperState::IDLE) << "the update was not abandoned";
+
+  EXPECT_NE(std::find(bus.commands.begin(), bus.commands.end(), 0x02), bus.commands.end())
+      << "the panel was not powered off (POF) when the update was abandoned";
 }
 
 }  // namespace esphome::epaper_spi::testing
