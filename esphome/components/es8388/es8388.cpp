@@ -111,24 +111,36 @@ void ES8388::setup() {
   // Power on ADC, Enable LIN&RIN, Power off MICBIAS, set int1lp to low power mode
   ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCPOWER, 0x09));
 
-#ifdef USE_SELECT
+#ifdef USE_ES8388_SELECT
   if (this->dac_output_select_ != nullptr) {
-    auto dac_power = this->get_dac_power();
-    if (dac_power.has_value()) {
-      if (this->dac_output_select_->has_index(dac_power.value())) {
-        this->dac_output_select_->publish_state(dac_power.value());
-      } else {
-        ESP_LOGW(TAG, "Unknown DAC output power value: %d", dac_power.value());
+    if (this->dac_output_initial_.has_value()) {
+      const DacOutputLine line = this->dac_output_initial_.value();
+      ES8388_ERROR_FAILED(this->set_dac_output(line));
+      this->dac_output_select_->publish_state(static_cast<size_t>(line));
+    } else {
+      auto dac_power = this->get_dac_power();
+      if (dac_power.has_value()) {
+        if (this->dac_output_select_->has_index(dac_power.value())) {
+          this->dac_output_select_->publish_state(dac_power.value());
+        } else {
+          ESP_LOGW(TAG, "Unknown DAC output power value: %d", dac_power.value());
+        }
       }
     }
   }
   if (this->adc_input_mic_select_ != nullptr) {
-    auto mic_input = this->get_mic_input();
-    if (mic_input.has_value()) {
-      if (this->adc_input_mic_select_->has_index(mic_input.value())) {
-        this->adc_input_mic_select_->publish_state(mic_input.value());
-      } else {
-        ESP_LOGW(TAG, "Unknown ADC input mic value: %d", mic_input.value());
+    if (this->adc_input_mic_initial_.has_value()) {
+      const AdcInputMicLine line = this->adc_input_mic_initial_.value();
+      ES8388_ERROR_FAILED(this->set_adc_input_mic(line));
+      this->adc_input_mic_select_->publish_state(static_cast<size_t>(line));
+    } else {
+      auto mic_input = this->get_mic_input();
+      if (mic_input.has_value()) {
+        if (this->adc_input_mic_select_->has_index(mic_input.value())) {
+          this->adc_input_mic_select_->publish_state(mic_input.value());
+        } else {
+          ESP_LOGW(TAG, "Unknown ADC input mic value: %d", mic_input.value());
+        }
       }
     }
   }
@@ -138,7 +150,7 @@ void ES8388::setup() {
 void ES8388::dump_config() {
   ESP_LOGCONFIG(TAG, "ES8388 Audio Codec:");
   LOG_I2C_DEVICE(this);
-#ifdef USE_SELECT
+#ifdef USE_ES8388_SELECT
   LOG_SELECT("  ", "DacOutputSelect", this->dac_output_select_);
   LOG_SELECT("  ", "ADCInputMicSelect", this->adc_input_mic_select_);
 #endif
