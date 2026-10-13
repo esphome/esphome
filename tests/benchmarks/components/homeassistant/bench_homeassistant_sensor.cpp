@@ -84,16 +84,17 @@ static void HomeassistantSensor_StateResponse(benchmark::State &state) {
 }
 BENCHMARK(HomeassistantSensor_StateResponse);
 
-// --- One imported sensor, integer state such as a percentage or a count ---
-// Exercises: the same path with no fractional digits to parse.
+// --- The same sensor with integer states such as a percentage or a count ---
+// Exercises: the same path with no fractional digits to parse. Only the state
+// differs from the decimal case, so the gap between the two is the parse.
 
 static void HomeassistantSensor_StateResponse_Integer(benchmark::State &state) {
   ScopedApiServer server;
   auto conn = create_connection(server.get());
-  const Messages msgs = make_messages("sensor.battery", nullptr, INTEGER_STATES);
+  const Messages msgs = make_messages("sensor.power", nullptr, INTEGER_STATES);
 
   HomeassistantSensor sensor;
-  sensor.set_entity_id("sensor.battery");
+  sensor.set_entity_id("sensor.power");
   sensor.setup();
 
   for (auto _ : state) {
