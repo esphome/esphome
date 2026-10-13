@@ -165,6 +165,8 @@ void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture
 
   const uint8_t *input = capture.data.data();
   uint32_t input_frames = input_stream_info.bytes_to_frames(capture.data.size());
+  // Input frames of this chunk the resampler has taken in so far
+  int64_t frames_consumed = 0;
   while (input_frames > 0) {
     // Stays within the reserved capacity, so this never reallocates
     this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(max_output_frames));
@@ -176,10 +178,19 @@ void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture
 
     input += results.frames_used * input_bytes_per_frame;
     input_frames -= results.frames_used;
+    frames_consumed += results.frames_used;
 
     if (results.frames_generated > 0) {
+      int64_t output_time_us = 0;
+      if (capture.capture_time_us != 0) {
+        // The resampler holds back half its taps of input, so its next output lines up with the input frame that far
+        // behind the last one taken in. The block's first output is one block duration before that.
+        output_time_us = capture.capture_time_us +
+                         (frames_consumed - this->taps_ / 2) * 1000000 / input_stream_info.get_sample_rate() -
+                         static_cast<int64_t>(results.frames_generated) * 1000000 / this->target_sample_rate_;
+      }
       this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(results.frames_generated));
-      this->publish_audio_(this->output_buffer_, this->audio_stream_info_);
+      this->publish_audio_(this->output_buffer_, this->audio_stream_info_, output_time_us);
     } else if (results.frames_used == 0) {
       break;  // No progress; drop the rest of the chunk instead of spinning
     }
