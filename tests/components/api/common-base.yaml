@@ -181,7 +181,7 @@ api:
               room: !lambda 'return room;'
               ratio: !lambda 'return level / 100.0f;'
         - homeassistant.tag_scanned: !lambda 'return room;'
-    # Test ContinuationAction (IfAction with then/else branches)
+    # Test IfAction with then/else branches
     - action: test_if_action
       variables:
         condition: bool
@@ -199,7 +199,7 @@ api:
                   format: "Condition false, value: %ld"
                   args: ['(long) value']
         - logger.log: "After if/else"
-    # Test nested IfAction (multiple ContinuationAction instances)
+    # Test nested IfAction
     - action: test_nested_if
       variables:
         outer: bool
@@ -219,7 +219,7 @@ api:
             else:
               - logger.log: "Outer false"
         - logger.log: "After nested if"
-    # Test WhileLoopContinuation (WhileAction)
+    # Test WhileAction
     - action: test_while_action
       variables:
         max_count: int
@@ -234,7 +234,7 @@ api:
                   args: ['id(api_continuation_test_counter)']
               - lambda: 'id(api_continuation_test_counter)++;'
         - logger.log: "After while loop"
-    # Test RepeatLoopContinuation (RepeatAction)
+    # Test RepeatAction
     - action: test_repeat_action
       variables:
         count: int
