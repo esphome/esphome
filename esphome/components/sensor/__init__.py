@@ -113,7 +113,7 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     SubEntities,
@@ -421,16 +421,30 @@ async def multiply_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, template_)
 
 
+TemplatableFloat = cg.esphome_ns.class_("TemplatableFn").template(cg.float_)
+
+
+async def _value_list_table(values: list[Any]) -> MockObj:
+    """PROGMEM value table, ended by an empty entry so filters store no count."""
+    fns = [await cg.templatable(x, [], cg.float_) for x in values]
+    # Identical lambdas (e.g. a YAML anchor) may keep static state, so only constants share.
+    return cg.shared_progmem_array(
+        "sensor_value_list",
+        TemplatableFloat,
+        [*fns, TemplatableFloat()],
+        share=not any(isinstance(v, Lambda) for v in values),
+    )
+
+
 @FILTER_REGISTRY.register(
     "filter_out",
     FilterOutValueFilter,
     cv.Any(cv.templatable(cv.float_), [cv.templatable(cv.float_)]),
 )
-async def filter_out_filter_to_code(config, filter_id):
+async def filter_out_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     if not isinstance(config, list):
         config = [config]
-    template_ = [await cg.templatable(x, [], cg.float_) for x in config]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(template_)), template_)
+    return cg.new_Pvariable(filter_id, await _value_list_table(config))
 
 
 QUANTILE_SCHEMA = cv.All(
@@ -704,7 +718,9 @@ def _is_nan_only(values: Any) -> bool:
     ThrottleWithPriorityFilter,
     THROTTLE_WITH_PRIORITY_SCHEMA,
 )
-async def throttle_with_priority_filter_to_code(config, filter_id):
+async def throttle_with_priority_filter_to_code(
+    config: ConfigType, filter_id: ID
+) -> MockObj:
     values = config[CONF_VALUE]
     if not isinstance(values, list):
         values = [values]
@@ -716,10 +732,8 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
         filter_id = filter_id.copy()
         filter_id.type = ThrottleWithPriorityNanFilter
         return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
-    template_ = [await cg.templatable(x, [], cg.float_) for x in values]
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
-    )
+    table = await _value_list_table(values)
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table)
 
 
 HEARTBEAT_SCHEMA = cv.Schema(

@@ -172,52 +172,52 @@ void PZEM6L24::publish_(const uint8_t *data) {
   // every sensor from flash.
   static constexpr SensorEntry SENSORS[] PROGMEM = {
       // Voltages (×0.1 V)
-      {&PZEM6L24::voltage_a_, 0, REG_U16, SCALE_DECI},
-      {&PZEM6L24::voltage_b_, 2, REG_U16, SCALE_DECI},
-      {&PZEM6L24::voltage_c_, 4, REG_U16, SCALE_DECI},
+      {&PZEM6L24::voltage_a_sensor_, 0, REG_U16, SCALE_DECI},
+      {&PZEM6L24::voltage_b_sensor_, 2, REG_U16, SCALE_DECI},
+      {&PZEM6L24::voltage_c_sensor_, 4, REG_U16, SCALE_DECI},
       // Currents (×0.01 A)
-      {&PZEM6L24::current_a_, 6, REG_U16, SCALE_CENTI},
-      {&PZEM6L24::current_b_, 8, REG_U16, SCALE_CENTI},
-      {&PZEM6L24::current_c_, 10, REG_U16, SCALE_CENTI},
+      {&PZEM6L24::current_a_sensor_, 6, REG_U16, SCALE_CENTI},
+      {&PZEM6L24::current_b_sensor_, 8, REG_U16, SCALE_CENTI},
+      {&PZEM6L24::current_c_sensor_, 10, REG_U16, SCALE_CENTI},
       // Frequency (×0.01 Hz)
-      {&PZEM6L24::frequency_, 12, REG_U16, SCALE_CENTI},
+      {&PZEM6L24::frequency_sensor_, 12, REG_U16, SCALE_CENTI},
       // Active powers (×0.1 W, signed)
-      {&PZEM6L24::active_power_a_, 28, REG_I32, SCALE_DECI},
-      {&PZEM6L24::active_power_b_, 32, REG_I32, SCALE_DECI},
-      {&PZEM6L24::active_power_c_, 36, REG_I32, SCALE_DECI},
-      {&PZEM6L24::total_active_power_, 64, REG_I32, SCALE_DECI},
+      {&PZEM6L24::active_power_a_sensor_, 28, REG_I32, SCALE_DECI},
+      {&PZEM6L24::active_power_b_sensor_, 32, REG_I32, SCALE_DECI},
+      {&PZEM6L24::active_power_c_sensor_, 36, REG_I32, SCALE_DECI},
+      {&PZEM6L24::total_active_power_sensor_, 64, REG_I32, SCALE_DECI},
       // Reactive powers (×0.1 var, signed)
-      {&PZEM6L24::reactive_power_a_, 40, REG_I32, SCALE_DECI},
-      {&PZEM6L24::reactive_power_b_, 44, REG_I32, SCALE_DECI},
-      {&PZEM6L24::reactive_power_c_, 48, REG_I32, SCALE_DECI},
-      {&PZEM6L24::total_reactive_power_, 68, REG_I32, SCALE_DECI},
+      {&PZEM6L24::reactive_power_a_sensor_, 40, REG_I32, SCALE_DECI},
+      {&PZEM6L24::reactive_power_b_sensor_, 44, REG_I32, SCALE_DECI},
+      {&PZEM6L24::reactive_power_c_sensor_, 48, REG_I32, SCALE_DECI},
+      {&PZEM6L24::total_reactive_power_sensor_, 68, REG_I32, SCALE_DECI},
       // Apparent powers (×0.1 VA, signed)
-      {&PZEM6L24::apparent_power_a_, 52, REG_I32, SCALE_DECI},
-      {&PZEM6L24::apparent_power_b_, 56, REG_I32, SCALE_DECI},
-      {&PZEM6L24::apparent_power_c_, 60, REG_I32, SCALE_DECI},
-      {&PZEM6L24::total_apparent_power_, 72, REG_I32, SCALE_DECI},
+      {&PZEM6L24::apparent_power_a_sensor_, 52, REG_I32, SCALE_DECI},
+      {&PZEM6L24::apparent_power_b_sensor_, 56, REG_I32, SCALE_DECI},
+      {&PZEM6L24::apparent_power_c_sensor_, 60, REG_I32, SCALE_DECI},
+      {&PZEM6L24::total_apparent_power_sensor_, 72, REG_I32, SCALE_DECI},
       // Power factors (×0.01), packed two per register:
       //   register 0x0026 (bytes 76/77): lo-byte = phase B, hi-byte = phase A
       //   register 0x0027 (bytes 78/79): lo-byte = combined, hi-byte = phase C
-      {&PZEM6L24::power_factor_a_, 77, REG_U8, SCALE_CENTI},
-      {&PZEM6L24::power_factor_b_, 76, REG_U8, SCALE_CENTI},
-      {&PZEM6L24::power_factor_c_, 79, REG_U8, SCALE_CENTI},
-      {&PZEM6L24::total_power_factor_, 78, REG_U8, SCALE_CENTI},
+      {&PZEM6L24::power_factor_a_sensor_, 77, REG_U8, SCALE_CENTI},
+      {&PZEM6L24::power_factor_b_sensor_, 76, REG_U8, SCALE_CENTI},
+      {&PZEM6L24::power_factor_c_sensor_, 79, REG_U8, SCALE_CENTI},
+      {&PZEM6L24::total_power_factor_sensor_, 78, REG_U8, SCALE_CENTI},
       // Active energies (×0.1 kWh, unsigned)
-      {&PZEM6L24::active_energy_a_, 80, REG_U32, SCALE_DECI},
-      {&PZEM6L24::active_energy_b_, 84, REG_U32, SCALE_DECI},
-      {&PZEM6L24::active_energy_c_, 88, REG_U32, SCALE_DECI},
-      {&PZEM6L24::total_active_energy_, 116, REG_U32, SCALE_DECI},
+      {&PZEM6L24::active_energy_a_sensor_, 80, REG_U32, SCALE_DECI},
+      {&PZEM6L24::active_energy_b_sensor_, 84, REG_U32, SCALE_DECI},
+      {&PZEM6L24::active_energy_c_sensor_, 88, REG_U32, SCALE_DECI},
+      {&PZEM6L24::total_active_energy_sensor_, 116, REG_U32, SCALE_DECI},
       // Reactive energies (×0.1 kvarh, unsigned)
-      {&PZEM6L24::reactive_energy_a_, 92, REG_U32, SCALE_DECI},
-      {&PZEM6L24::reactive_energy_b_, 96, REG_U32, SCALE_DECI},
-      {&PZEM6L24::reactive_energy_c_, 100, REG_U32, SCALE_DECI},
-      {&PZEM6L24::total_reactive_energy_, 120, REG_U32, SCALE_DECI},
+      {&PZEM6L24::reactive_energy_a_sensor_, 92, REG_U32, SCALE_DECI},
+      {&PZEM6L24::reactive_energy_b_sensor_, 96, REG_U32, SCALE_DECI},
+      {&PZEM6L24::reactive_energy_c_sensor_, 100, REG_U32, SCALE_DECI},
+      {&PZEM6L24::total_reactive_energy_sensor_, 120, REG_U32, SCALE_DECI},
       // Apparent energies (×0.1 kVAh, unsigned)
-      {&PZEM6L24::apparent_energy_a_, 104, REG_U32, SCALE_DECI},
-      {&PZEM6L24::apparent_energy_b_, 108, REG_U32, SCALE_DECI},
-      {&PZEM6L24::apparent_energy_c_, 112, REG_U32, SCALE_DECI},
-      {&PZEM6L24::total_apparent_energy_, 124, REG_U32, SCALE_DECI},
+      {&PZEM6L24::apparent_energy_a_sensor_, 104, REG_U32, SCALE_DECI},
+      {&PZEM6L24::apparent_energy_b_sensor_, 108, REG_U32, SCALE_DECI},
+      {&PZEM6L24::apparent_energy_c_sensor_, 112, REG_U32, SCALE_DECI},
+      {&PZEM6L24::total_apparent_energy_sensor_, 124, REG_U32, SCALE_DECI},
   };
 
   for (const SensorEntry &flash_entry : SENSORS) {
@@ -268,41 +268,41 @@ void PZEM6L24::dump_config() {
                 "  Address: 0x%02X",
                 this->address_);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Voltage A", this->voltage_a_);
-  LOG_SENSOR("  ", "Voltage B", this->voltage_b_);
-  LOG_SENSOR("  ", "Voltage C", this->voltage_c_);
-  LOG_SENSOR("  ", "Current A", this->current_a_);
-  LOG_SENSOR("  ", "Current B", this->current_b_);
-  LOG_SENSOR("  ", "Current C", this->current_c_);
-  LOG_SENSOR("  ", "Active Power A", this->active_power_a_);
-  LOG_SENSOR("  ", "Active Power B", this->active_power_b_);
-  LOG_SENSOR("  ", "Active Power C", this->active_power_c_);
-  LOG_SENSOR("  ", "Reactive Power A", this->reactive_power_a_);
-  LOG_SENSOR("  ", "Reactive Power B", this->reactive_power_b_);
-  LOG_SENSOR("  ", "Reactive Power C", this->reactive_power_c_);
-  LOG_SENSOR("  ", "Apparent Power A", this->apparent_power_a_);
-  LOG_SENSOR("  ", "Apparent Power B", this->apparent_power_b_);
-  LOG_SENSOR("  ", "Apparent Power C", this->apparent_power_c_);
-  LOG_SENSOR("  ", "Power Factor A", this->power_factor_a_);
-  LOG_SENSOR("  ", "Power Factor B", this->power_factor_b_);
-  LOG_SENSOR("  ", "Power Factor C", this->power_factor_c_);
-  LOG_SENSOR("  ", "Active Energy A", this->active_energy_a_);
-  LOG_SENSOR("  ", "Active Energy B", this->active_energy_b_);
-  LOG_SENSOR("  ", "Active Energy C", this->active_energy_c_);
-  LOG_SENSOR("  ", "Reactive Energy A", this->reactive_energy_a_);
-  LOG_SENSOR("  ", "Reactive Energy B", this->reactive_energy_b_);
-  LOG_SENSOR("  ", "Reactive Energy C", this->reactive_energy_c_);
-  LOG_SENSOR("  ", "Apparent Energy A", this->apparent_energy_a_);
-  LOG_SENSOR("  ", "Apparent Energy B", this->apparent_energy_b_);
-  LOG_SENSOR("  ", "Apparent Energy C", this->apparent_energy_c_);
-  LOG_SENSOR("  ", "Frequency", this->frequency_);
-  LOG_SENSOR("  ", "Total Active Power", this->total_active_power_);
-  LOG_SENSOR("  ", "Total Reactive Power", this->total_reactive_power_);
-  LOG_SENSOR("  ", "Total Apparent Power", this->total_apparent_power_);
-  LOG_SENSOR("  ", "Total Power Factor", this->total_power_factor_);
-  LOG_SENSOR("  ", "Total Active Energy", this->total_active_energy_);
-  LOG_SENSOR("  ", "Total Reactive Energy", this->total_reactive_energy_);
-  LOG_SENSOR("  ", "Total Apparent Energy", this->total_apparent_energy_);
+  LOG_SENSOR("  ", "Voltage A", this->voltage_a_sensor_);
+  LOG_SENSOR("  ", "Voltage B", this->voltage_b_sensor_);
+  LOG_SENSOR("  ", "Voltage C", this->voltage_c_sensor_);
+  LOG_SENSOR("  ", "Current A", this->current_a_sensor_);
+  LOG_SENSOR("  ", "Current B", this->current_b_sensor_);
+  LOG_SENSOR("  ", "Current C", this->current_c_sensor_);
+  LOG_SENSOR("  ", "Active Power A", this->active_power_a_sensor_);
+  LOG_SENSOR("  ", "Active Power B", this->active_power_b_sensor_);
+  LOG_SENSOR("  ", "Active Power C", this->active_power_c_sensor_);
+  LOG_SENSOR("  ", "Reactive Power A", this->reactive_power_a_sensor_);
+  LOG_SENSOR("  ", "Reactive Power B", this->reactive_power_b_sensor_);
+  LOG_SENSOR("  ", "Reactive Power C", this->reactive_power_c_sensor_);
+  LOG_SENSOR("  ", "Apparent Power A", this->apparent_power_a_sensor_);
+  LOG_SENSOR("  ", "Apparent Power B", this->apparent_power_b_sensor_);
+  LOG_SENSOR("  ", "Apparent Power C", this->apparent_power_c_sensor_);
+  LOG_SENSOR("  ", "Power Factor A", this->power_factor_a_sensor_);
+  LOG_SENSOR("  ", "Power Factor B", this->power_factor_b_sensor_);
+  LOG_SENSOR("  ", "Power Factor C", this->power_factor_c_sensor_);
+  LOG_SENSOR("  ", "Active Energy A", this->active_energy_a_sensor_);
+  LOG_SENSOR("  ", "Active Energy B", this->active_energy_b_sensor_);
+  LOG_SENSOR("  ", "Active Energy C", this->active_energy_c_sensor_);
+  LOG_SENSOR("  ", "Reactive Energy A", this->reactive_energy_a_sensor_);
+  LOG_SENSOR("  ", "Reactive Energy B", this->reactive_energy_b_sensor_);
+  LOG_SENSOR("  ", "Reactive Energy C", this->reactive_energy_c_sensor_);
+  LOG_SENSOR("  ", "Apparent Energy A", this->apparent_energy_a_sensor_);
+  LOG_SENSOR("  ", "Apparent Energy B", this->apparent_energy_b_sensor_);
+  LOG_SENSOR("  ", "Apparent Energy C", this->apparent_energy_c_sensor_);
+  LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
+  LOG_SENSOR("  ", "Total Active Power", this->total_active_power_sensor_);
+  LOG_SENSOR("  ", "Total Reactive Power", this->total_reactive_power_sensor_);
+  LOG_SENSOR("  ", "Total Apparent Power", this->total_apparent_power_sensor_);
+  LOG_SENSOR("  ", "Total Power Factor", this->total_power_factor_sensor_);
+  LOG_SENSOR("  ", "Total Active Energy", this->total_active_energy_sensor_);
+  LOG_SENSOR("  ", "Total Reactive Energy", this->total_reactive_energy_sensor_);
+  LOG_SENSOR("  ", "Total Apparent Energy", this->total_apparent_energy_sensor_);
 }
 
 // Blank after MAX_CONSECUTIVE_READ_FAILURES; stays blanked until a poll succeeds.

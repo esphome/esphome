@@ -264,6 +264,7 @@ def test_receive_exactly_closed_connection_is_network_error(mock_socket: Mock) -
             espota2.RESPONSE_ERROR_BOOTLOADER_UPDATE,
             "An error occurred while updating the bootloader",
         ),
+        (espota2.RESPONSE_ERROR_UPDATE_BUSY, "The device is busy with another update"),
         (espota2.RESPONSE_ERROR_UNKNOWN, "Unknown error from ESP"),
     ],
 )
@@ -972,10 +973,10 @@ def test_run_ota_impl_device_error_not_retried(
 def test_run_ota_impl_no_addresses(
     firmware_file: Path, mock_resolve_ip: Mock, mock_sleep: Mock
 ) -> None:
-    """Test run_ota_impl_ fails cleanly when resolution yields no addresses."""
+    """An empty resolution is reported once and fails cleanly."""
     mock_resolve_ip.return_value = []
 
-    result_code, result_host = espota2.run_ota_impl_(
+    result_code, result_host = espota2.run_ota(
         "test.local", 3232, "password", str(firmware_file)
     )
 
