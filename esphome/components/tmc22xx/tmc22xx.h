@@ -33,6 +33,8 @@ static constexpr uint8_t REG_VACTUAL = 0x22;
 static constexpr uint8_t REG_CHOPCONF = 0x6C;
 static constexpr uint8_t REG_DRV_STATUS = 0x6F;
 static constexpr uint8_t REG_PWMCONF = 0x70;
+static constexpr uint8_t REG_PWM_SCALE = 0x71;
+static constexpr uint8_t REG_PWM_AUTO = 0x72;
 
 // Readable registers that a driver reset sets back to their defaults; the last written values are restored
 static constexpr std::array<uint8_t, 4> RESTORED_REGISTERS{REG_GCONF, REG_FACTORY_CONF, REG_CHOPCONF, REG_PWMCONF};
@@ -59,7 +61,12 @@ static constexpr RegisterField VSENSE{REG_CHOPCONF, 17, 1, false};
 static constexpr RegisterField MRES{REG_CHOPCONF, 24, 4, false};
 static constexpr RegisterField INTPOL{REG_CHOPCONF, 28, 1, false};
 static constexpr RegisterField DEDGE{REG_CHOPCONF, 29, 1, false};
+static constexpr RegisterField CS_ACTUAL{REG_DRV_STATUS, 16, 5, false};
 static constexpr RegisterField FREEWHEEL{REG_PWMCONF, 20, 2, false};
+static constexpr RegisterField PWM_SCALE_SUM{REG_PWM_SCALE, 0, 8, false};
+static constexpr RegisterField PWM_SCALE_AUTO{REG_PWM_SCALE, 16, 9, true};
+static constexpr RegisterField PWM_OFS_AUTO{REG_PWM_AUTO, 0, 8, false};
+static constexpr RegisterField PWM_GRAD_AUTO{REG_PWM_AUTO, 16, 8, false};
 
 enum StandstillMode : uint8_t {
   STANDSTILL_MODE_NORMAL = 0,
@@ -129,6 +136,8 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   /// Enable or disable the motor outputs, using the ENN pin when configured and TOFF otherwise.
   void set_enabled(bool enabled);
   bool is_enabled() const { return this->enabled_; }
+  /// True while the driver does not answer, until the status poll reads it again (every 10 s).
+  bool is_unreachable() const { return this->status_poll_skip_ > 0; }
 
   /// Called with the condition and whether it became active or cleared.
   template<typename F> void add_on_status_callback(F &&callback) {

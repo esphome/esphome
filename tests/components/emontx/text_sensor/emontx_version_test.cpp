@@ -4,8 +4,6 @@
 
 #include "esphome/components/emontx/emontx.h"
 #include "esphome/components/text_sensor/text_sensor.h"
-#include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "../common.h"
 
 namespace esphome::emontx::testing {
@@ -14,24 +12,15 @@ namespace {
 class EmonTxVersionTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    // The test main does not construct App as generated code does
-    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-    (void) APP_CONSTRUCTED;
+    construct_app();
     this->sut_.set_uart_parent(&this->uart_);
     this->sut_.set_version_text_sensor(&this->version_);
   }
 
-  void TearDown() override {
-    App.scheduler.cancel_timeout(&this->sut_, uint32_t{0});
-    App.scheduler.call(millis());
-  }
+  void TearDown() override { cancel_timers(&this->sut_); }
 
   // Lets the delayed 'v' go out
-  static void run_timers() {
-    App.scheduler.call(millis());
-    delay(300);  // NOLINT - test only, the scheduler reads the real clock
-    App.scheduler.call(millis());
-  }
+  static void run_timers() { testing::run_timers(300); }
 
   std::string tx_() const { return std::string(this->uart_.tx.begin(), this->uart_.tx.end()); }
 
@@ -51,8 +40,11 @@ TEST_F(EmonTxVersionTest, SetupRequestsVersionAfterDelay) {
 }
 
 TEST_F(EmonTxVersionTest, SetupUnlocksBeforeRequestingVersion) {
-  this->sut_.set_lock_on_reboot(true);
+  this->sut_.set_lock_on_reboot(LockOnReboot::LOCK_ON_REBOOT_ALWAYS);
   this->sut_.setup();
+  EXPECT_EQ(this->tx_(), "\n");
+
+  run_timers();
   EXPECT_EQ(this->tx_(), "\nemonunlock\n\n");
 
   run_timers();
@@ -81,6 +73,15 @@ TEST_F(EmonTxVersionTest, MsgCounterResetRequestsVersion) {
   EXPECT_TRUE(this->uart_.tx.empty());
 
   this->uart_.push_rx("{\"MSG\":1}\n");
+  this->sut_.loop();
+  EXPECT_EQ(this->tx_(), "\n");
+
+  run_timers();
+  EXPECT_EQ(this->tx_(), "\nv\n");
+}
+
+TEST_F(EmonTxVersionTest, TextMsgCounterResetRequestsVersion) {
+  this->uart_.push_rx("MSG:41,V1:230.1\r\nMSG:1,V1:230.4\r\n");
   this->sut_.loop();
   EXPECT_EQ(this->tx_(), "\n");
 
