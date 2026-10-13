@@ -470,9 +470,12 @@ def test_restore_finishes_after_any_failure(tmp_path: Path) -> None:
 
     with (
         patch("esphome.yaml_edit.write_keeping_mode", side_effect=fail_first),
-        pytest.raises(RestoreError, match=f"Could not restore {path}: odd"),
+        pytest.raises(RestoreError) as info,
     ):
         restore_files(originals)
+    assert f"Could not restore {path}: odd" in str(
+        info.value
+    )  # a Windows path is no regex
     assert "garage" in path.read_text() and other.read_text() == "x: 1\n"
     with (
         patch(
