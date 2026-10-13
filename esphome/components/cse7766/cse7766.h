@@ -46,6 +46,9 @@ class CSE7766Component final : public Component, public uart::UARTDevice {
   sensor::Sensor *power_factor_sensor_{nullptr};
   uint32_t cf_pulses_total_{0};
   uint16_t cf_pulses_last_{0};
+  // Power cycle and power of the last frame that carried a new power measurement
+  uint32_t last_power_cycle_{0};
+  float last_power_{0.0f};
 };
 
 }  // namespace esphome::cse7766

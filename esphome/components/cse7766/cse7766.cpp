@@ -154,18 +154,33 @@ void CSE7766Component::parse_data_() {
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
     have_power = true;
+    this->last_power_cycle_ = 0;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(0.0f);
     }
   } else if (have_power) {
     power = power_coeff / float(power_cycle);
+    this->last_power_cycle_ = power_cycle;
+    this->last_power_ = power;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
-  } else if (this->power_sensor_ != nullptr) {
-    // No valid power measurement from chip - publish 0W to avoid stale readings
-    // This typically happens when current is below the measurable threshold (~50mA)
-    this->power_sensor_->publish_state(0.0f);
+  } else if (this->last_power_cycle_ != 0 && power_cycle <= 2 * this->last_power_cycle_) {
+    // No new measurement in this frame. At low load one power cycle spans several
+    // frames; meanwhile the register holds the last cycle or the time elapsed since
+    // the last pulse. While that time is within twice the last cycle, the next pulse
+    // is not overdue, so the last measurement still applies.
+    have_power = true;
+    power = this->last_power_;
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(power);
+    }
+  } else {
+    // The next pulse is overdue: the load has dropped, report 0 W
+    this->last_power_cycle_ = 0;
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(0.0f);
+    }
   }
 
   float current = 0.0f;
