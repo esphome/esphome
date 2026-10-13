@@ -158,4 +158,27 @@ static void ImageDraw_RGB_Alpha(benchmark::State &state) {
 }
 BENCHMARK(ImageDraw_RGB_Alpha);
 
+static void ImageDraw_RGB_ChromaKey(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_CHROMA_KEY);
+}
+BENCHMARK(ImageDraw_RGB_ChromaKey);
+
+static void ImageDraw_RGB565_ChromaKey(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB565, TRANSPARENCY_CHROMA_KEY);
+}
+BENCHMARK(ImageDraw_RGB565_ChromaKey);
+
+static void ImageDraw_RGB565_Alpha(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB565, TRANSPARENCY_ALPHA_CHANNEL);
+}
+BENCHMARK(ImageDraw_RGB565_Alpha);
+
+static void ImageDraw_RGB111(benchmark::State &state) { draw_image(state, IMAGE_TYPE_RGB111, TRANSPARENCY_OPAQUE); }
+BENCHMARK(ImageDraw_RGB111);
+
+static void ImageDraw_RGB111_Alpha(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB111, TRANSPARENCY_ALPHA_CHANNEL);
+}
+BENCHMARK(ImageDraw_RGB111_Alpha);
+
 }  // namespace esphome::image::benchmarks
