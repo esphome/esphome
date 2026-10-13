@@ -1,1 +1,2 @@
-<<: !include basic.yaml
+packages:
+  filter_lifetime: !include common.yaml

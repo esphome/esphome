@@ -6,10 +6,10 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL,
-    UNIT_DAY,
     UNIT_HOUR,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 CONF_MAX_LIFETIME = "max_lifetime"
 CONF_IS_ON = "is_on"
@@ -18,32 +18,12 @@ CONF_CURRENT_SPEED = "current_speed"
 CONF_CURRENT_SPEED_SENSOR = "current_speed_sensor"
 CONF_RUNTIME_HOURS = "runtime_hours"
 CONF_REMAINING_DAYS = "remaining_days"
+UNIT_DAY = "d"
 
 filter_lifetime_ns = cg.esphome_ns.namespace("filter_lifetime")
 FilterLifetime = filter_lifetime_ns.class_(
     "FilterLifetime", sensor.Sensor, cg.PollingComponent
 )
-
-
-def validate_is_on_config(config):
-    has_lambda = CONF_IS_ON in config
-    has_sensor = CONF_IS_ON_SENSOR in config
-    if has_lambda and has_sensor:
-        raise cv.Invalid(
-            "Only one of 'is_on' (lambda) or 'is_on_sensor' can be provided, not both"
-        )
-    return config
-
-
-def validate_speed_config(config):
-    has_lambda = CONF_CURRENT_SPEED in config
-    has_sensor = CONF_CURRENT_SPEED_SENSOR in config
-    if has_lambda and has_sensor:
-        raise cv.Invalid(
-            "Only one of 'current_speed' (lambda) or 'current_speed_sensor' can be provided, not both"
-        )
-    return config
-
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
@@ -75,48 +55,36 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s")),
-    validate_is_on_config,
-    validate_speed_config,
+    cv.has_at_most_one_key(CONF_IS_ON, CONF_IS_ON_SENSOR),
+    cv.has_at_most_one_key(CONF_CURRENT_SPEED, CONF_CURRENT_SPEED_SENSOR),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
     cg.add(var.set_max_lifetime(config[CONF_MAX_LIFETIME]))
 
-    if CONF_IS_ON in config:
-        is_on_template = await cg.templatable(config[CONF_IS_ON], [], bool)
-        cg.add(var.set_is_on_lambda(is_on_template))
-    elif CONF_IS_ON_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_IS_ON_SENSOR])
-        cg.add(var.set_is_on_sensor(sens))
+    if (is_on := config.get(CONF_IS_ON)) is not None:
+        cg.add(var.set_is_on_lambda(await cg.templatable(is_on, [], bool)))
+    elif (is_on_sensor := config.get(CONF_IS_ON_SENSOR)) is not None:
+        cg.add(var.set_is_on_sensor(await cg.get_variable(is_on_sensor)))
 
-    if CONF_CURRENT_SPEED in config:
-        current_speed_template = await cg.templatable(
-            config[CONF_CURRENT_SPEED], [], float
+    if (current_speed := config.get(CONF_CURRENT_SPEED)) is not None:
+        cg.add(
+            var.set_current_speed_lambda(await cg.templatable(current_speed, [], float))
         )
-        cg.add(var.set_current_speed_lambda(current_speed_template))
-    elif CONF_CURRENT_SPEED_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_CURRENT_SPEED_SENSOR])
-        cg.add(var.set_current_speed_sensor(sens))
+    elif (speed_sensor := config.get(CONF_CURRENT_SPEED_SENSOR)) is not None:
+        cg.add(var.set_current_speed_sensor(await cg.get_variable(speed_sensor)))
 
-    if runtime_hours_config := config.get(CONF_RUNTIME_HOURS):
-        sens = await sensor.new_sensor(runtime_hours_config)
-        cg.add(var.set_runtime_hours_sensor(sens))
-
-    if remaining_days_config := config.get(CONF_REMAINING_DAYS):
-        sens = await sensor.new_sensor(remaining_days_config)
-        cg.add(var.set_remaining_days_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RUNTIME_HOURS, var.set_runtime_hours_sensor)
+    await sensors(CONF_REMAINING_DAYS, var.set_remaining_days_sensor)
 
 
 automation.register_apply_action(
     "filter_lifetime.reset_filter",
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(FilterLifetime),
-        }
-    ),
+    cv.Schema({cv.GenerateID(): cv.use_id(FilterLifetime)}),
     automation.ApplyCall("reset_filter()"),
 )

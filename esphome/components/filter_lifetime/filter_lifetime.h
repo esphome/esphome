@@ -1,12 +1,7 @@
-// Filter Lifetime Component
-// Tracks filter usage time based on runtime and speed settings
-// Calculates remaining filter lifetime as a percentage
-
 #pragma once
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
-#include "esphome/core/application.h"
 #include <functional>
 
 namespace esphome::filter_lifetime {

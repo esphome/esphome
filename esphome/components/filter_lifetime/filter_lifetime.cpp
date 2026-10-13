@@ -1,8 +1,10 @@
 #include "filter_lifetime.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::filter_lifetime {
-static const char *const TAG = "filter_lifetime";
+ESPHOME_LOG_TAG(TAG, "filter_lifetime");
 
 void FilterLifetime::reset_filter() {
   this->runtime_minutes_ = 0.0f;
@@ -40,7 +42,7 @@ void FilterLifetime::dump_config() {
 }
 
 void FilterLifetime::setup() {
-  this->last_update_ = App.get_loop_component_start_time();
+  this->last_update_ = millis();
   this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
   this->pref_.load(&this->runtime_minutes_);
   if (std::isnan(this->runtime_minutes_) || std::isinf(this->runtime_minutes_) || this->runtime_minutes_ < 0.0f) {
@@ -103,7 +105,7 @@ void FilterLifetime::update() {
     lifetime_pct = 100.0f * std::max(0.0f, 1.0f - (this->runtime_minutes_ / max_minutes));
   }
 
-  ESP_LOGD(TAG, "Runtime: %.1f/%.1f min, Remaining: %.1f%%", this->runtime_minutes_, max_minutes, lifetime_pct);
+  ESP_LOGV(TAG, "Runtime: %.1f/%.1f min, Remaining: %.1f%%", this->runtime_minutes_, max_minutes, lifetime_pct);
   this->publish_state(lifetime_pct);
 
   if (this->runtime_hours_sensor_ != nullptr) {
