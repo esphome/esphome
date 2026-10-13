@@ -4,7 +4,7 @@
 
 namespace esphome::icm20689 {
 
-static const char *const TAG = "icm20689";
+ESPHOME_LOG_TAG(TAG, "icm20689");
 
 void ICM20689Component::write_register_(uint8_t reg, uint8_t value) {
   this->enable();
