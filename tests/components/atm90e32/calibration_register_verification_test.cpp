@@ -58,6 +58,15 @@ TEST(ATM90E32OffsetRegisterVerification, RejectsMismatchedReadback) {
   EXPECT_FALSE(offset_register_value_matches(0xFF84, -123));
 }
 
+template<typename F> static std::string capture_calibration_logs(F action) {
+  const auto previous_baud_rate = logger::global_logger->get_baud_rate();
+  ::testing::internal::CaptureStdout();
+  logger::global_logger->set_baud_rate(115200);
+  action();
+  logger::global_logger->set_baud_rate(previous_baud_rate);
+  return ::testing::internal::GetCapturedStdout();
+}
+
 class FailedGainRollbackDelegate final : public spi::SPIDelegate {
  public:
   uint8_t transfer(uint8_t data) override { return 0; }
@@ -94,12 +103,7 @@ class ATM90E32GainCalibrationTest : public ::testing::Test {
         for (const bool phase : component.gain_calibration_mismatch_)
           EXPECT_FALSE(phase);
 
-        const auto previous_baud_rate = logger::global_logger->get_baud_rate();
-        ::testing::internal::CaptureStdout();
-        logger::global_logger->set_baud_rate(115200);
-        component.dump_config();
-        logger::global_logger->set_baud_rate(previous_baud_rate);
-        const auto output = ::testing::internal::GetCapturedStdout();
+        const auto output = capture_calibration_logs([&]() { component.dump_config(); });
         EXPECT_EQ(output.find("Gain calibration loaded and verified successfully."), std::string::npos);
         EXPECT_EQ(output.find("Gain mismatch: using flash values"), std::string::npos);
         EXPECT_EQ(output.find("Restoring saved gain calibrations to registers"), std::string::npos);
@@ -214,11 +218,11 @@ class CalibrationRegisterDelegate final : public spi::SPIDelegate {
 
   void set_offset_values(OffsetCalibrationType type, uint8_t phase, int16_t first, int16_t second) {
     const auto &first_registers = type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER
-                                      ? power_offset_registers_
-                                      : voltage_offset_registers_;
+                                      ? POWER_OFFSET_REGISTERS
+                                      : VOLTAGE_OFFSET_REGISTERS;
     const auto &second_registers = type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER
-                                       ? reactive_power_offset_registers_
-                                       : current_offset_registers_;
+                                       ? REACTIVE_POWER_OFFSET_REGISTERS
+                                       : CURRENT_OFFSET_REGISTERS;
     this->registers_[first_registers[phase]] = static_cast<uint16_t>(first);
     this->registers_[second_registers[phase]] = static_cast<uint16_t>(second);
   }
@@ -233,21 +237,21 @@ class CalibrationRegisterDelegate final : public spi::SPIDelegate {
         return true;
     }
     for (uint8_t phase = 0; phase < 3; ++phase) {
-      if (address == voltage_offset_registers_[phase] || address == current_offset_registers_[phase] ||
-          address == power_offset_registers_[phase] || address == reactive_power_offset_registers_[phase]) {
+      if (address == VOLTAGE_OFFSET_REGISTERS[phase] || address == CURRENT_OFFSET_REGISTERS[phase] ||
+          address == POWER_OFFSET_REGISTERS[phase] || address == REACTIVE_POWER_OFFSET_REGISTERS[phase]) {
         return true;
       }
     }
     return false;
   }
 
-  static constexpr std::array<uint16_t, 3> voltage_offset_registers_{
+  static constexpr std::array<uint16_t, 3> VOLTAGE_OFFSET_REGISTERS{
       ATM90E32_REGISTER_UOFFSETA, ATM90E32_REGISTER_UOFFSETB, ATM90E32_REGISTER_UOFFSETC};
-  static constexpr std::array<uint16_t, 3> current_offset_registers_{
+  static constexpr std::array<uint16_t, 3> CURRENT_OFFSET_REGISTERS{
       ATM90E32_REGISTER_IOFFSETA, ATM90E32_REGISTER_IOFFSETB, ATM90E32_REGISTER_IOFFSETC};
-  static constexpr std::array<uint16_t, 3> power_offset_registers_{
+  static constexpr std::array<uint16_t, 3> POWER_OFFSET_REGISTERS{
       ATM90E32_REGISTER_POFFSETA, ATM90E32_REGISTER_POFFSETB, ATM90E32_REGISTER_POFFSETC};
-  static constexpr std::array<uint16_t, 3> reactive_power_offset_registers_{
+  static constexpr std::array<uint16_t, 3> REACTIVE_POWER_OFFSET_REGISTERS{
       ATM90E32_REGISTER_QOFFSETA, ATM90E32_REGISTER_QOFFSETB, ATM90E32_REGISTER_QOFFSETC};
   std::array<uint16_t, 1024> registers_{};
   uint8_t drop_calibration_writes_{0};
@@ -470,15 +474,6 @@ static void finish_calibration(TestATM90E32Component &component, const Calibrati
   for (uint8_t phase = 0; phase < 3; ++phase)
     previous[phase] = previous_offset_values(previous_restored, phase);
   component.finish_offset_calibration_(previous, previous_restored, kind.offset_type);
-}
-
-template<typename F> static std::string capture_calibration_logs(F action) {
-  const auto previous_baud_rate = logger::global_logger->get_baud_rate();
-  ::testing::internal::CaptureStdout();
-  logger::global_logger->set_baud_rate(115200);
-  action();
-  logger::global_logger->set_baud_rate(previous_baud_rate);
-  return ::testing::internal::GetCapturedStdout();
 }
 
 static void expect_has_stored(const TestATM90E32Component &component, const CalibrationTraits &kind, bool expected) {
