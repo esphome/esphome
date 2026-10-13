@@ -21,15 +21,11 @@ using climate::ClimateModeMask;
 using climate::ClimateSwingModeMask;
 using climate::ClimatePresetMask;
 
-// Channel used by `do_display_toggle()` and `midea_ac.display_toggle`. AUTO is
-// the default and matches the legacy behavior when an IR transmitter is compiled
-// in (UART only when the appliance reports supportLightControl(), IR otherwise).
-// Without a transmitter compiled in, AUTO falls back to UART — see the default
-// `display_control` option in climate.py for the Mundoclima/Rotenso rationale.
+// How the display toggle reaches the appliance; the AUTO rules are in do_display_toggle()
 enum class DisplayControl : uint8_t {
-  DISPLAY_CONTROL_UART,  // always use the UART request
-  DISPLAY_CONTROL_AUTO,  // UART when supported or no transmitter is compiled in, else IR
-  DISPLAY_CONTROL_IR,    // always use the IR remote (requires a transmitter)
+  DISPLAY_CONTROL_UART,  // always the UART request
+  DISPLAY_CONTROL_AUTO,  // UART when the appliance reports it or no transmitter is built in, else IR
+  DISPLAY_CONTROL_IR,    // always the IR remote, needs a transmitter
 };
 
 class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditioner>, public climate::Climate {

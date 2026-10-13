@@ -183,25 +183,19 @@ void AirConditioner::do_swing_step() {
 }
 
 void AirConditioner::do_display_toggle() {
-  // AUTO sends over UART when the appliance reports supportLightControl(),
-  // otherwise it falls back to IR when a transmitter is compiled in, or to
-  // UART when none is (Mundoclima/Rotenso accept the toggle without
-  // advertising supportLightControl() in the 0xB5 capabilities report).
+#ifdef USE_REMOTE_TRANSMITTER
+  // AUTO uses IR unless the appliance reports light control over UART. Without a transmitter
+  // built in, every setting sends the UART request: Mundoclima, Rotenso and others accept it
+  // without advertising it in the 0xB5 capabilities report.
   const bool use_ir = this->display_control_ == DisplayControl::DISPLAY_CONTROL_IR ||
                       (this->display_control_ == DisplayControl::DISPLAY_CONTROL_AUTO &&
                        !this->base_.getCapabilities().supportLightControl());
   if (use_ir) {
-#ifdef USE_REMOTE_TRANSMITTER
     IrSpecialData data(0x08);
     this->transmitter_.transmit(data);
     return;
-#else
-    // No transmitter compiled in — fall back to UART (Mundoclima/Rotenso
-    // accept the toggle without advertising supportLightControl()).
-    this->base_.displayToggle();
-    return;
-#endif
   }
+#endif
   this->base_.displayToggle();
 }
 

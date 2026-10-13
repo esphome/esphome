@@ -33,6 +33,7 @@ from esphome.const import (
     UNIT_WATT,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
@@ -84,12 +85,7 @@ CUSTOM_PRESETS = {
     "FREEZE_PROTECTION": Capabilities.FREEZE_PROTECTION,
 }
 
-# Channel used by midea_ac.display_toggle. AUTO is the default and behaves
-# like the legacy implementation when an IR transmitter is compiled in
-# (UART only when the appliance reports supportLightControl(), IR otherwise).
-# When no transmitter is compiled in, AUTO falls back to UART — this matches
-# what many appliances (Mundoclima, Rotenso, etc.) silently accept even though
-# they don't advertise supportLightControl() in the 0xB5 capabilities report.
+# How midea_ac.display_toggle reaches the appliance; see do_display_toggle() for the AUTO rules
 DISPLAY_CONTROLS = {
     "UART": DisplayControl.DISPLAY_CONTROL_UART,
     "AUTO": DisplayControl.DISPLAY_CONTROL_AUTO,
@@ -104,13 +100,8 @@ validate_custom_presets = cv.enum(CUSTOM_PRESETS, upper=True)
 validate_display_control = cv.enum(DISPLAY_CONTROLS, upper=True)
 
 
-def validate_display_control_with_transmitter(config):
-    """`display_control: IR` is meaningless without a `remote_transmitter` to send through.
-
-    AUTO falls back to IR only when an IR transmitter is compiled in;
-    otherwise it uses UART. Explicit UART and IR always use their own
-    channel — neither falls back.
-    """
+def validate_display_control_with_transmitter(config: ConfigType) -> ConfigType:
+    """`display_control: IR` needs a `remote_transmitter` to send through; UART and AUTO do not."""
     if config.get(CONF_DISPLAY_CONTROL) == "IR" and CONF_TRANSMITTER_ID not in config:
         raise cv.Invalid(
             f"'{CONF_DISPLAY_CONTROL}: IR' requires '{CONF_TRANSMITTER_ID}' to be set"
