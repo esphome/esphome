@@ -140,7 +140,7 @@ void Tx20Component::decode_and_publish_() {
       }
       if (tx20_se == tx20_sb) {
         tx20_wind_direction = tx20_se;
-        if (tx20_wind_direction < 16)
+        if (tx20_wind_direction < DirectionStrings::COUNT)
           this->wind_direction_index_ = tx20_wind_direction;
         ESP_LOGV(TAG, "WindDirection %d", tx20_wind_direction);
         if (this->wind_direction_degrees_sensor_ != nullptr)
