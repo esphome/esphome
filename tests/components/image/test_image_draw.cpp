@@ -172,7 +172,9 @@ TEST(ImageDraw, FallbackKeepsRgbChannelOrder) {
   image.draw(0, 0, &display, Color::WHITE, Color::BLACK);
   ASSERT_EQ(display.pixels.size(), static_cast<size_t>(W * H));
   for (const auto &pixel : display.pixels) {
-    EXPECT_EQ(pixel.raw, image.get_pixel(pixel.x, pixel.y).raw_32) << "at " << pixel.x << "," << pixel.y;
+    // get_pixel() reports an opaque pixel with alpha set; the fallback decodes colour only
+    const Color expected = image.get_pixel(pixel.x, pixel.y);
+    EXPECT_EQ(pixel.raw, Color(expected.r, expected.g, expected.b).raw_32) << "at " << pixel.x << "," << pixel.y;
   }
 }
 
