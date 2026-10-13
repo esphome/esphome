@@ -969,6 +969,36 @@ def test_probe_ota_key_pauses_between_rounds_once_an_address_answered() -> None:
     assert resolve.call_count == 10
 
 
+def test_probe_ota_key_keeps_trying_an_address_a_new_lookup_added() -> None:
+    """An address that answered earlier and is gone from the lookup does not
+    count against the ones still pending."""
+    clock = [0.0]
+
+    def sleep(seconds: float) -> None:
+        clock[0] += seconds
+
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            side_effect=itertools.chain(
+                [[(2, 1, 0, "", ("10.0.0.1", 1)), (2, 1, 0, "", ("10.0.0.2", 1))]],
+                itertools.repeat([(2, 1, 0, "", ("10.0.0.3", 1))]),
+            ),
+        ),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=itertools.chain(
+                [espota2.OTAKeyRejected("no")], itertools.repeat(OSError("down"))
+            ),
+        ) as negotiate,
+        patch("time.sleep", side_effect=sleep),
+        patch("time.monotonic", side_effect=lambda: clock[0]),
+    ):
+        assert not espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+    assert negotiate.call_count == 11  # the new address was tried every round
+
+
 def test_probe_ota_key_names_a_missing_encryption_offer(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -989,8 +1019,8 @@ def test_probe_ota_key_names_a_missing_encryption_offer(
 
 
 def test_probe_ota_key_resolves_again_after_a_round_without_an_answer() -> None:
-    """A device back under another address is found; a key the first
-    address rejected is asked again since the set of addresses changed."""
+    """A round with no answer looks the host up again, and the device is
+    found under its new address."""
     session = Mock()
     with (
         patch(

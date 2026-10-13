@@ -447,10 +447,8 @@ def send_check(
 
 
 def noise_handshake(psk: str, prologue: bytes) -> Any:
-    """A fresh NNpsk0 initiator; a missing noise stack or a malformed key is
-    a local fault, raised before any device is asked."""
-    # Deliberately lazy: the noise stack (noiseprotocol, cryptography) is
-    # only imported when an encrypted upload actually runs.
+    """A fresh NNpsk0 initiator; a bad key or a missing noise stack raises here."""
+    # Lazy: the noise stack is only imported for an encrypted upload
     try:
         from aioesphomeapi.noise import NoiseHandshake
     except ImportError as err:
@@ -475,8 +473,7 @@ class NoiseSocketWrapper:
 
     def __init__(self, sock: socket.socket, psk: str, prologue: bytes) -> None:
         self._handshake = noise_handshake(psk, prologue)
-        # noise_handshake() already imported cryptography; bind the
-        # exception once so recv() pays no per-frame import lookup
+        # Bound once; recv() must not import per frame
         from cryptography.exceptions import InvalidTag
 
         self._invalid_tag = InvalidTag
@@ -594,9 +591,9 @@ def _negotiate_session(
     allow_plaintext_upload: bool,
     level: int = logging.INFO,
 ) -> tuple[socket.socket | NoiseSocketWrapper, int, int, bool]:
-    """Negotiate up to and including the Noise handshake; returns the socket
-    to continue on (wrapped once encrypted), version, features, extended.
-    Progress is logged at ``level``; a probe that retries keeps it quiet."""
+    """Negotiate through the Noise handshake; returns the socket to go on with
+    (wrapped once encrypted), version, features, extended. ``level`` keeps a
+    retrying probe quiet."""
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, "magic bytes")
@@ -999,10 +996,9 @@ def probe_ota_key(
     timeout: float = PROBE_TIMEOUT,
     retry_rejected: bool = True,
 ) -> bool:
-    """Whether the device completes a Noise handshake with the key; no image
-    is sent. Retries until the deadline, a rejection too when
-    ``retry_rejected`` (the old firmware may answer once more after an upload).
-    """
+    """Whether the device completes a Noise handshake with the key, no image
+    sent. Retries until the deadline, a rejection too with ``retry_rejected``
+    (the old firmware may answer once more after an upload)."""
     from esphome.core import CORE
 
     noise_handshake(noise_psk, b"")  # a local fault must not read as the device's no
@@ -1014,9 +1010,7 @@ def probe_ota_key(
     res: list[Any] = []
     answered: set[Any] = set()  # addresses whose answer no retry changes
     last_error = "no time left"
-    device_error: str | None = (
-        None  # an answer from the device outranks a network error
-    )
+    device_error: str | None = None  # a device answer outranks a network error
     while time.monotonic() < deadline:
         if not res:
             # A rebooting device may drop off mDNS for a while; keep asking
@@ -1033,7 +1027,7 @@ def probe_ota_key(
                 _LOGGER.debug("Host not resolved yet (%s); retrying", last_error)
                 pause(PROBE_RETRY_DELAY)
                 continue
-        # One round asks every address that has not answered, back to back
+        # One round: every address that has not answered, back to back
         started = time.monotonic()
         unreached = 0
         for af, socktype, _, _, sa in res:
@@ -1071,9 +1065,8 @@ def probe_ota_key(
                     if not retry_rejected:
                         answered.add(sa)
                 except OTAError as err:
-                    # A rejected key or a refused handshake is final in the
-                    # precheck; a rebooting device may answer differently
-                    # once it is back
+                    # Final in the precheck; a rebooting device may answer
+                    # differently once it is back
                     last_error = device_error = f"{sa[0]}: {err}"
                     if not retry_rejected:
                         answered.add(sa)
@@ -1081,15 +1074,13 @@ def probe_ota_key(
                     _LOGGER.info("Device %s accepted the key", sa[0])
                     return True
             _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
-        # A stale cached address must not answer for the device: every
-        # address gets its own final say
-        pending = len(res) - len(answered)
+        # Every address gets its own final say; a stale one cannot answer
+        # for the device
+        pending = sum(1 for *_, sa in res if sa not in answered)
         if pending == 0 or time.monotonic() >= deadline:
             break
         if unreached == pending:
-            # No answer this round: the device may be back under another
-            # address, so resolve it again
-            res = []
+            res = []  # no answer this round: the device may have a new address
         pause(PROBE_RETRY_DELAY - (time.monotonic() - started))
     if device_error is None:
         _LOGGER.warning(
