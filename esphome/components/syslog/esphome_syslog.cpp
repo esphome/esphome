@@ -7,7 +7,7 @@
 namespace esphome::syslog {
 
 // Map log levels to syslog severity using an array, indexed by ESPHome log level (1-7)
-constexpr int LOG_LEVEL_TO_SYSLOG_SEVERITY[] = {
+static const uint8_t LOG_LEVEL_TO_SYSLOG_SEVERITY[] PROGMEM = {
     3,  // NONE
     3,  // ERROR
     4,  // WARN
@@ -35,7 +35,7 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   // Syslog PRI calculation: facility * 8 + severity
   int severity = 7;
   if ((unsigned) level <= 7) {
-    severity = LOG_LEVEL_TO_SYSLOG_SEVERITY[level];
+    severity = progmem_read_byte(&LOG_LEVEL_TO_SYSLOG_SEVERITY[level]);
   }
   int pri = this->facility_ * 8 + severity;
 
