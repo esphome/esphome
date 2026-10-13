@@ -46,6 +46,7 @@ class EPaperT133A01 : public EPaperBase {
   void deep_sleep() override;
 
   bool transfer_data() override;
+  void abort_transfer() override;
 
   /**
    * Send a command (and optional data) selecting one or both controllers.
