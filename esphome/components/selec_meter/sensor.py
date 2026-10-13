@@ -34,6 +34,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_HERTZ,
@@ -331,21 +332,21 @@ EM4M_SENSORS = {
         unit_of_measurement=UNIT_KILOWATT_HOURS,
         accuracy_decimals=2,
         device_class=DEVICE_CLASS_ENERGY,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
+        state_class=STATE_CLASS_TOTAL,
     ),
     **_sensor_group(
         CONF_NET_REACTIVE_ENERGY_MAINS,
         CONF_NET_REACTIVE_ENERGY_DG,
         unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
         accuracy_decimals=2,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
+        state_class=STATE_CLASS_TOTAL,
     ),
     **_sensor_group(
         CONF_NET_APPARENT_ENERGY_MAINS,
         CONF_NET_APPARENT_ENERGY_DG,
         unit_of_measurement=UNIT_KILOVOLT_AMPS_HOURS,
         accuracy_decimals=2,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
+        state_class=STATE_CLASS_TOTAL,
     ),
 }
 

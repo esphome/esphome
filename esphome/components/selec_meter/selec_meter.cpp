@@ -405,31 +405,33 @@ void SelecMeter::dump_config() {
   LOG_SENSOR("  ", "Maximum Demand Active Power", this->maximum_demand_active_power_sensor_);
   LOG_SENSOR("  ", "Maximum Demand Reactive Power", this->maximum_demand_reactive_power_sensor_);
   LOG_SENSOR("  ", "Maximum Demand Apparent Power", this->maximum_demand_apparent_power_sensor_);
-  LOG_SENSOR("  ", "Voltage L1-L2", this->voltage_l12_sensor_);
-  LOG_SENSOR("  ", "Voltage L2-L3", this->voltage_l23_sensor_);
-  LOG_SENSOR("  ", "Voltage L3-L1", this->voltage_l31_sensor_);
-  LOG_SENSOR("  ", "Average Voltage LL", this->average_voltage_ll_sensor_);
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    const auto &p = this->phases_[phase];
-    ESP_LOGCONFIG(TAG, "  Phase %c", 'A' + phase);
-    LOG_SENSOR("    ", "Voltage", p.voltage_sensor_);
-    LOG_SENSOR("    ", "Current", p.current_sensor_);
-    LOG_SENSOR("    ", "Active Power", p.active_power_sensor_);
-    LOG_SENSOR("    ", "Reactive Power", p.reactive_power_sensor_);
-    LOG_SENSOR("    ", "Apparent Power", p.apparent_power_sensor_);
-    LOG_SENSOR("    ", "Power Factor", p.power_factor_sensor_);
-    LOG_SENSOR("    ", "Import Active Energy", p.import_active_energy_sensor_);
-    LOG_SENSOR("    ", "Export Active Energy", p.export_active_energy_sensor_);
-    LOG_SENSOR("    ", "Import Reactive Energy", p.import_reactive_energy_sensor_);
-    LOG_SENSOR("    ", "Export Reactive Energy", p.export_reactive_energy_sensor_);
-    LOG_SENSOR("    ", "Apparent Energy", p.apparent_energy_sensor_);
+  if (this->model_ == Model::EM4M) {
+    LOG_SENSOR("  ", "Voltage L1-L2", this->voltage_l12_sensor_);
+    LOG_SENSOR("  ", "Voltage L2-L3", this->voltage_l23_sensor_);
+    LOG_SENSOR("  ", "Voltage L3-L1", this->voltage_l31_sensor_);
+    LOG_SENSOR("  ", "Average Voltage LL", this->average_voltage_ll_sensor_);
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      const auto &p = this->phases_[phase];
+      ESP_LOGCONFIG(TAG, "  Phase %c", 'A' + phase);
+      LOG_SENSOR("    ", "Voltage", p.voltage_sensor_);
+      LOG_SENSOR("    ", "Current", p.current_sensor_);
+      LOG_SENSOR("    ", "Active Power", p.active_power_sensor_);
+      LOG_SENSOR("    ", "Reactive Power", p.reactive_power_sensor_);
+      LOG_SENSOR("    ", "Apparent Power", p.apparent_power_sensor_);
+      LOG_SENSOR("    ", "Power Factor", p.power_factor_sensor_);
+      LOG_SENSOR("    ", "Import Active Energy", p.import_active_energy_sensor_);
+      LOG_SENSOR("    ", "Export Active Energy", p.export_active_energy_sensor_);
+      LOG_SENSOR("    ", "Import Reactive Energy", p.import_reactive_energy_sensor_);
+      LOG_SENSOR("    ", "Export Reactive Energy", p.export_reactive_energy_sensor_);
+      LOG_SENSOR("    ", "Apparent Energy", p.apparent_energy_sensor_);
+    }
+    LOG_SENSOR("  ", "Net Active Energy (Mains)", this->net_active_energy_mains_sensor_);
+    LOG_SENSOR("  ", "Net Reactive Energy (Mains)", this->net_reactive_energy_mains_sensor_);
+    LOG_SENSOR("  ", "Net Apparent Energy (Mains)", this->net_apparent_energy_mains_sensor_);
+    LOG_SENSOR("  ", "Net Active Energy (DG)", this->net_active_energy_dg_sensor_);
+    LOG_SENSOR("  ", "Net Reactive Energy (DG)", this->net_reactive_energy_dg_sensor_);
+    LOG_SENSOR("  ", "Net Apparent Energy (DG)", this->net_apparent_energy_dg_sensor_);
   }
-  LOG_SENSOR("  ", "Net Active Energy (Mains)", this->net_active_energy_mains_sensor_);
-  LOG_SENSOR("  ", "Net Reactive Energy (Mains)", this->net_reactive_energy_mains_sensor_);
-  LOG_SENSOR("  ", "Net Apparent Energy (Mains)", this->net_apparent_energy_mains_sensor_);
-  LOG_SENSOR("  ", "Net Active Energy (DG)", this->net_active_energy_dg_sensor_);
-  LOG_SENSOR("  ", "Net Reactive Energy (DG)", this->net_reactive_energy_dg_sensor_);
-  LOG_SENSOR("  ", "Net Apparent Energy (DG)", this->net_apparent_energy_dg_sensor_);
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_sensor_);
 #endif
