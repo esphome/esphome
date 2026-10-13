@@ -15,6 +15,7 @@ class EPaperMono : public EPaperBase {
   }
 
  protected:
+  bool buffer_is_mono() const override { return true; }
   void refresh_screen(bool partial) override;
   void power_on() override {}
   void power_off() override{};
