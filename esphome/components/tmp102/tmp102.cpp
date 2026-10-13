@@ -314,6 +314,9 @@ float TMP102LimitNumber::load_value_(float fallback) {
 bool TMP102LimitNumber::save_value_(float value) { return !this->restore_value_ || this->pref_.save(&value); }
 
 void TMP102LimitNumber::control(float value) {
+  // A chip that failed setup holds nothing the entity could show
+  if (this->parent_->is_failed())
+    return;
   const bool accepted = this->parent_->set_limit_temperature_(this->limit_type_, value);
   value = this->parent_->get_limit_temperature_(this->limit_type_);
   this->publish_state(value);
