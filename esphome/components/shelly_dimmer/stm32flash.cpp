@@ -116,7 +116,7 @@ namespace esphome::shelly_dimmer {
 
 namespace {
 
-static uint32_t read_page_size(const uint32_t *psize) {
+uint32_t read_page_size(const uint32_t *psize) {
   uint32_t size;
   progmem_memcpy(&size, psize, sizeof(size));
   return size;
