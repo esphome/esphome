@@ -195,9 +195,6 @@ def uart_selection(value: Any) -> str:
     raise NotImplementedError
 
 
-TAG_LEVELS_SCHEMA = cv.Schema({cv.string: is_log_level})
-
-
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
     # A level more verbose than the global one is compiled out, so it could never log or be captured
     global_level = config[CONF_LEVEL]
@@ -212,6 +209,19 @@ def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
                         [key, tag],
                     )
                 )
+    # Capture runs after the per-tag filter, so a boot level above the tag's own level keeps nothing
+    tag_levels = config.get(CONF_LOGS, {})
+    for tag, level in config.get(CONF_BOOT_LOGS, {}).items():
+        tag_level = tag_levels.get(tag)
+        if tag_level is not None and LOG_LEVEL_SEVERITY.index(
+            level
+        ) > LOG_LEVEL_SEVERITY.index(tag_level):
+            errs.append(
+                cv.Invalid(
+                    f"The boot log level for {tag} ({level}) must not be less severe than its log level ({tag_level})",
+                    [CONF_BOOT_LOGS, tag],
+                )
+            )
     boot_level = config[CONF_BOOT_LOG_LEVEL]
     if LOG_LEVEL_SEVERITY.index(boot_level) > global_level_index:
         errs.append(
@@ -296,7 +306,11 @@ CONFIG_SCHEMA = cv.All(
                 ),
             ),
             cv.Optional(CONF_BOOT_LOG_LEVEL, default="WARN"): is_log_level,
-            cv.Optional(CONF_BOOT_LOGS, default={}): TAG_LEVELS_SCHEMA,
+            cv.Optional(CONF_BOOT_LOGS, default={}): cv.Schema(
+                {
+                    cv.string: is_log_level,
+                }
+            ),
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
@@ -360,7 +374,11 @@ CONFIG_SCHEMA = cv.All(
                 uart_selection,
             ),
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
-            cv.Optional(CONF_LOGS, default={}): TAG_LEVELS_SCHEMA,
+            cv.Optional(CONF_LOGS, default={}): cv.Schema(
+                {
+                    cv.string: is_log_level,
+                }
+            ),
             cv.Optional(CONF_INITIAL_LEVEL): is_log_level,
             cv.Optional(CONF_RUNTIME_TAG_LEVELS, default=False): cv.boolean,
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
