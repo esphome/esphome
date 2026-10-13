@@ -100,6 +100,32 @@ if (
 
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
+
+_request_active_interface_listener_slot = cg.slot_counter(
+    "NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT"
+)
+
+
+def has_active_interface() -> bool:
+    """Return True when NetworkComponent tracks the interface holding the default route.
+
+    That is ESP32 with more than one interface in 'network: priority:', the same
+    condition that emits USE_NETWORK_DEFAULT_ROUTE.
+    """
+    return CORE.is_esp32 and len(CORE.config.get(DOMAIN, {}).get(CONF_PRIORITY, [])) > 1
+
+
+async def register_active_interface_listener(listener: cg.MockObj) -> None:
+    """Register an ActiveInterfaceListener with the NetworkComponent.
+
+    The listener is notified from the main loop when the interface holding the
+    default route changes. Only valid when has_active_interface() is True.
+    """
+    _request_active_interface_listener_slot()
+    network = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
+    cg.add(network.add_active_interface_listener(listener))
+
+
 IPAddress = network_ns.class_("IPAddress")
 
 

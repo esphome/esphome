@@ -38,6 +38,15 @@
 #define USE_MDNS_DYNAMIC_NETWORK_TXT
 #endif
 
+// On ESP32 the network component reports default route changes, so the value updates as soon as the
+// interface changes; elsewhere it is checked every NETWORK_TXT_CHECK_INTERVAL_MS.
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+#ifndef USE_MDNS_DYNAMIC_NETWORK_TXT
+#error "USE_MDNS_ACTIVE_INTERFACE_LISTENER requires USE_MDNS_DYNAMIC_NETWORK_TXT"
+#endif
+#include "esphome/components/network/network_component.h"
+#endif
+
 namespace esphome::mdns {
 
 // Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
@@ -78,6 +87,10 @@ class MDNSComponent final : public Component
 #ifdef USE_MDNS_ETHERNET_LISTENER
     ,
                             public ethernet::EthernetIPStateListener
+#endif
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+    ,
+                            public network::ActiveInterfaceListener
 #endif
 {
  public:
@@ -140,6 +153,10 @@ class MDNSComponent final : public Component
   }
 #endif
 
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+  void on_active_interface(network::NetworkInterface interface) override;
+#endif
+
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
                    const network::IPAddress &dns2) override;
@@ -160,8 +177,8 @@ class MDNSComponent final : public Component
   static constexpr uint32_t NETWORK_TXT_CHECK_INTERVAL_MS = 1000;
   /// The first connected interface in network: priority order ("ethernet" or "wifi"), else nullptr.
   const char *connected_network_() const;
-  /// Check the connected interface and publish a changed "network" TXT value.
-  void update_network_txt_();
+  /// Publish network as the "network" TXT value if it changed; nullptr keeps the current value.
+  void update_network_txt_(const char *network);
   /// Platform-specific: replace the "network" TXT value of the registered _esphomelib service.
   bool publish_network_txt_(const char *network);
   /// Advertised value; nullptr until the _esphomelib service is registered, and after a failed publish.

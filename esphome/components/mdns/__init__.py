@@ -3,7 +3,9 @@ from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_API,
     CONF_DISABLED,
+    CONF_ETHERNET,
     CONF_ID,
     CONF_OPENTHREAD,
     CONF_PORT,
@@ -284,6 +286,20 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Same condition as USE_MDNS_DYNAMIC_NETWORK_TXT in mdns_component.h: the
+    # network TXT value follows the interface that holds the default route.
+    from esphome.components import network
+
+    if (
+        CONF_API in CORE.config
+        and CONF_WIFI in CORE.config
+        and CONF_ETHERNET in CORE.config
+        and CONF_OPENTHREAD not in CORE.config
+        and network.has_active_interface()
+    ):
+        cg.add_define("USE_MDNS_ACTIVE_INTERFACE_LISTENER")
+        await network.register_active_interface_listener(var)
 
     for service in config[CONF_SERVICES]:
         txt_records = [
