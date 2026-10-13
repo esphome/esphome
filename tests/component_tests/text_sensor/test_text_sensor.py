@@ -1,5 +1,8 @@
 """Tests for the text sensor component."""
 
+from collections.abc import Callable
+import re
+
 from tests.component_tests.helpers import INTERNAL_BIT, extract_packed_value
 
 
@@ -62,3 +65,38 @@ def test_text_sensor_device_class_set(generate_main):
     assert packed_ts_2 != 0
     packed_ts_3 = extract_packed_value(main_cpp, "ts_3")
     assert packed_ts_3 != 0
+
+
+def test_substitution_filters_share_progmem_tables(
+    generate_main: Callable[[str], str],
+) -> None:
+    """Map and substitute pairs live in PROGMEM tables; equal lists share one."""
+    main_cpp = generate_main(
+        "tests/component_tests/text_sensor/test_text_sensor_filter_tables.yaml"
+    )
+
+    tables = re.findall(
+        r"static constexpr text_sensor::Substitution (\w+)\[\] PROGMEM", main_cpp
+    )
+    assert len(tables) == 2
+    map_table, sub_table = tables
+    assert main_cpp.count(f"text_sensor::MapFilter({map_table})") == 2
+    assert f"text_sensor::SubstituteFilter({sub_table})" in main_cpp
+    # Each table ends with an empty pair so the filters store no count.
+    assert main_cpp.count(".from = nullptr") == 2
+
+
+def test_substitution_table_names_avoid_user_ids(
+    generate_main: Callable[[str], str],
+) -> None:
+    """A user id equal to a table name cannot collide with the generated table."""
+    main_cpp = generate_main(
+        "tests/component_tests/text_sensor/test_text_sensor_filter_table_id_clash.yaml"
+    )
+
+    tables = re.findall(
+        r"static constexpr text_sensor::Substitution (\w+)\[\] PROGMEM", main_cpp
+    )
+    assert len(tables) == 2
+    assert "text_sensor_substitutions" not in tables
+    assert "text_sensor_mapfilter_id_table" not in tables

@@ -1,5 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import (
+    CONF_BLUE_CHANNEL,
+    CONF_CLEAR_CHANNEL,
+    CONF_GREEN_CHANNEL,
+    CONF_RED_CHANNEL,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR_TEMPERATURE,
@@ -19,11 +25,6 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
-
-CONF_RED_CHANNEL = "red_channel"
-CONF_GREEN_CHANNEL = "green_channel"
-CONF_BLUE_CHANNEL = "blue_channel"
-CONF_CLEAR_CHANNEL = "clear_channel"
 
 tcs34725_ns = cg.esphome_ns.namespace("tcs34725")
 TCS34725Component = tcs34725_ns.class_(

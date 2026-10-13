@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "esphome/components/stepper/stepper.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
@@ -137,14 +139,15 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   void set_tpwm_threshold(uint32_t threshold) { this->write_field(TPWMTHRS, threshold); }
 
   /// Set the motor run or hold current in A RMS.
-  void set_run_current(float current) { this->write_field(IRUN, this->current_to_scale_(current)); }
-  void set_hold_current(float current) { this->write_field(IHOLD, this->current_to_scale_(current)); }
+  /// Not supported with analog current scale, use set_irun() and set_ihold() instead.
+  void set_run_current(float current);
+  void set_hold_current(float current);
   void set_irun(uint8_t irun) { this->write_field(IRUN, irun); }
   void set_ihold(uint8_t ihold) { this->write_field(IHOLD, ihold); }
   void set_iholddelay(uint8_t delay) { this->write_field(IHOLDDELAY, delay); }
   void set_tpowerdown(uint8_t tpowerdown) { this->write_field(TPOWERDOWN, tpowerdown); }
   void set_standstill_mode(StandstillMode mode) { this->write_field(FREEWHEEL, mode); }
-  /// Convert a current scale (0-31) to A RMS.
+  /// Convert a current scale (0-31) to A RMS, without analog current scale.
   float scale_to_current(uint8_t scale);
 
   bool write_register(uint8_t reg, uint32_t value);
@@ -155,54 +158,54 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
 
  protected:
   /// IC version reported in IOIN by the supported chip.
-  virtual uint8_t expected_version_() const = 0;
+  virtual uint8_t expected_version() const = 0;
   /// Return the cached value of a write-only register, or nullptr when the register is readable.
-  virtual uint32_t *shadow_register_(uint8_t reg);
+  virtual uint32_t *shadow_register(uint8_t reg);
   /// Write all settings to the driver; also used to restore them after the driver has been reset.
-  virtual void configure_driver_();
+  virtual void configure_driver();
   /// Called when DIAG rises without a driver error.
-  virtual void on_diag_without_error_() {}
+  virtual void on_diag_without_error() {}
   /// Read GSTAT and DRV_STATUS and report changes. Returns false when the status could not be read.
   bool update_status_();
-  uint8_t current_to_scale_(float current);
-  float full_scale_voltage_();
+  optional<uint8_t> current_to_scale_(float current);
+  float full_scale_current_();
+  int32_t get_vactual_() const { return static_cast<int32_t>(extract_field(this->vactual_reg_, VACTUAL)); }
   int32_t speed_to_vactual_(float speed) const;
+  void add_index_pulses_();
   void loop_serial_();
   void loop_step_dir_();
 
-  uint8_t address_{0};
   GPIOPin *enn_pin_{nullptr};
   GPIOPin *step_pin_{nullptr};
   GPIOPin *dir_pin_{nullptr};
   InternalGPIOPin *index_pin_{nullptr};
   InternalGPIOPin *diag_pin_{nullptr};
-  uint32_t clock_frequency_{12000000};
-  optional<float> rsense_{};
-  optional<bool> vsense_{};
-  optional<uint8_t> ottrim_{};
-  optional<float> initial_run_current_{};
-  optional<float> initial_hold_current_{};
-  optional<uint16_t> initial_microsteps_{};
-  bool analog_current_scale_{false};
-
-  bool enabled_{false};
-  bool vsense_active_{false};
-  uint8_t toff_{3};
-  uint8_t version_{0};
-  int8_t direction_{0};
-  bool step_state_{false};
-  int32_t vactual_{0};
-  IndexPulseStore index_store_{};
-  DiagPinStore diag_store_{};
-  uint16_t status_{0};
   LazyCallbackManager<void(DriverEvent, bool)> status_callback_;
-  HighFrequencyLoopRequester high_freq_;
-
+  uint32_t clock_frequency_{12000000};
   // Write-only registers shared by all family members, with their power-on values
   uint32_t ihold_irun_{0x00071703};
   uint32_t tpowerdown_{0x14};
   uint32_t tpwmthrs_{0};
   uint32_t vactual_reg_{0};
+  // NaN while not configured
+  float rsense_{NAN};
+  float initial_run_current_{NAN};
+  float initial_hold_current_{NAN};
+  IndexPulseStore index_store_{};
+  uint16_t initial_microsteps_{16};
+  uint16_t status_{0};
+  optional<bool> vsense_{};
+  optional<uint8_t> ottrim_{};
+  uint8_t address_{0};
+  uint8_t toff_{3};
+  uint8_t version_{0};
+  int8_t direction_{0};
+  DiagPinStore diag_store_{};
+  bool analog_current_scale_{false};
+  bool enabled_{false};
+  bool vsense_active_{false};
+  bool step_state_{false};
+  HighFrequencyLoopRequester high_freq_;
 };
 
 }  // namespace esphome::tmc22xx

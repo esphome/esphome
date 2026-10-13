@@ -3,7 +3,7 @@
 
 namespace esphome::mk2pvrouter {
 
-static const char *const TAG = "mk2pvrouter_sensor";
+ESPHOME_LOG_TAG(TAG, "mk2pvrouter_sensor");
 
 Mk2PVRouterSensor::Mk2PVRouterSensor(const char *tag, bool scale_centi)
     : Mk2PVRouterListener(tag), scale_centi_(scale_centi) {}
