@@ -84,10 +84,12 @@ CUSTOM_PRESETS = {
     "FREEZE_PROTECTION": Capabilities.FREEZE_PROTECTION,
 }
 
-# Channel used by midea_ac.display_toggle. Many appliances accept the UART
-# request without reporting support in their 0xB5 capabilities report, so
-# UART is the default. AUTO preserves the previous behavior (UART only when
-# the appliance reports supportLightControl(), IR otherwise).
+# Channel used by midea_ac.display_toggle. AUTO is the default and behaves
+# like the legacy implementation when an IR transmitter is compiled in
+# (UART only when the appliance reports supportLightControl(), IR otherwise).
+# When no transmitter is compiled in, AUTO falls back to UART — this matches
+# what many appliances (Mundoclima, Rotenso, etc.) silently accept even though
+# they don't advertise supportLightControl() in the 0xB5 capabilities report.
 DISPLAY_CONTROLS = {
     "UART": DisplayControl.DISPLAY_CONTROL_UART,
     "AUTO": DisplayControl.DISPLAY_CONTROL_AUTO,
@@ -105,8 +107,9 @@ validate_display_control = cv.enum(DISPLAY_CONTROLS, upper=True)
 def validate_display_control_with_transmitter(config):
     """`display_control: IR` is meaningless without a `remote_transmitter` to send through.
 
-    UART and AUTO can fall back to IR transparently if the appliance doesn't
-    support UART, but explicit IR requires the user to have wired one up.
+    AUTO falls back to IR only when an IR transmitter is compiled in;
+    otherwise it uses UART. Explicit UART and IR always use their own
+    channel — neither falls back.
     """
     if config.get(CONF_DISPLAY_CONTROL) == "IR" and CONF_TRANSMITTER_ID not in config:
         raise cv.Invalid(
@@ -127,10 +130,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
             cv.Optional(CONF_AUTOCONF, default=True): cv.boolean,
-            # Channel used by `midea_ac.display_toggle`. UART is the default
-            # because many appliances (Mundoclima, Rotenso, etc.) accept the
-            # toggle without advertising `supportLightControl()` in 0xB5.
-            cv.Optional(CONF_DISPLAY_CONTROL, default="UART"): validate_display_control,
+            cv.Optional(CONF_DISPLAY_CONTROL, default="AUTO"): validate_display_control,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(validate_modes),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
                 validate_swing_modes
