@@ -106,9 +106,13 @@ def _own_documents() -> set[Path]:
     walk(CORE.raw_config or {})
     # A file that only gave substitutions leaves no node behind; the tracker
     # also lists a secrets file the loader only tried, hence the is_file check
-    documents.update(
-        map(str, yaml_util.discover_user_yaml_files(CORE.config_path).files)
-    )
+    found = yaml_util.discover_user_yaml_files(CORE.config_path)
+    if found.load_errors:  # an incomplete set would misplace a key
+        raise EsphomeError(
+            "Could not read every file of the configuration: "
+            + "; ".join(found.load_errors)
+        )
+    documents.update(map(str, found.files))
     return {p.resolve() for d in documents if (p := Path(d)).is_file()}
 
 
@@ -187,8 +191,12 @@ def rewritten_text(original: str, edits: list[LineEdit]) -> str:
     """``original`` with the edits applied; a line that changed is refused."""
     lines = original.splitlines(keepends=True)
     file_newline = "\r\n" if "\r\n" in original else "\n"
-    # Bottom up, so an insertion never shifts a later edit
-    for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
+    # Bottom up, so an insertion never shifts a later edit; insertions under
+    # one line keep their order
+    order = sorted(
+        enumerate(edits), key=lambda ie: (ie[1].line, ie[1].insert_after, ie[0])
+    )
+    for _, edit in reversed(order):
         text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
         if text != edit.old_line:
             raise EsphomeError(f"{edit.path}:{edit.line + 1} changed since it was read")
@@ -218,7 +226,10 @@ def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
             write_keeping_mode(path, snapshot.written)
         for path in originals:
             try:
-                yaml_util.load_yaml(path, track_document_range=False)
+                # The secret registry stays: later output still redacts
+                yaml_util.load_yaml(
+                    path, clear_secrets=False, track_document_range=False
+                )
             except EsphomeError as err:
                 raise EsphomeError(f"{path} no longer loads: {err}") from err
         compiled_config.invalidate_compiled_config()

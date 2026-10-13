@@ -252,12 +252,36 @@ def test_insert_after_goes_before_the_rewrite_of_the_same_line(
     path = _setup(tmp_path, text)
     edit = _name_edit("garage")
     added = LineEdit(path, 4, "  ssid: kitchen", "  password: x", insert_after=True)
-    assert rewritten_text(read_text(path), [added, edit]) == (
-        text.replace("name: kitchen", "name: garage") + "\r\n  password: x"
+    more = LineEdit(
+        path, 4, "  ssid: kitchen", "  fast_connect: true", insert_after=True
+    )
+    assert rewritten_text(read_text(path), [added, more, edit]) == (
+        text.replace("name: kitchen", "name: garage")
+        + "\r\n  password: x\r\n  fast_connect: true"
     )
     edit.old_line = "changed"
     with pytest.raises(EsphomeError, match="changed since it was read"):
         rewritten_text(read_text(path), [added, edit])
+
+
+def test_own_documents_refuses_an_incomplete_set(tmp_path: Path) -> None:
+    _setup(tmp_path, YAML)
+    found = yaml_util.DiscoveredYamlFiles(load_errors=["sub.yaml: broken"])
+    with (
+        patch("esphome.yaml_util.discover_user_yaml_files", return_value=found),
+        pytest.raises(EsphomeError, match="Could not read every file .*sub.yaml"),
+    ):
+        own_documents()
+
+
+def test_apply_keeps_the_secret_registry(tmp_path: Path) -> None:
+    """The reload must not clear what later output redacts as !secret."""
+    (tmp_path / "secrets.yaml").write_bytes(b"ssid: hidden\n")
+    path = _setup(tmp_path, YAML.replace("ssid: kitchen", "ssid: !secret ssid"))
+    assert yaml_util.is_secret("hidden") == "ssid"
+    apply_line_edits([_name_edit("garage")])
+    assert yaml_util.is_secret("hidden") == "ssid"
+    assert "!secret ssid" in path.read_text()
 
 
 def test_apply_writes_reloads_drops_the_cache_and_restores(tmp_path: Path) -> None:
