@@ -14,15 +14,15 @@ class GT911ButtonListener {
 
 class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
-  /// With a reset pin the chip is reset and, when the interrupt pin is wired too, strapped to the configured
-  /// address; the rest of the setup then runs from timeouts once the chip is ready. Without a reset pin
-  /// setup_internal_() runs at once and probes both addresses.
+  /// With a reset pin the chip is reset with the interrupt pin held low, which selects address 0x5D, and the
+  /// rest of the setup runs from timeouts once the chip is ready. Without one setup_internal_() runs at once.
   void setup() override;
   void dump_config() override;
   bool can_proceed() override { return this->setup_done_; }
 
   /// Set a interrupt pin (supports hardware interrupts or expander connected).
   void set_interrupt_pin(GPIOPin *pin) { this->interrupt_pin_ = pin; }
+
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
   void register_button_listener(GT911ButtonListener *listener) { this->button_listeners_.push_back(listener); }
 
@@ -40,7 +40,6 @@ class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CD
   void setup_internal_();
   /// @brief True if the touchscreen setup has completed successfully.
   bool setup_done_{false};
-  void log_device_info_();
 
   GPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};

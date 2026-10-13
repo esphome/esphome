@@ -5,16 +5,8 @@ touchscreen:
     display: test_display_screen
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
-  # No reset pin: the address is probed, and the secondary one is accepted
-  - platform: gt911
-    i2c_id: i2c_bus
-    id: gt911_secondary
-    address: 0x14
-    display: test_display_screen
-    interrupt_pin: ${interrupt_pin_2}
 
 binary_sensor:
   - platform: gt911
-    gt911_id: gt911_touchscreen
     id: touch_key_911
     index: 0
