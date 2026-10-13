@@ -303,7 +303,7 @@ class Logger final : public Component {
       this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf, thread_name);
     }
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-    this->boot_log_capture_(level, buf);
+    this->boot_log_capture_(level, tag, buf);
 #endif
     this->notify_listeners_(level, tag, buf);
     this->write_log_buffer_to_console_(buf);
@@ -318,7 +318,7 @@ class Logger final : public Component {
     buf.write_header(level, tag, line, thread_name);
     buf.write_body(text, text_length);
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-    this->boot_log_capture_(level, buf);
+    this->boot_log_capture_(level, tag, buf);
 #endif
     this->notify_listeners_(level, tag, buf);
   }
@@ -329,8 +329,8 @@ class Logger final : public Component {
 #endif
 
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-  /// Copy a formatted WARN/ERROR line (ANSI codes stripped) into the boot log buffer.
-  void boot_log_capture_(uint8_t level, const LogBuffer &buf);
+  /// Copy a formatted WARN/ERROR line (outer ANSI codes stripped) into the boot log buffer.
+  void boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf);
 #endif
 
   // Group 4-byte aligned members first
@@ -396,7 +396,7 @@ class Logger final : public Component {
   // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-  // Sequential records of early WARN/ERROR lines: u16 text_len | u8 level | u32 millis | text
+  // Sequential records of early WARN/ERROR lines: u16 text_len | u8 level | u32 millis | const char *tag | text
   char boot_log_buffer_[ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE];
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER

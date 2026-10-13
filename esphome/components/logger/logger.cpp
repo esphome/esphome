@@ -205,14 +205,13 @@ void Logger::process_messages_() {
 }
 
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-// Record layout in boot_log_buffer_: u16 text_len | u8 level | u32 millis | text
-static constexpr uint16_t BOOT_LOG_RECORD_HEADER_SIZE = 7;
+// Record layout in boot_log_buffer_: u16 text_len | u8 level | u32 millis | const char *tag | text
+static constexpr uint16_t BOOT_LOG_RECORD_HEADER_SIZE = 2 + 1 + 4 + sizeof(const char *);
 
-void Logger::boot_log_capture_(uint8_t level, const LogBuffer &buf) {
+void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf) {
   if (this->boot_log_done_ || level > ESPHOME_LOG_LEVEL_WARN || level == ESPHOME_LOG_LEVEL_NONE)
     return;
-  // Strip the leading ANSI color prefix and trailing reset; the replay re-emits
-  // the text through the normal formatter, which colors it again.
+  // Strip the leading ANSI color prefix and trailing reset; the replay adds its own around the stamp.
   const char *text = buf.data;
   uint16_t len = buf.pos;
   if (len > 0 && text[0] == '\033') {
@@ -234,6 +233,7 @@ void Logger::boot_log_capture_(uint8_t level, const LogBuffer &buf) {
   memcpy(p, &len, sizeof(len));
   p[2] = static_cast<char>(level);
   memcpy(p + 3, &now, sizeof(now));
+  memcpy(p + 7, &tag, sizeof(tag));  // tags are string literals, so the pointer stays valid
   memcpy(p + BOOT_LOG_RECORD_HEADER_SIZE, text, len);
   this->boot_log_pos_ += BOOT_LOG_RECORD_HEADER_SIZE + len;
 }
@@ -247,11 +247,24 @@ void Logger::replay_boot_logs() {
     const char *p = this->boot_log_buffer_ + pos;
     uint16_t len;
     memcpy(&len, p, sizeof(len));
+    const auto level = static_cast<uint8_t>(p[2]);
     uint32_t stamp;
     memcpy(&stamp, p + 3, sizeof(stamp));
-    esp_log_printf_(static_cast<uint8_t>(p[2]), TAG, __LINE__, ESPHOME_LOG_FORMAT("@%" PRIu32 "ms %.*s"), stamp,
-                    static_cast<int>(len), p + BOOT_LOG_RECORD_HEADER_SIZE);
+    const char *tag;
+    memcpy(&tag, p + 7, sizeof(tag));
     pos += BOOT_LOG_RECORD_HEADER_SIZE + len;
+    if (level > this->level_for(tag))
+      continue;
+    // The stored text already carries its [LEVEL][tag:line] header, so write the
+    // line straight to the listeners instead of formatting it a second time.
+    LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
+    const int written = snprintf(
+        buf.data, buf.size, "\033[%c;3%cm@%" PRIu32 "ms ", level == ESPHOME_LOG_LEVEL_ERROR ? '1' : '0',
+        static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&LOG_LEVEL_COLOR_DIGIT[level]))), stamp);
+    buf.pos = static_cast<uint16_t>(written);
+    buf.write_body(p + BOOT_LOG_RECORD_HEADER_SIZE, len);
+    this->notify_listeners_(level, tag, buf);
+    this->write_log_buffer_to_console_(buf);
   }
   ESP_LOGI(TAG, "Boot log replay done");
 }
