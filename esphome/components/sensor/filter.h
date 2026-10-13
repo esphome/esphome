@@ -239,8 +239,8 @@ class ExponentialMovingAverageFilter : public Filter {
 
   optional<float> new_value(float value) override;
 
-  void set_send_every(uint16_t send_every);
-  void set_alpha(float alpha);
+  void set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
+  void set_alpha(float alpha) { this->alpha_ = alpha; }
 
  protected:
   float accumulator_{NAN};
@@ -479,6 +479,19 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
+/// Codegen use only: `timeout` (value `last`) followed by `throttle_with_priority` (NaN only) with the
+/// same period, as one object. Output matches the two filter chain exactly.
+class TimeoutThrottleFilter : public TimeoutFilterLast {
+ public:
+  explicit TimeoutThrottleFilter(uint32_t time_period) : TimeoutFilterLast(time_period) {}
+
+  optional<float> new_value(float value) override;
+  void loop() override;
+
+ protected:
+  uint32_t last_input_{0};  // When the throttle stage last let a value through
+};
+
 class DebounceFilter : public Filter {
  public:
   explicit DebounceFilter(uint32_t time_period);
@@ -532,6 +545,9 @@ optional<float> or_filter_new_value(Filter **filters, size_t count, float value,
 template<size_t N> class OrFilter : public Filter {
  public:
   explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
+  // Codegen passes each filter as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Fs>
+  requires(sizeof...(Fs) == N) explicit OrFilter(Fs *...filters) : filters_{filters...} {}
 
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);
@@ -563,38 +579,24 @@ template<size_t N> class OrFilter : public Filter {
   bool has_value_{false};
 };
 
-/// Non-template helper for linear calibration (implementation in filter.cpp)
-optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value);
-
-/// N is set by code generation to match the exact number of calibration segments.
-template<size_t N> class CalibrateLinearFilter : public Filter {
+/// Piecewise linear calibration; the segments are a PROGMEM table shared by filters with the same data.
+class CalibrateLinearFilter : public Filter {
  public:
-  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
-    init_array_from(this->linear_functions_, linear_functions);
-  }
-  optional<float> new_value(float value) override {
-    return calibrate_linear_compute(this->linear_functions_.data(), N, value);
-  }
+  explicit CalibrateLinearFilter(const std::array<float, 3> *functions) : functions_(functions) {}
+  optional<float> new_value(float value) override;
 
  protected:
-  std::array<std::array<float, 3>, N> linear_functions_{};
+  const std::array<float, 3> *functions_;  // Last segment has a NaN boundary, which ends the table
 };
 
-/// Non-template helper for polynomial calibration (implementation in filter.cpp)
-optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value);
-
-/// N is set by code generation to match the exact number of polynomial coefficients.
-template<size_t N> class CalibratePolynomialFilter : public Filter {
+/// Polynomial calibration; the coefficients are a PROGMEM table shared by filters with the same data.
+class CalibratePolynomialFilter : public Filter {
  public:
-  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
-    init_array_from(this->coefficients_, coefficients);
-  }
-  optional<float> new_value(float value) override {
-    return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
-  }
+  explicit CalibratePolynomialFilter(const float *coefficients) : coefficients_(coefficients) {}
+  optional<float> new_value(float value) override;
 
  protected:
-  std::array<float, N> coefficients_{};
+  const float *coefficients_;  // [count, c0, c1, ...]
 };
 
 class ClampFilter : public Filter {

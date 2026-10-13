@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr60fda2 {
 
-class InstallHeightSelect : public select::Select, public Parented<MR60FDA2Component> {
+class InstallHeightSelect final : public select::Select, public Parented<MR60FDA2Component> {
  public:
   InstallHeightSelect() = default;
 

@@ -1,0 +1,19 @@
+# Config-only: the CI base board (generic-bk7252, BLE 4.2) cannot compile the
+# BLE 5.x tracker, so this fixture proves validation (schema + neutral binding)
+# on a non-esp32 platform; codegen and compilation are not exercised here.
+bk72xx_ble_tracker:
+  id: ble_hub
+
+sensor:
+  - platform: mopeka_std_check
+    ble_hub_id: ble_hub
+    mac_address: D3:75:F2:DC:16:91
+    tank_type: Europe_11kg
+    level:
+      name: BK Mopeka Std Level
+  # No ble_hub_id: exercises the generated binding real configs use.
+  - platform: mopeka_std_check
+    mac_address: D3:75:F2:DC:16:92
+    tank_type: Europe_11kg
+    level:
+      name: BK Propane implicit level

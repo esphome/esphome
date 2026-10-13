@@ -18,7 +18,7 @@
 namespace esphome {
 
 // === Wake flag for ESP8266/RP2040 ===
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern volatile bool g_main_loop_woke;
 #endif
@@ -65,8 +65,8 @@ __attribute__((always_inline)) inline bool wake_request_take() {
 #include "esphome/core/wake/wake_freertos.h"
 #elif defined(USE_ESP8266)
 #include "esphome/core/wake/wake_esp8266.h"
-#elif defined(USE_RP2040)
-#include "esphome/core/wake/wake_rp2040.h"
+#elif defined(USE_RP2)
+#include "esphome/core/wake/wake_rp2.h"
 #elif defined(USE_HOST)
 #include "esphome/core/wake/wake_host.h"
 #elif defined(USE_ZEPHYR)

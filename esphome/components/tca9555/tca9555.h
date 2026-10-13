@@ -7,9 +7,9 @@
 
 namespace esphome::tca9555 {
 
-class TCA9555Component : public Component,
-                         public i2c::I2CDevice,
-                         public gpio_expander::CachedGpioExpander<uint8_t, 16> {
+class TCA9555Component final : public Component,
+                               public i2c::I2CDevice,
+                               public gpio_expander::CachedGpioExpander<uint8_t, 16> {
  public:
   TCA9555Component() = default;
 
@@ -47,7 +47,7 @@ class TCA9555Component : public Component,
 };
 
 /// Helper class to expose a TCA9555 pin as an internal input GPIO pin.
-class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
+class TCA9555GPIOPin final : public GPIOPin, public Parented<TCA9555Component> {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;

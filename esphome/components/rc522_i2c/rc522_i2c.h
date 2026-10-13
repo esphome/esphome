@@ -6,7 +6,7 @@
 
 namespace esphome::rc522_i2c {
 
-class RC522I2C : public rc522::RC522, public i2c::I2CDevice {
+class RC522I2C final : public rc522::RC522, public i2c::I2CDevice {
  public:
   void dump_config() override;
 

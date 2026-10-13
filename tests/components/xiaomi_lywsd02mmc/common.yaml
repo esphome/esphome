@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: xiaomi_lywsd02mmc
+    ble_hub_id: ble_tracker_hub
     mac_address: A4:C1:38:54:5E:18
     bindkey: 2529d8e0d23150a588675cc54ad48400
     temperature:

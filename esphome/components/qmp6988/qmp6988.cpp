@@ -43,7 +43,7 @@ static const uint8_t QMP6988_CONFIG_REG_FILTER_LEN = 3;
 
 static const uint32_t SUBTRACTOR = 8388608;
 
-static const char *const TAG = "qmp6988";
+ESPHOME_LOG_TAG(TAG, "qmp6988");
 
 static const char *oversampling_to_str(QMP6988Oversampling oversampling) {
   switch (oversampling) {
@@ -276,7 +276,7 @@ void QMP6988Component::write_oversampling_temperature_(QMP6988Oversampling overs
 
 void QMP6988Component::calculate_altitude_(float pressure, float temp) {
   float altitude;
-  altitude = (pow((101325 / pressure), 1 / 5.257) - 1) * (temp + 273.15) / 0.0065;
+  altitude = (powf((101325 / pressure), 1 / 5.257f) - 1) * (temp + 273.15f) / 0.0065f;
   this->qmp6988_data_.altitude = altitude;
 }
 

@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+ethernet:
+  id: eth_component
+  type: W5500
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+  cs_pin: GPIO5
+  interrupt_pin: GPIO36
+  reset_pin: GPIO22
+  clock_speed: 20MHz

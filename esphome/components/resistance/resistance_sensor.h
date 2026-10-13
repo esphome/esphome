@@ -10,7 +10,7 @@ enum ResistanceConfiguration {
   DOWNSTREAM,
 };
 
-class ResistanceSensor : public Component, public sensor::Sensor {
+class ResistanceSensor final : public Component, public sensor::Sensor {
  public:
   void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_configuration(ResistanceConfiguration configuration) { configuration_ = configuration; }

@@ -3,11 +3,10 @@
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome::hbridge {
 
-class HBridgeLightOutput final : public Component, public light::LightOutput {
+class HBridgeLightOutput final : public PollingComponent, public light::LightOutput {
  public:
   void set_pina_pin(output::FloatOutput *pina_pin) { this->pina_pin_ = pina_pin; }
   void set_pinb_pin(output::FloatOutput *pinb_pin) { this->pinb_pin_ = pinb_pin; }
@@ -20,11 +19,12 @@ class HBridgeLightOutput final : public Component, public light::LightOutput {
     return traits;
   }
 
-  void setup() override { this->disable_loop(); }
+  void setup() override { this->stop_poller(); }
 
-  void loop() override {
-    // Only called when both channels are active — alternate H-bridge direction
-    // each iteration to multiplex cold and warm white.
+  void update() override {
+    // Flip the H-bridge direction to multiplex cold/warm white. update_interval must stay
+    // slower than the output's PWM period (flipping faster collapses the output onto one
+    // channel) but fast enough to avoid flicker (issue #17030).
     if (!this->forward_direction_) {
       this->pina_pin_->set_level(this->pina_duty_);
       this->pinb_pin_->set_level(0);
@@ -46,13 +46,17 @@ class HBridgeLightOutput final : public Component, public light::LightOutput {
     this->pinb_duty_ = new_pinb;
 
     if (new_pina != 0.0f && new_pinb != 0.0f) {
-      // Both channels active — need loop to alternate H-bridge direction
-      this->high_freq_.start();
-      this->enable_loop();
+      // Both channels active — multiplex the H-bridge direction via the poller.
+      if (!this->multiplexing_) {
+        this->multiplexing_ = true;
+        this->start_poller();
+      }
     } else {
-      // Zero or one channel active — drive pins directly, no multiplexing needed
-      this->high_freq_.stop();
-      this->disable_loop();
+      // Zero or one channel active — drive pins directly, no multiplexing needed.
+      if (this->multiplexing_) {
+        this->multiplexing_ = false;
+        this->stop_poller();
+      }
       this->pina_pin_->set_level(new_pina);
       this->pinb_pin_->set_level(new_pinb);
     }
@@ -64,7 +68,7 @@ class HBridgeLightOutput final : public Component, public light::LightOutput {
   float pina_duty_{0};
   float pinb_duty_{0};
   bool forward_direction_{false};
-  HighFrequencyLoopRequester high_freq_;
+  bool multiplexing_{false};
 };
 
 }  // namespace esphome::hbridge
