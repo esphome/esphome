@@ -23,6 +23,11 @@ namespace esphome::mq_gas_sensors {
 /// (`PPM = a * ratio^b`). R0 comes from the configuration, from flash or from a
 /// clean air calibration.
 class MQGasSensor : public sensor::Sensor, public PollingComponent {
+  SUB_SENSOR(ratio)
+  SUB_SENSOR(rs)
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(correction)
+
  public:
   void setup() override;
   void loop() override;
@@ -60,10 +65,6 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void set_warmup_time(uint32_t warmup) { this->warmup_time_ = warmup; }
   void set_calibration(bool enabled, float ratio_in_clean_air, uint32_t delay, uint32_t duration, uint32_t samples,
                        bool persist);
-  void set_ratio_sensor(sensor::Sensor *sensor) { this->ratio_sensor_ = sensor; }
-  void set_rs_sensor(sensor::Sensor *sensor) { this->rs_sensor_ = sensor; }
-  void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
-  void set_correction_sensor(sensor::Sensor *sensor) { this->correction_sensor_ = sensor; }
   void set_log_sensor(text_sensor::TextSensor *sensor) { this->log_sensor_ = sensor; }
   /// Log the value that is about to be published at `INFO` on every update.  It
   /// is the "normal mode" line: the detailed chain (V / RS / ratio / correction)
@@ -189,10 +190,6 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   float ratio_{0.0f};
   float correction_{1.0f};
 
-  sensor::Sensor *ratio_sensor_{nullptr};
-  sensor::Sensor *rs_sensor_{nullptr};
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *correction_sensor_{nullptr};
   text_sensor::TextSensor *log_sensor_{nullptr};
   uint32_t last_log_sensor_debug_{0};  ///< `App.get_loop_component_start_time()` of the last mirrored DEBUG message
 
