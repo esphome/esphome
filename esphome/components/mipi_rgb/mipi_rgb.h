@@ -6,11 +6,12 @@
 #include <esp_lcd_panel_rgb.h>
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
+#include "esphome/core/log.h"
 #endif
 
 namespace esphome::mipi_rgb {
 
-constexpr static const char *const TAG = "display.mipi_rgb";
+ESPHOME_LOG_TAG(TAG, "display.mipi_rgb");
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;

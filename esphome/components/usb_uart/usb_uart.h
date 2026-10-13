@@ -9,6 +9,7 @@
 #include "esphome/components/usb_host/usb_host.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
+#include "esphome/core/log.h"
 #include <atomic>
 #include <functional>
 
@@ -19,7 +20,7 @@ class USBUartComponent;
 class USBUartChannelBase;
 class USBUartTypePL2303;
 
-static const char *const TAG = "usb_uart";
+ESPHOME_LOG_TAG(TAG, "usb_uart");
 
 static constexpr uint8_t USB_CDC_SUBCLASS_ACM = 0x02;
 static constexpr uint8_t USB_SUBCLASS_COMMON = 0x02;

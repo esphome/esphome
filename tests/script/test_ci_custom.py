@@ -10,6 +10,7 @@ NOLINT escape hatch at both placements a contributor would try.
 Also covers the ESP_LOG call scanner (_iter_log_calls) and the bare-literal-ternary lint.
 """
 
+import fnmatch
 import importlib.util
 from pathlib import Path
 import sys
@@ -400,6 +401,7 @@ def test_ternary_error_message_names_the_literal() -> None:
         'static constexpr char TAG[] = {"x"};',
         'static const char TAG[8] = "x";',
         '  static const char *const TAG = "x";',
+        'constexpr static const char *const TAG = "x";',
     ],
 )
 def test_log_tag_macro_flags_plain_tags(line: str) -> None:
@@ -408,10 +410,31 @@ def test_log_tag_macro_flags_plain_tags(line: str) -> None:
 
 @pytest.mark.parametrize(
     "line",
-    ['ESPHOME_LOG_TAG(TAG, "x");', 'static const char *const NAME = "x";'],
+    [
+        'ESPHOME_LOG_TAG(TAG, "x");',
+        'static const char *const NAME = "x";',
+        'static const char *const TAG = "x";  // NOLINT',
+    ],
 )
 def test_log_tag_macro_ignores_macro_and_other_names(line: str) -> None:
     assert not ci_custom.lint_log_tag_macro("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    ("fname", "covered"),
+    [
+        ("esphome/components/x/x.cpp", True),
+        ("esphome/components/x/x.h", True),
+        ("esphome/components/x/sub/x.h", True),
+        ("esphome/core/wake/wake_host.cpp", True),
+        ("esphome/components/x/x.c", False),
+    ],
+)
+def test_log_tag_lints_cover_headers_and_core(fname: str, covered: bool) -> None:
+    assert (
+        any(fnmatch.fnmatch(fname, pattern) for pattern in ci_custom.LOG_TAG_INCLUDE)
+        is covered
+    )
 
 
 @pytest.mark.parametrize(
