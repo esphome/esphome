@@ -620,8 +620,6 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **A test that needs a shared component in a particular state** (`esp32_ble` security settings, an option
         that PSRAM rejects) cannot be grouped: the merged block wins and the whole batch fails. Add the component to
         `ISOLATED_COMPONENTS` in `script/analyze_component_buses.py`, or move the option to a `test-<variant>` file.
-    *   **Test fixtures pass string literals to `App.pre_setup()`.** It stores a `StringRef`, so a stack array in
-        `SetUp()` dangles once it returns; ASan on arm64 reports it, x86 CI does not.
     *   **Component Tests:** YAML-based compilation tests are located in `tests/`. The structure is as follows:
         ```
         tests/
