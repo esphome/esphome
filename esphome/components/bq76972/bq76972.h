@@ -38,6 +38,7 @@ class BQ76972Component final : public PollingComponent, public i2c::I2CDevice {
   bool exit_cfg_update_();
   bool regs_disabled_(bool &out);
   const LogString *configure_();
+  const LogString *write_config_(bool write_regs);
 
   bool reg_disable_{true};
   bool crc_mode_{false};

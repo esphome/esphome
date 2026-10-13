@@ -180,25 +180,33 @@ const LogString *BQ76972Component::configure_() {
   if (write_regs || write_thermistors) {
     if (!this->enter_cfg_update_())
       return LOG_STR("Entering config update mode failed");
-    if (write_regs) {
-      const uint8_t zero = 0;
-      if (!this->write_subcommand_(BQ76972_MEM_REG12_CONFIG, &zero, 1) ||
-          !this->write_subcommand_(BQ76972_MEM_REG0_CONFIG, &zero, 1))
-        return LOG_STR("Writing regulator config failed");
-    }
-    for (size_t i = 1; i < BQ76972_NUM_TEMPERATURES; i++) {
-      if (i == BQ76972_TS1_INDEX || this->temperature_sensors_[i] == nullptr)
-        continue;
-      if (!this->write_subcommand_(BQ76972_MEM_TEMP_PIN_CONFIG_BASE + i, &BQ76972_PIN_CONFIG_THERMISTOR, 1))
-        return LOG_STR("Writing thermistor pin config failed");
-    }
-    if (!this->exit_cfg_update_())
-      return LOG_STR("Exiting config update mode failed");
+    const LogString *error = this->write_config_(write_regs);
+    // The chip stops measuring in config update mode, so leave it even after a failed write
+    if (!this->exit_cfg_update_() && error == nullptr)
+      error = LOG_STR("Exiting config update mode failed");
+    if (error != nullptr)
+      return error;
     if (write_regs && (!this->regs_disabled_(regs_disabled) || !regs_disabled))
       return LOG_STR("Disabling regulators failed");
   }
 
   ESP_LOGD(TAG, "Internal temperature: %.1f°C", raw_to_celsius(internal_temp));
+  return nullptr;
+}
+
+const LogString *BQ76972Component::write_config_(bool write_regs) {
+  if (write_regs) {
+    const uint8_t zero = 0;
+    if (!this->write_subcommand_(BQ76972_MEM_REG12_CONFIG, &zero, 1) ||
+        !this->write_subcommand_(BQ76972_MEM_REG0_CONFIG, &zero, 1))
+      return LOG_STR("Writing regulator config failed");
+  }
+  for (size_t i = 1; i < BQ76972_NUM_TEMPERATURES; i++) {
+    if (i == BQ76972_TS1_INDEX || this->temperature_sensors_[i] == nullptr)
+      continue;
+    if (!this->write_subcommand_(BQ76972_MEM_TEMP_PIN_CONFIG_BASE + i, &BQ76972_PIN_CONFIG_THERMISTOR, 1))
+      return LOG_STR("Writing thermistor pin config failed");
+  }
   return nullptr;
 }
 
@@ -221,14 +229,19 @@ void BQ76972Component::program_i2c_address(uint8_t address) {
   if (this->is_failed())
     return;
   const uint8_t shifted = address << 1;
-  if (!this->enter_cfg_update_() || !this->write_subcommand_(BQ76972_MEM_I2C_ADDRESS, &shifted, 1) ||
-      !this->write_subcommand_(BQ76972_MEM_SWAP_COMM_MODE, nullptr, 0)) {
+  if (!this->enter_cfg_update_()) {
     this->status_set_warning(LOG_STR("Programming I2C address failed"));
     return;
   }
-  delay(10);
-  this->set_i2c_address(address);
-  if (!this->exit_cfg_update_()) {
+  // The new address only takes effect with the swap, so after a failed write the chip still answers at the
+  // old one and must still be taken out of config update mode
+  const bool written = this->write_subcommand_(BQ76972_MEM_I2C_ADDRESS, &shifted, 1) &&
+                       this->write_subcommand_(BQ76972_MEM_SWAP_COMM_MODE, nullptr, 0);
+  if (written) {
+    delay(10);
+    this->set_i2c_address(address);
+  }
+  if (!this->exit_cfg_update_() || !written) {
     this->status_set_warning(LOG_STR("Programming I2C address failed"));
     return;
   }

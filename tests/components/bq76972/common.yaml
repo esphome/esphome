@@ -2,6 +2,7 @@ bq76972:
   id: bq76972_id
   address: 0x08
   crc_enabled: true
+  reg_disabled: true
   update_interval: 10s
   stack_voltage:
     name: "Pack Total Voltage"

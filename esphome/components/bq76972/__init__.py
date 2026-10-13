@@ -63,7 +63,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(BQ76972Component),
             cv.Optional(CONF_CRC_ENABLED, default=False): cv.boolean,
-            cv.Optional(CONF_REG_DISABLED, default=True): cv.boolean,
+            cv.Optional(CONF_REG_DISABLED, default=False): cv.boolean,
             cv.Optional(CONF_STACK_VOLTAGE): voltage_sensor_schema,
             **{cv.Optional(key): voltage_sensor_schema for key in CONF_CELL_VOLTAGES},
             **{cv.Optional(key): temp_sensor_schema for key in CONF_TEMPERATURES},
