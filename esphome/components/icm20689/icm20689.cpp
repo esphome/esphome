@@ -73,7 +73,7 @@ void ICM20689Component::setup() {
   if (static_cast<uint8_t>(this->accel_range_) >= RANGE_COUNT ||
       static_cast<uint8_t>(this->gyro_range_) >= RANGE_COUNT) {
     ESP_LOGE(TAG, "Invalid accelerometer or gyroscope range");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -81,18 +81,16 @@ void ICM20689Component::setup() {
 
   if (!this->spi_is_ready()) {
     ESP_LOGE(TAG, "SPI device is not ready");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
-  this->enable();
-  this->write_byte(ICM20689_REG_WHO_AM_I | ICM20689_READ_BIT);
-  const uint8_t who_am_i = this->transfer_byte(0x00);
-  this->disable();
+  uint8_t who_am_i = 0;
+  this->read_registers_(ICM20689_REG_WHO_AM_I, &who_am_i, 1);
 
   if (who_am_i != ICM20689_WHO_AM_I_VALUE) {
     ESP_LOGE(TAG, "Unexpected WHO_AM_I 0x%02X (expected 0x%02X) -- check wiring/CS", who_am_i, ICM20689_WHO_AM_I_VALUE);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -138,7 +136,7 @@ bool ICM20689Component::update_data(motion::MotionData &data) {
 
   if (accel_range >= RANGE_COUNT || gyro_range >= RANGE_COUNT) {
     ESP_LOGE(TAG, "Invalid accelerometer or gyroscope range");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
 
