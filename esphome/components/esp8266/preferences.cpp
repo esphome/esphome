@@ -24,6 +24,7 @@ static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WO
 // - Eboot region:  RTC words 0-31   (reserved, mapped from preference offset 78-109)
 // - Normal region: RTC words 32-109 (mapped from preference offset 0-77)
 // - Crash handler: RTC words 110-127 (reserved for crash_handler.cpp backtrace data)
+// const.py mirrors the region and flash sizes for config-time space checks
 static constexpr uint32_t RTC_EBOOT_REGION_WORDS = 32;   // Words 0-31 reserved for eboot
 static constexpr uint32_t RTC_NORMAL_REGION_WORDS = 78;  // Words 32-109 for normal prefs
 static constexpr uint32_t PREF_TOTAL_WORDS = RTC_EBOOT_REGION_WORDS + RTC_NORMAL_REGION_WORDS;  // 110

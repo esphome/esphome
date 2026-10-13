@@ -24,6 +24,12 @@ KEY_LDSCRIPT = "ldscript"
 # Crash-decode tools, resolved once per run by __init__
 KEY_DECODE_TOOLS = "decode_tools"
 
+# Space for saved settings, in 4-byte words, from preferences.cpp: RTC memory has two regions
+# (RTC_NORMAL_REGION_WORDS, RTC_EBOOT_REGION_WORDS) that one saved value cannot span; with
+# restore_from_flash everything goes to flash (ESP8266_FLASH_STORAGE_SIZE)
+PREFERENCES_RTC_REGION_WORDS = (78, 32)
+PREFERENCES_FLASH_WORDS = 128
+
 # esp8266 namespace is already defined by arduino, manually prefix esphome
 esp8266_ns = cg.global_ns.namespace("esphome").namespace("esp8266")
 
