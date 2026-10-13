@@ -8,8 +8,10 @@ from ..climate import HaierTundra, haier_tundra_ns
 
 CODEOWNERS = ["@fauxpark"]
 
-LightButton = haier_tundra_ns.class_("LightButton", button.Button, cg.Component)
-SelfCleanButton = haier_tundra_ns.class_("SelfCleanButton", button.Button, cg.Component)
+HaierTundraButton = haier_tundra_ns.class_(
+    "HaierTundraButton", button.Button, cg.Component
+)
+ButtonKind = haier_tundra_ns.enum("ButtonKind", is_class=True)
 
 ICON_LED_OUTLINE = "mdi:led-outline"
 ICON_SPRAY_BOTTLE = "mdi:spray-bottle"
@@ -21,28 +23,21 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_HAIER_TUNDRA_ID): cv.use_id(HaierTundra),
         cv.Optional(CONF_LIGHT): button.button_schema(
-            LightButton,
-            icon=ICON_LED_OUTLINE,
+            HaierTundraButton, icon=ICON_LED_OUTLINE
         ),
         cv.Optional(CONF_SELF_CLEAN): button.button_schema(
-            SelfCleanButton,
-            icon=ICON_SPRAY_BOTTLE,
+            HaierTundraButton, icon=ICON_SPRAY_BOTTLE
         ),
     }
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_HAIER_TUNDRA_ID])
-
-    if button_conf := config.get(CONF_LIGHT):
-        var = cg.new_Pvariable(button_conf[cv.CONF_ID])
-        await button.register_button(var, button_conf)
-        await cg.register_component(var, button_conf)
-        await cg.register_parented(var, parent)
-
-    if button_conf := config.get(CONF_SELF_CLEAN):
-        var = cg.new_Pvariable(button_conf[cv.CONF_ID])
-        await button.register_button(var, button_conf)
-        await cg.register_component(var, button_conf)
-        await cg.register_parented(var, parent)
+    hub = await cg.get_variable(config[CONF_HAIER_TUNDRA_ID])
+    for key, kind in (
+        (CONF_LIGHT, ButtonKind.BUTTON_KIND_LIGHT),
+        (CONF_SELF_CLEAN, ButtonKind.BUTTON_KIND_SELF_CLEAN),
+    ):
+        if (conf := config.get(key)) is not None:
+            var = await button.new_button(conf, hub, kind)
+            await cg.register_component(var, conf)

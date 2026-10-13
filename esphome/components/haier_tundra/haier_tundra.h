@@ -85,12 +85,13 @@ static constexpr uint8_t HAIER_BUTTON_SELF_CLEAN = 0x19;
 
 class HaierTundra final : public climate_ir::ClimateIR {
  public:
-  HaierTundra()
+  explicit HaierTundra(Unit unit)
       : climate_ir::ClimateIR(HAIER_TEMP_MIN, HAIER_TEMP_MAX, 1.0f, true, true,
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
-                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
+                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}),
+        unit_(unit) {}
 
 #ifdef USE_SWITCH
   SUB_SWITCH(health_mode);
@@ -101,7 +102,6 @@ class HaierTundra final : public climate_ir::ClimateIR {
   void set_health_mode(bool health, bool transmit = true);
   void set_quiet_mode(bool quiet, bool transmit = true);
   void set_turbo_mode(bool turbo, bool transmit = true);
-  void set_unit(Unit unit);
 
   void toggle_light();
   void start_self_clean();
@@ -130,7 +130,7 @@ class HaierTundra final : public climate_ir::ClimateIR {
   climate::ClimateMode get_operation_mode_(uint8_t power, uint8_t mode);
   climate::ClimateFanMode get_fan_speed_(uint8_t fan);
 
-  Unit unit_{};
+  Unit unit_;
   bool health_mode_{false};
   bool quiet_mode_{false};
   bool turbo_mode_{false};

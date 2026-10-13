@@ -206,8 +206,6 @@ climate::ClimateFanMode HaierTundra::get_fan_speed_(uint8_t fan) {
   }
 }
 
-void HaierTundra::set_unit(Unit unit) { this->unit_ = unit; }
-
 void HaierTundra::set_health_mode(bool health, bool transmit) {
   this->health_mode_ = health;
 

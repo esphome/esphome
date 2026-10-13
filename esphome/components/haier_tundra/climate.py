@@ -25,7 +25,7 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(HaierTundra).extend(
 
 
 def _final_validate_unit(config: ConfigType) -> None:
-    # Ensure at most one each of unit A and B
+    # Each transmitter may drive at most one unit A and one unit B
     climates = fv.full_config.get()["climate"]
     seen = set()
 
@@ -48,5 +48,4 @@ FINAL_VALIDATE_SCHEMA = _final_validate_unit
 
 async def to_code(config: ConfigType) -> None:
     remote_base.request_protocol("haier")
-    var = await climate_ir.new_climate_ir(config)
-    cg.add(var.set_unit(config[CONF_UNIT]))
+    await climate_ir.new_climate_ir(config, config[CONF_UNIT])

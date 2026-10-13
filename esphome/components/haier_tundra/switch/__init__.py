@@ -8,9 +8,10 @@ from ..climate import HaierTundra, haier_tundra_ns
 
 CODEOWNERS = ["@fauxpark"]
 
-HealthSwitch = haier_tundra_ns.class_("HealthSwitch", switch.Switch, cg.Component)
-QuietSwitch = haier_tundra_ns.class_("QuietSwitch", switch.Switch, cg.Component)
-TurboSwitch = haier_tundra_ns.class_("TurboSwitch", switch.Switch, cg.Component)
+HaierTundraSwitch = haier_tundra_ns.class_(
+    "HaierTundraSwitch", switch.Switch, cg.Component
+)
+SwitchKind = haier_tundra_ns.enum("SwitchKind", is_class=True)
 
 ICON_LEAF = "mdi:leaf"
 ICON_ARROW_DOWN_RIGHT = "mdi:arrow-down-right"
@@ -21,40 +22,39 @@ CONF_HEALTH_MODE = "health_mode"
 CONF_QUIET_MODE = "quiet_mode"
 CONF_TURBO_MODE = "turbo_mode"
 
+
+def _switch_schema(icon: str) -> cv.Schema:
+    return switch.switch_schema(
+        HaierTundraSwitch,
+        icon=icon,
+        default_restore_mode="RESTORE_DEFAULT_OFF",
+        device_class=DEVICE_CLASS_SWITCH,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+    )
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_HAIER_TUNDRA_ID): cv.use_id(HaierTundra),
-        cv.Optional(CONF_HEALTH_MODE): switch.switch_schema(
-            HealthSwitch,
-            icon=ICON_LEAF,
-            default_restore_mode="RESTORE_DEFAULT_OFF",
-            device_class=DEVICE_CLASS_SWITCH,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        cv.Optional(CONF_QUIET_MODE): switch.switch_schema(
-            QuietSwitch,
-            icon=ICON_ARROW_DOWN_RIGHT,
-            default_restore_mode="RESTORE_DEFAULT_OFF",
-            device_class=DEVICE_CLASS_SWITCH,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        cv.Optional(CONF_TURBO_MODE): switch.switch_schema(
-            TurboSwitch,
-            icon=ICON_ARROW_UP_RIGHT_BOLD,
-            default_restore_mode="RESTORE_DEFAULT_OFF",
-            device_class=DEVICE_CLASS_SWITCH,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
+        cv.Optional(CONF_HEALTH_MODE): _switch_schema(ICON_LEAF),
+        cv.Optional(CONF_QUIET_MODE): _switch_schema(ICON_ARROW_DOWN_RIGHT),
+        cv.Optional(CONF_TURBO_MODE): _switch_schema(ICON_ARROW_UP_RIGHT_BOLD),
     }
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_HAIER_TUNDRA_ID])
-
-    for switch_type in [CONF_HEALTH_MODE, CONF_QUIET_MODE, CONF_TURBO_MODE]:
-        if conf := config.get(switch_type):
-            sw = await switch.new_switch(conf)
-            await cg.register_component(sw, conf)
-            await cg.register_parented(sw, parent)
-            cg.add(getattr(parent, f"set_{switch_type}_switch")(sw))
+    hub = await cg.get_variable(config[CONF_HAIER_TUNDRA_ID])
+    switches = switch.sub_switches(config)
+    if sw := await switches(
+        CONF_HEALTH_MODE, hub.set_health_mode_switch, hub, SwitchKind.SWITCH_KIND_HEALTH
+    ):
+        await cg.register_component(sw, config[CONF_HEALTH_MODE])
+    if sw := await switches(
+        CONF_QUIET_MODE, hub.set_quiet_mode_switch, hub, SwitchKind.SWITCH_KIND_QUIET
+    ):
+        await cg.register_component(sw, config[CONF_QUIET_MODE])
+    if sw := await switches(
+        CONF_TURBO_MODE, hub.set_turbo_mode_switch, hub, SwitchKind.SWITCH_KIND_TURBO
+    ):
+        await cg.register_component(sw, config[CONF_TURBO_MODE])
