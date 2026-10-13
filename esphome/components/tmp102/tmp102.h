@@ -20,6 +20,12 @@
 
 namespace esphome::tmp102 {
 
+#ifdef USE_HOST
+namespace testing {
+class TMP102Test;
+}
+#endif
+
 #ifdef USE_TMP102_NUMBER
 enum TMP102LimitType : uint8_t {
   TMP102_LIMIT_LOW = 0,
@@ -37,8 +43,10 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
 #ifdef USE_TMP102_TEXT_SENSOR
   SUB_TEXT_SENSOR(threshold_status)
 #endif
-#ifdef USE_TMP102_CONFIGURE
+#if defined(USE_TMP102_CONFIGURE) || defined(USE_TMP102_TEXT_SENSOR)
   void setup() override;
+#endif
+#ifdef USE_TMP102_CONFIGURE
   void set_configuration(uint16_t config, uint16_t high_limit, uint16_t low_limit) {
     this->config_ = config;
     this->high_limit_ = high_limit;
@@ -53,6 +61,13 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   void update() override;
 
  protected:
+#ifdef USE_TMP102_TEXT_SENSOR
+  void publish_threshold_status_(uint8_t status);
+  void publish_threshold_rejection_(bool high, float value, float other);
+#else
+  void publish_threshold_status_(uint8_t) {}
+  void publish_threshold_rejection_(bool, float, float) {}
+#endif
   void set_warning_and_invalidate_alert_() {
     this->status_set_warning();
 #ifdef USE_TMP102_BINARY_SENSOR
@@ -82,9 +97,6 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   uint16_t low_limit_{0};
   bool configure_{false};
 #endif
-#ifdef USE_TMP102_TEXT_SENSOR
-  void publish_threshold_status_(const char *status);
-#endif
 };
 
 #ifdef USE_TMP102_NUMBER
@@ -95,6 +107,9 @@ class TMP102LimitNumber final : public number::Number, public Parented<TMP102Com
 
  protected:
   friend class TMP102Component;
+#ifdef USE_HOST
+  friend class testing::TMP102Test;
+#endif
   float load_value_(float fallback, bool &corrected);
   bool save_value_(float value);
   void control(float value) override;
