@@ -20,29 +20,23 @@ static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
 
-// RTC memory layout:
+// RTC memory layout, with the sizes defined once in const.py and handed over by codegen:
 // - Eboot region:  RTC words 0-31   (reserved, mapped from preference offset 78-109)
 // - Normal region: RTC words 32-109 (mapped from preference offset 0-77)
 // - Crash handler: RTC words 110-127 (reserved for crash_handler.cpp backtrace data)
-// const.py mirrors the region and flash sizes for config-time space checks
-static constexpr uint32_t RTC_EBOOT_REGION_WORDS = 32;   // Words 0-31 reserved for eboot
-static constexpr uint32_t RTC_NORMAL_REGION_WORDS = 78;  // Words 32-109 for normal prefs
+static constexpr uint32_t RTC_EBOOT_REGION_WORDS = ESP8266_PREFERENCES_RTC_EBOOT_WORDS;
+static constexpr uint32_t RTC_NORMAL_REGION_WORDS = ESP8266_PREFERENCES_RTC_NORMAL_WORDS;
 static constexpr uint32_t PREF_TOTAL_WORDS = RTC_EBOOT_REGION_WORDS + RTC_NORMAL_REGION_WORDS;  // 110
+static_assert(PREF_TOTAL_WORDS <= ESP_RTC_USER_MEM_SIZE_WORDS, "preference regions overflow RTC memory");
 
 // Maximum preference size in words (limited by uint8_t length_words field)
 static constexpr uint32_t MAX_PREFERENCE_WORDS = 255;
 
 #define ESP_RTC_USER_MEM ((uint32_t *) ESP_RTC_USER_MEM_START)
 
-// Flash storage size depends on esp8266 -> restore_from_flash YAML option (default: false).
-// When enabled (USE_ESP8266_PREFERENCES_FLASH), all preferences default to flash and need
-// 128 words (512 bytes). When disabled, only explicit flash prefs use this storage so
-// 64 words (256 bytes) suffices since most preferences go to RTC memory instead.
-#ifdef USE_ESP8266_PREFERENCES_FLASH
-static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
-#else
-static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 64;
-#endif
+// With restore_from_flash every preference goes here; without it only the explicit flash ones do,
+// so codegen hands over a smaller size (const.py).
+static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = ESP8266_PREFERENCES_FLASH_WORDS;
 
 static uint32_t
     s_flash_storage[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -124,7 +118,7 @@ static bool load_from_rtc(size_t offset, uint32_t *data, size_t len) {
 
 // Maximum buffer for any single preference - bounded by storage sizes.
 // Flash prefs: bounded by ESP8266_FLASH_STORAGE_SIZE (128 or 64 words).
-// RTC prefs: bounded by RTC_NORMAL_REGION_WORDS (96) - a single pref can't span both RTC regions.
+// RTC prefs: bounded by RTC_NORMAL_REGION_WORDS (78) - a single pref can't span both RTC regions.
 static constexpr size_t PREF_MAX_BUFFER_WORDS =
     ESP8266_FLASH_STORAGE_SIZE > RTC_NORMAL_REGION_WORDS ? ESP8266_FLASH_STORAGE_SIZE : RTC_NORMAL_REGION_WORDS;
 
@@ -181,8 +175,8 @@ ESPPreferenceObject ESP8266Preferences::make_preference(size_t length, uint32_t 
   } else {
     uint32_t start = this->current_offset;
     bool in_normal = start < RTC_NORMAL_REGION_WORDS;
-    // Normal: offset 0-95 maps to RTC offset 32-127
-    // Eboot: offset 96-127 maps to RTC offset 0-31
+    // Normal: offset 0-77 maps to RTC offset 32-109
+    // Eboot: offset 78-109 maps to RTC offset 0-31
     if (in_normal && start + total_words > RTC_NORMAL_REGION_WORDS) {
       // start is in normal but end is not -> switch to Eboot
       this->current_offset = start = RTC_NORMAL_REGION_WORDS;

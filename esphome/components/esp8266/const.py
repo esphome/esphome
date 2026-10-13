@@ -24,11 +24,35 @@ KEY_LDSCRIPT = "ldscript"
 # Crash-decode tools, resolved once per run by __init__
 KEY_DECODE_TOOLS = "decode_tools"
 
-# Space for saved settings, in 4-byte words, from preferences.cpp: RTC memory has two regions
-# (RTC_NORMAL_REGION_WORDS, RTC_EBOOT_REGION_WORDS) that one saved value cannot span; with
-# restore_from_flash everything goes to flash (ESP8266_FLASH_STORAGE_SIZE)
-PREFERENCES_RTC_REGION_WORDS = (78, 32)
+# Space for saved settings, in 4-byte words. Codegen hands these to preferences.cpp as defines, so this is the
+# only place they are written down. RTC memory has two regions that one saved value cannot span, the normal one
+# and the one eboot also uses; crash_handler.cpp keeps the last 18 of the 128 RTC words. The flash store holds
+# every saved value with restore_from_flash and only the explicit ones without, so it is smaller then.
+PREFERENCES_RTC_NORMAL_WORDS = 78
+PREFERENCES_RTC_EBOOT_WORDS = 32
 PREFERENCES_FLASH_WORDS = 128
+PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE = 64
+
+
+def preference_words(value_bytes: int) -> int:
+    """Words one saved value of this size takes, including its checksum word."""
+    return (value_bytes + 3) // 4 + 1
+
+
+def preference_slots(value_bytes: int, restore_from_flash: bool) -> int:
+    """How many saved values of this size fit when every slot holds one of them.
+
+    With restore_from_flash they all go to the flash store; otherwise they go to RTC memory, where a value
+    cannot straddle the two regions.
+    """
+    words = preference_words(value_bytes)
+    regions = (
+        (PREFERENCES_FLASH_WORDS,)
+        if restore_from_flash
+        else (PREFERENCES_RTC_NORMAL_WORDS, PREFERENCES_RTC_EBOOT_WORDS)
+    )
+    return sum(region // words for region in regions)
+
 
 # esp8266 namespace is already defined by arduino, manually prefix esphome
 esp8266_ns = cg.global_ns.namespace("esphome").namespace("esp8266")

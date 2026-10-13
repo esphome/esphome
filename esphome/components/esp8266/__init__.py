@@ -53,6 +53,10 @@ from .const import (
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
+    PREFERENCES_FLASH_WORDS,
+    PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE,
+    PREFERENCES_RTC_EBOOT_WORDS,
+    PREFERENCES_RTC_NORMAL_WORDS,
     THROW_STUBS_HEADER,
     enable_serial,
     enable_serial1,
@@ -467,8 +471,16 @@ async def to_code(config: ConfigType) -> None:
     # Other projects like Tasmota & ESPEasy also use this
     cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
 
+    # Saved-settings layout, written down once in const.py and read by preferences.cpp
+    cg.add_define("ESP8266_PREFERENCES_RTC_NORMAL_WORDS", PREFERENCES_RTC_NORMAL_WORDS)
+    cg.add_define("ESP8266_PREFERENCES_RTC_EBOOT_WORDS", PREFERENCES_RTC_EBOOT_WORDS)
     if config[CONF_RESTORE_FROM_FLASH]:
         cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
+        cg.add_define("ESP8266_PREFERENCES_FLASH_WORDS", PREFERENCES_FLASH_WORDS)
+    else:
+        cg.add_define(
+            "ESP8266_PREFERENCES_FLASH_WORDS", PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE
+        )
 
     if config[CONF_EARLY_PIN_INIT]:
         cg.add_define("USE_ESP8266_EARLY_PIN_INIT")
