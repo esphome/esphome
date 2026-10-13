@@ -17,6 +17,10 @@
 
 namespace esphome::micro_wake_word {
 
+// Config validation checks the YAML, this checks the build: a unicore sdkconfig reached any other way
+static_assert(MICRO_WAKE_WORD_TASK_CORE == tskNO_AFFINITY || MICRO_WAKE_WORD_TASK_CORE < portNUM_PROCESSORS,
+              "micro_wake_word task_core is not a core of this build");
+
 ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
 static const ssize_t DETECTION_QUEUE_LENGTH = 5;
