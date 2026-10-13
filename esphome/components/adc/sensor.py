@@ -48,6 +48,11 @@ AUTO_LOAD = ["voltage_sampler"]
 CONF_SAMPLES = "samples"
 CONF_SAMPLING_MODE = "sampling_mode"
 
+# Keep in sync with the initializers in adc_sensor.h
+DEFAULT_ATTENUATION = "0db"
+DEFAULT_SAMPLING_MODE = "avg"
+DEFAULT_SAMPLES = 1
+
 
 _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
 _sampling_mode = cv.enum(SAMPLING_MODES, lower=True)
@@ -65,7 +70,10 @@ def validate_config(config: ConfigType) -> ConfigType:
     ):
         raise cv.Invalid("ESP32-S31 only supports 'attenuation: 0db'")
 
-    if config.get(CONF_ATTENUATION, None) == "auto" and config.get(CONF_SAMPLES, 1) > 1:
+    if (
+        config.get(CONF_ATTENUATION, None) == "auto"
+        and config.get(CONF_SAMPLES, DEFAULT_SAMPLES) > 1
+    ):
         raise cv.Invalid(
             "Automatic attenuation cannot be used when multisampling is set"
         )
@@ -113,12 +121,16 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_PIN): validate_adc_pin,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
-            cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
+            cv.SplitDefault(CONF_ATTENUATION, esp32=DEFAULT_ATTENUATION): cv.All(
                 cv.only_on_esp32, _attenuation
             ),
             cv.OnlyWith(CONF_NRF_SAADC, PLATFORM_NRF52): cv.declare_id(adc_dt_spec),
-            cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),
-            cv.Optional(CONF_SAMPLING_MODE, default="avg"): _sampling_mode,
+            cv.Optional(CONF_SAMPLES, default=DEFAULT_SAMPLES): cv.int_range(
+                min=1, max=255
+            ),
+            cv.Optional(
+                CONF_SAMPLING_MODE, default=DEFAULT_SAMPLING_MODE
+            ): _sampling_mode,
         }
     )
     .extend(cv.polling_component_schema("60s")),
@@ -155,9 +167,13 @@ async def to_code(config: ConfigType) -> None:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))
 
-    cg.add(var.set_output_raw(config[CONF_RAW]))
-    cg.add(var.set_sample_count(config[CONF_SAMPLES]))
-    cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
+    # Skip the setters when the config matches the C++ initializers.
+    if config[CONF_RAW]:
+        cg.add(var.set_output_raw(True))
+    if (samples := config[CONF_SAMPLES]) != DEFAULT_SAMPLES:
+        cg.add(var.set_sample_count(samples))
+    if (sampling_mode := config[CONF_SAMPLING_MODE]) != DEFAULT_SAMPLING_MODE:
+        cg.add(var.set_sampling_mode(sampling_mode))
 
     if CORE.is_esp32:
         # Re-enable ESP-IDF's ADC driver (excluded by default to save compile time)
@@ -166,7 +182,7 @@ async def to_code(config: ConfigType) -> None:
         if attenuation := config.get(CONF_ATTENUATION):
             if attenuation == "auto":
                 cg.add(var.set_autorange(cg.global_ns.true))
-            else:
+            elif attenuation != DEFAULT_ATTENUATION:
                 cg.add(var.set_attenuation(attenuation))
 
         variant = get_esp32_variant()

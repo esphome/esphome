@@ -1,0 +1,27 @@
+esphome:
+  name: socket-wake-gate-udp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // Without a loop-monitored socket a datagram waits for loop_interval_ to expire.
+          App.set_loop_interval(2000);
+      - delay: 500ms
+      - lambda: |-
+          ESP_LOGI("test", "BOOT_DONE");
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+udp:
+  - id: test_udp
+    port: UDP_LISTEN_PORT_PLACEHOLDER
+    addresses: ["127.0.0.1"]
+    on_receive:
+      - logger.log:
+          format: "PONG"
+          level: INFO
