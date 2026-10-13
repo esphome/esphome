@@ -252,10 +252,6 @@ float TMP102Component::get_limit_temperature_(TMP102LimitType limit) const {
 }
 
 bool TMP102Component::set_limit_temperature_(TMP102LimitType limit, float temperature) {
-  if (this->is_failed()) {
-    ESP_LOGW(TAG, "Rejected threshold change: sensor setup failed");
-    return false;
-  }
   const bool extended = this->config_ & TMP102_EXTENDED_MODE_BIT;
   const uint16_t raw = encode_temperature(temperature, extended);
   const bool high = limit == TMP102_LIMIT_HIGH;
@@ -315,8 +311,10 @@ bool TMP102LimitNumber::save_value_(float value) { return !this->restore_value_ 
 
 void TMP102LimitNumber::control(float value) {
   // A chip that failed setup holds nothing the entity could show
-  if (this->parent_->is_failed())
+  if (this->parent_->is_failed()) {
+    ESP_LOGW(TAG, "Rejected threshold change: sensor setup failed");
     return;
+  }
   const bool accepted = this->parent_->set_limit_temperature_(this->limit_type_, value);
   value = this->parent_->get_limit_temperature_(this->limit_type_);
   this->publish_state(value);

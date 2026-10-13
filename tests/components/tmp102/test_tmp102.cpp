@@ -65,9 +65,7 @@ class TMP102Test : public ::testing::Test {
 
   void SetUp() override {
     new (&App) Application;
-    char name[] = "tmp102-regression-tests";
-    char friendly_name[] = "TMP102 tests";
-    App.pre_setup(name, 23, friendly_name, 12);
+    App.pre_setup("tmp102-regression-tests", 23, "TMP102 tests", 12);
     host::setup_preferences();
     host::host_preferences->reset();
     this->chip_.set_i2c_bus(&this->bus_);
@@ -439,6 +437,19 @@ TEST_F(TMP102Test, FailedSetupDoesNotOverwritePreferences) {
   EXPECT_FALSE(this->high_.has_state());
   EXPECT_FLOAT_EQ(saved(this->high_), 90);
   EXPECT_FLOAT_EQ(saved(this->low_), 85);
+}
+
+TEST_F(TMP102Test, FailedSetupRejectsThresholdChanges) {
+  this->numbers_();
+  save(this->high_, 90);
+  this->bus_.fail_write = 3;
+  this->chip_.setup();
+  ASSERT_TRUE(this->chip_.is_failed());
+  const unsigned writes = this->bus_.writes;
+  this->high_.make_call().set_value(60).perform();
+  EXPECT_FALSE(this->high_.has_state());
+  EXPECT_EQ(this->bus_.writes, writes);
+  EXPECT_FLOAT_EQ(saved(this->high_), 90);
 }
 
 TEST_F(TMP102Test, SetupOnlySavesChangedThresholds) {
