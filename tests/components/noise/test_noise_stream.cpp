@@ -24,13 +24,16 @@ namespace esphome::noise::testing {
 
 // The tests' times count from clock_base, which sits behind millis(): the responder's handshake runs in an
 // UnavoidableBlockingScope, which would pull a loop start that is ahead of millis() back to millis().
-static uint32_t clock_base = 0;
+static uint32_t &clock_base() {
+  static uint32_t base = 0;
+  return base;
+}
 static void set_loop_time(uint32_t time) { LoopBlockingGuard guard(nullptr, LOG_STR("test"), time); }
 // Sets the cached loop time the stream's handshake clock reads. That scope also moves the loop start forward by the
 // real time the handshake took, so a test time up to a second behind it keeps the later loop start: the stream never
 // sees time run backwards.
 static void at(uint32_t now) {
-  const uint32_t time = clock_base + now;
+  const uint32_t time = clock_base() + now;
   const uint32_t current = App.get_loop_component_start_time();
   set_loop_time(current - time < 1000 ? current : time);
 }
@@ -155,8 +158,8 @@ static psk_t make_psk(uint8_t seed) {
 class NoiseStreamTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    clock_base = millis() - (1u << 24);
-    set_loop_time(clock_base + 1000);
+    clock_base() = millis() - (1u << 24);
+    set_loop_time(clock_base() + 1000);
     this->client_link_.pair(&this->server_link_);
     this->server_link_.pair(&this->client_link_);
   }
@@ -648,7 +651,7 @@ TEST_F(NoiseStreamTest, AGoodHandshakeEndsTheHold) {
     this->pump_(client, other);
     ASSERT_FALSE(this->client_link_.connected());
   }
-  uint32_t end = client.hold_end() - clock_base;
+  uint32_t end = client.hold_end() - clock_base();
   ASSERT_GE(end, now + 2460);
 
   // One loop pass longer than the interval: the link connects inside the hold and is closed unused
