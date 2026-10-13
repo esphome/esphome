@@ -347,14 +347,17 @@ optional<float> parse_float(const char *str) {
   const uint32_t fraction_digits = dot != nullptr ? p - dot - 1 : 0;
   const bool any_digit = p - digits > (dot != nullptr ? 1 : 0);
   if (*p == '\0' && any_digit && fraction_digits <= PARSE_FLOAT_MAX_FRACTION_DIGITS) {
+    // The mantissa is exact in a float, so the sign goes on before the one rounding step
     float value = static_cast<float>(mantissa);
+    if (negative)
+      value = -value;
     if (fraction_digits != 0) {
       uint32_t scale = 10;
       for (uint32_t i = 1; i < fraction_digits; i++)
         scale *= 10;
       value /= static_cast<float>(scale);
     }
-    return negative ? -value : value;
+    return value;
   }
   // Exponents, hex, inf, nan, leading whitespace and longer inputs take the libc path.
   char *end = nullptr;
