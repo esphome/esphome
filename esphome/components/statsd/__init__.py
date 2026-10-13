@@ -1,7 +1,7 @@
 import functools
 
 import esphome.codegen as cg
-from esphome.components import binary_sensor, network, sensor
+from esphome.components import binary_sensor, network, sensor, socket
 from esphome.components.const import CONF_HOST
 import esphome.config_validation as cv
 from esphome.const import (
@@ -51,6 +51,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.polling_component_schema("10s")),
     functools.partial(network.require_ipv4, name="statsd"),
+    socket.consume_sockets(1, "statsd", socket.SocketType.UDP),
 )
 
 

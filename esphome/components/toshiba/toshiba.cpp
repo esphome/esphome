@@ -183,10 +183,23 @@ static const ToshibaTimings TOSHIBA_TIMINGS PROGMEM = {TOSHIBA_HEADER_MARK,
                                                        TOSHIBA_GAP_SPACE,
                                                        true};
 static const ToshibaTimings SEIYA_TIMINGS PROGMEM = {4630, 4450, 625, 490, 1570, 5830, false};
+// The RAS-B13 remote family does not accept the generic timings; these are IRremoteESP8266's TOSHIBA_AC values
+static const ToshibaTimings RAS_B10N3KV2_TIMINGS PROGMEM = {4400, 4300, 580, 490, 1600, 7400, true};
 
 static ToshibaTimings timings_for(Model model) {
+  const ToshibaTimings *source = &TOSHIBA_TIMINGS;
+  switch (model) {
+    case MODEL_SEIYA:
+      source = &SEIYA_TIMINGS;
+      break;
+    case MODEL_RAS_B10N3KV2:
+      source = &RAS_B10N3KV2_TIMINGS;
+      break;
+    default:
+      break;
+  }
   ToshibaTimings timings;
-  progmem_memcpy(&timings, model == MODEL_SEIYA ? &SEIYA_TIMINGS : &TOSHIBA_TIMINGS, sizeof(timings));
+  progmem_memcpy(&timings, source, sizeof(timings));
   return timings;
 }
 
@@ -1039,8 +1052,6 @@ bool ToshibaClimate::compare_rac_pt1411hwru_packets_(const uint8_t *message1, co
 }
 
 bool ToshibaClimate::is_valid_rac_pt1411hwru_message_(const uint8_t *message) {
-  uint8_t checksum = 0;
-
   switch (this->is_valid_rac_pt1411hwru_header_(message)) {
     case RAC_PT1411HWRU_MESSAGE_HEADER0:
     case RAC_PT1411HWRU_CS_HEADER:
@@ -1052,10 +1063,7 @@ bool ToshibaClimate::is_valid_rac_pt1411hwru_message_(const uint8_t *message) {
       break;
 
     case RAC_PT1411HWRU_MESSAGE_HEADER1:
-      for (uint8_t i = 0; i < RAC_PT1411HWRU_MESSAGE_LENGTH - 1; i++) {
-        checksum += message[i];
-      }
-      if (checksum == message[RAC_PT1411HWRU_MESSAGE_LENGTH - 1]) {
+      if (sum_bytes(message, RAC_PT1411HWRU_MESSAGE_LENGTH - 1) == message[RAC_PT1411HWRU_MESSAGE_LENGTH - 1]) {
         return true;
       }
       break;
