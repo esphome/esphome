@@ -13,6 +13,7 @@ from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA_RATE
+from esphome.types import ConfigType
 
 from . import EpaperModel, ultrachip_resolution
 
@@ -38,6 +39,15 @@ class UC8279(EpaperModel):
 
     def _gate_offset(self, config: dict) -> int:
         return config.get(GATE_OFFSET, self.get_default(GATE_OFFSET))
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        _width, height = self.get_dimensions(config)
+        if self._gate_offset(config) + height > 0xFFFF:
+            raise cv.Invalid(
+                f"{GATE_OFFSET} plus the panel height must not exceed {0xFFFF} gates",
+                path=[GATE_OFFSET],
+            )
+        return config
 
     def get_constructor_args(self, config) -> tuple:
         return (self._gate_offset(config),)

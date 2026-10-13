@@ -586,6 +586,29 @@ def test_uc8279_gate_offset_configurable(
     assert resolution == (0x61, 0x00, 0x10, 0x00, 0x0A)
 
 
+def test_uc8279_gate_offset_plus_height_must_fit_16_bits(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """gate_offset plus the panel height is the gate count, which the controller holds in 16 bits."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="must not exceed"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "uc8279",
+                "dc_pin": 21,
+                "gate_offset": 0xFFFF,
+                "dimensions": {"width": 16, "height": 2},
+            }
+        )
+
+
 def test_enable_pin_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
