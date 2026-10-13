@@ -295,8 +295,11 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
   void loop() override {
-    if (this->num_running_ == 0)
+    if (this->num_running_ == 0) {
+      // Nothing left to wait for, e.g. once the last queued item has run
+      this->disable_loop();
       return;
+    }
 
     if (this->script_->is_running())
       return;
@@ -305,9 +308,10 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
     // Processing all items in a while loop causes infinite loops because
     // play_next_() can trigger more items to be queued
     if (!this->param_queue_.empty()) {
-      auto &params = this->param_queue_.front();
-      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
+      // Take the item out first: the chain may call stop(), which clears the queue
+      auto params = std::move(this->param_queue_.front());
       this->param_queue_.pop_front();
+      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
     } else {
       // Queue is now empty - disable loop until next play_complex
       this->disable_loop();
