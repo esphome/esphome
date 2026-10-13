@@ -322,8 +322,8 @@ climate::ClimateTraits ThermostatClimate::traits() {
   if (this->supports_swing_mode_vertical_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
 
-  for (const auto &entry : this->preset_config_) {
-    traits.add_supported_preset(entry.preset);
+  for (uint8_t i = 0; i < this->preset_count_; i++) {
+    traits.add_supported_preset(this->preset_entry_(i).preset);
   }
 
   // Custom presets are stored on Climate base class and wired via get_traits()
@@ -1175,17 +1175,30 @@ void ThermostatClimate::dump_preset_config_(const char *preset_name, const Therm
   }
 }
 
+ThermostatPresetEntry ThermostatClimate::preset_entry_(uint8_t index) const {
+  ThermostatPresetEntry entry;
+  progmem_memcpy(&entry, &this->preset_config_[index], sizeof(entry));
+  return entry;
+}
+
+ThermostatCustomPresetEntry ThermostatClimate::custom_preset_entry_(uint8_t index) const {
+  ThermostatCustomPresetEntry entry;
+  progmem_memcpy(&entry, &this->custom_preset_config_[index], sizeof(entry));
+  return entry;
+}
+
 void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   // Linear search through preset configurations
-  const ThermostatClimateTargetTempConfig *config = nullptr;
-  for (const auto &entry : this->preset_config_) {
+  optional<ThermostatClimateTargetTempConfig> config;
+  for (uint8_t i = 0; i < this->preset_count_; i++) {
+    auto entry = this->preset_entry_(i);
     if (entry.preset == preset) {
-      config = &entry.config;
+      config = entry.config;
       break;
     }
   }
 
-  if (config != nullptr) {
+  if (config.has_value()) {
     ESP_LOGV(TAG, "Preset %s requested", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     if (this->change_preset_internal_(*config) || (!this->preset.has_value()) || this->preset.value() != preset) {
       // Fire preset changed trigger
@@ -1205,16 +1218,17 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
 
 void ThermostatClimate::change_custom_preset_(const char *custom_preset, size_t len) {
   // Linear search through custom preset configurations
-  const ThermostatClimateTargetTempConfig *config = nullptr;
-  for (const auto &entry : this->custom_preset_config_) {
+  optional<ThermostatClimateTargetTempConfig> config;
+  for (uint8_t i = 0; i < this->custom_preset_count_; i++) {
+    auto entry = this->custom_preset_entry_(i);
     // Compare first len chars, then verify entry.name ends there (same length)
     if (strncmp(entry.name, custom_preset, len) == 0 && entry.name[len] == '\0') {
-      config = &entry.config;
+      config = entry.config;
       break;
     }
   }
 
-  if (config != nullptr) {
+  if (config.has_value()) {
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset);
     if (this->change_preset_internal_(*config) || !this->has_custom_preset() ||
         this->get_custom_preset() != custom_preset) {
@@ -1279,13 +1293,14 @@ bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
   return something_changed;
 }
 
-void ThermostatClimate::set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets) {
+void ThermostatClimate::set_custom_preset_config(const CustomPresetEntry *presets, uint8_t count) {
   this->custom_preset_config_ = presets;
+  this->custom_preset_count_ = count;
   // Populate Climate base class custom presets vector
   std::vector<const char *> names;
-  names.reserve(presets.size());
-  for (const auto &entry : this->custom_preset_config_) {
-    names.push_back(entry.name);
+  names.reserve(count);
+  for (uint8_t i = 0; i < count; i++) {
+    names.push_back(this->custom_preset_entry_(i).name);
   }
   this->set_supported_custom_presets(names);
 }
@@ -1294,7 +1309,8 @@ ThermostatClimate::ThermostatClimate() = default;
 
 void ThermostatClimate::set_default_preset(const char *custom_preset) {
   // Find the preset in custom_preset_config_ and store pointer from there
-  for (const auto &entry : this->custom_preset_config_) {
+  for (uint8_t i = 0; i < this->custom_preset_count_; i++) {
+    auto entry = this->custom_preset_entry_(i);
     if (strcmp(entry.name, custom_preset) == 0) {
       this->default_custom_preset_ = entry.name;
       return;
@@ -1545,9 +1561,10 @@ void ThermostatClimate::dump_config() {
                 YESNO(this->supports_dehumidification_ || this->supports_humidification_),
                 YESNO(this->supports_dehumidification_), YESNO(this->supports_humidification_));
 
-  if (!this->preset_config_.empty()) {
+  if (this->preset_count_ > 0) {
     ESP_LOGCONFIG(TAG, "  Supported PRESETS:");
-    for (const auto &entry : this->preset_config_) {
+    for (uint8_t i = 0; i < this->preset_count_; i++) {
+      auto entry = this->preset_entry_(i);
       const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(entry.preset));
       ESP_LOGCONFIG(TAG, "    %s:%s", preset_name,
                     entry.preset == this->default_preset_ ? LOG_STR_LITERAL(" (default)") : "");
@@ -1555,9 +1572,10 @@ void ThermostatClimate::dump_config() {
     }
   }
 
-  if (!this->custom_preset_config_.empty()) {
+  if (this->custom_preset_count_ > 0) {
     ESP_LOGCONFIG(TAG, "  Supported CUSTOM PRESETS:");
-    for (const auto &entry : this->custom_preset_config_) {
+    for (uint8_t i = 0; i < this->custom_preset_count_; i++) {
+      auto entry = this->custom_preset_entry_(i);
       const auto *preset_name = entry.name;
       ESP_LOGCONFIG(TAG, "    %s:%s", preset_name,
                     (this->default_custom_preset_ != nullptr && strcmp(entry.name, this->default_custom_preset_) == 0)
@@ -1567,14 +1585,5 @@ void ThermostatClimate::dump_config() {
     }
   }
 }
-
-ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default;
-
-ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature)
-    : default_temperature(default_temperature) {}
-
-ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature_low,
-                                                                     float default_temperature_high)
-    : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
 }  // namespace esphome::thermostat

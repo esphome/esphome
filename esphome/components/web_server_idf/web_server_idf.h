@@ -129,7 +129,8 @@ class AsyncWebServerRequest {
   void requestAuthentication() const;
 #endif
 
-  void redirect(const std::string &url);
+  void redirect(const char *url);
+  void redirect(const std::string &url) { this->redirect(url.c_str()); }
 
   inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
     httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
@@ -182,6 +183,12 @@ class AsyncWebServerRequest {
   std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
+#ifdef USE_WEBSERVER_OTA
+  /// Called when the request ends, including early returns.
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void onDisconnect(std::function<void()> fn) { this->on_disconnect_ = std::move(fn); }
+#endif
+
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -197,6 +204,9 @@ class AsyncWebServerRequest {
   optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
+#ifdef USE_WEBSERVER_OTA
+  std::function<void()> on_disconnect_;
+#endif
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
   AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
   void init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type);
