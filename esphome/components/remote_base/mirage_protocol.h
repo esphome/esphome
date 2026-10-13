@@ -16,7 +16,11 @@ class MirageProtocol : public RemoteProtocol<MirageData> {
   void encode(RemoteTransmitData *dst, const MirageData &data) {
     this->encode(dst, data.data.data(), data.data.size());
   }
+  /// data may be a PROGMEM table
   void encode(RemoteTransmitData *dst, const uint8_t *data, size_t len);
+  void encode(RemoteTransmitData *dst, const std::vector<uint8_t> &data) {
+    this->encode(dst, data.data(), data.size());
+  }
   optional<MirageData> decode(RemoteReceiveData src);
   void dump(const MirageData &data);
 
@@ -25,14 +29,5 @@ class MirageProtocol : public RemoteProtocol<MirageData> {
 };
 
 DECLARE_REMOTE_PROTOCOL(Mirage)
-
-template<typename... Ts> class MirageAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_BYTES(code)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    this->code_.visit([dst](const uint8_t *data, size_t len) { MirageProtocol().encode(dst, data, len); }, x...);
-  }
-};
 
 }  // namespace esphome::remote_base

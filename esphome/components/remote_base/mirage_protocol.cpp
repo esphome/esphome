@@ -1,6 +1,9 @@
 #include "mirage_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <algorithm>
 
 namespace esphome::remote_base {
 
@@ -17,8 +20,12 @@ constexpr unsigned int MIRAGE_IR_PACKET_BIT_SIZE = 120;
 constexpr size_t MIRAGE_MAX_DATA_BYTES = (MIRAGE_IR_PACKET_BIT_SIZE / 8);
 
 void MirageProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t len) {
+  // data may be a PROGMEM table, so log a RAM copy
+  uint8_t log_buf[MIRAGE_MAX_DATA_BYTES];
+  const size_t log_len = std::min(len, MIRAGE_MAX_DATA_BYTES);
+  progmem_memcpy(log_buf, data, log_len);
   char hex_buf[format_hex_pretty_size(MIRAGE_MAX_DATA_BYTES)];
-  ESP_LOGI(TAG, "Transmit Mirage: %s", format_hex_pretty_to(hex_buf, data, len));
+  ESP_LOGI(TAG, "Transmit Mirage: %s", format_hex_pretty_to(hex_buf, log_buf, log_len));
   dst->set_carrier_frequency(38000);
   dst->reserve(5 + ((len + 1) * 2));
   dst->mark(HEADER_MARK_US);
@@ -26,7 +33,7 @@ void MirageProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t
   dst->mark(BIT_MARK_US);
   uint8_t checksum = 0;
   for (size_t i = 0; i < len; i++) {
-    const uint8_t item = data[i];
+    const uint8_t item = progmem_read_byte(data + i);
     this->encode_byte_(dst, item);
     checksum += (item >> 4) + (item & 0xF);
   }
