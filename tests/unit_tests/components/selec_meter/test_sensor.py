@@ -25,16 +25,34 @@ def test_model_is_case_insensitive() -> None:
     assert config["model"] == selec_meter.MODEL_EM4M
 
 
-@pytest.mark.parametrize("key", ["voltage_l12", "serial_number", "dg_sensing"])
-def test_em4m_only_key_rejected_without_em4m(key: str) -> None:
-    with pytest.raises(cv.Invalid, match="requires 'model: em4m'"):
-        _validate({key: {"name": "Test"}})
+def test_model_rejects_unknown_value() -> None:
+    with pytest.raises(cv.Invalid, match="Unknown value 'em9m'"):
+        _validate({"model": "em9m"})
 
 
-@pytest.mark.parametrize("phase", ["phase_a", "phase_b", "phase_c"])
-def test_phase_key_rejected_on_default_model(phase: str) -> None:
-    with pytest.raises(cv.Invalid, match="requires 'model: em4m'"):
-        _validate({phase: {"voltage": {"name": "Voltage"}}})
+@pytest.mark.parametrize(
+    ("model", "key", "value"),
+    [
+        ("em2m", "voltage_l12", {"name": "Test"}),
+        ("em2m", "serial_number", {"name": "Test"}),
+        ("em2m", "dg_sensing", {"name": "Test"}),
+        ("em2m", "phase_a", {"voltage": {"name": "Voltage"}}),
+        ("em2m", "phase_b", {"voltage": {"name": "Voltage"}}),
+        ("em2m", "phase_c", {"voltage": {"name": "Voltage"}}),
+        ("em4m", "total_active_energy", {"name": "Test"}),
+        ("em4m", "total_reactive_energy", {"name": "Test"}),
+        ("em4m", "apparent_energy", {"name": "Test"}),
+    ],
+)
+def test_key_rejected_on_wrong_model(model: str, key: str, value: Any) -> None:
+    with pytest.raises(cv.Invalid, match="extra keys not allowed") as err:
+        _validate({"model": model, key: value})
+    assert err.value.path == [key]
+
+
+def test_em4m_only_key_rejected_on_default_model() -> None:
+    with pytest.raises(cv.Invalid, match="extra keys not allowed"):
+        _validate({"voltage_l12": {"name": "Test"}})
 
 
 def test_em4m_with_phases_accepted() -> None:
@@ -47,11 +65,6 @@ def test_em4m_with_phases_accepted() -> None:
     )
     assert "voltage" in config["phase_a"]
     assert "power_factor" in config["phase_c"]
-
-
-def test_em2m_only_sensor_rejected_on_em4m() -> None:
-    with pytest.raises(cv.Invalid, match="no non-DG equivalent"):
-        _validate({"model": "em4m", "total_active_energy": {"name": "Total"}})
 
 
 @pytest.mark.parametrize(
@@ -86,5 +99,5 @@ def test_byte_order_explicit_override(
 
 
 def test_byte_order_rejects_unknown_value() -> None:
-    with pytest.raises(cv.Invalid):
+    with pytest.raises(cv.Invalid, match="Unknown value"):
         _validate({"byte_order": "middle_endian"})
