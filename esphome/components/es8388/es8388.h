@@ -5,7 +5,7 @@
 #include "esphome/components/audio_dac/audio_dac.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
-#ifdef USE_SELECT
+#ifdef USE_ES8388_SELECT
 #include "esphome/components/select/select.h"
 #endif
 
@@ -26,7 +26,7 @@ enum AdcInputMicLine : uint8_t {
 };
 
 class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
-#ifdef USE_SELECT
+#ifdef USE_ES8388_SELECT
   SUB_SELECT(dac_output)
   SUB_SELECT(adc_input_mic)
 #endif
@@ -68,11 +68,22 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   bool set_dac_output(DacOutputLine line);
   bool set_adc_input_mic(AdcInputMicLine line);
 
+#ifdef USE_ES8388_SELECT
+  /// Line to apply in setup() instead of keeping what the codec reports.
+  void set_dac_output_initial(DacOutputLine line) { this->dac_output_initial_ = line; }
+  void set_adc_input_mic_initial(AdcInputMicLine line) { this->adc_input_mic_initial_ = line; }
+#endif
+
  protected:
   /// @brief Mutes or unmutes the DAC audio out
   /// @param mute_state True to mute, false to unmute
   /// @return True if successful and false otherwise
   bool set_mute_state_(bool mute_state);
+
+#ifdef USE_ES8388_SELECT
+  optional<DacOutputLine> dac_output_initial_{};
+  optional<AdcInputMicLine> adc_input_mic_initial_{};
+#endif
 };
 
 }  // namespace esphome::es8388

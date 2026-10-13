@@ -364,6 +364,15 @@ bool HOT EPaperT133A01::transfer_data() {
   return true;
 }
 
+void EPaperT133A01::abort_transfer() {
+  // A data stream is open, with one of the chip selects held low, whenever transfer_data() has started sending rows
+  if (this->current_data_index_ == 0)
+    return;
+  this->disable();
+  this->cs_pin_->digital_write(true);
+  this->cs1_pin_->digital_write(true);
+}
+
 void EPaperT133A01::dump_config() {
   EPaperBase::dump_config();
   LOG_PIN("  CS Pin: ", this->cs_pin_);
