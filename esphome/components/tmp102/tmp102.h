@@ -79,6 +79,7 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   void invalidate_alert_();
 #endif
 #ifdef USE_TMP102_CONFIGURE
+  void setup_configured_();
   bool write_register_(uint8_t reg, uint16_t value);
   bool write_configuration_();
   bool check_configuration_();
@@ -88,7 +89,7 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   friend class TMP102LimitNumber;
   bool set_limit_temperature_(TMP102LimitType limit, float temperature);
   float get_limit_temperature_(TMP102LimitType limit) const;
-  bool prepare_number_limits_(float *restored);
+  bool prepare_number_limits_(float *restored, bool *restore_corrected);
 
   TMP102LimitNumber *limit_controls_[2]{};
 #endif

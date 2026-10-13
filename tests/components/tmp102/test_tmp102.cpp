@@ -463,12 +463,16 @@ TEST_F(TMP102Test, InvalidRestoredPairAndSaveFailurePublishCombinedStatus) {
 }
 
 TEST_F(TMP102Test, InvalidRestoredValuesAreRepaired) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
   this->numbers_();
   save(this->high_, NAN);
   save(this->low_, INFINITY);
   this->chip_.setup();
   EXPECT_FLOAT_EQ(this->high_.state, 30);
   EXPECT_FLOAT_EQ(this->low_.state, 25);
+  EXPECT_FLOAT_EQ(saved(this->high_), 30);
+  EXPECT_FLOAT_EQ(saved(this->low_), 25);
+  EXPECT_EQ(this->status_.state, "Restored thresholds reset");
 }
 
 TEST_F(TMP102Test, FailedSetupDoesNotOverwritePreferences) {
@@ -525,6 +529,12 @@ TEST_F(TMP102Test, FailedNumberWriteKeepsAcceptedState) {
   EXPECT_EQ(publications, 1);
   EXPECT_FLOAT_EQ(saved(this->high_), 90);
   EXPECT_EQ(this->status_.state, "Write failed: high threshold");
+
+  this->bus_.fail_write = 2;
+  this->low_.make_call().set_value(80).perform();
+  EXPECT_FLOAT_EQ(this->low_.state, 85);
+  EXPECT_FLOAT_EQ(saved(this->low_), 85);
+  EXPECT_EQ(this->status_.state, "Write failed: low threshold");
 }
 
 TEST_F(TMP102Test, PreferenceSaveFailurePublishesStatus) {

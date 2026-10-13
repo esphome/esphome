@@ -76,18 +76,23 @@ static uint16_t encode_temperature(float temperature, bool extended) {
 
 #if defined(USE_TMP102_CONFIGURE) || defined(USE_TMP102_TEXT_SENSOR)
 void TMP102Component::setup() {
-#ifndef USE_TMP102_CONFIGURE
-  this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_NOT_CONFIGURED);
-  return;
-#else
-  if (!this->configure_) {
-    this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_NOT_CONFIGURED);
+#ifdef USE_TMP102_CONFIGURE
+  if (this->configure_) {
+    this->setup_configured_();
     return;
   }
+#endif
+  this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_NOT_CONFIGURED);
+}
+#endif
+
+#ifdef USE_TMP102_CONFIGURE
+void TMP102Component::setup_configured_() {
   bool corrected = false;
 #ifdef USE_TMP102_NUMBER
   float restored[2]{};
-  corrected = this->prepare_number_limits_(restored);
+  bool restore_corrected[2]{};
+  corrected = this->prepare_number_limits_(restored, restore_corrected);
 #endif
   if (!this->write_configuration_()) {
     this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_SETUP_FAILED);
@@ -101,22 +106,17 @@ void TMP102Component::setup() {
     if (control == nullptr)
       continue;
     const float value = this->get_limit_temperature_(static_cast<TMP102LimitType>(limit));
-    if (value != restored[limit])
+    if (restore_corrected[limit] || value != restored[limit])
       saved &= control->save_value_(value);
     control->publish_state(value);
   }
   if (!saved) {
     ESP_LOGW(TAG, "Failed to save threshold preferences");
-  }
-#endif
-#ifdef USE_TMP102_NUMBER
-  if (!saved) {
     this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_RESTORE_RESET_SAVE_FAILED);
     return;
   }
 #endif
   this->publish_threshold_status_(corrected ? TMP102_THRESHOLD_STATUS_RESTORE_RESET : TMP102_THRESHOLD_STATUS_OK);
-#endif
 }
 #endif
 
@@ -282,7 +282,7 @@ void TMP102Component::set_limit_control(TMP102LimitNumber *number) {
   this->limit_controls_[number->limit_type_] = number;
 }
 
-bool TMP102Component::prepare_number_limits_(float *restored) {
+bool TMP102Component::prepare_number_limits_(float *restored, bool *restore_corrected) {
   const bool extended = this->config_ & TMP102_EXTENDED_MODE_BIT;
   uint16_t raw[2] = {this->low_limit_, this->high_limit_};
   bool corrected = false;
@@ -290,7 +290,8 @@ bool TMP102Component::prepare_number_limits_(float *restored) {
     TMP102LimitNumber *control = this->limit_controls_[limit];
     if (control == nullptr)
       continue;
-    restored[limit] = control->load_value_(decode_temperature(raw[limit], extended), corrected);
+    restored[limit] = control->load_value_(decode_temperature(raw[limit], extended), restore_corrected[limit]);
+    corrected |= restore_corrected[limit];
     raw[limit] = encode_temperature(restored[limit], extended);
   }
   if (static_cast<int16_t>(raw[TMP102_LIMIT_LOW]) > static_cast<int16_t>(raw[TMP102_LIMIT_HIGH])) {
