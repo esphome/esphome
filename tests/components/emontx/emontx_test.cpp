@@ -13,10 +13,15 @@ namespace {
 class EmonTxTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    construct_app();
     this->sut_.set_uart_parent(&this->uart_);
     this->sut_.add_on_data_callback([this](StringRef line) { this->lines_.emplace_back(line.c_str(), line.size()); });
     this->sut_.add_on_json_callback([this](JsonObject, StringRef) { this->json_count_++; });
   }
+
+  void TearDown() override { cancel_timers(&this->sut_); }
+
+  std::string tx_() const { return std::string(this->uart_.tx.begin(), this->uart_.tx.end()); }
 
   MockUARTComponent uart_;
   EmonTx sut_;
@@ -160,7 +165,7 @@ TEST_F(EmonTxTest, ResumeAfterCompleteBacklogKeepsNextLine) {
 
 TEST_F(EmonTxTest, ShutdownLocksWhenEnabled) {
   EXPECT_CALL(this->uart_, flush()).Times(1);
-  this->sut_.set_lock_on_reboot(true);
+  this->sut_.set_lock_on_reboot(LockOnReboot::LOCK_ON_REBOOT_ALWAYS);
   this->sut_.on_shutdown();
   EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "emonlock\n");
 }
@@ -174,21 +179,111 @@ TEST_F(EmonTxTest, ShutdownSendsNothingByDefault) {
 
 TEST_F(EmonTxTest, ShutdownSendsNothingWhilePaused) {
   EXPECT_CALL(this->uart_, flush()).Times(0);
-  this->sut_.set_lock_on_reboot(true);
+  this->sut_.set_lock_on_reboot(LockOnReboot::LOCK_ON_REBOOT_ALWAYS);
   this->sut_.set_paused(true);
   this->sut_.on_shutdown();
   EXPECT_TRUE(this->uart_.tx.empty());
 }
 
-TEST_F(EmonTxTest, SetupUnlocksWhenEnabled) {
-  this->sut_.set_lock_on_reboot(true);
+// The emonTx would join "emonunlock" to the pending empty line if both came in one burst
+TEST_F(EmonTxTest, SetupUnlocksAfterLineFeedWhenEnabled) {
+  this->sut_.set_lock_on_reboot(LockOnReboot::LOCK_ON_REBOOT_ALWAYS);
   this->sut_.setup();
-  EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "\nemonunlock\n");
+  EXPECT_EQ(this->tx_(), "\n");
+
+  run_timers(300);
+  EXPECT_EQ(this->tx_(), "\nemonunlock\n");
 }
 
 TEST_F(EmonTxTest, SetupSendsNothingByDefault) {
   this->sut_.setup();
   EXPECT_TRUE(this->uart_.tx.empty());
+}
+
+class EmonTxLockAutoTest : public EmonTxTest {
+ protected:
+  void SetUp() override {
+    EmonTxTest::SetUp();
+    this->sut_.set_lock_on_reboot(LockOnReboot::LOCK_ON_REBOOT_AUTO);
+  }
+
+  void report_version_(const char *version) {
+    this->uart_.push_rx("  - Version:    ");
+    this->uart_.push_rx(version);
+    this->uart_.push_rx("\r\n");
+    this->sut_.loop();
+  }
+};
+
+// Only 'v' goes out until the reply shows the firmware knows 'emonunlock'
+TEST_F(EmonTxLockAutoTest, SetupOnlyRequestsVersion) {
+  this->sut_.setup();
+  run_timers(300);
+  EXPECT_EQ(this->tx_(), "\nv\n");
+}
+
+TEST_F(EmonTxLockAutoTest, SupportedFirmwareUnlockedAndLockedOnShutdown) {
+  this->report_version_("v1.2.0");
+  EXPECT_TRUE(this->uart_.tx.empty());
+  run_timers(300);
+  EXPECT_EQ(this->tx_(), "emonunlock\n");
+
+  EXPECT_CALL(this->uart_, flush()).Times(1);
+  this->sut_.on_shutdown();
+  EXPECT_EQ(this->tx_(), "emonunlock\nemonlock\n");
+}
+
+// Firmware before v1.2.0 reads "emon..." as the bootloader command
+TEST_F(EmonTxLockAutoTest, OlderFirmwareGetsNoLockCommands) {
+  this->report_version_("v1.1.1");
+  run_timers(300);
+  EXPECT_CALL(this->uart_, flush()).Times(0);
+  this->sut_.on_shutdown();
+  EXPECT_TRUE(this->uart_.tx.empty());
+}
+
+TEST_F(EmonTxLockAutoTest, NothingSentWithoutVersion) {
+  EXPECT_CALL(this->uart_, flush()).Times(0);
+  this->sut_.on_shutdown();
+  EXPECT_TRUE(this->uart_.tx.empty());
+}
+
+TEST_F(EmonTxLockAutoTest, VersionFormats) {
+  for (const char *version : {"V1.10.0", "v2.0.0", "1.2.0", "v1.3.0-rc1"}) {
+    this->report_version_("v0.99.0");  // So the next one is a change
+    this->report_version_(version);
+    EXPECT_CALL(this->uart_, flush()).Times(1);
+    this->sut_.on_shutdown();
+    EXPECT_NE(this->tx_().find("emonlock"), std::string::npos) << version;
+    ::testing::Mock::VerifyAndClearExpectations(&this->uart_);
+    this->uart_.tx.clear();
+  }
+  for (const char *version : {"v1.1.1", "v0.99.9-test", "None", "768be1b", "v1", "v.2"}) {
+    this->report_version_(version);
+    EXPECT_CALL(this->uart_, flush()).Times(0);
+    this->sut_.on_shutdown();
+    EXPECT_TRUE(this->uart_.tx.empty()) << version;
+    ::testing::Mock::VerifyAndClearExpectations(&this->uart_);
+  }
+}
+
+// The emonTx clears its lock when it reboots, so a repeated report needs no second unlock
+TEST_F(EmonTxLockAutoTest, UnlockedOnlyOnce) {
+  this->report_version_("v1.2.0");
+  run_timers(300);
+  this->report_version_("v1.2.0");
+  run_timers(300);
+  EXPECT_EQ(this->tx_(), "emonunlock\n");
+}
+
+TEST_F(EmonTxLockAutoTest, RequestRetriedWithoutReply) {
+  this->sut_.setup();
+  run_timers(2100);
+  EXPECT_EQ(this->tx_(), "\nv\n\n");
+
+  this->report_version_("v1.1.1");
+  run_timers(2100);
+  EXPECT_EQ(this->tx_(), "\nv\n\nv\n");
 }
 
 }  // namespace esphome::emontx::testing

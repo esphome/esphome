@@ -22,6 +22,12 @@ namespace esphome::emontx {
 /// Maximum line length in bytes (plus one byte reserved for null terminator)
 static constexpr size_t MAX_LINE_LENGTH = 1024;
 
+enum class LockOnReboot : uint8_t {
+  LOCK_ON_REBOOT_NEVER,
+  LOCK_ON_REBOOT_ALWAYS,
+  LOCK_ON_REBOOT_AUTO,  // Only when the emonTx reports firmware v1.2.0 or later
+};
+
 /**
  * @class EmonTx
  * @brief Main class for the EmonTx component.
@@ -56,8 +62,8 @@ class EmonTx final : public Component, public uart::UARTDevice {
   bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
 
   /// Lock the emonTx ('emonlock') before a reboot, so serial garbage during the reboot is not taken
-  /// as a command, and unlock it in setup(). Needs emonTx firmware v1.2.0 or later.
-  void set_lock_on_reboot(bool lock_on_reboot) { this->lock_on_reboot_ = lock_on_reboot; }
+  /// as a command, and unlock it after boot. Needs emonTx firmware v1.2.0 or later, which AUTO checks.
+  void set_lock_on_reboot(LockOnReboot lock_on_reboot) { this->lock_on_reboot_ = lock_on_reboot; }
 
 #ifdef USE_SENSOR
   void init_sensors(size_t count) { this->sensors_.init(count); }
@@ -66,8 +72,12 @@ class EmonTx final : public Component, public uart::UARTDevice {
 
  protected:
   void parse_json_(const char *data, size_t len);
+  void unlock_();
 #ifdef USE_EMONTX_VERSION
-  void request_version_();
+  bool wants_version_() const {
+    return this->version_text_sensor_ != nullptr || this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO;
+  }
+  void request_version_(uint8_t attempt = 0);
   void parse_version_line_(const char *line, size_t len);
 #endif
 
@@ -79,9 +89,10 @@ class EmonTx final : public Component, public uart::UARTDevice {
   uint16_t buffer_pos_{0};
   std::atomic<bool> paused_{false};
   bool was_paused_{false};
-  bool lock_on_reboot_{false};
+  LockOnReboot lock_on_reboot_{LockOnReboot::LOCK_ON_REBOOT_NEVER};
   bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
 #ifdef USE_EMONTX_VERSION
+  bool lock_supported_{false};  // The last version reported is v1.2.0 or later
   uint32_t last_msg_number_{0};
 #endif
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};

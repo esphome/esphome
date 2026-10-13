@@ -7,30 +7,77 @@ namespace esphome::emontx {
 
 ESPHOME_LOG_TAG(TAG, "emontx");
 
+static constexpr uint32_t UNLOCK_ID = 0;
+// The emonTx joins bytes received while a command is pending into that command, so the next one waits
+static constexpr uint32_t COMMAND_GAP_MS = 250;
+
 #ifdef USE_EMONTX_VERSION
-static constexpr uint32_t VERSION_REQUEST_ID = 0;
-// The emonTx joins bytes received while a command is pending into that command, so 'v' waits
-static constexpr uint32_t VERSION_REQUEST_DELAY_MS = 250;
+static constexpr uint32_t VERSION_REQUEST_ID = 1;
+static constexpr uint32_t VERSION_RETRY_ID = 2;
+static constexpr uint32_t VERSION_RETRY_MS = 2000;
+static constexpr uint8_t VERSION_MAX_ATTEMPTS = 3;
 // Line of the 'v' reply (and of the boot banner) carrying the release, e.g. "  - Version:    v1.1.1"
 static const char VERSION_PREFIX[] PROGMEM = "  - Version:";
+// First firmware with 'emonlock' and 'emonunlock'; older firmware takes them for the bootloader command
+static constexpr uint32_t LOCK_MIN_MAJOR = 1;
+static constexpr uint32_t LOCK_MIN_MINOR = 2;
+
+// Reads the decimal number at pos and moves pos past it; false if there is none
+static bool read_number(const char *&pos, const char *end, uint32_t &value) {
+  const char *start = pos;
+  value = 0;
+  while (pos < end && pos - start < 6 && *pos >= '0' && *pos <= '9')
+    value = value * 10 + (*pos++ - '0');
+  return pos != start;
+}
+
+// True for a release such as "v1.2.0" or "v1.3.0-rc1" from LOCK_MIN_MAJOR.LOCK_MIN_MINOR on
+static bool supports_lock(const char *version, const char *end) {
+  if (version < end && (*version == 'v' || *version == 'V'))
+    version++;
+  uint32_t major;
+  if (!read_number(version, end, major) || version == end || *version != '.')
+    return false;
+  version++;
+  uint32_t minor;
+  if (!read_number(version, end, minor))
+    return false;
+  return major > LOCK_MIN_MAJOR || (major == LOCK_MIN_MAJOR && minor >= LOCK_MIN_MINOR);
+}
 #endif
 
 void EmonTx::setup() {
   this->buffer_pos_ = 0;
-  if (this->lock_on_reboot_) {
-    // The line feed ends any boot noise first
-    ESP_LOGI(TAG, "Unlocking emonTx after boot");
+  if (this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_ALWAYS) {
+    // The line feed ends any boot noise
     this->write_byte('\n');
-    this->send_command("emonunlock");
+    this->set_timeout(UNLOCK_ID, COMMAND_GAP_MS, [this]() {
+      this->unlock_();
+#ifdef USE_EMONTX_VERSION
+      if (this->wants_version_())
+        this->request_version_();
+#endif
+    });
+    return;
   }
 #ifdef USE_EMONTX_VERSION
-  if (this->version_text_sensor_ != nullptr)
+  // With AUTO, the reply decides whether to unlock
+  if (this->wants_version_())
     this->request_version_();
 #endif
 }
 
+void EmonTx::unlock_() {
+  ESP_LOGI(TAG, "Unlocking emonTx");
+  this->send_command("emonunlock");
+}
+
 void EmonTx::on_shutdown() {
-  if (!this->lock_on_reboot_)
+  bool lock = this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_ALWAYS;
+#ifdef USE_EMONTX_VERSION
+  lock |= this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO && this->lock_supported_;
+#endif
+  if (!lock)
     return;
   if (this->is_paused()) {
     ESP_LOGW(TAG, "Not locking emonTx before shutdown, UART is paused");
@@ -63,7 +110,7 @@ void EmonTx::loop() {
       this->discarding_line_ = dropped != '\n';
 #ifdef USE_EMONTX_VERSION
     // The emonTx may have been flashed, or a request dropped, during the pause
-    if (this->version_text_sensor_ != nullptr)
+    if (this->wants_version_())
       this->request_version_();
 #endif
   }
@@ -96,7 +143,7 @@ void EmonTx::loop() {
           this->parse_json_(this->buffer_.data(), len);
         }
 #ifdef USE_EMONTX_VERSION
-        if (this->version_text_sensor_ != nullptr)
+        if (this->wants_version_())
           this->parse_version_line_(this->buffer_.data(), len);
 #endif
       }
@@ -126,7 +173,7 @@ void EmonTx::parse_json_(const char *data, size_t len) {
 #endif
 #ifdef USE_EMONTX_VERSION
     auto msg = root["MSG"];
-    if (this->version_text_sensor_ != nullptr && msg.is<uint32_t>()) {
+    if (this->wants_version_() && msg.is<uint32_t>()) {
       // MSG restarts at 1 when the emonTx reboots, as it does after a firmware update
       uint32_t msg_number = msg;
       if (msg_number <= this->last_msg_number_)
@@ -146,11 +193,18 @@ void EmonTx::parse_json_(const char *data, size_t len) {
 
 #ifdef USE_EMONTX_VERSION
 // The line feed ends any pending input; the reply is picked up in loop() by parse_version_line_()
-void EmonTx::request_version_() {
+void EmonTx::request_version_(uint8_t attempt) {
   if (this->is_paused())
     return;
   this->write_byte('\n');
-  this->set_timeout(VERSION_REQUEST_ID, VERSION_REQUEST_DELAY_MS, [this]() { this->send_command("v"); });
+  this->set_timeout(VERSION_REQUEST_ID, COMMAND_GAP_MS, [this]() { this->send_command("v"); });
+  this->set_timeout(VERSION_RETRY_ID, VERSION_RETRY_MS, [this, attempt]() {
+    if (attempt + 1 < VERSION_MAX_ATTEMPTS) {
+      this->request_version_(attempt + 1);
+    } else {
+      ESP_LOGW(TAG, "No firmware version from the emonTx");
+    }
+  });
 }
 
 void EmonTx::parse_version_line_(const char *line, size_t len) {
@@ -164,7 +218,16 @@ void EmonTx::parse_version_line_(const char *line, size_t len) {
   if (version == end)
     return;
   ESP_LOGI(TAG, "emonTx firmware version: %.*s", static_cast<int>(end - version), version);
-  this->version_text_sensor_->publish_state(version, end - version);
+  this->cancel_timeout(VERSION_RETRY_ID);
+  if (this->version_text_sensor_ != nullptr)
+    this->version_text_sensor_->publish_state(version, end - version);
+
+  bool supported = supports_lock(version, end);
+  if (this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO && supported && !this->lock_supported_) {
+    // Once the rest of the reply has gone out
+    this->set_timeout(UNLOCK_ID, COMMAND_GAP_MS, [this]() { this->unlock_(); });
+  }
+  this->lock_supported_ = supported;
 }
 #endif
 
@@ -173,7 +236,13 @@ void EmonTx::parse_version_line_(const char *line, size_t len) {
  */
 void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "EmonTx:");
-  ESP_LOGCONFIG(TAG, "  Lock on reboot: %s", YESNO(this->lock_on_reboot_));
+  const char *lock = LOG_STR_LITERAL("no");
+  if (this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_ALWAYS) {
+    lock = LOG_STR_LITERAL("yes");
+  } else if (this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO) {
+    lock = LOG_STR_LITERAL("auto");
+  }
+  ESP_LOGCONFIG(TAG, "  Lock on reboot: %s", lock);
 
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "  Registered sensors: %zu", this->sensors_.size());
