@@ -350,7 +350,7 @@ def generate_compile_commands(
     ]
     if not run_command_ok(
         west_cmd,
-        env=get_build_env(zigbee=True),
+        env=get_build_env(None, zigbee=True),  # configure only, nothing compiles
         stream_output=True,
         cwd=str(paths["framework_path"]),
     ):

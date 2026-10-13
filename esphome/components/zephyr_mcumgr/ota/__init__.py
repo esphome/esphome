@@ -14,6 +14,7 @@ from esphome.components.zephyr import (
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
+    KEY_PM_STATIC,
     KEY_SYSBUILD,
 )
 from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
@@ -147,13 +148,14 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("MCUMGR_MGMT_NOTIFICATION_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK", True)
+    # OS management group (reset, MCUMGR_PARAMETERS query, etc.) isn't transport-specific --
+    # every mcumgr transport needs it, not just BLE.
+    zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
+    zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
     transport = config[CONF_TRANSPORT]
     if transport[CONF_BLE]:
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
-
-        zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
-        zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
@@ -208,23 +210,50 @@ async def to_code(config: ConfigType) -> None:
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:
-        sections = BOOTLOADER_CONFIG[bootloader]
-        # Derive partition addresses from the SoftDevice and bootloader sections so
-        # that the DTS flash map matches what the Partition Manager produces:
+        # Derive partition addresses from the SoftDevice and bootloader sections
+        # registered with the Partition Manager (moved in testing mode) so that
+        # the DTS flash map matches what it produces:
         #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
-        # Settings/NVS storage for the app image (zephyr_setup_preferences() is
-        # always called for nrf52 -- see nrf52/__init__.py -- so a storage_partition
-        # must exist), and -- when zigbee is also configured -- the zboss_nvram/
-        # zboss_product_config partitions ncs-zigbee requires, are reserved from this
-        # same rebuild. Previously Partition Manager auto-generated the storage
-        # partition regardless of what this raw devicetree overlay said; NCS 3.4.0
-        # no longer does that, so it must be carved out here explicitly, coordinated
-        # with zigbee's needs in one place (see nrf52/partitions.py) instead of two
-        # independent overlays silently overlapping.
-        zigbee = "zigbee" in CORE.loaded_integrations
-        partition_overlay = nrf52_partitions.uf2_scheme_rebuild_overlay(
-            sections, zigbee
-        )
+        sections = zephyr_data()[KEY_PM_STATIC]
+        if framework_ver >= cv.Version(3, 4, 0):
+            # Without the Partition Manager (off by default from SDK 3.4.0) nothing adds
+            # the boot and storage partitions, so the whole table is rebuilt here,
+            # together with zigbee's partitions so the two cannot overlap.
+            partition_overlay = nrf52_partitions.uf2_scheme_rebuild_overlay(
+                sections, "zigbee" in CORE.loaded_integrations
+            )
+        else:
+            sd_end = next(
+                s.address + s.size for s in sections if "SoftDevice" in s.name
+            )
+            bl_start = next(s.address for s in sections if "Adafruit" in s.name)
+            slot0_start = sd_end + nrf52_partitions.MCUBOOT_SIZE
+            # Align slot size down to a 4 KB sector boundary
+            slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
+            slot1_start = slot0_start + slot_size
+
+            def part(name: str, start: int, size: int) -> str:
+                return f"""
+                {name}: partition@{start:x} {{
+                    reg = <0x{start:x} 0x{size:x}>;
+                }};"""
+
+            partition_overlay = f"""
+                /delete-node/ &boot_partition;
+                /delete-node/ &storage_partition;
+                /delete-node/ &code_partition;
+                /delete-node/ &reserved_partition_0;
+
+                &flash0 {{
+                    partitions {{
+                        compatible = "fixed-partitions";
+                        #address-cells = <1>;
+                        #size-cells = <1>;
+                        {part("slot0_partition", slot0_start, slot_size)}
+                        {part("slot1_partition", slot1_start, slot_size)}
+                    }};
+                }};
+            """
         code_partition_overlay = """
             / {
                 chosen {

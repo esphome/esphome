@@ -19,7 +19,7 @@
 
 namespace esphome::aht10 {
 
-static const char *const TAG = "aht10";
+ESPHOME_LOG_TAG(TAG, "aht10");
 static const uint8_t AHT10_INITIALIZE_CMD[] = {0xE1, 0x08, 0x00};
 static const uint8_t AHT20_INITIALIZE_CMD[] = {0xBE, 0x08, 0x00};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};

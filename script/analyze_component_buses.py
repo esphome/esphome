@@ -83,6 +83,7 @@ ISOLATED_COMPONENTS = {
     "animation": "Has display lambda in common.yaml that requires existing display platform - breaks when merged without display",
     "cdc_acm_uart": "Depends on tinyusb which conflicts with usb_host",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
+    "ecocomfort2": "Needs esp32_ble with io_capability: none and sc_bond, which a merged esp32_ble: block overrides",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
     "gps": "TinyGPSPlus library declares millis() function that creates ambiguity with ESPHome millis() macro when merged with components using millis() in lambdas",

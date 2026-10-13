@@ -4,6 +4,7 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.output import DOMAIN as OUTPUT_DOMAIN
 from esphome.components.zephyr import zephyr_add_overlay_builder, zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
@@ -12,7 +13,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_NUMBER,
-    CONF_OUTPUT,
     CONF_PIN,
     CONF_PLATFORM,
 )
@@ -74,7 +74,7 @@ def _allocate_blocks() -> None:
     full_config = fv.full_config.get()
     zephyr_pwm_conf = [
         cfg
-        for cfg in full_config.get(CONF_OUTPUT, [])
+        for cfg in full_config.get(OUTPUT_DOMAIN, [])
         if cfg.get(CONF_PLATFORM) == DOMAIN
     ]
 

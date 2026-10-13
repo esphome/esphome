@@ -1,1 +1,2 @@
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "counter"

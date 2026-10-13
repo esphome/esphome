@@ -28,6 +28,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "button"
 IS_PLATFORM_COMPONENT = True
 
 DEVICE_CLASSES = [

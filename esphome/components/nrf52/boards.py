@@ -9,11 +9,7 @@ from .const import (
 )
 
 BOARDS_ZEPHYR = {
-    # NCS 3.4.0's bundled Zephyr migrated to Hardware Model v2 board addressing;
-    # this board's board.yml declares "adafruit_itsybitsy" with "nrf52840" as an
-    # explicit soc qualifier, so the old flat "adafruit_itsybitsy_nrf52840" name no
-    # longer resolves -- it must be "adafruit_itsybitsy/nrf52840".
-    "adafruit_itsybitsy/nrf52840": {
+    "adafruit_itsybitsy_nrf52840": {
         KEY_BOOTLOADER: [
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
             BOOTLOADER_ADAFRUIT,
@@ -37,6 +33,11 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
         ]
     },
+}
+
+# Old board names that Zephyr in sdk-nrf 3.0.0 and newer no longer maps to their new name
+RENAMED_BOARDS_ZEPHYR = {
+    "adafruit_itsybitsy_nrf52840": "adafruit_itsybitsy",
 }
 
 # https://github.com/ffenix113/zigbee_home/blob/17bb7b9e9d375e756da9e38913f53303937fb66a/types/board/known_boards.go

@@ -20,6 +20,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pi4ioe5v6408"
 MULTI_CONF = True
 
 
@@ -74,7 +75,7 @@ PI4IOE5V6408_PIN_SCHEMA = pins.gpio_base_schema(
     mode_validator=validate_mode,
 ).extend(
     {
-        cv.Required(CONF_PI4IOE5V6408): cv.use_id(PI4IOE5V6408Component),
+        cv.Required(CONF_PI4IOE5V6408): pins.use_id_or_address(PI4IOE5V6408Component),
     }
 )
 

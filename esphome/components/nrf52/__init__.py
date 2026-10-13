@@ -9,8 +9,10 @@ import subprocess
 
 from esphome import pins
 from esphome.build_helpers import pch
+from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
@@ -26,6 +28,7 @@ from esphome.components.zephyr.const import (
     CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_SYSBUILD,
     KEY_ZEPHYR,
     CdcAcm,
 )
@@ -64,7 +67,7 @@ from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 from . import partitions as nrf52_partitions
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
+from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, RENAMED_BOARDS_ZEPHYR
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -76,6 +79,8 @@ from .framework import (
     get_build_env,
     get_build_paths,
     setup_platformio_python_env,
+    toolchain_tool,
+    wanted_west_projects,
 )
 
 # force import gpio to register pin schema
@@ -83,13 +88,14 @@ from .gpio import nrf52_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
+DOMAIN = "nrf52"
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
 # Default framework versions per toolchain. The sdk-nrf one also keys the CI
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
-RECOMMENDED_SDK_NRF_VERSION = "3.4.0"
+RECOMMENDED_SDK_NRF_VERSION = "3.4.1"
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -122,13 +128,46 @@ def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
+        sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+        if CORE.testing_mode:
+            sections = _testing_mode_sections(sections)
+        zephyr_add_pm_static(sections)
 
     return config
 
 
+# In testing mode, fake a larger flash to allow linking grouped component
+# tests. The nRF52840 has 1 MB and a mcumgr OTA config halves the app slot,
+# which an openthread config alone fills; CI images are never flashed.
+NRF52840_FLASH_SIZE = 0x100000
+TESTING_FLASH_SIZE = 0x400000
+
+
+def _testing_mode_sections(sections: list[Section]) -> list[Section]:
+    """Move a bootloader pinned to the end of the real flash to the end of the
+    faked one, so the partition manager still sees a single gap for the app."""
+    return [
+        Section(
+            section.name,
+            section.address + TESTING_FLASH_SIZE - NRF52840_FLASH_SIZE,
+            section.size,
+            section.region,
+        )
+        if section.end_address == NRF52840_FLASH_SIZE
+        else section
+        for section in sections
+    ]
+
+
 _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
 _resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
+
+
+def _zephyr_board(board: str, framework_ver: cv.Version) -> str:
+    """Zephyr in sdk-nrf 3.0.0 and newer no longer maps some old board names."""
+    if framework_ver >= cv.Version(3, 0, 0):
+        return RENAMED_BOARDS_ZEPHYR.get(board, board)
+    return board
 
 
 def set_framework(config: ConfigType) -> ConfigType:
@@ -146,6 +185,7 @@ def set_framework(config: ConfigType) -> ConfigType:
         cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
     )
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+    zephyr_data()[KEY_BOARD] = _zephyr_board(zephyr_data()[KEY_BOARD], framework_ver)
     if not CORE.using_toolchain_platformio:
         return config
     if framework_ver < cv.Version(2, 9, 2):
@@ -377,6 +417,15 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_to_code(config)
 
+    if CORE.testing_mode:
+        zephyr_add_overlay(
+            f"""
+                &flash0 {{
+                    reg = <0x0 {TESTING_FLASH_SIZE:#x}>;
+                }};
+            """
+        )
+
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -460,7 +509,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("SERIAL", False, False)
 
     # disable stuff to make image smaller by default
-    zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
+    if framework_ver >= cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
     zephyr_add_prj_conf("BOOT_BANNER", False, False)
     zephyr_add_prj_conf("PRINTK", False, False)
     zephyr_add_prj_conf("CONSOLE", False, False)
@@ -517,8 +567,8 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
-    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1, only generated when OTA is disabled
-    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2, always generated
+    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1 without OTA, SDK 3.4.0+
+    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2 to 3.3.x, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
     if (build_dir / UF2_PATH).is_file():
@@ -606,7 +656,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     raise EsphomeError("Not implemented yet")
                 check_and_install(zigbee=zigbee)
                 paths = get_build_paths(zigbee=zigbee)
-                env = get_build_env(zigbee=zigbee)
+                env = get_build_env(None, zigbee=zigbee)  # no compile, just nrfutil
                 build_dir = CORE.relative_pioenvs_path(CORE.name)
                 dfu_package = build_dir / "firmware.zip"
                 if not dfu_package.is_file():
@@ -688,7 +738,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if not CORE.using_toolchain_platformio:
             check_and_install(zigbee=zigbee)
             paths = get_build_paths(zigbee=zigbee)
-            env = get_build_env(zigbee=zigbee)
+            env = get_build_env(
+                resolve_ccache_path(), zigbee=zigbee
+            )  # west flash may rebuild
             build_dir = CORE.relative_pioenvs_path(CORE.name)
             west_cmd = [
                 str(paths["python_executable"]),
@@ -714,13 +766,13 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         return True  # Handled: PYOCD upload
 
     # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
-    from .ble_logger import is_mac_address
+    from .ble_logger import is_ble_address
     from .ota import smpmgr_scan, smpmgr_upload
 
     if host == "BLE":
         mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
 
-    if is_mac_address(host):
+    if is_ble_address(host):
         mcumgr_device = host
 
     if mcumgr_device:
@@ -735,7 +787,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     address = devices[0]
-    from .ble_logger import is_mac_address, logger_connect, logger_scan
+    from .ble_logger import is_ble_address, logger_connect, logger_scan
 
     if devices[0] == "BLE":
         ble_device = asyncio.run(logger_scan(CORE.name))
@@ -744,7 +796,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
         else:
             return True
 
-    if is_mac_address(address):
+    if is_ble_address(address):
         asyncio.run(logger_connect(address))
         return True
     return False
@@ -843,19 +895,22 @@ _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
 
 def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
-    """Write the checksum ccache reads in place of the .gch. The app binary
-    dir only exists after the first configure; sysbuild nests it."""
-    app_dir = build_dir / "zephyr"
-    if not (app_dir / "CMakeCache.txt").is_file():
-        app_dir = build_dir
-    if not (app_dir / "CMakeCache.txt").is_file():
-        return
+    """Write the checksum ccache reads in place of the .gch; before the
+    first build too, or its compiles hash the path laden .gch instead.
+    The app image dir follows the SDK version, like get_elf_path;
+    2.9.2+ always wraps the build in sysbuild."""
+    app_dir = build_dir
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+        app_dir = build_dir / "zephyr"
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
         (
             str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             zephyr_data()[KEY_BOARD],
+            # Kconfig inputs that reach autoconf.h without a .conf line
+            ",".join(sorted(wanted_west_projects())),
+            str(zephyr_data().get(KEY_SYSBUILD)),
             # What the Zephyr configuration is generated from
             *(
                 path.read_text(encoding="utf-8")
@@ -867,7 +922,11 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
     write_file_if_changed(app_dir / _PCH_SUM_PATH, checksum + "\n")
 
 
-def _generate_cmake_lists() -> bool:
+def _pch_usable() -> bool:
+    return pch.pch_usable((toolchain_tool("g++"),))
+
+
+def _generate_cmake_lists(pch_on: bool) -> bool:
     """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
@@ -910,7 +969,7 @@ def _generate_cmake_lists() -> bool:
             ")",
         ]
 
-    if pch.pch_enabled():
+    if pch_on:
         lines += _PCH_CMAKE_LINES
 
     if link_flags:
@@ -968,9 +1027,13 @@ def run_compile(args, config: ConfigType) -> bool:
     check_and_install(zigbee=zigbee)
 
     paths = get_build_paths(zigbee=zigbee)
-    env = get_build_env(zigbee=zigbee)
+    # Depend mode in the shared ccache settings keeps the .gch sound
+    # across Kconfig flips.
+    ccache = resolve_ccache_path()
+    env = get_build_env(ccache, zigbee=zigbee)
 
-    cmake_lists_changed = _generate_cmake_lists()
+    pch_on = _pch_usable()
+    cmake_lists_changed = _generate_cmake_lists(pch_on)
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
@@ -987,10 +1050,13 @@ def run_compile(args, config: ConfigType) -> bool:
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
 
-    if pch.pch_enabled():
+    # SDK 3.4.0+ no longer generates merged.hex; drop one left by an older SDK
+    # build so it is never packaged or offered for download.
+    for stale_hex in (build_dir / "merged.hex", build_dir / "zephyr" / "merged.hex"):
+        stale_hex.unlink(missing_ok=True)
+
+    if pch_on:
         pch.log_pch_in_use()
-        # Zephyr turns ccache on by itself when it is installed
-        env.update(pch.ccache_pch_env())
         _write_pch_checksum(build_dir, source_dir)
 
     west_cmd = _west_build_command(
@@ -1031,23 +1097,19 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir / "zephyr"
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")
+        _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # NCS 3.4.0 deprecated Partition Manager (defaults it off), which is what used to
-    # generate a physically-merged SoftDevice+app "merged.hex" at build_dir root. There
-    # was never a real SoftDevice binary in that merge though -- the reserved SoftDevice
-    # region (see the board's own devicetree, e.g. nrf52840_partition_uf2_sdv6.dtsi) is
-    # just a placeholder so the app doesn't collide with a real Adafruit UF2 bootloader
-    # already flashed on the device; it's not something ESPHome's build ever supplies
-    # content for. zephyr.hex (west_out / "zephyr.hex") is already correctly offset past
-    # that reserved region via the board's own devicetree partition table, so it's what
-    # "merged.hex" conceptually needed to be all along -- just the app image, nothing to
-    # merge it with.
-    app_hex = west_out / "zephyr.hex"
-
-    # For Adafruit bootloader builds, regenerate the UF2 with the correct family ID tag
-    # the Adafruit UF2 bootloader expects -- the build's own zephyr.uf2 doesn't carry it.
-    if bootloader in _UF2_FAMILY_IDS and app_hex.is_file():
-        # Drop the build's own untagged UF2 so it isn't shipped alongside.
+    # For Adafruit bootloader builds, regenerate the UF2 from a hex file.
+    # merged.hex carries the correct flash addresses; SDK 3.4.0+ no longer
+    # generates it, so use zephyr.hex there. Chosen by version so a merged.hex
+    # left by an older SDK build is never picked.
+    if framework_ver >= cv.Version(3, 4, 0):
+        hex_file = zephyr_dir / "zephyr.hex"
+    else:
+        hex_file = zephyr_dir / "merged.hex"
+    if bootloader in _UF2_FAMILY_IDS and hex_file.is_file():
+        # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
         app_uf2 = west_out / "zephyr.uf2"
         if app_uf2.is_file():
             app_uf2.unlink()
@@ -1063,12 +1125,12 @@ def run_compile(args, config: ConfigType) -> bool:
                 "-c",
                 "-o",
                 str(zephyr_dir / "zephyr.uf2"),
-                str(app_hex),
+                str(hex_file),
             ],
             env=env,
             stream_output=True,
         ):
-            raise EsphomeError("Failed to generate UF2 from app hex")
+            raise EsphomeError(f"Failed to generate UF2 from {hex_file.name}")
 
     if bootloader in (
         BOOTLOADER_ADAFRUIT,
@@ -1076,9 +1138,6 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        # no fallback is needed for adafruit case. zephyr.hex is always generated.
-        # get_download_types needs fallback for mcuboot (non adafruit)
-        hex_file = app_hex
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),

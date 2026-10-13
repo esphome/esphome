@@ -2,13 +2,19 @@
 #include "esphome/core/log.h"
 #ifdef USE_HOST
 #include <sys/time.h>
-#elif !defined(USE_ZEPHYR)
+#elif defined(USE_ZEPHYR)
+// Removed in sdk-nrf 3.3.0, where POSIX_API provides the time functions instead
+#if __has_include(<zephyr/posix/time.h>)
+#include <zephyr/posix/time.h>
+#include <sys/time.h>
+#endif
+#else
 #include "lwip/opt.h"
 #endif
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
-#if defined(USE_RP2)
+#ifdef USE_RP2
 #include <sys/time.h>
 #endif
 #include <cerrno>
@@ -17,7 +23,7 @@
 
 namespace esphome::time {
 
-static const char *const TAG = "time";
+ESPHOME_LOG_TAG(TAG, "time");
 
 RealTimeClock::RealTimeClock() = default;
 

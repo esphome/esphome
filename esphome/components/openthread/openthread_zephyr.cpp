@@ -6,12 +6,22 @@
 #include "openthread.h"
 #include "esphome/core/helpers.h"
 #include <zephyr/net/openthread.h>
+#include <zephyr/version.h>
 
-static const char *const TAG = "openthread";
+// Zephyr 4.2 has an API without the context struct and deprecates the old one
+#if KERNEL_VERSION_NUMBER >= 0x040200
+#define ESPHOME_OT_INSTANCE_API
+#endif
+
+ESPHOME_LOG_TAG(TAG, "openthread");
 
 namespace esphome::openthread {
 
+#ifdef ESPHOME_OT_INSTANCE_API
 static void on_thread_state_changed(otChangedFlags flags, void *user_data) {
+#else
+static void on_thread_state_changed(otChangedFlags flags, struct openthread_context *ot_context, void *user_data) {
+#endif
   // Delegate connection status tracking to common callback
   if (global_openthread_component != nullptr) {
     OpenThreadComponent::on_state_changed(flags, global_openthread_component);
@@ -32,8 +42,13 @@ static void on_thread_state_changed(otChangedFlags flags, void *user_data) {
   }
 }
 
+#ifdef ESPHOME_OT_INSTANCE_API
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct openthread_state_changed_callback ot_state_changed_cb = {.otCallback = on_thread_state_changed};
+#else
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static struct openthread_state_changed_cb ot_state_changed_cb = {.state_changed_cb = on_thread_state_changed};
+#endif
 
 void OpenThreadComponent::setup() {
   otInstance *instance = openthread_get_default_instance();
@@ -82,11 +97,18 @@ void OpenThreadComponent::setup() {
       return;
     }
   }
+#ifdef ESPHOME_OT_INSTANCE_API
   openthread_state_changed_callback_register(&ot_state_changed_cb);
   openthread_run();
-}
+#else
+  struct openthread_context *context = openthread_get_default_context();
+  openthread_state_changed_cb_register(context, &ot_state_changed_cb);
+  openthread_start(context);
+#endif
 
-void OpenThreadComponent::ot_main() {}
+  InstanceLock lock = InstanceLock::acquire();
+  this->apply_linkmode_(lock.get_instance());
+}
 
 otInstance *OpenThreadComponent::get_openthread_instance_() { return openthread_get_default_instance(); }
 
@@ -114,8 +136,8 @@ InstanceLock InstanceLock::try_acquire(int delay) {
   if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     return InstanceLock(false);
   }
-  // No timed-wait variant of the real lock is exposed publicly, so poll it for `delay` ms
-  // instead -- fine given how infrequently/briefly this lock is actually contended.
+#ifdef ESPHOME_OT_INSTANCE_API
+  // No timed wait is exposed for the new lock, so poll it; it is rarely contended
   int64_t deadline = k_uptime_get() + delay;
   do {
     if (openthread_mutex_try_lock() == 0) {
@@ -123,11 +145,22 @@ InstanceLock InstanceLock::try_acquire(int delay) {
     }
     k_msleep(1);
   } while (k_uptime_get() < deadline);
+#else
+  struct openthread_context *ot_context = openthread_get_default_context();
+  if (k_mutex_lock(&ot_context->api_lock, K_MSEC(delay)) == 0) {
+    return InstanceLock(true);
+  }
+#endif
   return InstanceLock(false);
 }
 
 InstanceLock InstanceLock::acquire() {
+#ifdef ESPHOME_OT_INSTANCE_API
   openthread_mutex_lock();
+#else
+  struct openthread_context *ot_context = openthread_get_default_context();
+  k_mutex_lock(&ot_context->api_lock, K_FOREVER);
+#endif
   return InstanceLock(true);
 }
 
@@ -135,7 +168,12 @@ otInstance *InstanceLock::get_instance() { return openthread_get_default_instanc
 
 InstanceLock::~InstanceLock() {
   if (this->owns_) {
+#ifdef ESPHOME_OT_INSTANCE_API
     openthread_mutex_unlock();
+#else
+    struct openthread_context *ot_context = openthread_get_default_context();
+    k_mutex_unlock(&ot_context->api_lock);
+#endif
   }
 }
 
