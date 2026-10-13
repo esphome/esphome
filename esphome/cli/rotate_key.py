@@ -15,6 +15,7 @@ from esphome.components.noise import (
 from esphome.config_validation import Invalid
 from esphome.const import CONF_API, CONF_PASSWORD, CONF_PORT
 from esphome.core import CORE, EsphomeError
+from esphome.espota2 import ProbeResult
 from esphome.log import AnsiFore, color
 from esphome.ota_key_edit import locate_key_edits, old_key_edit, with_sharers
 from esphome.types import ConfigType
@@ -29,6 +30,24 @@ from esphome.util import (
 from esphome.yaml_edit import RestoreError, Snapshot, apply_line_edits, restore_files
 
 PRECHECK_TIMEOUT = 15.0
+# What to do when the device does not accept the key in the yaml before anything is written
+PRECHECK_ADVICE = {
+    ProbeResult.UNREACHABLE: (
+        "The device could not be reached; check that it is online, then try again."
+    ),
+    ProbeResult.REJECTED: (
+        "The device runs a different key than the yaml. Install the current "
+        "configuration first, presenting its key with --prompt-ota-key, then rotate."
+    ),
+    ProbeResult.NOT_OFFERED: (
+        "The device does not offer encryption: it runs a firmware older than "
+        "ESPHome 2026.9.0 or without a key. Install the current configuration "
+        "first, then rotate."
+    ),
+    ProbeResult.DEVICE_ERROR: (
+        "The device answered with an error (see the warning above); fix that first."
+    ),
+}
 
 
 def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | None:
@@ -129,19 +148,15 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
                 return 1
 
     safe_print("Checking that the device accepts the current key...")
-    if not espota2.probe_ota_key(
+    found = espota2.probe_ota_key(
         network_devices,
         remote_port,
         old_key,
         timeout=PRECHECK_TIMEOUT,
         retry_rejected=False,
-    ):
-        return fail(
-            "The device did not complete an encrypted handshake with the current "
-            "key (see the warning above for the reason). If it is reachable, it "
-            "has to run the key in the yaml on ESPHome 2026.9.0 or newer; install "
-            "the current configuration first, then rotate."
-        )
+    )
+    if found is not ProbeResult.ACCEPTED:
+        return fail(PRECHECK_ADVICE[found])
 
     # Both keys are shown only when a file could not be put back
     keys = f"Previous key: {old_key}\nNew key: {new_key}"
@@ -198,11 +213,16 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
                 else "The upload did not reach the device."
             )
         safe_print("Waiting for the device to come back with the new key...")
-        if not espota2.probe_ota_key(network_devices, remote_port, new_key):
+        found = espota2.probe_ota_key(network_devices, remote_port, new_key)
+        if found is not ProbeResult.ACCEPTED:
             return fail(
-                "The device did not answer with the new key. The configuration "
-                "keeps it, with the previous key as old_key, so the next install "
-                "reaches the device either way."
+                (
+                    "The device still answers with the previous key."
+                    if found is ProbeResult.REJECTED
+                    else "The device did not come back to confirm the new key."
+                )
+                + " The configuration keeps the new key, with the previous one as "
+                "old_key, so the next install reaches the device either way."
             )
     except KeyboardInterrupt:
         return fail(
