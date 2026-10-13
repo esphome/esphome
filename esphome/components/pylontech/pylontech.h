@@ -61,7 +61,7 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   }
 
  protected:
-  enum class State : uint8_t { IDLE, PWR_SENT, BAT_SENT };
+  enum class State : uint8_t { IDLE, PWR_SENT, BAT_SENDING, BAT_SENT };
 
   void process_line_(std::string &buffer);
   void parse_pwr_line_(std::string &buffer);
@@ -80,7 +80,6 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   State state_ = State::IDLE;
   std::vector<int> bat_batteries_{};
   int current_bat_index_ = 0;
-  bool send_next_bat_ = false;
   bool cell_polling_enabled_ = false;
 };
 

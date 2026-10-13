@@ -88,7 +88,6 @@ void PylontechComponent::update() {
   this->write_str("pwr\n");
   this->state_ = State::PWR_SENT;
   this->current_bat_index_ = 0;
-  this->send_next_bat_ = false;
 }
 
 void PylontechComponent::loop() {
@@ -121,6 +120,8 @@ void PylontechComponent::loop() {
       this->process_line_(buffer_[buffer_index_read_]);
       buffer_[buffer_index_read_].clear();
       buffer_index_read_ = (buffer_index_read_ + 1) % NUM_BUFFERS;
+    } else if (this->state_ == State::BAT_SENDING) {
+      this->send_bat_command_();
     }
   }
 }
@@ -145,14 +146,14 @@ void PylontechComponent::process_line_(std::string &buffer) {
     if (this->state_ == State::PWR_SENT) {
       if (this->cell_polling_enabled_ && !this->bat_batteries_.empty()) {
         this->current_bat_index_ = 0;
-        this->send_next_bat_ = true;
+        this->state_ = State::BAT_SENDING;
       } else {
         this->state_ = State::IDLE;
       }
     } else if (this->state_ == State::BAT_SENT) {
       this->current_bat_index_++;
       if (this->current_bat_index_ < static_cast<int>(this->bat_batteries_.size())) {
-        this->send_next_bat_ = true;
+        this->state_ = State::BAT_SENDING;
       } else {
         this->state_ = State::IDLE;
       }
