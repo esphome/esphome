@@ -1158,6 +1158,11 @@ class PointerToBufferTypeBase(TypeInfo):
         """Get the wire type for this field."""
         return WireType.LENGTH_DELIMITED  # Uses wire type 2
 
+    @property
+    def progmem(self) -> bool:
+        """Whether the data is in flash, so encode and dump copy it with progmem_memcpy."""
+        return get_field_opt(self._field, pb.progmem, False)
+
     def get_estimated_size(self) -> int:
         # field ID + length varint + typical data (assume small for pointer fields)
         return self.calculate_field_id_size() + 2 + 16
@@ -1170,11 +1175,6 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
     default_value = "nullptr"
     reference_type = "const uint8_t*"
     const_reference_type = "const uint8_t*"
-
-    @property
-    def progmem(self) -> bool:
-        """Whether the data is in flash, so encode and dump copy it with progmem_memcpy."""
-        return get_field_opt(self._field, pb.progmem, False)
 
     @property
     def public_content(self) -> list[str]:
@@ -1252,11 +1252,6 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         before it is set, so it can default to a null StringRef and the message constructs as
         one zero fill. Any encode path that copies unconditionally must check this."""
         return not self._needs_decode and not self.force
-
-    @property
-    def progmem(self) -> bool:
-        """Whether the string is in flash, so encode and dump copy it with progmem_memcpy."""
-        return get_field_opt(self._field, pb.progmem, False)
 
     @property
     def public_content(self) -> list[str]:
