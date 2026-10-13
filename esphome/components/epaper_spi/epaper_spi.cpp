@@ -1,8 +1,17 @@
 #include "epaper_spi.h"
+#include <algorithm>
 #include <cinttypes>
+#include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#ifdef USE_ESP32
+#include <esp_system.h>
+#endif
+#ifdef USE_ESP8266
+#include <user_interface.h>
+#endif
 
 namespace esphome::epaper_spi {
 
@@ -27,6 +36,56 @@ void EPaperBase::setup() {
   }
   this->setup_pins_();
   this->spi_setup();
+  this->load_sleep_state_();
+}
+
+bool EPaperBase::woke_from_deep_sleep_() const {
+#if defined(USE_ESP32)
+  return esp_reset_reason() == ESP_RST_DEEPSLEEP;
+#elif defined(USE_ESP8266)
+  return system_get_rst_info()->reason == REASON_DEEP_SLEEP_AWAKE;
+#else
+  return false;
+#endif
+}
+
+// The sleep state survives the controller's deep sleep in RTC memory: the update count, and whether
+// the panel was left holding its image, so the first update after the wake can be partial.
+void EPaperBase::load_sleep_state_() {
+  if (this->sleep_state_hash_ == 0 || !this->is_using_partial_update_())
+    return;
+  this->sleep_state_ = global_preferences->make_preference<SleepState>(this->sleep_state_hash_, false);
+  SleepState state{};
+  if (this->woke_from_deep_sleep_() && this->sleep_state_.load(&state) && state.panel_holds_image) {
+    this->update_count_ = state.update_count % this->full_update_every_;
+    this->panel_holds_image_ = true;
+    ESP_LOGD(TAG, "Panel kept its image through deep sleep; next update is %s",
+             this->update_count_ != 0 ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
+  }
+  // Only a wake from deep sleep may use the state, so it is cleared once read
+  this->save_sleep_state_(false);
+}
+
+void EPaperBase::save_sleep_state_(bool panel_holds_image) {
+  if (this->sleep_state_hash_ == 0 || !this->is_using_partial_update_())
+    return;
+  const SleepState state{this->update_count_, panel_holds_image};
+  this->sleep_state_.save(&state);
+}
+
+// Runs before the controller sleeps or reboots, after on_safe_shutdown(): finish an update in flight,
+// then note that the panel holds its image, so the first update after a wake is partial.
+bool EPaperBase::teardown() {
+  if (this->state_ != EPaperState::IDLE) {
+    this->loop();
+    return false;
+  }
+  if (this->parked_)
+    return true;
+  this->parked_ = true;
+  if (this->sleep_state_hash_ != 0 && this->panel_holds_image_ && this->image_survives_sleep())
+    this->save_sleep_state_(true);
+  return true;
 }
 
 bool EPaperBase::init_buffer_(size_t buffer_length) {
@@ -35,6 +94,65 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
   }
   this->clear();
   return true;
+}
+
+bool EPaperBase::init_sent_frame_(size_t length) {
+  if (!this->is_using_partial_update_())
+    return false;
+  if (this->sent_.init(length))
+    return true;
+  ESP_LOGW(TAG, "No memory for the comparison frame; every update will be refreshed");
+  return false;
+}
+
+bool EPaperBase::frame_unchanged_() const {
+  if (!this->sent_valid_ || this->sent_.size() != this->buffer_.size())
+    return false;
+  size_t index = 0;
+  while (index != this->buffer_.size()) {
+    size_t length;
+    size_t sent_length;
+    const uint8_t *data = this->buffer_.get_span(index, length);
+    const uint8_t *sent = this->sent_.get_span(index, sent_length);
+    length = std::min(length, sent_length);
+    if (memcmp(data, sent, length) != 0)
+      return false;
+    index += length;
+  }
+  return true;
+}
+
+bool EPaperBase::bounds_from_changes_() {
+  if (!this->sent_valid_ || this->sent_.size() != this->buffer_.size())
+    return true;
+  bool changed = false;
+  uint16_t row_low = this->height_, row_high = 0, col_low = this->row_width_, col_high = 0;
+  for (uint16_t row = 0; row != this->height_; row++) {
+    const size_t base = row * this->row_width_;
+    for (uint16_t col = 0; col != this->row_width_; col++) {
+      if (this->buffer_[base + col] == this->sent_[base + col])
+        continue;
+      changed = true;
+      row_low = std::min(row_low, row);
+      row_high = std::max<uint16_t>(row_high, row + 1);
+      col_low = std::min(col_low, col);
+      col_high = std::max<uint16_t>(col_high, col + 1);
+    }
+  }
+  if (!changed)
+    return false;
+  this->x_low_ = col_low * 8;
+  this->x_high_ = std::min<uint16_t>(col_high * 8, this->width_);
+  this->y_low_ = row_low;
+  this->y_high_ = row_high;
+  return true;
+}
+
+void EPaperBase::reset_bounds_() {
+  this->x_low_ = this->width_;
+  this->x_high_ = 0;
+  this->y_low_ = this->height_;
+  this->y_high_ = 0;
 }
 
 void EPaperBase::setup_pins_() const {
@@ -209,6 +327,14 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
+      if (this->update_count_ != 0 && this->frame_unchanged_()) {
+        ESP_LOGD(TAG, "Frame unchanged, refresh skipped");
+        this->reset_bounds_();
+        this->set_state_(EPaperState::IDLE);
+        return;
+      }
+      this->full_window_ =
+          this->x_low_ == 0 && this->y_low_ == 0 && this->x_high_ == this->width_ && this->y_high_ == this->height_;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
@@ -221,10 +347,9 @@ void EPaperBase::process_state_() {
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
-      this->x_low_ = this->width_;
-      this->x_high_ = 0;
-      this->y_low_ = this->height_;
-      this->y_high_ = 0;
+      if (this->full_window_)
+        this->sent_valid_ = this->sent_.is_valid();
+      this->reset_bounds_();
       this->set_state_(EPaperState::POWER_ON);
       break;
     case EPaperState::POWER_ON:
@@ -242,6 +367,7 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
+      this->panel_holds_image_ = this->is_using_partial_update_();
       this->set_state_(EPaperState::IDLE);
       ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
       break;
@@ -351,10 +477,12 @@ void EPaperBase::dump_config() {
                 "  Model: %s\n"
                 "  SPI Data Rate: %uMHz\n"
                 "  Full update every: %d\n"
+                "  Partial update after deep sleep: %s\n"
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s",
                 this->name_, (unsigned) (this->data_rate_ / 1000000), this->full_update_every_,
+                this->sleep_state_hash_ == 0 ? LOG_STR_LITERAL("no") : LOG_STR_LITERAL("panel"),
                 YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
                 YESNO(this->transform_ & MIRROR_Y));
   LOG_PIN("  Reset Pin: ", this->reset_pin_);

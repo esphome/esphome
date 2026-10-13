@@ -7,6 +7,12 @@
 namespace esphome::epaper_spi {
 ESPHOME_LOG_TAG(TAG, "epaper_spi.mono");
 
+void EPaperMono::setup() {
+  EPaperBase::setup();
+  if (!this->is_failed())
+    this->init_sent_frame_(this->sent_frame_length());
+}
+
 void EPaperMono::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen");
   this->cmd_data(0x22, {partial ? (uint8_t) 0xFF : (uint8_t) 0xF7});
@@ -22,11 +28,11 @@ void EPaperMono::deep_sleep() {
 }
 
 bool EPaperMono::reset() {
-  if (EPaperBase::reset()) {
+  if (!EPaperBase::reset())
+    return false;
+  if (this->software_reset_)
     this->command(0x12);
-    return true;
-  }
-  return false;
+  return true;
 }
 
 void EPaperMono::set_window() {
@@ -66,12 +72,15 @@ bool HOT EPaperMono::transfer_data() {
   ESP_LOGV(TAG, "Writing %u bytes at line %zu at %ums", row_length, this->current_data_index_, (unsigned) millis());
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
-    size_t data_idx = this->current_data_index_ * this->row_width_ + this->x_low_ / 8;
+    const size_t row_start = this->current_data_index_ * this->row_width_ + this->x_low_ / 8;
+    size_t data_idx = row_start;
     for (size_t i = 0; i != row_length; i++) {
       bytes_to_send[i] = this->send_red_ ? 0 : this->buffer_[data_idx++];
     }
     ++this->current_data_index_;
     this->write_array(&bytes_to_send.front(), row_length);  // NOLINT
+    if (!this->send_red_)
+      this->record_sent_(row_start, &bytes_to_send.front(), row_length);
     if (millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop
       this->disable();

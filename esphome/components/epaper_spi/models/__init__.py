@@ -6,6 +6,9 @@ from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+# Model default: the driver can make the first update after a deep sleep wake a partial one
+RESUMES_AFTER_DEEP_SLEEP = "resumes_after_deep_sleep"
+
 
 class EpaperModel:
     models: dict[str, Self] = {}

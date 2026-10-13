@@ -14,6 +14,8 @@ class EPaperMono : public EPaperBase {
     this->buffer_length_ = (width + 7) / 8 * height;  // 8 pixels per byte, rounded up
   }
 
+  void setup() override;
+
  protected:
   void refresh_screen(bool partial) override;
   void power_on() override {}
@@ -21,8 +23,11 @@ class EPaperMono : public EPaperBase {
   void deep_sleep() override;
   bool reset() override;
   virtual void set_window();
+  // Bytes in the comparison frame; the buffer's size unless a subclass sends the frame in another layout
+  virtual size_t sent_frame_length() const { return this->buffer_length_; }
   bool transfer_data() override;
   bool send_red_{true};
+  bool software_reset_{true};  // send 0x12 after the hardware reset
 };
 
 }  // namespace esphome::epaper_spi
