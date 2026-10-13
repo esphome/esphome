@@ -109,8 +109,8 @@ BENCHMARK(HomeassistantSensor_StateResponse_Attribute);
 // --- Sixteen imported sensors, message for the last one ---
 // Exercises: the linear scan over the subscription list with a string compare
 // per entry, which is what a device with many imported entities pays per update.
-// The IDs share a length and a 15-byte prefix so every entry runs the full
-// compare, the worst case for the scan.
+// The IDs share a length and differ only in the last two bytes, so every
+// entry runs a near-full compare, the worst case for the scan.
 
 static constexpr int kSensorCount = 16;
 
