@@ -38,7 +38,7 @@ class EPaperSSD1677Gray4 : public EPaperSSD1677 {
   void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
-  bool buffer_is_mono() const override { return false; }
+  uint8_t buffer_bits_per_pixel() const override { return 2; }
   // A partial update if partial updates are enabled and this is not a full one.
   bool is_partial_push_() const { return this->update_count_ != 0 && this->sent_.is_valid(); }
   void plane_row(size_t y, uint8_t *out) override;

@@ -133,8 +133,8 @@ class EPaperBase : public Display,
   bool rotate_coordinates_(int &x, int &y);
   void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                           bool big_endian, int x_offset, int y_offset, int x_pad);
-  // Whether the buffer holds 1 bit per pixel as draw_pixel_at() writes it, so draw_pixels_at() can write it directly
-  virtual bool buffer_is_mono() const { return false; }
+  // Bits per pixel of the buffer, as draw_pixel_at() packs it; 0 for a layout draw_pixels_at() cannot write directly
+  virtual uint8_t buffer_bits_per_pixel() const { return 0; }
 
   /**
    * Methods that must be implemented by concrete classes to control the display

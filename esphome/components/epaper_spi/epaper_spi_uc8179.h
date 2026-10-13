@@ -37,7 +37,7 @@ class EPaperUC8179 final : public EPaperBase {
   }
 
  protected:
-  bool buffer_is_mono() const override { return true; }
+  uint8_t buffer_bits_per_pixel() const override { return 1; }
   bool initialise(bool partial) override;
   bool transfer_data() override;
   void refresh_screen(bool partial) override;
