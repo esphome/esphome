@@ -588,15 +588,19 @@ def _negotiate_session(
     noise_psk: str | None,
     plaintext_fallback: bool,
     allow_plaintext_upload: bool,
+    level: int = logging.INFO,
 ) -> tuple[socket.socket | NoiseSocketWrapper, int, int, bool]:
     """Negotiate up to and including the Noise handshake; returns the socket
-    to continue on (wrapped once encrypted), version, features, extended."""
+    to continue on (wrapped once encrypted), version, features, extended.
+    Progress is logged at ``level``; a probe that retries keeps it quiet."""
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, "magic bytes")
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
-    _LOGGER.info("Connection established; device supports OTA version %s", version)
+    _LOGGER.log(
+        level, "Connection established; device supports OTA version %s", version
+    )
     supported_versions = (OTA_VERSION_1_0, OTA_VERSION_2_0)
     if version not in supported_versions:
         raise OTAError(
@@ -678,7 +682,7 @@ def _negotiate_session(
         except OTANetworkError as err:
             # A transport fault: retry encrypted before considering plaintext
             raise OTAHandshakeNetworkError(str(err)) from err
-        _LOGGER.info("Encrypted connection established")
+        _LOGGER.log(level, "Encrypted connection established")
         if allow_plaintext_upload:
             _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
     return sock, version, features, extended_proto
@@ -1006,7 +1010,11 @@ def probe_ota_key(
     res: list[Any] = []
     attempts = 0
     answered: set[int] = set()  # addresses whose answer no retry changes
+    unreached = 0  # transport failures in the current round
     last_error = "no time left"
+    device_error: str | None = (
+        None  # an answer from the device outranks a network error
+    )
     while (remaining := deadline - time.monotonic()) > 0:
         if not res:
             # A rebooting device may drop off mDNS for a while; keep asking
@@ -1024,8 +1032,10 @@ def probe_ota_key(
                 pause(PROBE_RETRY_DELAY)
                 continue
         index = attempts % len(res)
-        af, socktype, _, _, sa = res[index]
         attempts += 1
+        if index in answered:
+            continue  # its answer cannot change
+        af, socktype, _, _, sa = res[index]
         started = time.monotonic()
         sock = socket.socket(af, socktype)
         # A dead host must not eat the budget
@@ -1034,7 +1044,11 @@ def probe_ota_key(
             try:
                 sock.connect(sa)
                 session, _, _, _ = _negotiate_session(
-                    _DeadlineSocket(sock, deadline), noise_psk, False, False
+                    _DeadlineSocket(sock, deadline),
+                    noise_psk,
+                    False,
+                    False,
+                    level=logging.DEBUG,
                 )
                 # A password challenge also proves the key: it comes encrypted
                 receive_exactly(
@@ -1048,12 +1062,13 @@ def probe_ota_key(
                     ],
                 )
             except (OSError, OTANetworkError) as err:
-                last_error = str(err)
+                last_error = f"{sa[0]}: {err}"
+                unreached += 1
             except OTAError as err:
                 # A rejected key or a refused handshake is final in the
                 # precheck; a rebooting device may answer differently once
                 # it is back
-                last_error = str(err)
+                last_error = device_error = f"{sa[0]}: {err}"
                 if not retry_rejected:
                     answered.add(index)
             else:
@@ -1067,8 +1082,13 @@ def probe_ota_key(
         _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
         if attempts % len(res):
             continue  # the next address is fresh; nothing to wait for
+        if unreached == len(res):
+            # A round with no answer at all: the device may be back under
+            # another address, so resolve it again
+            res, answered = [], set()
+        unreached = 0
         pause(PROBE_RETRY_DELAY - (now - started))
-    _LOGGER.warning("The device did not accept the key: %s", last_error)
+    _LOGGER.warning("The device did not accept the key: %s", device_error or last_error)
     return False
 
 
@@ -1127,9 +1147,9 @@ def run_ota_impl_(
 
         _LOGGER.info("Connected to %s", sa[0])
         reached_device = True
-        if on_connect is not None:
-            on_connect()
         with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
+            if on_connect is not None:
+                on_connect()
             try:
                 perform_ota(
                     sock,

@@ -13,6 +13,7 @@ import base64
 from collections.abc import Callable
 import hashlib
 import io
+import itertools
 import logging
 from pathlib import Path
 import socket
@@ -296,6 +297,23 @@ def test_on_connect_runs_once_per_connection(tmp_path: Path) -> None:
     device.join_and_check()
     assert rc == 0
     assert on_connect.call_count == 2
+
+
+def test_on_connect_failure_closes_the_socket() -> None:
+    with (
+        patch("esphome.espota2.resolve_ip_address", return_value=RESOLVED),
+        patch("socket.socket") as sock,
+        patch("pathlib.Path.open"),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        espota2.run_ota_impl_(
+            "h",
+            1,
+            None,
+            Path("fw.bin"),
+            on_connect=Mock(side_effect=RuntimeError("boom")),
+        )
+    sock.return_value.close.assert_called_once()
 
 
 THIRD_PSK = base64.b64encode(bytes(range(2, 34))).decode()
@@ -697,14 +715,20 @@ def test_non_key_reject_reason_is_a_device_error(
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
 
 
-def test_probe_ota_key_accepts_the_running_key() -> None:
+def test_probe_ota_key_accepts_the_running_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The negotiation's upload-style progress lines stay below INFO."""
     pytest.importorskip("aioesphomeapi.noise")
     device = FakeEncryptedDevice()
     device.start()
-    assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+    with caplog.at_level(logging.INFO):
+        assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
     device.join_and_check()
     assert device.probes == 1
     assert device.received is None
+    assert "accepted the key" in caplog.text
+    assert "Connection established" not in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -876,8 +900,69 @@ def test_probe_ota_key_takes_a_password_challenge_as_proof(answer: int) -> None:
 
 def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
     """One address rejecting does not stand in for another that only failed
-    to connect so far."""
+    to connect so far; the one that answered is not asked again."""
     session = Mock()
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[
+                (2, 1, 0, "", ("10.0.0.1", 1)),
+                (2, 1, 0, "", ("10.0.0.2", 1)),
+            ],
+        ),
+        patch("socket.socket") as sock,
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[
+                espota2.OTAKeyRejected("no"),
+                OSError("refused"),
+                (session, 2, 0, True),
+            ],
+        ) as negotiate,
+        patch("esphome.espota2.receive_exactly"),
+        patch("time.sleep"),
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+    assert negotiate.call_count == 3
+    assert [c.args[0] for c in sock.return_value.connect.call_args_list] == [
+        ("10.0.0.1", 1),
+        ("10.0.0.2", 1),
+        ("10.0.0.2", 1),
+    ]
+
+
+def test_probe_ota_key_resolves_again_after_a_round_without_an_answer() -> None:
+    """A device back under another address is found; a key the first
+    address rejected is asked again since the set of addresses changed."""
+    session = Mock()
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            side_effect=[
+                [(2, 1, 0, "", ("10.0.0.1", 1))],
+                [(2, 1, 0, "", ("10.0.0.2", 1))],
+            ],
+        ) as resolve,
+        patch("socket.socket") as sock,
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[OSError("unreachable"), (session, 2, 0, True)],
+        ),
+        patch("esphome.espota2.receive_exactly"),
+        patch("time.sleep"),
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30)
+    assert resolve.call_count == 2
+    assert [c.args[0] for c in sock.return_value.connect.call_args_list] == [
+        ("10.0.0.1", 1),
+        ("10.0.0.2", 1),
+    ]
+
+
+def test_probe_ota_key_reports_the_device_answer_over_a_network_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A stale address failing last must not hide that the device said no."""
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
@@ -889,18 +974,18 @@ def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
         patch("socket.socket"),
         patch(
             "esphome.espota2._negotiate_session",
-            side_effect=[
-                espota2.OTAKeyRejected("no"),
-                OSError("refused"),
-                espota2.OTAKeyRejected("no"),
-                (session, 2, 0, True),
-            ],
-        ) as negotiate,
-        patch("esphome.espota2.receive_exactly"),
+            side_effect=itertools.chain(
+                [espota2.OTAKeyRejected("wrong key")],
+                itertools.repeat(OSError("refused")),
+            ),
+        ),
         patch("time.sleep"),
+        caplog.at_level(logging.WARNING),
     ):
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
-    assert negotiate.call_count == 4
+        assert not espota2.probe_ota_key(
+            "h", 1, PSK, timeout=0.05, retry_rejected=False
+        )
+    assert "did not accept the key: 10.0.0.1: wrong key" in caplog.text
 
 
 def test_probe_ota_key_reports_a_local_fault_as_its_own() -> None:
