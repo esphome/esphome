@@ -302,10 +302,22 @@ void MipiDsi::mark_dirty_(int x_start, int y_start, int w, int h) {
   this->rotate_(x2, y2);
   const int right = static_cast<int>(this->width_) - 1;
   const int bottom = static_cast<int>(this->height_) - 1;
-  this->x_low_ = std::min<int>(this->x_low_, std::clamp(std::min(x1, x2), 0, right));
-  this->x_high_ = std::max<int>(this->x_high_, std::clamp(std::max(x1, x2), 0, right));
-  this->y_low_ = std::min<int>(this->y_low_, std::clamp(std::min(y1, y2), 0, bottom));
-  this->y_high_ = std::max<int>(this->y_high_, std::clamp(std::max(y1, y2), 0, bottom));
+  const int left = std::clamp(std::min(x1, x2), 0, right);
+  const int top = std::clamp(std::min(y1, y2), 0, bottom);
+  x2 = std::clamp(std::max(x1, x2), 0, right);
+  y2 = std::clamp(std::max(y1, y2), 0, bottom);
+  // An empty box is low above high, so it is replaced rather than widened
+  if (this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_) {
+    this->x_low_ = left;
+    this->x_high_ = x2;
+    this->y_low_ = top;
+    this->y_high_ = y2;
+    return;
+  }
+  this->x_low_ = std::min<int>(this->x_low_, left);
+  this->x_high_ = std::max<int>(this->x_high_, x2);
+  this->y_low_ = std::min<int>(this->y_low_, top);
+  this->y_high_ = std::max<int>(this->y_high_, y2);
 }
 
 void MipiDsi::draw_pixel_at(int x, int y, Color color) {
