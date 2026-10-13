@@ -39,9 +39,13 @@ struct CdcEps {
   // must remain valid even when the interface itself is not claimed.
   uint8_t interrupt_interface_number{0xFF};
   bool interrupt_interface_claimed{false};
+  // bInterfaceClass of each interface above, which decides how a host binds the port
+  uint8_t bulk_interface_class{0};
+  uint8_t interrupt_interface_class{0};
 };
 
-// How a device's ports are bound. A host names ports under a vendor driver by index.
+// How a host binds a port, which decides how it names the port. A class driver claims
+// the interface itself; a chip driver numbers the ports it exposes.
 enum class UsbSerialDriver : uint8_t { CLASS, VENDOR };
 
 enum CH34xChipType : uint8_t {
@@ -189,11 +193,12 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
-  /// How the port is bound, decided by the driver type the device matched
+  /// How a host binds the port, from the class of the interface it binds through
   UsbSerialDriver get_driver() const;
 
-  /// Index of this port among the device's ports on the same interface
-  uint8_t get_port_number() const;
+  /// Index of this port within the host driver instance. Every driver here exposes one
+  /// port per interface; a multiplexed driver would index its channels.
+  uint8_t get_port_number() const { return 0; }
 
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
@@ -238,8 +243,6 @@ class USBUartComponent : public usb_host::USBClient {
   std::vector<USBUartChannelBase *> get_channels() { return this->channels_; }
 
   void add_channel(USBUartChannelBase *channel) { this->channels_.push_back(channel); }
-
-  virtual UsbSerialDriver get_driver() const { return UsbSerialDriver::CLASS; }
 
   virtual void start_input(USBUartChannelBase *channel);
   void start_output(USBUartChannelBase *channel);
@@ -320,7 +323,6 @@ class USBUartTypeCdcAcm : public USBUartComponent {
 
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
  public:
-  UsbSerialDriver get_driver() const override { return UsbSerialDriver::VENDOR; }
   USBUartTypeCP210X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
  protected:
@@ -329,7 +331,6 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
-  UsbSerialDriver get_driver() const override { return UsbSerialDriver::VENDOR; }
   USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
   void dump_config() override;
 
@@ -346,7 +347,6 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
 
 class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
  public:
-  UsbSerialDriver get_driver() const override { return UsbSerialDriver::VENDOR; }
   USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
   void start_input(USBUartChannelBase *channel) override;
@@ -373,7 +373,6 @@ class USBUartTypePL2303 : public USBUartTypeCdcAcm {
   friend class USBUartChannelBase;
 
  public:
-  UsbSerialDriver get_driver() const override { return UsbSerialDriver::VENDOR; }
   USBUartTypePL2303(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
  protected:

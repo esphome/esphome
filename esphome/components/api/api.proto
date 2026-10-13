@@ -3043,11 +3043,12 @@ enum SerialProxyIdentityFlag {
                                              // IDs below are empty
 }
 
-// How a USB serial port is bound. A class driver claims the interface itself, a vendor
-// driver numbers the ports it exposes, which a host reflects in the port's name.
+// How a host binds a USB serial port, which decides how it names the port. Decided by the
+// class of the interface the port is bound through: a class interface is claimed by the
+// class driver itself, a vendor-specific one needs a chip driver, which numbers its ports.
 enum UsbSerialDriver {
-  USB_SERIAL_DRIVER_CLASS = 0;   // A standard class driver, CDC ACM
-  USB_SERIAL_DRIVER_VENDOR = 1;  // A chip-specific driver
+  USB_SERIAL_DRIVER_CLASS = 0;   // A class driver such as CDC ACM; Linux names the port -ifNN
+  USB_SERIAL_DRIVER_VENDOR = 1;  // A chip-specific driver; Linux names the port -ifNN-portM
 }
 
 // What a host needs to identify the USB device behind a port, and the port on it

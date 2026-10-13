@@ -41,14 +41,17 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
       if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_INT) {
         eps.notify_ep = ep;
         eps.interrupt_interface_number = intf_desc->bInterfaceNumber;
+        eps.interrupt_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && ep->bEndpointAddress & usb_host::USB_DIR_IN &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.in_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+        eps.bulk_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && !(ep->bEndpointAddress & usb_host::USB_DIR_IN) &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.out_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+        eps.bulk_interface_class = intf_desc->bInterfaceClass;
       } else {
         ESP_LOGE(TAG, "Unexpected endpoint attributes: %02X", ep->bmAttributes);
         continue;
@@ -59,21 +62,15 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
   }
 }
 
-UsbSerialDriver USBUartChannelBase::get_driver() const { return this->parent_->get_driver(); }
-
-uint8_t USBUartChannelBase::get_port_number() const {
-  // Multi-port chips put each port on its own interface, so this is 0 unless several
-  // channels share one, as a multiplexed port does
-  uint8_t number = 0;
-  for (auto *channel : this->parent_->get_channels()) {
-    if (channel == this) {
-      break;
-    }
-    if (channel->get_interface_number() == this->get_interface_number()) {
-      number++;
-    }
-  }
-  return number;
+UsbSerialDriver USBUartChannelBase::get_driver() const {
+  // A vendor-specific interface has no class driver, so a host binds it through a chip
+  // driver (Linux: usb-serial, named -ifNN-portM). A class interface such as CDC ACM is
+  // bound by the class driver itself (Linux: cdc_acm, named -ifNN). This holds for every
+  // chip driven here, including the CDC-class CH343 line next to the vendor-class CH340.
+  const uint8_t interface_class = this->cdc_dev_.interrupt_interface_number != 0xFF
+                                      ? this->cdc_dev_.interrupt_interface_class
+                                      : this->cdc_dev_.bulk_interface_class;
+  return interface_class == USB_CLASS_VENDOR_SPEC ? UsbSerialDriver::VENDOR : UsbSerialDriver::CLASS;
 }
 
 std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev_hdl) {
