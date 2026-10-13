@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
@@ -134,6 +135,10 @@ def validate_raw_data(value):
     raise cv.Invalid(
         "data must either be a string wrapped in quotes or a list of bytes"
     )
+
+
+# Lengths are stored as uint16_t; reject longer payloads at validation.
+validate_raw_payload = cv.All(validate_raw_data, cv.Length(max=65535))
 
 
 def validate_rx_pin(value):
@@ -444,6 +449,34 @@ UART_DEVICE_SCHEMA = cv.Schema(
 KEY_UART_DEVICES = "uart_devices"
 
 
+@dataclass
+class UARTData:
+    # UARTs whose received bytes do not keep the timing of a serial line.
+    unclocked: list[ID] = field(default_factory=list)
+
+
+def _get_data() -> UARTData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = UARTData()
+    return CORE.data[DOMAIN]
+
+
+def mark_unclocked(uart_id: ID) -> ID:
+    """Record that the bytes of uart_id do not arrive with the timing of a serial line, e.g. over TCP or USB.
+
+    A gap between them says nothing about where a frame ends. Use it on the UART's declared id,
+    cv.All(cv.declare_id(MyUart), uart.mark_unclocked), so that every to_code sees it.
+    """
+    _get_data().unclocked.append(uart_id)
+    return uart_id
+
+
+def is_unclocked(uart_id: ID) -> bool:
+    """Return True if uart_id was passed to mark_unclocked()."""
+    # By name: a generated id is named only after the schemas ran.
+    return any(str(uart) == str(uart_id) for uart in _get_data().unclocked)
+
+
 def final_validate_device_schema(
     name: str,
     *,
@@ -567,7 +600,7 @@ async def register_uart_device(var, config):
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(UARTComponent),
-            cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+            cv.Required(CONF_DATA): cv.templatable(validate_raw_payload),
         },
         key=CONF_DATA,
     ),
@@ -576,18 +609,9 @@ async def register_uart_device(var, config):
 async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+    await automation.templatable_bytes(
+        config[CONF_DATA], args, var.set_data_template, var.set_data_static, "uart_data"
+    )
     return var
 
 

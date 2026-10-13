@@ -144,8 +144,8 @@ def get_theme_styles() -> dict[str, MockObj]:
     return _get_data(KEY_THEME_STYLES, {})
 
 
-def get_widget_theme_style_data() -> dict[str, list[tuple[MockObj, MockObj]]]:
-    """Get the map of widget type names to the list of (style variable, part/state name)"""
+def get_widget_theme_style_data() -> dict[str, list[tuple[MockObj, str, str]]]:
+    """Get the map of widget type names to the list of (style variable, part, state)"""
     return _get_data(KEY_WIDGET_THEME_STYLES, {})
 
 
@@ -734,6 +734,7 @@ CONF_CHANGE_RATE = "change_rate"
 CONF_CLICKABLE = "clickable"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_END = "color_end"
+CONF_COLOR_PICKER = "color_picker"
 CONF_COLOR_START = "color_start"
 CONF_CONTAINER = "container"
 CONF_CONTROL = "control"
@@ -802,7 +803,6 @@ CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
 CONF_ON_ROOT_BACK_BUTTON_CLICK = "on_root_back_button_click"
 CONF_ON_SELECT = "on_select"
-CONF_ON_STOP = "on_stop"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
