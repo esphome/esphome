@@ -126,7 +126,6 @@ void LD2410SComponent::loop() {
     ESP_LOGW(TAG, "No data for %" PRIu32 " s (%u frames dropped), starting over", LINK_TIMEOUT_MS / 1000,
              this->dropped_frames_);
     this->dropped_frames_ = 0;
-    this->status_set_warning();
     this->restart_init_(now);
   }
 }
