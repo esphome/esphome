@@ -88,16 +88,29 @@ TEST_F(EmonTxVersionTest, MsgCounterResetRequestsVersion) {
   EXPECT_EQ(this->tx_(), "\nv\n");
 }
 
-TEST_F(EmonTxVersionTest, PauseWithoutRebootSendsNothing) {
-  this->uart_.push_rx("{\"MSG\":41}\n");
-  this->sut_.loop();
+// The emonTx may have been flashed during the pause, with MSG already past its old value
+TEST_F(EmonTxVersionTest, ResumeRequestsVersion) {
   this->sut_.set_paused(true);
   this->sut_.loop();
   this->sut_.set_paused(false);
-  this->uart_.push_rx("{\"MSG\":45}\n");
   this->sut_.loop();
+  EXPECT_EQ(this->tx_(), "\n");
 
-  EXPECT_TRUE(this->uart_.tx.empty());
+  run_timers();
+  EXPECT_EQ(this->tx_(), "\nv\n");
+}
+
+TEST_F(EmonTxVersionTest, RequestDroppedByPauseSentAgainOnResume) {
+  this->sut_.setup();
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+  run_timers();
+  EXPECT_EQ(this->tx_(), "\n");
+
+  this->sut_.set_paused(false);
+  this->sut_.loop();
+  run_timers();
+  EXPECT_EQ(this->tx_(), "\n\nv\n");
 }
 
 }  // namespace esphome::emontx::testing

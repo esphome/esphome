@@ -19,4 +19,5 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_EMONTX_ID])
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_VERSION, hub.set_version_text_sensor)
+    if await text_sensors(CONF_VERSION, hub.set_version_text_sensor) is not None:
+        cg.add_define("USE_EMONTX_VERSION")

@@ -13,7 +13,7 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
@@ -30,7 +30,7 @@ static constexpr size_t MAX_LINE_LENGTH = 1024;
  * extracts tags and values, and publishes them to registered sensors.
  */
 class EmonTx final : public Component, public uart::UARTDevice {
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
   SUB_TEXT_SENSOR(version)
 #endif
  public:
@@ -66,7 +66,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
 
  protected:
   void parse_json_(const char *data, size_t len);
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
   void request_version_();
   void parse_version_line_(const char *line, size_t len);
 #endif
@@ -81,7 +81,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   bool was_paused_{false};
   bool lock_on_reboot_{false};
   bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
   uint32_t last_msg_number_{0};
 #endif
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};

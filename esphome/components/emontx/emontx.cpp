@@ -7,7 +7,7 @@ namespace esphome::emontx {
 
 ESPHOME_LOG_TAG(TAG, "emontx");
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
 static constexpr uint32_t VERSION_REQUEST_ID = 0;
 // The emonTx joins bytes received while a command is pending into that command, so 'v' waits
 static constexpr uint32_t VERSION_REQUEST_DELAY_MS = 250;
@@ -23,7 +23,7 @@ void EmonTx::setup() {
     this->write_byte('\n');
     this->send_command("emonunlock");
   }
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
   if (this->version_text_sensor_ != nullptr)
     this->request_version_();
 #endif
@@ -61,6 +61,11 @@ void EmonTx::loop() {
     uint8_t dropped;
     while (this->available() > 0 && this->read_byte(&dropped))
       this->discarding_line_ = dropped != '\n';
+#ifdef USE_EMONTX_VERSION
+    // The emonTx may have been flashed, or a request dropped, during the pause
+    if (this->version_text_sensor_ != nullptr)
+      this->request_version_();
+#endif
   }
 
   // Read all available data to prevent UART buffer overflow
@@ -90,7 +95,7 @@ void EmonTx::loop() {
           ESP_LOGV(TAG, "Line is JSON, parsing...");
           this->parse_json_(this->buffer_.data(), len);
         }
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
         if (this->version_text_sensor_ != nullptr)
           this->parse_version_line_(this->buffer_.data(), len);
 #endif
@@ -119,7 +124,7 @@ void EmonTx::parse_json_(const char *data, size_t len) {
       }
     }
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
     auto msg = root["MSG"];
     if (this->version_text_sensor_ != nullptr && msg.is<uint32_t>()) {
       // MSG restarts at 1 when the emonTx reboots, as it does after a firmware update
@@ -139,9 +144,11 @@ void EmonTx::parse_json_(const char *data, size_t len) {
   }
 }
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
 // The line feed ends any pending input; the reply is picked up in loop() by parse_version_line_()
 void EmonTx::request_version_() {
+  if (this->is_paused())
+    return;
   this->write_byte('\n');
   this->set_timeout(VERSION_REQUEST_ID, VERSION_REQUEST_DELAY_MS, [this]() { this->send_command("v"); });
 }
@@ -176,7 +183,7 @@ void EmonTx::dump_config() {
 #else
   ESP_LOGCONFIG(TAG, "  Sensor support: DISABLED");
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_EMONTX_VERSION
   LOG_TEXT_SENSOR("  ", "Firmware version", this->version_text_sensor_);
 #endif
 }
