@@ -17,7 +17,7 @@ static constexpr int kStride = kWidth > kHeight ? kWidth : kHeight;
 // One byte per pixel frame buffer with no hardware behind it, so the
 // measurement is Image::draw() plus the DisplayBuffer pixel path every
 // buffered display shares. Everything fits the host cache, so this counts
-// the per pixel work; the memory locality win only shows on hardware.
+// the per pixel work, not what a frame buffer in PSRAM costs.
 class BenchDisplay : public display::DisplayBuffer {
  public:
   BenchDisplay() : frame_(std::make_unique<uint8_t[]>(kStride * kStride)) {}
@@ -37,6 +37,8 @@ class BenchDisplay : public display::DisplayBuffer {
 
 // Models a driver with a bulk path: rows of little endian RGB565 are copied
 // straight into a 16 bit frame, as the TFT drivers do for their own format.
+// Image::draw() only reaches it once it hands opaque images to
+// draw_pixels_at(); until then this case matches ImageDraw_RGB565.
 class BulkBenchDisplay : public BenchDisplay {
  public:
   BulkBenchDisplay() : frame565_(std::make_unique<uint16_t[]>(kStride * kStride)) {}
@@ -59,12 +61,12 @@ class BulkBenchDisplay : public BenchDisplay {
 
 // Draws the image at rotation 0 and 90 and checks the second frame is the
 // transpose of the first, which is what a wrong traversal order would break.
-static bool frames_match(const Image &image) {
+static bool frames_match(Image &image) {
   BenchDisplay plain;
   BenchDisplay rotated;
   rotated.set_rotation(display::DISPLAY_ROTATION_90_DEGREES);
-  const_cast<Image &>(image).draw(0, 0, &plain, display::COLOR_ON, display::COLOR_OFF);
-  const_cast<Image &>(image).draw(0, 0, &rotated, display::COLOR_ON, display::COLOR_OFF);
+  image.draw(0, 0, &plain, display::COLOR_ON, display::COLOR_OFF);
+  image.draw(0, 0, &rotated, display::COLOR_ON, display::COLOR_OFF);
   for (int y = 0; y < kHeight; y++) {
     for (int x = 0; x < kWidth; x++) {
       // DisplayBuffer maps (x, y) to (width - y - 1, x) at 90 degrees
