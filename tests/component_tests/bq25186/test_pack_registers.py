@@ -10,12 +10,16 @@ from esphome.components.bq25186 import (
     CONF_FAST_CHARGE_CURRENT,
     CONF_MASK_TS_INTERRUPT,
     CONF_PUSH_BUTTON_LONG_PRESS_ACTION,
+    CONF_WATCHDOG_15S_ENABLE,
+    CONFIG_SCHEMA,
     REG_ICHG_CTRL,
     REG_MASK_ID,
     REG_SHIP_RST,
     REG_VBAT_CTRL,
+    _check_watchdog,
     pack_registers,
 )
+from esphome.const import CONF_UPDATE_INTERVAL, CONF_WATCHDOG
 from esphome.types import ConfigType
 
 # Datasheet power-on values for VBAT_CTRL..MASK_ID, except that IC_CTRL has the
@@ -85,3 +89,49 @@ def test_masked_registers_only_carry_configurable_bits() -> None:
 def test_values_between_steps_are_rejected(key: str, value: str) -> None:
     with pytest.raises(cv.Invalid):
         BQ25186_CONFIG_SCHEMA({key: value})
+
+
+def _watchdog_config(interval: str, options: ConfigType) -> ConfigType:
+    config = BQ25186_CONFIG_SCHEMA(options)
+    config[CONF_UPDATE_INTERVAL] = cv.update_interval(interval)
+    return config
+
+
+@pytest.mark.parametrize(
+    "interval, options",
+    [
+        ("60s", {CONF_WATCHDOG: "160s_software_reset"}),
+        ("60s", {CONF_WATCHDOG: "160s_hardware_reset"}),
+        ("30s", {CONF_WATCHDOG: "40s_hardware_reset"}),
+        ("60s", {CONF_WATCHDOG: "disabled"}),
+        ("10s", {CONF_WATCHDOG_15S_ENABLE: True}),
+    ],
+)
+def test_update_interval_within_watchdog_passes(
+    interval: str, options: ConfigType
+) -> None:
+    _check_watchdog(_watchdog_config(interval, options))
+
+
+@pytest.mark.parametrize(
+    "interval, options",
+    [
+        ("60s", {CONF_WATCHDOG: "40s_hardware_reset"}),
+        ("40s", {CONF_WATCHDOG: "40s_hardware_reset"}),
+        ("60s", {CONF_WATCHDOG_15S_ENABLE: True}),
+        ("20s", {CONF_WATCHDOG: "160s_software_reset", CONF_WATCHDOG_15S_ENABLE: True}),
+        ("never", {CONF_WATCHDOG: "160s_software_reset"}),
+    ],
+)
+def test_update_interval_past_watchdog_is_rejected(
+    interval: str, options: ConfigType
+) -> None:
+    with pytest.raises(cv.Invalid, match=CONF_UPDATE_INTERVAL):
+        _check_watchdog(_watchdog_config(interval, options))
+
+
+def test_unconfigured_chip_keeps_its_power_on_watchdog() -> None:
+    config = {"configure_on_boot": False, "update_interval": "160s"}
+    with pytest.raises(cv.Invalid, match="shorter than 160 s"):
+        CONFIG_SCHEMA(config)
+    CONFIG_SCHEMA({**config, "update_interval": "60s"})
