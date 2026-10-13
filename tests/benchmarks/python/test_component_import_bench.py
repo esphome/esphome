@@ -20,7 +20,7 @@ suite keeps working unchanged.
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Generator, Iterable
 import importlib
 import sys
 
@@ -64,17 +64,35 @@ def _import_component(name: str) -> object:
     return importlib.import_module(COMPONENT_PREFIX + name)
 
 
+_MISSING = object()
+
+
+def _parent_bindings(names: Iterable[str]) -> list[tuple[object, str, object]]:
+    # An import binds the module to its parent package; a package may hold something else
+    # under that name (substitutions keeps a Jinja() instance as ``jinja``), so the value
+    # the parent has now is what goes back, not the module.
+    bindings = []
+    for name in names:
+        parent, _, child = name.rpartition(".")
+        bindings.append(
+            (sys.modules[parent], child, getattr(sys.modules[parent], child, _MISSING))
+        )
+    return bindings
+
+
 @pytest.fixture
 def restore_component_modules() -> Generator[None]:
     saved = _component_modules()
+    saved_bindings = _parent_bindings(saved)
     saved_registries = [dict(registry) for registry in REGISTRIES]
     yield
     _forget_component_modules()
     sys.modules.update(saved)
-    # An import also binds the module to its parent package, so put those back as well
-    for name, module in saved.items():
-        parent, _, child = name.rpartition(".")
-        setattr(sys.modules[parent], child, module)
+    for parent, child, value in saved_bindings:
+        if value is _MISSING:
+            delattr(parent, child)
+        else:
+            setattr(parent, child, value)
     # The re-imported bodies registered their actions, conditions and pin schemas again
     for registry, entries in zip(REGISTRIES, saved_registries, strict=True):
         registry.clear()
