@@ -175,12 +175,12 @@ void SelecMeter::fail_current_read_(const char *reason, bool durable) {
   this->start_read_(this->next_read_state_after_(failed_state));
 }
 
-bool SelecMeter::on_no_response(std::span<const uint8_t> request_pdu) {
+bool SelecMeter::on_no_response(std::span<const uint8_t> /*request_pdu*/) {
   this->fail_current_read_("No Modbus response");
   return false;
 }
 
-void SelecMeter::on_not_sent(std::span<const uint8_t> request_pdu) {
+void SelecMeter::on_not_sent(std::span<const uint8_t> /*request_pdu*/) {
   this->fail_current_read_("Modbus request not sent");
 }
 
