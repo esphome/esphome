@@ -17,7 +17,7 @@
 
 namespace esphome::runtime_image {
 
-static const char *const TAG = "image_decoder.jpeg_turbo";
+ESPHOME_LOG_TAG(TAG, "image_decoder.jpeg_turbo");
 
 struct DecoderErrorManager {
   struct jpeg_error_mgr pub;  // Must be the first member so it can be cast back from cinfo->err
