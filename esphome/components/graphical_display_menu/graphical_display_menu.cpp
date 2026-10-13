@@ -241,6 +241,6 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
                 "draw_item should be called.");
 }
 
-void GraphicalDisplayMenu::update() { this->on_redraw_callbacks_.call(); }
+void GraphicalDisplayMenu::update() { this->on_redraw_callbacks_.call(this); }
 
 }  // namespace esphome::graphical_display_menu

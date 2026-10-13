@@ -1,0 +1,67 @@
+esphome:
+  name: test-timeout-throttle
+
+host:
+api:
+  batch_delay: 0ms # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    name: "Source"
+    id: source_sensor
+    accuracy_decimals: 2
+
+  # The default radar pair; codegen merges it into one TimeoutThrottleFilter
+  - platform: copy
+    source_id: source_sensor
+    name: "Merged"
+    filters:
+      - timeout:
+          timeout: 200ms
+          value: last
+      - throttle_with_priority: 200ms
+
+  # Same chain with an identity filter in between, which keeps the two filter objects
+  - platform: copy
+    source_id: source_sensor
+    name: "Reference"
+    filters:
+      - timeout:
+          timeout: 200ms
+          value: last
+      - multiply: 1.0
+      - throttle_with_priority: 200ms
+
+script:
+  - id: drive
+    then:
+      # Burst faster than the period: first passes, the rest are dropped, the timeout republishes the last
+      - sensor.template.publish: {id: source_sensor, state: 1.0}
+      - delay: 30ms
+      - sensor.template.publish: {id: source_sensor, state: 2.0}
+      - delay: 30ms
+      - sensor.template.publish: {id: source_sensor, state: 3.0}
+      - delay: 450ms
+      # NaN inside a burst always passes
+      - sensor.template.publish: {id: source_sensor, state: 4.0}
+      - delay: 30ms
+      - sensor.template.publish: {id: source_sensor, state: !lambda "return NAN;"}
+      - delay: 30ms
+      - sensor.template.publish: {id: source_sensor, state: 5.0}
+      - delay: 450ms
+      # Values right around the period
+      - sensor.template.publish: {id: source_sensor, state: 6.0}
+      - delay: 250ms
+      - sensor.template.publish: {id: source_sensor, state: 7.0}
+      - delay: 190ms
+      - sensor.template.publish: {id: source_sensor, state: 8.0}
+      - delay: 600ms
+      - sensor.template.publish: {id: source_sensor, state: 99.0}
+
+button:
+  - platform: template
+    name: "Drive"
+    on_press:
+      - script.execute: drive

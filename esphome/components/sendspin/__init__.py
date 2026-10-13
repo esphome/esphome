@@ -6,6 +6,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32, mdns, network, psram, socket, wifi
 from esphome.components.const import CONF_ENABLED, CONF_MANUFACTURER
+from esphome.components.mdns import DOMAIN as MDNS_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -13,7 +14,6 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
-    CONF_MDNS,
     CONF_MODEL,
     CONF_NAME,
     CONF_PROJECT,
@@ -424,11 +424,11 @@ async def to_code(config: ConfigType) -> None:
     # esp_websocket_client links esp_tls even for ws:// connections.
     esp32.request_tls()
 
-    cg.add_define("USE_SENDSPIN", True)  # for MDNS
+    cg.add_define("USE_SENDSPIN", True)  # for MDNS and the native API
 
     # Service starts disabled and the hub enables it; always advertised where unsupported
     if mdns.request_service_enable_disable():
-        mdns_var = await cg.get_variable(CORE.config[CONF_MDNS][CONF_ID])
+        mdns_var = await cg.get_variable(CORE.config[MDNS_DOMAIN][CONF_ID])
         cg.add(var.set_mdns(mdns_var))
 
     data = _get_data()
