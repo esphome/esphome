@@ -12,6 +12,9 @@
 #include "esphome/core/preferences.h"
 #endif
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_TMP102_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 #include <cstdint>
 
@@ -30,6 +33,9 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
  public:
 #ifdef USE_TMP102_BINARY_SENSOR
   SUB_BINARY_SENSOR(alert)
+#endif
+#ifdef USE_TMP102_TEXT_SENSOR
+  SUB_TEXT_SENSOR(threshold_status)
 #endif
 #ifdef USE_TMP102_CONFIGURE
   void setup() override;
@@ -67,15 +73,17 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   friend class TMP102LimitNumber;
   bool set_limit_temperature_(TMP102LimitType limit, float temperature);
   float get_limit_temperature_(TMP102LimitType limit) const;
-  void prepare_number_limits_(float *restored);
+  bool prepare_number_limits_(float *restored);
 
   TMP102LimitNumber *limit_controls_[2]{};
 #endif
-
   uint16_t config_{0};
   uint16_t high_limit_{0};
   uint16_t low_limit_{0};
   bool configure_{false};
+#endif
+#ifdef USE_TMP102_TEXT_SENSOR
+  void publish_threshold_status_(const char *status);
 #endif
 };
 
@@ -87,7 +95,7 @@ class TMP102LimitNumber final : public number::Number, public Parented<TMP102Com
 
  protected:
   friend class TMP102Component;
-  float load_value_(float fallback);
+  float load_value_(float fallback, bool &corrected);
   bool save_value_(float value);
   void control(float value) override;
 

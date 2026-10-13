@@ -59,6 +59,7 @@ class TMP102Test : public ::testing::Test {
   RegisterBus bus_;
   TMP102Component chip_;
   binary_sensor::BinarySensor alert_;
+  text_sensor::TextSensor status_;
   TMP102LimitNumber high_{TMP102_LIMIT_HIGH};
   TMP102LimitNumber low_{TMP102_LIMIT_LOW};
   unsigned publications_{0};
@@ -134,6 +135,23 @@ TEST_F(TMP102Test, LegacySetupAndContinuousReadDoNotWriteRegisters) {
   EXPECT_EQ(this->publications_, 1);
   EXPECT_EQ(this->bus_.writes, 0);
   EXPECT_EQ(this->bus_.registers, original);
+}
+
+TEST_F(TMP102Test, ReadOnlyStatusDoesNotConfigureOrWriteRegisters) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  const auto original = this->bus_.registers;
+  this->chip_.setup();
+  EXPECT_EQ(this->bus_.transactions, 0);
+  EXPECT_EQ(this->bus_.registers, original);
+  EXPECT_FALSE(this->status_.has_state());
+}
+
+TEST_F(TMP102Test, ConfiguredSetupPublishesStatus) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  this->configure();
+  this->chip_.setup();
+  ASSERT_TRUE(this->status_.has_state());
+  EXPECT_EQ(this->status_.state, "OK");
 }
 
 TEST_F(TMP102Test, SampleFormatOverridesConfiguredModeInBothDirections) {
@@ -408,6 +426,7 @@ TEST_F(TMP102Test, FailureOfAnySetupWriteMarksComponentFailed) {
 }
 
 TEST_F(TMP102Test, InvalidRestoredPairIsRepairedAfterSuccessfulSetup) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
   this->numbers_();
   save(this->high_, 20);
   save(this->low_, 35);
@@ -416,6 +435,7 @@ TEST_F(TMP102Test, InvalidRestoredPairIsRepairedAfterSuccessfulSetup) {
   EXPECT_FLOAT_EQ(this->low_.state, 25);
   EXPECT_FLOAT_EQ(saved(this->high_), 30);
   EXPECT_FLOAT_EQ(saved(this->low_), 25);
+  EXPECT_EQ(this->status_.state, "Invalid restored thresholds; reset to configured values");
 }
 
 TEST_F(TMP102Test, InvalidRestoredValuesAreRepaired) {
@@ -464,6 +484,7 @@ TEST_F(TMP102Test, SetupOnlySavesChangedThresholds) {
 }
 
 TEST_F(TMP102Test, FailedNumberWriteKeepsAcceptedState) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
   this->numbers_();
   save(this->high_, 90);
   save(this->low_, 85);
@@ -475,6 +496,29 @@ TEST_F(TMP102Test, FailedNumberWriteKeepsAcceptedState) {
   EXPECT_FLOAT_EQ(this->high_.state, 90);
   EXPECT_EQ(publications, 1);
   EXPECT_FLOAT_EQ(saved(this->high_), 90);
+  EXPECT_EQ(this->status_.state, "Write failed: high threshold");
+}
+
+TEST_F(TMP102Test, RejectedNumberWritePublishesStatus) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  this->numbers_();
+  this->chip_.setup();
+  this->high_.make_call().set_value(20).perform();
+  EXPECT_EQ(this->status_.state, "Rejected: high 20.0000°C crosses low 25.0000°C");
+}
+
+TEST_F(TMP102Test, ConfigurationRecoveryPublishesStatus) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  this->configure();
+  this->chip_.setup();
+  this->bus_.registers[1] = 0;
+  this->chip_.update();
+  EXPECT_EQ(this->status_.state, "Configuration restored");
+
+  this->bus_.registers[1] = 0;
+  this->bus_.fail_write = 1;
+  this->chip_.update();
+  EXPECT_EQ(this->status_.state, "Configuration recovery failed");
 }
 
 TEST_F(TMP102Test, RestoreDisabledNeverChangesSavedValue) {

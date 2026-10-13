@@ -3,6 +3,9 @@
 #include "esphome/core/hal.h"
 
 #include <cmath>
+#ifdef USE_TMP102_TEXT_SENSOR
+#include <cstdio>
+#endif
 
 namespace esphome::tmp102 {
 
@@ -46,9 +49,16 @@ static uint16_t encode_temperature(float temperature, bool extended) {
 void TMP102Component::setup() {
   if (!this->configure_)
     return;
+#ifdef USE_TMP102_TEXT_SENSOR
+  bool corrected = false;
+#endif
 #ifdef USE_TMP102_NUMBER
   float restored[2]{};
+#ifdef USE_TMP102_TEXT_SENSOR
+  corrected = this->prepare_number_limits_(restored);
+#else
   this->prepare_number_limits_(restored);
+#endif
 #endif
   if (!this->write_configuration_()) {
     this->mark_failed();
@@ -69,6 +79,16 @@ void TMP102Component::setup() {
     ESP_LOGW(TAG, "Failed to save threshold preferences");
   }
 #endif
+#ifdef USE_TMP102_TEXT_SENSOR
+#ifdef USE_TMP102_NUMBER
+  if (!saved) {
+    this->publish_threshold_status_(corrected ? "Invalid restored thresholds reset; preference save failed"
+                                              : "Preference save failed");
+    return;
+  }
+#endif
+  this->publish_threshold_status_(corrected ? "Invalid restored thresholds; reset to configured values" : "OK");
+#endif
 }
 #endif
 
@@ -82,6 +102,9 @@ void TMP102Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this);
 #ifdef USE_TMP102_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Alert", this->alert_binary_sensor_);
+#endif
+#ifdef USE_TMP102_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Threshold Status", this->threshold_status_text_sensor_);
 #endif
 #ifdef USE_TMP102_CONFIGURE
   if (!this->configure_)
@@ -203,6 +226,13 @@ bool TMP102Component::check_configuration_() {
   this->set_warning_and_invalidate_alert_();
   if (!this->write_configuration_()) {
     ESP_LOGW(TAG, "Failed to restore configuration and thresholds");
+#ifdef USE_TMP102_TEXT_SENSOR
+    this->publish_threshold_status_("Configuration recovery failed");
+#endif
+  } else {
+#ifdef USE_TMP102_TEXT_SENSOR
+    this->publish_threshold_status_("Configuration restored");
+#endif
   }
   return false;
 }
@@ -228,22 +258,24 @@ void TMP102Component::set_limit_control(TMP102LimitNumber *number) {
   this->limit_controls_[number->limit_type_] = number;
 }
 
-void TMP102Component::prepare_number_limits_(float *restored) {
+bool TMP102Component::prepare_number_limits_(float *restored) {
   const bool extended = this->config_ & TMP102_EXTENDED_MODE_BIT;
   uint16_t raw[2] = {this->low_limit_, this->high_limit_};
+  bool corrected = false;
   for (uint8_t limit = 0; limit < 2; ++limit) {
     TMP102LimitNumber *control = this->limit_controls_[limit];
     if (control == nullptr)
       continue;
-    restored[limit] = control->load_value_(decode_temperature(raw[limit], extended));
+    restored[limit] = control->load_value_(decode_temperature(raw[limit], extended), corrected);
     raw[limit] = encode_temperature(restored[limit], extended);
   }
   if (static_cast<int16_t>(raw[TMP102_LIMIT_LOW]) > static_cast<int16_t>(raw[TMP102_LIMIT_HIGH])) {
     ESP_LOGW(TAG, "Restored thresholds are inverted; using configured values");
-    return;
+    return true;
   }
   this->low_limit_ = raw[TMP102_LIMIT_LOW];
   this->high_limit_ = raw[TMP102_LIMIT_HIGH];
+  return corrected;
 }
 
 float TMP102Component::get_limit_temperature_(TMP102LimitType limit) const {
@@ -258,19 +290,37 @@ bool TMP102Component::set_limit_temperature_(TMP102LimitType limit, float temper
   const uint16_t other = high ? this->low_limit_ : this->high_limit_;
   if (high ? static_cast<int16_t>(raw) < static_cast<int16_t>(other)
            : static_cast<int16_t>(raw) > static_cast<int16_t>(other)) {
+#ifdef USE_TMP102_TEXT_SENSOR
+    char status[96];
+    std::snprintf(status, sizeof(status), "Rejected: %s %.4f°C crosses %s %.4f°C", high ? "high" : "low",
+                  decode_temperature(raw, extended), high ? "low" : "high", decode_temperature(other, extended));
+    ESP_LOGW(TAG, "%s", status);
+    this->publish_threshold_status_(status);
+#else
     ESP_LOGW(TAG, "Rejected %s threshold %.4f°C: crosses %s threshold %.4f°C",
              high ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"), decode_temperature(raw, extended),
              high ? LOG_STR_LITERAL("low") : LOG_STR_LITERAL("high"), decode_temperature(other, extended));
+#endif
     return false;
   }
   if (!this->write_register_(static_cast<uint8_t>(TMP102_REGISTER_LOW_LIMIT + limit), raw)) {
     this->status_set_warning();
+#ifdef USE_TMP102_TEXT_SENSOR
+    this->publish_threshold_status_(high ? "Write failed: high threshold" : "Write failed: low threshold");
+#endif
     return false;
   }
   (high ? this->high_limit_ : this->low_limit_) = raw;
   return true;
 }
 #endif
+#endif
+
+#ifdef USE_TMP102_TEXT_SENSOR
+void TMP102Component::publish_threshold_status_(const char *status) {
+  if (this->threshold_status_text_sensor_ != nullptr)
+    this->threshold_status_text_sensor_->publish_state(status);
+}
 #endif
 
 #ifdef USE_TMP102_BINARY_SENSOR
@@ -294,7 +344,7 @@ bool TMP102Component::read_alert_state_() {
 #endif
 
 #ifdef USE_TMP102_NUMBER
-float TMP102LimitNumber::load_value_(float fallback) {
+float TMP102LimitNumber::load_value_(float fallback, bool &corrected) {
   float value = fallback;
   if (this->restore_value_) {
     this->pref_ = this->make_entity_preference<float>();
@@ -303,6 +353,7 @@ float TMP102LimitNumber::load_value_(float fallback) {
   if (!std::isfinite(value) || value < this->traits.get_min_value() || value > this->traits.get_max_value()) {
     ESP_LOGW(TAG, "Invalid restored threshold; using configured value");
     value = fallback;
+    corrected = true;
   }
   return value;
 }
@@ -313,6 +364,9 @@ void TMP102LimitNumber::control(float value) {
   // A chip that failed setup holds nothing the entity could show
   if (this->parent_->is_failed()) {
     ESP_LOGW(TAG, "Rejected threshold change: sensor setup failed");
+#ifdef USE_TMP102_TEXT_SENSOR
+    this->parent_->publish_threshold_status_("Rejected: sensor setup failed");
+#endif
     return;
   }
   const bool accepted = this->parent_->set_limit_temperature_(this->limit_type_, value);
@@ -320,6 +374,13 @@ void TMP102LimitNumber::control(float value) {
   this->publish_state(value);
   if (accepted && !this->save_value_(value)) {
     ESP_LOGW(TAG, "Failed to save threshold preference");
+#ifdef USE_TMP102_TEXT_SENSOR
+    this->parent_->publish_threshold_status_("Preference save failed");
+#endif
+  } else if (accepted) {
+#ifdef USE_TMP102_TEXT_SENSOR
+    this->parent_->publish_threshold_status_("OK");
+#endif
   }
 }
 #endif
