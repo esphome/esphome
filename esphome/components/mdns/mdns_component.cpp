@@ -48,7 +48,7 @@ MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
 MDNS_STATIC_CONST_CHAR(NETWORK_ETHERNET, "ethernet");
 
 // Ethernet first: a device that is reachable wired must not be adopted as a wifi device
-const char *MDNSComponent::connected_network_() {
+const char *MDNSComponent::connected_network_() const {
   if (ethernet::global_eth_component->is_connected())
     return NETWORK_ETHERNET;
   if (wifi::global_wifi_component->is_connected())
@@ -60,7 +60,7 @@ void MDNSComponent::update_network_txt_() {
   if (this->network_txt_ == nullptr)
     return;
   // With no interface connected, keep the last value instead of flapping to wifi
-  const char *network = connected_network_();
+  const char *network = this->connected_network_();
   if (network == nullptr || network == this->network_txt_)
     return;
   if (!this->publish_network_txt_(network))
@@ -192,7 +192,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});
 
 #ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
-    const char *network = connected_network_();
+    const char *network = this->connected_network_();
     this->network_txt_ = network != nullptr ? network : NETWORK_WIFI;
     txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(this->network_txt_)});
 #elif defined(USE_WIFI)
