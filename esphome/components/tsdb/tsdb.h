@@ -46,6 +46,13 @@ struct TsdbColumn {
 /// directory entry - everything written since the last sync is at risk on a
 /// power cut, which is the single most important number of this component.
 class TsdbComponent : public PollingComponent {
+  SUB_SENSOR(records)
+  SUB_SENSOR(used)
+  SUB_SENSOR(free)
+  SUB_SENSOR(oldest)
+  SUB_SENSOR(newest)
+  SUB_SENSOR(errors)
+
  public:
   void setup() override;
   void update() override;
@@ -86,12 +93,6 @@ class TsdbComponent : public PollingComponent {
   void set_column_min_sensor(size_t index, sensor::Sensor *sensor);
   void set_column_max_sensor(size_t index, sensor::Sensor *sensor);
 
-  void set_records_sensor(sensor::Sensor *sensor) { this->records_sensor_ = sensor; }
-  void set_used_sensor(sensor::Sensor *sensor) { this->used_sensor_ = sensor; }
-  void set_free_sensor(sensor::Sensor *sensor) { this->free_sensor_ = sensor; }
-  void set_oldest_sensor(sensor::Sensor *sensor) { this->oldest_sensor_ = sensor; }
-  void set_newest_sensor(sensor::Sensor *sensor) { this->newest_sensor_ = sensor; }
-  void set_errors_sensor(sensor::Sensor *sensor) { this->errors_sensor_ = sensor; }
   void set_log_sensor(text_sensor::TextSensor *sensor) { this->log_sensor_ = sensor; }
 
   // ----------------------------------------------------------------- runtime
@@ -151,12 +152,6 @@ class TsdbComponent : public PollingComponent {
   std::vector<TsdbColumn> columns_{};
   time::RealTimeClock *time_{nullptr};
 
-  sensor::Sensor *records_sensor_{nullptr};
-  sensor::Sensor *used_sensor_{nullptr};
-  sensor::Sensor *free_sensor_{nullptr};
-  sensor::Sensor *oldest_sensor_{nullptr};
-  sensor::Sensor *newest_sensor_{nullptr};
-  sensor::Sensor *errors_sensor_{nullptr};
   text_sensor::TextSensor *log_sensor_{nullptr};
 
   // ----------------------------------------------------------------- runtime
