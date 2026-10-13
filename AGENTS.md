@@ -144,8 +144,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
 *   **C++ Preprocessor Directives:**
     *   **Avoid `#define` for constants:** Using `#define` for constants is discouraged and should be replaced with `const` variables or enums.
-    *   **Constants are `static constexpr`,** never `static const`, at namespace scope and inside functions. A
-        function-local `static constexpr` table is a static constant to clang-tidy, so it is `UPPER_SNAKE_CASE` too.
+    *   **A constant with a compile-time initializer is `static constexpr`,** not `static const`, at namespace scope
+        and inside functions; `static const` is only for a value computed at run time. A function-local
+        `static constexpr` table is a static constant to clang-tidy, so it is `UPPER_SNAKE_CASE` too.
     *   **Use `#define` only for:**
         - Conditional compilation (`#ifdef`, `#ifndef`)
         - Compile-time sizes calculated during Python code generation (e.g., configuring `std::array` or `StaticVector` dimensions via `cg.add_define()`)
