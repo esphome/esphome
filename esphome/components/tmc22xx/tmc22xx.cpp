@@ -276,10 +276,17 @@ void TMC22XXStepper::loop() {
 
   if (this->has_reached_target()) {
     this->high_freq_.stop();
+    this->moving_ = false;
   } else {
     this->high_freq_.start();
     if (!this->enabled_)
       this->set_enabled(true);
+    // An unreachable driver is polled only every 10 s. Read it before the first step, so settings lost when the
+    // motor supply dropped are restored before the move runs on the chip defaults.
+    if (!this->moving_ && this->status_poll_skip_ > 0) {
+      this->status_poll_skip_ = this->update_status_() ? 0 : UNREACHABLE_POLL_SKIP;
+    }
+    this->moving_ = true;
   }
 
   if (this->index_pin_ != nullptr) {

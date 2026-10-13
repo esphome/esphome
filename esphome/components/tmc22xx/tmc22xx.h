@@ -215,6 +215,7 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   bool enabled_{false};
   bool vsense_active_{false};
   bool step_state_{false};
+  bool moving_{false};
   HighFrequencyLoopRequester high_freq_;
 };
 
