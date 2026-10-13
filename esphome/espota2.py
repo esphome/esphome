@@ -241,6 +241,9 @@ class ProbeResult(enum.Enum):
     DEVICE_ERROR = "device error"  # answered, but not about the key
     UNREACHABLE = "unreachable"  # no answer at all
 
+    def __bool__(self) -> bool:
+        return self is ProbeResult.ACCEPTED
+
 
 _PROBE_ANSWERS = (
     (OTAKeyRejected, ProbeResult.REJECTED),
@@ -1055,11 +1058,16 @@ def probe_ota_key(
                 except OTAError as err:
                     # Final in the precheck; a rebooting device may answer
                     # differently once it is back
-                    outcome = next(
+                    found = next(
                         (r for t, r in _PROBE_ANSWERS if isinstance(err, t)),
                         ProbeResult.DEVICE_ERROR,
                     )
-                    last_error = f"{sa[0]}: {err}"
+                    # A stale address answering with some other error must
+                    # not hide what the device said about the key
+                    if found is not ProbeResult.DEVICE_ERROR or not any(
+                        outcome is r for _, r in _PROBE_ANSWERS
+                    ):
+                        outcome, last_error = found, f"{sa[0]}: {err}"
                     if not retry_rejected:
                         answered.add(sa)
                 else:
@@ -1122,6 +1130,13 @@ def run_ota_impl_(
     reconnect = False  # the device closed on purpose; nothing to wait for
     attempt = 0
     encryption = _EncryptionAttempt(noise_psk, plaintext_fallback, old_noise_psk)
+
+    def upload_started() -> None:
+        nonlocal on_upload_start
+        if on_upload_start is not None:
+            on_upload_start()
+            on_upload_start = None  # once per upload, whatever the retries do
+
     while attempt < total_attempts:
         af, socktype, _, _, sa = res[attempt % len(res)]
         if not reconnect and (reached_device or attempt >= len(res)):
@@ -1159,7 +1174,7 @@ def run_ota_impl_(
                     encryption.noise_psk,
                     encryption.plaintext_fallback,
                     allow_plaintext_upload=allow_plaintext_upload,
-                    on_upload_start=on_upload_start,
+                    on_upload_start=upload_started,
                 )
             except OTAKeyRejected as err:
                 # The device sent a reject and closed on its own, so reconnect
@@ -1224,8 +1239,9 @@ def run_ota(
     old_noise_psk: str | None = None,
     on_upload_start: Callable[[], None] | None = None,
 ) -> tuple[int, str | None]:
-    """``on_upload_start`` runs once the device accepted the session and the
-    image is about to go out, the point from which it may commit."""
+    """``on_upload_start`` runs once, when the device first accepted the
+    session and the image is about to go out: the point from which it may
+    commit, which a later retry or failure does not undo."""
     try:
         return run_ota_impl_(
             remote_host,

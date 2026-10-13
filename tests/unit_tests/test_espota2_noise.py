@@ -303,6 +303,62 @@ def test_on_upload_start_runs_once_the_device_accepted_the_session(
     on_upload_start.assert_called_once()
 
 
+def test_on_upload_start_fires_once_across_retries() -> None:
+    """A data phase fault after the hook retries the upload; the hook has
+    already reported that the device may commit."""
+    calls: list[int] = []
+
+    def perform(*_args: Any, **kwargs: Any) -> None:
+        kwargs["on_upload_start"]()
+        if len(calls) == 0:
+            calls.append(1)
+            raise espota2.OTANetworkError("reset")
+
+    hook = Mock()
+    with (
+        patch("esphome.espota2.resolve_ip_address", return_value=RESOLVED),
+        patch("socket.socket"),
+        patch("pathlib.Path.open"),
+        patch("esphome.espota2.perform_ota", side_effect=perform),
+        patch("time.sleep"),
+    ):
+        rc, _ = espota2.run_ota_impl_(
+            "h", 1, None, Path("fw.bin"), on_upload_start=hook
+        )
+    assert rc == 0
+    hook.assert_called_once()
+
+
+def test_probe_result_is_true_only_when_accepted() -> None:
+    assert ProbeResult.ACCEPTED
+    assert not any(r for r in ProbeResult if r is not ProbeResult.ACCEPTED)
+
+
+def test_probe_ota_key_keeps_the_key_answer_over_a_stale_device_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A stale address running some other listener answers with its own
+    error; what the device said about the key still wins."""
+    with (
+        patch("esphome.espota2.resolve_ip_address", return_value=TWO_ADDRESSES),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[
+                espota2.OTAKeyRejected("no"),
+                espota2.OTAError("unsupported OTA version 9"),
+            ],
+        ),
+        patch("time.sleep"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+            is ProbeResult.REJECTED
+        )
+    assert "failed, rejected: 10.0.0.1: no" in caplog.text
+
+
 def test_on_upload_start_failure_closes_the_socket() -> None:
     def start_upload(*_args: Any, **kwargs: Any) -> None:
         kwargs["on_upload_start"]()
