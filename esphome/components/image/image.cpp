@@ -10,18 +10,22 @@ ESPHOME_LOG_TAG(TAG, "image");
 namespace esphome::image {
 
 // Walks the clipped image range with rows (ROWS_OUTER) or columns as the outer
-// loop. The coordinate selection folds at compile time, and the pixel body must
-// be ESPHOME_ALWAYS_INLINE: at -Os GCC otherwise leaves it out of line and calls
+// loop and hands the pixel body its coordinates plus its index in a row major
+// image of the given width, with the row part hoisted out of the inner loop.
+// The coordinate selection folds at compile time, and the pixel body must be
+// ESPHOME_ALWAYS_INLINE: at -Os GCC otherwise leaves it out of line and calls
 // it once per pixel.
 template<bool ROWS_OUTER, typename F>
-static void for_each_pixel(int x_start, int x_end, int y_start, int y_end, F &&f) {
+static void for_each_pixel(int x_start, int x_end, int y_start, int y_end, int width, F &&f) {
   const int outer_start = ROWS_OUTER ? y_start : x_start;
   const int outer_end = ROWS_OUTER ? y_end : x_end;
   const int inner_start = ROWS_OUTER ? x_start : y_start;
   const int inner_end = ROWS_OUTER ? x_end : y_end;
   for (int outer = outer_start; outer < outer_end; outer++) {
+    const int outer_pos = ROWS_OUTER ? outer * width : outer;
     for (int inner = inner_start; inner < inner_end; inner++) {
-      f(ROWS_OUTER ? inner : outer, ROWS_OUTER ? outer : inner);
+      f(ROWS_OUTER ? inner : outer, ROWS_OUTER ? outer : inner,
+        ROWS_OUTER ? outer_pos + inner : outer_pos + inner * width);
     }
   }
 }
@@ -87,59 +91,64 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
   // Local copies: draw_pixel_at() is an opaque virtual call, so members read
   // in the loop would otherwise be reloaded every pixel.
   const Transparency transparency = this->transparency_;
+  const int width = this->width_;
   switch (this->type_) {
     case IMAGE_TYPE_BINARY:
-      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
-        if (this->get_binary_pixel_(img_x, img_y)) {
-          display->draw_pixel_at(x + img_x, y + img_y, color_on);
-        } else if (transparency == TRANSPARENCY_OPAQUE) {
-          display->draw_pixel_at(x + img_x, y + img_y, color_off);
-        }
-      });
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
+                                 [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
+                                   if (this->get_binary_pixel_(img_x, img_y)) {
+                                     display->draw_pixel_at(x + img_x, y + img_y, color_on);
+                                   } else if (transparency == TRANSPARENCY_OPAQUE) {
+                                     display->draw_pixel_at(x + img_x, y + img_y, color_off);
+                                   }
+                                 });
       break;
     case IMAGE_TYPE_RGB111:
-      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
-        auto color = this->get_rgb111_pixel_(img_x, img_y);
-        if (color.w >= 0x80) {
-          display->draw_pixel_at(x + img_x, y + img_y, color);
-        }
-      });
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
+                                 [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
+                                   auto color = this->get_rgb111_pixel_(img_x, img_y);
+                                   if (color.w >= 0x80) {
+                                     display->draw_pixel_at(x + img_x, y + img_y, color);
+                                   }
+                                 });
       break;
     case IMAGE_TYPE_GRAYSCALE: {
-      const int width = this->width_;
       const uint8_t *const data = this->data_start_;
-      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
-        const uint8_t gray = progmem_read_byte(data + img_x + img_y * width);
-        Color color = Color(gray, gray, gray, 0xFF);
-        if (transparency == TRANSPARENCY_CHROMA_KEY) {
-          if (gray == 1) {
-            return;  // transparent pixel, skip drawing
-          }
-        } else if (transparency == TRANSPARENCY_ALPHA_CHANNEL) {
-          // gray is the alpha: blend from color_off to color_on, drawn opaque
-          color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
-                        Color::blend_channel(color_off.g, color_on.g, gray),
-                        Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
-        }
-        display->draw_pixel_at(x + img_x, y + img_y, color);
-      });
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
+                                 [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
+                                   const uint8_t gray = progmem_read_byte(data + pos);
+                                   Color color = Color(gray, gray, gray, 0xFF);
+                                   if (transparency == TRANSPARENCY_CHROMA_KEY) {
+                                     if (gray == 1) {
+                                       return;  // transparent pixel, skip drawing
+                                     }
+                                   } else if (transparency == TRANSPARENCY_ALPHA_CHANNEL) {
+                                     // gray is the alpha: blend from color_off to color_on, drawn opaque
+                                     color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
+                                                   Color::blend_channel(color_off.g, color_on.g, gray),
+                                                   Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
+                                   }
+                                   display->draw_pixel_at(x + img_x, y + img_y, color);
+                                 });
       break;
     }
     case IMAGE_TYPE_RGB565:
-      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
-        auto color = this->get_rgb565_pixel_(img_x, img_y);
-        if (color.w >= 0x80) {
-          display->draw_pixel_at(x + img_x, y + img_y, color);
-        }
-      });
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
+                                 [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
+                                   auto color = this->get_rgb565_pixel_(img_x, img_y);
+                                   if (color.w >= 0x80) {
+                                     display->draw_pixel_at(x + img_x, y + img_y, color);
+                                   }
+                                 });
       break;
     case IMAGE_TYPE_RGB:
-      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
-        auto color = this->get_rgb_pixel_(img_x, img_y);
-        if (color.w >= 0x80) {
-          display->draw_pixel_at(x + img_x, y + img_y, color);
-        }
-      });
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
+                                 [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
+                                   auto color = this->get_rgb_pixel_(img_x, img_y);
+                                   if (color.w >= 0x80) {
+                                     display->draw_pixel_at(x + img_x, y + img_y, color);
+                                   }
+                                 });
       break;
   }
 }

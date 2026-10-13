@@ -163,4 +163,17 @@ static void expect_fallback_decodes(bool big_endian) {
 TEST(ImageDraw, FallbackDecodesLittleEndian) { expect_fallback_decodes(false); }
 TEST(ImageDraw, FallbackDecodesBigEndian) { expect_fallback_decodes(true); }
 
+// An RGB image through the fallback must give every pixel the colour get_pixel() reads,
+// which keeps red and blue in the order the image stores them.
+TEST(ImageDraw, FallbackKeepsRgbChannelOrder) {
+  const auto data = make_data(3);
+  Image image(data.data(), W, H, IMAGE_TYPE_RGB, TRANSPARENCY_OPAQUE);
+  FallbackDisplay display;
+  image.draw(0, 0, &display, Color::WHITE, Color::BLACK);
+  ASSERT_EQ(display.pixels.size(), static_cast<size_t>(W * H));
+  for (const auto &pixel : display.pixels) {
+    EXPECT_EQ(pixel.raw, image.get_pixel(pixel.x, pixel.y).raw_32) << "at " << pixel.x << "," << pixel.y;
+  }
+}
+
 }  // namespace esphome::image::testing
