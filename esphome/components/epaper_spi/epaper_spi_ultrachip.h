@@ -14,6 +14,10 @@ class EPaperUltraChip : public EPaperBase {
  public:
   using EPaperBase::EPaperBase;
 
+  // Nothing carries the image across a restart or the controller's deep sleep, so sleep the panel rather than
+  // leaving it waiting in standby
+  void on_safe_shutdown() override;
+
  protected:
   static constexpr uint8_t CMD_POWER_OFF = 0x02;
   static constexpr uint8_t CMD_POWER_ON = 0x04;

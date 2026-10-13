@@ -1,7 +1,7 @@
 from typing import Any, Self
 
 import esphome.config_validation as cv
-from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
+from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_OFFSET_HEIGHT, CONF_WIDTH
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -90,6 +90,13 @@ class EpaperModel:
             width = self.get_default(CONF_WIDTH)
             height = self.get_default(CONF_HEIGHT)
         return width, height
+
+    def get_offset_height(self, config) -> int:
+        # The panel's first row within the controller's addressable area; from explicit dimensions or the model default
+        dimensions = config.get(CONF_DIMENSIONS)
+        if isinstance(dimensions, dict):
+            return dimensions.get(CONF_OFFSET_HEIGHT, 0)
+        return self.get_default(CONF_OFFSET_HEIGHT, 0)
 
     def extend(self, name, **kwargs) -> "EpaperModel":
         """

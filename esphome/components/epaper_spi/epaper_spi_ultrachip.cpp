@@ -21,6 +21,8 @@ void EPaperUltraChip::send_deep_sleep_() {
   this->cmd_data(CMD_DEEP_SLEEP, {DEEP_SLEEP_CHECK});
 }
 
+void EPaperUltraChip::on_safe_shutdown() { this->send_deep_sleep_(); }
+
 void EPaperUltraChip::set_partial_window_(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end) {
   this->command(CMD_PARTIAL_IN);
   this->cmd_data(CMD_PARTIAL_WINDOW,

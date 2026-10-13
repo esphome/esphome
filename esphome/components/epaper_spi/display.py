@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_OFFSET_HEIGHT,
     CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
@@ -78,6 +79,8 @@ DIMENSION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_WIDTH): cv.int_,
         cv.Required(CONF_HEIGHT): cv.int_,
+        # Rows the controller scans before the panel's first row; only some models (e.g. UC8279) use it
+        cv.Optional(CONF_OFFSET_HEIGHT, default=0): cv.positive_int,
     }
 )
 

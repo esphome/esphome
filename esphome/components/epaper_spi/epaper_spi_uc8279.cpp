@@ -136,8 +136,4 @@ void EPaperUC8279::power_off() {
   this->next_delay_ = BUSY_ASSERT_MS;
 }
 
-// Nothing carries the image across a restart or the controller's deep sleep, so the panel sleeps rather than waiting
-// in standby
-void EPaperUC8279::on_safe_shutdown() { this->send_deep_sleep_(); }
-
 }  // namespace esphome::epaper_spi

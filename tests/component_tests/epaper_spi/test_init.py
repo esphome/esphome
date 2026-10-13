@@ -559,11 +559,11 @@ def test_uc8279_x4pro_code_generation(
     assert resolution == (0x61, 0x03, 0x20, 0x02, 0x58)
 
 
-def test_uc8279_gate_offset_configurable(
+def test_uc8279_offset_height_configurable(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
-    """The generic uc8279 model accepts a gate_offset, which reaches the constructor and the gate count."""
+    """The generic uc8279 model takes offset_height under dimensions, reaching the constructor and gate count."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
@@ -575,8 +575,7 @@ def test_uc8279_gate_offset_configurable(
             "id": "test_display",
             "model": "uc8279",
             "dc_pin": 21,
-            "gate_offset": 8,
-            "dimensions": {"width": 16, "height": 2},
+            "dimensions": {"width": 16, "height": 2, "offset_height": 8},
         }
     )
     model = MODELS["UC8279"]
@@ -586,11 +585,11 @@ def test_uc8279_gate_offset_configurable(
     assert resolution == (0x61, 0x00, 0x10, 0x00, 0x0A)
 
 
-def test_uc8279_gate_offset_plus_height_must_fit_16_bits(
+def test_uc8279_offset_height_plus_height_must_fit_16_bits(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
-    """gate_offset plus the panel height is the gate count, which the controller holds in 16 bits."""
+    """offset_height plus the panel height is the gate count, which the controller holds in 16 bits."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
@@ -603,8 +602,7 @@ def test_uc8279_gate_offset_plus_height_must_fit_16_bits(
                 "id": "test_display",
                 "model": "uc8279",
                 "dc_pin": 21,
-                "gate_offset": 0xFFFF,
-                "dimensions": {"width": 16, "height": 2},
+                "dimensions": {"width": 16, "height": 2, "offset_height": 0xFFFF},
             }
         )
 

@@ -5,19 +5,17 @@ Supported models:
 - xteink-x4pro-uc8279: the Xteink X4 Pro e-reader (ESP32-S3) with its 800x480 UC8279 panel;
   the X4 Pro also ships with other panel controllers
 
-The controller scans gate_offset + height gates, and the panel is bonded to the last
-height of them; gate_offset is a property of the panel.
+The controller scans offset_height + height gates, and the panel is bonded to the last
+height of them; offset_height (under dimensions) is a property of the panel.
 """
 
 from typing import Any
 
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA_RATE
+from esphome.const import CONF_DATA_RATE, CONF_DIMENSIONS, CONF_OFFSET_HEIGHT
 from esphome.types import ConfigType
 
 from . import EpaperModel, ultrachip_resolution
-
-GATE_OFFSET = "gate_offset"
 
 
 class UC8279(EpaperModel):
@@ -30,32 +28,25 @@ class UC8279(EpaperModel):
     ) -> None:
         defaults.setdefault(CONF_DATA_RATE, data_rate)
         defaults.setdefault("partial_update", True)
-        defaults.setdefault(GATE_OFFSET, 0)
         defaults.setdefault("width_multiple", 8)
         super().__init__(name, class_name=class_name, **defaults)
 
-    def get_config_options(self) -> dict:
-        return {self.option(GATE_OFFSET): cv.int_range(min=0, max=0xFFFF)}
-
-    def _gate_offset(self, config: dict) -> int:
-        return config.get(GATE_OFFSET, self.get_default(GATE_OFFSET))
-
     def validate_config(self, config: ConfigType) -> ConfigType:
         _width, height = self.get_dimensions(config)
-        if self._gate_offset(config) + height > 0xFFFF:
+        if self.get_offset_height(config) + height > 0xFFFF:
             raise cv.Invalid(
-                f"{GATE_OFFSET} plus the panel height must not exceed {0xFFFF} gates",
-                path=[GATE_OFFSET],
+                f"{CONF_OFFSET_HEIGHT} plus the panel height must not exceed {0xFFFF} gates",
+                path=[CONF_DIMENSIONS, CONF_OFFSET_HEIGHT],
             )
         return config
 
     def get_constructor_args(self, config) -> tuple:
-        return (self._gate_offset(config),)
+        return (self.get_offset_height(config),)
 
     # fmt: off
     def get_init_sequence(self, config: dict) -> tuple:
         width, height = self.get_dimensions(config)
-        gates = self._gate_offset(config) + height
+        gates = self.get_offset_height(config) + height
         return (
             (0x00, 0x37, 0x4D),  # panel setting; the driver switches it to the OTP LUT before each refresh
             ultrachip_resolution(width, gates),  # resolution: sources, gates
@@ -73,7 +64,7 @@ uc8279.extend(
     "xteink-x4pro-uc8279",
     width=800,
     height=480,
-    gate_offset=120,
+    offset_height=120,
     cs_pin=13,
     dc_pin=18,
     reset_pin=14,

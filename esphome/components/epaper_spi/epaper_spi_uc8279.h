@@ -27,8 +27,6 @@ class EPaperUC8279 : public EPaperUltraChip {
     this->buffer_length_ = this->row_width_ * height;
   }
 
-  void on_safe_shutdown() override;
-
  protected:
   bool reset() override;
   bool initialise(bool partial) override;
