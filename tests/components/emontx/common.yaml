@@ -24,3 +24,9 @@ sensor:
     tag_name: P1
     emontx_id: test_emontx
     unit_of_measurement: W
+
+text_sensor:
+  - platform: emontx
+    emontx_id: test_emontx
+    version:
+      name: emonTx firmware version
