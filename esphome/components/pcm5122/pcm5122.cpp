@@ -7,7 +7,7 @@
 
 namespace esphome::pcm5122 {
 
-static const char *const TAG = "pcm5122";
+ESPHOME_LOG_TAG(TAG, "pcm5122");
 
 void PCM5122::setup() {
   // Hold XSMT low (soft mute asserted) until init completes

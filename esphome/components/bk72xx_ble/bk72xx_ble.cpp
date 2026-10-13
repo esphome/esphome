@@ -81,7 +81,7 @@ void ble_entry(void);
 
 namespace esphome::bk72xx_ble {
 
-static const char *const TAG = "bk72xx_ble";
+ESPHOME_LOG_TAG(TAG, "bk72xx_ble");
 
 static constexpr uint32_t RECONCILE_RETRY_MS = 10;              // pump floor for fast loops
 static constexpr uint32_t RECONCILE_REJECTED_RETRY_MS = 500;    // retry gate after a rejected release

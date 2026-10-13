@@ -3,7 +3,7 @@
 
 namespace esphome::tm1638 {
 
-static const char *const TAG = "tm1638.led";
+ESPHOME_LOG_TAG(TAG, "tm1638.led");
 
 void TM1638OutputLed::write_state(bool state) { tm1638_->set_led(led_, state); }
 
