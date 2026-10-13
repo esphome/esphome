@@ -193,6 +193,8 @@ void EmonTx::parse_json_(const char *data, size_t len) {
 
 #ifdef USE_EMONTX_VERSION
 void EmonTx::request_version_() {
+  // The firmware may have changed; until the reply, an unknown version gets no lock commands
+  this->lock_supported_ = false;
   this->version_frames_left_ = VERSION_RETRY_FRAMES * VERSION_MAX_ATTEMPTS;
   this->send_version_request_();
 }
@@ -224,8 +226,6 @@ void EmonTx::parse_msg_number_(const char *line, size_t len) {
   } else if (this->version_frames_left_ > 0) {
     if (--this->version_frames_left_ == 0) {
       ESP_LOGW(TAG, "No firmware version from the emonTx, it may still be locked");
-      // An unknown version gets no lock commands, even if an earlier one allowed them
-      this->lock_supported_ = false;
     } else if (this->version_frames_left_ % VERSION_RETRY_FRAMES == 0) {
       this->send_version_request_();
     }

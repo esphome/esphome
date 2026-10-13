@@ -326,6 +326,18 @@ TEST_F(EmonTxLockAutoTest, NoLockAfterUnansweredRequest) {
   EXPECT_TRUE(this->uart_.tx.empty());
 }
 
+TEST_F(EmonTxLockAutoTest, NoLockWhileVersionPending) {
+  this->report_version_("v1.2.0");
+  run_timers(300);
+  this->uart_.push_rx("MSG:50\nMSG:1\n");
+  this->sut_.loop();
+  this->uart_.tx.clear();
+
+  EXPECT_CALL(this->uart_, flush()).Times(0);
+  this->sut_.on_shutdown();
+  EXPECT_TRUE(this->uart_.tx.empty());
+}
+
 TEST_F(EmonTxLockAutoTest, UnlockDroppedByPauseSentAfterResume) {
   this->report_version_("v1.2.0");
   this->sut_.set_paused(true);
