@@ -3,14 +3,19 @@ from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_INTERNAL_TEMPERATURE,
+    CONF_MODE,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
+    UNIT_CELSIUS,
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
@@ -29,11 +34,22 @@ CONF_ENERGY_TOTAL = "energy_total"
 
 bl0939_ns = cg.esphome_ns.namespace("bl0939")
 BL0939 = bl0939_ns.class_("BL0939", cg.PollingComponent, uart.UARTDevice)
+BL0939Mode = bl0939_ns.enum("BL0939Mode", is_class=True)
+MODE_OPTIONS = {
+    "direct": BL0939Mode.BL0939_MODE_DIRECT,
+    "current_transformer": BL0939Mode.BL0939_MODE_CURRENT_TRANSFORMER,
+}
+# Must match the mode_ member initializer in bl0939.h; set_mode() is skipped
+# when the config already equals it.
+DEFAULT_MODE = "direct"
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BL0939),
+            cv.Optional(CONF_MODE, default=DEFAULT_MODE): cv.enum(
+                MODE_OPTIONS, lower=True
+            ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
@@ -82,6 +98,13 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
+            cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -94,27 +117,16 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_1_config := config.get(CONF_CURRENT_1):
-        sens = await sensor.new_sensor(current_1_config)
-        cg.add(var.set_current_sensor_1(sens))
-    if current_2_config := config.get(CONF_CURRENT_2):
-        sens = await sensor.new_sensor(current_2_config)
-        cg.add(var.set_current_sensor_2(sens))
-    if active_power_1_config := config.get(CONF_ACTIVE_POWER_1):
-        sens = await sensor.new_sensor(active_power_1_config)
-        cg.add(var.set_power_sensor_1(sens))
-    if active_power_2_config := config.get(CONF_ACTIVE_POWER_2):
-        sens = await sensor.new_sensor(active_power_2_config)
-        cg.add(var.set_power_sensor_2(sens))
-    if energy_1_config := config.get(CONF_ENERGY_1):
-        sens = await sensor.new_sensor(energy_1_config)
-        cg.add(var.set_energy_sensor_1(sens))
-    if energy_2_config := config.get(CONF_ENERGY_2):
-        sens = await sensor.new_sensor(energy_2_config)
-        cg.add(var.set_energy_sensor_2(sens))
-    if energy_total_config := config.get(CONF_ENERGY_TOTAL):
-        sens = await sensor.new_sensor(energy_total_config)
-        cg.add(var.set_energy_sensor_sum(sens))
+    if (mode := config[CONF_MODE]) != DEFAULT_MODE:
+        cg.add(var.set_mode(mode))
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT_1, var.set_current_sensor_1)
+    await sensors(CONF_CURRENT_2, var.set_current_sensor_2)
+    await sensors(CONF_ACTIVE_POWER_1, var.set_power_sensor_1)
+    await sensors(CONF_ACTIVE_POWER_2, var.set_power_sensor_2)
+    await sensors(CONF_ENERGY_1, var.set_energy_sensor_1)
+    await sensors(CONF_ENERGY_2, var.set_energy_sensor_2)
+    await sensors(CONF_ENERGY_TOTAL, var.set_energy_sensor_sum)
+    await sensors(CONF_INTERNAL_TEMPERATURE, var.set_internal_temperature_sensor)

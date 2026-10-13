@@ -49,28 +49,13 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
-    if heartbeat_config := config.get(CONF_HEART_BEAT):
-        sens = await text_sensor.new_text_sensor(heartbeat_config)
-        cg.add(mr24hpc1_component.set_heartbeat_state_text_sensor(sens))
-    if productmodel_config := config.get(CONF_PRODUCT_MODEL):
-        sens = await text_sensor.new_text_sensor(productmodel_config)
-        cg.add(mr24hpc1_component.set_product_model_text_sensor(sens))
-    if productid_config := config.get(CONF_PRODUCT_ID):
-        sens = await text_sensor.new_text_sensor(productid_config)
-        cg.add(mr24hpc1_component.set_product_id_text_sensor(sens))
-    if hardwaremodel_config := config.get(CONF_HARDWARE_MODEL):
-        sens = await text_sensor.new_text_sensor(hardwaremodel_config)
-        cg.add(mr24hpc1_component.set_hardware_model_text_sensor(sens))
-    if firwareversion_config := config.get(CONF_HARDWARE_VERSION):
-        sens = await text_sensor.new_text_sensor(firwareversion_config)
-        cg.add(mr24hpc1_component.set_firware_version_text_sensor(sens))
-    if keepaway_config := config.get(CONF_KEEP_AWAY):
-        sens = await text_sensor.new_text_sensor(keepaway_config)
-        cg.add(mr24hpc1_component.set_keep_away_text_sensor(sens))
-    if motionstatus_config := config.get(CONF_MOTION_STATUS):
-        sens = await text_sensor.new_text_sensor(motionstatus_config)
-        cg.add(mr24hpc1_component.set_motion_status_text_sensor(sens))
-    if custommodeend_config := config.get(CONF_CUSTOM_MODE_END):
-        sens = await text_sensor.new_text_sensor(custommodeend_config)
-        cg.add(mr24hpc1_component.set_custom_mode_end_text_sensor(sens))
+    hub = await cg.get_variable(config[CONF_MR24HPC1_ID])
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_HEART_BEAT, hub.set_heartbeat_state_text_sensor)
+    await text_sensors(CONF_PRODUCT_MODEL, hub.set_product_model_text_sensor)
+    await text_sensors(CONF_PRODUCT_ID, hub.set_product_id_text_sensor)
+    await text_sensors(CONF_HARDWARE_MODEL, hub.set_hardware_model_text_sensor)
+    await text_sensors(CONF_HARDWARE_VERSION, hub.set_firware_version_text_sensor)
+    await text_sensors(CONF_KEEP_AWAY, hub.set_keep_away_text_sensor)
+    await text_sensors(CONF_MOTION_STATUS, hub.set_motion_status_text_sensor)
+    await text_sensors(CONF_CUSTOM_MODE_END, hub.set_custom_mode_end_text_sensor)

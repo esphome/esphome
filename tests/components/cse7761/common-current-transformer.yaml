@@ -1,0 +1,11 @@
+sensor:
+  - platform: cse7761
+    current_input: current_transformer
+    voltage:
+      name: CSE7761 CT Voltage
+    current_1:
+      name: CSE7761 CT Current 1
+    active_power_1:
+      name: CSE7761 CT Active Power 1
+    energy_1:
+      name: CSE7761 CT Energy 1
