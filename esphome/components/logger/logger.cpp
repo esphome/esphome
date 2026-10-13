@@ -143,26 +143,32 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 }
 #endif  // USE_ESP8266
 
+#if defined(USE_LOGGER_RUNTIME_TAG_LEVELS) || defined(USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS)
+// Level for tag from a per-tag map, or fallback when the tag has none; tags may live in flash
+static inline uint8_t tag_level(const std::map<const char *, uint8_t, CStrCompare> &levels, const char *tag,
+                                uint8_t fallback) {
+  if (levels.empty())
+    return fallback;
+  auto it = levels.find(FlashTag{tag});
+  return it != levels.end() ? it->second : fallback;
+}
+#endif
+
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-  // Skip the lookup when no per-tag levels are set
-  if (this->log_levels_.empty())
-    return this->current_level_;
-  auto it = this->log_levels_.find(FlashTag{tag});
-  if (it != this->log_levels_.end())
-    return it->second;
-#endif
+  return tag_level(this->log_levels_, tag, this->current_level_);
+#else
   return this->current_level_;
+#endif
 }
 
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-inline uint8_t Logger::boot_level_for(const char *tag) {
+inline uint8_t Logger::boot_level_for_(const char *tag) {
 #ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
-  auto it = this->boot_log_levels_.find(tag);
-  if (it != this->boot_log_levels_.end())
-    return it->second;
-#endif
+  return tag_level(this->boot_log_levels_, tag, ESPHOME_LOGGER_BOOT_LOG_LEVEL);
+#else
   return ESPHOME_LOGGER_BOOT_LOG_LEVEL;
+#endif
 }
 #endif
 
@@ -216,87 +222,71 @@ void Logger::process_messages_() {
 }
 
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-// Record layout in boot_log_buffer_: u16 text_len | u8 level | u32 millis | const char *tag | text
-static constexpr uint16_t BOOT_LOG_RECORD_HEADER_SIZE = 2 + 1 + 4 + sizeof(const char *);
-// Replay writes "\033[0;3Xm@4294967295ms " (22 bytes) and "\033[0m" (4 bytes) around the stored text
-static constexpr uint16_t BOOT_LOG_REPLAY_PREFIX_SIZE = 22;
-static constexpr uint16_t BOOT_LOG_MAX_TEXT = ESPHOME_LOGGER_TX_BUFFER_SIZE - BOOT_LOG_REPLAY_PREFIX_SIZE - 4;
+// Each boot_log_buffer_ record is this header followed by len bytes of text
+struct __attribute__((packed)) BootLogRecord {
+  uint16_t len;
+  uint8_t level;
+  uint32_t ms;
+  const char *tag;  // tags are string literals, so the pointer stays valid
+};
+// Stored text is capped so the replay header, the reset and the null terminator always fit in the transmit buffer
+static constexpr uint16_t BOOT_LOG_MAX_TEXT =
+    ESPHOME_LOGGER_TX_BUFFER_SIZE - LogBuffer::REPLAY_HEADER_MAX_SIZE - LogBuffer::ANSI_RESET_LEN - 1;
 
 void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf) {
-  if (this->boot_log_done_ || level > boot_level_for(tag) || level == ESPHOME_LOG_LEVEL_NONE)
+  // The most verbose level any tag keeps; cheaper than the per-tag lookup for the lines that cannot qualify
+  if (level > ESPHOME_LOGGER_BOOT_LOG_MAX_LEVEL || level == ESPHOME_LOG_LEVEL_NONE ||
+      level > this->boot_level_for_(tag))
     return;
-  // Strip the leading ANSI color prefix and trailing reset; the replay adds its own around the stamp.
+  // Strip the color write_header put in front and the reset at the end; the replay adds its own around the stamp
   const char *text = buf.data;
   uint16_t len = buf.pos;
-  if (len > 0 && text[0] == '\033') {
-    const char *m = static_cast<const char *>(memchr(text, 'm', len));
-    if (m != nullptr) {
-      const uint16_t skip = static_cast<uint16_t>(m - text) + 1;
-      text += skip;
-      len -= skip;
-    }
+  if (len >= LogBuffer::ANSI_COLOR_LEN && text[0] == '\033') {
+    text += LogBuffer::ANSI_COLOR_LEN;
+    len -= LogBuffer::ANSI_COLOR_LEN;
   }
-  if (len >= 4 && memcmp(text + len - 4, "\033[0m", 4) == 0)
-    len -= 4;
-  // Leave room in the transmit buffer for the replay prefix and reset so no stored text is cut on replay
+  if (len >= LogBuffer::ANSI_RESET_LEN &&
+      memcmp(text + len - LogBuffer::ANSI_RESET_LEN, "\033[0m", LogBuffer::ANSI_RESET_LEN) == 0)
+    len -= LogBuffer::ANSI_RESET_LEN;
   if (len > BOOT_LOG_MAX_TEXT)
     len = BOOT_LOG_MAX_TEXT;
-  if (this->boot_log_pos_ + BOOT_LOG_RECORD_HEADER_SIZE + len > ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE) {
+  if (this->boot_log_pos_ + sizeof(BootLogRecord) + len > ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE) {
     this->boot_log_dropped_++;
     return;
   }
+  const BootLogRecord record{len, level, millis(), tag};
   char *p = this->boot_log_buffer_ + this->boot_log_pos_;
-  const uint32_t now = millis();
-  memcpy(p, &len, sizeof(len));
-  p[2] = static_cast<char>(level);
-  memcpy(p + 3, &now, sizeof(now));
-  memcpy(p + 7, &tag, sizeof(tag));  // tags are string literals, so the pointer stays valid
-  memcpy(p + BOOT_LOG_RECORD_HEADER_SIZE, text, len);
-  this->boot_log_pos_ += BOOT_LOG_RECORD_HEADER_SIZE + len;
+  memcpy(p, &record, sizeof(record));
+  memcpy(p + sizeof(record), text, len);
+  this->boot_log_pos_ += sizeof(record) + len;
 }
 
 void Logger::replay_boot_logs() {
-  // Stop capturing first so the replay output is not buffered again.
-  this->boot_log_done_ = true;
+  // The replay shares tx_buffer_ with normal logging, so it is dropped like any other re-entrant log
+  bool &recursion_guard = this->main_loop_recursion_guard_();
+  if (recursion_guard)
+    return;
+  this->boot_log_done_ = true;  // Stops capture first, so the replay output is not buffered again
   // Dropped lines are reported at WARN so a device at level WARN still learns the buffer was too small
   esp_log_printf_(this->boot_log_dropped_ > 0 ? ESPHOME_LOG_LEVEL_WARN : ESPHOME_LOG_LEVEL_INFO, TAG, __LINE__,
                   ESPHOME_LOG_FORMAT("Replaying boot logs (%u bytes used, %u lines dropped)"), this->boot_log_pos_,
                   this->boot_log_dropped_);
-  // The replay shares tx_buffer_ with normal logging, so a listener that logs during
-  // the replay is dropped like any other re-entrant log; see process_messages_()
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  bool &recursion_guard = this->main_task_recursion_guard_;
-#else
-  bool &recursion_guard = this->global_recursion_guard_;
-#endif
-  if (recursion_guard)
-    return;
   RecursionGuard guard(recursion_guard);
   uint16_t pos = 0;
-  while (pos + BOOT_LOG_RECORD_HEADER_SIZE <= this->boot_log_pos_) {
-    const char *p = this->boot_log_buffer_ + pos;
-    uint16_t len;
-    memcpy(&len, p, sizeof(len));
-    const auto level = static_cast<uint8_t>(p[2]);
-    uint32_t stamp;
-    memcpy(&stamp, p + 3, sizeof(stamp));
-    const char *tag;
-    memcpy(&tag, p + 7, sizeof(tag));
-    pos += BOOT_LOG_RECORD_HEADER_SIZE + len;
-    if (level > this->level_for(tag))
+  while (pos + sizeof(BootLogRecord) <= this->boot_log_pos_) {
+    BootLogRecord record;
+    memcpy(&record, this->boot_log_buffer_ + pos, sizeof(record));
+    const char *text = this->boot_log_buffer_ + pos + sizeof(record);
+    pos += sizeof(record) + record.len;
+    if (record.level > this->level_for(record.tag))
       continue;
-    // The stored text already carries its [LEVEL][tag:line] header, so write the
-    // line straight to the listeners instead of formatting it a second time.
+    // The stored text already carries its [LEVEL][tag:line] header
     LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
-    const int written = snprintf(
-        buf.data, buf.size, "\033[%c;3%cm@%" PRIu32 "ms ", level == ESPHOME_LOG_LEVEL_ERROR ? '1' : '0',
-        static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&LOG_LEVEL_COLOR_DIGIT[level]))), stamp);
-    buf.pos = static_cast<uint16_t>(written);
-    buf.write_body(p + BOOT_LOG_RECORD_HEADER_SIZE, len);
-    this->notify_listeners_(level, tag, buf);
+    buf.write_replay_header(record.level, record.ms);
+    buf.write_body(text, record.len);
+    this->notify_listeners_(record.level, record.tag, buf);
     this->write_log_buffer_to_console_(buf);
   }
-  ESP_LOGI(TAG, "Boot log replay done");
 }
 #else
 void Logger::replay_boot_logs() { ESP_LOGW(TAG, "Boot log buffer not configured (set 'boot_log_buffer_size')"); }

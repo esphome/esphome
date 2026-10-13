@@ -183,10 +183,7 @@ class Logger final : public Component {
 #endif
   uint8_t get_log_level() { return this->current_level_; }
 
-  /// Re-emit messages captured during boot through the normal log
-  /// dispatch so connected listeners (API, MQTT, ...) can see them. Stops
-  /// further capture; safe to call multiple times. Warns when the logger was
-  /// built without 'boot_log_buffer_size'.
+  /// Send the lines captured during boot to the listeners and stop capturing; safe to call repeatedly.
   void replay_boot_logs();
 
   // ========== INTERNAL METHODS ==========
@@ -196,9 +193,6 @@ class Logger final : public Component {
   void dump_config() override;
 
   inline uint8_t level_for(const char *tag);
-#ifdef USE_LOGGER_BOOT_LOG_BUFFER
-  inline uint8_t boot_level_for(const char *tag);
-#endif
 #ifdef USE_LOG_LISTENERS
   /// Register a log callback to receive log messages
   void add_log_callback(void *instance, void (*fn)(void *, uint8_t, const char *, const char *, size_t)) {
@@ -309,7 +303,8 @@ class Logger final : public Component {
       this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf, thread_name);
     }
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-    this->boot_log_capture_(level, tag, buf);
+    if (!this->boot_log_done_)
+      this->boot_log_capture_(level, tag, buf);
 #endif
     this->notify_listeners_(level, tag, buf);
     this->write_log_buffer_to_console_(buf);
@@ -324,7 +319,8 @@ class Logger final : public Component {
     buf.write_header(level, tag, line, thread_name);
     buf.write_body(text, text_length);
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-    this->boot_log_capture_(level, tag, buf);
+    if (!this->boot_log_done_)
+      this->boot_log_capture_(level, tag, buf);
 #endif
     this->notify_listeners_(level, tag, buf);
   }
@@ -337,6 +333,7 @@ class Logger final : public Component {
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
   /// Copy a formatted line at or above the boot log level (outer ANSI codes stripped) into the boot log buffer.
   void boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf);
+  inline uint8_t boot_level_for_(const char *tag);
 #endif
 
   // Group 4-byte aligned members first
@@ -398,18 +395,20 @@ class Logger final : public Component {
 #ifdef USE_LIBRETINY
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
 #endif
+  // The guard that protects tx_buffer_ on the main loop, for callers that run on any platform
+  bool &main_loop_recursion_guard_() { return this->main_task_recursion_guard_; }
 #else
   bool global_recursion_guard_{false};                    // Simple global recursion guard for single-task platforms
+  bool &main_loop_recursion_guard_() { return this->global_recursion_guard_; }
 #endif
 
   // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
-#ifdef USE_LOGGER_BOOT_LOG_BUFFER
-  // Sequential records of early lines: u16 text_len | u8 level | u32 millis | const char *tag | text
-  char boot_log_buffer_[ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE];
-#endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   logger::TaskLogBuffer log_buffer_;  // Embedded in Logger (no separate heap allocation)
+#endif
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  char boot_log_buffer_[ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE];  // BootLogRecord headers each followed by their text
 #endif
 
   // --- get_thread_name_ overloads (per-platform) ---

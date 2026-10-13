@@ -195,18 +195,31 @@ def uart_selection(value: Any) -> str:
     raise NotImplementedError
 
 
+TAG_LEVELS_SCHEMA = cv.Schema({cv.string: is_log_level})
+
+
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
+    # A level more verbose than the global one is compiled out, so it could never log or be captured
     global_level = config[CONF_LEVEL]
     global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
     errs = []
-    for tag, level in config.get(CONF_LOGS, {}).items():
-        if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
-            errs.append(
-                cv.Invalid(
-                    f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
-                    [CONF_LOGS, tag],
+    for key in (CONF_LOGS, CONF_BOOT_LOGS):
+        for tag, level in config.get(key, {}).items():
+            if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+                errs.append(
+                    cv.Invalid(
+                        f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
+                        [key, tag],
+                    )
                 )
+    boot_level = config[CONF_BOOT_LOG_LEVEL]
+    if LOG_LEVEL_SEVERITY.index(boot_level) > global_level_index:
+        errs.append(
+            cv.Invalid(
+                f"The boot log level ({boot_level}) must not be less severe than the global log level ({global_level})",
+                [CONF_BOOT_LOG_LEVEL],
             )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
     return config
@@ -276,11 +289,7 @@ CONFIG_SCHEMA = cv.All(
                 ),
             ),
             cv.Optional(CONF_BOOT_LOG_LEVEL, default="WARN"): is_log_level,
-            cv.Optional(CONF_BOOT_LOGS, default={}): cv.Schema(
-                {
-                    cv.string: is_log_level,
-                }
-            ),
+            cv.Optional(CONF_BOOT_LOGS, default={}): TAG_LEVELS_SCHEMA,
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
@@ -344,11 +353,7 @@ CONFIG_SCHEMA = cv.All(
                 uart_selection,
             ),
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
-            cv.Optional(CONF_LOGS, default={}): cv.Schema(
-                {
-                    cv.string: is_log_level,
-                }
-            ),
+            cv.Optional(CONF_LOGS, default={}): TAG_LEVELS_SCHEMA,
             cv.Optional(CONF_INITIAL_LEVEL): is_log_level,
             cv.Optional(CONF_RUNTIME_TAG_LEVELS, default=False): cv.boolean,
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
@@ -397,16 +402,26 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_ID],
         baud_rate,
     )
-    # Boot log buffer captures early lines for later replay
-    # (logger.replay_boot_logs action). Buffer is a direct member of Logger.
+    # Boot log buffer: early lines kept for the logger.replay_boot_logs action
     if (boot_log_buffer_size := config[CONF_BOOT_LOG_BUFFER_SIZE]) > 0:
+        boot_level = config[CONF_BOOT_LOG_LEVEL]
+        boot_logs_config = config[CONF_BOOT_LOGS]
+        # The most verbose level any tag keeps, so lines above it skip the per-tag lookup
+        max_level = max(
+            [boot_level, *boot_logs_config.values()], key=LOG_LEVEL_SEVERITY.index
+        )
         cg.add_define("USE_LOGGER_BOOT_LOG_BUFFER")
         cg.add_define("ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE", boot_log_buffer_size)
+        # Define values must be hashable, so the level expressions go in as raw text
         cg.add_define(
             "ESPHOME_LOGGER_BOOT_LOG_LEVEL",
-            cg.RawExpression(str(LOG_LEVELS[config[CONF_BOOT_LOG_LEVEL]])),
+            cg.RawExpression(str(LOG_LEVELS[boot_level])),
         )
-        if boot_logs_config := config[CONF_BOOT_LOGS]:
+        cg.add_define(
+            "ESPHOME_LOGGER_BOOT_LOG_MAX_LEVEL",
+            cg.RawExpression(str(LOG_LEVELS[max_level])),
+        )
+        if boot_logs_config:
             cg.add_define("USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS")
             for tag, log_level in boot_logs_config.items():
                 cg.add(log.set_boot_log_level(tag, LOG_LEVELS[log_level]))
