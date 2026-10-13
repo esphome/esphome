@@ -90,7 +90,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   BQ25186ConfigRegisters regs_{};  // the configuration last applied, written again after a chip reset
   bool configure_on_boot_{false};
   bool configured_{false};  // regs_ went to the chip at least once
-  bool pending_{false};     // a write failed; the warning stays until a poll puts it right
 };
 
 }  // namespace esphome::bq25186

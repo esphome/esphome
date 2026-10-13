@@ -70,12 +70,10 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
     const uint8_t value = this->expected_register_(i);
     const bool ok = mask == 0xFF ? this->write_register_(reg, value) : this->update_register_(reg, mask, value);
     if (!ok) {
-      this->pending_ = true;
       this->status_set_warning(LOG_STR("Configuration partly applied"));
       return false;
     }
   }
-  this->pending_ = false;
   this->status_clear_warning();
   return true;
 }
@@ -104,14 +102,13 @@ void BQ25186Component::setup() {
     // The poll below puts the pin in output mode; without a restore mode the switch takes its level from it
     auto initial = this->pg_gpo_switch_->get_initial_state_with_restore_mode();
     if (initial.has_value())
-      this->pg_gpo_switch_->control(*initial);
+      this->pg_gpo_switch_->publish_state(*initial);  // the first poll writes it to the pin
   }
 #endif
   // The poller first runs after a random share of the interval; the entities get a state now
   this->update();
 }
 
-// Every poll also serves the I2C watchdog, which wants to see traffic within its period
 #ifdef USE_BQ25186_PG_GPO
 // The pin mode and level come from the switch, so every poll puts back whatever the chip lost
 void BQ25186Component::check_pg_gpo_(const BQ25186StatusRegisters &status, bool &pending) {
@@ -154,7 +151,6 @@ void BQ25186Component::update() {
 #ifdef USE_BQ25186_PG_GPO
   this->check_pg_gpo_(status, pending);
 #endif
-  this->pending_ = pending;
   if (!pending)
     this->status_clear_warning();
 #ifdef BQ25186_BINARY_SENSOR_COUNT
