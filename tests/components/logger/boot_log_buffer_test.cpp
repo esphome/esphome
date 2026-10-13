@@ -32,7 +32,7 @@ class BootLogBufferTest : public ::testing::Test {
   void TearDown() override { global_logger = this->previous_; }
 
   // Attach a listener after the early lines, replay, and return the replayed lines (they carry the boot tag)
-  std::vector<Captured> replay() {
+  std::vector<Captured> replay_() {
     this->logger_.add_log_callback(&this->lines_, capture);
     this->logger_.replay_boot_logs();
     std::vector<Captured> out;
@@ -42,7 +42,7 @@ class BootLogBufferTest : public ::testing::Test {
     }
     return out;
   }
-  bool summary_warned() const {
+  bool summary_warned_() const {
     return std::any_of(this->lines_.begin(), this->lines_.end(),
                        [](const Captured &l) { return l.tag != BOOT_TAG && l.level == ESPHOME_LOG_LEVEL_WARN; });
   }
@@ -57,7 +57,7 @@ TEST_F(BootLogBufferTest, ReplaysWarningsAndErrorsWithTheirTagAndLevel) {
   ESP_LOGE(BOOT_TAG, "early error");
   ESP_LOGI(BOOT_TAG, "info is not kept");
 
-  const auto lines = this->replay();
+  const auto lines = this->replay_();
   ASSERT_EQ(lines.size(), 2u);
   EXPECT_EQ(lines[0].level, ESPHOME_LOG_LEVEL_WARN);
   EXPECT_NE(lines[0].message.find("[W][boot.test:"), std::string::npos) << lines[0].message;
@@ -66,12 +66,12 @@ TEST_F(BootLogBufferTest, ReplaysWarningsAndErrorsWithTheirTagAndLevel) {
   EXPECT_NE(lines[1].message.find("early error"), std::string::npos) << lines[1].message;
   // One header per line: the stored header is not formatted a second time
   EXPECT_EQ(lines[1].message.find("[E]"), lines[1].message.rfind("[E]")) << lines[1].message;
-  EXPECT_FALSE(this->summary_warned());
+  EXPECT_FALSE(this->summary_warned_());
 }
 
 TEST_F(BootLogBufferTest, ReplayOutputIsNotCapturedAgain) {
   ESP_LOGW(BOOT_TAG, "once");
-  this->replay();
+  this->replay_();
   ESP_LOGW(BOOT_TAG, "after replay");
   this->lines_.clear();
   this->logger_.replay_boot_logs();
@@ -89,17 +89,17 @@ TEST_F(BootLogBufferTest, LinesThatDoNotFitAreCountedAndWarned) {
   for (int i = 0; i < 40; i++) {
     ESP_LOGW(BOOT_TAG, "warning number %d padded to make the record longer", i);
   }
-  const auto lines = this->replay();
+  const auto lines = this->replay_();
   EXPECT_GT(lines.size(), 0u);
   EXPECT_LT(lines.size(), 40u);
-  EXPECT_TRUE(this->summary_warned());
+  EXPECT_TRUE(this->summary_warned_());
 }
 
 TEST_F(BootLogBufferTest, LongestLineIsReplayedWithoutLosingItsTail) {
   // A line that fills the transmit buffer must still fit once the replay adds its stamp
   std::string text(ESPHOME_LOGGER_TX_BUFFER_SIZE, 'x');
   ESP_LOGW(BOOT_TAG, "%s", text.c_str());
-  const auto lines = this->replay();
+  const auto lines = this->replay_();
   ASSERT_EQ(lines.size(), 1u);
   EXPECT_LE(lines[0].message.size(), static_cast<size_t>(ESPHOME_LOGGER_TX_BUFFER_SIZE));
   // Text runs right up to the reset code, so nothing was cut by the replay header
