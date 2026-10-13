@@ -107,7 +107,7 @@ class PIDAutotuner {
   } state_ = AUTOTUNE_RUNNING;
   float ku_;
   float pu_;
-  const LogString *id_{nullptr};
+  const LogString *id_{reinterpret_cast<const LogString *>("")};  // empty until set, like the old std::string
 };
 
 }  // namespace esphome::pid
