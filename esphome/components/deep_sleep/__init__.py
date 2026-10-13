@@ -144,7 +144,7 @@ def validate_wakeup_pin(
     else:
         processed_pins = list(value)
         if not processed_pins:
-            raise cv.Invalid("wakeup_pin needs at least one entry")
+            raise cv.Invalid("'wakeup_pin' needs at least one entry")
 
     for i, pin_config in enumerate(processed_pins):
         # now validate each item
@@ -156,31 +156,35 @@ def validate_wakeup_pin(
 
 
 def validate_config(config: ConfigType) -> ConfigType:
-    if CONF_WAKEUP_PIN_MODE in config and CONF_WAKEUP_PIN not in config:
-        raise cv.Invalid("wakeup_pin_mode requires wakeup_pin")
-    # right now only BK72XX supports the list format for wakeup pins
-    if CORE.is_bk72xx:
-        if CONF_WAKEUP_PIN_MODE in config:
-            wakeup_pins = config[CONF_WAKEUP_PIN]
-            if len(wakeup_pins) > 1:
-                raise cv.Invalid(
-                    "You need to remove the global wakeup_pin_mode and define it per pin"
-                )
-            if wakeup_pins:
-                if CONF_WAKEUP_PIN_MODE in wakeup_pins[0]:
-                    raise cv.Invalid(
-                        "Specify wakeup_pin_mode either at the top level under deep_sleep "
-                        "or under the pin entry, not both"
-                    )
-                wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
-    elif (
-        isinstance(config.get(CONF_WAKEUP_PIN), list)
-        and len(config[CONF_WAKEUP_PIN]) > 1
-    ):
+    wakeup_pins = config.get(CONF_WAKEUP_PIN)
+    has_pin_mode = CONF_WAKEUP_PIN_MODE in config
+    if has_pin_mode and wakeup_pins is None:
         raise cv.Invalid(
-            "Your platform does not support providing multiple entries in wakeup_pin"
+            "'wakeup_pin_mode' requires 'wakeup_pin'", path=[CONF_WAKEUP_PIN_MODE]
         )
-
+    multiple_pins = wakeup_pins is not None and len(wakeup_pins) > 1
+    # right now only BK72XX supports the list format for wakeup pins
+    if not CORE.is_bk72xx:
+        if multiple_pins:
+            raise cv.Invalid(
+                f"{CORE.target_platform.upper()} does not support multiple entries "
+                "for 'wakeup_pin'",
+                path=[CONF_WAKEUP_PIN],
+            )
+    elif has_pin_mode:
+        if multiple_pins:
+            raise cv.Invalid(
+                "Remove the global 'wakeup_pin_mode' and define it per pin",
+                path=[CONF_WAKEUP_PIN_MODE],
+            )
+        if CONF_WAKEUP_PIN_MODE in (pin := wakeup_pins[0]):
+            raise cv.Invalid(
+                "Specify 'wakeup_pin_mode' either at the top level under 'deep_sleep' "
+                "or under the pin entry, not both",
+                path=[CONF_WAKEUP_PIN, 0, CONF_WAKEUP_PIN_MODE],
+            )
+        # Move the global mode into the single pin entry, which to_code() reads
+        pin[CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
     return config
 
 
@@ -207,11 +211,11 @@ def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
     if CORE.is_bk72xx:
         max_duration = core.TimePeriod(hours=36)
         if value > max_duration:
-            raise cv.Invalid("sleep duration cannot be more than 36 hours on BK72XX")
+            raise cv.Invalid("'sleep_duration' cannot be more than 36 hours on BK72XX")
     elif CORE.using_zephyr:
         max_duration = core.TimePeriod(days=49)
         if value > max_duration:
-            raise cv.Invalid("sleep duration cannot be more than 49 days on Zephyr")
+            raise cv.Invalid("'sleep_duration' cannot be more than 49 days on Zephyr")
     return value
 
 
