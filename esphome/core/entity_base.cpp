@@ -68,7 +68,14 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
     this->object_id_hash_ = fnv1_hash_object_id(fallback.c_str(), fallback.size());
   } else {
     this->flags_.has_own_name = true;
-    // Static name - codegen precomputes the hash
+    // Static name - codegen precomputes the hash; external register_* callers may pass 0
+    if (object_id_hash == 0) {
+#ifdef USE_ESP8266
+      object_id_hash = fnv1_hash_object_id_P(this->name_.progmem_ptr(), this->name_.size());
+#else
+      object_id_hash = fnv1_hash_object_id(this->name_.progmem_ptr(), this->name_.size());
+#endif
+    }
     this->object_id_hash_ = object_id_hash;
   }
   // Unpack entity string table indices and flags from entity_fields.
