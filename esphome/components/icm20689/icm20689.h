@@ -33,20 +33,14 @@ enum ICM20689GyroRange : uint8_t {
 };
 
 class ICM20689Component final : public motion::MotionComponent,
-                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST,
-                                                      spi::CLOCK_POLARITY_LOW,
-                                                      spi::CLOCK_PHASE_LEADING,
-                                                      spi::DATA_RATE_1MHZ> {
+                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                      spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   void setup() override;
   void dump_config() override;
 
-  void set_accel_range(ICM20689AccelRange range) {
-    this->accel_range_ = range;
-  }
-  void set_gyro_range(ICM20689GyroRange range) {
-    this->gyro_range_ = range;
-  }
+  void set_accel_range(ICM20689AccelRange range) { this->accel_range_ = range; }
+  void set_gyro_range(ICM20689GyroRange range) { this->gyro_range_ = range; }
 
   template<typename F> void add_temperature_listener(F &&callback) {
     this->temperature_callback_.add(std::forward<F>(callback));
