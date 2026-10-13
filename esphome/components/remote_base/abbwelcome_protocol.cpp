@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.abbwelcome";
+ESPHOME_LOG_TAG(TAG, "remote.abbwelcome");
 
 static constexpr uint32_t BIT_ONE_SPACE_US = 102;
 static constexpr uint32_t BIT_ZERO_MARK_US = 32;  // 18-44

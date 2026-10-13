@@ -516,10 +516,13 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
-    # idedata cache lives under the data dir, not the build path.
+    # idedata caches live under the data dir, not the build path; the
+    # .arduino.json variant is the native esp8266 toolchain's.
     idedata_cache = tmp_path / "idedata" / "test.json"
     idedata_cache.parent.mkdir()
     idedata_cache.write_text("{}")
+    arduino_idedata_cache = tmp_path / "idedata" / "test.arduino.json"
+    arduino_idedata_cache.write_text("{}")
 
     # Native ESP-IDF toolchain artifacts.
     idf_build_dir = tmp_path / "build"
@@ -580,6 +583,7 @@ def test_clean_build(
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
     assert not idedata_cache.exists()
+    assert not arduino_idedata_cache.exists()
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
     assert not pio_components_dir.exists()
@@ -671,6 +675,35 @@ def test_clean_build_partial_exists(
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" not in caplog.text
     assert "dependencies.lock" not in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_partial_removes_pch_artifacts(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The PlatformIO pch sidecars live at the project root and must go in
+    a partial clean, like the native backend's under .pioenvs."""
+    from esphome.build_helpers.pch import (
+        PCH_ARTIFACT_DIRS as dirs,
+        PCH_ARTIFACT_NAMES as names,
+    )
+
+    assert "esphome_pch.h.gch" in names
+    for name in names:
+        (tmp_path / name).write_text("x")
+    for name in dirs:
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "cc1plus").write_text("x")
+    mock_core.relative_pioenvs_path.return_value = tmp_path / ".pioenvs"
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
+
+    clean_build()
+
+    for name in (*names, *dirs):
+        assert not (tmp_path / name).exists()
 
 
 @patch("esphome.writer.CORE")
@@ -1079,6 +1112,28 @@ def test_clean_all_removes_global_arduino8266_install(
 
     assert not arduino8266_install.exists()
     assert str(arduino8266_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_platformio_ccache(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the PlatformIO ccache dir the containers relocate."""
+    ccache_dir = tmp_path / "platformio-ccache"
+    (ccache_dir / "0").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_PLATFORMIO_CCACHE_DIR", str(ccache_dir))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not ccache_dir.exists()
+    assert str(ccache_dir.resolve()) in caplog.text
 
 
 @patch("esphome.writer.CORE")

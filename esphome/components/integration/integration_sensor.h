@@ -71,16 +71,4 @@ class IntegrationSensor final : public sensor::Sensor, public Component {
   float last_value_{0.0f};
 };
 
-template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<IntegrationSensor> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
-template<typename... Ts> class SetValueAction final : public Action<Ts...>, public Parented<IntegrationSensor> {
- public:
-  TEMPLATABLE_VALUE(float, value)
-
-  void play(const Ts &...x) override { this->parent_->set_value(this->value_.value(x...)); }
-};
-
 }  // namespace esphome::integration

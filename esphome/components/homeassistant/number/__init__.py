@@ -5,22 +5,29 @@ from esphome.types import ConfigType
 
 from .. import (
     HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
+    final_validate_entity_id,
     homeassistant_ns,
     setup_home_assistant_entity,
+    validate_entity_domain,
 )
 
 CODEOWNERS = ["@landonr"]
 DEPENDENCIES = ["api"]
 
+SUPPORTED_DOMAINS = ["input_number", "number"]
+
 HomeassistantNumber = homeassistant_ns.class_(
     "HomeassistantNumber", number.Number, cg.Component
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     number.number_schema(HomeassistantNumber)
     .extend(HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    validate_entity_domain("number", SUPPORTED_DOMAINS),
 )
+
+FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 
 async def to_code(config: ConfigType) -> None:

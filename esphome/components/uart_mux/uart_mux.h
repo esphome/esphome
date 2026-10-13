@@ -3,7 +3,6 @@
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/uart/uart_component_esp_idf.h"
 #include "esphome/components/cdc_acm_uart/bridge/cdc_acm_uart_bridge.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::uart_mux {
@@ -75,33 +74,6 @@ class UARTMux final : public uart::UARTComponent, public Component {
   Route route_{Route::ROUTE_BRIDGE};
   bool start_local_{false};
   bool load_settings_warned_{false};
-};
-
-template<typename... Ts> class SelectLocalAction final : public Action<Ts...> {
- public:
-  explicit SelectLocalAction(UARTMux *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->select_local(); }
-
- protected:
-  UARTMux *parent_;
-};
-
-template<typename... Ts> class SelectBridgeAction final : public Action<Ts...> {
- public:
-  explicit SelectBridgeAction(UARTMux *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->select_bridge(); }
-
- protected:
-  UARTMux *parent_;
-};
-
-template<typename... Ts> class IsLocalCondition final : public Condition<Ts...> {
- public:
-  explicit IsLocalCondition(UARTMux *parent) : parent_(parent) {}
-  bool check(const Ts &...) override { return this->parent_->is_local(); }
-
- protected:
-  UARTMux *parent_;
 };
 
 }  // namespace esphome::uart_mux
