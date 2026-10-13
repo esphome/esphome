@@ -109,6 +109,8 @@ BENCHMARK(HomeassistantSensor_StateResponse_Attribute);
 // --- Sixteen imported sensors, message for the last one ---
 // Exercises: the linear scan over the subscription list with a string compare
 // per entry, which is what a device with many imported entities pays per update.
+// The IDs share a length and a 15-byte prefix so every entry runs the full
+// compare, the worst case for the scan.
 
 static constexpr int kSensorCount = 16;
 
@@ -117,9 +119,9 @@ static void HomeassistantSensor_StateResponse_ManySubscriptions(benchmark::State
   auto conn = create_connection(server.get());
 
   static const char *const ENTITY_IDS[kSensorCount] = {
-      "sensor.import_0",  "sensor.import_1",  "sensor.import_2",  "sensor.import_3",
-      "sensor.import_4",  "sensor.import_5",  "sensor.import_6",  "sensor.import_7",
-      "sensor.import_8",  "sensor.import_9",  "sensor.import_10", "sensor.import_11",
+      "sensor.import_00", "sensor.import_01", "sensor.import_02", "sensor.import_03",
+      "sensor.import_04", "sensor.import_05", "sensor.import_06", "sensor.import_07",
+      "sensor.import_08", "sensor.import_09", "sensor.import_10", "sensor.import_11",
       "sensor.import_12", "sensor.import_13", "sensor.import_14", "sensor.import_15",
   };
   HomeassistantSensor sensors[kSensorCount];
