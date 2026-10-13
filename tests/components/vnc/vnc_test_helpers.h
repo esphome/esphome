@@ -241,6 +241,8 @@ class TestVncClient : public VncClient {
   uint16_t vis_w() const { return this->vis_w_; }
   uint16_t vis_h() const { return this->vis_h_; }
   uint8_t bpp() const { return this->bpp_; }
+  uint8_t sec_type() const { return this->sec_type_; }
+  uint8_t auth_ambiguous() const { return this->auth_ambiguous_; }
   uint16_t hash_cols() const { return this->hash_cols_; }
   uint16_t hash_rows() const { return this->hash_rows_; }
   uint32_t hash_capacity() const { return this->hash_capacity_; }

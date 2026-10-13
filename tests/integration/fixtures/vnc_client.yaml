@@ -12,6 +12,9 @@ api:
         - snapshot.take:
             id: disp
             filename: !lambda return filename;
+    - action: vnc_connect
+      then:
+        - vnc.connect: remote
     - action: vnc_refresh
       then:
         - vnc.refresh: remote

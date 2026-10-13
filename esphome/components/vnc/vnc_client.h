@@ -20,6 +20,8 @@ enum class VncState : uint8_t {
   VNC_STATE_IDLE,
   VNC_STATE_HANDSHAKE,
   VNC_STATE_RUNNING,
+  VNC_STATE_STOPPED,
+  VNC_STATE_AUTH_FAILED,
 };
 
 enum class VncStep : uint8_t {
@@ -27,6 +29,7 @@ enum class VncStep : uint8_t {
   VNC_STEP_SECURITY_COUNT,
   VNC_STEP_SECURITY_LIST,
   VNC_STEP_SECURITY_TYPE_33,
+  VNC_STEP_CHALLENGE,
   VNC_STEP_SECURITY_RESULT,
   VNC_STEP_REASON_LENGTH,
   VNC_STEP_REASON,
@@ -51,6 +54,8 @@ enum class VncParse : uint8_t {
 enum class VncFailure : uint8_t {
   VNC_FAILURE_TRANSIENT,
   VNC_FAILURE_CONFIG,
+  VNC_FAILURE_AUTH,
+  VNC_FAILURE_AUTH_AMBIGUOUS,
 };
 
 /// RFB (VNC) client that draws the remote framebuffer into a display.
@@ -64,6 +69,10 @@ class VncClient : public Component {
   void set_update_delay(uint32_t ms) { this->update_delay_ms_ = ms; }
   void set_max_update_delay(uint32_t ms) { this->max_update_delay_ms_ = ms; }
   void set_pixel_format(VncPixelFormat format) { this->pixel_format_ = format; }
+#ifdef USE_VNC_AUTH
+  /// 8 bytes, already bit-reversed for VNC, may live in PROGMEM.
+  void set_auth_key(const uint8_t *key) { this->auth_key_ = key; }
+#endif
 
   void setup() override;
   void loop() override;
@@ -72,6 +81,10 @@ class VncClient : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   bool is_connected() const { return this->state_ == VncState::VNC_STATE_RUNNING; }
+  /// Retry now, also after an authentication failure or disconnect().
+  void connect();
+  /// Close the session and stop retrying until connect().
+  void disconnect();
   /// Ask the server for the whole screen again.
   void refresh();
 
@@ -117,6 +130,9 @@ class VncClient : public Component {
 
   display::Display *display_;
   socket::TcpClientLink link_;
+#ifdef USE_VNC_AUTH
+  const uint8_t *auth_key_{nullptr};
+#endif
   LazyCallbackManager<void()> connect_callback_;
   LazyCallbackManager<void()> disconnect_callback_;
   HighFrequencyLoopRequester high_freq_;
@@ -169,7 +185,9 @@ class VncClient : public Component {
   uint8_t subrects_left_{0};
   uint8_t bpp_{2};
   uint8_t minor_{8};
+  uint8_t sec_type_{0};
   uint8_t sec_count_{0};
+  uint8_t auth_ambiguous_{0};
   display::ColorBitness bitness_{display::COLOR_BITNESS_565};
   VncPixelFormat pixel_format_{VncPixelFormat::VNC_PIXEL_FORMAT_AUTO};
   VncState state_{VncState::VNC_STATE_IDLE};
