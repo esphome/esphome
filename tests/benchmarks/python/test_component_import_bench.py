@@ -10,7 +10,9 @@ The core of esphome is imported once up front and stays loaded; each run
 drops only the component modules from ``sys.modules`` and imports the
 component again, so the import machinery and the module bodies of the
 component and everything it pulls in run every time, as they do in a new
-process, while a change to the core moves no number here.
+process, while a change to the core moves no number here. The modules the
+session had before a case are put back afterwards, so later tests keep the
+objects they already hold.
 
 Skipped when ``pytest-codspeed`` isn't installed so the regular unit-test
 suite keeps working unchanged.
@@ -34,27 +36,29 @@ COMPONENTS = ("binary_sensor", "sensor", "logger")
 COMPONENT_PREFIX = "esphome.components."
 
 
-@pytest.fixture
-def restore_modules() -> Generator[None]:
-    """Put the module objects that were loaded before the case back afterwards.
+def _component_modules() -> dict[str, object]:
+    return {n: m for n, m in sys.modules.items() if n.startswith(COMPONENT_PREFIX)}
 
-    The case replaces every component module with a fresh copy; anything
-    that imported the originals keeps using them, so they must be the ones
-    left in ``sys.modules`` for later tests.
-    """
-    saved = dict(sys.modules)
-    yield
-    sys.modules.clear()
-    sys.modules.update(saved)
+
+def _forget_component_modules() -> None:
+    for name in _component_modules():
+        del sys.modules[name]
 
 
 def _import_component(name: str) -> object:
-    for module in [m for m in sys.modules if m.startswith(COMPONENT_PREFIX)]:
-        del sys.modules[module]
+    _forget_component_modules()
     return importlib.import_module(COMPONENT_PREFIX + name)
 
 
-@pytest.mark.usefixtures("restore_modules")
+@pytest.fixture
+def restore_component_modules() -> Generator[None]:
+    saved = _component_modules()
+    yield
+    _forget_component_modules()
+    sys.modules.update(saved)
+
+
+@pytest.mark.usefixtures("restore_component_modules")
 @pytest.mark.parametrize("component", COMPONENTS)
 def test_import_component(benchmark, component: str) -> None:
     benchmark(_import_component, component)
