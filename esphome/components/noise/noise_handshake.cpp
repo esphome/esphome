@@ -1,12 +1,13 @@
 #include "noise_handshake.h"
 #ifdef USE_NOISE
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::noise {
 
-static const char *const TAG = "noise";
+ESPHOME_LOG_TAG(TAG, "noise");
 
 // Log the failing noise-c call at the same verbosity the api helper used
 // before this class existed; callers only see one collapsed error code.
@@ -57,6 +58,13 @@ int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prolog
     HANDSHAKE_STEP_LOG("noise_handshakestate_set_prologue", err);
     return this->fail_init_(err);
   }
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+  err = consume_spare_ephemeral(this->handshake_);
+  // Not fatal: the handshake generates its own key instead
+  if (err != 0) {
+    HANDSHAKE_STEP_LOG("noise_handshakestate_set_local_ephemeral", err);
+  }
+#endif
   err = noise_handshakestate_start(this->handshake_);
   if (err != 0) {
     HANDSHAKE_STEP_LOG("noise_handshakestate_start", err);
@@ -104,6 +112,8 @@ int NoiseResponderHandshake::read_message(uint8_t *data, size_t len) {
 
 int NoiseResponderHandshake::write_message(uint8_t *out, size_t capacity, size_t &out_len) {
   out_len = 0;
+  // The key agreement cannot be split across loop passes
+  UnavoidableBlockingScope scope;
   CpuFrequencyBoost boost;
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);

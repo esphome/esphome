@@ -8,6 +8,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["output"]
 CODEOWNERS = ["@NickB1"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "dac7678"
 MULTI_CONF = True
 
 dac7678_ns = cg.esphome_ns.namespace("dac7678")

@@ -3,7 +3,7 @@
 
 namespace esphome::pn7160_spi {
 
-static const char *const TAG = "pn7160_spi";
+ESPHOME_LOG_TAG(TAG, "pn7160_spi");
 
 void PN7160Spi::setup() {
   this->spi_setup();

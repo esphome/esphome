@@ -27,6 +27,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@angelnu"]
+DOMAIN = "ade7953_base"
 
 CONF_CURRENT_A = "current_a"
 CONF_CURRENT_B = "current_b"
