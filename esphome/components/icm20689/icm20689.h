@@ -16,9 +16,9 @@ static constexpr uint8_t ICM20689_REG_ACCEL_CONFIG = 0x1C;
 static constexpr uint8_t ICM20689_REG_ACCEL_XOUT_H = 0x3B;
 static constexpr uint8_t ICM20689_READ_BIT = 0x80;
 static constexpr uint8_t ICM20689_WHO_AM_I_VALUE = 0x98;
-static constexpr uint8_t ICM20689_DEVICE_RESET = 0x80;  // PWR_MGMT_1 bit 7
-static constexpr uint8_t ICM20689_CLKSEL_PLL = 0x01;    // PWR_MGMT_1 CLKSEL=1, SLEEP=0
-static constexpr uint8_t ICM20689_I2C_IF_DIS = 0x10;    // USER_CTRL bit 4
+static constexpr uint8_t ICM20689_SOFT_RESET = 0x81;   // PWR_MGMT_1: DEVICE_RESET | CLKSEL=1 (datasheet 4.20)
+static constexpr uint8_t ICM20689_CLKSEL_AUTO = 0x01;  // PWR_MGMT_1: SLEEP=0, CLKSEL=1 (auto-select best clock)
+static constexpr uint8_t ICM20689_I2C_IF_DIS = 0x10;   // USER_CTRL bit 4
 
 // Accelerometer range options: FS_SEL bits [4:3] of ACCEL_CONFIG
 enum ICM20689AccelRange : uint8_t {
