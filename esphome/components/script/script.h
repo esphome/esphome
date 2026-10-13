@@ -295,8 +295,11 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
   void loop() override {
-    if (this->num_running_ == 0)
+    if (this->num_running_ == 0) {
+      // Nothing left to wait for, e.g. once the last queued item has run
+      this->disable_loop();
       return;
+    }
 
     if (this->script_->is_running())
       return;
