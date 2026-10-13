@@ -209,38 +209,40 @@ def validate_palette_list(value: Any) -> list[int]:
     return [cv.hex_uint32_t(item) for item in value]
 
 
-def validate_dither(value: Any) -> dict | str:
-    """Validate dither configuration.
+def validate_dither_palette(value: list[int]) -> list[int]:
+    """Validate a dither palette list.
 
-    Accepts either:
-    - A string: "NONE" or "FLOYDSTEINBERG"
-    - A dict with type and optional palette:
-      type: floydsteinberg
-      palette:
-        - 0x000000
-        - 0xFFFFFF
-        - ...
+    Ensures that the colors are translatable to 3bpp colors.
     """
-    if isinstance(value, str):
-        return cv.one_of("NONE", "FLOYDSTEINBERG", upper=True)(value)
+    color_map = {}
+    for color in value:
+        quantized_color = color & 0x808080  # Mask to 3bpp
+        if color not in color_map:
+            color_map[quantized_color] = color
+        else:
+            raise cv.Invalid(
+                f"Color {color:#06x} in dither palette would overwrite color {color_map[quantized_color]:#06x} when quantized to 3bpp."
+            )
+    return value
 
-    if isinstance(value, dict):
-        schema = cv.Schema(
-            {
-                cv.Optional(CONF_TYPE, default="FLOYDSTEINBERG"): cv.one_of(
-                    "FLOYDSTEINBERG", upper=True
-                ),
-                cv.Optional(CONF_PALETTE): validate_palette_list,
-            }
-        )
-        return schema(value)
 
-    raise cv.Invalid("dither must be a string or a mapping")
-
+DITHER_SCHEMA = {
+    cv.Optional(CONF_TYPE, default="FLOYDSTEINBERG"): cv.one_of(
+        "FLOYDSTEINBERG", upper=True
+    ),
+    cv.Optional(CONF_PALETTE): cv.All(
+        cv.ensure_list(cv.hex_uint32_t, cv.hex_int_range(min=0, max=0xFFFFFF)),
+        cv.Length(min=2, max=8),
+        validate_dither_palette,
+    ),
+}
 
 OPTIONS_SCHEMA = {
     cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.Optional(CONF_DITHER, default="NONE"): validate_dither,
+    cv.Optional(CONF_DITHER, default="NONE"): cv.Any(
+        cv.one_of("NONE", "FLOYDSTEINBERG", upper=True),
+        cv.Schema(DITHER_SCHEMA),
+    ),
     cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
     cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
     cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
