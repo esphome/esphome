@@ -9,3 +9,5 @@ esphome:
 logger:
   id: logger_id
   boot_log_buffer_size: 2kB
+  boot_logs:
+    wifi: DEBUG

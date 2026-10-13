@@ -220,6 +220,13 @@ def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
                 [CONF_BOOT_LOG_LEVEL],
             )
         )
+    if config[CONF_BOOT_LOGS] and config[CONF_BOOT_LOG_BUFFER_SIZE] == 0:
+        errs.append(
+            cv.Invalid(
+                "boot_logs has no effect without boot_log_buffer_size",
+                [CONF_BOOT_LOGS],
+            )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
     return config
