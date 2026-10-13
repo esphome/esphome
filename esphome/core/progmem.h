@@ -69,6 +69,7 @@ template<size_t N> struct FixedString {
 };
 
 /// Compile-time string table that packs strings into a single blob with offset lookup.
+/// Blobs over 255 bytes have no offsets and are scanned, so keep those for rarely read strings.
 /// Use PROGMEM_STRING_TABLE macro to instantiate with proper flash placement on ESP8266.
 ///
 /// Example:
