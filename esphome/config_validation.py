@@ -1452,9 +1452,24 @@ class TemperatureUnitValue(str):
     __slots__ = ()
 
 
+class FixedTemperatureUnitValue(TemperatureUnitValue):
+    """A unit from fixed_temperature_unit(): the platform's own, which its C++ traits already set."""
+
+    __slots__ = ()
+
+
 def temperature_unit(value: Any) -> TemperatureUnitValue:
     """Validate the unit an entity reports its temperatures in."""
     return TemperatureUnitValue(one_of(*TEMPERATURE_UNITS)(value))
+
+
+def fixed_temperature_unit(unit: str) -> Callable[[Any], FixedTemperatureUnitValue]:
+    """Validator for a platform whose device reports in ``unit`` and nothing else."""
+
+    def validator(value: Any) -> FixedTemperatureUnitValue:
+        return FixedTemperatureUnitValue(one_of(unit)(value))
+
+    return validator
 
 
 def temperature_with_unit(value: Any) -> tuple[float, str | None]:

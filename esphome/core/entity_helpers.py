@@ -583,9 +583,11 @@ def temperature_in_entity_unit(
 
 
 def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
-    """Pass the unit an entity reports in to its platform, which took the option."""
-    if isinstance(
-        unit := config.get(CONF_UNIT_OF_MEASUREMENT), cv.TemperatureUnitValue
+    """Pass the unit an entity reports in to its platform, which took the option; a platform with a
+    fixed unit sets it in its own traits."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue) and not isinstance(
+        unit, cv.FixedTemperatureUnitValue
     ):
         add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 

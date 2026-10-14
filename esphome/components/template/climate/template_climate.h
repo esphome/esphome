@@ -22,7 +22,17 @@ class TemplateClimate final : public climate::Climate, public Component {
   climate::ClimateTraits traits() override { return this->traits_; }
 
   void add_feature_flags(uint32_t flags) { this->traits_.add_feature_flags(flags); }
-  void set_temperature_unit(TemperatureUnit unit) { this->traits_.set_temperature_unit(unit); }
+  void set_temperature_unit(TemperatureUnit unit) {
+    this->traits_.set_temperature_unit(unit);
+    // Keep the traits' default 10 to 30 °C range in the chosen unit; visual overrides still apply on top
+    if (unit == TemperatureUnit::FAHRENHEIT) {
+      this->traits_.set_visual_min_temperature(50.0f);
+      this->traits_.set_visual_max_temperature(86.0f);
+    } else if (unit == TemperatureUnit::KELVIN) {
+      this->traits_.set_visual_min_temperature(283.15f);
+      this->traits_.set_visual_max_temperature(303.15f);
+    }
+  }
 
 #ifdef USE_SENSOR
   // The matching feature flag is added from codegen, so the configuration alone decides it.

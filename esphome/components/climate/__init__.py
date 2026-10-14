@@ -49,6 +49,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
     CONF_WEB_SERVER,
+    UNIT_KELVIN,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
@@ -263,20 +264,34 @@ _CLIMATE_SCHEMA.add_extra(entity_duplicate_validator("climate"))
 _CLIMATE_SCHEMA.add_extra(_visual_temperatures_in_entity_unit)
 
 
+def _unit_mqtt_can_report(value: str) -> str:
+    # MQTT discovery only knows °C and °F
+    if value == UNIT_KELVIN and "mqtt" in CORE.loaded_integrations:
+        raise cv.Invalid("MQTT reports climate temperatures in °C or °F only")
+    return value
+
+
 def climate_schema(
     class_: MockObjClass,
     *,
     entity_category: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
-    temperature_unit: bool = False,
+    temperature_unit: bool | str = False,
 ) -> cv.Schema:
-    """``temperature_unit`` adds ``unit_of_measurement`` for a platform whose temperatures are all
-    in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``."""
+    """``temperature_unit=True`` adds ``unit_of_measurement`` for a platform whose temperatures are
+    all in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
+    A unit instead of ``True`` is for a device that reports in that unit only, set by its traits."""
     schema = {
         cv.GenerateID(): cv.declare_id(class_),
     }
-    if temperature_unit:
-        schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT)] = cv.temperature_unit
+    if temperature_unit is True:
+        schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT)] = cv.All(
+            cv.temperature_unit, _unit_mqtt_can_report
+        )
+    elif temperature_unit:
+        schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=temperature_unit)] = (
+            cv.fixed_temperature_unit(temperature_unit)
+        )
 
     for key, default, validator in [
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
