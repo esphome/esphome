@@ -41,6 +41,9 @@ _request_message_callback_slot = cg.slot_counter("HDMI_CEC_MESSAGE_CALLBACK_COUN
 
 logical_address = cv.int_range(min=0, max=MAX_LOGICAL_ADDRESS)
 payload = cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(max=MAX_PAYLOAD_LENGTH))
+payload_prefix = cv.All(
+    cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1, max=MAX_PAYLOAD_LENGTH)
+)
 
 
 def _validate_message_filter(config: ConfigType) -> ConfigType:
@@ -85,7 +88,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_SOURCE): logical_address,
                     cv.Optional(CONF_DESTINATION): logical_address,
                     cv.Optional(CONF_OPCODE): cv.hex_uint8_t,
-                    cv.Optional(CONF_DATA): payload,
+                    cv.Optional(CONF_DATA): payload_prefix,
                 },
                 _validate_message_filter,
             ),

@@ -50,7 +50,7 @@ void HDMICEC::dump_config() {
 
 void HDMICEC::loop() {
   if (const uint8_t dropped = this->recv_.take_dropped_frames(); dropped != 0) {
-    ESP_LOGW(TAG, "%u received frame%s dropped, queue full", dropped,
+    ESP_LOGW(TAG, "%u received frame%s dropped (queue full or oversized)", dropped,
              dropped > 1 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(""));
   }
   // One inbound frame per pass keeps the time spent in the automations bounded
@@ -112,6 +112,11 @@ bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, std::span<
 void CECTransmit::transmit_message() {
   const uint32_t now = micros();
   const uint32_t since_last_edge = now - atomic_get(this->last_edge_us_);
+  if (!this->transmitting_ && atomic_get(this->eom_received_)) {
+    // Another device finished a frame; the standard asks a new initiator to wait after it
+    this->required_idle_period_ = SIGNAL_FREE_TIME_AFTER_RECEIVE;
+    atomic_set(this->eom_received_, false);
+  }
   if (this->transmitting_) {
     // The receiver sees our own frame; wait for its end of message bit, or give up when the
     // bus went quiet without one
@@ -259,7 +264,7 @@ void IRAM_ATTR CECTransmit::send_ack() {
 }
 
 void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
-  if (this->transmitting_) {
+  if (this->transmitting_ && !atomic_get(this->eom_received_)) {
     // Our own frame: a low acknowledge bit means the addressed device took the byte
     // (for a broadcast it means some device refused it)
     this->n_bytes_received_++;
@@ -268,8 +273,7 @@ void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
     }
   }
   if (eom) {
-    this->required_idle_period_ = SIGNAL_FREE_TIME_AFTER_RECEIVE;
-    atomic_set(this->eom_received_, true);  // publishes the counts above to loop()
+    atomic_set(this->eom_received_, true);  // publishes the tally above to loop()
   }
 }
 
@@ -318,11 +322,9 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
   if (pulse_duration > START_BIT_MIN_US) {
     this->reset_state_variables_();
     this->receiver_state_ = ReceiverState::RECEIVER_STATE_RECEIVING_BYTE;
+    // Without a free slot the frame is neither acknowledged nor delivered, so its initiator retries
     this->recv_frame_buffer_ = this->frames_queue_.back();
-    if (this->recv_frame_buffer_ == nullptr) {
-      // The queue is full; the frame is still acknowledged below but not delivered
-      atomic_set<uint8_t>(this->dropped_frames_, atomic_get(this->dropped_frames_) + 1);
-    } else {
+    if (this->recv_frame_buffer_ != nullptr) {
       this->recv_frame_buffer_->clear();
     }
     return;
@@ -364,12 +366,14 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
 
     case ReceiverState::RECEIVER_STATE_WAITING_FOR_EOM_ACK:
       this->xmit_.got_byte_eom_ack(true, value);
-      // Queue frames the application may care about; a polling message (header only) was
-      // answered by the acknowledge already
-      if (this->recv_frame_buffer_ != nullptr && this->recv_frame_buffer_->size() > 1 &&
-          (this->promiscuous_mode_ ||
-           (this->recv_frame_buffer_->is_broadcast() && this->recv_frame_buffer_->initiator_addr() != this->address_) ||
-           this->recv_frame_buffer_->destination_addr() == this->address_)) {
+      if (this->recv_frame_buffer_ == nullptr) {
+        // The queue was full or the frame was longer than the bus allows
+        atomic_set<uint8_t>(this->dropped_frames_, atomic_get(this->dropped_frames_) + 1);
+      } else if (this->recv_frame_buffer_->size() > 1 && this->recv_frame_buffer_->initiator_addr() != this->address_ &&
+                 (this->promiscuous_mode_ || this->recv_frame_buffer_->is_broadcast() ||
+                  this->recv_frame_buffer_->destination_addr() == this->address_)) {
+        // Deliver frames the application may care about: not our own, and not a polling message
+        // (header only), which the acknowledge answered already
         this->frames_queue_.push_back();
         this->parent_->enable_loop_soon_any_context();
       }

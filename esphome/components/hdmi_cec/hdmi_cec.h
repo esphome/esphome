@@ -99,7 +99,7 @@ class CECTransmit {
   /// Finish the previous attempt and send the frame at the front of the queue; called from loop()
   void transmit_message();
 
-  // Called from the receive interrupt, so the fields they write are atomic
+  // Called from the receive interrupt
   ESPHOME_ALWAYS_INLINE void got_edge(uint32_t now_us) { atomic_set(this->last_edge_us_, now_us); }
   void got_byte_eom_ack(bool eom, bool ack);
   /// Pull the line low for the acknowledge bit of a frame addressed to us
@@ -126,10 +126,12 @@ class CECTransmit {
   uint32_t last_attempt_us_{0};            // a refused start bit drives no edge, so it is timed here
   uint32_t required_idle_period_{SIGNAL_FREE_TIME_NEW_INITIATOR};
   uint8_t transmit_attempts_{0};
+  // The interrupt tallies our own frame while transmitting_ is set and no end of message has
+  // passed yet; loop() reads the tally once eom_received_ says the frame is over
   uint8_t n_bytes_received_{0};
   uint8_t n_acks_received_{0};
   bool transmitting_{false};
-  std::atomic<bool> eom_received_{false};
+  std::atomic<bool> eom_received_{false};  // set for every frame, ours or not
 };
 
 /// Decodes the bus from pin edges in an interrupt and queues complete frames for loop()
