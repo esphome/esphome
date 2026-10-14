@@ -759,9 +759,10 @@ async def to_code(config):
             # Configure upstream DNS servers for DHCP to advertise to clients
             if CONF_DNS_SERVERS in conf:
                 for dns_server in conf[CONF_DNS_SERVERS]:
-                    # lwIP stores IPv4 addresses with the first octet in the lowest byte
-                    packed = int.from_bytes(dns_server.packed, "little")
-                    cg.add(var.add_dns_server(cg.RawExpression(f"0x{packed:08X}U")))
+                    # lwIP keeps IPv4 addresses with the first octet in the lowest byte
+                    cg.add(
+                        var.add_dns_server(int.from_bytes(dns_server.packed, "little"))
+                    )
 
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP
