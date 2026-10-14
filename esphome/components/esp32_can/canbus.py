@@ -47,6 +47,7 @@ CanMode = esp32_can_ns.enum("CanMode")
 CAN_MODES = {
     "NORMAL": CanMode.CAN_MODE_NORMAL,
     "LISTENONLY": CanMode.CAN_MODE_LISTEN_ONLY,
+    "NO_ACK": CanMode.CAN_MODE_NO_ACK,
 }
 
 # Currently the driver only supports a subset of the bit rates defined in canbus
