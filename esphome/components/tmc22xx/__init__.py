@@ -124,9 +124,12 @@ def _validate_analog_current_scale(config: ConfigType) -> ConfigType:
 def _validate_chopconf(config: ConfigType) -> ConfigType:
     # Only values given as constants can be checked here, not lambdas
     toff, tbl = config.get(CONF_TOFF), config.get(CONF_TBL)
-    if toff == 1 and isinstance(tbl, int) and tbl < 2:
+    # TBL is never written at setup, so the chip may still hold a blank time below 2
+    if toff == 1 and (tbl is None or (isinstance(tbl, int) and tbl < 2)):
         raise cv.Invalid(
-            f"'{CONF_TOFF}: 1' needs '{CONF_TBL}' 2 or higher", path=[CONF_TOFF]
+            f"'{CONF_TOFF}: 1' needs '{CONF_TBL}' set to 2 or higher in the same "
+            "action",
+            path=[CONF_TOFF],
         )
     hend, hstrt = config.get(CONF_HEND), config.get(CONF_HSTRT)
     # Register values are offsets: HEND 0-15 is -3 to 12, HSTRT 0-7 is 1 to 8
