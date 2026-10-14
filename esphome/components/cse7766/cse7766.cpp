@@ -161,7 +161,6 @@ void CSE7766Component::parse_data_() {
   } else if (have_power) {
     power = power_coeff / float(power_cycle);
     this->last_power_cycle_ = power_cycle;
-    this->last_power_ = power;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
@@ -171,12 +170,13 @@ void CSE7766Component::parse_data_() {
     // the last pulse. While that time is within twice the last cycle, the next pulse
     // is not overdue, so the last measurement still applies.
     have_power = true;
-    power = this->last_power_;
+    power = power_coeff / float(this->last_power_cycle_);
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
   } else {
-    // The next pulse is overdue: the load has dropped, report 0 W
+    // The next pulse is overdue: the load has dropped, report 0 W. A load that drops to less
+    // than half also reads 0 W here until its first new pulse arrives.
     this->last_power_cycle_ = 0;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(0.0f);

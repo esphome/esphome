@@ -19,6 +19,7 @@ constexpr uint32_t CURRENT_COEFF = 0x004137;
 constexpr uint32_t CURRENT_CYCLE = 0x053339;
 constexpr uint32_t POWER_COEFF = 5425000;
 constexpr uint32_t LOW_LOAD_CYCLE = 2507613;
+constexpr uint32_t MID_LOAD_CYCLE = 361667;  // about 15 W, above the 50 mA current threshold
 constexpr uint32_t HIGH_LOAD_CYCLE = 2000;
 
 constexpr uint8_t HEADER_OK = 0x55;
@@ -82,6 +83,15 @@ TEST_F(CSE7766Test, LowLoadKeepsLastMeasurementBetweenPulses) {
   EXPECT_NEAR(this->feed_(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
   EXPECT_NEAR(this->feed_(HEADER_OK, 1078140, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
   EXPECT_NEAR(this->feed_(HEADER_OK, 4900000, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
+}
+
+// Current is only reported when the same frame has a power value, so held frames must keep it too
+TEST_F(CSE7766Test, MidLoadKeepsCurrentBetweenPulses) {
+  sensor::Sensor current;
+  this->sut_.set_current_sensor(&current);
+  this->feed_(HEADER_OK, MID_LOAD_CYCLE, ADJ_NEW_POWER);
+  this->feed_(HEADER_OK, MID_LOAD_CYCLE / 2, ADJ_NO_NEW_POWER);
+  EXPECT_NEAR(current.state, 0.049f, 0.001f);
 }
 
 TEST_F(CSE7766Test, OverduePulseReportsZero) {
