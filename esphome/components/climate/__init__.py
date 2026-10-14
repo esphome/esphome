@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 from esphome import automation
@@ -151,6 +152,10 @@ VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
 )
 
 
+# Remove before 2027.5.0: external components imported it before temperature_with_unit replaced it
+visual_temperature = cv.float_with_unit("visual_temperature", "(°|(° ?)?[CKF])?")
+
+
 def visual_temperature_step(value: Any) -> ConfigType:
     # Allow defining target/current temperature steps separately
     if isinstance(value, dict):
@@ -288,10 +293,6 @@ def climate_schema(
         schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT)] = cv.All(
             cv.temperature_unit, _unit_mqtt_can_report
         )
-    elif temperature_unit:
-        schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=temperature_unit)] = (
-            cv.fixed_temperature_unit(temperature_unit)
-        )
 
     for key, default, validator in [
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
@@ -300,7 +301,19 @@ def climate_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return _CLIMATE_SCHEMA.extend(schema)
+    extended = _CLIMATE_SCHEMA.extend(schema)
+    if temperature_unit and temperature_unit is not True:
+        # Stamped before the visual conversion runs, with no option for the user
+        extended.prepend_extra(_fixed_temperature_unit(temperature_unit))
+    return extended
+
+
+def _fixed_temperature_unit(unit: str) -> Callable[[ConfigType], ConfigType]:
+    def stamp(config: ConfigType) -> ConfigType:
+        config[CONF_UNIT_OF_MEASUREMENT] = cv.FixedTemperatureUnitValue(unit)
+        return config
+
+    return stamp
 
 
 _CALLBACK_AUTOMATIONS = (

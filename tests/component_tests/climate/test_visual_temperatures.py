@@ -102,15 +102,15 @@ def test_visual_temperatures_converted_once() -> None:
 
 
 def test_a_fixed_unit_keeps_visual_temperatures_in_it() -> None:
-    # friedrich reports in °F through its traits; the option is filled in and only accepts that unit
+    # friedrich reports in °F through its traits; the unit is stamped, not a user option
     schema = climate_schema(Climate, temperature_unit=UNIT_FAHRENHEIT)
     config = schema({CONF_NAME: "AC", CONF_VISUAL: {CONF_TEMPERATURE_STEP: "1°F"}})
     unit = config[CONF_UNIT_OF_MEASUREMENT]
     assert unit == UNIT_FAHRENHEIT
     assert isinstance(unit, cv.FixedTemperatureUnitValue)
     assert config[CONF_VISUAL][CONF_TEMPERATURE_STEP][CONF_TARGET_TEMPERATURE] == 1.0
-    with pytest.raises(cv.Invalid, match="°F"):
-        schema({CONF_NAME: "AC", CONF_UNIT_OF_MEASUREMENT: UNIT_CELSIUS})
+    with pytest.raises(cv.Invalid, match="unit_of_measurement"):
+        schema({CONF_NAME: "AC", CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT})
 
 
 def test_a_fixed_unit_is_not_passed_to_the_platform() -> None:
@@ -120,7 +120,7 @@ def test_a_fixed_unit_is_not_passed_to_the_platform() -> None:
     try:
         var = MockObj("ac")
         setup_entity_temperature_unit(
-            var, {CONF_UNIT_OF_MEASUREMENT: cv.fixed_temperature_unit("°F")("°F")}
+            var, {CONF_UNIT_OF_MEASUREMENT: cv.FixedTemperatureUnitValue("°F")}
         )
         assert calls == []
         setup_entity_temperature_unit(
