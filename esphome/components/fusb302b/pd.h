@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -7,6 +8,9 @@
 namespace esphome::fusb302b {
 
 static constexpr uint8_t PD_MAX_NUM_DATA_OBJECTS = 7;
+// Standard Power Range fixed supplies, which are the only ones this sink negotiates
+static constexpr uint8_t MIN_REQUEST_VOLTAGE = 5;
+static constexpr uint8_t MAX_REQUEST_VOLTAGE = 20;
 
 enum PdSpecRevision : uint8_t {
   PD_SPEC_REV_1 = 0,
@@ -96,10 +100,13 @@ struct PdMsg {
 };
 
 /// USB-PD sink protocol logic, independent of the PHY chip.
-/// Everything except the getters and set_request_voltage() runs in the PHY task.
+/// Everything except the getters and set_request_voltage() runs in the PHY task, which must also call
+/// check_transition_timeout_() and check_request_retry_() regularly; the protocol has no timers of its own.
 class PowerDelivery {
  public:
-  void set_request_voltage(uint8_t voltage) { this->request_voltage_ = voltage; }
+  void set_request_voltage(uint8_t voltage) {
+    this->request_voltage_ = std::clamp(voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE);
+  }
   uint8_t get_request_voltage() const { return this->request_voltage_; }
 
   PdState get_state() const { return this->state_; }
@@ -114,6 +121,9 @@ class PowerDelivery {
   virtual void on_soft_reset_received() = 0;
   /// Called when source capabilities arrive, before the request for them is sent.
   virtual void on_source_caps_received() = 0;
+  /// Called after an accepted request was not followed by PS_RDY in time and the state fell back to default power;
+  /// the PHY sends a soft reset so the source offers its capabilities again.
+  virtual void on_transition_timeout() = 0;
 
   void handle_message_(const PdMsg &msg);
   void reset_protocol_();
@@ -126,8 +136,8 @@ class PowerDelivery {
   void set_ams_(bool active);
   /// Returns true while an atomic message sequence is in progress; ends it after a timeout.
   bool check_ams_();
-  /// Returns true when the source accepted a request but did not report the new supply ready in time.
-  bool transition_timed_out_();
+  /// Falls back to default power when the source accepted a request but did not report the new supply ready in time.
+  void check_transition_timeout_();
   /// Sends the last request again once tSinkRequest has passed after the source answered Wait.
   void check_request_retry_();
 

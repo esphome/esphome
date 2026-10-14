@@ -33,7 +33,8 @@ static PdContract parse_pdo(uint32_t pdo) {
 
 // USB PD 6.4.1.3.1 Sink Fixed Supply Power Data Object; voltage in 50 mV units, current in 10 mA units
 static constexpr uint32_t sink_fixed_pdo(uint16_t voltage, uint16_t current) {
-  return (static_cast<uint32_t>(PD_PDO_TYPE_FIXED_SUPPLY) << 30) | (static_cast<uint32_t>(voltage) << 10) | current;
+  return (static_cast<uint32_t>(PD_PDO_TYPE_FIXED_SUPPLY) << 30) | (static_cast<uint32_t>(voltage & 0x3FF) << 10) |
+         (current & 0x3FF);
 }
 
 void PdMsg::set_header(uint16_t header) {
@@ -149,9 +150,13 @@ void PowerDelivery::request_failed_() {
     this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
 }
 
-bool PowerDelivery::transition_timed_out_() {
+void PowerDelivery::check_transition_timeout_() {
   // The AMS that sent the request only ends on PS_RDY, so an ended AMS while in transition means a timeout
-  return this->state_ == PdState::PD_STATE_TRANSITION && !this->check_ams_();
+  if (this->state_ != PdState::PD_STATE_TRANSITION || this->check_ams_())
+    return;
+  ESP_LOGW(TAG, "Source did not report the new supply ready, falling back to default power");
+  this->set_state_and_contract_(PdState::PD_STATE_DEFAULT_CONTRACT, DEFAULT_CONTRACT);
+  this->on_transition_timeout();
 }
 
 void PowerDelivery::handle_message_(const PdMsg &msg) {

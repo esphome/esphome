@@ -15,12 +15,12 @@ class FakePhy : public PowerDelivery {
  public:
   using PowerDelivery::ams_start_;
   using PowerDelivery::check_ams_;
+  using PowerDelivery::check_transition_timeout_;
   using PowerDelivery::check_request_retry_;
   using PowerDelivery::contract_;
   using PowerDelivery::handle_message_;
   using PowerDelivery::retry_request_pending_;
   using PowerDelivery::set_state_and_contract_;
-  using PowerDelivery::transition_timed_out_;
   using PowerDelivery::wait_received_ms_;
 
   std::vector<PdMsg> sent;
@@ -29,6 +29,7 @@ class FakePhy : public PowerDelivery {
   int state_changes{0};
   int soft_resets{0};
   int source_caps{0};
+  int transition_timeouts{0};
 
   void receive(uint8_t type, uint8_t id, std::vector<uint32_t> objects = {}) {
     PdMsg msg;
@@ -67,6 +68,7 @@ class FakePhy : public PowerDelivery {
     EXPECT_EQ(this->sent.size(), static_cast<size_t>(this->source_caps));
     this->source_caps++;
   }
+  void on_transition_timeout() override { this->transition_timeouts++; }
 };
 
 TEST(FUSB302BPd, HeaderRoundTrip) {
@@ -192,14 +194,38 @@ TEST(FUSB302BPd, PsRdyAfterSequenceTimeoutIsIgnored) {
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_TRANSITION);
 }
 
-TEST(FUSB302BPd, TransitionTimesOut) {
+TEST(FUSB302BPd, TransitionTimeoutFallsBackToDefault) {
   FakePhy pd;
+  pd.attach();
   pd.set_request_voltage(20);
   pd.receive_source_caps(0);
   pd.receive(PD_CNTRL_ACCEPT, 1);
-  EXPECT_FALSE(pd.transition_timed_out_());
+  pd.check_transition_timeout_();
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_TRANSITION);
+  EXPECT_EQ(pd.transition_timeouts, 0);
+
   pd.advance_ms(2001);
-  EXPECT_TRUE(pd.transition_timed_out_());
+  pd.state_changes = 0;
+  pd.check_transition_timeout_();
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_DEFAULT_CONTRACT);
+  EXPECT_FLOAT_EQ(pd.contract().voltage(), 5.0f);
+  EXPECT_FLOAT_EQ(pd.contract().current(), 0.5f);
+  EXPECT_EQ(pd.state_changes, 1);
+  EXPECT_EQ(pd.transition_timeouts, 1);
+
+  // Reported once, and a late PS_RDY does not bring back the unconfirmed contract
+  pd.check_transition_timeout_();
+  pd.receive(PD_CNTRL_PS_RDY, 2);
+  EXPECT_EQ(pd.transition_timeouts, 1);
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_DEFAULT_CONTRACT);
+}
+
+TEST(FUSB302BPd, RequestVoltageIsClamped) {
+  FakePhy pd;
+  pd.set_request_voltage(255);
+  EXPECT_EQ(pd.get_request_voltage(), MAX_REQUEST_VOLTAGE);
+  pd.set_request_voltage(0);
+  EXPECT_EQ(pd.get_request_voltage(), MIN_REQUEST_VOLTAGE);
 }
 
 TEST(FUSB302BPd, WaitRepeatsRequestAfterSinkRequestTime) {
@@ -425,6 +451,17 @@ TEST(FUSB302BPd, SinkCapListsRequestedVoltage) {
   EXPECT_EQ((pdo >> 10) & 0x3FF, 400u);
   EXPECT_EQ(pdo & 0x3FF, 300u);
   EXPECT_EQ(pdo >> 25, 0u);  // capability flags are only valid in the first object
+}
+
+TEST(FUSB302BPd, SinkCapForOutOfRangeVoltageStaysValid) {
+  FakePhy pd;
+  pd.set_request_voltage(255);
+  pd.receive(PD_CNTRL_GET_SINK_CAP, 0);
+  ASSERT_EQ(pd.sent.size(), 1u);
+  ASSERT_EQ(pd.sent[0].num_of_obj, 2);
+  const uint32_t pdo = pd.sent[0].data_objects[1];
+  EXPECT_EQ((pdo >> 10) & 0x3FF, 400u);
+  EXPECT_EQ(pdo >> 20, 0u);  // nothing spills into the peak current or flag bits
 }
 
 }  // namespace esphome::fusb302b::testing
