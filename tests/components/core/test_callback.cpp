@@ -49,11 +49,11 @@ TEST(CallbackCreate, InlineCallableIsCalled) {
 int mutable_seen = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // A pointer-sized mutable lambda used to be stored inline and run on a copy, losing its state.
-// create() never frees its heap path by design; the host tests run with leak detection off.
 TEST(CallbackCreate, MutableStateIsKeptAcrossCalls) {
   auto counter = [n = 0](int x) mutable { mutable_seen = (n += x); };
   static_assert(sizeof(counter) <= sizeof(void *) && std::is_trivially_copyable_v<decltype(counter)>);
-  auto cb = IntCallback::create(counter);
+  // create() never frees its heap path; held for the whole run like a callback registered in setup().
+  static const auto cb = IntCallback::create(counter);
   cb.call(1);
   cb.call(2);
   EXPECT_EQ(mutable_seen, 3);
