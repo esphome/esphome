@@ -272,7 +272,7 @@ def get_external_writers(display_id: ID) -> list[str]:
     return [
         owner
         for id_, owner in _get_external_writer_list()
-        if id_ is display_id or (id_.id is not None and id_.id == display_id.id)
+        if id_.id is not None and id_.id == display_id.id
     ]
 
 

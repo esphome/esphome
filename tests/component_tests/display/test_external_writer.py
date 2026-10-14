@@ -44,14 +44,6 @@ def test_unresolved_id_matches_after_resolution() -> None:
     assert get_external_writers(ID("other", is_declaration=True, type=Display)) == []
 
 
-def test_same_object_matches_before_resolution() -> None:
-    display_id = ID(None, is_declaration=True, type=Display)
-    register_external_writer(display_id, "owner")
-
-    assert get_external_writers(display_id) == ["owner"]
-    assert get_external_writers(ID(None, is_declaration=True, type=Display)) == []
-
-
 def test_all_owners_returned() -> None:
     register_external_writer(ID("epd"), "first")
     register_external_writer(ID("epd"), "second")

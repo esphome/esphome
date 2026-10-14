@@ -157,9 +157,9 @@ def _final_validate(config: ConfigType) -> None:
             "auto_clear_enabled and show_test_card from it",
             path=[CONF_DISPLAY_ID],
         )
-    if len(display.get_external_writers(disp_id)) > 1:
+    if len(writers := display.get_external_writers(disp_id)) > 1:
         raise cv.Invalid(
-            f"Display '{disp_id}' is already used by another vnc client",
+            f"Display '{disp_id}' is drawn by more than one component: {', '.join(writers)}",
             path=[CONF_DISPLAY_ID],
         )
     lvgl_configs = full_config.get("lvgl") or []

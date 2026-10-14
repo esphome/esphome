@@ -394,7 +394,7 @@ def test_two_clients_on_one_display_rejected(
         IT8951, "\nvnc:\n  - host: 192.168.1.20\n  - host: 192.168.1.21\n"
     )
 
-    assert "Display 'epd' is already used by another vnc client" in out
+    assert "Display 'epd' is drawn by more than one component: vnc, vnc" in out
 
 
 def test_mipi_spi_rejected(config_error: Callable[..., str]) -> None:
