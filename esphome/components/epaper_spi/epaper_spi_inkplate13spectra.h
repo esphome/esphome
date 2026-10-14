@@ -22,7 +22,7 @@ namespace esphome::epaper_spi {
  * -- verified working on this board (see EPaperDualCS for why it's not exposed by every
  * subclass).
  */
-class EPaperInkplate13Spectra final : public EPaperDualCS {
+class EPaperInkplate13Spectra : public EPaperDualCS {
  public:
   using EPaperDualCS::EPaperDualCS;
 

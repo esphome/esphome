@@ -98,6 +98,11 @@ void EPaperInkplate13Spectra::set_io_pins_() {
 // panel is fully powered before any busy-pin read happens. Each step sets reset_duration_
 // to the delay this stage needs; the framework re-enters RESET_END after that many ms.
 bool EPaperInkplate13Spectra::reset() {
+  // EPaperBase calls reset() in RESET exactly once at the start of every cycle, so restart the
+  // bring-up there. Doing it here rather than in deep_sleep() also covers a cycle that ended
+  // without reaching deep_sleep(), such as one abandoned after a busy-pin timeout.
+  if (this->state_ == EPaperState::RESET)
+    this->reset_sub_ = RST_PINS_LOW;
   switch (this->reset_sub_) {
     case RST_PINS_LOW:
       ESP_LOGD(TAG, "reset(): RST_PINS_LOW");
@@ -180,12 +185,6 @@ void EPaperInkplate13Spectra::deep_sleep() {
   // RST intentionally NOT released to input -- held low for hardware deep sleep (~uA draw).
   this->rst_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->rst_pin_->digital_write(false);
-
-  // Prime shared sub-state counters for the next cycle. transfer_sub_'s starting state
-  // is decided in update()/display_partial() instead, since only they know at that point
-  // whether the next cycle is a full or partial refresh.
-  this->reset_sub_ = RST_PINS_LOW;
-  this->transfer_row_ = 0;
   ESP_LOGD(TAG, "panel deep sleep");
 }
 
