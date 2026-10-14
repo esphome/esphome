@@ -419,7 +419,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   return pos;
 }
 
-#ifdef ESPHOME_LOG_HAS_VERBOSE
+// The Python side enables the statistics only for a verbose logger
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
 static void log_thread_usage(const struct k_thread *thread, void *user_data) {
   const auto cpu_cycles = *static_cast<const uint64_t *>(user_data);
   auto *tid = const_cast<k_tid_t>(thread);  // NOLINT(cppcoreguidelines-pro-type-const-cast)
@@ -437,7 +438,7 @@ static void log_thread_usage(const struct k_thread *thread, void *user_data) {
 #endif
 
 void DebugComponent::update_platform_() {
-#ifdef ESPHOME_LOG_HAS_VERBOSE
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
   k_thread_runtime_stats_t cpu;
   if (k_thread_runtime_stats_all_get(&cpu) != 0 || cpu.execution_cycles == 0)
     return;
