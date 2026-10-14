@@ -1,1 +1,2 @@
 CODEOWNERS = ["@B48D81EFCC"]
+DOMAIN = "stts22h"

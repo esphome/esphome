@@ -82,6 +82,16 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
+  // the API reply is answered before the user's on_complete automation; sent is false on a
+  // bail-out that never put the frame on the wire, on_complete fires either way
+  void fire_complete_(bool sent = true) {
+    this->notify_complete_(sent);
+    this->complete_trigger_.trigger();
+  }
+#if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || \
+    defined(REMOTE_TRANSMITTER_BK_PWM)
+  void flush_pending_completion() override;
+#endif
 #if defined(USE_ESP8266) || \
     (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || \
     defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
@@ -141,6 +151,8 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #endif
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
+  // log the failed RMT call and mark the component failed
+  void fail_(esp_err_t error, const LogString *reason);
   void configure_rmt_();
   void wait_for_rmt_();
 
@@ -156,8 +168,6 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   bool eot_level_{false};
   rmt_channel_handle_t channel_{NULL};
   rmt_encoder_handle_t encoder_{NULL};
-  esp_err_t error_code_{ESP_OK};
-  std::string error_string_;
   bool inverted_{false};
   bool non_blocking_{false};
 #endif

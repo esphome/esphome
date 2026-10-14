@@ -24,7 +24,6 @@ from .types import (
     RunCompiledFunction,
 )
 
-pytestmark = pytest.mark.usefixtures("isolated_preferences")
 NEW_KEY = PROVISIONING_PSK
 
 

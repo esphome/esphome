@@ -47,7 +47,7 @@ class TaskLogBuffer {
   };
 
   TaskLogBuffer();
-  ~TaskLogBuffer();
+  // No destructor: Logger is never destroyed
 
   // NOT thread-safe - borrow a message from the ring buffer, only call from main loop
   bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
@@ -68,7 +68,11 @@ class TaskLogBuffer {
   static constexpr size_t size() { return ESPHOME_TASK_LOG_BUFFER_SIZE; }
 
  private:
-  RingbufHandle_t ring_buffer_{nullptr};           // FreeRTOS ring buffer handle
+  // xRingbufferCreateStatic() returns the static structure itself as the handle; it only
+  // returns NULL for a no-split size that is unaligned or under two item headers
+  static_assert(ESPHOME_TASK_LOG_BUFFER_SIZE % 4 == 0, "task_log_buffer_size must be a multiple of 4");
+  RingbufHandle_t handle_() { return &this->structure_; }
+
   StaticRingbuffer_t structure_;                   // Static structure for the ring buffer
   uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
 
