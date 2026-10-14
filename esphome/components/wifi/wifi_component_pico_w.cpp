@@ -380,7 +380,8 @@ static constexpr uint32_t AP_STATION_ASSOC_IND = 8;
 static constexpr uint32_t AP_STATION_REASSOC_IND = 10;
 
 // The driver hands every firmware event to cyw43_cb_process_async_event and ignores the AP station
-// ones, so they are counted here before it sees them. Runs in the driver's context.
+// ones, so they are counted here before it sees them. Runs in the driver's context. Verified with
+// arduino-pico 6.1.1 on a Pico 2W: a join gives AUTH_IND then ASSOC_IND, a leave gives DISASSOC_IND.
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 // Names are mandated by the --wrap linker mechanism.
 extern "C" void __real_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);

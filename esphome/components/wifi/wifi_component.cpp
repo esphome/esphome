@@ -969,8 +969,7 @@ void WiFiComponent::loop() {
 
 #endif
 
-    // Without networks there is nothing to fail to connect to, so an AP-only device never reboots.
-    if (this->reboot_timeout_ != 0 && this->has_sta() && now - this->last_connected_ > this->reboot_timeout_) {
+    if (this->reboot_timeout_ != 0 && now - this->last_connected_ > this->reboot_timeout_) {
       bool suppress = false;
 #ifdef USE_WIFI_AP
       // A station on the fallback AP is using the device
@@ -1111,8 +1110,6 @@ void WiFiComponent::pause_exclusive_ap_() {
   // Scanning and connecting turn STA back on.
   this->disable_ap_();
   this->ap_setup_ = false;
-  // Clients drop with the AP without a disconnect event for each.
-  this->ap_clients_ = 0;
   this->ap_exclusive_changed_ = App.get_loop_component_start_time();
   // A fresh connection cycle, as at boot, rather than resuming the one the
   // AP cut short.
@@ -1126,6 +1123,10 @@ void WiFiComponent::disable_ap_() {
   this->end_ap_portal_();
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
+#ifdef USE_WIFI_AP
+  // Clients drop with the AP without a disconnect event for each
+  this->ap_clients_ = 0;
+#endif
 }
 
 void WiFiComponent::set_ap(const WiFiAP &ap) {
