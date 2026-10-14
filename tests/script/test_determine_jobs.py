@@ -2784,6 +2784,42 @@ def test_should_run_benchmarks_core_benchmark_file_change() -> None:
         assert determine_jobs.should_run_benchmarks() is True
 
 
+def test_python_import_benchmarked_components_reads_bench_file() -> None:
+    """The components come from the real benchmark file's COMPONENTS tuple."""
+    assert "logger" in determine_jobs.python_import_benchmarked_components()
+
+
+def test_should_run_benchmarks_python_import_benchmarked_component(
+    tmp_path: Path,
+) -> None:
+    """A Python change in a component the import benchmark imports runs benchmarks.
+
+    logger has no C++ benchmark, so before this a change to its __init__.py
+    skipped the Python import benchmark that times it.
+    """
+    bench = tmp_path / determine_jobs.PYTHON_IMPORT_BENCHMARK_FILE
+    bench.parent.mkdir(parents=True)
+    bench.write_text('COMPONENTS = ("logger",)\n')
+    for changed, expected in [
+        ("esphome/components/logger/__init__.py", True),
+        ("esphome/components/logger/select/__init__.py", True),
+        ("esphome/components/logger/logger.cpp", False),
+        ("tests/components/logger/common.yaml", False),
+        ("esphome/components/wifi/__init__.py", False),
+    ]:
+        with (
+            patch.object(determine_jobs, "changed_files", return_value=[changed]),
+            patch.object(determine_jobs, "root_path", str(tmp_path)),
+        ):
+            assert determine_jobs.should_run_benchmarks() is expected, changed
+
+
+def test_python_import_benchmarked_components_missing_file(tmp_path: Path) -> None:
+    """Without the benchmark file no component is treated as benchmarked."""
+    with patch.object(determine_jobs, "root_path", str(tmp_path)):
+        assert determine_jobs.python_import_benchmarked_components() == frozenset()
+
+
 def test_should_run_benchmarks_benchmarked_component_change(tmp_path: Path) -> None:
     """Test benchmarks trigger when a benchmarked component changes."""
     # Create a fake benchmarks directory with an 'api' component

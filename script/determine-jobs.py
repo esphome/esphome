@@ -49,6 +49,7 @@ Options:
 from __future__ import annotations
 
 import argparse
+import ast
 from collections import Counter
 from collections.abc import Callable
 from enum import StrEnum
@@ -805,6 +806,9 @@ def determine_cpp_unit_tests(
 # Paths within tests/benchmarks/ that contain component benchmark files
 BENCHMARKS_COMPONENTS_PATH = "tests/benchmarks/components"
 
+# The Python benchmark that imports components; its COMPONENTS tuple says which ones
+PYTHON_IMPORT_BENCHMARK_FILE = "tests/benchmarks/python/test_component_import_bench.py"
+
 # Files that, when changed, should trigger benchmark runs
 BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
     {
@@ -813,6 +817,23 @@ BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
         "script/setup_codspeed_lib.py",
     }
 )
+
+
+def python_import_benchmarked_components() -> frozenset[str]:
+    """Return the components the Python import benchmark imports.
+
+    Read from the benchmark file's ``COMPONENTS`` tuple so the two cannot drift.
+    """
+    path = Path(root_path) / PYTHON_IMPORT_BENCHMARK_FILE
+    if not path.is_file():
+        return frozenset()
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "COMPONENTS"
+            for target in node.targets
+        ):
+            return frozenset(ast.literal_eval(node.value))
+    return frozenset()
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:
@@ -831,6 +852,8 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     4. A directly changed component has benchmark files (no dependency expansion)
     5. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
+    6. A Python file changed in a component the Python import benchmark imports
+       (its ``COMPONENTS`` tuple), even if the component has no C++ benchmark
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
     Changing ``sensor`` does not trigger ``api`` benchmarks just because
@@ -858,6 +881,17 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     # Check if benchmark infrastructure changed
     if any(
         f.startswith("tests/benchmarks/") or f in BENCHMARK_INFRASTRUCTURE_FILES
+        for f in files
+    ):
+        return True
+
+    # The Python import benchmark times importing these components, so their Python
+    # sources move its numbers even when they have no C++ benchmark
+    python_benchmarked = python_import_benchmarked_components()
+    if any(
+        f.startswith("esphome/components/")
+        and f.endswith(PYTHON_FILE_EXTENSIONS)
+        and get_component_from_path(f) in python_benchmarked
         for f in files
     ):
         return True
