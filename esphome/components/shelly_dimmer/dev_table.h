@@ -39,6 +39,7 @@ constexpr uint32_t SZ_256K = 0x00040000;
 /*
  * Page-size for page-by-page flash erase.
  * Arrays are zero terminated; last non-zero value is automatically repeated
+ * In PROGMEM and read by direct indexing: each entry is an aligned 32-bit load, which is safe from flash on ESP8266
  */
 
 /* fixed size pages */
