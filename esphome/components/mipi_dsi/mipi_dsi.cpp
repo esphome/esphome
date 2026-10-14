@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 
 #include <algorithm>
+#include <cstring>
 
 namespace esphome::mipi_dsi {
 
@@ -226,6 +227,18 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                                      x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
     this->flush_dirty_();
+    return;
+  }
+  if (this->buffer_ != nullptr) {
+    // A writer is drawing into the buffer, which the end of update() flushes over the panel; the
+    // block goes into the buffer too, or that flush would paint the old contents over it.
+    const size_t bytes_per_pixel = 3 - this->color_depth_;
+    const size_t stride = x_offset + w + x_pad;
+    for (int y = 0; y != h; y++) {
+      memcpy(this->buffer_ + ((y_start + y) * this->width_ + x_start) * bytes_per_pixel,
+             ptr + ((y_offset + y) * stride + x_offset) * bytes_per_pixel, w * bytes_per_pixel);
+    }
+    this->mark_dirty_(x_start, y_start, w, h);
     return;
   }
   this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);

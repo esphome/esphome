@@ -6,6 +6,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <cstring>
 #include <driver/gpio.h>
 #include <esp_lcd_panel_ops.h>
 #include <span>
@@ -226,6 +227,15 @@ void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
     this->flush_dirty_();
+  } else if (this->buffer_ != nullptr) {
+    // A writer is drawing into the buffer, which the end of update() flushes over the panel; the
+    // block goes into the buffer too, or that flush would paint the old contents over it.
+    const size_t stride = x_offset + w + x_pad;
+    for (int y = 0; y != h; y++) {
+      memcpy(this->buffer_ + (y_start + y) * this->width_ + x_start, ptr + ((y_offset + y) * stride + x_offset) * 2,
+             w * 2);
+    }
+    this->mark_dirty_(x_start, y_start, w, h);
   } else {
     this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
   }
