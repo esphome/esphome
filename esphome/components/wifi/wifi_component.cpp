@@ -1065,8 +1065,9 @@ void WiFiComponent::setup_ap_config_() {
       this->ap_.set_ssid(ssid_buf);
     }
   }
-  this->ap_setup_ = this->wifi_start_ap_(this->ap_);
+  // Reset before the AP exists: afterwards only the platform's event path writes the counter
   this->ap_clients_ = 0;
+  this->ap_setup_ = this->wifi_start_ap_(this->ap_);
 #ifdef USE_WIFI_AP_EXCLUSIVE
   // A failed start must not leave the radio in AP mode, which would refuse
   // the STA attempts until the next try.
