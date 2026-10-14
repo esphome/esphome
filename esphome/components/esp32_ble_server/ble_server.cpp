@@ -7,7 +7,6 @@
 
 #ifdef USE_ESP32
 
-#include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
 #ifndef CONFIG_BT_CONTROLLER_DISABLED

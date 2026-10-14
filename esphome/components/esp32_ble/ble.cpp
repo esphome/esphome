@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
@@ -28,7 +29,6 @@ extern "C" {
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
-#include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
 // Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
@@ -77,8 +77,9 @@ static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
 
 void ESP32BLE::setup() {
   global_ble = this;
-  if (!ble_pre_setup_()) {
-    ESP_LOGE(TAG, "BLE could not be prepared for configuration");
+  // Preferences opens NVS in app_main(); a zero handle means it could not be opened, even after an erase
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGE(TAG, "NVS unavailable");
     this->mark_failed();
     return;
   }
@@ -184,15 +185,6 @@ void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_refresh();
 }
 #endif
-
-bool ESP32BLE::ble_pre_setup_() {
-  esp_err_t err = nvs_flash_init();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
-    return false;
-  }
-  return true;
-}
 
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_init_() {
@@ -350,19 +342,8 @@ bool ESP32BLE::ble_setup_() {
     }
   } else {
     const auto &app_name = App.get_name();
-    size_t name_len = app_name.length();
-    if (name_len > 20) {
-      if (App.is_name_add_mac_suffix_enabled()) {
-        // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
-        memcpy(name_buffer, app_name.c_str(), 13);
-        memcpy(name_buffer + 13, app_name.c_str() + name_len - 7, 7);
-      } else {
-        memcpy(name_buffer, app_name.c_str(), 20);
-      }
-      name_buffer[20] = '\0';
-    } else {
-      memcpy(name_buffer, app_name.c_str(), name_len + 1);  // Include null terminator
-    }
+    truncate_name_to(name_buffer, sizeof(name_buffer), app_name.c_str(), app_name.length(),
+                     App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
     device_name = name_buffer;
   }
 
