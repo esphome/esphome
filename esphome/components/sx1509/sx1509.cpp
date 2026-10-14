@@ -4,7 +4,7 @@
 
 namespace esphome::sx1509 {
 
-static const char *const TAG = "sx1509";
+ESPHOME_LOG_TAG(TAG, "sx1509");
 
 void SX1509Component::setup() {
   ESP_LOGV(TAG, "  Resetting devices");

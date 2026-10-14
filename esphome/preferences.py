@@ -19,18 +19,15 @@ STORAGE_FLASH = "flash"
 STORAGE_RTC = "rtc"
 
 
-def _rtc_supported() -> bool:
-    """Whether the active platform has an RTC-backed preferences backend.
-
-    Mirrors the C++ ``SOC_RTC_MEM_SUPPORTED`` guard in the ESP32 backend: the ESP32-C2
-    and -C61 have no RTC memory at all, so RTC storage is unavailable there.
-    """
+def rtc_supported() -> bool:
+    """Whether the target has RTC-backed preferences (not ESP32-C2/C61); call at validation time."""
     if CORE.is_esp8266:
         return True
     if CORE.is_esp32:
         from esphome.components.esp32 import get_esp32_variant
         from esphome.components.esp32.const import VARIANT_ESP32C2, VARIANT_ESP32C61
 
+        # Mirrors the C++ SOC_RTC_MEM_SUPPORTED guard in the ESP32 backend
         return get_esp32_variant() not in (VARIANT_ESP32C2, VARIANT_ESP32C61)
     return False
 
@@ -44,9 +41,10 @@ def _default_storage() -> str:
     return STORAGE_RTC if CORE.is_esp8266 else STORAGE_FLASH
 
 
-def _validate_storage(value):
+def validate_storage(value: object) -> str:
+    """Validate a ``storage:`` value, ``flash`` or ``rtc`` where supported."""
     value = cv.one_of(STORAGE_FLASH, STORAGE_RTC, lower=True)(value)
-    if value == STORAGE_RTC and not _rtc_supported():
+    if value == STORAGE_RTC and not rtc_supported():
         raise cv.Invalid(
             f"'{STORAGE_RTC}' storage is not supported on this platform; only "
             f"'{STORAGE_FLASH}' is available"
@@ -56,7 +54,7 @@ def _validate_storage(value):
 
 def storage_schema():
     """Return an Optional(CONF_STORAGE) entry for merging into a component schema."""
-    return {cv.Optional(CONF_STORAGE, default=_default_storage): _validate_storage}
+    return {cv.Optional(CONF_STORAGE, default=_default_storage): validate_storage}
 
 
 def request_rtc_storage() -> None:
@@ -88,7 +86,7 @@ def validate_rtc_storage(value):
                 "be disabled"
             )
         return value
-    if not _rtc_supported():
+    if not rtc_supported():
         raise cv.Invalid("RTC preference storage is not supported on this platform")
     return value
 
@@ -104,3 +102,17 @@ def is_in_flash(value: str) -> bool:
     if not in_flash:
         request_rtc_storage()
     return in_flash
+
+
+def reserve_preferences(
+    count: int, value_bytes: int, in_flash: bool | None = None
+) -> None:
+    """Reserve saved values from to_code so a platform with a small store can check they all fit.
+
+    in_flash is the value's own storage (is_in_flash(config[CONF_STORAGE])); leave it None for a
+    component that calls the two-argument make_preference() and takes the platform default.
+    """
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import reserve_preferences as reserve
+
+        reserve(count, value_bytes, in_flash)

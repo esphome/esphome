@@ -5,7 +5,7 @@
 
 namespace esphome::uponor_smatrix {
 
-static const char *const TAG = "uponor_smatrix.sensor";
+ESPHOME_LOG_TAG(TAG, "uponor_smatrix.sensor");
 
 void UponorSmatrixSensor::dump_config() {
   ESP_LOGCONFIG(TAG,

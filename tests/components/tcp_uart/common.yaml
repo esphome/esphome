@@ -12,6 +12,8 @@ tcp_uart:
       - 192.0.2.0/24
     connected:
       name: TCP UART Server Connected
+    disconnects:
+      name: TCP UART Server Disconnects
 
 interval:
   - interval: 60s

@@ -10,3 +10,5 @@ uart_tcp:
     port: 44502
     connected:
       name: UART TCP Connected
+    disconnects:
+      name: UART TCP Disconnects

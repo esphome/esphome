@@ -125,6 +125,11 @@ Components using `modbus` packages automatically get `uart` as well.
 - **RP2040**: SCL=GPIO5, SDA=GPIO4
 - **BK72xx**: SCL=P20, SDA=P21
 
+### 1-Wire
+- **ESP32 IDF**: GPIO4
+- **ESP8266**: GPIO13
+- **RP2040**: GPIO10
+
 ### I2C Low Frequency (10kHz)
 Same pin allocations as standard I2C, but with 10kHz frequency for components requiring slower speeds.
 

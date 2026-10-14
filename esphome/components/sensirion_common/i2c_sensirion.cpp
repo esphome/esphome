@@ -6,7 +6,7 @@
 
 namespace esphome::sensirion_common {
 
-static const char *const TAG = "sensirion_i2c";
+ESPHOME_LOG_TAG(TAG, "sensirion_i2c");
 // To avoid memory allocations for small writes a stack buffer is used
 static const size_t BUFFER_STACK_SIZE = 16;
 

@@ -20,6 +20,15 @@
 #include "esphome/components/api/api_pb2.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+namespace esphome::usb_uart {
+class USBUartChannel;
+}  // namespace esphome::usb_uart
+namespace esphome::usb_host {
+struct UsbDeviceInfo;
+}  // namespace esphome::usb_host
+#endif
+
 // Forward-declare types needed outside the USE_API guard.
 namespace esphome::api {
 class APIConnection;
@@ -80,11 +89,20 @@ class SerialProxyTap {
   /// subscriber holds the port; with one attached, the port mode alone decides.
   virtual bool tap_needs_port() const = 0;
 
+  /// A client turned protocol handling on for this port. The tap has seen none of the
+  /// traffic since it was last on, so anything it remembers from then is stale.
+  virtual void on_protocol_enabled() = 0;
+
   /// A client explicitly turned protocol handling off for this port. Distinct from the
   /// automatic reset when a session ends: this one means a client intends to do something
   /// else with the device -- reflash it, most likely -- so anything the tap believes about
   /// it should be treated as suspect.
   virtual void on_protocol_disabled() = 0;
+
+  /// The device behind the port went away -- unplugged, or its power was cut. Whatever
+  /// session the tap had observed ended with it; the device that appears next starts from
+  /// scratch and may not even be the same one. Only a USB UART can report this.
+  virtual void on_device_disconnected() = 0;
 };
 #endif
 
@@ -160,6 +178,16 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Set the DTR GPIO pin (from YAML configuration)
   void set_dtr_pin(GPIOPin *pin) { this->dtr_pin_ = pin; }
 
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  /// Attach the USB UART channel behind this port (from code generation)
+  void set_usb_channel(usb_uart::USBUartChannel *channel) { this->usb_channel_ = channel; }
+#endif
+
+#ifdef USE_API
+  /// Send this port's identity to one client
+  void send_identity(api::APIConnection *api_connection);
+#endif
+
 #ifdef USE_SERIAL_PROXY_TAP
   /// Attach a traffic observer. At most one, set once at setup time.
   void set_tap(SerialProxyTap *tap) { this->tap_ = tap; }
@@ -226,6 +254,23 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   bool tap_observing_() const;
 #endif
 
+#ifdef USE_API
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  using IdentityScratch = usb_host::UsbDeviceInfo;
+#else
+  struct IdentityScratch {};
+#endif
+  /// Fill an identity message for this port. The message's strings are views into scratch,
+  /// so it must outlive the send.
+  void fill_identity_(IdentityScratch &scratch, api::SerialProxyIdentity &msg) const;
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  /// The USB device behind this port was attached or removed; report the port's new
+  /// identity to every subscribed API client
+  void on_usb_connection_changed_(bool connected);
+#endif
+
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
 
@@ -267,6 +312,11 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
 #ifdef USE_SERIAL_PROXY_TAP
   SerialProxyTap *tap_{nullptr};
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  /// The USB UART channel behind this port; nullptr on non-USB ports
+  usb_uart::USBUartChannel *usb_channel_{nullptr};
 #endif
 };
 

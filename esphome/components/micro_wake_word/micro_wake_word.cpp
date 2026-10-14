@@ -17,7 +17,7 @@
 
 namespace esphome::micro_wake_word {
 
-static const char *const TAG = "micro_wake_word";
+ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
 static const ssize_t DETECTION_QUEUE_LENGTH = 5;
 
@@ -386,9 +386,10 @@ WakeWordModel *MicroWakeWord::get_model_by_id(const std::string &model_id) {
 }
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
-void MicroWakeWord::add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
-                                  size_t tensor_arena_size) {
-  this->vad_model_ = make_unique<VADModel>(model_start, probability_cutoff, sliding_window_size, tensor_arena_size);
+void MicroWakeWord::add_vad_model(const uint8_t *model_start, size_t model_size, uint8_t probability_cutoff,
+                                  size_t sliding_window_size, size_t tensor_arena_size) {
+  this->vad_model_ =
+      make_unique<VADModel>(model_start, model_size, probability_cutoff, sliding_window_size, tensor_arena_size);
 }
 #endif
 
@@ -471,14 +472,14 @@ void MicroWakeWord::loop() {
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
                                    this->microphone_source_->get_audio_stream_info().get_sample_rate())) {
-          this->status_momentary_error("frontend_alloc", 1000);
+          this->status_momentary_error(1000);
           return;
         }
 
         if (!this->inference_task_.create(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE,
                                           (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_)) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
-          this->status_momentary_error("task_start", 1000);
+          this->status_momentary_error(1000);
         }
       }
       break;

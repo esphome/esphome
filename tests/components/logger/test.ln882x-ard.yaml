@@ -2,4 +2,5 @@
 
 logger:
   id: logger_id
+  hardware_uart: UART0
   task_log_buffer_size: 1024B

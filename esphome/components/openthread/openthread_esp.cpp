@@ -17,7 +17,7 @@
 #include "esp_vfs_eventfd.h"
 #include "nvs_flash.h"
 
-static const char *const TAG = "openthread";
+ESPHOME_LOG_TAG(TAG, "openthread");
 
 namespace esphome::openthread {
 

@@ -6,7 +6,7 @@
 
 namespace esphome::climate {
 
-static const char *const TAG = "climate";
+ESPHOME_LOG_TAG(TAG, "climate");
 
 // Memory-efficient lookup tables
 struct StringToUint8 {

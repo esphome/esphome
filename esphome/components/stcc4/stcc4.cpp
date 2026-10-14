@@ -6,7 +6,7 @@
 
 namespace esphome::stcc4 {
 
-static const char *const TAG = "stcc4";
+ESPHOME_LOG_TAG(TAG, "stcc4");
 
 // I2C Commands
 static constexpr uint16_t STCC4_CMD_START_CONTINUOUS_MEASUREMENT = 0x218b;

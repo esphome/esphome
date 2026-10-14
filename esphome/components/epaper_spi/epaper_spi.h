@@ -106,9 +106,14 @@ class EPaperBase : public Display,
 
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
+  bool pixel_axes_swapped() const override { return this->effective_transform_ & SWAP_XY; }
   void draw_pixel_at(int x, int y, Color color) override;
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   // Make the next update a full one. Applied when that update starts, so one in progress is not affected.
   void request_full_update() { this->full_update_requested_ = true; }
+  // True from the start of an update until the display has refreshed and gone back to sleep.
+  bool is_updating() const { return this->state_ != EPaperState::IDLE; }
 
  protected:
   int get_height_internal() override { return this->height_; };
@@ -123,9 +128,14 @@ class EPaperBase : public Display,
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
+  void abandon_update_();
   bool init_buffer_(size_t buffer_length);
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
+  void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                          bool big_endian, int x_offset, int y_offset, int x_pad);
+  // Whether the buffer holds 1 bit per pixel as draw_pixel_at() writes it, so draw_pixels_at() can write it directly
+  virtual bool buffer_is_mono() const { return false; }
 
   /**
    * Methods that must be implemented by concrete classes to control the display
@@ -135,6 +145,8 @@ class EPaperBase : public Display,
    * @return true if done, false if it should be called next loop
    */
   virtual bool transfer_data() = 0;
+  // Called when an update is abandoned in the middle of transfer_data(), to release anything it left open
+  virtual void abort_transfer() {}
   /**
    * Refresh the screen after data transfer
    */
@@ -185,18 +197,20 @@ class EPaperBase : public Display,
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};
 
+  uint32_t waiting_for_idle_start_{};
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   uint32_t waiting_for_idle_last_print_{};
-  uint32_t waiting_for_idle_start_{};
 #endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   uint32_t update_start_time_{};
 #endif
 
   // properties with specific initialisers go last
-  EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
+  // Longer than any panel takes to refresh; past it the busy pin is assumed stuck
+  uint16_t busy_timeout_seconds_{120};
   uint8_t full_update_every_{1};
+  EPaperState state_{EPaperState::IDLE};
 };
 
 }  // namespace esphome::epaper_spi

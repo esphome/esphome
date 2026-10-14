@@ -7,10 +7,11 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::mipi_spi {
 
-constexpr static const char *const TAG = "display.mipi_spi";
+ESPHOME_LOG_TAG(TAG, "display.mipi_spi");
 
 // Maximum bytes to log for commands (truncated if larger)
 static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
@@ -72,6 +73,12 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
                           GPIOPin *cs, GPIOPin *reset, GPIOPin *dc, int spi_mode, uint32_t data_rate, int bus_width,
                           bool has_hardware_rotation);
 
+// Lets a light set the display brightness without knowing the display's template parameters.
+class MipiSpiBrightness {
+ public:
+  virtual void set_brightness(uint8_t brightness) = 0;
+};
+
 /**
  * Base class for MIPI SPI displays.
  * All the methods are defined here in the header file, as it is not possible to define templated methods in a cpp file.
@@ -94,6 +101,7 @@ template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMo
          int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, int PAD_WIDTH, int PAD_HEIGHT, uint16_t MADCTL,
          bool HAS_HARDWARE_ROTATION>
 class MipiSpi : public display::Display,
+                public MipiSpiBrightness,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
  public:
@@ -108,9 +116,11 @@ class MipiSpi : public display::Display,
     this->invert_colors_ = invert_colors;
     this->reset_params_();
   }
-  void set_brightness(uint8_t brightness) {
+  void set_brightness(uint8_t brightness) override {
     this->brightness_ = brightness;
-    this->reset_params_();
+    // Before setup the stored value is applied by reset_params_()
+    if (this->is_ready())
+      this->write_command_(BRIGHTNESS, brightness);
   }
   void set_rotation(display::DisplayRotation rotation) override {
     this->rotation_ = rotation;
@@ -120,19 +130,8 @@ class MipiSpi : public display::Display,
   }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
-  int get_width() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return HEIGHT;
-    return WIDTH;
-  }
-
-  int get_height() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return WIDTH;
-    return HEIGHT;
-  }
+  int get_width() override { return display::rotation_swaps_axes(this->rotation_) ? HEIGHT : WIDTH; }
+  int get_height() override { return display::rotation_swaps_axes(this->rotation_) ? WIDTH : HEIGHT; }
 
   void set_init_sequence(const uint8_t *sequence, size_t len) {
     this->init_sequence_ = sequence;
@@ -610,6 +609,9 @@ class MipiSpiBuffer
     esph_log_v(TAG, "Total update took %dms", millis() - now);
 #endif
   }
+
+  // With hardware rotation the buffer is written in drawn coordinates.
+  bool pixel_axes_swapped() const override { return !HAS_HARDWARE_ROTATION && display::Display::pixel_axes_swapped(); }
 
   // Draw a pixel at the given coordinates.
   void draw_pixel_at(int x, int y, Color color) override {
