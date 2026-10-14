@@ -38,19 +38,19 @@ const char *p2s(uart::UARTParityOptions parity) {
 }
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line) for debug
-void print_buffer(const char *tag, const uint8_t *data, size_t length) {
+void print_buffer(const char *tag, const uint8_t *data, size_t length, int level) {
   char hex_buffer[100];
   hex_buffer[(3 * 32) + 1] = 0;
   for (size_t i = 0; i < length; i++) {
     snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
     if (i % 32 == 31) {
-      ESP_LOGVV(tag, "   %s", hex_buffer);
+      esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
     }
   }
   if (length % 32) {
     // null terminate if incomplete line
     hex_buffer[3 * (length % 32) + 2] = 0;
-    ESP_LOGVV(tag, "   %s", hex_buffer);
+    esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
   }
 }
 
@@ -495,24 +495,6 @@ class Increment {
   uint8_t i_;
 };
 
-/// @brief Hex converter to print/display a buffer in hexadecimal format (32 hex values / line).
-/// @param buffer contains the values to display
-void print_buffer(std::vector<uint8_t> buffer) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < buffer.size(); i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", buffer[i]);
-    if (i % 32 == 31) {
-      ESP_LOGI(TAG, "   %s", hex_buffer);
-    }
-  }
-  if (buffer.size() % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (buffer.size() % 32) + 1] = 0;
-    ESP_LOGI(TAG, "   %s", hex_buffer);
-  }
-}
-
 /// @brief test the write_array method
 void WeikaiChannel::uart_send_test_(char *message) {
   auto start_exec = micros();
@@ -560,7 +542,7 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
   for (size_t i = 0; i < RING_BUFFER_SIZE; i++) {
     if (buffer[i] != i % XFER_MAX_SIZE) {
       ESP_LOGE(TAG, "Read buffer contains error b=%x i=%x", buffer[i], i % XFER_MAX_SIZE);
-      print_buffer(buffer);
+      print_buffer(TAG, buffer.data(), buffer.size(), ESPHOME_LOG_LEVEL_INFO);
       status = false;
       break;
     }
