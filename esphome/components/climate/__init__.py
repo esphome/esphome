@@ -49,16 +49,16 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
     CONF_WEB_SERVER,
-    UNIT_CELSIUS,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    entity_temperature_unit,
+    entity_temperature_unit_of_id,
     queue_entity_register,
     setup_entity,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
@@ -158,30 +158,17 @@ def visual_temperature_step(value: Any) -> ConfigType:
     return {CONF_TARGET_TEMPERATURE: value, CONF_CURRENT_TEMPERATURE: value}
 
 
-def temperature_unit_of(config: ConfigType) -> str:
-    """The unit a climate reports in: ``unit_of_measurement`` when the platform took the option
-    through ``climate_schema``, else Celsius (anova has an unrelated option of that name)."""
-    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
-    return unit if unit in TEMPERATURE_UNITS else UNIT_CELSIUS
-
-
-def temperature_unit_of_id(climate_id: ID) -> str:
-    """The unit of the climate with this id, for actions that take static temperatures."""
-    path = CORE.config.get_path_for_id(climate_id)[:-1]
-    return temperature_unit_of(CORE.config.get_config_for_path(path))
-
-
 def temperature_in_entity_unit(
     config: ConfigType, value: tuple[float, str | None]
 ) -> str:
     """Render a static action temperature in the unit of the climate the action targets."""
-    unit = temperature_unit_of_id(config[CONF_ID])
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
     return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
 
 
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
     """Convert the visual temperatures into the entity's unit."""
-    unit = temperature_unit_of(config)
+    unit = entity_temperature_unit(config)
     visual = config[CONF_VISUAL]
     for key in (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE):
         if isinstance(value := visual.get(key), tuple):

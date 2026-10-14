@@ -1472,6 +1472,8 @@ def _temperature_to_celsius(value: float, unit: str, delta: bool) -> float:
         return value * (5 / 9) if delta else (value - 32) * (5 / 9)
     if unit == UNIT_KELVIN:
         return value if delta else value - 273.15
+    if unit != UNIT_CELSIUS:
+        raise ValueError(f"Unknown temperature unit {unit!r}")
     return value
 
 

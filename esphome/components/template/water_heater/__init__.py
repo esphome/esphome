@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import ID
+from esphome.core.entity_helpers import entity_temperature_unit_of_id
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType
@@ -154,7 +155,7 @@ async def water_heater_template_publish_to_code(
     await cg.register_parented(var, config[CONF_ID])
 
     # A static temperature is in the unit of the water heater it is published to
-    unit = water_heater.temperature_unit_of_id(config[CONF_ID])
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
     for key, setter in (
         (CONF_CURRENT_TEMPERATURE, var.set_current_temperature),
         (CONF_TARGET_TEMPERATURE, var.set_target_temperature),

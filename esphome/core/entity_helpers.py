@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import (
@@ -24,7 +25,7 @@ from esphome.core.config import (
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
-from esphome.cpp_types import App
+from esphome.cpp_types import TEMPERATURE_UNITS, App
 import esphome.final_validate as fv
 from esphome.helpers import (
     cpp_string_escape,
@@ -548,6 +549,19 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
         return config
 
     return inherit_property
+
+
+def entity_temperature_unit(config: ConfigType) -> str:
+    """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
+    the option through its schema factory, else Celsius (anova has an unrelated option of that name)."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    return unit if unit in TEMPERATURE_UNITS else UNIT_CELSIUS
+
+
+def entity_temperature_unit_of_id(entity_id: ID) -> str:
+    """The unit of the entity with this id, for actions that take static temperatures."""
+    path = CORE.config.get_path_for_id(entity_id)[:-1]
+    return entity_temperature_unit(CORE.config.get_config_for_path(path))
 
 
 def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigType]:

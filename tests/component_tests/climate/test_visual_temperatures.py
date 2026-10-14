@@ -4,7 +4,6 @@ import pytest
 
 from esphome.components.climate import (
     _visual_temperatures_in_entity_unit,
-    temperature_unit_of,
     visual_temperature_step,
 )
 from esphome.const import (
@@ -18,6 +17,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_FAHRENHEIT,
 )
+from esphome.core.entity_helpers import entity_temperature_unit
 
 
 def test_visual_temperature_step_scalar_applies_to_both() -> None:
@@ -67,9 +67,9 @@ def test_visual_temperatures_follow_unit_of_measurement() -> None:
 
 def test_platform_with_its_own_unit_option_keeps_celsius() -> None:
     # anova validates unit_of_measurement as c|f for the device, not for the entity
-    assert temperature_unit_of({CONF_UNIT_OF_MEASUREMENT: "f"}) == UNIT_CELSIUS
+    assert entity_temperature_unit({CONF_UNIT_OF_MEASUREMENT: "f"}) == UNIT_CELSIUS
     assert (
-        temperature_unit_of({CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT})
+        entity_temperature_unit({CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT})
         == UNIT_FAHRENHEIT
     )
 

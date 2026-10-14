@@ -8,16 +8,15 @@ from esphome.const import (
     CONF_MIN_TEMPERATURE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
-    UNIT_CELSIUS,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    entity_temperature_unit,
     queue_entity_register,
     setup_entity,
 )
 from esphome.cpp_generator import MockObjClass
-from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@dhoeben"]
@@ -45,22 +44,9 @@ WATER_HEATER_MODES = {
 validate_water_heater_mode = cv.enum(WATER_HEATER_MODES, upper=True)
 
 
-def temperature_unit_of(config: ConfigType) -> str:
-    """The unit a water heater reports in: ``unit_of_measurement`` when the platform took the
-    option through ``water_heater_schema``, else Celsius."""
-    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
-    return unit if unit in TEMPERATURE_UNITS else UNIT_CELSIUS
-
-
-def temperature_unit_of_id(water_heater_id: ID) -> str:
-    """The unit of the water heater with this id, for actions that take static temperatures."""
-    path = CORE.config.get_path_for_id(water_heater_id)[:-1]
-    return temperature_unit_of(CORE.config.get_config_for_path(path))
-
-
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
     """Convert the visual temperatures into the entity's unit."""
-    unit = temperature_unit_of(config)
+    unit = entity_temperature_unit(config)
     visual = config[CONF_VISUAL]
     for key in (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE):
         if isinstance(value := visual.get(key), tuple):

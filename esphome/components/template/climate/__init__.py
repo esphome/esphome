@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_LOW,
     CONF_UNIT_OF_MEASUREMENT,
 )
+from esphome.core.entity_helpers import entity_temperature_unit
 from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType
 
@@ -200,7 +201,7 @@ def _validate_initial_state(config: ConfigType) -> ConfigType:
             f"'{CONF_TARGET_HUMIDITY}' requires '{CONF_SUPPORTS_TARGET_HUMIDITY}' to be enabled",
             path=[CONF_INITIAL_STATE, CONF_TARGET_HUMIDITY],
         )
-    unit = climate.temperature_unit_of(config)
+    unit = entity_temperature_unit(config)
     for key in TEMPERATURE_KEYS:
         if isinstance(value := initial_state.get(key), tuple):
             initial_state[key] = cv.convert_temperature(*value, unit)
