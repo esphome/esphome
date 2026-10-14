@@ -14,8 +14,11 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_VISUAL,
     UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -572,6 +575,20 @@ def convert_temperature_keys(
     for key in keys:
         if isinstance(value := section.get(key), tuple):
             section[key] = cv.convert_temperature(*value, unit, delta=delta)
+
+
+def convert_visual_temperatures(
+    config: ConfigType, delta_keys: tuple[str, ...], delta_section: str | None = None
+) -> ConfigType:
+    """Convert a climate's or water heater's ``visual`` temperatures into the entity's unit. The
+    step keys are differences, found under ``delta_section`` when the domain nests them."""
+    unit = entity_temperature_unit(config)
+    visual = config[CONF_VISUAL]
+    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
+    section = visual if delta_section is None else visual.get(delta_section)
+    if section is not None:
+        convert_temperature_keys(section, delta_keys, unit, delta=True)
+    return config
 
 
 def temperature_in_entity_unit(

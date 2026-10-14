@@ -1,3 +1,5 @@
+from functools import partial
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -11,9 +13,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
-    convert_temperature_keys,
+    convert_visual_temperatures,
     entity_duplicate_validator,
-    entity_temperature_unit,
     queue_entity_register,
     setup_entity,
     setup_entity_temperature_unit,
@@ -46,12 +47,9 @@ WATER_HEATER_MODES = {
 validate_water_heater_mode = cv.enum(WATER_HEATER_MODES, upper=True)
 
 
-def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
-    unit = entity_temperature_unit(config)
-    visual = config[CONF_VISUAL]
-    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
-    convert_temperature_keys(visual, (CONF_TARGET_TEMPERATURE_STEP,), unit, delta=True)
-    return config
+_visual_temperatures_in_entity_unit = partial(
+    convert_visual_temperatures, delta_keys=(CONF_TARGET_TEMPERATURE_STEP,)
+)
 
 
 _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(

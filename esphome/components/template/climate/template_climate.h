@@ -26,8 +26,8 @@ class TemplateClimate final : public climate::Climate, public Component {
   void set_temperature_unit(TemperatureUnit unit) {
     this->traits_.set_temperature_unit(unit);
     // Keep the traits' default range in the chosen unit; visual overrides still apply on top
-    this->traits_.set_visual_min_temperature(celsius_to(DEFAULT_VISUAL_MIN_TEMPERATURE, unit));
-    this->traits_.set_visual_max_temperature(celsius_to(DEFAULT_VISUAL_MAX_TEMPERATURE, unit));
+    this->traits_.set_visual_min_temperature(celsius_to(climate::ClimateTraits::DEFAULT_VISUAL_MIN_TEMPERATURE, unit));
+    this->traits_.set_visual_max_temperature(celsius_to(climate::ClimateTraits::DEFAULT_VISUAL_MAX_TEMPERATURE, unit));
   }
 
 #ifdef USE_SENSOR
@@ -74,9 +74,6 @@ class TemplateClimate final : public climate::Climate, public Component {
  protected:
   void control(const climate::ClimateCall &call) override;
 
-  // The ClimateTraits defaults, in °C
-  static constexpr float DEFAULT_VISUAL_MIN_TEMPERATURE = 10.0f;
-  static constexpr float DEFAULT_VISUAL_MAX_TEMPERATURE = 30.0f;
   static constexpr float CELSIUS_TO_KELVIN = 273.15f;
   static constexpr float celsius_to(float celsius, TemperatureUnit unit) {
     if (unit == TemperatureUnit::FAHRENHEIT)

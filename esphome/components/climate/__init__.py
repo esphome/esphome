@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 from esphome import automation
@@ -54,9 +55,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
-    convert_temperature_keys,
+    convert_visual_temperatures,
     entity_duplicate_validator,
-    entity_temperature_unit,
     queue_entity_register,
     setup_entity,
     setup_entity_temperature_unit,
@@ -169,15 +169,11 @@ def visual_temperature_step(value: Any) -> ConfigType:
 templatable_temperature = cv.templatable(cv.temperature_with_unit)
 
 
-def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
-    unit = entity_temperature_unit(config)
-    visual = config[CONF_VISUAL]
-    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
-    if (step := visual.get(CONF_TEMPERATURE_STEP)) is not None:
-        convert_temperature_keys(
-            step, (CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE), unit, delta=True
-        )
-    return config
+_visual_temperatures_in_entity_unit = partial(
+    convert_visual_temperatures,
+    delta_keys=(CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE),
+    delta_section=CONF_TEMPERATURE_STEP,
+)
 
 
 _CLIMATE_SCHEMA = (
