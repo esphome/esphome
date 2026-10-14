@@ -1688,8 +1688,10 @@ def test_network_wifi_only_reconciles_end_to_end(
     assert "esp_wifi" not in excluded
     assert "wpa_supplicant" not in excluded
     assert "esp_phy" in excluded
-    # With wifi present mdns keeps its predefined interfaces.
-    assert "CONFIG_MDNS_PREDEF_NETIF_STA" not in sdkconfig
+    # mDNS keeps the Wi-Fi STA interface but drops the unused AP interface.
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_STA") is True
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_AP") is False
+    assert sdkconfig.get("CONFIG_MDNS_MAX_INTERFACES") == 1
     # WiFi stack stays enabled (no ethernet) and no Bluetooth requested.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
     assert "CONFIG_BT_ENABLED" not in sdkconfig
