@@ -25,21 +25,7 @@ void print_buffer(const uint8_t *data, size_t length) {
   }
 }
 
-static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
-                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
-static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
-                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
 using namespace weikai;
-// method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) {
-  if (reg == WKREG_GPDAT) {
-    return "GPDAT";
-  } else if (reg == WKREG_GPDIR) {
-    return "GPDIR";
-  } else {
-    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
-  }
-}
 enum RegType { REG = 0, FIFO = 1 };  ///< Register or FIFO
 
 /// @brief Computes the I²C bus's address used to access the component
@@ -72,11 +58,11 @@ uint8_t WeikaiRegisterI2C::read_reg() const {
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
     ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%u I2C_code:%d, buf=%02X", address,
-              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+              LOG_STR_ARG(reg_to_str(this->register_, comp_i2c->page1())), this->channel_, (int) error, value);
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%u I2C_code:%d, buf=%02X", address,
-             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+             LOG_STR_ARG(reg_to_str(this->register_, comp_i2c->page1())), this->channel_, (int) error, value);
   }
   return value;
 }
@@ -108,11 +94,11 @@ void WeikaiRegisterI2C::write_reg(uint8_t value) {
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%02X", address,
-              reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+              LOG_STR_ARG(reg_to_str(this->register_, comp_i2c->page1())), this->channel_, (int) error, value);
   } else {  // error
     this->comp_->status_set_warning();
     ESP_LOGE(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%d", address,
-             reg_to_str(this->register_, comp_i2c->page1()), this->channel_, (int) error, value);
+             LOG_STR_ARG(reg_to_str(this->register_, comp_i2c->page1())), this->channel_, (int) error, value);
   }
 }
 

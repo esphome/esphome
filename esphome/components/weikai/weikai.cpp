@@ -5,6 +5,7 @@
 
 #include "weikai.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::weikai {
 
@@ -53,19 +54,18 @@ void print_buffer(const uint8_t *data, size_t length) {
   }
 }
 
-static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
-                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
-static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
-                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
+PROGMEM_STRING_TABLE(RegNamesPage0, "GENA", "GRST", "GMUT", "SPAGE", "SCR", "LCR", "FCR", "SIER", "SIFR", "TFCNT",
+                     "RFCNT", "FSR", "LSR", "FDAT", "FWCR", "RS485");
+PROGMEM_STRING_TABLE(RegNamesPage1, "GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL", "FWTH",
+                     "FWTL", "XON1", "XOFF1", "SADR", "SAEN", "RTSDLY");
 
-// method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) {
+const LogString *reg_to_str(int reg, bool page1) {
   if (reg == WKREG_GPDAT) {
-    return "GPDAT";
+    return LOG_STR("GPDAT");
   } else if (reg == WKREG_GPDIR) {
-    return "GPDIR";
+    return LOG_STR("GPDIR");
   } else {
-    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
+    return page1 ? RegNamesPage1::get_log_str(reg & 0x0F, 0) : RegNamesPage0::get_log_str(reg & 0x0F, 0);
   }
 }
 
