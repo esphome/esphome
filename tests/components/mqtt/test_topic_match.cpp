@@ -61,8 +61,14 @@ TEST(MQTTTopicMatch, DollarTopicsSkipFirstLevelWildcards) {
   EXPECT_TRUE(topic_match("$SYS/broker", "$SYS/+"));
 }
 
-// A recursive walk used one stack frame per character; on the ESP32 a topic of about 250 characters overflowed
-// the loop task. The loop handles any length.
+TEST(MQTTTopicMatch, EdgeCases) {
+  EXPECT_TRUE(topic_match("", ""));
+  EXPECT_FALSE(topic_match("a", ""));
+  EXPECT_FALSE(topic_match("a/b", "a/b/#"));
+  EXPECT_TRUE(topic_match("a/$x", "a/+"));
+}
+
+// Recursion overflowed the ESP32 loop stack at about 250 characters
 TEST(MQTTTopicMatch, LongTopic) {
   std::string topic(4096, 'x');
   topic[100] = '/';
@@ -76,7 +82,7 @@ TEST(MQTTTopicMatch, MatchesPreviousImplementation) {
   // Small alphabet so wildcards, separators and '$' meet often
   static constexpr char MESSAGE_CHARS[] = {'a', 'b', '/', '$'};
   static constexpr char SUBSCRIPTION_CHARS[] = {'a', 'b', '/', '$', '+', '#'};
-  std::mt19937 rng(1234);
+  std::mt19937 rng(1234);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   auto random_string = [&rng](const char *chars, size_t count) {
     std::string s(rng() % 8, ' ');
     for (char &c : s)
