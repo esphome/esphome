@@ -28,8 +28,9 @@ from esphome.mqtt import get_esphome_device_ip, show_logs
     [
         None,
         {CONF_TOPIC: "test-device/status", CONF_PAYLOAD: "online", CONF_RETAIN: False},
+        {CONF_TOPIC: "test-device/status", CONF_PAYLOAD: "", CONF_RETAIN: True},
     ],
-    ids=["no birth message", "unretained birth message"],
+    ids=["no birth message", "unretained birth message", "empty birth payload"],
 )
 @patch("esphome.mqtt.initialize")
 def test_show_logs_asks_on_connect(
@@ -48,7 +49,7 @@ def test_show_logs_asks_on_connect(
     client.publish.assert_called_once_with(
         "esphome/logs/test-device", None, retain=False
     )
-    if birth is None:
+    if birth is None or not birth[CONF_PAYLOAD]:
         assert mock_initialize.call_args.args[1] == ["test-device/debug"]
 
 
@@ -76,13 +77,10 @@ def test_show_logs_requests_crash_log_when_device_reports_online(
     client = MagicMock()
     on_connect(client, None, None, 0)
     client.publish.assert_not_called()
-    client.message_callback_add.assert_called_once()
-    assert client.message_callback_add.call_args.args[0] == "test-device/status"
-    on_birth = client.message_callback_add.call_args.args[1]
 
-    on_birth(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
     client.publish.assert_not_called()
-    on_birth(client, None, MagicMock(topic="test-device/status", payload=b"online"))
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
     client.publish.assert_called_once_with(
         "esphome/logs/test-device", None, retain=False
     )
@@ -93,6 +91,30 @@ def test_show_logs_requests_crash_log_when_device_reports_online(
     )
     assert mock_print.call_args.args[0].endswith("[I][app]: hi")
     client.publish.assert_called_once()
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_logs_prints_a_birth_message_inside_the_log_subscription(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """A birth topic covered by the log topic is still printed, and still requests the crash log."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config, topic="test-device/#")
+
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device", None, retain=False
+    )
+    assert mock_print.call_args.args[0].endswith("online")
 
 
 def test_get_esphome_device_ip_empty_broker() -> None:

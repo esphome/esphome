@@ -324,10 +324,11 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
 
     logs_topic = f"esphome/logs/{config[CONF_ESPHOME][CONF_NAME]}"
     # Ask when the retained birth message reports online: a request sent while the device is down is
-    # lost, and only a retained message tells a CLI that connects later that the device is already up
+    # lost, and only a retained message tells a CLI that connects later that the device is already up.
+    # An empty payload deletes the retained message instead, so it counts as no birth message.
     birth = config.get(CONF_MQTT, {}).get(CONF_BIRTH_MESSAGE) or {}
-    birth_topic = birth.get(CONF_TOPIC)
     birth_payload = birth.get(CONF_PAYLOAD)
+    birth_topic = birth.get(CONF_TOPIC) if birth_payload else None
     ask_on_connect = birth_topic is None or not birth[CONF_RETAIN]
 
     def request_crash_log(client):
@@ -336,16 +337,14 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
 
     def on_message(client, userdata, msg):
         payload = msg.payload.decode(errors="backslashreplace")
-        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
-        safe_print(time_ + payload)
-
-    def on_birth(client, userdata, msg):
-        if msg.payload.decode(errors="backslashreplace") == birth_payload:
+        if msg.topic == birth_topic and payload == birth_payload:
             request_crash_log(client)
+        # The birth topic may sit inside the log subscription, so print by what was asked for
+        if mqtt.topic_matches_sub(topic, msg.topic):
+            time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
+            safe_print(time_ + payload)
 
     def on_connect(client, userdata, flags, return_code):
-        if birth_topic is not None:
-            client.message_callback_add(birth_topic, on_birth)
         if ask_on_connect:
             request_crash_log(client)
 

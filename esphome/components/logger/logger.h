@@ -178,6 +178,8 @@ class Logger final : public Component {
   void set_log_level(const char *tag, uint8_t log_level);
 #endif
   uint8_t get_log_level() { return this->current_level_; }
+  /// The level in force for a tag: its own when one is set, else the default
+  uint8_t get_log_level(const char *tag);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
