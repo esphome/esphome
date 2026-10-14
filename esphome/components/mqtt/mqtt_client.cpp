@@ -88,16 +88,8 @@ void MQTTClientComponent::setup() {
 #ifdef USE_CRASH_HANDLER
     // `esphome logs` announces itself here, like an API client's log subscription. A log topic that drops
     // errors would swallow the replay, and the ESP32 clears the record once replayed, so it is not offered.
-    if (logger::crash_log_pending() && this->log_level_ >= ESPHOME_LOG_LEVEL_ERROR) {
-      char topic[ESPHOME_TOPIC_BUFFER_SIZE];
-      format_esphome_topic(topic, "logs");
-      // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
-      // log for every line it logs
-      this->subscribe(topic, [](const std::string &, const std::string &payload) {
-        if (payload.empty())
-          logger::log_crash_to_client();
-      });
-    }
+    // The topic is rebuilt from the device name when needed, so nothing is stored for it.
+    this->crash_log_offered_ = logger::crash_log_pending() && this->log_level_ >= ESPHOME_LOG_LEVEL_ERROR;
 #endif
   }
 #endif
@@ -246,6 +238,9 @@ void MQTTClientComponent::start_dnslookup_() {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
+#ifdef USE_CRASH_HANDLER
+  this->crash_log_subscribed_ = false;
+#endif
 
   this->status_set_warning();
   this->dns_resolve_error_ = false;
@@ -476,6 +471,13 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
   for (auto &subscription : this->subscriptions_) {
     this->resubscribe_subscription_(&subscription);
   }
+#ifdef USE_CRASH_HANDLER
+  if (this->crash_log_offered_ && !this->crash_log_subscribed_ && logger::crash_log_pending()) {
+    char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+    format_esphome_topic(topic, "logs");
+    this->crash_log_subscribed_ = this->subscribe_(topic, 0);
+  }
+#endif
 }
 
 void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed,
@@ -676,9 +678,19 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // in simple tests but will cause crashes with complex automations.
   this->defer([this, topic, payload]() {
 #endif
-    // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
-    // vector, and the new entry waits for the next message.
-    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
+  // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
+  // vector, and the new entry waits for the next message.
+  // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
+#ifdef USE_CRASH_HANDLER
+    // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
+    // log for every line it logs
+    if (this->crash_log_offered_ && payload.empty()) {
+      char logs_topic[ESPHOME_TOPIC_BUFFER_SIZE];
+      format_esphome_topic(logs_topic, "logs");
+      if (topic == logs_topic)
+        logger::log_crash_to_client();
+    }
+#endif
     const bool was_dispatching = this->dispatching_;
     this->dispatching_ = true;
     const size_t count = this->subscriptions_.size();

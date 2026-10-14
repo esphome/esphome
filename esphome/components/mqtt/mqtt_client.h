@@ -370,6 +370,10 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
+#ifdef USE_CRASH_HANDLER
+  bool crash_log_offered_{false};
+  bool crash_log_subscribed_{false};
+#endif
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
