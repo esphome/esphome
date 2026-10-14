@@ -1,4 +1,7 @@
 #include "api_connection.h"
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+#include "esphome/components/logger/logger.h"
+#endif
 #ifdef USE_API
 #include "api_connection_buffer.h"  // for the APIServer-dependent APIConnection inlines
 #ifdef USE_API_NOISE
@@ -451,6 +454,15 @@ bool APIConnection::send_disconnect_response_() {
   DisconnectResponse resp;
   return this->send_message(resp);
 }
+void APIConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
+  this->flags_.log_subscription = msg.level;
+  if (msg.dump_config)
+    App.schedule_dump_config();
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+  logger::log_crash_to_client();
+#endif
+}
+
 void APIConnection::on_disconnect_response() {
   // Don't close socket here, let APIServer::loop() do it
   // so getpeername() still works for the disconnect trigger
