@@ -29,10 +29,12 @@ static const LogString *gyro_range_to_str(LSM6DSGyroRange range) {
 
 static const LogString *chip_name_from_who_am_i(uint8_t who_am_i) {
   switch (who_am_i) {
-    case 0x69:
+    case LSM6DS_WHO_AM_I_LSM6DS3:
       return LOG_STR("LSM6DS3");
-    case 0x6A:
+    case LSM6DS_WHO_AM_I_LSM6DS3TR_C:
       return LOG_STR("LSM6DS3TR-C");
+    case LSM6DS_WHO_AM_I_LSM6DSO:
+      return LOG_STR("LSM6DSO");
     default:
       return nullptr;
   }
@@ -54,6 +56,8 @@ void LSM6DSComponent::setup() {
   }
   ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", LOG_STR_ARG(chip_name), who_am_i);
   this->chip_name_ = chip_name;
+  if (who_am_i == LSM6DS_WHO_AM_I_LSM6DS3)
+    this->temperature_sensitivity_ = 16;
 
   // 2. Software reset — clears all registers to defaults
   if (this->write_register(LSM6DS_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1) != i2c::ERROR_OK) {
@@ -185,12 +189,12 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   //  Temperature (lazy — only read if a listener is registered)
   // Kept as a separate 2-byte read to avoid extending the burst to 14 bytes when
   // temperature is not needed.
-  // Formula: T(°C) = (raw / 256.0) + 25.0  (datasheet Table 90, OUT_TEMP register)
+  // Formula: T(°C) = raw / sensitivity + 25.0, sensitivity in LSB/°C per chip (0 LSB at 25 °C)
   if (!this->temperature_callback_.empty()) {
     uint8_t raw_t[2];
     if (this->read_bytes(LSM6DS_REG_OUT_TEMP_L, raw_t, 2)) {
       int16_t temp_raw = (int16_t) ((raw_t[1] << 8) | raw_t[0]);
-      float temperature = (temp_raw / 256.0f) + 25.0f;
+      float temperature = temp_raw / static_cast<float>(this->temperature_sensitivity_) + 25.0f;
       this->temperature_callback_.call(temperature);
     }
   }
