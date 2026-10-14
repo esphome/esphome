@@ -1180,8 +1180,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // the AP goes down and its setup runs again, which brings it back up through this event.
     if (esp_err_t err = esp_netif_napt_enable(s_ap_netif); err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to enable NAT: %s", esp_err_to_name(err));
-      this->ap_setup_ = false;
-      this->wifi_mode_({}, false);
+      this->fail_bridge_();
     }
 #endif
 
@@ -1369,9 +1368,8 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
       esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer, sizeof(dns_offer));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to enable DHCP DNS option: %s", esp_err_to_name(err));
-    return false;
   }
-  if (!this->write_ap_dns_())
+  if (err != ESP_OK || !this->write_ap_dns_())
     return false;
 #endif
 
@@ -1540,6 +1538,8 @@ static uint32_t ap_dns_to_offer(size_t i) {
 #endif
 }
 
+bool WiFiComponent::ap_dns_known_() { return ap_dns_to_offer(0) != 0; }
+
 bool WiFiComponent::write_ap_dns_() {
   bool ok = true;
   for (size_t i = 0; i < AP_DNS_COUNT; i++) {
@@ -1567,29 +1567,23 @@ void WiFiComponent::apply_ap_dns_() {
   // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
   // next lease. A resolver the station lost stays offered: set_dns_info rejects an empty address.
   bool changed = false;
-  for (size_t i = 0; i < AP_DNS_COUNT; i++) {
+  for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
     const uint32_t addr = ap_dns_to_offer(i);
     esp_netif_dns_info_t current{};
-    if (addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
-                      current.ip.u_addr.ip4.addr != addr)) {
-      changed = true;
-    }
+    changed =
+        addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
+                      current.ip.u_addr.ip4.addr != addr);
   }
   if (!changed)
     return;
-  // The DHCP server reads its resolvers only while stopped
-  esp_err_t err = esp_netif_dhcps_stop(s_ap_netif);
-  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    ESP_LOGW(TAG, "Failed to stop DHCP server: %s", esp_err_to_name(err));
-    return;
-  }
-  const bool written = this->write_ap_dns_();
-  err = esp_netif_dhcps_start(s_ap_netif);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Failed to restart DHCP server: %s", esp_err_to_name(err));
-  }
-  if (!written || err != ESP_OK)
-    this->ap_setup_ = false;  // the bridge goes through its setup again, which rewrites and restarts the server
+    // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
+#ifdef USE_WIFI_MANUAL_IP
+  const bool ok = this->wifi_ap_ip_config_(this->ap_.get_manual_ip());
+#else
+  const bool ok = this->wifi_ap_ip_config_({});
+#endif
+  if (!ok)
+    this->fail_bridge_();
 }
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS
 #endif  // USE_WIFI_AP_WISP

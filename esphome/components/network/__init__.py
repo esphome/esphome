@@ -237,6 +237,8 @@ def require_high_performance_wifi() -> None:
     NAT of a WISP access point: more RX/TX buffers, AMPDU aggregation and a deeper
     lwip input mailbox help every forwarded packet, while the larger TCP windows
     would only serve the device's own connections and cost internal RAM for nothing.
+    ``network: enable_high_performance: false`` turns the mailbox part off like the
+    lwip tier; the WiFi driver settings follow the component request alone.
     """
     CORE.data[KEY_HIGH_PERFORMANCE_WIFI] = True
 
@@ -535,8 +537,10 @@ async def to_code(config: ConfigType) -> None:
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", tcp_window)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", tcpip_mailbox)
-    elif CORE.is_esp32 and has_high_performance_wifi():
-        # Forwarded frames still queue through tcpip_input, so that mailbox grows with the driver buffers
+    elif (
+        CORE.is_esp32 and enable_high_perf is not False and has_high_performance_wifi()
+    ):
+        # Forwarded frames still queue through tcpip_input, so the WiFi-only tier deepens that mailbox too
         add_idf_sdkconfig_option(
             "CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", TCPIP_RECVMBOX_OPTIMIZED
         )

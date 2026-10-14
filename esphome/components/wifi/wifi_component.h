@@ -722,8 +722,12 @@ class WiFiComponent final : public Component {
 #endif  // USE_WIFI_AP
 
 #ifdef USE_WIFI_AP_WISP
-  /// Hand the AP DHCP server its resolvers, the configured ones or the station's; false when one could not be set
+  /// Whether there is an IPv4 resolver to offer AP clients: a configured one, or the station's
+  bool ap_dns_known_();
+  /// Hand the AP DHCP server its resolvers; false when one could not be set
   bool write_ap_dns_();
+  /// Take the bridge down so loop() runs its setup again after ap_timeout
+  void fail_bridge_();
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
   /// Pass the station's resolvers on to AP clients when they changed
   void apply_ap_dns_();

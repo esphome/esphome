@@ -923,13 +923,8 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_WIFI_AP_WISP
-      // The bridge comes up once the resolvers it offers are known; a start that failed is tried again after ap_timeout
-#ifdef USE_WIFI_AP_WISP_STATIC_DNS
-    const bool resolvers_known = true;
-#else
-    const bool resolvers_known = this->wifi_dns_ip_(0).is_set();
-#endif
-    if (!this->ap_setup_ && resolvers_known &&
+    // The bridge comes up once it has a resolver to offer; a start that failed is tried again after ap_timeout
+    if (!this->ap_setup_ && this->ap_dns_known_() &&
         (this->ap_changed_ == 0 || now - this->ap_changed_ > this->ap_timeout_)) {
       ESP_LOGI(TAG, "Starting AP");
       this->ap_changed_ = now;
@@ -1076,9 +1071,9 @@ void WiFiComponent::setup_ap_config_() {
     }
   }
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
-#ifdef USE_WIFI_AP_EXCLUSIVE
-  // A failed start must not leave the radio in AP mode, which would refuse
-  // the STA attempts until the next try.
+#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
+  // A failed start must not leave the radio in AP mode: on an exclusive radio it would refuse
+  // the STA attempts until the next try, and a bridge would take clients it cannot serve.
   if (!this->ap_setup_)
     this->wifi_mode_({}, false);
 #endif
@@ -1127,6 +1122,13 @@ void WiFiComponent::pause_exclusive_ap_() {
   this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
   this->num_retried_ = 0;
   this->start_initial_connection_();
+}
+#endif
+
+#ifdef USE_WIFI_AP_WISP
+void WiFiComponent::fail_bridge_() {
+  this->ap_setup_ = false;
+  this->wifi_mode_({}, false);
 }
 #endif
 
