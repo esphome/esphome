@@ -205,6 +205,10 @@ void Ecocomfort2Hub::publish_unknown_() {
       sensor->publish_state(NAN);
   }
 #endif
+#ifdef USE_BINARY_SENSOR
+  if (this->boost_binary_sensor_ != nullptr)
+    this->boost_binary_sensor_->invalidate_state();
+#endif
 }
 
 // C_OPER: mode byte, speed/flags byte
@@ -223,8 +227,9 @@ void Ecocomfort2Hub::on_oper_(const uint8_t *data, uint16_t len) {
 #endif
 }
 
-// C_STATE: bytes 0-1 the mode and speed the unit runs, with the boost and night flags in byte 1,
-// byte 2 the air flow direction, bytes 3-4 temperature and 5-6 humidity in hundredths, 7-8 VOC in ppb
+// C_STATE: bytes 0-1 the mode and speed the unit runs; byte 1 also has the boost flag (0x40) and the advanced
+// control step (0x20). Byte 2 the air flow direction, bytes 3-4 temperature and 5-6 humidity in hundredths,
+// 7-8 VOC in ppb
 void Ecocomfort2Hub::on_state_(const uint8_t *data, uint16_t len) {
   if (len < 9) {
     ESP_LOGW(TAG, "[%s] C_STATE too short: %u bytes", this->parent_->address_str(), len);
