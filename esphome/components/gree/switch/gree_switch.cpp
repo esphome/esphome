@@ -3,7 +3,7 @@
 
 namespace esphome::gree {
 
-static const char *const TAG = "gree.switch";
+ESPHOME_LOG_TAG(TAG, "gree.switch");
 
 void GreeFeatureSwitch::setup() {
   if (this->parent_->supports_feature_state_rx()) {

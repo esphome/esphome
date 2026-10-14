@@ -8,6 +8,10 @@ namespace esphome::mcp23xxx_base {
 
 enum MCP23XXXInterruptMode : uint8_t { MCP23XXX_NO_INTERRUPT = 0, MCP23XXX_CHANGE, MCP23XXX_RISING, MCP23XXX_FALLING };
 
+// Not a template member: GCC 10 (ESP8266) ignores section attributes on template instantiations, leaving the
+// ISR in flash.
+void IRAM_ATTR mcp23xxx_gpio_intr(Component *arg);
+
 template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander::CachedGpioExpander<uint8_t, N> {
  public:
   virtual void pin_mode(uint8_t pin, gpio::Flags flags);
@@ -35,7 +39,8 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
   void setup_interrupt_pin_() {
     if (this->interrupt_pin_ != nullptr) {
       this->interrupt_pin_->setup();
-      this->interrupt_pin_->attach_interrupt(&MCP23XXXBase::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+      this->interrupt_pin_->attach_interrupt(&mcp23xxx_gpio_intr, static_cast<Component *>(this),
+                                             gpio::INTERRUPT_FALLING_EDGE);
       this->set_invalidate_on_read_(false);
     }
     // Disable loop until an input pin is configured via pin_mode()
@@ -43,7 +48,6 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
     // For polling mode, loop is re-enabled when pin_mode() registers an input pin
     this->disable_loop();
   }
-  static void IRAM_ATTR gpio_intr(MCP23XXXBase *arg) { arg->enable_loop_soon_any_context(); }
 
   // read a given register
   virtual bool read_reg(uint8_t reg, uint8_t *value) = 0;

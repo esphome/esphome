@@ -4,7 +4,7 @@
 
 namespace esphome::atm90e26 {
 
-static const char *const TAG = "atm90e26";
+ESPHOME_LOG_TAG(TAG, "atm90e26");
 
 void ATM90E26Component::update() {
   if (this->read16_(ATM90E26_REGISTER_FUNCEN) != 0x0030) {

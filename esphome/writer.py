@@ -212,14 +212,11 @@ BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 BUILD_INFO_DATA_CPP_TARGET = "esphome/core/build_info_data.cpp"
 ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
 # Headers that must not be included bare from esphome.h or the clang-tidy
-# all-headers file: X-macro files, headers main.cpp includes itself, and
-# deprecated headers that only resolve when their new component is loaded.
+# all-headers file: X-macro files and headers main.cpp includes itself.
 ESPHOME_H_EXCLUDE = {
     Path(ENTITY_TYPES_H_TARGET),
     # main.cpp includes it after defining esphome_controllers()
     Path("esphome/core/controller_dispatch.h"),
-    # moved to components/ring_buffer/, removed in 2026.11.0
-    Path("esphome/core/ring_buffer.h"),
     # build machinery, not user API
     Path("esphome/core/pch_prefix.h"),
 }
@@ -611,10 +608,13 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
                 _LOGGER.info("Deleting %s", idf_path)
                 rmtree(idf_path)
         # The PlatformIO pch files live in the project root
-        from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES
+        from esphome.build_helpers.pch import PCH_ARTIFACT_DIRS, PCH_ARTIFACT_NAMES
 
         for name in PCH_ARTIFACT_NAMES:
             CORE.relative_build_path(name).unlink(missing_ok=True)
+        for name in PCH_ARTIFACT_DIRS:
+            if (pch_dir := CORE.relative_build_path(name)).is_dir():
+                rmtree(pch_dir)
 
     # idedata caches live under the data dir, not the build path; globbed
     # so a future backend suffix cannot drift out of clean-all

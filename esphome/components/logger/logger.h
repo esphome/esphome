@@ -12,6 +12,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "log_buffer.h"
 #include "task_log_buffer_host.h"
@@ -85,12 +86,16 @@ class LoggerLevelListener {
 };
 #endif
 
-#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-// Comparison function for const char* keys in log_levels_ map
-struct CStrCompare {
-  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+// RAM map keys compared with a tag that may be in PROGMEM, without copying it
+struct FlashTag {
+  const char *tag;
 };
-#endif
+struct CStrCompare {
+  using is_transparent = void;
+  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+  bool operator()(const char *key, FlashTag t) const { return ESPHOME_strcmp_P(key, t.tag) < 0; }
+  bool operator()(FlashTag t, const char *key) const { return ESPHOME_strcmp_P(key, t.tag) > 0; }
+};
 
 // Stack buffer size for retrieving thread/task names from the OS
 // macOS allows up to 64 bytes, Linux up to 16
@@ -488,6 +493,12 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
                              [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
                                auto *trigger = static_cast<LoggerMessageTrigger *>(self);
                                if (level <= trigger->level_) {
+#ifdef USE_ESP8266
+                                 // User lambdas may strcmp the tag, which may be in PROGMEM. The copy lives in
+                                 // the trigger so an automation that suspends (delay) still sees a valid tag.
+                                 ESPHOME_strncpy_P(trigger->ram_tag_, tag, MAX_TAG_LENGTH);
+                                 tag = trigger->ram_tag_;
+#endif
                                  trigger->trigger(level, tag, message);
                                }
                              });
@@ -495,6 +506,9 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 
  protected:
   uint8_t level_;
+#ifdef USE_ESP8266
+  char ram_tag_[MAX_TAG_LENGTH + 1]{};
+#endif
 };
 
 }  // namespace esphome::logger

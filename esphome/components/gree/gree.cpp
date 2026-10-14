@@ -3,7 +3,7 @@
 
 namespace esphome::gree {
 
-static const char *const TAG = "gree.climate";
+ESPHOME_LOG_TAG(TAG, "gree.climate");
 
 static constexpr uint8_t GREE_MODE_MASK = 0x07;
 static constexpr uint8_t GREE_POWER_MASK = 0x08;
@@ -28,9 +28,7 @@ static constexpr uint8_t supported_feature_mask(Model model) {
   return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_MODEL_A_BIT | GREE_XFAN_BIT;
 }
 
-static constexpr uint8_t default_feature_bits(Model model) {
-  return model == GREE_YB1FA || model == GREE_YX1FF ? GREE_LIGHT_BIT : 0;
-}
+static constexpr uint8_t default_feature_bits(Model model) { return supported_feature_mask(model) & GREE_LIGHT_BIT; }
 
 static bool is_valid_timer(const GreeState &state) {
   const uint8_t timer_hours = state[2] & GREE_TIMER_HOURS_MASK;

@@ -17,7 +17,7 @@
 
 namespace esphome::usb_cdc_acm {
 
-static const char *const TAG = "usb_cdc_acm";
+ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 
 // Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t USB_CDC_MAX_LOG_BYTES = 168;

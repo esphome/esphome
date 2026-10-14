@@ -3,7 +3,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.switch";
+ESPHOME_LOG_TAG(TAG, "template.switch");
 
 TemplateSwitch::TemplateSwitch() = default;
 

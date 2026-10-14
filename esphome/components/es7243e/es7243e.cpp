@@ -8,7 +8,7 @@
 
 namespace esphome::es7243e {
 
-static const char *const TAG = "es7243e";
+ESPHOME_LOG_TAG(TAG, "es7243e");
 
 // Mark the component as failed; use only in setup
 #define ES7243E_ERROR_FAILED(func) \

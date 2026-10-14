@@ -69,7 +69,9 @@ CONFIG_SCHEMA = cv.Schema(
             cv.Optional(key): switch.switch_schema(
                 GreeFeatureSwitch,
                 icon=icon,
-                default_restore_mode="RESTORE_DEFAULT_OFF",
+                default_restore_mode=(
+                    "RESTORE_DEFAULT_ON" if key == CONF_LIGHT else "RESTORE_DEFAULT_OFF"
+                ),
                 device_class=DEVICE_CLASS_SWITCH,
                 entity_category=ENTITY_CATEGORY_CONFIG,
             )
