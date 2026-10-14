@@ -86,8 +86,9 @@ void MQTTClientComponent::setup() {
           static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
         });
 #ifdef USE_CRASH_HANDLER
-    // `esphome logs` announces itself here, like an API client's log subscription
-    if (logger::crash_log_pending()) {
+    // `esphome logs` announces itself here, like an API client's log subscription. A log topic that drops
+    // errors would swallow the replay, and the ESP32 clears the record once replayed, so it is not offered.
+    if (logger::crash_log_pending() && this->log_level_ >= ESPHOME_LOG_LEVEL_ERROR) {
       char topic[ESPHOME_TOPIC_BUFFER_SIZE];
       format_esphome_topic(topic, "logs");
       // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash

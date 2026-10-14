@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import paho.mqtt.client as mqtt
 
 from esphome.const import (
+    CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
     CONF_CLIENT_CERTIFICATE,
@@ -21,6 +22,7 @@ from esphome.const import (
     CONF_MQTT,
     CONF_NAME,
     CONF_PASSWORD,
+    CONF_PAYLOAD,
     CONF_PORT,
     CONF_SKIP_CERT_CN_CHECK,
     CONF_TOPIC,
@@ -319,19 +321,34 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         return 1
     _LOGGER.info("Starting log output from %s", topic)
 
-    def on_message(client, userdata, msg):
-        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
-        payload = msg.payload.decode(errors="backslashreplace")
-        message = time_ + payload
-        safe_print(message)
+    name = config[CONF_ESPHOME][CONF_NAME]
+    logs_topic = f"esphome/logs/{name}"
+    # The retained birth message says whether the device is online now and again after every boot,
+    # so the crash log is requested from it; a request sent while the device is down would be lost
+    birth = config.get(CONF_MQTT, {}).get(CONF_BIRTH_MESSAGE) or {}
+    birth_topic = birth.get(CONF_TOPIC)
+    birth_payload = birth.get(CONF_PAYLOAD)
 
-    def on_connect(client, userdata, flags, return_code):
-        logs_topic = f"esphome/logs/{config[CONF_ESPHOME][CONF_NAME]}"
+    def request_crash_log(client):
         _LOGGER.debug("Requesting the crash log via topic: %s", logs_topic)
         client.publish(logs_topic, None, retain=False)
 
+    def on_message(client, userdata, msg):
+        payload = msg.payload.decode(errors="backslashreplace")
+        if msg.topic == birth_topic:
+            if payload == birth_payload:
+                request_crash_log(client)
+            return
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
+        safe_print(time_ + payload)
+
+    def on_connect(client, userdata, flags, return_code):
+        if birth_topic is None:
+            request_crash_log(client)
+
+    subscriptions = [topic] if birth_topic is None else [topic, birth_topic]
     return initialize(
-        config, [topic], on_message, on_connect, username, password, client_id
+        config, subscriptions, on_message, on_connect, username, password, client_id
     )
 
 

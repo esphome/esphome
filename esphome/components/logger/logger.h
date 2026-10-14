@@ -514,8 +514,8 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 #ifdef USE_CRASH_HANDLER
 /// Whether a crash record from before this boot is waiting to be reported
 bool crash_log_pending();
-/// Log the previous crash for a client that just subscribed to the logs. The ESP32 keeps the
-/// record until a client has seen it, so there this also clears it.
+/// Log the previous crash for a client that just subscribed to the logs. On the ESP32 the record
+/// is kept until a client has seen it, so this call also clears it there.
 void log_crash_to_client();
 #endif
 
