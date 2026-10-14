@@ -133,9 +133,9 @@ class EPaperBase : public Display,
   bool rotate_coordinates_(int &x, int &y);
   void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                           bool big_endian, int x_offset, int y_offset, int x_pad);
-  // Bits per pixel of the buffer when it is a plain row-major packed layout, else 0 (gated or planar
-  // layouts the generic write paths cannot address). Only a value of 1 enables the direct write paths
-  // today; other values are informational, so do not read this as a universal pixel depth.
+  // Bits per pixel for a driver that stores the frame as one packed buffer; 0 for layouts that are not
+  // one packed buffer, such as separate colour planes. Only a value of 1 enables the direct write paths
+  // today, so do not treat other values as a general pixel depth.
   virtual uint8_t buffer_bits_per_pixel() const { return 0; }
 
   /**
