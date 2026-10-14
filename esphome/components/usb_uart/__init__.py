@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
-from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
+from esphome.components.uart import (
+    CONF_DEBUG_PREFIX,
+    CONF_FLUSH_TIMEOUT,
+    UARTComponent,
+    UARTParityOptions,
+    mark_unclocked,
+)
 from esphome.components.usb_host import (
     get_max_packet_size,
     register_usb_client,
@@ -39,7 +45,6 @@ def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
     )
 
 
-UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
     "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
@@ -158,7 +163,9 @@ def channel_schema(type_: "Type") -> cv.Schema:
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.All(
+                                cv.declare_id(USBUartChannel), mark_unclocked
+                            ),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),

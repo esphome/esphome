@@ -1256,6 +1256,16 @@ static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len);
 
+/// Length of the suffix name_add_mac_suffix appends: "-" plus 6 characters of the MAC address
+static constexpr size_t MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN = 7;
+
+/// Copy a name into a buffer, cutting it when it does not fit.
+/// A name that is cut keeps its last keep_suffix_len characters (for example a MAC suffix) and loses
+/// the middle instead; pass 0 to cut the end.
+/// @param buffer Output buffer; holds at most buffer_size - 1 characters plus the null terminator
+/// @return Length written (excluding null terminator)
+size_t truncate_name_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, size_t keep_suffix_len);
+
 ///@}
 
 /// @name Parsing & formatting
@@ -1289,13 +1299,11 @@ template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T
 optional<T> parse_number(const std::string &str) {
   return parse_number<T>(str.c_str());
 }
+/// Parse a decimal floating-point number; plain decimals skip the libc parser.
+optional<float> parse_float(const char *str);
 /// Parse a decimal floating-point number from a null-terminated string.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
-  char *end = nullptr;
-  float value = ::strtof(str, &end);
-  if (end == str || *end != '\0' || value == HUGE_VALF)
-    return {};
-  return value;
+  return parse_float(str);
 }
 /// Parse a decimal floating-point number.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
@@ -2214,7 +2222,7 @@ template<class T> class RAMAllocator {
     T *ptr = nullptr;
 #ifdef USE_ESP32
     const auto caps = this->get_caps_();
-    ptr = static_cast<T *>(heap_caps_malloc_prefer(size, 2, caps[0], caps[1]));
+    ptr = static_cast<T *>(heap_caps_malloc_prefer(size, caps.num, caps.primary, caps.fallback));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2229,7 +2237,7 @@ template<class T> class RAMAllocator {
     T *ptr = nullptr;
 #ifdef USE_ESP32
     const auto caps = this->get_caps_();
-    ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, 2, caps[0], caps[1]));
+    ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, caps.num, caps.primary, caps.fallback));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(realloc(p, size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2301,12 +2309,21 @@ template<class T> class RAMAllocator {
 
  private:
 #ifdef USE_ESP32
-  /// Returns {primary_caps, fallback_caps} for heap_caps_*_prefer based on the configured flags.
+  struct Caps {
+    uint32_t primary;
+    uint32_t fallback;
+    uint8_t num;  // distinct capability sets to hand to heap_caps_*_prefer
+    constexpr Caps(uint32_t primary_caps, uint32_t fallback_caps)
+        : primary(primary_caps), fallback(fallback_caps), num(primary_caps == fallback_caps ? 1 : 2) {}
+  };
+
+  /// Returns the capability sets for heap_caps_*_prefer based on the configured flags.
   /// PREFER_INTERNAL implies both regions are enabled (enforced by the constructor), so when it is set
   /// the primary is internal and the fallback is external. Otherwise the primary is whichever region
-  /// is enabled (external preferred when both are enabled), and the fallback is the other region (or
-  /// the same region when only one is enabled, making the second attempt a no-op).
-  std::array<uint32_t, 2> get_caps_() const {
+  /// is enabled (external preferred when both are enabled), and the fallback is the other region (or the
+  /// same region when only one is enabled). With a single region enabled num is 1, so the duplicate
+  /// fallback is never searched.
+  constexpr Caps get_caps_() const {
     constexpr uint32_t external_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     constexpr uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     if (this->flags_ & PREFER_INTERNAL) {

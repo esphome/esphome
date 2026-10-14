@@ -1,5 +1,6 @@
 #include "noise_handshake.h"
 #ifdef USE_NOISE
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -111,6 +112,8 @@ int NoiseResponderHandshake::read_message(uint8_t *data, size_t len) {
 
 int NoiseResponderHandshake::write_message(uint8_t *out, size_t capacity, size_t &out_len) {
   out_len = 0;
+  // The key agreement cannot be split across loop passes
+  UnavoidableBlockingScope scope;
   CpuFrequencyBoost boost;
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);

@@ -202,9 +202,10 @@ void CSE7766Component::parse_data_() {
       float pf = NAN;
       if (apparent_power > 0) {
         pf = power / apparent_power;
-        if (pf < 0 || pf > 1) {
-          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
-          pf = NAN;
+        if (pf > 1) {
+          // Noise near the chip's resolution limit, seen during inrush, pushes the ratio past unity
+          ESP_LOGD(TAG, "Power factor %.4f above 1, clamped", pf);
+          pf = 1.0f;
         }
       } else if (apparent_power == 0 && power == 0) {
         // No load, report ideal power factor
