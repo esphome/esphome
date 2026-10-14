@@ -54,7 +54,7 @@ bool EpaperWaveshare::reset() {
   // Resetting the controller restarts the alternation between the two RAM banks, so a partial
   // update would compare the new image against the wrong bank and leave stale pixels behind.
   if (this->must_keep_base_image_())
-    return EPaperBase::reset();
+    return this->hardware_reset_();
   return EPaperMono::reset();
 }
 }  // namespace esphome::epaper_spi

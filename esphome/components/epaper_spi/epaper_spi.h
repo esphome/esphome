@@ -125,6 +125,8 @@ class EPaperBase : public Display,
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
+  /// The reset pin part of reset(), for a driver that must skip what its parent adds to it
+  bool hardware_reset_();
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
