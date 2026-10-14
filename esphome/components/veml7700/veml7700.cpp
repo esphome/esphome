@@ -1,6 +1,7 @@
 #include "veml7700.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <limits>
 
 namespace esphome::veml7700 {
@@ -72,9 +73,10 @@ static float get_gain_coeff(Gain gain) {
   return GAIN_FLOAT[gain & 0b11];
 }
 
-static const char *get_gain_str(Gain gain) {
-  static const char *gain_str[GAINS_COUNT] = {"1x", "2x", "1/8x", "1/4x"};
-  return gain_str[gain & 0b11];
+PROGMEM_STRING_TABLE(GainStrings, "1x", "2x", "1/8x", "1/4x");
+
+static const LogString *get_gain_str(Gain gain) {
+  return GainStrings::get_log_str(gain & 0b11, GainStrings::LAST_INDEX);
 }
 
 void VEML7700Component::setup() {
@@ -94,7 +96,7 @@ void VEML7700Component::dump_config() {
     ESP_LOGCONFIG(TAG,
                   "  Gain: %s\n"
                   "  Integration time: %d ms",
-                  get_gain_str(this->gain_), get_itime_ms(this->integration_time_));
+                  LOG_STR_ARG(get_gain_str(this->gain_)), get_itime_ms(this->integration_time_));
   }
   ESP_LOGCONFIG(TAG,
                 "  Lux compensation: %s\n"
@@ -258,7 +260,7 @@ ErrorCode VEML7700Component::configure_() {
 }
 
 ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Gain gain, bool shutdown) {
-  ESP_LOGV(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), get_gain_str(gain),
+  ESP_LOGV(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), LOG_STR_ARG(get_gain_str(gain)),
            shutdown ? LOG_STR_LITERAL("Shutting down") : LOG_STR_LITERAL("Turning back on"));
 
   ConfigurationRegister als_conf{0};
@@ -298,7 +300,7 @@ ErrorCode VEML7700Component::read_sensor_output_(Readings &data) {
   data.actual_gain = conf.ALS_GAIN;
 
   ESP_LOGV(TAG, "Data from sensors: ALS = %d, WHITE = %d, Gain = %s, Time = %d ms", data.als_counts, data.white_counts,
-           get_gain_str(data.actual_gain), get_itime_ms(data.actual_time));
+           LOG_STR_ARG(get_gain_str(data.actual_gain)), get_itime_ms(data.actual_time));
   return std::max(als_err, white_err);
 }
 
@@ -355,8 +357,8 @@ void VEML7700Component::apply_lux_calculation_(Readings &data) {
   static const float MAX_LX_RESOLUTION = 0.0036f;
   float lux_resolution = (MAX_ITIME_MS / (float) get_itime_ms(data.actual_time)) *
                          (MAX_GAIN / get_gain_coeff(data.actual_gain)) * MAX_LX_RESOLUTION;
-  ESP_LOGV(TAG, "Lux resolution for (%d, %s) = %.4f ", get_itime_ms(data.actual_time), get_gain_str(data.actual_gain),
-           lux_resolution);
+  ESP_LOGV(TAG, "Lux resolution for (%d, %s) = %.4f ", get_itime_ms(data.actual_time),
+           LOG_STR_ARG(get_gain_str(data.actual_gain)), lux_resolution);
 
   data.als_lux = lux_resolution * (float) data.als_counts;
   data.white_lux = lux_resolution * (float) data.white_counts;
