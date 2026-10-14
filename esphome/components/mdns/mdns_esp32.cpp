@@ -103,8 +103,9 @@ bool MDNSComponent::publish_network_txt_(const char *network) {
 
 void MDNSComponent::setup() {
   this->setup_buffers_and_register_(register_esp32);
-#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
-  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS, [this]() { this->update_network_txt_(); });
+#if defined(USE_MDNS_DYNAMIC_NETWORK_TXT) && !defined(USE_MDNS_ACTIVE_INTERFACE_LISTENER)
+  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS,
+                     [this]() { this->update_network_txt_(this->connected_network_()); });
 #endif
 }
 

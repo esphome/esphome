@@ -32,10 +32,11 @@
 #define USE_MDNS_DEVICE_INFO_TXT
 #endif
 
-// With both wifi and ethernet, the _esphomelib "network" TXT value follows the connected interface.
-// OpenThread hands its services to the SRP client once, so it keeps the fixed value.
-#if defined(USE_API) && defined(USE_WIFI) && defined(USE_ETHERNET) && !defined(USE_OPENTHREAD)
-#define USE_MDNS_DYNAMIC_NETWORK_TXT
+// USE_MDNS_DYNAMIC_NETWORK_TXT (wifi + ethernet + api): the _esphomelib "network" TXT value follows the
+// connected interface. With USE_MDNS_ACTIVE_INTERFACE_LISTENER (ESP32) the network component reports
+// default route changes; otherwise the value is checked every NETWORK_TXT_CHECK_INTERVAL_MS.
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+#include "esphome/components/network/network_component.h"
 #endif
 
 namespace esphome::mdns {
@@ -78,6 +79,10 @@ class MDNSComponent final : public Component
 #ifdef USE_MDNS_ETHERNET_LISTENER
     ,
                             public ethernet::EthernetIPStateListener
+#endif
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+    ,
+                            public network::ActiveInterfaceListener
 #endif
 {
  public:
@@ -140,6 +145,10 @@ class MDNSComponent final : public Component
   }
 #endif
 
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+  void on_active_interface(network::NetworkInterface interface) override;
+#endif
+
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
                    const network::IPAddress &dns2) override;
@@ -160,8 +169,8 @@ class MDNSComponent final : public Component
   static constexpr uint32_t NETWORK_TXT_CHECK_INTERVAL_MS = 1000;
   /// The first connected interface in network: priority order ("ethernet" or "wifi"), else nullptr.
   const char *connected_network_() const;
-  /// Check the connected interface and publish a changed "network" TXT value.
-  void update_network_txt_();
+  /// Publish network as the "network" TXT value if it changed; nullptr keeps the current value.
+  void update_network_txt_(const char *network);
   /// Platform-specific: replace the "network" TXT value of the registered _esphomelib service.
   bool publish_network_txt_(const char *network);
   /// Advertised value; nullptr until the _esphomelib service is registered, and after a failed publish.

@@ -4,7 +4,7 @@ dependencies:
   esphome/dlms_parser:
     version: 2.2.0
   esphome/esp-audio-libs:
-    version: 4.0.1
+    version: 4.1.0
   esphome/esp-micro-speech-features:
     version: 1.2.3
   esphome/micro-decoder:
@@ -85,6 +85,9 @@ dependencies:
     version: "1.1.0"
     rules:
       - if: "idf_version >=6.0.0"
+  # Keep in sync with esphome/components/ethernet/__init__.py
+  espressif/ch390:
+    version: "0.3.0"
   espressif/esp_tinyusb:
     version: "2.2.1"
     rules:
