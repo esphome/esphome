@@ -185,7 +185,6 @@ class ESP32BLE final : public Component {
     }
     this->ble_events_.get_and_reset_dropped_count();
   }
-  bool ble_pre_setup_();
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
 #endif
