@@ -403,6 +403,9 @@ message WizardCapabilities {
 message SendspinCapabilities {
   // Bitmask of the Sendspin features this device supports
   uint32 feature_flags = 1;
+  // The Sendspin client_id: base64url of the client's static public key, 43 characters.
+  // Empty until the Sendspin client has started once since boot.
+  string client_id = 2 [(max_data_length) = 43];
 }
 
 message DeviceCapabilitiesResponse {
