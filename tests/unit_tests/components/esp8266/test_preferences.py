@@ -41,10 +41,10 @@ def test_preference_words_rounds_up_and_adds_the_checksum(
     [
         # 25 words each: 3 in the 78-word region and 1 in the 32-word one
         (False, False, 4, "RTC memory has 110"),
-        # 125 of 128 flash words
         (False, None, 4, "RTC memory has 110"),
         # an explicit RTC value stays in RTC whatever restore_from_flash says
         (True, False, 4, "RTC memory has 110"),
+        # 125 of 128 flash words, by the two-argument default or explicitly
         (True, None, 5, "flash store has 128"),
         (True, True, 5, "flash store has 128"),
         # explicit flash values without restore_from_flash use the 64-word store

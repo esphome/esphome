@@ -98,7 +98,7 @@ async def check_preferences_fit() -> None:
         raise EsphomeError(
             f"Saved values need {sum(rtc_values)} words but ESP8266 RTC memory has {PREFERENCES_RTC_WORDS} in "
             f"regions of {PREFERENCES_RTC_NORMAL_WORDS} and {PREFERENCES_RTC_EBOOT_WORDS} that a value cannot "
-            "span; use fewer or smaller saved values, or set restore_from_flash: true"
+            "span; use fewer or smaller saved values, or store them in flash"
         )
     if sum(rtc_values) > PREFERENCES_RTC_NORMAL_WORDS:
         _LOGGER.warning(
