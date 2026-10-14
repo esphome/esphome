@@ -8,6 +8,7 @@ from typing import Any
 from esphome.core import (
     CORE,
     ID,
+    LINE_DIRECTIVE_RESET,
     Define,
     EnumValue,
     EsphomeError,
@@ -214,9 +215,13 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
+        body = f"{self.content}\n"
         if self.source is not None:
-            cpp += f"{self.source.as_line_directive}\n"
-        cpp += f"{self.content}\n}}"
+            body = f"{self.source.as_line_directive}\n{body}"
+        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
+        if "#line " in body:
+            body += f"{LINE_DIRECTIVE_RESET}\n"
+        cpp += f"{body}}}"
         return indent_all_but_first_and_last(cpp)
 
     @property
@@ -538,6 +543,19 @@ def shared_progmem_array(
     if share:
         arrays[key] = array
     return array
+
+
+def shared_progmem_string(value: str) -> Expression:
+    """Return a string that stays in flash: one shared PROGMEM array per text on ESP8266.
+
+    Other platforms keep string literals in flash already, so they get the plain literal.
+    """
+    from esphome.cpp_types import char
+
+    text = StringLiteral(value)
+    if CORE.is_esp8266:
+        return shared_progmem_array("progmem_str", char, text)
+    return text
 
 
 def static_const_array(id_, rhs) -> "MockObj":
@@ -933,8 +951,7 @@ async def process_lambda(
         parts[i * 3 + 2] = ""
 
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
-        location = value.esp_range.start_mark
-        location.line += value.content_offset
+        location = value.content_start
     else:
         location = None
     return LambdaExpression(parts, parameters, capture, return_type, location)

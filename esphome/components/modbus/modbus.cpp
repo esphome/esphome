@@ -950,7 +950,7 @@ bool ModbusDeviceCommand::sent() {
   // on_sent() is not a terminal, so nothing is consumed.
   if (this->device == nullptr)
     return false;
-  this->device->on_sent(this->frame.pdu());
+  this->device->on_sent(this->frame.address(), this->frame.pdu());
   return true;
 }
 
@@ -958,7 +958,7 @@ bool ModbusDeviceCommand::notify_retired() {
   if (!this->decrement_pending())
     return false;  // nothing owed - stop the sweep draining this entry
   if (this->device != nullptr)
-    this->device->on_not_sent(this->frame.pdu());
+    this->device->on_not_sent(this->frame.address(), this->frame.pdu());
   return true;  // consumed one debt (delivered, or silent when device-less) - keep draining to zero
 }
 
@@ -969,7 +969,7 @@ bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
     this->decrement_pending();
   if (this->device == nullptr)
     return false;
-  this->device->on_response(this->frame.pdu(), response_pdu);
+  this->device->on_response(this->frame.address(), this->frame.pdu(), response_pdu);
   return true;
 }
 
@@ -979,7 +979,7 @@ bool ModbusDeviceCommand::error(ExceptionCode exception_code) {
   this->decrement_pending();
   if (this->device == nullptr)
     return false;
-  this->device->on_error(this->frame.pdu(), exception_code);
+  this->device->on_error(this->frame.address(), this->frame.pdu(), exception_code);
   return true;
 }
 
@@ -1004,7 +1004,7 @@ bool ModbusDeviceCommand::timed_out() {
     return false;  // resolved, no one to tell
   // A cleared frame that timed out still honors a retry: the clear is address-scoped (any device may
   // call it) while the retry is the owning device's call via on_no_response - the bus obeys the owner.
-  if (this->device->on_no_response(this->frame.pdu()))
+  if (this->device->on_no_response(this->frame.address(), this->frame.pdu()))
     this->increment_pending();  // granted retry = re-request (capped)
   return true;
 }
