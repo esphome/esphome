@@ -15,8 +15,8 @@ static constexpr uint32_t HIGH_BIT_MIN_US = 400;  // shortest low period of a lo
 static constexpr uint32_t HIGH_BIT_US = 600;      // nominal low period of a logical 1
 static constexpr uint32_t LOW_BIT_US = 1500;      // nominal low period of a logical 0
 static constexpr uint32_t SAFE_SAMPLE_US = 1050;  // the line is sampled here; a longer low period is a logical 0
-static constexpr uint32_t TOTAL_BIT_US = CECTransmit::TOTAL_BIT_US;
-static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_RECEIVE = CECTransmit::SIGNAL_FREE_TIME_NEW_INITIATOR;
+static constexpr uint32_t TOTAL_BIT_US = 2400;
+static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_RECEIVE = TOTAL_BIT_US * 5;  // also for a new initiator
 static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_FAIL = TOTAL_BIT_US * 3;
 static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = TOTAL_BIT_US * 7;
 static constexpr uint32_t ABORTED_FRAME_US = TOTAL_BIT_US * 15;  // no edge for this long: our frame was cut short
@@ -31,8 +31,10 @@ Frame::Frame(uint8_t initiator_addr, uint8_t destination_addr, std::span<const u
 void HDMICEC::setup() {
   // The line is open drain with a weak pull-up: driven low to send, released to read
   this->pin_->setup();
-  this->xmit_.setup(this->pin_->to_isr());
-  this->recv_.setup(this->pin_, this);
+  this->isr_pin_ = this->pin_->to_isr();
+  this->set_pin_input_high_();
+  this->required_idle_period_ = SIGNAL_FREE_TIME_AFTER_RECEIVE;
+  this->pin_->attach_interrupt(HDMICEC::gpio_isr_s, this, gpio::INTERRUPT_ANY_EDGE);
   // loop() only has work once the interrupt queues a frame or send() queues one
   this->disable_loop();
 }
@@ -43,18 +45,20 @@ void HDMICEC::dump_config() {
                 "  Address: 0x%X\n"
                 "  Monitor mode: %s\n"
                 "  Promiscuous mode: %s",
-                this->recv_.address(), YESNO(this->recv_.get_monitor_mode()),
-                YESNO(this->recv_.get_promiscuous_mode()));
+                this->address_, YESNO(this->monitor_mode_), YESNO(this->promiscuous_mode_));
   LOG_PIN("  Pin: ", this->pin_);
 }
 
 void HDMICEC::loop() {
-  if (const uint8_t dropped = this->recv_.take_dropped_frames(); dropped != 0) {
-    ESP_LOGW(TAG, "%u received frame%s dropped (queue full or oversized)", dropped,
-             dropped > 1 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(""));
+  const uint8_t dropped = atomic_get(this->dropped_frames_);
+  if (dropped != this->reported_dropped_frames_) {
+    ESP_LOGW(TAG, "%u received frame%s dropped (queue full or oversized)",
+             static_cast<uint8_t>(dropped - this->reported_dropped_frames_),
+             dropped - this->reported_dropped_frames_ == 1 ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("s"));
+    this->reported_dropped_frames_ = dropped;
   }
   // One inbound frame per pass keeps the time spent in the automations bounded
-  if (const Frame *frame = this->recv_.next_frame()) {
+  if (const Frame *frame = this->frames_queue_.front()) {
 #ifdef ESPHOME_LOG_HAS_DEBUG
     char line[format_hex_pretty_size(Frame::MAX_LENGTH)];
     ESP_LOGD(TAG, "Received: %s", format_hex_pretty_to(line, frame->bytes().data(), frame->size()));
@@ -62,18 +66,18 @@ void HDMICEC::loop() {
 #ifdef HDMI_CEC_MESSAGE_CALLBACK_COUNT
     this->message_callbacks_.call(frame->initiator_addr(), frame->destination_addr(), frame->payload());
 #endif
-    this->recv_.pop_frame();
+    this->frames_queue_.pop_front();
   }
-  if (!this->xmit_.is_idle()) {
-    this->xmit_.transmit_message();
+  if (!this->is_transmit_idle_()) {
+    this->transmit_message_();
   }
-  if (this->recv_.next_frame() == nullptr && this->xmit_.is_idle()) {
+  if (this->frames_queue_.is_empty() && this->is_transmit_idle_()) {
     this->disable_loop();
   }
 }
 
 bool HDMICEC::send(uint8_t source, uint8_t destination, std::span<const uint8_t> payload) {
-  if (this->recv_.get_monitor_mode()) {
+  if (this->monitor_mode_) {
     ESP_LOGW(TAG, "Monitor mode, not sending 0x%X->0x%X", source, destination);
     return false;
   }
@@ -86,58 +90,46 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, std::span<const uint8_t>
              Frame::MAX_PAYLOAD_LENGTH);
     return false;
   }
-  if (!this->xmit_.queue_for_send(source, destination, payload)) {
-    ESP_LOGW(TAG, "Send queue full, frame 0x%X->0x%X dropped", source, destination);
-    return false;
-  }
-  this->enable_loop();
-  return true;
-}
-
-void CECTransmit::setup(ISRInternalGPIOPin isr_pin) {
-  this->isr_pin_ = isr_pin;
-  this->set_pin_input_high_();
-}
-
-bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, std::span<const uint8_t> payload) {
   Frame *frame = this->send_queue_.back();
   if (frame == nullptr) {
+    ESP_LOGW(TAG, "Send queue full, frame 0x%X->0x%X dropped", source, destination);
     return false;
   }
   *frame = Frame(source, destination, payload);
   this->send_queue_.push_back();
+  this->enable_loop();
   return true;
 }
 
-void CECTransmit::transmit_message() {
+void HDMICEC::transmit_message_() {
   const uint32_t now = micros();
   const uint32_t since_last_edge = now - atomic_get(this->last_edge_us_);
-  if (!this->transmitting_ && atomic_get(this->eom_received_)) {
-    // Another device finished a frame; the standard asks a new initiator to wait after it
-    this->required_idle_period_ = SIGNAL_FREE_TIME_AFTER_RECEIVE;
-    atomic_set(this->eom_received_, false);
-  }
   if (this->transmitting_) {
-    // The receiver sees our own frame; wait for its end of message bit, or give up when the
+    // The interrupt sees our own frame; wait for its end of message bit, or give up when the
     // bus went quiet without one
     if (!atomic_get(this->eom_received_) && since_last_edge < ABORTED_FRAME_US) {
       return;
     }
     this->transmitting_ = false;
+    atomic_set(this->eom_received_, false);  // the end of our own frame is not a foreign one
     const Frame *frame = this->send_queue_.front();
     // A broadcast is acknowledged by nobody; a directed frame on every byte
-    const uint8_t n_acks_expected = frame->is_broadcast() ? 0 : frame->size();
-    const bool sent_ok = this->n_bytes_received_ == frame->size() && this->n_acks_received_ == n_acks_expected;
-    if (sent_ok) {
+    const bool bytes_ok = this->n_bytes_received_ == frame->size();
+    const bool acks_ok = this->n_acks_received_ == (frame->is_broadcast() ? 0 : frame->size());
+    if (bytes_ok && acks_ok) {
       ESP_LOGD(TAG, "Send frame success in %u attempt%s", this->transmit_attempts_,
                this->transmit_attempts_ > 1 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(""));
-    } else if (this->n_bytes_received_ != frame->size()) {
+    } else if (!bytes_ok) {
       ESP_LOGD(TAG, "Send frame incorrect on attempt %u, saw %u bytes but expected %zu", this->transmit_attempts_,
                this->n_bytes_received_, frame->size());
     } else {
       ESP_LOGD(TAG, "Send frame not acknowledged on attempt %u", this->transmit_attempts_);
     }
-    this->finish_attempt_(sent_ok);
+    this->finish_attempt_(bytes_ok && acks_ok);
+  } else if (atomic_get(this->eom_received_)) {
+    // Another device finished a frame; the standard asks a new initiator to wait after it
+    this->required_idle_period_ = SIGNAL_FREE_TIME_AFTER_RECEIVE;
+    atomic_set(this->eom_received_, false);
   }
 
   const Frame *frame = this->send_queue_.front();
@@ -156,7 +148,7 @@ void CECTransmit::transmit_message() {
     ESP_LOGD(TAG, "Sending: %s", format_hex_pretty_to(line, frame->bytes().data(), frame->size()));
   }
 #endif
-  // The receive interrupt counts the bytes and acknowledge bits of our own frame
+  // The interrupt counts the bytes and acknowledge bits of our own frame
   this->n_bytes_received_ = 0;
   this->n_acks_received_ = 0;
   atomic_set(this->eom_received_, false);
@@ -166,22 +158,22 @@ void CECTransmit::transmit_message() {
     this->transmitting_ = false;
     this->finish_attempt_(false);
   }
-  // Otherwise the acknowledge result arrives through the receive interrupt
+  // Otherwise the acknowledge result arrives through the interrupt
 }
 
-void CECTransmit::finish_attempt_(bool sent_ok) {
+void HDMICEC::finish_attempt_(bool sent_ok) {
   this->required_idle_period_ = sent_ok ? SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS : SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
-  if (!sent_ok && this->transmit_attempts_ < MAX_ATTEMPTS) {
-    return;  // the signal free time has to pass before the retry
-  }
   if (!sent_ok) {
+    if (this->transmit_attempts_ < MAX_ATTEMPTS) {
+      return;  // the signal free time has to pass before the retry
+    }
     ESP_LOGW(TAG, "Frame not sent after %u attempts, dropped", this->transmit_attempts_);
   }
   this->transmit_attempts_ = 0;
   this->send_queue_.pop_front();
 }
 
-bool CECTransmit::transmit_frame_(const Frame *frame) {
+bool HDMICEC::transmit_frame_(const Frame *frame) {
   if (!this->send_start_bit_()) {
     return false;
   }
@@ -192,14 +184,10 @@ bool CECTransmit::transmit_frame_(const Frame *frame) {
     // another initiator that started at the same moment; a lower address wins by holding the line
     for (int8_t i = 7; i >= 0; i--) {
       const bool bit_value = (current_byte >> i) & 0x1;
-      if (byte_inx == 0 && i >= 4 && bit_value) {
-        if (!this->send_high_and_test_()) {
-          ESP_LOGD(TAG, "Bus collision on sending initiator address 0x%X on attempt %u", frame->initiator_addr(),
-                   this->transmit_attempts_);
-          return false;
-        }
-      } else {
-        this->send_bit_(bit_value);
+      if (!this->send_bit_(bit_value) && byte_inx == 0 && i >= 4) {
+        ESP_LOGD(TAG, "Bus collision on sending initiator address 0x%X on attempt %u", frame->initiator_addr(),
+                 this->transmit_attempts_);
+        return false;
       }
     }
     // End of message bit, then the acknowledge bit which the receiver may pull low
@@ -209,7 +197,7 @@ bool CECTransmit::transmit_frame_(const Frame *frame) {
   return true;
 }
 
-bool CECTransmit::send_start_bit_() {
+bool HDMICEC::send_start_bit_() {
   if (!this->isr_pin_.digital_read()) {
     ESP_LOGD(TAG, "Bus occupied before start bit on attempt %u", this->transmit_attempts_);
     return false;
@@ -228,90 +216,57 @@ bool CECTransmit::send_start_bit_() {
   return value;
 }
 
-void CECTransmit::send_bit_(bool bit_value) {
-  const uint32_t low_duration_us = bit_value ? HIGH_BIT_US : LOW_BIT_US;
-  this->set_pin_output_low_();
-  delay_microseconds_safe(low_duration_us);
-  this->set_pin_input_high_();
-  delay_microseconds_safe(TOTAL_BIT_US - low_duration_us);
-}
-
-bool CECTransmit::send_high_and_test_() {
+bool HDMICEC::send_bit_(bool bit_value) {
   const uint32_t start_us = micros();
   this->set_pin_output_low_();
-  delay_microseconds_safe(HIGH_BIT_US);
+  delay_microseconds_safe(bit_value ? HIGH_BIT_US : LOW_BIT_US);
   this->set_pin_input_high_();
-  // Sample in the middle of the safe sample period: a line still low means another initiator
-  // is sending a logical 0 at the same time
-  uint32_t elapsed = micros() - start_us;
-  if (elapsed < SAFE_SAMPLE_US) {
-    delay_microseconds_safe(SAFE_SAMPLE_US - elapsed);
+  bool clear = true;
+  if (bit_value) {
+    // Sample in the middle of the safe sample period: a line still low means another initiator
+    // is sending a logical 0 at the same time
+    uint32_t elapsed = micros() - start_us;
+    if (elapsed < SAFE_SAMPLE_US) {
+      delay_microseconds_safe(SAFE_SAMPLE_US - elapsed);
+    }
+    clear = this->isr_pin_.digital_read();
   }
-  const bool value = this->isr_pin_.digital_read();
-  elapsed = micros() - start_us;
+  const uint32_t elapsed = micros() - start_us;
   if (elapsed < TOTAL_BIT_US) {
     delay_microseconds_safe(TOTAL_BIT_US - elapsed);
   }
-  return value;
+  return clear;
 }
 
-void IRAM_ATTR CECTransmit::send_ack() {
-  // Runs in the receive interrupt. Holding the line keeps other interrupts waiting for 1.5 ms,
-  // but the acknowledge has to start right at this falling edge.
+void IRAM_ATTR HDMICEC::send_ack_() {
+  // Holding the line keeps other interrupts waiting for 1.5 ms, but the acknowledge has to start
+  // right at this falling edge
   this->set_pin_output_low_();
   delay_microseconds_safe(LOW_BIT_US);
   this->set_pin_input_high_();
 }
 
-void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
-  if (this->transmitting_ && !atomic_get(this->eom_received_)) {
-    // Our own frame: a low acknowledge bit means the addressed device took the byte
-    // (for a broadcast it means some device refused it)
-    this->n_bytes_received_++;
-    if (!ack) {
-      this->n_acks_received_++;
-    }
-  }
-  if (eom) {
-    atomic_set(this->eom_received_, true);  // publishes the tally above to loop()
-  }
-}
+void IRAM_ATTR HDMICEC::gpio_isr_s(HDMICEC *self) { self->gpio_isr_(); }
 
-uint8_t CECReceive::take_dropped_frames() {
-  const uint8_t dropped = atomic_get(this->dropped_frames_);
-  const uint8_t since_last = dropped - this->reported_dropped_frames_;
-  this->reported_dropped_frames_ = dropped;
-  return since_last;
-}
-
-void CECReceive::setup(InternalGPIOPin *pin, Component *parent) {
-  this->parent_ = parent;
-  this->isr_pin_ = this->xmit_.isr_pin();
-  this->reset_state_variables_();
-  pin->attach_interrupt(CECReceive::gpio_isr_s, this, gpio::INTERRUPT_ANY_EDGE);
-}
-
-void IRAM_ATTR CECReceive::gpio_isr_s(CECReceive *self) { self->gpio_isr_(); }
-
-void IRAM_ATTR CECReceive::gpio_isr_() {
+void IRAM_ATTR HDMICEC::gpio_isr_() {
   const uint32_t now = micros();
   const bool level = this->isr_pin_.digital_read();
   if (level == this->prev_pin_level_) {
     return;  // a mode change of the pin, not a bus edge
   }
   this->prev_pin_level_ = level;
-  this->xmit_.got_edge(now);
+  atomic_set(this->last_edge_us_, now);
 
   if (!level) {
     // Falling edge: the start of a low period
     if (now - this->last_falling_edge_us_ > START_BIT_NOM_US + TOTAL_BIT_US) {
       // The bus was quiet; whatever was gathered belongs to an aborted frame
-      this->reset_state_variables_();
+      this->reset_receiver_();
     }
     this->last_falling_edge_us_ = now;
     if (this->recv_ack_queued_ && !this->monitor_mode_) {
       // Acknowledge by stretching this low period
-      this->xmit_.send_ack();
+      this->send_ack_();
       this->recv_ack_queued_ = false;
     }
     return;
@@ -320,12 +275,12 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
   // Rising edge: the low period tells the bit value
   const uint32_t pulse_duration = now - this->last_falling_edge_us_;
   if (pulse_duration > START_BIT_MIN_US) {
-    this->reset_state_variables_();
+    this->reset_receiver_();
     this->receiver_state_ = ReceiverState::RECEIVER_STATE_RECEIVING_BYTE;
     // Without a free slot the frame is neither acknowledged nor delivered, so its initiator retries
-    this->recv_frame_buffer_ = this->frames_queue_.back();
-    if (this->recv_frame_buffer_ != nullptr) {
-      this->recv_frame_buffer_->clear();
+    this->recv_frame_ = this->frames_queue_.back();
+    if (this->recv_frame_ != nullptr) {
+      this->recv_frame_->clear();
     }
     return;
   }
@@ -335,62 +290,74 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
   const bool value = pulse_duration <= SAFE_SAMPLE_US;
 
   switch (this->receiver_state_) {
+    case ReceiverState::RECEIVER_STATE_IDLE:
+      break;
+
     case ReceiverState::RECEIVER_STATE_RECEIVING_BYTE:
-      this->recv_byte_buffer_ = (this->recv_byte_buffer_ << 1) | value;
-      if (++this->recv_bit_counter_ >= 8) {
-        if (this->recv_frame_buffer_ != nullptr && !this->recv_frame_buffer_->push_back(this->recv_byte_buffer_)) {
-          this->recv_frame_buffer_ = nullptr;  // longer than the bus allows: corrupt, do not deliver it
+      this->recv_byte_ = (this->recv_byte_ << 1) | value;
+      if (++this->recv_bit_counter_ == 8) {
+        if (this->recv_length_++ == 0) {
+          this->recv_header_ = this->recv_byte_;
+        }
+        if (this->recv_frame_ != nullptr && !this->recv_frame_->push_back(this->recv_byte_)) {
+          this->recv_frame_ = nullptr;  // longer than the bus allows: corrupt, do not deliver it
         }
         this->recv_bit_counter_ = 0;
-        this->recv_byte_buffer_ = 0;
         this->receiver_state_ = ReceiverState::RECEIVER_STATE_WAITING_FOR_EOM;
       }
       break;
 
     case ReceiverState::RECEIVER_STATE_WAITING_FOR_EOM:
-      // A frame for us is acknowledged on the next bit, except our own: a polling message
-      // from a device claiming our logical address must not be acknowledged
-      if (this->recv_frame_buffer_ != nullptr && !this->recv_frame_buffer_->is_broadcast() &&
-          this->recv_frame_buffer_->destination_addr() == this->address_ &&
-          this->recv_frame_buffer_->initiator_addr() != this->address_) {
+      // A frame for us is acknowledged on the next bit, unless there is no room for it (so its
+      // initiator retries) or it is our own: a polling message from a device claiming our
+      // logical address must not be acknowledged
+      if (this->recv_frame_ != nullptr && (this->recv_header_ & 0xf) == this->address_ &&
+          (this->recv_header_ >> 4) != this->address_) {
         this->recv_ack_queued_ = true;
       }
-      this->receiver_state_ =
-          value ? ReceiverState::RECEIVER_STATE_WAITING_FOR_EOM_ACK : ReceiverState::RECEIVER_STATE_WAITING_FOR_ACK;
+      this->recv_eom_ = value;
+      this->receiver_state_ = ReceiverState::RECEIVER_STATE_WAITING_FOR_ACK;
       break;
 
     case ReceiverState::RECEIVER_STATE_WAITING_FOR_ACK:
-      this->xmit_.got_byte_eom_ack(false, value);
-      this->receiver_state_ = ReceiverState::RECEIVER_STATE_RECEIVING_BYTE;
-      break;
-
-    case ReceiverState::RECEIVER_STATE_WAITING_FOR_EOM_ACK:
-      this->xmit_.got_byte_eom_ack(true, value);
-      if (this->recv_frame_buffer_ == nullptr) {
-        // The queue was full or the frame was longer than the bus allows
-        atomic_set<uint8_t>(this->dropped_frames_, atomic_get(this->dropped_frames_) + 1);
-      } else if (this->recv_frame_buffer_->size() > 1 && this->recv_frame_buffer_->initiator_addr() != this->address_ &&
-                 (this->promiscuous_mode_ || this->recv_frame_buffer_->is_broadcast() ||
-                  this->recv_frame_buffer_->destination_addr() == this->address_)) {
-        // Deliver frames the application may care about: not our own, and not a polling message
-        // (header only), which the acknowledge answered already
-        this->frames_queue_.push_back();
-        this->parent_->enable_loop_soon_any_context();
+      if (this->transmitting_ && !atomic_get(this->eom_received_)) {
+        // Our own frame: a low acknowledge bit means the addressed device took the byte
+        // (for a broadcast it means some device refused it)
+        this->n_bytes_received_++;
+        if (!value) {
+          this->n_acks_received_++;
+        }
       }
-      this->reset_state_variables_();
-      break;
-
-    default:
+      if (!this->recv_eom_) {
+        this->receiver_state_ = ReceiverState::RECEIVER_STATE_RECEIVING_BYTE;
+        break;
+      }
+      atomic_set(this->eom_received_, true);  // publishes the tally above to loop()
+      // The application only gets frames that are not our own and not a polling message (header
+      // only), which the acknowledge answered already, and that are addressed to us unless
+      // promiscuous
+      const uint8_t destination = this->recv_header_ & 0xf;
+      const bool wanted = this->recv_length_ > 1 && (this->recv_header_ >> 4) != this->address_ &&
+                          (this->promiscuous_mode_ || destination == 0xf || destination == this->address_);
+      if (!wanted) {
+        // nothing to deliver
+      } else if (this->recv_frame_ == nullptr) {
+        atomic_set<uint8_t>(this->dropped_frames_, atomic_get(this->dropped_frames_) + 1);
+      } else {
+        this->frames_queue_.push_back();
+        this->enable_loop_soon_any_context();
+      }
+      this->reset_receiver_();
       break;
   }
 }
 
-void IRAM_ATTR CECReceive::reset_state_variables_() {
+void IRAM_ATTR HDMICEC::reset_receiver_() {
   this->receiver_state_ = ReceiverState::RECEIVER_STATE_IDLE;
   this->recv_bit_counter_ = 0;
-  this->recv_byte_buffer_ = 0;
+  this->recv_length_ = 0;
   this->recv_ack_queued_ = false;
-  this->recv_frame_buffer_ = nullptr;
+  this->recv_frame_ = nullptr;
 }
 
 }  // namespace esphome::hdmi_cec

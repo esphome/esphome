@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <atomic>
 #include <initializer_list>
@@ -65,7 +64,7 @@ template<size_t SIZE> class FrameRingBuffer {
   static_assert((SIZE & (SIZE - 1)) == 0, "SIZE must be a power of two");
 
  public:
-  ESPHOME_ALWAYS_INLINE Frame *front() { return this->count_() == 0 ? nullptr : this->slot_(this->front_inx_); }
+  ESPHOME_ALWAYS_INLINE Frame *front() { return this->is_empty() ? nullptr : this->slot_(this->front_inx_); }
   ESPHOME_ALWAYS_INLINE void pop_front() { this->advance_(this->front_inx_); }
   ESPHOME_ALWAYS_INLINE Frame *back() { return this->count_() == SIZE ? nullptr : this->slot_(this->back_inx_); }
   ESPHOME_ALWAYS_INLINE void push_back() { this->advance_(this->back_inx_); }
@@ -85,116 +84,18 @@ template<size_t SIZE> class FrameRingBuffer {
   std::atomic<uint8_t> back_inx_{0};
 };
 
-/// Sends frames on the bus. A frame is queued and sent from loop(), with retries spread over later
-/// passes, because one transmission keeps the CPU for up to 400 ms and may have to be repeated.
-class CECTransmit {
- public:
-  static constexpr uint32_t TOTAL_BIT_US = 2400;
-  static constexpr uint32_t SIGNAL_FREE_TIME_NEW_INITIATOR = TOTAL_BIT_US * 5;
-
-  void setup(ISRInternalGPIOPin isr_pin);
-  ISRInternalGPIOPin isr_pin() const { return this->isr_pin_; }
-  bool queue_for_send(uint8_t source, uint8_t destination, std::span<const uint8_t> payload);
-  bool is_idle() const { return !this->transmitting_ && this->send_queue_.is_empty(); }
-  /// Finish the previous attempt and send the frame at the front of the queue; called from loop()
-  void transmit_message();
-
-  // Called from the receive interrupt
-  ESPHOME_ALWAYS_INLINE void got_edge(uint32_t now_us) { atomic_set(this->last_edge_us_, now_us); }
-  void got_byte_eom_ack(bool eom, bool ack);
-  /// Pull the line low for the acknowledge bit of a frame addressed to us
-  void send_ack();
-
- protected:
-  ESPHOME_ALWAYS_INLINE void set_pin_input_high_() { this->isr_pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
-  ESPHOME_ALWAYS_INLINE void set_pin_output_low_() {
-    this->isr_pin_.pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
-    this->isr_pin_.digital_write(false);
-  }
-  /// Drive the frame onto the line; false when another initiator sent at the same time
-  bool transmit_frame_(const Frame *frame);
-  /// Keep the frame for another attempt, or drop it once the attempts are used up
-  void finish_attempt_(bool sent_ok);
-  bool send_start_bit_();
-  void send_bit_(bool bit_value);
-  bool send_high_and_test_();
-
-  static constexpr size_t SEND_QUEUE_SIZE = 4;
-  FrameRingBuffer<SEND_QUEUE_SIZE> send_queue_;
-  ISRInternalGPIOPin isr_pin_;
-  std::atomic<uint32_t> last_edge_us_{0};  // the bus is busy until this is some time ago
-  uint32_t last_attempt_us_{0};            // a refused start bit drives no edge, so it is timed here
-  uint32_t required_idle_period_{SIGNAL_FREE_TIME_NEW_INITIATOR};
-  uint8_t transmit_attempts_{0};
-  // The interrupt tallies our own frame while transmitting_ is set and no end of message has
-  // passed yet; loop() reads the tally once eom_received_ says the frame is over
-  uint8_t n_bytes_received_{0};
-  uint8_t n_acks_received_{0};
-  bool transmitting_{false};
-  std::atomic<bool> eom_received_{false};  // set for every frame, ours or not
-};
-
-/// Decodes the bus from pin edges in an interrupt and queues complete frames for loop()
-class CECReceive {
- public:
-  CECReceive(CECTransmit &xmit, uint8_t address) : xmit_(xmit), address_(address) {}
-  void setup(InternalGPIOPin *pin, Component *parent);
-  uint8_t address() const { return this->address_; }
-  void set_promiscuous_mode(bool promiscuous) { this->promiscuous_mode_ = promiscuous; }
-  bool get_promiscuous_mode() const { return this->promiscuous_mode_; }
-  void set_monitor_mode(bool monitor_mode) { this->monitor_mode_ = monitor_mode; }
-  bool get_monitor_mode() const { return this->monitor_mode_; }
-  const Frame *next_frame() { return this->frames_queue_.front(); }
-  void pop_frame() { this->frames_queue_.pop_front(); }
-  /// Frames lost because the queue was full, since the last call
-  uint8_t take_dropped_frames();
-
- protected:
-  enum class ReceiverState : uint8_t {
-    RECEIVER_STATE_IDLE,
-    RECEIVER_STATE_RECEIVING_BYTE,
-    RECEIVER_STATE_WAITING_FOR_EOM,
-    RECEIVER_STATE_WAITING_FOR_ACK,
-    RECEIVER_STATE_WAITING_FOR_EOM_ACK,
-  };
-
-  static void gpio_isr_s(CECReceive *self);
-  void gpio_isr_();
-  void reset_state_variables_();
-
-  static constexpr size_t MAX_FRAMES_QUEUED = 4;
-  FrameRingBuffer<MAX_FRAMES_QUEUED> frames_queue_;
-  CECTransmit &xmit_;  // acknowledges and bus timing go through the transmitter
-  Component *parent_{nullptr};
-  ISRInternalGPIOPin isr_pin_;
-  Frame *recv_frame_buffer_{nullptr};
-  uint32_t last_falling_edge_us_{0};
-  std::atomic<uint8_t> dropped_frames_{0};  // written by the interrupt only
-  uint8_t reported_dropped_frames_{0};
-  uint8_t address_;
-  uint8_t recv_bit_counter_{0};
-  uint8_t recv_byte_buffer_{0};
-  ReceiverState receiver_state_{ReceiverState::RECEIVER_STATE_IDLE};
-  bool promiscuous_mode_{false};
-  bool monitor_mode_{false};
-  bool recv_ack_queued_{false};
-  bool prev_pin_level_{true};
-};
-
-/// For the generated on_message filters: does the payload start with these bytes?
-inline bool starts_with(std::span<const uint8_t> data, std::initializer_list<uint8_t> prefix) {
-  return data.size() >= prefix.size() && std::equal(prefix.begin(), prefix.end(), data.begin());
-}
-
+/// The HDMI-CEC bus on one GPIO pin. The receive interrupt decodes the edges of every frame,
+/// including those this device sends, and queues complete frames for loop(); loop() runs the
+/// on_message automations and transmits queued frames, one blocking bit-banged attempt per pass.
 class HDMICEC : public Component {
  public:
-  HDMICEC(InternalGPIOPin *pin, uint8_t address) : pin_(pin), recv_(xmit_, address) {}
+  HDMICEC(InternalGPIOPin *pin, uint8_t address) : pin_(pin), address_(address) {}
   void setup() override;
   void dump_config() override;
   void loop() override;
 
-  void set_promiscuous_mode(bool promiscuous) { this->recv_.set_promiscuous_mode(promiscuous); }
-  void set_monitor_mode(bool monitor_mode) { this->recv_.set_monitor_mode(monitor_mode); }
+  void set_promiscuous_mode(bool promiscuous) { this->promiscuous_mode_ = promiscuous; }
+  void set_monitor_mode(bool monitor_mode) { this->monitor_mode_ = monitor_mode; }
 #ifdef HDMI_CEC_MESSAGE_CALLBACK_COUNT
   /// Called with the initiator, the destination and the payload (opcode first) of every received
   /// frame; the payload is only valid during the call
@@ -206,7 +107,7 @@ class HDMICEC : public Component {
   /// Queue a frame for transmission; false when the queue is full or in monitor mode
   bool send(uint8_t source, uint8_t destination, std::span<const uint8_t> payload);
   bool send(uint8_t destination, std::span<const uint8_t> payload) {
-    return this->send(this->recv_.address(), destination, payload);
+    return this->send(this->address_, destination, payload);
   }
   /// For lambdas: id(cec).send(0x0, {0x44, 0x41});
   bool send(uint8_t destination, std::initializer_list<uint8_t> payload) {
@@ -214,13 +115,78 @@ class HDMICEC : public Component {
   }
 
  protected:
-  InternalGPIOPin *pin_;
+  enum class ReceiverState : uint8_t {
+    RECEIVER_STATE_IDLE,
+    RECEIVER_STATE_RECEIVING_BYTE,
+    RECEIVER_STATE_WAITING_FOR_EOM,
+    RECEIVER_STATE_WAITING_FOR_ACK,
+  };
+
+  // Receive side, in the interrupt
+  static void gpio_isr_s(HDMICEC *self);
+  void gpio_isr_();
+  void reset_receiver_();
+  /// Pull the line low for the acknowledge bit of a frame addressed to us
+  void send_ack_();
+
+  // Transmit side, in loop()
+  bool is_transmit_idle_() const { return !this->transmitting_ && this->send_queue_.is_empty(); }
+  void transmit_message_();
+  /// Keep the frame for another attempt, or drop it once the attempts are used up
+  void finish_attempt_(bool sent_ok);
+  /// Drive the frame onto the line; false when another initiator sent at the same time
+  bool transmit_frame_(const Frame *frame);
+  bool send_start_bit_();
+  /// Send one bit; false when a logical 1 found the line held low by another initiator
+  bool send_bit_(bool bit_value);
+  ESPHOME_ALWAYS_INLINE void set_pin_input_high_() { this->isr_pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
+  ESPHOME_ALWAYS_INLINE void set_pin_output_low_() {
+    this->isr_pin_.pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
+    this->isr_pin_.digital_write(false);
+  }
+
+  static constexpr size_t QUEUE_SIZE = 4;
+  // Each queue is 70 bytes, so two single-byte fields follow each to fill the alignment gap
+  FrameRingBuffer<QUEUE_SIZE> frames_queue_;  // received, interrupt to loop()
+  uint8_t recv_bit_counter_{0};
+  uint8_t recv_byte_{0};
+  FrameRingBuffer<QUEUE_SIZE> send_queue_;  // to send, both ends on loop()
+  uint8_t transmit_attempts_{0};
+  uint8_t reported_dropped_frames_{0};
 #ifdef HDMI_CEC_MESSAGE_CALLBACK_COUNT
   StaticCallbackManager<HDMI_CEC_MESSAGE_CALLBACK_COUNT, void(uint8_t, uint8_t, std::span<const uint8_t>)>
       message_callbacks_;
 #endif
-  CECTransmit xmit_;
-  CECReceive recv_;
+  InternalGPIOPin *pin_;
+  ISRInternalGPIOPin isr_pin_;
+
+  // Shared with the interrupt. The tally of our own frame is written by the interrupt while
+  // transmitting_ is set and no end of message has passed yet; loop() reads it once eom_received_
+  // says the frame is over
+  std::atomic<uint32_t> last_edge_us_{0};  // the bus is busy until this is some time ago
+  std::atomic<bool> eom_received_{false};  // set for every frame, ours or not
+  std::atomic<uint8_t> dropped_frames_{0};
+  uint8_t n_bytes_received_{0};
+  uint8_t n_acks_received_{0};
+  bool transmitting_{false};
+
+  // Receive state, interrupt only
+  Frame *recv_frame_{nullptr};  // null when the queue was full or the frame too long
+  uint32_t last_falling_edge_us_{0};
+  uint8_t recv_header_{0};  // kept outside the frame so a dropped frame can still be judged
+  uint8_t recv_length_{0};
+  ReceiverState receiver_state_{ReceiverState::RECEIVER_STATE_IDLE};
+  bool recv_eom_{false};
+  bool recv_ack_queued_{false};
+  bool prev_pin_level_{true};
+
+  // Transmit state, loop() only
+  uint32_t last_attempt_us_{0};  // a refused start bit drives no edge, so it is timed here
+  uint32_t required_idle_period_{0};
+
+  uint8_t address_;  // logical address, 0xf when only listening
+  bool promiscuous_mode_{false};
+  bool monitor_mode_{false};
 };
 
 }  // namespace esphome::hdmi_cec

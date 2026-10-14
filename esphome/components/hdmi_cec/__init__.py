@@ -47,15 +47,13 @@ payload_prefix = cv.All(
 
 
 def _validate_message_filter(config: ConfigType) -> ConfigType:
-    # The opcode is the first payload byte, so both filters must agree on it
-    if (
-        (opcode := config.get(CONF_OPCODE)) is not None
-        and (data := config.get(CONF_DATA))
-        and data[0] != opcode
-    ):
-        raise cv.Invalid(
-            f"opcode 0x{opcode:02X} differs from the first data byte 0x{data[0]:02X}"
-        )
+    # The opcode is the first payload byte: fold it into the data prefix
+    if (opcode := config.pop(CONF_OPCODE, None)) is not None:
+        data = config.setdefault(CONF_DATA, [opcode])
+        if data[0] != opcode:
+            raise cv.Invalid(
+                f"opcode 0x{opcode:02X} differs from the first data byte 0x{data[0]:02X}"
+            )
     return config
 
 
@@ -66,12 +64,9 @@ def _message_filter(conf: ConfigType) -> str | None:
         checks.append(f"source == {source}")
     if (destination := conf.get(CONF_DESTINATION)) is not None:
         checks.append(f"destination == {destination}")
-    if (opcode := conf.get(CONF_OPCODE)) is not None:
-        checks.append(f"data[0] == {opcode}")
     if data := conf.get(CONF_DATA):
-        # The filter is a format template, so the braces are doubled
-        prefix = ", ".join(f"0x{byte:02X}" for byte in data)
-        checks.append(f"hdmi_cec::starts_with(data, {{{{{prefix}}}}})")
+        checks.append(f"data.size() >= {len(data)}")
+        checks.extend(f"data[{i}] == 0x{byte:02X}" for i, byte in enumerate(data))
     return " && ".join(checks) or None
 
 
