@@ -54,10 +54,8 @@ def temperature_unit_of(config: ConfigType) -> str:
 
 def temperature_unit_of_id(water_heater_id: ID) -> str:
     """The unit of the water heater with this id, for actions that take static temperatures."""
-    for conf in CORE.config.get(DOMAIN, []):
-        if conf[CONF_ID] == water_heater_id:
-            return temperature_unit_of(conf)
-    raise KeyError(f"No water heater with id {water_heater_id}")
+    path = CORE.config.get_path_for_id(water_heater_id)[:-1]
+    return temperature_unit_of(CORE.config.get_config_for_path(path))
 
 
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:

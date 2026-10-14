@@ -167,10 +167,8 @@ def temperature_unit_of(config: ConfigType) -> str:
 
 def temperature_unit_of_id(climate_id: ID) -> str:
     """The unit of the climate with this id, for actions that take static temperatures."""
-    for conf in CORE.config.get(DOMAIN, []):
-        if conf[CONF_ID] == climate_id:
-            return temperature_unit_of(conf)
-    raise KeyError(f"No climate with id {climate_id}")
+    path = CORE.config.get_path_for_id(climate_id)[:-1]
+    return temperature_unit_of(CORE.config.get_config_for_path(path))
 
 
 def temperature_in_entity_unit(
