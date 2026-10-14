@@ -4,19 +4,27 @@ import pytest
 
 from esphome.components.esp32 import const
 from esphome.components.wifi import (
+    CONF_AP_MODE,
     check_placeholder_credentials,
+    final_validate as wifi_final_validate,
     has_native_wifi,
     variant_has_wifi,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_NETWORKS,
+    CONF_PASSWORD,
     CONF_SSID,
     CONF_WIFI,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
     PLACEHOLDER_WIFI_SSID,
     Platform,
 )
-from esphome.core import EsphomeError, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -197,3 +205,49 @@ def test_check_placeholder_credentials_skips_template_ssid() -> None:
     """A templated (Lambda) SSID is not a string and is skipped."""
     config = _wifi_config(networks=[{CONF_SSID: Lambda('return "x";')}])
     assert check_placeholder_credentials(config) is None
+
+
+@pytest.mark.parametrize("password", [None, ""])
+def test_wisp_mode_requires_ap_password(
+    password: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WISP must not route upstream access through an open access point."""
+    monkeypatch.setitem(
+        CORE.data,
+        KEY_CORE,
+        {
+            KEY_TARGET_PLATFORM: Platform.ESP32,
+            KEY_TARGET_FRAMEWORK: "esp-idf",
+        },
+    )
+    ap_config = {CONF_AP_MODE: "WISP"}
+    if password is not None:
+        ap_config[CONF_PASSWORD] = password
+    config = {CONF_NETWORKS: [{}], CONF_AP: ap_config}
+    token = fv.full_config.set({CONF_WIFI: config})
+    try:
+        with pytest.raises(cv.Invalid, match="wifi.ap.password"):
+            wifi_final_validate(config)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_wisp_mode_accepts_ap_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A configured AP password keeps WISP mode available."""
+    monkeypatch.setitem(
+        CORE.data,
+        KEY_CORE,
+        {
+            KEY_TARGET_PLATFORM: Platform.ESP32,
+            KEY_TARGET_FRAMEWORK: "esp-idf",
+        },
+    )
+    config = {
+        CONF_NETWORKS: [{}],
+        CONF_AP: {CONF_AP_MODE: "WISP", CONF_PASSWORD: "securepassword"},
+    }
+    token = fv.full_config.set({CONF_WIFI: config})
+    try:
+        wifi_final_validate(config)
+    finally:
+        fv.full_config.reset(token)

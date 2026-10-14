@@ -397,6 +397,10 @@ def final_validate(config):
                 raise cv.Invalid(
                     "WISP mode requires at least one STA network (wifi.ssid or wifi.networks)"
                 )
+            if ap_is_wisp_mode and not ap_config.get(CONF_PASSWORD):
+                raise cv.Invalid(
+                    "WISP mode requires a password for the access point (wifi.ap.password)"
+                )
             # WISP mode requires ESP-IDF framework for NAT support
             if ap_is_wisp_mode and not (CORE.is_esp32 and not CORE.using_arduino):
                 raise cv.Invalid(
