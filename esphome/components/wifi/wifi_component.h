@@ -1,6 +1,9 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_WIFI_AP_WISP
+#include <esp_idf_version.h>
+#endif
 #ifdef USE_WIFI
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/automation.h"
@@ -477,10 +480,10 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
-#ifdef USE_WIFI_AP_WISP
-  /// The resolvers offered to AP clients; without them the station's are passed on
+#ifdef USE_WIFI_AP_WISP_STATIC_DNS
+  /// The resolvers offered to AP clients
   void set_ap_dns_servers(const network::IPAddress &main, const network::IPAddress &backup = network::IPAddress());
-#endif  // USE_WIFI_AP_WISP
+#endif
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -726,8 +729,12 @@ class WiFiComponent final : public Component {
 #endif  // USE_WIFI_AP
 
 #ifdef USE_WIFI_AP_WISP
-  /// Give the AP DHCP server its resolvers: the configured ones, otherwise the station's current ones
+  /// Hand the AP DHCP server the resolvers in ap_dns_
+  void write_ap_dns_();
+#ifndef USE_WIFI_AP_WISP_STATIC_DNS
+  /// Pass the station's current resolvers on to AP clients
   void apply_ap_dns_();
+#endif
 #endif
 
   void print_connect_params_();
@@ -992,7 +999,12 @@ class WiFiComponent final : public Component {
   // 1-byte members so they pack into its trailing bytes instead of padding after it
   WiFiAP ap_;
 #ifdef USE_WIFI_AP_WISP
-  uint32_t ap_dns_[2]{};  // IPv4 as lwIP stores it, 0 for none; configured or last passed on
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  static constexpr size_t AP_DNS_COUNT = 2;  // a DHCP server interface takes a backup resolver from ESP-IDF 6.0
+#else
+  static constexpr size_t AP_DNS_COUNT = 1;
+#endif
+  uint32_t ap_dns_[AP_DNS_COUNT]{};  // IPv4 as lwIP stores it, 0 for none; configured or last passed on
   uint32_t ap_start_attempt_{0};
 #endif  // USE_WIFI_AP_WISP
 #endif  // USE_WIFI_AP
@@ -1021,9 +1033,6 @@ class WiFiComponent final : public Component {
   // so no happens-before relationship with other memory needs to be established.
   std::atomic<uint8_t> roaming_suppression_count_{0};
 #endif
-#ifdef USE_WIFI_AP_WISP
-  bool ap_dns_configured_{false};
-#endif  // USE_WIFI_AP_WISP
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */

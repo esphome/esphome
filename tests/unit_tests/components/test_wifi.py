@@ -239,14 +239,11 @@ def _final_validate(config: dict, full_extra: dict | None = None) -> None:
 
 
 @pytest.mark.usefixtures("wisp_core")
-@pytest.mark.parametrize("password", [None, ""])
-def test_wisp_requires_ap_password(password: str | None) -> None:
+@pytest.mark.parametrize(
+    "ap", [{CONF_AP_MODE: "WISP"}, _wisp_ap(**{CONF_PASSWORD: ""})]
+)
+def test_wisp_requires_ap_password(ap: dict) -> None:
     """WISP must not route upstream access through an open access point."""
-    ap = _wisp_ap()
-    if password is None:
-        del ap[CONF_PASSWORD]
-    else:
-        ap[CONF_PASSWORD] = password
     with pytest.raises(cv.Invalid, match="password"):
         wifi_network_ap(ap)
 

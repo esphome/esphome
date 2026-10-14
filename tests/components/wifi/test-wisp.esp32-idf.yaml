@@ -3,8 +3,6 @@ wifi:
     ssid: WISP AP
     password: wisp12345678
     ap_mode: wisp
-    dns_servers:
-      - 8.8.8.8
 
 packages:
   wifi: !include common.yaml

@@ -1054,9 +1054,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.ip_got_ip;
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
-#ifdef USE_WIFI_AP_WISP
-    if (!this->ap_dns_configured_)
-      this->apply_ap_dns_();
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+    this->apply_ap_dns_();
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
     this->save_lease_settings_();  // events are drained on the main loop
@@ -1367,7 +1366,12 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Failed to enable DHCP DNS option: %s", esp_err_to_name(err));
   }
-  this->apply_ap_dns_();
+  this->write_ap_dns_();
+#ifndef USE_WIFI_AP_WISP_STATIC_DNS
+  // Without a resolver the server would offer its own address; apply_ap_dns_() starts it once the station has one
+  if (this->ap_dns_[0] == 0)
+    return true;
+#endif
 #endif
 
   err = esp_netif_dhcps_start(s_ap_netif);
@@ -1511,58 +1515,60 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 }
 
 #ifdef USE_WIFI_AP_WISP
-static uint32_t ip4_of(const network::IPAddress &ip) {
-  ip_addr_t addr = ip;
-  return ip_2_ip4(&addr)->addr;
-}
-
+#ifdef USE_WIFI_AP_WISP_STATIC_DNS
 void WiFiComponent::set_ap_dns_servers(const network::IPAddress &main, const network::IPAddress &backup) {
-  this->ap_dns_[0] = ip4_of(main);
-  this->ap_dns_[1] = ip4_of(backup);
-  this->ap_dns_configured_ = true;
+  this->ap_dns_[0] = static_cast<esp_ip4_addr_t>(main).addr;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  this->ap_dns_[1] = static_cast<esp_ip4_addr_t>(backup).addr;
+#endif
 }
-
+#else
 void WiFiComponent::apply_ap_dns_() {
-  if (!this->ap_dns_configured_) {
-    // Follow the station's resolvers; nothing to offer until it has one
-    const uint32_t main = ip4_of(this->wifi_dns_ip_(0));
-    if (main == 0)
-      return;
-    const uint32_t backup = ip4_of(this->wifi_dns_ip_(1));
-    if (main == this->ap_dns_[0] && backup == this->ap_dns_[1])
-      return;
-    this->ap_dns_[0] = main;
+  // Nothing to offer until the station has a resolver
+  const uint32_t main = ip_addr_get_ip4_u32(dns_getserver(0));
+  if (main == 0)
+    return;
+  bool changed = main != this->ap_dns_[0];
+  this->ap_dns_[0] = main;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // An offered backup cannot be withdrawn: set_dns_info rejects an empty address
+  const uint32_t backup = ip_addr_get_ip4_u32(dns_getserver(1));
+  if (backup != 0 && backup != this->ap_dns_[1]) {
     this->ap_dns_[1] = backup;
+    changed = true;
   }
-  // The DHCP server reads its resolvers only while stopped; during AP setup it is not running yet
+#endif
+  if (!changed)
+    return;
+  // The DHCP server reads its resolvers only while stopped
   esp_err_t err = esp_netif_dhcps_stop(s_ap_netif);
-  const bool was_running = err == ESP_OK;
-  if (!was_running && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
     ESP_LOGW(TAG, "Failed to stop DHCP server: %s", esp_err_to_name(err));
     return;
   }
+  this->write_ap_dns_();
+  if (!this->ap_started_)
+    return;  // AP setup starts the server
+  err = esp_netif_dhcps_start(s_ap_netif);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to restart DHCP server: %s", esp_err_to_name(err));
+  }
+}
+#endif  // USE_WIFI_AP_WISP_STATIC_DNS
+
+void WiFiComponent::write_ap_dns_() {
   static constexpr esp_netif_dns_type_t DNS_TYPES[] = {ESP_NETIF_DNS_MAIN, ESP_NETIF_DNS_BACKUP};
-  for (size_t i = 0; i < std::size(DNS_TYPES); i++) {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
-    if (i > 0)
-      break;  // a DHCP server interface takes a backup resolver from ESP-IDF 6.0
-#endif
+  for (size_t i = 0; i < AP_DNS_COUNT; i++) {
     if (this->ap_dns_[i] == 0)
       continue;
     esp_netif_dns_info_t dns{};
     dns.ip.type = ESP_IPADDR_TYPE_V4;
     dns.ip.u_addr.ip4.addr = this->ap_dns_[i];
-    err = esp_netif_set_dns_info(s_ap_netif, DNS_TYPES[i], &dns);
+    esp_err_t err = esp_netif_set_dns_info(s_ap_netif, DNS_TYPES[i], &dns);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to set DHCP DNS server %u: %s", (unsigned) i, esp_err_to_name(err));
     } else {
       ESP_LOGV(TAG, "DHCP DNS server: " IPSTR, IP2STR(&dns.ip.u_addr.ip4));
-    }
-  }
-  if (was_running) {
-    err = esp_netif_dhcps_start(s_ap_netif);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to restart DHCP server: %s", esp_err_to_name(err));
     }
   }
 }

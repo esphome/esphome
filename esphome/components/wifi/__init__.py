@@ -173,6 +173,7 @@ MAX_WIFI_NETWORKS = 127
 # get best-effort connection attempts. Longer timeout ensures we exhaust all options
 # before falling back to AP mode. Aligned with improv wifi_timeout default.
 DEFAULT_AP_TIMEOUT = "90s"
+DEFAULT_AP_TIMEOUT_PERIOD = cv.time_period(DEFAULT_AP_TIMEOUT)
 DEFAULT_REBOOT_TIMEOUT = "15min"
 # Both defaults also match the C++ initializers in wifi_component.h; codegen skips
 # the setter when the config equals them.
@@ -351,7 +352,7 @@ def wifi_network_ap(value):
                 "WISP mode requires a password for the access point",
                 path=[CONF_PASSWORD],
             )
-        if config[CONF_AP_TIMEOUT] != cv.time_period(DEFAULT_AP_TIMEOUT):
+        if config[CONF_AP_TIMEOUT] != DEFAULT_AP_TIMEOUT_PERIOD:
             raise cv.Invalid(
                 "ap_timeout has no effect in WISP mode, the access point is always up",
                 path=[CONF_AP_TIMEOUT],
@@ -768,13 +769,14 @@ async def to_code(config):
             lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
         )
         # Skip the setter when the config matches the C++ initializer.
-        if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
+        if (ap_timeout := conf[CONF_AP_TIMEOUT]) != DEFAULT_AP_TIMEOUT_PERIOD:
             cg.add(var.set_ap_timeout(ap_timeout))
         if conf[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
             cg.add_define("USE_WIFI_AP_WISP")
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
             if dns_servers := conf.get(CONF_DNS_SERVERS):
+                cg.add_define("USE_WIFI_AP_WISP_STATIC_DNS")
                 cg.add(var.set_ap_dns_servers(*(safe_ip(ip) for ip in dns_servers)))
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP
