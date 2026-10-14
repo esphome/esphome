@@ -116,6 +116,7 @@ void GreeClimate::transmit_state() {
   // Fahrenheit display. byte 3 bit 3 selects Fahrenheit on the unit's own panel and bit 2 is
   // TempExtraDegreeF, a half-degree Celsius step. Verified against frames captured from a real YX1FF
   // remote on a Blueridge mini-split, and confirmed on the unit's display at 65, 71, 77 and 78 F.
+  // Note this relies on the checksum covering byte 3, which the generic formula above does.
   if (this->use_fahrenheit_) {
     remote_state[3] |= 0x08;
     uint8_t temp_field;
@@ -128,21 +129,11 @@ void GreeClimate::transmit_state() {
   }
 
   // Calculate the checksum
-  // NOTE: the YAN/YX1FF formula below does not include byte 3, so it cannot follow the Fahrenheit
-  // bits and the unit rejects such a frame. Every frame captured from a real YX1FF remote -- in both
-  // Celsius and Fahrenheit -- matches the generic formula instead, which suggests the YAN/YX1FF
-  // variant may be wrong in general. It is left in place for Celsius so that existing YAN and YX1FF
-  // installations are bit-for-bit unchanged; only hardware owners can confirm whether the generic
-  // formula should apply to those models unconditionally. See the linked issue.
-  if ((model == GREE_YAN || model == GREE_YX1FF) && !this->use_fahrenheit_) {
-    remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
-  } else {
-    remote_state[7] =
-        ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
-           ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
-          0x0F)
-         << 4);
-  }
+  remote_state[7] =
+      ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
+         ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
+        0x0F)
+       << 4);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
