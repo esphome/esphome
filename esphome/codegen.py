@@ -44,6 +44,7 @@ from esphome.cpp_generator import (  # noqa: F401
     safe_exp,
     set_cpp_standard,
     shared_progmem_array,
+    shared_progmem_string,
     statement,
     static_const_array,
     static_function,

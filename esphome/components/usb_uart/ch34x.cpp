@@ -132,15 +132,12 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
       factor = 256 - factor;
 
       uint16_t value = 0xC0;
-      if (channel->stop_bits_ == UART_CONFIG_STOP_BITS_2)
+      if (channel->line_stop_bits_() == LineStopBits::LINE_STOP_BITS_2)
         value |= 4;
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_NONE:
-          break;
-        default:
-          value |= 8 | ((channel->parity_ - 1) << 4);
-          break;
-      }
+      // Parity enable, then 0 = odd, 1 = even, 2 = mark, 3 = space
+      const LineParity parity = channel->line_parity_();
+      if (parity != LineParity::LINE_PARITY_NONE)
+        value |= 8 | ((static_cast<uint8_t>(parity) - 1) << 4);
       value |= channel->data_bits_ - 5;
       value <<= 8;
       value |= 0x8C;
