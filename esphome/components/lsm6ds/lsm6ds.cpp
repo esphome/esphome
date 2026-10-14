@@ -30,9 +30,9 @@ static const LogString *gyro_range_to_str(LSM6DSGyroRange range) {
 static const LogString *chip_name_from_who_am_i(uint8_t who_am_i) {
   switch (who_am_i) {
     case 0x69:
-      return LOG_STR("LSMDSO");
-    case 0x6A:
       return LOG_STR("LSM6DS3");
+    case 0x6A:
+      return LOG_STR("LSM6DS3TR-C");
     default:
       return nullptr;
   }
