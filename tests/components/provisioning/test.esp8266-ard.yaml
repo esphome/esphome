@@ -1,5 +1,6 @@
 # Provisioning window on ESP8266 (no BLE Improv): api as a provisioning source
-# and the wifi reboot guard. improv_serial is present and intentionally NOT gated.
+# and the wifi (AP + captive portal) guards. improv_serial is present and
+# intentionally NOT gated.
 provisioning:
   timeout: 1min
   on_timeout:
@@ -12,5 +13,9 @@ api:
 wifi:
   ssid: MySSID
   password: password1
+  ap:
+    ssid: MyAP
+
+captive_portal:
 
 improv_serial:

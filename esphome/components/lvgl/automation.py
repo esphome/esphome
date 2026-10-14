@@ -5,9 +5,17 @@ from esphome import automation
 from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_ROTATION, CONF_TIMEOUT
+from esphome.const import (
+    CONF_ACTION,
+    CONF_GROUP,
+    CONF_HIDDEN,
+    CONF_ID,
+    CONF_POSITION,
+    CONF_ROTATION,
+    CONF_TIMEOUT,
+)
 from esphome.core import Lambda
-from esphome.cpp_generator import TemplateArguments, get_variable
+from esphome.cpp_generator import StaticCastExpression, TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -23,11 +31,11 @@ from .defines import (
     CONF_SHOW_SNOW,
     CONF_TOP_LAYER,
     PARTS,
-    StaticCastExpression,
     add_warning,
     get_focused_widgets,
     get_options,
     get_refreshed_widgets,
+    literal,
 )
 from .layout import layout_validator
 from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
@@ -36,6 +44,7 @@ from .lvcode import (
     UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
+    LvConditional,
     LvglComponent,
     ReturnStatement,
     add_line_marks,
@@ -70,7 +79,6 @@ from .widgets import (
     get_screen_active,
     get_widgets,
     set_obj_properties,
-    wait_for_widgets,
 )
 
 # Widgets that are used in a focused/refreshed action are tracked in
@@ -119,15 +127,7 @@ async def action_to_code(
     action_id,
     template_arg,
     args,
-    config=None,
 ):
-    # Ensure all required ids have been processed, so our LambdaContext doesn't get context-switched.
-    if config:
-        for lamb in config.values():
-            if isinstance(lamb, Lambda):
-                for id_ in lamb.requires_ids:
-                    await get_variable(id_)
-    await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             await action(widget)
@@ -137,7 +137,7 @@ async def action_to_code(
 async def update_to_code(config, action_id, template_arg, args):
     async def do_update(widget: Widget):
         await set_obj_properties(widget, config)
-        await widget.type.to_code(widget, config)
+        await widget.type.update_to_code(widget, config)
         if (
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
@@ -145,9 +145,7 @@ async def update_to_code(config, action_id, template_arg, args):
             lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(
-        widgets, do_update, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)
 
 
 @automation.register_condition(
@@ -357,7 +355,7 @@ async def obj_enable_to_code(config, action_id, template_arg, args):
 )
 async def obj_hide_to_code(config, action_id, template_arg, args):
     async def do_hide(widget: Widget):
-        widget.add_flag("LV_OBJ_FLAG_HIDDEN")
+        widget.set_flag(CONF_HIDDEN, True)
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_hide, action_id, template_arg, args)
@@ -368,12 +366,54 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
 )
 async def obj_show_to_code(config, action_id, template_arg, args):
     async def do_show(widget: Widget):
-        widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
+        widget.set_flag(CONF_HIDDEN, False)
         if widget.move_to_foreground:
             lv_obj.move_foreground(widget.obj)
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_show, action_id, template_arg, args)
+
+
+SET_Z_INDEX_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.ensure_list(
+            cv.maybe_simple_value(
+                {cv.Required(CONF_ID): cv.use_id(lv_obj_t)},
+                key=CONF_ID,
+            )
+        ),
+        cv.Required(CONF_POSITION): cv.Any(
+            cv.one_of("TOP", "BOTTOM", "UP", "DOWN", upper=True), cv.int_
+        ),
+    }
+)
+
+
+@automation.register_action(
+    "lvgl.widget.set_z_index", ObjUpdateAction, SET_Z_INDEX_SCHEMA, synchronous=True
+)
+async def obj_set_z_index_to_code(config, action_id, template_arg, args):
+    position = config[CONF_POSITION]
+
+    async def do_set_z_index(widget: Widget):
+        if position == "TOP":
+            lv_obj.move_foreground(widget.obj)
+        elif position == "BOTTOM":
+            lv_obj.move_background(widget.obj)
+        elif position == "UP":
+            lv_obj.move_to_index(
+                widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} + 1")
+            )
+        elif position == "DOWN":
+            with LvConditional(literal(f"{lv_expr.obj_get_index(widget.obj)} > 0")):
+                lv_obj.move_to_index(
+                    widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} - 1")
+                )
+        else:
+            lv_obj.move_to_index(widget.obj, position)
+
+    widgets = [widget.outer or widget for widget in await get_widgets(config[CONF_ID])]
+    return await action_to_code(widgets, do_set_z_index, action_id, template_arg, args)
 
 
 def focused_id(value):
@@ -457,9 +497,7 @@ async def obj_update_to_code(config, action_id, template_arg, args):
         await set_obj_properties(widget, config)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(
-        widgets, do_update, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)
 
 
 def validate_refresh_config(config):

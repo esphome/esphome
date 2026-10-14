@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.cover";
+ESPHOME_LOG_TAG(TAG, "mqtt.cover");
 
 using namespace esphome::cover;
 

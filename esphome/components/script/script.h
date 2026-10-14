@@ -8,28 +8,19 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::script {
 
 class ScriptLogger {
  protected:
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logw_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }
-  void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logd_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
-  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
-#else
-  void esp_logw_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
-  }
-  void esp_logd_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
-  }
-  void esp_log_(int level, int line, const char *format, const char *param);
-#endif
+  void esp_log_(int level, int line, ProgmemStr format, const char *param);
 };
 
 /// The abstract base class for all script types.
@@ -142,6 +133,9 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // Use std::make_unique to replace the unique_ptr
       this->var_queue_[write_pos] = std::make_unique<std::tuple<Ts...>>(x...);
       this->num_queued_++;
+      // Enable loop now that there is something to dequeue - don't call loop()
+      // synchronously! Let the event loop call it to avoid reentrancy issues
+      this->enable_loop();
       return;
     }
 
@@ -167,6 +161,15 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       auto tuple_ptr = std::move(this->var_queue_[this->queue_front_]);
       this->queue_front_ = (this->queue_front_ + 1) % queue_capacity;
       this->trigger_tuple_(*tuple_ptr, std::make_index_sequence<sizeof...(Ts)>{});
+    }
+    if (this->num_queued_ == 0 && !this->is_idle()) {
+      // Queue is now empty - disable loop until the next execute() queues an
+      // instance. The inline is_idle() check skips the out-of-line call when
+      // the loop is already disabled (execute() calls loop() synchronously).
+      // This can run before this component's setup() (execute() from on_boot),
+      // which leaves the state machine in LOOP_DONE and skips call_setup();
+      // this class therefore must not rely on a setup() override.
+      this->disable_loop();
     }
   }
 
@@ -251,27 +254,8 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
   }
 
   Script<As...> *script_;
-  Args args_;
-};
-
-template<class C, typename... Ts> class ScriptStopAction final : public Action<Ts...> {
- public:
-  ScriptStopAction(C *script) : script_(script) {}
-
-  void play(const Ts &...x) override { this->script_->stop(); }
-
- protected:
-  C *script_;
-};
-
-template<class C, typename... Ts> class IsRunningCondition final : public Condition<Ts...> {
- public:
-  explicit IsRunningCondition(C *parent) : parent_(parent) {}
-
-  bool check(const Ts &...x) override { return this->parent_->is_running(); }
-
- protected:
-  C *parent_;
+  // Empty tuple for scripts without parameters; takes no space then
+  [[no_unique_address]] Args args_;
 };
 
 /** Wait for a script to finish before continuing.
@@ -311,8 +295,11 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
   void loop() override {
-    if (this->num_running_ == 0)
+    if (this->num_running_ == 0) {
+      // Nothing left to wait for, e.g. once the last queued item has run
+      this->disable_loop();
       return;
+    }
 
     if (this->script_->is_running())
       return;
@@ -321,9 +308,10 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
     // Processing all items in a while loop causes infinite loops because
     // play_next_() can trigger more items to be queued
     if (!this->param_queue_.empty()) {
-      auto &params = this->param_queue_.front();
-      this->play_next_tuple_(params, std::make_index_sequence<sizeof...(Ts)>{});
+      // Take the item out first: the chain may call stop(), which clears the queue
+      auto params = std::move(this->param_queue_.front());
       this->param_queue_.pop_front();
+      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
     } else {
       // Queue is now empty - disable loop until next play_complex
       this->disable_loop();
@@ -339,12 +327,8 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
  protected:
-  template<size_t... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->play_next_(std::get<S>(tuple)...);
-  }
-
   C *script_;
-  std::list<std::tuple<Ts...>> param_queue_;
+  std::list<std::tuple<stored_trigger_arg_t<Ts>...>> param_queue_;
 };
 
 }  // namespace esphome::script

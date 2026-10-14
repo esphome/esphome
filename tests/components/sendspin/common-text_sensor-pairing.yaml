@@ -1,0 +1,17 @@
+# The pairing code text sensor on its own, with no metadata text sensor to pull in the
+# metadata role. This is the build where USE_SENDSPIN_METADATA is undefined while the text
+# sensor platform is still compiled, which is guarded separately in sendspin_text_sensor.{h,cpp}.
+#
+# Deliberately does not include common.yaml: that file pulls in the shared hub package, and
+# the point here is the narrower configuration. sendspin depends on network, so the interface
+# has to be declared locally instead.
+wifi:
+  ap:
+
+sendspin:
+  id: sendspin_hub_id
+
+text_sensor:
+  - platform: sendspin
+    name: "Pairing Code"
+    type: pairing_code

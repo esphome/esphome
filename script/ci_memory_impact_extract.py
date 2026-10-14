@@ -269,7 +269,7 @@ def main() -> int:
     if args.output_build_dir and build_dir:
         build_dir_path = Path(args.output_build_dir)
         build_dir_path.parent.mkdir(parents=True, exist_ok=True)
-        build_dir_path.write_text(build_dir)
+        build_dir_path.write_text(build_dir, encoding="utf-8")
         print(f"Wrote build directory to {args.output_build_dir}", file=sys.stderr)
 
     # Run detailed analysis if build directory available

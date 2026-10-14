@@ -1,0 +1,58 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+remote_transmitter:
+  pin: GPIO4
+  carrier_duty_percent: 100%
+
+remote_receiver:
+  pin: GPIO5
+
+button:
+  - platform: template
+    name: Numbered
+    on_press:
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '1000100000000000'
+          protocol: 1
+  - platform: template
+    name: Custom A
+    on_press:
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '1010101010101010'
+          protocol:
+            pulse_length: 320
+  - platform: template
+    name: Custom B
+    on_press:
+      - remote_transmitter.transmit_rc_switch_type_b:
+          address: 4
+          channel: 2
+          state: true
+          protocol:
+            pulse_length: 320
+  - platform: template
+    name: Lambda
+    on_press:
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: '1010101010101011'
+          protocol: !lambda return remote_base::rc_switch_protocol(2);
+
+binary_sensor:
+  - platform: remote_receiver
+    name: Numbered RX
+    rc_switch_raw:
+      code: '1000100000000000'
+      protocol: 1
+  - platform: remote_receiver
+    name: Custom RX
+    rc_switch_raw:
+      code: '1010101010101010'
+      protocol:
+        pulse_length: 320
+  - platform: template
+    id: rc_switch_custom_protocol
