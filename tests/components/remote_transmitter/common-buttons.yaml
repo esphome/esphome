@@ -531,3 +531,8 @@ button:
           repeat:
             times: 3
             wait_time: 30ms
+  - platform: template
+    name: PD Pioneer
+    on_press:
+      - remote_transmitter.transmit_pd_pioneer:
+          code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]

@@ -1,0 +1,28 @@
+ld2410s:
+  id: ld2410s_bare
+  uart_id: uart_bus
+
+binary_sensor:
+  - platform: ld2410s
+    ld2410s_id: ld2410s_bare
+    has_target:
+      name: Has Target
+
+# Entities of other platforms must not pull the parameter code into a bare hub
+number:
+  - platform: template
+    name: Unrelated Number
+    optimistic: true
+    min_value: 0
+    max_value: 10
+    step: 1
+
+select:
+  - platform: template
+    name: Unrelated Select
+    optimistic: true
+    options: ["a", "b"]
+
+text_sensor:
+  - platform: template
+    name: Unrelated Text

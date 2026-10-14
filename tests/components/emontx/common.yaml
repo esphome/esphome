@@ -8,7 +8,6 @@ button:
 
 emontx:
   id: test_emontx
-  lock_on_reboot: true
   on_json:
     - then:
         - logger.log: "Got JSON"

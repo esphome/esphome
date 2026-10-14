@@ -569,6 +569,29 @@ def test_config_context_defaults_explicit_vars_override() -> None:
     assert "defaults" not in tagged
 
 
+def test_config_context_defaults_empty_raises() -> None:
+    """Test that an empty defaults: key raises EsphomeError, not a bare TypeError.
+
+    A ``defaults:`` block with an empty (or comments-only) body parses as None.
+    Unpacking it used to fail with ``TypeError: 'NoneType' object is not a
+    mapping``, which escapes the EsphomeError handler in resolve_include and
+    reaches the user as an unhandled traceback naming no file.
+    """
+    data = {"defaults": None, "key": "value"}
+
+    with pytest.raises(EsphomeError, match="'defaults' is empty"):
+        yaml_util.add_context(data, None)
+
+
+@pytest.mark.parametrize("defaults", ["oops", ["a", "b"], 42])
+def test_config_context_defaults_non_mapping_raises(defaults) -> None:
+    """Test that a non-mapping defaults: value raises EsphomeError naming the type."""
+    data = {"defaults": defaults, "key": "value"}
+
+    with pytest.raises(EsphomeError, match="'defaults' must be a key to value mapping"):
+        yaml_util.add_context(data, None)
+
+
 def test_represent_extend() -> None:
     """Test that Extend objects are dumped as plain !extend scalars."""
     assert yaml_util.dump({"key": Extend("my_id")}) == "key: !extend 'my_id'\n"
@@ -931,6 +954,23 @@ def test_yaml_merge_chain_include_resolves() -> None:
     assert config["base"]["existing"] == "value"
 
 
+def test_parse_yaml_custom_loader_resolves_root_include() -> None:
+    """A document that is only `!include` is resolved for a custom loader too."""
+    parent = Path("/fake/main.yaml")
+    loader_calls: list[Path] = []
+
+    def custom_loader(fname: Path) -> dict[str, int]:
+        loader_calls.append(fname)
+        return {"x": 1}
+
+    config = yaml_util.parse_yaml(
+        parent, io.StringIO("!include inner.yaml\n"), custom_loader
+    )
+
+    assert config == {"x": 1}
+    assert loader_calls == [Path("/fake/inner.yaml")]
+
+
 def test_yaml_merge_chain_include_depth_exceeded() -> None:
     """Chain includes in merge keys exceeding depth limit raise a clear error."""
     parent = Path("/fake/main.yaml")
@@ -1280,22 +1320,52 @@ def test_force_load_include_files_unresolved_log_level(
     assert matching == [expect_level]
 
 
+def test_force_load_include_files_returns_unresolved_paths(
+    patch_include_file: None,
+) -> None:
+    """Includes with substitution-templated paths are reported back to the
+    caller; resolvable ones are not."""
+    templated = _StubInclude("${var}.yaml", unresolved=True)
+    plain = _StubInclude("ok.yaml")
+    result = force_load_include_files({"a": templated, "b": plain})
+    assert result.unresolved == [str(templated.file)]
+    assert result.errors == []
+    assert plain.load_calls == 1
+
+
 def test_force_load_include_files_warns_on_load_failure(
     patch_include_file: None,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An `EsphomeError` raised by `load()` is caught and logged, not propagated."""
+    """An `EsphomeError` raised by `load()` is caught, logged, and reported to
+    the caller — not propagated."""
     stub = _StubInclude("missing.yaml", raise_on_load=EsphomeError("boom"))
     with caplog.at_level("WARNING", logger="esphome.yaml_util"):
-        force_load_include_files({"k": stub})
+        result = force_load_include_files({"k": stub})
     assert any(
         "Failed to load !include" in r.message and "missing.yaml" in r.message
         for r in caplog.records
     )
+    assert result.errors == [f"{stub.file}: boom"]
+    assert result.unresolved == []
+
+
+def test_force_load_include_files_load_failure_quiet_when_caller_reports(
+    patch_include_file: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With warn_on_load_error=False the failure is still returned but only
+    logged at debug, so a caller that reports it does not duplicate it."""
+    stub = _StubInclude("missing.yaml", raise_on_load=EsphomeError("boom"))
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        result = force_load_include_files({"k": stub}, warn_on_load_error=False)
+    assert result.errors == [f"{stub.file}: boom"]
+    failures = [r for r in caplog.records if "Failed to load !include" in r.message]
+    assert [r.levelname for r in failures] == ["DEBUG"]
 
 
 def test_discovered_yaml_files_holds_files_and_secrets() -> None:
-    """`DiscoveredYamlFiles` is a small data carrier; both fields are mandatory."""
+    """`DiscoveredYamlFiles` is a small data carrier."""
     files = [Path("/tmp/a.yaml")]
     secrets = {Path("/tmp/a.yaml")}
     discovered = DiscoveredYamlFiles(files, secrets)
@@ -1358,11 +1428,24 @@ def test_discover_user_yaml_files_flags_secrets_symlink(tmp_path: Path) -> None:
     assert target.resolve() in discovered.secrets
 
 
-def test_discover_user_yaml_files_swallows_parse_errors(tmp_path: Path) -> None:
-    """A YAML parse failure returns whatever was tracked so far without raising."""
+def test_discover_user_yaml_files_reports_parse_errors(tmp_path: Path) -> None:
+    """A YAML parse failure is surfaced in `.load_errors` (not raised), so
+    consumers can tell the file set is incomplete."""
     entry = _write(tmp_path, "entry.yaml", "esphome: [unterminated\n")
     discovered = discover_user_yaml_files(entry)
     assert isinstance(discovered, DiscoveredYamlFiles)
+    assert len(discovered.load_errors) == 1
+    assert "entry.yaml" in discovered.load_errors[0]
+
+
+def test_discover_user_yaml_files_reports_unresolved_includes(
+    tmp_path: Path,
+) -> None:
+    """A substitution-templated `!include` path is surfaced in `.unresolved`."""
+    entry = _write_entry_including(tmp_path, "${board}.yaml")
+    discovered = discover_user_yaml_files(entry)
+    assert len(discovered.unresolved) == 1
+    assert "${board}.yaml" in discovered.unresolved[0]
 
 
 def test_discover_user_yaml_files_deduplicates(tmp_path: Path) -> None:
@@ -1589,9 +1672,9 @@ def test_discover_user_yaml_files_many_candidates_keep_nested_includes(
 def test_discover_user_yaml_files_bad_candidate_still_tracked(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A matched candidate that fails to parse warns even during discovery,
-    stays tracked (the load listener fires before parsing), and doesn't block
-    other candidates."""
+    """A matched candidate that fails to parse is reported in ``load_errors``
+    (logged only at debug, the caller reports it), stays tracked (the load
+    listener fires before parsing), and doesn't block other candidates."""
     _write(tmp_path, "keys/good.yaml", "api:\n")
     _write(tmp_path, "keys/bad.yaml", "esphome: [unterminated\n")
     with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
@@ -1604,7 +1687,8 @@ def test_discover_user_yaml_files_bad_candidate_still_tracked(
     matching = [
         r.levelname for r in caplog.records if "Failed to load candidate" in r.message
     ]
-    assert matching == ["WARNING"]
+    assert matching == ["DEBUG"]
+    assert any("bad.yaml" in e for e in discovered.load_errors)
 
 
 def test_discover_user_yaml_files_tolerates_templated_top_level_include(
@@ -2233,3 +2317,21 @@ def test_find_secret_references_in_flow_collections() -> None:
     """Flow mapping and sequence punctuation is not part of the secret name."""
     text = "a: {password: !secret wifi_pw}\nb: [!secret one, !secret 'two']\n"
     assert yaml_util.find_secret_references(text) == {"wifi_pw", "one", "two"}
+
+
+@pytest.mark.parametrize(
+    ("yaml_text", "expected_offset"),
+    [
+        ("value: return 42;\n", 0),
+        ('value: "return 42;"\n', 0),
+        ("value: |-\n  return 42;\n", 1),
+        ("value: >-\n  return 42;\n", 1),
+    ],
+)
+def test_content_offset_only_for_block_scalars(
+    yaml_text: str, expected_offset: int
+) -> None:
+    """A one-line lambda starts on its own line; only | and > move it to the next."""
+    doc = yaml_util.parse_yaml(Path("test.yaml"), io.StringIO(yaml_text))
+    assert doc["value"].content_offset == expected_offset
+    assert doc["value"].content_start.line == expected_offset

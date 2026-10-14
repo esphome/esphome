@@ -2926,6 +2926,7 @@ async def _finalize_arduino_aware_flags():
     if not arduino_linked:
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
         cg.add_define("USE_ESP32_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
     elif not CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
 

@@ -2409,6 +2409,62 @@ register_protocol_action(
 )
 
 
+# PD Pioneer
+(
+    PDPioneerData,
+    PDPioneerBinarySensor,
+    PDPioneerTrigger,
+    _,
+    PDPioneerDumper,
+) = declare_protocol("PDPioneer")
+
+
+def _validate_pd_pioneer_burst(code: list[int]) -> list[int]:
+    """Byte 3 tells the odd (0x02) and even (0x01) bursts apart; decode() drops anything else."""
+    if code[3] not in (0x01, 0x02):
+        raise cv.Invalid("Byte 3 of a pd_pioneer code must be 0x01 or 0x02")
+    return code
+
+
+PDPIONEER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All(
+            [cv.hex_uint8_t], cv.Length(min=13, max=14), _validate_pd_pioneer_burst
+        ),
+    }
+)
+
+
+def _pd_pioneer_finalized(code: list[int]) -> list[int]:
+    """Fill in the checksum: the sum of the first 13 bytes, plus 15 for an odd burst."""
+    checksum = sum(code[:13], 15 if code[3] == 0x02 else 0) & 0xFF
+    return [*code[:13], checksum]
+
+
+@register_binary_sensor("pd_pioneer", PDPioneerBinarySensor, PDPIONEER_SCHEMA)
+def pd_pioneer_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(var.set_data(_pd_pioneer_finalized(config[CONF_CODE])))
+
+
+@register_trigger("pd_pioneer", PDPioneerTrigger, PDPioneerData)
+def pd_pioneer_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("pd_pioneer", PDPioneerDumper)
+def pd_pioneer_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "pd_pioneer",
+    "PDPioneer",
+    PDPIONEER_SCHEMA,
+    _bytes_field(CONF_CODE, f"data = {PDPioneerData}({{}})"),
+    automation.ApplyCall("data.finalize()"),
+)
+
+
 # Midea
 MideaData, MideaBinarySensor, MideaTrigger, _, MideaDumper = declare_protocol("Midea")
 MIDEA_SCHEMA = cv.Schema(
