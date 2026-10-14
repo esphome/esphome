@@ -127,7 +127,9 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
-    cg.add(var.set_protocol(config[CONF_PROTOCOL]))
+    protocol = PROTOCOLS[config[CONF_PROTOCOL]]
+    create = heatpumpir_ns.create_heatpump_ir.template(protocol)
+    cg.add(var.set_protocol(protocol, create()))
     cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))

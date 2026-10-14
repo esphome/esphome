@@ -89,6 +89,9 @@ enum VerticalDirection {
   VERTICAL_DIRECTION_DOWN = 5,
 };
 
+/// Creates the HeatpumpIR library class for a protocol; instantiated in heatpumpir.cpp.
+template<Protocol P> HeatpumpIR *create_heatpump_ir();
+
 // Temperature
 const float TEMP_MIN = 0;    // Celsius
 const float TEMP_MAX = 100;  // Celsius
@@ -102,8 +105,9 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
                                climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
   void setup() override;
-  void set_protocol(Protocol protocol) {
+  void set_protocol(Protocol protocol, HeatpumpIR *heatpump_ir) {
     this->protocol_ = protocol;
+    this->heatpump_ir_ = heatpump_ir;
     if (this->has_fan_byte_presets_()) {
       this->presets_ = {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST};
     }
