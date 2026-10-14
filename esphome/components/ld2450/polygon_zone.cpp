@@ -8,7 +8,7 @@ namespace esphome::ld2450 {
 ESPHOME_LOG_TAG(TAG, "ld2450.polygon_zone");
 
 void PolygonZone::setup() {
-  // Version 1 of the saved layout: bump it when Polygon changes, so old data is discarded instead of misread
+  // Bump the version when Polygon's layout changes
   this->pref_ = this->make_entity_preference<Polygon>(1);
   Polygon saved;
   if (this->pref_.load(&saved)) {

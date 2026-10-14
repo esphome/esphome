@@ -53,7 +53,7 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_DATA, "add_on_data_callback"),
 )
 
-# The polygon zone sources only build when a text platform entry defines zones
+# Polygon zone sources build only when zones are configured
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "polygon.cpp": "LD2450_POLYGON_ZONE_COUNT",

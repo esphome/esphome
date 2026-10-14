@@ -45,9 +45,9 @@ POLYGON_MAX_LENGTH = 255
 # everything goes to flash (ESP8266_FLASH_STORAGE_SIZE)
 PREFERENCES_RTC_REGION_WORDS = (78, 32)
 PREFERENCES_FLASH_WORDS = 128
-# sizeof(Polygon): 23 points of two int16_t, the count byte and padding; pinned by a static_assert in polygon.h
+# sizeof(Polygon), pinned by a static_assert in polygon.h
 POLYGON_SAVED_BYTES = 94
-# A saved polygon in 4-byte words, plus one checksum word
+# Saved polygon in words, plus the checksum word
 POLYGON_ZONE_SAVED_WORDS = math.ceil(POLYGON_SAVED_BYTES / 4) + 1
 
 PolygonZone = ld2450_ns.class_("PolygonZone", text.Text)
@@ -67,7 +67,7 @@ def _require_manual_id(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
-        # Polygons are in the radar's raw coordinates (mm), checked before any sensor filter; see polygon_zone.h
+        # Polygons are in raw radar mm, checked before sensor filters (polygon_zone.h)
         cv.Required(CONF_POLYGON_ZONES): cv.ensure_list(
             text.text_schema(
                 PolygonZone,
