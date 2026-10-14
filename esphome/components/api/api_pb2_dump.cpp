@@ -1119,6 +1119,7 @@ const char *WizardCapabilities::dump_to(DumpBuffer &out) const {
 const char *SendspinCapabilities::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinCapabilities"));
   dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("client_id"), this->client_id);
   return out.c_str();
 }
 #endif

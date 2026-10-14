@@ -310,12 +310,14 @@ uint32_t WizardCapabilities::calc_size_msg(const void *self) {
 uint8_t *SendspinCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const SendspinCapabilities *>(self);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.feature_flags);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.client_id);
   return pos;
 }
 uint32_t SendspinCapabilities::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const SendspinCapabilities *>(self);
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, msg.feature_flags);
+  size += !msg.client_id.empty() ? 2 + msg.client_id.size() : 0;
   return size;
 }
 #endif
