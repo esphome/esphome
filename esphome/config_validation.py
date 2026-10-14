@@ -96,6 +96,7 @@ from esphome.core import (
     TimePeriodSeconds,
     Version,
 )
+from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import (
@@ -1405,7 +1406,7 @@ METRIC_SUFFIXES = {
 
 def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(
-        f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
+        f"^([-+]?(?:[0-9]+\\.?[0-9]*|\\.[0-9]+))\\s*(\\w*?){regex_suffix}$", re.UNICODE
     )
 
     def validator(value):
@@ -1419,10 +1420,7 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         if match is None:
             raise Invalid(f"Expected {quantity} with unit, got {value}")
 
-        try:
-            mantissa = float(match.group(1))
-        except ValueError as e:
-            raise Invalid(f"Expected {quantity} with unit, got {value}") from e
+        mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
             raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
@@ -1448,9 +1446,15 @@ decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
-def temperature_unit(value: Any) -> str:
+class TemperatureUnitValue(str):
+    """A unit from temperature_unit(): the platform took the option, so the entity reports in it."""
+
+    __slots__ = ()
+
+
+def temperature_unit(value: Any) -> TemperatureUnitValue:
     """Validate the unit an entity reports its temperatures in."""
-    return one_of(UNIT_CELSIUS, UNIT_FAHRENHEIT, UNIT_KELVIN)(value)
+    return TemperatureUnitValue(one_of(*TEMPERATURE_UNITS)(value))
 
 
 def temperature_with_unit(value: Any) -> tuple[float, str | None]:
@@ -1467,22 +1471,12 @@ def temperature_with_unit(value: Any) -> tuple[float, str | None]:
     return _temperature_c(value), None
 
 
-def _temperature_to_celsius(value: float, unit: str, delta: bool) -> float:
-    if unit == UNIT_FAHRENHEIT:
-        return value * (5 / 9) if delta else (value - 32) * (5 / 9)
-    if unit == UNIT_KELVIN:
-        return value if delta else value - 273.15
-    if unit != UNIT_CELSIUS:
-        raise ValueError(f"Unknown temperature unit {unit!r}")
-    return value
-
-
-def _temperature_from_celsius(value: float, unit: str, delta: bool) -> float:
-    if unit == UNIT_FAHRENHEIT:
-        return value * (9 / 5) if delta else value * (9 / 5) + 32
-    if unit == UNIT_KELVIN:
-        return value if delta else value + 273.15
-    return value
+# unit = celsius * scale + offset
+_TEMPERATURE_SCALES = {
+    UNIT_CELSIUS: (1.0, 0.0),
+    UNIT_FAHRENHEIT: (9 / 5, 32.0),
+    UNIT_KELVIN: (1.0, 273.15),
+}
 
 
 def convert_temperature(
@@ -1494,9 +1488,11 @@ def convert_temperature(
     """
     if unit is None or unit == to_unit:
         return value
-    return _temperature_from_celsius(
-        _temperature_to_celsius(value, unit, delta), to_unit, delta
-    )
+    scale, offset = _TEMPERATURE_SCALES[unit]
+    to_scale, to_offset = _TEMPERATURE_SCALES[to_unit]
+    if delta:
+        return value / scale * to_scale
+    return (value - offset) / scale * to_scale + to_offset
 
 
 def temperature(value: Any) -> float:

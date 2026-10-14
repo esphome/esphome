@@ -11,10 +11,12 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    convert_temperature_keys,
     entity_duplicate_validator,
     entity_temperature_unit,
     queue_entity_register,
     setup_entity,
+    setup_entity_temperature_unit,
 )
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
@@ -45,16 +47,10 @@ validate_water_heater_mode = cv.enum(WATER_HEATER_MODES, upper=True)
 
 
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
-    """Convert the visual temperatures into the entity's unit."""
     unit = entity_temperature_unit(config)
     visual = config[CONF_VISUAL]
-    for key in (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE):
-        if isinstance(value := visual.get(key), tuple):
-            visual[key] = cv.convert_temperature(*value, unit)
-    if isinstance(value := visual.get(CONF_TARGET_TEMPERATURE_STEP), tuple):
-        visual[CONF_TARGET_TEMPERATURE_STEP] = cv.convert_temperature(
-            *value, unit, delta=True
-        )
+    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
+    convert_temperature_keys(visual, (CONF_TARGET_TEMPERATURE_STEP,), unit, delta=True)
     return config
 
 
@@ -81,11 +77,8 @@ def water_heater_schema(
     entity_category: str = cv.UNDEFINED,
     temperature_unit: bool = False,
 ) -> cv.Schema:
-    """Build the schema of a water heater platform.
-
-    ``temperature_unit`` adds ``unit_of_measurement`` for platforms whose temperatures are all
-    in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
-    """
+    """``temperature_unit`` adds ``unit_of_measurement`` for a platform whose temperatures are all
+    in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``."""
     schema = {cv.GenerateID(): cv.declare_id(class_)}
     if temperature_unit:
         schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT)] = cv.temperature_unit
@@ -113,6 +106,7 @@ async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> Non
     if (temp_step := visual.get(CONF_TARGET_TEMPERATURE_STEP)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
         cg.add(var.set_visual_target_temperature_step_override(temp_step))
+    setup_entity_temperature_unit(var, config)
 
 
 async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pvariable:

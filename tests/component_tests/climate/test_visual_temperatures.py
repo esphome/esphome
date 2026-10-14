@@ -6,6 +6,7 @@ from esphome.components.climate import (
     _visual_temperatures_in_entity_unit,
     visual_temperature_step,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT_TEMPERATURE,
     CONF_MAX_TEMPERATURE,
@@ -47,7 +48,7 @@ def test_visual_temperatures_default_to_celsius() -> None:
 def test_visual_temperatures_follow_unit_of_measurement() -> None:
     config = _visual_temperatures_in_entity_unit(
         {
-            CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT,
+            CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT),
             CONF_VISUAL: {
                 CONF_MIN_TEMPERATURE: (60.0, None),
                 CONF_MAX_TEMPERATURE: (30.0, UNIT_CELSIUS),
@@ -65,11 +66,17 @@ def test_visual_temperatures_follow_unit_of_measurement() -> None:
     assert visual[CONF_TEMPERATURE_STEP][CONF_CURRENT_TEMPERATURE] == pytest.approx(0.9)
 
 
-def test_platform_with_its_own_unit_option_keeps_celsius() -> None:
-    # anova validates unit_of_measurement as c|f for the device, not for the entity
+def test_only_a_validated_unit_is_the_entity_unit() -> None:
+    # anova validates its own unit_of_measurement for the device; it is not the entity unit
     assert entity_temperature_unit({CONF_UNIT_OF_MEASUREMENT: "f"}) == UNIT_CELSIUS
     assert (
         entity_temperature_unit({CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT})
+        == UNIT_CELSIUS
+    )
+    assert (
+        entity_temperature_unit(
+            {CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT)}
+        )
         == UNIT_FAHRENHEIT
     )
 

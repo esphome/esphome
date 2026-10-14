@@ -2202,6 +2202,11 @@ def test_convert_temperature(
     )
 
 
+def test_convert_temperature_rejects_unknown_unit() -> None:
+    with pytest.raises(KeyError):
+        cv.convert_temperature(1.0, "R", UNIT_CELSIUS)
+
+
 def test_color_temperature_mireds() -> None:
     assert cv.color_temperature("153 mireds") == pytest.approx(153.0)
 

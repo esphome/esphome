@@ -553,15 +553,41 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
 def entity_temperature_unit(config: ConfigType) -> str:
     """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
-    the option through its schema factory, else Celsius (anova has an unrelated option of that name)."""
+    the option through its schema factory, else Celsius (anova's option of that name is unrelated)."""
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
-    return unit if unit in TEMPERATURE_UNITS else UNIT_CELSIUS
+    return unit if isinstance(unit, cv.TemperatureUnitValue) else UNIT_CELSIUS
 
 
 def entity_temperature_unit_of_id(entity_id: ID) -> str:
     """The unit of the entity with this id, for actions that take static temperatures."""
     path = CORE.config.get_path_for_id(entity_id)[:-1]
     return entity_temperature_unit(CORE.config.get_config_for_path(path))
+
+
+def convert_temperature_keys(
+    section: ConfigType, keys: tuple[str, ...], unit: str, *, delta: bool = False
+) -> None:
+    """Convert the ``(value, unit)`` temperatures under ``keys`` into ``unit``; absent or already
+    converted values are left alone."""
+    for key in keys:
+        if isinstance(value := section.get(key), tuple):
+            section[key] = cv.convert_temperature(*value, unit, delta=delta)
+
+
+def temperature_in_entity_unit(
+    config: ConfigType, value: tuple[float, str | None]
+) -> str:
+    """Render a static action temperature in the unit of the entity the action targets."""
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
+    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
+
+
+def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
+    """Pass the unit an entity reports in to its platform, which took the option."""
+    if isinstance(
+        unit := config.get(CONF_UNIT_OF_MEASUREMENT), cv.TemperatureUnitValue
+    ):
+        add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
 
 def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigType]:

@@ -6,6 +6,7 @@ from esphome.components.water_heater import (
     CONF_TARGET_TEMPERATURE_STEP,
     _visual_temperatures_in_entity_unit,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
@@ -35,7 +36,7 @@ def test_visual_temperatures_default_to_celsius() -> None:
 def test_visual_temperatures_follow_unit_of_measurement() -> None:
     config = _visual_temperatures_in_entity_unit(
         {
-            CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT,
+            CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT),
             CONF_VISUAL: {
                 CONF_MIN_TEMPERATURE: (100.0, None),
                 CONF_MAX_TEMPERATURE: (60.0, UNIT_CELSIUS),

@@ -52,11 +52,13 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    convert_temperature_keys,
     entity_duplicate_validator,
     entity_temperature_unit,
-    entity_temperature_unit_of_id,
     queue_entity_register,
     setup_entity,
+    setup_entity_temperature_unit,
+    temperature_in_entity_unit,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
@@ -158,25 +160,17 @@ def visual_temperature_step(value: Any) -> ConfigType:
     return {CONF_TARGET_TEMPERATURE: value, CONF_CURRENT_TEMPERATURE: value}
 
 
-def temperature_in_entity_unit(
-    config: ConfigType, value: tuple[float, str | None]
-) -> str:
-    """Render a static action temperature in the unit of the climate the action targets."""
-    unit = entity_temperature_unit_of_id(config[CONF_ID])
-    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
+templatable_temperature = cv.templatable(cv.temperature_with_unit)
 
 
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
-    """Convert the visual temperatures into the entity's unit."""
     unit = entity_temperature_unit(config)
     visual = config[CONF_VISUAL]
-    for key in (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE):
-        if isinstance(value := visual.get(key), tuple):
-            visual[key] = cv.convert_temperature(*value, unit)
+    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
     if (step := visual.get(CONF_TEMPERATURE_STEP)) is not None:
-        for key in (CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE):
-            if isinstance(value := step[key], tuple):
-                step[key] = cv.convert_temperature(*value, unit, delta=True)
+        convert_temperature_keys(
+            step, (CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE), unit, delta=True
+        )
     return config
 
 
@@ -276,11 +270,8 @@ def climate_schema(
     icon: str = cv.UNDEFINED,
     temperature_unit: bool = False,
 ) -> cv.Schema:
-    """Build the schema of a climate platform.
-
-    ``temperature_unit`` adds ``unit_of_measurement`` for platforms whose temperatures are all
-    in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
-    """
+    """``temperature_unit`` adds ``unit_of_measurement`` for a platform whose temperatures are all
+    in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``."""
     schema = {
         cv.GenerateID(): cv.declare_id(class_),
     }
@@ -330,6 +321,7 @@ async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
     if (max_humidity := visual.get(CONF_MAX_HUMIDITY)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_humidity_override(max_humidity))
+    setup_entity_temperature_unit(var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -486,13 +478,9 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Climate),
         cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
-        cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature_with_unit),
-        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(
-            cv.temperature_with_unit
-        ),
-        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(
-            cv.temperature_with_unit
-        ),
+        cv.Optional(CONF_TARGET_TEMPERATURE): templatable_temperature,
+        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): templatable_temperature,
+        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): templatable_temperature,
         cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
         cv.Optional(CONF_AWAY): cv.invalid("Use preset instead"),
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
@@ -508,28 +496,21 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
+# The target temperatures of climate.control and climate.template.publish, in the entity's unit
+TARGET_TEMPERATURE_APPLY_FIELDS = tuple(
+    automation.ApplyField(key, setter, cg.float_, temperature_in_entity_unit)
+    for key, setter in (
+        (CONF_TARGET_TEMPERATURE, "set_target_temperature"),
+        (CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low"),
+        (CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high"),
+    )
+)
+
 automation.register_apply_action(
     "climate.control",
     CLIMATE_CONTROL_ACTION_SCHEMA,
     automation.ApplyField(CONF_MODE, "set_mode", ClimateMode),
-    automation.ApplyField(
-        CONF_TARGET_TEMPERATURE,
-        "set_target_temperature",
-        cg.float_,
-        temperature_in_entity_unit,
-    ),
-    automation.ApplyField(
-        CONF_TARGET_TEMPERATURE_LOW,
-        "set_target_temperature_low",
-        cg.float_,
-        temperature_in_entity_unit,
-    ),
-    automation.ApplyField(
-        CONF_TARGET_TEMPERATURE_HIGH,
-        "set_target_temperature_high",
-        cg.float_,
-        temperature_in_entity_unit,
-    ),
+    *TARGET_TEMPERATURE_APPLY_FIELDS,
     automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
     automation.ApplyField(CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
     automation.ApplyField(

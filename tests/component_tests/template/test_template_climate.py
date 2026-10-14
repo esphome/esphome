@@ -149,7 +149,7 @@ def test_initial_state_matching_two_point_accepted() -> None:
 
 def test_initial_state_temperature_follows_unit_of_measurement() -> None:
     config: ConfigType = {
-        CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT,
+        CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT),
         CONF_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE: False,
         CONF_SUPPORTS_TARGET_HUMIDITY: False,
         CONF_INITIAL_STATE: {CONF_TARGET_TEMPERATURE: (21.0, "°C")},

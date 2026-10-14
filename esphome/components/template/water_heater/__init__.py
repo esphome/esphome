@@ -12,12 +12,10 @@ from esphome.const import (
     CONF_SET_ACTION,
     CONF_SUPPORTED_MODES,
     CONF_TARGET_TEMPERATURE,
-    CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import ID
 from esphome.core.entity_helpers import entity_temperature_unit_of_id
 from esphome.cpp_generator import MockObj, TemplateArgsType
-from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType
 
 from .. import template_ns
@@ -68,8 +66,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await water_heater.register_water_heater(var, config)
-    if (unit := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
 
@@ -154,8 +150,6 @@ async def water_heater_template_publish_to_code(
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    # A static temperature is in the unit of the water heater it is published to
-    unit = entity_temperature_unit_of_id(config[CONF_ID])
     for key, setter in (
         (CONF_CURRENT_TEMPERATURE, var.set_current_temperature),
         (CONF_TARGET_TEMPERATURE, var.set_target_temperature),
@@ -163,7 +157,9 @@ async def water_heater_template_publish_to_code(
         if (value := config.get(key)) is None:
             continue
         if isinstance(value, tuple):
-            value = cv.convert_temperature(*value, unit)
+            value = cv.convert_temperature(
+                *value, entity_temperature_unit_of_id(config[CONF_ID])
+            )
         cg.add(setter(await cg.templatable(value, args, cg.float_)))
 
     if mode := config.get(CONF_MODE):
