@@ -7,10 +7,11 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::mipi_spi {
 
-constexpr static const char *const TAG = "display.mipi_spi";
+ESPHOME_LOG_TAG(TAG, "display.mipi_spi");
 
 // Maximum bytes to log for commands (truncated if larger)
 static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
