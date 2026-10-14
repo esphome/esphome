@@ -466,6 +466,10 @@ def main():
 
     if args.grep:
         files = filter_grep(files, args.grep)
+        # The unit tests need googletest, which only the full ESP32 IDF run
+        # (no --grep) and the host environment provide; a platform grep that
+        # happens to match one would fail on <gtest/gtest.h>.
+        files = [f for f in files if not f.startswith("tests/")]
 
     if args.exclude_grep:
         excluded = set(filter_grep(files, args.exclude_grep))
