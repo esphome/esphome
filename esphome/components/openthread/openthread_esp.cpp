@@ -159,6 +159,11 @@ InstanceLock InstanceLock::acquire() {
     ESP_LOGE(TAG, "OpenThread component torn down, cannot acquire instance lock");
     abort();
   }
+  // A failed setup() never creates the lock; say so now instead of after the wait below
+  if (global_openthread_component->is_failed()) {
+    ESP_LOGE(TAG, "OpenThread setup failed, cannot acquire instance lock");
+    abort();
+  }
   // Wait for the lock to be created before attempting to acquire it.
   // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_start().
   constexpr uint32_t lock_init_timeout_ms = 10000;
