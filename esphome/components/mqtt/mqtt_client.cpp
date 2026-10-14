@@ -678,19 +678,25 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // in simple tests but will cause crashes with complex automations.
   this->defer([this, topic, payload]() {
 #endif
-  // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
-  // vector, and the new entry waits for the next message.
-  // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
 #ifdef USE_CRASH_HANDLER
     // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
     // log for every line it logs
     if (this->crash_log_offered_ && payload.empty()) {
       char logs_topic[ESPHOME_TOPIC_BUFFER_SIZE];
       format_esphome_topic(logs_topic, "logs");
-      if (topic == logs_topic)
+      if (topic == logs_topic) {
         logger::log_crash_to_client();
+        // Once the record is gone there is nothing left to offer
+        if (!logger::crash_log_pending()) {
+          this->crash_log_offered_ = false;
+          this->mqtt_backend_.unsubscribe(logs_topic);
+        }
+      }
     }
 #endif
+    // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
+    // vector, and the new entry waits for the next message.
+    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
     const bool was_dispatching = this->dispatching_;
     this->dispatching_ = true;
     const size_t count = this->subscriptions_.size();
