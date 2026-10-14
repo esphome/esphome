@@ -26,6 +26,9 @@ class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, publ
   void control(const climate::ClimateCall &call) override;
 
  protected:
+  static constexpr size_t MAX_FRAME = 128;
+
+  // The payload may live in PROGMEM.
   void send_frame_(uint8_t proto, uint8_t type, const uint8_t *payload, size_t len);
   void send_set_command_();
   void send_status_query_();
@@ -37,21 +40,22 @@ class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, publ
   void handle_c0_(const uint8_t *f, size_t len);
 
   // Last known device state, mirrored from C0 so a set command does not clobber it.
-  bool st_power_{false};
-  uint8_t st_mode_{1};
   float st_target_{24.0f};
+  uint32_t rx_last_byte_{0};
+  uint8_t st_mode_{1};
   uint8_t st_fan_{102};
-  bool st_swing_{false};
-  bool st_turbo_{false};
-  bool st_ion_{false};
-  bool st_sleep_{false};
-  bool st_eco_{false};
-  bool st_frost_{false};
+  bool st_power_ : 1 {false};
+  bool st_swing_ : 1 {false};
+  bool st_turbo_ : 1 {false};
+  bool st_ion_ : 1 {false};
+  bool st_sleep_ : 1 {false};
+  bool st_eco_ : 1 {false};
+  bool st_frost_ : 1 {false};
 
   uint8_t msg_id_{1};
   uint8_t net_counter_{0};
-  std::array<uint8_t, 128> rx_{};
-  size_t rx_len_{0};
+  uint8_t rx_len_{0};
+  std::array<uint8_t, MAX_FRAME> rx_{};
 };
 
 }  // namespace esphome::midea_portasplit

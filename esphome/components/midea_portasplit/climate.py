@@ -20,7 +20,7 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    DOMAIN, require_tx=True, require_rx=True
+    DOMAIN, baud_rate=9600, require_tx=True, require_rx=True
 )
 
 

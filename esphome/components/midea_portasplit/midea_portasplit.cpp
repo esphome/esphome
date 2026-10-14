@@ -1,4 +1,6 @@
 #include "midea_portasplit.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -13,30 +15,32 @@ static constexpr uint32_t NETWORK_INTERVAL_ID = 2;
 static constexpr uint32_t STATUS_INTERVAL_MS = 30000;
 static constexpr uint32_t NETWORK_INTERVAL_MS = 10000;
 static constexpr uint32_t FOLLOWUP_DELAY_MS = 1500;
+// At 9600 baud bytes within a frame arrive about 1 ms apart.
+static constexpr uint32_t RX_TIMEOUT_MS = 100;
 
+// Ten header bytes plus CRC8 and checksum.
+static constexpr size_t FRAME_OVERHEAD = 12;
 static constexpr size_t MAX_TX_PAYLOAD = 24;
-static constexpr size_t MIN_FRAME = 11;
-static constexpr size_t MAX_FRAME = 128;
+
+static constexpr float MIN_TARGET_TEMP = 16.0f;
+static constexpr float MAX_TARGET_TEMP = 30.0f;
 
 static constexpr uint8_t FAN_AUTO = 102;
 
-static uint8_t crc8(const uint8_t *data, size_t len) {
-  uint8_t crc = 0;
-  for (size_t i = 0; i < len; i++) {
-    crc ^= data[i];
-    for (uint8_t j = 0; j < 8; j++)
-      crc = (crc & 1) ? (crc >> 1) ^ 0x8C : crc >> 1;
-  }
-  return crc;
-}
+// The AC expects its Wi-Fi module to answer the 0x63 keepalive poll and to send periodic 0x0D network status
+// frames. These frames use the XOR sync byte (0x1E ^ 0xAC = 0xB2). The AC does not use the IP address; the
+// fixed frame below was captured from the original module.
+static const uint8_t MODULE_FRAME[31] PROGMEM = {0xAA, 0x1E, 0xAC, 0xB2, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01,
+                                                 0x01, 0x04, 0xC0, 0xA8, 0xB2, 0x72, 0x00, 0x00, 0x00, 0x01, 0x01,
+                                                 0x01, 0x28, 0x09, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t STATUS_QUERY[12] PROGMEM = {0x41, 0x21, 0x00, 0xFF, 0x03, 0xFF,
+                                                 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
+// Same capability queries the original module sends at boot.
+static const uint8_t CAPS_0[] PROGMEM = {0xB5, 0x01, 0x00};
+static const uint8_t CAPS_1[] PROGMEM = {0xB5, 0x01, 0x01, 0x01};
 
-static uint8_t checksum(const uint8_t *frame, size_t len) {
-  // Two's complement of the sum of all bytes after the 0xAA start marker.
-  uint8_t cs = 0;
-  for (size_t i = 1; i < len; i++)
-    cs = (uint8_t) (cs - frame[i]);
-  return cs;
-}
+// Two's complement of the sum of all bytes after the 0xAA start marker.
+static uint8_t checksum(const uint8_t *frame, size_t len) { return (uint8_t) -sum_bytes(frame + 1, len - 1); }
 
 static uint8_t climate_mode_to_midea(climate::ClimateMode mode) {
   switch (mode) {
@@ -70,9 +74,36 @@ static climate::ClimateMode midea_mode_to_climate(uint8_t mode) {
   }
 }
 
+static uint8_t fan_mode_to_midea(climate::ClimateFanMode mode) {
+  switch (mode) {
+    case climate::CLIMATE_FAN_QUIET:
+      return 20;
+    case climate::CLIMATE_FAN_LOW:
+      return 40;
+    case climate::CLIMATE_FAN_MEDIUM:
+      return 60;
+    case climate::CLIMATE_FAN_HIGH:
+      return 80;
+    default:
+      return FAN_AUTO;
+  }
+}
+
+// The AC reports its own fan steps (30 for low, 50 for medium), so classify by range.
+static climate::ClimateFanMode midea_fan_to_climate(uint8_t fan) {
+  if (fan > 100)
+    return climate::CLIMATE_FAN_AUTO;
+  if (fan <= 30)
+    return climate::CLIMATE_FAN_QUIET;
+  if (fan <= 50)
+    return climate::CLIMATE_FAN_LOW;
+  if (fan <= 70)
+    return climate::CLIMATE_FAN_MEDIUM;
+  return climate::CLIMATE_FAN_HIGH;
+}
+
 void PortaSplitClimate::setup() {
   this->set_timeout(2000, [this]() { this->send_status_query_(); });
-  // Same capability queries the original module sends at boot.
   this->set_timeout(10000, [this]() { this->send_capability_queries_(); });
   this->set_interval(STATUS_INTERVAL_ID, STATUS_INTERVAL_MS, [this]() { this->send_status_query_(); });
   this->set_interval(NETWORK_INTERVAL_ID, NETWORK_INTERVAL_MS,
@@ -80,9 +111,17 @@ void PortaSplitClimate::setup() {
 }
 
 void PortaSplitClimate::loop() {
-  uint8_t b;
-  while (this->available() && this->read_byte(&b))
-    this->rx_feed_(b);
+  const uint32_t now = App.get_loop_component_start_time();
+  // Drop a frame that stopped mid-way so its bytes cannot swallow the next one.
+  if (this->rx_len_ != 0 && now - this->rx_last_byte_ > RX_TIMEOUT_MS)
+    this->rx_len_ = 0;
+  uint8_t buf[32];
+  size_t n;
+  while ((n = std::min((size_t) this->available(), sizeof(buf))) != 0 && this->read_array(buf, n)) {
+    for (size_t i = 0; i < n; i++)
+      this->rx_feed_(buf[i]);
+    this->rx_last_byte_ = now;
+  }
 }
 
 void PortaSplitClimate::dump_config() {
@@ -93,8 +132,8 @@ void PortaSplitClimate::dump_config() {
 climate::ClimateTraits PortaSplitClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  traits.set_visual_min_temperature(16.0f);
-  traits.set_visual_max_temperature(30.0f);
+  traits.set_visual_min_temperature(MIN_TARGET_TEMP);
+  traits.set_visual_max_temperature(MAX_TARGET_TEMP);
   traits.set_visual_target_temperature_step(0.5f);
   traits.set_visual_current_temperature_step(0.5f);
   traits.set_supported_modes({
@@ -130,28 +169,14 @@ void PortaSplitClimate::control(const climate::ClimateCall &call) {
     this->st_power_ = mode != climate::CLIMATE_MODE_OFF;
     if (this->st_power_)
       this->st_mode_ = climate_mode_to_midea(mode);
+    // Frost protection only runs while heating.
+    if (mode != climate::CLIMATE_MODE_HEAT)
+      this->st_frost_ = false;
   }
   if (call.get_target_temperature().has_value())
-    this->st_target_ = clamp(*call.get_target_temperature(), 16.0f, 30.0f);
-  if (call.get_fan_mode().has_value()) {
-    switch (*call.get_fan_mode()) {
-      case climate::CLIMATE_FAN_QUIET:
-        this->st_fan_ = 20;
-        break;
-      case climate::CLIMATE_FAN_LOW:
-        this->st_fan_ = 40;
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        this->st_fan_ = 60;
-        break;
-      case climate::CLIMATE_FAN_HIGH:
-        this->st_fan_ = 80;
-        break;
-      default:
-        this->st_fan_ = FAN_AUTO;
-        break;
-    }
-  }
+    this->st_target_ = clamp(*call.get_target_temperature(), MIN_TARGET_TEMP, MAX_TARGET_TEMP);
+  if (call.get_fan_mode().has_value())
+    this->st_fan_ = fan_mode_to_midea(*call.get_fan_mode());
   if (call.get_swing_mode().has_value())
     this->st_swing_ = *call.get_swing_mode() == climate::CLIMATE_SWING_VERTICAL;
   if (call.get_preset().has_value()) {
@@ -161,7 +186,6 @@ void PortaSplitClimate::control(const climate::ClimateCall &call) {
     this->st_eco_ = preset == climate::CLIMATE_PRESET_ECO;
     this->st_frost_ = preset == climate::CLIMATE_PRESET_AWAY;
     if (this->st_frost_) {
-      // Frost protection only works in heat mode.
       this->st_mode_ = 4;
       this->st_power_ = true;
     }
@@ -170,18 +194,16 @@ void PortaSplitClimate::control(const climate::ClimateCall &call) {
 }
 
 void PortaSplitClimate::send_frame_(uint8_t proto, uint8_t type, const uint8_t *payload, size_t len) {
-  if (len > MAX_TX_PAYLOAD)
-    return;
-  uint8_t f[12 + MAX_TX_PAYLOAD] = {0};
-  const size_t total = 12 + len;
+  uint8_t f[FRAME_OVERHEAD + MAX_TX_PAYLOAD] = {0};
+  const size_t total = FRAME_OVERHEAD + len;
   f[0] = 0xAA;
   f[1] = (uint8_t) (total - 1);
   f[2] = 0xAC;
   // f[3] is the sync byte and must stay 0x00 on the PortaSplit; f[4..7] are reserved.
   f[8] = proto;
   f[9] = type;
-  memcpy(&f[10], payload, len);
-  f[10 + len] = crc8(payload, len);
+  progmem_memcpy(&f[10], payload, len);
+  f[10 + len] = crc8(&f[10], (uint8_t) len);
   f[11 + len] = checksum(f, 11 + len);
   this->write_array(f, total);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -191,7 +213,7 @@ void PortaSplitClimate::send_frame_(uint8_t proto, uint8_t type, const uint8_t *
 }
 
 void PortaSplitClimate::send_set_command_() {
-  uint8_t p[24] = {0};
+  uint8_t p[MAX_TX_PAYLOAD] = {0};
   const uint8_t whole = (uint8_t) this->st_target_;
   const bool half = (this->st_target_ - (float) whole) >= 0.25f;
   p[0] = 0x40;
@@ -218,24 +240,20 @@ void PortaSplitClimate::send_set_command_() {
 }
 
 void PortaSplitClimate::send_status_query_() {
-  uint8_t p[12] = {0x41, 0x21, 0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
+  uint8_t p[sizeof(STATUS_QUERY)];
+  progmem_memcpy(p, STATUS_QUERY, sizeof(p));
   p[11] = this->msg_id_++;
   this->send_frame_(0x00, 0x03, p, sizeof(p));
 }
 
 void PortaSplitClimate::send_capability_queries_() {
-  static const uint8_t CAPS_0[] = {0xB5, 0x01, 0x00};
-  static const uint8_t CAPS_1[] = {0xB5, 0x01, 0x01, 0x01};
   this->send_frame_(0x03, 0x03, CAPS_0, sizeof(CAPS_0));
   this->set_timeout(1000, [this]() { this->send_frame_(0x03, 0x03, CAPS_1, sizeof(CAPS_1)); });
 }
 
-// The AC expects its Wi-Fi module to answer the 0x63 keepalive poll and to send periodic 0x0D network status
-// frames. These frames use the XOR sync byte (0x1E ^ 0xAC = 0xB2). The AC does not use the IP address; the
-// fixed frame below was captured from the original module.
 void PortaSplitClimate::send_module_frame_(uint8_t type, uint8_t counter, uint8_t wifi_flags) {
-  uint8_t f[31] = {0xAA, 0x1E, 0xAC, 0xB2, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01, 0x01, 0x04, 0xC0, 0xA8, 0xB2,
-                   0x72, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x28, 0x09, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00};
+  uint8_t f[sizeof(MODULE_FRAME)];
+  progmem_memcpy(f, MODULE_FRAME, sizeof(f));
   f[6] = counter;
   f[9] = type;
   f[25] = wifi_flags;
@@ -247,10 +265,11 @@ void PortaSplitClimate::rx_feed_(uint8_t b) {
   if (this->rx_len_ == 0 && b != 0xAA)
     return;
   this->rx_[this->rx_len_++] = b;
-  if (this->rx_len_ < 2)
+  if (this->rx_len_ < 3)
     return;
   const size_t total = (size_t) this->rx_[1] + 1;
-  if (total < MIN_FRAME || total > MAX_FRAME) {
+  // Every frame carries the appliance type 0xAC; anything else is a false start.
+  if (total < FRAME_OVERHEAD || total > MAX_FRAME || this->rx_[2] != 0xAC) {
     this->rx_len_ = 0;
     return;
   }
@@ -269,8 +288,6 @@ void PortaSplitClimate::rx_feed_(uint8_t b) {
 }
 
 void PortaSplitClimate::handle_frame_(const uint8_t *f, size_t len) {
-  if (len < 12)
-    return;
   if (f[9] == 0x63) {
     this->send_module_frame_(0x63, 0, 0x00);
   } else if (f[9] == 0x05 && f[10] == 0xB5) {
@@ -286,19 +303,13 @@ void PortaSplitClimate::handle_c0_(const uint8_t *f, size_t len) {
     return;
   const uint8_t mode = (f[12] >> 5) & 0x07;
   const float target = (float) ((f[12] & 0x0F) + 16) + ((f[12] & 0x10) ? 0.5f : 0.0f);
-  uint8_t fan = f[13];
-  // The AC reports its internal fan steps (40 -> 30, 60 -> 50).
-  if (fan == 30) {
-    fan = 40;
-  } else if (fan == 50) {
-    fan = 60;
-  }
+  const climate::ClimateFanMode fan = midea_fan_to_climate(f[13]);
 
   this->st_power_ = f[11] & 0x01;
   if (mode >= 1 && mode <= 5)
     this->st_mode_ = mode;
   this->st_target_ = target;
-  this->st_fan_ = fan;
+  this->st_fan_ = fan_mode_to_midea(fan);
   this->st_swing_ = (f[17] & 0x0F) == 0x0C;
   this->st_turbo_ = f[18] & 0x20;
   this->st_ion_ = f[19] & 0x20;
@@ -306,20 +317,12 @@ void PortaSplitClimate::handle_c0_(const uint8_t *f, size_t len) {
   this->st_sleep_ = f[20] & 0x01;
   this->st_frost_ = len > 31 && (f[31] & 0x80);
 
-  this->mode = this->st_power_ ? midea_mode_to_climate(mode) : climate::CLIMATE_MODE_OFF;
+  this->mode = this->st_power_ ? midea_mode_to_climate(this->st_mode_) : climate::CLIMATE_MODE_OFF;
   this->target_temperature = target;
-  this->current_temperature = ((float) f[21] - 50.0f) / 2.0f;
-  if (fan > 100) {
-    this->fan_mode = climate::CLIMATE_FAN_AUTO;
-  } else if (fan <= 30) {
-    this->fan_mode = climate::CLIMATE_FAN_QUIET;
-  } else if (fan <= 50) {
-    this->fan_mode = climate::CLIMATE_FAN_LOW;
-  } else if (fan <= 70) {
-    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-  } else {
-    this->fan_mode = climate::CLIMATE_FAN_HIGH;
-  }
+  // 0x00 and 0xFF mean the indoor probe gave no reading.
+  const uint8_t raw_temp = f[21];
+  this->current_temperature = (raw_temp == 0x00 || raw_temp == 0xFF) ? NAN : ((float) raw_temp - 50.0f) / 2.0f;
+  this->fan_mode = fan;
   this->swing_mode = this->st_swing_ ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   if (this->st_frost_) {
     this->preset = climate::CLIMATE_PRESET_AWAY;
