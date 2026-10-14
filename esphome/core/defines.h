@@ -331,7 +331,7 @@
 #define USE_NOISE
 #define USE_NOISE_SPARE_EPHEMERAL
 #define USE_SHA256
-#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
+#if !defined(USE_RP2) && !defined(USE_HOST)  // no MQTT backend or esp_wireguard library on RP2 and host
 #define USE_MQTT
 #define USE_MQTT_COVER_JSON
 #define USE_WIREGUARD
@@ -422,7 +422,9 @@
 #define USE_ESPNOW
 #define USE_ESPNOW_MAX_PAYLOAD_SIZE 1470
 
+#ifndef USE_HOST  // web_server, captive_portal: no ESPAsyncWebServer on host
 #define USE_CAPTIVE_PORTAL
+#endif
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_ESP32_BLE
 #define USE_ESP32_BLE_MAX_CONNECTIONS 3
@@ -480,6 +482,7 @@
 #define USE_SPI
 #define USE_SPI_PSRAM_DMA
 #define USE_VOICE_ASSISTANT
+#ifndef USE_HOST
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
 #define USE_WEBSERVER_AUTH_DIGEST
@@ -491,6 +494,7 @@
 #define USE_WEBSERVER_ALLOWED_ORIGINS
 #define WEB_SERVER_DEFAULT_HEADERS_COUNT 1
 #define USE_CAPTIVE_PORTAL_GZIP
+#endif
 #define USE_WIFI_11KV_SUPPORT
 #define USE_WIFI_FAST_CONNECT
 #define USE_WIFI_FAST_CONNECT_IN_FLASH
@@ -524,7 +528,8 @@
 #endif
 
 #ifdef USE_ARDUINO
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 7)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 12)
+#endif
 #define USE_ETHERNET
 #define USE_ETHERNET_LAN8720
 #define USE_ETHERNET_RTL8201
@@ -555,7 +560,6 @@
 #define USE_ETHERNET_DISCONNECT_TRIGGER
 #define ESPHOME_ETHERNET_IP_STATE_LISTENERS 2
 #define ESPHOME_ETHERNET_PHY_REGISTER_COUNT 2
-#endif
 
 #ifdef USE_ESP32
 #define USE_MICRO_WAKE_WORD
@@ -693,6 +697,8 @@
 #endif
 
 #ifdef USE_HOST
+#define USE_ESPHOME_HOST_MAC_ADDRESS \
+  { 0x98, 0x35, 0x69, 0xab, 0xf6, 0x79 }
 #define USE_HTTP_REQUEST_RESPONSE
 // Host only: the uart arm would shadow the native logger UART arms in other envs
 #define USE_IMPROV_SERIAL_UART
