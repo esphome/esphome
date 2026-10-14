@@ -55,7 +55,7 @@ void EPaperDualCS::start_partial_update_(int x, int y, int w, int h) {
 }
 
 void EPaperDualCS::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size_t len, uint8_t chip) {
-  ESP_LOGD(TAG, "write_command_to_chip_: cmd=0x%02X len=%u chip=%u", cmd, (unsigned) len, (unsigned) chip);
+  ESP_LOGV(TAG, "write_command_to_chip_: cmd=0x%02X len=%u chip=%u", cmd, (unsigned) len, (unsigned) chip);
   if (chip & CHIP_PRIMARY)
     this->cs_pin_->digital_write(false);
   if (chip & CHIP_SECONDARY)
@@ -248,7 +248,7 @@ bool HOT EPaperDualCS::transfer_full_() {
     if (half < total_rows) {
       return false;
     }
-    ESP_LOGD(TAG, "transfer_full_: CS phase done");
+    ESP_LOGV(TAG, "transfer_full_: CS phase done");
     this->disable();
     this->cs_pin_->digital_write(true);  // deselect CS
   }
@@ -283,7 +283,7 @@ bool HOT EPaperDualCS::transfer_full_() {
     if (half < total_rows * 2) {
       return false;
     }
-    ESP_LOGD(TAG, "transfer_full_: CS1 phase done");
+    ESP_LOGV(TAG, "transfer_full_: CS1 phase done");
     this->disable();
     this->cs1_pin_->digital_write(true);  // deselect CS1
   }
@@ -327,7 +327,7 @@ bool EPaperDualCS::transfer_data() {
         this->cs_pin_->digital_write(true);
         this->transfer_sub_ = TRF_PARTIAL_WAIT_M;
       } else {
-        ESP_LOGD(TAG, "transfer: partial primary CMD66+PTLW+DTM start");
+        ESP_LOGV(TAG, "transfer: partial primary CMD66+PTLW+DTM start");
         this->write_command_to_chip_(REG_PTLW, this->ptlw_primary_.ptlw, 9, CHIP_PRIMARY);
         this->cs_pin_->digital_write(false);
         this->enable();
@@ -351,7 +351,7 @@ bool EPaperDualCS::transfer_data() {
         this->disable();
         this->cs_pin_->digital_write(true);
         this->transfer_sub_ = TRF_PARTIAL_WAIT_M;
-        ESP_LOGD(TAG, "transfer: partial primary DTM done");
+        ESP_LOGV(TAG, "transfer: partial primary DTM done");
       }
       return false;
     }
@@ -382,7 +382,7 @@ bool EPaperDualCS::transfer_data() {
         this->cs1_pin_->digital_write(true);
         this->transfer_sub_ = TRF_PARTIAL_WAIT_S;
       } else {
-        ESP_LOGD(TAG, "transfer: partial secondary CMD66+PTLW+DTM start");
+        ESP_LOGV(TAG, "transfer: partial secondary CMD66+PTLW+DTM start");
         this->write_command_to_chip_(REG_PTLW, this->ptlw_secondary_.ptlw, 9, CHIP_SECONDARY);
         this->cs1_pin_->digital_write(false);
         this->enable();
@@ -406,7 +406,7 @@ bool EPaperDualCS::transfer_data() {
         this->disable();
         this->cs1_pin_->digital_write(true);
         this->transfer_sub_ = TRF_PARTIAL_WAIT_S;
-        ESP_LOGD(TAG, "transfer: partial secondary DTM done");
+        ESP_LOGV(TAG, "transfer: partial secondary DTM done");
       }
       return false;
     }

@@ -59,7 +59,7 @@ void EPaperInkplate13Spectra::send_init_sequence_() {
 }
 
 void EPaperInkplate13Spectra::set_all_pins_low_() {
-  ESP_LOGD(TAG, "set_all_pins_low_()");
+  ESP_LOGV(TAG, "set_all_pins_low_()");
   GPIOPin *pins[] = {
       this->rst_pin_,  this->dc_pin_,     this->cs_pin_,  this->cs1_pin_,
       this->busy_pin_, this->pwr_en_pin_, this->bs0_pin_, this->bs1_pin_,
@@ -76,7 +76,7 @@ void EPaperInkplate13Spectra::set_all_pins_low_() {
 }
 
 void EPaperInkplate13Spectra::set_io_pins_() {
-  ESP_LOGD(TAG, "set_io_pins_()");
+  ESP_LOGV(TAG, "set_io_pins_()");
   this->rst_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->dc_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->cs_pin_->pin_mode(gpio::FLAG_OUTPUT);
@@ -106,14 +106,14 @@ bool EPaperInkplate13Spectra::reset() {
     this->reset_sub_ = RST_PINS_LOW;
   switch (this->reset_sub_) {
     case RST_PINS_LOW:
-      ESP_LOGD(TAG, "reset(): RST_PINS_LOW");
+      ESP_LOGV(TAG, "reset(): RST_PINS_LOW");
       this->set_all_pins_low_();
       this->reset_duration_ = 500;
       this->reset_sub_ = RST_PINS_LOW_WAIT;
       return false;
 
     case RST_PINS_LOW_WAIT:
-      ESP_LOGD(TAG, "reset(): RST_PINS_LOW_WAIT done -> set_io_pins_() + PWR_EN high");
+      ESP_LOGV(TAG, "reset(): RST_PINS_LOW_WAIT done -> set_io_pins_() + PWR_EN high");
       this->set_io_pins_();
       this->pwr_en_pin_->digital_write(true);
       this->reset_duration_ = 100;
@@ -121,21 +121,21 @@ bool EPaperInkplate13Spectra::reset() {
       return false;
 
     case RST_IO_WAIT:
-      ESP_LOGD(TAG, "reset(): RST_IO_WAIT done -> RST low");
+      ESP_LOGV(TAG, "reset(): RST_IO_WAIT done -> RST low");
       this->rst_pin_->digital_write(false);
       this->reset_duration_ = 100;
       this->reset_sub_ = RST_LOW_WAIT;
       return false;
 
     case RST_LOW_WAIT:
-      ESP_LOGD(TAG, "reset(): RST_LOW_WAIT done -> RST high");
+      ESP_LOGV(TAG, "reset(): RST_LOW_WAIT done -> RST high");
       this->rst_pin_->digital_write(true);
       this->reset_duration_ = 100;
       this->reset_sub_ = RST_HIGH_WAIT;
       return false;
 
     case RST_HIGH_WAIT:
-      ESP_LOGD(TAG, "reset(): RST_HIGH_WAIT done -> panel powered, entering INITIALISE");
+      ESP_LOGV(TAG, "reset(): RST_HIGH_WAIT done -> panel powered, entering INITIALISE");
       this->reset_sub_ = RST_DONE;
       return true;
 
@@ -152,18 +152,18 @@ bool EPaperInkplate13Spectra::reset() {
 // standard slot (after the framebuffer transfer, before refresh) needs no extra bookkeeping
 // here. Confirmed on real hardware that data-before-power-on works fine on this panel.
 bool EPaperInkplate13Spectra::initialise(bool partial) {
-  ESP_LOGD(TAG, "initialise(): sending register init sequence");
+  ESP_LOGV(TAG, "initialise(): sending register init sequence");
   this->send_init_sequence_();
   return true;
 }
 
 void EPaperInkplate13Spectra::power_on() {
-  ESP_LOGD(TAG, "power_on(): sending PON");
+  ESP_LOGV(TAG, "power_on(): sending PON");
   this->write_command_to_chip_(REG_PON, CHIP_BOTH);
 }
 
 void EPaperInkplate13Spectra::refresh_screen(bool partial) {
-  ESP_LOGD(TAG, "refresh_screen(): sending DRF");
+  ESP_LOGV(TAG, "refresh_screen(): sending DRF");
   this->write_command_to_chip_(REG_DRF, {0x00}, CHIP_BOTH);
   this->refresh_started_ms_ = App.get_loop_component_start_time();
   this->refresh_pending_ = true;
@@ -190,7 +190,7 @@ bool EPaperInkplate13Spectra::check_refresh_ran_() {
 // It also waited for the busy pin to clear after the refresh command before calling this.
 void EPaperInkplate13Spectra::power_off() {
   this->check_refresh_ran_();
-  ESP_LOGD(TAG, "power_off(): sending POF");
+  ESP_LOGV(TAG, "power_off(): sending POF");
   this->write_command_to_chip_(REG_POF, {0x00}, CHIP_BOTH);
 }
 
@@ -207,7 +207,7 @@ void EPaperInkplate13Spectra::deep_sleep() {
   // RST intentionally NOT released to input -- held low for hardware deep sleep (~uA draw).
   this->rst_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->rst_pin_->digital_write(false);
-  ESP_LOGD(TAG, "panel deep sleep");
+  ESP_LOGV(TAG, "panel deep sleep");
 }
 
 }  // namespace esphome::epaper_spi
