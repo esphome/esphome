@@ -992,11 +992,18 @@ class WiFiComponent final : public Component {
   // the disconnect is treated as roaming-related and the attempts counter is preserved.
   static constexpr uint32_t ROAMING_SCAN_GRACE_PERIOD = 30 * 1000;  // 30 seconds
 
+  void set_last_connected_(uint32_t now) {
+    this->last_connected_ = now;
+#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_EXCLUSIVE)
+    this->ap_start_failures_ = 0;
+#endif
+  }
+
   // 4-byte members
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-#ifdef USE_WIFI_AP
+#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
   uint32_t ap_changed_{0};  // When the AP was last started or paused
 #endif
   uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
@@ -1097,6 +1104,10 @@ class WiFiComponent final : public Component {
   // in the driver's interrupt context on the Pico W. The main loop only reads the byte while the AP is up
   // and only writes it (a reset) while the AP is down, so no lock is needed.
   uint8_t ap_clients_{0};
+#ifndef USE_WIFI_AP_EXCLUSIVE
+  // Fallback AP starts that failed since the last connection; each one waits another ap_timeout
+  uint8_t ap_start_failures_{0};
+#endif
 #endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
