@@ -56,12 +56,12 @@ void I2SAudioSpeakerBase::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Speaker:\n"
                 "  Pin: %d\n"
-                "  Buffer duration: %" PRIu32,
-                static_cast<int8_t>(this->dout_pin_), this->buffer_duration_ms_);
+                "  Buffer duration: %" PRIu32 "\n"
+                "  Keep alive: %s",
+                static_cast<int8_t>(this->dout_pin_), this->buffer_duration_ms_, YESNO(this->keep_alive_));
   if (this->timeout_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 " ms", this->timeout_.value());
   }
-  ESP_LOGCONFIG(TAG, "  Keep alive: %s", YESNO(this->keep_alive_));
 }
 
 void I2SAudioSpeakerBase::loop() {
@@ -106,8 +106,12 @@ void I2SAudioSpeakerBase::loop() {
     vTaskDelete(this->speaker_task_handle_);
     this->speaker_task_handle_ = nullptr;
 
-    // A channel the task could not bring up is rebuilt next time rather than kept
-    const bool task_failed = event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM;
+    // The task raises this bit before it exits, possibly a loop pass before TASK_STOPPED is seen, so read it
+    // live here; a channel the task could not bring up is rebuilt next time rather than kept
+    const bool task_failed = xEventGroupGetBits(this->event_group_) & SpeakerEventGroupBits::ERR_ESP_NO_MEM;
+    if (task_failed) {
+      ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
+    }
     this->stop_i2s_driver_(this->keep_alive_ && !task_failed);
     // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
     // the top of loop(): the audio source's task can raise a start at any point above, including
@@ -122,11 +126,6 @@ void I2SAudioSpeakerBase::loop() {
     this->on_task_stopped();
 
     this->state_ = speaker::STATE_STOPPED;
-  }
-
-  if (event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM) {
-    ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
   }
 
   // Handle the speaker's state
