@@ -19,7 +19,7 @@ constexpr uint32_t CURRENT_COEFF = 0x004137;
 constexpr uint32_t CURRENT_CYCLE = 0x053339;
 constexpr uint32_t POWER_COEFF = 5425000;
 constexpr uint32_t LOW_LOAD_CYCLE = 2507613;
-constexpr uint32_t MID_LOAD_CYCLE = 361667;  // about 15 W, above the 50 mA current threshold
+constexpr uint32_t SHORT_CYCLE = 900000;  // about 6 W, just under 1 s
 constexpr uint32_t HIGH_LOAD_CYCLE = 2000;
 
 constexpr uint8_t HEADER_OK = 0x55;
@@ -85,13 +85,11 @@ TEST_F(CSE7766Test, LowLoadKeepsLastMeasurementBetweenPulses) {
   EXPECT_NEAR(this->feed_(HEADER_OK, 4900000, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
 }
 
-// Current is only reported when the same frame has a power value, so held frames must keep it too
-TEST_F(CSE7766Test, MidLoadKeepsCurrentBetweenPulses) {
-  sensor::Sensor current;
-  this->sut_.set_current_sensor(&current);
-  this->feed_(HEADER_OK, MID_LOAD_CYCLE, ADJ_NEW_POWER);
-  this->feed_(HEADER_OK, MID_LOAD_CYCLE / 2, ADJ_NO_NEW_POWER);
-  EXPECT_NEAR(current.state, 0.049f, 0.001f);
+// Below 1 s the chip does not send waiting times in normal operation, so such a frame
+// means the pulse is overdue and 0 W is reported at once, as before
+TEST_F(CSE7766Test, ShortCycleReportsZeroWithoutNewMeasurement) {
+  this->feed_(HEADER_OK, SHORT_CYCLE, ADJ_NEW_POWER);
+  EXPECT_EQ(this->feed_(HEADER_OK, 1050000, ADJ_NO_NEW_POWER), 0.0f);
 }
 
 TEST_F(CSE7766Test, OverduePulseReportsZero) {

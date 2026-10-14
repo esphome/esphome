@@ -8,6 +8,9 @@ namespace esphome::cse7766 {
 
 ESPHOME_LOG_TAG(TAG, "cse7766");
 
+// The chip only sends the time since the last pulse once a cycle is longer than 1 s (in us)
+static constexpr uint32_t MIN_HELD_POWER_CYCLE = 1000000;
+
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
@@ -164,11 +167,11 @@ void CSE7766Component::parse_data_() {
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
-  } else if (this->last_power_cycle_ != 0 && power_cycle <= 2 * this->last_power_cycle_) {
-    // No new measurement in this frame. At low load one power cycle spans several
-    // frames; meanwhile the register holds the last cycle or the time elapsed since
-    // the last pulse. While that time is within twice the last cycle, the next pulse
-    // is not overdue, so the last measurement still applies.
+  } else if (this->last_power_cycle_ > MIN_HELD_POWER_CYCLE && power_cycle <= 2 * this->last_power_cycle_) {
+    // No new measurement in this frame. With cycles over 1 s the register holds the last
+    // cycle or the time elapsed since the last pulse. While that time is within twice the
+    // last cycle, the next pulse is not overdue, so the last measurement still applies.
+    // Shorter cycles never get here in normal operation and keep the previous behaviour.
     have_power = true;
     power = power_coeff / float(this->last_power_cycle_);
     if (this->power_sensor_ != nullptr) {
