@@ -7,8 +7,6 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-
-#include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
@@ -19,6 +17,8 @@
 #include "esp_lcd_panel_io.h"
 
 #include "esp_lcd_mipi_dsi.h"
+
+#include <utility>
 
 namespace esphome::mipi_dsi {
 

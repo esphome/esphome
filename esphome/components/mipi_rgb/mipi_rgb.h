@@ -6,6 +6,7 @@
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 #include <esp_lcd_panel_rgb.h>
+#include <utility>
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
 #endif
