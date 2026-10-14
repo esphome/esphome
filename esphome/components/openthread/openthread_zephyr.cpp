@@ -32,6 +32,8 @@ static void on_thread_state_changed(otChangedFlags flags, struct openthread_cont
   }
 }
 
+// Zephyr links the registration into a list through this struct, so it must stay mutable.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct openthread_state_changed_cb ot_state_changed_cb = {.state_changed_cb = on_thread_state_changed};
 
 void OpenThreadComponent::setup() {

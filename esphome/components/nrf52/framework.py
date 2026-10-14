@@ -403,6 +403,13 @@ def bluetooth_west_projects() -> tuple[str, ...]:
     return ("tinycrypt",)
 
 
+def openthread_west_projects() -> tuple[str, ...]:
+    """Crypto for OpenThread through PSA: mbedtls, plus Oberon from SDK 2.7."""
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+        return ("mbedtls", "openthread", "oberon-psa-crypto")
+    return ("mbedtls", "openthread")
+
+
 def wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
     # Zephyr 4.1 moved the Cortex-M core headers to cmsis_6

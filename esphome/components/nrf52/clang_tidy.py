@@ -10,7 +10,7 @@ commands.
 * the stub app is C++ so the compile commands carry C++ flags, matching how
   clang-tidy analyzes ESPHome's sources;
 * ``prj.conf`` enables the Kconfig superset ESPHome components need (BT, ADC,
-  mcumgr, zigbee) so their include paths land in the compile commands;
+  mcumgr, zigbee, openthread) so their include paths land in the compile commands;
 * the platform defines (USE_ZEPHYR, USE_NRF52) match what a real ESPHome
   nrf52 build adds via its generated project.
 
@@ -25,7 +25,7 @@ from dataclasses import dataclass
 import logging
 from pathlib import Path
 
-from .framework import bluetooth_west_projects
+from .framework import bluetooth_west_projects, openthread_west_projects
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
@@ -92,6 +92,19 @@ CONFIG_CRYPTO=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
 """,
+    ),
+    _TidySubsystem(
+        "openthread",
+        """\
+CONFIG_NETWORKING=y
+CONFIG_NET_IPV6=y
+CONFIG_NET_SOCKETS=y
+CONFIG_NET_L2_OPENTHREAD=y
+CONFIG_OPENTHREAD_NORDIC_LIBRARY_MTD=y
+CONFIG_OPENTHREAD_MTD=y
+CONFIG_MAIN_STACK_SIZE=4096
+""",
+        openthread_west_projects,
     ),
 )
 
