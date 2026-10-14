@@ -26,7 +26,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt";
+ESPHOME_LOG_TAG(TAG, "mqtt");
 
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.
@@ -439,7 +439,7 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Subscribe failed for topic='%s'. Will retry", topic);
-    this->status_momentary_warning("subscribe", 1000);
+    this->status_momentary_warning(1000);
   }
   return ret != 0;
 }
@@ -461,34 +461,18 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
   }
 }
 
-void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
-  MQTTSubscription subscription{
-      .topic = topic,
+void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed,
+                                            uint8_t qos) {
+  auto &subscription = this->subscriptions_.emplace_back(MQTTSubscription{
+      .topic = std::move(topic),
       .qos = qos,
-      .callback = std::move(callback),
       .subscribed = false,
+      .boxed = boxed,
+      .removed = false,
+      .callback = callback,
       .resubscribe_timeout = 0,
-  };
+  });
   this->resubscribe_subscription_(&subscription);
-  this->subscriptions_.push_back(subscription);
-}
-
-void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
-  auto f = [callback](const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [topic, callback](JsonObject root) -> bool {
-      callback(topic, root);
-      return true;
-    });
-  };
-  MQTTSubscription subscription{
-      .topic = topic,
-      .qos = qos,
-      .callback = f,
-      .subscribed = false,
-      .resubscribe_timeout = 0,
-  };
-  this->resubscribe_subscription_(&subscription);
-  this->subscriptions_.push_back(subscription);
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
@@ -499,13 +483,28 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'.", topic.c_str());
-    this->status_momentary_warning("unsubscribe", 1000);
+    this->status_momentary_warning(1000);
   }
 
-  auto it = subscriptions_.begin();
-  while (it != subscriptions_.end()) {
-    if (it->topic == topic) {
-      it = subscriptions_.erase(it);
+  for (auto &subscription : this->subscriptions_) {
+    if (subscription.topic == topic)
+      subscription.removed = true;
+  }
+  // A callback may be running; the outermost dispatch erases them once it returns.
+  if (this->dispatching_) {
+    this->removed_while_dispatching_ = true;
+  } else {
+    this->erase_removed_subscriptions_();
+  }
+}
+
+void MQTTClientComponent::erase_removed_subscriptions_() {
+  auto it = this->subscriptions_.begin();
+  while (it != this->subscriptions_.end()) {
+    if (it->removed) {
+      if (it->boxed)
+        it->callback.free_boxed();
+      it = this->subscriptions_.erase(it);
     } else {
       ++it;
     }
@@ -553,7 +552,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
       ESP_LOGVV(TAG, "Publish payload (len=%u): '%.*s'", payload_length, static_cast<int>(payload_length), payload);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", topic, payload_length);
-      this->status_momentary_warning("publish", 1000);
+      this->status_momentary_warning(1000);
     }
   }
   return ret != 0;
@@ -660,9 +659,21 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // in simple tests but will cause crashes with complex automations.
   this->defer([this, topic, payload]() {
 #endif
-    for (auto &subscription : this->subscriptions_) {
-      if (topic_match(topic.c_str(), subscription.topic.c_str()))
-        subscription.callback(topic, payload);
+    // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
+    // vector, and the new entry waits for the next message.
+    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
+    const bool was_dispatching = this->dispatching_;
+    this->dispatching_ = true;
+    const size_t count = this->subscriptions_.size();
+    for (size_t i = 0; i < count; i++) {
+      const auto &subscription = this->subscriptions_[i];
+      if (!subscription.removed && topic_match(topic.c_str(), subscription.topic.c_str()))
+        subscription.callback.call(topic, payload);
+    }
+    this->dispatching_ = was_dispatching;
+    if (!was_dispatching && this->removed_while_dispatching_) {
+      this->removed_while_dispatching_ = false;
+      this->erase_removed_subscriptions_();
     }
 #ifdef USE_ESP8266
   });
@@ -761,29 +772,6 @@ void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&call
 }
 
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-// MQTTMessageTrigger
-MQTTMessageTrigger::MQTTMessageTrigger(std::string topic) : topic_(std::move(topic)) {}
-void MQTTMessageTrigger::setup() {
-  global_mqtt_client->subscribe(
-      this->topic_,
-      [this](const std::string &topic, const std::string &payload) {
-        if (this->payload_.has_value() && payload != *this->payload_) {
-          return;
-        }
-
-        this->trigger(payload);
-      },
-      this->qos_);
-}
-void MQTTMessageTrigger::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "MQTT Message Trigger:\n"
-                "  Topic: '%s'\n"
-                "  QoS: %u",
-                this->topic_.c_str(), this->qos_);
-}
-float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 }  // namespace esphome::mqtt
 

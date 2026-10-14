@@ -9,6 +9,7 @@ from esphome.cpp_types import Component, Parented
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "syslog"
 
 DEPENDENCIES = ["udp", "logger", "time"]
 

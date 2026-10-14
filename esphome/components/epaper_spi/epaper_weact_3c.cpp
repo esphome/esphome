@@ -4,7 +4,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_weact_3c";
+ESPHOME_LOG_TAG(TAG, "epaper_weact_3c");
 
 // SSD1680 3-color display notes:
 // - Buffer uses 1 bit per pixel, 8 pixels per byte

@@ -5,7 +5,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.inkplate2";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.inkplate2");
 
 void EPaperInkplate2::power_on() {
   // Power-on (0x04) leads the init sequence, so there is nothing to do here.

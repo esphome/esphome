@@ -247,6 +247,20 @@ def test_make_registry_client_skips_private_package_probe(monkeypatch):
     assert RegistryClient.__dict__["allowed_private_packages"] is pio_probe
 
 
+def test_make_registry_client_creates_http_cache_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The HTTP cache dir exists before PlatformIO's non-exist_ok makedirs runs."""
+    from platformio.project import helpers
+
+    monkeypatch.setattr(helpers, "get_project_cache_dir", lambda: str(tmp_path))
+
+    lib._make_registry_client()
+    assert (tmp_path / "http").is_dir()
+    # A second client (another build) must not trip over the existing dir
+    lib._make_registry_client()
+
+
 def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stub the registry lookup so tests never touch the network."""
     monkeypatch.setattr(

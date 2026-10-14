@@ -7,7 +7,7 @@
 
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c";
+ESPHOME_LOG_TAG(TAG, "i2c");
 
 void I2CBus::i2c_scan_() {
   for (uint8_t address = 8; address != 120; address++) {

@@ -10,6 +10,7 @@ import platform
 import shutil
 import sys
 
+from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 import esphome.config_validation as cv
@@ -28,6 +29,26 @@ _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
 TOOLCHAIN_VERSION = "0.17.4"
+# Zephyr SDK used by nRF Connect SDK 3.4.0 and newer.
+_TOOLCHAIN_VERSION_NCS_3_4_0 = "1.0.1"
+_TOOLCHAIN_VERSIONS = (TOOLCHAIN_VERSION, _TOOLCHAIN_VERSION_NCS_3_4_0)
+
+
+def _uses_sdk_ng_1_toolchain() -> bool:
+    """True when the framework needs Zephyr SDK 1.0+.
+
+    SDK 1.0 moved the GNU toolchain under gnu/ and renamed its archive
+    to toolchain_gnu_*.
+    """
+    return CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 4, 0)
+
+
+def _get_toolchain_version() -> str:
+    """Return the Zephyr SDK toolchain version for the current framework."""
+    if _uses_sdk_ng_1_toolchain():
+        return _TOOLCHAIN_VERSION_NCS_3_4_0
+    return TOOLCHAIN_VERSION
+
 
 # Packages the PlatformIO toolchain's Zephyr build script needs beyond west
 # (which comes from requirements.txt). Keep the pin in sync with
@@ -40,6 +61,20 @@ SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
         "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
     )
 )
+_SDK_NG_TOOLCHAIN_GNU_MIRRORS = str_to_lst_of_str(
+    os.environ.get(
+        "ESPHOME_SDK_NG_TOOLCHAIN_GNU_MIRRORS",
+        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_gnu_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
+    )
+)
+
+
+def _get_sdk_ng_toolchain_mirrors() -> list[str]:
+    """Return toolchain mirror URLs for the current framework version."""
+    if _uses_sdk_ng_1_toolchain():
+        return _SDK_NG_TOOLCHAIN_GNU_MIRRORS
+    return SDK_NG_TOOLCHAIN_MIRRORS
+
 
 # Minimal SDK provides cmake discovery files (Zephyr-sdkConfig.cmake) and
 # host tools (dtc etc.) required by the Zephyr cmake build system.
@@ -85,15 +120,22 @@ def _get_toolchain_path(version: str) -> Path:
     return get_sdk_nrf_tools_path() / "toolchains" / version
 
 
-def toolchain_tool(name: str) -> Path:
-    """Path to one of the pinned Zephyr SDK's tools (objdump, readelf, ...).
+def _get_arm_toolchain_path() -> Path:
+    """The arm-zephyr-eabi directory inside the pinned Zephyr SDK.
 
-    The single owner of the ``arm-zephyr-eabi/bin/arm-zephyr-eabi-<name>``
-    layout and the Windows suffix.
+    The single owner of the SDK 0.x (arm-zephyr-eabi/) and SDK 1.0+
+    (gnu/arm-zephyr-eabi/) layouts.
     """
+    toolchain_root = _get_toolchain_path(_get_toolchain_version())
+    if _uses_sdk_ng_1_toolchain():
+        return toolchain_root / "gnu" / "arm-zephyr-eabi"
+    return toolchain_root / "arm-zephyr-eabi"
+
+
+def toolchain_tool(name: str) -> Path:
+    """Path to one of the pinned Zephyr SDK's tools (objdump, readelf, ...)."""
     suffix = ".exe" if os.name == "nt" else ""
-    bin_path = _get_toolchain_path(TOOLCHAIN_VERSION) / "arm-zephyr-eabi" / "bin"
-    return bin_path / f"arm-zephyr-eabi-{name}{suffix}"
+    return _get_arm_toolchain_path() / "bin" / f"arm-zephyr-eabi-{name}{suffix}"
 
 
 _SITECUSTOMIZE = """\
@@ -153,7 +195,14 @@ def get_build_paths() -> dict:
     }
 
 
-def get_build_env() -> dict:
+def get_build_env(ccache: str | None) -> dict:
+    """Build the west/sdk-nrf process environment.
+
+    ``ccache`` is the resolved binary (resolve_ccache_path), or None when
+    ccache is disabled or the caller never compiles; it brings the shared
+    managed-ccache settings and the pch sloppiness, so every caller that
+    may compile gets the same cache.
+    """
     version = _get_version_str()
     venv_bin_dir = get_python_env_executable_path(
         _get_python_env_path(version), "python"
@@ -169,7 +218,26 @@ def get_build_env() -> dict:
     # "Zephyr-sdk_DIR" environment hint proved unreliable here: containerized
     # non-root builds failed to locate the SDK with it, while
     # ZEPHYR_SDK_INSTALL_DIR fixed the same invocation.
-    env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(TOOLCHAIN_VERSION))
+    env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(_get_toolchain_version()))
+    if ccache is None:
+        # Zephyr wraps compiles with any ccache it finds; unmanaged it
+        # must not cache (a sysbuild image never sees USE_CCACHE=0).
+        env.setdefault("CCACHE_DISABLE", "1")
+    else:
+        env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
+        # Drop only the per build map entry (posix, CMake's spelling);
+        # its from side covers no compiled sources. A spaced path cannot
+        # survive ccache's space split list, so it stays hashed.
+        source_dir = CORE.relative_build_path("zephyr").as_posix()
+        if any(ch.isspace() for ch in source_dir):
+            _LOGGER.debug(
+                "Whitespace in %s; the per build map stays hashed", source_dir
+            )
+        else:
+            device_map = f"-fmacro-prefix-map={source_dir}=CMAKE_SOURCE_DIR"
+            env["CCACHE_IGNOREOPTIONS"] = (
+                f"{env.get('CCACHE_IGNOREOPTIONS', '')} {device_map}".strip()
+            )
     return env
 
 
@@ -246,21 +314,62 @@ def setup_platformio_python_env() -> None:
     _prepend_env_path("PATH", str(env_python_path.parent))
 
 
+def _patch_framework_file(path: Path, old: str, new: str) -> bool:
+    """Replace ``old`` with ``new`` in a framework script, atomically and
+    keeping the file mode (helpers.write_file would flatten it to 0o644).
+    Returns False when nothing matched."""
+    import tempfile
+
+    content = path.read_text(encoding="utf-8")
+    patched = content.replace(old, new)
+    if patched == content:
+        return False
+    # Unique sibling tmp: the install lock is best effort, so two builds
+    # may patch at once and a shared tmp name could rename a half
+    # written file into place.
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(patched)
+        shutil.copymode(path, tmp)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    return True
+
+
 def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
     # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
     uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
-    if not uf2conv.exists():
+    if uf2conv.exists():
+        _patch_framework_file(
+            uf2conv, "re.split('\\s+', line)", "re.split('\\\\s+', line)"
+        )
+
+
+def _patch_gen_defines_dts_path(framework_path: Path) -> None:
+    # The absolute zephyr.dts.pre path in the header's top comment is
+    # its only per device byte and blocks ccache sharing; emit the
+    # basename. Upstream candidate.
+    gen_defines = framework_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    if not gen_defines.exists():
         return
-    content = uf2conv.read_text(encoding="utf-8")
-    patched = content.replace("re.split('\\s+', line)", "re.split('\\\\s+', line)")
-    if patched == content:
+    if _patch_framework_file(
+        gen_defines, "  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}"
+    ):
         return
-    # Write atomically so a concurrent build never sees a truncated file
-    tmp = uf2conv.with_suffix(".py.tmp")
-    tmp.write_text(patched, encoding="utf-8")
-    shutil.copymode(uf2conv, tmp)
-    tmp.replace(uf2conv)
+    if "{os.path.basename(edt.dts_path)}" not in gen_defines.read_text(
+        encoding="utf-8"
+    ):
+        # Upstream reformatted the comment; sharing silently degrading
+        # would be invisible, so say it out loud.
+        _LOGGER.warning(
+            "gen_defines.py no longer matches; the devicetree header "
+            "stays per device and ccache sharing between devices degrades"
+        )
 
 
 # West projects every build needs; components add others with include_west_project()
@@ -294,7 +403,7 @@ def bluetooth_west_projects() -> tuple[str, ...]:
     return ("tinycrypt",)
 
 
-def _wanted_west_projects() -> set[str]:
+def wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
     # Zephyr 4.1 moved the Cortex-M core headers to cmsis_6
     if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 1, 0):
@@ -532,7 +641,7 @@ def _check_and_install(version: str) -> None:
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    projects = _wanted_west_projects()
+    projects = wanted_west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
         _install_framework(env_python_path, framework_path, version, projects)
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -541,6 +650,8 @@ def _check_and_install(version: str) -> None:
         sentinel.touch()
     else:
         _fetch_missing_west_projects(env_python_path, framework_path, version, projects)
+    # Every run: existing installs need it too, and it is a no-op once applied
+    _patch_gen_defines_dts_path(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (
@@ -561,36 +672,41 @@ def _check_and_install(version: str) -> None:
             raise EsphomeError(f"Install Zephyr requirements for {version} failure")
         zephyr_sentinel.touch()
 
-    # Shared by every SDK version; locked only while missing
-    if not (_get_toolchain_path(TOOLCHAIN_VERSION) / ".ready").exists():
-        with _install_lock(f"toolchain-{TOOLCHAIN_VERSION}"):
+    # Shared by every SDK version that uses the same toolchain; locked only
+    # while missing
+    toolchain_version = _get_toolchain_version()
+    if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
+        with _install_lock(f"toolchain-{toolchain_version}"):
             _install_toolchain()
 
 
 def _install_toolchain() -> None:
-    toolchains_dir = _get_toolchain_path(TOOLCHAIN_VERSION)
+    toolchain_version = _get_toolchain_version()
+    toolchains_dir = _get_toolchain_path(toolchain_version)
     sentinel = toolchains_dir / ".ready"
     if not sentinel.exists():
-        rmdir(toolchains_dir, msg=f"Clean up {TOOLCHAIN_VERSION} toolchain environment")
+        rmdir(toolchains_dir, msg=f"Clean up {toolchain_version} toolchain environment")
         sysname, machine, extension = _get_toolchain_platform_info()
         substitutions = {
-            "VERSION": TOOLCHAIN_VERSION,
+            "VERSION": toolchain_version,
             "sysname": sysname,
             "machine": machine,
             "extension": extension,
         }
         # Downloaded next to the destination (not a temp file) so an
         # interrupted download's .part file resumes on the next run.
+        # SDK 1.0+ Zephyr-sdkConfig.cmake looks for the toolchain in
+        # gnu/arm-zephyr-eabi/; extraction strips the archive's single root.
         for mirrors, extract_dir, what, slug in (
             (SDK_NG_MINIMAL_MIRRORS, toolchains_dir, "Zephyr SDK minimal", "minimal"),
             (
-                SDK_NG_TOOLCHAIN_MIRRORS,
-                toolchains_dir / "arm-zephyr-eabi",
+                _get_sdk_ng_toolchain_mirrors(),
+                _get_arm_toolchain_path(),
                 "toolchain",
                 "toolchain",
             ),
         ):
-            _LOGGER.info("Downloading %s %s ...", TOOLCHAIN_VERSION, what)
+            _LOGGER.info("Downloading %s %s ...", toolchain_version, what)
             download_and_extract(
                 mirrors,
                 substitutions,
@@ -598,10 +714,17 @@ def _install_toolchain() -> None:
                 extract_dir,
                 progress_header="Extracting",
             )
-        # Best-effort prune of resume leftovers, including a previous
-        # TOOLCHAIN_VERSION's orphans; the SDK archives are hundreds of MB.
-        # A locked file must not discard the just-completed install.
+        # Best-effort prune of resume leftovers, including orphans of retired
+        # toolchain versions; the SDK archives are hundreds of MB. The other
+        # toolchain still in use may be downloading under its own lock, so its
+        # leftovers are kept. A locked file must not discard the just-completed
+        # install.
+        other_versions = tuple(
+            f"{v}." for v in _TOOLCHAIN_VERSIONS if v != toolchain_version
+        )
         for leftover in toolchains_dir.parent.glob("*.archive.part*"):
+            if leftover.name.startswith(other_versions):
+                continue
             try:
                 leftover.unlink()
             except OSError as err:

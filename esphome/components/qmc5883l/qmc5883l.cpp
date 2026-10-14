@@ -7,7 +7,7 @@
 
 namespace esphome::qmc5883l {
 
-static const char *const TAG = "qmc5883l";
+ESPHOME_LOG_TAG(TAG, "qmc5883l");
 
 static const uint8_t QMC5883L_ADDRESS = 0x0D;
 

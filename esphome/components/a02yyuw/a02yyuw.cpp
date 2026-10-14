@@ -6,7 +6,7 @@
 
 namespace esphome::a02yyuw {
 
-static const char *const TAG = "a02yyuw.sensor";
+ESPHOME_LOG_TAG(TAG, "a02yyuw.sensor");
 
 void A02yyuwComponent::loop() {
   uint8_t data;

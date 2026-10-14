@@ -44,6 +44,7 @@ DOMAIN = "micro_wake_word"
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
 CONF_MODELS = "models"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+CONF_PREFER_INTERNAL_RAM = "prefer_internal_ram"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
 CONF_SLIDING_WINDOW_AVERAGE_SIZE = "sliding_window_average_size"
 CONF_SLIDING_WINDOW_SIZE = "sliding_window_size"
@@ -426,6 +427,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VAD): _maybe_empty_vad_schema,
             cv.Optional(CONF_STOP_AFTER_DETECTION, default=True): cv.boolean,
+            cv.Optional(CONF_PREFER_INTERNAL_RAM, default=False): cv.boolean,
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_MODEL): cv.invalid(
                 f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
@@ -519,6 +521,8 @@ async def to_code(config):
     cg.add(var.set_microphone_source(mic_source))
 
     cg.add_define("USE_MICRO_WAKE_WORD")
+    if config[CONF_PREFER_INTERNAL_RAM]:
+        cg.add_define("USE_MICRO_WAKE_WORD_INTERNAL_RAM")
     ota.request_ota_state_listeners()
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
@@ -569,6 +573,7 @@ async def to_code(config):
             cg.add(
                 var.add_vad_model(
                     prog_arr,
+                    len(data),
                     quantized_probability_cutoff,
                     sliding_window_size,
                     manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE],
@@ -581,6 +586,7 @@ async def to_code(config):
                 model_parameters[CONF_ID],
                 str(model_parameters[CONF_ID]),
                 prog_arr,
+                len(data),
                 quantized_probability_cutoff,
                 sliding_window_size,
                 manifest[KEY_WAKE_WORD],
