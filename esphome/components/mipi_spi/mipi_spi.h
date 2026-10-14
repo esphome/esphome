@@ -419,12 +419,6 @@ class MipiSpi : public display::Display,
     }
   }
 
-  /**
-   * Writes a buffer to the display.
-   *
-   * The ptr is a pointer to the pixel data
-   * The other parameters are all in pixel units.
-   */
   // A block that is not the panel's own format, order or orientation. Only the buffered variant can
   // convert it one pixel at a time; without a buffer there is nothing to draw into, so it is dropped.
   virtual void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -432,6 +426,12 @@ class MipiSpi : public display::Display,
     esph_log_e(TAG, "Unsupported color depth, order, bit order or rotation");
   }
 
+  /**
+   * Writes a buffer to the display.
+   *
+   * The ptr is a pointer to the pixel data
+   * The other parameters are all in pixel units.
+   */
   void write_to_display_(int x_start, int y_start, int w, int h, const BUFFERTYPE *ptr, int x_offset, int y_offset,
                          int x_pad) {
     this->set_addr_window_(x_start, y_start, x_start + w - 1, y_start + h - 1);
