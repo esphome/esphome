@@ -992,8 +992,10 @@ void WiFiComponent::loop() {
 
 #ifdef USE_WIFI_DPP
   // Listen again once the networks have had their chance, or after a failed or abandoned enrollment, but
-  // not while disabled and at most once per timeout
-  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED && !this->dpp_listening_ && !this->is_provisioning_closed_() &&
+  // not while disabled, not during a connect attempt (which would end the listen again) and at most once per
+  // timeout
+  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED && this->state_ != WIFI_COMPONENT_STATE_STA_CONNECTING &&
+      this->state_ != WIFI_COMPONENT_STATE_STA_SCANNING && !this->dpp_listening_ && !this->is_provisioning_closed_() &&
       now - this->last_connected_ > this->dpp_timeout_ && now - this->dpp_listen_started_ > this->dpp_timeout_ &&
       this->wifi_mode_(true, {})) {
     this->start_dpp_listen_(now);
