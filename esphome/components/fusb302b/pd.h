@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -7,6 +8,9 @@
 namespace esphome::fusb302b {
 
 static constexpr uint8_t PD_MAX_NUM_DATA_OBJECTS = 7;
+// Standard Power Range fixed supplies, which are the only ones this sink negotiates
+static constexpr uint8_t MIN_REQUEST_VOLTAGE = 5;
+static constexpr uint8_t MAX_REQUEST_VOLTAGE = 20;
 
 enum PdSpecRevision : uint8_t {
   PD_SPEC_REV_1 = 0,
@@ -42,6 +46,8 @@ enum PdPdoType : uint8_t {
 
 enum class PdState : uint8_t {
   PD_STATE_DISCONNECTED,
+  /// Negotiation is over without a PD contract (no capabilities, or the request was not accepted); the source
+  /// supplies Type-C default power.
   PD_STATE_PD_TIMEOUT,
   PD_STATE_DEFAULT_CONTRACT,
   PD_STATE_TRANSITION,
@@ -95,32 +101,46 @@ struct PdMsg {
 };
 
 /// USB-PD sink protocol logic, independent of the PHY chip.
-/// Everything except the getters and set_request_voltage() runs in the PHY task.
+/// Everything except the getters and set_request_voltage() runs in the PHY task, which must also call
+/// check_transition_timeout_() and check_request_retry_() regularly; the protocol has no timers of its own.
 class PowerDelivery {
  public:
-  void set_request_voltage(uint8_t voltage) { this->request_voltage_ = voltage; }
+  void set_request_voltage(uint8_t voltage) {
+    this->request_voltage_ = std::clamp(voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE);
+  }
   uint8_t get_request_voltage() const { return this->request_voltage_; }
 
   PdState get_state() const { return this->state_; }
   bool is_connected() const { return is_connected_state(this->state_); }
 
  protected:
+  /// Returns false when the message could not be handed to the chip; the PHY logs the failure.
   virtual bool send_message(const PdMsg &msg) = 0;
   /// Called after state_ or contract_ changed, to let the main loop publish it.
   virtual void on_state_changed() = 0;
   /// Called after the source soft reset the protocol; it sends new source capabilities next.
   virtual void on_soft_reset_received() = 0;
+  /// Called when source capabilities arrive, before the request for them is sent.
+  virtual void on_source_caps_received() = 0;
+  /// Called after an accepted request was not followed by PS_RDY in time and the state fell back to default power;
+  /// the PHY sends a soft reset so the source offers its capabilities again.
+  virtual void on_transition_timeout() = 0;
 
   void handle_message_(const PdMsg &msg);
+  /// Called by the PHY when the chip gave up on a message after its retries without receiving a GoodCRC.
+  void handle_transmit_failed_();
   void reset_protocol_();
   void set_state_(PdState state);
   void set_contract_(const PdContract &contract);
   void clear_contract_();
+  /// Stores both before calling on_state_changed() once, so the main loop never sees the new state with the old
+  /// contract.
+  void set_state_and_contract_(PdState state, const PdContract &contract);
   void set_ams_(bool active);
   /// Returns true while an atomic message sequence is in progress; ends it after a timeout.
   bool check_ams_();
-  /// Returns true when the source accepted a request but did not report the new supply ready in time.
-  bool transition_timed_out_();
+  /// Falls back to default power when the source accepted a request but did not report the new supply ready in time.
+  void check_transition_timeout_();
   /// Sends the last request again once tSinkRequest has passed after the source answered Wait.
   void check_request_retry_();
 
@@ -133,7 +153,8 @@ class PowerDelivery {
   std::atomic<uint8_t> request_voltage_{5};
 
   // PHY task only
-  bool waiting_for_source_caps_{false};
+  uint32_t ams_start_{0};
+  uint32_t wait_received_ms_{0};
   bool retry_request_pending_{false};
 
  private:
@@ -141,13 +162,15 @@ class PowerDelivery {
   void handle_control_message_(const PdMsg &msg);
   void handle_soft_reset_(const PdMsg &msg);
   void respond_to_source_caps_(const PdMsg &msg);
+  bool send_request_();
+  void request_failed_();
 
   PdContract requested_contract_{};
   PdContract accepted_contract_{};
-  uint32_t ams_start_{0};
   uint32_t last_rdo_{0};
-  uint32_t wait_received_ms_{0};
   bool active_ams_{false};
+  // Set by Accept; PS_RDY is only valid after the source accepted the request of the current sequence
+  bool ps_rdy_expected_{false};
   uint8_t last_received_msg_id_{255};
   uint8_t msg_counter_{0};
   uint8_t wait_retries_{0};

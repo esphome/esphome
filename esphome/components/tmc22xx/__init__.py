@@ -21,6 +21,7 @@ DEPENDENCIES = ["uart"]
 
 CONF_ANALOG_CURRENT_SCALE = "analog_current_scale"
 CONF_CLOCK_FREQUENCY = "clock_frequency"
+CONF_DIAG_PIN = "diag_pin"
 CONF_ENABLE_SPREADCYCLE = "enable_spreadcycle"
 CONF_ENN_PIN = "enn_pin"
 CONF_HOLD_CURRENT = "hold_current"
@@ -31,6 +32,7 @@ CONF_INTERPOLATION = "interpolation"
 CONF_INVERSE_DIRECTION = "inverse_direction"
 CONF_IRUN = "irun"
 CONF_MICROSTEPS = "microsteps"
+CONF_ON_STATUS = "on_status"
 CONF_OTTRIM = "ottrim"
 CONF_RSENSE = "rsense"
 CONF_RUN_CURRENT = "run_current"
@@ -44,6 +46,7 @@ TMC22XXStepper = tmc22xx_ns.class_(
     "TMC22XXStepper", stepper.Stepper, cg.Component, uart.UARTDevice
 )
 StandstillMode = tmc22xx_ns.enum("StandstillMode")
+DriverEvent = tmc22xx_ns.enum("DriverEvent")
 
 STANDSTILL_MODES = {
     "normal": StandstillMode.STANDSTILL_MODE_NORMAL,
@@ -56,7 +59,9 @@ validate_microsteps = cv.one_of(1, 2, 4, 8, 16, 32, 64, 128, 256, int=True)
 validate_current = cv.All(cv.current, cv.positive_float)
 
 
-def tmc22xx_schema(cls: MockObjClass, max_address: int) -> cv.Schema:
+def tmc22xx_schema(
+    cls: MockObjClass, max_address: int, extra: dict | None = None
+) -> cv.Schema:
     """Return the stepper schema for a family member; `max_address` is 0 for chips without address pins."""
     return cv.All(
         stepper.STEPPER_SCHEMA.extend(
@@ -67,6 +72,7 @@ def tmc22xx_schema(cls: MockObjClass, max_address: int) -> cv.Schema:
                 cv.Optional(CONF_STEP_PIN): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_DIR_PIN): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_INDEX_PIN): pins.internal_gpio_input_pin_schema,
+                cv.Optional(CONF_DIAG_PIN): pins.internal_gpio_input_pin_schema,
                 cv.Optional(CONF_CLOCK_FREQUENCY, default="12MHz"): cv.All(
                     cv.frequency, cv.int_range(min=1)
                 ),
@@ -79,6 +85,8 @@ def tmc22xx_schema(cls: MockObjClass, max_address: int) -> cv.Schema:
                 cv.Optional(CONF_RUN_CURRENT): validate_current,
                 cv.Optional(CONF_HOLD_CURRENT): validate_current,
                 cv.Optional(CONF_MICROSTEPS, default=16): validate_microsteps,
+                cv.Optional(CONF_ON_STATUS): automation.validate_automation({}),
+                **(extra or {}),
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
@@ -133,6 +141,7 @@ async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
         (CONF_STEP_PIN, var.set_step_pin),
         (CONF_DIR_PIN, var.set_dir_pin),
         (CONF_INDEX_PIN, var.set_index_pin),
+        (CONF_DIAG_PIN, var.set_diag_pin),
     ):
         if (pin := config.get(key)) is not None:
             cg.add(setter(await cg.gpio_pin_expression(pin)))
@@ -145,6 +154,13 @@ async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
     ):
         if (value := config.get(key)) is not None:
             cg.add(setter(value))
+    for conf in config.get(CONF_ON_STATUS, []):
+        await automation.build_callback_automation(
+            var,
+            "add_on_status_callback",
+            [(DriverEvent, "event"), (cg.bool_, "active")],
+            conf,
+        )
     return var
 
 

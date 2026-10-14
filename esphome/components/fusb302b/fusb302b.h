@@ -39,6 +39,8 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   bool send_message(const PdMsg &msg) override;
   void on_state_changed() override {}
   void on_soft_reset_received() override { this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT); }
+  void on_source_caps_received() override { this->waiting_for_source_caps_ = false; }
+  void on_transition_timeout() override { this->send_soft_reset_(); }
 
   // PHY task only
   [[noreturn]] void run_task_();
@@ -63,6 +65,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   uint32_t source_cap_step_start_{0};
   SourceCapStep source_cap_step_{SourceCapStep::SOURCE_CAP_STEP_WAIT};
   bool attached_{false};
+  bool waiting_for_source_caps_{false};
 };
 
 }  // namespace esphome::fusb302b

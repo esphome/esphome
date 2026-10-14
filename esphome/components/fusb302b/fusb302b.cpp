@@ -114,12 +114,7 @@ void FUSB302B::run_task_() {
       this->try_attach_();
       continue;
     }
-    if (this->transition_timed_out_()) {
-      ESP_LOGW(TAG, "Source did not report the new supply ready, sending soft reset");
-      this->send_soft_reset_();
-      this->set_contract_(DEFAULT_CONTRACT);
-      this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
-    }
+    this->check_transition_timeout_();
     this->check_request_retry_();
     this->check_source_caps_();
   }
@@ -193,9 +188,8 @@ void FUSB302B::handle_interrupt_() {
   if (interrupta & FUSB_INTERRUPTA_I_SOFTRST) {
     ESP_LOGV(TAG, "Soft reset received");
   }
-  if (interrupta & FUSB_INTERRUPTA_I_RETRYFAIL) {
-    ESP_LOGV(TAG, "Message not acknowledged");
-  }
+  if ((interrupta & FUSB_INTERRUPTA_I_RETRYFAIL) && this->attached_)
+    this->handle_transmit_failed_();
 
   if (!this->attached_)
     return;
