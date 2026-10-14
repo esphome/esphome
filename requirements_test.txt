@@ -6,7 +6,6 @@ prek==0.5.5  # .github/workflows/ci.yml reads this pin
 yamlrocks==0.6.1  # used by script/sync_dependency_versions.py
 
 # Unit tests
-ziglang==0.16.0  # C++ compiler for native component tests on Linux, macOS and Windows
 pytest==9.1.1
 pytest-cov==7.1.0
 pytest-mock==3.16.0

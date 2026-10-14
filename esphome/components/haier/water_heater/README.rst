@@ -103,17 +103,24 @@ Offsets are zero-based within the decoded payload, including 6D 01.
 Validation
 ----------
 
-Schema and native captured-frame tests are under tests/component_tests/haier.
-The native tests use the Zig C++ compiler pinned in requirements_test.txt, which
-CI installs. Missing compilers, compile errors and assertion failures fail the
-tests rather than skipping them. The controller tests use simulated UART, clock
-and entity interfaces; they do not replace firmware builds or hardware testing.
-Install the test dependencies and run:
+Schema tests are under tests/component_tests/haier. Run them with:
 
 .. code-block:: console
 
-   python -m pip install -r requirements_test.txt
    python -m pytest tests/component_tests/haier
+
+Native GoogleTest tests are under tests/components/haier and use ESPHome's
+standard unit test runner. They cover captured frames, encoding, parsing and
+controller behavior using real ESPHome entities, a simulated UART and a
+controlled clock. Run them on Linux with:
+
+.. code-block:: console
+
+   python script/cpp_unit_test.py haier
+
+The existing Linux unit-test CI job runs these tests with AddressSanitizer and
+UndefinedBehaviorSanitizer. The native runner does not support Windows.
+These tests complement firmware builds and hardware testing.
 
 
 Communication health
