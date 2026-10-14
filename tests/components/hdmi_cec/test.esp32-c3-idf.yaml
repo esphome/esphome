@@ -1,0 +1,5 @@
+substitutions:
+  cec_pin: GPIO10
+
+packages:
+  hdmi_cec: !include common.yaml
