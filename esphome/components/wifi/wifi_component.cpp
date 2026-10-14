@@ -390,6 +390,13 @@ static constexpr bool WIFI_AP_EXCLUSIVE = true;
 #else
 static constexpr bool WIFI_AP_EXCLUSIVE = false;
 #endif
+/// Whether the platform reports stations joining and leaving the AP. Where it
+/// does not, a running AP counts as in use.
+#ifdef USE_RP2040
+static constexpr bool WIFI_AP_CLIENT_EVENTS = false;
+#else
+static constexpr bool WIFI_AP_CLIENT_EVENTS = true;
+#endif
 #endif
 #ifdef USE_WIFI_AP_EXCLUSIVE
 /// On a radio that cannot run the AP and STA together: how long the fallback
@@ -969,26 +976,25 @@ void WiFiComponent::loop() {
 
 #endif
 
-    if (this->reboot_timeout_ != 0) {
-      if (now - this->last_connected_ > this->reboot_timeout_) {
-        bool suppress = false;
+    // Without networks there is nothing to fail to connect to, so an AP-only device never reboots.
+    if (this->reboot_timeout_ != 0 && this->has_sta() && now - this->last_connected_ > this->reboot_timeout_) {
+      bool suppress = false;
 #ifdef USE_WIFI_AP
-        // A station on the fallback AP is using the device; an unknown count (-1) also holds the reboot
-        suppress = this->ap_setup_ && this->get_ap_client_count() != 0;
+      // A station on the fallback AP is using the device
+      suppress = this->ap_setup_ && (!WIFI_AP_CLIENT_EVENTS || this->ap_clients_ != 0);
 #endif
 #ifdef USE_PROVISIONING
-        // Don't reboot while a provisioning window is pending (device unprovisioned).
-        // The device is legitimately waiting to be onboarded (Wi-Fi must come up
-        // before the controller can set credentials), and an auto-reboot would reopen
-        // the window without the deliberate power cycle / reset that is meant to be
-        // required. Resumes normal reboot behavior once provisioned.
-        suppress = suppress || (provisioning::global_provisioning_manager != nullptr &&
-                                provisioning::global_provisioning_manager->window_pending());
+      // Don't reboot while a provisioning window is pending (device unprovisioned).
+      // The device is legitimately waiting to be onboarded (Wi-Fi must come up
+      // before the controller can set credentials), and an auto-reboot would reopen
+      // the window without the deliberate power cycle / reset that is meant to be
+      // required. Resumes normal reboot behavior once provisioned.
+      suppress |= provisioning::global_provisioning_manager != nullptr &&
+                  provisioning::global_provisioning_manager->window_pending();
 #endif
-        if (!suppress) {
-          ESP_LOGE(TAG, "Can't connect; rebooting");
-          App.reboot();
-        }
+      if (!suppress) {
+        ESP_LOGE(TAG, "Can't connect; rebooting");
+        App.reboot();
       }
     }
   }
@@ -1067,6 +1073,7 @@ void WiFiComponent::setup_ap_config_() {
     }
   }
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
+  this->ap_clients_ = 0;
 #ifdef USE_WIFI_AP_EXCLUSIVE
   // A failed start must not leave the radio in AP mode, which would refuse
   // the STA attempts until the next try.

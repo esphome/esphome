@@ -244,9 +244,6 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.softAPIP()}; }
-
-// The Pico W SDK exposes no station list
-int8_t WiFiComponent::get_ap_client_count() { return -1; }
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {

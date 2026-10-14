@@ -477,8 +477,6 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
-  /// Stations joined to the soft AP, or -1 when the platform cannot tell.
-  int8_t get_ap_client_count();
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -1068,8 +1066,8 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
-#ifdef USE_WIFI_AP_EXCLUSIVE
-  uint8_t ap_clients_{0};  // Devices joined to the AP, which keep it from pausing
+#ifdef USE_WIFI_AP
+  uint8_t ap_clients_{0};  // Devices joined to the AP, which hold the reboot timeout and keep the AP from pausing
 #endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};

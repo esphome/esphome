@@ -629,7 +629,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
-#ifdef USE_WIFI_AP_EXCLUSIVE
+#ifdef USE_WIFI_AP
       this->ap_clients_++;
 #endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -641,7 +641,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
-#ifdef USE_WIFI_AP_EXCLUSIVE
+#ifdef USE_WIFI_AP
       if (this->ap_clients_ > 0)
         this->ap_clients_--;
 #endif
@@ -810,14 +810,6 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
-
-int8_t WiFiComponent::get_ap_client_count() {
-#ifdef USE_RTL87XX
-  return WiFi.softAPgetStationNum();
-#else
-  return -1;  // the BK72xx and LN882x cores return a stub 0 here
-#endif
-}
 #endif  // USE_WIFI_AP
 
 #ifdef USE_LN882X
