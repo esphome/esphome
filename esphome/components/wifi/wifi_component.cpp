@@ -1464,6 +1464,9 @@ void WiFiComponent::disable() {
 #ifdef USE_WIFI_LEASE_CACHE
   this->cancel_timeout(LEASE_RENEW_TIMEOUT_ID);
 #endif
+#ifdef USE_WIFI_DPP
+  this->stop_dpp_listen_();
+#endif
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
 }
@@ -1768,10 +1771,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     }
 #endif
 #ifdef USE_WIFI_DPP
-    if (this->dpp_listening_) {
-      this->wifi_dpp_stop_listen_();
-      this->dpp_listening_ = false;
-    }
+    this->stop_dpp_listen_();
 #endif
 #ifdef USE_IMPROV_BLE
     if (this->is_improv_ble_active_()) {
@@ -2354,6 +2354,13 @@ void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
 void WiFiComponent::start_dpp_listen_(uint32_t now) {
   this->dpp_listen_started_ = now;
   this->dpp_listening_ = this->wifi_dpp_start_listen_();
+}
+
+void WiFiComponent::stop_dpp_listen_() {
+  if (!this->dpp_listening_)
+    return;
+  this->wifi_dpp_stop_listen_();
+  this->dpp_listening_ = false;
 }
 #endif
 

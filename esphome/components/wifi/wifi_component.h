@@ -847,6 +847,10 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_DPP
   // Starts listening for a DPP configurator; the platform half reports whether the driver accepted
   void start_dpp_listen_(uint32_t now);
+  void stop_dpp_listen_();
+#ifdef USE_ESP32
+  void wifi_dpp_init_();
+#endif
   bool wifi_dpp_start_listen_();
   void wifi_dpp_stop_listen_();
 #endif

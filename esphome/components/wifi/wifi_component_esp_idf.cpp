@@ -81,7 +81,7 @@ struct IDFWiFiEvent {
     wifi_event_ap_probe_req_rx_t ap_probe_req_rx;
     wifi_event_bss_rssi_low_t bss_rssi_low;
 #ifdef USE_WIFI_DPP
-    char dpp_uri[256];  // the firmware's URI is a flexible array; copied with its terminator
+    char *dpp_uri;  // exact-size copy, released by wifi_process_event_
     wifi_event_dpp_config_received_t dpp_config_received;
     wifi_event_dpp_failed_t dpp_failed;
 #endif
@@ -136,12 +136,10 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.ap_stadisconnected, event_data, sizeof(wifi_event_ap_stadisconnected_t));
 #ifdef USE_WIFI_DPP
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_URI_READY) {
-    // uri_data_len counts the terminator; a longer URI is cut rather than overrun the buffer
+    // Copied with a terminator whether or not uri_data_len counts one; too large for the union
     const auto *uri = static_cast<const wifi_event_dpp_uri_ready_t *>(event_data);
-    size_t len = std::min<size_t>(uri->uri_data_len, sizeof(event.data.dpp_uri));
-    if (len > 0) {
-      len--;
-    }
+    size_t len = strnlen(uri->uri, uri->uri_data_len);
+    event.data.dpp_uri = new char[len + 1];  // NOLINT(cppcoreguidelines-owning-memory)
     memcpy(event.data.dpp_uri, uri->uri, len);
     event.data.dpp_uri[len] = '\0';
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_CFG_RECVD) {
@@ -166,6 +164,11 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   auto *to_send = new IDFWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
   memcpy(to_send, &event, sizeof(IDFWiFiEvent));
   if (!global_wifi_component->event_queue_.push(to_send)) {
+#ifdef USE_WIFI_DPP
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_URI_READY) {
+      delete[] to_send->data.dpp_uri;  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+#endif
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
@@ -249,6 +252,9 @@ void WiFiComponent::wifi_lazy_init_() {
     }
     s_wifi_started = true;
     this->wifi_initialized_ = true;
+#ifdef USE_WIFI_DPP
+    this->wifi_dpp_init_();
+#endif
     return;
   }
 
@@ -268,22 +274,26 @@ void WiFiComponent::wifi_lazy_init_() {
     return;
   }
 
+  this->wifi_initialized_ = true;
 #ifdef USE_WIFI_DPP
-  // With no callback the supplicant posts WIFI_EVENT_DPP_* events, handled with the other events below
-  err = esp_supp_dpp_init(nullptr);
+  this->wifi_dpp_init_();
+#endif
+}
+
+#ifdef USE_WIFI_DPP
+void WiFiComponent::wifi_dpp_init_() {
+  // With no callback the supplicant posts WIFI_EVENT_DPP_* events, handled with the other events
+  esp_err_t err = esp_supp_dpp_init(nullptr);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_supp_dpp_init failed: %s", esp_err_to_name(err));
-  } else {
-    err =
-        esp_supp_dpp_bootstrap_gen(this->dpp_channels_, DPP_BOOTSTRAP_QR_CODE, this->dpp_key_, this->dpp_device_info_);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "esp_supp_dpp_bootstrap_gen failed: %s", esp_err_to_name(err));
-    }
+    return;
   }
-#endif
-
-  this->wifi_initialized_ = true;
+  err = esp_supp_dpp_bootstrap_gen(this->dpp_channels_, DPP_BOOTSTRAP_QR_CODE, this->dpp_key_, this->dpp_device_info_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "esp_supp_dpp_bootstrap_gen failed: %s", esp_err_to_name(err));
+  }
 }
+#endif
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   esp_err_t err;
@@ -1247,6 +1257,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #ifdef USE_WIFI_DPP_URI_TRIGGER
     this->dpp_uri_callback_.call(std::string(data->data.dpp_uri));
 #endif
+    delete[] data->data.dpp_uri;  // NOLINT(cppcoreguidelines-owning-memory)
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_CFG_RECVD) {
     this->dpp_listening_ = false;

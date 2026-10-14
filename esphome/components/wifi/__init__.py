@@ -179,7 +179,7 @@ DEFAULT_REBOOT_TIMEOUT = "15min"
 
 # Similar to AP timeout, but reduced to allow repetitive enrollment attempts
 # in the case of failure. Does not affect AP or scanning.
-DEFAULT_DPP_TIMEOUT = "20s"
+DEFAULT_DPP_TIMEOUT = "1min"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -296,21 +296,24 @@ EAP_AUTH_SCHEMA = cv.All(
 CONF_PRIVATE_KEY = "private_key"
 CONF_DEVICE_INFO = "device_info"
 # Wi-Fi Easy Connect (DPP) enrollee; the ESP-IDF supplicant supports the QR code method
-DPP_SCHEMA = cv.All(
-    cv.only_on_esp32,
-    cv.Schema(
-        {
-            cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(cv.string_strict),
-            cv.Optional(CONF_DEVICE_INFO): cv.string_strict,
-            cv.Optional(CONF_CHANNELS, default=[6]): cv.ensure_list(
-                cv.int_range(min=1, max=14)
-            ),
-            cv.Optional(
-                CONF_TIMEOUT, default=DEFAULT_DPP_TIMEOUT
-            ): cv.positive_time_period_milliseconds,
-        }
-    ),
+DPP_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(cv.string_strict),
+        cv.Optional(CONF_DEVICE_INFO): cv.string_strict,
+        cv.Optional(CONF_CHANNELS, default=[6]): cv.ensure_list(
+            cv.int_range(min=1, max=14)
+        ),
+        cv.Optional(
+            CONF_TIMEOUT, default=DEFAULT_DPP_TIMEOUT
+        ): cv.positive_time_period_milliseconds,
+    }
 )
+
+
+def _dpp_schema(value: ConfigType | None) -> ConfigType:
+    # A bare `dpp:` takes every default
+    return DPP_SCHEMA({} if value is None else value)
+
 
 WIFI_NETWORK_BASE = cv.Schema(
     {
@@ -572,7 +575,7 @@ CONFIG_SCHEMA = cv.All(
             ): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
-            cv.Optional(CONF_DPP): DPP_SCHEMA,
+            cv.Optional(CONF_DPP): cv.All(cv.only_on_esp32, _dpp_schema),
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default=DEFAULT_REBOOT_TIMEOUT
