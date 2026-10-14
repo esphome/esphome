@@ -35,23 +35,6 @@ const char *p2s(uart::UARTParityOptions parity) {
   }
 }
 
-/// @brief Display a buffer in hexadecimal format (32 hex values / line).
-void print_buffer(const uint8_t *data, size_t length) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < length; i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31) {
-      ESP_LOGVV(TAG, "   %s", hex_buffer);
-    }
-  }
-  if (length % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (length % 32) + 2] = 0;
-    ESP_LOGVV(TAG, "   %s", hex_buffer);
-  }
-}
-
 enum RegType { REG = 0, FIFO = 1 };            ///< Register or FIFO
 enum CmdType { WRITE_CMD = 0, READ_CMD = 1 };  ///< Read or Write transfer
 
@@ -100,7 +83,7 @@ void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
             this->channel_, length);
-  print_buffer(data, length);
+  print_buffer(TAG, data, length);
 #endif
 }
 
@@ -127,7 +110,7 @@ void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
             this->channel_, length);
-  print_buffer(data, length);
+  print_buffer(TAG, data, length);
 #endif
 }
 
