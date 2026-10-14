@@ -1,0 +1,15 @@
+water_heater:
+  - platform: haier
+    id: haier_water_heater
+    name: Haier Water Heater
+    protocol: hOn
+    target_temperature:
+      name: Haier Target Temperature
+    available_water:
+      name: Haier Available Water Segments
+    power:
+      name: Haier Power
+    heating:
+      name: Haier Heating
+    mode:
+      name: Haier Mode
