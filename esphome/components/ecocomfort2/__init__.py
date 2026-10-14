@@ -57,7 +57,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_time(await cg.get_variable(time_id)))
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # The unit only talks over an encrypted, bonded link
     ble_conf = fv.full_config.get()[esp32_ble.DOMAIN]
     if (
@@ -69,7 +69,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "ecocomfort2 needs esp32_ble configured with io_capability: none, "
             "auth_req_mode: sc_bond and max_key_size: 16"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

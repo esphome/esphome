@@ -206,7 +206,7 @@ async def to_code(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     entries = full_config.get(power_management.DOMAIN, [])
     if sum(entry.get(CONF_PLATFORM) == DOMAIN for entry in entries) > 1:
@@ -248,7 +248,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"{CONF_POWER_DOWN_FLASH} is not allowed when the device has PSRAM",
             path=[CONF_POWER_DOWN_FLASH],
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

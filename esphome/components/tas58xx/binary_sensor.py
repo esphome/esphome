@@ -55,13 +55,13 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     fconf = fv.full_config.get()
     hub_path = fconf.get_path_for_id(config[CONF_TAS58XX_ID])
     hub_conf = fconf.get_config_for_path(hub_path[:-1])
 
     if hub_conf[CONF_MODEL] == DAC_TAS5825M:
-        return config
+        return
 
     unsupported = sorted(frozenset(TAS5825M_ONLY_FAULT_SENSORS).intersection(config))
     if unsupported:
@@ -69,7 +69,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"binary_sensor platform tas58xx: '{', '.join(unsupported)}' is only available for 'model: {DAC_TAS5825M}' "
             f"- Remove from YAML for 'model: {hub_conf[CONF_MODEL]}'"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

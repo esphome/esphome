@@ -65,7 +65,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     switch_type = config[CONF_TYPE]
     same_type = [
@@ -77,7 +77,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     if len(same_type) > 1:
         raise cv.Invalid(f"Only one sendspin '{switch_type}' switch is allowed")
     if switch_type != CONF_UNPAIRED_ACCESS:
-        return config
+        return
     hub_config = full_config.get(DOMAIN, {})
     if CONF_UNPAIRED_ACCESS in hub_config:
         raise cv.Invalid(
@@ -91,7 +91,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             CONF_UNPAIRED_ACCESS,
             CONF_STATIC_PAIRING_CODE,
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

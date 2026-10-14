@@ -264,7 +264,7 @@ def _final_validate(config: ConfigType) -> None:
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
     if CONF_SPI_ID in config:
-        config = spi.final_validate_device_schema(
+        spi.final_validate_device_schema(
             "mipi_rgb", require_miso=False, require_mosi=True
         )(config)
 

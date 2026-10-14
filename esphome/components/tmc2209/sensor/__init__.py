@@ -56,9 +56,9 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     if CONF_ACTUAL_CURRENT not in config:
-        return config
+        return
     full_config = fv.full_config.get()
     path = full_config.get_path_for_id(config[CONF_TMC2209_ID])[:-1]
     if full_config.get_config_for_path(path).get(CONF_ANALOG_CURRENT_SCALE):
@@ -67,7 +67,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "the current then depends on VREF",
             path=[CONF_ACTUAL_CURRENT],
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

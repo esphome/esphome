@@ -49,12 +49,11 @@ def _validate_factory_default_address(config: ConfigType) -> ConfigType:
     return config
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     if CONF_FACTORY_RESET in config:
         fv.id_declaration_match_schema(_validate_factory_default_address)(
             config[CONF_TFLUNA_ID]
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

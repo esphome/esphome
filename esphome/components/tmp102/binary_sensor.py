@@ -14,8 +14,8 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return validate_unique_child(config, "binary_sensor")
+def _final_validate(config: ConfigType) -> None:
+    validate_unique_child(config, "binary_sensor")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

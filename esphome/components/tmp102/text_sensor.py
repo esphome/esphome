@@ -17,8 +17,8 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return validate_unique_child(config, "text_sensor")
+def _final_validate(config: ConfigType) -> None:
+    validate_unique_child(config, "text_sensor")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

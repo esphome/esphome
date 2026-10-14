@@ -110,7 +110,7 @@ def _validate_analog_current_scale(config: ConfigType) -> ConfigType:
     return config
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     """Reject two drivers of the family with the same address on one UART bus."""
     for other in fv.full_config.get().get("stepper", []):
         if other is config:
@@ -123,7 +123,6 @@ def final_validate(config: ConfigType) -> ConfigType:
                 f"Address {config[CONF_ADDRESS]} is already used by '{other[CONF_ID]}' "
                 "on the same UART bus"
             )
-    return config
 
 
 async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
