@@ -21,23 +21,22 @@ struct DestroyCounter {
   }
 };
 
+template<typename F> bool fits_inline(const F & /*callable*/) { return IntCallback::fits_inline<F>(); }
+
 TEST(CallbackFitsInline, PointerSizedConstCallableFits) {
   int value = 0;
-  auto fn = [&value](int x) { value = x; };
-  EXPECT_TRUE(IntCallback::fits_inline<decltype(fn)>());
+  EXPECT_TRUE(fits_inline([&value](int x) { value = x; }));
 }
 
 TEST(CallbackFitsInline, MutableCallableDoesNotFit) {
   int calls = 0;
-  auto fn = [calls](int) mutable { calls++; };
-  EXPECT_FALSE(IntCallback::fits_inline<decltype(fn)>());
+  EXPECT_FALSE(fits_inline([calls](int) mutable { calls++; }));
 }
 
 TEST(CallbackFitsInline, LargeCallableDoesNotFit) {
   int a = 0;
   int b = 0;
-  auto fn = [&a, &b](int x) { a = b = x; };
-  EXPECT_FALSE(IntCallback::fits_inline<decltype(fn)>());
+  EXPECT_FALSE(fits_inline([&a, &b](int x) { a = b = x; }));
 }
 
 TEST(CallbackCreate, InlineCallableIsCalled) {
