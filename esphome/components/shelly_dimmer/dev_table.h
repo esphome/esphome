@@ -43,24 +43,24 @@ constexpr uint32_t SZ_256K = 0x00040000;
  */
 
 /* fixed size pages */
-constexpr uint32_t p_128[] PROGMEM = {SZ_128, 0};  // NOLINT
-constexpr uint32_t p_256[] PROGMEM = {SZ_256, 0};  // NOLINT
-constexpr uint32_t p_1k[] PROGMEM = {SZ_1K, 0};    // NOLINT
-constexpr uint32_t p_2k[] PROGMEM = {SZ_2K, 0};    // NOLINT
+alignas(4) constexpr uint32_t p_128[] PROGMEM = {SZ_128, 0};  // NOLINT
+alignas(4) constexpr uint32_t p_256[] PROGMEM = {SZ_256, 0};  // NOLINT
+alignas(4) constexpr uint32_t p_1k[] PROGMEM = {SZ_1K, 0};    // NOLINT
+alignas(4) constexpr uint32_t p_2k[] PROGMEM = {SZ_2K, 0};    // NOLINT
 /* F2 and F4 page size */
-constexpr uint32_t f2f4[] PROGMEM = {SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};  // NOLINT
+alignas(4) constexpr uint32_t f2f4[] PROGMEM = {SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};  // NOLINT
 /* F4 dual bank page size */
-constexpr uint32_t f4db[] PROGMEM = {SZ_16K,  SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, SZ_128K,  // NOLINT
-                                     SZ_128K, SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K,  SZ_128K, 0};
+alignas(4) constexpr uint32_t f4db[] PROGMEM = {SZ_16K,  SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, SZ_128K,  // NOLINT
+                                                SZ_128K, SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K,  SZ_128K, 0};
 /* F7 page size */
-constexpr uint32_t f7[] PROGMEM = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0};  // NOLINT
+alignas(4) constexpr uint32_t f7[] PROGMEM = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0};  // NOLINT
 
 /*
  * Device table, corresponds to the "Bootloader device-dependant parameters"
  * table in ST document AN2606.
  * Only the columns the updater reads are kept.
  */
-constexpr stm32_dev_t DEVICES[] PROGMEM = {
+alignas(4) constexpr stm32_dev_t DEVICES[] PROGMEM = {
     /* ID   SRAM-start  FLASH-address-range  PSize  Flags */
     /* F0 */
     // STM32F030x8/F05xxx
