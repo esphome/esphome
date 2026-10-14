@@ -416,7 +416,7 @@ void Ecocomfort2Hub::on_advanced_(const uint8_t *data, uint16_t len) {
 
 void Ecocomfort2Hub::publish_config_() {
 #ifdef USE_NUMBER
-  for (uint8_t i = 0; i < sizeof(this->thresholds_); i++) {
+  for (size_t i = 0; i < sizeof(this->thresholds_); i++) {
     if (this->numbers_[i] != nullptr)
       this->numbers_[i]->publish_state(this->thresholds_[i] & THRESHOLD_LEVEL_MASK);
   }
