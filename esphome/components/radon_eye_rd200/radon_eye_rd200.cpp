@@ -121,7 +121,7 @@ void RadonEyeRD200::on_write_result(uint16_t handle, int error) {
     return;
   }
   if (error != 0) {
-    ESP_LOGE(TAG, "write descr failed, error status = %x", error);
+    ESP_LOGE(TAG, "CCCD write on handle 0x%04x failed, status=%d", handle, error);
     this->parent()->set_enabled(false);
     return;
   }
@@ -163,7 +163,7 @@ void RadonEyeRD200::read_sensors_(const uint8_t *value, uint16_t value_len) {
   // Example data V2:
   // 4042323230313033525532303338330652443230304e56322e302e3200014a00060a00080000000300010079300000e01108001c00020000003822005c8f423fa4709d3f
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  // Sized for the longest supported message; format_hex_to truncates longer.
+  // Sized for the V2 minimum payload; format_hex_to truncates longer messages.
   char hex_buf[format_hex_size(MESSAGE_MIN_LEN_V2)];
   ESP_LOGV(TAG, "radon sensors raw bytes: %s", format_hex_to(hex_buf, value, value_len));
 #endif
