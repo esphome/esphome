@@ -51,6 +51,13 @@ extern "C" {
 }
 
 #include <WiFi.h>
+
+#ifdef USE_WIFI_AP
+// The linker routes the driver's firmware events here; wifi/__init__.py adds the wrap flag
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif
 #endif
 
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
@@ -952,6 +959,11 @@ class WiFiComponent final : public Component {
 #ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
+#ifdef USE_WIFI_AP
+  // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+  friend void ::__wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+  // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif
 #endif
 
 #ifdef USE_LIBRETINY
@@ -1126,8 +1138,12 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_DPP
   bool dpp_listening_{false};
 #endif
-#ifdef USE_WIFI_AP_EXCLUSIVE
-  uint8_t ap_clients_{0};  // Devices joined to the AP, which keep it from pausing
+#ifdef USE_WIFI_AP
+  // Stations joined to the AP; they hold the reboot timeout and keep an exclusive AP from pausing.
+  // Counted on the main loop on ESP32 and LibreTiny (queued events), in the SDK callback on ESP8266 and
+  // in the driver's interrupt context on the Pico W. The main loop only reads the byte while the AP is up
+  // and only writes it (a reset) while the AP is down, so no lock is needed.
+  uint8_t ap_clients_{0};
 #endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};

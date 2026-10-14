@@ -677,7 +677,7 @@ void WiFiComponent::setup() {
           return;
         }
 #endif
-        this->wifi_mode_({}, false);
+        this->disable_ap_();
       }
 #endif  // USE_WIFI_AP
     });
@@ -959,8 +959,9 @@ void WiFiComponent::loop() {
         this->ap_changed_ = now;
 #endif
         this->setup_ap_config_();
-        // Where the AP runs on its own, a portal with no AP behind it would only stretch the cooldowns.
-        if (!WIFI_AP_EXCLUSIVE || this->ap_setup_) {
+        // A portal is only started behind an AP that came up: the portal keeps a reference to the web server
+        // on every start, and a failed start is tried again later
+        if (this->ap_setup_) {
 #ifdef USE_CAPTIVE_PORTAL
           // Reset so we force one full scan after captive portal starts
           // (previous scans were filtered because captive portal wasn't active yet)
@@ -982,22 +983,28 @@ void WiFiComponent::loop() {
     }
 #endif
 
-    if (!this->has_ap() && this->reboot_timeout_ != 0) {
-      if (now - this->last_connected_ > this->reboot_timeout_) {
-        bool suppress = false;
-#ifdef USE_PROVISIONING
-        // Don't reboot while a provisioning window is pending (device unprovisioned).
-        // The device is legitimately waiting to be onboarded (Wi-Fi must come up
-        // before the controller can set credentials), and an auto-reboot would reopen
-        // the window without the deliberate power cycle / reset that is meant to be
-        // required. Resumes normal reboot behavior once provisioned.
-        suppress = provisioning::global_provisioning_manager != nullptr &&
-                   provisioning::global_provisioning_manager->window_pending();
+    if (this->reboot_timeout_ != 0 && now - this->last_connected_ > this->reboot_timeout_) {
+      bool suppress = false;
+#if defined(USE_WIFI_AP) && (defined(USE_RTL87XX) || defined(USE_LN882X))
+      // The Realtek driver reports no stations and the Lightning one is unverified, so a running fallback AP
+      // holds the reboot there as it always did
+      suppress = this->ap_setup_;
+#elif defined(USE_WIFI_AP)
+      // A station on the fallback AP is using the device
+      suppress = this->ap_setup_ && this->ap_clients_ != 0;
 #endif
-        if (!suppress) {
-          ESP_LOGE(TAG, "Can't connect; rebooting");
-          App.reboot();
-        }
+#ifdef USE_PROVISIONING
+      // Don't reboot while a provisioning window is pending (device unprovisioned).
+      // The device is legitimately waiting to be onboarded (Wi-Fi must come up
+      // before the controller can set credentials), and an auto-reboot would reopen
+      // the window without the deliberate power cycle / reset that is meant to be
+      // required. Resumes normal reboot behavior once provisioned.
+      suppress |= provisioning::global_provisioning_manager != nullptr &&
+                  provisioning::global_provisioning_manager->window_pending();
+#endif
+      if (!suppress) {
+        ESP_LOGE(TAG, "Can't connect; rebooting");
+        App.reboot();
       }
     }
   }
@@ -1084,6 +1091,8 @@ void WiFiComponent::setup_ap_config_() {
       this->ap_.set_ssid(ssid_buf);
     }
   }
+  // Reset before the AP exists: afterwards only the platform's event path writes the counter
+  this->ap_clients_ = 0;
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
 #if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
   // A failed start must not leave the radio in AP mode: on an exclusive radio it would refuse
@@ -1127,9 +1136,6 @@ void WiFiComponent::pause_exclusive_ap_() {
   ESP_LOGI(TAG, "Pausing AP to try the networks");
   // Scanning and connecting turn STA back on.
   this->disable_ap_();
-  this->ap_setup_ = false;
-  // Clients drop with the AP without a disconnect event for each.
-  this->ap_clients_ = 0;
   this->ap_changed_ = App.get_loop_component_start_time();
   // A fresh connection cycle, as at boot, rather than resuming the one the
   // AP cut short.
@@ -1142,6 +1148,7 @@ void WiFiComponent::pause_exclusive_ap_() {
 #ifdef USE_WIFI_AP_WISP
 void WiFiComponent::fail_bridge_() {
   this->ap_setup_ = false;
+  this->ap_clients_ = 0;  // dropped with the AP, without a disconnect event for each
   this->wifi_mode_({}, false);
 }
 #endif
@@ -1150,6 +1157,10 @@ void WiFiComponent::disable_ap_() {
   this->end_ap_portal_();
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
+  // The fallback block may bring the AP back after a later disconnect; its clients dropped with it without
+  // a disconnect event for each
+  this->ap_setup_ = false;
+  this->ap_clients_ = 0;
 }
 
 void WiFiComponent::set_ap(const WiFiAP &ap) {
@@ -1495,7 +1506,10 @@ void WiFiComponent::disable() {
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
 #ifdef USE_WIFI_AP
-  this->ap_setup_ = false;  // the AP went down with the radio; enable() may bring it up again
+  // The AP went down with the radio; enable() has to configure it, and its portal, again
+  this->end_ap_portal_();
+  this->ap_setup_ = false;
+  this->ap_clients_ = 0;
 #endif
 #ifdef USE_WIFI_AP_WISP
   this->ap_changed_ = 0;  // at once, not after ap_timeout
@@ -1810,6 +1824,8 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     }
 #endif
 
+    // The fallback and reboot checks later in this pass must see the connection, not the old timestamp
+    this->last_connected_ = now;
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     // Refresh is_connected() cache; loop()'s refresh ran before this transition.
     this->update_connected_state_();

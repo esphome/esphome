@@ -845,6 +845,9 @@ async def to_code(config):
         # takes turns with the networks instead.
         if CORE.is_ln882x:
             cg.add_define("USE_WIFI_AP_EXCLUSIVE")
+        # The Pico W driver drops the AP station events; wifi_component_pico_w.cpp counts them
+        if CORE.is_rp2:
+            cg.add_build_flag("-Wl,--wrap=cyw43_cb_process_async_event")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
     # drops SoftAP support / the LWIP DHCP server when AP mode is unused.

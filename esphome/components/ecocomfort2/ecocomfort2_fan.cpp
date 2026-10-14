@@ -118,13 +118,8 @@ void Ecocomfort2Fan::on_status() {
 
   int new_speed = this->speed;
   uint8_t base_speed = raw_speed & SPEED_MASK;
-  if (raw_speed & FLAG_BOOST) {
-    new_speed = SPEED_COUNT;
-  } else if (raw_speed & FLAG_NIGHT) {
-    new_speed = SPEED_SLEEP;
-  } else if (base_speed >= SPEED_SLEEP && base_speed <= SPEED_VEL3) {
+  if (base_speed >= SPEED_SLEEP && base_speed <= SPEED_VEL3)
     new_speed = base_speed;
-  }
   const Preset *preset = find_preset(mode, (raw_speed & FLAG_AUTO) != 0);
   const char *new_preset = preset != nullptr ? preset->name : nullptr;
   bool same_preset = new_preset == nullptr ? !this->has_preset_mode() : this->get_preset_mode().c_str() == new_preset;
