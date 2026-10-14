@@ -20,7 +20,7 @@ namespace esphome::opentherm {
 
 using std::string;
 
-static const char *const TAG = "opentherm";
+ESPHOME_LOG_TAG(TAG, "opentherm");
 
 #ifdef ESP8266
 OpenTherm *OpenTherm::instance = nullptr;
@@ -114,6 +114,7 @@ bool OpenTherm::get_protocol_error(OpenThermError &error) {
 void OpenTherm::stop() {
   this->stop_timer_();
   this->mode_ = OperationMode::IDLE;
+  this->out_pin_->digital_write(true);
 }
 
 void IRAM_ATTR OpenTherm::read_() {

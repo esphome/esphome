@@ -39,7 +39,7 @@ RESTORE_MODES = {
 }
 
 CONFIG_SCHEMA = (
-    water_heater.water_heater_schema(TemplateWaterHeater)
+    water_heater.water_heater_schema(TemplateWaterHeater, temperature_unit=True)
     .extend(
         {
             cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,

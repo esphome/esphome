@@ -34,24 +34,4 @@ class BM8563 final : public time::RealTimeClock, public i2c::I2CDevice {
   uint8_t byte_to_bcd2_(uint8_t value);
 };
 
-template<typename... Ts> class WriteAction final : public Action<Ts...>, public Parented<BM8563> {
- public:
-  void play(const Ts &...x) override { this->parent_->write_time(); }
-};
-
-template<typename... Ts> class ReadAction final : public Action<Ts...>, public Parented<BM8563> {
- public:
-  void play(const Ts &...x) override { this->parent_->read_time(); }
-};
-
-template<typename... Ts> class TimerAction final : public Action<Ts...>, public Parented<BM8563> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, duration)
-
-  void play(const Ts &...x) override {
-    auto duration = this->duration_.value(x...);
-    this->parent_->start_timer(duration);
-  }
-};
-
 }  // namespace esphome::bm8563

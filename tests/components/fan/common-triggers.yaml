@@ -1,0 +1,35 @@
+# on_state with the fan as trigger argument, plus the edge and set triggers.
+fan:
+  - platform: template
+    name: Fan Triggers
+    id: fan_triggers
+    preset_modes:
+      - Eco
+      - Turbo
+    has_oscillating: true
+    has_direction: true
+    speed_count: 3
+    on_state:
+      - logger.log:
+          format: "Fan is %s"
+          args: ['x->state ? "on" : "off"']
+    on_turn_on:
+      - logger.log: Fan turned on
+    on_turn_off:
+      - logger.log: Fan turned off
+    on_direction_set:
+      - logger.log:
+          format: "Direction %d"
+          args: ["(int) x"]
+    on_oscillating_set:
+      - logger.log:
+          format: "Oscillating %d"
+          args: ["x"]
+    on_speed_set:
+      - logger.log:
+          format: "Speed %d"
+          args: ["x"]
+    on_preset_set:
+      - logger.log:
+          format: "Preset %s"
+          args: ["x.c_str()"]

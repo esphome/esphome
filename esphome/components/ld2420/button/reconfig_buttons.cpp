@@ -2,7 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-static const char *const TAG = "ld2420.button";
+ESPHOME_LOG_TAG(TAG, "ld2420.button");
 
 namespace esphome::ld2420 {
 

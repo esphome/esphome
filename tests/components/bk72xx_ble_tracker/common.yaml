@@ -1,0 +1,7 @@
+bk72xx_ble_tracker:
+  id: ble_tracker
+  scan_parameters:
+    interval: 100ms
+    window: 30ms
+    duration: 5min
+    continuous: true

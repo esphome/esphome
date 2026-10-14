@@ -1,14 +1,18 @@
+from collections.abc import Callable
+import importlib
+import io
 import json
-import math
+import logging
 from pathlib import Path
 import string
+from unittest.mock import patch
 
 from hypothesis import example, given, settings
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
 import voluptuous as vol
 
-from esphome import config_validation as cv
+from esphome import config_validation as cv, cpp_generator
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -18,26 +22,20 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.substitutions import do_substitution_pass
 from esphome.config_validation import Invalid
 from esphome.const import (
-    CONF_CURRENT_TEMPERATURE,
     CONF_DAY,
     CONF_HOUR,
     CONF_ID,
     CONF_INTERNAL,
-    CONF_MAX_TEMPERATURE,
-    CONF_MIN_TEMPERATURE,
     CONF_MINUTE,
     CONF_MONTH,
     CONF_NAME,
     CONF_REF,
     CONF_SECOND,
-    CONF_TARGET_TEMPERATURE,
-    CONF_TEMPERATURE_STEP,
     CONF_TYPE,
-    CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
-    CONF_VISUAL,
     CONF_YEAR,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
@@ -57,6 +55,7 @@ from esphome.const import (
     UNIT_FAHRENHEIT,
     UNIT_KELVIN,
     Framework,
+    Toolchain,
 )
 from esphome.core import (
     CORE,
@@ -72,7 +71,15 @@ from esphome.core import (
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
-from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, make_data_base
+from esphome.yaml_util import (
+    ESPHomeDataBase,
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+    load_yaml,
+    make_data_base,
+    parse_yaml,
+)
 
 
 def test_check_not_templatable__invalid():
@@ -200,12 +207,13 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
     assert result == "hunter2"
 
 
-def test_sensitive__does_not_double_tag_already_sensitive() -> None:
-    # If the inner validator already returns a SensitiveStr (e.g., nested
+@pytest.mark.parametrize(
+    "pre_tagged", [SensitiveStr("hunter2"), SensitiveInt(5), SensitiveHexInt(0x12)]
+)
+def test_sensitive__does_not_double_tag_already_sensitive(pre_tagged: object) -> None:
+    # If the inner validator already returns a tagged value (e.g., nested
     # cv.sensitive wrappers), re-tagging is a no-op rather than a new
-    # SensitiveStr around the same value.
-    pre_tagged = SensitiveStr("hunter2")
-
+    # wrapper around the same value.
     def inner(_value):
         return pre_tagged
 
@@ -215,16 +223,33 @@ def test_sensitive__does_not_double_tag_already_sensitive() -> None:
     assert result is pre_tagged
 
 
-def test_sensitive__non_string_result_passes_through() -> None:
-    # If an inner validator returns something other than a string (e.g., a
-    # Lambda template), the sensitive wrapper must not coerce it.
-    sentinel = object()
-
+@pytest.mark.parametrize("passthrough", [object(), True, False])
+def test_sensitive__non_string_result_passes_through(passthrough: object) -> None:
+    # If an inner validator returns something other than a string or integer
+    # (e.g., a Lambda template or a bool), the sensitive wrapper must not
+    # coerce it.
     def inner(_value):
-        return sentinel
+        return passthrough
 
     validator = cv.sensitive(inner)
-    assert validator("anything") is sentinel
+    assert validator("anything") is passthrough
+
+
+@pytest.mark.parametrize("inner", [cv.uint32_t, cv.hex_int])
+def test_sensitive__integer_preserves_codegen(inner: Callable[[str], int]) -> None:
+    """Tag credentials without changing their firmware expressions."""
+    original = inner("0x12345678")
+    tagged = cv.sensitive(inner)("0x12345678")
+    assert isinstance(tagged, SensitiveInt)
+    assert tagged == original
+    assert str(cpp_generator.safe_exp(tagged)) == str(cpp_generator.safe_exp(original))
+    assert isinstance(tagged, HexInt) == isinstance(original, HexInt)
+
+
+def test_sensitive__integer_validation_still_rejects_out_of_range() -> None:
+    """Keep the inner validator's range checks."""
+    with pytest.raises(Invalid):
+        cv.sensitive(cv.uint32_t)(1 << 32)
 
 
 def test_sensitive__is_detectable_via_isinstance() -> None:
@@ -941,7 +966,7 @@ def test_string_no_slash__slash_replaced_with_warning(
     actual = cv.string_no_slash(value)
     assert actual == expected
     assert "reserved as a URL path separator" in caplog.text
-    assert "will become an error in ESPHome 2026.7.0" in caplog.text
+    assert "will become an error in ESPHome 2027.7.0" in caplog.text
 
 
 def test_string_no_slash__long_string_allowed() -> None:
@@ -1399,6 +1424,35 @@ def test_entity_metadata_visibility_hints() -> None:
     # via the consumer cascade, so only the parent key carries the hint.
     web = {str(k): k for k in WEBSERVER_SORTING_SCHEMA.schema}
     assert web["web_server"].visibility is advanced
+
+
+def test_with_visibility_remarks_keys() -> None:
+    """``with_visibility`` re-marks the named keys, preserving each field's
+    default and validator, without touching the other keys or the input schema.
+    """
+    base = cv.Schema(
+        {
+            cv.Optional("a", default=7): cv.int_,
+            cv.Optional("b", visibility=cv.Visibility.ADVANCED): cv.string,
+        }
+    )
+    promoted = cv.with_visibility(base, cv.Visibility.UI, "a")
+
+    pm = {str(k): k for k in promoted.schema}
+    assert pm["a"].visibility is cv.Visibility.UI  # re-marked
+    assert pm["a"].default() == 7  # default preserved
+    assert pm["b"].visibility is cv.Visibility.ADVANCED  # sibling untouched
+    assert promoted({}) == {"a": 7}  # validator/default still applied
+
+    # The input schema is left untouched (no shared-marker mutation).
+    assert {str(k): k for k in base.schema}["a"].visibility is None
+
+
+def test_with_visibility_unknown_key_raises() -> None:
+    """A key not present in the schema is a typo — fail at build time."""
+    base = cv.Schema({cv.Optional("a"): cv.int_})
+    with pytest.raises(ValueError, match="not in schema"):
+        cv.with_visibility(base, cv.Visibility.UI, "nope")
 
 
 def _wrap_str(value: str) -> ESPHomeDataBase:
@@ -2094,6 +2148,60 @@ def test_temperature_delta_invalid() -> None:
         cv.temperature_delta("5x")
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("100°F", (100.0, UNIT_FAHRENHEIT)),
+        ("100 °F", (100.0, UNIT_FAHRENHEIT)),
+        ("100F", (100.0, UNIT_FAHRENHEIT)),
+        ("25°C", (25.0, UNIT_CELSIUS)),
+        ("25C", (25.0, UNIT_CELSIUS)),
+        ("300K", (300.0, UNIT_KELVIN)),
+        ("300°K", (300.0, UNIT_KELVIN)),
+        ("25", (25.0, None)),
+        ("25°", (25.0, None)),
+        (25, (25.0, None)),
+    ],
+)
+def test_temperature_with_unit(
+    value: str | int, expected: tuple[float, str | None]
+) -> None:
+    assert cv.temperature_with_unit(value) == expected
+
+
+@pytest.mark.parametrize("value", ["5x", "abc°F", None])
+def test_temperature_with_unit__invalid(value: str | None) -> None:
+    with pytest.raises(Invalid):
+        cv.temperature_with_unit(value)
+
+
+def test_temperature_unit() -> None:
+    assert cv.temperature_unit("°F") == UNIT_FAHRENHEIT
+    with pytest.raises(Invalid):
+        cv.temperature_unit("F")
+
+
+@pytest.mark.parametrize(
+    ("value", "unit", "to_unit", "delta", "expected"),
+    [
+        (60.0, None, UNIT_FAHRENHEIT, False, 60.0),
+        (30.0, UNIT_CELSIUS, UNIT_FAHRENHEIT, False, 86.0),
+        (212.0, UNIT_FAHRENHEIT, UNIT_CELSIUS, False, 100.0),
+        (300.0, UNIT_KELVIN, UNIT_FAHRENHEIT, False, 80.33),
+        (86.0, UNIT_FAHRENHEIT, UNIT_KELVIN, False, 303.15),
+        (0.5, UNIT_CELSIUS, UNIT_FAHRENHEIT, True, 0.9),
+        (9.0, UNIT_FAHRENHEIT, UNIT_CELSIUS, True, 5.0),
+        (1.0, UNIT_KELVIN, UNIT_CELSIUS, True, 1.0),
+    ],
+)
+def test_convert_temperature(
+    value: float, unit: str | None, to_unit: str, delta: bool, expected: float
+) -> None:
+    assert cv.convert_temperature(value, unit, to_unit, delta=delta) == pytest.approx(
+        expected
+    )
+
+
 def test_color_temperature_mireds() -> None:
     assert cv.color_temperature("153 mireds") == pytest.approx(153.0)
 
@@ -2438,6 +2546,58 @@ def test_one_of_string_and_space() -> None:
     assert cv.one_of("a_b", string=True, space="_")("a b") == "a_b"
 
 
+def test_one_of_string_and_underscore() -> None:
+    assert cv.one_of("a-b", string=True, underscore="-")("a_b") == "a-b"
+    assert cv.one_of("a-b", string=True, underscore="-")("a-b") == "a-b"
+
+
+def test_one_of_string_lower_space_and_underscore() -> None:
+    validator = cv.one_of("output-mode", lower=True, space="-", underscore="-")
+    assert validator("output_mode") == "output-mode"
+    assert validator("OUTPUT_MODE") == "output-mode"
+    assert validator("output mode") == "output-mode"
+    assert validator("output-mode") == "output-mode"
+
+
+def test_one_of_string_underscore_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True, underscore="-")("c_d")
+
+
+def test_one_of_string_underscore_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True)("a_b")
+
+
+def test_one_of_string_and_hyphen() -> None:
+    assert cv.one_of("a_b", string=True, hyphen="_")("a-b") == "a_b"
+    assert cv.one_of("a_b", string=True, hyphen="_")("a_b") == "a_b"
+
+
+def test_one_of_string_lower_space_and_hyphen() -> None:
+    validator = cv.one_of("output_mode", lower=True, space="_", hyphen="_")
+    assert validator("output-mode") == "output_mode"
+    assert validator("OUTPUT-MODE") == "output_mode"
+    assert validator("output mode") == "output_mode"
+    assert validator("output_mode") == "output_mode"
+
+
+def test_one_of_string_hyphen_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True, hyphen="_")("c-d")
+
+
+def test_one_of_string_hyphen_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True)("a-b")
+
+
+def test_one_of_string_underscore_hyphen_swap_no_cascade() -> None:
+    validator = cv.one_of("a-b", "a_b", string=True, underscore="-", hyphen="_")
+    assert validator("a_b") == "a-b"
+    assert validator("a-b") == "a_b"
+
+
 def test_one_of_int() -> None:
     assert cv.one_of(1, 2, int=True)("2") == 2
 
@@ -2476,6 +2636,20 @@ def test_enum_valid() -> None:
     assert result.enum_value == 10
 
 
+def test_enum_valid_with_underscore() -> None:
+    mapping = {"a-b": 1}
+    result = cv.enum(mapping, string=True, underscore="-")("a_b")
+    assert result == "a-b"
+    assert result.enum_value == 1
+
+
+def test_enum_valid_with_hyphen() -> None:
+    mapping = {"a_b": 1}
+    result = cv.enum(mapping, string=True, hyphen="_")("a-b")
+    assert result == "a_b"
+    assert result.enum_value == 1
+
+
 # ---------------------------------------------------------------------------
 # lambda_ / returning_lambda
 # ---------------------------------------------------------------------------
@@ -2504,6 +2678,52 @@ def test_returning_lambda_valid() -> None:
 def test_returning_lambda_no_return() -> None:
     with pytest.raises(Invalid, match="return statement"):
         cv.returning_lambda(Lambda("int x = 5;"))
+
+
+def test_returning_lambda_return_only_in_comment() -> None:
+    with pytest.raises(Invalid, match="return statement"):
+        cv.returning_lambda(Lambda("// return 5;\nint x = 5;"))
+
+
+def test_returning_lambda_missing_semicolon_is_accepted() -> None:
+    """A forgotten semicolon is left for the C++ compiler to report."""
+    assert isinstance(cv.returning_lambda(Lambda("return x")), Lambda)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("return 5;", True),
+        ("if (x) { return x; } return 0;", True),
+        ("if (x) return 1; else return 0;", True),
+        ("switch (x) { case 0: return 1; }", True),
+        # a semicolon means code: any return keyword counts
+        ("return not x;", True),
+        ("return a and b;", True),
+        ("please return the sensor; then wait", True),
+        # a forgotten semicolon is still lambda source; the compiler reports it
+        ("return id(x).state", True),
+        ("return x", True),
+        ("return 5", True),
+        ("return not x", True),
+        # accepted: a one-word tail is indistinguishable from 'return x'
+        ("return soon", True),
+        ("Alert: return home", True),
+        ("static value", False),
+        ("no returns here", False),
+        ("the_return_value", False),
+        # without a semicolon, prose is not lambda source
+        ("please return the item", False),
+        ("return to sender", False),
+        ("return a and b", False),
+        # return only inside a comment is not a return statement
+        ("// return 5;\nint x = 5;", False),
+        ("/* return 5; */ int x = 5;", False),
+        ("return 5; // done", True),
+    ],
+)
+def test_looks_like_returning_lambda(value: str, expected: bool) -> None:
+    assert cv.looks_like_returning_lambda(value) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -2870,9 +3090,61 @@ def test_require_esphome_version_ok() -> None:
     assert cv.require_esphome_version(1, 0, 0)("test") == "test"
 
 
+def test_require_esphome_version_accepts_version_object() -> None:
+    """The Version form matches require_framework_version's style."""
+    assert cv.require_esphome_version(cv.Version(1, 0, 0))("test") == "test"
+    with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
+        cv.require_esphome_version(cv.Version(9999, 0, 0))("test")
+
+
+def test_require_esphome_version_partial_ints_fail_at_call_site() -> None:
+    """Missing ints raise immediately instead of a TypeError inside the validator."""
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026, 8)
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026)
+
+
 def test_require_esphome_version_too_old() -> None:
     with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
         cv.require_esphome_version(9999, 0, 0)("test")
+
+
+@pytest.mark.parametrize("current", ["2026.8.0", "2026.8.0b1", "2026.8.0-dev20260801"])
+def test_require_esphome_version_prerelease_of_required_passes(current: str) -> None:
+    """A dev or beta build of the required version satisfies it.
+
+    Pins the behavior of the old tuple comparison that dropped the
+    suffix, now expressed through Version ordering where the extra field
+    only breaks ties upward.
+    """
+    with patch.object(cv, "ESPHOME_VERSION", current):
+        assert cv.require_esphome_version(2026, 8, 0)("test") == "test"
+
+
+def test_require_esphome_version_older_prerelease_fails() -> None:
+    with (
+        patch.object(cv, "ESPHOME_VERSION", "2026.7.0-dev20260701"),
+        pytest.raises(Invalid, match="at least ESPHome version 2026.8.0"),
+    ):
+        cv.require_esphome_version(2026, 8, 0)("test")
+
+
+def test_parse_esphome_version_deprecated_shim(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The removed helper still works for external components and warns."""
+    from esphome import const, util
+
+    with (
+        patch.object(const, "__version__", "2026.9.0-dev"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert cv.parse_esphome_version() == (2026, 9, 0)
+        assert cv.parse_esphome_version() < (9999, 0, 0)
+    assert "parse_esphome_version() is deprecated" in caplog.text
+    # Both historical import paths resolve to the same function
+    assert cv.parse_esphome_version is util.parse_esphome_version
 
 
 # ---------------------------------------------------------------------------
@@ -2926,10 +3198,181 @@ def test_rename_key_absent() -> None:
     assert cv.rename_key("old", "new")({"other": 5}) == {"other": 5}
 
 
+@pytest.mark.parametrize("value", ["an_id", 1, None, ["old"]])
+def test_rename_key_non_dict_passes_through(value: object) -> None:
+    assert cv.rename_key("old", "new")(value) == value
+
+
+def test_rename_key_no_removed_in_is_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        assert cv.rename_key("old", "new")({"old": 5}) == {"new": 5}
+    assert not caplog.records
+
+
+def test_rename_key_removed_in_renames_and_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5})
+    assert result == {"new": 5}
+    assert "'old' is deprecated, use 'new'. Will be removed in 2026.8.0" in caplog.text
+
+
+def test_rename_key_removed_in_absent_key_no_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key("old", "new", removed_in="2026.8.0")({"other": 5})
+    assert result == {"other": 5}
+    assert not caplog.records
+
+
+def test_rename_key_removed_in_with_component_prefixes_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key(
+            "old", "new", removed_in="2026.8.0", component="my_component"
+        )({"old": 5})
+    assert result == {"new": 5}
+    assert (
+        "[my_component] 'old' is deprecated, use 'new'. Will be removed in 2026.8.0"
+        in caplog.text
+    )
+
+
+def test_rename_key_both_keys_rejected() -> None:
+    with pytest.raises(Invalid, match="Cannot specify more than one of"):
+        cv.rename_key("old", "new")({"old": 5, "new": 6})
+
+
+def test_rename_key_both_keys_rejected_with_removed_in(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        caplog.at_level(logging.WARNING, logger="esphome.config_validation"),
+        pytest.raises(Invalid, match="Cannot specify more than one of"),
+    ):
+        cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5, "new": 6})
+    assert not caplog.records
+
+
 def test_file__existing_relative_path(setup_core: Path) -> None:
     (setup_core / "partitions.csv").write_text("csv\n")
 
     assert cv.file_("partitions.csv") == setup_core / "partitions.csv"
+
+
+def _package_value(setup_core: Path, path: str = "assets/ui.js") -> tuple[Path, str]:
+    """Write a package file next to an ``assets/`` dir; return the dir and its loaded *path* value."""
+    package_dir = setup_core / ".esphome" / "packages" / "abc123" / "vendor"
+    (package_dir / "assets").mkdir(parents=True)
+    (package_dir / "assets" / "ui.js").write_text("js\n")
+    (package_dir / "device.yaml").write_text(f"path: {path}\n")
+    return package_dir, load_yaml(package_dir / "device.yaml")["path"]
+
+
+def test_file__resolves_relative_to_the_declaring_document(setup_core: Path) -> None:
+    """A package's own asset path resolves against the package file when the config dir lacks it."""
+    package_dir, value = _package_value(setup_core)
+
+    assert cv.file_(value) == package_dir / "assets" / "ui.js"
+
+
+def test_file__resolves_a_substituted_path_against_the_use_site(
+    setup_core: Path,
+) -> None:
+    package_dir, _ = _package_value(setup_core)
+    (package_dir / "device.yaml").write_text(
+        "substitutions:\n  ui: assets/ui.js\npath: ${ui}\n"
+    )
+    config = do_substitution_pass(load_yaml(package_dir / "device.yaml"))
+
+    assert cv.file_(config["path"]) == package_dir / "assets" / "ui.js"
+
+
+def test_file__result_is_absolute_for_a_relative_document(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A document loaded by a cwd-relative path still yields an absolute result."""
+    package_dir, _ = _package_value(setup_core)
+    monkeypatch.chdir(setup_core)
+    value = load_yaml(Path(".esphome/packages/abc123/vendor/device.yaml"))["path"]
+
+    result = cv.file_(value)
+
+    assert result.is_absolute()
+    assert result == package_dir / "assets" / "ui.js"
+
+
+def test_file__config_dir_entry_of_the_wrong_kind_does_not_shadow_the_package(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_value(setup_core)
+    (setup_core / "assets" / "ui.js").mkdir(parents=True)
+
+    assert cv.file_(value) == package_dir / "assets" / "ui.js"
+
+
+def test_file__miss_names_the_declaring_document(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "assets/other.js")
+
+    with pytest.raises(Invalid, match="Could not find file") as excinfo:
+        cv.file_(value)
+
+    assert f"Also looked next to {package_dir / 'device.yaml'}" in str(excinfo.value)
+
+
+def test_file__document_spelled_through_dotdot_in_the_config_dir_adds_no_hint(
+    setup_core: Path,
+) -> None:
+    (setup_core / "sub").mkdir()
+    (setup_core / "device.yaml").write_text("path: assets/other.js\n")
+    value = load_yaml(setup_core / "sub" / ".." / "device.yaml")["path"]
+
+    with pytest.raises(Invalid) as excinfo:
+        cv.file_(value)
+
+    assert "Also looked" not in str(excinfo.value)
+
+
+def test_file__wrong_kind_beside_the_document_is_reported(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "assets")
+
+    with pytest.raises(Invalid, match="is not a file") as excinfo:
+        cv.file_(value)
+
+    assert str(package_dir / "assets") in str(excinfo.value)
+
+
+def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
+    _, value = _package_value(setup_core)
+    (setup_core / "assets").mkdir()
+    (setup_core / "assets" / "ui.js").write_text("local\n")
+
+    assert cv.file_(value) == setup_core / "assets" / "ui.js"
+
+
+def test_file__declared_in_an_in_memory_document_is_not_resolved(
+    setup_core: Path,
+) -> None:
+    """A value whose source document isn't on disk falls through to the config-dir error."""
+    value = parse_yaml(Path("<unicode string>"), io.StringIO("path: assets/ui.js\n"))[
+        "path"
+    ]
+
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_(value)
+
+
+def test_directory_resolves_relative_to_the_declaring_document(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_value(setup_core, "assets")
+
+    assert cv.directory(value) == package_dir / "assets"
 
 
 def test_file__missing_raises(setup_core: Path) -> None:
@@ -3002,297 +3445,44 @@ def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
         cv.file_("/original/config/headers")
 
 
-# ---------------------------------------------------------------------------
-# temperature and temperature_delta
-# ---------------------------------------------------------------------------
+def test_require_platformio_toolchain() -> None:
+    """Platforms with only the PlatformIO backend reject other toolchains."""
+    validator = cv.require_platformio_toolchain("RP2")
+    CORE.toolchain = None
+    config: dict = {}
+    assert validator(config) is config
+    assert CORE.toolchain == Toolchain.PLATFORMIO
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(Invalid, match="Unsupported toolchain 'arduino' for RP2"):
+        validator(config)
+
+
+def test_check_supported_toolchain_unresolved_is_an_ordering_bug() -> None:
+    """Calling the check before resolution fails naming the ordering bug,
+    not a user-facing unsupported-toolchain error."""
+    CORE.toolchain = None
+    with pytest.raises(Invalid, match="not resolved before RP2 validation"):
+        cv._check_supported_toolchain("RP2", (Toolchain.PLATFORMIO,))
 
 
 @pytest.mark.parametrize(
-    "value, expected",
+    ("platform", "minimal_config"),
     [
-        ("0°C", 0.0),
-        ("20C", 20.0),
-        ("20", 20.0),
-        ("373.15K", 100.0),
-        ("373.15°K", 100.0),
-        ("32°F", 0.0),
-        ("212F", 100.0),
+        ("host", {}),
+        ("rp2", {"board": "rpipicow"}),
+        ("bk72xx", {"board": "generic-bk7231n-qfn32-tuya"}),
+        ("rtl87xx", {"board": "generic-rtl8710bn-2mb-788k"}),
+        ("ln882x", {"board": "generic-ln882h"}),
+        # The legacy stub platform must reject too, not just the chip families
+        ("libretiny", {}),
     ],
 )
-def test_temperature__valid(value, expected) -> None:
-    assert math.isclose(cv.temperature(value), expected, abs_tol=1e-4)
-
-
-def test_temperature__invalid() -> None:
-    with pytest.raises(Invalid):
-        cv.temperature(None)
-
-
-@pytest.mark.parametrize(
-    "value, expected",
-    [
-        ("1°C", 1.0),
-        ("1C", 1.0),
-        ("1", 1.0),
-        ("1K", 1.0),
-        ("1.8°F", 1.8 * 5 / 9),
-    ],
-)
-def test_temperature_delta__valid(value, expected) -> None:
-    assert math.isclose(cv.temperature_delta(value), expected, abs_tol=1e-4)
-
-
-def test_temperature_delta__invalid() -> None:
-    with pytest.raises(Invalid):
-        cv.temperature_delta(None)
-
-
-# ---------------------------------------------------------------------------
-# temperature_with_unit
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "value, expected_raw, expected_unit",
-    [
-        ("100°F", 100.0, UNIT_FAHRENHEIT),
-        ("100 °F", 100.0, UNIT_FAHRENHEIT),
-        ("100F", 100.0, UNIT_FAHRENHEIT),
-        ("100°C", 100.0, UNIT_CELSIUS),
-        ("100C", 100.0, UNIT_CELSIUS),
-        ("373.15K", 373.15, UNIT_KELVIN),
-        ("373.15°K", 373.15, UNIT_KELVIN),
-        # No unit: raw value returned, unit is None
-        ("100", 100.0, None),
-        ("100°", 100.0, None),
-        (100, 100.0, None),
-    ],
-)
-def test_temperature_with_unit__valid(value, expected_raw, expected_unit) -> None:
-    raw, unit = cv.temperature_with_unit(value)
-    assert math.isclose(raw, expected_raw, rel_tol=1e-6)
-    assert unit == expected_unit
-
-
-@pytest.mark.parametrize("value", ("not_a_number", "abc°F", None))
-def test_temperature_with_unit__invalid(value) -> None:
-    with pytest.raises(Invalid):
-        cv.temperature_with_unit(value)
-
-
-# ---------------------------------------------------------------------------
-# visual_temperature_step
-# ---------------------------------------------------------------------------
-
-
-def test_visual_temperature_step__scalar() -> None:
-    """A scalar value sets both target and current to the same value."""
-    result = cv.visual_temperature_step("1°F")
-    assert result[CONF_TARGET_TEMPERATURE] == (1.0, UNIT_FAHRENHEIT)
-    assert result[CONF_CURRENT_TEMPERATURE] == (1.0, UNIT_FAHRENHEIT)
-
-
-def test_visual_temperature_step__scalar_no_unit() -> None:
-    result = cv.visual_temperature_step("0.5")
-    assert result[CONF_TARGET_TEMPERATURE] == (0.5, None)
-    assert result[CONF_CURRENT_TEMPERATURE] == (0.5, None)
-
-
-def test_visual_temperature_step__dict_separate_values() -> None:
-    result = cv.visual_temperature_step(
-        {
-            CONF_TARGET_TEMPERATURE: "1°F",
-            CONF_CURRENT_TEMPERATURE: "0.5°F",
-        }
-    )
-    assert result[CONF_TARGET_TEMPERATURE] == (1.0, UNIT_FAHRENHEIT)
-    assert result[CONF_CURRENT_TEMPERATURE] == (0.5, UNIT_FAHRENHEIT)
-
-
-def test_visual_temperature_step__dict_missing_key_invalid() -> None:
-    with pytest.raises(Invalid):
-        cv.visual_temperature_step({CONF_TARGET_TEMPERATURE: "1°F"})
-
-
-# ---------------------------------------------------------------------------
-# validate_temperature_config
-# ---------------------------------------------------------------------------
-
-
-def _make_config(uom=None, visual=None):
-    """Helper to build a minimal config dict for validate_temperature_config."""
-    config = {CONF_VISUAL: visual or {}}
-    if uom is not None:
-        config[CONF_UNIT_OF_MEASUREMENT] = uom
-    return config
-
-
-def test_validate_temperature_config__empty_visual_defaults_to_celsius() -> None:
-    """No temperatures and no UOM: UOM defaults to Celsius."""
-    result = cv.validate_temperature_config(_make_config())
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
-
-
-def test_validate_temperature_config__explicit_uom_fahrenheit_no_conversion() -> None:
-    """Explicit UOM=°F with °F temps: values stored as-is (no conversion)."""
-    config = _make_config(
-        uom=UNIT_FAHRENHEIT,
-        visual={
-            CONF_MIN_TEMPERATURE: (100.0, UNIT_FAHRENHEIT),
-            CONF_MAX_TEMPERATURE: (145.0, UNIT_FAHRENHEIT),
-        },
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_FAHRENHEIT
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 100.0)
-    assert math.isclose(result[CONF_VISUAL][CONF_MAX_TEMPERATURE], 145.0)
-
-
-def test_validate_temperature_config__explicit_uom_celsius() -> None:
-    """Explicit UOM=°C: values stored as-is."""
-    config = _make_config(
-        uom=UNIT_CELSIUS,
-        visual={CONF_MIN_TEMPERATURE: (18.0, UNIT_CELSIUS)},
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 18.0)
-
-
-def test_validate_temperature_config__explicit_uom_kelvin() -> None:
-    """Explicit UOM=K: values stored as-is."""
-    config = _make_config(
-        uom=UNIT_KELVIN,
-        visual={CONF_MIN_TEMPERATURE: (293.15, UNIT_KELVIN)},
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_KELVIN
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 293.15)
-
-
-def test_validate_temperature_config__implicit_fahrenheit_legacy_conversion() -> None:
-    """No explicit UOM but °F suffixes: legacy path converts to Celsius, sets UOM=°C."""
-    config = _make_config(
-        visual={CONF_MIN_TEMPERATURE: (32.0, UNIT_FAHRENHEIT)},
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
-    # 32°F → 0°C
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 0.0, abs_tol=1e-6)
-
-
-def test_validate_temperature_config__implicit_kelvin_legacy_conversion() -> None:
-    """No explicit UOM but K suffixes: legacy path converts to Celsius, sets UOM=°C."""
-    config = _make_config(
-        visual={CONF_MIN_TEMPERATURE: (273.15, UNIT_KELVIN)},
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
-    # 273.15 K → 0°C
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 0.0, abs_tol=1e-6)
-
-
-def test_validate_temperature_config__implicit_celsius_no_conversion() -> None:
-    """No explicit UOM, °C suffix: stored as-is, UOM=°C."""
-    config = _make_config(
-        visual={CONF_MIN_TEMPERATURE: (18.0, UNIT_CELSIUS)},
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 18.0)
-
-
-def test_validate_temperature_config__no_unit_suffix_defaults_celsius() -> None:
-    """Temperature field with no unit suffix: stored as-is, UOM=°C."""
-    config = _make_config(
-        visual={CONF_MIN_TEMPERATURE: (18.0, None)},
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 18.0)
-
-
-def test_validate_temperature_config__mixed_units_legacy_converts_independently() -> (
-    None
-):
-    """No UOM with mixed unit suffixes: each field is converted to °C independently."""
-    config = _make_config(
-        visual={
-            CONF_MIN_TEMPERATURE: (18.0, UNIT_CELSIUS),
-            CONF_MAX_TEMPERATURE: (86.0, UNIT_FAHRENHEIT),
-        },
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 18.0)
-    # 86°F → 30°C
-    assert math.isclose(result[CONF_VISUAL][CONF_MAX_TEMPERATURE], 30.0, abs_tol=1e-4)
-
-
-def test_validate_temperature_config__uom_converts_mismatched_field_unit() -> None:
-    """Explicit UOM with a field in a different unit: field is converted to the UOM."""
-    config = _make_config(
-        uom=UNIT_FAHRENHEIT,
-        visual={CONF_MIN_TEMPERATURE: (0.0, UNIT_CELSIUS)},
-    )
-    result = cv.validate_temperature_config(config)
-    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_FAHRENHEIT
-    # 0°C → 32°F
-    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 32.0, abs_tol=1e-4)
-
-
-def test_validate_temperature_config__temperature_step_scalar() -> None:
-    """Scalar temperature_step (water_heater style) is stored as a plain float."""
-    config = _make_config(
-        uom=UNIT_FAHRENHEIT,
-        visual={CONF_TEMPERATURE_STEP: (1.0, UNIT_FAHRENHEIT)},
-    )
-    result = cv.validate_temperature_config(config)
-    assert math.isclose(result[CONF_VISUAL][CONF_TEMPERATURE_STEP], 1.0)
-
-
-def test_validate_temperature_config__temperature_step_scalar_legacy_conversion() -> (
-    None
-):
-    """Scalar °F step with no UOM (legacy): converted as a relative delta (no offset)."""
-    config = _make_config(
-        visual={CONF_TEMPERATURE_STEP: (1.0, UNIT_FAHRENHEIT)},
-    )
-    result = cv.validate_temperature_config(config)
-    # 1°F delta → 1 * (5/9) °C delta
-    assert math.isclose(
-        result[CONF_VISUAL][CONF_TEMPERATURE_STEP], 1.0 * 5.0 / 9.0, rel_tol=1e-6
-    )
-
-
-def test_validate_temperature_config__temperature_step_dict_climate_style() -> None:
-    """Dict temperature_step (climate style) processes target and current separately."""
-    config = _make_config(
-        uom=UNIT_FAHRENHEIT,
-        visual={
-            CONF_TEMPERATURE_STEP: {
-                CONF_TARGET_TEMPERATURE: (1.0, UNIT_FAHRENHEIT),
-                CONF_CURRENT_TEMPERATURE: (0.5, UNIT_FAHRENHEIT),
-            }
-        },
-    )
-    result = cv.validate_temperature_config(config)
-    step = result[CONF_VISUAL][CONF_TEMPERATURE_STEP]
-    assert math.isclose(step[CONF_TARGET_TEMPERATURE], 1.0)
-    assert math.isclose(step[CONF_CURRENT_TEMPERATURE], 0.5)
-
-
-def test_validate_temperature_config__temperature_step_dict_legacy_conversion() -> None:
-    """Dict °F step with no UOM (legacy): each sub-value converted as relative delta."""
-    config = _make_config(
-        visual={
-            CONF_TEMPERATURE_STEP: {
-                CONF_TARGET_TEMPERATURE: (1.8, UNIT_FAHRENHEIT),
-                CONF_CURRENT_TEMPERATURE: (0.9, UNIT_FAHRENHEIT),
-            }
-        },
-    )
-    result = cv.validate_temperature_config(config)
-    step = result[CONF_VISUAL][CONF_TEMPERATURE_STEP]
-    assert math.isclose(step[CONF_TARGET_TEMPERATURE], 1.8 * 5.0 / 9.0, rel_tol=1e-6)
-    assert math.isclose(step[CONF_CURRENT_TEMPERATURE], 0.9 * 5.0 / 9.0, rel_tol=1e-6)
+def test_every_platformio_only_platform_rejects_arduino_toolchain(
+    platform: str, minimal_config: dict
+) -> None:
+    """A platform that cannot serve a CLI toolchain rejects it at validation."""
+    module = importlib.import_module(f"esphome.components.{platform}")
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(Invalid, match="Unsupported toolchain 'arduino'"):
+        module.CONFIG_SCHEMA(dict(minimal_config))

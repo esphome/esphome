@@ -7,7 +7,7 @@
 
 namespace esphome::mpr121 {
 
-static const char *const TAG = "mpr121";
+ESPHOME_LOG_TAG(TAG, "mpr121");
 
 void MPR121Component::setup() {
   this->disable_loop();

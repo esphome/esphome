@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
@@ -44,25 +46,25 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE_STATE_TOPIC,
     CONF_TEMPERATURE_STEP,
-    CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
     CONF_WEB_SERVER,
     UNIT_CELSIUS,
-    UNIT_FAHRENHEIT,
-    UNIT_KELVIN,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import LambdaExpression, MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_types import TEMPERATURE_UNITS
+from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "climate"
 climate_ns = cg.esphome_ns.namespace("climate")
 
 Climate = climate_ns.class_("Climate", cg.EntityBase)
@@ -121,25 +123,54 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
+ClimateAction = climate_ns.enum("ClimateAction")
+CLIMATE_ACTIONS = {
+    "OFF": ClimateAction.CLIMATE_ACTION_OFF,
+    "COOLING": ClimateAction.CLIMATE_ACTION_COOLING,
+    "HEATING": ClimateAction.CLIMATE_ACTION_HEATING,
+    "IDLE": ClimateAction.CLIMATE_ACTION_IDLE,
+    "DRYING": ClimateAction.CLIMATE_ACTION_DRYING,
+    "FAN": ClimateAction.CLIMATE_ACTION_FAN,
+    "DEFROSTING": ClimateAction.CLIMATE_ACTION_DEFROSTING,
+}
+
+validate_climate_action = cv.enum(CLIMATE_ACTIONS, upper=True)
+
 CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
 
-TemperatureUnit = cg.esphome_ns.enum("TemperatureUnit", is_class=True)
-TEMPERATURE_UNITS = {
-    UNIT_CELSIUS: TemperatureUnit.CELSIUS,
-    UNIT_FAHRENHEIT: TemperatureUnit.FAHRENHEIT,
-    UNIT_KELVIN: TemperatureUnit.KELVIN,
-}
+VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TARGET_TEMPERATURE): cv.temperature_with_unit,
+        cv.Required(CONF_CURRENT_TEMPERATURE): cv.temperature_with_unit,
+    }
+)
 
-# Actions
-ControlAction = climate_ns.class_("ControlAction", automation.Action)
-StateTrigger = climate_ns.class_(
-    "StateTrigger", automation.Trigger.template(Climate.operator("ref"))
-)
-ControlTrigger = climate_ns.class_(
-    "ControlTrigger", automation.Trigger.template(ClimateCall.operator("ref"))
-)
+
+def visual_temperature_step(value: Any) -> ConfigType:
+    # Allow defining target/current temperature steps separately
+    if isinstance(value, dict):
+        return VISUAL_TEMPERATURE_STEP_SCHEMA(value)
+
+    # Otherwise, use the single value for both properties
+    value = cv.temperature_with_unit(value)
+    return {CONF_TARGET_TEMPERATURE: value, CONF_CURRENT_TEMPERATURE: value}
+
+
+def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
+    """Convert the visual temperatures into the entity's unit, Celsius unless the platform takes one."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT, UNIT_CELSIUS)
+    visual = config[CONF_VISUAL]
+    for key in (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE):
+        if isinstance(value := visual.get(key), tuple):
+            visual[key] = cv.convert_temperature(*value, unit)
+    if (step := visual.get(CONF_TEMPERATURE_STEP)) is not None:
+        for key in (CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE):
+            if isinstance(value := step[key], tuple):
+                step[key] = cv.convert_temperature(*value, unit, delta=True)
+    return config
+
 
 _CLIMATE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -147,12 +178,11 @@ _CLIMATE_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.temperature_unit,
             cv.Optional(CONF_VISUAL, default={}): cv.Schema(
                 {
                     cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature_with_unit,
                     cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature_with_unit,
-                    cv.Optional(CONF_TEMPERATURE_STEP): cv.visual_temperature_step,
+                    cv.Optional(CONF_TEMPERATURE_STEP): visual_temperature_step,
                     cv.Optional(CONF_MIN_HUMIDITY): cv.percentage_int,
                     cv.Optional(CONF_MAX_HUMIDITY): cv.percentage_int,
                 }
@@ -220,23 +250,15 @@ _CLIMATE_SCHEMA = (
             cv.Optional(CONF_TARGET_HUMIDITY_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.publish_topic
             ),
-            cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_CONTROL): automation.validate_automation(),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(),
         }
     )
 )
 
 
 _CLIMATE_SCHEMA.add_extra(entity_duplicate_validator("climate"))
-_CLIMATE_SCHEMA.add_extra(cv.validate_temperature_config)
+_CLIMATE_SCHEMA.add_extra(_visual_temperatures_in_entity_unit)
 
 
 def climate_schema(
@@ -244,10 +266,18 @@ def climate_schema(
     *,
     entity_category: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
+    temperature_unit: bool = False,
 ) -> cv.Schema:
+    """Build the schema of a climate platform.
+
+    ``temperature_unit`` adds ``unit_of_measurement`` for platforms whose temperatures are all
+    in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
+    """
     schema = {
         cv.GenerateID(): cv.declare_id(class_),
     }
+    if temperature_unit:
+        schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT)] = cv.temperature_unit
 
     for key, default, validator in [
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
@@ -259,8 +289,18 @@ def climate_schema(
     return _CLIMATE_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(Climate.operator("ref"), "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CONTROL, "add_on_control_callback", [(ClimateCall.operator("ref"), "x")]
+    ),
+)
+
+
 @setup_entity("climate")
-async def setup_climate_core_(var, config):
+async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
     visual = config.get(CONF_VISUAL, {})
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
@@ -282,10 +322,8 @@ async def setup_climate_core_(var, config):
     if (max_humidity := visual.get(CONF_MAX_HUMIDITY)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_humidity_override(max_humidity))
-
-    if (uom := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add_define("USE_CLIMATE_TEMPERATURE_UNIT")
-        cg.add(var.set_temperature_unit_override(TEMPERATURE_UNITS[uom]))
+    if (unit := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -418,23 +456,13 @@ async def setup_climate_core_(var, config):
                 )
             )
 
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(Climate.operator("ref"), "x")], conf
-        )
-
-    for conf in config.get(CONF_ON_CONTROL, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(ClimateCall.operator("ref"), "x")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_climate(var, config):
+async def register_climate(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("climate", config)
@@ -442,7 +470,7 @@ async def register_climate(var, config):
     await setup_climate_core_(var, config)
 
 
-async def new_climate(config, *args):
+async def new_climate(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_climate(var, config)
     return var
@@ -470,75 +498,37 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "climate.control",
-    ControlAction,
     CLIMATE_CONTROL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_MODE, "set_mode", ClimateMode),
+    automation.ApplyField(CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
+    automation.ApplyField(
+        CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_
+    ),
+    automation.ApplyField(
+        CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_
+    ),
+    automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
+    automation.ApplyField(CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
+    automation.ApplyField(
+        CONF_CUSTOM_FAN_MODE,
+        "set_fan_mode",
+        cg.std_string,
+        const_fn=automation.literal_with_length,
+    ),
+    automation.ApplyField(CONF_PRESET, "set_preset", ClimatePreset),
+    automation.ApplyField(
+        CONF_CUSTOM_PRESET,
+        "set_preset",
+        cg.std_string,
+        const_fn=automation.literal_with_length,
+    ),
+    automation.ApplyField(CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
+    call="make_call",
 )
-async def climate_control_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-
-    # All configured fields are folded into a single stateless lambda whose
-    # constants live in flash; the action stores only a function pointer.
-    # For custom_fan_mode/custom_preset the static-string path emits the
-    # (const char *, size_t) overload of set_fan_mode/set_preset to avoid
-    # constructing a std::string and calling runtime strlen.
-    FIELDS = (
-        (CONF_MODE, "set_mode", ClimateMode),
-        (CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
-        (CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_),
-        (CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_),
-        (CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
-        (CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
-        (CONF_CUSTOM_FAN_MODE, "set_fan_mode", cg.std_string),
-        (CONF_PRESET, "set_preset", ClimatePreset),
-        (CONF_CUSTOM_PRESET, "set_preset", cg.std_string),
-        (CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
-    )
-
-    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
-    # apply lambda and any inner field lambdas (generated below via
-    # `process_lambda`) share one parameter spelling that's well-formed for
-    # any T (value, ref, or const-ref). Matches ControlAction::ApplyFn.
-    normalized_args = [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
-        for t, n in args
-    ]
-
-    fwd_args = ", ".join(name for _, name in args)
-    body_lines: list[str] = []
-
-    for conf_key, setter, type_ in FIELDS:
-        if (value := config.get(conf_key)) is None:
-            continue
-        if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
-            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
-        elif type_ is cg.std_string:
-            # Static custom strings: emit a flash literal and pass the
-            # UTF-8 byte length to skip the runtime strlen inside
-            # set_fan_mode/set_preset.
-            literal = cg.safe_exp(value)
-            body_lines.append(
-                f"call.{setter}({literal}, {len(value.encode('utf-8'))});"
-            )
-        else:
-            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
-
-    apply_args = [
-        (ClimateCall.operator("ref"), "call"),
-        *normalized_args,
-    ]
-    apply_lambda = LambdaExpression(
-        ["\n".join(body_lines)],
-        apply_args,
-        capture="",
-        return_type=cg.void,
-    )
-    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(climate_ns.using)

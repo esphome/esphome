@@ -3,6 +3,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.esp32 import (
+    VARIANT_ESP32S31,
     get_esp32_variant,
     include_builtin_idf_component,
     require_adc_oneshot_iram,
@@ -10,8 +11,8 @@ from esphome.components.esp32 import (
 from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
 from esphome.components.zephyr import (
     zephyr_add_overlay,
+    zephyr_add_overlay_builder,
     zephyr_add_prj_conf,
-    zephyr_add_user,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -47,16 +48,32 @@ AUTO_LOAD = ["voltage_sampler"]
 CONF_SAMPLES = "samples"
 CONF_SAMPLING_MODE = "sampling_mode"
 
+# Keep in sync with the initializers in adc_sensor.h
+DEFAULT_ATTENUATION = "0db"
+DEFAULT_SAMPLING_MODE = "avg"
+DEFAULT_SAMPLES = 1
+
 
 _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
 _sampling_mode = cv.enum(SAMPLING_MODES, lower=True)
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
 
-    if config.get(CONF_ATTENUATION, None) == "auto" and config.get(CONF_SAMPLES, 1) > 1:
+    # The S31 ADC supports a single attenuation level (SOC_ADC_ATTEN_NUM is 1)
+    if (
+        CORE.is_esp32
+        and get_esp32_variant() == VARIANT_ESP32S31
+        and config.get(CONF_ATTENUATION, "0db") != "0db"
+    ):
+        raise cv.Invalid("ESP32-S31 only supports 'attenuation: 0db'")
+
+    if (
+        config.get(CONF_ATTENUATION, None) == "auto"
+        and config.get(CONF_SAMPLES, DEFAULT_SAMPLES) > 1
+    ):
         raise cv.Invalid(
             "Automatic attenuation cannot be used when multisampling is set"
         )
@@ -66,6 +83,13 @@ def validate_config(config):
         )
         # Alter value here so `config` command prints the recommended change
         config[CONF_ATTENUATION] = _attenuation("12db")
+
+    # Remove before 2027.2.0
+    if config[CONF_PIN] == "TEMPERATURE":
+        _LOGGER.warning(
+            "[adc] `pin: TEMPERATURE` is deprecated, use the `internal_temperature` "
+            "sensor platform instead. Will be removed in 2027.2.0"
+        )
 
     return config
 
@@ -97,12 +121,16 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_PIN): validate_adc_pin,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
-            cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
+            cv.SplitDefault(CONF_ATTENUATION, esp32=DEFAULT_ATTENUATION): cv.All(
                 cv.only_on_esp32, _attenuation
             ),
             cv.OnlyWith(CONF_NRF_SAADC, PLATFORM_NRF52): cv.declare_id(adc_dt_spec),
-            cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),
-            cv.Optional(CONF_SAMPLING_MODE, default="avg"): _sampling_mode,
+            cv.Optional(CONF_SAMPLES, default=DEFAULT_SAMPLES): cv.int_range(
+                min=1, max=255
+            ),
+            cv.Optional(
+                CONF_SAMPLING_MODE, default=DEFAULT_SAMPLING_MODE
+            ): _sampling_mode,
         }
     )
     .extend(cv.polling_component_schema("60s")),
@@ -113,7 +141,19 @@ CONFIG_SCHEMA = cv.All(
 CONF_ADC_CHANNEL_ID = "adc_channel_id"
 
 
-async def to_code(config):
+def _overlay_io_channels() -> str:
+    channel_count = CORE.data[CONF_ADC_CHANNEL_ID]
+    entries = ", ".join(f"<&adc {channel_id}>" for channel_id in range(channel_count))
+    return f"""
+            / {{
+                zephyr,user {{
+                    io-channels = {entries};
+                }};
+            }};
+            """
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
@@ -121,14 +161,19 @@ async def to_code(config):
     if config[CONF_PIN] == "VCC":
         cg.add_define("USE_ADC_SENSOR_VCC")
     elif config[CONF_PIN] == "TEMPERATURE":
+        # Remove before 2027.2.0
         cg.add(var.set_is_temperature())
     elif not CORE.is_nrf52 or config[CONF_PIN][CONF_NUMBER] not in EXTRA_ADC:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))
 
-    cg.add(var.set_output_raw(config[CONF_RAW]))
-    cg.add(var.set_sample_count(config[CONF_SAMPLES]))
-    cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
+    # Skip the setters when the config matches the C++ initializers.
+    if config[CONF_RAW]:
+        cg.add(var.set_output_raw(True))
+    if (samples := config[CONF_SAMPLES]) != DEFAULT_SAMPLES:
+        cg.add(var.set_sample_count(samples))
+    if (sampling_mode := config[CONF_SAMPLING_MODE]) != DEFAULT_SAMPLING_MODE:
+        cg.add(var.set_sampling_mode(sampling_mode))
 
     if CORE.is_esp32:
         # Re-enable ESP-IDF's ADC driver (excluded by default to save compile time)
@@ -137,7 +182,7 @@ async def to_code(config):
         if attenuation := config.get(CONF_ATTENUATION):
             if attenuation == "auto":
                 cg.add(var.set_autorange(cg.global_ns.true))
-            else:
+            elif attenuation != DEFAULT_ATTENUATION:
                 cg.add(var.set_attenuation(attenuation))
 
         variant = get_esp32_variant()
@@ -173,9 +218,8 @@ async def to_code(config):
         if isinstance(pin_number, int):
             GPIO_TO_AIN = {v: k for k, v in AIN_TO_GPIO.items()}
             pin_number = GPIO_TO_AIN[pin_number]
-        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
-        zephyr_add_overlay(
-            f"""
+        zephyr_add_overlay_builder(_overlay_io_channels)
+        zephyr_add_overlay(f"""
                 &adc {{
                     #address-cells = <1>;
                     #size-cells = <0>;
@@ -190,8 +234,7 @@ async def to_code(config):
                         zephyr,oversampling = <8>;
                     }};
                 }};
-            """
-        )
+            """)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
