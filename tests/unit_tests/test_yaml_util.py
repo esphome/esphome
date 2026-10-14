@@ -954,6 +954,23 @@ def test_yaml_merge_chain_include_resolves() -> None:
     assert config["base"]["existing"] == "value"
 
 
+def test_parse_yaml_custom_loader_resolves_root_include() -> None:
+    """A document that is only `!include` is resolved for a custom loader too."""
+    parent = Path("/fake/main.yaml")
+    loader_calls: list[Path] = []
+
+    def custom_loader(fname: Path) -> dict[str, int]:
+        loader_calls.append(fname)
+        return {"x": 1}
+
+    config = yaml_util.parse_yaml(
+        parent, io.StringIO("!include inner.yaml\n"), custom_loader
+    )
+
+    assert config == {"x": 1}
+    assert loader_calls == [Path("/fake/inner.yaml")]
+
+
 def test_yaml_merge_chain_include_depth_exceeded() -> None:
     """Chain includes in merge keys exceeding depth limit raise a clear error."""
     parent = Path("/fake/main.yaml")
@@ -2312,3 +2329,21 @@ def test_dumped_temperature_validates_again(written: str) -> None:
 
     assert "[" not in dumped
     assert cv.temperature_with_unit(reloaded["target"]) == parsed
+
+
+@pytest.mark.parametrize(
+    ("yaml_text", "expected_offset"),
+    [
+        ("value: return 42;\n", 0),
+        ('value: "return 42;"\n', 0),
+        ("value: |-\n  return 42;\n", 1),
+        ("value: >-\n  return 42;\n", 1),
+    ],
+)
+def test_content_offset_only_for_block_scalars(
+    yaml_text: str, expected_offset: int
+) -> None:
+    """A one-line lambda starts on its own line; only | and > move it to the next."""
+    doc = yaml_util.parse_yaml(Path("test.yaml"), io.StringIO(yaml_text))
+    assert doc["value"].content_offset == expected_offset
+    assert doc["value"].content_start.line == expected_offset
