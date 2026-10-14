@@ -964,7 +964,7 @@ void AsyncEventSourceResponse::refresh_lru_() {
   // request ever, so the purge that frees a socket for a new client would evict the live streams first.
   // The HTTPD task owns the session table, so the refresh runs there, at most once a second.
   const uint32_t now = App.get_loop_component_start_time();
-  if (static_cast<int32_t>(now - this->next_lru_refresh_ms_) < 0 ||
+  if (now - this->last_lru_refresh_ms_ < LRU_REFRESH_INTERVAL_MS ||
       this->lru_work_queued_.load(std::memory_order_acquire)) {
     return;
   }
@@ -973,7 +973,7 @@ void AsyncEventSourceResponse::refresh_lru_() {
     this->lru_work_queued_.store(false, std::memory_order_release);
     return;
   }
-  this->next_lru_refresh_ms_ = now + LRU_REFRESH_INTERVAL_MS;
+  this->last_lru_refresh_ms_ = now;
 }
 
 void AsyncEventSourceResponse::refresh_lru_work(void *arg) {

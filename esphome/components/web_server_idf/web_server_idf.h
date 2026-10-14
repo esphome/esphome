@@ -361,7 +361,7 @@ class AsyncEventSourceResponse {
   RAMUniquePtr<uint8_t[]> tail_;
   uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
   uint32_t next_close_attempt_ms_{0};
-  uint32_t next_lru_refresh_ms_{0};
+  uint32_t last_lru_refresh_ms_{0};
   uint16_t tail_cap_{0};
   uint16_t tail_len_{0};  // Zero means nothing pending
   uint16_t tail_sent_{0};
