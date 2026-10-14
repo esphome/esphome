@@ -491,8 +491,11 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
       subscription.removed = true;
   }
   // A callback may be running; the outermost dispatch erases them once it returns.
-  if (!this->dispatching_)
+  if (this->dispatching_) {
+    this->removed_while_dispatching_ = true;
+  } else {
     this->erase_removed_subscriptions_();
+  }
 }
 
 void MQTTClientComponent::erase_removed_subscriptions_() {
@@ -668,8 +671,10 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
         subscription.callback.call(topic, payload);
     }
     this->dispatching_ = was_dispatching;
-    if (!was_dispatching)
+    if (!was_dispatching && this->removed_while_dispatching_) {
+      this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
+    }
 #ifdef USE_ESP8266
   });
 #endif
