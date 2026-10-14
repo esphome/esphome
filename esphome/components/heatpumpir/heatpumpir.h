@@ -98,20 +98,19 @@ const float TEMP_MAX = 100;  // Celsius
 
 class HeatpumpIRClimate final : public climate_ir::ClimateIR {
  public:
-  HeatpumpIRClimate()
+  HeatpumpIRClimate(Protocol protocol, HeatpumpIR *heatpump_ir)
       : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,
                               {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
                                climate::CLIMATE_FAN_AUTO},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
-                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
-  void setup() override;
-  void set_protocol(Protocol protocol, HeatpumpIR *heatpump_ir) {
-    this->protocol_ = protocol;
-    this->heatpump_ir_ = heatpump_ir;
+                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}),
+        heatpump_ir_(heatpump_ir),
+        protocol_(protocol) {
     if (this->has_fan_byte_presets_()) {
       this->presets_ = {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST};
     }
   }
+  void setup() override;
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
   }
