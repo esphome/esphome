@@ -16,6 +16,8 @@
 
 namespace esphome::midea_portasplit {
 
+static constexpr uint8_t FAN_AUTO = 102;
+
 class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, public Component {
  public:
   void setup() override;
@@ -39,11 +41,11 @@ class PortaSplitClimate : public climate::Climate, public uart::UARTDevice, publ
   void handle_frame_(const uint8_t *f, size_t len);
   void handle_c0_(const uint8_t *f, size_t len);
 
-  // Last known device state, mirrored from C0 so a set command does not clobber it.
-  float st_target_{24.0f};
   uint32_t rx_last_byte_{0};
+  // Last known device state, mirrored from C0 so a set command does not clobber it.
+  uint8_t st_target_half_{48};  // Target temperature in half degrees
   uint8_t st_mode_{1};
-  uint8_t st_fan_{102};
+  uint8_t st_fan_{FAN_AUTO};
   bool st_power_ : 1 {false};
   bool st_swing_ : 1 {false};
   bool st_turbo_ : 1 {false};

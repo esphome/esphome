@@ -9,8 +9,6 @@ namespace esphome::midea_portasplit {
 ESPHOME_LOG_TAG(TAG, "midea_portasplit");
 
 static constexpr uint32_t FOLLOWUP_TIMEOUT_ID = 0;
-static constexpr uint32_t STATUS_INTERVAL_ID = 1;
-static constexpr uint32_t NETWORK_INTERVAL_ID = 2;
 
 static constexpr uint32_t STATUS_INTERVAL_MS = 30000;
 static constexpr uint32_t NETWORK_INTERVAL_MS = 10000;
@@ -24,8 +22,6 @@ static constexpr size_t MAX_TX_PAYLOAD = 24;
 
 static constexpr float MIN_TARGET_TEMP = 16.0f;
 static constexpr float MAX_TARGET_TEMP = 30.0f;
-
-static constexpr uint8_t FAN_AUTO = 102;
 
 // The AC expects its Wi-Fi module to answer the 0x63 keepalive poll and to send periodic 0x0D network status
 // frames. These frames use the XOR sync byte (0x1E ^ 0xAC = 0xB2). The AC does not use the IP address; the
@@ -103,29 +99,24 @@ static climate::ClimateFanMode midea_fan_to_climate(uint8_t fan) {
 }
 
 void PortaSplitClimate::setup() {
-  this->set_timeout(2000, [this]() { this->send_status_query_(); });
+  // The status interval starts with a random offset of up to 5 s, which also serves as the boot query.
   this->set_timeout(10000, [this]() { this->send_capability_queries_(); });
-  this->set_interval(STATUS_INTERVAL_ID, STATUS_INTERVAL_MS, [this]() { this->send_status_query_(); });
-  this->set_interval(NETWORK_INTERVAL_ID, NETWORK_INTERVAL_MS,
-                     [this]() { this->send_module_frame_(0x0D, this->net_counter_++, 0x08); });
+  this->set_interval(STATUS_INTERVAL_MS, [this]() { this->send_status_query_(); });
+  this->set_interval(NETWORK_INTERVAL_MS, [this]() { this->send_module_frame_(0x0D, this->net_counter_++, 0x08); });
 }
 
 void PortaSplitClimate::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   uint8_t buf[32];
   size_t n;
-  bool got = false;
   while ((n = std::min((size_t) this->available(), sizeof(buf))) != 0 && this->read_array(buf, n)) {
     for (size_t i = 0; i < n; i++)
       this->rx_feed_(buf[i]);
-    got = true;
-  }
-  if (got) {
     this->rx_last_byte_ = now;
-  } else if (this->rx_len_ != 0 && now - this->rx_last_byte_ > RX_TIMEOUT_MS) {
-    // The line went quiet mid-frame; drop it so its bytes cannot swallow the next one.
-    this->rx_len_ = 0;
   }
+  // The line went quiet mid-frame; drop it so its bytes cannot swallow the next one.
+  if (this->rx_len_ != 0 && now - this->rx_last_byte_ > RX_TIMEOUT_MS)
+    this->rx_len_ = 0;
 }
 
 void PortaSplitClimate::dump_config() {
@@ -138,8 +129,7 @@ climate::ClimateTraits PortaSplitClimate::traits() {
   traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   traits.set_visual_min_temperature(MIN_TARGET_TEMP);
   traits.set_visual_max_temperature(MAX_TARGET_TEMP);
-  traits.set_visual_target_temperature_step(0.5f);
-  traits.set_visual_current_temperature_step(0.5f);
+  traits.set_visual_temperature_step(0.5f);
   traits.set_supported_modes({
       climate::CLIMATE_MODE_OFF,
       climate::CLIMATE_MODE_HEAT_COOL,
@@ -177,8 +167,10 @@ void PortaSplitClimate::control(const climate::ClimateCall &call) {
     if (mode != climate::CLIMATE_MODE_HEAT)
       this->st_frost_ = false;
   }
-  if (call.get_target_temperature().has_value())
-    this->st_target_ = clamp(*call.get_target_temperature(), MIN_TARGET_TEMP, MAX_TARGET_TEMP);
+  if (call.get_target_temperature().has_value()) {
+    const float target = clamp(*call.get_target_temperature(), MIN_TARGET_TEMP, MAX_TARGET_TEMP);
+    this->st_target_half_ = (uint8_t) lroundf(target * 2.0f);
+  }
   if (call.get_fan_mode().has_value())
     this->st_fan_ = fan_mode_to_midea(*call.get_fan_mode());
   if (call.get_swing_mode().has_value())
@@ -190,7 +182,7 @@ void PortaSplitClimate::control(const climate::ClimateCall &call) {
     this->st_eco_ = preset == climate::CLIMATE_PRESET_ECO;
     this->st_frost_ = preset == climate::CLIMATE_PRESET_AWAY;
     if (this->st_frost_) {
-      this->st_mode_ = 4;
+      this->st_mode_ = climate_mode_to_midea(climate::CLIMATE_MODE_HEAT);
       this->st_power_ = true;
     }
   }
@@ -218,8 +210,8 @@ void PortaSplitClimate::send_frame_(uint8_t proto, uint8_t type, const uint8_t *
 
 void PortaSplitClimate::send_set_command_() {
   uint8_t p[MAX_TX_PAYLOAD] = {0};
-  const uint8_t whole = (uint8_t) this->st_target_;
-  const bool half = (this->st_target_ - (float) whole) >= 0.25f;
+  const uint8_t whole = this->st_target_half_ >> 1;
+  const bool half = this->st_target_half_ & 1;
   p[0] = 0x40;
   p[1] = 0x42;  // 0x02 is mandatory, 0x40 enables the beeper
   if (this->st_power_)
@@ -273,7 +265,7 @@ void PortaSplitClimate::rx_feed_(uint8_t b) {
     return;
   const size_t total = (size_t) this->rx_[1] + 1;
   // Every frame carries the appliance type 0xAC; anything else is a false start.
-  if (total < FRAME_OVERHEAD || total > MAX_FRAME || this->rx_[2] != 0xAC) {
+  if (this->rx_len_ == 3 && (total < FRAME_OVERHEAD || total > MAX_FRAME || this->rx_[2] != 0xAC)) {
     this->rx_len_ = 0;
     return;
   }
@@ -306,13 +298,13 @@ void PortaSplitClimate::handle_c0_(const uint8_t *f, size_t len) {
   if (len < 26)
     return;
   const uint8_t mode = (f[12] >> 5) & 0x07;
-  const float target = (float) ((f[12] & 0x0F) + 16) + ((f[12] & 0x10) ? 0.5f : 0.0f);
+  const uint8_t target_half = (uint8_t) ((((f[12] & 0x0F) + 16) << 1) | ((f[12] & 0x10) ? 1 : 0));
   const climate::ClimateFanMode fan = midea_fan_to_climate(f[13]);
 
   this->st_power_ = f[11] & 0x01;
   if (mode >= 1 && mode <= 5)
     this->st_mode_ = mode;
-  this->st_target_ = target;
+  this->st_target_half_ = target_half;
   this->st_fan_ = fan_mode_to_midea(fan);
   this->st_swing_ = (f[17] & 0x0F) == 0x0C;
   this->st_turbo_ = f[18] & 0x20;
@@ -322,7 +314,7 @@ void PortaSplitClimate::handle_c0_(const uint8_t *f, size_t len) {
   this->st_frost_ = len > 31 && (f[31] & 0x80);
 
   this->mode = this->st_power_ ? midea_mode_to_climate(this->st_mode_) : climate::CLIMATE_MODE_OFF;
-  this->target_temperature = target;
+  this->target_temperature = target_half / 2.0f;
   // 0x00 and 0xFF mean the indoor probe gave no reading.
   const uint8_t raw_temp = f[21];
   this->current_temperature = (raw_temp == 0x00 || raw_temp == 0xFF) ? NAN : ((float) raw_temp - 50.0f) / 2.0f;
