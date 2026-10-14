@@ -442,10 +442,14 @@ class ID:
         )
 
 
-# Written after the body of a lambda that has a #line directive into the YAML.
-# write_cpp turns it into a #line directive back into main.cpp, so errors in the
-# code after the lambda are not reported against the YAML file.
+# Replaced by write_cpp with a #line back into main.cpp
 LINE_DIRECTIVE_RESET = "// ESPHOME_LINE_DIRECTIVE_RESET"
+
+
+def line_directive(document: str, line: int) -> str:
+    """A #line directive naming the 1-based ``line`` of ``document``."""
+    escaped = document.replace("\\", "\\\\")
+    return f'#line {line} "{escaped}"'
 
 
 class DocumentLocation:
@@ -463,8 +467,7 @@ class DocumentLocation:
 
     @property
     def as_line_directive(self):
-        document_path = str(self.document).replace("\\", "\\\\")
-        return f'#line {self.line + 1} "{document_path}"'
+        return line_directive(str(self.document), self.line + 1)
 
 
 class DocumentRange:

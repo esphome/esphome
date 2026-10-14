@@ -2332,5 +2332,6 @@ def test_content_offset_only_for_block_scalars(
     yaml_text: str, expected_offset: int
 ) -> None:
     """A one-line lambda starts on its own line; only | and > move it to the next."""
-    doc = yaml_util.parse_yaml("test.yaml", yaml_text)
+    doc = yaml_util.parse_yaml(Path("test.yaml"), io.StringIO(yaml_text))
     assert doc["value"].content_offset == expected_offset
+    assert doc["value"].content_start.line == expected_offset

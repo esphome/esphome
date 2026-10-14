@@ -29,6 +29,7 @@ from esphome.config_helpers import Extend, Remove
 from esphome.const import CONF_DEFAULTS
 from esphome.core import (
     CORE,
+    DocumentLocation,
     DocumentRange,
     EsphomeError,
     Lambda,
@@ -141,6 +142,14 @@ class ESPHomeDataBase:
     @property
     def content_offset(self):
         return getattr(self, "_content_offset", 0)
+
+    @property
+    def content_start(self) -> DocumentLocation:
+        """Where the value's own text starts: the line after the marker for a block scalar."""
+        start = self._esp_range.start_mark
+        return DocumentLocation(
+            start.document, start.line + self.content_offset, start.column
+        )
 
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init

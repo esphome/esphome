@@ -22,7 +22,7 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.core import DocumentLocation, EsphomeError
+from esphome.core import DocumentLocation, EsphomeError, line_directive
 from esphome.cpp_generator import LambdaExpression
 from esphome.helpers import indent
 from esphome.storage_json import StorageJSON
@@ -987,10 +987,9 @@ def test_write_cpp_resets_line_after_lambda(
 
     lines = mock_write_file.call_args[0][1].split("\n")
     closing = lines.index("  });")
-    main_cpp_name = str(main_cpp).replace("\\", "\\\\")
     assert lines[closing - 3].strip() == '#line 5 "test.yaml"'
     # The directive names the line after it, which is closing + 1 (1-based)
-    assert lines[closing - 1].strip() == f'#line {closing + 1} "{main_cpp_name}"'
+    assert lines[closing - 1].strip() == line_directive(str(main_cpp), closing + 1)
     assert lines[closing + 1] == "  baz();"
 
 

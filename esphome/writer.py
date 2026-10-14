@@ -15,7 +15,7 @@ from esphome.const import (
     SOURCE_FILE_EXTENSIONS,
     __version__,
 )
-from esphome.core import CORE, LINE_DIRECTIVE_RESET, DocumentLocation, EsphomeError
+from esphome.core import CORE, LINE_DIRECTIVE_RESET, EsphomeError, line_directive
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -525,10 +525,11 @@ def _reset_line_directives(text: str, path: Path) -> str:
     document = str(path.absolute())
     lines = text.split("\n")
     for index, line in enumerate(lines):
-        if line.strip() == LINE_DIRECTIVE_RESET:
-            # The directive numbers the line after it, which is index + 1 (0-based)
-            directive = DocumentLocation(document, index + 1, 0).as_line_directive
-            lines[index] = line.replace(LINE_DIRECTIVE_RESET, directive)
+        if line.endswith(LINE_DIRECTIVE_RESET):
+            # The directive numbers the line after it: index + 2, counted from 1
+            lines[index] = line.replace(
+                LINE_DIRECTIVE_RESET, line_directive(document, index + 2)
+            )
     return "\n".join(lines)
 
 

@@ -10,7 +10,6 @@ from esphome.core import (
     ID,
     LINE_DIRECTIVE_RESET,
     Define,
-    DocumentLocation,
     EnumValue,
     EsphomeError,
     HexInt,
@@ -216,12 +215,13 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
+        body = f"{self.content}\n"
         if self.source is not None:
-            cpp += f"{self.source.as_line_directive}\n"
-        cpp += f"{self.content}\n"
-        if self.source is not None:
-            cpp += f"{LINE_DIRECTIVE_RESET}\n"
-        cpp += "}"
+            body = f"{self.source.as_line_directive}\n{body}"
+        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
+        if "#line " in body:
+            body += f"{LINE_DIRECTIVE_RESET}\n"
+        cpp += f"{body}}}"
         return indent_all_but_first_and_last(cpp)
 
     @property
@@ -951,12 +951,7 @@ async def process_lambda(
         parts[i * 3 + 2] = ""
 
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
-        # Copy the mark: every use of the value shares it (a YAML alias, for one),
-        # so adding the offset in place would move the line again on each use.
-        start = value.esp_range.start_mark
-        location = DocumentLocation(
-            start.document, start.line + value.content_offset, start.column
-        )
+        location = value.content_start
     else:
         location = None
     return LambdaExpression(parts, parameters, capture, return_type, location)

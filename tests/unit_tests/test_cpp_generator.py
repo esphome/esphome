@@ -754,6 +754,16 @@ class TestProcessLambda:
         with pytest.raises(AssertionError):
             await cg.process_lambda(lambda_obj, [(int,)])
 
+    def test_str__with_line_mark_in_body_marks_end_of_body(self) -> None:
+        """A #line written into the body, as lvgl does, gets the reset too."""
+        target = cg.LambdaExpression(('#line 3 "test.yaml"\nfoo();',), (), "", None)
+
+        actual = str(target)
+
+        assert actual == (
+            f'[]() {{\n  #line 3 "test.yaml"\n  foo();\n  {LINE_DIRECTIVE_RESET}\n}}'
+        )
+
     async def test_process_lambda__twice_keeps_line(self) -> None:
         """Processing one lambda twice, as a YAML alias does, keeps its line."""
         config = parse_yaml(Path("test.yaml"), io.StringIO("x: |-\n  return 42;\n"))
