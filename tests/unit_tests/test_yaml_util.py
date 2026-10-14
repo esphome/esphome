@@ -954,6 +954,20 @@ def test_yaml_merge_chain_include_resolves() -> None:
     assert config["base"]["existing"] == "value"
 
 
+def test_parse_yaml_custom_loader_resolves_chained_include() -> None:
+    """A custom loader returning a deferred include chain yields the final content."""
+    parent = Path("/fake/main.yaml")
+
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", lambda _: {"x": 1})
+    outer = yaml_util.IncludeFile(parent, "outer.yaml", lambda _: inner)
+
+    yaml_text = "base: !include outer.yaml\n"
+    config = yaml_util.parse_yaml(parent, io.StringIO(yaml_text), lambda _: outer)
+    config = substitutions.do_substitution_pass(config)
+
+    assert config["base"] == {"x": 1}
+
+
 def test_yaml_merge_chain_include_depth_exceeded() -> None:
     """Chain includes in merge keys exceeding depth limit raise a clear error."""
     parent = Path("/fake/main.yaml")
