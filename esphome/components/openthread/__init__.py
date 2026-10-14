@@ -5,11 +5,17 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_BORDER_ROUTER
 from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
     VARIANT_ESP32H21,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
@@ -102,14 +108,29 @@ CONF_DEVICE_TYPES = [
     "MTD",
 ]
 
+# Variants with both Wi-Fi and an 802.15.4 radio
 NATIVE_BORDER_ROUTER_VARIANTS = {
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+}
+# Variants with Wi-Fi, for an external RCP
+RCP_BORDER_ROUTER_VARIANTS = {
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 }
 # ESP-IDF options a border router needs on top of the plain OpenThread ones
 BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
     "CONFIG_OPENTHREAD_PLATFORM_NETIF": True,
     "CONFIG_OPENTHREAD_BORDER_ROUTER": True,
+    # The advertising proxy registers the Thread devices' services with mDNS; the SDK default of 10 fills up fast
+    "CONFIG_MDNS_MAX_SERVICES": 20,
     "CONFIG_LWIP_IPV6_FORWARD": True,
     "CONFIG_LWIP_IPV6_NUM_ADDRESSES": 12,
     "CONFIG_LWIP_MULTICAST_PING": True,
@@ -327,10 +348,13 @@ def _validate_platform(config: ConfigType) -> ConfigType:
         return config
     if CONF_BORDER_ROUTER in config:
         # _BORDER_ROUTER_SCHEMA already limits this to ESP32 with ESP-IDF
-        if (
-            _get_rcp(config) is None
-            and get_esp32_variant() not in NATIVE_BORDER_ROUTER_VARIANTS
-        ):
+        variant = get_esp32_variant()
+        if _get_rcp(config) is not None:
+            if variant not in RCP_BORDER_ROUTER_VARIANTS:
+                raise cv.Invalid(
+                    "OpenThread Border Router RCP mode requires a Wi-Fi-capable ESP32 variant."
+                )
+        elif variant not in NATIVE_BORDER_ROUTER_VARIANTS:
             raise cv.Invalid(
                 "OpenThread Border Router with a native radio requires an ESP32 variant "
                 "with both Wi-Fi and IEEE 802.15.4 support. "
