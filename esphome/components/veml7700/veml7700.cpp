@@ -77,7 +77,7 @@ static uint16_t get_itime_ms(IntegrationTime time) {
 
 static float get_gain_coeff(Gain gain) {
   // 32-bit entries, so the direct read is a word load, which is safe from flash on ESP8266
-  static const float GAIN_FLOAT[GAINS_COUNT] PROGMEM = {1.0f, 2.0f, 0.125f, 0.25f};
+  static constexpr float GAIN_FLOAT[GAINS_COUNT] PROGMEM = {1.0f, 2.0f, 0.125f, 0.25f};
   return GAIN_FLOAT[gain & 0b11];
 }
 
@@ -325,10 +325,10 @@ bool VEML7700Component::are_adjustments_required_(Readings &data) {
   static constexpr uint16_t LOW_INTENSITY_THRESHOLD = 100;
   static constexpr uint16_t HIGH_INTENSITY_THRESHOLD = 10000;
 
-  static const IntegrationTime TIMES[INTEGRATION_TIMES_COUNT] PROGMEM = {
+  static constexpr IntegrationTime TIMES[INTEGRATION_TIMES_COUNT] PROGMEM = {
       INTEGRATION_TIME_25MS,  INTEGRATION_TIME_50MS,  INTEGRATION_TIME_100MS,
       INTEGRATION_TIME_200MS, INTEGRATION_TIME_400MS, INTEGRATION_TIME_800MS};
-  static const Gain GAINS[GAINS_COUNT] PROGMEM = {X_1_8, X_1_4, X_1, X_2};
+  static constexpr Gain GAINS[GAINS_COUNT] PROGMEM = {X_1_8, X_1_4, X_1, X_2};
 
   if (data.als_counts <= LOW_INTENSITY_THRESHOLD) {
     Gain next_gain = get_next(GAINS, data.actual_gain);
