@@ -64,7 +64,8 @@ bool MDNSComponent::publish_network_txt_(const char *network) {
 void MDNSComponent::setup() {
 #ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
   // No-op until the first IP-up event registers the services
-  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS, [this]() { this->update_network_txt_(); });
+  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS,
+                     [this]() { this->update_network_txt_(this->connected_network_()); });
 #endif
   // arduino-pico stubs out LwipIntf::stateUpCB (the netif status callback LEAmDNS uses
   // on ESP8266 for auto-restart), so we must drive begin()/notifyAPChange() from our

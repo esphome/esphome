@@ -3,7 +3,9 @@ from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_API,
     CONF_DISABLED,
+    CONF_ETHERNET,
     CONF_ID,
     CONF_OPENTHREAD,
     CONF_PORT,
@@ -284,6 +286,23 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # With both wifi and ethernet, the _esphomelib "network" TXT value follows the
+    # connected interface. OpenThread hands its services to the SRP client once,
+    # so it keeps the fixed value.
+    if (
+        CONF_API in CORE.config
+        and CONF_WIFI in CORE.config
+        and CONF_ETHERNET in CORE.config
+        and CONF_OPENTHREAD not in CORE.config
+    ):
+        from esphome.components import network
+
+        cg.add_define("USE_MDNS_DYNAMIC_NETWORK_TXT")
+        # Where the network component tracks the default route (ESP32), follow
+        # it; otherwise mdns checks the connected interface every second.
+        if await network.register_active_interface_listener(var):
+            cg.add_define("USE_MDNS_ACTIVE_INTERFACE_LISTENER")
 
     for service in config[CONF_SERVICES]:
         txt_records = [
