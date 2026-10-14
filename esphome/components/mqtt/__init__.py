@@ -207,6 +207,15 @@ def validate_config(value):
             "transport 'ws' is unencrypted; remove the certificate options "
             "or switch to transport 'wss'"
         )
+    # TLS runs only with a CA or over wss, so a client certificate needs one of them
+    if (
+        CONF_CLIENT_CERTIFICATE in value
+        and CONF_CERTIFICATE_AUTHORITY not in value
+        and transport != MQTT_TRANSPORT_WSS
+    ):
+        raise cv.Invalid(
+            "'client_certificate' requires 'certificate_authority' or transport 'wss'"
+        )
     if (
         transport not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
         and CONF_WS_PATH in value
@@ -498,21 +507,22 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
-    if CONF_CERTIFICATE_AUTHORITY in config:
-        cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
+    transport = config.get(CONF_TRANSPORT)
+    if (ca := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
+        cg.add(var.set_ca_certificate(ca))
+    if ca is not None or transport == MQTT_TRANSPORT_WSS:
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
-        if CONF_CLIENT_CERTIFICATE in config:
-            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+        if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
+            cg.add(var.set_cl_certificate(client_certificate))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
 
     if CORE.is_esp32:
-        transport = config[CONF_TRANSPORT]
         if transport != MQTT_TRANSPORT_TCP:
             cg.add(var.set_transport(transport))
         if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
             cg.add(var.set_ws_path(config.get(CONF_WS_PATH, "/mqtt")))
         # wss without an explicit CA verifies the broker against the bundled roots
-        if transport == MQTT_TRANSPORT_WSS and CONF_CERTIFICATE_AUTHORITY not in config:
+        if transport == MQTT_TRANSPORT_WSS and ca is None:
             require_certificate_bundle()
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:

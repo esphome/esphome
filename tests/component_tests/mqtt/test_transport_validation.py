@@ -93,3 +93,15 @@ def test_plaintext_ws_with_certificate_rejected(
                 **certificate_options,
             }
         )
+
+
+def test_client_certificate_requires_tls() -> None:
+    """Test that a client certificate without a CA is only accepted over wss."""
+    certificate = {
+        CONF_CLIENT_CERTIFICATE: "-----BEGIN CERTIFICATE-----",
+        CONF_CLIENT_CERTIFICATE_KEY: "-----BEGIN PRIVATE KEY-----",
+        CONF_TOPIC_PREFIX: "test",
+    }
+    with pytest.raises(cv.Invalid, match="requires 'certificate_authority'"):
+        validate_config({CONF_TRANSPORT: MQTT_TRANSPORT_TCP, **certificate})
+    validate_config({CONF_TRANSPORT: MQTT_TRANSPORT_WSS, **certificate})
