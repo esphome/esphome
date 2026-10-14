@@ -143,10 +143,6 @@ void OpenThreadComponent::ot_main_() {
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 
-  // Mark lock as initialized so InstanceLock callers know it's safe to acquire.
-  // Must be set after esp_openthread_init() which creates the internal semaphore.
-  this->lock_initialized_ = true;
-
   bool launch_mainloop = true;
 #if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART)
   // The native 802.15.4 radio shares the RF frontend with Wi-Fi. Coexistence has to be on before
@@ -160,8 +156,12 @@ void OpenThreadComponent::ot_main_() {
 
   {
     // One lock for the whole bring-up, so the main loop (actions, teardown, the SRP component)
-    // cannot call into the stack half way through
+    // cannot call into the stack half way through. The lock is recursive: hold it before
+    // telling the other tasks that it exists, then let the guard take over.
+    esp_openthread_lock_acquire(portMAX_DELAY);
+    this->lock_initialized_ = true;
     InstanceLock lock = InstanceLock::acquire();
+    esp_openthread_lock_release();
     otInstance *instance = lock.get_instance();
 
 #ifndef USE_OPENTHREAD_BORDER_ROUTER
@@ -249,6 +249,7 @@ void OpenThreadComponent::ot_main_() {
 
 // Runs on the OpenThread task; the component state belongs to the main loop
 void OpenThreadComponent::mark_task_failed_() {
+  this->task_failed_ = true;
   this->defer([this]() { this->mark_failed(); });
 }
 
@@ -326,6 +327,14 @@ InstanceLock InstanceLock::try_acquire(int delay) {
   return InstanceLock(esp_openthread_lock_acquire(delay));
 }
 
+// The lock only comes back once the task that owns it is gone, so waiting would never end
+static void abort_if_task_failed() {
+  if (global_openthread_component->is_task_failed()) {
+    ESP_LOGE(TAG, "OpenThread failed to start, cannot acquire instance lock");
+    abort();
+  }
+}
+
 InstanceLock InstanceLock::acquire() {
   // teardown() clears global_openthread_component before the stack fully stops; a caller
   // racing teardown would otherwise dereference a null pointer below.
@@ -338,6 +347,7 @@ InstanceLock InstanceLock::acquire() {
   constexpr uint32_t lock_init_timeout_ms = 10000;
   uint32_t start = millis();
   while (!global_openthread_component->is_lock_initialized()) {
+    abort_if_task_failed();
     if (millis() - start > lock_init_timeout_ms) {
       ESP_LOGE(TAG, "OpenThread lock not initialized after %" PRIu32 "ms, aborting", lock_init_timeout_ms);
       abort();
@@ -346,6 +356,7 @@ InstanceLock InstanceLock::acquire() {
     esp_task_wdt_reset();
   }
   while (!esp_openthread_lock_acquire(100)) {
+    abort_if_task_failed();
     esp_task_wdt_reset();
   }
   return InstanceLock(true);
