@@ -183,6 +183,8 @@ void MipiDsi::update() {
   if (this->auto_clear_enabled_) {
     this->clear();
   }
+  // Blocks drawn by the writer stay in the buffer until the one flush below
+  this->updating_ = true;
   if (this->show_test_card_) {
     this->test_card();
   } else if (this->page_ != nullptr) {
@@ -192,7 +194,15 @@ void MipiDsi::update() {
   } else {
     this->stop_poller();
   }
+  this->updating_ = false;
   this->flush_dirty_();
+}
+
+// Inside update() the writer's drawing goes to the panel in one flush at the end; a block drawn
+// anywhere else would otherwise wait for an update() that may never come.
+void MipiDsi::flush_now_() {
+  if (!this->updating_)
+    this->flush_dirty_();
 }
 
 void MipiDsi::flush_dirty_() {
@@ -226,12 +236,13 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
-    this->flush_dirty_();
+    this->flush_now_();
     return;
   }
   if (this->buffer_ != nullptr) {
-    // A writer is drawing into the buffer, which the end of update() flushes over the panel; the
-    // block goes into the buffer too, or that flush would paint the old contents over it.
+    // Once a buffer exists its flush must carry the block too, or an update() flush of the old
+    // contents would paint over it; so the block goes into the buffer and reaches the panel from
+    // there, with the one flush at the end of update() or right away outside it.
     const size_t bytes_per_pixel = 3 - this->color_depth_;
     const size_t stride = x_offset + w + x_pad;
     for (int y = 0; y != h; y++) {
@@ -239,6 +250,7 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
              ptr + ((y_offset + y) * stride + x_offset) * bytes_per_pixel, w * bytes_per_pixel);
     }
     this->mark_dirty_(x_start, y_start, w, h);
+    this->flush_now_();
     return;
   }
   this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);

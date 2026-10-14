@@ -88,6 +88,7 @@ class MipiDsi final : public display::Display {
   bool check_buffer_();
   /// Send the region touched since the last flush to the panel.
   void flush_dirty_();
+  void flush_now_();
   void rotate_(int &x, int &y) const;
   void mark_dirty_(int x_start, int y_start, int w, int h);
   /// Pack a colour as the 565 value the panel's byte order expects in memory.
@@ -124,6 +125,7 @@ class MipiDsi final : public display::Display {
   esp_lcd_panel_io_handle_t io_handle_{};
   SemaphoreHandle_t io_lock_{};
   uint8_t *buffer_{nullptr};
+  bool updating_{false};
   uint16_t x_low_{1};
   uint16_t y_low_{1};
   uint16_t x_high_{0};

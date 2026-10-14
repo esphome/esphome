@@ -80,6 +80,7 @@ class MipiRgb : public display::Display {
   }
   /// Send the region touched since the last flush to the panel.
   void flush_dirty_();
+  void flush_now_();
   void rotate_(int &x, int &y) const;
   void mark_dirty_(int x_start, int y_start, int w, int h);
   void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
@@ -107,6 +108,7 @@ class MipiRgb : public display::Display {
   size_t height_;
   uint16_t *buffer_{nullptr};
   std::vector<GPIOPin *> enable_pins_{};
+  bool updating_{false};
   uint16_t x_low_{1};
   uint16_t y_low_{1};
   uint16_t x_high_{0};
