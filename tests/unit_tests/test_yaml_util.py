@@ -2317,3 +2317,20 @@ def test_find_secret_references_in_flow_collections() -> None:
     """Flow mapping and sequence punctuation is not part of the secret name."""
     text = "a: {password: !secret wifi_pw}\nb: [!secret one, !secret 'two']\n"
     assert yaml_util.find_secret_references(text) == {"wifi_pw", "one", "two"}
+
+
+@pytest.mark.parametrize(
+    ("yaml_text", "expected_offset"),
+    [
+        ("value: return 42;\n", 0),
+        ('value: "return 42;"\n', 0),
+        ("value: |-\n  return 42;\n", 1),
+        ("value: >-\n  return 42;\n", 1),
+    ],
+)
+def test_content_offset_only_for_block_scalars(
+    yaml_text: str, expected_offset: int
+) -> None:
+    """A one-line lambda starts on its own line; only | and > move it to the next."""
+    doc = yaml_util.parse_yaml("test.yaml", yaml_text)
+    assert doc["value"].content_offset == expected_offset
