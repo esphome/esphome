@@ -1,8 +1,12 @@
 """Tests for the mqtt check that subscribed topics fit the AsyncMqttClient limit."""
 
+from pathlib import Path
+import re
+
 import pytest
 
 from esphome.components.mqtt import (
+    _COMMAND_TOPIC_DOMAINS,
     ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN,
     _validate_topic_lengths,
 )
@@ -138,3 +142,23 @@ def test_accepted(
 def test_message_names_the_topic_and_length(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(cv.Invalid, match=rf"'dev/switch/{TOO_LONG}/command' is 129"):
         _run(monkeypatch, _switch(TOO_LONG))
+
+
+MQTT_DIR = Path(__file__).parents[3] / "esphome" / "components" / "mqtt"
+# MQTT component types that belong to another entity domain
+TYPE_DOMAIN = {"date": "datetime", "time": "datetime"}
+
+
+def test_command_topic_domains_match_the_cpp_components() -> None:
+    """Every MQTT component that subscribes in C++ is listed, with the topic it always subscribes to."""
+    subscribing = {}
+    for source in MQTT_DIR.glob("mqtt_*.cpp"):
+        text = source.read_text()
+        if not (match := re.search(r'MQTT_COMPONENT_TYPE\(\w+, "(\w+)"\)', text)):
+            continue
+        if re.search(r"this->subscribe(_json)?\(", text):
+            subscribing[TYPE_DOMAIN.get(match[1], match[1])] = text
+    assert set(_COMMAND_TOPIC_DOMAINS) == set(subscribing)
+    for domain, text in subscribing.items():
+        getter = "get_mode_command_topic" if domain == "climate" else "command_topic_"
+        assert getter in text, domain
