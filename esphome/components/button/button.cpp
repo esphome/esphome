@@ -3,7 +3,7 @@
 
 namespace esphome::button {
 
-static const char *const TAG = "button";
+ESPHOME_LOG_TAG(TAG, "button");
 
 // Function implementation of LOG_BUTTON macro to reduce code size
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj) {

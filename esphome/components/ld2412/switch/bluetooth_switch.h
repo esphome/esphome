@@ -7,7 +7,8 @@ namespace esphome::ld2412 {
 
 class BluetoothSwitch final : public switch_::Switch, public Parented<LD2412Component> {
  public:
-  BluetoothSwitch() = default;
+  // User provided, not "= default": `new(p) BluetoothSwitch()` would zero-fill .bss that is already zero.
+  BluetoothSwitch() {}
 
  protected:
   void write_state(bool state) override;

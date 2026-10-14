@@ -10,6 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/wake.h"
 #include "esphome/core/log.h"
+#include "lwip_raw_common_impl.h"
 
 #ifdef USE_OTA_PLATFORM_ESPHOME
 extern "C" void esphome_wake_ota_component_any_context();
@@ -24,26 +25,21 @@ extern "C" void esphome_wake_ota_component_any_context();
 
 namespace esphome::socket {
 
-// ---- LWIP thread safety ----
-//
-// On RP2040 (Pico W), arduino-pico sets PICO_CYW43_ARCH_THREADSAFE_BACKGROUND=1.
-// This means lwip callbacks (recv_fn, accept_fn, err_fn) run from a low-priority
-// user IRQ context, not the main loop (see low_priority_irq_handler() in pico-sdk
-// async_context_threadsafe_background.c). They can preempt main-loop code at any point.
-//
-// Without locking, this causes race conditions between recv_fn and read() on the
-// shared rx_buf_ pbuf chain — recv_fn calls pbuf_cat() while read() is freeing
-// nodes, leading to use-after-free and infinite-loop crashes. See esphome#10681.
-//
-// On ESP8266, lwip callbacks run from the SYS context which cooperates with user
-// code (CONT context) — they never preempt each other, so no locking is needed.
-//
-// esphome::LwIPLock is the platform-provided RAII guard (see helpers.h/helpers.cpp).
-// On RP2040, it acquires cyw43_arch_lwip_begin/end (WiFi) or ethernet_arch_lwip_begin/end
-// (Ethernet). On ESP8266, it's a no-op.
+// LWIP thread safety — see lwip_raw_common_impl.h for full explanation.
+// esphome::LwIPLock is the platform-provided RAII guard.
+// On RP2040, it acquires cyw43_arch_lwip_begin/end. On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
-static const char *const TAG = "socket.lwip";
+ESPHOME_LOG_TAG(TAG, "socket");
+
+#ifdef USE_ESP8266
+// optimistic_yield() rate limit in microseconds of CONT time; cheap when hot.
+static constexpr uint32_t ESP8266_YIELD_INTERVAL_US = 1000;
+// Let SYS run so queued WiFi traffic reaches lwip; CONT and SYS are cooperative
+static inline void yield_to_sys() { optimistic_yield(ESP8266_YIELD_INTERVAL_US); }
+#else
+static inline void yield_to_sys() {}
+#endif
 
 // set to 1 to enable verbose lwip logging
 #if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
@@ -57,8 +53,8 @@ static const char *const TAG = "socket.lwip";
 // Must be called before destroying the object that tcp_arg points to —
 // tcp_abort() triggers the err callback synchronously, which would
 // otherwise call back into a partially-destroyed object.
-// tcp_sent/tcp_poll are not cleared because this implementation
-// never registers them.
+// tcp_sent/tcp_poll are never registered and the connect callback cannot
+// fire after abort or close, so neither is cleared.
 static void pcb_detach_abort(struct tcp_pcb *pcb) {
   tcp_arg(pcb, nullptr);
   tcp_recv(pcb, nullptr);
@@ -71,8 +67,7 @@ static void pcb_detach_abort(struct tcp_pcb *pcb) {
 // After tcp_close(), the PCB remains alive during the TCP close handshake
 // (FIN_WAIT, TIME_WAIT states). Without clearing callbacks first, LWIP
 // would call recv/err on a destroyed socket object, corrupting the heap.
-// tcp_sent/tcp_poll are not cleared because this implementation
-// never registers them.
+// Callbacks are left as in pcb_detach_abort().
 // Returns ERR_OK on success; on failure the PCB is aborted instead.
 static err_t pcb_detach_close(struct tcp_pcb *pcb) {
   tcp_arg(pcb, nullptr);
@@ -96,67 +91,32 @@ LWIPRawCommon::~LWIPRawCommon() {
   }
 }
 
+bool LWIPRawCommon::sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port,
+                                 bool for_bind) const {
+  if (name != nullptr && name->sa_family == this->family_ &&
+      (for_bind ? sockaddr_to_lwip_bind(this->family_, name, addrlen, ip, port)
+                : sockaddr_to_lwip(name, addrlen, ip, port)))
+    return true;
+  errno = EINVAL;
+  return false;
+}
+
 int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
   LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
   }
-  if (name == nullptr) {
-    errno = EINVAL;
-    return -1;
-  }
   ip_addr_t ip;
-  in_port_t port;
-#if LWIP_IPV6
-  if (this->family_ == AF_INET) {
-    if (addrlen < sizeof(sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-    port = ntohs(addr4->sin_port);
-    ip.type = IPADDR_TYPE_V4;
-    ip.u_addr.ip4.addr = addr4->sin_addr.s_addr;
-    LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ip4addr_ntoa(&ip.u_addr.ip4), port);
-  } else if (this->family_ == AF_INET6) {
-    if (addrlen < sizeof(sockaddr_in6)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
-    port = ntohs(addr6->sin6_port);
-    ip.type = IPADDR_TYPE_ANY;
-    memcpy(&ip.u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
-    LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ip6addr_ntoa(&ip.u_addr.ip6), port);
-  } else {
-    errno = EINVAL;
+  uint16_t port;
+  if (!this->sockaddr2ip_(name, addrlen, &ip, &port, true)) {
     return -1;
   }
-#else
-  if (this->family_ != AF_INET) {
-    errno = EINVAL;
-    return -1;
-  }
-  auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-  port = ntohs(addr4->sin_port);
-  ip.addr = addr4->sin_addr.s_addr;
-  LWIP_LOG("tcp_bind(%p ip=%u port=%u)", this->pcb_, ip.addr, port);
-#endif
+  LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ipaddr_ntoa(&ip), port);
   err_t err = tcp_bind(this->pcb_, &ip, port);
-  if (err == ERR_USE) {
-    LWIP_LOG("  -> err ERR_USE");
-    errno = EADDRINUSE;
-    return -1;
-  }
-  if (err == ERR_VAL) {
-    LWIP_LOG("  -> err ERR_VAL");
-    errno = EINVAL;
-    return -1;
-  }
   if (err != ERR_OK) {
     LWIP_LOG("  -> err %d", err);
-    errno = EIO;
+    errno = lwip_err_to_errno(err);
     return -1;
   }
   return 0;
@@ -173,7 +133,7 @@ int LWIPRawCommon::close() {
   this->pcb_ = nullptr;
   if (err != ERR_OK) {
     LWIP_LOG("  -> err %d", err);
-    errno = err == ERR_MEM ? ENOMEM : EIO;
+    errno = lwip_err_to_errno(err);
     return -1;
   }
   return 0;
@@ -200,7 +160,7 @@ int LWIPRawCommon::shutdown(int how) {
   err_t err = tcp_shutdown(this->pcb_, shut_rx, shut_tx);
   if (err != ERR_OK) {
     LWIP_LOG("  -> err %d", err);
-    errno = err == ERR_MEM ? ENOMEM : EIO;
+    errno = lwip_err_to_errno(err);
     return -1;
   }
   return 0;
@@ -344,43 +304,8 @@ int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, sockle
 }
 
 int LWIPRawCommon::ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
-  if (this->family_ == AF_INET) {
-    if (*addrlen < sizeof(struct sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-
-    struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
-    addr->sin_family = AF_INET;
-    *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
-    addr->sin_port = port;
-    inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(ip));
-    return 0;
-  }
-#if LWIP_IPV6
-  else if (this->family_ == AF_INET6) {
-    if (*addrlen < sizeof(struct sockaddr_in6)) {
-      errno = EINVAL;
-      return -1;
-    }
-
-    struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
-    addr->sin6_family = AF_INET6;
-    *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
-    addr->sin6_port = port;
-
-    // AF_INET6 sockets are bound to IPv4 as well, so we may encounter IPv4 addresses that must be converted to IPv6.
-    if (IP_IS_V4(ip)) {
-      ip_addr_t mapped;
-      ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(ip));
-      inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
-    } else {
-      inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(ip));
-    }
-    return 0;
-  }
-#endif
-  return -1;
+  // lwip pcb ports are host order; ntohs preserves historical byte-swapped sin_port output
+  return lwip_ip_to_sockaddr(this->family_, ip, ntohs(port), name, addrlen);
 }
 
 // ---- LWIPRawImpl methods ----
@@ -420,7 +345,72 @@ void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
   // ERR_ABRT: aborted through tcp_abort or TCP timer
   auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
   ESP_LOGVV(TAG, "socket %p: err(err=%d)", arg_this, err);
+  if (arg_this->connect_err_ == EINPROGRESS) {
+    // Refused (RST) or SYN retries exhausted; written before pcb_ so
+    // poll_connect() never sees a dead pcb without its reason
+    arg_this->connect_err_ = err == ERR_RST ? ECONNREFUSED : ETIMEDOUT;
+  }
   arg_this->pcb_ = nullptr;
+  esphome::wake_loop_any_context();
+}
+
+err_t LWIPRawImpl::s_connected_fn(void *arg, struct tcp_pcb *pcb, err_t err) {
+  // LWIP CALLBACK, same constraints as s_err_fn; err is always ERR_OK
+  auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
+  arg_this->connect_err_ = EISCONN;
+  esphome::wake_loop_any_context();
+  return ERR_OK;
+}
+
+int LWIPRawImpl::connect(const struct sockaddr *addr, socklen_t addrlen) {
+  LWIP_LOCK();
+  if (this->pcb_ == nullptr) {
+    errno = EBADF;
+    return -1;
+  }
+  if (this->connect_err_ == EINPROGRESS || this->connect_err_ == EISCONN) {
+    errno = this->connect_err_ == EINPROGRESS ? EALREADY : EISCONN;
+    return -1;
+  }
+  ip_addr_t ip;
+  uint16_t port;
+  // Concrete type for tcp_connect; a remembered IPv4 peer arrives v4-mapped and is unmapped
+  if (!this->sockaddr2ip_(addr, addrlen, &ip, &port, false)) {
+    return -1;
+  }
+  LWIP_LOG("tcp_connect(%p ip=%s port=%u)", this->pcb_, ipaddr_ntoa(&ip), port);
+  err_t err = tcp_connect(this->pcb_, &ip, port, LWIPRawImpl::s_connected_fn);
+  if (err != ERR_OK) {
+    LWIP_LOG("  -> err %d", err);
+    errno = lwip_err_to_errno(err);
+    return -1;
+  }
+  this->connect_err_ = EINPROGRESS;
+  errno = EINPROGRESS;
+  return -1;
+}
+
+ConnectPollResult LWIPRawImpl::poll_connect(int &err_out) const {
+  // pcb_ first; see the ordering note on the declaration
+  if (this->pcb_ == nullptr) {
+    // Only a recorded connect failure carries its own reason
+    const bool failed = this->connect_err_ == ECONNREFUSED || this->connect_err_ == ETIMEDOUT;
+    err_out = failed ? this->connect_err_ : ECONNRESET;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
+  }
+  switch (this->connect_err_) {
+    case EINPROGRESS:
+      yield_to_sys();  // so the SYN-ACK is processed between polls
+      return ConnectPollResult::CONNECT_POLL_RESULT_PENDING;
+    case EISCONN:
+      return ConnectPollResult::CONNECT_POLL_RESULT_CONNECTED;
+    case 0:
+      err_out = EINVAL;  // no connect was started
+      return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
+    default:
+      err_out = this->connect_err_;
+      return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
+  }
 }
 
 err_t LWIPRawImpl::s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
@@ -535,6 +525,11 @@ ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
+  // Let queued WiFi RX reach lwip first; otherwise inbound segments can
+  // sit unprocessed for seconds while the main loop polls
+  if (this->waiting_for_data_()) {
+    yield_to_sys();
+  }
   // See waiting_for_data_() for safety of unlocked reads.
   if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
@@ -545,6 +540,8 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
+  // No ESP8266 SYS yield here: only read() needs it today. If a consumer
+  // switches to scatter-gather reads, mirror the yield from read().
   // See waiting_for_data_() for safety of unlocked reads.
   if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
@@ -609,19 +606,22 @@ int LWIPRawImpl::internal_output_() {
   }
   LWIP_LOG("tcp_output(%p)", this->pcb_);
   err_t err = tcp_output(this->pcb_);
-  if (err == ERR_ABRT) {
-    // sometimes lwip returns ERR_ABRT for no apparent reason
-    // the connection works fine afterwards, and back with ESPAsyncTCP we
-    // indirectly also ignored this error
-    // FIXME: figure out where this is returned and what it means in this context
-    LWIP_LOG("  -> err ERR_ABRT");
-    return 0;
-  }
   if (err != ERR_OK) {
     LWIP_LOG("  -> err %d", err);
-    errno = ECONNRESET;
-    return -1;
+    // ERR_ABRT: sometimes lwip returns it for no apparent reason; the
+    // connection works fine afterwards, and back with ESPAsyncTCP we
+    // indirectly also ignored this error, so treat it as success for
+    // flush purposes too.
+    // FIXME: figure out where this is returned and what it means in this context
+    if (err != ERR_ABRT) {
+      errno = ECONNRESET;
+      return -1;
+    }
   }
+  // Flushed: yield to SYS so the queued segments reach the WiFi driver
+  // instead of waiting seconds for an unrelated SYS slot. Callers only get
+  // here after a successful tcp_write, so idle paths never yield.
+  yield_to_sys();
   return 0;
 }
 
@@ -867,11 +867,11 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   return ERR_OK;
 }
 
-// ---- Factory functions ----
+// ---- TCP Factory functions ----
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   if (type != SOCK_STREAM) {
-    ESP_LOGE(TAG, "UDP sockets not supported on this platform, use WiFiUDP");
+    ESP_LOGE(TAG, "Use socket_udp() for UDP sockets on this platform");
     errno = EPROTOTYPE;
     return nullptr;
   }
@@ -891,7 +891,7 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 
 std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
   if (type != SOCK_STREAM) {
-    ESP_LOGE(TAG, "UDP sockets not supported on this platform, use WiFiUDP");
+    ESP_LOGE(TAG, "Use socket_udp() for UDP sockets on this platform");
     errno = EPROTOTYPE;
     return nullptr;
   }

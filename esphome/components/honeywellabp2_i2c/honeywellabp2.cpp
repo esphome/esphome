@@ -9,7 +9,9 @@ static const uint8_t STATUS_BIT_BUSY = 5;
 static const uint8_t STATUS_BIT_ERROR = 2;
 static const uint8_t STATUS_MATH_SAT = 0;
 
-static const char *const TAG = "honeywellabp2";
+ESPHOME_LOG_TAG(TAG, "honeywellabp2");
+
+static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 
 void HONEYWELLABP2Sensor::read_sensor_data() {
   if (this->read(raw_data_, 7) != i2c::ERROR_OK) {
@@ -62,7 +64,7 @@ float HONEYWELLABP2Sensor::get_temperature() { return this->last_temperature_; }
 void HONEYWELLABP2Sensor::loop() {
   if (this->measurement_running_) {
     if (this->is_measurement_ready()) {
-      this->cancel_timeout("meas_timeout");
+      this->cancel_timeout(MEASUREMENT_TIMEOUT_ID);
 
       this->read_sensor_data();
       if (pressure_sensor_ != nullptr) {
@@ -79,7 +81,7 @@ void HONEYWELLABP2Sensor::update() {
   ESP_LOGV(TAG, "Update Honeywell ABP2 Sensor");
 
   this->start_measurement();
-  this->set_timeout("meas_timeout", 100, [this] { this->measurement_timeout(); });
+  this->set_timeout(MEASUREMENT_TIMEOUT_ID, 100, [this] { this->measurement_timeout(); });
 }
 
 void HONEYWELLABP2Sensor::dump_config() {

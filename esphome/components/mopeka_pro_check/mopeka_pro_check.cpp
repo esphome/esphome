@@ -3,7 +3,7 @@
 
 namespace esphome::mopeka_pro_check {
 
-static const char *const TAG = "mopeka_pro_check";
+ESPHOME_LOG_TAG(TAG, "mopeka_pro_check");
 static const uint8_t MANUFACTURER_DATA_LENGTH = 10;
 static const uint16_t MANUFACTURER_ID = 0x0059;
 static const double MOPEKA_LPG_COEF[] = {0.573045, -0.002822, -0.00000535};  // Magic numbers provided by Mopeka
