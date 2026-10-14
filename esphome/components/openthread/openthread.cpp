@@ -94,6 +94,9 @@ void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) 
 
 // Gets the off-mesh routable address
 std::optional<otIp6Address> OpenThreadComponent::get_omr_address() {
+  // A failed setup never creates the lock, and acquire() would abort waiting for it
+  if (this->is_failed())
+    return {};
   InstanceLock lock = InstanceLock::acquire();
   return this->get_omr_address_(lock);
 }
@@ -159,6 +162,10 @@ void OpenThreadSrpComponent::srp_factory_reset_callback(otError err, const otSrp
 }
 
 void OpenThreadSrpComponent::setup() {
+  if (global_openthread_component->is_failed()) {
+    this->mark_failed();
+    return;
+  }
   otError error;
   InstanceLock lock = InstanceLock::acquire();
   otInstance *instance = lock.get_instance();
@@ -267,6 +274,9 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 #endif
 
 bool OpenThreadComponent::teardown() {
+  // Nothing was started
+  if (this->is_failed())
+    return true;
   switch (this->teardown_stage_) {
     case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
       {
@@ -327,6 +337,11 @@ void OpenThreadComponent::on_factory_reset(const std::function<void()> &callback
   // Nothing registered with an SRP server to remove first
   callback();
 #else
+  if (this->is_failed()) {
+    // No SRP registration to remove; reset right away
+    callback();
+    return;
+  }
   this->factory_reset_external_callback_ = callback;
   ESP_LOGD(TAG, "Start Removal SRP Host and Services");
   otError error;

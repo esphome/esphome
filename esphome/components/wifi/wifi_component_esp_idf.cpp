@@ -922,6 +922,15 @@ const char *get_disconnect_reason_str(uint8_t reason) {
   }
 }
 
+#ifdef USE_WIFI_AP
+// The driver's own station list cannot drift, so the count is read from it rather than kept by arithmetic
+static void read_ap_clients(uint8_t &count) {
+  wifi_sta_list_t sta_list;
+  if (esp_wifi_ap_get_sta_list(&sta_list) == ESP_OK)
+    count = sta_list.num;
+}
+#endif
+
 bool WiFiComponent::wifi_loop_() {
   // Use pop() directly instead of empty() — pop() costs 1 memw (acquire on tail_),
   // while empty() costs 2 memw (acquire on both head_ and tail_) on Xtensa.
@@ -939,6 +948,11 @@ bool WiFiComponent::wifi_loop_() {
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);
+#ifdef USE_WIFI_AP
+    // A dropped join or leave is made up for by reading the list again
+    if (this->ap_setup_)
+      read_ap_clients(this->ap_clients_);
+#endif
   }
   return true;
 }
@@ -1048,6 +1062,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.ip_got_ip;
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+    this->apply_ap_dns_();
+#endif
 #ifdef USE_WIFI_LEASE_CACHE
     this->save_lease_settings_();  // events are drained on the main loop
 #endif
@@ -1166,6 +1183,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
     ESP_LOGV(TAG, "AP start");
     this->ap_started_ = true;
+#ifdef USE_WIFI_AP_WISP
+    // NAPT needs the interface up, so it cannot be part of the setup. Without it the clients have no way out, so
+    // the AP goes down and its setup runs again, which brings it back up through this event.
+    if (esp_err_t err = esp_netif_napt_enable(s_ap_netif); err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to enable NAT: %s", esp_err_to_name(err));
+      this->fail_bridge_();
+    }
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STOP) {
     ESP_LOGV(TAG, "AP stop");
@@ -1180,6 +1205,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STACONNECTED) {
+#ifdef USE_WIFI_AP
+    read_ap_clients(this->ap_clients_);
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     const auto &it = data->data.ap_staconnected;
     char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -1188,6 +1216,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+#ifdef USE_WIFI_AP
+    read_ap_clients(this->ap_clients_);
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     const auto &it = data->data.ap_stadisconnected;
     char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -1343,6 +1374,19 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 #endif
 
+#ifdef USE_WIFI_AP_WISP
+  // Offer resolvers through DHCP: the configured ones, otherwise the station's. Without them the server would
+  // offer the AP's own address, so a failure fails the setup and it is tried again.
+  uint8_t dns_offer = 1;
+  err =
+      esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer, sizeof(dns_offer));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to enable DHCP DNS option: %s", esp_err_to_name(err));
+  }
+  if (err != ESP_OK || !this->write_ap_dns_())
+    return false;
+#endif
+
   err = esp_netif_dhcps_start(s_ap_netif);
 
   if (err != ESP_OK) {
@@ -1482,6 +1526,81 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
   return network::IPAddress(dns_ip);
 }
+
+#ifdef USE_WIFI_AP_WISP
+// A DHCP server interface takes a backup resolver from ESP-IDF 6.0
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static constexpr size_t AP_DNS_COUNT = 2;
+#else
+static constexpr size_t AP_DNS_COUNT = 1;
+#endif
+#ifdef USE_WIFI_AP_WISP_STATIC_DNS
+// The configured resolvers as lwIP stores them, from codegen
+static constexpr uint32_t AP_DNS[] = {
+    WIFI_AP_WISP_DNS_0,
+#ifdef WIFI_AP_WISP_DNS_1
+    WIFI_AP_WISP_DNS_1,
+#endif
+};
+#endif
+
+static uint32_t ap_dns_to_offer(size_t i) {
+#ifdef USE_WIFI_AP_WISP_STATIC_DNS
+  return i < std::size(AP_DNS) ? AP_DNS[i] : 0;
+#else
+  return ip_addr_get_ip4_u32(dns_getserver(i));
+#endif
+}
+
+bool WiFiComponent::ap_dns_known_() { return ap_dns_to_offer(0) != 0; }
+
+bool WiFiComponent::write_ap_dns_() {
+  bool ok = true;
+  for (size_t i = 0; i < AP_DNS_COUNT; i++) {
+    const uint32_t addr = ap_dns_to_offer(i);
+    if (addr == 0)
+      continue;
+    esp_netif_dns_info_t info{};
+    info.ip.type = ESP_IPADDR_TYPE_V4;
+    info.ip.u_addr.ip4.addr = addr;
+    esp_err_t err = esp_netif_set_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &info);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to set DHCP DNS server %u: %s", (unsigned) i, esp_err_to_name(err));
+      ok = false;
+    } else {
+      ESP_LOGV(TAG, "DHCP DNS server: " IPSTR, IP2STR(&info.ip.u_addr.ip4));
+    }
+  }
+  return ok;
+}
+
+#ifndef USE_WIFI_AP_WISP_STATIC_DNS
+void WiFiComponent::apply_ap_dns_() {
+  if (!this->ap_setup_)
+    return;  // loop() brings the bridge up once the station has a resolver, and its setup writes them
+  // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
+  // next lease. A resolver the station lost stays offered: set_dns_info rejects an empty address.
+  bool changed = false;
+  for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
+    const uint32_t addr = ap_dns_to_offer(i);
+    esp_netif_dns_info_t current{};
+    changed =
+        addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
+                      current.ip.u_addr.ip4.addr != addr);
+  }
+  if (!changed)
+    return;
+    // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
+#ifdef USE_WIFI_MANUAL_IP
+  const bool ok = this->wifi_ap_ip_config_(this->ap_.get_manual_ip());
+#else
+  const bool ok = this->wifi_ap_ip_config_({});
+#endif
+  if (!ok)
+    this->fail_bridge_();
+}
+#endif  // USE_WIFI_AP_WISP_STATIC_DNS
+#endif  // USE_WIFI_AP_WISP
 
 }  // namespace esphome::wifi
 #endif  // USE_ESP32
