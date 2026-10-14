@@ -32,7 +32,8 @@ static constexpr uint8_t OPER_OUT = 0x02;
 static constexpr uint8_t OPER_IN_OUT = 0x03;
 static constexpr uint8_t OPER_SENSOR_OR_AUTO = 0x04;
 
-// C_OPER byte 1: speed in the low nibble, flags in the high nibble
+// Speed byte: speed in the low nibble, flags in the high nibble.
+// C_OPER carries FLAG_AUTO; the unit reports FLAG_BOOST and FLAG_NIGHT in byte 1 of C_STATE.
 static constexpr uint8_t SPEED_OFF = 0x00;
 static constexpr uint8_t SPEED_SLEEP = 0x01;
 static constexpr uint8_t SPEED_VEL1 = 0x02;
