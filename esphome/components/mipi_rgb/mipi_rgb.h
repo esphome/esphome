@@ -2,6 +2,7 @@
 
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "esphome/core/gpio.h"
+#include "esphome/core/log.h"
 #include "esphome/components/display/display.h"
 #include <esp_lcd_panel_rgb.h>
 #ifdef USE_SPI
@@ -10,7 +11,7 @@
 
 namespace esphome::mipi_rgb {
 
-constexpr static const char *const TAG = "display.mipi_rgb";
+ESPHOME_LOG_TAG(TAG, "display.mipi_rgb");
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;

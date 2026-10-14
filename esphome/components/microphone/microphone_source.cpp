@@ -1,9 +1,20 @@
 #include "microphone_source.h"
 
+#include <array>
+
+#include <gain.h>         // esp-audio-libs
+#include <pcm_convert.h>  // esp-audio-libs
+
 namespace esphome::microphone {
 
-static const int32_t Q25_MAX_VALUE = (1 << 25) - 1;
-static const int32_t Q25_MIN_VALUE = ~Q25_MAX_VALUE;
+// Builds the exact LinearGain for an integer factor without the float dB conversion: the factor is
+// mantissa / 2^31 * 2^exponent, with the exponent set to the factor's bit width.
+static esp_audio_libs::gain::LinearGain factor_to_linear_gain(uint32_t factor) {
+  esp_audio_libs::gain::LinearGain gain;
+  gain.exponent = 32 - __builtin_clz(factor);
+  gain.mantissa_q31 = static_cast<int32_t>(factor << (31 - gain.exponent));
+  return gain;
+}
 
 audio::AudioStreamInfo MicrophoneSource::get_audio_stream_info() {
   return audio::AudioStreamInfo(this->bits_per_sample_, this->channels_.count(),
@@ -26,50 +37,26 @@ void MicrophoneSource::stop() {
 }
 
 void MicrophoneSource::process_audio_(const std::vector<uint8_t> &data, std::vector<uint8_t> &filtered_data) {
-  // - Bit depth conversions are obtained by truncating bits or padding with zeros - no dithering is applied.
-  // - In the comments, Qxx refers to a fixed point number with xx bits of precision for representing fractional values.
-  //   For example, audio with a bit depth of 16 can store a sample in a int16, which can be considered a Q15 number.
-  // - All samples are converted to Q25 before applying the gain factor - this results in a small precision loss for
-  //   data with 32 bits per sample. Since the maximum gain factor is 64 = (1<<6), this ensures that applying the gain
-  //   will never overflow a 32 bit signed integer. This still retains more bit depth than what is audibly noticeable.
-  // - Loops for reading/writing data buffers are unrolled, assuming little endian, for a small performance increase.
+  const audio::AudioStreamInfo source_info = this->mic_->get_audio_stream_info();
+  const uint32_t total_frames = source_info.bytes_to_frames(data.size());
+  const uint8_t target_bytes_per_sample = (this->bits_per_sample_ + 7) / 8;
 
-  const size_t source_bytes_per_sample = this->mic_->get_audio_stream_info().samples_to_bytes(1);
-  const uint32_t source_channels = this->mic_->get_audio_stream_info().get_channels();
-
-  const size_t source_bytes_per_frame = this->mic_->get_audio_stream_info().frames_to_bytes(1);
-
-  const uint32_t total_frames = this->mic_->get_audio_stream_info().bytes_to_frames(data.size());
-  const size_t target_bytes_per_sample = (this->bits_per_sample_ + 7) / 8;
-  const size_t target_bytes_per_frame = target_bytes_per_sample * this->channels_.count();
-
-  filtered_data.resize(target_bytes_per_frame * total_frames);
-
-  uint8_t *current_data = filtered_data.data();
-
-  for (uint32_t frame_index = 0; frame_index < total_frames; ++frame_index) {
-    for (uint32_t channel_index = 0; channel_index < source_channels; ++channel_index) {
-      if (this->channels_.test(channel_index)) {
-        // Channel's current sample is included in the target mask. Convert bits per sample, if necessary.
-
-        const uint32_t sample_index = frame_index * source_bytes_per_frame + channel_index * source_bytes_per_sample;
-
-        int32_t sample = audio::unpack_audio_sample_to_q31(&data[sample_index], source_bytes_per_sample);  // Q31
-        sample >>= 6;                                                                                      // Q31 -> Q25
-
-        // Apply gain using multiplication
-        sample *= this->gain_factor_;  // Q25
-
-        // Clamp ``sample`` in case gain multiplication overflows 25 bits
-        sample = clamp<int32_t>(sample, Q25_MIN_VALUE, Q25_MAX_VALUE);  // Q25
-
-        sample *= (1 << 6);  // Q25 -> Q31
-
-        audio::pack_q31_as_audio_sample(sample, current_data, target_bytes_per_sample);
-        current_data = current_data + target_bytes_per_sample;
-      }
+  // Enabled channels in ascending order, which is their order in each output frame
+  std::array<uint8_t, 8> channel_map;
+  uint8_t target_channels = 0;
+  for (size_t channel = 0; channel < this->channels_.size(); ++channel) {
+    if (this->channels_.test(channel)) {
+      channel_map[target_channels++] = static_cast<uint8_t>(channel);
     }
   }
+
+  filtered_data.resize(static_cast<size_t>(total_frames) * target_bytes_per_sample * target_channels);
+
+  // Applies the gain at full precision before narrowing; samples saturate at full scale, and narrowing rounds
+  esp_audio_libs::pcm_convert::copy_frames_with_gain(data.data(), filtered_data.data(), source_info.samples_to_bytes(1),
+                                                     source_info.get_channels(), target_bytes_per_sample,
+                                                     channel_map.data(), target_channels,
+                                                     factor_to_linear_gain(this->gain_factor_), total_frames);
 }
 
 }  // namespace esphome::microphone
