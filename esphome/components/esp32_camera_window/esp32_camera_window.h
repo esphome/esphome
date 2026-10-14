@@ -17,16 +17,16 @@ namespace esphome::esp32_camera_window {
 /// Limits the readout of an ESP32 camera sensor to a rectangular part of the picture.
 ///
 /// Only the part of the sensor that is read out changes, so pixels outside the window are never
-/// read out at all. The camera keeps publishing frames of the size it is configured with, so
-/// nothing else in the configuration changes; the window is filled with the part of the picture
-/// that it covers.
+/// read out at all.
 ///
-/// The OV2640, OV3660 and OV5640 scale the part of the picture a window covers back up to the frame,
-/// so a window on them also zooms. The SC101IOT and SC030IOT read a window out as it is and cannot
-/// scale it, so a window on them has to be the size of the frame and only moves which part of the
-/// sensor the frame shows. Every other sensor the driver knows, such as the OV7725, is read out
-/// through registers of its own that do not take a window, so a window is reported as unsupported
-/// and every call to set_window() fails on it.
+/// The OV3660 and OV5640 scale the part of the picture a window covers back up to the frame, so a
+/// window on them also zooms and the camera keeps publishing frames of the size it is configured
+/// with. The OV2640 reads a window out as it is and cannot scale it, so the published frame takes
+/// the size of the window instead. The SC101IOT and SC030IOT read a window out as it is and cannot
+/// scale it either, so a window on them has to be the size of the frame and only moves which part
+/// of the sensor the frame shows. Every other sensor the driver knows, such as the OV7725, is read
+/// out through registers of its own that do not take a window, so a window is reported as
+/// unsupported and every call to set_window() fails on it.
 ///
 /// The OV2640 can only be told to crop in whole four-pixel steps of its readout, so a window on it
 /// is rounded down to one.
@@ -58,9 +58,10 @@ class Esp32CameraWindow : public Component {
 
   /// Read out the rectangle at offset_x/offset_y of the given size, in frame pixels.
   ///
-  /// A window that reaches past the frame is clamped to it, and so is its size. The frame size
-  /// the camera publishes is left as it is. Returns false when no sensor is available, when the
-  /// sensor cannot take a window, or when it rejects the settings. Calling it again replaces
+  /// A window that reaches past the frame is clamped to it, and so is its size. On the OV3660
+  /// and OV5640 the frame size the camera publishes is left as it is; on the OV2640 the published
+  /// frame takes the size of the window instead. Returns false when no sensor is available, when
+  /// the sensor cannot take a window, or when it rejects the settings. Calling it again replaces
   /// the previous window.
   ///
   /// The SC101IOT and SC030IOT read a window out as it is and cannot scale it, so the size of a

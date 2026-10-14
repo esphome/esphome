@@ -269,20 +269,23 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
   height = std::min(height, crop.height - offset_y);
 
   // set_res_raw() of this sensor takes the crop in offsetX/offsetY plus totalX/totalY and the
-  // frame it fills in outputX/outputY; start and end are left unused.
+  // frame it fills in outputX/outputY; start and end are left unused. The crop is read out 1:1,
+  // so the published frame takes the size of the window: the driver's DSP path is only ever used
+  // without scaling, and asking it to upscale a small crop to the full frame yields no valid
+  // frames ("Got invalid frame from camera!").
   const int ret =
       sensor->set_res_raw(sensor, ov2640_mode_for(sensor->status.framesize), 0, 0, 0, crop.offset_x + offset_x,
-                          crop.offset_y + offset_y, width, height, frame_width, frame_height, false, false);
+                          crop.offset_y + offset_y, width, height, width, height, false, false);
   if (ret != 0) {
     ESP_LOGE(TAG, "Cropping to offset %d,%d size %dx%d failed with %d", crop.offset_x + offset_x,
              crop.offset_y + offset_y, width, height, ret);
     return false;
   }
 
-  ESP_LOGI(
-      TAG, "Window at %d,%d of %dx%d crops to offset %d,%d size %dx%d of the %dx%d readout and fills the %dx%d frame",
-      frame_window.offset_x, frame_window.offset_y, frame_window.width, frame_window.height, crop.offset_x + offset_x,
-      crop.offset_y + offset_y, width, height, crop.width, crop.height, frame_width, frame_height);
+  ESP_LOGI(TAG,
+           "Window at %d,%d of %dx%d crops to offset %d,%d size %dx%d of the %dx%d readout and is read out as %dx%d",
+           frame_window.offset_x, frame_window.offset_y, frame_window.width, frame_window.height,
+           crop.offset_x + offset_x, crop.offset_y + offset_y, width, height, crop.width, crop.height, width, height);
   return true;
 }
 
