@@ -1109,7 +1109,6 @@ void WiFiComponent::pause_exclusive_ap_() {
   ESP_LOGI(TAG, "Pausing AP to try the networks");
   // Scanning and connecting turn STA back on.
   this->disable_ap_();
-  this->ap_setup_ = false;
   this->ap_exclusive_changed_ = App.get_loop_component_start_time();
   // A fresh connection cycle, as at boot, rather than resuming the one the
   // AP cut short.
@@ -1123,7 +1122,9 @@ void WiFiComponent::disable_ap_() {
   this->end_ap_portal_();
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
-  // Clients drop with the AP without a disconnect event for each
+  // The fallback block may bring the AP back after a later disconnect; its clients dropped with it without
+  // a disconnect event for each
+  this->ap_setup_ = false;
   this->ap_clients_ = 0;
 }
 

@@ -390,7 +390,9 @@ extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_a
     switch (ev->event_type) {
       case AP_STATION_ASSOC_IND:
       case AP_STATION_REASSOC_IND:
-        esphome::wifi::global_wifi_component->ap_clients_++;
+        // A refused association carries its status here and has no leave event to balance it
+        if (ev->status == CYW43_STATUS_SUCCESS)
+          esphome::wifi::global_wifi_component->ap_clients_++;
         break;
       case CYW43_EV_DISASSOC_IND:
       case CYW43_EV_DEAUTH_IND:
