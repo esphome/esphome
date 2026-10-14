@@ -238,13 +238,19 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   }
   if (this->buffer_ != nullptr) {
     // With a buffer the block goes through it, or a flush of the old contents would paint over it
+    // Only the part on the panel
+    const int first_col = std::max(0, -x_start), end_col = std::min(w, static_cast<int>(this->width_) - x_start);
+    const int first_row = std::max(0, -y_start), end_row = std::min(h, static_cast<int>(this->height_) - y_start);
+    if (first_col >= end_col || first_row >= end_row)
+      return;
     const size_t bytes_per_pixel = 3 - this->color_depth_;
     const size_t stride = x_offset + w + x_pad;
-    for (int y = 0; y != h; y++) {
-      memcpy(this->buffer_ + ((y_start + y) * this->width_ + x_start) * bytes_per_pixel,
-             ptr + ((y_offset + y) * stride + x_offset) * bytes_per_pixel, w * bytes_per_pixel);
+    for (int y = first_row; y != end_row; y++) {
+      memcpy(this->buffer_ + ((y_start + y) * this->width_ + x_start + first_col) * bytes_per_pixel,
+             ptr + ((y_offset + y) * stride + x_offset + first_col) * bytes_per_pixel,
+             (end_col - first_col) * bytes_per_pixel);
     }
-    this->mark_dirty_(x_start, y_start, w, h);
+    this->mark_dirty_(x_start + first_col, y_start + first_row, end_col - first_col, end_row - first_row);
     this->flush_now_();
     return;
   }

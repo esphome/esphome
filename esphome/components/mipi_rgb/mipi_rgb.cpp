@@ -236,12 +236,17 @@ void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
     this->flush_now_();
   } else if (this->buffer_ != nullptr) {
     // With a buffer the block goes through it, or a flush of the old contents would paint over it
+    // Only the part on the panel
+    const int first_col = std::max(0, -x_start), end_col = std::min(w, static_cast<int>(this->width_) - x_start);
+    const int first_row = std::max(0, -y_start), end_row = std::min(h, static_cast<int>(this->height_) - y_start);
+    if (first_col >= end_col || first_row >= end_row)
+      return;
     const size_t stride = x_offset + w + x_pad;
-    for (int y = 0; y != h; y++) {
-      memcpy(this->buffer_ + (y_start + y) * this->width_ + x_start, ptr + ((y_offset + y) * stride + x_offset) * 2,
-             w * 2);
+    for (int y = first_row; y != end_row; y++) {
+      memcpy(this->buffer_ + (y_start + y) * this->width_ + x_start + first_col,
+             ptr + ((y_offset + y) * stride + x_offset + first_col) * 2, (end_col - first_col) * 2);
     }
-    this->mark_dirty_(x_start, y_start, w, h);
+    this->mark_dirty_(x_start + first_col, y_start + first_row, end_col - first_col, end_row - first_row);
     this->flush_now_();
   } else {
     this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
