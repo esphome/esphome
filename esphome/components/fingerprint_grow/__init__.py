@@ -81,8 +81,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_IDLE_PERIOD_TO_SLEEP
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_PASSWORD): cv.uint32_t,
-            cv.Optional(CONF_NEW_PASSWORD): cv.uint32_t,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(cv.uint32_t),
+            cv.Optional(CONF_NEW_PASSWORD): cv.sensitive(cv.uint32_t),
             cv.Optional(CONF_ON_FINGER_SCAN_START): automation.validate_automation({}),
             cv.Optional(CONF_ON_FINGER_SCAN_MATCHED): automation.validate_automation(
                 {}

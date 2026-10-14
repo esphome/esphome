@@ -261,34 +261,9 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
         encode_baud_divisor(line_coding, baud);
       }
 
-      // Stop bits: 0=1, 1=1.5, 2=2
-      switch (channel->get_stop_bits()) {
-        case 2:
-          line_coding[4] = 2;
-          break;
-        default:
-          line_coding[4] = 0;
-          break;
-      }
+      line_coding[4] = static_cast<uint8_t>(channel->line_stop_bits_());
 
-      // Parity: 0=none, 1=odd, 2=even, 3=mark, 4=space
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_ODD:
-          line_coding[5] = 1;
-          break;
-        case UART_CONFIG_PARITY_EVEN:
-          line_coding[5] = 2;
-          break;
-        case UART_CONFIG_PARITY_MARK:
-          line_coding[5] = 3;
-          break;
-        case UART_CONFIG_PARITY_SPACE:
-          line_coding[5] = 4;
-          break;
-        default:
-          line_coding[5] = 0;
-          break;
-      }
+      line_coding[5] = static_cast<uint8_t>(channel->line_parity_());
 
       // Data bits
       line_coding[6] = channel->get_data_bits();
