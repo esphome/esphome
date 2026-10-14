@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_MQTT,
     CONF_NAME,
     CONF_PAYLOAD,
+    CONF_RETAIN,
     CONF_TOPIC,
 )
 from esphome.core import EsphomeError
@@ -421,4 +422,31 @@ def test_get_esphome_device_ip_invalid_address_values_skipped(
     assert caplog.text.count("Ignoring invalid address in discovery answer") == 2
     assert "forged" not in "".join(
         r.getMessage() for r in caplog.records if "Found IP" in r.getMessage()
+    )
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_asks_on_connect_without_a_retained_birth_message(
+    mock_initialize: MagicMock,
+) -> None:
+    """A birth message that is not retained cannot tell a later CLI the device is up."""
+    config = {
+        CONF_MQTT: {
+            CONF_BROKER: "mqtt.local",
+            CONF_BIRTH_MESSAGE: {
+                CONF_TOPIC: "test-device/status",
+                CONF_PAYLOAD: "online",
+                CONF_RETAIN: False,
+            },
+        },
+        CONF_ESPHOME: {CONF_NAME: "test-device"},
+    }
+
+    show_logs(config)
+
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    on_connect(client, None, None, 0)
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device", None, retain=False
     )

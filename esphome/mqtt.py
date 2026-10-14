@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PORT,
+    CONF_RETAIN,
     CONF_SKIP_CERT_CN_CHECK,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
@@ -328,6 +329,8 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     birth = config.get(CONF_MQTT, {}).get(CONF_BIRTH_MESSAGE) or {}
     birth_topic = birth.get(CONF_TOPIC)
     birth_payload = birth.get(CONF_PAYLOAD)
+    # Only a retained birth message tells a CLI that connects later that the device is already up
+    ask_on_connect = birth_topic is None or not birth.get(CONF_RETAIN, True)
 
     def request_crash_log(client):
         _LOGGER.debug("Requesting the crash log via topic: %s", logs_topic)
@@ -343,7 +346,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         safe_print(time_ + payload)
 
     def on_connect(client, userdata, flags, return_code):
-        if birth_topic is None:
+        if ask_on_connect:
             request_crash_log(client)
 
     subscriptions = [topic] if birth_topic is None else [topic, birth_topic]
