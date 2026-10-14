@@ -58,8 +58,8 @@ static constexpr const char *SPEC_PREFIXES[] = {"",
                                                 "urn:nfc:"};
 
 TEST(NdefRecordUri, DecodeEveryPrefixCode) {
-  for (uint8_t code = 1; code < std::size(SPEC_PREFIXES); code++)
-    EXPECT_EQ(decode({code, 'x'}), std::string(SPEC_PREFIXES[code]) + "x") << "code " << int(code);
+  for (size_t code = 1; code < std::size(SPEC_PREFIXES); code++)
+    EXPECT_EQ(decode({static_cast<uint8_t>(code), 'x'}), std::string(SPEC_PREFIXES[code]) + "x") << "code " << code;
 }
 
 TEST(NdefRecordUri, DecodeAcceptsLastPrefixCode) { EXPECT_EQ(decode({0x23, 'x'}), "urn:nfc:x"); }
