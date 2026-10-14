@@ -963,6 +963,9 @@ void AsyncEventSourceResponse::refresh_lru_() {
   // httpd only advances a session's LRU counter when a request arrives, and an event stream receives one
   // request ever, so the purge that frees a socket for a new client would evict the live streams first.
   // The HTTPD task owns the session table, so the refresh runs there.
+  // A stalled stream is the socket the purge should take, and a zeroed fd has no session left to refresh.
+  if (this->send_failure_started_ms_ != 0 || this->fd_.load() == 0)
+    return;
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_lru_refresh_ms_ < LRU_REFRESH_INTERVAL_MS ||
       this->lru_work_queued_.load(std::memory_order_acquire)) {
