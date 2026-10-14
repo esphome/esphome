@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
     include_builtin_idf_component,
     request_tls,
 )
+from esphome.config import iter_ids
 from esphome.config_helpers import (
     filter_source_files_from_defines,
     filter_source_files_from_platform,
@@ -76,6 +77,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import get_base_entity_object_id
+from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -133,28 +135,48 @@ MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
-MQTTAlarmControlPanelComponent = mqtt_ns.class_(
-    "MQTTAlarmControlPanelComponent", MQTTComponent
+# The topic each entity MQTT class always subscribes to, keyed by class:
+# (component type, topic suffix, config key that replaces the whole topic)
+_COMMAND_TOPICS: dict[str, tuple[str, str, str]] = {}
+
+
+def _entity_class(
+    name: str,
+    component_type: str | None = None,
+    suffix: str = "command",
+    custom_key: str = CONF_COMMAND_TOPIC,
+) -> MockObjClass:
+    """Declare an entity MQTT class; a component_type means it subscribes to a command topic."""
+    cls = mqtt_ns.class_(name, MQTTComponent)
+    if component_type is not None:
+        _COMMAND_TOPICS[str(cls)] = (component_type, suffix, custom_key)
+    return cls
+
+
+MQTTAlarmControlPanelComponent = _entity_class(
+    "MQTTAlarmControlPanelComponent", "alarm_control_panel"
 )
-MQTTBinarySensorComponent = mqtt_ns.class_("MQTTBinarySensorComponent", MQTTComponent)
-MQTTClimateComponent = mqtt_ns.class_("MQTTClimateComponent", MQTTComponent)
-MQTTCoverComponent = mqtt_ns.class_("MQTTCoverComponent", MQTTComponent)
-MQTTFanComponent = mqtt_ns.class_("MQTTFanComponent", MQTTComponent)
-MQTTJSONLightComponent = mqtt_ns.class_("MQTTJSONLightComponent", MQTTComponent)
-MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
-MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
-MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
-MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
-MQTTDateComponent = mqtt_ns.class_("MQTTDateComponent", MQTTComponent)
-MQTTTimeComponent = mqtt_ns.class_("MQTTTimeComponent", MQTTComponent)
-MQTTDateTimeComponent = mqtt_ns.class_("MQTTDateTimeComponent", MQTTComponent)
-MQTTTextComponent = mqtt_ns.class_("MQTTTextComponent", MQTTComponent)
-MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
-MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
-MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
-MQTTEventComponent = mqtt_ns.class_("MQTTEventComponent", MQTTComponent)
-MQTTUpdateComponent = mqtt_ns.class_("MQTTUpdateComponent", MQTTComponent)
-MQTTValveComponent = mqtt_ns.class_("MQTTValveComponent", MQTTComponent)
+MQTTBinarySensorComponent = _entity_class("MQTTBinarySensorComponent")
+MQTTClimateComponent = _entity_class(
+    "MQTTClimateComponent", "climate", "mode/command", CONF_MODE_COMMAND_TOPIC
+)
+MQTTCoverComponent = _entity_class("MQTTCoverComponent", "cover")
+MQTTFanComponent = _entity_class("MQTTFanComponent", "fan")
+MQTTJSONLightComponent = _entity_class("MQTTJSONLightComponent", "light")
+MQTTSensorComponent = _entity_class("MQTTSensorComponent")
+MQTTSwitchComponent = _entity_class("MQTTSwitchComponent", "switch")
+MQTTTextSensor = _entity_class("MQTTTextSensor")
+MQTTNumberComponent = _entity_class("MQTTNumberComponent", "number")
+MQTTDateComponent = _entity_class("MQTTDateComponent", "date")
+MQTTTimeComponent = _entity_class("MQTTTimeComponent", "time")
+MQTTDateTimeComponent = _entity_class("MQTTDateTimeComponent", "datetime")
+MQTTTextComponent = _entity_class("MQTTTextComponent", "text")
+MQTTSelectComponent = _entity_class("MQTTSelectComponent", "select")
+MQTTButtonComponent = _entity_class("MQTTButtonComponent", "button")
+MQTTLockComponent = _entity_class("MQTTLockComponent", "lock")
+MQTTEventComponent = _entity_class("MQTTEventComponent")
+MQTTUpdateComponent = _entity_class("MQTTUpdateComponent", "update")
+MQTTValveComponent = _entity_class("MQTTValveComponent", "valve")
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS = {
@@ -326,50 +348,13 @@ CONFIG_SCHEMA = cv.All(
 ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN = 128
 # name_add_mac_suffix appends "-" plus 6 hex digits to the name at runtime
 MAC_SUFFIX = "-xxxxxx"
-# The topic each entity MQTT class always subscribes to: component type, suffix, and the
-# config key that replaces the whole topic. Every MQTTComponent subclass above is listed
-# here or in _MQTT_WITHOUT_COMMAND_TOPIC; a test keeps the two in step.
-_MQTT_COMMAND_TOPICS = {
-    str(cls): spec
-    for cls, spec in (
-        (
-            MQTTAlarmControlPanelComponent,
-            ("alarm_control_panel", "command", CONF_COMMAND_TOPIC),
-        ),
-        (MQTTButtonComponent, ("button", "command", CONF_COMMAND_TOPIC)),
-        (MQTTClimateComponent, ("climate", "mode/command", CONF_MODE_COMMAND_TOPIC)),
-        (MQTTCoverComponent, ("cover", "command", CONF_COMMAND_TOPIC)),
-        (MQTTDateComponent, ("date", "command", CONF_COMMAND_TOPIC)),
-        (MQTTDateTimeComponent, ("datetime", "command", CONF_COMMAND_TOPIC)),
-        (MQTTFanComponent, ("fan", "command", CONF_COMMAND_TOPIC)),
-        (MQTTJSONLightComponent, ("light", "command", CONF_COMMAND_TOPIC)),
-        (MQTTLockComponent, ("lock", "command", CONF_COMMAND_TOPIC)),
-        (MQTTNumberComponent, ("number", "command", CONF_COMMAND_TOPIC)),
-        (MQTTSelectComponent, ("select", "command", CONF_COMMAND_TOPIC)),
-        (MQTTSwitchComponent, ("switch", "command", CONF_COMMAND_TOPIC)),
-        (MQTTTextComponent, ("text", "command", CONF_COMMAND_TOPIC)),
-        (MQTTTimeComponent, ("time", "command", CONF_COMMAND_TOPIC)),
-        (MQTTUpdateComponent, ("update", "command", CONF_COMMAND_TOPIC)),
-        (MQTTValveComponent, ("valve", "command", CONF_COMMAND_TOPIC)),
-    )
-}
-_MQTT_WITHOUT_COMMAND_TOPIC = (
-    MQTTBinarySensorComponent,
-    MQTTEventComponent,
-    MQTTSensorComponent,
-    MQTTTextSensor,
-)
 
 
 def _entity_command_topic(
     config: ConfigType, topic_prefix: str, mac_suffix: bool, devices: dict[str, str]
 ) -> str | None:
     """Return the topic an entity's MQTT component always subscribes to, if known."""
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is None or (
-        spec := _MQTT_COMMAND_TOPICS.get(str(mqtt_id.type))
-    ) is None:
-        return None
-    component_type, suffix, custom_key = spec
+    component_type, suffix, custom_key = _COMMAND_TOPICS[str(config[CONF_MQTT_ID].type)]
     # Mirrors MQTTComponent::compute_is_internal_(): internal components never subscribe
     if CONF_STATE_TOPIC in config:
         internal = config[CONF_STATE_TOPIC] == ""
@@ -407,14 +392,15 @@ def _subscribed_topics(config: ConfigType) -> Iterator[str]:
     topic_prefix = config[CONF_TOPIC_PREFIX]
     if mac_suffix and topic_prefix == CORE.name:
         topic_prefix += MAC_SUFFIX
-    for value in full_config.values():
-        for entity in value if isinstance(value, list) else ():
-            if isinstance(entity, dict) and (
-                topic := _entity_command_topic(
-                    entity, topic_prefix, mac_suffix, devices
-                )
-            ):
-                yield topic
+    # Entities can sit at any depth (a platform can declare its own switches), so find them by mqtt_id
+    for id_, path in iter_ids(full_config):
+        if path[-1] != CONF_MQTT_ID or str(id_.type) not in _COMMAND_TOPICS:
+            continue
+        entity = full_config
+        for key in path[:-1]:
+            entity = entity[key]
+        if topic := _entity_command_topic(entity, topic_prefix, mac_suffix, devices):
+            yield topic
     for key in (CONF_ON_MESSAGE, CONF_ON_JSON_MESSAGE):
         for trigger in config.get(key, []):
             yield trigger[CONF_TOPIC]
@@ -430,11 +416,9 @@ def _validate_topic_lengths(config: ConfigType) -> ConfigType:
         return config
     for topic in _subscribed_topics(config):
         # A wildcard filter matches topics of any length, so only literals are checked
-        if (
-            len(topic) > ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN
-            and "+" not in topic
-            and "#" not in topic
-        ):
+        if "+" in topic or "#" in topic:
+            continue
+        if len(topic) > ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN:
             raise cv.Invalid(
                 f"MQTT topic '{topic}' is {len(topic)} characters; the MQTT client on "
                 f"this platform drops topics longer than {ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN}"

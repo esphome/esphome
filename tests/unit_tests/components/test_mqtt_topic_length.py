@@ -2,13 +2,9 @@
 
 import pytest
 
-from esphome.components import mqtt
 from esphome.components.mqtt import (
-    _MQTT_COMMAND_TOPICS,
-    _MQTT_WITHOUT_COMMAND_TOPIC,
     ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN,
     MQTTClimateComponent,
-    MQTTComponent,
     MQTTSwitchComponent,
     _validate_topic_lengths,
 )
@@ -123,6 +119,13 @@ def _run(
             PLATFORM_ESP8266,
             id="custom_topic_without_prefix",
         ),
+        pytest.param(
+            # A platform that declares its own switches, like sprinkler valves
+            {"sprinkler": [{"valves": [_switch(TOO_LONG)["switch"][0]]}]},
+            None,
+            PLATFORM_ESP8266,
+            id="nested_entity",
+        ),
     ],
 )
 def test_rejected(
@@ -178,17 +181,3 @@ def test_accepted(
 def test_message_names_the_topic_and_length(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(cv.Invalid, match=rf"'dev/switch/{TOO_LONG}/command' is 129"):
         _run(monkeypatch, _switch(TOO_LONG))
-
-
-def test_every_mqtt_entity_class_is_classified() -> None:
-    """A new MQTT entity class must say whether it subscribes to a command topic."""
-    declared = {
-        str(value)
-        for value in vars(mqtt).values()
-        if isinstance(value, MockObjClass)
-        and value is not MQTTComponent
-        and value.inherits_from(MQTTComponent)
-    }
-    without = {str(cls) for cls in _MQTT_WITHOUT_COMMAND_TOPIC}
-    assert not set(_MQTT_COMMAND_TOPICS) & without
-    assert declared == set(_MQTT_COMMAND_TOPICS) | without
