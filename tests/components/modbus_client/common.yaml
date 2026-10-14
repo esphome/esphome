@@ -1,7 +1,7 @@
 # The modbus_client actions are self-contained hub devices: each takes the hub (auto-resolved when there
 # is a single modbus client hub) and a templatable device address; no component block is needed. The
-# handlers of modbus_client.send get `address` first: the address of their own request, even when the
-# template has moved on. The typed actions' handlers do not get it.
+# shared handlers (on_sent, on_error, on_no_response, on_not_sent) and send's on_response get `address`
+# first: the address of their own request, even when the template has moved on.
 # The hub does not bound retries, so a retry lambda must (here: a counter capped at 3), or a dead
 # device is retried forever. Reset the counter before the send or on a terminal outcome (on_response)
 # so the cap is per transaction, not per device lifetime. Never reset in on_sent: it fires again on
@@ -101,7 +101,7 @@ button:
               - lambda: 'ESP_LOGI("modbus_client.test", "first=%u n=%u", values[0], (unsigned) values.size());'
           on_no_response:
             then:
-              - logger.log: "typed read timeout"
+              - lambda: 'ESP_LOGW("modbus_client.test", "typed read timeout from %u", address);'
       - modbus_client.read_input_registers:
           continuous: !lambda "return false;"
           address: 0x01
