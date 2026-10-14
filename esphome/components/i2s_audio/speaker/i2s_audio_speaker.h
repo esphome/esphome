@@ -127,8 +127,8 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   esp_err_t init_i2s_channel_(const i2s_chan_config_t &chan_cfg, const i2s_std_config_t &std_cfg,
                               size_t event_queue_size);
 
-  /// @brief Stops the I2S driver and unlocks the I2S port
-  void stop_i2s_driver_();
+  /// @brief Stops the I2S driver and unlocks the I2S port; keep_channel leaves the disabled channel allocated
+  void stop_i2s_driver_(bool keep_channel);
 
   /// @brief Detaches dout from the I2S signal and drives it low
   void park_dout_pin_();

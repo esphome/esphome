@@ -106,7 +106,9 @@ void I2SAudioSpeakerBase::loop() {
     vTaskDelete(this->speaker_task_handle_);
     this->speaker_task_handle_ = nullptr;
 
-    this->stop_i2s_driver_();
+    // A channel the task could not bring up is rebuilt next time rather than kept
+    const bool task_failed = event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM;
+    this->stop_i2s_driver_(this->keep_alive_ && !task_failed);
     // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
     // the top of loop(): the audio source's task can raise a start at any point above, including
     // during stop_i2s_driver_(), and nothing would ever re-issue it.
@@ -134,8 +136,8 @@ void I2SAudioSpeakerBase::loop() {
         break;
       }
 
-      // Still starting up or winding down from a previous run
-      if ((this->tx_handle_ != nullptr) || (this->speaker_task_handle_ != nullptr)) {
+      // Still starting up or winding down from a previous run; a kept channel with no task is ready for reuse
+      if ((this->speaker_task_handle_ != nullptr) || (this->tx_handle_ != nullptr && !this->keep_alive_)) {
         break;
       }
 
@@ -155,7 +157,7 @@ void I2SAudioSpeakerBase::loop() {
       if (this->speaker_task_handle_ == nullptr) {
         ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
         this->status_momentary_error(1000);
-        this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
+        this->stop_i2s_driver_(false);  // Stops the driver to return the lock; will be reloaded in next attempt
       }
       break;
     case speaker::STATE_RUNNING:   // Intentional fallthrough
@@ -303,10 +305,10 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
   return ESP_OK;
 }
 
-void I2SAudioSpeakerBase::stop_i2s_driver_() {
+void I2SAudioSpeakerBase::stop_i2s_driver_(bool keep_channel) {
   if (this->tx_handle_ != nullptr) {
     i2s_channel_disable(this->tx_handle_);
-    if (this->keep_alive_) {
+    if (keep_channel) {
       // Leave the channel allocated so the next start skips i2s_new_channel and i2s_channel_init_std_mode,
       // whose GPIO and clock reconfiguration is the audible pop. The callback must be cleared while the
       // channel is disabled, and the queues drained so the next preload starts empty.
