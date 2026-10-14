@@ -86,7 +86,7 @@ void MQTTClientComponent::setup() {
         static_topic("esphome/discover"),
         [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
 
-    // "esphome/ping/" + name fits the buffer; ESPHOME_DEVICE_NAME_MAX_LEN is far below MQTT_DEFAULT_TOPIC_MAX_LEN
+    static_assert(sizeof("esphome/ping/") + ESPHOME_DEVICE_NAME_MAX_LEN <= MQTT_DEFAULT_TOPIC_MAX_LEN);
     MQTTTopicSource ping_topic{[](const void *, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
                                  size_t len = buf_append_printf(buf.data(), buf.size(), 0, "esphome/ping/%s",
                                                                 App.get_name().c_str());
@@ -445,6 +445,12 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   }
   return ret != 0;
 }
+// Out of line so the topic buffer is not part of loop()'s stack frame
+__attribute__((noinline)) bool MQTTClientComponent::subscribe_topic_(const MQTTTopicSource &topic, uint8_t qos) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->subscribe_(topic.build(buf).c_str(), qos);
+}
+
 void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   if (sub->subscribed)
     return;
@@ -453,8 +459,7 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   bool do_resub = sub->resubscribe_timeout == 0 || now - sub->resubscribe_timeout > 1000;
 
   if (do_resub) {
-    char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-    sub->subscribed = this->subscribe_(sub->topic.build(buf).c_str(), sub->qos);
+    sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;
   }
 }
@@ -474,14 +479,12 @@ static StringRef copied_topic_builder(const void *context, std::span<char, MQTT_
 
 MQTTTopicSource static_topic(const char *topic) { return {static_topic_builder, topic}; }
 
+static_assert(MQTT_DEFAULT_TOPIC_MAX_LEN == 248, "update MQTT_DEFAULT_TOPIC_MAX_LEN in mqtt/__init__.py");
+
 #ifdef USE_ESP8266
 // mqtt/__init__.py picks this source only for topics that fit
-static_assert(MQTT_DEFAULT_TOPIC_MAX_LEN == 248, "update MQTT_DEFAULT_TOPIC_MAX_LEN in mqtt/__init__.py");
 static StringRef progmem_topic_builder(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
-  const char *topic = static_cast<const char *>(context);
-  size_t len = strnlen_P(topic, buf.size() - 1);
-  memcpy_P(buf.data(), topic, len);
-  buf[len] = '\0';
+  size_t len = buf_append_str_p(buf.data(), buf.size(), 0, static_cast<const char *>(context));
   return StringRef(buf.data(), len);
 }
 
@@ -490,9 +493,10 @@ MQTTTopicSource progmem_topic(ProgmemStr topic) {
 }
 #endif
 
-MQTTTopicSource MQTTClientComponent::copy_topic(const std::string &topic) {
+MQTTTopicSource MQTTClientComponent::copy_topic(StringRef topic) {
   char *copy = new char[topic.size() + 1];  // NOLINT(cppcoreguidelines-owning-memory)
-  memcpy(copy, topic.c_str(), topic.size() + 1);
+  memcpy(copy, topic.c_str(), topic.size());
+  copy[topic.size()] = '\0';
   return {copied_topic_builder, copy};
 }
 
@@ -674,6 +678,11 @@ static bool topic_match(const char *message, const char *subscription, bool is_n
 static bool topic_match(const char *message, const char *subscription) {
   return topic_match(message, subscription, *message != '\0' && *message != '$', false);
 }
+// Out of line so the topic buffer is off the stack while the matched callback runs
+__attribute__((noinline)) static bool topic_matches(const char *message, const MQTTTopicSource &topic) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return topic_match(message, topic.build(buf).c_str());
+}
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
 #ifdef USE_ESP8266
@@ -703,10 +712,9 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
     const bool was_dispatching = this->dispatching_;
     this->dispatching_ = true;
     const size_t count = this->subscriptions_.size();
-    char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
     for (size_t i = 0; i < count; i++) {
       const auto &subscription = this->subscriptions_[i];
-      if (!subscription.removed && topic_match(topic.c_str(), subscription.topic.build(buf).c_str()))
+      if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
         subscription.callback.call(topic, payload);
     }
     this->dispatching_ = was_dispatching;

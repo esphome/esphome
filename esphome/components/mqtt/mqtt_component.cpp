@@ -124,9 +124,11 @@ StringRef MQTTComponent::get_command_topic_to_(std::span<char, MQTT_DEFAULT_TOPI
 }
 
 MQTTTopicSource MQTTComponent::command_topic_source_() const {
-  if (this->custom_command_topic_.is_lambda())
-    return MQTTClientComponent::copy_topic(this->get_command_topic_());
-  return this->topic_source_<&MQTTComponent::get_command_topic_to_>();
+  if (this->custom_command_topic_.is_lambda()) {
+    char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+    return MQTTClientComponent::copy_topic(this->get_command_topic_to_(buf));
+  }
+  return this->topic_source_<MQTTComponent, &MQTTComponent::get_command_topic_to_>();
 }
 
 std::string MQTTComponent::get_state_topic_() const {

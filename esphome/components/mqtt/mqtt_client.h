@@ -32,7 +32,7 @@ namespace esphome::mqtt {
 
 // Max lengths for stack-based topic building.
 // These limits are enforced at Python config validation time in mqtt/__init__.py
-// using cv.Length() validators for topic_prefix and discovery_prefix.
+// using cv.Length() validators for topic_prefix.
 // This ensures the stack buffers are always large enough.
 static constexpr size_t MQTT_COMPONENT_TYPE_MAX_LEN = 20;
 static constexpr size_t MQTT_SUFFIX_MAX_LEN = 32;
@@ -41,10 +41,6 @@ static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python:
 // Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
 static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
     MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
-static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
-// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
-static constexpr size_t MQTT_DISCOVERY_TOPIC_MAX_LEN = MQTT_DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN +
-                                                       1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
 
 /** Callback for MQTT events.
  */
@@ -62,20 +58,17 @@ using mqtt_json_callback_t ESPDEPRECATED(
     "2026.11.0") = std::function<void(const std::string &, JsonObject)>;
 
 /// Returns a subscription's topic, written into buf or referring to storage that outlives the subscription.
+/// Never a null c_str(); an empty topic is "".
 using mqtt_topic_builder_t = StringRef (*)(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf);
 
 /// Where a subscription's topic comes from. The topic is rebuilt whenever it is needed, so nothing is stored.
 struct MQTTTopicSource {
   mqtt_topic_builder_t builder;
   const void *context;
-  /// The topic, never a null c_str(): an empty topic (no topic_prefix) comes back as "".
-  StringRef build(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const {
-    StringRef topic = this->builder(this->context, buf);
-    return topic.empty() ? StringRef("", 0) : topic;
-  }
+  StringRef build(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const { return this->builder(this->context, buf); }
 };
 
-/// A topic that is a string with static storage, such as a literal.
+/// A topic string that outlives the subscription, such as a literal; it is referenced, not copied.
 MQTTTopicSource static_topic(const char *topic);
 #ifdef USE_ESP8266
 /// A topic in flash, copied into the buffer when needed, so at most MQTT_DEFAULT_TOPIC_MAX_LEN - 1 characters.
@@ -236,39 +229,31 @@ class MQTTClientComponent final : public Component {
    * @param qos The QoS of this subscription.
    */
   template<typename F> void subscribe(const std::string &topic, F &&callback, uint8_t qos = 0) {
-    this->subscribe(copy_topic(topic), std::forward<F>(callback), qos);
+    this->subscribe(copy_topic(StringRef(topic)), std::forward<F>(callback), qos);
   }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
    * If an invalid JSON payload is received, the callback will not be called.
    *
-   * @param topic Where the topic comes from; it is rebuilt when needed instead of stored.
+   * @param topic An MQTTTopicSource, or a string that is copied to the heap.
    * @param callback The callback with a parsed JsonObject that will be called when a message with matching topic is
    * received.
    * @param qos The QoS of this subscription.
    */
-  template<typename F> void subscribe_json(MQTTTopicSource topic, F &&callback, uint8_t qos = 0) {
+  template<typename T, typename F> void subscribe_json(T &&topic, F &&callback, uint8_t qos = 0) {
     static_assert(std::is_invocable_v<const std::decay_t<F> &, const std::string &, JsonObject>,
                   "subscribe_json() needs a callback that does not mutate its captures");
     this->subscribe(
-        topic,
+        std::forward<T>(topic),
         [cb = std::forward<F>(callback)](const std::string &topic, const std::string &payload) {
           call_json(cb, topic, payload);
         },
         qos);
   }
 
-  /** Subscribe to a MQTT topic and automatically parse JSON payload.
-   *
-   * The topic is copied to the heap and freed by unsubscribe().
-   */
-  template<typename F> void subscribe_json(const std::string &topic, F &&callback, uint8_t qos = 0) {
-    this->subscribe_json(copy_topic(topic), std::forward<F>(callback), qos);
-  }
-
   /// A heap copy of topic, freed when its subscription is erased.
-  static MQTTTopicSource copy_topic(const std::string &topic);
+  static MQTTTopicSource copy_topic(StringRef topic);
 
   /** Unsubscribe from an MQTT topic.
    *
@@ -372,6 +357,7 @@ class MQTTClientComponent final : public Component {
   void recalculate_availability_();
 
   bool subscribe_(const char *topic, uint8_t qos);
+  bool subscribe_topic_(const MQTTTopicSource &topic, uint8_t qos);
   void resubscribe_subscription_(MQTTSubscription *sub);
   template<typename F> static void call_json(const F &callback, const std::string &topic, const std::string &payload) {
     JsonDocument doc = json::parse_json(payload);

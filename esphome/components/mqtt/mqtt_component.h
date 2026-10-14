@@ -23,9 +23,11 @@ struct SendDiscoveryConfig {
 
 class MQTTComponent;  // Forward declaration
 
-/// The class a `get_*_topic_to` getter belongs to, for topic_source_().
-template<typename T> struct MemberClass;
-template<typename C, typename R, typename... A> struct MemberClass<R (C::*)(A...) const> { using type = C; };
+// Validated in Python: cv.Length(max=64), DISCOVERY_PREFIX_MAX_LEN in mqtt/__init__.py
+static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;
+// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
+static constexpr size_t MQTT_DISCOVERY_TOPIC_MAX_LEN = MQTT_DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN +
+                                                       1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
 
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
 
@@ -55,7 +57,7 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
   } \
   MQTTTopicSource get_##name##_##type##_topic_source() const { \
     using Self = std::remove_cvref_t<decltype(*this)>; \
-    return this->topic_source_<&Self::get_##name##_##type##_topic_to>(); \
+    return this->topic_source_<Self, &Self::get_##name##_##type##_topic_to>(); \
   } \
   std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
@@ -320,8 +322,8 @@ class MQTTComponent : public Component {
   MQTTTopicSource command_topic_source_() const;
 
   /// A topic built by one of this component's `get_*_topic_to` getters, rebuilt when needed.
-  template<auto Getter> MQTTTopicSource topic_source_() const {
-    using C = typename MemberClass<decltype(Getter)>::type;
+  template<typename C, StringRef (C::*Getter)(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN>) const>
+  MQTTTopicSource topic_source_() const {
     return {[](const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
               return (static_cast<const C *>(context)->*Getter)(buf);
             },

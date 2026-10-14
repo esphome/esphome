@@ -81,10 +81,12 @@ CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
-# in mqtt_component.cpp can safely use fixed-size stack buffers without overflow.
-# If you change these, update the corresponding constants in mqtt_component.cpp.
+# can safely use fixed-size stack buffers without overflow. If you change these,
+# update the corresponding constants in mqtt_client.h and mqtt_component.h.
 TOPIC_PREFIX_MAX_LEN = 64  # Default is device name, typically short
 DISCOVERY_PREFIX_MAX_LEN = 64  # Default is "homeassistant" (13 chars)
+# Size of the stack buffer topics are built into (static_assert in mqtt_client.cpp)
+MQTT_DEFAULT_TOPIC_MAX_LEN = 248
 
 
 def validate_message_just_topic(value):
@@ -114,8 +116,6 @@ MQTT_MESSAGE_SCHEMA = cv.Any(
 )
 
 mqtt_ns = cg.esphome_ns.namespace("mqtt")
-# Size of the stack buffer topics are built into, MQTT_DEFAULT_TOPIC_MAX_LEN in mqtt_client.h
-MQTT_DEFAULT_TOPIC_MAX_LEN = 248
 
 
 def _topic_source(topic: str) -> cg.MockObj:
