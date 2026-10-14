@@ -131,6 +131,7 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
 void ESP32Preferences::open() {
   // Runs from app_main() before the logger is initialized; any logging here
   // must be deferred. See s_open_err and make_preference() below.
+  // Components that need NVS check nvs_handle instead of initializing it again.
   nvs_flash_init();
   esp_err_t err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
   if (err == 0)
