@@ -362,6 +362,13 @@ void TMC22XXStepper::set_enabled(bool enabled) {
   this->enabled_ = enabled;
 }
 
+void TMC22XXStepper::set_toff(uint8_t toff) {
+  this->toff_ = toff;
+  // Without an ENN pin, TOFF=0 is what keeps the outputs disabled
+  if (this->enabled_ || this->enn_pin_ != nullptr)
+    this->write_field(TOFF, toff);
+}
+
 void TMC22XXStepper::set_microsteps(uint16_t microsteps) {
   for (uint8_t mres = 0; mres <= 8; mres++) {
     if ((256u >> mres) == microsteps) {
