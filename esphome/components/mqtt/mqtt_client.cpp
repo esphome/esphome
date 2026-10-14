@@ -86,9 +86,10 @@ void MQTTClientComponent::setup() {
           static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
         });
 #ifdef USE_MQTT_CRASH_LOG
-    // `esphome logs` announces itself here, like an API client's log subscription. A log topic that drops
-    // errors would swallow the replay, and the ESP32 clears the record once replayed, so it is not offered.
-    // The topic is rebuilt from the device name when needed, so nothing is stored for it.
+    // `esphome logs` announces itself here, like an API client's log subscription, and the record stays
+    // loggable until the next boot, so the offer does too. A log topic that drops errors would swallow the
+    // replay, so it is not offered. The topic is rebuilt from the device name when needed, so nothing is
+    // stored for it.
     this->crash_log_offered_ = logger::crash_log_pending() && this->log_level_ >= ESPHOME_LOG_LEVEL_ERROR;
 #endif
   }
@@ -238,9 +239,6 @@ void MQTTClientComponent::start_dnslookup_() {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
-#ifdef USE_MQTT_CRASH_LOG
-  this->crash_log_subscribed_ = false;
-#endif
 
   this->status_set_warning();
   this->dns_resolve_error_ = false;
@@ -366,6 +364,14 @@ void MQTTClientComponent::check_connected() {
   delay(100);  // NOLINT
 
   this->resubscribe_subscriptions_();
+#ifdef USE_MQTT_CRASH_LOG
+  // Best effort: a refused subscription is tried again at the next connection
+  if (this->crash_log_offered_) {
+    char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+    format_esphome_topic(topic, "logs");
+    this->subscribe_(topic, 0);
+  }
+#endif
   this->send_device_info_();
 
   for (MQTTComponent *component : this->children_)
@@ -471,14 +477,20 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
   for (auto &subscription : this->subscriptions_) {
     this->resubscribe_subscription_(&subscription);
   }
-#ifdef USE_MQTT_CRASH_LOG
-  if (this->crash_log_offered_ && !this->crash_log_subscribed_ && logger::crash_log_pending()) {
-    char topic[ESPHOME_TOPIC_BUFFER_SIZE];
-    format_esphome_topic(topic, "logs");
-    this->crash_log_subscribed_ = this->subscribe_(topic, 0);
-  }
-#endif
 }
+
+#ifdef USE_MQTT_CRASH_LOG
+void MQTTClientComponent::handle_crash_log_request_(const std::string &topic, const std::string &payload) {
+  // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
+  // log for every line it logs
+  if (!this->crash_log_offered_ || !payload.empty())
+    return;
+  char logs_topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(logs_topic, "logs");
+  if (topic == logs_topic)
+    logger::log_crash_to_client();
+}
+#endif
 
 void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed,
                                             uint8_t qos) {
@@ -679,20 +691,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   this->defer([this, topic, payload]() {
 #endif
 #ifdef USE_MQTT_CRASH_LOG
-    // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
-    // log for every line it logs
-    if (this->crash_log_offered_ && payload.empty()) {
-      char logs_topic[ESPHOME_TOPIC_BUFFER_SIZE];
-      format_esphome_topic(logs_topic, "logs");
-      if (topic == logs_topic) {
-        logger::log_crash_to_client();
-        // Once the record is gone there is nothing left to offer
-        if (!logger::crash_log_pending()) {
-          this->crash_log_offered_ = false;
-          this->mqtt_backend_.unsubscribe(logs_topic);
-        }
-      }
-    }
+    this->handle_crash_log_request_(topic, payload);
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.

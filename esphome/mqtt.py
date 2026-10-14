@@ -322,15 +322,13 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         return 1
     _LOGGER.info("Starting log output from %s", topic)
 
-    name = config[CONF_ESPHOME][CONF_NAME]
-    logs_topic = f"esphome/logs/{name}"
-    # The retained birth message says whether the device is online now and again after every boot,
-    # so the crash log is requested from it; a request sent while the device is down would be lost
+    logs_topic = f"esphome/logs/{config[CONF_ESPHOME][CONF_NAME]}"
+    # Ask when the retained birth message reports online: a request sent while the device is down is
+    # lost, and only a retained message tells a CLI that connects later that the device is already up
     birth = config.get(CONF_MQTT, {}).get(CONF_BIRTH_MESSAGE) or {}
     birth_topic = birth.get(CONF_TOPIC)
     birth_payload = birth.get(CONF_PAYLOAD)
-    # Only a retained birth message tells a CLI that connects later that the device is already up
-    ask_on_connect = birth_topic is None or not birth.get(CONF_RETAIN, True)
+    ask_on_connect = birth_topic is None or not birth[CONF_RETAIN]
 
     def request_crash_log(client):
         _LOGGER.debug("Requesting the crash log via topic: %s", logs_topic)
@@ -338,14 +336,16 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
 
     def on_message(client, userdata, msg):
         payload = msg.payload.decode(errors="backslashreplace")
-        if msg.topic == birth_topic:
-            if payload == birth_payload:
-                request_crash_log(client)
-            return
         time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         safe_print(time_ + payload)
 
+    def on_birth(client, userdata, msg):
+        if msg.payload.decode(errors="backslashreplace") == birth_payload:
+            request_crash_log(client)
+
     def on_connect(client, userdata, flags, return_code):
+        if birth_topic is not None:
+            client.message_callback_add(birth_topic, on_birth)
         if ask_on_connect:
             request_crash_log(client)
 

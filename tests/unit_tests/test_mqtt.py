@@ -23,23 +23,33 @@ from esphome.core import EsphomeError
 from esphome.mqtt import get_esphome_device_ip, show_logs
 
 
+@pytest.mark.parametrize(
+    "birth",
+    [
+        None,
+        {CONF_TOPIC: "test-device/status", CONF_PAYLOAD: "online", CONF_RETAIN: False},
+    ],
+    ids=["no birth message", "unretained birth message"],
+)
 @patch("esphome.mqtt.initialize")
-def test_show_logs_informs_device(mock_initialize: MagicMock) -> None:
-    """Test that a logs client informs the device."""
-    config = {
-        CONF_MQTT: {CONF_BROKER: "mqtt.local"},
-        CONF_ESPHOME: {CONF_NAME: "test-device"},
-    }
+def test_show_logs_asks_on_connect(
+    mock_initialize: MagicMock, birth: dict | None
+) -> None:
+    """Without a retained birth message nothing tells a later CLI the device is up, so it asks on connect."""
+    config = _discovery_config()
+    if birth is not None:
+        config[CONF_MQTT][CONF_BIRTH_MESSAGE] = birth
 
     show_logs(config)
 
-    assert mock_initialize.call_args.args[1] == ["test-device/debug"]
     on_connect = mock_initialize.call_args.args[3]
     client = MagicMock()
     on_connect(client, None, None, 0)
     client.publish.assert_called_once_with(
         "esphome/logs/test-device", None, retain=False
     )
+    if birth is None:
+        assert mock_initialize.call_args.args[1] == ["test-device/debug"]
 
 
 @patch("esphome.mqtt.safe_print")
@@ -47,16 +57,12 @@ def test_show_logs_informs_device(mock_initialize: MagicMock) -> None:
 def test_show_logs_requests_crash_log_when_device_reports_online(
     mock_initialize: MagicMock, mock_print: MagicMock
 ) -> None:
-    """With a birth message the request follows the device coming online, not the CLI connecting."""
-    config = {
-        CONF_MQTT: {
-            CONF_BROKER: "mqtt.local",
-            CONF_BIRTH_MESSAGE: {
-                CONF_TOPIC: "test-device/status",
-                CONF_PAYLOAD: "online",
-            },
-        },
-        CONF_ESPHOME: {CONF_NAME: "test-device"},
+    """With a retained birth message the request follows the device coming online, not the CLI connecting."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
     }
 
     show_logs(config)
@@ -70,10 +76,13 @@ def test_show_logs_requests_crash_log_when_device_reports_online(
     client = MagicMock()
     on_connect(client, None, None, 0)
     client.publish.assert_not_called()
+    client.message_callback_add.assert_called_once()
+    assert client.message_callback_add.call_args.args[0] == "test-device/status"
+    on_birth = client.message_callback_add.call_args.args[1]
 
-    on_message(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
+    on_birth(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
     client.publish.assert_not_called()
-    on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
+    on_birth(client, None, MagicMock(topic="test-device/status", payload=b"online"))
     client.publish.assert_called_once_with(
         "esphome/logs/test-device", None, retain=False
     )
@@ -422,31 +431,4 @@ def test_get_esphome_device_ip_invalid_address_values_skipped(
     assert caplog.text.count("Ignoring invalid address in discovery answer") == 2
     assert "forged" not in "".join(
         r.getMessage() for r in caplog.records if "Found IP" in r.getMessage()
-    )
-
-
-@patch("esphome.mqtt.initialize")
-def test_show_logs_asks_on_connect_without_a_retained_birth_message(
-    mock_initialize: MagicMock,
-) -> None:
-    """A birth message that is not retained cannot tell a later CLI the device is up."""
-    config = {
-        CONF_MQTT: {
-            CONF_BROKER: "mqtt.local",
-            CONF_BIRTH_MESSAGE: {
-                CONF_TOPIC: "test-device/status",
-                CONF_PAYLOAD: "online",
-                CONF_RETAIN: False,
-            },
-        },
-        CONF_ESPHOME: {CONF_NAME: "test-device"},
-    }
-
-    show_logs(config)
-
-    on_connect = mock_initialize.call_args.args[3]
-    client = MagicMock()
-    on_connect(client, None, None, 0)
-    client.publish.assert_called_once_with(
-        "esphome/logs/test-device", None, retain=False
     )

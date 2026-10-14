@@ -321,6 +321,9 @@ class MQTTClientComponent final : public Component {
     callback(topic, doc.as<JsonObject>());
   }
   void erase_removed_subscriptions_();
+#ifdef USE_MQTT_CRASH_LOG
+  void handle_crash_log_request_(const std::string &topic, const std::string &payload);
+#endif
   void add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
   void resubscribe_subscriptions_();
 
@@ -364,6 +367,9 @@ class MQTTClientComponent final : public Component {
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
   bool enable_on_boot_{true};
+#ifdef USE_MQTT_CRASH_LOG
+  bool crash_log_offered_{false};
+#endif
   std::vector<MQTTComponent *> children_;
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
@@ -375,10 +381,6 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
-#ifdef USE_MQTT_CRASH_LOG
-  bool crash_log_offered_{false};
-  bool crash_log_subscribed_{false};
-#endif
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
