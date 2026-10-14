@@ -20,7 +20,7 @@ static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
 
-// RTC memory layout, with the sizes defined once in const.py and handed over by codegen:
+// RTC memory layout (sizes come from const.py through codegen):
 // - Eboot region:  RTC words 0-31   (reserved, mapped from preference offset 78-109)
 // - Normal region: RTC words 32-109 (mapped from preference offset 0-77)
 // - Crash handler: RTC words 110-127 (reserved for crash_handler.cpp backtrace data)
@@ -34,8 +34,7 @@ static constexpr uint32_t MAX_PREFERENCE_WORDS = 255;
 
 #define ESP_RTC_USER_MEM ((uint32_t *) ESP_RTC_USER_MEM_START)
 
-// With restore_from_flash every preference goes here; without it only the explicit flash ones do,
-// so codegen hands over a smaller size (const.py).
+// Smaller without restore_from_flash, when only explicit flash preferences live here
 static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = ESP8266_PREFERENCES_FLASH_WORDS;
 
 static uint32_t

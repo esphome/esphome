@@ -24,10 +24,8 @@ KEY_LDSCRIPT = "ldscript"
 # Crash-decode tools, resolved once per run by __init__
 KEY_DECODE_TOOLS = "decode_tools"
 
-# Space for saved settings, in 4-byte words. Codegen hands these to preferences.cpp as defines, so this is the
-# only place they are written down. RTC memory has two regions that one saved value cannot span, the normal one
-# and the one eboot also uses; crash_handler.cpp keeps the last 18 of the 128 RTC words. The flash store holds
-# every saved value with restore_from_flash and only the explicit ones without, so it is smaller then.
+# Saved-settings space in 4-byte words; preferences.cpp gets these as defines. A value cannot span the two
+# RTC regions, and the flash store is smaller when only explicit flash preferences use it.
 PREFERENCES_RTC_NORMAL_WORDS = 78
 PREFERENCES_RTC_EBOOT_WORDS = 32
 PREFERENCES_FLASH_WORDS = 128
@@ -35,16 +33,12 @@ PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE = 64
 
 
 def preference_words(value_bytes: int) -> int:
-    """Words one saved value of this size takes, including its checksum word."""
+    """Words a saved value takes, checksum word included."""
     return (value_bytes + 3) // 4 + 1
 
 
 def preference_slots(value_bytes: int, restore_from_flash: bool) -> int:
-    """How many saved values of this size fit when every slot holds one of them.
-
-    With restore_from_flash they all go to the flash store; otherwise they go to RTC memory, where a value
-    cannot straddle the two regions.
-    """
+    """How many values of this size fit, given where restore_from_flash sends them."""
     words = preference_words(value_bytes)
     regions = (
         (PREFERENCES_FLASH_WORDS,)

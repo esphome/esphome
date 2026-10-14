@@ -471,7 +471,7 @@ async def to_code(config: ConfigType) -> None:
     # Other projects like Tasmota & ESPEasy also use this
     cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
 
-    # Saved-settings layout, written down once in const.py and read by preferences.cpp
+    # Saved-settings layout from const.py, read by preferences.cpp
     cg.add_define("ESP8266_PREFERENCES_RTC_NORMAL_WORDS", PREFERENCES_RTC_NORMAL_WORDS)
     cg.add_define("ESP8266_PREFERENCES_RTC_EBOOT_WORDS", PREFERENCES_RTC_EBOOT_WORDS)
     if config[CONF_RESTORE_FROM_FLASH]:
