@@ -104,8 +104,14 @@ def is_in_flash(value: str) -> bool:
     return in_flash
 
 
-def reserve_preferences(count: int, value_bytes: int, in_flash: bool = False) -> None:
-    """Reserve saved values from to_code so a platform with a small store can check they all fit."""
+def reserve_preferences(
+    count: int, value_bytes: int, in_flash: bool | None = None
+) -> None:
+    """Reserve saved values from to_code so a platform with a small store can check they all fit.
+
+    in_flash is the value's own storage (is_in_flash(config[CONF_STORAGE])); leave it None for a
+    component that calls the two-argument make_preference() and takes the platform default.
+    """
     if CORE.is_esp8266:
         from esphome.components.esp8266.const import reserve_preferences as reserve
 

@@ -52,8 +52,16 @@ def preference_words(value_bytes: int) -> int:
     return (value_bytes + 3) // 4 + 1
 
 
-def reserve_preferences(count: int, value_bytes: int, in_flash: bool = False) -> None:
-    """Record saved values a component creates; check_preferences_fit() adds them all up."""
+def reserve_preferences(
+    count: int, value_bytes: int, in_flash: bool | None = None
+) -> None:
+    """Record saved values a component creates; check_preferences_fit() adds them all up.
+
+    in_flash is the value's own storage, as passed to make_preference(); None is the two-argument
+    form, which follows restore_from_flash.
+    """
+    if in_flash is None:
+        in_flash = CORE.config[KEY_ESP8266][CONF_RESTORE_FROM_FLASH]
     reservations = CORE.data.setdefault(KEY_ESP8266, {}).setdefault(KEY_PREFERENCES, [])
     reservations.extend([(preference_words(value_bytes), in_flash)] * count)
 
@@ -75,15 +83,12 @@ def _rtc_values_can_split(values: list[int]) -> bool:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def check_preferences_fit() -> None:
     """Fail the build when the reserved saved values cannot fit the space preferences.cpp has."""
-    restore_from_flash = CORE.config[KEY_ESP8266][CONF_RESTORE_FROM_FLASH]
-    flash_store = preferences_flash_words(restore_from_flash)
-    reservations = CORE.data[KEY_ESP8266].get(KEY_PREFERENCES, [])
-    flash_words = sum(
-        w for w, in_flash in reservations if in_flash or restore_from_flash
+    flash_store = preferences_flash_words(
+        CORE.config[KEY_ESP8266][CONF_RESTORE_FROM_FLASH]
     )
-    rtc_values = [
-        w for w, in_flash in reservations if not (in_flash or restore_from_flash)
-    ]
+    reservations = CORE.data[KEY_ESP8266].get(KEY_PREFERENCES, [])
+    flash_words = sum(w for w, in_flash in reservations if in_flash)
+    rtc_values = [w for w, in_flash in reservations if not in_flash]
     if flash_words > flash_store:
         raise EsphomeError(
             f"Saved values need {flash_words} words but the ESP8266 flash store has {flash_store}; "

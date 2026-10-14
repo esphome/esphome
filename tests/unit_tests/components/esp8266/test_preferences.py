@@ -42,14 +42,17 @@ def test_preference_words_rounds_up_and_adds_the_checksum(
         # 25 words each: 3 in the 78-word region and 1 in the 32-word one
         (False, False, 4, "RTC memory has 110"),
         # 125 of 128 flash words
-        (True, False, 5, "flash store has 128"),
+        (False, None, 4, "RTC memory has 110"),
+        # an explicit RTC value stays in RTC whatever restore_from_flash says
+        (True, False, 4, "RTC memory has 110"),
+        (True, None, 5, "flash store has 128"),
         (True, True, 5, "flash store has 128"),
         # explicit flash values without restore_from_flash use the 64-word store
         (False, True, 2, "flash store has 64"),
     ],
 )
 def test_reservations_add_up_against_the_store_they_land_in(
-    restore_from_flash: bool, in_flash: bool, fitting: int, match: str
+    restore_from_flash: bool, in_flash: bool | None, fitting: int, match: str
 ) -> None:
     CORE.config[KEY_ESP8266]["restore_from_flash"] = restore_from_flash
     reserve_preferences(fitting - 1, 94, in_flash)  # one component
