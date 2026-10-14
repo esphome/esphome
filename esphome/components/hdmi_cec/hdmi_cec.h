@@ -66,6 +66,7 @@ template<size_t SIZE> class FrameRingBuffer {
   ESPHOME_ALWAYS_INLINE void pop_front() { this->advance_(this->front_inx_); }
   ESPHOME_ALWAYS_INLINE Frame *back() { return this->count_() == SIZE ? nullptr : this->slot_(this->back_inx_); }
   ESPHOME_ALWAYS_INLINE void push_back() { this->advance_(this->back_inx_); }
+  ESPHOME_ALWAYS_INLINE bool is_empty() const { return this->count_() == 0; }
 
  protected:
   ESPHOME_ALWAYS_INLINE uint8_t count_() const {
@@ -88,7 +89,7 @@ class CECTransmit {
   void setup(ISRInternalGPIOPin isr_pin);
   ISRInternalGPIOPin isr_pin() const { return this->isr_pin_; }
   bool queue_for_send(uint8_t source, uint8_t destination, std::span<const uint8_t> payload);
-  bool is_idle() const { return !this->transmitting_ && this->send_queue_.front() == nullptr; }
+  bool is_idle() const { return !this->transmitting_ && this->send_queue_.is_empty(); }
   /// Finish the previous attempt and send the frame at the front of the queue; called from loop()
   void transmit_message();
 
@@ -99,8 +100,8 @@ class CECTransmit {
   void send_ack();
 
  protected:
-  ESPHOME_ALWAYS_INLINE void set_pin_input_high() { this->isr_pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
-  ESPHOME_ALWAYS_INLINE void set_pin_output_low() {
+  ESPHOME_ALWAYS_INLINE void set_pin_input_high_() { this->isr_pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
+  ESPHOME_ALWAYS_INLINE void set_pin_output_low_() {
     this->isr_pin_.pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
     this->isr_pin_.digital_write(false);
   }

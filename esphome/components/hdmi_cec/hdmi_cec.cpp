@@ -88,7 +88,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, std::span<const uint8_t>
 
 void CECTransmit::setup(ISRInternalGPIOPin isr_pin) {
   this->isr_pin_ = isr_pin;
-  this->set_pin_input_high();
+  this->set_pin_input_high_();
 }
 
 bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, std::span<const uint8_t> payload) {
@@ -195,10 +195,10 @@ bool CECTransmit::send_start_bit_() {
     ESP_LOGD(TAG, "Bus occupied before start bit on attempt %u", this->transmit_attempts_);
     return false;
   }
-  this->set_pin_output_low();
+  this->set_pin_output_low_();
   delay_microseconds_safe(START_BIT_NOM_US);
   // Release the line and check that nobody else keeps it low
-  this->set_pin_input_high();
+  this->set_pin_input_high_();
   delay_microseconds_safe(START_BIT_HIGH_US / 2);
   bool value = this->isr_pin_.digital_read();
   delay_microseconds_safe(START_BIT_HIGH_US / 2);
@@ -211,17 +211,17 @@ bool CECTransmit::send_start_bit_() {
 
 void CECTransmit::send_bit_(bool bit_value) {
   const uint32_t low_duration_us = bit_value ? HIGH_BIT_US : LOW_BIT_US;
-  this->set_pin_output_low();
+  this->set_pin_output_low_();
   delay_microseconds_safe(low_duration_us);
-  this->set_pin_input_high();
+  this->set_pin_input_high_();
   delay_microseconds_safe(TOTAL_BIT_US - low_duration_us);
 }
 
 bool CECTransmit::send_high_and_test_() {
   const uint32_t start_us = micros();
-  this->set_pin_output_low();
+  this->set_pin_output_low_();
   delay_microseconds_safe(HIGH_BIT_US);
-  this->set_pin_input_high();
+  this->set_pin_input_high_();
   // Sample in the middle of the safe sample period: a line still low means another initiator
   // is sending a logical 0 at the same time
   uint32_t elapsed = micros() - start_us;
@@ -239,9 +239,9 @@ bool CECTransmit::send_high_and_test_() {
 void IRAM_ATTR CECTransmit::send_ack() {
   // Runs in the receive interrupt. Holding the line keeps other interrupts waiting for 1.5 ms,
   // but the acknowledge has to start right at this falling edge.
-  this->set_pin_output_low();
+  this->set_pin_output_low_();
   delay_microseconds_safe(LOW_BIT_US);
-  this->set_pin_input_high();
+  this->set_pin_input_high_();
 }
 
 void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
