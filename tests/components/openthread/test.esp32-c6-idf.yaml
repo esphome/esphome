@@ -9,3 +9,5 @@ openthread:
   pskc: 0xc23a76e98f1a6483639b1ac1271e2e27
   mesh_local_prefix: fd53:145f:ed22:ad81::/64
   output_power: 1dBm
+  core_options:
+    OPENTHREAD_CONFIG_MAC_DEFAULT_MAX_FRAME_RETRIES_DIRECT: "5"
