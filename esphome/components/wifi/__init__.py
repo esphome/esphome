@@ -544,7 +544,10 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     if not isinstance(value, dict):
         value = {CONF_ENABLED: value}
     value = LEASE_CACHE_SCHEMA(value)
-    if value[CONF_ENABLED]:
+    if value[CONF_ENABLED] and CORE.is_zephyr:
+        # Zephyr has no RTC preferences
+        value.setdefault(CONF_STORAGE, preferences.STORAGE_FLASH)
+    elif value[CONF_ENABLED]:
         cv.only_on_esp32(value)
         cv.only_with_framework(Framework.ESP_IDF)(value)
         if CONF_STORAGE not in value:
@@ -870,6 +873,8 @@ async def to_code(config):
         if blob_spec := variant.transport_blobs.get("wifi"):
             zephyr_add_blobs(*blob_spec)
         zephyr_add_prj_conf("NET_DHCPV4", True)
+        if config[CONF_LEASE_CACHE][CONF_ENABLED]:
+            zephyr_add_prj_conf("NET_DHCPV4_INIT_REBOOT", True)
         # The driver's own DHCP start overrides manual_ip and, on ESP32, holds
         # CONNECT_RESULT until a lease binds -- wifi_component_zephyr.cpp starts it.
         zephyr_add_prj_conf("WIFI_STA_AUTO_DHCPV4", False)

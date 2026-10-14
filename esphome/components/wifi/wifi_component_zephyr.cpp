@@ -590,6 +590,33 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() {
   return ipv4_to_ip_address(net_if_ipv4_get_netmask_by_addr(sta_iface, &first.addr));
 }
 
+#ifdef USE_WIFI_LEASE_CACHE
+// Only the address is kept: it seeds DHCPv4 INIT-REBOOT and the server confirms it.
+bool WiFiComponent::lease_valid_for_apply_() const {
+  const SavedWifiLeaseSettings &lease = this->cached_lease_;
+  return lease.version == SAVED_WIFI_LEASE_VERSION && this->selected_sta_index_ >= 0 &&
+         lease.ap_index == this->selected_sta_index_;
+}
+
+void WiFiComponent::save_lease_settings_() {
+  if (g_sta_manual_ip || sta_iface == nullptr)
+    return;
+  FirstIpv4 first;
+  net_if_ipv4_addr_foreach(sta_iface, first_ipv4, &first);
+  if (!first.found)
+    return;
+  SavedWifiLeaseSettings lease{};
+  lease.version = SAVED_WIFI_LEASE_VERSION;
+  lease.ap_index = this->selected_sta_index_;
+  lease.ip = first.addr.s_addr;
+  if (memcmp(&lease, &this->cached_lease_, sizeof(lease)) == 0)
+    return;  // unchanged; spare the flash
+  this->lease_cache_pref_.save(&lease);
+  this->cached_lease_ = lease;
+  ESP_LOGD(TAG, "Lease cache: saved address (network %d)", lease.ap_index);
+}
+#endif
+
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   if (sta_iface == nullptr) {
     return {};
@@ -623,6 +650,16 @@ bool WiFiComponent::wifi_loop_() {
 #endif
 #endif
           } else {
+#ifdef USE_WIFI_LEASE_CACHE
+            if (this->lease_valid_for_apply_()) {
+              in_addr hint{};
+              hint.s_addr = this->cached_lease_.ip;
+              // Fails with -EBUSY if the client still runs; it then remembers the address itself
+              if (net_dhcpv4_set_reboot_hint(sta_iface, &hint) == 0) {
+                ESP_LOGD(TAG, "Lease cache: requesting the cached address");
+              }
+            }
+#endif
             net_dhcpv4_start(sta_iface);
           }
           // Deferred from setup() -- the driver wasn't started yet at that point (see
@@ -691,6 +728,9 @@ bool WiFiComponent::wifi_loop_() {
       case ZephyrWiFiEvent::Type::IPV4_ADDR_ADD:
 #if USE_NETWORK_IPV4
         this->got_ipv4_address_ = true;
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+        this->save_lease_settings_();
 #endif
         this->update_connected_state_();
 #ifdef USE_WIFI_IP_STATE_LISTENERS
