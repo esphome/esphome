@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <queue>
 #ifdef USE_SENSOR
@@ -24,8 +25,18 @@
 namespace esphome::haier {
 
 #ifdef USE_SELECT
-extern const std::vector<hon_protocol::HorizontalSwingMode> HORIZONTAL_SWING_MODES_ORDER;
-extern const std::vector<hon_protocol::VerticalSwingMode> VERTICAL_SWING_MODES_ORDER;
+// Positions in the order the select platform lists them
+inline constexpr std::array<hon_protocol::VerticalSwingMode, 7> VERTICAL_SWING_MODES_ORDER{
+    hon_protocol::VerticalSwingMode::HEALTH_UP,   hon_protocol::VerticalSwingMode::MAX_UP,
+    hon_protocol::VerticalSwingMode::UP,          hon_protocol::VerticalSwingMode::CENTER,
+    hon_protocol::VerticalSwingMode::DOWN,        hon_protocol::VerticalSwingMode::MAX_DOWN,
+    hon_protocol::VerticalSwingMode::HEALTH_DOWN,
+};
+inline constexpr std::array<hon_protocol::HorizontalSwingMode, 5> HORIZONTAL_SWING_MODES_ORDER{
+    hon_protocol::HorizontalSwingMode::MAX_LEFT,  hon_protocol::HorizontalSwingMode::LEFT,
+    hon_protocol::HorizontalSwingMode::CENTER,    hon_protocol::HorizontalSwingMode::RIGHT,
+    hon_protocol::HorizontalSwingMode::MAX_RIGHT,
+};
 #endif
 
 enum class CleaningState : uint8_t {
@@ -111,12 +122,11 @@ class HonClimate final : public HaierClimateBase {
 #endif
 #ifdef USE_SELECT
  public:
-  void set_vertical_airflow_select(select::Select *sel);
-  void set_horizontal_airflow_select(select::Select *sel);
+  void set_vertical_airflow_select(select::Select *sel) { this->vertical_airflow_select_ = sel; }
+  void set_horizontal_airflow_select(select::Select *sel) { this->horizontal_airflow_select_ = sel; }
 
  protected:
-  void update_vertical_airflow_select_state_();
-  void update_horizontal_airflow_select_state_();
+  void publish_airflow_selects_();
   select::Select *vertical_airflow_select_{nullptr};
   select::Select *horizontal_airflow_select_{nullptr};
 #endif
@@ -214,8 +224,9 @@ class HonClimate final : public HaierClimateBase {
   uint8_t big_data_counter_{0};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
-  esphome::optional<std::chrono::steady_clock::time_point> vertical_direction_set_time_{};
-  esphome::optional<std::chrono::steady_clock::time_point> horizontal_direction_set_time_{};
+  // millis() of the last user-set position per axis, 0 when none
+  uint32_t vertical_direction_set_time_{0};
+  uint32_t horizontal_direction_set_time_{0};
   HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
   SwitchState quiet_mode_state_{SwitchState::SWITCH_OFF};

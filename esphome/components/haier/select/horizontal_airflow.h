@@ -6,11 +6,8 @@
 namespace esphome::haier {
 
 class HorizontalAirflowSelect : public select::Select, public Parented<HonClimate> {
- public:
-  HorizontalAirflowSelect() = default;
-
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override { this->parent_->set_horizontal_airflow(HORIZONTAL_SWING_MODES_ORDER[index]); }
 };
 
 }  // namespace esphome::haier

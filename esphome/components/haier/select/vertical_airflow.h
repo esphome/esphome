@@ -6,11 +6,8 @@
 namespace esphome::haier {
 
 class VerticalAirflowSelect : public select::Select, public Parented<HonClimate> {
- public:
-  VerticalAirflowSelect() = default;
-
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override { this->parent_->set_vertical_airflow(VERTICAL_SWING_MODES_ORDER[index]); }
 };
 
 }  // namespace esphome::haier

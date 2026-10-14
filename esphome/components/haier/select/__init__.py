@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
+from esphome.types import ConfigType
 
 from ..climate import (
     CONF_HAIER_ID,
@@ -15,10 +16,7 @@ CODEOWNERS = ["@paveldn"]
 VerticalAirflowSelect = haier_ns.class_("VerticalAirflowSelect", select.Select)
 HorizontalAirflowSelect = haier_ns.class_("HorizontalAirflowSelect", select.Select)
 
-# Additional icons
-ICON_ARROW_HORIZONTAL = "mdi:arrow-expand-horizontal"
-ICON_ARROW_VERTICAL = "mdi:arrow-expand-vertical"
-
+# Same order as VERTICAL_SWING_MODES_ORDER and HORIZONTAL_SWING_MODES_ORDER in hon_climate.h
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = [
     "Health Up",
     "Max Up",
@@ -42,31 +40,28 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_HAIER_ID): cv.use_id(HonClimate),
         cv.Optional(CONF_VERTICAL_AIRFLOW): select.select_schema(
             VerticalAirflowSelect,
-            icon=ICON_ARROW_VERTICAL,
+            icon="mdi:arrow-expand-vertical",
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_HORIZONTAL_AIRFLOW): select.select_schema(
             HorizontalAirflowSelect,
-            icon=ICON_ARROW_HORIZONTAL,
+            icon="mdi:arrow-expand-horizontal",
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
     }
 )
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_HAIER_ID])
-
-    if conf := config.get(CONF_VERTICAL_AIRFLOW):
-        sel_var = await select.new_select(
-            conf, options=AIRFLOW_VERTICAL_DIRECTION_OPTIONS
-        )
-        await cg.register_parented(sel_var, parent)
-        cg.add(getattr(parent, f"set_{CONF_VERTICAL_AIRFLOW}_select")(sel_var))
-
-    if conf := config.get(CONF_HORIZONTAL_AIRFLOW):
-        sel_var = await select.new_select(
-            conf, options=AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS
-        )
-        await cg.register_parented(sel_var, parent)
-        cg.add(getattr(parent, f"set_{CONF_HORIZONTAL_AIRFLOW}_select")(sel_var))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_HAIER_ID])
+    selects = select.sub_selects(config, parent=hub)
+    await selects(
+        CONF_VERTICAL_AIRFLOW,
+        hub.set_vertical_airflow_select,
+        options=AIRFLOW_VERTICAL_DIRECTION_OPTIONS,
+    )
+    await selects(
+        CONF_HORIZONTAL_AIRFLOW,
+        hub.set_horizontal_airflow_select,
+        options=AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS,
+    )
