@@ -6,6 +6,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Cossid"]
+DOMAIN = "sm10bit_base"
 MULTI_CONF = True
 
 CONF_MAX_POWER_COLOR_CHANNELS = "max_power_color_channels"

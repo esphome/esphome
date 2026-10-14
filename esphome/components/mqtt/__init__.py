@@ -3,9 +3,10 @@ import esphome.codegen as cg
 from esphome.components import logger, socket
 from esphome.components.esp32 import (
     add_idf_component,
-    add_idf_sdkconfig_option,
     idf_version,
     include_builtin_idf_component,
+    request_tls,
+    require_certificate_bundle,
 )
 from esphome.config_helpers import (
     filter_source_files_from_defines,
@@ -69,6 +70,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
+DOMAIN = "mqtt"
 
 
 def AUTO_LOAD():
@@ -174,19 +176,16 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
     "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
-# WebSocket / WSS support is provided by ESP-IDF's esp-mqtt component. The
-# other MQTT backends (AsyncMqttClient on ESP8266/LibreTiny) do not implement
-# the MQTT-over-WebSocket framing in MQTT 3.1.1 §6, so the transport selector
-# is currently restricted to the ESP32 IDF build.
+# Only ESP-IDF's esp-mqtt implements MQTT over WebSocket
 MQTTTransport = mqtt_ns.enum("MQTTTransport", is_class=True)
 MQTT_TRANSPORT_OPTIONS = {
-    MQTT_TRANSPORT_TCP: MQTTTransport.TCP,
-    MQTT_TRANSPORT_WS: MQTTTransport.WS,
-    MQTT_TRANSPORT_WSS: MQTTTransport.WSS,
+    MQTT_TRANSPORT_TCP: MQTTTransport.MQTT_TRANSPORT_TCP,
+    MQTT_TRANSPORT_WS: MQTTTransport.MQTT_TRANSPORT_WS,
+    MQTT_TRANSPORT_WSS: MQTTTransport.MQTT_TRANSPORT_WSS,
 }
 
 
-def _validate_transport(value):
+def _validate_transport(value: str) -> str:
     value = cv.enum(MQTT_TRANSPORT_OPTIONS, lower=True)(value)
     if value in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
         if not CORE.is_esp32:
@@ -194,35 +193,22 @@ def _validate_transport(value):
                 f"transport '{value}' is currently only supported on ESP32"
             )
         if CORE.target_framework != Framework.ESP_IDF:
-            raise cv.Invalid(
-                f"transport '{value}' requires the esp-idf framework "
-                f"(esp-mqtt's WebSocket support is not available under Arduino)"
-            )
+            raise cv.Invalid(f"transport '{value}' requires the esp-idf framework")
     return value
 
 
 def validate_config(value):
-    # Plain ws is unencrypted. Pairing it with a CA certificate is almost
-    # certainly a mistake — the user probably meant wss. Flagging this here
-    # (rather than silently dropping the cert in C++) catches the typo at
-    # config-validation time.
-    if value.get(CONF_TRANSPORT) == MQTT_TRANSPORT_WS and (
+    transport = value.get(CONF_TRANSPORT)
+    # A certificate with plain ws is almost certainly a typo for wss
+    if transport == MQTT_TRANSPORT_WS and (
         CONF_CERTIFICATE_AUTHORITY in value or CONF_CLIENT_CERTIFICATE in value
     ):
         raise cv.Invalid(
             "transport 'ws' is unencrypted; remove the certificate options "
             "or switch to transport 'wss'"
         )
-
-    # ws_path only applies to the WebSocket transports. Reject it elsewhere
-    # (e.g. transport: tcp, or any non-ESP32-IDF target) so a misplaced ws_path
-    # is a clear error at validation time rather than silently ignored in C++.
     if (
-        value.get(CONF_TRANSPORT)
-        not in (
-            MQTT_TRANSPORT_WS,
-            MQTT_TRANSPORT_WSS,
-        )
+        transport not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
         and CONF_WS_PATH in value
     ):
         raise cv.Invalid(
@@ -282,6 +268,17 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     socket.consume_sockets(1, "mqtt")(config)
     return config
 
+
+# The parsed JSON document is freed once the automation returns
+JSON_MESSAGE_AUTOMATION_SCHEMA = automation.validate_synchronous_automation(
+    "on_json_message",
+    "the parsed JSON document",
+    {
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTJsonMessageTrigger),
+        cv.Required(CONF_TOPIC): cv.subscribe_topic,
+        cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+    },
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -367,15 +364,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_PAYLOAD): cv.string_strict,
                 }
             ),
-            cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MQTTJsonMessageTrigger
-                    ),
-                    cv.Required(CONF_TOPIC): cv.subscribe_topic,
-                    cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-                }
-            ),
+            cv.Optional(CONF_ON_JSON_MESSAGE): JSON_MESSAGE_AUTOMATION_SCHEMA,
             cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
             cv.Optional(CONF_WAIT_FOR_CONNECTION, default=False): cv.boolean,
         }
@@ -423,8 +412,8 @@ async def to_code(config):
             add_idf_component(name="espressif/mqtt", ref="1.0.0")
         else:
             include_builtin_idf_component("mqtt")
-        # mqtt_client.h drags in esp_tls types; esp-tls is excluded by default
-        include_builtin_idf_component("esp-tls")
+        # esp-mqtt links transport_ssl.c (esp_tls) even for plain MQTT
+        request_tls()
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -516,32 +505,15 @@ async def to_code(config):
             cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
 
-        # prevent error -0x428e
-        # See https://github.com/espressif/esp-idf/issues/139
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
-
     if CORE.is_esp32:
         transport = config[CONF_TRANSPORT]
         if transport != MQTT_TRANSPORT_TCP:
             cg.add(var.set_transport(transport))
         if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
             cg.add(var.set_ws_path(config.get(CONF_WS_PATH, "/mqtt")))
-            # esp-mqtt's WebSocket transports default to enabled in ESP-IDF, but
-            # enable them explicitly so the feature does not depend on a Kconfig
-            # default that could change underneath us.
-            add_idf_sdkconfig_option("CONFIG_MQTT_TRANSPORT_WEBSOCKET", True)
-            if transport == MQTT_TRANSPORT_WSS:
-                add_idf_sdkconfig_option("CONFIG_MQTT_TRANSPORT_WEBSOCKET_SECURE", True)
-        # wss with no explicit CA falls back to ESP-IDF's bundled root CAs.
-        # Enable the bundle in sdkconfig so esp_crt_bundle_attach is available;
-        # mirrors what http_request does for the same reason.
+        # wss without an explicit CA verifies the broker against the bundled roots
         if transport == MQTT_TRANSPORT_WSS and CONF_CERTIFICATE_AUTHORITY not in config:
-            add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-            # wss performs a full TLS handshake even without an explicit CA, so it
-            # needs the same -0x428e hardware-MPI workaround the classic CA/SSL
-            # path applies above (the CA branch handles the wss-with-CA case).
-            # See https://github.com/espressif/esp-idf/issues/139
-            add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
+            require_certificate_bundle()
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")

@@ -26,7 +26,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt";
+ESPHOME_LOG_TAG(TAG, "mqtt");
 
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.
@@ -202,6 +202,16 @@ void MQTTClientComponent::dump_config() {
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
   // clang-format on
+#ifdef USE_ESP32
+  if (const MQTTTransport transport = this->mqtt_backend_.get_transport();
+      transport != MQTTTransport::MQTT_TRANSPORT_TCP) {
+    ESP_LOGCONFIG(TAG,
+                  "  Transport: %s\n"
+                  "  WebSocket Path: '%s'",
+                  transport == MQTTTransport::MQTT_TRANSPORT_WSS ? LOG_STR_LITERAL("wss") : LOG_STR_LITERAL("ws"),
+                  this->mqtt_backend_.get_ws_path());
+  }
+#endif
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -439,7 +449,7 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Subscribe failed for topic='%s'. Will retry", topic);
-    this->status_momentary_warning("subscribe", 1000);
+    this->status_momentary_warning(1000);
   }
   return ret != 0;
 }
@@ -499,7 +509,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'.", topic.c_str());
-    this->status_momentary_warning("unsubscribe", 1000);
+    this->status_momentary_warning(1000);
   }
 
   auto it = subscriptions_.begin();
@@ -553,7 +563,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
       ESP_LOGVV(TAG, "Publish payload (len=%u): '%.*s'", payload_length, static_cast<int>(payload_length), payload);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", topic, payload_length);
-      this->status_momentary_warning("publish", 1000);
+      this->status_momentary_warning(1000);
     }
   }
   return ret != 0;

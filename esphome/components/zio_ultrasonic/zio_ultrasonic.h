@@ -3,8 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/log.h"
 
-static const char *const TAG = "Zio Ultrasonic";
+ESPHOME_LOG_TAG(TAG, "Zio Ultrasonic");
 
 namespace esphome::zio_ultrasonic {
 

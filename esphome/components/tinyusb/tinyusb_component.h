@@ -49,6 +49,8 @@ class TinyUSB final : public Component {
   void set_usb_desc_serial(const char *usb_desc_serial) { this->string_descriptor_[SERIAL_NUMBER] = usb_desc_serial; }
   /// Self-powered device: watch VBUS on this GPIO so a cable pull becomes a detach.
   void set_vbus_monitor_pin(int pin) { this->vbus_monitor_pin_ = static_cast<int8_t>(pin); }
+  /// Configuration descriptor from a class component that esp_tinyusb has no built-in default for (HID).
+  void set_full_speed_config(const uint8_t *descriptor) { this->tusb_cfg_.descriptor.full_speed_config = descriptor; }
 
  protected:
   char usb_desc_lang_id_[2] = {0x09, 0x04};  // defaults to english

@@ -9,6 +9,7 @@ import esphome.config_validation as cv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@neffs", "@kbx81"]
+DOMAIN = "bme68x_bsec2_i2c"
 
 AUTO_LOAD = ["bme68x_bsec2"]
 DEPENDENCIES = ["i2c"]

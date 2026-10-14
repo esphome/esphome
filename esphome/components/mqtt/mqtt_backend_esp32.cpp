@@ -14,7 +14,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt";
+ESPHOME_LOG_TAG(TAG, "mqtt");
 
 bool MQTTBackendESP32::initialize_() {
   mqtt_cfg_.broker.address.hostname = this->host_.c_str();
@@ -44,19 +44,17 @@ bool MQTTBackendESP32::initialize_() {
     mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
 
-  // Select the underlying transport. WS/WSS are honored as-is; for plain TCP we
-  // keep the historical behavior of auto-upgrading to SSL when a CA certificate
-  // is configured, so existing YAML keeps working without setting `transport:`.
+  // Plain TCP keeps upgrading to SSL when a CA certificate is configured
   bool uses_tls = false;
   switch (this->transport_) {
-    case MQTTTransport::WS:
+    case MQTTTransport::MQTT_TRANSPORT_WS:
       mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
       break;
-    case MQTTTransport::WSS:
+    case MQTTTransport::MQTT_TRANSPORT_WSS:
       mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
       uses_tls = true;
       break;
-    case MQTTTransport::TCP:
+    case MQTTTransport::MQTT_TRANSPORT_TCP:
     default:
       if (this->ca_certificate_.has_value()) {
         mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
@@ -66,21 +64,15 @@ bool MQTTBackendESP32::initialize_() {
       }
       break;
   }
-
-  // The WebSocket path on the broker (e.g. "/mqtt"). Only meaningful for ws/wss.
-  if ((this->transport_ == MQTTTransport::WS || this->transport_ == MQTTTransport::WSS) && !this->ws_path_.empty()) {
-    mqtt_cfg_.broker.address.path = this->ws_path_.c_str();
-  }
+  // Only set for the WebSocket transports
+  mqtt_cfg_.broker.address.path = this->ws_path_;
 
   if (uses_tls) {
     if (this->ca_certificate_.has_value()) {
       mqtt_cfg_.broker.verification.certificate = this->ca_certificate_.value().c_str();
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
     } else {
-      // No explicit CA configured — fall back to the global certificate bundle.
-      // This matches what `http_request` does and is what lets `wss` connect to
-      // brokers fronted by Cloudflare / Let's Encrypt / etc. without the user
-      // having to paste a CA into YAML.
+      // wss without a CA verifies the broker against the bundled roots, as http_request does
       mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
 #endif
     }
@@ -98,12 +90,8 @@ bool MQTTBackendESP32::initialize_() {
     esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, this);
 #if defined(USE_MQTT_IDF_ENQUEUE)
     // Create the task only after MQTT client is initialized successfully
-    // Use larger stack size when TLS is enabled. TLS is in use either when a CA
-    // certificate is configured (the classic SSL case) or when the user picked
-    // `wss` (which always goes through TLS regardless of whether a CA cert was
-    // provided — the bundle path uses TLS too).
-    const bool tls_active = this->ca_certificate_.has_value() || this->transport_ == MQTTTransport::WSS;
-    size_t stack_size = tls_active ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
+    // Use larger stack size when TLS is enabled
+    size_t stack_size = uses_tls ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
     xTaskCreate(esphome_mqtt_task, "esphome_mqtt", stack_size, (void *) this, TASK_PRIORITY, &this->task_handle_);
     if (this->task_handle_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create MQTT task");
@@ -151,7 +139,7 @@ void MQTTBackendESP32::loop() {
   if ((now - this->last_dropped_log_time_) >= DROP_LOG_INTERVAL_MS) {
     uint16_t dropped = this->mqtt_queue_.get_and_reset_dropped_count();
     if (dropped > 0) {
-      ESP_LOGW(TAG, "Dropped %u messages (%us)", dropped, DROP_LOG_INTERVAL_MS / 1000);
+      ESP_LOGW(TAG, "Dropped %u messages (%" PRIu32 "s)", dropped, DROP_LOG_INTERVAL_MS / 1000);
     }
     this->last_dropped_log_time_ = now;
   }

@@ -48,6 +48,9 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+#include "esphome/components/sendspin/sendspin_hub.h"
+#endif
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
@@ -88,7 +91,7 @@ static_assert(sizeof(ESPHOME_VERSION) - 1 <= 32, "Update max_data_length for esp
 static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for name in api.proto");
 static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
 
-static const char *const TAG = "api.connection";
+ESPHOME_LOG_TAG(TAG, "api.connection");
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
 void log_dropped_message(const char *tag, int line, const LogString *what) {
@@ -197,6 +200,17 @@ APIConnection::~APIConnection() {
     if (proxy->get_api_connection() == this) {
       proxy->serial_proxy_request(this, enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE);
     }
+  }
+#endif
+  // entities holding a transmit reply for this client must not answer into a freed connection
+#ifdef USE_INFRARED
+  for (auto *infrared : App.get_infrareds()) {
+    infrared->on_api_connection_closed(this);
+  }
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  for (auto *radio_frequency : App.get_radio_frequencies()) {
+    radio_frequency->on_api_connection_closed(this);
   }
 #endif
 }
@@ -630,16 +644,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
-  FixedVector<const char *> effects_list;
-  if (light->supports_effects()) {
-    auto &light_effects = light->get_effects();
-    effects_list.init(light_effects.size() + 1);
-    effects_list.push_back("None");
-    for (auto *effect : light_effects) {
-      // c_str() is safe as effect names are null-terminated strings from codegen
-      effects_list.push_back(effect->get_name().c_str());
-    }
-  }
+  light::LightEffectNames effects_list(light->get_effects());
   msg.effects = &effects_list;
   return fill_and_encode_entity_info(light, msg, conn, remaining_size);
 }
@@ -990,7 +995,9 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
 uint16_t APIConnection::try_send_select_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *select = static_cast<select::Select *>(entity);
   ListEntitiesSelectResponse msg;
-  msg.options = &select->traits.get_options();
+  const auto &opts = select->traits.get_options();
+  const std::span<const char *const> options(opts.data(), opts.size());
+  msg.options = &options;
   return fill_and_encode_entity_info(select, msg, conn, remaining_size);
 }
 void APIConnection::on_select_command_request(const SelectCommandRequest &msg) {
@@ -1389,6 +1396,40 @@ void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
 }
 #endif
 
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+bool APIConnection::send_sendspin_pairing_token_response_() {
+  SendspinPairingTokenResponse resp;
+#ifdef USE_API_NOISE
+  // has_psk() stands in for "this session proved the key": with a key active, plaintext and zero-key sessions
+  // never reach hello, and activating a key closes every session opened before it.
+  if (!this->parent_->get_noise_ctx().has_psk()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED;
+    return this->send_message(resp);
+  }
+  auto token = sendspin_::global_sendspin_hub->get_pairing_token();
+  if (token.has_value()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK;
+    resp.token = StringRef(*token);
+  } else if (sendspin_::global_sendspin_hub->status_has_error()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED;
+  } else if (sendspin_::global_sendspin_hub->is_disabled()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED;
+  } else {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY;
+  }
+#else
+  resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED;
+#endif
+  return this->send_message(resp);
+}
+
+void APIConnection::on_sendspin_pairing_token_request() {
+  if (!this->send_sendspin_pairing_token_response_()) {
+    this->on_fatal_error();
+  }
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
   return this->send_message_smart_(a_alarm_control_panel, AlarmControlPanelStateResponse::MESSAGE_TYPE,
@@ -1515,8 +1556,10 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 }
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
+  // Clients on API 1.18+ are told when the frame has left the transmitter; the entity owns that reply
+  const bool want_reply = this->client_supports_api_version(1, 18);
   // Dispatch by key: infrared entities are checked first, then radio frequency entities.
   // The key is unique across all entity instances on a device, so at most one lookup will succeed.
 #ifdef USE_INFRARED
@@ -1526,6 +1569,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_carrier_frequency(msg.carrier_frequency);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
     call.set_repeat_count(msg.repeat_count);
+    call.set_api_connection(want_reply ? this : nullptr);
     call.perform();
     return;
   }
@@ -1538,13 +1582,38 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
     call.set_repeat_count(msg.repeat_count);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+    call.set_api_connection(want_reply ? this : nullptr);
     call.perform();
+    return;
   }
 #endif
+  ESP_LOGW(TAG, "IR/RF transmit for unknown key %" PRIu32, msg.key);
+  if (want_reply) {
+    // nothing will ever report for an unknown key, so answer as not started right away
+#ifdef USE_DEVICES
+    const uint32_t device_id = msg.device_id;
+#else
+    const uint32_t device_id = 0;
+#endif
+    if (!this->send_infrared_rf_transmit_complete(device_id, msg.key, false)) {
+      API_LOG_MSG_DROPPED(TAG, "IR/RF reply");
+    }
+  }
+}
+
+bool APIConnection::send_infrared_rf_transmit_complete([[maybe_unused]] uint32_t device_id, uint32_t key,
+                                                       bool success) {
+  InfraredRFTransmitCompleteResponse resp{};
+#ifdef USE_DEVICES
+  resp.device_id = device_id;
+#endif
+  resp.key = key;
+  resp.success = success;
+  return this->send_message(resp);
 }
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
   if (!this->send_message(msg)) {
     // V: fires per decoded frame with no subscription gate, so a warning
@@ -1552,6 +1621,7 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
     ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
   }
 }
+
 #endif
 
 #ifdef USE_SERIAL_PROXY
@@ -1640,6 +1710,22 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   }
   if (!this->send_message(resp)) {
     API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+  }
+}
+
+void APIConnection::on_subscribe_serial_proxy_identity_request() {
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  // Only USB ports change identity after this snapshot
+  this->flags_.serial_proxy_identity_subscription = true;
+#endif
+  for (auto *proxy : App.get_serial_proxies()) {
+    proxy->send_identity(this);
+  }
+}
+
+void APIConnection::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
+  if (!this->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy identity");
   }
 }
 
@@ -1814,7 +1900,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 17;
+  resp.api_version_minor = 19;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -1836,6 +1922,19 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
+
+#ifdef USE_API_OUTGOING_CONNECTION
+  // With a PSK set only key-verified transports reach hello: plaintext and
+  // zero-PSK are rejected, and pre-activation sessions are force-closed
+  if (msg.outgoing_connection_target && !this->flags_.outgoing_connection_target) {
+    if (this->parent_->get_noise_ctx().has_psk()) {
+      this->flags_.outgoing_connection_target = true;
+      this->parent_->on_outgoing_target_client(this);
+    } else {
+      this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Dial-back target refused; no key active"));
+    }
+  }
+#endif
 
   return this->send_message(resp);
 }
@@ -1959,6 +2058,9 @@ bool APIConnection::send_device_info_response_() {
   // one) so this advertisement survives the plaintext removal in 2027.2.0.
   resp.api_encryption_provisionable = !this->parent_->get_noise_ctx().has_psk();
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  resp.api_outgoing_connection_supported = true;
+#endif
 #endif
 #ifdef USE_DEVICES
   size_t device_index = 0;
@@ -2011,6 +2113,12 @@ bool APIConnection::send_device_capabilities_response_() {
     info.port_type = proxy->get_port_type();
     info.configured_line_states = proxy->get_configured_modem_pins();
   }
+#endif
+#ifdef USE_API_WIZARD
+  resp.wizard.configured = true;
+#endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
 #endif
   return this->send_message(resp);
 }
@@ -2225,7 +2333,13 @@ void APIConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSet
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-void APIConnection::on_subscribe_home_assistant_states_request() { state_subs_at_ = 0; }
+void APIConnection::on_subscribe_home_assistant_states_request() {
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  // Remember it, as a client that subscribed also gets the subscriptions again when a wizard input is set
+  this->flags_.home_assistant_states = true;
+#endif
+  state_subs_at_ = 0;
+}
 #endif
 bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   delay(0);
@@ -2269,8 +2383,7 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
 #endif
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
-  ProtoWriteBuffer buffer{&shared_buf, write_start};
-  uint8_t *end = encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+  uint8_t *end = encode_fn(msg, shared_buf.data() + write_start PROTO_ENCODE_DEBUG_INIT(&shared_buf));
 #ifdef ESPHOME_DEBUG_API
   proto_check_encode_end(end, shared_buf.data() + shared_buf.size());
 #else
@@ -2668,6 +2781,13 @@ void APIConnection::process_state_subscriptions_() {
   }
 
   const auto &it = subs[this->state_subs_at_];
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  // An entity id that is not set yet (a wizard input) has nothing to subscribe to; it is sent once it is set
+  if (it.entity_id[0] == '\0') {
+    this->state_subs_at_++;
+    return;
+  }
+#endif
   SubscribeHomeAssistantStateResponse resp;
   resp.entity_id = StringRef(it.entity_id);
 

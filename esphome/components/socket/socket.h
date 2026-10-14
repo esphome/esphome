@@ -20,6 +20,7 @@
 #include "lwip_sockets_impl.h"
 #elif defined(USE_SOCKET_IMPL_LWIP_TCP)
 #include "lwip_raw_tcp_impl.h"
+#include "lwip_raw_udp_impl.h"
 #endif
 
 namespace esphome::socket {
@@ -27,17 +28,37 @@ namespace esphome::socket {
 // Type aliases — only one implementation is active per build.
 // Socket is the concrete type for connected sockets.
 // ListenSocket is the concrete type for listening/server sockets.
-// On BSD and LWIP_SOCKETS, both aliases resolve to the same type.
+// UDPSocket is the concrete type for UDP sockets (send + receive).
+// UDPSendSocket is the concrete type for send-only UDP sockets.
+// On BSD and LWIP_SOCKETS, all aliases resolve to the same type.
 // On LWIP_TCP, they are different types (no virtual dispatch between them).
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 using Socket = BSDSocketImpl;
 using ListenSocket = BSDSocketImpl;
+using UDPSendSocket = BSDSocketImpl;
+using UDPSocket = BSDSocketImpl;
 #elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 using Socket = LwIPSocketImpl;
 using ListenSocket = LwIPSocketImpl;
+using UDPSendSocket = LwIPSocketImpl;
+using UDPSocket = LwIPSocketImpl;
 #elif defined(USE_SOCKET_IMPL_LWIP_TCP)
 using Socket = LWIPRawImpl;
 using ListenSocket = LWIPRawListenImpl;
+using UDPSendSocket = LWIPRawUDPSendImpl;
+using UDPSocket = LWIPRawUDPImpl;
+#endif
+
+// Domain used by the socket_ip_* helpers: newest available IP domain.
+#if USE_NETWORK_IPV6
+inline constexpr int IP_DOMAIN = AF_INET6;
+#else
+inline constexpr int IP_DOMAIN = AF_INET;
+#endif
+
+// IPv6 sockets with multicast membership; the raw lwIP implementation has no IPv6 membership support.
+#if USE_NETWORK_IPV6 && (defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS))
+#define USE_SOCKET_IPV6
 #endif
 
 #ifdef USE_LWIP_FAST_SELECT
@@ -94,6 +115,7 @@ inline bool Socket::ready() const {
 /// Create a socket of the given domain, type and protocol.
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 /// Create a socket in the newest available IP domain (IPv6 or IPv4) of the given type and protocol.
+/// Not registered with the main loop's select() - use socket_ip_loop_monitored() if you need that.
 std::unique_ptr<Socket> socket_ip(int type, int protocol);
 
 /// Create a socket and monitor it for data in the main loop.
@@ -104,6 +126,36 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol);
 /// File descriptors >= FD_SETSIZE will not be monitored and will log an error.
 std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol);
 
+/// Create a send-only UDP socket (socket_udp_send), a UDP socket with receive
+/// support (socket_udp), or a UDP socket monitored for data in the main loop
+/// (socket_udp_loop_monitored).
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+std::unique_ptr<UDPSendSocket> socket_udp_send(int domain, int protocol);
+std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol);
+// Wake is built into the recv callback, so monitoring needs nothing extra.
+inline std::unique_ptr<UDPSocket> socket_udp_loop_monitored(int domain, int protocol) {
+  return socket_udp(domain, protocol);
+}
+#else
+inline std::unique_ptr<UDPSendSocket> socket_udp_send(int domain, int protocol) {
+  return esphome::socket::socket(domain, SOCK_DGRAM, protocol);
+}
+inline std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
+  return esphome::socket::socket(domain, SOCK_DGRAM, protocol);
+}
+// Registers the socket with the Application's select() loop.
+inline std::unique_ptr<UDPSocket> socket_udp_loop_monitored(int domain, int protocol) {
+  return socket_loop_monitored(domain, SOCK_DGRAM, protocol);
+}
+#endif
+
+/// socket_udp* variants using the newest available IP domain.
+inline std::unique_ptr<UDPSendSocket> socket_ip_udp_send(int protocol) { return socket_udp_send(IP_DOMAIN, protocol); }
+inline std::unique_ptr<UDPSocket> socket_ip_udp(int protocol) { return socket_udp(IP_DOMAIN, protocol); }
+inline std::unique_ptr<UDPSocket> socket_ip_udp_loop_monitored(int protocol) {
+  return socket_udp_loop_monitored(IP_DOMAIN, protocol);
+}
+
 /// Create a listening socket of the given domain, type and protocol.
 /// Create a listening socket and monitor it for data in the main loop.
 /// Create a listening socket in the newest available IP domain and monitor it.
@@ -111,7 +163,6 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 // LWIP_TCP has separate Socket/ListenSocket types — needs distinct factory functions.
 std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol);
 std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol);
-std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
 #else
 // BSD and LWIP_SOCKETS: Socket == ListenSocket, so listen variants just delegate.
 inline std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
@@ -120,14 +171,10 @@ inline std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int pro
 inline std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol) {
   return socket_loop_monitored(domain, type, protocol);
 }
+#endif
 inline std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
-#if USE_NETWORK_IPV6
-  return socket_loop_monitored(AF_INET6, type, protocol);
-#else
-  return socket_loop_monitored(AF_INET, type, protocol);
-#endif
+  return socket_listen_loop_monitored(IP_DOMAIN, type, protocol);
 }
-#endif
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
 /// @param addr Destination sockaddr structure
@@ -137,6 +184,10 @@ inline std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int prot
 /// @return Size of the sockaddr structure used, or 0 on error
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port);
 
+/// Network order IPv4 of an AF_INET or v4 mapped AF_INET6 peer; false for anything else.
+/// addr must hold the family's full struct.
+bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out);
+
 /// Convenience overload for std::string (backward compatible).
 inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
   return set_sockaddr(addr, addrlen, ip_address.c_str(), port);
@@ -144,6 +195,27 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
+
+/// Join a multicast group on the given socket.
+/// @param sock         The socket to join on
+/// @param ip_address   Null-terminated multicast address string (IPv4, or IPv6 except on LWIP_TCP)
+/// @param if_index_out If non-null, receives the interface index used (IPv4 always writes 0). For
+///                      link-local IPv6 groups, the caller must also copy this into sin6_scope_id
+///                      before bind() -- POSIX requires it, LwIP ignores it.
+/// @return true on success, false on failure (errno set)
+bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_index_out = nullptr);
+
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+#if USE_NETWORK_IPV6
+/// Configure the outgoing IPv6 multicast interface on the given socket.
+/// @param sock        The socket to configure
+/// @param if_index_in Non-zero: use this interface index directly. Zero (default): probe for the first eligible
+/// interface via foreach_eligible_ipv6_if(). On single-interface devices (typical for ESP32/ESP8266) this is always
+/// correct. On multi-homed hosts the "first eligible" interface is arbitrary; pass the desired index explicitly.
+/// @return true on success, false on failure (errno set). A no-op returning true on LWIP_SOCKETS and Zephyr.
+bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in = 0);
+#endif  // USE_NETWORK_IPV6
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
 /// Poll a connect() that returned EINPROGRESS. On error, err_out is SO_ERROR (or
 /// errno) on fd implementations and the failure the callbacks recorded on raw lwip.

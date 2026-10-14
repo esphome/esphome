@@ -79,16 +79,18 @@ from esphome.const import (
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
@@ -152,6 +154,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 ]
+DOMAIN = "number"
 IS_PLATFORM_COMPONENT = True
 
 number_ns = cg.esphome_ns.namespace("number")
@@ -323,6 +326,13 @@ async def new_number(config, *args, min_value: float, max_value: float, step: fl
         var, config, min_value=min_value, max_value=max_value, step=step
     )
     return var
+
+
+def sub_numbers(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_number."""
+    return SubEntities(new_number, config, parent)
 
 
 NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(

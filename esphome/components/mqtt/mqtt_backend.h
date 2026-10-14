@@ -20,14 +20,11 @@ enum class MQTTClientDisconnectReason : int8_t {
   DNS_RESOLVE_ERROR = 8
 };
 
-/// Transport selected for the MQTT connection.
-/// TCP keeps the existing behavior (SSL is auto-derived when a CA cert is set).
-/// WS and WSS are only honored by backends that support them (currently the
-/// ESP-IDF backend, via esp-mqtt's MQTT_TRANSPORT_OVER_WS/WSS).
+/// Transport for the broker connection; only the ESP-IDF backend supports WebSocket.
 enum class MQTTTransport : uint8_t {
-  TCP = 0,
-  WS = 1,
-  WSS = 2,
+  MQTT_TRANSPORT_TCP = 0,
+  MQTT_TRANSPORT_WS = 1,
+  MQTT_TRANSPORT_WSS = 2,
 };
 
 /// internal struct for MQTT messages.

@@ -14,6 +14,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
+DOMAIN = "st7567_base"
 
 st7567_base_ns = cg.esphome_ns.namespace("st7567_base")
 ST7567 = st7567_base_ns.class_("ST7567", cg.PollingComponent, display.DisplayBuffer)

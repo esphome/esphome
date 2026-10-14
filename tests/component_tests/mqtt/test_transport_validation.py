@@ -16,6 +16,8 @@ from esphome.components.mqtt import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_TOPIC_PREFIX,
     PlatformFramework,
 )
@@ -69,13 +71,25 @@ def test_ws_path_rejected_without_websocket_transport() -> None:
         )
 
 
-def test_plaintext_ws_with_ca_rejected() -> None:
-    """Test that pairing a CA with unencrypted ws is rejected."""
+@pytest.mark.parametrize(
+    "certificate_options",
+    [
+        {CONF_CERTIFICATE_AUTHORITY: "-----BEGIN CERTIFICATE-----"},
+        {
+            CONF_CLIENT_CERTIFICATE: "-----BEGIN CERTIFICATE-----",
+            CONF_CLIENT_CERTIFICATE_KEY: "-----BEGIN PRIVATE KEY-----",
+        },
+    ],
+)
+def test_plaintext_ws_with_certificate_rejected(
+    certificate_options: dict[str, str],
+) -> None:
+    """Test that pairing a CA or client certificate with unencrypted ws is rejected."""
     with pytest.raises(cv.Invalid, match="unencrypted"):
         validate_config(
             {
                 CONF_TRANSPORT: MQTT_TRANSPORT_WS,
-                CONF_CERTIFICATE_AUTHORITY: "-----BEGIN CERTIFICATE-----",
                 CONF_TOPIC_PREFIX: "test",
+                **certificate_options,
             }
         )
