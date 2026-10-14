@@ -28,6 +28,11 @@
 #include <span>
 #include <vector>
 
+// The crash log replay needs the logger, which mqtt does not depend on
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+#define USE_MQTT_CRASH_LOG
+#endif
+
 namespace esphome::mqtt {
 
 // Max lengths for stack-based topic building.
@@ -366,6 +371,9 @@ class MQTTClientComponent final : public Component {
     callback(topic, doc.as<JsonObject>());
   }
   void erase_removed_subscriptions_();
+#ifdef USE_MQTT_CRASH_LOG
+  void handle_crash_log_request_(const std::string &topic, const std::string &payload);
+#endif
   void add_subscription_(MQTTTopicSource topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
   void resubscribe_subscriptions_();
 
@@ -409,6 +417,9 @@ class MQTTClientComponent final : public Component {
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
   bool enable_on_boot_{true};
+#ifdef USE_MQTT_CRASH_LOG
+  bool crash_log_offered_{false};
+#endif
   std::vector<MQTTComponent *> children_;
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;

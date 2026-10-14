@@ -49,6 +49,13 @@ MQTTClientComponent::MQTTClientComponent() {
 }
 
 // Connection
+// Room for "esphome/<kind>/<name>" with the longest kind, "discover"
+static constexpr size_t ESPHOME_TOPIC_BUFFER_SIZE = sizeof("esphome/discover/") + ESPHOME_DEVICE_NAME_MAX_LEN;
+
+static void format_esphome_topic(char (&topic)[ESPHOME_TOPIC_BUFFER_SIZE], const char *kind) {
+  buf_append_printf(topic, sizeof(topic), 0, "esphome/%s/%s", kind, App.get_name().c_str());
+}
+
 void MQTTClientComponent::setup() {
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
@@ -78,6 +85,13 @@ void MQTTClientComponent::setup() {
         this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
           static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
         });
+#ifdef USE_MQTT_CRASH_LOG
+    // `esphome logs` announces itself here, like an API client's log subscription, and the record stays
+    // loggable until the next boot, so the offer does too. A log topic that drops errors would swallow the
+    // replay, so it is not offered. The topic is rebuilt from the device name when needed, so nothing is
+    // stored for it.
+    this->crash_log_offered_ = logger::crash_log_pending() && this->log_level_ >= ESPHOME_LOG_LEVEL_ERROR;
+#endif
   }
 #endif
 
@@ -107,10 +121,8 @@ void MQTTClientComponent::send_device_info_() {
     return;
   }
   // Format topic on stack to avoid heap allocation
-  // "esphome/discover/" (17) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
-  constexpr size_t topic_buffer_size = 17 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
-  char topic[topic_buffer_size];
-  buf_append_printf(topic, sizeof(topic), 0, "esphome/discover/%s", App.get_name().c_str());
+  char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(topic, "discover");
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   this->publish_json(
@@ -356,6 +368,14 @@ void MQTTClientComponent::check_connected() {
   delay(100);  // NOLINT
 
   this->resubscribe_subscriptions_();
+#ifdef USE_MQTT_CRASH_LOG
+  // Best effort: a refused subscription is tried again at the next connection
+  if (this->crash_log_offered_) {
+    char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+    format_esphome_topic(topic, "logs");
+    this->subscribe_(topic, 0);
+  }
+#endif
   this->send_device_info_();
 
   for (MQTTComponent *component : this->children_)
@@ -468,6 +488,19 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
     this->resubscribe_subscription_(&subscription);
   }
 }
+
+#ifdef USE_MQTT_CRASH_LOG
+void MQTTClientComponent::handle_crash_log_request_(const std::string &topic, const std::string &payload) {
+  // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
+  // log for every line it logs
+  if (!this->crash_log_offered_ || !payload.empty())
+    return;
+  char logs_topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(logs_topic, "logs");
+  if (topic == logs_topic)
+    logger::log_crash_to_client();
+}
+#endif
 
 static StringRef static_topic_builder(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN>) {
   return StringRef(static_cast<const char *>(context));
@@ -705,6 +738,9 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // DO NOT REMOVE THIS DEFER without understanding the above. It may appear to work
   // in simple tests but will cause crashes with complex automations.
   this->defer([this, topic, payload]() {
+#endif
+#ifdef USE_MQTT_CRASH_LOG
+    this->handle_crash_log_request_(topic, payload);
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.
