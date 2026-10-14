@@ -991,13 +991,10 @@ void WiFiComponent::loop() {
   }
 
 #ifdef USE_WIFI_DPP
-  // Listen again once the networks have had their chance, or after a failed or abandoned enrollment, but
-  // not while disabled, not during a connect attempt (which would end the listen again) and at most once per
-  // timeout
-  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED && this->state_ != WIFI_COMPONENT_STATE_STA_CONNECTING &&
-      this->state_ != WIFI_COMPONENT_STATE_STA_SCANNING && !this->dpp_listening_ && !this->is_provisioning_closed_() &&
-      now - this->last_connected_ > this->dpp_timeout_ && now - this->dpp_listen_started_ > this->dpp_timeout_ &&
-      this->wifi_mode_(true, {})) {
+  // Without networks no cooldown starts the listen, so a failed or abandoned enrollment is listened for again
+  // here, at most once per timeout
+  if (!this->has_sta() && !this->dpp_listening_ && this->state_ != WIFI_COMPONENT_STATE_DISABLED &&
+      now - this->dpp_listen_started_ > this->dpp_timeout_ && this->is_dpp_active_() && this->wifi_mode_(true, {})) {
     this->start_dpp_listen_(now);
   }
 #endif
@@ -1343,11 +1340,21 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
     // Enter cooldown to allow WiFi hardware to stabilize
     // (immediate failure suggests hardware not ready, different from connection timeout)
-    this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
-  } else {
-    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
+    this->start_cooldown_();
+    return;
   }
+  this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
   this->action_started_ = millis();
+}
+
+void WiFiComponent::start_cooldown_() {
+  this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+  this->action_started_ = millis();
+#ifdef USE_WIFI_DPP
+  // The cooldown is the configurator's window; the attempt that ends it stops the listen again
+  if (!this->dpp_listening_ && this->is_dpp_active_() && this->wifi_mode_(true, {}))
+    this->start_dpp_listen_(this->action_started_);
+#endif
 }
 
 const LogString *get_signal_bars(int8_t rssi) {
@@ -2112,8 +2119,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       this->retry_hidden_mode_ = RetryHiddenMode::BLIND_RETRY;
       // Always enter cooldown after restart (or skip-restart) to allow stabilization
       // Use extended cooldown when AP is active to avoid constant scanning that blocks DNS
-      this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
-      this->action_started_ = millis();
+      this->start_cooldown_();
       // Return true to indicate we should wait (go to COOLDOWN) instead of immediately connecting
       return true;
 
@@ -2337,19 +2343,6 @@ void WiFiComponent::retry_connect() {
   // After exhausting all networks in a phase, selected_sta_index_ may be -1
   // In that case, skip connection and let next wifi_loop() handle phase transition
   if (this->selected_sta_index_ >= 0) {
-#ifdef USE_WIFI_DPP
-    // Once the networks have had their chance, a failed attempt hands the radio to the listen for a cooldown;
-    // the attempt that follows the cooldown ends the listen again, so a configurator gets most of each cycle
-    const uint32_t now = App.get_loop_component_start_time();
-    if (!this->dpp_listening_ && !this->is_provisioning_closed_() && now - this->last_connected_ > this->dpp_timeout_) {
-      this->start_dpp_listen_(now);
-      if (this->dpp_listening_) {
-        this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
-        this->action_started_ = now;
-        return;
-      }
-    }
-#endif
     WiFiAP params = this->build_params_for_current_phase_();
     this->start_connecting(params);
   }
@@ -2378,7 +2371,11 @@ void WiFiComponent::stop_dpp_listen_() {
 
 bool WiFiComponent::is_dpp_active_() {
 #ifdef USE_WIFI_DPP
-  return this->dpp_listening_;
+  // A configurator is waited for once the networks have had their timeout, or from boot without any; the retry
+  // machine then treats DPP like a portal (blind retries, a long cooldown) whether the supplicant is listening at
+  // this moment or not
+  return !this->is_provisioning_closed_() &&
+         (!this->has_sta() || App.get_loop_component_start_time() - this->last_connected_ > this->dpp_timeout_);
 #else
   return false;
 #endif

@@ -851,6 +851,10 @@ class WiFiComponent final : public Component {
   // Starts listening for a DPP configurator; the platform half reports whether the driver accepted
   void start_dpp_listen_(uint32_t now);
   void stop_dpp_listen_();
+#endif
+  /// Wait before the next attempt; while a configurator is waited for, the wait is its listen window
+  void start_cooldown_();
+#ifdef USE_WIFI_DPP
   void wifi_dpp_init_();
   bool wifi_dpp_start_listen_();
   void wifi_dpp_stop_listen_();

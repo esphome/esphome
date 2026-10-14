@@ -70,10 +70,6 @@ static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-
 
 #ifdef USE_WIFI_DPP
 /// Terminated copies of the received station credentials; the supplicant's wifi_config_t would grow every event
-struct DppCredentials {
-  char ssid[sizeof(wifi_sta_config_t::ssid) + 1];
-  char password[sizeof(wifi_sta_config_t::password) + 1];
-};
 
 static void copy_terminated(char *dst, const uint8_t *src, size_t len) {
   memcpy(dst, src, len);
@@ -94,7 +90,7 @@ struct IDFWiFiEvent {
     wifi_event_ap_probe_req_rx_t ap_probe_req_rx;
     wifi_event_bss_rssi_low_t bss_rssi_low;
 #ifdef USE_WIFI_DPP
-    DppCredentials dpp_credentials;
+    SavedWifiSettings *dpp_credentials;  // owned by the event; the rare 98 byte record does not widen the union
     wifi_event_dpp_failed_t dpp_failed;
 #endif
     ip_event_got_ip_t ip_got_ip;
@@ -151,13 +147,15 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     // Kept on the component for the whole boot; the queued event only announces it
     const auto *uri = static_cast<const wifi_event_dpp_uri_ready_t *>(event_data);
     const size_t len = strnlen(uri->uri, uri->uri_data_len);
-    std::unique_ptr<char[]> copy(new char[len + 1]);  // NOLINT(cppcoreguidelines-owning-memory)
+    auto copy = std::make_unique<char[]>(len + 1);
     copy_terminated(copy.get(), reinterpret_cast<const uint8_t *>(uri->uri), len);
     global_wifi_component->dpp_uri_ = std::move(copy);
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_CFG_RECVD) {
     const auto &sta = static_cast<const wifi_event_dpp_config_received_t *>(event_data)->wifi_cfg.sta;
-    copy_terminated(event.data.dpp_credentials.ssid, sta.ssid, sizeof(sta.ssid));
-    copy_terminated(event.data.dpp_credentials.password, sta.password, sizeof(sta.password));
+    auto *credentials = new SavedWifiSettings;  // NOLINT(cppcoreguidelines-owning-memory)
+    copy_terminated(credentials->ssid, sta.ssid, sizeof(sta.ssid));
+    copy_terminated(credentials->password, sta.password, sizeof(sta.password));
+    event.data.dpp_credentials = credentials;
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_FAILED) {
     memcpy(&event.data.dpp_failed, event_data, sizeof(wifi_event_dpp_failed_t));
 #endif
@@ -177,6 +175,10 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   auto *to_send = new IDFWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
   memcpy(to_send, &event, sizeof(IDFWiFiEvent));
   if (!global_wifi_component->event_queue_.push(to_send)) {
+#ifdef USE_WIFI_DPP
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_CFG_RECVD)
+      delete to_send->data.dpp_credentials;  // NOLINT(cppcoreguidelines-owning-memory)
+#endif
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
@@ -413,9 +415,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (!this->wifi_mode_(true, {}))
     return false;
 #ifdef USE_WIFI_DPP
-  // A connect attempt ends the supplicant's listen; loop() starts it again as soon as the attempt is over
+  // A connect attempt ends the supplicant's listen; the next cooldown starts it again
   this->stop_dpp_listen_();
-  this->dpp_listen_started_ = 0;
 #endif
 
   // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
@@ -1272,15 +1273,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_CFG_RECVD) {
+    const std::unique_ptr<SavedWifiSettings> credentials(data->data.dpp_credentials);
     this->dpp_listening_ = false;
-    const auto &credentials = data->data.dpp_credentials;
-    ESP_LOGI(TAG, "DPP configured network " LOG_SECRET("'%s'"), credentials.ssid);
-    // The wait for a configurator does not count against reboot_timeout or the re-listen delay
+    ESP_LOGI(TAG, "DPP configured network " LOG_SECRET("'%s'"), credentials->ssid);
+    // The reboot timer starts over for the connect attempt, as after a boot with saved credentials
     this->last_connected_ = App.get_loop_component_start_time();
-    // Saved like portal credentials; from cooldown save_wifi_sta() already restarts the retries
-    const bool retrying = this->state_ == WIFI_COMPONENT_STATE_COOLDOWN;
-    this->save_wifi_sta(credentials.ssid, credentials.password);
-    if (!retrying && this->state_ != WIFI_COMPONENT_STATE_STA_CONNECTING) {
+    // Saved like portal credentials; from a cooldown this already restarts the retries
+    this->save_wifi_sta(credentials->ssid, credentials->password);
+    if (this->state_ == WIFI_COMPONENT_STATE_OFF) {
+      // Without networks the station machine was never started
       this->start_connecting(*this->get_selected_sta_());
     }
 
