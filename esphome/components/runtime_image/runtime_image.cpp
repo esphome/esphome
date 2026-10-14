@@ -1,7 +1,6 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
 #include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -16,10 +15,13 @@
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+#include "qoi_decoder.h"
+#endif
 
 namespace esphome::runtime_image {
 
-static const char *const TAG = "runtime_image";
+ESPHOME_LOG_TAG(TAG, "runtime_image");
 
 // Widest supported format is 4 bytes/pixel, so 32767 * 32767 * 4 still fits a 32-bit size_t
 static constexpr int MAX_IMAGE_DIMENSION = 32767;
@@ -97,6 +99,22 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       }
       break;
     }
+    case image::IMAGE_TYPE_RGB111: {
+      uint8_t bits = (color.r >> 7) << 2 | (color.g >> 7) << 1 | (color.b >> 7);
+      if (this->bpp_ == 4)
+        bits = bits << 1 | (color.w >> 7);
+      const uint32_t stride = (this->buffer_width_ * this->bpp_ + 7u) / 8u;
+      const uint32_t bitpos = y * stride * 8 + x * this->bpp_;
+      uint8_t *byte = this->buffer_ + bitpos / 8;
+      // Place the pixel in a 16-bit window so it may straddle two bytes.
+      const uint8_t shift = 16 - this->bpp_ - bitpos % 8;
+      const uint16_t mask = ((1u << this->bpp_) - 1) << shift;
+      const uint16_t value = bits << shift;
+      byte[0] = (byte[0] & ~(mask >> 8)) | (value >> 8);
+      if (mask & 0xFF)
+        byte[1] = (byte[1] & ~(mask & 0xFF)) | (value & 0xFF);
+      break;
+    }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
       auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
@@ -171,22 +189,28 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
   // If no image is loaded and no placeholder, nothing to draw
 }
 
-bool RuntimeImage::begin_decode(size_t expected_size) {
+bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
   if (this->is_decoding()) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
   }
 
+  if (format == AUTO && this->format_ != AUTO) {
+    // Fall back to the configured format before the reuse check below
+    format = this->format_;
+  }
+
   // An idle decoder for a different format cannot be reused
-  if (this->decoder_ != nullptr && this->decoder_->get_format() != this->format_) {
-    ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), this->format_);
+  if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
+    ESP_LOGD(TAG, "Decoder format mismatch: current: %s, new: %s",
+             LOG_STR_ARG(get_format_name(this->decoder_->get_format())), LOG_STR_ARG(get_format_name(format)));
     this->decoder_ = nullptr;
   }
 
   if (!this->decoder_) {
-    this->decoder_ = this->create_decoder_(this->format_);
+    this->decoder_ = this->create_decoder_(format);
     if (!this->decoder_) {
-      ESP_LOGE(TAG, "Failed to create decoder for format %d", this->format_);
+      ESP_LOGE(TAG, "Failed to create decoder for format %s", LOG_STR_ARG(get_format_name(format)));
       return false;
     }
   }
@@ -350,7 +374,7 @@ size_t RuntimeImage::get_buffer_size(int width, int height) const {
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
 std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
-  ESP_LOGV(TAG, "Creating decoder for format %d", format);
+  ESP_LOGV(TAG, "Creating decoder for format %s", LOG_STR_ARG(get_format_name(format)));
   switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
@@ -364,8 +388,15 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
     case PNG:
       return make_unique<PngDecoder>(this);
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+    case QOI:
+      return make_unique<QoiDecoder>(this);
+#endif
+    case AUTO:
+      ESP_LOGE(TAG, "Image format could not be determined; set `format:` explicitly in the configuration");
+      return nullptr;
     default:
-      ESP_LOGE(TAG, "Unsupported image format: %d", format);
+      ESP_LOGE(TAG, "Unsupported image format: %s", LOG_STR_ARG(get_format_name(format)));
       return nullptr;
   }
 }

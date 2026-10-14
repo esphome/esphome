@@ -1,0 +1,9 @@
+esphome:
+  name: test
+
+bk72xx:
+  board: generic-bk7252
+
+remote_receiver:
+  - id: rcvr
+    pin: P6

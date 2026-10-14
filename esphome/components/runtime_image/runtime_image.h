@@ -62,9 +62,10 @@ class RuntimeImage : public image::Image {
    * @brief Begin decoding an image.
    *
    * @param expected_size Optional hint about the expected data size.
+   * @param format The image format to decode (defaults to AUTO, which uses the value set at construction).
    * @return true if decoder was successfully initialized.
    */
-  bool begin_decode(size_t expected_size = 0);
+  bool begin_decode(size_t expected_size = 0, ImageFormat format = AUTO);
 
   /**
    * @brief Feed data to the decoder.
@@ -103,6 +104,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Get the image format.
    */
+  /// Configured format; a format resolved per decode lives on the active decoder
   ImageFormat get_format() const { return this->format_; }
 
   /**
@@ -232,6 +234,8 @@ class RuntimeImage : public image::Image {
   bool is_big_endian_{false};
   /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
   bool external_buffer_{false};
+
+  friend class ImageDecoder;
 };
 
 }  // namespace esphome::runtime_image

@@ -80,7 +80,7 @@ struct VaneCall {
   MitsubishiCN105Component *parent_;
 };
 
-class MitsubishiCN105Component : public Component, public uart::UARTDevice {
+class MitsubishiCN105Component final : public Component, public uart::UARTDevice {
  public:
   explicit MitsubishiCN105Component() : hp_(*this) {}
 

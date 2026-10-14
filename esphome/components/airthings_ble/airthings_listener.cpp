@@ -4,7 +4,7 @@
 
 namespace esphome::airthings_ble {
 
-static const char *const TAG = "airthings_ble";
+ESPHOME_LOG_TAG(TAG, "airthings_ble");
 
 bool AirthingsListener::parse_device(const ble_device_base::ESPBTDevice &device) {
   for (auto &it : device.get_manufacturer_datas()) {

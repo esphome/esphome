@@ -2,6 +2,7 @@ remote_transmitter:
   id: xmitr
   pin: GPIO12
   carrier_duty_percent: 50%
+  # non_blocking is rtl8720c-only; the CI board is an RTL8710B
 
 packages:
   buttons: !include common-buttons.yaml

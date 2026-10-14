@@ -189,13 +189,17 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
     }
 
     if (in_ep && out_ep) {
-      cdc_devs.push_back(CdcEps{notify_ep, in_ep, out_ep, intf->bInterfaceNumber, intf->bInterfaceNumber});
+      CdcEps eps{notify_ep, in_ep, out_ep, intf->bInterfaceNumber, intf->bInterfaceNumber};
+      eps.bulk_interface_class = intf->bInterfaceClass;
+      eps.interrupt_interface_class = intf->bInterfaceClass;
+      cdc_devs.push_back(eps);
       break;  // PL2303 is single-port
     }
   }
 
-  if (cdc_devs.empty())
+  if (cdc_devs.empty()) {
     ESP_LOGE(TAG, "PL2303: failed to find bulk IN+OUT endpoints");
+  }
 
   return cdc_devs;
 }
@@ -260,34 +264,9 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
         encode_baud_divisor(line_coding, baud);
       }
 
-      // Stop bits: 0=1, 1=1.5, 2=2
-      switch (channel->get_stop_bits()) {
-        case 2:
-          line_coding[4] = 2;
-          break;
-        default:
-          line_coding[4] = 0;
-          break;
-      }
+      line_coding[4] = static_cast<uint8_t>(channel->line_stop_bits_());
 
-      // Parity: 0=none, 1=odd, 2=even, 3=mark, 4=space
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_ODD:
-          line_coding[5] = 1;
-          break;
-        case UART_CONFIG_PARITY_EVEN:
-          line_coding[5] = 2;
-          break;
-        case UART_CONFIG_PARITY_MARK:
-          line_coding[5] = 3;
-          break;
-        case UART_CONFIG_PARITY_SPACE:
-          line_coding[5] = 4;
-          break;
-        default:
-          line_coding[5] = 0;
-          break;
-      }
+      line_coding[5] = static_cast<uint8_t>(channel->line_parity_());
 
       // Data bits
       line_coding[6] = channel->get_data_bits();

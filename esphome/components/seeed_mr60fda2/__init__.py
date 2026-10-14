@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@limengdu"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "seeed_mr60fda2"
 MULTI_CONF = True
 
 mr60fda2_ns = cg.esphome_ns.namespace("seeed_mr60fda2")
@@ -31,6 +32,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     require_tx=True,
     require_rx=True,
     baud_rate=115200,
+    data_bits=8,
     parity="NONE",
     stop_bits=1,
 )

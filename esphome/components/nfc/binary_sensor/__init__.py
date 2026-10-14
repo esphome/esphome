@@ -1,8 +1,11 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_UID
 from esphome.core import HexInt
+from esphome.types import ConfigType
 
 from .. import Nfcc, NfcTagListener, nfc_ns
 
@@ -17,11 +20,10 @@ NfcTagBinarySensor = nfc_ns.class_(
     binary_sensor.BinarySensor,
     cg.Component,
     NfcTagListener,
-    cg.Parented.template(Nfcc),
 )
 
 
-def validate_uid(value):
+def validate_uid(value: Any) -> str:
     value = cv.string_strict(value)
     for x in value.split("-"):
         if len(x) != 2:
@@ -56,12 +58,15 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+_request_listener_slot = cg.slot_counter("NFC_TAG_LISTENER_COUNT")
+
+
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_NFCC_ID])
 
     hub = await cg.get_variable(config[CONF_NFCC_ID])
+    _request_listener_slot(str(hub))
     cg.add(hub.register_listener(var))
     if CONF_NDEF_CONTAINS in config:
         cg.add(var.set_ndef_match_string(config[CONF_NDEF_CONTAINS]))

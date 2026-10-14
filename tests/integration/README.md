@@ -7,6 +7,7 @@ This directory contains end-to-end integration tests for ESPHome, focusing on te
 - `conftest.py` - Common fixtures and utilities
 - `const.py` - Constants used throughout the integration tests
 - `types.py` - Type definitions for fixtures and functions
+- `raw_api_client.py` - Minimal plaintext api client whose reads happen only on request (for backpressure tests)
 - `state_utils.py` - State handling utilities (e.g., `InitialStateHelper`, `find_entity`, `require_entity`)
 - `fixtures/` - YAML configuration files for tests
 - `test_*.py` - Individual test files
@@ -19,6 +20,13 @@ The `yaml_config` fixture automatically loads YAML configurations based on the t
 - It looks for a file named after the test function (e.g., `test_host_mode_basic` → `fixtures/host_mode_basic.yaml`)
 - The fixture file must exist or the test will fail with a clear error message
 - The fixture automatically injects a dynamic port number into the API configuration
+
+Tests marked `@pytest.mark.shared_yaml("name")` load `fixtures/name.yaml` instead
+of the test-named file and compile it in a shared, hash-keyed build directory, so
+the whole group pays one full compile and each test only a relink. The marker
+argument must be a single-line string literal (CI test selection maps fixtures to
+test files by scanning for it), and marked tests must hand the `yaml_config`
+content to `run_compiled` unmodified.
 
 ### Key Fixtures
 
@@ -347,6 +355,7 @@ Create C++ components in `fixtures/external_components/` for:
 - Custom entity behaviors
 - Scheduler testing
 - Memory management tests
+- Deterministic network backpressure (`sndbuf_pin_component` pins socket send buffers; assert on its log line to prove the pin took effect)
 
 ##### Log Line Monitoring
 ```python

@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_ble_client {
 
-static const char *const TAG = "esp32_ble_client";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_client");
 
 // Connection parameters are shared with the other GATT client backends
 // (ble_device_base/ble_client_state.h) so the platforms cannot drift.
@@ -42,7 +42,7 @@ void BLEClientBase::set_state(espbt::ClientState st) {
 
 void BLEClientBase::loop() {
   if (!esp32_ble::global_ble->is_active()) {
-    this->set_state(espbt::ClientState::INIT);
+    // ble_before_disabled_event_handler() resets the client.
     return;
   }
   if (this->state() == espbt::ClientState::INIT) {
@@ -72,6 +72,21 @@ void BLEClientBase::loop() {
 
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
+void BLEClientBase::ble_before_disabled_event_handler() {
+  auto st = this->state();
+  if (st != espbt::ClientState::IDLE && st != espbt::ClientState::INIT) {
+    // No CLOSE_EVT will come: free the services and settle the link.
+    this->release_services();
+    this->set_idle_();
+    this->on_disconnect_complete(ESP_GATT_CONN_TERMINATE_LOCAL_HOST);
+  }
+  // The interface belongs to the torn-down stack.
+  this->gattc_if_ = ESP_GATT_IF_NONE;
+  this->set_state(espbt::ClientState::INIT);
+  // An idle client runs no loop; the INIT branch must run to register again.
+  this->enable_loop();
+}
+
 void BLEClientBase::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Address: %s\n"
@@ -92,6 +107,10 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
   if (this->address_ == 0 || device.address_uint64() != this->address_)
     return false;
   if (this->state() != espbt::ClientState::IDLE)
+    return false;
+  // Not registered on this stack yet; promoting now would stop the scan for a
+  // connect that connect() rejects anyway.
+  if (this->gattc_if_ == ESP_GATT_IF_NONE)
     return false;
 
   this->log_event_("Found device");
@@ -117,11 +136,22 @@ void BLEClientBase::connect() {
              this->connection_index_, this->address_str_);
     return;
   }
+  if (this->gattc_if_ == ESP_GATT_IF_NONE) {
+    // Bluedroid drops an open on an unknown interface without any event.
+    this->log_warning_("Connect rejected, GATT app not registered");
+    // INIT stays so loop() still registers; only a promoted client goes back.
+    if (this->state() == espbt::ClientState::DISCOVERED) {
+      this->set_state(espbt::ClientState::IDLE);
+    }
+    return;
+  }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_, this->remote_addr_type_);
   this->paired_ = false;
   // A registration whose event never arrived must not block this connection's release.
   this->services_released_ = false;
   this->pending_notify_regs_ = 0;
+  // A CONNECT_EVT seen while idle can leave the id of a link this attempt does not own.
+  this->conn_id_ = UNSET_CONN_ID;
   // Enable loop for state processing
   this->enable_loop();
   // Immediately transition to CONNECTING to prevent duplicate connection attempts
@@ -199,7 +229,10 @@ void BLEClientBase::release_services() {
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   // Only the cache clean makes the stack's database unsafe to walk.
   this->services_released_ = true;
-  esp_ble_gattc_cache_clean(this->remote_bda_);
+  // A stack on its way down frees its own cache.
+  if (esp32_ble::global_ble->is_active()) {
+    esp_ble_gattc_cache_clean(this->remote_bda_);
+  }
 #endif
 }
 
@@ -319,7 +352,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (!this->check_addr(param->open.remote_bda))
         return false;
       this->log_gattc_lifecycle_event_("OPEN");
-      // conn_id was already set in ESP_GATTC_CONNECT_EVT
       this->service_count_ = 0;
 
       // ESP-IDF's BLE stack may send ESP_GATTC_OPEN_EVT after esp_ble_gattc_open() returns an
@@ -331,19 +363,24 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         break;
       }
 
-      if (this->state() != espbt::ClientState::CONNECTING) {
-        // This should not happen but lets log it in case it does
-        // because it means we have a bad assumption about how the
-        // ESP BT stack works.
+      const bool open_failed = param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN;
+      // Bluedroid reports a failed open as DISCONNECT_EVT then a failing OPEN_EVT, with no CONNECT_EVT,
+      // so DISCONNECTING with no id is expected for a failure. Anything else means a bad assumption
+      // about how the ESP BT stack works, so log it.
+      const bool expected_failure =
+          open_failed && this->state() == espbt::ClientState::DISCONNECTING && this->conn_id_ == UNSET_CONN_ID;
+      if (this->state() != espbt::ClientState::CONNECTING && !expected_failure) {
         ESP_LOGE(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
                  this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
       }
-      if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
+      if (open_failed) {
         this->log_gattc_warning_("Connection open", param->open.status);
         // Connection was never established so CLOSE_EVT may not follow
         this->set_idle_();
         break;
       }
+      // An open on a link that is already up sends no CONNECT_EVT, so take the id here.
+      this->conn_id_ = param->open.conn_id;
       if (this->want_disconnect_) {
         // Disconnect was requested after connecting started,
         // but before the connection was established. Now that we have

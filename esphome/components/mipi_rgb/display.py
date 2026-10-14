@@ -12,7 +12,12 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S3, only_on_variant
+from esphome.components.esp32 import (
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    only_on_variant,
+)
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_DE_PIN,
@@ -226,7 +231,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.All(
         schema,
         cv.only_on_esp32,
-        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4]),
+        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4, VARIANT_ESP32S31]),
     )(config)
     model = MODELS[config[CONF_MODEL].upper()]
     model.check_requirements()
@@ -280,8 +285,9 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_SPI_ID in config:
         await spi.register_spi_device(var, config, write_only=True)
-        sequence = model.get_sequence(config)
-        cg.add(var.set_init_sequence(sequence))
+        sequence = model.get_sequence(config, add_reset=True)
+        table = cg.shared_progmem_array("mipi_rgb_init_sequence", cg.uint8, sequence)
+        cg.add(var.set_init_sequence(table, len(sequence)))
 
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))

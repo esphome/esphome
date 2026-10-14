@@ -4,7 +4,7 @@
 
 namespace esphome::max44009 {
 
-static const char *const TAG = "max44009.sensor";
+ESPHOME_LOG_TAG(TAG, "max44009.sensor");
 
 // REGISTERS
 static constexpr uint8_t MAX44009_REGISTER_CONFIGURATION = 0x02;
@@ -133,7 +133,5 @@ void MAX44009Sensor::write_(uint8_t reg, uint8_t value) {
     this->error_ = MAX44009_OK;
   }
 }
-
-void MAX44009Sensor::set_mode(MAX44009Mode mode) { this->mode_ = mode; }
 
 }  // namespace esphome::max44009

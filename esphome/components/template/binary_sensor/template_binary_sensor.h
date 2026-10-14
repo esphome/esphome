@@ -8,6 +8,8 @@ namespace esphome::template_ {
 
 class TemplateBinarySensor final : public Component, public binary_sensor::BinarySensor {
  public:
+  // User provided, not "= default": `new(p) TemplateBinarySensor()` would zero-fill .bss that is already zero.
+  TemplateBinarySensor() {}
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void setup() override;

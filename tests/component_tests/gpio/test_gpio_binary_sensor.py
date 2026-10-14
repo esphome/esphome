@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 import pytest
+
+from esphome.core import CORE
+
+INTERRUPT_DEFINE = "USE_GPIO_BINARY_SENSOR_INTERRUPT"
 
 
 def test_gpio_binary_sensor_basic_setup(
@@ -69,3 +74,62 @@ def test_gpio_binary_sensor_explicit_polling_mode(
     )
 
     assert "bs_polling->set_use_interrupt(false);" in main_cpp
+
+
+def test_gpio_binary_sensor_interrupt_emits_define(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """
+    An interrupt-mode sensor must emit the define that compiles the ISR code,
+    since the platform ISR pin implementation is only built when needed
+    """
+    generate_main("tests/component_tests/gpio/test_gpio_binary_sensor.yaml")
+
+    assert INTERRUPT_DEFINE in {d.name for d in CORE.defines}
+
+
+def test_gpio_binary_sensor_polling_omits_define(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """
+    A polling-only config must not emit the interrupt define, so the ISR code
+    (and its reference to ISRInternalGPIOPin) is compiled out
+    """
+    generate_main("tests/component_tests/gpio/test_gpio_binary_sensor_polling.yaml")
+
+    assert INTERRUPT_DEFINE not in {d.name for d in CORE.defines}
+
+
+def test_gpio_binary_sensor_mixed_modes_emit_define(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """
+    With one interrupt and one polling sensor, the define is emitted and the
+    polling instance still opts out via its setter
+    """
+    main_cpp = generate_main(
+        "tests/component_tests/gpio/test_gpio_binary_sensor_mixed.yaml"
+    )
+
+    assert INTERRUPT_DEFINE in {d.name for d in CORE.defines}
+    assert "bs_polling->set_use_interrupt(false);" in main_cpp
+    assert "bs_interrupt->set_use_interrupt" not in main_cpp
+
+
+def test_gpio_binary_sensor_expander_pin_omits_define(
+    generate_main: Callable[[str | Path], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    An expander pin can't use interrupts: final validation falls back to
+    polling and the interrupt define must not be emitted. This is the config
+    that fails to link if the ISR code is compiled without an internal pin
+    """
+    with caplog.at_level(logging.INFO):
+        main_cpp = generate_main(
+            "tests/component_tests/gpio/test_gpio_binary_sensor_expander.yaml"
+        )
+
+    assert "bs_expander->set_use_interrupt(false);" in main_cpp
+    assert INTERRUPT_DEFINE not in {d.name for d in CORE.defines}
+    assert "falling back to polling mode" in caplog.text

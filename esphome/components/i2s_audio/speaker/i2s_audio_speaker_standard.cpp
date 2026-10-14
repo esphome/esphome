@@ -18,7 +18,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.speaker.std";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.speaker.std");
 
 static constexpr uint32_t DMA_BUFFER_DURATION_MS = 10;
 static constexpr size_t DMA_BUFFERS_COUNT = 5;
@@ -75,6 +75,9 @@ void I2SAudioSpeaker::dump_config() {
 
 void I2SAudioSpeaker::run_speaker_task() {
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STARTING);
+  // Stale records from the previous run would pair with the wrong DMA events
+  xQueueReset(this->i2s_event_queue_);
+  xQueueReset(this->write_records_queue_);
 
   const uint32_t dma_buffers_duration_ms = DMA_BUFFER_DURATION_MS * DMA_BUFFERS_COUNT;
   // Ensure ring buffer duration is at least the duration of all DMA buffers
@@ -134,27 +137,29 @@ void I2SAudioSpeaker::run_speaker_task() {
     }
   }
 
-  if (successful_setup) {
-    // Preload every DMA descriptor with silence and push a matching zero-real-frames record per buffer.
-    // This guarantees that every on_sent event has a corresponding write record from the start, so
-    // ``i2s_event_queue_`` and ``write_records_queue_`` stay in lockstep for the entire task lifetime.
+  // Preload every DMA descriptor with silence and push a matching zero-real-frames record per buffer, so every
+  // on_sent event has a write record from the start. Runs with the channel disabled: at startup and after a resync.
+  auto preload_silence = [&]() -> bool {
     for (size_t i = 0; i < DMA_BUFFERS_COUNT; i++) {
       size_t bytes_loaded = 0;
       esp_err_t err = i2s_channel_preload_data(this->tx_handle_, silence_buffer, dma_buffer_bytes, &bytes_loaded);
       if (err != ESP_OK || bytes_loaded != dma_buffer_bytes) {
         ESP_LOGV(TAG, "Failed to preload silence into DMA buffer %u (err=%d, loaded=%u)", (unsigned) i, (int) err,
                  (unsigned) bytes_loaded);
-        successful_setup = false;
-        break;
+        return false;
       }
       uint32_t zero_real_frames = 0;
       if (xQueueSend(this->write_records_queue_, &zero_real_frames, 0) != pdTRUE) {
         // Should never happen: the queue was just reset and is sized for DMA_BUFFERS_COUNT * 2 entries.
         ESP_LOGV(TAG, "Failed to push preload write record");
-        successful_setup = false;
-        break;
+        return false;
       }
     }
+    return true;
+  };
+
+  if (successful_setup) {
+    successful_setup = preload_silence();
   }
 
   if (successful_setup) {
@@ -177,6 +182,9 @@ void I2SAudioSpeaker::run_speaker_task() {
     // stop to wait until every real-audio buffer has been confirmed played by an ISR event.
     uint32_t pending_real_buffers = 0;
     uint32_t last_data_received_time = millis();
+    bool resync_needed = false;
+    // Real frames consumed from the ring buffer that never reached a write record
+    uint32_t unrecorded_frames = 0;
 
     xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_RUNNING);
 
@@ -197,8 +205,6 @@ void I2SAudioSpeaker::run_speaker_task() {
       uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
       if (event_group_bits & SpeakerEventGroupBits::COMMAND_STOP) {
-        // COMMAND_STOP is set both by user-initiated stop() and by the ISR when it drops a completion
-        // event (paired with ERR_DROPPED_EVENT so loop() can distinguish the two cases).
         xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_STOP);
         ESP_LOGV(TAG, "Exiting: COMMAND_STOP received");
         break;
@@ -214,6 +220,22 @@ void I2SAudioSpeaker::run_speaker_task() {
         break;
       }
 
+      if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
+        ESP_LOGE(TAG, "ISR event queue overflow, resyncing DMA lockstep");
+        resync_needed = true;
+      }
+      if (resync_needed) {
+        // Rebuild the lockstep in place; the ring buffer keeps accepting audio throughout
+        const bool resynced = this->resync_lockstep_(unrecorded_frames, preload_silence);
+        unrecorded_frames = 0;
+        pending_real_buffers = 0;
+        resync_needed = false;
+        if (!resynced) {
+          ESP_LOGE(TAG, "DMA lockstep resync failed, restarting speaker task");
+          break;
+        }
+      }
+
       // Drain ISR-stamped completion events. Each event corresponds 1:1 with a write_records_queue_
       // entry by construction (preloaded records at startup, plus exactly one record pushed per
       // iteration alongside exactly one DMA-buffer-sized write).
@@ -223,8 +245,7 @@ void I2SAudioSpeaker::run_speaker_task() {
         uint32_t real_frames = 0;
         if (xQueueReceive(this->write_records_queue_, &real_frames, 0) != pdTRUE) {
           // Should never happen: would indicate the lockstep invariant is broken.
-          ESP_LOGV(TAG, "Event without matching write record");
-          xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC);
+          ESP_LOGE(TAG, "Event without matching write record, resyncing DMA lockstep");
           lockstep_broken = true;
           break;
         }
@@ -240,7 +261,8 @@ void I2SAudioSpeaker::run_speaker_task() {
         }
       }
       if (lockstep_broken) {
-        break;
+        resync_needed = true;
+        continue;
       }
 
       // Graceful stop: exit only after the source's exposed chunk is drained, the underlying ring
@@ -299,10 +321,12 @@ void I2SAudioSpeaker::run_speaker_task() {
           size_t bw = 0;
           i2s_channel_write(this->tx_handle_, chunk, output_bytes, &bw, WRITE_TIMEOUT_TICKS);
           if (bw != output_bytes) {
-            // A short real-audio write breaks DMA descriptor alignment for every subsequent event;
-            // the only safe recovery is to restart the task.
-            ESP_LOGV(TAG, "Partial real audio write: %u of %u bytes", (unsigned) bw, (unsigned) output_bytes);
-            xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_PARTIAL_WRITE);
+            // A short write breaks DMA descriptor alignment for every subsequent event. Drop the chunk rather
+            // than retry it: it was already narrowed in place.
+            ESP_LOGE(TAG, "Partial DMA write (%u of %u bytes), resyncing DMA lockstep", (unsigned) bw,
+                     (unsigned) output_bytes);
+            audio_source->consume(input_bytes);
+            real_frames_total += frames_to_write;
             partial_write_failure = true;
             break;
           }
@@ -316,7 +340,9 @@ void I2SAudioSpeaker::run_speaker_task() {
       }
 
       if (partial_write_failure) {
-        break;
+        unrecorded_frames += real_frames_total;
+        resync_needed = true;
+        continue;
       }
 
       const size_t silence_bytes = dma_buffer_bytes - bytes_written_total;
@@ -325,19 +351,22 @@ void I2SAudioSpeaker::run_speaker_task() {
         i2s_channel_write(this->tx_handle_, silence_buffer, silence_bytes, &bw, WRITE_TIMEOUT_TICKS);
         if (bw != silence_bytes) {
           // Same descriptor-alignment hazard as a partial real-audio write.
-          ESP_LOGV(TAG, "Partial silence write: %u of %u bytes", (unsigned) bw, (unsigned) silence_bytes);
-          xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_PARTIAL_WRITE);
-          break;
+          ESP_LOGE(TAG, "Partial DMA write (%u of %u bytes), resyncing DMA lockstep", (unsigned) bw,
+                   (unsigned) silence_bytes);
+          unrecorded_frames += real_frames_total;
+          resync_needed = true;
+          continue;
         }
       }
 
       // Push the matching write record. Capacity headroom in I2S_EVENT_QUEUE_COUNT guarantees this
       // succeeds even with a transient backlog of unprocessed events; if it ever fails the lockstep
-      // invariant is broken and every subsequent timestamp would be silently wrong, so bail.
+      // invariant is broken and every subsequent timestamp would be silently wrong, so rebuild it.
       if (xQueueSend(this->write_records_queue_, &real_frames_total, 0) != pdTRUE) {
-        ESP_LOGV(TAG, "Exiting: write records queue full");
-        xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC);
-        break;
+        ESP_LOGE(TAG, "Write records queue full, resyncing DMA lockstep");
+        unrecorded_frames += real_frames_total;
+        resync_needed = true;
+        continue;
       }
       if (real_frames_total > 0) {
         pending_real_buffers++;
@@ -363,8 +392,6 @@ void I2SAudioSpeaker::run_speaker_task() {
 }
 
 esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) {
-  this->current_stream_info_ = audio_stream_info;
-
   if ((this->i2s_role_ & I2S_ROLE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT
     // Can't reconfigure I2S bus, so the sample rate must match the configured value
     ESP_LOGE(TAG, "Incompatible stream settings");
@@ -401,6 +428,16 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     ESP_LOGE(TAG, "Parent bus is busy");
     return ESP_ERR_INVALID_STATE;
   }
+
+  // Reuse a kept channel while the stream format matches
+  if (this->tx_handle_ != nullptr) {
+    if (this->current_stream_info_ == audio_stream_info) {
+      return ESP_OK;
+    }
+    this->delete_channel_();
+  }
+
+  this->current_stream_info_ = audio_stream_info;
 
   // The DMA buffers hold output-format (post-narrowing) samples, so size them from the output stream info.
   uint32_t dma_buffer_length = dma_buffer_frames(this->output_stream_info_);
