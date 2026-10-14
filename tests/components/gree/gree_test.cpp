@@ -23,7 +23,6 @@ TEST(GreeClimateTest, HeatCoolOverrideAdvertisedWithoutHeat) {
   EXPECT_FALSE(traits.supports_mode(climate::CLIMATE_MODE_HEAT));
 }
 
-
 // The unit displays trunc(celsiusToFahrenheit(GREE_TEMP_MIN + Temp + 0.5 * TempExtraDegreeF)).
 // These expectations come from frames captured off a real YX1FF remote and from the panel of a
 // Blueridge mini-split, not from a conversion formula.
