@@ -15,6 +15,5 @@ wifi:
     ap_mode: wisp
     dns_servers:
       - 8.8.8.8
-      - 8.8.4.4
 
 logger:

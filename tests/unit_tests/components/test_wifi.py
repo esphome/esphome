@@ -5,6 +5,7 @@ import pytest
 from esphome.components.esp32 import const
 from esphome.components.wifi import (
     CONF_AP_MODE,
+    WIFI_NETWORK_AP,
     check_placeholder_credentials,
     final_validate as wifi_final_validate,
     has_native_wifi,
@@ -325,3 +326,10 @@ def test_dns_servers_requires_wisp(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     with pytest.raises(cv.Invalid, match="dns_servers requires ap_mode: WISP"):
         _validate_wisp(config)
+
+
+def test_dns_servers_accepts_one_server() -> None:
+    """The SoftAP DHCP server only supports a single DNS server."""
+    WIFI_NETWORK_AP({CONF_AP_MODE: "WISP", "dns_servers": ["1.1.1.1"]})
+    with pytest.raises(cv.Invalid):
+        WIFI_NETWORK_AP({CONF_AP_MODE: "WISP", "dns_servers": ["1.1.1.1", "8.8.8.8"]})

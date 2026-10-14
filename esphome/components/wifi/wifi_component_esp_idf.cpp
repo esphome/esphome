@@ -1367,15 +1367,16 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Failed to enable DHCP DNS option: %s", esp_err_to_name(err));
   }
-  for (size_t i = 0; i < this->dns_server_count_; i++) {
+  if (this->dns_server_count_ > 0) {
+    // A DHCP server interface only supports the main DNS server
     esp_netif_dns_info_t dns_info{};
     dns_info.ip.type = ESP_IPADDR_TYPE_V4;
-    dns_info.ip.u_addr.ip4.addr = this->dns_servers_[i];
-    err = esp_netif_set_dns_info(s_ap_netif, i == 0 ? ESP_NETIF_DNS_MAIN : ESP_NETIF_DNS_BACKUP, &dns_info);
+    dns_info.ip.u_addr.ip4.addr = this->dns_servers_[0];
+    err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &dns_info);
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to configure DNS server %zu: %s", i, esp_err_to_name(err));
+      ESP_LOGW(TAG, "Failed to configure DNS server: %s", esp_err_to_name(err));
     } else {
-      ESP_LOGV(TAG, "DHCP DNS server %zu: " IPSTR, i, IP2STR(&dns_info.ip.u_addr.ip4));
+      ESP_LOGV(TAG, "DHCP DNS server: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
     }
   }
   this->forward_sta_dns_to_ap_();
@@ -1525,14 +1526,32 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 void WiFiComponent::forward_sta_dns_to_ap_() {
   if (this->dns_server_count_ > 0 || s_sta_netif == nullptr || s_ap_netif == nullptr)
     return;
-  for (int i = 0; i < 2; i++) {
-    esp_netif_dns_info_t dns_info{};
-    auto type = i == 0 ? ESP_NETIF_DNS_MAIN : ESP_NETIF_DNS_BACKUP;
-    if (esp_netif_get_dns_info(s_sta_netif, type, &dns_info) != ESP_OK || dns_info.ip.type != ESP_IPADDR_TYPE_V4 ||
-        dns_info.ip.u_addr.ip4.addr == 0)
-      continue;
-    if (esp_netif_set_dns_info(s_ap_netif, type, &dns_info) == ESP_OK) {
-      ESP_LOGV(TAG, "DHCP DNS server %d: " IPSTR, i, IP2STR(&dns_info.ip.u_addr.ip4));
+  // A DHCP server interface only supports the main DNS server
+  esp_netif_dns_info_t sta_dns{}, ap_dns{};
+  if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &sta_dns) != ESP_OK ||
+      sta_dns.ip.type != ESP_IPADDR_TYPE_V4 || sta_dns.ip.u_addr.ip4.addr == 0)
+    return;
+  if (esp_netif_get_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &ap_dns) == ESP_OK &&
+      ap_dns.ip.u_addr.ip4.addr == sta_dns.ip.u_addr.ip4.addr)
+    return;
+  // The DHCP server only picks up a new DNS server while it is stopped. It is not running yet
+  // when the AP is still starting, which is reported as already stopped.
+  esp_err_t err = esp_netif_dhcps_stop(s_ap_netif);
+  bool was_running = err == ESP_OK;
+  if (!was_running && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+    ESP_LOGW(TAG, "Failed to stop DHCP server: %s", esp_err_to_name(err));
+    return;
+  }
+  err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to forward DNS server: %s", esp_err_to_name(err));
+  } else {
+    ESP_LOGV(TAG, "DHCP DNS server: " IPSTR, IP2STR(&sta_dns.ip.u_addr.ip4));
+  }
+  if (was_running) {
+    err = esp_netif_dhcps_start(s_ap_netif);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to restart DHCP server: %s", esp_err_to_name(err));
     }
   }
 }

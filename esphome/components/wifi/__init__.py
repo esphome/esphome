@@ -314,7 +314,7 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
             *WIFI_AP_MODES, upper=True
         ),
         cv.Optional(CONF_DNS_SERVERS): cv.All(
-            cv.ensure_list(cv.ipv4address), cv.Length(min=1, max=2)
+            cv.ensure_list(cv.ipv4address), cv.Length(min=1, max=1)
         ),
     }
 )
