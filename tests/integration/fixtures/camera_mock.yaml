@@ -1,0 +1,19 @@
+esphome:
+  name: camera-mock-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+mock_camera:
+  name: Mock Camera
+  # Larger than MAX_BATCH_PACKET_SIZE (1390) so the image is split across
+  # multiple CameraImageResponse chunks and the client must reassemble.
+  # Must match IMAGE_SIZE in test_camera_mock.py.
+  image_size: 4096

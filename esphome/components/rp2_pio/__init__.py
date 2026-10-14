@@ -1,0 +1,48 @@
+import platform
+
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.types import ConfigType
+
+DEPENDENCIES = ["rp2"]
+DOMAIN = "rp2_pio"
+
+
+PIOASM_REPO_VERSION = "4.1.0"
+PIOASM_REPO_BASE = f"https://github.com/earlephilhower/pico-quick-toolchain/releases/download/{PIOASM_REPO_VERSION}"
+PIOASM_VERSION = "pioasm-9fdfe11.250530"
+PIOASM_DOWNLOADS = {
+    "linux": {
+        "aarch64": f"aarch64-linux-gnu.{PIOASM_VERSION}.tar.gz",
+        "armv7l": f"arm-linux-gnueabihf.{PIOASM_VERSION}.tar.gz",
+        "x86_64": f"x86_64-linux-gnu.{PIOASM_VERSION}.tar.gz",
+    },
+    "windows": {
+        "amd64": f"x86_64-w64-mingw32.{PIOASM_VERSION}.zip",
+    },
+    "darwin": {
+        "x86_64": f"x86_64-apple-darwin20.4.{PIOASM_VERSION}.tar.gz",
+        "arm64": f"aarch64-apple-darwin20.4.{PIOASM_VERSION}.tar.gz",
+    },
+}
+
+
+async def to_code(config: ConfigType) -> None:
+    # cg.add_platformio_option(
+    #     "platform_packages",
+    #     [
+    #         "earlephilhower/tool-pioasm-rp2040-earlephilhower",
+    #     ],
+    # )
+    os_name = platform.system().lower()
+    arch = platform.machine().lower()
+    if os_name not in PIOASM_DOWNLOADS or arch not in PIOASM_DOWNLOADS[os_name]:
+        raise cv.Invalid(
+            f"pioasm is not available for {platform.system()} {platform.machine()}"
+        )
+    file = PIOASM_DOWNLOADS[os_name][arch]
+    cg.add_platformio_option(
+        "platform_packages",
+        [f"earlephilhower/tool-pioasm-rp2040-earlephilhower@{PIOASM_REPO_BASE}/{file}"],
+    )
+    cg.add_platformio_option("extra_scripts", ["pre:build_pio.py"])

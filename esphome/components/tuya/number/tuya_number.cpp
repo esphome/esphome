@@ -1,9 +1,11 @@
+#include <cmath>
+
 #include "esphome/core/log.h"
 #include "tuya_number.h"
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.number";
+ESPHOME_LOG_TAG(TAG, "tuya.number");
 
 void TuyaNumber::setup() {
   if (this->restore_value_) {
@@ -63,7 +65,7 @@ void TuyaNumber::setup() {
 void TuyaNumber::control(float value) {
   ESP_LOGV(TAG, "Setting number %u: %f", this->number_id_, value);
   if (this->type_ == TuyaDatapointType::INTEGER) {
-    int integer_value = lround(value * multiply_by_);
+    int integer_value = std::lround(value * multiply_by_);
     this->parent_->set_integer_datapoint_value(this->number_id_, integer_value);
   } else if (this->type_ == TuyaDatapointType::ENUM) {
     this->parent_->set_enum_datapoint_value(this->number_id_, value);

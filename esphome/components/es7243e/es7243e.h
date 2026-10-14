@@ -6,7 +6,7 @@
 
 namespace esphome::es7243e {
 
-class ES7243E : public audio_adc::AudioAdc, public Component, public i2c::I2CDevice {
+class ES7243E final : public audio_adc::AudioAdc, public Component, public i2c::I2CDevice {
   /* Class for configuring an ES7243E ADC for microphone input.
    * Based on code from:
    * - https://github.com/espressif/esp-adf/ (accessed 20250116)

@@ -6,7 +6,7 @@
 
 namespace esphome::bl0942 {
 
-static const char *const TAG = "bl0942";
+ESPHOME_LOG_TAG(TAG, "bl0942");
 
 static const uint8_t BL0942_READ_COMMAND = 0x58;
 static const uint8_t BL0942_FULL_PACKET = 0xAA;
@@ -70,13 +70,10 @@ void BL0942::loop() {
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
-  uint8_t checksum = BL0942_READ_COMMAND | this->address_;
   // Whole package but checksum
-  uint8_t *raw = (uint8_t *) data;
-  for (uint32_t i = 0; i < sizeof(*data) - 1; i++) {
-    checksum += raw[i];
-  }
-  checksum ^= 0xFF;
+  const uint8_t checksum =
+      sum_bytes(reinterpret_cast<const uint8_t *>(data), sizeof(*data) - 1, BL0942_READ_COMMAND | this->address_) ^
+      0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "BL0942 invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);
   }
@@ -124,14 +121,14 @@ void BL0942::setup() {
   // If either current or voltage references are set explicitly by the user,
   // calculate the power reference from it unless that is also explicitly set.
   if ((this->current_reference_set_ || this->voltage_reference_set_) && !this->power_reference_set_) {
-    this->power_reference_ = (this->voltage_reference_ * this->current_reference_ * 3537.0 / 305978.0) / 73989.0;
+    this->power_reference_ = (this->voltage_reference_ * this->current_reference_ * 3537.0f / 305978.0f) / 73989.0f;
     this->power_reference_set_ = true;
   }
 
   // Similarly for energy reference, if the power reference was set by the user
   // either implicitly or explicitly.
   if (this->power_reference_set_ && !this->energy_reference_set_) {
-    this->energy_reference_ = this->power_reference_ * 3600000 / 419430.4;
+    this->energy_reference_ = this->power_reference_ * 3600000 / 419430.4f;
     this->energy_reference_set_ = true;
   }
 

@@ -16,7 +16,7 @@ enum AnalogBits : uint8_t {
   BITS_12 = 12,
 };
 
-class M5Stack8AngleComponent : public i2c::I2CDevice, public Component {
+class M5Stack8AngleComponent final : public i2c::I2CDevice, public Component {
  public:
   void setup() override;
   void dump_config() override;

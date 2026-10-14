@@ -12,7 +12,7 @@ namespace esphome::lilygo_t5_47 {
 
 using namespace touchscreen;
 
-class LilygoT547Touchscreen : public Touchscreen, public i2c::I2CDevice {
+class LilygoT547Touchscreen final : public Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
 

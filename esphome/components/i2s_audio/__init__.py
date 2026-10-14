@@ -18,17 +18,21 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.microphone import DOMAIN as MICROPHONE_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
 from esphome.core import CORE
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "i2s_audio"
 MULTI_CONF = True
 
 CONF_PDM = "pdm"
+CONF_PDM_DSR = "pdm_dsr"
 CONF_ADC_TYPE = "adc_type"
 
 CONF_I2S_DOUT_PIN = "i2s_dout_pin"
@@ -37,7 +41,6 @@ CONF_I2S_MCLK_PIN = "i2s_mclk_pin"
 CONF_I2S_BCLK_PIN = "i2s_bclk_pin"
 CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
-CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 
 CONF_I2S_MODE = "i2s_mode"
@@ -144,7 +147,7 @@ I2S_MCLK_MULTIPLE = {
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 
-def validate_mclk_divisible_by_3(config):
+def validate_mclk_divisible_by_3(config: ConfigType) -> ConfigType:
     if config[CONF_BITS_PER_SAMPLE] == 24 and config[CONF_MCLK_MULTIPLE] % 3 != 0:
         raise cv.Invalid(
             f"{CONF_MCLK_MULTIPLE} must be divisible by 3 when bits per sample is 24"
@@ -158,7 +161,7 @@ def i2s_audio_component_schema(
     default_sample_rate: int,
     default_channel: str,
     default_bits_per_sample: str,
-):
+) -> cv.Schema:
     return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(class_),
@@ -170,7 +173,7 @@ def i2s_audio_component_schema(
                 min=1
             ),
             cv.Optional(CONF_BITS_PER_SAMPLE, default=default_bits_per_sample): cv.All(
-                _validate_bits, cv.one_of(*I2S_BITS_PER_SAMPLE)
+                _validate_bits, cv.int_, cv.one_of(*I2S_BITS_PER_SAMPLE)
             ),
             cv.Optional(CONF_I2S_MODE, default=CONF_PRIMARY): cv.one_of(
                 *I2S_MODE_OPTIONS, lower=True
@@ -181,7 +184,7 @@ def i2s_audio_component_schema(
     )
 
 
-async def register_i2s_audio_component(var, config):
+async def register_i2s_audio_component(var: MockObj, config: ConfigType) -> None:
     await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
     cg.add(var.set_i2s_role(I2S_ROLE_OPTIONS[config[CONF_I2S_MODE]]))
     slot_mode = config[CONF_CHANNEL]
@@ -216,9 +219,9 @@ class I2SAudioData:
 
 
 def _get_data() -> I2SAudioData:
-    if CONF_I2S_AUDIO not in CORE.data:
-        CORE.data[CONF_I2S_AUDIO] = I2SAudioData()
-    return CORE.data[CONF_I2S_AUDIO]
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = I2SAudioData()
+    return CORE.data[DOMAIN]
 
 
 def _assign_ports() -> None:
@@ -232,12 +235,12 @@ def _assign_ports() -> None:
         return
 
     full_config = fv.full_config.get()
-    i2s_configs = full_config[CONF_I2S_AUDIO]
+    i2s_configs = full_config[DOMAIN]
 
     # Find i2s_audio instances with microphones that require port 0
     # (PDM and internal ADC only work on I2S port 0)
     port0_parent_id = None
-    for mic_config in full_config.get("microphone", []):
+    for mic_config in full_config.get(MICROPHONE_DOMAIN, []):
         if CONF_I2S_AUDIO_ID not in mic_config:
             continue
         if mic_config.get(CONF_PDM) or mic_config.get(CONF_ADC_TYPE) == "internal":
@@ -259,8 +262,8 @@ def _assign_ports() -> None:
             next_port += 1
 
 
-def _final_validate(_):
-    i2s_audio_configs = fv.full_config.get()[CONF_I2S_AUDIO]
+def _final_validate(_: ConfigType) -> None:
+    i2s_audio_configs = fv.full_config.get()[DOMAIN]
     variant = get_esp32_variant()
     if variant not in I2S_PORTS:
         raise cv.Invalid(f"Unsupported variant {variant}")
@@ -274,7 +277,7 @@ def _final_validate(_):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

@@ -2,8 +2,11 @@ from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Cossid"]
+DOMAIN = "sm10bit_base"
 MULTI_CONF = True
 
 CONF_MAX_POWER_COLOR_CHANNELS = "max_power_color_channels"
@@ -26,7 +29,7 @@ SM10BIT_BASE_CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def register_sm10bit_base(config):
+async def register_sm10bit_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

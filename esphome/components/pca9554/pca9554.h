@@ -7,9 +7,9 @@
 
 namespace esphome::pca9554 {
 
-class PCA9554Component : public Component,
-                         public i2c::I2CDevice,
-                         public gpio_expander::CachedGpioExpander<uint16_t, 16> {
+class PCA9554Component final : public Component,
+                               public i2c::I2CDevice,
+                               public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
   PCA9554Component() = default;
 
@@ -53,8 +53,11 @@ class PCA9554Component : public Component,
 };
 
 /// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
-class PCA9554GPIOPin : public GPIOPin {
+class PCA9554GPIOPin final : public GPIOPin {
  public:
+  // User provided, not "= default": `new(p) PCA9554GPIOPin()` would zero-fill .bss that is already zero.
+  PCA9554GPIOPin() {}
+
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
@@ -69,10 +72,10 @@ class PCA9554GPIOPin : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
-  PCA9554Component *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  PCA9554Component *parent_{nullptr};
+  uint8_t pin_{0};
+  bool inverted_{false};
+  gpio::Flags flags_{};
 };
 
 }  // namespace esphome::pca9554

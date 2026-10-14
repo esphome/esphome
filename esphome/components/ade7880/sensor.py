@@ -36,6 +36,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -243,7 +244,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def neutral_channel(config):
+async def neutral_channel(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
 
     current = config[CONF_CURRENT]
@@ -257,7 +258,7 @@ async def neutral_channel(config):
     return var
 
 
-async def power_channel(config):
+async def power_channel(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
 
     for sensor_type in POWER_SENSOR_TYPES:
@@ -280,7 +281,7 @@ async def power_channel(config):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

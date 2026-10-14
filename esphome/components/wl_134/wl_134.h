@@ -8,7 +8,7 @@
 
 namespace esphome::wl_134 {
 
-class Wl134Component : public text_sensor::TextSensor, public Component, public uart::UARTDevice {
+class Wl134Component final : public text_sensor::TextSensor, public Component, public uart::UARTDevice {
  public:
   enum Rfid134Error {
     RFID134_ERROR_NONE,

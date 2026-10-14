@@ -1,0 +1,12 @@
+esphome:
+  on_boot:
+    then:
+      - rx8025t.write_time: rx8025t_time
+      - rx8025t.read_time:
+          id: rx8025t_time
+
+time:
+  - platform: rx8025t
+    i2c_id: i2c_bus
+    id: rx8025t_time
+    update_interval: never
