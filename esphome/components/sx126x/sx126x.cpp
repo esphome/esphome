@@ -317,7 +317,7 @@ SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
   // Callers such as a template number's on_value can run before setup() or after a failed setup
   if (!this->is_ready()) {
     ESP_LOGW(TAG, "Radio not ready, packet dropped");
-    return SX126xError::NOT_READY;
+    return SX126xError::SX126X_ERROR_NOT_READY;
   }
   if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
