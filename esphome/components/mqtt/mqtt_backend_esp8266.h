@@ -49,6 +49,8 @@ class MQTTBackendESP8266 final : public MQTTBackend {
 
   bool connected() const final { return mqtt_client_.connected(); }
   void connect() final { mqtt_client_.connect(); }
+  /// Only call while disconnected: the parser writes inbound topics into this buffer.
+  void set_max_topic_length(uint16_t length) { mqtt_client_.setMaxTopicLength(length); }
   void disconnect() final { mqtt_client_.disconnect(true); }
   bool subscribe(const char *topic, uint8_t qos) final { return mqtt_client_.subscribe(topic, qos) != 0; }
   bool unsubscribe(const char *topic) final { return mqtt_client_.unsubscribe(topic) != 0; }

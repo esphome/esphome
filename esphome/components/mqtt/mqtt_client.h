@@ -370,6 +370,10 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // AsyncMqttClient drops inbound topics longer than this; it starts at the library's default
+  uint16_t max_topic_length_{128};
+#endif
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -2,6 +2,7 @@
 
 #ifdef USE_MQTT
 
+#include <algorithm>
 #include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
@@ -312,6 +313,17 @@ void MQTTClientComponent::start_connect_() {
   // Force disconnect first
   this->mqtt_backend_.disconnect();
 
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // Grow the topic buffer to the longest subscription. Only here, while no connection parses into it.
+  size_t longest = this->max_topic_length_;
+  for (const auto &subscription : this->subscriptions_)
+    longest = std::max(longest, subscription.topic.size());
+  if (longest > this->max_topic_length_ && longest <= UINT16_MAX) {
+    this->max_topic_length_ = longest;
+    this->mqtt_backend_.set_max_topic_length(longest);
+  }
+#endif
+
   this->mqtt_backend_.set_client_id(this->credentials_.client_id.c_str());
   this->mqtt_backend_.set_clean_session(this->credentials_.clean_session);
   const char *username = nullptr;
@@ -472,6 +484,13 @@ void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscripti
       .callback = callback,
       .resubscribe_timeout = 0,
   });
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  if (subscription.topic.size() > this->max_topic_length_ &&
+      (this->state_ == MQTT_CLIENT_CONNECTING || this->state_ == MQTT_CLIENT_CONNECTED)) {
+    ESP_LOGW(TAG, "Topic '%s' is longer than %u characters; its messages arrive after the next reconnect",
+             subscription.topic.c_str(), this->max_topic_length_);
+  }
+#endif
   this->resubscribe_subscription_(&subscription);
 }
 

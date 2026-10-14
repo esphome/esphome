@@ -1,5 +1,3 @@
-from collections.abc import Iterator
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import logger, socket
@@ -25,7 +23,6 @@ from esphome.const import (
     CONF_CLIENT_ID,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
-    CONF_DEVICE_ID,
     CONF_DISCOVER_IP,
     CONF_DISCOVERY,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
@@ -33,17 +30,10 @@ from esphome.const import (
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
     CONF_ENABLE_ON_BOOT,
-    CONF_ESPHOME,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
-    CONF_MODE_COMMAND_TOPIC,
-    CONF_MQTT as CONF_MQTT,
-    CONF_MQTT_ID,
-    CONF_NAME,
-    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -52,7 +42,6 @@ from esphome.const import (
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
-    CONF_PLATFORM,
     CONF_PORT,
     CONF_PUBLISH_NAN_AS_NONE,
     CONF_QOS,
@@ -64,7 +53,6 @@ from esphome.const import (
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
-    CONF_TYPE,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
@@ -76,8 +64,6 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import get_base_entity_object_id
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -321,102 +307,6 @@ CONFIG_SCHEMA = cv.All(
     ),
     _consume_mqtt_sockets,
 )
-
-# AsyncMqttClient, the ESP8266 and LibreTiny backend, drops any inbound message whose
-# topic is longer than this (its default maxTopicLength)
-ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN = 128
-# name_add_mac_suffix appends "-" plus 6 hex digits to the name at runtime
-MAC_SUFFIX = "-xxxxxx"
-# Entity domains whose MQTT component always subscribes to its command topic
-_COMMAND_TOPIC_DOMAINS = (
-    "alarm_control_panel",
-    "button",
-    "climate",
-    "cover",
-    "datetime",
-    "fan",
-    "light",
-    "lock",
-    "number",
-    "select",
-    "switch",
-    "text",
-    "update",
-    "valve",
-)
-
-
-def _entity_command_topic(
-    domain: str, config: ConfigType, topic_prefix: str, mac_suffix: bool
-) -> str | None:
-    """Return the topic an entity's MQTT component always subscribes to, if known."""
-    if domain == "climate":
-        suffix, custom_key = "mode/command", CONF_MODE_COMMAND_TOPIC
-    else:
-        suffix, custom_key = "command", CONF_COMMAND_TOPIC
-    if (custom := config.get(custom_key)) is not None:
-        # A lambda topic is only known at runtime
-        return custom if isinstance(custom, str) else None
-    # Mirrors MQTTComponent::compute_is_internal_(): internal components never subscribe
-    if CONF_STATE_TOPIC in config:
-        internal = config[CONF_STATE_TOPIC] == ""
-    else:
-        internal = config.get(CONF_INTERNAL, False)
-    if internal:
-        return None
-    device = config.get(CONF_DEVICE_ID)
-    object_id = get_base_entity_object_id(
-        config.get(CONF_NAME) or "", CORE.friendly_name, device.id if device else None
-    )
-    if mac_suffix and not config.get(CONF_NAME):
-        object_id += MAC_SUFFIX
-    component_type = config[CONF_TYPE].lower() if domain == "datetime" else domain
-    return f"{topic_prefix}/{component_type}/{object_id}/{suffix}"
-
-
-def _subscribed_topics(config: ConfigType) -> Iterator[str]:
-    """Yield every subscribed topic that is known at build time."""
-    full_config = fv.full_config.get()
-    mac_suffix = full_config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
-    if topic_prefix := config[CONF_TOPIC_PREFIX]:
-        if mac_suffix and topic_prefix == CORE.name:
-            topic_prefix += MAC_SUFFIX
-        for domain in _COMMAND_TOPIC_DOMAINS:
-            for entity in full_config.get(domain) or []:
-                if CONF_MQTT_ID in entity and (
-                    topic := _entity_command_topic(
-                        domain, entity, topic_prefix, mac_suffix
-                    )
-                ):
-                    yield topic
-    for key in (CONF_ON_MESSAGE, CONF_ON_JSON_MESSAGE):
-        for trigger in config.get(key, []):
-            yield trigger[CONF_TOPIC]
-    for domain in ("sensor", "text_sensor"):
-        for entity in full_config.get(domain) or []:
-            if entity[CONF_PLATFORM] == "mqtt_subscribe":
-                yield entity[CONF_TOPIC]
-
-
-def _validate_topic_lengths(config: ConfigType) -> ConfigType:
-    """Reject topics that the ESP8266 and LibreTiny MQTT client would silently drop."""
-    if not (CORE.is_esp8266 or CORE.is_libretiny):
-        return config
-    for topic in _subscribed_topics(config):
-        # A wildcard filter matches topics of any length, so only literals are checked
-        if (
-            len(topic) > ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN
-            and "+" not in topic
-            and "#" not in topic
-        ):
-            raise cv.Invalid(
-                f"MQTT topic '{topic}' is {len(topic)} characters; the MQTT client on "
-                f"this platform drops topics longer than {ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN}"
-            )
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _validate_topic_lengths
 
 
 def exp_mqtt_message(config):
