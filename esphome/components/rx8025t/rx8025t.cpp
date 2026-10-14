@@ -11,7 +11,7 @@ static constexpr uint8_t RX8025T_REG_FLAG = 0x0E;
 static constexpr uint8_t RX8025T_FLAG_VDET = 0x01;
 static constexpr uint8_t RX8025T_FLAG_VLF = 0x02;
 
-static const char *const TAG = "rx8025t";
+ESPHOME_LOG_TAG(TAG, "rx8025t");
 
 constexpr uint8_t bcd2dec(uint8_t val) { return (val >> 4) * 10 + (val & 0x0f); }
 constexpr uint8_t dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); }

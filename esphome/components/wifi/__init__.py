@@ -12,6 +12,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     only_on_variant,
     request_wifi,
+    require_mbedtls_tls,
     require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
@@ -60,8 +61,8 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
-    CONF_WIFI,
     PLACEHOLDER_WIFI_SSID,
+    Framework,
     Platform,
     PlatformFramework,
 )
@@ -80,6 +81,7 @@ from . import wpa2_eap
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
+DOMAIN = "wifi"
 
 NO_WIFI_VARIANTS = [
     const.VARIANT_ESP32H2,
@@ -343,6 +345,12 @@ def validate_variant(_):
             )
 
 
+def _validate_min_auth_mode(value: str) -> str:
+    if value == "WPA3" and CORE.is_esp8266:
+        raise cv.Invalid("ESP8266 does not support WPA3; use WPA or WPA2 instead")
+    return value
+
+
 def _apply_min_auth_mode_default(config):
     """Apply platform-specific default for min_auth_mode."""
     if CONF_MIN_AUTH_MODE not in config and (CORE.is_esp8266 or CORE.is_esp32):
@@ -489,6 +497,38 @@ def _fast_connect_schema(value: Any) -> ConfigType:
     return FAST_CONNECT_SCHEMA(value)
 
 
+CONF_LEASE_CACHE = "lease_cache"
+CONF_MAX_AGE = "max_age"
+
+LEASE_CACHE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+        # Defaults to RTC in _lease_cache_schema; flash wears and must be opted into.
+        cv.Optional(CONF_STORAGE): preferences.validate_storage,
+        cv.Optional(CONF_MAX_AGE): cv.positive_time_period_seconds,
+    }
+)
+
+
+def _lease_cache_schema(value: Any) -> ConfigType:
+    """Accept a plain boolean shorthand or a dict with enabled/storage/max_age keys."""
+    if not isinstance(value, dict):
+        value = {CONF_ENABLED: value}
+    value = LEASE_CACHE_SCHEMA(value)
+    if value[CONF_ENABLED]:
+        cv.only_on_esp32(value)
+        cv.only_with_framework(Framework.ESP_IDF)(value)
+        if CONF_STORAGE not in value:
+            if not preferences.rtc_supported():
+                raise cv.Invalid(
+                    "This ESP32 variant has no RTC memory; set 'storage: flash' to "
+                    "cache the lease in flash",
+                    path=[CONF_STORAGE],
+                )
+            value[CONF_STORAGE] = preferences.STORAGE_RTC
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -517,10 +557,12 @@ CONFIG_SCHEMA = cv.All(
                 ln882x="none",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
+            cv.Optional(CONF_LEASE_CACHE, default=False): _lease_cache_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
                 VALIDATE_WIFI_MIN_AUTH_MODE,
                 cv.only_on([Platform.ESP32, Platform.ESP8266]),
+                _validate_min_auth_mode,
             ),
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
@@ -683,10 +725,10 @@ async def to_code(config):
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
         if has_eap:
-            # wpa_supplicant's EAP client negotiates with whatever the RADIUS
-            # server offers, and a failed handshake leaves the device off the
-            # network, so keep every mbedTLS client feature the esp32 platform
-            # would otherwise trim.
+            # The supplicant's Kconfig select cannot override the IDF 5 TLS
+            # role choice; the EAP client talks to mbedTLS directly (no
+            # esp-tls) and needs every trimmed extra.
+            require_mbedtls_tls()
             require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
@@ -722,6 +764,14 @@ async def to_code(config):
         # used flash (the in_flash flag was previously ignored outside ESP8266).
         if preferences.is_in_flash(fast_connect[CONF_STORAGE]):
             cg.add_define("USE_WIFI_FAST_CONNECT_IN_FLASH")
+    lease_cache = config[CONF_LEASE_CACHE]
+    if lease_cache[CONF_ENABLED]:
+        cg.add_define("USE_WIFI_LEASE_CACHE")
+        # is_in_flash() also emits USE_ESP32_RTC_PREFERENCES when rtc is chosen.
+        if preferences.is_in_flash(lease_cache[CONF_STORAGE]):
+            cg.add_define("USE_WIFI_LEASE_CACHE_IN_FLASH")
+        if (max_age := lease_cache.get(CONF_MAX_AGE)) is not None:
+            cg.add(var.set_lease_cache_max_age(int(max_age.total_seconds)))
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))
@@ -1087,7 +1137,7 @@ def _placeholder_wifi_credentials(config: ConfigType) -> list[str]:
     values still appear. Empty list means no placeholders were found.
     """
     placeholders: list[str] = []
-    wifi_conf = config.get(CONF_WIFI)
+    wifi_conf = config.get(DOMAIN)
     if not wifi_conf:
         return placeholders
 

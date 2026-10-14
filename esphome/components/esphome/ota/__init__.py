@@ -5,8 +5,14 @@ from esphome.components.noise import (
     ENCRYPTION_SCHEMA,
     new_psk_progmem,
     static_encryption_key,
+    validate_encryption_key,
 )
-from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.ota import (
+    BASE_OTA_SCHEMA,
+    DOMAIN as OTA_DOMAIN,
+    OTAComponent,
+    ota_to_code,
+)
 from esphome.config_helpers import filter_source_files_from_defines, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -27,9 +33,11 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+from .. import DOMAIN
 
 CONF_ALLOW_PARTITION_ACCESS = "allow_partition_access"
 
@@ -56,12 +64,12 @@ ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
 
 def ota_esphome_final_validate(config: ConfigType) -> None:
     full_conf = fv.full_config.get()
-    full_ota_conf = full_conf[CONF_OTA]
+    full_ota_conf = full_conf[OTA_DOMAIN]
     new_ota_conf = []
     merged_ota_esphome_configs_by_port = {}
     ports_with_merged_configs = []
     for ota_conf in full_ota_conf:
-        if ota_conf.get(CONF_PLATFORM) == CONF_ESPHOME:
+        if ota_conf.get(CONF_PLATFORM) == DOMAIN:
             if (
                 conf_port := ota_conf.get(CONF_PORT)
             ) not in merged_ota_esphome_configs_by_port:
@@ -92,16 +100,18 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
                 # Encryption blocks conflict only when both pin a key; a bare
                 # `encryption:` (a package/device split) is compatible with a
                 # keyed one, and merge_config yields the keyed result
-                merged_key = (
-                    merged_ota_esphome_configs_by_port[conf_port]
-                    .get(CONF_ENCRYPTION, {})
-                    .get(CONF_KEY)
+                merged_enc = merged_ota_esphome_configs_by_port[conf_port].get(
+                    CONF_ENCRYPTION, {}
                 )
-                other_key = ota_conf.get(CONF_ENCRYPTION, {}).get(CONF_KEY)
-                if merged_key and other_key and merged_key != other_key:
-                    raise cv.Invalid(
-                        f"Found multiple configurations but {CONF_ENCRYPTION} is inconsistent"
-                    )
+                other_enc = ota_conf.get(CONF_ENCRYPTION, {})
+                for option in (CONF_KEY, CONF_OLD_KEY):
+                    merged_key = merged_enc.get(option)
+                    other_key = other_enc.get(option)
+                    if merged_key and other_key and merged_key != other_key:
+                        raise cv.Invalid(
+                            f"Found multiple configurations but {CONF_ENCRYPTION} "
+                            f"{option} is inconsistent"
+                        )
 
                 ports_with_merged_configs.append(conf_port)
                 merged_ota_esphome_configs_by_port[conf_port] = merge_config(
@@ -133,20 +143,12 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             _resolve_encryption_key(encryption_conf, api_conf)
         elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
             _LOGGER.warning(
-                "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
-                "bytes plus the password on the heap): the device already offers "
-                "encryption with the '%s' %s %s, which authenticates any uploader "
-                "that takes it, and a password only matters for uploaders without "
-                "encryption support; remove '%s' and add '%s' under '%s' so "
-                "uploads use the key and encryption is required",
+                "'%s' %s wastes significant flash and RAM; "
+                "using '%s' instead is recommended - "
+                "see https://esphome.io/components/ota/esphome/#configuration-variables",
                 CONF_OTA,
                 CONF_PASSWORD,
-                CONF_API,
                 CONF_ENCRYPTION,
-                CONF_KEY,
-                CONF_PASSWORD,
-                CONF_ENCRYPTION,
-                CONF_OTA,
             )
         elif (
             CONF_PASSWORD in ota_conf
@@ -190,7 +192,7 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             CONF_WEB_SERVER,
         )
 
-    full_conf[CONF_OTA] = new_ota_conf
+    full_conf[OTA_DOMAIN] = new_ota_conf
     fv.full_config.set(full_conf)
 
     if len(ports_with_merged_configs) > 0:
@@ -207,7 +209,8 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
     """Resolve the one encryption key per device into the ota block.
 
     An explicit ota key must match the api key, a bare block inherits it,
-    a runtime provisioned api key cannot be inherited.
+    a runtime provisioned api key cannot be inherited, and an old_key equal
+    to the resolved key is a leftover from a finished rotation.
     """
     api_key = api_conf.get(CONF_ENCRYPTION, {}).get(CONF_KEY)
     if ota_key := encryption_conf.get(CONF_KEY):
@@ -230,12 +233,19 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
         )
     else:
         encryption_conf[CONF_KEY] = api_key
+    if encryption_conf.get(CONF_OLD_KEY) == encryption_conf[CONF_KEY]:
+        raise cv.Invalid(
+            f"'{CONF_OLD_KEY}' is the same as '{CONF_KEY}'; remove '{CONF_OLD_KEY}' "
+            "once the device runs the new key"
+        )
 
 
 # Uploader side options live only on the ota block; the api block keeps the
-# shared schema
+# shared schema. The firmware is built with `key` alone, `old_key` never
+# reaches the device
 _ENCRYPTION_SCHEMA = ENCRYPTION_SCHEMA.extend(
     {
+        cv.Optional(CONF_OLD_KEY): cv.sensitive(validate_encryption_key),
         cv.Optional(CONF_ALLOW_PLAINTEXT_UPLOAD): cv.boolean,
     }
 )

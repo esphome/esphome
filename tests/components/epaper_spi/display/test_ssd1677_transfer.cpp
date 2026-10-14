@@ -196,6 +196,21 @@ TEST(EPaperSSD1677, RequestedFullUpdateAppliesWhenTheNextUpdateStarts) {
   EXPECT_FALSE(display.run_update_state()) << "request was applied more than once";
 }
 
+/// The display reports updating from the start of an update until it is back to idle.
+TEST(EPaperSSD1677, IsUpdatingUntilBackToIdle) {
+  TestableSSD1677 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  EXPECT_FALSE(display.is_updating());
+  display.request_full_update();
+  EXPECT_TRUE(display.run_update_state());
+  EXPECT_TRUE(display.is_updating());
+
+  EXPECT_FALSE(display.run_update_state()) << "an update with nothing drawn should not push";
+  EXPECT_FALSE(display.is_updating());
+}
+
 /// Nothing a partial needs lives in controller RAM any more, so a partial push skips the reset
 /// altogether; a full one still gets the hardware pulse and the software reset.
 TEST(EPaperSSD1677, PartialPushSkipsTheResetAndAFullPushKeepsIt) {

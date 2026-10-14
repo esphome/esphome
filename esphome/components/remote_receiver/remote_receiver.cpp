@@ -7,7 +7,7 @@
 
 namespace esphome::remote_receiver {
 
-static const char *const TAG = "remote_receiver";
+ESPHOME_LOG_TAG(TAG, "remote_receiver");
 
 static void IRAM_ATTR HOT write_value(RemoteReceiverComponentStore *arg, uint32_t delta, bool level) {
   // convert level to -1 or +1 and write the delta to the buffer

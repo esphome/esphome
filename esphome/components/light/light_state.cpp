@@ -9,11 +9,9 @@
 #include "light_output.h"
 #include "transformers.h"
 
-#include <limits>
-
 namespace esphome::light {
 
-static const char *const TAG = "light";
+ESPHOME_LOG_TAG(TAG, "light");
 
 // Colour modes are bitmasks of capabilities. A mode the light doesn't support may be a bare set of
 // required capabilities (see restore_state.py's colour mode inference): use the first supported
@@ -196,8 +194,6 @@ void LightState::publish_state() {
 
 LightOutput *LightState::get_output() const { return this->output_; }
 
-static constexpr auto EFFECT_NONE_REF = StringRef::from_lit("None");
-
 StringRef LightState::get_effect_name() {
   if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
@@ -216,11 +212,6 @@ void LightState::add_target_state_reached_listener(LightTargetStateReachedListen
     this->target_state_reached_listeners_ = make_unique<std::vector<LightTargetStateReachedListener *>>();
   }
   this->target_state_reached_listeners_->push_back(listener);
-}
-
-void LightState::add_effects(const std::initializer_list<LightEffect *> &effects) {
-  // Called once from Python codegen during setup with all effects from YAML config
-  this->effects_ = effects;
 }
 
 void LightState::current_values_as_brightness(float *brightness) {
@@ -352,9 +343,6 @@ float LightState::gamma_uncorrect_lut(float value) const {
 #endif  // USE_LIGHT_GAMMA_LUT
 
 void LightState::start_effect_(uint32_t effect_index) {
-  // An external add_effects() can exceed the codegen cap; ignore an index the uint16_t can't hold
-  if (effect_index > std::numeric_limits<uint16_t>::max())
-    return;
   this->stop_effect_();
   if (effect_index == 0)
     return;

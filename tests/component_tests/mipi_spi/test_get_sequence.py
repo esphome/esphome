@@ -4,7 +4,16 @@ from collections.abc import Generator
 
 import pytest
 
-from esphome.components.mipi import CONF_INVERT_COLORS, CONF_PIXEL_MODE, DriverChip
+from esphome.components.mipi import (
+    BRIGHTNESS,
+    CONF_INVERT_COLORS,
+    CONF_PIXEL_MODE,
+    SLPOUT,
+    SWRESET,
+    DriverChip,
+)
+from esphome.components.mipi_spi.display import MODELS
+from esphome.const import CONF_BRIGHTNESS
 
 # A minimal config with no reset pin: enough for get_sequence(add_madctl=False) to run
 # without needing a full display configuration.
@@ -62,3 +71,51 @@ def test_get_sequence_skips_reset_delay_validation_without_add_reset() -> None:
     chip = DriverChip("TEST-GET-SEQUENCE-NO-RESET", reset_delay=999)
 
     chip.get_sequence(_BASE_CONFIG, add_madctl=False, add_reset=False)
+
+
+def _has_brightness_command(sequence: tuple[int, ...], value: int) -> bool:
+    """True if the flattened sequence holds a one-byte brightness (0x51) command."""
+    return any(
+        sequence[i : i + 3] == (BRIGHTNESS, 1, value) for i in range(len(sequence) - 2)
+    )
+
+
+@pytest.mark.parametrize("brightness", [0, 0x80])
+def test_get_sequence_adds_configured_brightness(brightness: int) -> None:
+    """A configured brightness is sent at startup, including zero."""
+    chip = DriverChip("TEST-GET-SEQUENCE-BRIGHTNESS")
+
+    sequence = chip.get_sequence(
+        {**_BASE_CONFIG, CONF_BRIGHTNESS: brightness}, add_madctl=False
+    )
+
+    assert _has_brightness_command(sequence, brightness)
+
+
+def test_get_sequence_omits_brightness_when_not_set() -> None:
+    """No brightness command is sent when neither config nor model sets one."""
+    chip = DriverChip("TEST-GET-SEQUENCE-NO-BRIGHTNESS")
+
+    sequence = chip.get_sequence(_BASE_CONFIG, add_madctl=False)
+
+    assert not any(_has_brightness_command(sequence, v) for v in range(256))
+
+
+def _count_subsequence(sequence: tuple[int, ...], part: tuple[int, ...]) -> int:
+    return sum(
+        sequence[i : i + len(part)] == part
+        for i in range(len(sequence) - len(part) + 1)
+    )
+
+
+def test_es3c35p_waits_after_reset_and_issues_its_own_slpout() -> None:
+    """The ES3C35P settles 120ms after reset and sends SLPOUT itself with a 120ms wait."""
+    sequence = MODELS["ES3C35P"].get_sequence(
+        _BASE_CONFIG, add_madctl=False, add_reset=True
+    )
+
+    assert sequence[:4] == (SWRESET, 0, 120, 255)
+    # Exactly one SLPOUT, followed by the panel's 120ms settle, and none appended by the framework
+    assert _count_subsequence(sequence, (SLPOUT, 0, 120, 255)) == 1
+    assert _count_subsequence(sequence, (SLPOUT, 0, 10, 255)) == 0
+    assert "ES3C35P-NS" in MODELS

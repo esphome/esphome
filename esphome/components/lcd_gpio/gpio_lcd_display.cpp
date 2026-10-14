@@ -3,7 +3,7 @@
 
 namespace esphome::lcd_gpio {
 
-static const char *const TAG = "lcd_gpio";
+ESPHOME_LOG_TAG(TAG, "lcd_gpio");
 
 void GPIOLCDDisplay::setup() {
   this->rs_pin_->setup();  // OUTPUT

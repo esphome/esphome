@@ -10,7 +10,6 @@
 #include <esp_gap_ble_api.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <nvs_flash.h>
 #include <cstring>
 
 #include "esphome/core/hal.h"
@@ -18,7 +17,7 @@
 
 namespace esphome::esp32_ble_beacon {
 
-static const char *const TAG = "esp32_ble_beacon";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_beacon");
 
 static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
     .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = {0x4C, 0x00}, .beacon_type = {0x02, 0x15}};

@@ -7,7 +7,7 @@
 
 namespace esphome::xiaomi_body_scale {
 
-static const char *const TAG = "xiaomi_body_scale";
+ESPHOME_LOG_TAG(TAG, "xiaomi_body_scale");
 
 // Encrypted MiBeacon frame without a MAC: frame control, device id, frame count, cipher, counter, tag
 static constexpr size_t DEVICE_ID_POS = 2;

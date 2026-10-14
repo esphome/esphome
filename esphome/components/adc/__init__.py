@@ -22,6 +22,7 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "adc"
 
 adc_ns = cg.esphome_ns.namespace("adc")
 

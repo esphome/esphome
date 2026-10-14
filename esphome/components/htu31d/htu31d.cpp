@@ -17,7 +17,7 @@
 namespace esphome::htu31d {
 
 /** Logging prefix */
-static const char *const TAG = "htu31d";
+ESPHOME_LOG_TAG(TAG, "htu31d");
 
 /** Default I2C address for the HTU31D. */
 static const uint8_t HTU31D_DEFAULT_I2CADDR = 0x40;

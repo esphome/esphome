@@ -8,6 +8,7 @@ from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID, CONF_NUM_CHIPS
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@IJIJI"]
+DOMAIN = "tlc5971"
 
 tlc5971_ns = cg.esphome_ns.namespace("tlc5971")
 TLC5971 = tlc5971_ns.class_("TLC5971", cg.Component)

@@ -15,6 +15,8 @@ on:
   # base branch checkout, so fork code never runs with the token.
   pull_request_target:
     types: [opened, synchronize, reopened]
+    branches:
+      - dev
     paths:
       - requirements_dev.txt
       - requirements_test.txt

@@ -17,19 +17,23 @@ static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
 // Non-blocking options and TCP keepalive for a bridged stream socket.
 // Keepalive is best-effort: the raw lwIP implementation (ESP8266, RP2040)
 // rejects it, so a half-open link there is only detected by a failed write.
-static void set_stream_options(Socket *sock) {
+static void set_stream_options(Socket *sock, const char *tag) {
   int yes = 1;
+  // Fails only on an invalid descriptor, or on raw lwIP after a peer reset that the next read() reports.
   sock->setblocking(false);
-  sock->setsockopt(IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
-  sock->setsockopt(SOL_SOCKET, SO_KEEPALIVE, &yes, sizeof(yes));
+  int err = sock->setsockopt(IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
+  err |= sock->setsockopt(SOL_SOCKET, SO_KEEPALIVE, &yes, sizeof(yes));
 #ifdef TCP_KEEPIDLE
   int idle = 30;
   int interval = 10;
   int count = 3;
-  sock->setsockopt(IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
-  sock->setsockopt(IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
-  sock->setsockopt(IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
+  err |= sock->setsockopt(IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+  err |= sock->setsockopt(IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
+  err |= sock->setsockopt(IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
 #endif
+  if (err != 0) {
+    ESP_LOGV(tag, "Nodelay/keepalive not fully applied");
+  }
 }
 
 void TcpClientLink::begin(const char *tag) {
@@ -84,7 +88,7 @@ void TcpClientLink::try_connect_() {
     this->drop_(LOG_STR("Connect failed"), errno);
     return;
   }
-  set_stream_options(this->sock_.get());
+  set_stream_options(this->sock_.get(), this->tag_);
   // Starts the pending-connect clock that poll() times out against.
   this->note_attempt();
   // An immediate success is reported by the next poll(); poll_connect() sees it writable.
@@ -95,7 +99,7 @@ void TcpClientLink::try_connect_() {
 
 void TcpClientLink::adopt(std::unique_ptr<Socket> sock) {
   this->close();
-  set_stream_options(sock.get());
+  set_stream_options(sock.get(), this->tag_);
   this->sock_ = std::move(sock);
   this->connected_ = true;
 }
