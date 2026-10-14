@@ -70,7 +70,7 @@ class MenuItem {
   CallbackManager<void()> on_value_callbacks_{};
 };
 
-class MenuItemMenu : public MenuItem {
+class MenuItemMenu final : public MenuItem {
  public:
   explicit MenuItemMenu() : MenuItem(MENU_ITEM_MENU) {}
   void add_item(MenuItem *item) {
@@ -97,7 +97,7 @@ class MenuItemEditable : public MenuItem {
 };
 
 #ifdef USE_SELECT
-class MenuItemSelect : public MenuItemEditable {
+class MenuItemSelect final : public MenuItemEditable {
  public:
   explicit MenuItemSelect() : MenuItemEditable(MENU_ITEM_SELECT) {}
   void set_select_variable(select::Select *var) { this->select_var_ = var; }
@@ -114,7 +114,7 @@ class MenuItemSelect : public MenuItemEditable {
 #endif
 
 #ifdef USE_NUMBER
-class MenuItemNumber : public MenuItemEditable {
+class MenuItemNumber final : public MenuItemEditable {
  public:
   explicit MenuItemNumber() : MenuItemEditable(MENU_ITEM_NUMBER) {}
   void set_number_variable(number::Number *var) { this->number_var_ = var; }
@@ -135,7 +135,7 @@ class MenuItemNumber : public MenuItemEditable {
 #endif
 
 #ifdef USE_SWITCH
-class MenuItemSwitch : public MenuItemEditable {
+class MenuItemSwitch final : public MenuItemEditable {
  public:
   explicit MenuItemSwitch() : MenuItemEditable(MENU_ITEM_SWITCH) {}
   void set_switch_variable(switch_::Switch *var) { this->switch_var_ = var; }
@@ -158,7 +158,7 @@ class MenuItemSwitch : public MenuItemEditable {
 };
 #endif
 
-class MenuItemCommand : public MenuItem {
+class MenuItemCommand final : public MenuItem {
  public:
   explicit MenuItemCommand() : MenuItem(MENU_ITEM_COMMAND) {}
 
@@ -166,7 +166,7 @@ class MenuItemCommand : public MenuItem {
   bool select_prev() override;
 };
 
-class MenuItemCustom : public MenuItemEditable {
+class MenuItemCustom final : public MenuItemEditable {
  public:
   explicit MenuItemCustom() : MenuItemEditable(MENU_ITEM_CUSTOM) {}
   template<typename F> void add_on_next_callback(F &&cb) { this->on_next_callbacks_.add(std::forward<F>(cb)); }

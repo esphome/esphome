@@ -8,7 +8,7 @@
 
 namespace esphome::cst816 {
 
-static const char *const TAG = "cst816.touchscreen";
+ESPHOME_LOG_TAG(TAG, "cst816.touchscreen");
 
 static const uint8_t REG_STATUS = 0x00;
 static const uint8_t REG_TOUCH_NUM = 0x02;
@@ -37,7 +37,7 @@ class CST816ButtonListener {
   virtual void update_button(bool state) = 0;
 };
 
-class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class CST816Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
   void update_touches() override;

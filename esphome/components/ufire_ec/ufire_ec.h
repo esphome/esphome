@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
@@ -24,7 +23,7 @@ static const uint8_t COMMAND_CALIBRATE_PROBE = 20;
 static const uint8_t COMMAND_MEASURE_TEMP = 40;
 static const uint8_t COMMAND_MEASURE_EC = 80;
 
-class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
+class UFireECComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -56,30 +55,6 @@ class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ec_sensor_{nullptr};
   float temperature_compensation_{0.0};
   float temperature_coefficient_{0.0};
-};
-
-template<typename... Ts> class UFireECCalibrateProbeAction : public Action<Ts...> {
- public:
-  UFireECCalibrateProbeAction(UFireECComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, solution)
-  TEMPLATABLE_VALUE(float, temperature)
-
-  void play(const Ts &...x) override {
-    this->parent_->calibrate_probe(this->solution_.value(x...), this->temperature_.value(x...));
-  }
-
- protected:
-  UFireECComponent *parent_;
-};
-
-template<typename... Ts> class UFireECResetAction : public Action<Ts...> {
- public:
-  UFireECResetAction(UFireECComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->reset_board(); }
-
- protected:
-  UFireECComponent *parent_;
 };
 
 }  // namespace esphome::ufire_ec

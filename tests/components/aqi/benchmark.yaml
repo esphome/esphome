@@ -1,0 +1,16 @@
+# Declares the component graph the C++ unit test build needs so that the aqi
+# component's sources (which include sensor.h) compile. to_code is suppressed by
+# the test harness; this only pulls the sensor + aqi source/include paths in.
+# Loaded with plain yaml.safe_load, so avoid lambdas / ESPHome-tagged values here.
+sensor:
+  - platform: template
+    id: pm25_sensor
+    name: "PM2.5"
+  - platform: template
+    id: pm10_sensor
+    name: "PM10"
+  - platform: aqi
+    name: "AQI"
+    pm_2_5: pm25_sensor
+    pm_10_0: pm10_sensor
+    calculation_type: AQI

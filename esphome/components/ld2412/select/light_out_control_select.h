@@ -5,9 +5,10 @@
 
 namespace esphome::ld2412 {
 
-class LightOutControlSelect : public select::Select, public Parented<LD2412Component> {
+class LightOutControlSelect final : public select::Select, public Parented<LD2412Component> {
  public:
-  LightOutControlSelect() = default;
+  // User provided, not "= default": `new(p) LightOutControlSelect()` would zero-fill .bss that is already zero.
+  LightOutControlSelect() {}
 
  protected:
   void control(size_t index) override;

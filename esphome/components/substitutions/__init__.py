@@ -1,5 +1,7 @@
 from collections import ChainMap
+from itertools import product
 import logging
+import re
 from typing import Any
 
 import esphome
@@ -7,6 +9,7 @@ from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.expression import JINJA_PROG
 from esphome.types import ConfigType
 from esphome.util import OrderedDict
 from esphome.yaml_util import (
@@ -22,10 +25,19 @@ from esphome.yaml_util import (
 from .jinja import Jinja, JinjaError, Missing, Resolver, UndefinedError, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "substitutions"
 _LOGGER = logging.getLogger(__name__)
 
 ContextVars = ChainMap[str, Any]
 ErrList = list[tuple[UndefinedError, DocumentPath, Any]]
+
+# Candidate-pattern shaping for include_candidate_patterns.
+_ADJACENT_WILDCARDS_RE = re.compile(r"\*+")
+# Dots are included so a variant like `../*` counts as fully dynamic too;
+# it would otherwise glob everything in the parent directory.
+_WILDCARDS_ONLY_RE = re.compile(r"[*./\\]+")
+_GLOB_META_RE = re.compile(r"[?\[]")
+_STRING_LITERAL_RE = re.compile(r"'([^']*)'|\"([^\"]*)\"")
 
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
@@ -56,8 +68,9 @@ def raise_first_undefined(
             for e, p_path, _ in errors[1:]
         )
         _LOGGER.debug("Additional undefined variables in %s: %s", context_label, extras)
-    raise cv.Invalid(
-        f"Undefined variable in {context_label}: {err.message}\n{format_path(err_path, err_value)}"
+    raise cv.SourceTraceInvalid(
+        f"Undefined variable in {context_label}: {err.message}",
+        format_path(err_path, err_value),
     )
 
 
@@ -211,13 +224,13 @@ def _expand_substitutions(
                 errors=errors,
             )
         except JinjaError as err:
-            raise cv.Invalid(
+            raise cv.SourceTraceInvalid(
                 f"{err.error_name()} Error evaluating jinja expression"
                 f" '{value}': {str(err.parent())}."
                 f"\nEvaluation stack: (most recent evaluation last)"
                 f"\n{err.stack_trace_str()}"
-                f"\nRelevant context:\n{err.context_trace_str()}"
-                f"\n{format_path(path, orig_value)}",
+                f"\nRelevant context:\n{err.context_trace_str()}",
+                format_path(path, orig_value),
                 path,
             ) from err
         else:
@@ -342,7 +355,7 @@ def resolve_include(
     strict_undefined: bool = True,
     errors: ErrList | None = None,
 ) -> Any:
-    """Resolve an include, substituting the filename if needed.
+    """Resolve an include, substituting the condition and filename if needed.
 
     Note: no path-traversal validation is performed on the resolved filename.
     A substitution that resolves to an absolute path will bypass the parent
@@ -351,27 +364,76 @@ def resolve_include(
     values (including command-line substitutions), so path restrictions are
     an explicit non-goal here.
     """
+    if isinstance(original_condition := include.condition, str):
+        condition = str(
+            _expand_substitutions(
+                original_condition,
+                path + ["condition"],
+                context_vars,
+                strict_undefined,
+                errors,
+            )
+        )
+        if condition != original_condition:
+            include = include.with_condition(condition)
+
     original = include.file
-    original_str = str(original)
     filename = str(
         _expand_substitutions(
-            original_str, path + ["file"], context_vars, strict_undefined, errors
+            original, path + ["file"], context_vars, strict_undefined, errors
         )
     )
-    substituted = filename != original_str
+    substituted = filename != original
     if substituted:
-        include = IncludeFile(
-            include.parent_file, filename, include.vars, include.yaml_loader
-        )
+        include = include.with_file(filename)
     try:
-        return include.load()
-    except esphome.core.EsphomeError as err:
+        return include.load() if include.should_load() else {}
+    except (esphome.core.EsphomeError, cv.Invalid) as err:
         resolved = f" (expanded from '{original}')" if substituted else ""
-        raise cv.Invalid(
-            f"Error including file '{filename}'{resolved}: {err}"
-            f"\n{format_path(path, original)}",
+        raise cv.SourceTraceInvalid(
+            f"Error including file '{filename}'{resolved}: {err}",
+            format_path(path, original),
             path + [f"<{filename}>"],
         ) from err
+
+
+def include_candidate_patterns(value: str) -> list[str]:
+    """Expand a substitution/Jinja-templated path into glob-style candidate patterns.
+
+    Mirrors the two phases of :func:`_expand_substitutions` without variable
+    values: ``$var`` / ``${var}`` references become ``*`` and each remaining
+    Jinja expression contributes one pattern per quoted string literal it
+    holds (``*`` when it holds none), so every conditional branch is a
+    candidate — deliberately over-inclusive. Emitted wildcard patterns are
+    glob-safe: adjacent wildcards collapse (no recursive ``**``), ``[`` /
+    ``?`` from the filename text are escaped, and variants reduced to
+    nothing but wildcards, dots and separators are dropped so a fully
+    dynamic filename never expands to "everything in the directory",
+    including via a ``../*`` parent traversal.
+    """
+    # Replacing $var / ${var} first also keeps JINJA_PROG's first-} span
+    # matching correct for references nested inside string literals, the
+    # same ordering _expand_substitutions relies on.
+    value = cv.VARIABLE_PROG.sub("*", value)
+    options = [
+        [a or b for a, b in _STRING_LITERAL_RE.findall(expr)] or ["*"]
+        for expr in JINJA_PROG.findall(value)
+    ]
+
+    variants: list[str] = []
+    for combination in product(*options):
+        replacements = iter(combination)
+        spliced = JINJA_PROG.sub(lambda _, _next=replacements: next(_next), value)
+        variants.append(_ADJACENT_WILDCARDS_RE.sub("*", spliced))
+
+    patterns: list[str] = []
+    for variant in dict.fromkeys(variants):
+        if not variant or _WILDCARDS_ONLY_RE.fullmatch(variant):
+            continue
+        if "*" in variant:
+            variant = _GLOB_META_RE.sub(r"[\g<0>]", variant)
+        patterns.append(variant)
+    return patterns
 
 
 def _substitute_include(
@@ -457,7 +519,7 @@ def resolve_substitutions_block(
     """Resolve a deferred ``substitutions: !include file.yaml`` and validate the shape.
 
     The caller is responsible for wrapping the call in
-    ``cv.prepend_path(CONF_SUBSTITUTIONS)`` for error reporting.
+    ``cv.prepend_path(DOMAIN)`` for error reporting.
     ``command_line_substitutions`` seeds the filename context so
     ``substitutions: !include ${var}.yaml`` can reference CLI-provided vars.
     """
@@ -492,7 +554,7 @@ def do_substitution_pass(
     # Extract substitutions from config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
-    with cv.prepend_path(CONF_SUBSTITUTIONS):
+    with cv.prepend_path(DOMAIN):
         substitutions = resolve_substitutions_block(
             substitutions, command_line_substitutions
         )

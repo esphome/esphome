@@ -5,6 +5,7 @@ from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TYPE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DT-art1"]
+DOMAIN = "camera_encoder"
 
 AUTO_LOAD = ["camera"]
 
@@ -50,7 +51,7 @@ async def to_code(config: ConfigType) -> None:
     buffer = cg.new_Pvariable(config[CONF_ENCODER_BUFFER_ID])
     cg.add(buffer.set_buffer_size(config[CONF_BUFFER_SIZE]))
     if config[CONF_TYPE] == ESP32_CAMERA_ENCODER:
-        add_idf_component(name="espressif/esp32-camera", ref="2.1.5")
+        add_idf_component(name="espressif/esp32-camera", ref="2.1.7")
         cg.add_define("USE_ESP32_CAMERA_JPEG_ENCODER")
         var = cg.new_Pvariable(
             config[CONF_ID],

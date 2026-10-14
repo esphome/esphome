@@ -9,7 +9,7 @@
 
 namespace esphome::inkplate {
 
-static const char *const TAG = "inkplate";
+ESPHOME_LOG_TAG(TAG, "inkplate");
 
 void Inkplate::setup() {
   for (uint32_t i = 0; i < 256; i++) {
@@ -319,7 +319,7 @@ void Inkplate::fill(Color color) {
     memset(this->partial_buffer_, fill, this->get_buffer_length_());
   }
 
-  ESP_LOGV(TAG, "Fill finished (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Fill finished (%" PRIu32 "ms)", millis() - start_time);
 }
 
 void Inkplate::display() {

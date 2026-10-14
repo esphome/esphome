@@ -1,0 +1,26 @@
+# Config-only: the CI base board (generic-bk7252, BLE 4.2) cannot compile the
+# BLE 5.x tracker, so this fixture proves validation (schema + neutral binding)
+# on a non-esp32 platform; codegen and compilation are not exercised here.
+bk72xx_ble_tracker:
+  id: ble_tracker_hub
+
+sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
+  - platform: b_parasite
+    ble_hub_id: ble_tracker_hub
+    mac_address: F0:CA:F0:CA:01:01
+    humidity:
+      name: b-parasite Air Humidity
+    temperature:
+      name: b-parasite Air Temperature
+    moisture:
+      name: b-parasite Soil Moisture
+    battery_voltage:
+      name: b-parasite Battery Voltage
+    illuminance:
+      name: b-parasite Illuminance
+  # No ble_hub_id: exercises the generated binding real configs use.
+  - platform: b_parasite
+    mac_address: F0:CA:F0:CA:01:02
+    temperature:
+      name: BK b-parasite Implicit Temperature

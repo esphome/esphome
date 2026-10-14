@@ -9,7 +9,7 @@
 
 namespace esphome::as5600 {
 
-class AS5600Sensor : public PollingComponent, public Parented<AS5600Component>, public sensor::Sensor {
+class AS5600Sensor final : public PollingComponent, public Parented<AS5600Component>, public sensor::Sensor {
  public:
   void update() override;
   void dump_config() override;

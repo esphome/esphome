@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_SECOND,
     CONF_SLEEP_DURATION,
     CONF_TIME_ID,
+    CONF_TRIGGER_ID,
     CONF_WAKEUP_PIN,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -37,7 +38,8 @@ from esphome.const import (
     PLATFORM_NRF52,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 WAKEUP_PINS = {
@@ -141,6 +143,8 @@ def validate_wakeup_pin(
         processed_pins: list[ConfigType] = [{CONF_PIN: value}]
     else:
         processed_pins = list(value)
+        if not processed_pins:
+            raise cv.Invalid("'wakeup_pin' needs at least one entry")
 
     for i, pin_config in enumerate(processed_pins):
         # now validate each item
@@ -152,28 +156,38 @@ def validate_wakeup_pin(
 
 
 def validate_config(config: ConfigType) -> ConfigType:
-    # right now only BK72XX supports the list format for wakeup pins
-    if CORE.is_bk72xx:
-        if CONF_WAKEUP_PIN_MODE in config:
-            wakeup_pins = config.get(CONF_WAKEUP_PIN, [])
-            if len(wakeup_pins) > 1:
-                raise cv.Invalid(
-                    "You need to remove the global wakeup_pin_mode and define it per pin"
-                )
-            if wakeup_pins:
-                wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
-    elif (
-        isinstance(config.get(CONF_WAKEUP_PIN), list)
-        and len(config[CONF_WAKEUP_PIN]) > 1
-    ):
+    wakeup_pins = config.get(CONF_WAKEUP_PIN)
+    has_pin_mode = CONF_WAKEUP_PIN_MODE in config
+    if has_pin_mode and wakeup_pins is None:
         raise cv.Invalid(
-            "Your platform does not support providing multiple entries in wakeup_pin"
+            "'wakeup_pin_mode' requires 'wakeup_pin'", path=[CONF_WAKEUP_PIN_MODE]
         )
-
+    multiple_pins = wakeup_pins is not None and len(wakeup_pins) > 1
+    # wakeup_pin is limited to ESP32 and BK72XX, and only BK72XX accepts a list
+    if not CORE.is_bk72xx:
+        if multiple_pins:
+            raise cv.Invalid(
+                "ESP32 does not support multiple entries for 'wakeup_pin'",
+                path=[CONF_WAKEUP_PIN],
+            )
+    elif has_pin_mode:
+        if multiple_pins:
+            raise cv.Invalid(
+                "Remove the global 'wakeup_pin_mode' and define it per pin",
+                path=[CONF_WAKEUP_PIN_MODE],
+            )
+        if CONF_WAKEUP_PIN_MODE in (pin := wakeup_pins[0]):
+            raise cv.Invalid(
+                "Specify 'wakeup_pin_mode' either at the top level under 'deep_sleep' "
+                "or under the pin entry, not both",
+                path=[CONF_WAKEUP_PIN, 0, CONF_WAKEUP_PIN_MODE],
+            )
+        # Move the global mode into the single pin entry, which to_code() reads
+        pin[CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
     return config
 
 
-def _validate_ex1_wakeup_mode(value):
+def _validate_ex1_wakeup_mode(value: str) -> str:
     if value == "ALL_LOW":
         esp32.only_on_variant(supported=[VARIANT_ESP32], msg_prefix="ALL_LOW")(value)
     if value == "ANY_LOW":
@@ -196,27 +210,17 @@ def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
     if CORE.is_bk72xx:
         max_duration = core.TimePeriod(hours=36)
         if value > max_duration:
-            raise cv.Invalid("sleep duration cannot be more than 36 hours on BK72XX")
+            raise cv.Invalid("'sleep_duration' cannot be more than 36 hours on BK72XX")
     elif CORE.using_zephyr:
         max_duration = core.TimePeriod(days=49)
         if value > max_duration:
-            raise cv.Invalid("sleep duration cannot be more than 49 days on Zephyr")
+            raise cv.Invalid("'sleep_duration' cannot be more than 49 days on Zephyr")
     return value
 
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
 EnterDeepSleepAction = deep_sleep_ns.class_("EnterDeepSleepAction", automation.Action)
-PreventDeepSleepAction = deep_sleep_ns.class_(
-    "PreventDeepSleepAction",
-    automation.Action,
-    cg.Parented.template(DeepSleepComponent),
-)
-AllowDeepSleepAction = deep_sleep_ns.class_(
-    "AllowDeepSleepAction",
-    automation.Action,
-    cg.Parented.template(DeepSleepComponent),
-)
 
 WakeupPinMode = deep_sleep_ns.enum("WakeupPinMode")
 WAKEUP_PIN_MODES = {
@@ -234,6 +238,15 @@ EXT1_WAKEUP_MODES = {
 }
 WakeupCauseToRunDuration = deep_sleep_ns.struct("WakeupCauseToRunDuration")
 
+WakeupCause = deep_sleep_ns.enum("WakeupCause")
+WakeTrigger = deep_sleep_ns.class_(
+    "WakeTrigger", automation.Trigger.template(WakeupCause), cg.Component
+)
+Ext1WakeTrigger = deep_sleep_ns.class_(
+    "Ext1WakeTrigger", automation.Trigger.template(), cg.Component
+)
+
+CONF_ON_WAKE = "on_wake"
 CONF_WAKEUP_PIN_MODE = "wakeup_pin_mode"
 CONF_ESP32_EXT1_WAKEUP = "esp32_ext1_wakeup"
 CONF_TOUCH_WAKEUP = "touch_wakeup"
@@ -256,6 +269,22 @@ WAKEUP_PIN_SCHEMA = cv.Schema(
     }
 )
 
+EXT1_WAKEUP_PIN_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PIN): cv.All(
+            pins.internal_gpio_input_pin_schema, validate_pin_number_esp32
+        ),
+        cv.Optional(CONF_ON_WAKE): automation.validate_automation(
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Ext1WakeTrigger)}
+        ),
+    }
+)
+
+# Entries that are not in the {pin: ..., on_wake: ...} form are treated as a
+# bare pin config (the original syntax, e.g. a plain "GPIO5" or {number: 5}).
+validate_ext1_wakeup_pin = cv.maybe_simple_value(EXT1_WAKEUP_PIN_SCHEMA, key=CONF_PIN)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -268,7 +297,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 _validate_sleep_duration,
             ),
-            cv.Optional(CONF_WAKEUP_PIN): validate_wakeup_pin,
+            cv.Optional(CONF_WAKEUP_PIN): cv.All(
+                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
+                validate_wakeup_pin,
+            ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
                 cv.enum(WAKEUP_PIN_MODES, upper=True),
@@ -282,14 +314,19 @@ CONFIG_SCHEMA = cv.All(
                 cv.Schema(
                     {
                         cv.Required(CONF_PINS): cv.ensure_list(
-                            pins.internal_gpio_input_pin_schema,
-                            validate_pin_number_esp32,
+                            validate_ext1_wakeup_pin,
                         ),
                         cv.Required(CONF_MODE): cv.All(
                             cv.enum(EXT1_WAKEUP_MODES, upper=True),
                             _validate_ex1_wakeup_mode,
                         ),
                     }
+                ),
+            ),
+            cv.Optional(CONF_ON_WAKE): cv.All(
+                cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+                automation.validate_automation(
+                    {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(WakeTrigger)}
                 ),
             ),
             cv.Optional(CONF_TOUCH_WAKEUP): cv.All(
@@ -314,17 +351,16 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
-    if CONF_WAKEUP_PIN in config:
-        pins_as_list = config.get(CONF_WAKEUP_PIN, [])
+    if (wakeup_pins := config.get(CONF_WAKEUP_PIN)) is not None:
         if CORE.is_bk72xx:
-            cg.add(var.init_wakeup_pins_(len(pins_as_list)))
-            for item in pins_as_list:
+            cg.add(var.init_wakeup_pins(len(wakeup_pins)))
+            for item in wakeup_pins:
                 cg.add(
                     var.add_wakeup_pin(
                         await cg.gpio_pin_expression(item[CONF_PIN]),
@@ -334,7 +370,7 @@ async def to_code(config):
                     )
                 )
         else:
-            pin = await cg.gpio_pin_expression(pins_as_list[0][CONF_PIN])
+            pin = await cg.gpio_pin_expression(wakeup_pins[0][CONF_PIN])
             cg.add(var.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
         cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
@@ -362,20 +398,35 @@ async def to_code(config):
             )
             cg.add(var.set_run_duration(wakeup_cause_to_run_duration))
 
-    if CONF_ESP32_EXT1_WAKEUP in config:
-        conf = config[CONF_ESP32_EXT1_WAKEUP]
+    if (ext1_conf := config.get(CONF_ESP32_EXT1_WAKEUP)) is not None:
         mask = 0
-        for pin in conf[CONF_PINS]:
-            mask |= 1 << pin[CONF_NUMBER]
+        for pin_conf in ext1_conf[CONF_PINS]:
+            number = pin_conf[CONF_PIN][CONF_NUMBER]
+            mask |= 1 << number
+            for wake_conf in pin_conf.get(CONF_ON_WAKE, []):
+                trigger = cg.new_Pvariable(wake_conf[CONF_TRIGGER_ID], number)
+                await cg.register_component(trigger, wake_conf)
+                await automation.build_automation(trigger, [], wake_conf)
+                cg.add_define("USE_DEEP_SLEEP_ON_WAKE")
         struct = cg.StructInitializer(
-            Ext1Wakeup, ("mask", mask), ("wakeup_mode", conf[CONF_MODE])
+            Ext1Wakeup, ("mask", mask), ("wakeup_mode", ext1_conf[CONF_MODE])
         )
         cg.add(var.set_ext1_wakeup(struct))
 
+    for wake_conf in config.get(CONF_ON_WAKE, []):
+        trigger = cg.new_Pvariable(wake_conf[CONF_TRIGGER_ID])
+        await cg.register_component(trigger, wake_conf)
+        await automation.build_automation(trigger, [(WakeupCause, "cause")], wake_conf)
+        cg.add_define("USE_DEEP_SLEEP_ON_WAKE")
+
     if CONF_TOUCH_WAKEUP in config:
         cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
-    if CORE.using_zephyr and "zigbee" not in CORE.loaded_integrations:
-        zephyr_add_prj_conf("POWEROFF", True)
+    if CORE.using_zephyr:
+        # Devices are suspended when CPU is entering a low power state
+        # https://github.com/nrfconnect/sdk-zephyr/blob/v3.7.99-ncs2-2/doc/services/pm/device.rst#system-managed-device-power-management
+        zephyr_add_prj_conf("PM_DEVICE", True)
+        if "zigbee" not in CORE.loaded_integrations:
+            zephyr_add_prj_conf("POWEROFF", True)
 
     cg.add_define("USE_DEEP_SLEEP")
 
@@ -416,7 +467,12 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
     DEEP_SLEEP_ENTER_SCHEMA,
     synchronous=True,
 )
-async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
+async def deep_sleep_enter_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_SLEEP_DURATION in config:
@@ -433,24 +489,18 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
-    "deep_sleep.prevent",
-    PreventDeepSleepAction,
-    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
-    synchronous=True,
-)
-@automation.register_action(
-    "deep_sleep.allow",
-    AllowDeepSleepAction,
-    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
-    synchronous=True,
-)
-async def deep_sleep_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("deep_sleep.prevent", "prevent_deep_sleep()"),
+    ("deep_sleep.allow", "allow_deep_sleep()"),
+):
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
+        automation.ApplyCall(_call),
+    )
 
 
+DOMAIN = "deep_sleep"
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "deep_sleep_esp32.cpp": {

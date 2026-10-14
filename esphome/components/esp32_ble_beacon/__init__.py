@@ -1,13 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import esp32_ble
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32 import request_bluetooth
 from esphome.components.esp32_ble import CONF_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp32_ble_beacon"
 
 esp32_ble_beacon_ns = cg.esphome_ns.namespace("esp32_ble_beacon")
 ESP32BLEBeacon = esp32_ble_beacon_ns.class_("ESP32BLEBeacon", cg.Component)
@@ -18,7 +20,7 @@ CONF_MAX_INTERVAL = "max_interval"
 CONF_MEASURED_POWER = "measured_power"
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_MIN_INTERVAL] > config.get(CONF_MAX_INTERVAL):
         raise cv.Invalid("min_interval must be <= max_interval")
     return config
@@ -61,7 +63,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP32_BLE_UUID")
 
     uuid = config[CONF_UUID].hex
@@ -86,5 +88,4 @@ async def to_code(config):
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    request_bluetooth()

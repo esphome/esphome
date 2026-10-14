@@ -5,7 +5,7 @@
 
 namespace esphome::haier {
 
-class Smartair2Climate : public HaierClimateBase {
+class Smartair2Climate final : public HaierClimateBase {
  public:
   Smartair2Climate();
   Smartair2Climate(const Smartair2Climate &) = delete;

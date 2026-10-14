@@ -6,7 +6,7 @@
 
 namespace esphome::sigma_delta_output {
 
-class SigmaDeltaOutput : public PollingComponent, public output::FloatOutput {
+class SigmaDeltaOutput final : public PollingComponent, public output::FloatOutput {
  public:
   Trigger<> *get_turn_on_trigger() {
     if (!this->turn_on_trigger_)
