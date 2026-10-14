@@ -59,6 +59,11 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
     if (ap.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
     } else {
+#ifdef USE_WIFI_AP
+      // Takes down the Arduino AP interface and its DHCP server; a later beginAP() is refused
+      // while they are still up
+      WiFi.disconnectAP();
+#endif
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, false, CYW43_COUNTRY_WORLDWIDE);
     }
     this->ap_started_ = ap.value();
@@ -238,7 +243,10 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // Pass nullptr for empty password — CYW43 uses the password pointer (not length)
   // to choose between OPEN and WPA2 auth mode.
   const char *ap_password = ap.password_.empty() ? nullptr : ap.password_.c_str();
-  WiFi.beginAP(ap.ssid_.c_str(), ap_password, ap.has_channel() ? ap.get_channel() : 1);
+  if (WiFi.beginAP(ap.ssid_.c_str(), ap_password, ap.has_channel() ? ap.get_channel() : 1) != WL_CONNECTED) {
+    ESP_LOGW(TAG, "beginAP failed");
+    return false;
+  }
 
   return true;
 }
