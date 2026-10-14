@@ -92,24 +92,17 @@ enum VerticalDirection {
 /// Creates the HeatpumpIR library class for a protocol; instantiated in heatpumpir.cpp.
 template<Protocol P> HeatpumpIR *create_heatpump_ir();
 
+/// Selects the protocol at compile time so the enum and the library object always match.
+template<Protocol P> struct ProtocolTag {};
+
 // Temperature
 const float TEMP_MIN = 0;    // Celsius
 const float TEMP_MAX = 100;  // Celsius
 
 class HeatpumpIRClimate final : public climate_ir::ClimateIR {
  public:
-  HeatpumpIRClimate(Protocol protocol, HeatpumpIR *heatpump_ir)
-      : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,
-                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
-                               climate::CLIMATE_FAN_AUTO},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
-                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}),
-        heatpump_ir_(heatpump_ir),
-        protocol_(protocol) {
-    if (this->has_fan_byte_presets_()) {
-      this->presets_ = {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST};
-    }
-  }
+  template<Protocol P>
+  explicit HeatpumpIRClimate(ProtocolTag<P> /*tag*/) : HeatpumpIRClimate(P, create_heatpump_ir<P>()) {}
   void setup() override;
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
@@ -122,6 +115,18 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
   void set_min_temperature(float temperature) { this->min_temperature_ = temperature; }
 
  protected:
+  HeatpumpIRClimate(Protocol protocol, HeatpumpIR *heatpump_ir)
+      : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
+                               climate::CLIMATE_FAN_AUTO},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
+                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}),
+        heatpump_ir_(heatpump_ir),
+        protocol_(protocol) {
+    if (this->has_fan_byte_presets_()) {
+      this->presets_ = {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST};
+    }
+  }
   HeatpumpIR *heatpump_ir_;
   void control(const climate::ClimateCall &call) override;
   /// Transmit via IR the state of this climate controller.
