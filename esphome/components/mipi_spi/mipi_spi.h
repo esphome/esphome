@@ -206,7 +206,7 @@ class MipiSpi : public display::Display,
     if (w <= 0 || h <= 0)
       return;
     if (get_pixel_mode(bitness) != BUFFERPIXEL || big_endian != IS_BIG_ENDIAN || order != display::COLOR_ORDER_RGB ||
-        (!HAS_HARDWARE_ROTATION && this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES)) {
+        (!HAS_HARDWARE_ROTATION && this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) || this->is_clipping()) {
       this->draw_pixels_slow(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
       return;
     }

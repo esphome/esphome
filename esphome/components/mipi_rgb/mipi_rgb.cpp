@@ -228,9 +228,10 @@ void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0 || this->is_failed())
     return;
-  // RGB565 in the configured byte order at rotation 0 copies as is; anything else goes per pixel
+  // RGB565 in the configured byte order at rotation 0 copies as is; anything else, or a block drawn under a
+  // clipping region, goes per pixel
   if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB || big_endian != this->big_endian_ ||
-      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
+      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
     this->flush_now_();

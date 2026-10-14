@@ -224,12 +224,13 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   if (w <= 0 || h <= 0)
     return;
   // Copy as is only when the bytes are laid out the way draw_pixel_at() writes them; an RGB
-  // ordered little endian 888 block is b,g,r in memory. Anything else goes per pixel.
+  // ordered little endian 888 block is b,g,r in memory. Anything else, or a block drawn under a clipping
+  // region, goes per pixel.
   const bool same_layout = bitness == display::COLOR_BITNESS_565
                                ? big_endian == this->big_endian_
                                : big_endian == (this->color_mode_ == display::COLOR_ORDER_RGB);
   if (bitness != this->color_depth_ || order != display::COLOR_ORDER_RGB || !same_layout ||
-      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
+      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
