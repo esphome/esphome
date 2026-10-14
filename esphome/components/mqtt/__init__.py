@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
     CONF_DEVICE_ID,
+    CONF_DEVICES,
     CONF_DISCOVER_IP,
     CONF_DISCOVERY,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
@@ -40,7 +41,6 @@ from esphome.const import (
     CONF_LEVEL,
     CONF_LOG_TOPIC,
     CONF_MODE_COMMAND_TOPIC,
-    CONF_MQTT as CONF_MQTT,
     CONF_MQTT_ID,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
@@ -64,7 +64,6 @@ from esphome.const import (
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
-    CONF_TYPE,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
@@ -327,68 +326,95 @@ CONFIG_SCHEMA = cv.All(
 ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN = 128
 # name_add_mac_suffix appends "-" plus 6 hex digits to the name at runtime
 MAC_SUFFIX = "-xxxxxx"
-# Entity domains whose MQTT component always subscribes to its command topic
-_COMMAND_TOPIC_DOMAINS = (
-    "alarm_control_panel",
-    "button",
-    "climate",
-    "cover",
-    "datetime",
-    "fan",
-    "light",
-    "lock",
-    "number",
-    "select",
-    "switch",
-    "text",
-    "update",
-    "valve",
+# The topic each entity MQTT class always subscribes to: component type, suffix, and the
+# config key that replaces the whole topic. Every MQTTComponent subclass above is listed
+# here or in _MQTT_WITHOUT_COMMAND_TOPIC; a test keeps the two in step.
+_MQTT_COMMAND_TOPICS = {
+    str(cls): spec
+    for cls, spec in (
+        (
+            MQTTAlarmControlPanelComponent,
+            ("alarm_control_panel", "command", CONF_COMMAND_TOPIC),
+        ),
+        (MQTTButtonComponent, ("button", "command", CONF_COMMAND_TOPIC)),
+        (MQTTClimateComponent, ("climate", "mode/command", CONF_MODE_COMMAND_TOPIC)),
+        (MQTTCoverComponent, ("cover", "command", CONF_COMMAND_TOPIC)),
+        (MQTTDateComponent, ("date", "command", CONF_COMMAND_TOPIC)),
+        (MQTTDateTimeComponent, ("datetime", "command", CONF_COMMAND_TOPIC)),
+        (MQTTFanComponent, ("fan", "command", CONF_COMMAND_TOPIC)),
+        (MQTTJSONLightComponent, ("light", "command", CONF_COMMAND_TOPIC)),
+        (MQTTLockComponent, ("lock", "command", CONF_COMMAND_TOPIC)),
+        (MQTTNumberComponent, ("number", "command", CONF_COMMAND_TOPIC)),
+        (MQTTSelectComponent, ("select", "command", CONF_COMMAND_TOPIC)),
+        (MQTTSwitchComponent, ("switch", "command", CONF_COMMAND_TOPIC)),
+        (MQTTTextComponent, ("text", "command", CONF_COMMAND_TOPIC)),
+        (MQTTTimeComponent, ("time", "command", CONF_COMMAND_TOPIC)),
+        (MQTTUpdateComponent, ("update", "command", CONF_COMMAND_TOPIC)),
+        (MQTTValveComponent, ("valve", "command", CONF_COMMAND_TOPIC)),
+    )
+}
+_MQTT_WITHOUT_COMMAND_TOPIC = (
+    MQTTBinarySensorComponent,
+    MQTTEventComponent,
+    MQTTSensorComponent,
+    MQTTTextSensor,
 )
 
 
 def _entity_command_topic(
-    domain: str, config: ConfigType, topic_prefix: str, mac_suffix: bool
+    config: ConfigType, topic_prefix: str, mac_suffix: bool, devices: dict[str, str]
 ) -> str | None:
     """Return the topic an entity's MQTT component always subscribes to, if known."""
-    if domain == "climate":
-        suffix, custom_key = "mode/command", CONF_MODE_COMMAND_TOPIC
-    else:
-        suffix, custom_key = "command", CONF_COMMAND_TOPIC
-    if (custom := config.get(custom_key)) is not None:
-        # A lambda topic is only known at runtime
-        return custom if isinstance(custom, str) else None
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is None or (
+        spec := _MQTT_COMMAND_TOPICS.get(str(mqtt_id.type))
+    ) is None:
+        return None
+    component_type, suffix, custom_key = spec
     # Mirrors MQTTComponent::compute_is_internal_(): internal components never subscribe
     if CONF_STATE_TOPIC in config:
         internal = config[CONF_STATE_TOPIC] == ""
+    elif CONF_COMMAND_TOPIC in config:
+        internal = config[CONF_COMMAND_TOPIC] == ""
     else:
-        internal = config.get(CONF_INTERNAL, False)
+        internal = not topic_prefix or config.get(CONF_INTERNAL, False)
     if internal:
+        return None
+    if (custom := config.get(custom_key)) is not None:
+        # A lambda topic is only known at runtime
+        return custom if isinstance(custom, str) else None
+    if not topic_prefix:
         return None
     device = config.get(CONF_DEVICE_ID)
     object_id = get_base_entity_object_id(
-        config.get(CONF_NAME) or "", CORE.friendly_name, device.id if device else None
+        config.get(CONF_NAME) or "",
+        CORE.friendly_name,
+        devices.get(device.id) if device else None,
     )
     if mac_suffix and not config.get(CONF_NAME):
         object_id += MAC_SUFFIX
-    component_type = config[CONF_TYPE].lower() if domain == "datetime" else domain
     return f"{topic_prefix}/{component_type}/{object_id}/{suffix}"
 
 
 def _subscribed_topics(config: ConfigType) -> Iterator[str]:
     """Yield every subscribed topic that is known at build time."""
     full_config = fv.full_config.get()
-    mac_suffix = full_config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
-    if topic_prefix := config[CONF_TOPIC_PREFIX]:
-        if mac_suffix and topic_prefix == CORE.name:
-            topic_prefix += MAC_SUFFIX
-        for domain in _COMMAND_TOPIC_DOMAINS:
-            for entity in full_config.get(domain) or []:
-                if CONF_MQTT_ID in entity and (
-                    topic := _entity_command_topic(
-                        domain, entity, topic_prefix, mac_suffix
-                    )
-                ):
-                    yield topic
+    esphome_config = full_config[CONF_ESPHOME]
+    mac_suffix = esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
+    devices = {
+        device[CONF_ID].id: device[CONF_NAME]
+        for device in esphome_config.get(CONF_DEVICES, [])
+    }
+    topic_prefix = config[CONF_TOPIC_PREFIX]
+    if mac_suffix and topic_prefix == CORE.name:
+        topic_prefix += MAC_SUFFIX
+    for value in full_config.values():
+        for entity in value if isinstance(value, list) else ():
+            if isinstance(entity, dict) and (
+                topic := _entity_command_topic(
+                    entity, topic_prefix, mac_suffix, devices
+                )
+            ):
+                yield topic
     for key in (CONF_ON_MESSAGE, CONF_ON_JSON_MESSAGE):
         for trigger in config.get(key, []):
             yield trigger[CONF_TOPIC]

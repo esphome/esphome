@@ -1,18 +1,22 @@
 """Tests for the mqtt check that subscribed topics fit the AsyncMqttClient limit."""
 
-from pathlib import Path
-import re
-
 import pytest
 
+from esphome.components import mqtt
 from esphome.components.mqtt import (
-    _COMMAND_TOPIC_DOMAINS,
+    _MQTT_COMMAND_TOPICS,
+    _MQTT_WITHOUT_COMMAND_TOPIC,
     ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN,
+    MQTTClimateComponent,
+    MQTTComponent,
+    MQTTSwitchComponent,
     _validate_topic_lengths,
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEVICES,
     CONF_ESPHOME,
+    CONF_ID,
     CONF_MQTT_ID,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
@@ -22,7 +26,8 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, ID, Lambda
+from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -32,8 +37,16 @@ TOO_LONG = FITS + "a"
 LONG_LITERAL = "t" * (ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN + 1)
 
 
+def _mqtt_id(cls: MockObjClass) -> ID:
+    return ID("mqtt_id", is_declaration=True, type=cls)
+
+
 def _switch(name: str, **extra) -> dict:
-    return {"switch": [{CONF_NAME: name, CONF_MQTT_ID: "mqtt_switch", **extra}]}
+    return {
+        "switch": [
+            {CONF_NAME: name, CONF_MQTT_ID: _mqtt_id(MQTTSwitchComponent), **extra}
+        ]
+    }
 
 
 def _run(
@@ -74,7 +87,7 @@ def _run(
             {
                 "climate": [
                     # "dev/climate/<object_id>/mode/command" is 25 characters around it
-                    {CONF_NAME: "a" * 104, CONF_MQTT_ID: "mqtt_climate"}
+                    {CONF_NAME: "a" * 104, CONF_MQTT_ID: _mqtt_id(MQTTClimateComponent)}
                 ]
             },
             None,
@@ -92,6 +105,23 @@ def _run(
             None,
             PLATFORM_ESP8266,
             id="mqtt_subscribe",
+        ),
+        pytest.param(
+            {
+                CONF_ESPHOME: {
+                    CONF_DEVICES: [{CONF_ID: ID("sub"), CONF_NAME: TOO_LONG}]
+                },
+                **_switch("", device_id=ID("sub")),
+            },
+            None,
+            PLATFORM_ESP8266,
+            id="unnamed_on_sub_device",
+        ),
+        pytest.param(
+            _switch("s", command_topic=LONG_LITERAL),
+            {"topic_prefix": ""},
+            PLATFORM_ESP8266,
+            id="custom_topic_without_prefix",
         ),
     ],
 )
@@ -126,6 +156,12 @@ def test_rejected(
             {"switch": [{CONF_NAME: TOO_LONG}]}, None, PLATFORM_ESP8266, id="no_mqtt"
         ),
         pytest.param(
+            _switch("s", state_topic="", command_topic=LONG_LITERAL),
+            None,
+            PLATFORM_ESP8266,
+            id="internal_by_empty_state_topic",
+        ),
+        pytest.param(
             {},
             {"on_message": [{"topic": LONG_LITERAL + "/#"}]},
             PLATFORM_ESP8266,
@@ -144,21 +180,15 @@ def test_message_names_the_topic_and_length(monkeypatch: pytest.MonkeyPatch) -> 
         _run(monkeypatch, _switch(TOO_LONG))
 
 
-MQTT_DIR = Path(__file__).parents[3] / "esphome" / "components" / "mqtt"
-# MQTT component types that belong to another entity domain
-TYPE_DOMAIN = {"date": "datetime", "time": "datetime"}
-
-
-def test_command_topic_domains_match_the_cpp_components() -> None:
-    """Every MQTT component that subscribes in C++ is listed, with the topic it always subscribes to."""
-    subscribing = {}
-    for source in MQTT_DIR.glob("mqtt_*.cpp"):
-        text = source.read_text()
-        if not (match := re.search(r'MQTT_COMPONENT_TYPE\(\w+, "(\w+)"\)', text)):
-            continue
-        if re.search(r"this->subscribe(_json)?\(", text):
-            subscribing[TYPE_DOMAIN.get(match[1], match[1])] = text
-    assert set(_COMMAND_TOPIC_DOMAINS) == set(subscribing)
-    for domain, text in subscribing.items():
-        getter = "get_mode_command_topic" if domain == "climate" else "command_topic_"
-        assert getter in text, domain
+def test_every_mqtt_entity_class_is_classified() -> None:
+    """A new MQTT entity class must say whether it subscribes to a command topic."""
+    declared = {
+        str(value)
+        for value in vars(mqtt).values()
+        if isinstance(value, MockObjClass)
+        and value is not MQTTComponent
+        and value.inherits_from(MQTTComponent)
+    }
+    without = {str(cls) for cls in _MQTT_WITHOUT_COMMAND_TOPIC}
+    assert not set(_MQTT_COMMAND_TOPICS) & without
+    assert declared == set(_MQTT_COMMAND_TOPICS) | without
