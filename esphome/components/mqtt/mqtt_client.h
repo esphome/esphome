@@ -195,23 +195,14 @@ class MQTTClientComponent final : public Component {
    * @param qos The QoS of this subscription.
    */
   template<typename F> void subscribe_json(std::string topic, F &&callback, uint8_t qos = 0) {
-    using DecayF = std::decay_t<F>;
-    if constexpr (std::is_invocable_v<const DecayF &, const std::string &, JsonObject>) {
-      this->subscribe(
-          std::move(topic),
-          [cb = std::forward<F>(callback)](const std::string &topic, const std::string &payload) {
-            call_json(cb, topic, payload);
-          },
-          qos);
-    } else {
-      // A mutable callback keeps its state; the wrapper is then boxed rather than copied per call.
-      this->subscribe(
-          std::move(topic),
-          [cb = std::forward<F>(callback)](const std::string &topic, const std::string &payload) mutable {
-            call_json(cb, topic, payload);
-          },
-          qos);
-    }
+    static_assert(std::is_invocable_v<const std::decay_t<F> &, const std::string &, JsonObject>,
+                  "subscribe_json() needs a callback that does not mutate its captures");
+    this->subscribe(
+        std::move(topic),
+        [cb = std::forward<F>(callback)](const std::string &topic, const std::string &payload) {
+          call_json(cb, topic, payload);
+        },
+        qos);
   }
 
   /** Unsubscribe from an MQTT topic.
@@ -318,7 +309,7 @@ class MQTTClientComponent final : public Component {
   bool subscribe_(const char *topic, uint8_t qos);
   void resubscribe_subscription_(MQTTSubscription *sub);
   // parse_json runs its callback before returning, so the captures can be references.
-  template<typename F> static void call_json(F &callback, const std::string &topic, const std::string &payload) {
+  template<typename F> static void call_json(const F &callback, const std::string &topic, const std::string &payload) {
     json::parse_json(payload, [&topic, &callback](JsonObject root) -> bool {
       callback(topic, root);
       return true;
