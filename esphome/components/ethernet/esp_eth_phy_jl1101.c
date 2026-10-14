@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Espressif PHY driver, kept as upstream wrote it.
+// NOLINTBEGIN
+
 #include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
@@ -345,3 +348,4 @@ err:
 
 #endif /* USE_ARDUINO */
 #endif /* USE_ESP32 */
+// NOLINTEND
