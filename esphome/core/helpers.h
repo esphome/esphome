@@ -15,6 +15,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <numeric>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -25,12 +26,6 @@
 
 #include "esphome/core/optional.h"
 #include "esphome/core/time_conversion.h"
-
-// Backward compatibility re-export of heap-allocating helpers.
-// These functions have moved to alloc_helpers.h. External components should
-// update their includes to use #include "esphome/core/alloc_helpers.h" directly.
-// This re-export will be removed in 2026.11.0.
-#include "esphome/core/alloc_helpers.h"
 
 #ifdef USE_ESP8266
 #include <Esp.h>
@@ -885,6 +880,13 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 
+/// Add up the bytes of \p data with size \p len, truncated to 8 bits: the checksum many serial and IR
+/// protocols use. Prefer this over a bare std::accumulate, whose result type follows the seed, so a plain 0
+/// sums in int and compares wrong against a checksum byte.
+constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
+  return std::accumulate(data, data + len, sum);
+}
+
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
@@ -1105,13 +1107,8 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
 }
 #endif  // USE_ESP8266
 
-// str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
-
-// str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
-
 /// Convert a single char to snake_case: lowercase and space to underscore.
 constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
-// str_snake_case moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
 constexpr char to_sanitized_char(char c) {
@@ -1134,8 +1131,6 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
   return str_sanitize_to(buffer, N, str);
 }
 
-// str_sanitize moved to alloc_helpers.h - remove this comment before 2026.11.0
-
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
 /// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
@@ -1149,8 +1144,6 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
   }
   return hash;
 }
-
-// str_snprintf, str_sprintf moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 #ifdef USE_ESP8266
 // ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
@@ -1263,6 +1256,16 @@ static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len);
 
+/// Length of the suffix name_add_mac_suffix appends: "-" plus 6 characters of the MAC address
+static constexpr size_t MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN = 7;
+
+/// Copy a name into a buffer, cutting it when it does not fit.
+/// A name that is cut keeps its last keep_suffix_len characters (for example a MAC suffix) and loses
+/// the middle instead; pass 0 to cut the end.
+/// @param buffer Output buffer; holds at most buffer_size - 1 characters plus the null terminator
+/// @return Length written (excluding null terminator)
+size_t truncate_name_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, size_t keep_suffix_len);
+
 ///@}
 
 /// @name Parsing & formatting
@@ -1296,13 +1299,11 @@ template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T
 optional<T> parse_number(const std::string &str) {
   return parse_number<T>(str.c_str());
 }
+/// Parse a decimal floating-point number; plain decimals skip the libc parser.
+optional<float> parse_float(const char *str);
 /// Parse a decimal floating-point number from a null-terminated string.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
-  char *end = nullptr;
-  float value = ::strtof(str, &end);
-  if (end == str || *end != '\0' || value == HUGE_VALF)
-    return {};
-  return value;
+  return parse_float(str);
 }
 /// Parse a decimal floating-point number.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
@@ -1605,32 +1606,6 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   format_hex_to(output, MAC_ADDRESS_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE);
 }
 
-// format_mac_address_pretty, format_hex (all overloads) moved to alloc_helpers.h
-// Remove this comment and the template overloads below before 2026.11.0
-
-/// Format an unsigned integer in lowercased hex, starting with the most significant byte.
-/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
-  val = convert_big_endian(val);
-  return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
-}
-/// Format the std::array \p data in lowercased hex.
-/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
-  return format_hex(data.data(), data.size());
-}
-
-// format_hex_pretty (all overloads) moved to alloc_helpers.h
-// Remove this comment and the template overload below before 2026.11.0
-
-/// Format an unsigned integer in pretty-printed, human-readable hex format.
-/// @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-std::string format_hex_pretty(T val, char separator = '.', bool show_length = true) {
-  val = convert_big_endian(val);
-  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
-}
-
 /// Calculate buffer size needed for format_bin_to: "01234567...\0" = bytes * 8 + 1
 constexpr size_t format_bin_size(size_t byte_count) { return byte_count * 8 + 1; }
 
@@ -1684,15 +1659,6 @@ inline char *format_bin_to(char (&buffer)[N], T val) {
   return format_bin_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
-// format_bin moved to alloc_helpers.h - remove this comment and template overload before 2026.11.0
-
-/// Format an unsigned integer in binary, starting with the most significant byte.
-/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
-  val = convert_big_endian(val);
-  return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));
-}
-
 /// Return values for parse_on_off().
 enum ParseOnOffState : uint8_t {
   PARSE_NONE = 0,
@@ -1702,8 +1668,6 @@ enum ParseOnOffState : uint8_t {
 };
 /// Parse a string that contains either on, off or toggle.
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
-
-// value_accuracy_to_string moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
 static constexpr size_t VALUE_ACCURACY_MAX_LEN = 64;
@@ -1717,8 +1681,6 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
-// base64_encode (both overloads), base64_decode (vector overload) moved to alloc_helpers.h
-// Remove this comment before 2026.11.0
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
@@ -2177,8 +2139,6 @@ class HighFrequencyLoopRequester {
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
-// get_mac_address, get_mac_address_pretty moved to alloc_helpers.h - remove this comment before 2026.11.0
-
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
 /// Assumes buffer length is MAC_ADDRESS_BUFFER_SIZE (12 digits for hexadecimal representation followed by null
 /// terminator).
@@ -2262,7 +2222,7 @@ template<class T> class RAMAllocator {
     T *ptr = nullptr;
 #ifdef USE_ESP32
     const auto caps = this->get_caps_();
-    ptr = static_cast<T *>(heap_caps_malloc_prefer(size, 2, caps[0], caps[1]));
+    ptr = static_cast<T *>(heap_caps_malloc_prefer(size, caps.num, caps.primary, caps.fallback));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2277,7 +2237,7 @@ template<class T> class RAMAllocator {
     T *ptr = nullptr;
 #ifdef USE_ESP32
     const auto caps = this->get_caps_();
-    ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, 2, caps[0], caps[1]));
+    ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, caps.num, caps.primary, caps.fallback));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(realloc(p, size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2349,12 +2309,21 @@ template<class T> class RAMAllocator {
 
  private:
 #ifdef USE_ESP32
-  /// Returns {primary_caps, fallback_caps} for heap_caps_*_prefer based on the configured flags.
+  struct Caps {
+    uint32_t primary;
+    uint32_t fallback;
+    uint8_t num;  // distinct capability sets to hand to heap_caps_*_prefer
+    constexpr Caps(uint32_t primary_caps, uint32_t fallback_caps)
+        : primary(primary_caps), fallback(fallback_caps), num(primary_caps == fallback_caps ? 1 : 2) {}
+  };
+
+  /// Returns the capability sets for heap_caps_*_prefer based on the configured flags.
   /// PREFER_INTERNAL implies both regions are enabled (enforced by the constructor), so when it is set
   /// the primary is internal and the fallback is external. Otherwise the primary is whichever region
-  /// is enabled (external preferred when both are enabled), and the fallback is the other region (or
-  /// the same region when only one is enabled, making the second attempt a no-op).
-  std::array<uint32_t, 2> get_caps_() const {
+  /// is enabled (external preferred when both are enabled), and the fallback is the other region (or the
+  /// same region when only one is enabled). With a single region enabled num is 1, so the duplicate
+  /// fallback is never searched.
+  constexpr Caps get_caps_() const {
     constexpr uint32_t external_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     constexpr uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     if (this->flags_ & PREFER_INTERNAL) {

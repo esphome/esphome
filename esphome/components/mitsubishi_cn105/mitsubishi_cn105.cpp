@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <numeric>
 #include "mitsubishi_cn105_properties.h"
 
 namespace esphome::mitsubishi_cn105 {
@@ -31,7 +30,7 @@ static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
 
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
-  return static_cast<uint8_t>(0xFC - std::accumulate(bytes, bytes + length, uint8_t{0}));
+  return static_cast<uint8_t>(0xFC - sum_bytes(bytes, length));
 }
 
 template<std::size_t PayloadSize>

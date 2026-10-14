@@ -5,6 +5,9 @@ namespace esphome::opt3001 {
 
 ESPHOME_LOG_TAG(TAG, "opt3001.sensor");
 
+static constexpr uint32_t RESULT_RETRY_TIMEOUT_ID = 0;
+static constexpr uint32_t READ_TIMEOUT_ID = 1;
+
 static const uint8_t OPT3001_REG_RESULT = 0x00;
 static const uint8_t OPT3001_REG_CONFIGURATION = 0x01;
 // See datasheet for full description of each bit.
@@ -42,7 +45,7 @@ void OPT3001Sensor::read_result_(const std::function<void(float)> &f) {
   if ((raw_value & OPT3001_CONFIGURATION_CONVERSION_MODE_MASK) != OPT3001_CONFIGURATION_CONVERSION_MODE_SHUTDOWN) {
     // not ready; wait 10ms and try again
     ESP_LOGW(TAG, "Data not ready; waiting 10ms");
-    this->set_timeout("opt3001_wait", 10, [this, f]() { read_result_(f); });
+    this->set_timeout(RESULT_RETRY_TIMEOUT_ID, 10, [this, f]() { read_result_(f); });
     return;
   }
 
@@ -70,7 +73,7 @@ void OPT3001Sensor::read_lx_(const std::function<void(float)> &f) {
     return;
   }
 
-  this->set_timeout("read", OPT3001_CONVERSION_TIME_800, [this, f]() {
+  this->set_timeout(READ_TIMEOUT_ID, OPT3001_CONVERSION_TIME_800, [this, f]() {
     if (this->write(&OPT3001_REG_CONFIGURATION, 1) != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Starting configuration register read failed");
       f(NAN);

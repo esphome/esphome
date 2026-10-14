@@ -11,6 +11,7 @@ namespace esphome {
 /// Zephyr: wakes the main loop via k_sem_give(). Thread- and ISR-safe.
 /// Defined in wake_zephyr.cpp.
 void wake_loop_threadsafe();
+void wake_scheduler_threadsafe();
 
 inline void wake_loop_any_context() { wake_loop_threadsafe(); }
 
