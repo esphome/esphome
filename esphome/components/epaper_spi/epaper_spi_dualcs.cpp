@@ -78,15 +78,6 @@ void EPaperDualCS::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size
     this->cs1_pin_->digital_write(true);
 }
 
-void EPaperDualCS::log_busy_state_(const char *where) {
-  uint32_t now = millis();
-  if (now - this->wait_log_ms_ < 1000)
-    return;
-  this->wait_log_ms_ = now;
-  ESP_LOGD(TAG, "%s: waiting -- busy_pin raw digital_read=%d, is_idle_()=%d", where,
-           (int) this->busy_pin_->digital_read(), (int) this->is_idle_());
-}
-
 // Maps the requested logical (rotated) rectangle to physical panel columns/rows, then
 // splits that physical window across the two chips (primary: left half, secondary: right
 // half). HRST/HRED are in half-column units, VRST/VRED in half-row units -- that's the
@@ -366,8 +357,9 @@ bool EPaperDualCS::transfer_data() {
     }
 
     case TRF_PARTIAL_WAIT_M:
+      // Let EPaperBase do the waiting, so its busy-pin timeout also covers this wait.
       if (!this->is_idle_()) {
-        this->log_busy_state_("transfer_data(): TRF_PARTIAL_WAIT_M");
+        this->wait_for_idle_(true);
         return false;
       }
       this->transfer_sub_ = TRF_PARTIAL_SETUP_S;
@@ -420,8 +412,9 @@ bool EPaperDualCS::transfer_data() {
     }
 
     case TRF_PARTIAL_WAIT_S:
+      // Let EPaperBase do the waiting, so its busy-pin timeout also covers this wait.
       if (!this->is_idle_()) {
-        this->log_busy_state_("transfer_data(): TRF_PARTIAL_WAIT_S");
+        this->wait_for_idle_(true);
         return false;
       }
       this->transfer_sub_ = TRF_DONE;

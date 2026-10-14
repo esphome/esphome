@@ -119,9 +119,6 @@ class EPaperDualCS : public EPaper4bpp {
   /// Fills ptlw_primary_/ptlw_secondary_ from partial_x_/y_/w_/h_.
   void compute_ptlw_params_();
 
-  /// Throttled (1/s) debug log of the raw busy pin state, for bring-up diagnostics.
-  void log_busy_state_(const char *where);
-
   GPIOPin *cs_pin_{nullptr};
   GPIOPin *cs1_pin_{nullptr};
 
@@ -131,7 +128,6 @@ class EPaperDualCS : public EPaper4bpp {
 
   TransferSub transfer_sub_{TRF_FULL};
   size_t transfer_row_{0};  // used only by the partial path -- the full path uses current_data_index_
-  uint32_t wait_log_ms_{0};
 
   bool partial_update_{false};
   int partial_x_{0};
