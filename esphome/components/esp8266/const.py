@@ -32,86 +32,74 @@ KEY_DECODE_TOOLS = "decode_tools"
 # RTC regions, and the flash store is smaller when only explicit flash preferences use it.
 PREFERENCES_RTC_NORMAL_WORDS = 78
 PREFERENCES_RTC_EBOOT_WORDS = 32
+PREFERENCES_RTC_WORDS = PREFERENCES_RTC_NORMAL_WORDS + PREFERENCES_RTC_EBOOT_WORDS
 PREFERENCES_FLASH_WORDS = 128
 PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE = 64
-
-
 KEY_PREFERENCES = "preferences"
-# Words of RTC memory open to saved values; the crash handler keeps the rest
-PREFERENCES_RTC_WORDS = PREFERENCES_RTC_NORMAL_WORDS + PREFERENCES_RTC_EBOOT_WORDS
+
+
+def preferences_flash_words(restore_from_flash: bool) -> int:
+    """Size of the flash store for this configuration."""
+    return (
+        PREFERENCES_FLASH_WORDS
+        if restore_from_flash
+        else PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE
+    )
 
 
 def preference_words(value_bytes: int) -> int:
-    """Words a saved value takes, checksum word included."""
+    """Words a saved value takes, checksum word included (rtc_pref_bytes_to_words plus one)."""
     return (value_bytes + 3) // 4 + 1
 
 
 def reserve_preferences(count: int, value_bytes: int, in_flash: bool = False) -> None:
-    """Record saved values a component creates, so all of them are checked to fit; call from to_code."""
-    if not CORE.is_esp8266:
-        return
+    """Record saved values a component creates; check_preferences_fit() adds them all up."""
     reservations = CORE.data.setdefault(KEY_ESP8266, {}).setdefault(KEY_PREFERENCES, [])
-    if not reservations:
-        CORE.add_job(check_preferences_fit)
-    reservations.append((count, preference_words(value_bytes), in_flash))
+    reservations.extend([(preference_words(value_bytes), in_flash)] * count)
 
 
 def _rtc_values_can_split(values: list[int]) -> bool:
-    """Whether the values can be split between the two RTC regions, whatever order the device fills them in."""
+    """Whether some order fills the two RTC regions without a value spanning them."""
     total = sum(values)
+    if total <= PREFERENCES_RTC_NORMAL_WORDS:
+        return True
     # Bit i of reachable is set when some subset of the values sums to i
     reachable = 1
     for words in values:
         reachable |= reachable << words
-    return any(
-        reachable >> normal & 1 and total - normal <= PREFERENCES_RTC_EBOOT_WORDS
-        for normal in range(min(total, PREFERENCES_RTC_NORMAL_WORDS) + 1)
-    )
+    lowest = max(0, total - PREFERENCES_RTC_EBOOT_WORDS)
+    highest = min(total, PREFERENCES_RTC_NORMAL_WORDS)
+    return any(reachable >> normal & 1 for normal in range(lowest, highest + 1))
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def check_preferences_fit() -> None:
     """Fail the build when the reserved saved values cannot fit the space preferences.cpp has."""
-    restore_from_flash = CORE.config[KEY_ESP8266].get(CONF_RESTORE_FROM_FLASH, False)
-    flash_store = (
-        PREFERENCES_FLASH_WORDS
-        if restore_from_flash
-        else PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE
+    restore_from_flash = CORE.config[KEY_ESP8266][CONF_RESTORE_FROM_FLASH]
+    flash_store = preferences_flash_words(restore_from_flash)
+    reservations = CORE.data[KEY_ESP8266].get(KEY_PREFERENCES, [])
+    flash_words = sum(
+        w for w, in_flash in reservations if in_flash or restore_from_flash
     )
-    rtc_words = flash_words = 0
-    rtc_values: list[int] = []
-    for count, words, in_flash in CORE.data[KEY_ESP8266][KEY_PREFERENCES]:
-        if in_flash or restore_from_flash:
-            if words > flash_store:
-                raise EsphomeError(
-                    f"A saved value of {words} words does not fit the ESP8266 flash store of {flash_store} words"
-                )
-            flash_words += count * words
-        else:
-            # A value cannot span the two RTC regions, so the larger one bounds it
-            if words > PREFERENCES_RTC_NORMAL_WORDS:
-                raise EsphomeError(
-                    f"A saved value of {words} words does not fit an ESP8266 RTC region of "
-                    f"{PREFERENCES_RTC_NORMAL_WORDS} words"
-                )
-            rtc_words += count * words
-            rtc_values.extend([words] * count)
+    rtc_values = [
+        w for w, in_flash in reservations if not (in_flash or restore_from_flash)
+    ]
     if flash_words > flash_store:
         raise EsphomeError(
             f"Saved values need {flash_words} words but the ESP8266 flash store has {flash_store}; "
             "use fewer or smaller saved values"
         )
-    if rtc_words > PREFERENCES_RTC_WORDS or not _rtc_values_can_split(rtc_values):
+    if not _rtc_values_can_split(rtc_values):
         raise EsphomeError(
-            f"Saved values need {rtc_words} words but ESP8266 RTC memory has {PREFERENCES_RTC_WORDS} in regions of "
-            f"{PREFERENCES_RTC_NORMAL_WORDS} and {PREFERENCES_RTC_EBOOT_WORDS} that a value cannot span; "
-            "use fewer or smaller saved values, or set restore_from_flash: true"
+            f"Saved values need {sum(rtc_values)} words but ESP8266 RTC memory has {PREFERENCES_RTC_WORDS} in "
+            f"regions of {PREFERENCES_RTC_NORMAL_WORDS} and {PREFERENCES_RTC_EBOOT_WORDS} that a value cannot "
+            "span; use fewer or smaller saved values, or set restore_from_flash: true"
         )
-    if rtc_words > PREFERENCES_RTC_NORMAL_WORDS:
+    if sum(rtc_values) > PREFERENCES_RTC_NORMAL_WORDS:
         _LOGGER.warning(
-            "Saved values need %d of the %d words of ESP8266 RTC memory; values that straddle the two regions "
-            "and saved settings that are not counted here may not all fit",
-            rtc_words,
+            "Saved values reserve %d of %d words of ESP8266 RTC memory; the fit depends on setup order, and "
+            "saved settings that do not reserve are not counted",
+            sum(rtc_values),
             PREFERENCES_RTC_WORDS,
         )
 

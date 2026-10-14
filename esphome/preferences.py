@@ -102,3 +102,11 @@ def is_in_flash(value: str) -> bool:
     if not in_flash:
         request_rtc_storage()
     return in_flash
+
+
+def reserve_preferences(count: int, value_bytes: int, in_flash: bool = False) -> None:
+    """Reserve saved values from to_code so a platform with a small store can check they all fit."""
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import reserve_preferences as reserve
+
+        reserve(count, value_bytes, in_flash)

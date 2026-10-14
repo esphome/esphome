@@ -6,6 +6,7 @@ extern "C" {
 }
 
 #include "preferences.h"
+#include "rtc_layout.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences_rtc.h"
@@ -17,7 +18,7 @@ namespace esphome::esp8266 {
 ESPHOME_LOG_TAG(TAG, "preferences");
 
 static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
-static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
+static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = RTC_USER_MEM_WORDS;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
 
 // RTC memory layout (sizes come from const.py through codegen):
@@ -27,8 +28,7 @@ static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WO
 static constexpr uint32_t RTC_EBOOT_REGION_WORDS = ESP8266_PREFERENCES_RTC_EBOOT_WORDS;
 static constexpr uint32_t RTC_NORMAL_REGION_WORDS = ESP8266_PREFERENCES_RTC_NORMAL_WORDS;
 static constexpr uint32_t PREF_TOTAL_WORDS = RTC_EBOOT_REGION_WORDS + RTC_NORMAL_REGION_WORDS;  // 110
-static constexpr uint32_t RTC_CRASH_HANDLER_WORDS = 18;  // Words 110-127, see crash_handler.cpp
-static_assert(PREF_TOTAL_WORDS + RTC_CRASH_HANDLER_WORDS <= ESP_RTC_USER_MEM_SIZE_WORDS,
+static_assert(PREF_TOTAL_WORDS <= RTC_CRASH_BASE - RTC_SYSTEM_USER_BASE,
               "preference regions overlap the crash handler's RTC words");
 
 // Maximum preference size in words (limited by uint8_t length_words field)

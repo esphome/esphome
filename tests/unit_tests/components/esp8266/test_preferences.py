@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+from esphome import preferences
 from esphome.components.esp8266.const import (
     KEY_ESP8266,
     KEY_PREFERENCES,
@@ -35,41 +36,39 @@ def test_preference_words_rounds_up_and_adds_the_checksum(
     assert preference_words(value_bytes) == words
 
 
-def test_reservations_from_several_components_add_up() -> None:
-    reserve_preferences(2, 94)  # 50 words
-    reserve_preferences(2, 94)  # another component, 100 in total
+@pytest.mark.parametrize(
+    ("restore_from_flash", "in_flash", "fitting", "match"),
+    [
+        # 25 words each: 3 in the 78-word region and 1 in the 32-word one
+        (False, False, 4, "RTC memory has 110"),
+        # 125 of 128 flash words
+        (True, False, 5, "flash store has 128"),
+        (True, True, 5, "flash store has 128"),
+        # explicit flash values without restore_from_flash use the 64-word store
+        (False, True, 2, "flash store has 64"),
+    ],
+)
+def test_reservations_add_up_against_the_store_they_land_in(
+    restore_from_flash: bool, in_flash: bool, fitting: int, match: str
+) -> None:
+    CORE.config[KEY_ESP8266]["restore_from_flash"] = restore_from_flash
+    reserve_preferences(fitting - 1, 94, in_flash)  # one component
+    reserve_preferences(1, 94, in_flash)  # another component
     _check()
-    reserve_preferences(1, 94)  # 125 > 110
-    with pytest.raises(EsphomeError, match="RTC memory has 110"):
-        _check()
-
-
-def test_a_value_cannot_exceed_the_larger_rtc_region() -> None:
-    reserve_preferences(1, 400)
-    with pytest.raises(EsphomeError, match="RTC region"):
-        _check()
-
-
-def test_flash_store_follows_restore_from_flash() -> None:
-    CORE.config[KEY_ESP8266]["restore_from_flash"] = True
-    reserve_preferences(5, 94)  # 125 of 128 words
-    _check()
-    reserve_preferences(1, 94)
-    with pytest.raises(EsphomeError, match="flash store has 128"):
-        _check()
-
-
-def test_explicit_flash_values_use_the_small_store_without_restore() -> None:
-    reserve_preferences(2, 94, in_flash=True)  # 50 of 64 words
-    _check()
-    reserve_preferences(1, 94, in_flash=True)
-    with pytest.raises(EsphomeError, match="flash store has 64"):
+    reserve_preferences(1, 94, in_flash)
+    with pytest.raises(EsphomeError, match=match):
         _check()
 
 
 def test_values_that_cannot_split_between_the_regions_fail() -> None:
     # 5 x 20 words is 100 of 110, but the normal region takes 3 and the eboot region 1
     reserve_preferences(5, 76)
+    with pytest.raises(EsphomeError, match="cannot span"):
+        _check()
+
+
+def test_a_value_larger_than_either_region_fails() -> None:
+    reserve_preferences(1, 400)
     with pytest.raises(EsphomeError, match="cannot span"):
         _check()
 
@@ -81,16 +80,25 @@ def test_a_split_that_works_in_some_order_passes_with_a_warning(
     reserve_preferences(1, 308)
     reserve_preferences(1, 124)
     _check()
-    assert "may not all fit" in caplog.text
+    assert "depends on setup order" in caplog.text
 
 
-def test_the_check_runs_from_the_scheduled_job() -> None:
+def test_nothing_reserved_passes_quietly(caplog: pytest.LogCaptureFixture) -> None:
+    _check()
+    assert caplog.text == ""
+
+
+def test_the_check_runs_as_a_scheduled_job() -> None:
     reserve_preferences(3, 400)
-    with pytest.raises(EsphomeError, match="RTC region"):
+    CORE.add_job(check_preferences_fit)
+    with pytest.raises(EsphomeError, match="cannot span"):
         CORE.flush_tasks()
 
 
-def test_other_platforms_reserve_nothing() -> None:
+def test_components_reserve_through_esphome_preferences() -> None:
+    preferences.reserve_preferences(2, 94, in_flash=True)
+    assert CORE.data[KEY_ESP8266][KEY_PREFERENCES] == [(25, True), (25, True)]
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
-    reserve_preferences(100, 400)
+    CORE.data[KEY_ESP8266] = {}
+    preferences.reserve_preferences(2, 94)
     assert KEY_PREFERENCES not in CORE.data[KEY_ESP8266]
