@@ -25,11 +25,11 @@ constexpr uint8_t KATANA_REG_FORMAT = 0x08;
 constexpr uint8_t KATANA_REG_COMMAND = 0x09;
 constexpr uint8_t KATANA_REG_MUTE_STREAM = 0x0A;
 
-static constexpr float KATANA_VOLUME_MIDPOINT = 0.5f;
-static constexpr float KATANA_VOLUME_MIDPOINT_STEPS = 50.0f;  // -25 dB at 50% volume.
+constexpr float KATANA_VOLUME_MIDPOINT = 0.5f;
+constexpr float KATANA_VOLUME_MIDPOINT_STEPS = 50.0f;  // -25 dB at 50% volume.
 // Cubic amplitude gain: -20 * log10(volume^3) / 0.5 attenuation steps.
-static constexpr float KATANA_VOLUME_CUBIC_SCALE = 120.0f;
-static constexpr uint8_t KATANA_VOLUME_FULL_ATTENUATION = 255;
+constexpr float KATANA_VOLUME_CUBIC_SCALE = 120.0f;
+constexpr uint8_t KATANA_VOLUME_FULL_ATTENUATION = 255;
 
 // The control logic ignores writes for this long after a reset.
 constexpr uint32_t RESET_SETTLE_DELAY_MS = 10;
