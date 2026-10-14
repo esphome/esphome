@@ -166,7 +166,7 @@ const LogString *Logger::get_uart_selection_() {
 bool crash_log_pending() { return esp32::crash_handler_has_data(); }
 void log_crash_to_client() {
   // A level that drops the lines would throw the record away unseen; keep it for a client that can see it
-  if (global_logger->get_log_level("esp32.crash") < ESPHOME_LOG_LEVEL_ERROR)
+  if (global_logger->get_log_level(esp32::CRASH_LOG_TAG) < ESPHOME_LOG_LEVEL_ERROR)
     return;
   esp32::crash_handler_log();
   esp32::crash_handler_clear();

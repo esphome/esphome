@@ -161,7 +161,7 @@ static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 namespace esphome::esp32 {
 
-ESPHOME_LOG_TAG(TAG, "esp32.crash");
+ESPHOME_LOG_TAG(TAG, CRASH_LOG_TAG);
 
 // RAM copy of the build timestamp. The generated constant lives in flash,
 // which the panic handler must not read (cache may be disabled during
