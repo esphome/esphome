@@ -8,7 +8,6 @@ button:
 
 emontx:
   id: test_emontx
-  lock_on_reboot: true
   on_json:
     - then:
         - logger.log: "Got JSON"
@@ -24,9 +23,3 @@ sensor:
     tag_name: P1
     emontx_id: test_emontx
     unit_of_measurement: W
-
-text_sensor:
-  - platform: emontx
-    emontx_id: test_emontx
-    version:
-      name: emonTx firmware version

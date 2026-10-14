@@ -157,7 +157,7 @@ void Sdl::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
   } else {
     auto stride = x_offset + w + x_pad;
-    auto data = ptr + (stride * y_offset + x_offset) * 2;
+    const auto *data = ptr + (stride * y_offset + x_offset) * 2;
     SDL_UpdateTexture(this->texture_, &rect, data, stride * 2);
   }
   this->redraw_(rect);
@@ -199,7 +199,7 @@ void Sdl::process_key(uint32_t keycode, bool down) {
     callback->second(down);
 }
 
-Sdl *Sdl::instance_for_window_(uint32_t window_id) {
+Sdl *Sdl::instance_for_window(uint32_t window_id) {
   SDL_Window *window = SDL_GetWindowFromID(window_id);
   if (window == nullptr)
     return nullptr;
@@ -293,7 +293,7 @@ void Sdl::loop() {
         continue;
     }
 
-    Sdl *target = instance_for_window_(window_id);
+    Sdl *target = instance_for_window(window_id);
     if (target == nullptr) {
       // Nothing to route this to: the window has gone, or it is not one of ours. Say so, otherwise
       // input that stops working leaves no trace at all.
