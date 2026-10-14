@@ -241,8 +241,9 @@ void OpenThreadComponent::ot_main_() {
   // Clean up. Taking the lock once more lets every guard finish; the stack is stopped and the
   // lock withdrawn while it is held, before deinit destroys the semaphore.
   esp_openthread_lock_acquire(portMAX_DELAY);
-  otThreadSetEnabled(instance, false);
-  otIp6SetEnabled(instance, false);
+  // Best effort: after a normal teardown both are off already
+  (void) otThreadSetEnabled(instance, false);
+  (void) otIp6SetEnabled(instance, false);
   this->lock_initialized_ = false;
   this->connected_ = false;
   this->task_exited_ = true;
