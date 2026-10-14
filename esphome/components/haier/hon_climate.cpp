@@ -721,12 +721,16 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
   if (this->pending_vertical_direction_.has_value()) {
     if (!vertical_axis_is_auto(target_swing_mode)) {
       out_data->vertical_swing_mode = (uint8_t) this->pending_vertical_direction_.value();
+    } else {
+      ESP_LOGD(TAG, "Vertical swing is on; the position is kept for when it is turned off");
     }
     this->pending_vertical_direction_.reset();
   }
   if (this->pending_horizontal_direction_.has_value()) {
     if (!horizontal_axis_is_auto(target_swing_mode)) {
       out_data->horizontal_swing_mode = (uint8_t) this->pending_horizontal_direction_.value();
+    } else {
+      ESP_LOGD(TAG, "Horizontal swing is on; the position is kept for when it is turned off");
     }
     this->pending_horizontal_direction_.reset();
   }
@@ -893,12 +897,13 @@ static void publish_airflow_index(select::Select *sel, const std::array<Mode, N>
     return;
   }
   // Saved settings never hold AUTO after initialization(), so Center only covers a corrupt value
-  auto it = std::find(order.begin(), order.end(), mode);
+  const auto *it = std::find(order.begin(), order.end(), mode);
   if (it == order.end()) {
     it = std::find(order.begin(), order.end(), Mode::CENTER);
   }
   const size_t index = it - order.begin();
-  if (sel->has_state() && sel->active_index().value() == index) {
+  const auto active = sel->active_index();
+  if (active.has_value() && *active == index) {
     return;
   }
   sel->publish_state(index);
