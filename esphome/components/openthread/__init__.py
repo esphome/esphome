@@ -4,11 +4,17 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
     VARIANT_ESP32H21,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
@@ -104,6 +110,17 @@ CONF_DEVICE_TYPES = [
 NATIVE_BORDER_ROUTER_VARIANTS = {
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+}
+RCP_BORDER_ROUTER_VARIANTS = {
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 }
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
@@ -455,6 +472,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 "OpenThread Border Router requires ESP-IDF 5.5.0 or newer."
             )
+        if rcp is not None and get_esp32_variant() not in RCP_BORDER_ROUTER_VARIANTS:
+            raise cv.Invalid(
+                "OpenThread Border Router RCP mode requires a Wi-Fi-capable "
+                "ESP32 variant."
+            )
         if config[CONF_DEVICE_TYPE] != "FTD":
             raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
         if wifi_config is None:
@@ -521,8 +543,8 @@ async def to_code(config: ConfigType) -> None:
         include_builtin_idf_component("openthread")
         # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
         require_mbedtls_ecp()
-        if border_router:
-            # openthread_esp.cpp uses esp_coexist.h whenever border_router: is configured
+        if border_router and rcp is None:
+            # Native 802.15.4 and Wi-Fi share a radio; RCP mode does not need coexistence.
             include_builtin_idf_component("esp_coex")
 
     cg.add_define("USE_OPENTHREAD")

@@ -5,15 +5,11 @@ from typing import Any
 import pytest
 
 from esphome.components.esp32 import (
-    VARIANT_ESP32,
-    VARIANT_ESP32C2,
-    VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
-    VARIANT_ESP32C61,
-    VARIANT_ESP32S2,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
     VARIANT_ESP32S3,
-    VARIANT_ESP32S31,
 )
 from esphome.components.esp32.const import (
     KEY_BOARD,
@@ -22,7 +18,12 @@ from esphome.components.esp32.const import (
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
 )
-from esphome.components.openthread import _RCP_SCHEMA, _final_validate, _validate_rcp
+from esphome.components.openthread import (
+    _RCP_SCHEMA,
+    RCP_BORDER_ROUTER_VARIANTS,
+    _final_validate,
+    _validate_rcp,
+)
 from esphome.components.openthread.const import (
     CONF_BORDER_ROUTER,
     CONF_DEVICE_TYPE,
@@ -228,20 +229,7 @@ def test_border_router_requires_idf_5_5(
         _run_final_validation(otbr_config, full_config)
 
 
-@pytest.mark.parametrize(
-    "variant",
-    [
-        VARIANT_ESP32,
-        VARIANT_ESP32C2,
-        VARIANT_ESP32C3,
-        VARIANT_ESP32C5,
-        VARIANT_ESP32C6,
-        VARIANT_ESP32C61,
-        VARIANT_ESP32S2,
-        VARIANT_ESP32S3,
-        VARIANT_ESP32S31,
-    ],
-)
+@pytest.mark.parametrize("variant", sorted(RCP_BORDER_ROUTER_VARIANTS))
 def test_border_router_rcp_accepts_wifi_variants(
     set_core_config: SetCoreConfigCallable,
     otbr_config: ConfigType,
@@ -255,6 +243,23 @@ def test_border_router_rcp_accepts_wifi_variants(
     }
 
     _run_final_validation(otbr_config, full_config)
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32H2, VARIANT_ESP32H4])
+def test_border_router_rcp_rejects_variants_without_wifi(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+    full_config: ConfigType,
+    variant: str,
+) -> None:
+    _set_esp32_idf_core(set_core_config, variant)
+    otbr_config[CONF_BORDER_ROUTER][CONF_RCP] = {
+        CONF_RX_PIN: 18,
+        CONF_TX_PIN: 17,
+    }
+
+    with pytest.raises(cv.Invalid, match="requires a Wi-Fi-capable ESP32 variant"):
+        _run_final_validation(otbr_config, full_config)
 
 
 @pytest.mark.parametrize(

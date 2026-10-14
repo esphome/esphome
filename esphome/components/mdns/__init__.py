@@ -3,10 +3,12 @@ from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AP,
     CONF_API,
     CONF_DISABLED,
     CONF_ETHERNET,
     CONF_ID,
+    CONF_NETWORKS,
     CONF_OPENTHREAD,
     CONF_PORT,
     CONF_PROTOCOL,
@@ -215,6 +217,39 @@ def request_service_enable_disable() -> bool:
     return True
 
 
+def _add_idf_mdns_resource_options(service_count: int) -> None:
+    wifi_config = CORE.config.get(CONF_WIFI)
+    has_sta = wifi_config is not None and bool(wifi_config.get(CONF_NETWORKS, True))
+    has_ap = wifi_config is not None and CONF_AP in wifi_config
+    has_ethernet = CONF_ETHERNET in CORE.config
+    openthread_config = CORE.config.get(CONF_OPENTHREAD)
+    has_border_router = (
+        openthread_config is not None and CONF_BORDER_ROUTER in openthread_config
+    )
+
+    # ESP-IDF defaults to three interfaces and ten services; avoid unused
+    # interface handlers and non-SRP service capacity.
+    add_idf_sdkconfig_option(
+        "CONFIG_MDNS_MAX_INTERFACES",
+        max(1, int(has_sta) + int(has_ap) + int(has_ethernet)),
+    )
+    # Border routers register SRP services at runtime; leave room for more than
+    # the SDK default while keeping the limit bounded for memory-constrained devices.
+    min_services = 20 if has_border_router else 1
+    add_idf_sdkconfig_option(
+        "CONFIG_MDNS_MAX_SERVICES", max(min_services, service_count)
+    )
+    add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_STA", has_sta)
+    add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_AP", has_ap)
+    add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_ETH", has_ethernet)
+    if not CORE.using_arduino:
+        from esphome.components import psram
+
+        if psram.is_guaranteed():
+            add_idf_sdkconfig_option("CONFIG_MDNS_MEMORY_ALLOC_SPIRAM", True)
+            add_idf_sdkconfig_option("CONFIG_MDNS_MEMORY_ALLOC_INTERNAL", False)
+
+
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
 async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED] is True:
@@ -241,24 +276,20 @@ async def to_code(config: ConfigType) -> None:
 
                 ethernet.request_ethernet_ip_state_listener()
 
+    # Calculate the compile-time service count before applying the IDF limit.
+    service_count = sum(
+        1 for key in COMPONENTS_WITH_MDNS_SERVICES if key in CORE.config
+    ) + len(config[CONF_SERVICES])
+
     if CORE.is_esp32:
         add_idf_component(name="espressif/mdns", ref="1.14.0")
         # ESPHome only advertises; the browse APIs are unused
         add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_BROWSE", False)
         # The mdns console CLI is never used by ESPHome
         add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_CONSOLE_CLI", False)
-        if CONF_WIFI not in CORE.config:
-            # Without WiFi the predefined STA/AP interface handlers are dead
-            # code; disabling them lets mdns build without the WiFi stack.
-            add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_STA", False)
-            add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_AP", False)
+        _add_idf_mdns_resource_options(service_count)
 
     cg.add_define("USE_MDNS")
-
-    # Calculate compile-time service count
-    service_count = sum(
-        1 for key in COMPONENTS_WITH_MDNS_SERVICES if key in CORE.config
-    ) + len(config[CONF_SERVICES])
 
     if config[CONF_SERVICES]:
         cg.add_define("USE_MDNS_EXTRA_SERVICES")

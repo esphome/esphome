@@ -7,9 +7,11 @@
 #include "openthread.h"
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-#include "esp_coexist.h"
 #include "esp_openthread_border_router.h"
 #include "esphome/components/wifi/wifi_component.h"
+#endif
+#if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART)
+#include "esp_coexist.h"
 #endif
 #ifdef USE_OPENTHREAD_RCP_UART
 #include "esp_openthread_spinel.h"
