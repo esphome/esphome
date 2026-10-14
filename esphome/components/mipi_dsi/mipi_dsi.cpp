@@ -198,8 +198,7 @@ void MipiDsi::update() {
   this->flush_dirty_();
 }
 
-// Inside update() the writer's drawing goes to the panel in one flush at the end; a block drawn
-// anywhere else would otherwise wait for an update() that may never come.
+// Outside update() nothing else would flush, inside it the end of update() does.
 void MipiDsi::flush_now_() {
   if (!this->updating_)
     this->flush_dirty_();
@@ -224,10 +223,8 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // A block is copied as is only when its bytes are laid out the way draw_pixel_at() writes them:
-  // 565 in the configured byte order, 888 as r,g,b or b,g,r per the colour order (an RGB ordered
-  // little endian 888 block is b,g,r in memory). Anything else, or a software rotation, goes
-  // through the base class one pixel at a time into the buffer, then gets flushed.
+  // Copy as is only when the bytes are laid out the way draw_pixel_at() writes them; an RGB
+  // ordered little endian 888 block is b,g,r in memory. Anything else goes per pixel.
   const bool same_layout = bitness == display::COLOR_BITNESS_565
                                ? big_endian == this->big_endian_
                                : big_endian == (this->color_mode_ == display::COLOR_ORDER_RGB);
@@ -240,9 +237,7 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
     return;
   }
   if (this->buffer_ != nullptr) {
-    // Once a buffer exists its flush must carry the block too, or an update() flush of the old
-    // contents would paint over it; so the block goes into the buffer and reaches the panel from
-    // there, with the one flush at the end of update() or right away outside it.
+    // With a buffer the block goes through it, or a flush of the old contents would paint over it
     const size_t bytes_per_pixel = 3 - this->color_depth_;
     const size_t stride = x_offset + w + x_pad;
     for (int y = 0; y != h; y++) {
@@ -318,8 +313,7 @@ void MipiDsi::rotate_(int &x, int &y) const {
   }
 }
 
-// Widens the dirty box to the drawn rectangle, so the next flush sends all of it even where the
-// buffer already held the same values and draw_pixel_at() wrote nothing.
+// Widen the dirty box to the drawn rectangle, even where the buffer already held the same values.
 void MipiDsi::mark_dirty_(int x_start, int y_start, int w, int h) {
   int x1 = x_start, y1 = y_start;
   int x2 = x_start + w - 1, y2 = y_start + h - 1;

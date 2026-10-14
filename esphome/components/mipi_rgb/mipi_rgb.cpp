@@ -203,8 +203,7 @@ void MipiRgb::update() {
   this->flush_dirty_();
 }
 
-// Inside update() the writer's drawing goes to the panel in one flush at the end; a block drawn
-// anywhere else would otherwise wait for an update() that may never come.
+// Outside update() nothing else would flush, inside it the end of update() does.
 void MipiRgb::flush_now_() {
   if (!this->updating_)
     this->flush_dirty_();
@@ -229,18 +228,14 @@ void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0 || this->is_failed())
     return;
-  // The panel takes RGB565 in its configured byte order and its own orientation; anything else goes
-  // through the base class, which converts and rotates one pixel at a time into the buffer, then
-  // gets flushed.
+  // RGB565 in the configured byte order at rotation 0 copies as is; anything else goes per pixel
   if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB || big_endian != this->big_endian_ ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
     this->flush_now_();
   } else if (this->buffer_ != nullptr) {
-    // Once a buffer exists its flush must carry the block too, or an update() flush of the old
-    // contents would paint over it; so the block goes into the buffer and reaches the panel from
-    // there, with the one flush at the end of update() or right away outside it.
+    // With a buffer the block goes through it, or a flush of the old contents would paint over it
     const size_t stride = x_offset + w + x_pad;
     for (int y = 0; y != h; y++) {
       memcpy(this->buffer_ + (y_start + y) * this->width_ + x_start, ptr + ((y_offset + y) * stride + x_offset) * 2,
@@ -310,8 +305,7 @@ void MipiRgb::rotate_(int &x, int &y) const {
   }
 }
 
-// Widens the dirty box to the drawn rectangle, so the next flush sends all of it even where the
-// buffer already held the same values and draw_pixel_at() wrote nothing.
+// Widen the dirty box to the drawn rectangle, even where the buffer already held the same values.
 void MipiRgb::mark_dirty_(int x_start, int y_start, int w, int h) {
   int x1 = x_start, y1 = y_start;
   int x2 = x_start + w - 1, y2 = y_start + h - 1;

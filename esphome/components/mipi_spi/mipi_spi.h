@@ -419,8 +419,7 @@ class MipiSpi : public display::Display,
     }
   }
 
-  // A block that is not the panel's own format, order or orientation. Only the buffered variant can
-  // convert it one pixel at a time; without a buffer there is nothing to draw into, so it is dropped.
+  // Without a buffer there is nothing to convert a foreign block into, so it is dropped
   virtual void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                                 display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
     esph_log_e(TAG, "Unsupported color depth, order, bit order or rotation");
@@ -672,7 +671,7 @@ class MipiSpiBuffer
   }
 
  protected:
-  // Rotated in software or in another format: convert per pixel through draw_pixel_at()
+  // Convert per pixel into the buffer
   void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                         display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
                         int x_pad) override {

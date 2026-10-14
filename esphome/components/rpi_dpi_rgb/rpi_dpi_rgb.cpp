@@ -51,8 +51,7 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
                                display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // The panel takes big endian RGB565 in its own orientation; anything else goes through the base
-  // class, which converts and rotates one pixel at a time.
+  // Big endian RGB565 at rotation 0 copies as is; anything else goes per pixel
   if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB || !big_endian ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,

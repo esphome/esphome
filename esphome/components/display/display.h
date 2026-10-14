@@ -364,10 +364,8 @@ class Display : public PollingComponent {
    *
    * The length of each source buffer line (stride) will be x_offset + w + x_pad.
    *
-   * The destination is in drawn coordinates, so an override that copies the block straight into
-   * its buffer must hand a block it cannot copy as is (another pixel format or byte order, a
-   * software rotation) to this base implementation, which goes through draw_pixel_at(). Callers
-   * keep the block on screen and inside the clipping rectangle.
+   * An override that copies the block as is must send any other format, byte order or software
+   * rotation through this base version, which draws per pixel. Callers keep the block on screen.
    */
   virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                               ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
