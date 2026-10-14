@@ -1,9 +1,6 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_WIFI_AP_WISP
-#include <esp_idf_version.h>
-#endif
 #ifdef USE_WIFI
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/automation.h"
@@ -480,10 +477,6 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
-#ifdef USE_WIFI_AP_WISP_STATIC_DNS
-  /// The resolvers offered to AP clients
-  void set_ap_dns_servers(const network::IPAddress &main, const network::IPAddress &backup = network::IPAddress());
-#endif
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -729,10 +722,10 @@ class WiFiComponent final : public Component {
 #endif  // USE_WIFI_AP
 
 #ifdef USE_WIFI_AP_WISP
-  /// Hand the AP DHCP server the resolvers in ap_dns_
-  void write_ap_dns_();
+  /// Hand the AP DHCP server its resolvers, the configured ones or the station's; false when one could not be set
+  bool write_ap_dns_();
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
-  /// Pass the station's current resolvers on to AP clients
+  /// Pass the station's resolvers on to AP clients when they changed
   void apply_ap_dns_();
 #endif
 #endif
@@ -987,8 +980,8 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-#ifdef USE_WIFI_AP_EXCLUSIVE
-  uint32_t ap_exclusive_changed_{0};  // When the AP was last started or paused
+#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
+  uint32_t ap_changed_{0};  // When the AP was last started or paused
 #endif
   uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t roaming_last_check_{0};
@@ -998,15 +991,6 @@ class WiFiComponent final : public Component {
   // WiFiAP is byte aligned unless manual IP or EAP is enabled; placed before the
   // 1-byte members so they pack into its trailing bytes instead of padding after it
   WiFiAP ap_;
-#ifdef USE_WIFI_AP_WISP
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  static constexpr size_t AP_DNS_COUNT = 2;  // a DHCP server interface takes a backup resolver from ESP-IDF 6.0
-#else
-  static constexpr size_t AP_DNS_COUNT = 1;
-#endif
-  uint32_t ap_dns_[AP_DNS_COUNT]{};  // IPv4 as lwIP stores it, 0 for none; configured or last passed on
-  uint32_t ap_start_attempt_{0};
-#endif  // USE_WIFI_AP_WISP
 #endif  // USE_WIFI_AP
 
   // 1-byte enums and integers

@@ -352,11 +352,6 @@ def wifi_network_ap(value):
                 "WISP mode requires a password for the access point",
                 path=[CONF_PASSWORD],
             )
-        if config[CONF_AP_TIMEOUT] != DEFAULT_AP_TIMEOUT_PERIOD:
-            raise cv.Invalid(
-                "ap_timeout has no effect in WISP mode, the access point is always up",
-                path=[CONF_AP_TIMEOUT],
-            )
     elif CONF_DNS_SERVERS in config:
         raise cv.Invalid("dns_servers requires ap_mode: WISP", path=[CONF_DNS_SERVERS])
     if CONF_MANUAL_IP in config and CORE.is_rp2:
@@ -430,6 +425,15 @@ def final_validate(config):
             )
         # Every client packet passes through the WiFi driver, none through the device's own sockets
         require_high_performance_wifi()
+        if CONF_DNS_SERVERS not in config[CONF_AP]:
+            # The access point passes the station's resolvers on, which a static address has to name
+            for network in [config, *config.get(CONF_NETWORKS, [])]:
+                static = network.get(CONF_MANUAL_IP)
+                if static and static[CONF_DNS1].is_unspecified:
+                    raise cv.Invalid(
+                        "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
+                        path=[CONF_MANUAL_IP, CONF_DNS1],
+                    )
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
@@ -777,7 +781,11 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
             if dns_servers := conf.get(CONF_DNS_SERVERS):
                 cg.add_define("USE_WIFI_AP_WISP_STATIC_DNS")
-                cg.add(var.set_ap_dns_servers(*(safe_ip(ip) for ip in dns_servers)))
+                # As lwIP stores an IPv4 address: the four bytes read as one little-endian word
+                for i, ip in enumerate(dns_servers):
+                    cg.add_define(
+                        f"WIFI_AP_WISP_DNS_{i}", int.from_bytes(ip.packed, "little")
+                    )
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP
         # takes turns with the networks instead.

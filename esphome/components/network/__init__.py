@@ -234,9 +234,9 @@ def require_high_performance_wifi() -> None:
     """Request only the WiFi driver part of high performance networking.
 
     For traffic that passes through the device below its own sockets, such as the
-    NAT of a WISP access point: more RX/TX buffers and AMPDU aggregation help every
-    forwarded packet, while the larger lwip TCP windows would only serve the
-    device's own connections and cost internal RAM for nothing.
+    NAT of a WISP access point: more RX/TX buffers, AMPDU aggregation and a deeper
+    lwip input mailbox help every forwarded packet, while the larger TCP windows
+    would only serve the device's own connections and cost internal RAM for nothing.
     """
     CORE.data[KEY_HIGH_PERFORMANCE_WIFI] = True
 
@@ -535,6 +535,11 @@ async def to_code(config: ConfigType) -> None:
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", tcp_window)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", tcpip_mailbox)
+    elif CORE.is_esp32 and has_high_performance_wifi():
+        # Forwarded frames still queue through tcpip_input, so that mailbox grows with the driver buffers
+        add_idf_sdkconfig_option(
+            "CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", TCPIP_RECVMBOX_OPTIMIZED
+        )
 
     # After the high performance block so an explicit size wins over the
     # bundle's 65534 (last write wins in the sdkconfig store).

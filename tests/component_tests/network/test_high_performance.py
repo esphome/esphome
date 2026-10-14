@@ -65,4 +65,5 @@ def test_wifi_only_request_leaves_lwip_alone(
     require_high_performance_wifi()
     generate_main(component_config_path("high_perf_wifi_only.yaml"))
     assert sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT") is None
+    assert sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE") == 64
     assert sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM") == 64

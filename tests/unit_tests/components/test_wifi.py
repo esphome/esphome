@@ -1,5 +1,7 @@
 """Tests for WiFi component public helpers."""
 
+from ipaddress import IPv4Address
+
 import pytest
 
 from esphome.components.esp32 import const
@@ -9,7 +11,6 @@ from esphome.components.network import (
 )
 from esphome.components.wifi import (
     CONF_AP_MODE,
-    CONF_AP_TIMEOUT,
     CONF_DNS_SERVERS,
     check_placeholder_credentials,
     final_validate as wifi_final_validate,
@@ -20,6 +21,8 @@ from esphome.components.wifi import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
+    CONF_DNS1,
+    CONF_MANUAL_IP,
     CONF_NETWORKS,
     CONF_PASSWORD,
     CONF_SSID,
@@ -258,13 +261,6 @@ def test_wisp_accepts_ap_password() -> None:
 
 
 @pytest.mark.usefixtures("wisp_core")
-def test_wisp_rejects_ap_timeout() -> None:
-    """The bridge access point is always up, so a timeout would be ignored."""
-    with pytest.raises(cv.Invalid, match="ap_timeout"):
-        wifi_network_ap(_wisp_ap(**{CONF_AP_TIMEOUT: "30s"}))
-
-
-@pytest.mark.usefixtures("wisp_core")
 def test_dns_servers_require_wisp() -> None:
     with pytest.raises(cv.Invalid, match="dns_servers requires ap_mode: WISP"):
         wifi_network_ap({CONF_DNS_SERVERS: ["1.1.1.1"]})
@@ -318,6 +314,44 @@ def test_wisp_rejects_captive_portal() -> None:
         _final_validate(
             {CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()}, {"captive_portal": {}}
         )
+
+
+@pytest.mark.usefixtures("wisp_core")
+def _manual_ip(dns1: str) -> dict:
+    return {CONF_DNS1: IPv4Address(dns1)}
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_manual_ip_needs_dns1() -> None:
+    """The bridge passes the station's resolvers on, which a static address must name."""
+    with pytest.raises(cv.Invalid, match="dns1"):
+        _final_validate(
+            {
+                CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("0.0.0.0")}],
+                CONF_AP: _wisp_ap(),
+            }
+        )
+    with pytest.raises(cv.Invalid, match="dns1"):
+        _final_validate(
+            {
+                CONF_MANUAL_IP: _manual_ip("0.0.0.0"),
+                CONF_NETWORKS: [{}],
+                CONF_AP: _wisp_ap(),
+            }
+        )
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_manual_ip_with_dns1_or_dns_servers() -> None:
+    _final_validate(
+        {CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("1.1.1.1")}], CONF_AP: _wisp_ap()}
+    )
+    _final_validate(
+        {
+            CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("0.0.0.0")}],
+            CONF_AP: _wisp_ap(**{CONF_DNS_SERVERS: [IPv4Address("1.1.1.1")]}),
+        }
+    )
 
 
 @pytest.mark.usefixtures("wisp_core")

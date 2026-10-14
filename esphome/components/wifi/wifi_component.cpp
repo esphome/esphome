@@ -391,10 +391,6 @@ static constexpr bool WIFI_AP_EXCLUSIVE = true;
 static constexpr bool WIFI_AP_EXCLUSIVE = false;
 #endif
 #endif
-#ifdef USE_WIFI_AP_WISP
-/// How long after a failed start the bridge AP is tried again
-static constexpr uint32_t WIFI_AP_WISP_RETRY_MS = 90000;
-#endif
 #ifdef USE_WIFI_AP_EXCLUSIVE
 /// On a radio that cannot run the AP and STA together: how long the fallback
 /// AP stays up while nobody uses it before it pauses so the networks can be
@@ -794,10 +790,6 @@ void WiFiComponent::start() {
     this->start_ap_portal_();
 #endif  // USE_WIFI_AP
   }
-#ifdef USE_WIFI_AP_WISP
-  // The bridge AP comes up beside the station and stays up
-  this->setup_ap_config_();
-#endif
 #ifdef USE_IMPROV_BLE
   if (!this->has_sta() && improv_ble::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
@@ -919,8 +911,8 @@ void WiFiComponent::loop() {
         // The networks are not tried while the AP is up, so it pauses for
         // them once nobody has used it for a while. Without networks the AP
         // is all there is and stays.
-        if (this->has_sta() && now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_DWELL_MS &&
-            (this->ap_clients_ == 0 || now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_MAX_DWELL_MS))
+        if (this->has_sta() && now - this->ap_changed_ > WIFI_AP_EXCLUSIVE_DWELL_MS &&
+            (this->ap_clients_ == 0 || now - this->ap_changed_ > WIFI_AP_EXCLUSIVE_MAX_DWELL_MS))
           this->pause_exclusive_ap_();
         break;
 #endif
@@ -931,10 +923,16 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_WIFI_AP_WISP
-    // A bridge start that failed is tried again
-    if (!this->ap_setup_ && now - this->ap_start_attempt_ > WIFI_AP_WISP_RETRY_MS) {
+      // The bridge comes up once the resolvers it offers are known; a start that failed is tried again after ap_timeout
+#ifdef USE_WIFI_AP_WISP_STATIC_DNS
+    const bool resolvers_known = true;
+#else
+    const bool resolvers_known = this->wifi_dns_ip_(0).is_set();
+#endif
+    if (!this->ap_setup_ && resolvers_known &&
+        (this->ap_changed_ == 0 || now - this->ap_changed_ > this->ap_timeout_)) {
       ESP_LOGI(TAG, "Starting AP");
-      this->ap_start_attempt_ = now;
+      this->ap_changed_ = now;
       this->setup_ap_config_();
     }
 #elif defined(USE_WIFI_AP)
@@ -947,18 +945,17 @@ void WiFiComponent::loop() {
         provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #endif
     if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
-      const bool due = this->ap_timeout_ != 0 &&
-                       (now - this->last_connected_ > this->ap_timeout_)
+      if (this->ap_timeout_ != 0 &&
+          (now - this->last_connected_ > this->ap_timeout_)
 #ifdef USE_WIFI_AP_EXCLUSIVE
-                       // After a pause, or a start that failed, the networks get a full
-                       // ap_timeout before the AP is tried again.
-                       && now - this->ap_exclusive_changed_ > this->ap_timeout_
+          // After a pause, or a start that failed, the networks get a full
+          // ap_timeout before the AP is tried again.
+          && now - this->ap_changed_ > this->ap_timeout_
 #endif
-          ;
-      if (due) {
+      ) {
         ESP_LOGI(TAG, "Starting fallback AP");
 #ifdef USE_WIFI_AP_EXCLUSIVE
-        this->ap_exclusive_changed_ = now;
+        this->ap_changed_ = now;
 #endif
         this->setup_ap_config_();
         // Where the AP runs on its own, a portal with no AP behind it would only stretch the cooldowns.
@@ -1124,7 +1121,7 @@ void WiFiComponent::pause_exclusive_ap_() {
   this->ap_setup_ = false;
   // Clients drop with the AP without a disconnect event for each.
   this->ap_clients_ = 0;
-  this->ap_exclusive_changed_ = App.get_loop_component_start_time();
+  this->ap_changed_ = App.get_loop_component_start_time();
   // A fresh connection cycle, as at boot, rather than resuming the one the
   // AP cut short.
   this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
@@ -1468,8 +1465,11 @@ void WiFiComponent::disable() {
 #endif
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
+#ifdef USE_WIFI_AP
+  this->ap_setup_ = false;  // the AP went down with the radio; enable() may bring it up again
+#endif
 #ifdef USE_WIFI_AP_WISP
-  this->ap_setup_ = false;  // enable() starts the bridge AP again
+  this->ap_changed_ = 0;  // at once, not after ap_timeout
 #endif
 }
 
