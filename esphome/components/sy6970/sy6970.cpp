@@ -22,6 +22,8 @@ static const LogString *i2c_watchdog_timeout_to_string(I2CWatchdogTimeout timeou
 }
 
 static constexpr uint32_t I2C_WATCHDOG_KICK_INTERVAL_ID = 0;
+// Well under the 40 s default, so a failed kick or a timeout the chip did not accept still leaves margin
+static constexpr uint32_t I2C_WATCHDOG_KICK_INTERVAL_MS = 10000;
 
 bool SY6970Component::read_all_registers_() {
   // Read all registers from 0x00 to 0x14 in one transaction (21 bytes)
@@ -68,6 +70,11 @@ void SY6970Component::setup() {
     ESP_LOGW(TAG, "Unexpected chip ID: 0x%02X (expected 0x00)", chip_id);
   }
 
+  // Service the watchdog first, so the settings below are not reverted while they are written
+  ESP_LOGV(TAG, "Setting I2C watchdog timeout to %s",
+           LOG_STR_ARG(i2c_watchdog_timeout_to_string(this->i2c_watchdog_timeout_)));
+  this->set_i2c_watchdog_timeout(this->i2c_watchdog_timeout_);
+
   // Apply configuration options (all have defaults now)
   ESP_LOGV(TAG, "Setting LED enabled to %s", ONOFF(this->led_enabled_));
   this->set_led_enabled(this->led_enabled_);
@@ -89,10 +96,6 @@ void SY6970Component::setup() {
 
   ESP_LOGV(TAG, "Setting ADC measurements to %s", ONOFF(this->enable_adc_));
   this->set_enable_adc_measure(this->enable_adc_);
-
-  ESP_LOGV(TAG, "Setting I2C watchdog timeout to %s",
-           LOG_STR_ARG(i2c_watchdog_timeout_to_string(this->i2c_watchdog_timeout_)));
-  this->set_i2c_watchdog_timeout(this->i2c_watchdog_timeout_);
 
   ESP_LOGV(TAG, "SY6970 initialized successfully");
 }
@@ -236,22 +239,17 @@ void SY6970Component::set_i2c_watchdog_timeout(I2CWatchdogTimeout timeout) {
     ESP_LOGW(TAG, "Failed to set I2C watchdog timeout to %s", LOG_STR_ARG(i2c_watchdog_timeout_to_string(timeout)));
   }
 
-  if (timeout == I2C_WATCHDOG_DISABLED) {
-    if (written) {
-      this->i2c_watchdog_timeout_ = timeout;
-      this->cancel_interval(I2C_WATCHDOG_KICK_INTERVAL_ID);
-    } else {
-      // The chip may still be on its 40s default, so keep kicking at the shortest period
-      this->set_interval(I2C_WATCHDOG_KICK_INTERVAL_ID, 20000U, [this]() { this->reset_i2c_watchdog(); });
-    }
+  if (timeout == I2C_WATCHDOG_DISABLED && written) {
+    this->i2c_watchdog_timeout_ = timeout;
+    this->cancel_interval(I2C_WATCHDOG_KICK_INTERVAL_ID);
     return;
   }
-
-  // Kept even when the write failed: the chip may still be on its 40s default, and an extra kick is harmless
-  this->i2c_watchdog_timeout_ = timeout;
-  // Half the timeout: the enum is 1/2/3 for 40/80/160 s
-  uint32_t kick_interval_ms = 20000U << (timeout - 1);
-  this->set_interval(I2C_WATCHDOG_KICK_INTERVAL_ID, kick_interval_ms, [this]() { this->reset_i2c_watchdog(); });
+  if (timeout != I2C_WATCHDOG_DISABLED) {
+    this->i2c_watchdog_timeout_ = timeout;
+  }
+  // Keeps kicking after a failed write too: the chip may still be on its 40 s default
+  this->set_interval(I2C_WATCHDOG_KICK_INTERVAL_ID, I2C_WATCHDOG_KICK_INTERVAL_MS,
+                     [this]() { this->reset_i2c_watchdog(); });
 }
 
 bool SY6970Component::reset_i2c_watchdog() {
