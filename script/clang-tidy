@@ -290,7 +290,13 @@ ANALYZER_SKIPPED_FILES: frozenset[str] = frozenset(
 
 # C++-only flags the compile command carries; clang rejects or ignores them for C.
 CXX_ONLY_FLAGS = frozenset(
-    {"-fno-rtti", "-fuse-cxa-atexit", "-fno-use-cxa-atexit", "-fno-threadsafe-statics"}
+    {
+        "-fno-rtti",
+        "-fuse-cxa-atexit",
+        "-fno-use-cxa-atexit",
+        "-fno-threadsafe-statics",
+        "-nostdinc++",
+    }
 )
 
 
