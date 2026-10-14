@@ -11,12 +11,10 @@
 #include <stddef.h>
 
 // The linker's --wrap convention names these with the double underscore.
-void *__real_pvPortMalloc(
-    size_t size);  // NOLINT(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+// NOLINTNEXTLINE(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void *__real_pvPortMalloc(size_t size);
 
-void *__wrap_pvPortMalloc(
-    size_t size) {  // NOLINT(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-  return __real_pvPortMalloc(size == 0 ? 1 : size);
-}
+// NOLINTNEXTLINE(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void *__wrap_pvPortMalloc(size_t size) { return __real_pvPortMalloc(size == 0 ? 1 : size); }
 
 #endif  // USE_LN882X
