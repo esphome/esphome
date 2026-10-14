@@ -59,6 +59,7 @@ import math
 import os
 from pathlib import Path
 import statistics
+import subprocess
 import sys
 from typing import Any
 
@@ -827,76 +828,38 @@ def _benchmark_components_tuple(path: Path) -> frozenset[str]:
     turning the trigger off.
     """
     for node in ast.parse(path.read_text(encoding="utf-8")).body:
-        if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        else:
-            continue
-        if any(isinstance(t, ast.Name) and t.id == "COMPONENTS" for t in targets):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "COMPONENTS" for t in node.targets
+        ):
             return frozenset(ast.literal_eval(node.value))
     raise RuntimeError(f"{PYTHON_IMPORT_BENCHMARK_FILE} has no COMPONENTS tuple")
 
 
-def _module_scope_component_imports(path: Path) -> set[str]:
-    """Return the components a module imports when it is loaded.
-
-    Imports inside functions and ``if TYPE_CHECKING`` blocks are skipped, since
-    loading the module does not run them.
-    """
-    found: set[str] = set()
-
-    def add_module(module: str) -> None:
-        parts = module.split(".")
-        if len(parts) >= 3 and parts[:2] == ["esphome", "components"]:
-            found.add(parts[2])
-
-    def visit(body: list[ast.stmt]) -> None:
-        for node in body:
-            if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                if node.module == "esphome.components":
-                    found.update(alias.name for alias in node.names)
-                else:
-                    add_module(node.module)
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    add_module(alias.name)
-            elif isinstance(node, ast.If):
-                if "TYPE_CHECKING" not in ast.unparse(node.test):
-                    visit(node.body)
-                visit(node.orelse)
-            elif isinstance(node, ast.Try):
-                visit(node.body)
-                visit(node.orelse)
-                visit(node.finalbody)
-                for handler in node.handlers:
-                    visit(handler.body)
-
-    visit(ast.parse(path.read_text(encoding="utf-8")).body)
-    return found
+# Imports the given components and prints every component whose module got loaded
+_IMPORT_PROBE = (
+    "import importlib, sys\n"
+    "for c in sys.argv[1:]: importlib.import_module('esphome.components.' + c)\n"
+    "print(*{n.split('.')[2] for n in sys.modules if n.startswith('esphome.components.')})"
+)
 
 
-def python_import_benchmarked_components() -> frozenset[str]:
-    """Return the components whose Python the import benchmark loads.
+def python_import_benchmarked_components() -> frozenset[str] | None:
+    """Return the components loaded by importing the benchmark's ``COMPONENTS``.
 
-    Starts from the benchmark file's ``COMPONENTS`` tuple and follows the
-    module-scope imports of each component's modules, since the benchmark times
-    everything an import pulls in.
+    Imported in a fresh interpreter from the checkout, so the set is exactly what
+    the benchmark times. None when the import fails.
     """
     path = Path(root_path) / PYTHON_IMPORT_BENCHMARK_FILE
     if not path.is_file():
         return frozenset()
-    components_dir = Path(root_path) / ESPHOME_COMPONENTS_PATH
-    seen: set[str] = set()
-    pending = list(_benchmark_components_tuple(path))
-    while pending:
-        component = pending.pop()
-        if component in seen:
-            continue
-        seen.add(component)
-        for module in (components_dir / component).glob("*.py"):
-            pending.extend(_module_scope_component_imports(module) - seen)
-    return frozenset(seen)
+    result = subprocess.run(
+        [sys.executable, "-c", _IMPORT_PROBE, *_benchmark_components_tuple(path)],
+        cwd=root_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return frozenset(result.stdout.split()) if result.returncode == 0 else None
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:
@@ -915,9 +878,8 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     4. A directly changed component has benchmark files (no dependency expansion)
     5. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
-    6. A Python file changed in a component the Python import benchmark loads:
-       its ``COMPONENTS`` tuple plus what they import at module scope, even if
-       the component has no C++ benchmark
+    6. A Python file changed in a component that importing the Python import
+       benchmark's ``COMPONENTS`` loads, even if it has no C++ benchmark
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
     Changing ``sensor`` does not trigger ``api`` benchmarks just because
@@ -949,16 +911,18 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     ):
         return True
 
-    # The Python import benchmark times importing these components and what they pull
-    # in, so their Python sources move its numbers even without a C++ benchmark
-    python_benchmarked = python_import_benchmarked_components()
-    if any(
-        f.startswith("esphome/components/")
-        and f.endswith(PYTHON_FILE_EXTENSIONS)
-        and get_component_from_path(f) in python_benchmarked
+    # The Python import benchmark times importing its components and what they pull
+    # in, so their Python sources move its numbers even without a C++ benchmark.
+    # A failed import runs the benchmarks rather than risk skipping them.
+    changed_python = {
+        get_component_from_path(f)
         for f in files
-    ):
-        return True
+        if f.startswith(ESPHOME_COMPONENTS_PATH) and f.endswith(PYTHON_FILE_EXTENSIONS)
+    }
+    if changed_python:
+        loaded = python_import_benchmarked_components()
+        if loaded is None or changed_python & loaded:
+            return True
 
     # Check if any directly changed component has benchmarks
     benchmarks_dir = Path(root_path) / BENCHMARKS_COMPONENTS_PATH

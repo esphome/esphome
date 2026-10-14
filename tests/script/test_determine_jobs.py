@@ -2784,78 +2784,51 @@ def test_should_run_benchmarks_core_benchmark_file_change() -> None:
         assert determine_jobs.should_run_benchmarks() is True
 
 
-def test_python_import_benchmarked_components_reads_bench_file() -> None:
-    """The components come from the real benchmark file and what they import."""
-    components = determine_jobs.python_import_benchmarked_components()
-    assert {"binary_sensor", "sensor", "logger"} <= components
+def test_python_import_benchmarked_components_imports_real_components() -> None:
+    """The set is what importing the real benchmark's components loads."""
+    loaded = determine_jobs.python_import_benchmarked_components()
+    # mqtt is not listed in COMPONENTS; sensor imports it at module scope
+    assert {"binary_sensor", "sensor", "logger", "mqtt"} <= loaded
 
 
-def _write_bench(root: Path, components: str) -> None:
-    bench = root / determine_jobs.PYTHON_IMPORT_BENCHMARK_FILE
-    bench.parent.mkdir(parents=True)
-    bench.write_text(components)
-
-
-def _write_component(root: Path, name: str, source: str) -> None:
-    component = root / "esphome" / "components" / name
-    component.mkdir(parents=True)
-    (component / "__init__.py").write_text(source)
-
-
-def test_should_run_benchmarks_python_import_benchmarked_component(
-    tmp_path: Path,
-) -> None:
+def test_should_run_benchmarks_python_import_benchmarked_component() -> None:
     """A Python change in a component the import benchmark loads runs benchmarks.
 
     logger has no C++ benchmark, so before this a change to its __init__.py
     skipped the Python import benchmark that times it.
     """
-    _write_bench(tmp_path, 'COMPONENTS = ("logger",)\n')
-    _write_component(tmp_path, "logger", "")
     for changed, expected in [
         ("esphome/components/logger/__init__.py", True),
         ("esphome/components/logger/select/__init__.py", True),
+        ("esphome/components/mqtt/__init__.py", True),
         ("esphome/components/logger/logger.cpp", False),
         ("tests/components/logger/common.yaml", False),
         ("esphome/components/wifi/__init__.py", False),
     ]:
         with (
             patch.object(determine_jobs, "changed_files", return_value=[changed]),
-            patch.object(determine_jobs, "root_path", str(tmp_path)),
+            patch.object(
+                determine_jobs,
+                "python_import_benchmarked_components",
+                return_value=frozenset({"logger", "mqtt"}),
+            ),
         ):
             assert determine_jobs.should_run_benchmarks() is expected, changed
 
 
-def test_python_import_benchmarked_components_follows_module_scope_imports(
-    tmp_path: Path,
-) -> None:
-    """Module-scope imports are followed recursively; deferred ones are not."""
-    _write_bench(tmp_path, 'COMPONENTS: tuple[str, ...] = ("sensor",)\n')
-    _write_component(
-        tmp_path,
-        "sensor",
-        "from typing import TYPE_CHECKING\n"
-        "from esphome.components import mqtt, web_server\n"
-        "import esphome.components.zigbee\n"
-        "try:\n"
-        "    from esphome.components.const import X\n"
-        "except ImportError:\n"
-        "    pass\n"
-        "if TYPE_CHECKING:\n"
-        "    from esphome.components import api\n"
-        "def f():\n"
-        "    from esphome.components import wifi\n",
-    )
-    _write_component(tmp_path, "mqtt", "from esphome.components import network\n")
-    with patch.object(determine_jobs, "root_path", str(tmp_path)):
-        assert determine_jobs.python_import_benchmarked_components() == {
-            "sensor",
-            "mqtt",
-            "web_server",
-            "zigbee",
-            "const",
-            "network",
-        }
+def test_should_run_benchmarks_when_import_probe_fails() -> None:
+    """A component import that fails runs the benchmarks instead of skipping them."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["esphome/components/wifi/__init__.py"],
+        ),
+        patch.object(
+            determine_jobs, "python_import_benchmarked_components", return_value=None
+        ),
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
 
 
 def test_python_import_benchmarked_components_missing_file(tmp_path: Path) -> None:
@@ -2868,7 +2841,9 @@ def test_python_import_benchmarked_components_requires_components(
     tmp_path: Path,
 ) -> None:
     """A benchmark file without COMPONENTS fails loudly instead of disabling the rule."""
-    _write_bench(tmp_path, 'NAMES = ("logger",)\n')
+    bench = tmp_path / determine_jobs.PYTHON_IMPORT_BENCHMARK_FILE
+    bench.parent.mkdir(parents=True)
+    bench.write_text('NAMES = ("logger",)\n')
     with (
         patch.object(determine_jobs, "root_path", str(tmp_path)),
         pytest.raises(RuntimeError, match="COMPONENTS"),
