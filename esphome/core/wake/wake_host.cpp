@@ -22,7 +22,7 @@ namespace esphome {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<uint8_t> g_wake_requested{0};
 
-static const char *const TAG = "wake";
+ESPHOME_LOG_TAG(TAG, "wake");
 
 namespace internal {
 // File-scope state — referenced inline by wake_drain_notifications() and

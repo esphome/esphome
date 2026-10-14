@@ -8,7 +8,7 @@
 
 namespace esphome::cst816 {
 
-static const char *const TAG = "cst816.touchscreen";
+ESPHOME_LOG_TAG(TAG, "cst816.touchscreen");
 
 static const uint8_t REG_STATUS = 0x00;
 static const uint8_t REG_TOUCH_NUM = 0x02;
