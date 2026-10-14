@@ -44,10 +44,10 @@ HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA = cv.Schema(
 )
 
 
-def final_validate_entity_id(config: ConfigType) -> ConfigType:
+def final_validate_entity_id(config: ConfigType) -> None:
     """Without an entity_id, the entity must be a wizard input, as Home Assistant then supplies it."""
     if CONF_ENTITY_ID in config:
-        return config
+        return
     from esphome.components.api import wizard
 
     if config[CONF_ID].id not in wizard.wizard_input_ids(
@@ -56,7 +56,6 @@ def final_validate_entity_id(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"{CONF_ENTITY_ID} is required unless this entity is a wizard input"
         )
-    return config
 
 
 def setup_home_assistant_entity(var: MockObj, config: ConfigType) -> None:

@@ -36,7 +36,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # Historical mode runs at 1200 baud, standard mode at 9600 baud.
     baud_rate = 1200 if config[CONF_HISTORICAL_MODE] else 9600
     uart.final_validate_device_schema(
@@ -46,7 +46,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
         parity="EVEN",
         stop_bits=1,
     )(config)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

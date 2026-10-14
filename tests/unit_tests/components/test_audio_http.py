@@ -15,7 +15,8 @@ def _source_config() -> ConfigType:
 def _run(full_config: dict, config: ConfigType) -> ConfigType:
     token = fv.full_config.set(full_config)
     try:
-        return _inherit_ca_certificate_path(config)
+        _inherit_ca_certificate_path(config)
+        return config
     finally:
         fv.full_config.reset(token)
 

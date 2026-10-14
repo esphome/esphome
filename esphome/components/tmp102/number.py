@@ -51,12 +51,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     validate_unique_child(config, "number")
     full = fv.full_config.get()
     parent = full.get_config_for_path(full.get_path_for_id(config[CONF_TMP102_ID])[:-1])
     add_number_parent(config[CONF_TMP102_ID], parent.get(CONF_EXTENDED_MODE, False))
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

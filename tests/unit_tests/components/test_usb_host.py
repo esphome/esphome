@@ -114,13 +114,11 @@ def test_every_pair_is_compared_not_just_neighbours() -> None:
         validate_usb_clients(configs)
 
 
-def _run_final_validate(
-    devices: list[ConfigType], uarts: list[ConfigType]
-) -> ConfigType:
+def _run_final_validate(devices: list[ConfigType], uarts: list[ConfigType]) -> None:
     config = {"id": "usb_host", "devices": devices}
     token = fv.full_config.set({"usb_host": config, "usb_uart": uarts})
     try:
-        return _final_validate(config)
+        _final_validate(config)
     finally:
         fv.full_config.reset(token)
 

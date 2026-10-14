@@ -539,13 +539,13 @@ def _walk_config(value: Any, path: tuple[Any, ...] = ()):
             yield from _walk_config(child, (*path, index))
 
 
-def _final_validate(config: Any) -> Any:
+def _final_validate(config: Any) -> None:
     buses = config if isinstance(config, list) else [config]
     software_bus_ids = {
         bus[CONF_ID] for bus in buses if CONF_INTERFACE_INDEX not in bus
     }
     if not software_bus_ids:
-        return config
+        return
     for candidate, path in _walk_config(fv.full_config.get()):
         if (
             candidate.get(CONF_PSRAM_DMA)
@@ -553,7 +553,6 @@ def _final_validate(config: Any) -> Any:
         ):
             with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_PSRAM_DMA]):
                 raise cv.Invalid("psram_dma requires a hardware SPI interface")
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

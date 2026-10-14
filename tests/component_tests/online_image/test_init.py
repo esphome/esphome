@@ -28,6 +28,7 @@ def test_warn_legacy_online_image_warns_once(
 ) -> None:
     """The deprecation warning fires exactly once and never mutates the config."""
     config: ConfigType = {"id": "test_online_image", "url": "http://example.com/i.png"}
+    unchanged = dict(config)
 
     # A per-entry capture (CONFIG_SCHEMA step) records the raw entry so the
     # one-shot warning can print a pasteable migrated block.
@@ -35,10 +36,11 @@ def test_warn_legacy_online_image_warns_once(
 
     with caplog.at_level(logging.WARNING):
         # First call: flag not yet set -> warns and records the flag.
-        assert _warn_legacy_online_image(config) is config
+        _warn_legacy_online_image(config)
         # Second call: flag already set -> stays silent (the dedup branch).
-        assert _warn_legacy_online_image(config) is config
+        _warn_legacy_online_image(config)
 
+    assert config == unchanged
     assert CORE.data[DOMAIN]["legacy_warning_shown"] is True
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1

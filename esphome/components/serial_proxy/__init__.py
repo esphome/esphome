@@ -76,13 +76,12 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     is_usb = is_usb_uart_channel(config[CONF_UART_ID], fv.full_config.get())
     if config[CONF_PORT_TYPE] == "USB_SERIAL" and not is_usb:
         raise cv.Invalid(
             f"{CONF_PORT_TYPE} USB_SERIAL requires {CONF_UART_ID} to be a usb_uart channel"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

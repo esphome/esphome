@@ -114,7 +114,8 @@ def test_switch_without_hub_key_accepted(
     set_core_config(PlatformFramework.ESP32_IDF, full_config={DOMAIN: {"id": HUB_ID}})
     config = _switch_config(CONF_UNPAIRED_ACCESS)
 
-    assert SWITCH_FINAL_VALIDATE_SCHEMA(config) is config
+    # Should not raise.
+    SWITCH_FINAL_VALIDATE_SCHEMA(config)
 
 
 def test_switch_without_pairing_method_warns(
@@ -153,7 +154,8 @@ def test_enabled_switch_ignores_hub_key(set_core_config: SetCoreConfigCallable) 
     )
     config = _switch_config("enabled")
 
-    assert SWITCH_FINAL_VALIDATE_SCHEMA(config) is config
+    # Should not raise.
+    SWITCH_FINAL_VALIDATE_SCHEMA(config)
 
 
 @pytest.mark.parametrize("switch_type", ["enabled", CONF_UNPAIRED_ACCESS])

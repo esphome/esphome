@@ -48,7 +48,7 @@ def _reject_debug(uart_conf: ConfigType) -> ConfigType:
     return uart_conf
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     # Bridges of any platform must own their interfaces exclusively; shared ring
     # buffers and overwritten callbacks would corrupt both streams silently. The
@@ -81,7 +81,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 )
 
     fv.id_declaration_match_schema(_reject_debug)(config[CONF_UART_ID])
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

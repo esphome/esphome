@@ -148,21 +148,20 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_variant(config: ConfigType) -> ConfigType:
+def _validate_variant(config: ConfigType) -> None:
     # ESP-NOW rides the Wi-Fi PHY. Radio-less esp32 variants have no native
     # ESP-NOW; only the ESP32-P4 has a path, via the esp32_hosted shim that
     # supplies the esp_now_* symbols. Fail here with a clear message instead of
     # letting the build reach an "undefined reference to esp_now_*" link error.
     if not CORE.is_esp32:
-        return config
+        return
     variant = get_esp32_variant()
     if wifi.variant_has_wifi(variant):
-        return config
+        return
     if variant != VARIANT_ESP32P4:
         raise cv.Invalid(f"ESP-NOW is not supported on {variant} (no Wi-Fi radio)")
     if ESP32_HOSTED_DOMAIN not in fv.full_config.get():
         raise cv.Invalid(f"ESP-NOW on {variant} requires the esp32_hosted component")
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _validate_variant
