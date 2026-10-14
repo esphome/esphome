@@ -6,7 +6,7 @@ wifi:
   on_dpp_uri:
     - logger.log:
         format: "DPP URI %s"
-        args: [uri.c_str()]
+        args: [uri]
 
 packages:
   wifi: !include common.yaml

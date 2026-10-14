@@ -158,11 +158,13 @@ def has_native_wifi(
 
 CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
+CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
+CONF_PRIVATE_KEY = "private_key"
 
 # Maximum number of WiFi networks that can be configured
 # Limited to 127 because selected_sta_index_ is int8_t in C++
@@ -293,8 +295,6 @@ EAP_AUTH_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_IDENTITY, CONF_CERTIFICATE),
 )
 
-CONF_PRIVATE_KEY = "private_key"
-CONF_DEVICE_INFO = "device_info"
 # Wi-Fi Easy Connect (DPP) enrollee; the ESP-IDF supplicant supports the QR code method
 DPP_SCHEMA = cv.Schema(
     {
@@ -763,7 +763,8 @@ async def to_code(config):
         if (info := dpp.get(CONF_DEVICE_INFO)) is not None:
             cg.add(var.set_dpp_device_info(info))
         cg.add(var.set_dpp_channels(",".join(str(c) for c in dpp[CONF_CHANNELS])))
-        cg.add(var.set_dpp_timeout(dpp[CONF_TIMEOUT]))
+        if (timeout := dpp[CONF_TIMEOUT]) != cv.time_period(DEFAULT_DPP_TIMEOUT):
+            cg.add(var.set_dpp_timeout(timeout))
         cg.add_define("USE_WIFI_DPP")
 
     # Disable Enterprise WiFi support if no EAP is configured
@@ -939,7 +940,7 @@ async def to_code(config):
     if (on_dpp_uri := config.get(CONF_ON_DPP_URI)) is not None:
         cg.add_define("USE_WIFI_DPP_URI_TRIGGER")
         await automation.build_callback_automation(
-            var, "add_on_dpp_uri_callback", [(cg.std_string, "uri")], on_dpp_uri
+            var, "add_on_dpp_uri_callback", [(cg.const_char_ptr, "uri")], on_dpp_uri
         )
 
     CORE.add_job(final_step)

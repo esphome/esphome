@@ -68,6 +68,19 @@ static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-
 static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+#ifdef USE_WIFI_DPP
+/// Terminated copies of the received station credentials; the supplicant's wifi_config_t would grow every event
+struct DppCredentials {
+  char ssid[sizeof(wifi_sta_config_t::ssid) + 1];
+  char password[sizeof(wifi_sta_config_t::password) + 1];
+};
+
+static void copy_terminated(char *dst, const uint8_t *src, size_t len) {
+  memcpy(dst, src, len);
+  dst[len] = '\0';
+}
+#endif
+
 struct IDFWiFiEvent {
   esp_event_base_t event_base;
   int32_t event_id;
@@ -81,8 +94,7 @@ struct IDFWiFiEvent {
     wifi_event_ap_probe_req_rx_t ap_probe_req_rx;
     wifi_event_bss_rssi_low_t bss_rssi_low;
 #ifdef USE_WIFI_DPP
-    char *dpp_uri;  // exact-size copy, released by wifi_process_event_
-    wifi_event_dpp_config_received_t dpp_config_received;
+    DppCredentials dpp_credentials;
     wifi_event_dpp_failed_t dpp_failed;
 #endif
     ip_event_got_ip_t ip_got_ip;
@@ -136,15 +148,16 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.ap_stadisconnected, event_data, sizeof(wifi_event_ap_stadisconnected_t));
 #ifdef USE_WIFI_DPP
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_URI_READY) {
-    // Copied with a terminator whether or not uri_data_len counts one; too large for the union
+    // Kept on the component for the whole boot; the queued event only announces it
     const auto *uri = static_cast<const wifi_event_dpp_uri_ready_t *>(event_data);
-    size_t len = strnlen(uri->uri, uri->uri_data_len);
-    event.data.dpp_uri = new char[len + 1];  // NOLINT(cppcoreguidelines-owning-memory)
-    memcpy(event.data.dpp_uri, uri->uri, len);
-    event.data.dpp_uri[len] = '\0';
+    const size_t len = strnlen(uri->uri, uri->uri_data_len);
+    std::unique_ptr<char[]> copy(new char[len + 1]);  // NOLINT(cppcoreguidelines-owning-memory)
+    copy_terminated(copy.get(), reinterpret_cast<const uint8_t *>(uri->uri), len);
+    global_wifi_component->dpp_uri_ = std::move(copy);
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_CFG_RECVD) {
-    memcpy(&event.data.dpp_config_received, event_data,
-           sizeof(wifi_event_dpp_config_received_t));  // configs[] gets dropped (unused)
+    const auto &sta = static_cast<const wifi_event_dpp_config_received_t *>(event_data)->wifi_cfg.sta;
+    copy_terminated(event.data.dpp_credentials.ssid, sta.ssid, sizeof(sta.ssid));
+    copy_terminated(event.data.dpp_credentials.password, sta.password, sizeof(sta.password));
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_FAILED) {
     memcpy(&event.data.dpp_failed, event_data, sizeof(wifi_event_dpp_failed_t));
 #endif
@@ -164,11 +177,6 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   auto *to_send = new IDFWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
   memcpy(to_send, &event, sizeof(IDFWiFiEvent));
   if (!global_wifi_component->event_queue_.push(to_send)) {
-#ifdef USE_WIFI_DPP
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_URI_READY) {
-      delete[] to_send->data.dpp_uri;  // NOLINT(cppcoreguidelines-owning-memory)
-    }
-#endif
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
@@ -285,12 +293,12 @@ void WiFiComponent::wifi_dpp_init_() {
   // With no callback the supplicant posts WIFI_EVENT_DPP_* events, handled with the other events
   esp_err_t err = esp_supp_dpp_init(nullptr);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_supp_dpp_init failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "%s failed: %s", LOG_STR_LITERAL("esp_supp_dpp_init"), esp_err_to_name(err));
     return;
   }
   err = esp_supp_dpp_bootstrap_gen(this->dpp_channels_, DPP_BOOTSTRAP_QR_CODE, this->dpp_key_, this->dpp_device_info_);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_supp_dpp_bootstrap_gen failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "%s failed: %s", LOG_STR_LITERAL("esp_supp_dpp_bootstrap_gen"), esp_err_to_name(err));
   }
 }
 #endif
@@ -1253,35 +1261,22 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
 #ifdef USE_WIFI_DPP
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_URI_READY) {
-    ESP_LOGD(TAG, "DPP URI: %s", data->data.dpp_uri);
+    ESP_LOGD(TAG, "DPP URI: %s", this->dpp_uri_.get());
 #ifdef USE_WIFI_DPP_URI_TRIGGER
-    this->dpp_uri_callback_.call(std::string(data->data.dpp_uri));
+    this->dpp_uri_callback_.call(this->dpp_uri_.get());
 #endif
-    delete[] data->data.dpp_uri;  // NOLINT(cppcoreguidelines-owning-memory)
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_CFG_RECVD) {
     this->dpp_listening_ = false;
-    const auto &sta = data->data.dpp_config_received.wifi_cfg.sta;
-    // Neither field is terminated when it fills its array
-    char ssid[sizeof(sta.ssid) + 1];
-    char password[sizeof(sta.password) + 1];
-    memcpy(ssid, sta.ssid, sizeof(sta.ssid));
-    ssid[sizeof(sta.ssid)] = '\0';
-    memcpy(password, sta.password, sizeof(sta.password));
-    password[sizeof(sta.password)] = '\0';
-    ESP_LOGI(TAG, "DPP configured network " LOG_SECRET("'%s'"), ssid);
+    const auto &credentials = data->data.dpp_credentials;
+    ESP_LOGI(TAG, "DPP configured network " LOG_SECRET("'%s'"), credentials.ssid);
     // The wait for a configurator does not count against reboot_timeout or the re-listen delay
     this->last_connected_ = App.get_loop_component_start_time();
-    // Saved and added like credentials from the captive portal, then connected through the state
-    // machine like improv does, so the retry logic and the connected state apply; from cooldown
-    // save_wifi_sta() already restarts the retries
+    // Saved like portal credentials; from cooldown save_wifi_sta() already restarts the retries
     const bool retrying = this->state_ == WIFI_COMPONENT_STATE_COOLDOWN;
-    this->save_wifi_sta(ssid, password);
+    this->save_wifi_sta(credentials.ssid, credentials.password);
     if (!retrying && this->state_ != WIFI_COMPONENT_STATE_STA_CONNECTING) {
-      WiFiAP network{};
-      network.set_ssid(ssid);
-      network.set_password(password);
-      this->start_connecting(network);
+      this->start_connecting(*this->get_selected_sta_());
     }
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_FAILED) {
@@ -1511,7 +1506,7 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 bool WiFiComponent::wifi_dpp_start_listen_() {
   esp_err_t err = esp_supp_dpp_start_listen();
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_supp_dpp_start_listen failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "%s failed: %s", LOG_STR_LITERAL("esp_supp_dpp_start_listen"), esp_err_to_name(err));
     return false;
   }
   ESP_LOGD(TAG, "DPP listening for a configurator");

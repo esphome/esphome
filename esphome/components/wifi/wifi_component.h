@@ -19,6 +19,7 @@
 #include <atomic>
 #include <limits>
 #include <span>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -490,6 +491,8 @@ class WiFiComponent final : public Component {
     this->dpp_uri_callback_.add(std::forward<F>(callback));
   }
 #endif
+  /// The Easy Connect URI to show as a QR code, nullptr until the supplicant has generated it
+  const char *get_dpp_uri() const { return this->dpp_uri_.get(); }
 #endif
 
   void enable();
@@ -848,13 +851,15 @@ class WiFiComponent final : public Component {
   // Starts listening for a DPP configurator; the platform half reports whether the driver accepted
   void start_dpp_listen_(uint32_t now);
   void stop_dpp_listen_();
-#ifdef USE_ESP32
   void wifi_dpp_init_();
-#endif
   bool wifi_dpp_start_listen_();
   void wifi_dpp_stop_listen_();
 #endif
   bool is_dpp_active_();
+  /// A portal, improv or DPP is waiting for credentials, so the retry machine must not disturb the radio
+  bool is_provisioning_active_();
+  /// The provisioning window has closed, so no new provisioning surface may start
+  bool is_provisioning_closed_();
   bool is_captive_portal_active_();
   /// captive_portal or the web_server AP mode is serving a user on the access point
   bool is_ap_portal_active_();
@@ -1011,12 +1016,11 @@ class WiFiComponent final : public Component {
   const char *dpp_key_{nullptr};
   const char *dpp_device_info_{nullptr};
   const char *dpp_channels_{nullptr};
+  std::unique_ptr<char[]> dpp_uri_;  // written by the event task before the URI event is queued
 #ifdef USE_WIFI_DPP_URI_TRIGGER
-  CallbackManager<void(std::string)> dpp_uri_callback_;
+  CallbackManager<void(const char *)> dpp_uri_callback_;
 #endif
-#endif
-#ifdef USE_WIFI_DPP
-  uint32_t dpp_timeout_{};
+  uint32_t dpp_timeout_{60000};  // Keep in sync with DEFAULT_DPP_TIMEOUT in __init__.py
   uint32_t dpp_listen_started_{0};
 #endif
 

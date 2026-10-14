@@ -655,12 +655,16 @@ void WiFiComponent::setup() {
   this->configured_power_save_ = this->power_save_;
 #endif
 
-#if defined(USE_PROVISIONING) && defined(USE_WIFI_AP)
-  // The access point and the portals on it are provisioning surfaces: once the window has
-  // closed, end them (mirrors the teardown on a successful connection). The fallback block in
-  // loop() is gated so none of them is started again afterwards.
+#ifdef USE_PROVISIONING
+  // The access point, the portals on it and the DPP listen are provisioning surfaces: once the
+  // window has closed, end them (mirrors the teardown on a successful connection). The blocks in
+  // loop() that start them are gated so none of them is started again afterwards.
   if (provisioning::global_provisioning_manager != nullptr) {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+#ifdef USE_WIFI_DPP
+      this->stop_dpp_listen_();
+#endif
+#ifdef USE_WIFI_AP
       this->end_ap_portal_();  // no-op when nothing is active, so not tied to ap_setup_
       if (this->ap_setup_) {
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
@@ -674,6 +678,7 @@ void WiFiComponent::setup() {
 #endif
         this->wifi_mode_({}, false);
       }
+#endif  // USE_WIFI_AP
     });
   }
 #endif
@@ -854,7 +859,7 @@ void WiFiComponent::loop() {
           break;
         }
         // Use longer cooldown when a portal/improv is active to avoid disrupting a user on the AP
-        bool portal_active = this->is_ap_portal_active_() || this->is_improv_ble_active_() || this->is_dpp_active_();
+        bool portal_active = this->is_provisioning_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
         if (now - this->action_started_ > cooldown_duration) {
           // After cooldown we either restarted the adapter because of
@@ -928,15 +933,7 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_WIFI_AP
-    bool provisioning_closed = false;
-#ifdef USE_PROVISIONING
-    // Once the provisioning window has closed, don't bring up the fallback AP (or
-    // the captive portal on it) - the device must stay unprovisionable until it is
-    // power-cycled.
-    provisioning_closed =
-        provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
-#endif
-    if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
+    if (this->has_ap() && !this->ap_setup_ && !this->is_provisioning_closed_()) {
       if (this->ap_timeout_ != 0 &&
           (now - this->last_connected_ > this->ap_timeout_)
 #ifdef USE_WIFI_AP_EXCLUSIVE
@@ -996,7 +993,7 @@ void WiFiComponent::loop() {
 #ifdef USE_WIFI_DPP
   // Listen again once the networks have had their chance, or after a failed or abandoned enrollment, but
   // not while disabled and at most once per timeout
-  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED && !this->dpp_listening_ &&
+  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED && !this->dpp_listening_ && !this->is_provisioning_closed_() &&
       now - this->last_connected_ > this->dpp_timeout_ && now - this->dpp_listen_started_ > this->dpp_timeout_ &&
       this->wifi_mode_(true, {})) {
     this->start_dpp_listen_(now);
@@ -2098,7 +2095,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // Skip actual adapter restart if a portal/improv is active
       // This allows state machine to reset num_retried_ and trigger fresh scan
       // without disrupting the portal/improv connection
-      if (!this->is_ap_portal_active_() && !this->is_improv_ble_active_() && !this->is_dpp_active_()) {
+      if (!this->is_provisioning_active_()) {
         this->restart_adapter();
       } else {
         // Even when skipping full restart, disconnect to clear driver state
@@ -2412,6 +2409,19 @@ void WiFiComponent::end_ap_portal_() {
 bool WiFiComponent::is_improv_ble_active_() {
 #ifdef USE_IMPROV_BLE
   return improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active();
+#else
+  return false;
+#endif
+}
+
+bool WiFiComponent::is_provisioning_active_() {
+  return this->is_ap_portal_active_() || this->is_improv_ble_active_() || this->is_dpp_active_();
+}
+
+bool WiFiComponent::is_provisioning_closed_() {
+#ifdef USE_PROVISIONING
+  // The device stays unprovisionable until it is power-cycled
+  return provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #else
   return false;
 #endif
