@@ -797,7 +797,7 @@ void WiFiComponent::start() {
   }
 #ifdef USE_WIFI_DPP
   // Without networks there is nothing to try first, so listen for a configurator right away
-  if (!this->has_sta() && this->wifi_mode_(true, {}))
+  if (!this->has_sta() && this->is_dpp_active_() && this->wifi_mode_(true, {}))
     this->start_dpp_listen_(millis());
 #endif
 #ifdef USE_IMPROV_BLE

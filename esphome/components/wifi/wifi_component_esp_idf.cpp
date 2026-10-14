@@ -1280,8 +1280,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->last_connected_ = App.get_loop_component_start_time();
     // Saved like portal credentials; from a cooldown this already restarts the retries
     this->save_wifi_sta(credentials->ssid, credentials->password);
-    if (this->state_ == WIFI_COMPONENT_STATE_OFF) {
-      // Without networks the station machine was never started
+    if (this->state_ == WIFI_COMPONENT_STATE_OFF || this->state_ == WIFI_COMPONENT_STATE_AP) {
+      // Without networks the station machine was never started; an AP without a portal sits in AP
       this->start_connecting(*this->get_selected_sta_());
     }
 
