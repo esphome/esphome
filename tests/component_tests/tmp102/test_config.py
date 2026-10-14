@@ -58,6 +58,30 @@ def test_duplicate_alert_entities_are_rejected(
     )
 
 
+def test_status_entity_is_read_only(
+    generate_main: Callable[[Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = generate_main(component_config_path("status.yaml"))
+    assert "set_threshold_status_text_sensor" in source
+    assert "set_configuration" not in source
+    defines = " ".join(define.name for define in CORE.defines)
+    assert "USE_TMP102_TEXT_SENSOR" in defines
+    assert "USE_TMP102_CONFIGURE" not in defines
+
+
+def test_duplicate_status_entities_are_rejected(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    CORE.config_path = component_config_path("duplicate_status.yaml")
+    assert read_config({}) is None
+    assert (
+        "Only one TMP102 text_sensor may reference each temperature sensor"
+        in capsys.readouterr().out
+    )
+
+
 def test_threshold_numbers_enable_configuration_once(
     generate_main: Callable[[Path], str],
     component_config_path: Callable[[str], Path],

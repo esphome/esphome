@@ -12,6 +12,7 @@ namespace esphome::esp32_can {
 enum CanMode : uint8_t {
   CAN_MODE_NORMAL = 0,
   CAN_MODE_LISTEN_ONLY = 1,
+  CAN_MODE_NO_ACK = 2,
 };
 
 class ESP32Can final : public canbus::Canbus {
