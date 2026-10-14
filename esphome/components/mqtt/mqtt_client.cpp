@@ -485,10 +485,13 @@ void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscripti
       .resubscribe_timeout = 0,
   });
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // Too long for the current connection: reconnect so start_connect_() grows the buffer. This happens at boot
+  // when an IP broker connects from setup() before the entities subscribe.
   if (subscription.topic.size() > this->max_topic_length_ &&
       (this->state_ == MQTT_CLIENT_CONNECTING || this->state_ == MQTT_CLIENT_CONNECTED)) {
-    ESP_LOGW(TAG, "Topic '%s' is longer than %u characters; its messages arrive after the next reconnect",
-             subscription.topic.c_str(), this->max_topic_length_);
+    ESP_LOGD(TAG, "Reconnecting to fit a %zu character topic", subscription.topic.size());
+    this->mqtt_backend_.disconnect();
+    this->state_ = MQTT_CLIENT_DISCONNECTED;
   }
 #endif
   this->resubscribe_subscription_(&subscription);
