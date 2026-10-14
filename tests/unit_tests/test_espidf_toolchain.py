@@ -608,6 +608,35 @@ def test_run_compile_cache_miss_discovers_and_saves(setup_core: Path) -> None:
     ]
 
 
+def test_run_compile_discovery_resets_sdkconfig(setup_core: Path) -> None:
+    """Options the discovery configure forced on (e.g. esp-tls selecting TLS)
+    are dropped before the configure with the real component list."""
+    _setup_build(setup_core)
+    internal = CORE.relative_build_path("sdkconfig.test.esphomeinternal")
+    internal.parent.mkdir(parents=True)
+    internal.write_text("CONFIG_MBEDTLS_TLS_ENABLED=n\n")
+    sdkconfig = CORE.relative_build_path("sdkconfig.test")
+    seen: list[str] = []
+
+    def record_write(minimal: bool = False, builtin_components=None) -> None:
+        if minimal:
+            sdkconfig.write_text("CONFIG_MBEDTLS_TLS_ENABLED=y\n")
+        else:
+            seen.append(sdkconfig.read_text())
+
+    with (
+        patch.object(toolchain, "load_cached_builtin_components", return_value=None),
+        patch.object(toolchain, "save_cached_builtin_components"),
+        patch(
+            "esphome.build_gen.espidf.get_available_components", return_value=["lwip"]
+        ),
+        patch("esphome.build_gen.espidf.write_project", side_effect=record_write),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+    ):
+        assert toolchain._configure_project() == 0
+    assert seen == ["CONFIG_MBEDTLS_TLS_ENABLED=n\n"]
+
+
 def test_run_compile_discovery_failure_stops_before_full_write(
     setup_core: Path,
 ) -> None:

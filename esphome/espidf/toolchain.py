@@ -353,7 +353,11 @@ def _clean_foreign_target_tree() -> None:
     clean_build(clear_pio_cache=False)
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         return
-    # Restart sdkconfig from ESPHome's options
+    _reset_sdkconfig()
+
+
+def _reset_sdkconfig() -> None:
+    """Restart the project sdkconfig from ESPHome's own options."""
     internal = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
     if internal.is_file():
         shutil.copyfile(internal, CORE.relative_build_path(f"sdkconfig.{CORE.name}"))
@@ -656,6 +660,9 @@ def _configure_project(verbose: bool = False) -> int:
     if not discovered:
         _LOGGER.error("Component discovery found no built-in ESP-IDF components")
         return 1
+    # The discovery configure builds every IDF component, and their Kconfig
+    # selects (e.g. esp-tls turning TLS on) would otherwise stay in sdkconfig
+    _reset_sdkconfig()
     if (rc := _write_project_and_reconfigure(discovered, verbose)) != 0:
         _LOGGER.error("Reconfigure with discovered components failed")
         return rc

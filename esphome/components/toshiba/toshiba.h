@@ -12,6 +12,7 @@ enum Model {
   MODEL_RAC_PT1411HWRU_F = 2,  // Temperature range is from 16 to 30
   MODEL_RAS_2819T = 3,         // RAS-2819T protocol variant, temperature range 18 to 30
   MODEL_SEIYA = 4,             // Seiya family (RAS-B13E2KVG-E etc.), generic frame with a swing byte
+  MODEL_RAS_B10N3KV2 = 5,      // RAS-B13 remote family, generic frame with IRremoteESP8266's TOSHIBA_AC timings
 };
 
 // Supported temperature ranges
@@ -72,7 +73,7 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
     return TOSHIBA_GENERIC_TEMP_C_MAX;  // Default to GENERIC for unknown models
   }
   climate::ClimateSwingModeMask toshiba_swing_modes_() {
-    if (this->model_ == MODEL_GENERIC)
+    if (this->model_ == MODEL_GENERIC || this->model_ == MODEL_RAS_B10N3KV2)
       return climate::ClimateSwingModeMask();
     if (this->model_ == MODEL_SEIYA) {
       // No captured code stops the swing, so OFF is not offered; the remote only selects a direction

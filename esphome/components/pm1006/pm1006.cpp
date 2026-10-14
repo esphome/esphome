@@ -43,11 +43,7 @@ void PM1006Component::loop() {
 }
 
 uint8_t PM1006Component::pm1006_checksum_(const uint8_t *command_data, uint8_t length) const {
-  uint8_t sum = 0;
-  for (uint8_t i = 0; i < length; i++) {
-    sum += command_data[i];
-  }
-  return sum;
+  return sum_bytes(command_data, length);
 }
 
 optional<bool> PM1006Component::check_byte_() const {

@@ -1,0 +1,11 @@
+# on_value with the new text as trigger argument.
+text:
+  - platform: template
+    name: Text Triggers
+    id: text_triggers
+    optimistic: true
+    mode: text
+    on_value:
+      - logger.log:
+          format: "Text is %s"
+          args: ["x.c_str()"]

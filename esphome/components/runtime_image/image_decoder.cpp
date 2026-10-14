@@ -29,4 +29,7 @@ void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
   }
 }
 
+uint8_t *ImageDecoder::image_buffer_() const { return this->image_->buffer_; }
+bool ImageDecoder::image_is_big_endian_() const { return this->image_->is_big_endian_; }
+
 }  // namespace esphome::runtime_image

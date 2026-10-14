@@ -10,12 +10,7 @@ ESPHOME_LOG_TAG(TAG, "systa_bus");
 
 void SystaBus::dump_config() { ESP_LOGCONFIG(TAG, "SystaBus:"); }
 
-static bool checksum(std::span<const uint8_t> data) {
-  uint8_t csum = 0;
-  for (uint8_t i : data)
-    csum += i;
-  return csum == 0;
-}
+static bool checksum(std::span<const uint8_t> data) { return sum_bytes(data.data(), data.size()) == 0; }
 
 void SystaBus::loop() {
   uint8_t c;
