@@ -84,6 +84,8 @@ class ZigbeeComponent final : public Component {
   void report();
   void loop() override;
   void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
+  /// How often an end device polls its parent, in ms; 0 keeps the ZBOSS default.
+  void set_keep_alive(uint32_t keep_alive) { this->keep_alive_ = keep_alive; }
   void add_radio_sleep_time_ms(uint32_t ms);
 
  protected:
@@ -103,6 +105,7 @@ class ZigbeeComponent final : public Component {
   uint32_t sleep_remainder_{};
   uint32_t radio_sleep_time_{};
   uint32_t radio_sleep_remainder_{};
+  uint32_t keep_alive_{0};
   bool sleepy_{};
 };
 

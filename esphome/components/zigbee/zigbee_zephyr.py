@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MODEL,
     CONF_NAME,
+    CONF_POLLING_INTERVAL,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VERSION,
 )
@@ -205,6 +206,8 @@ async def zephyr_to_code(config: ConfigType) -> "MockObj":
     CORE.add_job(_ctx_to_code, config)
 
     cg.add(var.set_sleepy(config[CONF_SLEEPY]))
+    if (keep_alive := config.get(CONF_POLLING_INTERVAL)) is not None:
+        cg.add(var.set_keep_alive(keep_alive))
 
     return var
 

@@ -228,7 +228,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean,
             ),
             cv.Optional(CONF_POLLING_INTERVAL): cv.All(
-                cv.requires_component(ESP32_DOMAIN),
                 cv.positive_time_period_milliseconds,
                 cv.Range(
                     min=cv.TimePeriodMilliseconds(milliseconds=200),

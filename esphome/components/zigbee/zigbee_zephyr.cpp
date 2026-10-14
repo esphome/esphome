@@ -200,6 +200,8 @@ void ZigbeeComponent::setup() {
   }
 #ifdef CONFIG_ZIGBEE_ROLE_END_DEVICE
   zigbee_configure_sleepy_behavior(this->sleepy_);
+  if (this->keep_alive_ != 0)
+    zb_set_keepalive_timeout(ZB_MILLISECONDS_TO_BEACON_INTERVAL(this->keep_alive_));
 #endif
   zigbee_enable();
   this->disable_loop();
