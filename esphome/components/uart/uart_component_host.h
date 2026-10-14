@@ -21,7 +21,7 @@ class HostUartComponent final : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   UARTFlushResult flush() override;
-  void set_name(std::string port_name) { port_name_ = std::move(port_name); }
+  void set_name(std::string port_name) { this->port_name_ = std::move(port_name); }
 
  protected:
   void update_error_(const std::string &error);

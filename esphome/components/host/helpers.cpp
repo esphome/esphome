@@ -39,7 +39,7 @@ bool Mutex::try_lock() { return static_cast<std::mutex *>(handle_)->try_lock(); 
 void Mutex::unlock() { static_cast<std::mutex *>(handle_)->unlock(); }
 
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  static const uint8_t HOST_MAC_ADDRESS[MAC_ADDRESS_SIZE] = USE_ESPHOME_HOST_MAC_ADDRESS;
+  static constexpr uint8_t HOST_MAC_ADDRESS[MAC_ADDRESS_SIZE] = USE_ESPHOME_HOST_MAC_ADDRESS;
   memcpy(mac, HOST_MAC_ADDRESS, sizeof(HOST_MAC_ADDRESS));
 }
 
