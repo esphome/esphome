@@ -50,11 +50,13 @@ void FUSB302B::setup() {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  if (device_id != FUSB_DEVICE_ID_A && device_id != FUSB_DEVICE_ID_B) {
+  const uint8_t version = device_id & FUSB_DEVICE_ID_VERSION_MASK;
+  if (version != FUSB_DEVICE_ID_VERSION_A && version != FUSB_DEVICE_ID_VERSION_B) {
     ESP_LOGE(TAG, "Unknown device ID 0x%02X", device_id);
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "Device ID 0x%02X (product %u, revision %u)", device_id, (device_id >> 2) & 0x3, device_id & 0x3);
   if (!this->init_chip_()) {
     this->mark_failed(LOG_STR("Initialization failed"));
     return;
