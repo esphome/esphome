@@ -997,7 +997,7 @@ class WiFiComponent final : public Component {
   WiFiAP ap_;
 #ifdef USE_WIFI_NAT
   // IPv4 addresses as stored by lwIP
-  std::array<uint32_t, 1> dns_servers_{};
+  std::array<uint32_t, 2> dns_servers_{};
 #endif  // USE_WIFI_NAT
 #endif  // USE_WIFI_AP
 

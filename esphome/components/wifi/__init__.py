@@ -315,7 +315,7 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
             *WIFI_AP_MODES, upper=True
         ),
         cv.Optional(CONF_DNS_SERVERS): cv.All(
-            cv.ensure_list(cv.ipv4address), cv.Length(min=1, max=1)
+            cv.ensure_list(cv.ipv4address), cv.Length(min=1, max=2)
         ),
     }
 )
@@ -409,6 +409,13 @@ def final_validate(config):
                 raise cv.Invalid("WISP mode requires ESP-IDF 5.1.0 or newer")
             if CONF_DNS_SERVERS in ap_config and not ap_is_wisp_mode:
                 raise cv.Invalid("wifi.ap.dns_servers requires ap_mode: WISP")
+            # The AP DHCP server only supports a backup DNS server from ESP-IDF 6.0
+            if len(
+                ap_config.get(CONF_DNS_SERVERS, [])
+            ) > 1 and idf_version() < cv.Version(6, 0, 0):
+                raise cv.Invalid(
+                    "wifi.ap.dns_servers accepts a second server only with ESP-IDF 6.0.0 or newer"
+                )
             if ap_is_wisp_mode and has_captive_portal:
                 raise cv.Invalid(
                     "captive_portal is not supported together with ap_mode: WISP"

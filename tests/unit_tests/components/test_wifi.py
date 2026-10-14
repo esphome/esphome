@@ -328,8 +328,34 @@ def test_dns_servers_requires_wisp(monkeypatch: pytest.MonkeyPatch) -> None:
         _validate_wisp(config)
 
 
-def test_dns_servers_accepts_one_server() -> None:
-    """The SoftAP DHCP server only supports a single DNS server."""
-    WIFI_NETWORK_AP({CONF_AP_MODE: "WISP", "dns_servers": ["1.1.1.1"]})
+def test_dns_servers_schema_limits_to_two_servers() -> None:
+    """The SoftAP DHCP server has a main and a backup DNS server."""
+    WIFI_NETWORK_AP({CONF_AP_MODE: "WISP", "dns_servers": ["1.1.1.1", "8.8.8.8"]})
     with pytest.raises(cv.Invalid):
-        WIFI_NETWORK_AP({CONF_AP_MODE: "WISP", "dns_servers": ["1.1.1.1", "8.8.8.8"]})
+        WIFI_NETWORK_AP(
+            {CONF_AP_MODE: "WISP", "dns_servers": ["1.1.1.1", "8.8.8.8", "9.9.9.9"]}
+        )
+
+
+@pytest.mark.parametrize(
+    ("idf", "valid"),
+    [(cv.Version(5, 5, 5), False), (cv.Version(6, 0, 1), True)],
+)
+def test_second_dns_server_requires_idf_6(
+    monkeypatch: pytest.MonkeyPatch, idf: cv.Version, valid: bool
+) -> None:
+    """A backup DNS server on the AP DHCP server needs ESP-IDF 6.0 or newer."""
+    _set_wisp_core(monkeypatch, idf=idf)
+    config = {
+        CONF_NETWORKS: [{}],
+        CONF_AP: {
+            CONF_AP_MODE: "WISP",
+            CONF_PASSWORD: "wisp12345678",
+            "dns_servers": ["1.1.1.1", "8.8.8.8"],
+        },
+    }
+    if valid:
+        _validate_wisp(config)
+    else:
+        with pytest.raises(cv.Invalid, match="second server only with ESP-IDF 6"):
+            _validate_wisp(config)
