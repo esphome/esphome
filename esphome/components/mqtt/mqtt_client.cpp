@@ -468,6 +468,7 @@ void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscripti
       .qos = qos,
       .subscribed = false,
       .boxed = boxed,
+      .removed = false,
       .callback = callback,
       .resubscribe_timeout = 0,
   });
@@ -475,11 +476,6 @@ void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscripti
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
-  if (this->dispatching_) {
-    // Would erase, and for a boxed callback free, the subscription that may be running right now.
-    ESP_LOGE(TAG, "Cannot unsubscribe from '%s' inside a subscription callback", topic.c_str());
-    return;
-  }
   bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
   yield();
   if (ret) {
@@ -490,12 +486,22 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
     this->status_momentary_warning(1000);
   }
 
-  auto it = subscriptions_.begin();
-  while (it != subscriptions_.end()) {
-    if (it->topic == topic) {
+  for (auto &subscription : this->subscriptions_) {
+    if (subscription.topic == topic)
+      subscription.removed = true;
+  }
+  // A callback may be running; the outermost dispatch erases them once it returns.
+  if (!this->dispatching_)
+    this->erase_removed_subscriptions_();
+}
+
+void MQTTClientComponent::erase_removed_subscriptions_() {
+  auto it = this->subscriptions_.begin();
+  while (it != this->subscriptions_.end()) {
+    if (it->removed) {
       if (it->boxed)
         it->callback.free_boxed();
-      it = subscriptions_.erase(it);
+      it = this->subscriptions_.erase(it);
     } else {
       ++it;
     }
@@ -652,16 +658,18 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.
-    // Restored rather than cleared, so a nested dispatch cannot reopen unsubscribe() for the outer one.
+    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
     const bool was_dispatching = this->dispatching_;
     this->dispatching_ = true;
     const size_t count = this->subscriptions_.size();
     for (size_t i = 0; i < count; i++) {
       const auto &subscription = this->subscriptions_[i];
-      if (topic_match(topic.c_str(), subscription.topic.c_str()))
+      if (!subscription.removed && topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback.call(topic, payload);
     }
     this->dispatching_ = was_dispatching;
+    if (!was_dispatching)
+      this->erase_removed_subscriptions_();
 #ifdef USE_ESP8266
   });
 #endif

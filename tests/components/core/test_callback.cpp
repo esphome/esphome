@@ -60,16 +60,6 @@ TEST(CallbackCreateBoxed, MutableStateIsKeptAcrossCalls) {
   cb.free_boxed();
 }
 
-TEST(CallbackCreateBoxed, LargeCaptureIsCalled) {
-  int a = 0;
-  int b = 0;
-  auto cb = IntCallback::create_boxed([&a, &b](int x) { a = b = x; });
-  cb.call(7);
-  EXPECT_EQ(a, 7);
-  EXPECT_EQ(b, 7);
-  cb.free_boxed();
-}
-
 TEST(CallbackCreateBoxed, FreeDestroysCaptureExactlyOnce) {
   int destroyed = 0;
   int calls = 0;

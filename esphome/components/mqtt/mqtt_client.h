@@ -46,7 +46,8 @@ struct MQTTSubscription {
   std::string topic;
   uint8_t qos;
   bool subscribed;
-  bool boxed;  // made by create_boxed(), freed on unsubscribe
+  bool boxed;    // made by create_boxed(), freed on unsubscribe
+  bool removed;  // unsubscribed while a callback ran, erased once dispatch returns
   mqtt_subscription_callback_t callback;
   uint32_t resubscribe_timeout;
 };
@@ -208,7 +209,7 @@ class MQTTClientComponent final : public Component {
   /** Unsubscribe from an MQTT topic.
    *
    * If multiple existing subscriptions to the same topic exist, all of them will be removed.
-   * Not allowed from inside a subscription callback; such a call is logged and ignored.
+   * From inside a subscription callback they stop receiving messages at once and are erased once it returns.
    *
    * @param topic The topic to unsubscribe from.
    * Must match the topic in the original subscribe or subscribe_json call exactly.
@@ -308,13 +309,13 @@ class MQTTClientComponent final : public Component {
 
   bool subscribe_(const char *topic, uint8_t qos);
   void resubscribe_subscription_(MQTTSubscription *sub);
-  // parse_json runs its callback before returning, so the captures can be references.
   template<typename F> static void call_json(const F &callback, const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [&topic, &callback](JsonObject root) -> bool {
-      callback(topic, root);
-      return true;
-    });
+    JsonDocument doc = json::parse_json(payload);
+    if (doc.overflowed() || doc.isNull())
+      return;
+    callback(topic, doc.as<JsonObject>());
   }
+  void erase_removed_subscriptions_();
   void add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
   void resubscribe_subscriptions_();
 
