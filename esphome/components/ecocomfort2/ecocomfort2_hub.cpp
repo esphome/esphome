@@ -278,14 +278,8 @@ void Ecocomfort2Hub::sync_clock_() {
   // ESPTime counts Sunday=1 .. Saturday=7, the unit Monday=0 .. Sunday=6
   const uint8_t weekday = (now.day_of_week + 5) % 7;
   // The time source already applies DST and every sync rewrites the clock, so the unit must not shift it again
-  uint8_t data[8]{static_cast<uint8_t>(now.year % 100),
-                  now.month,
-                  now.day_of_month,
-                  weekday,
-                  now.hour,
-                  now.minute,
-                  now.second,
-                  0};
+  uint8_t data[8]{
+      static_cast<uint8_t>(now.year % 100), now.month, now.day_of_month, weekday, now.hour, now.minute, now.second, 0};
   ESP_LOGD(TAG, "[%s] Syncing clock to %04u-%02u-%02u %02u:%02u:%02u", this->parent_->address_str(), now.year,
            now.month, now.day_of_month, now.hour, now.minute, now.second);
   auto status =
