@@ -177,6 +177,8 @@ class _SensitiveValue:
     # Last path segments the value is sensitive at (e.g. {"password"}), used to
     # tell the value's own occurrences apart from unrelated collisions.
     sensitive_keys: set[str]
+    # Integers skip the substring scan; short PINs would match unrelated text.
+    is_int: bool = False
 
 
 def _check_sensitive_usage(
@@ -216,7 +218,7 @@ def _check_sensitive_usage(
             if is_key:
                 continue
             for value, other in sensitive.items():
-                if value not in text:
+                if other.is_int or value not in text:
                     continue
                 if other.from_secret:
                     # Already a real !secret and overlaps (an SSID in a name)
@@ -260,9 +262,10 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
     used = yaml_util.registered_secret_names()
     result: dict[str, _SensitiveValue] = {}
     for path, node, is_key in _iter_nodes(CORE.config):
-        if is_key or not isinstance(node, yaml_util.SensitiveStr) or not node:
+        if is_key or not isinstance(node, yaml_util.Sensitive) or not node:
             continue
-        value = str(node)
+        # Decimal for ints, to match the raw tree's parsed scalars, not HexInt's hex.
+        value = str(int(node)) if isinstance(node, int) else str(node)
         entry = result.get(value)
         if entry is None:
             name = yaml_util.is_secret(value)
@@ -271,7 +274,7 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
                 name = ensure_unique_string("_".join(path) or "secret", used)
             used.add(name)
             entry = result[value] = _SensitiveValue(
-                name, ".".join(path), from_secret, set()
+                name, ".".join(path), from_secret, set(), isinstance(node, int)
             )
         if path:
             entry.sensitive_keys.add(path[-1])

@@ -26,7 +26,12 @@ from esphome.components.store_yaml import (
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
 import esphome.final_validate as fv
-from esphome.yaml_util import DiscoveredYamlFiles, SensitiveStr
+from esphome.yaml_util import (
+    DiscoveredYamlFiles,
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+)
 
 
 @pytest.fixture
@@ -213,6 +218,38 @@ def test_redacted_inline_value_becomes_secret_ref(
     files = _gather_redacted(_sources(project, "wifi.yaml"))
     assert files["wifi.yaml"] == b"password: !secret 'wifi_password'\n"
     assert 'wifi_password: ""' in files["secrets.yaml"].decode()
+
+
+@pytest.mark.parametrize(
+    ("source", "value"),
+    [
+        (
+            "network_key: 0x00112233445566778899aabbccddeeff\n",
+            SensitiveHexInt(0x00112233445566778899AABBCCDDEEFF),
+        ),
+        ("network_key: 12345\n", SensitiveInt(12345)),
+    ],
+    ids=["hex", "decimal"],
+)
+def test_redacted_inline_int_value_becomes_secret_ref(
+    project: Path, source: str, value: int
+) -> None:
+    """Inline sensitive integers are redacted like strings."""
+    (project / "thread.yaml").write_text(source + "name: node 12345\n")
+    CORE.config = {"openthread": {"network_key": value}}
+    files = _gather_redacted(_sources(project, "thread.yaml"))
+    assert files["thread.yaml"] == (
+        b"network_key: !secret 'openthread_network_key'\nname: node 12345\n"
+    )
+    assert 'openthread_network_key: ""' in files["secrets.yaml"].decode()
+
+
+def test_redacted_quoted_int_value_fails_build(project: Path) -> None:
+    """A sensitive integer written as a string is not matched, so the build fails."""
+    (project / "thread.yaml").write_text('network_key: "0x1234"\n')
+    CORE.config = {"openthread": {"network_key": SensitiveHexInt(0x1234)}}
+    with pytest.raises(EsphomeError, match="openthread.network_key"):
+        _gather_redacted(_sources(project, "thread.yaml"))
 
 
 def test_redacted_include_reference_round_trips(project: Path) -> None:
