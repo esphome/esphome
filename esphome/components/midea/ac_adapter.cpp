@@ -5,6 +5,8 @@
 
 namespace esphome::midea::ac {
 
+const char Constants::TAG[] PROGMEM = "midea";
+
 ClimateMode Converters::to_climate_mode(MideaMode mode) {
   switch (mode) {
     case MideaMode::MODE_AUTO:

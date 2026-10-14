@@ -130,6 +130,61 @@ TEST(ToshibaGeneric, WaveformIsUnchangedByTheSharedPath) {
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x30, 0xC3, 0x00, 0xF2}, GENERIC), 9);
 }
 
+// The RAC-PT1411HWRU sends its main message, then a separate swing packet
+// wrapped in packet spaces; both use the generic timings.
+static void expect_swing_packet(const remote_base::RawTimings &actual, const std::vector<uint8_t> &bytes) {
+  ASSERT_GE(actual.size(), 2u);
+  EXPECT_EQ(actual.front(), -10500);
+  EXPECT_EQ(actual.back(), -10500);
+  const remote_base::RawTimings frame(actual.begin() + 1, actual.end() - 1);
+  expect_frame(frame, waveform(bytes, GENERIC), 6);
+}
+
+TEST(ToshibaRacPt1411hwru, SendsTheSwingFrameFromFlash) {
+  Fixture f(MODEL_RAC_PT1411HWRU_C);
+
+  f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_VERTICAL);
+  expect_swing_packet(f.last_frame(), {0xB9, 0x46, 0xF5, 0x0A, 0x04, 0xFB});
+
+  f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF);
+  expect_swing_packet(f.last_frame(), {0xB9, 0x46, 0xF5, 0x0A, 0x05, 0xFA});
+}
+
+// The temperature tables are read on the way out and searched on the way back
+// in, so what one fixture sends must decode to the same state in another.
+TEST(ToshibaRacPt1411hwru, TemperatureCodesRoundTrip) {
+  for (const Model model : {MODEL_RAC_PT1411HWRU_C, MODEL_RAC_PT1411HWRU_F}) {
+    for (int temperature = 16; temperature <= 30; temperature++) {
+      SCOPED_TRACE(::testing::Message() << "model " << model << " temperature " << temperature);
+      Fixture tx(model);
+      tx.command(climate::CLIMATE_MODE_COOL, temperature, climate::CLIMATE_FAN_AUTO);
+      // The main message is sent before the swing packet
+      const auto &main_frame = tx.transmitter.frames[tx.transmitter.frames.size() - 2];
+
+      Fixture rx(model);
+      remote_base::RemoteReceiveData data(main_frame, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+      ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(rx.climate).on_receive(data));
+      EXPECT_EQ(rx.climate.mode, climate::CLIMATE_MODE_COOL);
+      EXPECT_NEAR(rx.climate.target_temperature, temperature, 0.3f);
+    }
+  }
+}
+
+// The RAS-2819T table is read for the code on the way out and searched on the way back in.
+TEST(ToshibaRas2819t, TemperatureCodesRoundTrip) {
+  for (int temperature = 18; temperature <= 30; temperature++) {
+    SCOPED_TRACE(::testing::Message() << "temperature " << temperature);
+    Fixture tx(MODEL_RAS_2819T);
+    tx.command(climate::CLIMATE_MODE_COOL, temperature, climate::CLIMATE_FAN_AUTO);
+
+    Fixture rx(MODEL_RAS_2819T);
+    remote_base::RemoteReceiveData data(tx.last_frame(), 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+    ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(rx.climate).on_receive(data));
+    EXPECT_EQ(rx.climate.mode, climate::CLIMATE_MODE_COOL);
+    EXPECT_FLOAT_EQ(rx.climate.target_temperature, temperature);
+  }
+}
+
 static bool receive(ToshibaClimate &climate, const std::vector<uint8_t> &bytes, const Timings &t) {
   const remote_base::RawTimings raw = waveform(bytes, t);
   remote_base::RemoteReceiveData data(raw, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);

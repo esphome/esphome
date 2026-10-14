@@ -1,10 +1,14 @@
 """Shared TMP102 types and configuration validation."""
 
+from dataclasses import dataclass, field
+import math
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
 from esphome.const import CONF_PLATFORM
+from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -16,6 +20,7 @@ tmp102_ns = cg.esphome_ns.namespace("tmp102")
 TMP102Component = tmp102_ns.class_(
     "TMP102Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
 )
+TMP102LimitType = tmp102_ns.enum("TMP102LimitType")
 
 CONF_EXTENDED_MODE = "extended_mode"
 CONF_ONE_SHOT_MODE = "one_shot_mode"
@@ -34,10 +39,40 @@ TMP102_CONVERSION_FACTOR = 0.0625
 TMP102_DEFAULT_THIGH = 80.0
 TMP102_DEFAULT_TLOW = 75.0
 
+TMP102_MIN_TEMPERATURE = -55.0
+TMP102_MAX_TEMPERATURE = 127.9375
+TMP102_MAX_TEMPERATURE_EXTENDED = 150.0
+
+
+def max_temperature(extended: bool) -> float:
+    return TMP102_MAX_TEMPERATURE_EXTENDED if extended else TMP102_MAX_TEMPERATURE
+
+
+@dataclass
+class TMP102Data:
+    # Extended mode of each sensor that has threshold numbers, keyed by sensor ID.
+    number_parents: dict[str, bool] = field(default_factory=dict)
+
+
+def _get_data() -> TMP102Data:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = TMP102Data()
+    return CORE.data[DOMAIN]
+
+
+def add_number_parent(parent_id: object, extended: bool) -> None:
+    _get_data().number_parents[str(parent_id)] = extended
+
+
+def number_parent_extended(parent_id: object) -> bool | None:
+    """Return the extended mode of a sensor with threshold numbers, or None without numbers."""
+    return _get_data().number_parents.get(str(parent_id))
+
 
 def encode_temperature(temperature: float, extended: bool) -> int:
     """Encode a temperature as a TMP102 limit-register word."""
-    steps = round(temperature / TMP102_CONVERSION_FACTOR)
+    scaled = temperature / TMP102_CONVERSION_FACTOR
+    steps = int(scaled + math.copysign(0.5, scaled))
     return (steps << (3 if extended else 4)) & 0xFFFF
 
 
@@ -56,8 +91,8 @@ def build_configuration(config: ConfigType) -> int:
 
 def validate_tmp102_thresholds(config: ConfigType) -> ConfigType:
     extended = config.get(CONF_EXTENDED_MODE, False)
-    t_min = -55.0
-    t_max = 150.0 if extended else 127.9375
+    t_min = TMP102_MIN_TEMPERATURE
+    t_max = max_temperature(extended)
     high = config.get(CONF_TEMPERATURE_HIGH)
     low = config.get(CONF_TEMPERATURE_LOW)
     for key, value in ((CONF_TEMPERATURE_HIGH, high), (CONF_TEMPERATURE_LOW, low)):

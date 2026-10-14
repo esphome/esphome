@@ -1,0 +1,46 @@
+pca9505:
+  - id: pca9505_hub
+    i2c_id: i2c_bus
+    address: 0x26
+  - id: pca9505_hub_second
+    interrupt_pin: ${interrupt_pin}
+    i2c_id: i2c_bus
+    address: 0x27
+
+binary_sensor:
+  # Pins 0 and 39 are the first and last pins, so between them they cover every
+  # bank index the five-port register maths has to get right.
+  - platform: gpio
+    id: pca9505_input_first
+    name: PCA9505 Binary Sensor First
+    pin:
+      pca9505: pca9505_hub
+      number: 0
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    id: pca9505_input_last
+    name: PCA9505 Binary Sensor Last
+    pin:
+      pca9505: pca9505_hub_second
+      number: 39
+      mode: INPUT
+      inverted: false
+
+switch:
+  - platform: gpio
+    id: pca9505_output_low
+    name: PCA9505 Switch Low
+    pin:
+      pca9505: pca9505_hub
+      number: 7
+      mode: OUTPUT
+      inverted: false
+  - platform: gpio
+    id: pca9505_output_high
+    name: PCA9505 Switch High
+    pin:
+      pca9505: pca9505_hub
+      number: 32
+      mode: OUTPUT
+      inverted: true
