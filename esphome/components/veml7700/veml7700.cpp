@@ -72,7 +72,7 @@ static uint16_t get_itime_ms(IntegrationTime time) {
 
 static float get_gain_coeff(Gain gain) {
   // 32-bit entries, so the direct read is a word load, which is safe from flash on ESP8266
-  static constexpr float GAIN_FLOAT[GAINS_COUNT] PROGMEM = {1.0f, 2.0f, 0.125f, 0.25f};
+  alignas(4) static constexpr float GAIN_FLOAT[GAINS_COUNT] PROGMEM = {1.0f, 2.0f, 0.125f, 0.25f};
   return GAIN_FLOAT[gain & 0b11];
 }
 
