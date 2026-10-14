@@ -81,8 +81,8 @@ jobs:
       - name: Install apt packages (cached)
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
   determine-jobs:
     name: Determine which jobs to run
@@ -415,8 +415,8 @@ jobs:
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -696,6 +696,10 @@ jobs:
             options: --environment rp2-tidy --grep USE_RP2
             pio_cache_key: tidyrp2
           - id: clang-tidy
+            name: Run script/clang-tidy for host
+            options: --environment host-tidy --grep USE_HOST
+            pio_cache_key: tidyhost
+          - id: clang-tidy
             name: Run script/clang-tidy for LibreTiny
             environments: bk72xx-tidy ln882h-tidy rtl87xxb-tidy rtl87xxc-tidy
             options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
@@ -707,6 +711,16 @@ jobs:
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
+      - name: Install apt packages (cached)
+        if: matrix.pio_cache_key == 'tidyhost'
+        # libsdl2-dev is needed by the sdl component on the host, libmbedtls-dev
+        # by dsmr and dlms_meter. Packages and version must match seed-apt-cache
+        # exactly.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
       - name: Restore Python
         id: restore-python
@@ -1102,8 +1116,8 @@ jobs:
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
