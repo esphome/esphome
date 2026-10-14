@@ -1,8 +1,29 @@
-"""The config-time fit rule must match make_preference() in preferences.cpp."""
+"""The config-time fit check must agree with make_preference() in preferences.cpp."""
+
+import asyncio
 
 import pytest
 
-from esphome.components.esp8266.const import preference_slots, preference_words
+from esphome.components.esp8266.const import (
+    KEY_ESP8266,
+    KEY_PREFERENCES,
+    check_preferences_fit,
+    preference_words,
+    reserve_preferences,
+)
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
+from esphome.core import CORE, EsphomeError
+
+
+@pytest.fixture(autouse=True)
+def esp8266_core() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp8266"}
+    CORE.data[KEY_ESP8266] = {}
+    CORE.config = {KEY_ESP8266: {"restore_from_flash": False}}
+
+
+def _check() -> None:
+    asyncio.run(check_preferences_fit())
 
 
 @pytest.mark.parametrize(
@@ -14,18 +35,39 @@ def test_preference_words_rounds_up_and_adds_the_checksum(
     assert preference_words(value_bytes) == words
 
 
-def test_rtc_values_cannot_straddle_the_regions() -> None:
-    # 25 words each: 3 fit in the 78-word region and 1 in the 32-word one
-    assert preference_slots(94, in_flash=False, restore_from_flash=False) == 4
-    # 32 words each: 2 + 1, where 110 // 32 would also say 3
-    assert preference_slots(124, in_flash=False, restore_from_flash=False) == 3
-    # 39 words each: 2 + 0, where 110 // 39 would say 2 as well but the eboot region is skipped
-    assert preference_slots(152, in_flash=False, restore_from_flash=False) == 2
-    # Larger than the biggest region
-    assert preference_slots(400, in_flash=False, restore_from_flash=False) == 0
+def test_reservations_from_several_components_add_up() -> None:
+    reserve_preferences(2, 94)  # 50 words
+    reserve_preferences(2, 94)  # another component, 100 in total
+    _check()
+    reserve_preferences(1, 94)  # 125 > 110
+    with pytest.raises(EsphomeError, match="RTC memory has 110"):
+        _check()
 
 
-def test_flash_store_size_follows_restore_from_flash() -> None:
-    assert preference_slots(94, in_flash=True, restore_from_flash=True) == 5
-    assert preference_slots(94, in_flash=False, restore_from_flash=True) == 5
-    assert preference_slots(94, in_flash=True, restore_from_flash=False) == 2
+def test_a_value_cannot_exceed_the_larger_rtc_region() -> None:
+    reserve_preferences(1, 400)
+    with pytest.raises(EsphomeError, match="RTC region"):
+        _check()
+
+
+def test_flash_store_follows_restore_from_flash() -> None:
+    CORE.config[KEY_ESP8266]["restore_from_flash"] = True
+    reserve_preferences(5, 94)  # 125 of 128 words
+    _check()
+    reserve_preferences(1, 94)
+    with pytest.raises(EsphomeError, match="flash store has 128"):
+        _check()
+
+
+def test_explicit_flash_values_use_the_small_store_without_restore() -> None:
+    reserve_preferences(2, 94, in_flash=True)  # 50 of 64 words
+    _check()
+    reserve_preferences(1, 94, in_flash=True)
+    with pytest.raises(EsphomeError, match="flash store has 64"):
+        _check()
+
+
+def test_reserving_schedules_the_check_once() -> None:
+    reserve_preferences(1, 4)
+    reserve_preferences(1, 4)
+    assert len(CORE.data[KEY_ESP8266][KEY_PREFERENCES]) == 2

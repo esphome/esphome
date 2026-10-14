@@ -1,9 +1,13 @@
+import logging
+
 import esphome.codegen as cg
 
 # Re-exported from the shared definition; here it indexes the BOARDS
 # metadata dicts, whose entries in boards.py spell the literal.
 from esphome.const import KEY_FLASH_SIZE  # noqa: F401  # pylint: disable=unused-import
-from esphome.core import CORE
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+
+_LOGGER = logging.getLogger(__name__)
 
 KEY_ESP8266 = "esp8266"
 KEY_BOARD = "board"
@@ -32,25 +36,68 @@ PREFERENCES_FLASH_WORDS = 128
 PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE = 64
 
 
+KEY_PREFERENCES = "preferences"
+# Words of RTC memory open to saved values; the crash handler keeps the rest
+PREFERENCES_RTC_WORDS = PREFERENCES_RTC_NORMAL_WORDS + PREFERENCES_RTC_EBOOT_WORDS
+
+
 def preference_words(value_bytes: int) -> int:
     """Words a saved value takes, checksum word included."""
     return (value_bytes + 3) // 4 + 1
 
 
-def preference_slots(value_bytes: int, in_flash: bool, restore_from_flash: bool) -> int:
-    """How many values of this size fit where make_preference() puts them."""
-    words = preference_words(value_bytes)
-    if in_flash or restore_from_flash:
-        store = (
-            PREFERENCES_FLASH_WORDS
-            if restore_from_flash
-            else PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE
-        )
-        return store // words
-    return sum(
-        region // words
-        for region in (PREFERENCES_RTC_NORMAL_WORDS, PREFERENCES_RTC_EBOOT_WORDS)
+def reserve_preferences(count: int, value_bytes: int, in_flash: bool = False) -> None:
+    """Record saved values a component creates, so all of them are checked to fit; call from to_code."""
+    if not CORE.is_esp8266:
+        return
+    reservations = CORE.data.setdefault(KEY_ESP8266, {}).setdefault(KEY_PREFERENCES, [])
+    if not reservations:
+        CORE.add_job(check_preferences_fit)
+    reservations.append((count, preference_words(value_bytes), in_flash))
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def check_preferences_fit() -> None:
+    """Fail the build when the reserved saved values cannot fit the space preferences.cpp has."""
+    restore_from_flash = CORE.config[KEY_ESP8266].get(CONF_RESTORE_FROM_FLASH, False)
+    flash_store = (
+        PREFERENCES_FLASH_WORDS
+        if restore_from_flash
+        else PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE
     )
+    rtc_words = flash_words = 0
+    for count, words, in_flash in CORE.data[KEY_ESP8266][KEY_PREFERENCES]:
+        if in_flash or restore_from_flash:
+            if words > flash_store:
+                raise EsphomeError(
+                    f"A saved value of {words} words does not fit the ESP8266 flash store of {flash_store} words"
+                )
+            flash_words += count * words
+        else:
+            # A value cannot span the two RTC regions, so the larger one bounds it
+            if words > PREFERENCES_RTC_NORMAL_WORDS:
+                raise EsphomeError(
+                    f"A saved value of {words} words does not fit an ESP8266 RTC region of "
+                    f"{PREFERENCES_RTC_NORMAL_WORDS} words"
+                )
+            rtc_words += count * words
+    if flash_words > flash_store:
+        raise EsphomeError(
+            f"Saved values need {flash_words} words but the ESP8266 flash store has {flash_store}; "
+            "use fewer or smaller saved values"
+        )
+    if rtc_words > PREFERENCES_RTC_WORDS:
+        raise EsphomeError(
+            f"Saved values need {rtc_words} words but ESP8266 RTC memory has {PREFERENCES_RTC_WORDS}; "
+            "use fewer or smaller saved values, or set restore_from_flash: true"
+        )
+    if rtc_words > PREFERENCES_RTC_NORMAL_WORDS:
+        _LOGGER.warning(
+            "Saved values need %d of the %d words of ESP8266 RTC memory; values that straddle the two regions "
+            "and saved settings that are not counted here may not all fit",
+            rtc_words,
+            PREFERENCES_RTC_WORDS,
+        )
 
 
 # esp8266 namespace is already defined by arduino, manually prefix esphome
