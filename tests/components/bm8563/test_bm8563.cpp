@@ -52,9 +52,12 @@ class BM8563Test : public ::testing::Test {
 };
 
 TEST_F(BM8563Test, WriteTimeStoresTheChipsWeekday) {
-  const ESPTime now = ESPTime::from_epoch_utc(::time(nullptr));
+  // Read the clock on both sides of the write, in case UTC midnight falls in between.
+  const int before = ESPTime::from_epoch_utc(::time(nullptr)).day_of_week - 1;
   this->rtc_.write_time();
-  EXPECT_EQ(this->bus_.registers[WEEKDAYS_REG], now.day_of_week - 1);
+  const int after = ESPTime::from_epoch_utc(::time(nullptr)).day_of_week - 1;
+  const int stored = this->bus_.registers[WEEKDAYS_REG];
+  EXPECT_TRUE(stored == before || stored == after) << "stored " << stored << ", expected " << before;
 }
 
 // After a write the chip keeps counting on its own and goes from Saturday (6) back to Sunday (0) at midnight.
