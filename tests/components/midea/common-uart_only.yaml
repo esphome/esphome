@@ -1,0 +1,6 @@
+climate:
+  - platform: midea
+    id: midea_uart_only
+    name: Midea Climate UART Only
+    autoconf: true
+    display_control: UART

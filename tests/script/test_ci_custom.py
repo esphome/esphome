@@ -400,6 +400,9 @@ def test_ternary_error_message_names_the_literal() -> None:
         'static constexpr char TAG[] = {"x"};',
         'static const char TAG[8] = "x";',
         '  static const char *const TAG = "x";',
+        'constexpr static const char *const TAG = "x";',
+        'const char *const Constants::TAG = "x";',
+        'const char Constants::TAG[] = "x";',
     ],
 )
 def test_log_tag_macro_flags_plain_tags(line: str) -> None:
@@ -408,10 +411,36 @@ def test_log_tag_macro_flags_plain_tags(line: str) -> None:
 
 @pytest.mark.parametrize(
     "line",
-    ['ESPHOME_LOG_TAG(TAG, "x");', 'static const char *const NAME = "x";'],
+    [
+        'ESPHOME_LOG_TAG(TAG, "x");',
+        'static const char *const NAME = "x";',
+        'static const char *const TAG = "x";  // NOLINT',
+        'const char Constants::TAG[] PROGMEM = "x";',
+    ],
 )
 def test_log_tag_macro_ignores_macro_and_other_names(line: str) -> None:
     assert not ci_custom.lint_log_tag_macro("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    ("fname", "covered"),
+    [
+        ("esphome/components/x/x.cpp", True),
+        ("esphome/components/x/x.h", True),
+        ("esphome/components/x/sub/x.h", True),
+        ("esphome/core/wake/wake_host.cpp", True),
+        ("esphome/components/x/x.c", False),
+    ],
+)
+def test_log_tag_lints_cover_headers_and_core(fname: str, covered: bool) -> None:
+    for name, line in (
+        ("lint_log_tag_macro", 'static const char *const TAG = "x";\n'),
+        ("lint_log_tag_as_string", "strcmp(TAG, name);\n"),
+    ):
+        lint = next(
+            c for c in ci_custom.LINT_CONTENT_CHECKS if c["func"].__name__ == name
+        )
+        assert bool(ci_custom.run_check(lint, fname, fname, line)) is covered
 
 
 @pytest.mark.parametrize(
@@ -426,6 +455,8 @@ def test_log_tag_macro_ignores_macro_and_other_names(line: str) -> None:
         "std::string(TAG);",
         "std::string name = TAG;",
         "std::string name{TAG};",
+        "strlen(Constants::TAG);",
+        "this->set_timeout(Constants::TAG, 100, cb);",
     ],
 )
 def test_log_tag_as_string_flags_string_uses(line: str) -> None:
@@ -442,6 +473,28 @@ def test_log_tag_as_string_flags_string_uses(line: str) -> None:
 )
 def test_log_tag_as_string_ignores_logging(line: str) -> None:
     assert not ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    ("content", "flagged"),
+    [
+        ("auto s = format_hex_pretty(data, len);\n", True),
+        # Explicit template arguments must not hide the call
+        ("auto s = format_hex_pretty<uint32_t>(v, '\\0', false);\n", True),
+        ("auto s = format_hex<std::array<uint8_t, 4>>(arr);\n", True),
+        (
+            "auto s = format_hex<std::conditional_t<true, std::make_unsigned_t<int>, uint64_t>>(v);\n",
+            True,
+        ),
+        ("auto s = format_hex < 3;\n", False),
+        ("format_hex_pretty_to(buf, sizeof(buf), data, len);\n", False),
+    ],
+)
+def test_heap_allocating_helpers_detection(content: str, flagged: bool) -> None:
+    errs = ci_custom.lint_no_heap_allocating_helpers(
+        Path("esphome/components/x/x.cpp"), content
+    )
+    assert bool(errs) is flagged
 
 
 # --- rule: every component __init__.py defines DOMAIN as its own name ---

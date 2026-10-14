@@ -732,13 +732,13 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         return True  # Handled: PYOCD upload
 
     # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
-    from .ble_logger import is_mac_address
+    from .ble_logger import is_ble_address
     from .ota import smpmgr_scan, smpmgr_upload
 
     if host == "BLE":
         mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
 
-    if is_mac_address(host):
+    if is_ble_address(host):
         mcumgr_device = host
 
     if mcumgr_device:
@@ -753,7 +753,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     address = devices[0]
-    from .ble_logger import is_mac_address, logger_connect, logger_scan
+    from .ble_logger import is_ble_address, logger_connect, logger_scan
 
     if devices[0] == "BLE":
         ble_device = asyncio.run(logger_scan(CORE.name))
@@ -762,7 +762,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
         else:
             return True
 
-    if is_mac_address(address):
+    if is_ble_address(address):
         asyncio.run(logger_connect(address))
         return True
     return False
@@ -835,7 +835,7 @@ _PCH_CMAKE_LINES = [
     "set(esphome_kept_options)",
     "set(esphome_pch_headers)",
     "foreach(option IN LISTS esphome_options)",
-    '  if(option MATCHES "imacros> (.+)$")',
+    '  if(option MATCHES "imacros> ([^>]+)")',
     '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
     "    list(APPEND esphome_kept_options",
     '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
@@ -1040,11 +1040,13 @@ def run_compile(args, config: ConfigType) -> bool:
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     bootloader = zephyr_data()[KEY_BOOTLOADER]
 
-    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
+    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes.
+    # The bootloader resets on a package whose sd_req does not list its SoftDevice,
+    # so v7 accepts S140 7.0.1, 7.2.0 and 7.3.0 (e.g. Seeed XIAO nRF52840).
     _GENPKG_PARAMS = {
         BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA,0x0100,0x0123"),
     }
     # UF2 family IDs — nRF52832 vs nRF52840 per SoftDevice variant
     _UF2_FAMILY_IDS = {

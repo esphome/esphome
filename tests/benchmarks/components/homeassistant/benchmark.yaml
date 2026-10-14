@@ -1,0 +1,3 @@
+# The homeassistant platforms subscribe through the API server.
+api:
+sensor:

@@ -188,6 +188,25 @@ inline bool operator==(const __FlashStringHelper *lhs, const StringRef &rhs) { r
 inline bool operator!=(const StringRef &lhs, const __FlashStringHelper *rhs) { return !(lhs == rhs); }
 
 inline bool operator!=(const __FlashStringHelper *lhs, const StringRef &rhs) { return !(rhs == lhs); }
+
+/// Codegen use only: a flash string literal with its byte length, compared without a runtime strlen.
+struct ProgmemStringRef {
+  PGM_P str;
+  size_t len;
+};
+
+inline bool operator==(const std::string &lhs, ProgmemStringRef rhs) {
+  return lhs.size() == rhs.len && (rhs.len == 0 || memcmp_P(lhs.data(), rhs.str, rhs.len) == 0);
+}
+
+inline bool operator!=(const std::string &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
+
+inline bool operator==(const StringRef &lhs, ProgmemStringRef rhs) {
+  // A StringRef may be {nullptr, 0}, and memcmp_P with a null pointer is undefined even for 0 bytes
+  return lhs.size() == rhs.len && (rhs.len == 0 || memcmp_P(lhs.c_str(), rhs.str, rhs.len) == 0);
+}
+
+inline bool operator!=(const StringRef &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
 #endif  // USE_ESP8266
 
 inline bool operator<(const StringRef &lhs, const StringRef &rhs) {
@@ -272,6 +291,7 @@ inline double stod(const StringRef &str, size_t *pos = nullptr) {
 // NOLINTEND(readability-identifier-naming,google-runtime-int,readability-non-const-parameter)
 
 #ifdef USE_JSON
+// A StringRef may view a scratch buffer (mqtt topics do), so the document copies it
 // NOLINTNEXTLINE(readability-identifier-naming)
 inline void convertToJson(const StringRef &src, JsonVariant dst) {
   // Bounded by the view length; a null, empty view becomes "" rather than JSON null
@@ -283,6 +303,11 @@ inline void convertToJson(const StringRef &src, JsonVariant dst) {
   // constructor and asks for empty() instead
   dst.set(JsonString(src.c_str(), src.size(), /* isStatic= */ false));
 }
+
+namespace json {
+// For a StringRef that outlives the document, see json_util.h. A null, empty view links "" too
+inline JsonString linked(const StringRef &s) { return JsonString(s.empty() ? "" : s.c_str(), s.size(), true); }
+}  // namespace json
 #endif  // USE_JSON
 
 }  // namespace esphome

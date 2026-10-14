@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_POSITION_STATE_TOPIC,
     CONF_STATE,
     CONF_STOP,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GAS,
@@ -62,16 +61,17 @@ VALVE_OPERATIONS = {
 }
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
-# Actions
-ValvePublishAction = valve_ns.class_("ValvePublishAction", automation.Action)
-
-# Triggers
-ValveOpenTrigger = valve_ns.class_("ValveOpenTrigger", automation.Trigger.template())
-ValveClosedTrigger = valve_ns.class_(
-    "ValveClosedTrigger", automation.Trigger.template()
-)
-
 CONF_ON_CLOSED = "on_closed"
+
+# The state callback carries nothing; each automation fires only in its end state.
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_OPEN, "add_on_state_callback", when="{parent}->is_fully_open()"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CLOSED, "add_on_state_callback", when="{parent}->is_fully_closed()"
+    ),
+)
 
 _VALVE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -89,16 +89,8 @@ _VALVE_SCHEMA = (
             cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
-            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveOpenTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveClosedTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_OPEN): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CLOSED): automation.validate_automation({}),
         }
     )
 )
@@ -134,12 +126,7 @@ def valve_schema(
 async def _setup_valve_core(var, config):
     setup_device_class(config)
 
-    for conf in config.get(CONF_ON_OPEN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_CLOSED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     if mqtt_id_config := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id_config, var)

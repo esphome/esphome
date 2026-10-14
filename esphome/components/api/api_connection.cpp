@@ -644,16 +644,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
-  FixedVector<const char *> effects_list;
-  if (light->supports_effects()) {
-    auto &light_effects = light->get_effects();
-    effects_list.init(light_effects.size() + 1);
-    effects_list.push_back("None");
-    for (auto *effect : light_effects) {
-      // c_str() is safe as effect names are null-terminated strings from codegen
-      effects_list.push_back(effect->get_name().c_str());
-    }
-  }
+  light::LightEffectNames effects_list(light->get_effects());
   msg.effects = &effects_list;
   return fill_and_encode_entity_info(light, msg, conn, remaining_size);
 }
