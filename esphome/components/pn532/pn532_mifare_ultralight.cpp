@@ -39,7 +39,8 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(nfc::NfcTagUid &
   const uint32_t capacity = data[2] * 8U;
   const uint32_t total_length = message_length + message_start_index;
   if (total_length > capacity) {
-    ESP_LOGW(TAG, "NDEF message length %" PRIu32 " exceeds tag capacity %" PRIu32, message_length, capacity);
+    ESP_LOGW(TAG, "NDEF message of %" PRIu32 " bytes at offset %u exceeds tag capacity %" PRIu32, message_length,
+             message_start_index, capacity);
     return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
   }
   if (message_length > MIFARE_ULTRALIGHT_MAX_NDEF_SIZE) {
