@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -286,6 +287,14 @@ class MQTTClientComponent final : public Component {
   bool subscribe_(const char *topic, uint8_t qos);
   void resubscribe_subscription_(MQTTSubscription *sub);
   void resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  void persist_subscription_(uint32_t hash);
+  void remove_persisted_subscription_(uint32_t hash);
+  void prune_persisted_subscriptions_();
+#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
+  void save_persisted_subscriptions_();
+#endif
+#endif
 
   MQTTCredentials credentials_;
   /// The last will message. Disabled optional denotes it being default and
@@ -336,6 +345,14 @@ class MQTTClientComponent final : public Component {
 
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};
+  bool session_present_{false};
+  bool on_connect_received_{false};
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  bool persisted_subscriptions_dirty_{false};
+#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
+  ESPPreferenceObject persisted_subscriptions_pref_;
+#endif
+#endif
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
