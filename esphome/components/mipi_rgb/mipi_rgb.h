@@ -2,6 +2,7 @@
 
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "esphome/core/gpio.h"
+#include "esphome/core/log.h"
 #include "esphome/components/display/display.h"
 #include <esp_lcd_panel_rgb.h>
 #ifdef USE_SPI
@@ -10,7 +11,7 @@
 
 namespace esphome::mipi_rgb {
 
-constexpr static const char *const TAG = "display.mipi_rgb";
+ESPHOME_LOG_TAG(TAG, "display.mipi_rgb");
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;
@@ -109,7 +110,10 @@ class MipiRgbSpi final : public MipiRgb,
  public:
   MipiRgbSpi(int width, int height) : MipiRgb(width, height) {}
 
-  void set_init_sequence(const std::vector<uint8_t> &init_sequence) { this->init_sequence_ = init_sequence; }
+  void set_init_sequence(const uint8_t *init_sequence, size_t len) {
+    this->init_sequence_ = init_sequence;
+    this->init_sequence_len_ = len;
+  }
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void setup() override;
 
@@ -120,7 +124,9 @@ class MipiRgbSpi final : public MipiRgb,
   void dump_config() override;
 
   GPIOPin *dc_pin_{nullptr};
-  std::vector<uint8_t> init_sequence_;
+  // Shared PROGMEM table
+  const uint8_t *init_sequence_{nullptr};
+  size_t init_sequence_len_{0};
 };
 #endif
 

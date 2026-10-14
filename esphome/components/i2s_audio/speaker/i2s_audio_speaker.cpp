@@ -18,7 +18,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.speaker";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.speaker");
 
 // Software volume control maps the user-facing (0.0, 1.0) range linearly to a dB reduction in
 // [-49.0, 0.0] dB; 0.0 is silence.
@@ -40,6 +40,16 @@ void I2SAudioSpeakerBase::setup() {
   // When no audio_dac is configured, this initializes software volume control.
   this->set_volume(this->volume_);
   this->set_mute_state(this->mute_state_);
+
+  // Until the I2S driver first starts, dout sits in its reset state (often pulled high, or a JTAG
+  // function on the ESP32-S3), which keeps a SPDIF optical transmitter lit. Park it low now.
+  this->park_dout_pin_();
+}
+
+void I2SAudioSpeakerBase::park_dout_pin_() {
+  gpio_reset_pin(this->dout_pin_);
+  gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
+  gpio_set_level(this->dout_pin_, 0);
 }
 
 void I2SAudioSpeakerBase::dump_config() {
@@ -130,7 +140,7 @@ void I2SAudioSpeakerBase::loop() {
 
       if (this->start_i2s_driver(this->audio_stream_info_) != ESP_OK) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
-        this->status_momentary_error("driver-failure", 1000);
+        this->status_momentary_error(1000);
         break;
       }
 
@@ -143,7 +153,7 @@ void I2SAudioSpeakerBase::loop() {
 
       if (this->speaker_task_handle_ == nullptr) {
         ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
-        this->status_momentary_error("task-failure", 1000);
+        this->status_momentary_error(1000);
         this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
       }
       break;
@@ -303,9 +313,7 @@ void I2SAudioSpeakerBase::stop_i2s_driver_() {
     // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
     // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
     // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
-    gpio_reset_pin(this->dout_pin_);
-    gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
-    gpio_set_level(this->dout_pin_, 0);
+    this->park_dout_pin_();
   }
   this->parent_->unlock();
 }

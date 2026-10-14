@@ -14,6 +14,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         await real_to_code(config)
         cg.add_define("USE_NETWORK_IPV6", True)
         # The gtests link against the filtered helper files.
-        socket_component.require_tcp_client_link()
+        socket_component.require_tcp_listener()
+        cg.add_define("USE_SOCKET_IPV4_ALLOW")
 
     manifest.to_code = to_code_testing

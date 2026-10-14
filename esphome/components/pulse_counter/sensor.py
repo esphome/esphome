@@ -140,9 +140,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
 
-    if CONF_TOTAL in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL])
-        cg.add(var.set_total_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TOTAL, var.set_total_sensor)
 
 
 automation.register_apply_action(

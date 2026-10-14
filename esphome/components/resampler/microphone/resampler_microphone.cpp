@@ -9,7 +9,7 @@
 
 namespace esphome::resampler {
 
-static const char *const TAG = "resampler.microphone";
+ESPHOME_LOG_TAG(TAG, "resampler.microphone");
 
 // Duration of audio the resampler converts per step; longer source chunks are processed in several steps
 static constexpr uint32_t BUFFER_DURATION_MS = 16;

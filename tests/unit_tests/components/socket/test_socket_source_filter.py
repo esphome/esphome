@@ -13,6 +13,7 @@ def test_helper_files_filtered_until_required() -> None:
         filtered = socket.FILTER_SOURCE_FILES()
         assert "ipv4_resolve.cpp" in filtered
         assert "tcp_client_link.cpp" in filtered
+        assert "tcp_listener.cpp" in filtered
 
         mock_core.defines = {Define("USE_SOCKET_IPV4_RESOLVE")}
         filtered = socket.FILTER_SOURCE_FILES()
@@ -22,10 +23,12 @@ def test_helper_files_filtered_until_required() -> None:
         mock_core.defines = {
             Define("USE_SOCKET_IPV4_RESOLVE"),
             Define("USE_SOCKET_TCP_CLIENT_LINK"),
+            Define("USE_SOCKET_TCP_LISTENER"),
         }
         filtered = socket.FILTER_SOURCE_FILES()
         assert "ipv4_resolve.cpp" not in filtered
         assert "tcp_client_link.cpp" not in filtered
+        assert "tcp_listener.cpp" not in filtered
 
 
 def test_require_tcp_client_link_pulls_in_the_resolver() -> None:
@@ -35,4 +38,14 @@ def test_require_tcp_client_link_pulls_in_the_resolver() -> None:
     assert {call.args[0] for call in add_define.call_args_list} == {
         "USE_SOCKET_IPV4_RESOLVE",
         "USE_SOCKET_TCP_CLIENT_LINK",
+    }
+
+
+def test_require_tcp_listener_pulls_in_the_link() -> None:
+    with patch.object(socket.cg, "add_define") as add_define:
+        socket.require_tcp_listener()
+    assert {call.args[0] for call in add_define.call_args_list} == {
+        "USE_SOCKET_IPV4_RESOLVE",
+        "USE_SOCKET_TCP_CLIENT_LINK",
+        "USE_SOCKET_TCP_LISTENER",
     }

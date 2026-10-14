@@ -9,11 +9,11 @@
 #error This HostUartComponent implementation is not supported on this host OS
 #endif
 
-#include <stdio.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 
@@ -98,7 +98,7 @@ speed_t get_baud(int baud) {
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 HostUartComponent::~HostUartComponent() {
   if (this->file_descriptor_ != -1) {
@@ -158,6 +158,8 @@ void HostUartComponent::setup() {
       options.c_cflag |= PARENB;
       options.c_cflag |= PARODD;
       break;
+    default:
+      break;
   };
   // Set stop bits
   if (this->stop_bits_ == 2) {
@@ -208,7 +210,6 @@ void HostUartComponent::write_array(const uint8_t *data, size_t len) {
     this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
 #endif
-  return;
 }
 
 bool HostUartComponent::peek_byte(uint8_t *data) {

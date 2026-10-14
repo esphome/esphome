@@ -8,7 +8,7 @@
 
 namespace esphome::dfrobot_sen0395 {
 
-static const char *const TAG = "dfrobot_sen0395.commands";
+ESPHOME_LOG_TAG(TAG, "dfrobot_sen0395.commands");
 
 uint8_t Command::execute(DfrobotSen0395Component *parent) {
   this->parent_ = parent;

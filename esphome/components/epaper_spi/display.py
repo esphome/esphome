@@ -40,7 +40,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.cpp_generator import RawExpression
-from esphome.final_validate import full_config
 
 from . import models
 
@@ -60,6 +59,12 @@ automation.register_apply_action(
     "epaper_spi.full_update_next",
     automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(EPaperBase)}),
     automation.ApplyCall("request_full_update()"),
+)
+
+automation.register_apply_condition(
+    "epaper_spi.is_updating",
+    automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(EPaperBase)}),
+    "is_updating()",
 )
 
 # Import all models dynamically from the models package
@@ -192,15 +197,11 @@ def _final_validate(config) -> None:
         "epaper_spi", require_miso=False, require_mosi=True
     )(config)
 
-    global_config = full_config.get()
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
-
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
-        if LVGL_DOMAIN in global_config:
+        if display.has_external_writer(config[CONF_ID]):
             if CONF_UPDATE_INTERVAL not in config:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
-            # If no drawing methods are configured, and LVGL is not enabled, show a test card
             config[CONF_SHOW_TEST_CARD] = True
     elif CONF_UPDATE_INTERVAL not in config:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")

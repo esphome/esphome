@@ -5,7 +5,7 @@
 
 namespace esphome::veml7700 {
 
-static const char *const TAG = "veml7700";
+ESPHOME_LOG_TAG(TAG, "veml7700");
 static const size_t VEML_REG_SIZE = 2;
 
 static float reduce_to_zero(float a, float b) { return (a > b) ? (a - b) : 0; }

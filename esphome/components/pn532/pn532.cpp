@@ -14,7 +14,7 @@
 
 namespace esphome::pn532 {
 
-static const char *const TAG = "pn532";
+ESPHOME_LOG_TAG(TAG, "pn532");
 
 void PN532::setup() {
   // Get version data
