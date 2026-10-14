@@ -1,0 +1,31 @@
+# Time-only RX8111 fixture: no binary or text entities.
+esphome:
+  name: rx8111-time-only
+  on_boot:
+    then:
+      - rx8111.read_time: {id: rtc}
+      - rx8111.clear_alarm_flag: {id: rtc}
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+i2c:
+  sda: GPIO23
+  scl: GPIO22
+time:
+  - platform: rx8111
+    id: rtc
+    battery_backup: true
+    battery_charging: false
+    alarm_enabled: true
+    alarm_second: 0
+    timer_count: 100
+    timer_clock: 64hz
+    event_level: high
+    timestamp_enabled: true
+    on_alarm:
+      - rx8111.clear_alarm_flag: {id: rtc}
+    on_timer:
+      - rx8111.clear_timer_flag: {id: rtc}
+    on_event:
+      - rx8111.clear_event_flag: {id: rtc}

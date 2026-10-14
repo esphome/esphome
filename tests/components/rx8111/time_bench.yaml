@@ -1,0 +1,92 @@
+# PR 1 ONLY: destructive, time-only RX8111 bench for a classic ESP32 Feather.
+# USB power required; no battery charging. Restore normal firmware and RTC time.
+# Disconnect every other EVIN driver before wiring the test GPIO.
+substitutions:
+  sda_pin: GPIO23
+  scl_pin: GPIO22
+  int_pin: GPIO4
+  evin_pin: GPIO18
+  fout_pin: GPIO19
+
+esphome:
+  name: rx8111-time-bench
+  build_path: /tmp/rx8111-pr1-time-bench
+  includes:
+    - time_bench.h
+  on_boot:
+    priority: -100
+    then:
+      - delay: 3s
+      - lambda: |-
+          rx8111_time_bench::runner.begin(id(rtc));
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+  hardware_uart: UART0
+
+i2c:
+  sda: ${sda_pin}
+  scl: ${scl_pin}
+  scan: true
+  frequency: 100kHz
+
+time:
+  - platform: rx8111
+    id: rtc
+    timezone: UTC
+    update_interval: never
+    battery_backup: true
+    battery_charging: false
+    fout_frequency: "off"
+    alarm_enabled: true
+    alarm_second: 0
+    timer_enabled: false
+    event_enabled: false
+    timestamp_enabled: true
+    timestamp_record_mode: latest
+    event_level: high
+    evin_filter: 2
+    evin_pull: pulldown_500k
+    on_alarm:
+      - lambda: rx8111_time_bench::runner.alarm_callbacks++;
+    on_timer:
+      - lambda: rx8111_time_bench::runner.timer_callbacks++;
+    on_event:
+      - lambda: rx8111_time_bench::runner.event_callbacks++;
+
+binary_sensor:
+  - platform: gpio
+    id: rtc_int
+    internal: true
+    pin:
+      number: ${int_pin}
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+
+switch:
+  - platform: gpio
+    id: evin_driver
+    internal: true
+    pin: ${evin_pin}
+    restore_mode: ALWAYS_OFF
+
+sensor:
+  - platform: pulse_counter
+    id: fout_counter
+    internal: true
+    pin: ${fout_pin}
+    use_pcnt: true
+    internal_filter: 1us
+    update_interval: never
+
+interval:
+  - interval: 100ms
+    then:
+      - lambda: rx8111_time_bench::runner.tick();
