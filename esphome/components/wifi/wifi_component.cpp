@@ -971,7 +971,11 @@ void WiFiComponent::loop() {
 
     if (this->reboot_timeout_ != 0 && now - this->last_connected_ > this->reboot_timeout_) {
       bool suppress = false;
-#ifdef USE_WIFI_AP
+#if defined(USE_WIFI_AP) && (defined(USE_RTL87XX) || defined(USE_LN882X))
+      // The Realtek driver reports no stations and the Lightning one is unverified, so a running fallback AP
+      // holds the reboot there as it always did
+      suppress = this->ap_setup_;
+#elif defined(USE_WIFI_AP)
       // A station on the fallback AP is using the device
       suppress = this->ap_setup_ && this->ap_clients_ != 0;
 #endif
