@@ -672,7 +672,7 @@ void WiFiComponent::setup() {
           return;
         }
 #endif
-        this->wifi_mode_({}, false);
+        this->disable_ap_();
       }
     });
   }
