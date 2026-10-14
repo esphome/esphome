@@ -5,7 +5,7 @@
 
 namespace esphome::modbus::helpers {
 
-static const char *const TAG = "modbus_helpers";
+ESPHOME_LOG_TAG(TAG, "modbus_helpers");
 
 // A quantity/address pair is standard when the quantity is non-zero, within the per-table maximum,
 // and the range [start_address, start_address + quantity) stays inside the 16-bit address space.

@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["sensor"]
+DOMAIN = "mcp3008"
 MULTI_CONF = True
 
 CONF_MCP3008 = "mcp3008"

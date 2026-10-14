@@ -3,7 +3,7 @@
 
 namespace esphome::gt911 {
 
-static const char *const TAG = "GT911.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "GT911.binary_sensor");
 
 void GT911Button::setup() {
   this->parent_->register_button_listener(this);
