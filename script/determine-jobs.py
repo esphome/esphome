@@ -859,7 +859,13 @@ def python_import_benchmarked_components() -> frozenset[str] | None:
         text=True,
         check=False,
     )
-    return frozenset(result.stdout.split()) if result.returncode == 0 else None
+    if result.returncode != 0:
+        print(
+            f"Benchmark import probe failed, running benchmarks:\n{result.stderr}",
+            file=sys.stderr,
+        )
+        return None
+    return frozenset(result.stdout.split())
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:

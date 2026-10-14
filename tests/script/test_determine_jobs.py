@@ -4,6 +4,7 @@ from collections.abc import Generator
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 from unittest.mock import Mock, patch
 
@@ -2829,6 +2830,20 @@ def test_should_run_benchmarks_when_import_probe_fails() -> None:
         ),
     ):
         assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_python_import_benchmarked_components_logs_probe_failure(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed probe returns None and prints why on stderr, never stdout."""
+    failed = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout="", stderr="ModuleNotFoundError: boom"
+    )
+    with patch.object(determine_jobs.subprocess, "run", return_value=failed):
+        assert determine_jobs.python_import_benchmarked_components() is None
+    captured = capsys.readouterr()
+    assert "ModuleNotFoundError: boom" in captured.err
+    assert captured.out == ""
 
 
 def test_python_import_benchmarked_components_missing_file(tmp_path: Path) -> None:
