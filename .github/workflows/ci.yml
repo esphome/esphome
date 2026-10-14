@@ -477,7 +477,7 @@ jobs:
         # Tests that compare rendered output write the image they actually got here, so a
         # failure can be looked at without reproducing the whole build locally.
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integration-test-artifacts-${{ matrix.bucket.name }}
           path: test_artifacts/
@@ -488,7 +488,7 @@ jobs:
         # script/update_integration_test_durations.py; only full matrix dev
         # runs produce usable data.
         if: github.ref == 'refs/heads/dev' && needs.determine-jobs.outputs.integration-run-all == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: junit-integration-${{ strategy.job-index }}
           path: junit-integration.xml
@@ -528,7 +528,7 @@ jobs:
           script/check_import_time.py --check --har importtime.har
       - name: Upload waterfall HAR
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: import-time-waterfall
           path: importtime.har
@@ -1647,7 +1647,7 @@ jobs:
           fi
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: memory-analysis-target
           path: memory-analysis-target.json
@@ -1710,7 +1710,7 @@ jobs:
             --platform "$platform"
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: memory-analysis-pr
           path: memory-analysis-pr.json
