@@ -16,7 +16,6 @@
 #endif
 #include "esphome/core/string_ref.h"
 
-#include <array>
 #include <atomic>
 #include <limits>
 #include <span>
@@ -478,13 +477,10 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
-#ifdef USE_WIFI_NAT
-  void add_dns_server(uint32_t dns) {
-    if (this->dns_server_count_ < this->dns_servers_.size()) {
-      this->dns_servers_[this->dns_server_count_++] = dns;
-    }
-  }
-#endif  // USE_WIFI_NAT
+#ifdef USE_WIFI_AP_WISP
+  /// The resolvers offered to AP clients; without them the station's are passed on
+  void set_ap_dns_servers(const network::IPAddress &main, const network::IPAddress &backup = network::IPAddress());
+#endif  // USE_WIFI_AP_WISP
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -729,9 +725,9 @@ class WiFiComponent final : public Component {
 #endif
 #endif  // USE_WIFI_AP
 
-#ifdef USE_WIFI_NAT
-  /// Copy the STA's DNS servers to the AP DHCP server unless dns_servers is configured
-  void forward_sta_dns_to_ap_();
+#ifdef USE_WIFI_AP_WISP
+  /// Give the AP DHCP server its resolvers: the configured ones, otherwise the station's current ones
+  void apply_ap_dns_();
 #endif
 
   void print_connect_params_();
@@ -995,10 +991,10 @@ class WiFiComponent final : public Component {
   // WiFiAP is byte aligned unless manual IP or EAP is enabled; placed before the
   // 1-byte members so they pack into its trailing bytes instead of padding after it
   WiFiAP ap_;
-#ifdef USE_WIFI_NAT
-  // IPv4 addresses as stored by lwIP
-  std::array<uint32_t, 2> dns_servers_{};
-#endif  // USE_WIFI_NAT
+#ifdef USE_WIFI_AP_WISP
+  uint32_t ap_dns_[2]{};  // IPv4 as lwIP stores it, 0 for none; configured or last passed on
+  uint32_t ap_start_attempt_{0};
+#endif  // USE_WIFI_AP_WISP
 #endif  // USE_WIFI_AP
 
   // 1-byte enums and integers
@@ -1025,9 +1021,9 @@ class WiFiComponent final : public Component {
   // so no happens-before relationship with other memory needs to be established.
   std::atomic<uint8_t> roaming_suppression_count_{0};
 #endif
-#ifdef USE_WIFI_NAT
-  uint8_t dns_server_count_{0};
-#endif  // USE_WIFI_NAT
+#ifdef USE_WIFI_AP_WISP
+  bool ap_dns_configured_{false};
+#endif  // USE_WIFI_AP_WISP
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */

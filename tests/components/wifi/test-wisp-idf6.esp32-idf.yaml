@@ -1,21 +1,16 @@
-esphome:
-  name: wifi-wisp-idf6-test
-
+# A second DNS server needs ESP-IDF 6.0
 esp32:
-  board: esp32dev
   framework:
-    type: esp-idf
     version: 6.0.1
 
 wifi:
-  ssid: MySSID
-  password: password1
   ap:
-    ssid: "WISP_AP"
-    password: "wisp12345678"
+    ssid: WISP AP
+    password: wisp12345678
     ap_mode: wisp
     dns_servers:
       - 8.8.8.8
       - 8.8.4.4
 
-logger:
+packages:
+  wifi: !include common.yaml

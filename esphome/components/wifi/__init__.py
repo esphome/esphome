@@ -10,7 +10,6 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
     get_esp32_variant,
-    idf_version,
     only_on_variant,
     request_wifi,
     require_mbedtls_tls,
@@ -214,7 +213,28 @@ WIFI_8266_PHY_MODES = {
     "11N": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11N,
 }
 
-WIFI_AP_MODES = ("FALLBACK", "WISP")
+WIFI_AP_MODE_FALLBACK = "FALLBACK"
+WIFI_AP_MODE_WISP = "WISP"
+
+
+def _validate_ap_mode(value: str) -> str:
+    value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
+    if value == WIFI_AP_MODE_WISP:
+        # esp_netif_napt_enable() exists from ESP-IDF 5.1
+        cv.require_framework_version(
+            esp_idf=cv.Version(5, 1, 0), extra_message="WISP mode routes through NAT"
+        )(value)
+    return value
+
+
+def _validate_dns_servers(value: list) -> list:
+    if len(value) > 1:
+        cv.require_framework_version(
+            esp_idf=cv.Version(6, 0, 0),
+            extra_message="The access point offers a second DNS server from ESP-IDF 6.0",
+        )(value)
+    return value
+
 
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
@@ -311,11 +331,11 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
         cv.Optional(
             CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_AP_MODE, default="FALLBACK"): cv.one_of(
-            *WIFI_AP_MODES, upper=True
-        ),
+        cv.Optional(CONF_AP_MODE, default=WIFI_AP_MODE_FALLBACK): _validate_ap_mode,
         cv.Optional(CONF_DNS_SERVERS): cv.All(
-            cv.ensure_list(cv.ipv4address), cv.Length(min=1, max=2)
+            cv.ensure_list(cv.ipv4address),
+            cv.Length(min=1, max=2),
+            _validate_dns_servers,
         ),
     }
 )
@@ -325,6 +345,19 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
+    if config[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
+        if not config.get(CONF_PASSWORD):
+            raise cv.Invalid(
+                "WISP mode requires a password for the access point",
+                path=[CONF_PASSWORD],
+            )
+        if config[CONF_AP_TIMEOUT] != cv.time_period(DEFAULT_AP_TIMEOUT):
+            raise cv.Invalid(
+                "ap_timeout has no effect in WISP mode, the access point is always up",
+                path=[CONF_AP_TIMEOUT],
+            )
+    elif CONF_DNS_SERVERS in config:
+        raise cv.Invalid("dns_servers requires ap_mode: WISP", path=[CONF_DNS_SERVERS])
     if CONF_MANUAL_IP in config and CORE.is_rp2:
         raise cv.Invalid(
             "Manual AP IP configuration is not supported on RP2040. "
@@ -384,47 +417,20 @@ def final_validate(config):
             "Please specify at least an SSID or an Access Point to create."
         )
 
-    # Check if AP is configured in WISP mode (acts as a wireless bridge/repeater)
-    ap_is_wisp_mode = False
-    if has_ap:
-        ap_config = config.get(CONF_AP)
-        if ap_config:
-            # AP in WISP mode is not for configuration, it's a wireless bridge
-            ap_is_wisp_mode = ap_config.get(CONF_AP_MODE) == "WISP"
-            if ap_is_wisp_mode and not has_sta:
-                raise cv.Invalid(
-                    "WISP mode requires at least one STA network (wifi.ssid or wifi.networks)"
-                )
-            if ap_is_wisp_mode and not ap_config.get(CONF_PASSWORD):
-                raise cv.Invalid(
-                    "WISP mode requires a password for the access point (wifi.ap.password)"
-                )
-            # WISP mode requires ESP-IDF framework for NAT support
-            if ap_is_wisp_mode and not (CORE.is_esp32 and not CORE.using_arduino):
-                raise cv.Invalid(
-                    "WISP mode (wireless bridge with NAT) is only supported with ESP-IDF framework"
-                )
-            # esp_netif_napt_enable() does not exist before ESP-IDF 5.1
-            if ap_is_wisp_mode and idf_version() < cv.Version(5, 1, 0):
-                raise cv.Invalid("WISP mode requires ESP-IDF 5.1.0 or newer")
-            if CONF_DNS_SERVERS in ap_config and not ap_is_wisp_mode:
-                raise cv.Invalid("wifi.ap.dns_servers requires ap_mode: WISP")
-            # The AP DHCP server only supports a backup DNS server from ESP-IDF 6.0
-            if len(
-                ap_config.get(CONF_DNS_SERVERS, [])
-            ) > 1 and idf_version() < cv.Version(6, 0, 0):
-                raise cv.Invalid(
-                    "wifi.ap.dns_servers accepts a second server only with ESP-IDF 6.0.0 or newer"
-                )
-            if ap_is_wisp_mode and has_captive_portal:
-                raise cv.Invalid(
-                    "captive_portal is not supported together with ap_mode: WISP"
-                )
-            if ap_is_wisp_mode:
-                # All client traffic passes through the device, so use larger buffers
-                require_high_performance_networking()
+    ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
+    if ap_is_wisp:
+        if not has_sta:
+            raise cv.Invalid(
+                "WISP mode requires at least one STA network (wifi.ssid or wifi.networks)"
+            )
+        if has_captive_portal:
+            raise cv.Invalid(
+                "captive_portal is not supported together with ap_mode: WISP"
+            )
+        # All client traffic passes through the device
+        require_high_performance_networking()
 
-    if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp_mode:
+    if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
             "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
             "The AP will not be usable for configuration or monitoring. "
@@ -764,26 +770,12 @@ async def to_code(config):
         # Skip the setter when the config matches the C++ initializer.
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
             cg.add(var.set_ap_timeout(ap_timeout))
-        # Configure NAT routing if WISP mode is enabled
-        if conf[CONF_AP_MODE] == "WISP":
-            cg.add_define("USE_WIFI_NAT")
-            # Enable NAT in ESP-IDF sdkconfig
+        if conf[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
+            cg.add_define("USE_WIFI_AP_WISP")
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
-            # Every packet is received and sent again, so keeping the radio and
-            # lwIP fast paths in IRAM raises throughput
-            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_IRAM_OPT", True)
-            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_IRAM_OPT", True)
-            add_idf_sdkconfig_option("CONFIG_LWIP_IRAM_OPTIMIZATION", True)
-
-            # Configure upstream DNS servers for DHCP to advertise to clients
-            if CONF_DNS_SERVERS in conf:
-                for dns_server in conf[CONF_DNS_SERVERS]:
-                    # lwIP keeps IPv4 addresses with the first octet in the lowest byte
-                    cg.add(
-                        var.add_dns_server(int.from_bytes(dns_server.packed, "little"))
-                    )
-
+            if dns_servers := conf.get(CONF_DNS_SERVERS):
+                cg.add(var.set_ap_dns_servers(*(safe_ip(ip) for ip in dns_servers)))
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP
         # takes turns with the networks instead.

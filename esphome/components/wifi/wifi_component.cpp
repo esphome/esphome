@@ -390,6 +390,12 @@ static constexpr bool WIFI_AP_EXCLUSIVE = true;
 #else
 static constexpr bool WIFI_AP_EXCLUSIVE = false;
 #endif
+/// Whether the AP is a bridge that stays up for its clients rather than a provisioning surface.
+#ifdef USE_WIFI_AP_WISP
+static constexpr bool WIFI_AP_PERMANENT = true;
+#else
+static constexpr bool WIFI_AP_PERMANENT = false;
+#endif
 #endif
 #ifdef USE_WIFI_AP_EXCLUSIVE
 /// On a radio that cannot run the AP and STA together: how long the fallback
@@ -662,9 +668,7 @@ void WiFiComponent::setup() {
   if (provisioning::global_provisioning_manager != nullptr) {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
       this->end_ap_portal_();  // no-op when nothing is active, so not tied to ap_setup_
-#ifndef USE_WIFI_NAT
-      // WISP keeps the AP up: it is a bridge, not a provisioning surface
-      if (this->ap_setup_) {
+      if (!WIFI_AP_PERMANENT && this->ap_setup_) {
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
 #ifdef USE_WIFI_AP_EXCLUSIVE
         // The networks wait while the AP runs on its own; hand them the radio
@@ -676,7 +680,6 @@ void WiFiComponent::setup() {
 #endif
         this->wifi_mode_({}, false);
       }
-#endif
     });
   }
 #endif
@@ -736,15 +739,6 @@ void WiFiComponent::start() {
     if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
-
-#ifdef USE_WIFI_AP
-#ifdef USE_WIFI_NAT
-    // WISP starts the AP immediately, before the STA connects
-    if (this->has_ap()) {
-      this->setup_ap_config_();
-    }
-#endif
-#endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
     // Synchronize power_save_ with semaphore state before applying
@@ -943,22 +937,32 @@ void WiFiComponent::loop() {
     provisioning_closed =
         provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #endif
-    if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
-      if (this->ap_timeout_ != 0 &&
-          (now - this->last_connected_ > this->ap_timeout_)
+    if (this->has_ap() && !this->ap_setup_ && (WIFI_AP_PERMANENT || !provisioning_closed)) {
+#ifdef USE_WIFI_AP_WISP
+      // The bridge comes up at once, and a start that failed is tried again every ap_timeout
+      const bool due = this->ap_start_attempt_ == 0 || now - this->ap_start_attempt_ > this->ap_timeout_;
+#else
+      const bool due = this->ap_timeout_ != 0 &&
+                       (now - this->last_connected_ > this->ap_timeout_)
 #ifdef USE_WIFI_AP_EXCLUSIVE
-          // After a pause, or a start that failed, the networks get a full
-          // ap_timeout before the AP is tried again.
-          && now - this->ap_exclusive_changed_ > this->ap_timeout_
+                       // After a pause, or a start that failed, the networks get a full
+                       // ap_timeout before the AP is tried again.
+                       && now - this->ap_exclusive_changed_ > this->ap_timeout_
 #endif
-      ) {
-        ESP_LOGI(TAG, "Starting fallback AP");
+          ;
+#endif
+      if (due) {
+        ESP_LOGI(TAG, "Starting %s", WIFI_AP_PERMANENT ? LOG_STR_LITERAL("AP") : LOG_STR_LITERAL("fallback AP"));
+#ifdef USE_WIFI_AP_WISP
+        this->ap_start_attempt_ = now;
+#endif
 #ifdef USE_WIFI_AP_EXCLUSIVE
         this->ap_exclusive_changed_ = now;
 #endif
         this->setup_ap_config_();
-        // Where the AP runs on its own, a portal with no AP behind it would only stretch the cooldowns.
-        if (!WIFI_AP_EXCLUSIVE || this->ap_setup_) {
+        // A bridge takes no portal; where the AP runs on its own, a portal with no AP behind it would
+        // only stretch the cooldowns.
+        if (!WIFI_AP_PERMANENT && (!WIFI_AP_EXCLUSIVE || this->ap_setup_)) {
 #ifdef USE_CAPTIVE_PORTAL
           // Reset so we force one full scan after captive portal starts
           // (previous scans were filtered because captive portal wasn't active yet)
@@ -1131,6 +1135,8 @@ void WiFiComponent::pause_exclusive_ap_() {
 
 void WiFiComponent::disable_ap_() {
   this->end_ap_portal_();
+  if (WIFI_AP_PERMANENT)
+    return;
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
 }
@@ -1756,12 +1762,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->num_retried_ = 0;
 #ifdef USE_WIFI_AP
     if (this->has_ap()) {
-#ifdef USE_WIFI_NAT
-      // The WISP AP stays up as a bridge; only the setup portals are torn down
-      this->end_ap_portal_();
-#else
       this->disable_ap_();
-#endif
     }
 #endif
 #ifdef USE_IMPROV_BLE

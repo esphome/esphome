@@ -1,19 +1,10 @@
-esphome:
-  name: wifi-wisp-test
-
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-
 wifi:
-  ssid: MySSID
-  password: password1
   ap:
-    ssid: "WISP_AP"
-    password: "wisp12345678"
+    ssid: WISP AP
+    password: wisp12345678
     ap_mode: wisp
     dns_servers:
       - 8.8.8.8
 
-logger:
+packages:
+  wifi: !include common.yaml
