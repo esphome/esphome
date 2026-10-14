@@ -28,7 +28,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
                                                            const std::vector<Header> &request_headers,
                                                            const std::vector<std::string> &lower_case_collect_headers) {
   if (!network::is_connected()) {
-    this->status_momentary_error("failed", 1000);
+    this->status_momentary_error(1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
     return nullptr;
   }
@@ -85,7 +85,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
   if (!status) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s", url);
     container->end();
-    this->status_momentary_error("failed", 1000);
+    this->status_momentary_error(1000);
     return nullptr;
   }
 
@@ -143,13 +143,13 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url,
              HTTPClient::errorToString(container->status_code).c_str());
 
-    this->status_momentary_error("failed", 1000);
+    this->status_momentary_error(1000);
     container->end();
     return nullptr;
   }
   if (!is_success(container->status_code)) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url, container->status_code);
-    this->status_momentary_error("failed", 1000);
+    this->status_momentary_error(1000);
     // Still return the container, so it can be used to get the status code and error message
   }
 

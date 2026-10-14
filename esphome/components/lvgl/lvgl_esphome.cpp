@@ -6,6 +6,7 @@
 
 #include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
+#include "core/lv_obj_private.h"
 
 #include <numeric>
 
@@ -223,6 +224,36 @@ void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_ev
   add_event_cb(obj, callback, event1, user_data);
   add_event_cb(obj, callback, event2, user_data);
   add_event_cb(obj, callback, event3, user_data);
+}
+
+void LvglComponent::lv_obj_set_custom_flag(lv_obj_t *obj, lv_obj_flag_t flag, bool value) {
+  // LVGL 9.6 keeps these flags in spec_attr->user_flags, in the same bits as its deprecated lv_obj_add_flag()
+  uint8_t mask;
+  switch (flag) {
+    case LV_OBJ_FLAG_LAYOUT_2:
+      mask = 1 << 1;
+      break;
+    case LV_OBJ_FLAG_WIDGET_1:
+      mask = 1 << 2;
+      break;
+    case LV_OBJ_FLAG_WIDGET_2:
+      mask = 1 << 3;
+      break;
+    default:
+      return;
+  }
+  if (value) {
+    lv_obj_spec_attr_t *spec_attr = lv_obj_allocate_spec_attr(obj);
+    if (spec_attr == nullptr)
+      return;
+    spec_attr->user_flags |= mask;
+  } else if (obj->spec_attr != nullptr) {
+    obj->spec_attr->user_flags &= ~mask;
+  }
+  if (flag == LV_OBJ_FLAG_LAYOUT_2) {
+    lv_obj_mark_layout_as_dirty(lv_obj_get_parent(obj));
+    lv_obj_mark_layout_as_dirty(obj);
+  }
 }
 
 void LvglComponent::add_page(LvPageType *page) {
@@ -822,7 +853,7 @@ void LvglComponent::setup() {
   }
   this->draw_buf_ = static_cast<uint8_t *>(buffer);
   this->set_resolution_();
-  lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_DEFAULT);
   lv_display_set_flush_cb(this->disp_, static_flush_cb);
   lv_display_set_user_data(this->disp_, this);
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
@@ -994,7 +1025,7 @@ lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
-  lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_clickable(obj, false);
   LV_UNUSED(class_p);
 }
 

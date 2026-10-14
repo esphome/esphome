@@ -168,11 +168,9 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t checksum = 0;
   // Calculate & set the checksum for the current internal state of the remote.
   // Stored the checksum value in the last byte.
-  for (uint8_t checksum_byte = 0; checksum_byte < TCL112_STATE_LENGTH - 1; checksum_byte++)
-    checksum += remote_state[checksum_byte];
+  const uint8_t checksum = sum_bytes(remote_state, TCL112_STATE_LENGTH - 1);
   if (checksum != remote_state[TCL112_STATE_LENGTH - 1]) {
     ESP_LOGVV(TAG, "Checksum fail");
     return false;

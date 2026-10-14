@@ -15,7 +15,7 @@ from esphome.const import (
     SOURCE_FILE_EXTENSIONS,
     __version__,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, LINE_DIRECTIVE_RESET, EsphomeError, line_directive
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -516,6 +516,25 @@ const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
 """
 
 
+def _reset_line_directives(text: str, path: Path) -> str:
+    """Point the code after each lambda back at its own line of *path*.
+
+    A lambda's #line directive points the compiler at the YAML; without a reset
+    every later line of main.cpp would be reported against the YAML too.
+    """
+    if LINE_DIRECTIVE_RESET not in text:
+        return text
+    document = str(path.absolute())
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        if line.endswith(LINE_DIRECTIVE_RESET):
+            # The directive numbers the line after it: index + 2, counted from 1
+            lines[index] = line.replace(
+                LINE_DIRECTIVE_RESET, line_directive(document, index + 2)
+            )
+    return "\n".join(lines)
+
+
 def write_cpp(code_s):
     path = CORE.relative_src_path("main.cpp")
     if path.is_file():
@@ -542,7 +561,7 @@ def write_cpp(code_s):
         f"{code_format[1] + CPP_AUTO_GENERATE_BEGIN}\n{code_s}{CPP_AUTO_GENERATE_END}"
     )
     full_file += code_format[2]
-    write_file_if_changed(path, full_file)
+    write_file_if_changed(path, _reset_line_directives(full_file, path))
 
 
 def clean_cmake_cache():

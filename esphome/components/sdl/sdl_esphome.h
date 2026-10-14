@@ -13,7 +13,7 @@
 
 namespace esphome::sdl {
 
-constexpr static const char *const TAG = "sdl";
+ESPHOME_LOG_TAG(TAG, "sdl");
 
 class Sdl final : public display::Display, public snapshot::Snapshot {
  public:
@@ -42,7 +42,7 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
   template<typename F> void add_key_listener(int32_t keycode, F &&callback) {
-    if (!this->key_callbacks_.count(keycode)) {
+    if (!this->key_callbacks_.contains(keycode)) {
       this->key_callbacks_[keycode] = CallbackManager<void(bool)>();
     }
     this->key_callbacks_[keycode].add(std::forward<F>(callback));
@@ -66,7 +66,7 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   bool capture_bgr(uint8_t *dest, size_t row_stride) override;
   void handle_event_(const SDL_Event &event);
   /// The display owning the given window, or nullptr if it is not one of ours.
-  static Sdl *instance_for_window_(uint32_t window_id);
+  static Sdl *instance_for_window(uint32_t window_id);
   SDL_Renderer *renderer_{};
   SDL_Window *window_{};
   SDL_Texture *texture_{};

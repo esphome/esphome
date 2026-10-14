@@ -115,7 +115,7 @@ class PNGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_PNG")
-        cg.add_library("pngle", "1.1.0")
+        cg.add_library("kikuchan98/pngle", "1.1.0")
 
 
 class QOIFormat(Format):

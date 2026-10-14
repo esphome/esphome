@@ -46,7 +46,7 @@ void MQTTFanComponent::setup() {
       case PARSE_NONE:
       default:
         ESP_LOGW(TAG, "Unknown state payload %s", payload.c_str());
-        this->status_momentary_warning("state", 5000);
+        this->status_momentary_warning(5000);
         break;
     }
   });
@@ -71,7 +71,7 @@ void MQTTFanComponent::setup() {
           break;
         case PARSE_NONE:
           ESP_LOGW(TAG, "Unknown direction Payload %s", payload.c_str());
-          this->status_momentary_warning("direction", 5000);
+          this->status_momentary_warning(5000);
           break;
       }
     });
@@ -95,7 +95,7 @@ void MQTTFanComponent::setup() {
                           break;
                         case PARSE_NONE:
                           ESP_LOGW(TAG, "Unknown Oscillation Payload %s", payload.c_str());
-                          this->status_momentary_warning("oscillation", 5000);
+                          this->status_momentary_warning(5000);
                           break;
                       }
                     });
@@ -112,11 +112,11 @@ void MQTTFanComponent::setup() {
                           this->state_->make_call().set_speed(speed_level).perform();
                         } else {
                           ESP_LOGW(TAG, "Invalid speed level %d", speed_level);
-                          this->status_momentary_warning("speed", 5000);
+                          this->status_momentary_warning(5000);
                         }
                       } else {
                         ESP_LOGW(TAG, "Invalid speed level %s (int expected)", payload.c_str());
-                        this->status_momentary_warning("speed", 5000);
+                        this->status_momentary_warning(5000);
                       }
                     });
   }
