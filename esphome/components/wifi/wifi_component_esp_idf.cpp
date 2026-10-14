@@ -138,7 +138,10 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_URI_READY) {
     // uri_data_len counts the terminator; a longer URI is cut rather than overrun the buffer
     const auto *uri = static_cast<const wifi_event_dpp_uri_ready_t *>(event_data);
-    const size_t len = std::min<size_t>(uri->uri_data_len, sizeof(event.data.dpp_uri)) - 1;
+    size_t len = std::min<size_t>(uri->uri_data_len, sizeof(event.data.dpp_uri));
+    if (len > 0) {
+      len--;
+    }
     memcpy(event.data.dpp_uri, uri->uri, len);
     event.data.dpp_uri[len] = '\0';
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_CFG_RECVD) {
