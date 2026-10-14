@@ -64,7 +64,9 @@ TEST(MQTTTopicMatch, DollarTopicsSkipFirstLevelWildcards) {
 TEST(MQTTTopicMatch, EdgeCases) {
   EXPECT_TRUE(topic_match("", ""));
   EXPECT_FALSE(topic_match("a", ""));
+  // Kept from the previous code; the MQTT spec has "#" match the parent level and "+" an empty last level
   EXPECT_FALSE(topic_match("a/b", "a/b/#"));
+  EXPECT_FALSE(topic_match("a/", "a/+"));
   EXPECT_TRUE(topic_match("a/$x", "a/+"));
 }
 
