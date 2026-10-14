@@ -929,15 +929,15 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_WIFI_AP
-    bool provisioning_closed = false;
-#ifdef USE_PROVISIONING
     // Once the provisioning window has closed, don't bring up the fallback AP (or
     // the captive portal on it) - the device must stay unprovisionable until it is
-    // power-cycled.
-    provisioning_closed =
-        provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
+    // power-cycled. A bridge AP is not a provisioning surface.
+    bool provisioning_closed = false;
+#ifdef USE_PROVISIONING
+    provisioning_closed = !WIFI_AP_PERMANENT && provisioning::global_provisioning_manager != nullptr &&
+                          provisioning::global_provisioning_manager->closed();
 #endif
-    if (this->has_ap() && !this->ap_setup_ && (WIFI_AP_PERMANENT || !provisioning_closed)) {
+    if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
 #ifdef USE_WIFI_AP_WISP
       // The bridge comes up at once, and a start that failed is tried again every ap_timeout
       const bool due = this->ap_start_attempt_ == 0 || now - this->ap_start_attempt_ > this->ap_timeout_;

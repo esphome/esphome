@@ -1,4 +1,4 @@
-# A second DNS server needs ESP-IDF 6.0
+# A second DNS server needs ESP-IDF 6.0; config-only, a build would re-use the 5.x build dir
 esp32:
   framework:
     version: 6.0.1
