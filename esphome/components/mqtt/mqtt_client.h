@@ -257,9 +257,6 @@ class MQTTClientComponent final : public Component {
         qos);
   }
 
-  /// A heap copy of topic, freed when its subscription is erased.
-  static MQTTTopicSource copy_topic(StringRef topic);
-
   /** Unsubscribe from an MQTT topic.
    *
    * If multiple existing subscriptions to the same topic exist, all of them will be removed.
@@ -346,6 +343,12 @@ class MQTTClientComponent final : public Component {
   void set_wait_for_connection(bool wait_for_connection) { this->wait_for_connection_ = wait_for_connection; }
 
  protected:
+  // For the lambda command topic, which is copied once
+  friend class MQTTComponent;
+
+  /// A heap copy of topic, owned by the one subscription it is passed to and freed when that is erased.
+  static MQTTTopicSource copy_topic(StringRef topic);
+
   void send_device_info_();
 
   /// Reconnect to the MQTT broker if not already connected.
