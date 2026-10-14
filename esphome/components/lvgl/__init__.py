@@ -564,7 +564,9 @@ async def to_code(configs):
         clean_build(clear_pio_cache=False)
     cg.add_build_flag("-DLV_CONF_H=1")
     # handle windows paths in a way that doesn't break the generated C++
-    lv_conf_h_path = Path(lv_conf_h_file).as_posix()
+    lv_conf_h_path = re.sub(
+        r"[^\w/.:+=,-]", r"\\\g<0>", Path(lv_conf_h_file).as_posix()
+    )
     cg.add_build_flag(f'-DLV_CONF_PATH=\\"{lv_conf_h_path}\\"')
     cg.add_build_flag("-DLV_KCONFIG_IGNORE")
 
