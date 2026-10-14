@@ -92,10 +92,13 @@ void MQTTClientComponent::setup() {
       char topic[ESPHOME_TOPIC_BUFFER_SIZE];
       format_esphome_topic(topic, "logs");
       // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
-      // log for every line it logs
-      this->subscribe(topic, [](const std::string &, const std::string &payload) {
-        if (payload.empty())
-          logger::log_crash_to_client();
+      // log for every line it logs. Once the record is gone the subscription has nothing left to do.
+      this->subscribe(topic, [](const std::string &topic, const std::string &payload) {
+        if (!payload.empty())
+          return;
+        logger::log_crash_to_client();
+        if (!logger::crash_log_pending())
+          global_mqtt_client->unsubscribe(topic);
       });
     }
 #endif
