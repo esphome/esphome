@@ -84,3 +84,26 @@ esphome:
           target: 1000
       - tmc2209.disable:
           id: tmc2209_step_dir
+
+sensor:
+  - platform: tmc2209
+    tmc2209_id: tmc2209_step_dir
+    update_interval: 10s
+    actual_current:
+      name: Actual Current
+    stallguard_result:
+      name: StallGuard Result
+    motor_load:
+      name: Motor Load
+    pwm_scale_sum:
+      name: PWM Scale Sum
+    pwm_scale_auto:
+      name: PWM Scale Auto
+    pwm_ofs_auto:
+      name: PWM Offset Auto
+    pwm_grad_auto:
+      name: PWM Gradient Auto
+  - platform: tmc2209
+    tmc2209_id: tmc2209_serial
+    stallguard_result:
+      name: Serial StallGuard Result
