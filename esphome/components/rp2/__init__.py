@@ -392,6 +392,7 @@ async def to_code(config: ConfigType) -> None:
         "USE_RP2040_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT]
     )  # back-compat alias
     cg.add_define("USE_RP2_CRASH_HANDLER")
+    cg.add_define("USE_CRASH_HANDLER")
     cg.add_define("USE_RP2040_CRASH_HANDLER")  # back-compat alias
 
     _configure_lwip()

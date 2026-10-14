@@ -18,8 +18,9 @@ from esphome.components.esp32 import (
 from esphome.components.network import (
     add_use_address,
     get_network_priority,
-    has_high_performance_networking,
+    has_high_performance_wifi,
     ip_address_literal,
+    require_high_performance_wifi,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
@@ -165,6 +166,8 @@ CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 CONF_PRIVATE_KEY = "private_key"
+CONF_AP_MODE = "ap_mode"
+CONF_DNS_SERVERS = "dns_servers"
 
 # Maximum number of WiFi networks that can be configured
 # Limited to 127 because selected_sta_index_ is int8_t in C++
@@ -175,6 +178,7 @@ MAX_WIFI_NETWORKS = 127
 # get best-effort connection attempts. Longer timeout ensures we exhaust all options
 # before falling back to AP mode. Aligned with improv wifi_timeout default.
 DEFAULT_AP_TIMEOUT = "90s"
+DEFAULT_AP_TIMEOUT_PERIOD = cv.time_period(DEFAULT_AP_TIMEOUT)
 DEFAULT_REBOOT_TIMEOUT = "15min"
 # Both defaults also match the C++ initializers in wifi_component.h; codegen skips
 # the setter when the config equals them.
@@ -218,6 +222,32 @@ WIFI_8266_PHY_MODES = {
     "11G": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11G,
     "11N": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11N,
 }
+
+WIFI_AP_MODE_FALLBACK = "FALLBACK"
+WIFI_AP_MODE_WISP = "WISP"
+
+
+def _validate_ap_mode(value: str) -> str:
+    value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
+    if value == WIFI_AP_MODE_WISP:
+        # esp_netif_napt_enable() exists from ESP-IDF 5.1
+        cv.require_framework_version(
+            esp_idf=cv.Version(5, 1, 0), extra_message="WISP mode routes through NAT"
+        )(value)
+    return value
+
+
+def _validate_dns_servers(value: list) -> list:
+    if any(ip.is_unspecified for ip in value):
+        raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
+    if len(value) > 1:
+        cv.require_framework_version(
+            esp_idf=cv.Version(6, 0, 0),
+            extra_message="The access point offers a second DNS server from ESP-IDF 6.0",
+        )(value)
+    return value
+
+
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
@@ -341,6 +371,12 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
         cv.Optional(
             CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_AP_MODE, default=WIFI_AP_MODE_FALLBACK): _validate_ap_mode,
+        cv.Optional(CONF_DNS_SERVERS): cv.All(
+            cv.ensure_list(cv.ipv4address),
+            cv.Length(min=1, max=2),
+            _validate_dns_servers,
+        ),
     }
 )
 
@@ -349,6 +385,19 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
+    if config[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
+        if not config.get(CONF_PASSWORD):
+            raise cv.Invalid(
+                "WISP mode requires a password for the access point",
+                path=[CONF_PASSWORD],
+            )
+        if config[CONF_AP_TIMEOUT].total_milliseconds == 0:
+            raise cv.Invalid(
+                "ap_timeout is how long the bridge waits before a failed start is tried again; it cannot be 0",
+                path=[CONF_AP_TIMEOUT],
+            )
+    elif CONF_DNS_SERVERS in config:
+        raise cv.Invalid("dns_servers requires ap_mode: WISP", path=[CONF_DNS_SERVERS])
     if CONF_MANUAL_IP in config and CORE.is_rp2:
         raise cv.Invalid(
             "Manual AP IP configuration is not supported on RP2040. "
@@ -410,7 +459,30 @@ def final_validate(config):
         )
     if CONF_ON_DPP_URI in config and not has_dpp:
         raise cv.Invalid(f"'{CONF_ON_DPP_URI}' requires '{CONF_DPP}'")
-    if has_ap and not has_captive_portal and not has_web_server:
+
+    ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
+    if ap_is_wisp:
+        if not has_sta:
+            raise cv.Invalid(
+                "WISP mode requires at least one STA network (wifi.ssid or wifi.networks)"
+            )
+        if has_captive_portal:
+            raise cv.Invalid(
+                "captive_portal is not supported together with ap_mode: WISP"
+            )
+        # Every client packet passes through the WiFi driver, none through the device's own sockets
+        require_high_performance_wifi()
+        if CONF_DNS_SERVERS not in config[CONF_AP]:
+            # The access point passes the station's resolvers on, which a static address has to name
+            for network in [config, *config.get(CONF_NETWORKS, [])]:
+                static = network.get(CONF_MANUAL_IP)
+                if static and static[CONF_DNS1].is_unspecified:
+                    raise cv.Invalid(
+                        "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
+                        path=[CONF_MANUAL_IP, CONF_DNS1],
+                    )
+
+    if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
             "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
             "The AP will not be usable for configuration or monitoring. "
@@ -750,8 +822,19 @@ async def to_code(config):
             lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
         )
         # Skip the setter when the config matches the C++ initializer.
-        if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
+        if (ap_timeout := conf[CONF_AP_TIMEOUT]) != DEFAULT_AP_TIMEOUT_PERIOD:
             cg.add(var.set_ap_timeout(ap_timeout))
+        if conf[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
+            cg.add_define("USE_WIFI_AP_WISP")
+            add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+            if dns_servers := conf.get(CONF_DNS_SERVERS):
+                cg.add_define("USE_WIFI_AP_WISP_STATIC_DNS")
+                # As lwIP stores an IPv4 address: the four bytes read as one little-endian word
+                for i, ip in enumerate(dns_servers):
+                    cg.add_define(
+                        f"WIFI_AP_WISP_DNS_{i}", int.from_bytes(ip.packed, "little")
+                    )
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP
         # takes turns with the networks instead.
@@ -877,8 +960,8 @@ async def to_code(config):
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
-    # Apply high performance WiFi settings if high performance networking is enabled
-    if CORE.is_esp32 and has_high_performance_networking():
+    # Apply high performance WiFi settings if a component asked for them
+    if CORE.is_esp32 and has_high_performance_wifi():
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
 
