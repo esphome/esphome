@@ -96,28 +96,27 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   /// Keeps the unit's clock in step with this time source while connected.
   void set_time(time::RealTimeClock *time) { this->time_ = time; }
 #endif
-  // The writes below return true once the write is sent; the readback that follows corrects the entity if the
-  // unit did not store the value
+  // The writes below publish every entity they affect with the value sent; a refused change publishes nothing
 #ifdef USE_NUMBER
   void set_number(NumberSetting setting, number::Number *number) {
     this->numbers_[static_cast<uint8_t>(setting)] = number;
     this->has_settings_ = true;
   }
-  bool write_number(NumberSetting setting, float value);
+  void write_number(NumberSetting setting, float value);
 #endif
 #ifdef USE_SWITCH
   void set_switch(SwitchSetting setting, switch_::Switch *sw) {
     this->switches_[static_cast<uint8_t>(setting)] = sw;
     this->has_settings_ = true;
   }
-  bool write_switch(SwitchSetting setting, bool state);
+  void write_switch(SwitchSetting setting, bool state);
 #endif
 #ifdef USE_SELECT
   void set_select(SelectSetting setting, select::Select *select) {
     this->selects_[static_cast<uint8_t>(setting)] = select;
     this->has_settings_ = true;
   }
-  bool write_select(SelectSetting setting, size_t index);
+  void write_select(SelectSetting setting, size_t index);
 #endif
 
   /// True once the link is established and paired.
@@ -151,8 +150,8 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   void on_config_(const uint8_t *data, uint16_t len);
   void on_advanced_(const uint8_t *data, uint16_t len);
   /// Change one C_CONFIGURATION byte and leave the others as they are.
-  bool write_config_(uint8_t index, uint8_t value);
-  bool write_offsets_(int16_t temperature, int16_t humidity);
+  void write_config_(uint8_t index, uint8_t value);
+  void write_offsets_(int16_t temperature, int16_t humidity);
   bool write_settings_(uint16_t handle, uint8_t *data, uint16_t len);
   void publish_config_();
   void publish_offsets_();

@@ -465,17 +465,25 @@ bool Ecocomfort2Hub::write_settings_(uint16_t handle, uint8_t *data, uint16_t le
     return false;
   }
   // The unit handles requests in order, so a read sent now returns what this write stored
-  this->read_settings_();
+  if (this->read_char_(handle)) {
+    if (handle == this->char_handle_config_) {
+      this->config_reads_pending_++;
+    } else {
+      this->advanced_reads_pending_++;
+    }
+  }
   return true;
 }
 
-bool Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value) {
+// The readback takes a few seconds, so the copy and the entities follow the write at once: a follow-up change
+// builds on it, and entities that depend on the changed byte show its effect. The readback corrects them if the
+// unit did not store it.
+void Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value) {
   uint8_t data[12]{CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP};
   data[index] = value;
   ESP_LOGD(TAG, "[%s] Writing C_CONFIGURATION byte %u: 0x%02x", this->parent_->address_str(), index, value);
   if (!this->write_settings_(this->char_handle_config_, data, sizeof(data)))
-    return false;
-  // The readback takes a few seconds; until then a follow-up change must build on what was just written
+    return;
   if (index == 4) {
     if ((value & 0xF0) != KEEP_SEASON)
       this->season_byte_ = (this->season_byte_ & 0x0F) | (value & 0xF0);
@@ -484,75 +492,77 @@ bool Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value) {
   } else {
     this->thresholds_[index - 1] = value;
   }
-  return true;
+  this->publish_config_();
 }
 
-bool Ecocomfort2Hub::write_offsets_(int16_t temperature, int16_t humidity) {
+void Ecocomfort2Hub::write_offsets_(int16_t temperature, int16_t humidity) {
   uint8_t data[4]{static_cast<uint8_t>(temperature >> 8), static_cast<uint8_t>(temperature),
                   static_cast<uint8_t>(humidity >> 8), static_cast<uint8_t>(humidity)};
   ESP_LOGD(TAG, "[%s] Writing C_ADVANCED_SETTINGS: offsets %d %d", this->parent_->address_str(), temperature, humidity);
   if (!this->write_settings_(this->char_handle_advanced_, data, sizeof(data)))
-    return false;
-  // Both offsets go in every write, so the next one must carry these
+    return;
   this->offsets_[0] = temperature;
   this->offsets_[1] = humidity;
-  return true;
+  this->publish_offsets_();
 }
 
 #ifdef USE_NUMBER
-bool Ecocomfort2Hub::write_number(NumberSetting setting, float value) {
+void Ecocomfort2Hub::write_number(NumberSetting setting, float value) {
   if (setting == NumberSetting::TEMPERATURE_OFFSET || setting == NumberSetting::HUMIDITY_OFFSET) {
     // Both offsets go in one write, so the other one must be known
     if (!this->offsets_read_) {
       ESP_LOGW(TAG, "[%s] Offsets not read yet", this->parent_->address_str());
-      return false;
+      return;
     }
     int16_t offsets[2]{this->offsets_[0], this->offsets_[1]};
     offsets[setting == NumberSetting::HUMIDITY_OFFSET] = static_cast<int16_t>(lroundf(value * 100.0f));
-    return this->write_offsets_(offsets[0], offsets[1]);
+    this->write_offsets_(offsets[0], offsets[1]);
+    return;
   }
   // A threshold keeps its advanced flag, which only exists while the threshold is set
   if (!this->config_read_) {
     ESP_LOGW(TAG, "[%s] Configuration not read yet", this->parent_->address_str());
-    return false;
+    return;
   }
   const uint8_t index = static_cast<uint8_t>(setting);
   const uint8_t level = static_cast<uint8_t>(lroundf(value));
   const bool advanced = (this->thresholds_[index] & THRESHOLD_ADVANCED) != 0 && level > 0;
-  return this->write_config_(index + 1, level | (advanced ? THRESHOLD_ADVANCED : 0));
+  this->write_config_(index + 1, level | (advanced ? THRESHOLD_ADVANCED : 0));
 }
 #endif
 
 #ifdef USE_SWITCH
-bool Ecocomfort2Hub::write_switch(SwitchSetting setting, bool state) {
+void Ecocomfort2Hub::write_switch(SwitchSetting setting, bool state) {
   if (!this->config_read_) {
     ESP_LOGW(TAG, "[%s] Configuration not read yet", this->parent_->address_str());
-    return false;
+    return;
   }
   const uint8_t index = ADVANCED_THRESHOLD[static_cast<uint8_t>(setting)];
   const uint8_t level = this->thresholds_[index] & THRESHOLD_LEVEL_MASK;
   if (state && level == 0) {
     ESP_LOGW(TAG, "[%s] Set the threshold before turning on advanced control", this->parent_->address_str());
-    return false;
+    return;
   }
-  return this->write_config_(index + 1, level | (state ? THRESHOLD_ADVANCED : 0));
+  this->write_config_(index + 1, level | (state ? THRESHOLD_ADVANCED : 0));
 }
 #endif
 
 #ifdef USE_SELECT
-bool Ecocomfort2Hub::write_select(SelectSetting setting, size_t index) {
-  if (setting == SelectSetting::SEASON)
-    return this->write_config_(4, (index == 1 ? SEASON_SUMMER : 0) | KEEP_FREE_COOLING);
+void Ecocomfort2Hub::write_select(SelectSetting setting, size_t index) {
   if (!this->config_read_) {
     ESP_LOGW(TAG, "[%s] Configuration not read yet", this->parent_->address_str());
-    return false;
+    return;
   }
-  // The unit only runs free cooling in summer
-  if (index > 0 && (this->season_byte_ & SEASON_SUMMER) == 0) {
+  if (setting == SelectSetting::SEASON) {
+    this->write_config_(4, (index == 1 ? SEASON_SUMMER : 0) | KEEP_FREE_COOLING);
+    return;
+  }
+  // The unit only runs free cooling in summer and keeps its level through winter, so even Off is refused then
+  if ((this->season_byte_ & SEASON_SUMMER) == 0) {
     ESP_LOGW(TAG, "[%s] Free cooling is only available in summer", this->parent_->address_str());
-    return false;
+    return;
   }
-  return this->write_config_(4, KEEP_SEASON | static_cast<uint8_t>(index));
+  this->write_config_(4, KEEP_SEASON | static_cast<uint8_t>(index));
 }
 #endif
 

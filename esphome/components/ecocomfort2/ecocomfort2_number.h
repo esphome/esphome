@@ -13,10 +13,7 @@ class Ecocomfort2Number final : public number::Number, public Parented<Ecocomfor
   explicit Ecocomfort2Number(NumberSetting setting) : setting_(setting) {}
 
  protected:
-  void control(float value) override {
-    if (this->parent_->write_number(this->setting_, value))
-      this->publish_state(value);
-  }
+  void control(float value) override { this->parent_->write_number(this->setting_, value); }
 
   const NumberSetting setting_;
 };
