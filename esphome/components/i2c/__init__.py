@@ -472,9 +472,11 @@ _platform_filter = filter_source_files_from_platform(
 
 def FILTER_SOURCE_FILES() -> list[str]:
     excluded = _platform_filter()
-    # The host bus needs Linux i2c-dev, and validate_host_config rejects host I2C
-    # elsewhere. Leaving it out lets host builds without a bus, like the C++ unit
-    # tests with their fake bus, build on macOS too.
-    if CORE.is_host and not _host_is_linux():
+    # An empty list means the target isn't known yet. Otherwise the host bus is
+    # only kept for the host platform, and it needs Linux i2c-dev
+    # (validate_host_config rejects host I2C elsewhere). Leaving it out lets host
+    # builds without a bus, like the C++ unit tests with their fake bus, build on
+    # macOS too.
+    if excluded and "i2c_bus_host.cpp" not in excluded and not _host_is_linux():
         excluded.append("i2c_bus_host.cpp")
     return excluded
