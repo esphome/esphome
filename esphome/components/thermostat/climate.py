@@ -240,12 +240,6 @@ def validate_thermostat(config: ConfigType) -> ConfigType:
             CONF_SUPPLEMENTAL_HEATING_ACTION,
             CONF_SUPPLEMENTAL_HEATING_DELTA,
         ],
-        CONF_MIN_COOLING_OFF_TIME: [
-            CONF_COOL_ACTION,
-        ],
-        CONF_MIN_COOLING_RUN_TIME: [
-            CONF_COOL_ACTION,
-        ],
         CONF_MIN_FANNING_OFF_TIME: [
             CONF_FAN_ONLY_ACTION,
         ],
@@ -283,6 +277,17 @@ def validate_thermostat(config: ConfigType) -> ConfigType:
                 raise cv.Invalid(
                     f"{req_trigger} must be defined to use {config_trigger}"
                 )
+
+    # Dry mode runs on the cooling timers, so a dehumidifier needs no cool_action.
+    for timer in (CONF_MIN_COOLING_OFF_TIME, CONF_MIN_COOLING_RUN_TIME):
+        if (
+            timer in config
+            and CONF_COOL_ACTION not in config
+            and CONF_DRY_ACTION not in config
+        ):
+            raise cv.Invalid(
+                f"{CONF_COOL_ACTION} or {CONF_DRY_ACTION} must be defined to use {timer}"
+            )
 
     if CONF_FAN_ONLY_ACTION in config:
         # determine validation requirements based on fan_only_action_uses_fan_mode_timer setting

@@ -61,6 +61,8 @@ class TcpClientLink {
   void close();
 
   bool connected() const { return this->connected_; }
+  /// A connect attempt is in flight.
+  bool connecting() const { return this->sock_ != nullptr && !this->connected_; }
   bool ready() const { return this->sock_ != nullptr && this->sock_->ready(); }
   /// Shared retry clock, also usable for a listen socket.
   void note_attempt() { this->last_attempt_ms_ = App.get_loop_component_start_time(); }

@@ -33,6 +33,10 @@ static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config
     case canbus::CAN_16KBPS:
       *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_16KBITS();
       return true;
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || \
+    defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || \
+    defined(USE_ESP32_VARIANT_ESP32S3) || (defined(USE_ESP32_VARIANT_ESP32) && CONFIG_ESP32_REV_MIN_FULL >= 200)
     case canbus::CAN_20KBPS:
       *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_20KBITS();
       return true;
@@ -75,10 +79,13 @@ bool ESP32Can::setup_internal() {
   }
 
   // Select TWAI mode based on configuration
-  twai_mode_t twai_mode = (this->mode_ == CAN_MODE_LISTEN_ONLY) ? TWAI_MODE_LISTEN_ONLY : TWAI_MODE_NORMAL;
-
+  twai_mode_t twai_mode = TWAI_MODE_NORMAL;
   if (this->mode_ == CAN_MODE_LISTEN_ONLY) {
+    twai_mode = TWAI_MODE_LISTEN_ONLY;
     ESP_LOGI(TAG, "CAN bus configured in LISTEN_ONLY mode (passive, no ACKs)");
+  } else if (this->mode_ == CAN_MODE_NO_ACK) {
+    twai_mode = TWAI_MODE_NO_ACK;
+    ESP_LOGI(TAG, "CAN bus configured in NO_ACK mode (transmit without requiring ACK)");
   }
 
   twai_general_config_t g_config =
