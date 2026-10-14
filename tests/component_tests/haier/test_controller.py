@@ -1,16 +1,11 @@
 """Exercise the real controller with deterministic clock, UART and entity stubs."""
 
-import importlib.util
 from pathlib import Path
 import subprocess
 import sys
 
-import pytest
-
 
 def test_controller(tmp_path: Path):
-    if importlib.util.find_spec("ziglang") is None:
-        pytest.skip("Install ziglang to run native controller tests")
     source = Path(__file__).parent
     root = source.resolve().parents[2]
     for header in (
@@ -46,7 +41,6 @@ def test_controller(tmp_path: Path):
             str(binary),
         ],
         check=True,
-        capture_output=True,
         text=True,
     )
-    subprocess.run([str(binary)], check=True, capture_output=True, text=True)
+    subprocess.run([str(binary)], check=True, text=True)

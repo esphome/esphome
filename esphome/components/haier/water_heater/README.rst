@@ -104,10 +104,15 @@ Validation
 ----------
 
 Schema and native captured-frame tests are under tests/component_tests/haier.
-The native test requires the optional development package ziglang. Run:
+The native tests use the Zig C++ compiler pinned in requirements_test.txt, which
+CI installs. Missing compilers, compile errors and assertion failures fail the
+tests rather than skipping them. The controller tests use simulated UART, clock
+and entity interfaces; they do not replace firmware builds or hardware testing.
+Install the test dependencies and run:
 
 .. code-block:: console
 
+   python -m pip install -r requirements_test.txt
    python -m pytest tests/component_tests/haier
 
 

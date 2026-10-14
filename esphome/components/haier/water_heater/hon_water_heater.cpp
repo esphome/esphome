@@ -1,6 +1,5 @@
 #include "hon_water_heater.h"
 
-#include <cstring>
 #include <cmath>
 
 #include "esphome/core/application.h"
@@ -10,6 +9,22 @@
 namespace esphome::haier {
 
 static const char *const TAG = "haier.water_heater";
+using water_heater_protocol::HonMode;
+
+// TextSensor accepts ordinary strings rather than flash-resident LogString values.
+static const char *hon_mode_label(HonMode mode) {
+  switch (mode) {
+    case HonMode::HON_MODE_NORMAL:
+      return "Normal";
+    case HonMode::HON_MODE_ECO:
+      return "ECO";
+    case HonMode::HON_MODE_BPS:
+      return "BPS";
+    case HonMode::HON_MODE_UNKNOWN:
+      return "Unknown";
+  }
+  return "Unknown";
+}
 
 void HonWaterHeater::update_network_status_() {
   bool ready = false;
@@ -52,8 +67,10 @@ void HonWaterHeater::send_frame_(uint8_t type, const uint8_t *payload, size_t si
   const size_t length = water_heater_protocol::encode_frame(type, payload, size, wire);
   if (length == 0)
     return;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex[format_hex_pretty_size(sizeof(wire))];
   ESP_LOGV(TAG, "TX type=%02X flags=00: %s", type, format_hex_pretty_to(hex, wire, length));
+#endif
   this->write_array(wire, length);
 }
 
@@ -149,9 +166,11 @@ void HonWaterHeater::loop() {
 
 void HonWaterHeater::process_frame_() {
   const uint8_t *frame = this->parser_.data();
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex[format_hex_pretty_size(244)];
   ESP_LOGV(TAG, "RX decoded type=%02X flags=%02X: %s", frame[7], frame[1],
            format_hex_pretty_to(hex, frame, this->parser_.size()));
+#endif
   if (this->waiting_poll_ && frame[7] == this->expected_type_) {
     ESP_LOGV(TAG, "Response matched type=%02X", frame[7]);
     this->waiting_poll_ = false;
@@ -179,24 +198,24 @@ void HonWaterHeater::process_frame_() {
     if (this->communication_sensor_ != nullptr)
       this->communication_sensor_->publish_state(true);
   }
-  this->have_status_ = true;
-  this->last_status_ = App.get_loop_component_start_time();
-  const bool unknown_mode = strcmp(status.mode, "Unknown") == 0;
-  if (unknown_mode && !this->unknown_mode_) {
+  if (status.mode == HonMode::HON_MODE_UNKNOWN &&
+      (!this->have_status_ || this->reported_mode_ != HonMode::HON_MODE_UNKNOWN)) {
     const uint8_t *payload = frame + 8;
     ESP_LOGW(TAG,
              "Unknown heater mode: payload[38..41]=%02X %02X %02X %02X; using last recognized active mode, or Electric "
              "if none is known",
              payload[38], payload[39], payload[40], payload[41]);
   }
-  this->unknown_mode_ = unknown_mode;
-  this->normal_mode_ = strcmp(status.mode, "Normal") == 0;
+  this->have_status_ = true;
+  this->last_status_ = App.get_loop_component_start_time();
+  this->reported_mode_ = status.mode;
   if (this->waiting_control_ && frame[7] == 0x02) {
     const auto &command = this->commands_[this->command_index_];
-    const bool matched = (command[1] == 0x01 && status.powered == (command[3] != 0)) ||
-                         (command[1] == 0x02 && status.target_temperature == command[3] + 30) ||
-                         (command[1] == 0x05 && strcmp(status.mode, command[3] ? "ECO" : "Normal") == 0) ||
-                         (command[1] == 0x17 && strcmp(status.mode, "BPS") == 0);
+    const bool matched =
+        (command[1] == 0x01 && status.powered == (command[3] != 0)) ||
+        (command[1] == 0x02 && status.target_temperature == command[3] + 30) ||
+        (command[1] == 0x05 && status.mode == (command[3] ? HonMode::HON_MODE_ECO : HonMode::HON_MODE_NORMAL)) ||
+        (command[1] == 0x17 && status.mode == HonMode::HON_MODE_BPS);
     if (matched) {
       ESP_LOGD(TAG, "Control confirmed: parameter=%02X value=%02X", command[1], command[3]);
       this->waiting_control_ = false;
@@ -208,12 +227,19 @@ void HonWaterHeater::process_frame_() {
   this->current_temperature_ = status.current_temperature;
   this->target_temperature_ = status.target_temperature;
   this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, status.powered);
-  if (strcmp(status.mode, "Normal") == 0)
-    this->last_active_mode_ = water_heater::WATER_HEATER_MODE_ELECTRIC;
-  else if (strcmp(status.mode, "ECO") == 0)
-    this->last_active_mode_ = water_heater::WATER_HEATER_MODE_ECO;
-  else if (strcmp(status.mode, "BPS") == 0)
-    this->last_active_mode_ = water_heater::WATER_HEATER_MODE_PERFORMANCE;
+  switch (status.mode) {
+    case HonMode::HON_MODE_NORMAL:
+      this->last_active_mode_ = water_heater::WATER_HEATER_MODE_ELECTRIC;
+      break;
+    case HonMode::HON_MODE_ECO:
+      this->last_active_mode_ = water_heater::WATER_HEATER_MODE_ECO;
+      break;
+    case HonMode::HON_MODE_BPS:
+      this->last_active_mode_ = water_heater::WATER_HEATER_MODE_PERFORMANCE;
+      break;
+    case HonMode::HON_MODE_UNKNOWN:
+      break;
+  }
   // The base entity has no Unknown mode; the text sensor preserves the decoded result.
   this->mode_ = status.powered ? this->last_active_mode_ : water_heater::WATER_HEATER_MODE_OFF;
   if (this->primary_sensor_ != nullptr)
@@ -233,7 +259,7 @@ void HonWaterHeater::process_frame_() {
   if (this->heating_sensor_ != nullptr)
     this->heating_sensor_->publish_state(status.heating);
   if (this->mode_sensor_ != nullptr)
-    this->mode_sensor_->publish_state(status.mode);
+    this->mode_sensor_->publish_state(hon_mode_label(status.mode));
   this->publish_state();
 }
 
@@ -274,7 +300,7 @@ void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
   const float temperature = call.get_target_temperature();
   if (!std::isnan(temperature) &&
       (!std::isfinite(temperature) || temperature < 35 || temperature > 75 || std::round(temperature) != temperature ||
-       (mode.has_value() ? *mode != WATER_HEATER_MODE_ELECTRIC : !this->normal_mode_))) {
+       (mode.has_value() ? *mode != WATER_HEATER_MODE_ELECTRIC : this->reported_mode_ != HonMode::HON_MODE_NORMAL))) {
     ESP_LOGW(TAG, "Target requires Normal mode and a whole temperature from 35 to 75 C");
     return;
   }
@@ -286,7 +312,7 @@ void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
     append(0x01, 0x01);
   if (mode.has_value()) {
     // Captures establish transitions through Normal, not direct ECO/BPS transitions.
-    if (!this->normal_mode_ && *mode != WATER_HEATER_MODE_ELECTRIC)
+    if (this->reported_mode_ != HonMode::HON_MODE_NORMAL && *mode != WATER_HEATER_MODE_ELECTRIC)
       append(0x05, 0x00);
     if (*mode == WATER_HEATER_MODE_ELECTRIC)
       append(0x05, 0x00);

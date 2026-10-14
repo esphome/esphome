@@ -1,6 +1,5 @@
 #include "esphome/components/haier/water_heater/hon_parser.h"
 #include <cassert>
-#include <cstring>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -60,7 +59,7 @@ void run() {
   assert(decode_status(parser.data(), parser.size(), status));
   assert(status.current_temperature == 53 && status.target_temperature == 35);
   assert(status.powered == false && status.heating == false);
-  assert(std::strcmp(status.mode, "Normal") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_NORMAL && status.available_water == 2);
   // Status fixture based on packet 33, 2026-10-14 09:24:51 session.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 35 05 00 00 00 00 00 00 00 32 19 00 00 35 00 00 00 00 13 00 "
@@ -69,7 +68,7 @@ void run() {
   assert(decode_status(parser.data(), parser.size(), status));
   assert(status.current_temperature == 53 && status.target_temperature == 35);
   assert(status.powered == true && status.heating == false);
-  assert(std::strcmp(status.mode, "Normal") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_NORMAL && status.available_water == 2);
   // Status fixture based on packet 36, 2026-10-14 09:24:51 session.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 35 05 00 00 00 00 00 00 00 32 19 00 00 35 00 00 00 00 13 00 "
@@ -78,7 +77,7 @@ void run() {
   assert(decode_status(parser.data(), parser.size(), status));
   assert(status.current_temperature == 53 && status.target_temperature == 35);
   assert(status.powered == true && status.heating == false);
-  assert(std::strcmp(status.mode, "ECO") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_ECO && status.available_water == 2);
   // Status fixture based on packet 39, 2026-10-14 09:24:51 session.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 35 32 00 00 00 1D 00 00 00 32 19 00 00 35 00 00 00 00 13 00 "
@@ -88,7 +87,7 @@ void run() {
   assert(status.current_temperature == 53 && status.target_temperature == 80);
   assert(status.estimated_heating_time == 29);
   assert(status.powered == true && status.heating == true);
-  assert(std::strcmp(status.mode, "BPS") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_BPS && status.available_water == 2);
   // Status fixture based on packet 42, 2026-10-14 09:24:51 session.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 35 05 00 00 00 00 00 00 00 32 19 00 00 35 00 00 00 00 13 00 "
@@ -97,7 +96,7 @@ void run() {
   assert(decode_status(parser.data(), parser.size(), status));
   assert(status.current_temperature == 53 && status.target_temperature == 35);
   assert(status.powered == true && status.heating == false);
-  assert(std::strcmp(status.mode, "Normal") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_NORMAL && status.available_water == 2);
   // Status fixture based on packet 50, 2026-10-14 09:24:51 session.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 35 05 00 01 00 00 00 00 00 32 19 00 00 35 00 00 00 00 13 00 "
@@ -106,7 +105,7 @@ void run() {
   assert(decode_status(parser.data(), parser.size(), status));
   assert(status.current_temperature == 53 && status.target_temperature == 35);
   assert(status.powered == true && status.heating == false);
-  assert(std::strcmp(status.mode, "ECO") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_ECO && status.available_water == 2);
   // Status fixture based on packet 52, 2026-10-14 09:24:51 session.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 35 32 00 01 00 1D 00 00 00 32 19 00 00 35 00 00 00 00 13 00 "
@@ -116,7 +115,7 @@ void run() {
   assert(status.current_temperature == 53 && status.target_temperature == 80);
   assert(status.estimated_heating_time == 29);
   assert(status.powered == true && status.heating == true);
-  assert(std::strcmp(status.mode, "BPS") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_BPS && status.available_water == 2);
   // Status fixture based on packet 55, 2026-10-14 09:24:51 session.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 35 05 00 01 00 00 00 00 00 32 19 00 00 35 00 00 00 00 13 00 "
@@ -125,7 +124,7 @@ void run() {
   assert(decode_status(parser.data(), parser.size(), status));
   assert(status.current_temperature == 53 && status.target_temperature == 35);
   assert(status.powered == true && status.heating == false);
-  assert(std::strcmp(status.mode, "Normal") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_NORMAL && status.available_water == 2);
   // Status fixture based on packet 58, 2026-10-14 09:24:51 session.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 35 05 00 01 00 00 00 00 00 32 19 00 00 35 00 00 00 00 13 00 "
@@ -134,7 +133,7 @@ void run() {
   assert(decode_status(parser.data(), parser.size(), status));
   assert(status.current_temperature == 53 && status.target_temperature == 35);
   assert(status.powered == false && status.heating == false);
-  assert(std::strcmp(status.mode, "Normal") == 0 && status.available_water == 2);
+  assert(status.mode == HonMode::HON_MODE_NORMAL && status.available_water == 2);
   // Target-temperature fixture based on packet 4.
   assert(feed(parser,
               bytes("FF FF 3C 00 00 00 00 00 00 06 6D 01 1E 05 00 00 00 06 00 00 00 32 19 00 00 1E 00 00 00 00 13 00 "

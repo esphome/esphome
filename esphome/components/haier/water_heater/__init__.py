@@ -3,7 +3,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor, text_sensor, uart, water_heater
 import esphome.config_validation as cv
-from esphome.const import CONF_PROTOCOL
 from esphome.types import ConfigType
 
 CONF_COMMUNICATION_TIMEOUT = "communication_timeout"
@@ -24,7 +23,6 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_COMMUNICATION_TIMEOUT, default="20s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_PROTOCOL, default="HON"): cv.one_of("HON", upper=True),
             cv.Optional("primary_temperature"): sensor.sensor_schema(
                 unit_of_measurement="°C",
                 accuracy_decimals=0,

@@ -106,6 +106,8 @@ inline size_t encode_frame(uint8_t type, const uint8_t *payload, size_t size, ui
   return count;
 }
 
+enum class HonMode : uint8_t { HON_MODE_UNKNOWN, HON_MODE_NORMAL, HON_MODE_ECO, HON_MODE_BPS };
+
 struct Status {
   uint8_t current_temperature;
   uint8_t target_temperature;
@@ -113,7 +115,7 @@ struct Status {
   uint8_t estimated_heating_time;
   bool powered;
   bool heating;
-  const char *mode;
+  HonMode mode;
   uint8_t available_water;
 };
 
@@ -132,10 +134,10 @@ inline bool decode_status(const uint8_t *frame, size_t size, Status &status) {
   const bool normal = (payload[38] & 0x10) && (payload[39] & 0x10);
   const bool eco = (payload[41] & 0x04) != 0;
   const bool bps = (payload[40] & 0x04) != 0;
-  status.mode = (unsigned(normal) + unsigned(eco) + unsigned(bps) != 1) ? "Unknown"
-                : normal                                                ? "Normal"
-                : eco                                                   ? "ECO"
-                                                                        : "BPS";
+  status.mode = (unsigned(normal) + unsigned(eco) + unsigned(bps) != 1) ? HonMode::HON_MODE_UNKNOWN
+                : normal                                                ? HonMode::HON_MODE_NORMAL
+                : eco                                                   ? HonMode::HON_MODE_ECO
+                                                                        : HonMode::HON_MODE_BPS;
   status.available_water = payload[45];
   return payload[2] <= 100 && payload[3] <= 70;
 }

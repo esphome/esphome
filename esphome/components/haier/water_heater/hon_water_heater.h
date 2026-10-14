@@ -41,8 +41,7 @@ class HonWaterHeater : public Component, public water_heater::WaterHeater, publi
   bool waiting_network_{false};
   uint32_t network_sent_{0};
   bool have_status_{false};
-  bool normal_mode_{false};
-  bool unknown_mode_{false};
+  water_heater_protocol::HonMode reported_mode_{water_heater_protocol::HonMode::HON_MODE_UNKNOWN};
   water_heater::WaterHeaterMode last_active_mode_{water_heater::WATER_HEATER_MODE_ELECTRIC};
   bool waiting_control_{false};
   bool pending_off_{false};

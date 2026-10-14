@@ -15,12 +15,12 @@ def test_visible_by_default(set_core_config: SetCoreConfigCallable) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
     config = CONFIG_SCHEMA({"name": "Heater capture"})
     assert config.get("internal", False) is False
-    assert config["protocol"] == "HON"
+    assert "protocol" not in config
     assert config["communication_timeout"].total_milliseconds == 20000
 
 
-@pytest.mark.parametrize("protocol", ["SMARTAIR2", "unknown"])
-def test_rejects_other_protocols(
+@pytest.mark.parametrize("protocol", ["HON", "SMARTAIR2", "unknown"])
+def test_rejects_protocol_option(
     set_core_config: SetCoreConfigCallable, protocol: str
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
