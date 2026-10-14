@@ -430,8 +430,9 @@ static void log_thread_usage(const struct k_thread *thread, void *user_data) {
   const char *name = k_thread_name_get(tid);
   ESP_LOGV(TAG, "  %-16s prio %3d %-10s %3u%% peak %" PRIu32 " avg %" PRIu32, name != nullptr ? name : "?",
            thread->base.prio, k_thread_state_str(tid, state, sizeof(state)),
-           static_cast<unsigned>(stats.execution_cycles * 100 / cpu_cycles), static_cast<uint32_t>(stats.peak_cycles),
-           static_cast<uint32_t>(stats.average_cycles));
+           static_cast<unsigned>(stats.execution_cycles * 100 / cpu_cycles),
+           static_cast<uint32_t>(k_cyc_to_us_floor64(stats.peak_cycles)),
+           static_cast<uint32_t>(k_cyc_to_us_floor64(stats.average_cycles)));
 }
 #endif
 
@@ -440,7 +441,7 @@ void DebugComponent::update_platform_() {
   k_thread_runtime_stats_t cpu;
   if (k_thread_runtime_stats_all_get(&cpu) != 0 || cpu.execution_cycles == 0)
     return;
-  ESP_LOGV(TAG, "Thread CPU usage since boot (peak and average cycles per time slice):");
+  ESP_LOGV(TAG, "Thread CPU usage since boot (peak and average us per time slice):");
   // The unlocked walk lets the log output inside the callback block
   k_thread_foreach_unlocked(log_thread_usage, &cpu.execution_cycles);
 #endif
