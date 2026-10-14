@@ -11,11 +11,12 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import (
+from . import (  # noqa: F401  pylint: disable=unused-import
     CONF_LD2450_ID,
     CONF_POLYGON_ZONE_ID,
     CONF_POLYGON_ZONES,
     DOMAIN,
+    FILTER_SOURCE_FILES,
     LD2450Component,
     ld2450_ns,
 )

@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_DATA, CONF_THROTTLE
 from esphome.types import ConfigType
@@ -50,6 +51,14 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_DATA, "add_on_data_callback"),
+)
+
+# The polygon zone sources only build when a text platform entry defines zones
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "polygon.cpp": "LD2450_POLYGON_ZONE_COUNT",
+        "polygon_zone.cpp": "LD2450_POLYGON_ZONE_COUNT",
+    }
 )
 
 
