@@ -52,13 +52,13 @@ static constexpr size_t PN532_FRAME_MAX_SIZE = 1 + 6 + PN532_FRAME_MAX_DATA_SIZE
 using PN532Frame = StaticVector<uint8_t, PN532_FRAME_MAX_SIZE>;
 /// Longest NDEF message accepted from a MIFARE Ultralight/NTAG tag (the user memory of an NTAG216)
 static constexpr uint32_t MIFARE_ULTRALIGHT_MAX_NDEF_SIZE = 888;
-/// Holds pages 3 to 6 (16 bytes) plus the longest NDEF message; lives on the stack while a tag is read
-using UltralightReadBuffer = StaticVector<uint8_t, 16 + MIFARE_ULTRALIGHT_MAX_NDEF_SIZE>;
 /// Longest NDEF message accepted from a MIFARE Classic tag (the capacity of a 4K tag)
 static constexpr uint32_t MIFARE_CLASSIC_MAX_NDEF_SIZE = 3440;
 /// A MIFARE READ answers with 16 bytes: one Classic block or four Ultralight pages
 static constexpr size_t MIFARE_READ_SIZE = 16;
 using MifareReadData = std::array<uint8_t, MIFARE_READ_SIZE>;
+/// Pages 3 to 6, read in one go: the capability container and the start of the NDEF TLV
+using UltralightHeader = std::array<uint8_t, MIFARE_READ_SIZE>;
 
 class PN532BinarySensor;
 
@@ -136,8 +136,8 @@ class PN532 : public PollingComponent {
   bool write_mifare_classic_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
 
   std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(nfc::NfcTagUid &uid);
-  /// Appends `num_bytes` read from `start_page` onward to `data`
-  bool read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, UltralightReadBuffer &data);
+  /// Fills `data` with the bytes from `start_page` onward
+  bool read_mifare_ultralight_bytes_(uint8_t start_page, std::span<uint8_t> data);
   bool is_mifare_ultralight_formatted_(std::span<const uint8_t> page_3_to_6);
   uint16_t read_mifare_ultralight_capacity_();
   bool find_mifare_ultralight_ndef_(std::span<const uint8_t> page_3_to_6, uint32_t &message_length,
