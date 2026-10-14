@@ -3,6 +3,7 @@ substitutions:
   dir_pin: GPIO13
   enn_pin: GPIO14
   index_pin: GPIO15
+  diag_pin: GPIO2
 
 packages:
   uart_115200: !include ../../test_build_components/common/uart_115200/esp8266-ard.yaml

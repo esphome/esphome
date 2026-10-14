@@ -6,6 +6,7 @@ stepper:
     step_pin: ${step_pin}
     dir_pin: ${dir_pin}
     enn_pin: ${enn_pin}
+    diag_pin: ${diag_pin}
     rsense: 110 mOhm
     vsense: false
     ottrim: 1
@@ -15,6 +16,17 @@ stepper:
     max_speed: 2000 steps/s
     acceleration: 1000 steps/s^2
     deceleration: 1000 steps/s^2
+    on_stall:
+      - stepper.report_position:
+          id: tmc2209_step_dir
+          position: 0
+      - stepper.set_target:
+          id: tmc2209_step_dir
+          target: 0
+    on_status:
+      - logger.log:
+          format: "Driver event %u active %d"
+          args: [event, active]
 
   - platform: tmc2209
     id: tmc2209_serial
@@ -24,6 +36,12 @@ stepper:
     clock_frequency: 12MHz
     analog_current_scale: true
     max_speed: 1000 steps/s
+    on_status:
+      - if:
+          condition:
+            lambda: "return event == tmc22xx::DRIVER_EVENT_OVERTEMPERATURE_PREWARNING && active;"
+          then:
+            - tmc2209.disable: tmc2209_serial
 
 esphome:
   on_boot:
@@ -49,6 +67,17 @@ esphome:
           id: tmc2209_serial
           irun: 20
           ihold: !lambda "return 5;"
+      - tmc2209.stallguard:
+          id: tmc2209_step_dir
+          threshold: 50
+          tcool_threshold: !lambda "return 400;"
+      - tmc2209.coolconf:
+          id: tmc2209_step_dir
+          semin: 5
+          semax: 2
+          seup: 1
+          sedn: 0
+          seimin: true
       - tmc2209.enable: tmc2209_serial
       - stepper.set_target:
           id: tmc2209_serial
