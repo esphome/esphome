@@ -66,6 +66,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   SourceCapStep source_cap_step_{SourceCapStep::SOURCE_CAP_STEP_WAIT};
   bool attached_{false};
   bool waiting_for_source_caps_{false};
+  bool cc_ambiguous_logged_{false};
 };
 
 }  // namespace esphome::fusb302b

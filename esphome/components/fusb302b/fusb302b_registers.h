@@ -44,7 +44,6 @@ static constexpr uint8_t FUSB_MEASURE_MDAC_CC = 49;
 
 // CONTROL0 bits
 static constexpr uint8_t FUSB_CONTROL0_TX_FLUSH = 1 << 6;
-static constexpr uint8_t FUSB_CONTROL0_INT_MASK = 1 << 5;
 
 // CONTROL1 bits
 static constexpr uint8_t FUSB_CONTROL1_RX_FLUSH = 1 << 2;

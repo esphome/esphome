@@ -134,11 +134,6 @@ bool FUSB302B::init_chip_() {
       !this->write_byte(FUSB_MASKB, 0))
     return false;
 
-  uint8_t control0 = 0;
-  if (!this->read_byte(FUSB_CONTROL0, &control0) ||
-      !this->write_byte(FUSB_CONTROL0, control0 & ~FUSB_CONTROL0_INT_MASK))
-    return false;
-
   // Let the chip retransmit unacknowledged messages up to 3 times
   uint8_t control3 = 0;
   if (!this->read_byte(FUSB_CONTROL3, &control3))
@@ -155,6 +150,7 @@ bool FUSB302B::init_chip_() {
 
 bool FUSB302B::reset_pd_() {
   this->reset_protocol_();
+  // Writing CONTROL0 as a whole byte also clears INT_MASK, which is what enables the INT_N pin
   return this->write_byte(FUSB_CONTROL0, FUSB_CONTROL0_TX_FLUSH) &&
          this->write_byte(FUSB_CONTROL1, FUSB_CONTROL1_RX_FLUSH) && this->write_byte(FUSB_RESET, FUSB_RESET_PD_RESET);
 }
@@ -232,10 +228,12 @@ bool FUSB302B::read_message_(PdMsg &msg, bool &is_sop) {
 }
 
 bool FUSB302B::send_message(const PdMsg &msg) {
-  uint8_t buf[4 + 1 + 2 + PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
+  // Register address, then the TX tokens; written in one transfer without the copy write_register() makes
+  uint8_t buf[1 + 4 + 1 + 2 + PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
   size_t len = 0;
   const uint16_t header = msg.get_coded_header();
 
+  buf[len++] = FUSB_FIFOS;
   buf[len++] = FUSB_TX_TOKEN_SYNC1;
   buf[len++] = FUSB_TX_TOKEN_SYNC1;
   buf[len++] = FUSB_TX_TOKEN_SYNC1;
@@ -255,7 +253,7 @@ bool FUSB302B::send_message(const PdMsg &msg) {
   buf[len++] = FUSB_TX_TOKEN_TXOFF;
   buf[len++] = FUSB_TX_TOKEN_TXON;
 
-  i2c::ErrorCode err = this->write_register(FUSB_FIFOS, buf, len);
+  i2c::ErrorCode err = this->write(buf, len);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Sending message type %u failed (error %d)", msg.type, static_cast<int>(err));
     return false;
@@ -296,8 +294,10 @@ void FUSB302B::try_attach_() {
     return;
   }
   // A source may present its CC pull-up before VBUS is on; detach is only detected when VBUS drops
-  if (!(status0 & FUSB_STATUS0_VBUSOK))
+  if (!(status0 & FUSB_STATUS0_VBUSOK)) {
+    this->cc_ambiguous_logged_ = false;
     return;
+  }
 
   uint8_t cc1 = 0;
   uint8_t cc2 = 0;
@@ -307,7 +307,7 @@ void FUSB302B::try_attach_() {
     this->enter_error_();
     return;
   }
-  // Exactly one CC line carries the source pull-up; the other one is open (or VCONN)
+  // Exactly one CC line carries the source pull-up; the other one is open
   uint8_t meas_switch;
   uint8_t tx_switch;
   if (cc1 != CC_LEVEL_UNSTABLE && cc1 > 0 && cc2 == 0) {
@@ -317,6 +317,10 @@ void FUSB302B::try_attach_() {
     meas_switch = FUSB_SWITCHES0_MEAS_CC2;
     tx_switch = FUSB_SWITCHES1_TXCC2;
   } else {
+    if (!this->cc_ambiguous_logged_) {
+      ESP_LOGD(TAG, "VBUS present but no single CC line with a source pull-up (CC1 %u, CC2 %u)", cc1, cc2);
+      this->cc_ambiguous_logged_ = true;
+    }
     return;
   }
 
@@ -328,6 +332,7 @@ void FUSB302B::try_attach_() {
   }
   ESP_LOGD(TAG, "Attached on CC%u", meas_switch == FUSB_SWITCHES0_MEAS_CC1 ? 1 : 2);
   this->attached_ = true;
+  this->cc_ambiguous_logged_ = false;
   this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT);
   this->set_contract_(DEFAULT_CONTRACT);
   this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
