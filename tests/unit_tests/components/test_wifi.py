@@ -1,22 +1,42 @@
 """Tests for WiFi component public helpers."""
 
+from ipaddress import IPv4Address
+
 import pytest
 
 from esphome.components.esp32 import const
+from esphome.components.network import (
+    KEY_HIGH_PERFORMANCE_NETWORKING,
+    KEY_HIGH_PERFORMANCE_WIFI,
+)
 from esphome.components.wifi import (
+    CONF_AP_MODE,
+    CONF_AP_TIMEOUT,
+    CONF_DNS_SERVERS,
     check_placeholder_credentials,
+    final_validate as wifi_final_validate,
     has_native_wifi,
     variant_has_wifi,
+    wifi_network_ap,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
+    CONF_DNS1,
+    CONF_MANUAL_IP,
     CONF_NETWORKS,
+    CONF_PASSWORD,
     CONF_SSID,
     CONF_WIFI,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
     PLACEHOLDER_WIFI_SSID,
     Platform,
 )
-from esphome.core import EsphomeError, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -197,3 +217,161 @@ def test_check_placeholder_credentials_skips_template_ssid() -> None:
     """A templated (Lambda) SSID is not a string and is skipped."""
     config = _wifi_config(networks=[{CONF_SSID: Lambda('return "x";')}])
     assert check_placeholder_credentials(config) is None
+
+
+@pytest.fixture
+def wisp_core(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> None:
+    """An ESP32 build; the parameter overrides the framework or the ESP-IDF version."""
+    params = getattr(request, "param", {})
+    monkeypatch.setitem(
+        CORE.data,
+        KEY_CORE,
+        {
+            KEY_TARGET_PLATFORM: Platform.ESP32,
+            KEY_TARGET_FRAMEWORK: params.get("framework", "esp-idf"),
+            KEY_FRAMEWORK_VERSION: params.get("idf", cv.Version(5, 4, 0)),
+        },
+    )
+
+
+def _wisp_ap(**overrides: object) -> dict:
+    return {CONF_AP_MODE: "WISP", CONF_PASSWORD: "wisp12345678", **overrides}
+
+
+def _final_validate(config: dict, full_extra: dict | None = None) -> None:
+    token = fv.full_config.set({CONF_WIFI: config, **(full_extra or {})})
+    try:
+        wifi_final_validate(config)
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.usefixtures("wisp_core")
+@pytest.mark.parametrize(
+    "ap", [{CONF_AP_MODE: "WISP"}, _wisp_ap(**{CONF_PASSWORD: ""})]
+)
+def test_wisp_requires_ap_password(ap: dict) -> None:
+    """WISP must not route upstream access through an open access point."""
+    with pytest.raises(cv.Invalid, match="password"):
+        wifi_network_ap(ap)
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_accepts_ap_password() -> None:
+    assert wifi_network_ap(_wisp_ap())[CONF_AP_MODE] == "WISP"
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_rejects_zero_ap_timeout() -> None:
+    """Zero disables the fallback AP; the bridge would retry a failed start on every loop pass."""
+    with pytest.raises(cv.Invalid, match="ap_timeout"):
+        wifi_network_ap(_wisp_ap(**{CONF_AP_TIMEOUT: "0s"}))
+    wifi_network_ap(_wisp_ap(**{CONF_AP_TIMEOUT: "30s"}))
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_dns_servers_reject_unspecified_address() -> None:
+    """0.0.0.0 would leave the clients with the access point as their resolver."""
+    with pytest.raises(cv.Invalid, match="0.0.0.0"):
+        wifi_network_ap(_wisp_ap(dns_servers=["0.0.0.0"]))
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_dns_servers_require_wisp() -> None:
+    with pytest.raises(cv.Invalid, match="dns_servers requires ap_mode: WISP"):
+        wifi_network_ap({CONF_DNS_SERVERS: ["1.1.1.1"]})
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_dns_servers_limited_to_two() -> None:
+    """The access point DHCP server has a main and a backup resolver."""
+    with pytest.raises(cv.Invalid):
+        wifi_network_ap(_wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8", "9.9.9.9"]))
+
+
+@pytest.mark.parametrize(
+    ("wisp_core", "valid"),
+    [({"idf": cv.Version(5, 5, 5)}, False), ({"idf": cv.Version(6, 0, 1)}, True)],
+    indirect=["wisp_core"],
+)
+def test_second_dns_server_requires_idf_6(wisp_core: None, valid: bool) -> None:
+    ap = _wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8"])
+    if valid:
+        wifi_network_ap(ap)
+    else:
+        with pytest.raises(cv.Invalid, match="6.0.0"):
+            wifi_network_ap(ap)
+
+
+@pytest.mark.parametrize("wisp_core", [{"framework": "arduino"}], indirect=True)
+def test_wisp_requires_esp_idf(wisp_core: None) -> None:
+    """NAT is only available with the ESP-IDF framework."""
+    with pytest.raises(cv.Invalid, match="incompatible"):
+        wifi_network_ap(_wisp_ap())
+
+
+@pytest.mark.parametrize("wisp_core", [{"idf": cv.Version(5, 0, 9)}], indirect=True)
+def test_wisp_requires_idf_5_1(wisp_core: None) -> None:
+    """esp_netif_napt_enable() is missing before ESP-IDF 5.1."""
+    with pytest.raises(cv.Invalid, match="5.1.0"):
+        wifi_network_ap(_wisp_ap())
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_requires_sta_network() -> None:
+    """WISP has nothing to share without an upstream network."""
+    with pytest.raises(cv.Invalid, match="at least one STA network"):
+        _final_validate({CONF_NETWORKS: [], CONF_AP: _wisp_ap()})
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_rejects_captive_portal() -> None:
+    with pytest.raises(cv.Invalid, match="captive_portal"):
+        _final_validate(
+            {CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()}, {"captive_portal": {}}
+        )
+
+
+def _manual_ip(dns1: str) -> dict:
+    return {CONF_DNS1: IPv4Address(dns1)}
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_manual_ip_needs_dns1() -> None:
+    """The bridge passes the station's resolvers on, which a static address must name."""
+    with pytest.raises(cv.Invalid, match="dns1"):
+        _final_validate(
+            {
+                CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("0.0.0.0")}],
+                CONF_AP: _wisp_ap(),
+            }
+        )
+    with pytest.raises(cv.Invalid, match="dns1"):
+        _final_validate(
+            {
+                CONF_MANUAL_IP: _manual_ip("0.0.0.0"),
+                CONF_NETWORKS: [{}],
+                CONF_AP: _wisp_ap(),
+            }
+        )
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_manual_ip_with_dns1_or_dns_servers() -> None:
+    _final_validate(
+        {CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("1.1.1.1")}], CONF_AP: _wisp_ap()}
+    )
+    _final_validate(
+        {
+            CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("0.0.0.0")}],
+            CONF_AP: _wisp_ap(**{CONF_DNS_SERVERS: [IPv4Address("1.1.1.1")]}),
+        }
+    )
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_final_validate_accepts_sta_and_ap() -> None:
+    _final_validate({CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()})
+    # NAT needs the WiFi driver buffers, not the lwip TCP windows
+    assert CORE.data.get(KEY_HIGH_PERFORMANCE_WIFI) is True
+    assert not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING)
