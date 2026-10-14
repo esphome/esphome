@@ -928,6 +928,15 @@ const char *get_disconnect_reason_str(uint8_t reason) {
   }
 }
 
+#ifdef USE_WIFI_AP
+// The driver's own station list cannot drift, so the count is read from it rather than kept by arithmetic
+static void read_ap_clients(uint8_t &count) {
+  wifi_sta_list_t sta_list;
+  if (esp_wifi_ap_get_sta_list(&sta_list) == ESP_OK)
+    count = sta_list.num;
+}
+#endif
+
 bool WiFiComponent::wifi_loop_() {
   // Use pop() directly instead of empty() — pop() costs 1 memw (acquire on tail_),
   // while empty() costs 2 memw (acquire on both head_ and tail_) on Xtensa.
@@ -945,6 +954,11 @@ bool WiFiComponent::wifi_loop_() {
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);
+#ifdef USE_WIFI_AP
+    // A dropped join or leave is made up for by reading the list again
+    if (this->ap_setup_)
+      read_ap_clients(this->ap_clients_);
+#endif
   }
   return true;
 }
@@ -1197,6 +1211,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STACONNECTED) {
+#ifdef USE_WIFI_AP
+    read_ap_clients(this->ap_clients_);
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     const auto &it = data->data.ap_staconnected;
     char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -1205,6 +1222,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+#ifdef USE_WIFI_AP
+    read_ap_clients(this->ap_clients_);
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     const auto &it = data->data.ap_stadisconnected;
     char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
