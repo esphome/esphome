@@ -953,8 +953,9 @@ void WiFiComponent::loop() {
         this->ap_changed_ = now;
 #endif
         this->setup_ap_config_();
-        // Where the AP runs on its own, a portal with no AP behind it would only stretch the cooldowns.
-        if (!WIFI_AP_EXCLUSIVE || this->ap_setup_) {
+        // A portal is only started behind an AP that came up: the portal keeps a reference to the web server
+        // on every start, and a failed start is tried again later
+        if (this->ap_setup_) {
 #ifdef USE_CAPTIVE_PORTAL
           // Reset so we force one full scan after captive portal starts
           // (previous scans were filtered because captive portal wasn't active yet)
