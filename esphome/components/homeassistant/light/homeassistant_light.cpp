@@ -1,299 +1,243 @@
-#include <sstream>
-
 #include "homeassistant_light.h"
+
+#include <cstdlib>
+#include <cstring>
+
+#include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.light";
+ESPHOME_LOG_TAG(TAG, "homeassistant.light");
 
 using namespace esphome::light;
 
-optional<ColorMode> parse_color_mode(const std::string &color_mode) {
-  if (color_mode == "unknown") {
-    return optional<ColorMode>(ColorMode::UNKNOWN);
-  } else if (color_mode == "onoff") {
-    return optional<ColorMode>(ColorMode::ON_OFF);
-  } else if (color_mode == "brightness") {
-    return optional<ColorMode>(ColorMode::BRIGHTNESS);
-  } else if (color_mode == "white") {
-    return optional<ColorMode>(ColorMode::WHITE);
-  } else if (color_mode == "color_temp") {
-    return optional<ColorMode>(ColorMode::COLOR_TEMPERATURE);
-  } else if (color_mode == "rgb" || color_mode == "hs" || color_mode == "xy") {
-    return optional<ColorMode>(ColorMode::RGB);
-  } else if (color_mode == "rgbw") {
-    return optional<ColorMode>(ColorMode::RGB_WHITE);
-  } else if (color_mode == "rgbww") {
-    return optional<ColorMode>(ColorMode::RGB_COLD_WARM_WHITE);
-  }
+namespace {
 
+struct ColorModeName {
+  const char *name;
+  ColorMode mode;
+};
+
+// Home Assistant's color mode names. Every color mode is handled as RGB: Home Assistant reports
+// rgb_color for all of them and derives the white channels from rgb_color itself.
+constexpr ColorModeName COLOR_MODE_NAMES[] = {
+    {"onoff", ColorMode::ON_OFF}, {"brightness", ColorMode::BRIGHTNESS},
+    {"white", ColorMode::WHITE},  {"color_temp", ColorMode::COLOR_TEMPERATURE},
+    {"hs", ColorMode::RGB},       {"xy", ColorMode::RGB},
+    {"rgb", ColorMode::RGB},      {"rgbw", ColorMode::RGB},
+    {"rgbww", ColorMode::RGB},
+};
+
+optional<ColorMode> parse_color_mode(StringRef name) {
+  for (const auto &entry : COLOR_MODE_NAMES) {
+    if (name == entry.name) {
+      return entry.mode;
+    }
+  }
   return nullopt;
 }
 
-void HomeassistantLight::state_changed_(const std::string &state) {
-  if (state == "None")
-    return;
-  switch (parse_on_off(state.c_str())) {
-    case ParseOnOffState::PARSE_NONE:
-      ESP_LOGW(TAG, "'%s': Can't parse '%s' as state!", this->entity_id_.c_str(), state.c_str());
-      this->state_->make_call().set_save(false).perform();
-      return;
-    case ParseOnOffState::PARSE_ON:
-      this->state_->turn_on().set_save(false).perform();
-      break;
-    case ParseOnOffState::PARSE_OFF:
-      this->state_->turn_off().set_save(false).perform();
-      break;
-    case ParseOnOffState::PARSE_TOGGLE:
-      this->state_->toggle().set_save(false).perform();
-      break;
-  }
-  ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), state.c_str());
-  this->inited_ = true;
-}
-
-void HomeassistantLight::brightness_retrieved_(const std::string &brightness) {
-  if (brightness == "None")
-    return;
-  auto brightness_value = parse_number<float>(brightness);
-  if (!brightness_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'brightness' value '%s' to number!", this->entity_id_.c_str(),
-             brightness.c_str());
-    return;
-  }
-  ESP_LOGD(TAG, "'%s': Brightness retrieved: %s", this->entity_id_.c_str(), brightness.c_str());
-  this->state_->make_call()
-      .set_brightness(brightness_value.value() / 255.f)
-      .set_publish(false)
-      .set_save(false)
-      .perform();
-}
-
-void HomeassistantLight::color_temp_retrieved_(const std::string &color_temp) {
-  if (color_temp == "None")
-    return;
-  auto color_temp_value = parse_number<float>(color_temp);
-  if (!color_temp_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'color_temp' value '%s' to number!", this->entity_id_.c_str(),
-             color_temp.c_str());
-    return;
-  }
-  ESP_LOGD(TAG, "'%s': Color temperature retrieved: %s", this->entity_id_.c_str(), color_temp.c_str());
-  this->state_->make_call()
-      .set_color_temperature(color_temp_value.value())
-      .set_publish(false)
-      .set_save(false)
-      .perform();
-}
-
-void HomeassistantLight::color_mode_retrieved_(const std::string &color_mode) {
-  if (color_mode == "None")
-    return;
-  auto color_mode_value = parse_color_mode(color_mode);
-  if (!color_mode_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't parse 'color_mode' value '%s' as color mode!", this->entity_id_.c_str(),
-             color_mode.c_str());
-    return;
-  }
-  ESP_LOGD(TAG, "'%s': Color mode retrieved: %s", this->entity_id_.c_str(), color_mode.c_str());
-  this->state_->make_call().set_color_mode(color_mode_value.value()).set_publish(false).set_save(false).perform();
-}
-
-void HomeassistantLight::supported_color_modes_retrieved_(const std::string &supported_color_modes) {
-  std::set<ColorMode> modes;
-  std::stringstream color_modes(supported_color_modes);
-  std::string color_mode_repr;
-  while (std::getline(color_modes, color_mode_repr, ',')) {
-    std::stringstream color_mode_repr_s(color_mode_repr);
-    std::string color_mode;
-    for (unsigned i = 0; i < 2; i++)  // <ColorMode.XY: 'xy'>
-      std::getline(color_mode_repr_s, color_mode, '\'');
-    auto color_mode_value = parse_color_mode(color_mode);
-    if (!color_mode_value.has_value()) {
-      ESP_LOGW(TAG, "'%s': Can't parse 'supported_color_modes' value '%s' as color mode!", this->entity_id_.c_str(),
-               color_mode.c_str());
-      continue;
+/// Reads the integers of a Python tuple such as "(255, 0, 0)"; false when there are fewer than `values`
+template<size_t N> bool parse_tuple(const char *text, std::array<uint8_t, N> &values) {
+  for (auto &value : values) {
+    while (*text != '\0' && (*text < '0' || *text > '9')) {
+      text++;
     }
-    modes.insert(color_mode_value.value());
+    if (*text == '\0') {
+      return false;
+    }
+    value = static_cast<uint8_t>(std::min(strtol(text, const_cast<char **>(&text), 10), 255L));
   }
-  ESP_LOGD(TAG, "'%s': Supported color modes retrieved: %s", this->entity_id_.c_str(), supported_color_modes.c_str());
-  this->traits_.set_supported_color_modes(modes);
+  return true;
 }
 
-void HomeassistantLight::min_mireds_retrieved_(const std::string &min_mireds) {
-  auto min_mireds_value = parse_number<float>(min_mireds);
-  if (!min_mireds_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'min_mireds' value '%s' to number!", this->entity_id_.c_str(),
-             min_mireds.c_str());
-    return;
-  }
-  ESP_LOGD(TAG, "'%s': Min mireds retrieved: %s", this->entity_id_.c_str(), min_mireds.c_str());
-  this->traits_.set_min_mireds(min_mireds_value.value());
-}
-
-void HomeassistantLight::max_mireds_retrieved_(const std::string &max_mireds) {
-  auto max_mireds_value = parse_number<float>(max_mireds);
-  if (!max_mireds_value.has_value()) {
-    ESP_LOGE(TAG, "'%s': Can't convert 'max_mireds' value '%s' to number!", this->entity_id_.c_str(),
-             max_mireds.c_str());
-    return;
-  }
-  ESP_LOGD(TAG, "'%s': Max mireds retrieved: %s", this->entity_id_.c_str(), max_mireds.c_str());
-  this->traits_.set_max_mireds(max_mireds_value.value());
-}
+}  // namespace
 
 void HomeassistantLight::setup() {
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, optional<std::string>("supported_color_modes"),
-      std::bind(&HomeassistantLight::supported_color_modes_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, optional<std::string>("min_mireds"),
-      std::bind(&HomeassistantLight::min_mireds_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, optional<std::string>("max_mireds"),
-      std::bind(&HomeassistantLight::max_mireds_retrieved_, this, std::placeholders::_1));
+  auto *server = api::global_api_server;
+  server->get_home_assistant_state(this->entity_id_, "supported_color_modes", [this](StringRef value) {
+    // A Python list, "['hs', 'color_temp']" or "[<ColorMode.HS: 'hs'>, ...]": the names are the quoted parts
+    ColorModeMask modes;
+    const char *text = value.c_str();
+    while ((text = strchr(text, '\'')) != nullptr) {
+      const char *name = ++text;
+      if ((text = strchr(name, '\'')) == nullptr) {
+        break;
+      }
+      if (auto mode = parse_color_mode(StringRef(name, text - name))) {
+        modes.insert(*mode);
+      } else {
+        ESP_LOGW(TAG, "'%s': Can't parse '%.*s' as color mode!", this->entity_id_, static_cast<int>(text - name), name);
+      }
+      text++;
+    }
+    ESP_LOGD(TAG, "'%s': Supported color modes retrieved: %s", this->entity_id_, value.c_str());
+    this->traits_.set_supported_color_modes(modes);
+  });
+  server->get_home_assistant_state(this->entity_id_, "min_mireds", [this](StringRef value) {
+    if (auto mireds = this->parse_attribute_("min_mireds", value)) {
+      this->traits_.set_min_mireds(*mireds);
+    }
+  });
+  server->get_home_assistant_state(this->entity_id_, "max_mireds", [this](StringRef value) {
+    if (auto mireds = this->parse_attribute_("max_mireds", value)) {
+      this->traits_.set_max_mireds(*mireds);
+    }
+  });
 
-  api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, optional<std::string>("color_mode"),
-      std::bind(&HomeassistantLight::color_mode_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, optional<std::string>("brightness"),
-      std::bind(&HomeassistantLight::brightness_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, optional<std::string>("color_temp"),
-      std::bind(&HomeassistantLight::color_temp_retrieved_, this, std::placeholders::_1));
-
-  api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, nullopt, std::bind(&HomeassistantLight::state_changed_, this, std::placeholders::_1));
+  server->subscribe_home_assistant_state(this->entity_id_, nullptr, [this](StringRef value) {
+    auto on_off = parse_on_off(value.c_str());
+    if (on_off == PARSE_ON || on_off == PARSE_OFF) {
+      this->import_(this->pending_.state, on_off == PARSE_ON);
+    } else if (value != "None") {
+      ESP_LOGW(TAG, "'%s': Can't parse '%s' as state!", this->entity_id_, value.c_str());
+    }
+  });
+  server->subscribe_home_assistant_state(this->entity_id_, "color_mode", [this](StringRef value) {
+    if (auto mode = parse_color_mode(value)) {
+      this->import_(this->pending_.color_mode, *mode);
+    } else if (value != "None") {
+      ESP_LOGE(TAG, "'%s': Can't parse 'color_mode' value '%s' as color mode!", this->entity_id_, value.c_str());
+    }
+  });
+  server->subscribe_home_assistant_state(this->entity_id_, "brightness", [this](StringRef value) {
+    if (auto brightness = this->parse_attribute_("brightness", value)) {
+      this->import_(this->pending_.brightness, *brightness / 255.0f);
+    }
+  });
+  server->subscribe_home_assistant_state(this->entity_id_, "color_temp", [this](StringRef value) {
+    if (auto mireds = this->parse_attribute_("color_temp", value)) {
+      this->import_(this->pending_.color_temp, *mireds);
+    }
+  });
+  server->subscribe_home_assistant_state(this->entity_id_, "rgb_color", [this](StringRef value) {
+    std::array<uint8_t, 3> rgb;
+    if (parse_tuple(value.c_str(), rgb)) {
+      this->import_(this->pending_.rgb, rgb);
+    } else if (value != "None") {
+      ESP_LOGE(TAG, "'%s': Can't parse 'rgb_color' value '%s'!", this->entity_id_, value.c_str());
+    }
+  });
 }
 
 void HomeassistantLight::dump_config() {
-  ESP_LOGCONFIG(TAG, "Homeassistant Light:");
-  ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "Homeassistant Light:\n"
+                "  Entity ID: '%s'",
+                this->entity_id_);
 }
 
-float HomeassistantLight::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
+optional<float> HomeassistantLight::parse_attribute_(const char *name, StringRef value) {
+  if (value == "None") {
+    return nullopt;
+  }
+  auto number = parse_number<float>(value.c_str());
+  if (!number.has_value()) {
+    ESP_LOGE(TAG, "'%s': Can't convert '%s' value '%s' to number!", this->entity_id_, name, value.c_str());
+  }
+  return number;
+}
 
-void HomeassistantLight::setup_state(LightState *state) { this->state_ = state; }
+template<typename T> void HomeassistantLight::import_(optional<T> &field, T value) {
+  field = value;
+  // One update changes several attributes, each arriving as its own message; apply them as one call
+  if (!this->apply_scheduled_) {
+    this->apply_scheduled_ = true;
+    this->defer([this]() { this->apply_pending_(); });
+  }
+}
+
+void HomeassistantLight::apply_pending_() {
+  Pending pending = this->pending_;
+  this->pending_ = {};
+  this->apply_scheduled_ = false;
+
+  auto call = this->state_->make_call().set_save(false);
+  call.set_state(pending.state);
+  call.set_color_mode(pending.color_mode);
+  call.set_brightness(pending.brightness);
+  call.set_color_temperature(pending.color_temp);
+  if (pending.rgb.has_value()) {
+    const auto &rgb = *pending.rgb;
+    call.set_rgb(rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f);
+  }
+  ESP_LOGD(TAG, "'%s': Applying the state reported by Home Assistant", this->entity_id_);
+  call.perform();
+  // write_state() sees these values next and knows not to send them back
+  this->imported_ = this->state_->remote_values;
+}
 
 void HomeassistantLight::write_state(LightState *state) {
-  if (!this->inited_) {
-    return;
+  const LightColorValues &values = state->current_values;
+  if (values != state->remote_values) {
+    return;  // a transition runs here; Home Assistant gets the target once it is reached
   }
-
+  if (values == this->imported_) {
+    return;  // this change came from Home Assistant
+  }
   if (!api::global_api_server->is_connected()) {
     ESP_LOGE(TAG, "No clients connected to API server");
     return;
   }
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->state_->get_name().c_str());
+    return;
+  }
+#endif
 
   static constexpr auto SERVICE_ON = StringRef::from_lit("light.turn_on");
   static constexpr auto SERVICE_OFF = StringRef::from_lit("light.turn_off");
   static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
   static constexpr auto BRIGHTNESS_KEY = StringRef::from_lit("brightness");
-  static constexpr auto COLOR_TEMP_KEY = StringRef::from_lit("color_temp");
-  static constexpr auto COLOR_BRIGHTNESS_KEY = StringRef::from_lit("color_brightness");
-  static constexpr auto RGB_COLOR_KEY = StringRef::from_lit("rgb_color");
-  static constexpr auto RGBW_COLOR_KEY = StringRef::from_lit("rgbw_color");
-  static constexpr auto RGBWW_COLOR_KEY = StringRef::from_lit("rgbww_color");
-  static constexpr auto COLD_WHITE_KEY = StringRef::from_lit("cold_white");
-  static constexpr auto WARM_WHITE_KEY = StringRef::from_lit("warm_white");
   static constexpr auto WHITE_KEY = StringRef::from_lit("white");
+  static constexpr auto COLOR_TEMP_KEY = StringRef::from_lit("color_temp");
+  static constexpr auto RGB_COLOR_KEY = StringRef::from_lit("rgb_color");
 
-  api::HomeassistantServiceResponse resp;
-
+  api::HomeassistantActionRequest resp;
+  resp.data.init(3);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.set_key(ENTITY_ID_KEY);
-  entity_id.value = this->entity_id_;
+  entity_id.key = ENTITY_ID_KEY;
+  entity_id.value = StringRef(this->entity_id_);
 
-  bool is_on;
-  state->current_values_as_binary(&is_on);
-  if (is_on) {
-    resp.set_service(SERVICE_ON);
-
-    auto color_mode = state->current_values.get_color_mode();
-    switch (color_mode) {
-      case ColorMode::ON_OFF:
-        break;
-
-      case ColorMode::BRIGHTNESS:
-      case ColorMode::WHITE: {
-        float brightness;
-        state->current_values_as_brightness(&brightness);
-
-        if (brightness) {
-          auto &entity_brightness = resp.data.emplace_back();
-          entity_brightness.set_key(color_mode == ColorMode::WHITE ? WHITE_KEY : BRIGHTNESS_KEY);
-          entity_brightness.value = to_string((unsigned) (brightness * 255));
-        }
-
-        if (color_mode == ColorMode::WHITE) {
-          auto &entity_white = resp.data.emplace_back();
-          entity_white.set_key(WHITE_KEY);
-          entity_white.value = "true";
-        }
-      }; break;
-
-      case ColorMode::RGB: {
-        float red, green, blue;
-        state->current_values_as_rgb(&red, &green, &blue);
-
-        auto &entity_rgb_color = resp.data_template.emplace_back();
-        entity_rgb_color.set_key(RGB_COLOR_KEY);
-        entity_rgb_color.value = ('[' + to_string((unsigned) (red * 255)) + ',' + to_string((unsigned) (green * 255)) +
-                                  ',' + to_string((unsigned) (blue * 255)) + ']');
-      }; break;
-
-      case ColorMode::RGB_WHITE: {
-        float red, green, blue, white;
-        state->current_values_as_rgbw(&red, &green, &blue, &white);
-
-        auto &entity_rgbw_color = resp.data_template.emplace_back();
-        entity_rgbw_color.set_key(RGBW_COLOR_KEY);
-        entity_rgbw_color.value =
-            ('[' + to_string((unsigned) (red * 255)) + ',' + to_string((unsigned) (green * 255)) + ',' +
-             to_string((unsigned) (blue * 255)) + ',' + to_string((unsigned) (white * 255)) + ']');
-      }; break;
-
-      case ColorMode::RGB_COLD_WARM_WHITE: {
-        float red, green, blue, cold_white, warm_white;
-        state->current_values_as_rgbww(&red, &green, &blue, &cold_white, &warm_white);
-
-        auto &entity_rgbww_color = resp.data_template.emplace_back();
-        entity_rgbww_color.set_key(RGBWW_COLOR_KEY);
-        entity_rgbww_color.value =
-            ('[' + to_string((unsigned) (red * 255)) + ',' + to_string((unsigned) (green * 255)) + ',' +
-             to_string((unsigned) (blue * 255)) + ',' + to_string((unsigned) (cold_white * 255)) + ',' +
-             to_string((unsigned) (warm_white * 255)) + ']');
-      }; break;
-
-      default: {
-        float color_temp, color_brightness;
-        state->current_values_as_ct(&color_temp, &color_brightness);
-
-        if (color_temp) {
-          auto &entity_color_temp = resp.data.emplace_back();
-          entity_color_temp.set_key(COLOR_TEMP_KEY);
-          entity_color_temp.value =
-              to_string((unsigned) (this->traits_.get_min_mireds() +
-                                    color_temp * (this->traits_.get_max_mireds() - this->traits_.get_min_mireds())));
-        }
-
-        if (color_brightness) {
-          auto &entity_color_brightness = resp.data.emplace_back();
-          entity_color_brightness.set_key(COLOR_BRIGHTNESS_KEY);
-          entity_color_brightness.value = to_string((unsigned) (color_brightness * 255));
-        }
-      }
-    }
+  // The request refers to these buffers until it is sent below
+  char level_buf[UINT32_MAX_STR_SIZE];
+  char color_temp_buf[UINT32_MAX_STR_SIZE];
+  char color_buf[16];
+  if (!values.is_on()) {
+    resp.service = SERVICE_OFF;
   } else {
-    resp.set_service(SERVICE_OFF);
+    resp.service = SERVICE_ON;
+    const ColorMode color_mode = values.get_color_mode();
+    if (color_mode != ColorMode::ON_OFF) {
+      // In white mode the brightness goes under "white", which also selects that mode
+      auto &level = resp.data.emplace_back();
+      level.key = color_mode == ColorMode::WHITE ? WHITE_KEY : BRIGHTNESS_KEY;
+      level.value = StringRef(level_buf, buf_append_printf(level_buf, sizeof(level_buf), 0, "%u",
+                                                           static_cast<unsigned>(values.get_brightness() * 255)));
+    }
+    if (color_mode == ColorMode::COLOR_TEMPERATURE || color_mode == ColorMode::COLD_WARM_WHITE) {
+      auto &color_temp = resp.data.emplace_back();
+      color_temp.key = COLOR_TEMP_KEY;
+      color_temp.value =
+          StringRef(color_temp_buf, buf_append_printf(color_temp_buf, sizeof(color_temp_buf), 0, "%u",
+                                                      static_cast<unsigned>(values.get_color_temperature())));
+    }
+    if (color_mode == ColorMode::RGB) {
+      // A list, which only a template renders as one
+      resp.data_template.init(1);
+      auto &color = resp.data_template.emplace_back();
+      color.key = RGB_COLOR_KEY;
+      color.value = StringRef(color_buf, buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]",
+                                                           static_cast<unsigned>(values.get_red() * 255),
+                                                           static_cast<unsigned>(values.get_green() * 255),
+                                                           static_cast<unsigned>(values.get_blue() * 255)));
+    }
   }
-
-  api::global_api_server->send_homeassistant_service_call(resp);
+  api::global_api_server->send_homeassistant_action(resp);
 }
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant
