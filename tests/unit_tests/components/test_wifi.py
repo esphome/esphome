@@ -18,6 +18,8 @@ from esphome.const import (
     CONF_SSID,
     CONF_WIFI,
     KEY_CORE,
+    KEY_ESP32,
+    KEY_IDF_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLACEHOLDER_WIFI_SSID,
@@ -207,19 +209,39 @@ def test_check_placeholder_credentials_skips_template_ssid() -> None:
     assert check_placeholder_credentials(config) is None
 
 
-@pytest.mark.parametrize("password", [None, ""])
-def test_wisp_mode_requires_ap_password(
-    password: str | None, monkeypatch: pytest.MonkeyPatch
+def _set_wisp_core(
+    monkeypatch: pytest.MonkeyPatch,
+    framework: str = "esp-idf",
+    idf: cv.Version | None = None,
 ) -> None:
-    """WISP must not route upstream access through an open access point."""
+    """Describe an ESP32 build for the WISP final validation tests."""
     monkeypatch.setitem(
         CORE.data,
         KEY_CORE,
         {
             KEY_TARGET_PLATFORM: Platform.ESP32,
-            KEY_TARGET_FRAMEWORK: "esp-idf",
+            KEY_TARGET_FRAMEWORK: framework,
         },
     )
+    monkeypatch.setitem(
+        CORE.data, KEY_ESP32, {KEY_IDF_VERSION: idf or cv.Version(5, 4, 0)}
+    )
+
+
+def _validate_wisp(config: dict, full_extra: dict | None = None) -> None:
+    token = fv.full_config.set({CONF_WIFI: config, **(full_extra or {})})
+    try:
+        wifi_final_validate(config)
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize("password", [None, ""])
+def test_wisp_mode_requires_ap_password(
+    password: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WISP must not route upstream access through an open access point."""
+    _set_wisp_core(monkeypatch)
     ap_config = {CONF_AP_MODE: "WISP"}
     if password is not None:
         ap_config[CONF_PASSWORD] = password
@@ -234,14 +256,7 @@ def test_wisp_mode_requires_ap_password(
 
 def test_wisp_mode_accepts_ap_password(monkeypatch: pytest.MonkeyPatch) -> None:
     """A configured AP password keeps WISP mode available."""
-    monkeypatch.setitem(
-        CORE.data,
-        KEY_CORE,
-        {
-            KEY_TARGET_PLATFORM: Platform.ESP32,
-            KEY_TARGET_FRAMEWORK: "esp-idf",
-        },
-    )
+    _set_wisp_core(monkeypatch)
     config = {
         CONF_NETWORKS: [{}],
         CONF_AP: {CONF_AP_MODE: "WISP", CONF_PASSWORD: "securepassword"},
@@ -255,14 +270,7 @@ def test_wisp_mode_accepts_ap_password(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_wisp_mode_rejects_captive_portal(monkeypatch: pytest.MonkeyPatch) -> None:
     """The WISP access point never runs the captive portal."""
-    monkeypatch.setitem(
-        CORE.data,
-        KEY_CORE,
-        {
-            KEY_TARGET_PLATFORM: Platform.ESP32,
-            KEY_TARGET_FRAMEWORK: "esp-idf",
-        },
-    )
+    _set_wisp_core(monkeypatch)
     config = {
         CONF_NETWORKS: [{}],
         CONF_AP: {CONF_AP_MODE: "WISP", CONF_PASSWORD: "securepassword"},
@@ -273,3 +281,47 @@ def test_wisp_mode_rejects_captive_portal(monkeypatch: pytest.MonkeyPatch) -> No
             wifi_final_validate(config)
     finally:
         fv.full_config.reset(token)
+
+
+def test_wisp_mode_requires_sta_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """WISP has nothing to share without an upstream network."""
+    _set_wisp_core(monkeypatch)
+    config = {
+        CONF_NETWORKS: [],
+        CONF_AP: {CONF_AP_MODE: "WISP", CONF_PASSWORD: "securepassword"},
+    }
+    with pytest.raises(cv.Invalid, match="at least one STA network"):
+        _validate_wisp(config)
+
+
+def test_wisp_mode_requires_esp_idf(monkeypatch: pytest.MonkeyPatch) -> None:
+    """NAT is only available with the ESP-IDF framework."""
+    _set_wisp_core(monkeypatch, framework="arduino")
+    config = {
+        CONF_NETWORKS: [{}],
+        CONF_AP: {CONF_AP_MODE: "WISP", CONF_PASSWORD: "securepassword"},
+    }
+    with pytest.raises(cv.Invalid, match="only supported with ESP-IDF"):
+        _validate_wisp(config)
+
+
+def test_wisp_mode_requires_idf_5_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    """esp_netif_napt_enable() is missing before ESP-IDF 5.1."""
+    _set_wisp_core(monkeypatch, idf=cv.Version(5, 0, 9))
+    config = {
+        CONF_NETWORKS: [{}],
+        CONF_AP: {CONF_AP_MODE: "WISP", CONF_PASSWORD: "securepassword"},
+    }
+    with pytest.raises(cv.Invalid, match="ESP-IDF 5.1.0"):
+        _validate_wisp(config)
+
+
+def test_dns_servers_requires_wisp(monkeypatch: pytest.MonkeyPatch) -> None:
+    """dns_servers only has meaning for the WISP access point."""
+    _set_wisp_core(monkeypatch)
+    config = {
+        CONF_NETWORKS: [{}],
+        CONF_AP: {CONF_AP_MODE: "FALLBACK", "dns_servers": ["1.1.1.1"]},
+    }
+    with pytest.raises(cv.Invalid, match="dns_servers requires ap_mode: WISP"):
+        _validate_wisp(config)

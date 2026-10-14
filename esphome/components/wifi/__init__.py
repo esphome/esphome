@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
     get_esp32_variant,
+    idf_version,
     only_on_variant,
     request_wifi,
     require_mbedtls_tls,
@@ -402,6 +403,9 @@ def final_validate(config):
                 raise cv.Invalid(
                     "WISP mode (wireless bridge with NAT) is only supported with ESP-IDF framework"
                 )
+            # esp_netif_napt_enable() does not exist before ESP-IDF 5.1
+            if ap_is_wisp_mode and idf_version() < cv.Version(5, 1, 0):
+                raise cv.Invalid("WISP mode requires ESP-IDF 5.1.0 or newer")
             if CONF_DNS_SERVERS in ap_config and not ap_is_wisp_mode:
                 raise cv.Invalid("wifi.ap.dns_servers requires ap_mode: WISP")
             if ap_is_wisp_mode and has_captive_portal:
