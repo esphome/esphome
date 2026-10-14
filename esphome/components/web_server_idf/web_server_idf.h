@@ -339,9 +339,10 @@ class AsyncEventSourceResponse {
   };
   void process_close_();
   static void close_session_work(void *arg);
-  // Keep the live stream ahead of idle keep-alive sockets in httpd's LRU purge
   void refresh_lru_();
   static void refresh_lru_work(void *arg);
+  // httpd frees a session before closing its socket, so the fd may already belong to a new client
+  bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
 
   // Deletable only after destroy() zeroed fd_ and no queued HTTPD work still references this object.
   bool safe_to_delete_() const {

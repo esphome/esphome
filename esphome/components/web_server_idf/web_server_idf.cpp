@@ -962,24 +962,23 @@ void AsyncEventSourceResponse::process_close_() {
 void AsyncEventSourceResponse::refresh_lru_() {
   // httpd only advances a session's LRU counter when a request arrives, and an event stream receives one
   // request ever, so the purge that frees a socket for a new client would evict the live streams first.
-  // The HTTPD task owns the session table, so the refresh runs there, at most once a second.
+  // The HTTPD task owns the session table, so the refresh runs there.
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_lru_refresh_ms_ < LRU_REFRESH_INTERVAL_MS ||
       this->lru_work_queued_.load(std::memory_order_acquire)) {
     return;
   }
+  this->last_lru_refresh_ms_ = now;  // a full queue also waits for the next interval
   this->lru_work_queued_.store(true, std::memory_order_release);
   if (httpd_queue_work(this->hd_, &AsyncEventSourceResponse::refresh_lru_work, this) != ESP_OK) {
     this->lru_work_queued_.store(false, std::memory_order_release);
-    return;
   }
-  this->last_lru_refresh_ms_ = now;
 }
 
 void AsyncEventSourceResponse::refresh_lru_work(void *arg) {
   auto *response = static_cast<AsyncEventSourceResponse *>(arg);
   const int fd = response->fd_.load();
-  if (fd != 0 && httpd_sess_get_ctx(response->hd_, fd) == response) {
+  if (response->owns_session_(fd)) {
     httpd_sess_update_lru_counter(response->hd_, fd);
   }
   // Release self only after the HTTPD-task callback has finished every access.
@@ -989,7 +988,7 @@ void AsyncEventSourceResponse::refresh_lru_work(void *arg) {
 void AsyncEventSourceResponse::close_session_work(void *arg) {
   auto *response = static_cast<AsyncEventSourceResponse *>(arg);
   const int fd = response->fd_.load();
-  if (fd != 0 && httpd_sess_get_ctx(response->hd_, fd) == response) {
+  if (response->owns_session_(fd)) {
     // The HTTPD task remains the session owner. Shutting the socket down makes
     // its next select/recv path delete the session and invoke destroy().
     shutdown(fd, SHUT_RDWR);
@@ -1003,7 +1002,7 @@ ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   // httpd frees a session before closing its socket, so the fd may already be a new client's.
   // Treated as would-block; the stall timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
-  if (httpd_sess_get_ctx(this->hd_, fd) != this) {
+  if (!this->owns_session_(fd)) {
     return 0;
   }
   struct msghdr msg {};
@@ -1011,9 +1010,6 @@ ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   msg.msg_iovlen = iovcnt;
   const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
   if (sent >= 0) {
-    if (sent > 0) {
-      this->refresh_lru_();
-    }
     return sent;
   }
   const int err = errno;
@@ -1115,6 +1111,7 @@ void AsyncEventSourceResponse::loop() {
     this->process_close_();
     return;
   }
+  this->refresh_lru_();
   drain_tail_();
   process_deferred_queue_();
   if (this->close_requested_)
