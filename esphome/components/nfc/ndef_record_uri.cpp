@@ -41,7 +41,7 @@ std::vector<uint8_t> NdefRecordUri::get_encoded_payload() {
   uint8_t payload_prefix = 0x00;
   uint8_t payload_prefix_length = 0x00;
   for (uint8_t i = 1; i < UriPrefixStrings::LAST_INDEX; i++) {
-    auto prefix = reinterpret_cast<ESPHOME_PGM_P>(UriPrefixStrings::get_progmem_str(i, 0));
+    const auto *prefix = reinterpret_cast<ESPHOME_PGM_P>(UriPrefixStrings::get_progmem_str(i, 0));
     const size_t length = ESPHOME_strlen_P(prefix);
     if (this->uri_.size() >= length && ESPHOME_strncmp_P(this->uri_.c_str(), prefix, length) == 0) {
       payload_prefix = i;
