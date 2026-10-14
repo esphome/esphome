@@ -29,6 +29,13 @@ From `/home/test/Documents/GitHub/esphome`, with the bench connected:
 /home/test/.cache/tmp102-review-venv/bin/python -m esphome run tests/components/rx8111/time_bench.yaml --device /dev/ttyUSB0
 ```
 
+The first hardware run on commit `d27ef8140cbb52c4c08829fea4edea1d6e617a33`
+reported `PASS=4 FAIL=1 SKIP=3`: the bench read the cached GPIO binary
+sensor `.state` immediately after clearing AF over I2C. This revision waits
+for the next GPIO loop update before checking INT release and logs FLAG and
+CONTROL if INT remains asserted. The earlier result remains a **failed test**;
+the revised bench still requires a fresh hardware run.
+
 Observe serial output until the `RESULT:` line (allow several minutes for the
 1/60 Hz timer and 1 Hz FOUT windows). Report **PASS, FAIL and SKIP counts**,
 and any phase-level messages. The time-only runner checks RTC time read/write,

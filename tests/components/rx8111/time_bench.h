@@ -54,7 +54,8 @@ class Runner {
     if (this->rtc_ == nullptr || this->phase_ == DONE)
       return;
     const uint32_t elapsed = millis() - this->phase_started_;
-    if (elapsed > this->timeout_ && this->phase_ != FOUT_MEASURE) {
+    if (elapsed > this->timeout_ && this->phase_ != FOUT_MEASURE && this->phase_ != ALARM_CLEAR &&
+        this->phase_ != EVENT_CLEAR) {
       this->fail("Phase deadline exceeded");
       return;
     }
@@ -115,11 +116,27 @@ class Runner {
             !this->require(id(rtc_int).state, "INT held by AF after unset"))
           return;
         this->rtc_->clear_alarm_flag();
-        this->rtc_->update();
-        if (!this->read(RX8111_REG_FLAG, flags) ||
-            !this->require(!(flags & RX8111_FLAG_AF) && !id(rtc_int).state, "Explicit AF clear releases INT"))
+        this->enter(ALARM_CLEAR, "Wait for AF clear and INT release", 2000);
+        break;
+      case ALARM_CLEAR:
+        // The GPIO binary sensor publishes in its own loop. Its .state still
+        // contains the old asserted value immediately after the I2C write.
+        if (elapsed < 300)
           return;
-        this->pass("Unset, explicit AF clear and callback deduplication");
+        if (!this->read(RX8111_REG_FLAG, flags) ||
+            !this->require(!(flags & RX8111_FLAG_AF), "Explicit AF clear readback"))
+          return;
+        if (id(rtc_int).state) {
+          if (elapsed >= this->timeout_) {
+            uint8_t control = 0;
+            if (this->read(RX8111_REG_CONTROL, control)) {
+              ESP_LOGE("rx8111_time_bench", "INT stayed LOW: FLAG=%02X CONTROL=%02X", flags, control);
+            }
+            this->fail("INT remains LOW after AF clear; check other flags and wiring");
+          }
+          return;
+        }
+        this->pass("Unset, explicit AF clear and INT release");
         if (!this->rearmed_) {
           this->rearmed_ = true;
           this->alarm_base_ = this->alarm_callbacks;
@@ -198,10 +215,18 @@ class Runner {
         if (elapsed < 500)
           return;
         this->rtc_->clear_event_flag();
-        this->rtc_->update();
-        if (!this->read(RX8111_REG_FLAG, flags) ||
-            !this->require(!(flags & RX8111_FLAG_EVF) && !id(rtc_int).state, "EVF clear releases INT"))
+        this->enter(EVENT_CLEAR, "Wait for EVF clear and INT release", 2000);
+        break;
+      case EVENT_CLEAR:
+        if (elapsed < 300)
           return;
+        if (!this->read(RX8111_REG_FLAG, flags) || !this->require(!(flags & RX8111_FLAG_EVF), "EVF clear readback"))
+          return;
+        if (id(rtc_int).state) {
+          if (elapsed >= this->timeout_)
+            this->fail("INT remains LOW after EVF clear; check other flags and wiring");
+          return;
+        }
         this->pass("Event latch/acknowledge and callback deduplication");
         this->start_fout();
         break;
@@ -247,12 +272,14 @@ class Runner {
     ALARM_WAIT,
     ALARM_REARM,
     ALARM_HOLD,
+    ALARM_CLEAR,
     TIMER_WAIT,
     TIMER_HOLD,
     TIMER_REARM,
     EVENT_IDLE,
     EVENT_WAIT,
     EVENT_HOLD,
+    EVENT_CLEAR,
     FOUT_SETTLE,
     FOUT_MEASURE,
     DONE
