@@ -50,32 +50,23 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(nfc::NfcTagUid &
 
   // we already read pages 3-6 earlier, pick up where we left off so we're not re-reading pages
   const uint16_t read_length = total_length > 12 ? static_cast<uint16_t>(total_length - 12) : 0;
-  FixedVector<uint8_t> buffer;
-  if (!buffer.try_init(data.size() + read_length)) {
-    ESP_LOGE(TAG, "Out of memory reading NDEF message of %" PRIu32 " bytes", message_length);
-    return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
-  }
-  for (const uint8_t byte : data) {
-    buffer.push_back(byte);
-  }
   if (read_length) {
-    if (!this->read_mifare_ultralight_bytes_(nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE + 3, read_length, buffer)) {
+    if (!this->read_mifare_ultralight_bytes_(nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE + 3, read_length, data)) {
       ESP_LOGE(TAG, "Error reading tag data");
       return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
     }
   }
   // skip page 3 as well as any bytes ahead of message_start_index
   const size_t skip = message_start_index + nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;
-  if (skip >= buffer.size()) {
+  if (skip >= data.size()) {
     return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
   }
 
   return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2,
-                                  make_unique<nfc::NdefMessage>(std::span<const uint8_t>(buffer).subspan(skip)));
+                                  make_unique<nfc::NdefMessage>(std::span<const uint8_t>(data).subspan(skip)));
 }
 
-template<typename Buffer>
-bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, Buffer &data) {
+bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, UltralightReadBuffer &data) {
   MifareReadData chunk;
 
   for (uint8_t i = 0; i * MIFARE_READ_SIZE < num_bytes; i++) {
@@ -96,9 +87,6 @@ bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes
 
   return true;
 }
-
-template bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, UltralightReadBuffer &data);
-template bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, FixedVector<uint8_t> &data);
 
 bool PN532::is_mifare_ultralight_formatted_(const std::span<const uint8_t> page_3_to_6) {
   const uint8_t p4_offset = nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;  // page 4 will begin 4 bytes into the vector
