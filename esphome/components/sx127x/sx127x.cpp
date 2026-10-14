@@ -6,15 +6,15 @@ namespace esphome::sx127x {
 
 ESPHOME_LOG_TAG(TAG, "sx127x");
 static const uint32_t FXOSC = 32000000u;
-static const uint16_t RAMP[16] PROGMEM = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
+static constexpr uint16_t RAMP[16] PROGMEM = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
 // Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
-static const uint32_t BW_HZ[22] PROGMEM = {2604,   3125,   3906,   5208,   6250,   7812,  10416, 12500,
-                                           15625,  20833,  25000,  31250,  41666,  50000, 62500, 83333,
-                                           100000, 125000, 166666, 200000, 250000, 500000};
-static const uint8_t BW_LORA[22] PROGMEM = {
+static constexpr uint32_t BW_HZ[22] PROGMEM = {2604,   3125,   3906,   5208,   6250,   7812,  10416, 12500,
+                                               15625,  20833,  25000,  31250,  41666,  50000, 62500, 83333,
+                                               100000, 125000, 166666, 200000, 250000, 500000};
+static constexpr uint8_t BW_LORA[22] PROGMEM = {
     BW_7_8,  BW_7_8,  BW_7_8,  BW_7_8,  BW_7_8,   BW_7_8,   BW_10_4,  BW_15_6,  BW_15_6,  BW_20_8,  BW_31_3,
     BW_31_3, BW_41_7, BW_62_5, BW_62_5, BW_125_0, BW_125_0, BW_125_0, BW_250_0, BW_250_0, BW_250_0, BW_500_0};
-static const uint8_t BW_FSK_OOK[22] PROGMEM = {
+static constexpr uint8_t BW_FSK_OOK[22] PROGMEM = {
     RX_BW_2_6,   RX_BW_3_1,   RX_BW_3_9,   RX_BW_5_2,   RX_BW_6_3,   RX_BW_7_8,  RX_BW_10_4, RX_BW_12_5,
     RX_BW_15_6,  RX_BW_20_8,  RX_BW_25_0,  RX_BW_31_3,  RX_BW_41_7,  RX_BW_50_0, RX_BW_62_5, RX_BW_83_3,
     RX_BW_100_0, RX_BW_125_0, RX_BW_166_7, RX_BW_200_0, RX_BW_250_0, RX_BW_250_0};
