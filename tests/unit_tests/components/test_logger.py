@@ -29,7 +29,8 @@ def test_dir_does_not_import_platform_packages() -> None:
     check = (
         "import sys; from esphome.components import logger; dir(logger); "
         "print(','.join(m for m in ('esphome.components.esp32', "
-        "'esphome.components.libretiny') if m in sys.modules))"
+        "'esphome.components.libretiny', 'esphome.components.zephyr') "
+        "if m in sys.modules))"
     )
     result = subprocess.run(
         [sys.executable, "-c", check], capture_output=True, text=True, check=True
