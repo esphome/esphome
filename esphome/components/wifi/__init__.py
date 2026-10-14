@@ -229,6 +229,8 @@ def _validate_ap_mode(value: str) -> str:
 
 
 def _validate_dns_servers(value: list) -> list:
+    if any(ip.is_unspecified for ip in value):
+        raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
     if len(value) > 1:
         cv.require_framework_version(
             esp_idf=cv.Version(6, 0, 0),
@@ -351,6 +353,11 @@ def wifi_network_ap(value):
             raise cv.Invalid(
                 "WISP mode requires a password for the access point",
                 path=[CONF_PASSWORD],
+            )
+        if config[CONF_AP_TIMEOUT].total_milliseconds == 0:
+            raise cv.Invalid(
+                "ap_timeout is how long the bridge waits before a failed start is tried again; it cannot be 0",
+                path=[CONF_AP_TIMEOUT],
             )
     elif CONF_DNS_SERVERS in config:
         raise cv.Invalid("dns_servers requires ap_mode: WISP", path=[CONF_DNS_SERVERS])

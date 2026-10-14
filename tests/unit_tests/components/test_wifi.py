@@ -11,6 +11,7 @@ from esphome.components.network import (
 )
 from esphome.components.wifi import (
     CONF_AP_MODE,
+    CONF_AP_TIMEOUT,
     CONF_DNS_SERVERS,
     check_placeholder_credentials,
     final_validate as wifi_final_validate,
@@ -261,6 +262,21 @@ def test_wisp_accepts_ap_password() -> None:
 
 
 @pytest.mark.usefixtures("wisp_core")
+def test_wisp_rejects_zero_ap_timeout() -> None:
+    """Zero disables the fallback AP; the bridge would retry a failed start on every loop pass."""
+    with pytest.raises(cv.Invalid, match="ap_timeout"):
+        wifi_network_ap(_wisp_ap(**{CONF_AP_TIMEOUT: "0s"}))
+    wifi_network_ap(_wisp_ap(**{CONF_AP_TIMEOUT: "30s"}))
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_dns_servers_reject_unspecified_address() -> None:
+    """0.0.0.0 would leave the clients with the access point as their resolver."""
+    with pytest.raises(cv.Invalid, match="0.0.0.0"):
+        wifi_network_ap(_wisp_ap(dns_servers=["0.0.0.0"]))
+
+
+@pytest.mark.usefixtures("wisp_core")
 def test_dns_servers_require_wisp() -> None:
     with pytest.raises(cv.Invalid, match="dns_servers requires ap_mode: WISP"):
         wifi_network_ap({CONF_DNS_SERVERS: ["1.1.1.1"]})
@@ -316,7 +332,6 @@ def test_wisp_rejects_captive_portal() -> None:
         )
 
 
-@pytest.mark.usefixtures("wisp_core")
 def _manual_ip(dns1: str) -> dict:
     return {CONF_DNS1: IPv4Address(dns1)}
 

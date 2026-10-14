@@ -1176,11 +1176,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "AP start");
     this->ap_started_ = true;
 #ifdef USE_WIFI_AP_WISP
-    // NAPT needs the interface up, so it cannot be part of the setup; without it the clients have no way out,
-    // so a failure sends the bridge through its setup again
+    // NAPT needs the interface up, so it cannot be part of the setup. Without it the clients have no way out, so
+    // the AP goes down and its setup runs again, which brings it back up through this event.
     if (esp_err_t err = esp_netif_napt_enable(s_ap_netif); err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to enable NAT: %s", esp_err_to_name(err));
       this->ap_setup_ = false;
+      this->wifi_mode_({}, false);
     }
 #endif
 
@@ -1582,11 +1583,13 @@ void WiFiComponent::apply_ap_dns_() {
     ESP_LOGW(TAG, "Failed to stop DHCP server: %s", esp_err_to_name(err));
     return;
   }
-  this->write_ap_dns_();
+  const bool written = this->write_ap_dns_();
   err = esp_netif_dhcps_start(s_ap_netif);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Failed to restart DHCP server: %s", esp_err_to_name(err));
   }
+  if (!written || err != ESP_OK)
+    this->ap_setup_ = false;  // the bridge goes through its setup again, which rewrites and restarts the server
 }
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS
 #endif  // USE_WIFI_AP_WISP
