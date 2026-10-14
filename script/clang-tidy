@@ -118,6 +118,9 @@ def clang_options(idedata, environment):
             "-mfp16-format=ieee",
             "--param=min-pagesize=0",
         )
+        # Zephyr's net_if.h asserts on an out-of-range enum cast that GCC
+        # accepts and clang rejects as a constant expression.
+        cmd.append("-Wno-enum-constexpr-conversion")
     else:
         cmd.extend(
             [
