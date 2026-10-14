@@ -214,7 +214,7 @@ enum class Orientation : uint8_t {
 };
 
 class LvglComponent final : public PollingComponent {
-  constexpr static const char *const TAG = "lvgl";
+  constexpr static const char *const TAG = "lvgl";  // NOLINT: lvgl does not build for ESP8266
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
