@@ -259,6 +259,21 @@ TEST_F(VncPacing, DataResetsTheHeartbeat) {
   EXPECT_EQ(hex(s().take()), hex(INCREMENTAL));
 }
 
+TEST_F(VncPacing, ServerSilentMidFrameEndsTheSession) {
+  set_now(1100);
+  s().deliver(frame());
+  s().take();
+  Bytes partial = frame();
+  partial.pop_back();
+  s().deliver(partial);
+  ASSERT_TRUE(s().client.in_update());
+  s().at(1100 + 59999);
+  EXPECT_EQ(s().client.state(), VncState::VNC_STATE_RUNNING);
+  s().at(1100 + 60000);
+  EXPECT_EQ(s().client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_FALSE(s().client.link().connected());
+}
+
 // --- A display that parks its loop when idle (it8951, epaper_spi).
 
 class VncPacingParked : public ::testing::Test {

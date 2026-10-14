@@ -239,6 +239,11 @@ void VncClient::loop() {
     this->service_rx_(now);
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
+    // Mid-frame there is nothing to send, so a vanished server would never fail a write.
+    if (this->in_update_ && !blocked && !this->rx_pending_ && now - this->last_rx_ms_ >= HEARTBEAT_MS) {
+      this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Server stopped sending"));
+      return;
+    }
     this->pace_(now);
   }
   this->link_.flush_tx();
@@ -1041,9 +1046,8 @@ void VncClient::pace_(uint32_t now) {
     return;
   }
   // Repeating a parked request costs nothing on the server and detects a dead link.
-  if (this->request_outstanding_ && now - this->last_rx_ms_ >= HEARTBEAT_MS &&
-      now - this->last_request_ms_ >= HEARTBEAT_MS) {
-    this->send_update_request_(true);
+  if (now - this->last_rx_ms_ >= HEARTBEAT_MS && now - this->last_request_ms_ >= HEARTBEAT_MS &&
+      this->send_update_request_(true)) {
     this->last_request_ms_ = now;
   }
 }
