@@ -154,6 +154,8 @@ static inline uint8_t tag_level(const std::map<const char *, uint8_t, CStrCompar
 }
 #endif
 
+uint8_t Logger::get_log_level(const char *tag) { return this->level_for(tag); }
+
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   return tag_level(this->log_levels_, tag, this->current_level_);
