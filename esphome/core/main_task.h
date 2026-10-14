@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-extern TaskHandle_t esphome_main_task_handle;
+extern TaskHandle_t esphome_main_task_handle;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_ESP32
 /// ESP-IDF waits on index 0 from the main task (e.g. pthread_join() uses an unfiltered

@@ -32,6 +32,9 @@
  *    any source distribution.
  */
 
+// Vendored uzlib code, kept as upstream wrote it.
+// NOLINTBEGIN
+
 /*
  * Altered for ESPHome: this is the raw deflate decoder from uzlib's
  * tinflate.c (v2.9.5) with the gzip/zlib header parsers, checksums,
@@ -496,3 +499,4 @@ int ota_inflate(TINF_DATA *d) {
 
   return TINF_OK;
 }
+// NOLINTEND
