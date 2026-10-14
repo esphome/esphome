@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz", "@sebydocky"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "gp8403"
 MULTI_CONF = True
 
 gp8403_ns = cg.esphome_ns.namespace("gp8403")

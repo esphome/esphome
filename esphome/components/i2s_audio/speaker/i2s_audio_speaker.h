@@ -54,6 +54,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }
   void set_timeout(uint32_t ms) { this->timeout_ = ms; }
+  void set_keep_alive(bool keep_alive) { this->keep_alive_ = keep_alive; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = (gpio_num_t) pin; }
 
   /// @brief Get the I2S TX channel handle
@@ -126,8 +127,14 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   esp_err_t init_i2s_channel_(const i2s_chan_config_t &chan_cfg, const i2s_std_config_t &std_cfg,
                               size_t event_queue_size);
 
-  /// @brief Stops the I2S driver and unlocks the I2S port
-  void stop_i2s_driver_();
+  /// @brief Stops the I2S driver and unlocks the I2S port; keep_channel leaves the disabled channel allocated
+  void stop_i2s_driver_(bool keep_channel);
+
+  /// @brief Detaches dout from the I2S signal and drives it low
+  void park_dout_pin_();
+
+  /// @brief Deletes the I2S channel and parks dout; the caller holds the bus lock
+  void delete_channel_();
 
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
@@ -174,6 +181,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   optional<uint32_t> timeout_;
 
   bool pause_state_{false};
+  bool keep_alive_{false};
 
   // Smooths software gain changes. The main loop posts targets, the speaker task processes;
   // GainRamp's mailbox makes that safe. The main loop is the only poster.

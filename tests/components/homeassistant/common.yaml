@@ -26,10 +26,6 @@ esphome:
           variables:
             my_variable: !lambda "return id(ha_hello_world_temperature).state;"
 
-wifi:
-  ssid: MySSID
-  password: password1
-
 api:
 
 switch:
@@ -71,6 +67,36 @@ number:
   - platform: homeassistant
     entity_id: number.hello_world
     id: ha_hello_world_number
+  - platform: homeassistant
+    entity_id: input_number.hello_world
+    id: ha_hello_world_input_number
+
+select:
+  - platform: homeassistant
+    entity_id: select.hello_world
+    id: ha_hello_world_select
+  - platform: homeassistant
+    entity_id: input_select.hello_world
+    id: ha_hello_world_input_select
+    max_options: 8
+    options_buffer_size: 128
+
+text:
+  - platform: homeassistant
+    entity_id: text.hello_world
+    id: ha_hello_world_text_input
+  - platform: homeassistant
+    entity_id: input_text.hello_world
+    id: ha_hello_world_input_text
+    mode: password
+
+button:
+  - platform: homeassistant
+    entity_id: button.hello_world
+    id: ha_hello_world_button
+  - platform: homeassistant
+    entity_id: input_button.hello_world
+    id: ha_hello_world_input_button
 
 sensor:
   - platform: homeassistant

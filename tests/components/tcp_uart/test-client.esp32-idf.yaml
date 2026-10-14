@@ -1,0 +1,13 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+tcp_uart:
+  - id: tcp_uart_1
+    host: 192.0.2.10
+    port: 502
+    reconnect_interval: 10s
+    connected:
+      name: TCP UART Connected
+    disconnects:
+      name: TCP UART Disconnects

@@ -35,6 +35,12 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#ifdef USE_WIFI_LEASE_CACHE
+#include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
+#include <esp_rtc_time.h>         // esp_rtc_get_time_us() -- RTC-domain clock for lease age
+#include "lwip/dhcp.h"
+#include "lwip/netif.h"
+#endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -44,7 +50,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_esp32";
+ESPHOME_LOG_TAG(TAG, "wifi_esp32");
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -553,6 +559,68 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   return true;
 }
 
+// sntp_servermode_dhcp() is an empty macro unless lwIP takes NTP servers from DHCP; that build needs the core lock
+static void disable_dhcp_sntp() {
+#if SNTP_GET_SERVERS_FROM_DHCP || SNTP_GET_SERVERS_FROM_DHCPV6
+  LwIPLock lock;
+#endif
+  sntp_servermode_dhcp(false);
+}
+
+#ifdef USE_WIFI_LEASE_CACHE
+// Minimum lease time that must remain before a cached lease is applied.
+static constexpr uint32_t LEASE_APPLY_MARGIN_SECS = 60;
+
+// Seconds since capture on the RTC-domain clock; UINT32_MAX if the clock was reset (age unknown).
+static uint32_t lease_cache_age_secs(const SavedWifiLeaseSettings &lease) {
+  uint32_t now = static_cast<uint32_t>(esp_rtc_get_time_us() / 1000000ULL);
+  return now >= lease.saved_at ? now - lease.saved_at : UINT32_MAX;
+}
+
+// Renewal deadline (T1) from capture; half the lease when T1 is missing or invalid (RFC 2131).
+static uint32_t lease_renew_at_secs(const SavedWifiLeaseSettings &lease) {
+  uint32_t renew_at = lease.t1_renew;
+  if (renew_at == 0 || renew_at >= lease.lease_secs)
+    renew_at = lease.lease_secs / 2;
+  return renew_at;
+}
+
+// Starting the DHCP client drops the static address and DNS servers, so open connections reset
+void WiFiComponent::renew_cached_lease_() {
+  ESP_LOGI(TAG, "Cached lease renew deadline reached; re-acquiring the address over DHCP, connections may drop");
+  this->applied_cached_lease_ = false;
+  // Same SNTP leak guard as the DHCP path: https://github.com/esphome/issues/issues/2299
+  disable_dhcp_sntp();
+  esp_err_t err = esp_netif_dhcpc_start(s_sta_netif);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Lease renew: starting DHCP client failed: %s, retrying in 60 s", esp_err_to_name(err));
+    this->set_timeout(LEASE_RENEW_TIMEOUT_ID, 60000, [this]() { this->renew_cached_lease_(); });
+  }
+}
+
+bool WiFiComponent::lease_valid_for_apply_() const {
+  const SavedWifiLeaseSettings &lease = this->cached_lease_;
+  if (lease.version != SAVED_WIFI_LEASE_VERSION || this->selected_sta_index_ < 0 ||
+      lease.ap_index != this->selected_sta_index_)
+    return false;
+  // The age is only known when the RTC clock survived the reset (deep sleep or software reboot).
+  esp_reset_reason_t reason = esp_reset_reason();
+  if (reason != ESP_RST_DEEPSLEEP && reason != ESP_RST_SW)
+    return false;
+  uint32_t age = lease_cache_age_secs(lease);
+  if (age == UINT32_MAX)
+    return false;
+  if (this->lease_cache_max_age_ != 0 && age > this->lease_cache_max_age_)
+    return false;
+  // Past T1 the lease needs DHCP renewal anyway.
+  if (age >= lease_renew_at_secs(lease))
+    return false;
+  // Scale the margin with the lease: the RTC RC oscillator drifts a few percent.
+  uint32_t margin = std::max<uint32_t>(LEASE_APPLY_MARGIN_SECS, lease.lease_secs / 16);
+  return lease.lease_secs > age + margin;
+}
+#endif
+
 bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -571,18 +639,43 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
-  if (!manual_ip.has_value()) {
+#ifdef USE_WIFI_LEASE_CACHE
+  // Without a manual IP, a still-valid cached lease is applied as a static IP to skip DHCP.
+  optional<ManualIP> effective_ip = manual_ip;
+  this->applied_cached_lease_ = false;
+  this->cancel_timeout(LEASE_RENEW_TIMEOUT_ID);
+  if (!effective_ip.has_value() && this->lease_valid_for_apply_()) {
+    const SavedWifiLeaseSettings &lease = this->cached_lease_;
+    esp_ip4_addr_t ip4{lease.ip}, mask4{lease.netmask}, gw4{lease.gateway}, dns1_4{lease.dns1}, dns2_4{lease.dns2};
+    ManualIP cached;
+    cached.static_ip = network::IPAddress(&ip4);
+    cached.gateway = network::IPAddress(&gw4);
+    cached.subnet = network::IPAddress(&mask4);
+    cached.dns1 = network::IPAddress(&dns1_4);
+    cached.dns2 = network::IPAddress(&dns2_4);
+    effective_ip = cached;
+    this->applied_cached_lease_ = true;
+
+    uint32_t age = lease_cache_age_secs(lease);
+    uint32_t remaining = lease.lease_secs > age ? lease.lease_secs - age : 0;
+    ESP_LOGI(TAG, "Applying cached lease " IPSTR ", ~%us left, skipping DHCP", IP2STR(&ip4), remaining);
+
+    // Still awake at T1: switch to real DHCP. lease_valid_for_apply_() guarantees age < T1.
+    uint32_t renew_in = lease_renew_at_secs(lease) - age;
+    // Clamp below UINT32_MAX, which the scheduler treats as "don't run".
+    uint32_t renew_ms =
+        static_cast<uint32_t>(std::min<uint64_t>(static_cast<uint64_t>(renew_in) * 1000ULL, UINT32_MAX - 1));
+    this->set_timeout(LEASE_RENEW_TIMEOUT_ID, renew_ms, [this]() { this->renew_cached_lease_(); });
+  }
+#else
+  const optional<ManualIP> &effective_ip = manual_ip;
+#endif
+
+  if (!effective_ip.has_value()) {
     // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
     // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
     // https://github.com/esphome/issues/issues/2299
-    {
-#if SNTP_GET_SERVERS_FROM_DHCP || SNTP_GET_SERVERS_FROM_DHCPV6
-      // sntp_servermode_dhcp() is an empty macro unless lwIP is built with
-      // DHCP-supplied NTP servers, so only that build needs the core lock.
-      LwIPLock lock;
-#endif
-      sntp_servermode_dhcp(false);
-    }
+    disable_dhcp_sntp();
 
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
@@ -596,9 +689,9 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 
   esp_netif_ip_info_t info;  // struct of ip4_addr_t with ip, netmask, gw
-  info.ip = manual_ip->static_ip;
-  info.gw = manual_ip->gateway;
-  info.netmask = manual_ip->subnet;
+  info.ip = effective_ip->static_ip;
+  info.gw = effective_ip->gateway;
+  info.netmask = effective_ip->subnet;
   err = esp_netif_dhcpc_stop(s_sta_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
     ESP_LOGV(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(err));
@@ -610,17 +703,81 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 
   esp_netif_dns_info_t dns;
-  if (manual_ip->dns1.is_set()) {
-    dns.ip = manual_ip->dns1;
+  if (effective_ip->dns1.is_set()) {
+    dns.ip = effective_ip->dns1;
     esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &dns);
   }
-  if (manual_ip->dns2.is_set()) {
-    dns.ip = manual_ip->dns2;
+  if (effective_ip->dns2.is_set()) {
+    dns.ip = effective_ip->dns2;
     esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_BACKUP, &dns);
   }
 
   return true;
 }
+
+#ifdef USE_WIFI_LEASE_CACHE
+void WiFiComponent::save_lease_settings_() {
+  // A cached lease applied as a static IP has no DHCP timing to capture.
+  if (s_sta_netif == nullptr || this->applied_cached_lease_)
+    return;
+
+#ifdef USE_WIFI_MANUAL_IP
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value())
+    return;
+#endif
+
+  esp_netif_ip_info_t info;
+  if (esp_netif_get_ip_info(s_sta_netif, &info) != ESP_OK || info.ip.addr == 0)
+    return;
+
+  SavedWifiLeaseSettings lease{};
+  lease.version = SAVED_WIFI_LEASE_VERSION;
+  lease.ap_index = this->selected_sta_index_;
+  lease.ip = info.ip.addr;
+  lease.netmask = info.netmask.addr;
+  lease.gateway = info.gw.addr;
+
+  esp_netif_dns_info_t dns;
+  if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &dns) == ESP_OK && dns.ip.type == ESP_IPADDR_TYPE_V4) {
+    lease.dns1 = dns.ip.u_addr.ip4.addr;
+  }
+  if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_BACKUP, &dns) == ESP_OK && dns.ip.type == ESP_IPADDR_TYPE_V4) {
+    lease.dns2 = dns.ip.u_addr.ip4.addr;
+  }
+
+  // Lease timing is only in lwIP's internal DHCP state; without it the lease can't be aged.
+  bool have_timing = false;
+  if (auto *impl = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif))) {
+    LwIPLock lock;
+    if (struct dhcp *d = netif_dhcp_data(impl)) {
+      lease.lease_secs = d->offered_t0_lease;
+      lease.t1_renew = d->offered_t1_renew;
+      have_timing = true;
+    }
+  }
+  if (!have_timing)
+    return;
+
+  lease.saved_at = static_cast<uint32_t>(esp_rtc_get_time_us() / 1000000ULL);
+
+  // On flash, skip a write that would only bump saved_at (an older one only overstates the age),
+  // unless it is from a previous RTC clock period (power cycle).
+#ifdef USE_WIFI_LEASE_CACHE_IN_FLASH
+  constexpr size_t compare_len = offsetof(SavedWifiLeaseSettings, saved_at);
+#else
+  constexpr size_t compare_len = sizeof(SavedWifiLeaseSettings);
+#endif
+  const SavedWifiLeaseSettings &previous = this->cached_lease_;
+  if (previous.saved_at <= lease.saved_at && memcmp(&previous, &lease, compare_len) == 0)
+    return;
+
+  this->lease_cache_pref_.save(&lease);
+  this->cached_lease_ = lease;
+
+  ESP_LOGD(TAG, "Lease cache: saved " IPSTR " (network %d, lease %us)", IP2STR(&info.ip), lease.ap_index,
+           lease.lease_secs);
+}
+#endif
 
 esp_netif_t *WiFiComponent::get_esp_netif_sta() { return s_sta_netif; }
 
@@ -829,6 +986,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
 #endif
     s_sta_connected = true;
+#if USE_NETWORK_IPV6
+    // Start SLAAC on association, not after a DHCPv4 lease that may never arrive.
+    if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(s_sta_netif); ll_err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(ll_err));
+    }
+#endif /* USE_NETWORK_IPV6 */
     if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
       // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
       // so the state machine never left STA_CONNECTED.
@@ -847,9 +1010,17 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // This ensures wifi.connected condition returns true in listener automations
     this->pending_.connect_state = true;
 #endif
-    // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
-    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+    // For static IP configurations (manual or cached lease), GOT_IP event may not fire, so notify IP listeners here
+#if defined(USE_WIFI_IP_STATE_LISTENERS) && (defined(USE_WIFI_MANUAL_IP) || defined(USE_WIFI_LEASE_CACHE))
+    bool static_ip = false;
+#ifdef USE_WIFI_MANUAL_IP
+    const WiFiAP *config = this->get_selected_sta_();
+    static_ip = config && config->get_manual_ip().has_value();
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+    static_ip = static_ip || this->applied_cached_lease_;
+#endif
+    if (static_ip) {
       this->notify_ip_state_listeners_();
     }
 #endif
@@ -881,11 +1052,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
-#if USE_NETWORK_IPV6
-    esp_netif_create_ip6_linklocal(s_sta_netif);
-#endif /* USE_NETWORK_IPV6 */
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+    this->apply_ap_dns_();
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+    this->save_lease_settings_();  // events are drained on the main loop
+#endif
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
@@ -1001,6 +1175,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
     ESP_LOGV(TAG, "AP start");
     this->ap_started_ = true;
+#ifdef USE_WIFI_AP_WISP
+    // NAPT needs the interface up, so it cannot be part of the setup. Without it the clients have no way out, so
+    // the AP goes down and its setup runs again, which brings it back up through this event.
+    if (esp_err_t err = esp_netif_napt_enable(s_ap_netif); err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to enable NAT: %s", esp_err_to_name(err));
+      this->fail_bridge_();
+    }
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STOP) {
     ESP_LOGV(TAG, "AP stop");
@@ -1163,22 +1345,32 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
-#if defined(USE_CAPTIVE_PORTAL) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-  // Configure DHCP Option 114 (Captive Portal URI) if captive portal is enabled
-  // This provides a standards-compliant way for clients to discover the captive portal
-  if (captive_portal::global_captive_portal != nullptr) {
-    // Buffer must be static - dhcps_set_option_info stores pointer, doesn't copy
-    static char captive_portal_uri[24];        // "http://" (7) + IPv4 max (15) + null
-    memcpy(captive_portal_uri, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
-    network::IPAddress(&info.ip).str_to(captive_portal_uri + 7);
-    err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captive_portal_uri,
-                                 strlen(captive_portal_uri));
-    if (err != ESP_OK) {
-      ESP_LOGV(TAG, "Failed to set DHCP captive portal URI: %s", esp_err_to_name(err));
-    } else {
-      ESP_LOGV(TAG, "DHCP Captive Portal URI set to: %s", captive_portal_uri);
-    }
+#if (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE)) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+  // DHCP option 114 (captive portal URI) lets clients find the portal; either define means one exists
+  // Buffer must be static - dhcps_set_option_info stores pointer, doesn't copy
+  static char captive_portal_uri[24];        // "http://" (7) + IPv4 max (15) + null
+  memcpy(captive_portal_uri, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
+  network::IPAddress(&info.ip).str_to(captive_portal_uri + 7);
+  err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captive_portal_uri,
+                               strlen(captive_portal_uri));
+  if (err != ESP_OK) {
+    ESP_LOGV(TAG, "Failed to set DHCP captive portal URI: %s", esp_err_to_name(err));
+  } else {
+    ESP_LOGV(TAG, "DHCP Captive Portal URI set to: %s", captive_portal_uri);
   }
+#endif
+
+#ifdef USE_WIFI_AP_WISP
+  // Offer resolvers through DHCP: the configured ones, otherwise the station's. Without them the server would
+  // offer the AP's own address, so a failure fails the setup and it is tried again.
+  uint8_t dns_offer = 1;
+  err =
+      esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer, sizeof(dns_offer));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to enable DHCP DNS option: %s", esp_err_to_name(err));
+  }
+  if (err != ESP_OK || !this->write_ap_dns_())
+    return false;
 #endif
 
   err = esp_netif_dhcps_start(s_ap_netif);
@@ -1320,6 +1512,81 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
   return network::IPAddress(dns_ip);
 }
+
+#ifdef USE_WIFI_AP_WISP
+// A DHCP server interface takes a backup resolver from ESP-IDF 6.0
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static constexpr size_t AP_DNS_COUNT = 2;
+#else
+static constexpr size_t AP_DNS_COUNT = 1;
+#endif
+#ifdef USE_WIFI_AP_WISP_STATIC_DNS
+// The configured resolvers as lwIP stores them, from codegen
+static constexpr uint32_t AP_DNS[] = {
+    WIFI_AP_WISP_DNS_0,
+#ifdef WIFI_AP_WISP_DNS_1
+    WIFI_AP_WISP_DNS_1,
+#endif
+};
+#endif
+
+static uint32_t ap_dns_to_offer(size_t i) {
+#ifdef USE_WIFI_AP_WISP_STATIC_DNS
+  return i < std::size(AP_DNS) ? AP_DNS[i] : 0;
+#else
+  return ip_addr_get_ip4_u32(dns_getserver(i));
+#endif
+}
+
+bool WiFiComponent::ap_dns_known_() { return ap_dns_to_offer(0) != 0; }
+
+bool WiFiComponent::write_ap_dns_() {
+  bool ok = true;
+  for (size_t i = 0; i < AP_DNS_COUNT; i++) {
+    const uint32_t addr = ap_dns_to_offer(i);
+    if (addr == 0)
+      continue;
+    esp_netif_dns_info_t info{};
+    info.ip.type = ESP_IPADDR_TYPE_V4;
+    info.ip.u_addr.ip4.addr = addr;
+    esp_err_t err = esp_netif_set_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &info);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to set DHCP DNS server %u: %s", (unsigned) i, esp_err_to_name(err));
+      ok = false;
+    } else {
+      ESP_LOGV(TAG, "DHCP DNS server: " IPSTR, IP2STR(&info.ip.u_addr.ip4));
+    }
+  }
+  return ok;
+}
+
+#ifndef USE_WIFI_AP_WISP_STATIC_DNS
+void WiFiComponent::apply_ap_dns_() {
+  if (!this->ap_setup_)
+    return;  // loop() brings the bridge up once the station has a resolver, and its setup writes them
+  // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
+  // next lease. A resolver the station lost stays offered: set_dns_info rejects an empty address.
+  bool changed = false;
+  for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
+    const uint32_t addr = ap_dns_to_offer(i);
+    esp_netif_dns_info_t current{};
+    changed =
+        addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
+                      current.ip.u_addr.ip4.addr != addr);
+  }
+  if (!changed)
+    return;
+    // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
+#ifdef USE_WIFI_MANUAL_IP
+  const bool ok = this->wifi_ap_ip_config_(this->ap_.get_manual_ip());
+#else
+  const bool ok = this->wifi_ap_ip_config_({});
+#endif
+  if (!ok)
+    this->fail_bridge_();
+}
+#endif  // USE_WIFI_AP_WISP_STATIC_DNS
+#endif  // USE_WIFI_AP_WISP
 
 }  // namespace esphome::wifi
 #endif  // USE_ESP32

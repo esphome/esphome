@@ -4,7 +4,7 @@
 
 namespace esphome::ads1118 {
 
-static const char *const TAG = "ads1118";
+ESPHOME_LOG_TAG(TAG, "ads1118");
 static const uint8_t ADS1118_DATA_RATE_860_SPS = 0b111;
 
 void ADS1118::setup() {

@@ -5,6 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 // On ESP8266 and RP2040 the scheduler-backed MDNS.update() polling window is armed by
 // IP state listener events on whichever network interface is configured.
 #if (defined(USE_ESP8266) || defined(USE_RP2)) && \
@@ -31,6 +32,13 @@
 #define USE_MDNS_DEVICE_INFO_TXT
 #endif
 
+// USE_MDNS_DYNAMIC_NETWORK_TXT (wifi + ethernet + api): the _esphomelib "network" TXT value follows the
+// connected interface. With USE_MDNS_ACTIVE_INTERFACE_LISTENER (ESP32) the network component reports
+// default route changes; otherwise the value is checked every NETWORK_TXT_CHECK_INTERVAL_MS.
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+#include "esphome/components/network/network_component.h"
+#endif
+
 namespace esphome::mdns {
 
 // Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
@@ -39,12 +47,7 @@ struct MDNSString;
 // Macro to cast string literals to MDNSString* (works on all platforms)
 #define MDNS_STR(name) (reinterpret_cast<const esphome::mdns::MDNSString *>(name))
 
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#define MDNS_STR_ARG(s) ((PGM_P) (s))
-#else
-#define MDNS_STR_ARG(s) (reinterpret_cast<const char *>(s))
-#endif
+#define MDNS_STR_ARG(s) (reinterpret_cast<ESPHOME_PGM_P>(s))
 
 // Service count is calculated at compile time by Python codegen
 // MDNS_SERVICE_COUNT will always be defined
@@ -76,6 +79,10 @@ class MDNSComponent final : public Component
 #ifdef USE_MDNS_ETHERNET_LISTENER
     ,
                             public ethernet::EthernetIPStateListener
+#endif
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+    ,
+                            public network::ActiveInterfaceListener
 #endif
 {
  public:
@@ -138,6 +145,10 @@ class MDNSComponent final : public Component
   }
 #endif
 
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+  void on_active_interface(network::NetworkInterface interface) override;
+#endif
+
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
                    const network::IPAddress &dns2) override;
@@ -153,6 +164,22 @@ class MDNSComponent final : public Component
   using PlatformRegisterFn = void (*)(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &);
 
   void setup_buffers_and_register_(PlatformRegisterFn platform_register);
+
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+  static constexpr uint32_t NETWORK_TXT_CHECK_INTERVAL_MS = 1000;
+  /// The first connected interface in network: priority order ("ethernet" or "wifi"), else nullptr.
+  const char *connected_network_() const;
+  /// Publish network as the "network" TXT value if it changed; nullptr keeps the current value.
+  void update_network_txt_(const char *network);
+  /// Platform-specific: replace the "network" TXT value of the registered _esphomelib service.
+  bool publish_network_txt_(const char *network);
+  /// Advertised value; nullptr until the _esphomelib service is registered, and after a failed publish.
+  const char *network_txt_{nullptr};
+#ifdef USE_MDNS_STORE_SERVICES
+  /// The "network" record in services_, kept in step with network_txt_.
+  MDNSTXTRecord *network_record_{nullptr};
+#endif
+#endif
 
 #ifdef USE_MDNS_DYNAMIC_TXT
   /// Storage for runtime-generated TXT values from user lambdas

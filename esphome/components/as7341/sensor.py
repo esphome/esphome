@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLEAR,
@@ -32,8 +33,6 @@ CONF_F6 = "f6"
 CONF_F7 = "f7"
 CONF_F8 = "f8"
 CONF_NIR = "nir"
-
-UNIT_COUNTS = "#"
 
 AS7341_GAIN = as7341_ns.enum("AS7341Gain")
 GAIN_OPTIONS = {

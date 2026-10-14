@@ -1,5 +1,5 @@
 from esphome import codegen as cg, config_validation as cv
-from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
+from esphome.const import CONF_BUTTON, CONF_HIDDEN, CONF_ID, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_types import nullptr
@@ -15,7 +15,6 @@ from ..defines import (
     CONF_MSGBOXES,
     CONF_SRC,
     CONF_TITLE,
-    LV_OBJ_FLAG,
     TYPE_FLEX,
     add_lv_use,
     add_warning,
@@ -152,7 +151,7 @@ async def msgbox_to_code(top_layer, conf, group):
     percent100 = await pixels_or_percent.process(1.0)
     lv_obj.set_size(outer, percent100, percent100)
     outer_widget.add_style(await OUTER_STYLE.get_var())
-    outer_widget.add_flag(LV_OBJ_FLAG.HIDDEN)
+    outer_widget.set_flag(CONF_HIDDEN, True)
     lv.msgbox_add_title(msgbox, title)
     lv.msgbox_add_text(msgbox, text)
     lv_obj.set_style_align(msgbox, literal("LV_ALIGN_CENTER"), 0)
@@ -164,7 +163,7 @@ async def msgbox_to_code(top_layer, conf, group):
         await widget_to_code(button, header_button_spec, msgbox)
 
     async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
-        outer_widget.add_flag(LV_OBJ_FLAG.HIDDEN)
+        outer_widget.set_flag(CONF_HIDDEN, True)
         lv_add(
             lvgl_msgboxes[str(outer_widget.var)]["lvgl"].restore_indev_group(
                 lvgl_msgboxes[str(outer_widget.var)]["default_group"]

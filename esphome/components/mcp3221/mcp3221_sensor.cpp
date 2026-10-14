@@ -4,7 +4,7 @@
 
 namespace esphome::mcp3221 {
 
-static const char *const TAG = "mcp3221";
+ESPHOME_LOG_TAG(TAG, "mcp3221");
 
 float MCP3221Sensor::sample() {
   uint8_t data[2];

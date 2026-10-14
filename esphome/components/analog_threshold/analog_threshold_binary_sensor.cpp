@@ -3,7 +3,7 @@
 
 namespace esphome::analog_threshold {
 
-static const char *const TAG = "analog_threshold.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "analog_threshold.binary_sensor");
 
 void AnalogThresholdBinarySensor::setup() {
   float sensor_value = this->sensor_->get_state();

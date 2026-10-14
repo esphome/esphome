@@ -9,6 +9,7 @@
 #include "esphome/components/usb_host/usb_host.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
+#include "esphome/core/log.h"
 #include <atomic>
 #include <functional>
 
@@ -19,7 +20,7 @@ class USBUartComponent;
 class USBUartChannelBase;
 class USBUartTypePL2303;
 
-static const char *const TAG = "usb_uart";
+ESPHOME_LOG_TAG(TAG, "usb_uart");
 
 static constexpr uint8_t USB_CDC_SUBCLASS_ACM = 0x02;
 static constexpr uint8_t USB_SUBCLASS_COMMON = 0x02;
@@ -33,11 +34,15 @@ struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
   const usb_ep_desc_t *out_ep;
-  uint8_t bulk_interface_number;
+  // 0xFF marks a channel that was never matched to a CDC function on the device
+  uint8_t bulk_interface_number{0xFF};
   // Also the wIndex target for CDC class requests (SET_LINE_CODING etc.), so it
   // must remain valid even when the interface itself is not claimed.
-  uint8_t interrupt_interface_number;
+  uint8_t interrupt_interface_number{0xFF};
   bool interrupt_interface_claimed{false};
+  // bInterfaceClass of each interface above, which decides how a host binds the port
+  uint8_t bulk_interface_class{0};
+  uint8_t interrupt_interface_class{0};
 };
 
 enum CH34xChipType : uint8_t {
@@ -70,21 +75,33 @@ enum CH34xChipType : uint8_t {
   CHIP_UNKNOWN = 0xFF,
 };
 
-enum UARTParityOptions {
-  UART_CONFIG_PARITY_NONE = 0,
-  UART_CONFIG_PARITY_ODD,
-  UART_CONFIG_PARITY_EVEN,
-  UART_CONFIG_PARITY_MARK,
-  UART_CONFIG_PARITY_SPACE,
-};
-
+// 1 and 2 are the stop bit count the uart component uses, so a count set through the
+// UARTComponent API (as serial_proxy does) means the same here. 1.5 has no count.
 enum UARTStopBitsOptions {
-  UART_CONFIG_STOP_BITS_1 = 0,
-  UART_CONFIG_STOP_BITS_1_5,
-  UART_CONFIG_STOP_BITS_2,
+  UART_CONFIG_STOP_BITS_1 = 1,
+  UART_CONFIG_STOP_BITS_2 = 2,
+  UART_CONFIG_STOP_BITS_1_5 = 3,
 };
 
+// Stop bits and parity as adapters take them on the wire: CDC SET_LINE_CODING, and the
+// CP210x, FTDI and PL2303 requests, all use these values
+enum class LineStopBits : uint8_t {
+  LINE_STOP_BITS_1 = 0,
+  LINE_STOP_BITS_1_5 = 1,
+  LINE_STOP_BITS_2 = 2,
+};
+
+enum class LineParity : uint8_t {
+  LINE_PARITY_NONE = 0,
+  LINE_PARITY_ODD = 1,
+  LINE_PARITY_EVEN = 2,
+  LINE_PARITY_MARK = 3,
+  LINE_PARITY_SPACE = 4,
+};
+
+// Indexed by LineParity
 static const char *const PARITY_NAMES[] = {"NONE", "ODD", "EVEN", "MARK", "SPACE"};
+// Indexed by LineStopBits
 static const char *const STOP_BITS_NAMES[] = {"1", "1.5", "2"};
 
 class RingBuffer {
@@ -155,7 +172,6 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   // Re-apply the current line settings (baud, parity, etc) to this already-open channel.
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
-  void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
@@ -167,10 +183,29 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   /// they arrive, eliminating one full main-loop-wakeup cycle of latency.
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
+  /// USB interface number a host driver binds to for this channel: the communication
+  /// interface of a CDC ACM function, otherwise the data interface.
+  uint8_t get_interface_number() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_number
+                                                             : this->cdc_dev_.bulk_interface_number;
+  }
+
+  /// bInterfaceClass of the interface `get_interface_number()` names
+  uint8_t get_interface_class() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_class
+                                                             : this->cdc_dev_.bulk_interface_class;
+  }
+
+  /// Index of this port among the ports on its interface. Every driver here exposes one
+  /// port per interface; a multiplexed driver would index its channels.
+  uint8_t get_port_number() const { return 0; }
+
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
   void check_logger_conflict() override {}
+  LineStopBits line_stop_bits_() const;
+  LineParity line_parity_() const;
   // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
@@ -182,7 +217,6 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   CdcEps cdc_dev_{};
   StringRef debug_prefix_{};
   // 4-byte fields
-  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
   uint32_t flush_timeout_ms_{100};
   // 1-byte fields (no padding between groups)
   std::atomic<bool> input_started_{true};
@@ -252,6 +286,10 @@ class USBUartComponent : public usb_host::USBClient {
   // (e.g. CH34x chip detection). Same contract as config_step_(). Default: no steps.
   virtual bool config_device_step(uint8_t step, bool ok, const uint8_t *response) { return false; }
 
+  // The device is only usable once the config machine has applied every channel's line
+  // settings, so the connected report waits for run_config_machine_() to finish the init
+  bool reports_connection_itself() const override { return true; }
+
   std::vector<USBUartChannelBase *> channels_{};
 
   // Config state machine
@@ -293,13 +331,17 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
-  USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+  USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {
+    // ch34x doesn't use the interrupt endpoint, and we don't have endpoints to spare. The
+    // comm interface is left in place unclaimed: on the CDC-style chips it is still the
+    // interface a host binds, and so the one the port is identified by.
+    this->claim_comm_interface_ = false;
+  }
   void dump_config() override;
 
  protected:
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
-  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
 
  private:
   CH34xChipType chiptype_{CHIP_UNKNOWN};

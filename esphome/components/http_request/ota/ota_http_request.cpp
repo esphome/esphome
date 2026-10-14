@@ -11,7 +11,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request.ota";
+ESPHOME_LOG_TAG(TAG, "http_request.ota");
 
 void OtaHttpRequestComponent::dump_config() { ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request"); };
 
