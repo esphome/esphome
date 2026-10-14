@@ -1,89 +1,191 @@
 """Tests for network component."""
 
-import pytest
+from collections.abc import Callable
+from pathlib import Path
 
-from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32C6
-from esphome.components.network.const import CONF_ENABLE_IPV4
-import esphome.config_validation as cv
-from esphome.const import KEY_FRAMEWORK_VERSION, PlatformFramework
+import pytest
+from voluptuous import Invalid
+
+from esphome.components.network import (
+    CONF_ENABLE_IPV4,
+    _final_validate,
+    _get_data,
+    request_ipv4_off,
+    require_ipv4,
+    require_ipv6,
+)
+from esphome.config import load_config
+from esphome.const import CONF_ENABLE_IPV6, KEY_FRAMEWORK_VERSION, PlatformFramework
+from esphome.core import CORE, Version
 from tests.component_tests.types import SetCoreConfigCallable
 
-_ESP8266_CORE_DATA = {KEY_FRAMEWORK_VERSION: cv.Version(0, 0, 0)}
-_ESP32_CORE_DATA = {KEY_FRAMEWORK_VERSION: cv.Version(0, 0, 0)}
-_ESP32_PLATFORM_DATA = {KEY_VARIANT: VARIANT_ESP32C6}
-_NRF52_CORE_DATA = {KEY_FRAMEWORK_VERSION: cv.Version(0, 0, 0)}
+
+def _define_value(name: str) -> str | None:
+    define = next((d for d in CORE.defines if d.name == name), None)
+    return None if define is None else str(define.value)
+
+
+def test_require_ipv4_records_name_and_passes_config_through() -> None:
+    """require_ipv4() returns the config unchanged and records the caller once."""
+    config = {"foo": "bar"}
+    validator = require_ipv4("foo")
+    assert validator(config) is config
+    validator({})
+    assert _get_data().require_ipv4 == {"foo"}
+
+
+def test_require_ipv6_and_request_ipv4_off_record_state() -> None:
+    """require_ipv6() and request_ipv4_off() record their callers."""
+    require_ipv6("bar")({})
+    request_ipv4_off("bar")({})
+    data = _get_data()
+    assert data.require_ipv6 == {"bar"}
+    assert data.request_ipv4_off == {"bar"}
 
 
 @pytest.mark.parametrize(
-    "platform_framework",
-    [PlatformFramework.ESP8266_ARDUINO, PlatformFramework.RP2040_ARDUINO],
+    ("config_file", "ipv4", "ipv6"),
+    [
+        ("ipv6_only_ipv4_explicit_disable.yaml", "false", "true"),
+        ("ipv6_only.yaml", "true", "true"),
+        ("ipv4_required_with_ipv6.yaml", "true", "true"),
+        ("wifi_only.yaml", "true", "false"),
+        ("openthread_no_explicit_network.yaml", "false", "true"),
+        ("openthread_ipv4_explicitly_on.yaml", "true", "true"),
+        ("ipv6_off_nothing_required.yaml", "true", "false"),
+        ("ipv4_and_ipv6_both_required.yaml", "true", "true"),
+        ("openthread_with_wake_on_lan.yaml", "true", "true"),
+        ("esp32_arduino_ipv6_no_ipv4_requirement.yaml", "true", "true"),
+        ("host_ipv6_no_ipv4_requirement.yaml", "true", "true"),
+        ("nrf52_network_no_openthread.yaml", "false", "true"),
+    ],
 )
-def test_disable_ipv4_non_esp32_rejected(
-    platform_framework: PlatformFramework,
-    set_core_config: SetCoreConfigCallable,
+def test_ip_family_defines(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    ipv4: str,
+    ipv6: str,
 ) -> None:
-    set_core_config(platform_framework, core_data=_ESP8266_CORE_DATA)
-    from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-
-    config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False})
-    with pytest.raises(cv.Invalid, match="only supported on ESP32"):
-        FINAL_VALIDATE_SCHEMA(config)
+    """Each config resolves USE_NETWORK_IPV4 and USE_NETWORK_IPV6 as expected."""
+    generate_main(component_config_path(config_file))
+    assert _define_value("USE_NETWORK_IPV4") == ipv4
+    assert _define_value("USE_NETWORK_IPV6") == ipv6
 
 
 @pytest.mark.parametrize(
-    "denied_component",
-    ["esp32_improv", "ethernet", "modem", "mqtt", "udp", "wifi", "wireguard"],
+    "config_file",
+    [
+        "wifi_ipv4_disabled_rejected.yaml",
+        "wake_on_lan_ipv4_disabled_rejected.yaml",
+        "udp_ipv4_disabled_rejected.yaml",
+        "tcp_uart_ipv4_disabled_rejected.yaml",
+        "uart_tcp_ipv4_disabled_rejected.yaml",
+        "esp8266_ipv4_disabled_rejected.yaml",
+        "esp32_arduino_ipv4_disabled_rejected.yaml",
+    ],
 )
-def test_disable_ipv4_deny_list_rejected(
-    denied_component: str,
+def test_require_ipv4_registration_rejects_explicit_disable(
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+) -> None:
+    """A component that requires IPv4 rejects an explicit 'enable_ipv4: false'."""
+    CORE.config_path = component_config_path(config_file)
+    res = load_config({})
+    assert any("explicitly disables it" in str(err) for err in res.errors)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "component"),
+    [
+        ("tcp_uart_ipv4_disabled_rejected.yaml", "tcp_uart"),
+        ("uart_tcp_ipv4_disabled_rejected.yaml", "uart_tcp"),
+    ],
+)
+def test_tcp_link_users_named_in_ipv4_error(
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    component: str,
+) -> None:
+    """The IPv4 requirement registered by the socket helper names the component."""
+    CORE.config_path = component_config_path(config_file)
+    res = load_config({})
+    assert any(f"IPv4 is required by {component}" in str(err) for err in res.errors)
+
+
+def test_final_validate_rejects_explicit_ipv6_disable_when_required() -> None:
+    """An explicit 'enable_ipv6: false' conflicting with require_ipv6() is rejected."""
+    require_ipv6("test")({})
+    with pytest.raises(Invalid, match="explicitly disables it"):
+        _final_validate({CONF_ENABLE_IPV6: False})
+
+
+def test_final_validate_accepts_explicit_ipv6_disable_when_not_required() -> None:
+    """An explicit 'enable_ipv6: false' is accepted when nothing requires IPv6."""
+    _final_validate({CONF_ENABLE_IPV6: False})
+
+
+def test_final_validate_resolves_ipv6_default_when_required(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
+    """require_ipv6() turns an absent 'enable_ipv6' on."""
     set_core_config(
-        PlatformFramework.ESP32_IDF,
-        core_data=_ESP32_CORE_DATA,
-        platform_data=_ESP32_PLATFORM_DATA,
-        full_config={denied_component: {}},
+        PlatformFramework.HOST_NATIVE,
+        core_data={KEY_FRAMEWORK_VERSION: Version(0, 0, 0)},
     )
-    from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-
-    config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False})
-    with pytest.raises(
-        cv.Invalid,
-        match=f"Disabling IPv4 is not currently compatible with component {denied_component}",
-    ):
-        FINAL_VALIDATE_SCHEMA(config)
+    require_ipv6("test")({})
+    config: dict[str, bool] = {}
+    _final_validate(config)
+    assert config[CONF_ENABLE_IPV6] is True
 
 
-def test_disable_ipv4_esp32_idf_valid(
-    set_core_config: SetCoreConfigCallable,
+def test_final_validate_rejects_explicit_ipv4_disable_when_required() -> None:
+    """An explicit 'enable_ipv4: false' conflicting with require_ipv4() is rejected."""
+    require_ipv4("test")({})
+    with pytest.raises(Invalid, match="explicitly disables it"):
+        _final_validate({CONF_ENABLE_IPV4: False})
+
+
+def test_final_validate_accepts_explicit_ipv4_disable_when_not_required() -> None:
+    """An explicit 'enable_ipv4: false' is accepted when IPv6 is on."""
+    _final_validate({CONF_ENABLE_IPV4: False, CONF_ENABLE_IPV6: True})
+
+
+def test_final_validate_accepts_ipv4_default_when_required() -> None:
+    """An explicit 'enable_ipv4: true' never conflicts with require_ipv4()."""
+    require_ipv4("test")({})
+    _final_validate({CONF_ENABLE_IPV4: True})
+
+
+@pytest.mark.parametrize(
+    "config",
+    [{CONF_ENABLE_IPV4: False}, {CONF_ENABLE_IPV4: False, CONF_ENABLE_IPV6: False}],
+)
+def test_final_validate_rejects_both_address_families_disabled(
+    config: dict[str, bool],
 ) -> None:
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        core_data=_ESP32_CORE_DATA,
-        platform_data=_ESP32_PLATFORM_DATA,
-    )
-    from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-
-    config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False})
-    FINAL_VALIDATE_SCHEMA(config)  # should not raise
+    """Disabling IPv4 with IPv6 off leaves no IP stack and is rejected."""
+    with pytest.raises(Invalid, match="leaves no IP stack"):
+        _final_validate(config)
 
 
-def test_enable_ipv4_nrf52_rejected(
-    set_core_config: SetCoreConfigCallable,
+@pytest.mark.parametrize(
+    "config_file",
+    [
+        "esp8266_no_network.yaml",
+        "rp2_no_network.yaml",
+        "bk72xx_no_network.yaml",
+        "esp32_idf_no_network.yaml",
+        "esp32_arduino_no_network.yaml",
+        "nrf52_no_network.yaml",
+    ],
+)
+def test_no_ip_defines_without_network_component(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
 ) -> None:
-    set_core_config(PlatformFramework.NRF52_ZEPHYR, core_data=_NRF52_CORE_DATA)
-    from esphome.components.network import CONFIG_SCHEMA
-
-    with pytest.raises(cv.Invalid, match="On nRF52, enable_ipv4 must be false"):
-        CONFIG_SCHEMA({CONF_ENABLE_IPV4: True})
-
-
-def test_enable_ipv4_nrf52_default_valid(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    set_core_config(PlatformFramework.NRF52_ZEPHYR, core_data=_NRF52_CORE_DATA)
-    from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-
-    config = CONFIG_SCHEMA({})
-    assert config[CONF_ENABLE_IPV4] is False
-    FINAL_VALIDATE_SCHEMA(config)  # should not raise
+    """Platform IP requests emit no IP family defines when network is not loaded."""
+    generate_main(component_config_path(config_file))
+    assert _define_value("USE_NETWORK_IPV4") is None
+    assert _define_value("USE_NETWORK_IPV6") is None
