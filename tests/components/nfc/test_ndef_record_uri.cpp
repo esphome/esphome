@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,50 @@ TEST(NdefRecordUri, DecodeExpandsPrefixCode) {
   EXPECT_EQ(decode({0x07, 'a'}), "ftp://anonymous:anonymous@a");
 }
 
+// URI identifier codes from the NFC Forum URI Record Type Definition, kept separate from the
+// component's table so a reordered entry fails here
+static constexpr const char *SPEC_PREFIXES[] = {"",
+                                                "http://www.",
+                                                "https://www.",
+                                                "http://",
+                                                "https://",
+                                                "tel:",
+                                                "mailto:",
+                                                "ftp://anonymous:anonymous@",
+                                                "ftp://ftp.",
+                                                "ftps://",
+                                                "sftp://",
+                                                "smb://",
+                                                "nfs://",
+                                                "ftp://",
+                                                "dav://",
+                                                "news:",
+                                                "telnet://",
+                                                "imap:",
+                                                "rtsp://",
+                                                "urn:",
+                                                "pop:",
+                                                "sip:",
+                                                "sips:",
+                                                "tftp:",
+                                                "btspp://",
+                                                "btl2cap://",
+                                                "btgoep://",
+                                                "tcpobex://",
+                                                "irdaobex://",
+                                                "file://",
+                                                "urn:epc:id:",
+                                                "urn:epc:tag:",
+                                                "urn:epc:pat:",
+                                                "urn:epc:raw:",
+                                                "urn:epc:",
+                                                "urn:nfc:"};
+
+TEST(NdefRecordUri, DecodeEveryPrefixCode) {
+  for (uint8_t code = 1; code < std::size(SPEC_PREFIXES); code++)
+    EXPECT_EQ(decode({code, 'x'}), std::string(SPEC_PREFIXES[code]) + "x") << "code " << int(code);
+}
+
 TEST(NdefRecordUri, DecodeAcceptsLastPrefixCode) { EXPECT_EQ(decode({0x23, 'x'}), "urn:nfc:x"); }
 
 TEST(NdefRecordUri, DecodeIgnoresUnknownPrefixCode) {
@@ -24,6 +69,8 @@ TEST(NdefRecordUri, DecodeIgnoresUnknownPrefixCode) {
   EXPECT_EQ(decode({0x24, 'x'}), "x");
 }
 
+// Encode takes the first prefix in table order that matches, so codes 0x1E to 0x23 are never written;
+// these tests pin that current behaviour, not the spec's longest match
 TEST(NdefRecordUri, EncodePicksFirstMatchingPrefix) {
   EXPECT_EQ(encoded_prefix("https://www.a.b"), 0x02);
   EXPECT_EQ(encoded_prefix("http://a.b"), 0x03);
