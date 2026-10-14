@@ -126,6 +126,8 @@ class PowerDelivery {
   virtual void on_transition_timeout() = 0;
 
   void handle_message_(const PdMsg &msg);
+  /// Called by the PHY when the chip gave up on a message after its retries without receiving a GoodCRC.
+  void handle_transmit_failed_();
   void reset_protocol_();
   void set_state_(PdState state);
   void set_contract_(const PdContract &contract);

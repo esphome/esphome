@@ -159,11 +159,18 @@ void PowerDelivery::check_transition_timeout_() {
   this->on_transition_timeout();
 }
 
+void PowerDelivery::handle_transmit_failed_() {
+  // USB PD 6.12.2.2: the counter also moves on after a failed transmission. The source may have received the
+  // message and only its GoodCRC was lost, so reusing the MessageID would make it drop the next one as a repeat.
+  ESP_LOGD(TAG, "Message %u not acknowledged", this->msg_counter_ % 8);
+  this->msg_counter_++;
+}
+
 void PowerDelivery::handle_message_(const PdMsg &msg) {
   if (msg.num_of_obj == 0 && msg.type == PD_CNTRL_GOODCRC) {
     // A GoodCRC carries the MessageID it acknowledges; a duplicate or stray one must not advance the counter
     if (msg.id != this->msg_counter_ % 8) {
-      ESP_LOGV(TAG, "Ignoring GoodCRC for MessageID %u", msg.id);
+      ESP_LOGD(TAG, "Ignoring GoodCRC for MessageID %u, expected %u", msg.id, this->msg_counter_ % 8);
       return;
     }
     // Our last message was received, so the next one gets a new MessageID

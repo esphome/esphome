@@ -19,6 +19,7 @@ class FakePhy : public PowerDelivery {
   using PowerDelivery::check_request_retry_;
   using PowerDelivery::contract_;
   using PowerDelivery::handle_message_;
+  using PowerDelivery::handle_transmit_failed_;
   using PowerDelivery::retry_request_pending_;
   using PowerDelivery::set_state_and_contract_;
   using PowerDelivery::wait_received_ms_;
@@ -380,6 +381,19 @@ TEST(FUSB302BPd, GoodCrcMustMatchMessageId) {
   pd.receive(PD_CNTRL_DR_SWAP, 2);
   ASSERT_EQ(pd.sent.size(), 3u);
   EXPECT_EQ(pd.sent[2].id, 1);
+}
+
+TEST(FUSB302BPd, FailedTransmitAdvancesMessageId) {
+  FakePhy pd;
+  pd.receive_source_caps(0);
+  ASSERT_EQ(pd.sent.size(), 1u);
+  EXPECT_EQ(pd.sent[0].id, 0);
+  pd.handle_transmit_failed_();
+  // A late GoodCRC for the failed message must not advance the counter a second time
+  pd.receive(PD_CNTRL_GOODCRC, 0);
+  pd.receive(PD_CNTRL_DR_SWAP, 1);
+  ASSERT_EQ(pd.sent.size(), 2u);
+  EXPECT_EQ(pd.sent[1].id, 1);
 }
 
 TEST(FUSB302BPd, RetransmissionIsIgnored) {
