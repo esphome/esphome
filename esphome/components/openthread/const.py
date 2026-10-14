@@ -1,4 +1,5 @@
 CONF_BORDER_ROUTER = "border_router"
+CONF_CORE_OPTIONS = "core_options"
 CONF_DEVICE_TYPE = "device_type"
 CONF_EXT_PAN_ID = "ext_pan_id"
 CONF_FORCE_DATASET = "force_dataset"
@@ -12,3 +13,5 @@ CONF_PSKC = "pskc"
 CONF_RCP = "rcp"
 CONF_SRP_ID = "srp_id"
 CONF_TLV = "tlv"
+
+OPENTHREAD_CONFIG_PREFIX = "OPENTHREAD_CONFIG_"

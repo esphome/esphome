@@ -345,6 +345,12 @@ def validate_variant(_):
             )
 
 
+def _validate_min_auth_mode(value: str) -> str:
+    if value == "WPA3" and CORE.is_esp8266:
+        raise cv.Invalid("ESP8266 does not support WPA3; use WPA or WPA2 instead")
+    return value
+
+
 def _apply_min_auth_mode_default(config):
     """Apply platform-specific default for min_auth_mode."""
     if CONF_MIN_AUTH_MODE not in config and (CORE.is_esp8266 or CORE.is_esp32):
@@ -556,6 +562,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
                 VALIDATE_WIFI_MIN_AUTH_MODE,
                 cv.only_on([Platform.ESP32, Platform.ESP8266]),
+                _validate_min_auth_mode,
             ),
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)

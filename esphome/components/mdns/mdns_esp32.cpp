@@ -89,7 +89,25 @@ bool MDNSComponent::set_service_enabled(const char *service_type, const char *pr
 }
 #endif
 
-void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp32); }
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+bool MDNSComponent::publish_network_txt_(const char *network) {
+  // ESP-IDF copies the value and announces the changed record
+  esp_err_t err = mdns_service_txt_item_set("_esphomelib", "_tcp", "network", network);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to update network TXT: %s", esp_err_to_name(err));
+    return false;
+  }
+  return true;
+}
+#endif
+
+void MDNSComponent::setup() {
+  this->setup_buffers_and_register_(register_esp32);
+#if defined(USE_MDNS_DYNAMIC_NETWORK_TXT) && !defined(USE_MDNS_ACTIVE_INTERFACE_LISTENER)
+  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS,
+                     [this]() { this->update_network_txt_(this->connected_network_()); });
+#endif
+}
 
 void MDNSComponent::on_shutdown() {
 #if !defined(USE_OPENTHREAD) || defined(USE_OPENTHREAD_BORDER_ROUTER)
