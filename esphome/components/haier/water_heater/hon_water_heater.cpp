@@ -3,7 +3,12 @@
 #include <cmath>
 
 #include "esphome/core/application.h"
-#include "esphome/components/network/util.h"
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+#ifdef USE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#endif
 #include "esphome/core/log.h"
 
 // Compatibility with ESPHome revisions predating the flash-resident log-tag macro.
