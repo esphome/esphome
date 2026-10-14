@@ -13,7 +13,8 @@ using esp_netif_t = struct esp_netif_obj;
 namespace esphome::network {
 
 #ifdef USE_NETWORK_DEFAULT_ROUTE
-/// The interface holding the default route.
+/// The interface holding the default route. Lists only the interfaces loop() arbitrates
+/// (ARBITRATED_NETWORK_TYPES in __init__.py); extend both together.
 enum class NetworkInterface : uint8_t {
   NETWORK_INTERFACE_NONE,
   NETWORK_INTERFACE_ETHERNET,
