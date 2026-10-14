@@ -1,10 +1,31 @@
 #include "lsm6ds.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::lsm6ds {
 
 ESPHOME_LOG_TAG(TAG, "lsm6ds");
+
+// Indexed by the accel range field, which is not in ascending order (datasheet Table 3)
+PROGMEM_STRING_TABLE(AccelRangeStrings, "±2g", "±16g", "±4g", "±8g");
+
+static const LogString *gyro_range_to_str(LSM6DSGyroRange range) {
+  switch (range) {
+    case LSM6DS_GYRO_RANGE_125:
+      return LOG_STR("±125dps");
+    case LSM6DS_GYRO_RANGE_250:
+      return LOG_STR("±250dps");
+    case LSM6DS_GYRO_RANGE_500:
+      return LOG_STR("±500dps");
+    case LSM6DS_GYRO_RANGE_1000:
+      return LOG_STR("±1000dps");
+    case LSM6DS_GYRO_RANGE_2000:
+      return LOG_STR("±2000dps");
+    default:
+      return LOG_STR("unknown");
+  }
+}
 
 static const struct {
   uint8_t who_am_i;
@@ -89,30 +110,6 @@ void LSM6DSComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
-  // Accel range — index into the sensitivity table (datasheet Table 3)
-  static const char *const ACCEL_RANGE_STR[] = {"±2g", "±16g", "±4g", "±8g"};
-
-  const char *gyro_str;
-  switch (this->gyro_range_) {
-    case LSM6DS_GYRO_RANGE_125:
-      gyro_str = "±125dps";
-      break;
-    case LSM6DS_GYRO_RANGE_250:
-      gyro_str = "±250dps";
-      break;
-    case LSM6DS_GYRO_RANGE_500:
-      gyro_str = "±500dps";
-      break;
-    case LSM6DS_GYRO_RANGE_1000:
-      gyro_str = "±1000dps";
-      break;
-    case LSM6DS_GYRO_RANGE_2000:
-      gyro_str = "±2000dps";
-      break;
-    default:
-      gyro_str = "unknown";
-      break;
-  }
   auto accel_odr = this->accel_odr_ == 0 ? 0 : 13 * (1 << (this->accel_odr_ - 1));
   auto gyro_odr = this->gyro_odr_ == 0 ? 0 : 13 * (1 << (this->gyro_odr_ - 1));
   ESP_LOGCONFIG(TAG,
@@ -120,7 +117,8 @@ void LSM6DSComponent::dump_config() {
                 "  Accel data rate : %dHz\n"
                 "  Gyro  range : %s\n"
                 "  Gyro  data rate : %dHz",
-                ACCEL_RANGE_STR[this->accel_range_], accel_odr, gyro_str, gyro_odr);
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_, AccelRangeStrings::LAST_INDEX)),
+                accel_odr, LOG_STR_ARG(gyro_range_to_str(this->gyro_range_)), gyro_odr);
 }
 
 //  update_data()
