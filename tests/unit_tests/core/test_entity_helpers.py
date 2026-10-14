@@ -19,8 +19,10 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MQTT_ID,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_WEB_SERVER,
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
@@ -37,6 +39,7 @@ from esphome.core.entity_helpers import (
     register_unit_of_measurement,
     setup_device_class,
     setup_entity,
+    setup_entity_integrations,
     setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj
@@ -1405,3 +1408,42 @@ async def test_sub_entities_without_parent(
 
     assert await sub("child", hub.set_child) is not None
     assert setup_test_environment == ["hub->set_child(child)"]
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_integrations_registers_mqtt_and_web_server(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Both integrations are wired up and the mqtt companion is returned."""
+    from esphome.components import mqtt, web_server
+
+    calls: list[tuple[str, Any]] = []
+
+    async def register_mqtt_component(var: MockObj, config: dict[str, Any]) -> None:
+        calls.append(("mqtt", var))
+
+    async def add_entity_config(var: MockObj, config: dict[str, Any]) -> None:
+        calls.append(("web_server", config))
+
+    monkeypatch.setattr(mqtt, "register_mqtt_component", register_mqtt_component)
+    monkeypatch.setattr(web_server, "add_entity_config", add_entity_config)
+    config = {
+        CONF_MQTT_ID: ID(
+            "mqtt_switch", is_declaration=True, type=MockObj("MQTTSwitch")
+        ),
+        CONF_WEB_SERVER: {"sorting_weight": 1.0},
+    }
+
+    mqtt_ = await setup_entity_integrations(MockObj("switch_1"), config)
+
+    assert mqtt_ is not None
+    assert calls == [("mqtt", mqtt_), ("web_server", {"sorting_weight": 1.0})]
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_integrations_without_integrations(
+    setup_test_environment: list[str],
+) -> None:
+    """Without mqtt_id or web_server config nothing is registered."""
+    assert await setup_entity_integrations(MockObj("switch_1"), {}) is None
+    assert setup_test_environment == []
