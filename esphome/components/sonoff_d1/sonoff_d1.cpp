@@ -44,22 +44,15 @@
 #include "sonoff_d1.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace sonoff_d1 {
+namespace esphome::sonoff_d1 {
 
-static const char *const TAG = "sonoff_d1";
+ESPHOME_LOG_TAG(TAG, "sonoff_d1");
 
 // Protocol constants
 static constexpr size_t SONOFF_D1_ACK_SIZE = 7;
 static constexpr size_t SONOFF_D1_MAX_CMD_SIZE = 17;
 
-uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) {
-  uint8_t crc = 0;
-  for (size_t i = 2; i < len - 1; i++) {
-    crc += cmd[i];
-  }
-  return crc;
-}
+uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) { return sum_bytes(cmd + 2, len - 3); }
 
 void SonoffD1Output::populate_checksum_(uint8_t *cmd, const size_t len) {
   // Update the checksum
@@ -93,10 +86,7 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
   if (this->read_array(cmd, 6)) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(6)];
-    ESP_LOGV(TAG,
-             "[%04d] Reading from dimmer:\n"
-             "[%04d] %s",
-             this->write_count_, this->write_count_, format_hex_pretty_to(hex_buf, cmd, 6));
+    ESP_LOGV(TAG, "[%04d] Reading from dimmer: %s", this->write_count_, format_hex_pretty_to(hex_buf, cmd, 6));
 #endif
 
     if (cmd[0] != 0xAA || cmd[1] != 0x55) {
@@ -190,10 +180,7 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   do {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(SONOFF_D1_MAX_CMD_SIZE)];
-    ESP_LOGV(TAG,
-             "[%04d] Writing to the dimmer:\n"
-             "[%04d] %s",
-             this->write_count_, this->write_count_, format_hex_pretty_to(hex_buf, cmd, len));
+    ESP_LOGV(TAG, "[%04d] Writing to the dimmer: %s", this->write_count_, format_hex_pretty_to(hex_buf, cmd, len));
 #endif
     this->write_array(cmd, len);
     this->write_count_++;
@@ -327,5 +314,4 @@ void SonoffD1Output::loop() {
   }
 }
 
-}  // namespace sonoff_d1
-}  // namespace esphome
+}  // namespace esphome::sonoff_d1

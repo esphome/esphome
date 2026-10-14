@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.button";
+ESPHOME_LOG_TAG(TAG, "mqtt.button");
 
 using namespace esphome::button;
 
@@ -20,7 +20,7 @@ void MQTTButtonComponent::setup() {
       this->button_->press();
     } else {
       ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
-      this->status_momentary_warning("state", 5000);
+      this->status_momentary_warning(5000);
     }
   });
 }
@@ -30,13 +30,7 @@ void MQTTButtonComponent::dump_config() {
 }
 
 void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   config.state_topic = false;
-  const auto device_class = this->button_->get_device_class_ref();
-  if (!device_class.empty()) {
-    root[MQTT_DEVICE_CLASS] = device_class;
-  }
-  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 MQTT_COMPONENT_TYPE(MQTTButtonComponent, "button")

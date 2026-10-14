@@ -1,10 +1,12 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_TEXT_SENSOR_FILTER
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace text_sensor {
+namespace esphome::text_sensor {
 
 class TextSensor;
 
@@ -119,14 +121,16 @@ struct Substitution {
   const char *to;
 };
 
-/// A simple filter that replaces a substring with another substring
+/// A simple filter that replaces a substring with another substring.
+/// `substitutions` is a codegen table in flash, shared by filters with the same list and
+/// ended by an entry whose `from` is nullptr, so no count is stored.
 class SubstituteFilter : public Filter {
  public:
-  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions);
+  explicit SubstituteFilter(const Substitution *substitutions) : substitutions_(substitutions) {}
   bool new_value(std::string &value) override;
 
  protected:
-  FixedVector<Substitution> substitutions_;
+  const Substitution *substitutions_;
 };
 
 /** A filter that maps values from one set to another
@@ -152,15 +156,19 @@ class SubstituteFilter : public Filter {
  * - Faster for typical ESPHome usage (2-10 mappings common, 20+ rare)
  *
  * Break-even point: ~35-40 mappings, but ESPHome configs rarely exceed 20
+ *
+ * `mappings` is a codegen table in flash, shared by filters with the same list and ended by
+ * an entry whose `from` is nullptr, so no count is stored.
  */
 class MapFilter : public Filter {
  public:
-  explicit MapFilter(const std::initializer_list<Substitution> &mappings);
+  explicit MapFilter(const Substitution *mappings) : mappings_(mappings) {}
   bool new_value(std::string &value) override;
 
  protected:
-  FixedVector<Substitution> mappings_;
+  const Substitution *mappings_;
 };
 
-}  // namespace text_sensor
-}  // namespace esphome
+}  // namespace esphome::text_sensor
+
+#endif  // USE_TEXT_SENSOR_FILTER

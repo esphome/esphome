@@ -1,10 +1,9 @@
 #include "sm10bit_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sm10bit_base {
+namespace esphome::sm10bit_base {
 
-static const char *const TAG = "sm10bit_base";
+ESPHOME_LOG_TAG(TAG, "sm10bit_base");
 
 static const uint8_t SM10BIT_ADDR_STANDBY = 0x0;
 static const uint8_t SM10BIT_ADDR_START_3CH = 0x8;
@@ -127,5 +126,4 @@ void Sm10BitBase::write_buffer_(uint8_t *buffer, uint8_t size) {
   delayMicroseconds(SM10BIT_DELAY);
 }
 
-}  // namespace sm10bit_base
-}  // namespace esphome
+}  // namespace esphome::sm10bit_base

@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sensirion_common {
+namespace esphome::sensirion_common {
 
 /**
  * Implementation of I2C functions for Sensirion sensors
@@ -17,9 +16,23 @@ namespace sensirion_common {
  */
 static const uint8_t CRC_POLYNOMIAL = 0x31;  // default for Sensirion
 
+/// When reading a register and the device reports NACK because the value is not ready yet, don't log it as an error.
+static constexpr uint8_t SENSIRION_OPTION_READ_MAY_NACK = 1u << 0;
+
 class SensirionI2CDevice : public i2c::I2CDevice {
  public:
   enum CommandLen : uint8_t { ADDR_8_BIT = 1, ADDR_16_BIT = 2 };
+
+  /**
+   * This function performs an in-place conversion of the provided buffer
+   * from uint16_t values to big endianness. Useful for Sensirion strings in SEN5X and SEN6X
+   */
+  static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+      array[i] = convert_big_endian(array[i]);
+    }
+    return reinterpret_cast<const char *>(array);
+  }
 
   /** Read data words from I2C device.
    * handles CRC check used by Sensirion sensors
@@ -129,14 +142,15 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @param data pointer to raw result
    * @param len number of words to read
    * @param delay milliseconds to to wait between sending the I2C command and reading the result
+   * @param sensirion_options options for the request
    * @return true if reading succeeded
    */
-  bool get_register_(uint16_t reg, CommandLen command_len, uint16_t *data, uint8_t len, uint8_t delay);
+  bool get_register_(uint16_t reg, CommandLen command_len, uint16_t *data, uint8_t len, uint8_t delay,
+                     uint8_t sensirion_options = 0);
 
   /** last error code from I2C operation
    */
   i2c::ErrorCode last_error_;
 };
 
-}  // namespace sensirion_common
-}  // namespace esphome
+}  // namespace esphome::sensirion_common

@@ -4,10 +4,9 @@
 #include "mmc5983.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mmc5983 {
+namespace esphome::mmc5983 {
 
-static const char *const TAG = "mmc5983";
+ESPHOME_LOG_TAG(TAG, "mmc5983");
 
 namespace {
 constexpr uint8_t IC0_ADDR = 0x09;
@@ -133,5 +132,4 @@ void MMC5983Component::dump_config() {
   LOG_SENSOR("  ", "Z", this->z_sensor_);
 }
 
-}  // namespace mmc5983
-}  // namespace esphome
+}  // namespace esphome::mmc5983

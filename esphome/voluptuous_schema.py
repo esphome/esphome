@@ -6,10 +6,14 @@ import voluptuous as vol
 from esphome.schema_extractors import schema_extractor_extended
 
 
-class ExtraKeysInvalid(vol.Invalid):
+class KeyInvalid(vol.Invalid):
+    """An error caused by a mapping key itself rather than by its value."""
+
+
+class ExtraKeysInvalid(KeyInvalid):
     def __init__(self, *arg, **kwargs):
         self.candidates = kwargs.pop("candidates")
-        vol.Invalid.__init__(self, *arg, **kwargs)
+        super().__init__(*arg, **kwargs)
 
 
 def ensure_multiple_invalid(err):
@@ -39,8 +43,7 @@ class _Schema(vol.Schema):
             try:
                 res = extra(res)
             except vol.Invalid as err:
-                # pylint: disable=raise-missing-from
-                raise ensure_multiple_invalid(err)
+                raise ensure_multiple_invalid(err) from err
         return res
 
     def _compile_mapping(self, schema, invalid_msg=None):
@@ -175,6 +178,12 @@ class _Schema(vol.Schema):
                 else:
                     if self.extra == vol.ALLOW_EXTRA:
                         out[key] = value
+                    elif key == "id":
+                        # Silently drop 'id' on any dict so that
+                        # !extend / !remove work on every list-based
+                        # config without requiring each component to
+                        # declare an id in its schema.
+                        pass
                     elif self.extra != vol.REMOVE_EXTRA:
                         if isinstance(key, str) and key_names:
                             matches = difflib.get_close_matches(key, key_names)
@@ -187,7 +196,7 @@ class _Schema(vol.Schema):
                             )
                         else:
                             errors.append(
-                                vol.Invalid("extra keys not allowed", key_path)
+                                KeyInvalid("extra keys not allowed", key_path)
                             )
 
             # for any required keys left that weren't found and don't have defaults:

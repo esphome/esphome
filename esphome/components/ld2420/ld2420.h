@@ -20,9 +20,11 @@
 
 namespace esphome::ld2420 {
 
-static const uint8_t CALIBRATE_SAMPLES = 64;
-static const uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
-static const uint8_t TOTAL_GATES = 16;
+static constexpr uint8_t CALIBRATE_SAMPLES = 64;
+// Energy frame is 45 bytes; +1 for null terminator, +4 so that a frame footer always lands
+// inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 50;
+static constexpr uint8_t TOTAL_GATES = 16;
 
 enum OpMode : uint8_t {
   OP_NORMAL_MODE = 1,
@@ -38,7 +40,7 @@ class LD2420Listener {
   virtual void on_fw_version(std::string &fw){};
 };
 
-class LD2420Component : public Component, public uart::UARTDevice {
+class LD2420Component final : public Component, public uart::UARTDevice {
  public:
   struct CmdFrameT {
     uint32_t header{0};
@@ -103,10 +105,9 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void apply_config_action();
   void factory_reset_action();
   void revert_config_action();
-  float get_setup_priority() const override;
   int send_cmd_from_array(CmdFrameT cmd_frame);
   void report_gate_data();
-  void handle_cmd_error(uint8_t error);
+  void handle_cmd_error(uint16_t error);
   void set_operating_mode(const char *state);
   void auto_calibrate_sensitivity();
   void update_radar_data(uint16_t const *gate_energy, uint8_t sample_number);

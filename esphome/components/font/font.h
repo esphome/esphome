@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "esphome/core/color.h"
 #include "esphome/core/datatypes.h"
 #include "esphome/core/defines.h"
@@ -10,12 +12,11 @@
 #include <lvgl.h>
 #endif
 
-namespace esphome {
-namespace font {
+namespace esphome::font {
 
 class Font;
 
-class Glyph {
+class Glyph final {
  public:
   constexpr Glyph(uint32_t code_point, const uint8_t *data, int advance, int offset_x, int offset_y, int width,
                   int height)
@@ -37,8 +38,20 @@ class Glyph {
   int width;
   int height;
 };
+// The glyph table lives in flash, read with plain loads, which ESP8266 only allows for whole words.
+static_assert(std::is_same_v<decltype(Glyph::code_point), const uint32_t>, "Glyph fields must stay word sized");
+static_assert(std::is_same_v<decltype(Glyph::data), const uint8_t *>, "Glyph fields must stay word sized");
+static_assert(std::is_same_v<decltype(Glyph::advance), int>, "Glyph fields must stay word sized");
+static_assert(std::is_same_v<decltype(Glyph::offset_x), int>, "Glyph fields must stay word sized");
+static_assert(std::is_same_v<decltype(Glyph::offset_y), int>, "Glyph fields must stay word sized");
+static_assert(std::is_same_v<decltype(Glyph::width), int>, "Glyph fields must stay word sized");
+static_assert(std::is_same_v<decltype(Glyph::height), int>, "Glyph fields must stay word sized");
+#ifdef USE_ESP8266
+static_assert(alignof(Glyph) == sizeof(uint32_t), "Glyph fields must stay word sized");
+static_assert(sizeof(Glyph) == 7 * sizeof(uint32_t), "Glyph is read from flash with word loads");
+#endif
 
-class Font
+class Font final
 #ifdef USE_DISPLAY
     : public display::BaseFont
 #endif
@@ -90,7 +103,7 @@ class Font
   uint8_t bpp_;  // bits per pixel
 #ifdef USE_LVGL_FONT
   lv_font_t lv_font_{};
-  static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter);
+  static const void *get_glyph_bitmap(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw_buf);
   static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next);
   const Glyph *get_glyph_data_(uint32_t unicode_letter);
   uint32_t last_letter_{};
@@ -98,5 +111,4 @@ class Font
 #endif
 };
 
-}  // namespace font
-}  // namespace esphome
+}  // namespace esphome::font

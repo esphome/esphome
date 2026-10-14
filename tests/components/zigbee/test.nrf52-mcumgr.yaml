@@ -1,1 +1,4 @@
 <<: !include common.yaml
+
+zigbee:
+  router: true

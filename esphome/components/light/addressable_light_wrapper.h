@@ -74,11 +74,10 @@ class AddressableLightWrapper : public light::AddressableLight {
       return;
     }
 
-    float gamma = this->light_state_->get_gamma_correct();
-    float r = gamma_uncorrect(this->wrapper_state_[0] / 255.0f, gamma);
-    float g = gamma_uncorrect(this->wrapper_state_[1] / 255.0f, gamma);
-    float b = gamma_uncorrect(this->wrapper_state_[2] / 255.0f, gamma);
-    float w = gamma_uncorrect(this->wrapper_state_[3] / 255.0f, gamma);
+    float r = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[0] / 255.0f);
+    float g = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[1] / 255.0f);
+    float b = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[2] / 255.0f);
+    float w = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[3] / 255.0f);
 
     auto call = this->light_state_->make_call();
 

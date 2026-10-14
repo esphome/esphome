@@ -1,11 +1,11 @@
 #include "ethernet_info_text_sensor.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ETHERNET
 
 namespace esphome::ethernet_info {
 
-static const char *const TAG = "ethernet_info";
+ESPHOME_LOG_TAG(TAG, "ethernet_info");
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 void IPAddressEthernetInfo::setup() { ethernet::global_eth_component->add_ip_state_listener(this); }
@@ -49,4 +49,4 @@ void MACAddressEthernetInfo::dump_config() { LOG_TEXT_SENSOR("", "EthernetInfo M
 
 }  // namespace esphome::ethernet_info
 
-#endif  // USE_ESP32
+#endif  // USE_ETHERNET

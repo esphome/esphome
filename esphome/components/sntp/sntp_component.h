@@ -4,8 +4,7 @@
 #include "esphome/components/time/real_time_clock.h"
 #include <array>
 
-namespace esphome {
-namespace sntp {
+namespace esphome::sntp {
 
 // Server count is calculated at compile time by Python codegen
 // SNTP_SERVER_COUNT will always be defined
@@ -16,7 +15,7 @@ namespace sntp {
 /// The C library (newlib) available on ESPs only supports TZ strings that specify an offset and DST info;
 /// you cannot specify zone names or paths to zoneinfo files.
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
-class SNTPComponent : public time::RealTimeClock {
+class SNTPComponent final : public time::RealTimeClock {
  public:
   SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers) : servers_(servers) {}
 
@@ -42,5 +41,4 @@ class SNTPComponent : public time::RealTimeClock {
 #endif
 };
 
-}  // namespace sntp
-}  // namespace esphome
+}  // namespace esphome::sntp

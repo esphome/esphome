@@ -4,8 +4,7 @@
 #include "bme280_spi.h"
 #include <esphome/components/bme280_base/bme280_base.h>
 
-namespace esphome {
-namespace bme280_spi {
+namespace esphome::bme280_spi {
 
 uint8_t set_bit(uint8_t num, int position) {
   int mask = 1 << position;
@@ -61,5 +60,4 @@ bool BME280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
   return true;
 }
 
-}  // namespace bme280_spi
-}  // namespace esphome
+}  // namespace esphome::bme280_spi

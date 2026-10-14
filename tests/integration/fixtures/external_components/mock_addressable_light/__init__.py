@@ -1,0 +1,1 @@
+CODEOWNERS = ["@esphome/tests"]

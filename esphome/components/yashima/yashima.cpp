@@ -1,10 +1,9 @@
 #include "yashima.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace yashima {
+namespace esphome::yashima {
 
-static const char *const TAG = "yashima.climate";
+ESPHOME_LOG_TAG(TAG, "yashima.climate");
 
 const uint16_t YASHIMA_STATE_LENGTH = 9;
 const uint16_t YASHIMA_BITS = YASHIMA_STATE_LENGTH * 8;
@@ -120,10 +119,12 @@ void YashimaClimate::setup() {
 }
 
 void YashimaClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value())
-    this->mode = *call.get_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
+  auto call_mode = call.get_mode();
+  if (call_mode.has_value())
+    this->mode = *call_mode;
+  auto call_target = call.get_target_temperature();
+  if (call_target.has_value())
+    this->target_temperature = *call_target;
 
   this->transmit_state_();
   this->publish_state();
@@ -195,5 +196,4 @@ void YashimaClimate::transmit_state_() {
   transmit.perform();
 }
 
-}  // namespace yashima
-}  // namespace esphome
+}  // namespace esphome::yashima

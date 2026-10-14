@@ -1,37 +1,20 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_CAPTIVE_PORTAL
-#include <memory>
-#if defined(USE_ESP32)
-#include "dns_server_esp32_idf.h"
-#elif defined(USE_ARDUINO)
-#include <DNSServer.h>
-#endif
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#include "esphome/components/web_server_base/captive_dns.h"
 
-namespace esphome {
+namespace esphome::captive_portal {
 
-namespace captive_portal {
-
-class CaptivePortal : public AsyncWebHandler, public Component {
+class CaptivePortal final : public AsyncWebHandler, public Component {
  public:
   CaptivePortal(web_server_base::WebServerBase *base);
   void setup() override;
   void dump_config() override;
-  void loop() override {
-#if defined(USE_ESP32)
-    if (this->dns_server_ != nullptr) {
-      this->dns_server_->process_next_request();
-    }
-#elif defined(USE_ARDUINO)
-    if (this->dns_server_ != nullptr) {
-      this->dns_server_->processNextRequest();
-    }
-#endif
-  }
+  void loop() override { this->dns_.loop(); }
   float get_setup_priority() const override;
   void start();
   bool is_active() const { return this->active_; }
@@ -39,10 +22,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
     this->active_ = false;
     this->disable_loop();  // Stop processing DNS requests
     this->base_->deinit();
-    if (this->dns_server_ != nullptr) {
-      this->dns_server_->stop();
-      this->dns_server_ = nullptr;
-    }
+    this->dns_.stop();
   }
 
   bool canHandle(AsyncWebServerRequest *request) const override {
@@ -62,13 +42,11 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   web_server_base::WebServerBase *base_;
   bool initialized_{false};
   bool active_{false};
-#if defined(USE_ARDUINO) || defined(USE_ESP32)
-  std::unique_ptr<DNSServer> dns_server_{nullptr};
-#endif
+  web_server_base::CaptiveDNS dns_;
 };
 
 extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace captive_portal
-}  // namespace esphome
+}  // namespace esphome::captive_portal
+
 #endif

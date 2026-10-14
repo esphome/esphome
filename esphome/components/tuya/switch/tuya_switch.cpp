@@ -1,10 +1,9 @@
 #include "esphome/core/log.h"
 #include "tuya_switch.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
-static const char *const TAG = "tuya.switch";
+ESPHOME_LOG_TAG(TAG, "tuya.switch");
 
 void TuyaSwitch::setup() {
   this->parent_->register_listener(this->switch_id_, [this](const TuyaDatapoint &datapoint) {
@@ -24,5 +23,4 @@ void TuyaSwitch::dump_config() {
   ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", this->switch_id_);
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

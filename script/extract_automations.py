@@ -12,9 +12,9 @@ if __name__ == "__main__":
     components = get_components_with_dependencies(files, True)
 
     dump = {
-        "actions": sorted(list(ACTION_REGISTRY.keys())),
-        "conditions": sorted(list(CONDITION_REGISTRY.keys())),
-        "pin_providers": sorted(list(PIN_SCHEMA_REGISTRY.keys())),
+        "actions": sorted(ACTION_REGISTRY.keys()),
+        "conditions": sorted(CONDITION_REGISTRY.keys()),
+        "pin_providers": sorted(PIN_SCHEMA_REGISTRY.keys()),
     }
 
     print(json.dumps(dump, indent=2))

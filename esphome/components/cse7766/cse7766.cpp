@@ -2,11 +2,11 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
-namespace esphome {
-namespace cse7766 {
+namespace esphome::cse7766 {
 
-static const char *const TAG = "cse7766";
+ESPHOME_LOG_TAG(TAG, "cse7766");
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -67,10 +67,7 @@ bool CSE7766Component::check_byte_() {
   }
 
   if (index == CSE7766_RAW_DATA_SIZE - 1) {
-    uint8_t checksum = 0;
-    for (uint8_t i = 2; i < CSE7766_RAW_DATA_SIZE - 1; i++) {
-      checksum += this->raw_data_[i];
-    }
+    const uint8_t checksum = sum_bytes(this->raw_data_ + 2, CSE7766_RAW_DATA_SIZE - 3);
 
     if (checksum != this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]) {
       ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum,
@@ -193,21 +190,22 @@ void CSE7766Component::parse_data_() {
       this->apparent_power_sensor_->publish_state(apparent_power);
     }
     if (have_power && this->reactive_power_sensor_ != nullptr) {
-      const float reactive_power = apparent_power - power;
-      if (reactive_power < 0.0f) {
-        ESP_LOGD(TAG, "Impossible reactive power: %.4f is negative", reactive_power);
+      const float q_squared = apparent_power * apparent_power - power * power;
+      if (q_squared < 0.0f) {
+        ESP_LOGD(TAG, "Impossible reactive power: S^2-P^2 is negative (%.4f)", q_squared);
         this->reactive_power_sensor_->publish_state(0.0f);
       } else {
-        this->reactive_power_sensor_->publish_state(reactive_power);
+        this->reactive_power_sensor_->publish_state(std::sqrt(q_squared));
       }
     }
     if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
       float pf = NAN;
       if (apparent_power > 0) {
         pf = power / apparent_power;
-        if (pf < 0 || pf > 1) {
-          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
-          pf = NAN;
+        if (pf > 1) {
+          // Noise near the chip's resolution limit, seen during inrush, pushes the ratio past unity
+          ESP_LOGD(TAG, "Power factor %.4f above 1, clamped", pf);
+          pf = 1.0f;
         }
       } else if (apparent_power == 0 && power == 0) {
         // No load, report ideal power factor
@@ -255,8 +253,6 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
   LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
-  this->check_uart_settings(4800, 1, uart::UART_CONFIG_PARITY_EVEN);
 }
 
-}  // namespace cse7766
-}  // namespace esphome
+}  // namespace esphome::cse7766

@@ -2,10 +2,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
-static const char *const TAG = "sx127x";
+ESPHOME_LOG_TAG(TAG, "sx127x");
 static const uint32_t FXOSC = 32000000u;
 static const uint16_t RAMP[16] = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
 static const uint32_t BW_HZ[22] = {2604,  3125,  3906,  5208,  6250,  7812,   10416,  12500,  15625,  20833,  25000,
@@ -38,16 +37,22 @@ void SX127x::write_register_(uint8_t reg, uint8_t value) {
 void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
   this->enable();
   this->write_byte(REG_FIFO & 0x7F);
-  this->read_array(packet.data(), packet.size());
+  for (auto &byte : packet) {
+    byte = this->transfer_byte(0x00);
+  }
   this->disable();
 }
 
-void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
+void SX127x::write_fifo_(const uint8_t *data, size_t len) {
   this->enable();
   this->write_byte(REG_FIFO | 0x80);
-  this->write_array(packet.data(), packet.size());
+  for (size_t i = 0; i < len; i++) {
+    this->transfer_byte(data[i]);
+  }
   this->disable();
 }
+
+void IRAM_ATTR SX127x::gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
 
 void SX127x::setup() {
   // setup reset
@@ -56,6 +61,7 @@ void SX127x::setup() {
   // setup dio0
   if (this->dio0_pin_) {
     this->dio0_pin_->setup();
+    this->dio0_pin_->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
   }
 
   // start spi
@@ -186,7 +192,7 @@ void SX127x::configure_fsk_ook_() {
   } else {
     this->write_register_(REG_PREAMBLE_DETECT, PREAMBLE_DETECTOR_OFF);
   }
-  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 16);
+  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 8);
   this->write_register_(REG_PREAMBLE_SIZE_LSB, this->preamble_size_ & 0xFF);
 
   // config sync generation and setup ook threshold
@@ -195,8 +201,8 @@ void SX127x::configure_fsk_ook_() {
   this->write_register_(REG_OOK_AVG, OOK_AVG_RESERVED | OOK_THRESH_DEC_1_8);
 
   // set rx floor
-  this->write_register_(REG_OOK_FIX, 256 + int(this->rx_floor_ * 2.0));
-  this->write_register_(REG_RSSI_THRESH, std::abs(int(this->rx_floor_ * 2.0)));
+  this->write_register_(REG_OOK_FIX, 256 + int(this->rx_floor_ * 2.0f));
+  this->write_register_(REG_RSSI_THRESH, std::abs(int(this->rx_floor_ * 2.0f)));
 }
 
 void SX127x::configure_lora_() {
@@ -214,12 +220,12 @@ void SX127x::configure_lora_() {
 
   // config preamble
   if (this->preamble_size_ >= 6) {
-    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 16);
+    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 8);
     this->write_register_(REG_PREAMBLE_LEN_LSB, this->preamble_size_ & 0xFF);
   }
 
   // optimize detection
-  float duration = 1000.0f * std::pow(2, this->spreading_factor_) / BW_HZ[this->bandwidth_];
+  float duration = 1000.0f * (1UL << this->spreading_factor_) / BW_HZ[this->bandwidth_];
   if (duration > 16) {
     this->write_register_(REG_MODEM_CONFIG3, MODEM_AGC_AUTO_ON | LOW_DATA_RATE_OPTIMIZE_ON);
   } else {
@@ -244,19 +250,23 @@ size_t SX127x::get_max_packet_size() {
     return this->payload_length_;
   }
   if (this->modulation_ == MOD_LORA) {
-    return 256;
-  } else {
-    return 64;
+    return SX127X_MAX_PACKET_SIZE;
   }
+  return 64;
 }
 
-SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
-  if (this->payload_length_ > 0 && this->payload_length_ != packet.size()) {
+SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
+  if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
     return SX127xError::INVALID_PARAMS;
   }
-  if (packet.empty() || packet.size() > this->get_max_packet_size()) {
+  if (len == 0 || len > this->get_max_packet_size()) {
     ESP_LOGE(TAG, "Packet size out of range");
+    return SX127xError::INVALID_PARAMS;
+  }
+
+  if (this->dio0_pin_ == nullptr) {
+    ESP_LOGE(TAG, "DIO0 pin not configured, cannot wait for transmit completion");
     return SX127xError::INVALID_PARAMS;
   }
 
@@ -264,18 +274,18 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
   if (this->modulation_ == MOD_LORA) {
     this->set_mode_standby();
     if (this->payload_length_ == 0) {
-      this->write_register_(REG_PAYLOAD_LENGTH, packet.size());
+      this->write_register_(REG_PAYLOAD_LENGTH, len);
     }
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
     this->write_register_(REG_FIFO_ADDR_PTR, 0);
-    this->write_fifo_(packet);
+    this->write_fifo_(data, len);
     this->set_mode_tx();
   } else {
     this->set_mode_standby();
     if (this->payload_length_ == 0) {
-      this->write_register_(REG_FIFO, packet.size());
+      this->write_register_(REG_FIFO, len);
     }
-    this->write_fifo_(packet);
+    this->write_fifo_(data, len);
     this->set_mode_tx();
   }
 
@@ -304,6 +314,7 @@ void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX127x::loop() {
+  this->disable_loop();
   if (this->dio0_pin_ == nullptr || !this->dio0_pin_->digital_read()) {
     return;
   }
@@ -374,7 +385,7 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
     if (millis() - start > 20) {
       ESP_LOGE(TAG, "Set mode failure");
       this->mark_failed();
-      break;
+      return;
     }
   }
 }
@@ -467,8 +478,9 @@ void SX127x::dump_config() {
                   "  Rx Start: %s\n"
                   "  Rx Floor: %.1f dBm\n"
                   "  Packet Mode: %s",
-                  shaping, this->modulation_ == MOD_FSK ? "FSK" : "OOK", this->bitrate_, TRUEFALSE(this->bitsync_),
-                  TRUEFALSE(this->rx_start_), this->rx_floor_, TRUEFALSE(this->packet_mode_));
+                  shaping, this->modulation_ == MOD_FSK ? LOG_STR_LITERAL("FSK") : LOG_STR_LITERAL("OOK"),
+                  this->bitrate_, TRUEFALSE(this->bitsync_), TRUEFALSE(this->rx_start_), this->rx_floor_,
+                  TRUEFALSE(this->packet_mode_));
     if (this->packet_mode_) {
       ESP_LOGCONFIG(TAG, "  CRC Enable: %s", TRUEFALSE(this->crc_enable_));
     }
@@ -494,5 +506,4 @@ void SX127x::dump_config() {
   }
 }
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x

@@ -1,0 +1,13 @@
+# The test_display platform (and its external_components entry) is provided by
+# the shared package included from the test.*.yaml files. These extra instances
+# exercise the remaining `dimensions` code paths: the width/height map form and
+# the default when omitted. The package's own `test_display_screen` covers the
+# "WIDTHxHEIGHT" string form.
+display:
+  - platform: test_display
+    id: test_display_wh_dimensions
+    dimensions:
+      width: 320
+      height: 240
+  - platform: test_display
+    id: test_display_default_dimensions

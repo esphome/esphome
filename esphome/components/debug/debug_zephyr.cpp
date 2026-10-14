@@ -1,8 +1,12 @@
 #include "debug_component.h"
 #ifdef USE_ZEPHYR
+#include <cinttypes>
 #include <climits>
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/log.h"
+#include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
+#include <zephyr/kernel.h>
 #include <hal/nrf_power.h>
 #include <cstdint>
 #include <zephyr/storage/flash_map.h>
@@ -11,26 +15,18 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
 
-static size_t append_reset_reason(char *buf, size_t size, size_t pos, bool set, const char *reason) {
-  if (!set) {
-    return pos;
-  }
-  if (pos > 0) {
-    pos = buf_append_printf(buf, size, pos, ", ");
-  }
-  return buf_append_printf(buf, size, pos, "%s", reason);
-}
-
 static inline uint32_t read_mem_u32(uintptr_t addr) {
-  return *reinterpret_cast<volatile uint32_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  return *reinterpret_cast<volatile uint32_t *>(addr);
 }
 
 static inline uint8_t read_mem_u8(uintptr_t addr) {
-  return *reinterpret_cast<volatile uint8_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  return *reinterpret_cast<volatile uint8_t *>(addr);
 }
 
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
@@ -57,44 +53,12 @@ static inline uint32_t sd_version_get() {
 }
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
-  char *buf = buffer.data();
-  const size_t size = RESET_REASON_BUFFER_SIZE;
-
-  uint32_t cause;
-  auto ret = hwinfo_get_reset_cause(&cause);
-  if (ret) {
-    ESP_LOGE(TAG, "Unable to get reset cause: %d", ret);
-    buf[0] = '\0';
-    return buf;
-  }
-  size_t pos = 0;
-
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PIN, "External pin");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_SOFTWARE, "Software reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_BROWNOUT, "Brownout (drop in voltage)");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_POR, "Power-on reset (POR)");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_WATCHDOG, "Watchdog timer expiration");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_DEBUG, "Debug event");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_SECURITY, "Security violation");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_LOW_POWER_WAKE, "Waking up from low power mode");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_CPU_LOCKUP, "CPU lock-up detected");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PARITY, "Parity error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PLL, "PLL error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_CLOCK, "Clock error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_HARDWARE, "Hardware reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_USER, "User reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_TEMPERATURE, "Temperature reset");
-
-  // Ensure null termination if nothing was written
-  if (pos == 0) {
-    buf[0] = '\0';
-  }
-
+  const char *buf = zephyr::get_reset_reason(buffer);
   ESP_LOGD(TAG, "Reset Reason: %s", buf);
   return buf;
 }
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) {
   // Zephyr doesn't have detailed wakeup cause like ESP32
   return "";
 }
@@ -117,22 +81,65 @@ static void fa_cb(const struct flash_area *fa, void *user_data) {
 #endif
 }
 
-static void kernel_threads();
-
 void DebugComponent::log_partition_info_() {
 #if CONFIG_FLASH_MAP_LABELS
   ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
-                     "| Label                   | Offset     | Size\n"
-                     "--------------------------------------------"
+                     "| Label                   | Offset     | Size");
+  ESP_LOGCONFIG(TAG, "--------------------------------------------"
                      "-----------------------------------------------");
 #else
   ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
-                     "| Offset     | Size\n"
-                     "-----------------------------------------"
+                     "| Offset     | Size");
+  ESP_LOGCONFIG(TAG, "-----------------------------------------"
                      "------------------------------");
 #endif
   flash_area_foreach(fa_cb, nullptr);
 }
+
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+// Check if an nRF peripheral's ENABLE register indicates it is enabled.
+// periph: peripheral register prefix (e.g. USBD, UARTE, SPI)
+// reg: register block pointer (e.g. NRF_USBD, NRF_UARTE0)
+#define NRF_PERIPH_ENABLED(periph, reg) \
+  YESNO(((reg)->ENABLE & periph##_ENABLE_ENABLE_Msk) == (periph##_ENABLE_ENABLE_Enabled << periph##_ENABLE_ENABLE_Pos))
+
+// NOLINTBEGIN(clang-analyzer-core.FixedAddressDereference) -- nRF peripheral registers are MMIO at fixed addresses
+static void log_peripherals_info() {
+  // most peripherals are enabled only when in use so ESP_LOGV is enough
+  ESP_LOGV(TAG, "Peripherals status:");
+  ESP_LOGV(TAG, "  USBD:  %-3s| UARTE0: %-3s| UARTE1: %-3s| UART0: %-3s",  //
+           NRF_PERIPH_ENABLED(USBD, NRF_USBD), NRF_PERIPH_ENABLED(UARTE, NRF_UARTE0),
+           NRF_PERIPH_ENABLED(UARTE, NRF_UARTE1), NRF_PERIPH_ENABLED(UART, NRF_UART0));
+  ESP_LOGV(TAG, "  TWIS0: %-3s| TWIS1:  %-3s| TWIM0:  %-3s| TWIM1: %-3s",  //
+           NRF_PERIPH_ENABLED(TWIS, NRF_TWIS0), NRF_PERIPH_ENABLED(TWIS, NRF_TWIS1),
+           NRF_PERIPH_ENABLED(TWIM, NRF_TWIM0), NRF_PERIPH_ENABLED(TWIM, NRF_TWIM1));
+  ESP_LOGV(TAG, "  TWI0:  %-3s| TWI1:   %-3s| COMP:   %-3s| CCM:   %-3s",  //
+           NRF_PERIPH_ENABLED(TWI, NRF_TWI0), NRF_PERIPH_ENABLED(TWI, NRF_TWI1), NRF_PERIPH_ENABLED(COMP, NRF_COMP),
+           NRF_PERIPH_ENABLED(CCM, NRF_CCM));
+  ESP_LOGV(TAG, "  PDM:   %-3s| SPIS0:  %-3s| SPIS1:  %-3s| SPIS2: %-3s",  //
+           NRF_PERIPH_ENABLED(PDM, NRF_PDM), NRF_PERIPH_ENABLED(SPIS, NRF_SPIS0), NRF_PERIPH_ENABLED(SPIS, NRF_SPIS1),
+           NRF_PERIPH_ENABLED(SPIS, NRF_SPIS2));
+  ESP_LOGV(TAG, "  SPIM0: %-3s| SPIM1:  %-3s| SPIM2:  %-3s| SPIM3: %-3s",  //
+           NRF_PERIPH_ENABLED(SPIM, NRF_SPIM0), NRF_PERIPH_ENABLED(SPIM, NRF_SPIM1),
+           NRF_PERIPH_ENABLED(SPIM, NRF_SPIM2), NRF_PERIPH_ENABLED(SPIM, NRF_SPIM3));
+  ESP_LOGV(TAG, "  SPI0:  %-3s| SPI1:   %-3s| SPI2:   %-3s| SAADC: %-3s",  //
+           NRF_PERIPH_ENABLED(SPI, NRF_SPI0), NRF_PERIPH_ENABLED(SPI, NRF_SPI1), NRF_PERIPH_ENABLED(SPI, NRF_SPI2),
+           NRF_PERIPH_ENABLED(SAADC, NRF_SAADC));
+  ESP_LOGV(TAG, "  QSPI:  %-3s| QDEC:   %-3s| LPCOMP: %-3s| I2S:   %-3s",  //
+           NRF_PERIPH_ENABLED(QSPI, NRF_QSPI), NRF_PERIPH_ENABLED(QDEC, NRF_QDEC),
+           NRF_PERIPH_ENABLED(LPCOMP, NRF_LPCOMP), NRF_PERIPH_ENABLED(I2S, NRF_I2S));
+  ESP_LOGV(TAG, "  PWM0:  %-3s| PWM1:   %-3s| PWM2:   %-3s| PWM3:  %-3s",  //
+           NRF_PERIPH_ENABLED(PWM, NRF_PWM0), NRF_PERIPH_ENABLED(PWM, NRF_PWM1), NRF_PERIPH_ENABLED(PWM, NRF_PWM2),
+           NRF_PERIPH_ENABLED(PWM, NRF_PWM3));
+  ESP_LOGV(TAG, "  AAR:   %-3s| QSPI deep power-down:%-3s| CRYPTOCELL: %-3s", NRF_PERIPH_ENABLED(AAR, NRF_AAR),
+           YESNO((NRF_QSPI->IFCONFIG0 & QSPI_IFCONFIG0_DPMENABLE_Msk) ==
+                 (QSPI_IFCONFIG0_DPMENABLE_Enable << QSPI_IFCONFIG0_DPMENABLE_Pos)),
+           YESNO((NRF_CRYPTOCELL->ENABLE & CRYPTOCELL_ENABLE_ENABLE_Msk) ==
+                 (CRYPTOCELL_ENABLE_ENABLE_Enabled << CRYPTOCELL_ENABLE_ENABLE_Pos)));
+}
+// NOLINTEND(clang-analyzer-core.FixedAddressDereference)
+#undef NRF_PERIPH_ENABLED
+#endif
 
 static const char *regout0_to_str(uint32_t value) {
   switch (value) {
@@ -159,17 +166,22 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   char *buf = buffer.data();
 
   // Main supply status
-  const char *supply_status =
-      (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
+  auto regstatus = nrf_power_mainregstatus_get(NRF_POWER);
+  const char *supply_status = (regstatus == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
   ESP_LOGD(TAG, "Main supply status: %s", supply_status);
-  pos = buf_append_printf(buf, size, pos, "|Main supply status: %s", supply_status);
+  pos = buf_append_str(buf, size, pos, "|Main supply status: ");
+  pos = buf_append_str(buf, size, pos, supply_status);
 
   // Regulator stage 0
   if (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_HIGH) {
     const char *reg0_type = nrf_power_dcdcen_vddh_get(NRF_POWER) ? "DC/DC" : "LDO";
     const char *reg0_voltage = regout0_to_str((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos);
     ESP_LOGD(TAG, "Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
-    pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
+    pos = buf_append_str(buf, size, pos, "|Regulator stage 0: ");
+    pos = buf_append_str(buf, size, pos, reg0_type);
+    pos = buf_append_str(buf, size, pos, ", ");
+    pos = buf_append_str(buf, size, pos, reg0_voltage);
 #ifdef USE_NRF52_REG0_VOUT
     if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos != USE_NRF52_REG0_VOUT) {
       ESP_LOGE(TAG, "Regulator stage 0: expected %s", regout0_to_str(USE_NRF52_REG0_VOUT));
@@ -177,13 +189,14 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   } else {
     ESP_LOGD(TAG, "Regulator stage 0: disabled");
-    pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: disabled");
+    pos = buf_append_str(buf, size, pos, "|Regulator stage 0: disabled");
   }
 
   // Regulator stage 1
   const char *reg1_type = nrf_power_dcdcen_get(NRF_POWER) ? "DC/DC" : "LDO";
   ESP_LOGD(TAG, "Regulator stage 1: %s", reg1_type);
-  pos = buf_append_printf(buf, size, pos, "|Regulator stage 1: %s", reg1_type);
+  pos = buf_append_str(buf, size, pos, "|Regulator stage 1: ");
+  pos = buf_append_str(buf, size, pos, reg1_type);
 
   // USB power state
   const char *usb_state;
@@ -197,7 +210,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     usb_state = "disconnected";
   }
   ESP_LOGD(TAG, "USB power state: %s", usb_state);
-  pos = buf_append_printf(buf, size, pos, "|USB power state: %s", usb_state);
+  pos = buf_append_str(buf, size, pos, "|USB power state: ");
+  pos = buf_append_str(buf, size, pos, usb_state);
 
   // Power-fail comparator
   bool enabled;
@@ -302,14 +316,18 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
           break;
       }
       ESP_LOGD(TAG, "Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
-      pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
+      pos = buf_append_str(buf, size, pos, "|Power-fail comparator: ");
+      pos = buf_append_str(buf, size, pos, pof_voltage);
+      pos = buf_append_str(buf, size, pos, ", VDDH: ");
+      pos = buf_append_str(buf, size, pos, vddh_voltage);
     } else {
       ESP_LOGD(TAG, "Power-fail comparator: %s", pof_voltage);
-      pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: %s", pof_voltage);
+      pos = buf_append_str(buf, size, pos, "|Power-fail comparator: ");
+      pos = buf_append_str(buf, size, pos, pof_voltage);
     }
   } else {
     ESP_LOGD(TAG, "Power-fail comparator: disabled");
-    pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: disabled");
+    pos = buf_append_str(buf, size, pos, "|Power-fail comparator: disabled");
   }
 
   auto package = [](uint32_t value) {
@@ -327,11 +345,12 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   char mac_pretty[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   get_mac_address_pretty_into_buffer(mac_pretty);
   ESP_LOGD(TAG,
-           "Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
-           "Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
-           "Device address type: %s, address: %s\n"
-           "Part code: nRF%x, version: %c%c%c%c, package: %s\n"
-           "RAM: %ukB, Flash: %ukB, production test: %sdone",
+           "nRF debug info:\n"
+           "  Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
+           "  Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
+           "  Device address type: %s, address: %s\n"
+           "  Part code: nRF%x, version: %c%c%c%c, package: %s\n"
+           "  RAM: %ukB, Flash: %ukB, production test: %sdone",
            NRF_FICR->CODEPAGESIZE, NRF_FICR->CODESIZE, NRF_FICR->DEVICEID[1], NRF_FICR->DEVICEID[0], NRF_FICR->ER[0],
            NRF_FICR->ER[1], NRF_FICR->ER[2], NRF_FICR->ER[3], NRF_FICR->IR[0], NRF_FICR->IR[1], NRF_FICR->IR[2],
            NRF_FICR->IR[3], (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"), mac_pretty, NRF_FICR->INFO.PART,
@@ -342,23 +361,22 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
                          (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
                                                                                       << UICR_PSELRESET_CONNECT_Pos;
   ESP_LOGD(
-      TAG, "GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
+      TAG, "  GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
       YESNO((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos)),
       YESNO(n_reset_enabled));
   if (n_reset_enabled) {
     uint8_t port = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PORT_Msk) >> UICR_PSELRESET_PORT_Pos;
     uint8_t pin = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PIN_Msk) >> UICR_PSELRESET_PIN_Pos;
-    ESP_LOGD(TAG, "nRESET port P%u.%02u", port, pin);
+    ESP_LOGD(TAG, "  nRESET port P%u.%02u", port, pin);
   }
 #ifdef USE_BOOTLOADER_MCUBOOT
-  ESP_LOGD(TAG, "bootloader: mcuboot");
+  ESP_LOGD(TAG, "  Bootloader: mcuboot");
 #else
-  ESP_LOGD(TAG, "bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
+  ESP_LOGD(TAG, "  Bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
            (BOOTLOADER_VERSION_REGISTER >> 8) & 0xFF, BOOTLOADER_VERSION_REGISTER & 0xFF);
-  ESP_LOGD(TAG,
-           "MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x\n"
-           "MBR param page addr 0x%08x, UICR param page addr 0x%08x",
-           read_mem_u32(MBR_BOOTLOADER_ADDR), NRF_UICR->NRFFW[0], read_mem_u32(MBR_PARAM_PAGE_ADDR),
+  ESP_LOGD(TAG, "  MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x", read_mem_u32(MBR_BOOTLOADER_ADDR),
+           NRF_UICR->NRFFW[0]);
+  ESP_LOGD(TAG, "  MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
            NRF_UICR->NRFFW[1]);
   if (is_sd_present()) {
     uint32_t const sd_id = sd_id_get();
@@ -369,7 +387,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     ver[1] = (sd_version - ver[0] * 1000000) / 1000;
     ver[2] = (sd_version - ver[0] * 1000000 - ver[1] * 1000);
 
-    ESP_LOGD(TAG, "SoftDevice: S%u %u.%u.%u", sd_id, ver[0], ver[1], ver[2]);
+    ESP_LOGD(TAG, "  SoftDevice: S%u %u.%u.%u", sd_id, ver[0], ver[1], ver[2]);
 #ifdef USE_SOFTDEVICE_ID
 #ifdef USE_SOFTDEVICE_VERSION
     if (USE_SOFTDEVICE_ID != sd_id || USE_SOFTDEVICE_VERSION != ver[0]) {
@@ -384,88 +402,47 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   }
 #endif
-  auto uicr = [](volatile uint32_t *data, uint8_t size) {
-    std::string res;
-    char buf[sizeof(uint32_t) * 2 + 1];
+  // 13 words of 8 hex digits, separated by spaces
+  char uicr_buf[13 * 9];
+  auto uicr = [&uicr_buf](volatile uint32_t *data, uint8_t size) {
+    size_t len = 0;
     for (size_t i = 0; i < size; i++) {
-      if (i > 0) {
-        res += ' ';
-      }
-      res += format_hex_pretty<uint32_t>(data[i], '\0', false);
+      len = buf_append_printf(uicr_buf, sizeof(uicr_buf), len, i > 0 ? " %08" PRIX32 : "%08" PRIX32, data[i]);
     }
-    return res;
+    return uicr_buf;
   };
-  ESP_LOGD(TAG, "NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
-  ESP_LOGD(TAG, "NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
-  kernel_threads();
+  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13));
+  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12));
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  log_peripherals_info();
+#endif
   return pos;
 }
 
-void DebugComponent::update_platform_() {}
-
-static void tdata_dump(const struct k_thread *cthread, void *user_data) {
-  struct k_thread *thread = (struct k_thread *) cthread;
-  unsigned int pcnt;
-  size_t unused;
-  size_t size = thread->stack_info.size;
-  const char *tname;
-  int ret;
-  char state_str[32];
-
-#ifdef CONFIG_THREAD_RUNTIME_STATS
-  k_thread_runtime_stats_t rt_stats_thread;
-  k_thread_runtime_stats_t rt_stats_all;
-#endif
-
-  tname = k_thread_name_get(thread);
-
-  ESP_LOGD(TAG, "%s%p %-10s", (thread == k_current_get()) ? "*" : " ", thread, tname ? tname : "NA");
-  /* Cannot use lld as it's less portable. */
-  ESP_LOGD(TAG, "\toptions: 0x%x, priority: %d timeout: %d", thread->base.user_options, thread->base.prio,
-           (int32_t) thread->base.timeout.dticks);  // it should be int64_t
-  ESP_LOGD(TAG, "\tstate: %s, entry: %p", k_thread_state_str(thread, state_str, sizeof(state_str)),
-           thread->entry.pEntry);
-
-#ifdef CONFIG_THREAD_RUNTIME_STATS
-  ret = 0;
-
-  if (k_thread_runtime_stats_get(thread, &rt_stats_thread) != 0) {
-    ret++;
-  }
-
-  if (k_thread_runtime_stats_all_get(&rt_stats_all) != 0) {
-    ret++;
-  }
-
-  if (ret == 0) {
-    pcnt = (rt_stats_thread.execution_cycles * 100U) / rt_stats_all.execution_cycles;
-
-    /*
-     * z_prf() does not support %llu by default unless
-     * CONFIG_MINIMAL_LIBC_LL_PRINTF=y. So do conditional
-     * compilation to avoid blindly enabling this kconfig
-     * so it won't increase RAM/ROM usage too much on 32-bit
-     * targets.
-     */
-    ESP_LOGD(TAG, "\tTotal execution cycles: %u (%u %%)", (uint32_t) rt_stats_thread.execution_cycles, pcnt);
-#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
-    ESP_LOGD(TAG, "\tCurrent execution cycles: %u", (uint32_t) rt_stats_thread.current_cycles);
-    ESP_LOGD(TAG, "\tPeak execution cycles: %u", (uint32_t) rt_stats_thread.peak_cycles);
-    ESP_LOGD(TAG, "\tAverage execution cycles: %u", (uint32_t) rt_stats_thread.average_cycles);
-#endif
-  } else {
-    ESP_LOGE(TAG, "thread runtime stats failed");
-  }
-#endif
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+static void log_thread_usage(const struct k_thread *thread, void *user_data) {
+  const auto cpu_cycles = *static_cast<const uint64_t *>(user_data);
+  auto *tid = const_cast<k_tid_t>(thread);  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+  k_thread_runtime_stats_t stats;
+  if (k_thread_runtime_stats_get(tid, &stats) != 0)
+    return;
+  char state[32];
+  const char *name = k_thread_name_get(tid);
+  ESP_LOGV(TAG, "  %-16s prio %3d %-10s %3u%% peak %" PRIu32 " avg %" PRIu32, name != nullptr ? name : "?",
+           thread->base.prio, k_thread_state_str(tid, state, sizeof(state)),
+           static_cast<unsigned>(stats.execution_cycles * 100 / cpu_cycles), static_cast<uint32_t>(stats.peak_cycles),
+           static_cast<uint32_t>(stats.average_cycles));
 }
+#endif
 
-static void kernel_threads() {
-  ESP_LOGD(TAG, "Threads:");
-
-#ifdef CONFIG_SMP
-  k_thread_foreach_unlocked(tdata_dump, nullptr);
-#else
-  k_thread_foreach(tdata_dump, nullptr);
+void DebugComponent::update_platform_() {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  k_thread_runtime_stats_t cpu;
+  if (k_thread_runtime_stats_all_get(&cpu) != 0 || cpu.execution_cycles == 0)
+    return;
+  ESP_LOGV(TAG, "Thread CPU usage since boot (peak and average cycles per time slice):");
+  // The unlocked walk lets the log output inside the callback block
+  k_thread_foreach_unlocked(log_thread_usage, &cpu.execution_cycles);
 #endif
 }
 

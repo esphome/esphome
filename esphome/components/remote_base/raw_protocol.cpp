@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.raw";
+ESPHOME_LOG_TAG(TAG, "remote.raw");
 
 bool RawDumper::dump(RemoteReceiveData src) {
   char buffer[256];
@@ -38,5 +37,4 @@ bool RawDumper::dump(RemoteReceiveData src) {
   return true;
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

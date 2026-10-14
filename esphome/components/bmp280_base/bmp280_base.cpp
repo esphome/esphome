@@ -2,12 +2,13 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
-namespace esphome {
-namespace bmp280_base {
+namespace esphome::bmp280_base {
 
-static const char *const TAG = "bmp280.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp280.sensor");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 static const uint8_t BMP280_REGISTER_STATUS = 0xF3;
 static const uint8_t BMP280_REGISTER_CONTROL = 0xF4;
@@ -167,7 +168,7 @@ void BMP280Component::update() {
   meas_time += 2.3f * oversampling_to_time(this->temperature_oversampling_);
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
 
-  this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ceilf(meas_time)), [this]() {
     int32_t t_fine = 0;
     float temperature = this->read_temperature_(&t_fine);
     if (std::isnan(temperature)) {
@@ -255,7 +256,6 @@ void BMP280Component::set_temperature_oversampling(BMP280Oversampling temperatur
 void BMP280Component::set_pressure_oversampling(BMP280Oversampling pressure_over_sampling) {
   this->pressure_oversampling_ = pressure_over_sampling;
 }
-void BMP280Component::set_iir_filter(BMP280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BMP280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->bmp_read_byte(a_register, &data);
@@ -268,5 +268,4 @@ uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bmp280_base
-}  // namespace esphome
+}  // namespace esphome::bmp280_base

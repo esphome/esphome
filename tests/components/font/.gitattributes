@@ -1,1 +1,2 @@
-*.pcf        -text
+*.pcf -text
+*.ttf -text

@@ -33,8 +33,8 @@ class MultipartReader {
   ~MultipartReader();
 
   // Set callbacks for handling data
-  void set_data_callback(DataCallback callback) { data_callback_ = std::move(callback); }
-  void set_part_complete_callback(PartCompleteCallback callback) { part_complete_callback_ = std::move(callback); }
+  void set_data_callback(DataCallback &&callback) { data_callback_ = std::move(callback); }
+  void set_part_complete_callback(PartCompleteCallback &&callback) { part_complete_callback_ = std::move(callback); }
 
   // Parse incoming data
   size_t parse(const char *data, size_t len);
@@ -66,19 +66,20 @@ class MultipartReader {
 // ========== Utility Functions ==========
 
 // Case-insensitive string prefix check
-bool str_startswith_case_insensitive(const std::string &str, const std::string &prefix);
+bool str_startswith_case_insensitive(const char *str, size_t str_len, const char *prefix);
 
 // Extract a parameter value from a header line
 // Handles both quoted and unquoted values
-std::string extract_header_param(const std::string &header, const std::string &param);
+// Assigns to out if found, clears out otherwise
+void extract_header_param(const char *header, size_t header_len, const char *param, std::string &out);
 
 // Parse boundary from Content-Type header
 // Returns true if boundary found, false otherwise
 // boundary_start and boundary_len will point to the boundary value
 bool parse_multipart_boundary(const char *content_type, const char **boundary_start, size_t *boundary_len);
 
-// Trim whitespace from both ends of a string
-std::string str_trim(const std::string &str);
+// Trim whitespace from both ends, assign result to out
+void str_trim(const char *str, size_t len, std::string &out);
 
 }  // namespace esphome::web_server_idf
 #endif  // defined(USE_ESP32) && defined(USE_WEBSERVER_OTA)

@@ -1,0 +1,38 @@
+esphome:
+  name: e1004-test
+  friendly_name: E1004 Test
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+
+spi:
+  - id: epaper_spi_bus
+    clk_pin: GPIO7
+    mosi_pin: GPIO9
+
+display:
+  - platform: epaper_spi
+    spi_id: epaper_spi_bus
+    model: seeed-reterminal-e1004
+    update_interval: never
+    lambda: |-
+      it.fill(Color::WHITE);
+      it.rectangle(10, 10, it.get_width() - 20, it.get_height() - 20, Color::BLACK);
+      it.print(it.get_width() / 2, it.get_height() / 2, id(my_font), Color::BLACK, TextAlign::CENTER, "E1004 Test");
+      it.circle(100, 100, 30, Color(255, 0, 0));
+      it.circle(200, 100, 30, Color(0, 255, 0));
+      it.circle(300, 100, 30, Color(0, 0, 255));
+      it.circle(400, 100, 30, Color(255, 255, 0));
+
+font:
+  - file: "gfonts://Roboto"
+    id: my_font
+    size: 20
+
+logger:

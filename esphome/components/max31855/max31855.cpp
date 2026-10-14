@@ -3,10 +3,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max31855 {
+namespace esphome::max31855 {
 
-static const char *const TAG = "max31855";
+ESPHOME_LOG_TAG(TAG, "max31855");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 void MAX31855Sensor::update() {
   this->enable();
@@ -15,8 +16,7 @@ void MAX31855Sensor::update() {
   this->disable();
 
   // Conversion time typ: 170ms, max: 220ms
-  auto f = std::bind(&MAX31855Sensor::read_data_, this);
-  this->set_timeout("value", 220, f);
+  this->set_timeout(READ_TIMEOUT_ID, 220, [this]() { this->read_data_(); });
 }
 
 void MAX31855Sensor::setup() { this->spi_setup(); }
@@ -101,5 +101,4 @@ void MAX31855Sensor::read_data_() {
   this->status_clear_warning();
 }
 
-}  // namespace max31855
-}  // namespace esphome
+}  // namespace esphome::max31855
