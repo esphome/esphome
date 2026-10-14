@@ -573,7 +573,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_SOFTAPMODE_STACONNECTED: {
 #ifdef USE_WIFI_AP
-      this->ap_clients_++;
+      global_wifi_component->ap_clients_++;
 #endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_connected;
@@ -585,8 +585,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_SOFTAPMODE_STADISCONNECTED: {
 #ifdef USE_WIFI_AP
-      if (this->ap_clients_ > 0)
-        this->ap_clients_--;
+      if (global_wifi_component->ap_clients_ > 0)
+        global_wifi_component->ap_clients_--;
 #endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_disconnected;

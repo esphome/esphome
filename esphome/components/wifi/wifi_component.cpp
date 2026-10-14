@@ -390,13 +390,6 @@ static constexpr bool WIFI_AP_EXCLUSIVE = true;
 #else
 static constexpr bool WIFI_AP_EXCLUSIVE = false;
 #endif
-/// Whether the platform reports stations joining and leaving the AP. Where it
-/// does not, a running AP counts as in use.
-#ifdef USE_RP2040
-static constexpr bool WIFI_AP_CLIENT_EVENTS = false;
-#else
-static constexpr bool WIFI_AP_CLIENT_EVENTS = true;
-#endif
 #endif
 #ifdef USE_WIFI_AP_EXCLUSIVE
 /// On a radio that cannot run the AP and STA together: how long the fallback
@@ -981,7 +974,7 @@ void WiFiComponent::loop() {
       bool suppress = false;
 #ifdef USE_WIFI_AP
       // A station on the fallback AP is using the device
-      suppress = this->ap_setup_ && (!WIFI_AP_CLIENT_EVENTS || this->ap_clients_ != 0);
+      suppress = this->ap_setup_ && this->ap_clients_ != 0;
 #endif
 #ifdef USE_PROVISIONING
       // Don't reboot while a provisioning window is pending (device unprovisioned).

@@ -50,6 +50,11 @@ extern "C" {
 }
 
 #include <WiFi.h>
+
+#ifdef USE_WIFI_AP
+// The linker routes the driver's firmware events here; wifi/__init__.py adds the wrap flag
+extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+#endif
 #endif
 
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
@@ -906,6 +911,9 @@ class WiFiComponent final : public Component {
 #ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
+#ifdef USE_WIFI_AP
+  friend void ::__wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+#endif
 #endif
 
 #ifdef USE_LIBRETINY

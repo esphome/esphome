@@ -244,6 +244,33 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.softAPIP()}; }
+
+// Firmware event ids the driver header leaves out
+static constexpr uint32_t AP_STATION_ASSOC_IND = 8;
+static constexpr uint32_t AP_STATION_REASSOC_IND = 10;
+
+// The driver hands every firmware event to cyw43_cb_process_async_event and ignores the AP station
+// ones, so they are counted here before it sees them. Runs in the driver's context.
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+// Names are mandated by the --wrap linker mechanism.
+extern "C" void __real_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev) {
+  if (ev->interface == CYW43_ITF_AP) {
+    switch (ev->event_type) {
+      case AP_STATION_ASSOC_IND:
+      case AP_STATION_REASSOC_IND:
+        global_wifi_component->ap_clients_++;
+        break;
+      case CYW43_EV_DISASSOC_IND:
+      case CYW43_EV_DEAUTH_IND:
+        if (global_wifi_component->ap_clients_ > 0)
+          global_wifi_component->ap_clients_--;
+        break;
+    }
+  }
+  __real_cyw43_cb_process_async_event(cb_data, ev);
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
