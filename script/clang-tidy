@@ -70,7 +70,7 @@ def clang_options(idedata, environment):
     triplet = Path(idedata["cxx_path"]).name[:-4]
     # env:host compiles with the system g++, so there is no triplet and the
     # host's own target and headers are the right ones.
-    native = "-" not in triplet
+    native = environment.startswith("host")
     if triplet.startswith("xtensa-"):
         # clang has an Xtensa frontend, but only a generic core -- the esp32 IDF
         # toolchain headers (xtruntime, xtensa/config) need the GCC core config
@@ -320,19 +320,15 @@ def run_tidy(
         if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
             # MMIO peripheral access on these bare-metal platforms is all
             # fixed-address.
-            # bugprone-pointer-arithmetic-on-polymorphic-object (and its
-            # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
-            # recursion on lvgl_esphome.h under the RP2 defines.
-            disabled_checks += [
-                "-clang-analyzer-core.FixedAddressDereference",
-                "-bugprone-pointer-arithmetic-on-polymorphic-object",
-                "-cert-ctr56-cpp",
-            ]
+            disabled_checks.append("-clang-analyzer-core.FixedAddressDereference")
         if args.environment.startswith("host"):
             # glibc's assert() expands to a call the check mistakes for a
             # constant condition.
             disabled_checks += ["-misc-static-assert", "-cert-dcl03-c"]
-            # The same matcher recursion as on RP2 crashes clang-tidy on the
+        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx", "host")):
+            # bugprone-pointer-arithmetic-on-polymorphic-object (and its
+            # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
+            # recursion on lvgl_esphome.h under the RP2 defines and on the
             # all-include file under the host defines.
             disabled_checks += [
                 "-bugprone-pointer-arithmetic-on-polymorphic-object",
@@ -466,9 +462,10 @@ def main():
 
     if args.grep:
         files = filter_grep(files, args.grep)
-        # The unit tests need googletest, which only the full ESP32 IDF run
-        # (no --grep) and the host environment provide; a platform grep that
-        # happens to match one would fail on <gtest/gtest.h>.
+        # Not every tidy environment carries googletest (LibreTiny does not),
+        # so a platform grep that matched a unit test would fail on
+        # <gtest/gtest.h>. The tests are analyzed by the full ESP32 IDF run,
+        # which has no --grep.
         files = [f for f in files if not f.startswith("tests/")]
 
     if args.exclude_grep:
