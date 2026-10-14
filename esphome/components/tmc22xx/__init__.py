@@ -121,6 +121,26 @@ def _validate_analog_current_scale(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_chopconf(config: ConfigType) -> ConfigType:
+    # Only values given as constants can be checked here, not lambdas
+    toff, tbl = config.get(CONF_TOFF), config.get(CONF_TBL)
+    if toff == 1 and isinstance(tbl, int) and tbl < 2:
+        raise cv.Invalid(
+            f"'{CONF_TOFF}: 1' needs '{CONF_TBL}' 2 or higher", path=[CONF_TOFF]
+        )
+    hend, hstrt = config.get(CONF_HEND), config.get(CONF_HSTRT)
+    # Register values are offsets: HEND 0-15 is -3 to 12, HSTRT 0-7 is 1 to 8
+    if isinstance(hend, int) and isinstance(hstrt, int):
+        hysteresis = (hend - 3) + (hstrt + 1)
+        if hysteresis > 16:
+            raise cv.Invalid(
+                f"'{CONF_HEND}' and '{CONF_HSTRT}' give a hysteresis of "
+                f"{hysteresis}, the limit is 16",
+                path=[CONF_HEND],
+            )
+    return config
+
+
 def final_validate(config: ConfigType) -> ConfigType:
     """Reject two drivers of the family with the same address on one UART bus."""
     for other in fv.full_config.get().get("stepper", []):
@@ -239,14 +259,17 @@ def register_actions(domain: str, cls: MockObjClass) -> None:
 
     automation.register_apply_action(
         f"{domain}.chopconf",
-        cv.Schema(
-            {
-                **id_schema,
-                cv.Optional(CONF_TOFF): cv.templatable(cv.int_range(1, 15)),
-                cv.Optional(CONF_TBL): cv.templatable(cv.int_range(0, 3)),
-                cv.Optional(CONF_HEND): cv.templatable(cv.int_range(0, 15)),
-                cv.Optional(CONF_HSTRT): cv.templatable(cv.int_range(0, 7)),
-            }
+        cv.All(
+            cv.Schema(
+                {
+                    **id_schema,
+                    cv.Optional(CONF_TOFF): cv.templatable(cv.int_range(1, 15)),
+                    cv.Optional(CONF_TBL): cv.templatable(cv.int_range(0, 3)),
+                    cv.Optional(CONF_HEND): cv.templatable(cv.int_range(0, 15)),
+                    cv.Optional(CONF_HSTRT): cv.templatable(cv.int_range(0, 7)),
+                }
+            ),
+            _validate_chopconf,
         ),
         automation.ApplyField(CONF_TOFF, "set_toff", cg.uint8),
         automation.ApplyField(CONF_TBL, "set_tbl", cg.uint8),
