@@ -2337,6 +2337,19 @@ void WiFiComponent::retry_connect() {
   // After exhausting all networks in a phase, selected_sta_index_ may be -1
   // In that case, skip connection and let next wifi_loop() handle phase transition
   if (this->selected_sta_index_ >= 0) {
+#ifdef USE_WIFI_DPP
+    // Once the networks have had their chance, a failed attempt hands the radio to the listen for a cooldown;
+    // the attempt that follows the cooldown ends the listen again, so a configurator gets most of each cycle
+    const uint32_t now = App.get_loop_component_start_time();
+    if (!this->dpp_listening_ && !this->is_provisioning_closed_() && now - this->last_connected_ > this->dpp_timeout_) {
+      this->start_dpp_listen_(now);
+      if (this->dpp_listening_) {
+        this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+        this->action_started_ = now;
+        return;
+      }
+    }
+#endif
     WiFiAP params = this->build_params_for_current_phase_();
     this->start_connecting(params);
   }
