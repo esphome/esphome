@@ -56,6 +56,19 @@ def reserve_preferences(count: int, value_bytes: int, in_flash: bool = False) ->
     reservations.append((count, preference_words(value_bytes), in_flash))
 
 
+def _rtc_values_can_split(values: list[int]) -> bool:
+    """Whether the values can be split between the two RTC regions, whatever order the device fills them in."""
+    total = sum(values)
+    # Bit i of reachable is set when some subset of the values sums to i
+    reachable = 1
+    for words in values:
+        reachable |= reachable << words
+    return any(
+        reachable >> normal & 1 and total - normal <= PREFERENCES_RTC_EBOOT_WORDS
+        for normal in range(min(total, PREFERENCES_RTC_NORMAL_WORDS) + 1)
+    )
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def check_preferences_fit() -> None:
     """Fail the build when the reserved saved values cannot fit the space preferences.cpp has."""
@@ -66,6 +79,7 @@ async def check_preferences_fit() -> None:
         else PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE
     )
     rtc_words = flash_words = 0
+    rtc_values: list[int] = []
     for count, words, in_flash in CORE.data[KEY_ESP8266][KEY_PREFERENCES]:
         if in_flash or restore_from_flash:
             if words > flash_store:
@@ -81,14 +95,16 @@ async def check_preferences_fit() -> None:
                     f"{PREFERENCES_RTC_NORMAL_WORDS} words"
                 )
             rtc_words += count * words
+            rtc_values.extend([words] * count)
     if flash_words > flash_store:
         raise EsphomeError(
             f"Saved values need {flash_words} words but the ESP8266 flash store has {flash_store}; "
             "use fewer or smaller saved values"
         )
-    if rtc_words > PREFERENCES_RTC_WORDS:
+    if rtc_words > PREFERENCES_RTC_WORDS or not _rtc_values_can_split(rtc_values):
         raise EsphomeError(
-            f"Saved values need {rtc_words} words but ESP8266 RTC memory has {PREFERENCES_RTC_WORDS}; "
+            f"Saved values need {rtc_words} words but ESP8266 RTC memory has {PREFERENCES_RTC_WORDS} in regions of "
+            f"{PREFERENCES_RTC_NORMAL_WORDS} and {PREFERENCES_RTC_EBOOT_WORDS} that a value cannot span; "
             "use fewer or smaller saved values, or set restore_from_flash: true"
         )
     if rtc_words > PREFERENCES_RTC_NORMAL_WORDS:

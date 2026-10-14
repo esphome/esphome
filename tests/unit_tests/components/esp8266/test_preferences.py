@@ -67,7 +67,30 @@ def test_explicit_flash_values_use_the_small_store_without_restore() -> None:
         _check()
 
 
-def test_reserving_schedules_the_check_once() -> None:
-    reserve_preferences(1, 4)
-    reserve_preferences(1, 4)
-    assert len(CORE.data[KEY_ESP8266][KEY_PREFERENCES]) == 2
+def test_values_that_cannot_split_between_the_regions_fail() -> None:
+    # 5 x 20 words is 100 of 110, but the normal region takes 3 and the eboot region 1
+    reserve_preferences(5, 76)
+    with pytest.raises(EsphomeError, match="cannot span"):
+        _check()
+
+
+def test_a_split_that_works_in_some_order_passes_with_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # 78 + 32: one value fills each region exactly
+    reserve_preferences(1, 308)
+    reserve_preferences(1, 124)
+    _check()
+    assert "may not all fit" in caplog.text
+
+
+def test_the_check_runs_from_the_scheduled_job() -> None:
+    reserve_preferences(3, 400)
+    with pytest.raises(EsphomeError, match="RTC region"):
+        CORE.flush_tasks()
+
+
+def test_other_platforms_reserve_nothing() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    reserve_preferences(100, 400)
+    assert KEY_PREFERENCES not in CORE.data[KEY_ESP8266]
