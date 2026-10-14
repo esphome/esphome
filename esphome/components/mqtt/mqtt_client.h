@@ -24,6 +24,11 @@
 
 #include <vector>
 
+// The crash log replay needs the logger, which mqtt does not depend on
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+#define USE_MQTT_CRASH_LOG
+#endif
+
 namespace esphome::mqtt {
 
 /** Callback for MQTT events.
@@ -370,7 +375,7 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
-#ifdef USE_CRASH_HANDLER
+#ifdef USE_MQTT_CRASH_LOG
   bool crash_log_offered_{false};
   bool crash_log_subscribed_{false};
 #endif

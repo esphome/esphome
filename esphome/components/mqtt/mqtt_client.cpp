@@ -85,7 +85,7 @@ void MQTTClientComponent::setup() {
         this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
           static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
         });
-#ifdef USE_CRASH_HANDLER
+#ifdef USE_MQTT_CRASH_LOG
     // `esphome logs` announces itself here, like an API client's log subscription. A log topic that drops
     // errors would swallow the replay, and the ESP32 clears the record once replayed, so it is not offered.
     // The topic is rebuilt from the device name when needed, so nothing is stored for it.
@@ -238,7 +238,7 @@ void MQTTClientComponent::start_dnslookup_() {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
-#ifdef USE_CRASH_HANDLER
+#ifdef USE_MQTT_CRASH_LOG
   this->crash_log_subscribed_ = false;
 #endif
 
@@ -471,7 +471,7 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
   for (auto &subscription : this->subscriptions_) {
     this->resubscribe_subscription_(&subscription);
   }
-#ifdef USE_CRASH_HANDLER
+#ifdef USE_MQTT_CRASH_LOG
   if (this->crash_log_offered_ && !this->crash_log_subscribed_ && logger::crash_log_pending()) {
     char topic[ESPHOME_TOPIC_BUFFER_SIZE];
     format_esphome_topic(topic, "logs");
@@ -678,7 +678,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // in simple tests but will cause crashes with complex automations.
   this->defer([this, topic, payload]() {
 #endif
-#ifdef USE_CRASH_HANDLER
+#ifdef USE_MQTT_CRASH_LOG
     // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
     // log for every line it logs
     if (this->crash_log_offered_ && payload.empty()) {
