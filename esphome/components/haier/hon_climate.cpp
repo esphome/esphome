@@ -116,7 +116,8 @@ esphome::optional<hon_protocol::VerticalSwingMode> HonClimate::get_vertical_airf
     return this->current_vertical_swing_;
   }
   // While the appliance swings, or right after the user chose a position, report the chosen position
-  if (is_auto(this->current_vertical_swing_.value()) || in_debounce(this->vertical_direction_set_time_, millis())) {
+  if (is_auto(this->current_vertical_swing_.value()) ||
+      in_debounce(this->vertical_direction_set_time_, App.get_loop_component_start_time())) {
     return this->settings_.last_vertiacal_swing;
   }
   return this->current_vertical_swing_;
@@ -133,7 +134,7 @@ void HonClimate::set_vertical_airflow(hon_protocol::VerticalSwingMode direction)
   }
   this->pending_vertical_direction_ = direction;
   this->force_send_control_ = true;
-  this->vertical_direction_set_time_ = millis();
+  this->vertical_direction_set_time_ = App.get_loop_component_start_time();
 #ifdef USE_SELECT
   this->publish_airflow_selects_();
 #endif
@@ -143,7 +144,8 @@ esphome::optional<hon_protocol::HorizontalSwingMode> HonClimate::get_horizontal_
   if (!this->current_horizontal_swing_.has_value()) {
     return this->current_horizontal_swing_;
   }
-  if (is_auto(this->current_horizontal_swing_.value()) || in_debounce(this->horizontal_direction_set_time_, millis())) {
+  if (is_auto(this->current_horizontal_swing_.value()) ||
+      in_debounce(this->horizontal_direction_set_time_, App.get_loop_component_start_time())) {
     return this->settings_.last_horizontal_swing;
   }
   return this->current_horizontal_swing_;
@@ -160,7 +162,7 @@ void HonClimate::set_horizontal_airflow(hon_protocol::HorizontalSwingMode direct
   }
   this->pending_horizontal_direction_ = direction;
   this->force_send_control_ = true;
-  this->horizontal_direction_set_time_ = millis();
+  this->horizontal_direction_set_time_ = App.get_loop_component_start_time();
 #ifdef USE_SELECT
   this->publish_airflow_selects_();
 #endif
