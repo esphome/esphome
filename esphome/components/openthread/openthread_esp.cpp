@@ -287,9 +287,11 @@ int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exi
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
+#if USE_NETWORK_IPV6
   if (esp_netif_t *netif = esp_openthread_get_netif(); netif != nullptr) {
     network::fill_ip6_addresses(netif, addresses);
   }
+#endif
   return addresses;
 }
 

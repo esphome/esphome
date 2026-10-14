@@ -52,7 +52,7 @@ class OpenThreadComponent final : public Component {
   bool is_lock_initialized() const { return this->lock_initialized_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
-  void on_factory_reset(std::function<void()> callback);
+  void on_factory_reset(const std::function<void()> &callback);
 #ifdef USE_OPENTHREAD_SRP
   void defer_factory_reset_external_callback();
 #endif
