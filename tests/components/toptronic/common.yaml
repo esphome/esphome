@@ -11,4 +11,3 @@ toptronic:
     canbus_id: canbus_toptronic
     device_type: HV
     device_addr: 8
-    language: en

@@ -35,18 +35,12 @@ CONFIG_SCHEMA = (
 )
 
 
-async def new_number(config, *, min_value: float, max_value: float, step: float):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await number.register_number(
-        var, config, min_value=min_value, max_value=max_value, step=step
-    )
-    return var
-
-
 async def to_code(config):
     divider = pow(10, config[CONF_DECIMAL])
     tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
-    var = await new_number(
+    var = cg.new_Pvariable(config[CONF_ID])
+    await number.register_number(
+        var,
         config,
         min_value=config[CONF_MIN_VALUE] / divider,
         max_value=config[CONF_MAX_VALUE] / divider,
