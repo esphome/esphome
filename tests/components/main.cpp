@@ -2,6 +2,7 @@
 
 #include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
+#include "esphome/core/preferences.h"
 
 /*
 This special main.cpp replaces the default one.
@@ -22,7 +23,12 @@ void original_setup() {
 
 // The loop clock and current component one test moves must not leak into the next, like CORE.reset() in Python
 class ResetAppListener : public ::testing::EmptyTestEventListener {
-  void OnTestStart(const ::testing::TestInfo &) override { esphome::LoopBlockingGuard reset{nullptr, nullptr, 0}; }
+  void OnTestStart(const ::testing::TestInfo &) override {
+    esphome::LoopBlockingGuard reset{nullptr, nullptr, 0};
+    // Entities of the same kind share preference keys, so a value an earlier test saved would be restored
+    if (esphome::global_preferences != nullptr)
+      esphome::global_preferences->reset();
+  }
 };
 
 void setup() {
