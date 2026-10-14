@@ -181,4 +181,65 @@ static void ImageDraw_RGB111_Alpha(benchmark::State &state) {
 }
 BENCHMARK(ImageDraw_RGB111_Alpha);
 
+// The same cases with the display rotated 90 degrees, which walks the other loop order.
+static void ImageDraw_Binary_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_BINARY, TRANSPARENCY_OPAQUE, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_Binary_Rotated);
+
+static void ImageDraw_Grayscale_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_GRAYSCALE, TRANSPARENCY_OPAQUE, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_Grayscale_Rotated);
+
+static void ImageDraw_RGB565_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB565, TRANSPARENCY_OPAQUE, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_RGB565_Rotated);
+
+static void ImageDraw_Binary_Transparent_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_BINARY, TRANSPARENCY_CHROMA_KEY, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_Binary_Transparent_Rotated);
+
+static void ImageDraw_Grayscale_ChromaKey_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_GRAYSCALE, TRANSPARENCY_CHROMA_KEY, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_Grayscale_ChromaKey_Rotated);
+
+static void ImageDraw_Grayscale_Alpha_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_GRAYSCALE, TRANSPARENCY_ALPHA_CHANNEL, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_Grayscale_Alpha_Rotated);
+
+static void ImageDraw_RGB_Alpha_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_ALPHA_CHANNEL, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_RGB_Alpha_Rotated);
+
+static void ImageDraw_RGB_ChromaKey_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_CHROMA_KEY, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_RGB_ChromaKey_Rotated);
+
+static void ImageDraw_RGB565_ChromaKey_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB565, TRANSPARENCY_CHROMA_KEY, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_RGB565_ChromaKey_Rotated);
+
+static void ImageDraw_RGB565_Alpha_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB565, TRANSPARENCY_ALPHA_CHANNEL, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_RGB565_Alpha_Rotated);
+
+static void ImageDraw_RGB111_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB111, TRANSPARENCY_OPAQUE, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_RGB111_Rotated);
+
+static void ImageDraw_RGB111_Alpha_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB111, TRANSPARENCY_ALPHA_CHANNEL, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_RGB111_Alpha_Rotated);
+
 }  // namespace esphome::image::benchmarks

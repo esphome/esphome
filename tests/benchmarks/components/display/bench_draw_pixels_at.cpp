@@ -74,4 +74,9 @@ static void DrawPixelsAt_RGB888_Rotated(benchmark::State &state) {
 }
 BENCHMARK(DrawPixelsAt_RGB888_Rotated);
 
+static void DrawPixelsAt_RGB332_Rotated(benchmark::State &state) {
+  draw_block(state, COLOR_BITNESS_332, true, DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(DrawPixelsAt_RGB332_Rotated);
+
 }  // namespace esphome::display::benchmarks
