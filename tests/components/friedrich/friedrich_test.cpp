@@ -4,6 +4,7 @@
 #include "esphome/components/friedrich/friedrich.h"
 #include "esphome/components/remote_base/aeha_protocol.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::friedrich::testing {
 
@@ -41,7 +42,12 @@ struct Fixture {
   TestFriedrich sut;
   CapturingTransmitter transmitter;
 
-  Fixture() { this->sut.set_transmitter(&this->transmitter); }
+  Fixture() {
+    // Climate tests share one preference key, so clear what an earlier test saved or setup restores it
+    if (global_preferences != nullptr)
+      global_preferences->reset();
+    this->sut.set_transmitter(&this->transmitter);
+  }
 
   // The last transmission decoded, or an empty frame if it could not be decoded
   AEHAData sent() { return AEHAProtocol().decode(rx_of(this->transmitter.last)).value_or(AEHAData{}); }
