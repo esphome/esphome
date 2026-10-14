@@ -442,6 +442,12 @@ class ID:
         )
 
 
+# Written after the body of a lambda that has a #line directive into the YAML.
+# write_cpp turns it into a #line directive back into main.cpp, so errors in the
+# code after the lambda are not reported against the YAML file.
+LINE_DIRECTIVE_RESET = "// ESPHOME_LINE_DIRECTIVE_RESET"
+
+
 class DocumentLocation:
     def __init__(self, document: str, line: int, column: int):
         self.document: str = document

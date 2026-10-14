@@ -8,7 +8,9 @@ from typing import Any
 from esphome.core import (
     CORE,
     ID,
+    LINE_DIRECTIVE_RESET,
     Define,
+    DocumentLocation,
     EnumValue,
     EsphomeError,
     HexInt,
@@ -216,7 +218,10 @@ class LambdaExpression(Expression):
         cpp += " {\n"
         if self.source is not None:
             cpp += f"{self.source.as_line_directive}\n"
-        cpp += f"{self.content}\n}}"
+        cpp += f"{self.content}\n"
+        if self.source is not None:
+            cpp += f"{LINE_DIRECTIVE_RESET}\n"
+        cpp += "}"
         return indent_all_but_first_and_last(cpp)
 
     @property
@@ -946,8 +951,12 @@ async def process_lambda(
         parts[i * 3 + 2] = ""
 
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
-        location = value.esp_range.start_mark
-        location.line += value.content_offset
+        # Copy the mark: every use of the value shares it (a YAML alias, for one),
+        # so adding the offset in place would move the line again on each use.
+        start = value.esp_range.start_mark
+        location = DocumentLocation(
+            start.document, start.line + value.content_offset, start.column
+        )
     else:
         location = None
     return LambdaExpression(parts, parameters, capture, return_type, location)
