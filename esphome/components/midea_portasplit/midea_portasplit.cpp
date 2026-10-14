@@ -30,14 +30,14 @@ static constexpr uint8_t FAN_AUTO = 102;
 // The AC expects its Wi-Fi module to answer the 0x63 keepalive poll and to send periodic 0x0D network status
 // frames. These frames use the XOR sync byte (0x1E ^ 0xAC = 0xB2). The AC does not use the IP address; the
 // fixed frame below was captured from the original module.
-static const uint8_t MODULE_FRAME[31] PROGMEM = {0xAA, 0x1E, 0xAC, 0xB2, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01,
-                                                 0x01, 0x04, 0xC0, 0xA8, 0xB2, 0x72, 0x00, 0x00, 0x00, 0x01, 0x01,
-                                                 0x01, 0x28, 0x09, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00};
-static const uint8_t STATUS_QUERY[12] PROGMEM = {0x41, 0x21, 0x00, 0xFF, 0x03, 0xFF,
-                                                 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
+static constexpr uint8_t MODULE_FRAME[31] PROGMEM = {0xAA, 0x1E, 0xAC, 0xB2, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01,
+                                                     0x01, 0x04, 0xC0, 0xA8, 0xB2, 0x72, 0x00, 0x00, 0x00, 0x01, 0x01,
+                                                     0x01, 0x28, 0x09, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00};
+static constexpr uint8_t STATUS_QUERY[12] PROGMEM = {0x41, 0x21, 0x00, 0xFF, 0x03, 0xFF,
+                                                     0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
 // Same capability queries the original module sends at boot.
-static const uint8_t CAPS_0[] PROGMEM = {0xB5, 0x01, 0x00};
-static const uint8_t CAPS_1[] PROGMEM = {0xB5, 0x01, 0x01, 0x01};
+static constexpr uint8_t CAPS_0[] PROGMEM = {0xB5, 0x01, 0x00};
+static constexpr uint8_t CAPS_1[] PROGMEM = {0xB5, 0x01, 0x01, 0x01};
 
 // Two's complement of the sum of all bytes after the 0xAA start marker.
 static uint8_t checksum(const uint8_t *frame, size_t len) { return (uint8_t) -sum_bytes(frame + 1, len - 1); }
@@ -112,15 +112,19 @@ void PortaSplitClimate::setup() {
 
 void PortaSplitClimate::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  // Drop a frame that stopped mid-way so its bytes cannot swallow the next one.
-  if (this->rx_len_ != 0 && now - this->rx_last_byte_ > RX_TIMEOUT_MS)
-    this->rx_len_ = 0;
   uint8_t buf[32];
   size_t n;
+  bool got = false;
   while ((n = std::min((size_t) this->available(), sizeof(buf))) != 0 && this->read_array(buf, n)) {
     for (size_t i = 0; i < n; i++)
       this->rx_feed_(buf[i]);
+    got = true;
+  }
+  if (got) {
     this->rx_last_byte_ = now;
+  } else if (this->rx_len_ != 0 && now - this->rx_last_byte_ > RX_TIMEOUT_MS) {
+    // The line went quiet mid-frame; drop it so its bytes cannot swallow the next one.
+    this->rx_len_ = 0;
   }
 }
 
