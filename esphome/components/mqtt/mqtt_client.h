@@ -31,8 +31,15 @@ namespace esphome::mqtt {
 using mqtt_on_connect_callback_t = std::function<MQTTBackend::on_connect_callback_t>;
 using mqtt_on_disconnect_callback_t = std::function<MQTTBackend::on_disconnect_callback_t>;
 
-/// Callback for MQTT subscriptions: the topic, then the payload.
-using mqtt_callback_t = Callback<void(const std::string &, const std::string &)>;
+/// Stored callback of an MQTT subscription: the topic, then the payload.
+using mqtt_subscription_callback_t = Callback<void(const std::string &, const std::string &)>;
+
+// Remove before 2027.5.0
+using mqtt_callback_t ESPDEPRECATED("subscribe() takes any callable; pass the lambda directly. Removed in 2027.5.0",
+                                    "2026.11.0") = std::function<void(const std::string &, const std::string &)>;
+using mqtt_json_callback_t ESPDEPRECATED(
+    "subscribe_json() takes any callable; pass the lambda directly. Removed in 2027.5.0",
+    "2026.11.0") = std::function<void(const std::string &, JsonObject)>;
 
 /// internal struct for MQTT subscriptions.
 struct MQTTSubscription {
@@ -40,7 +47,7 @@ struct MQTTSubscription {
   uint8_t qos;
   bool subscribed;
   bool boxed;  // made by create_boxed(), freed on unsubscribe
-  mqtt_callback_t callback;
+  mqtt_subscription_callback_t callback;
   uint32_t resubscribe_timeout;
 };
 
@@ -171,11 +178,11 @@ class MQTTClientComponent final : public Component {
    * @param qos The QoS of this subscription.
    */
   template<typename F> void subscribe(std::string topic, F &&callback, uint8_t qos = 0) {
-    if constexpr (mqtt_callback_t::fits_inline<F>()) {
-      this->add_subscription_(std::move(topic), mqtt_callback_t::create(std::forward<F>(callback)), false, qos);
-    } else {
-      this->add_subscription_(std::move(topic), mqtt_callback_t::create_boxed(std::forward<F>(callback)), true, qos);
-    }
+    constexpr bool boxed = !mqtt_subscription_callback_t::fits_inline<F>();
+    this->add_subscription_(std::move(topic),
+                            boxed ? mqtt_subscription_callback_t::create_boxed(std::forward<F>(callback))
+                                  : mqtt_subscription_callback_t::create(std::forward<F>(callback)),
+                            boxed, qos);
   }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
@@ -317,7 +324,7 @@ class MQTTClientComponent final : public Component {
       return true;
     });
   }
-  void add_subscription_(std::string &&topic, mqtt_callback_t callback, bool boxed, uint8_t qos);
+  void add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
   void resubscribe_subscriptions_();
 
   MQTTCredentials credentials_;

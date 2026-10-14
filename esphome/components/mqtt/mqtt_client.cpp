@@ -461,7 +461,8 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
   }
 }
 
-void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_callback_t callback, bool boxed, uint8_t qos) {
+void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed,
+                                            uint8_t qos) {
   auto &subscription = this->subscriptions_.emplace_back(MQTTSubscription{
       .topic = std::move(topic),
       .qos = qos,
@@ -651,6 +652,8 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.
+    // Restored rather than cleared, so a nested dispatch cannot reopen unsubscribe() for the outer one.
+    const bool was_dispatching = this->dispatching_;
     this->dispatching_ = true;
     const size_t count = this->subscriptions_.size();
     for (size_t i = 0; i < count; i++) {
@@ -658,7 +661,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback.call(topic, payload);
     }
-    this->dispatching_ = false;
+    this->dispatching_ = was_dispatching;
 #ifdef USE_ESP8266
   });
 #endif
