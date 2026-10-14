@@ -53,7 +53,12 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
     this->coulomb_sensor_->publish_state(line->coulomb);
   }
   if (this->mos_temperature_sensor_ != nullptr) {
-    this->mos_temperature_sensor_->publish_state(((float) line->mostempr) / 1000.0f);
+    if (line->mostempr != INT_MIN) {
+      this->mos_temperature_sensor_->publish_state(((float) line->mostempr) / 1000.0f);
+    } else {
+      this->mos_temperature_sensor_->publish_state(NAN);
+      ESP_LOGD(TAG, "no MosTempr reading found");
+    }
   }
 }
 

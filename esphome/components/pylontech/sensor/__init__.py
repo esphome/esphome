@@ -110,7 +110,7 @@ CELL_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     }
-)
+).add_extra(cv.has_at_least_one_key(CONF_VOLTAGE, CONF_TEMPERATURE))
 
 CONFIG_SCHEMA = (
     PYLONTECH_COMPONENT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(PylontechSensor)})
