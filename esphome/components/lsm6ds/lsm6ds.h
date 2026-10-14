@@ -87,6 +87,11 @@ enum LSM6DSGyroODR : uint8_t {
 };
 
 // ── Main component class ─────────────────────────────────────────────────────
+/// Chip name for a WHO_AM_I value, or nullptr when the chip is not supported.
+const LogString *chip_name_from_who_am_i(uint8_t who_am_i);
+/// Temperature sensitivity in LSB/°C for a supported WHO_AM_I value, from the chip's datasheet.
+uint16_t temperature_sensitivity_from_who_am_i(uint8_t who_am_i);
+
 class LSM6DSComponent final : public motion::MotionComponent, public i2c::I2CDevice {
  public:
   void setup() override;

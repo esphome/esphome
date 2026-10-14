@@ -27,7 +27,7 @@ static const LogString *gyro_range_to_str(LSM6DSGyroRange range) {
   }
 }
 
-static const LogString *chip_name_from_who_am_i(uint8_t who_am_i) {
+const LogString *chip_name_from_who_am_i(uint8_t who_am_i) {
   switch (who_am_i) {
     case LSM6DS_WHO_AM_I_LSM6DS3:
       return LOG_STR("LSM6DS3");
@@ -38,6 +38,10 @@ static const LogString *chip_name_from_who_am_i(uint8_t who_am_i) {
     default:
       return nullptr;
   }
+}
+
+uint16_t temperature_sensitivity_from_who_am_i(uint8_t who_am_i) {
+  return who_am_i == LSM6DS_WHO_AM_I_LSM6DS3 ? 16 : 256;
 }
 
 void LSM6DSComponent::setup() {
@@ -56,8 +60,7 @@ void LSM6DSComponent::setup() {
   }
   ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", LOG_STR_ARG(chip_name), who_am_i);
   this->chip_name_ = chip_name;
-  if (who_am_i == LSM6DS_WHO_AM_I_LSM6DS3)
-    this->temperature_sensitivity_ = 16;
+  this->temperature_sensitivity_ = temperature_sensitivity_from_who_am_i(who_am_i);
 
   // 2. Software reset — clears all registers to defaults
   if (this->write_register(LSM6DS_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1) != i2c::ERROR_OK) {
