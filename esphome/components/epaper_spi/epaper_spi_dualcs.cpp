@@ -27,10 +27,14 @@ void EPaperDualCS::dump_config() {
 
 // A normal update() always does a full refresh; only start_partial_update_() does a
 // sub-rectangle. transfer_sub_ decides which path transfer_data() takes, so it has to be
-// reset here, before the state machine starts.
+// reset here, before the state machine starts. Only reset it when a new cycle can actually
+// start: EPaperBase::update() ignores calls while the display is busy, and switching an
+// in-flight partial transfer to the full-frame path would corrupt it.
 void EPaperDualCS::update() {
-  this->partial_update_ = false;
-  this->transfer_sub_ = TRF_FULL;
+  if (this->state_ == EPaperState::IDLE) {
+    this->partial_update_ = false;
+    this->transfer_sub_ = TRF_FULL;
+  }
   EPaperBase::update();
 }
 
