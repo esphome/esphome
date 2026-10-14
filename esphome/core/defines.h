@@ -69,6 +69,7 @@
 #define USE_DISPLAY
 #define DISPLAY_PAGE_CHANGE_CALLBACK_COUNT 1
 #define USE_EMONTX_VERSION
+#define USE_EMONTX_VERSION_TEXT_SENSOR
 #define USE_ENTITY_DEVICE_CLASS
 #define USE_ENTITY_ICON
 #define USE_ENTITY_UNIT_OF_MEASUREMENT
@@ -216,6 +217,7 @@
 #define TCA8418_LISTENER_COUNT 1
 #define USE_MEDIA_PLAYER
 #define USE_MEDIA_SOURCE
+#define NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT 1
 #define USE_NETWORK
 #define USE_NETWORK_DEFAULT_ROUTE
 #define USE_NETWORK_PRIMARY_INTERFACE_WIFI
@@ -270,6 +272,7 @@
 #define USE_TMP102_BINARY_SENSOR
 #define USE_TMP102_CONFIGURE
 #define USE_TMP102_NUMBER
+#define USE_TMP102_TEXT_SENSOR
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_UART_WAKE_LOOP_ON_RX
@@ -328,7 +331,7 @@
 #define USE_NOISE
 #define USE_NOISE_SPARE_EPHEMERAL
 #define USE_SHA256
-#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
+#if !defined(USE_RP2) && !defined(USE_HOST)  // no MQTT backend or esp_wireguard library on RP2 and host
 #define USE_MQTT
 #define USE_MQTT_COVER_JSON
 #define USE_WIREGUARD
@@ -417,7 +420,9 @@
 #define USE_ESPNOW
 #define USE_ESPNOW_MAX_PAYLOAD_SIZE 1470
 
+#ifndef USE_HOST  // web_server, captive_portal: no ESPAsyncWebServer on host
 #define USE_CAPTIVE_PORTAL
+#endif
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_ESP32_BLE
 #define USE_ESP32_BLE_MAX_CONNECTIONS 3
@@ -475,6 +480,7 @@
 #define USE_SPI
 #define USE_SPI_PSRAM_DMA
 #define USE_VOICE_ASSISTANT
+#ifndef USE_HOST
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
 #define USE_WEBSERVER_AUTH_DIGEST
@@ -486,6 +492,7 @@
 #define USE_WEBSERVER_ALLOWED_ORIGINS
 #define WEB_SERVER_DEFAULT_HEADERS_COUNT 1
 #define USE_CAPTIVE_PORTAL_GZIP
+#endif
 #define USE_WIFI_11KV_SUPPORT
 #define USE_WIFI_FAST_CONNECT
 #define USE_WIFI_FAST_CONNECT_IN_FLASH
@@ -566,6 +573,10 @@
 #endif
 #ifndef USE_OPENTHREAD
 #define USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#ifdef USE_ETHERNET
+#define USE_MDNS_ACTIVE_INTERFACE_LISTENER
+#define USE_MDNS_DYNAMIC_NETWORK_TXT
+#endif
 #endif
 #endif
 
@@ -646,6 +657,7 @@
 #define USE_ETHERNET_SPI
 #endif
 #define USE_ETHERNET_W5500
+#define USE_MDNS_DYNAMIC_NETWORK_TXT
 #define USE_WIFI_IP_STATE_LISTENERS
 #define ESPHOME_WIFI_IP_STATE_LISTENERS 2
 #define USE_ETHERNET_IP_STATE_LISTENERS
@@ -683,6 +695,8 @@
 #endif
 
 #ifdef USE_HOST
+#define USE_ESPHOME_HOST_MAC_ADDRESS \
+  { 0x98, 0x35, 0x69, 0xab, 0xf6, 0x79 }
 #define USE_HTTP_REQUEST_RESPONSE
 // Host only: the uart arm would shadow the native logger UART arms in other envs
 #define USE_IMPROV_SERIAL_UART

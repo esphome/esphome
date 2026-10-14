@@ -240,6 +240,7 @@ esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
 esphome/components/haier/binary_sensor/* @paveldn
 esphome/components/haier/button/* @paveldn
+esphome/components/haier/select/* @paveldn
 esphome/components/haier/sensor/* @paveldn
 esphome/components/haier/switch/* @paveldn
 esphome/components/haier/text_sensor/* @paveldn
@@ -439,6 +440,7 @@ esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/packet_transport/* @clydebarrow
 esphome/components/pca6416a/* @Mat931
+esphome/components/pca9505/* @ajfriesen @ssieb
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman

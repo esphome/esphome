@@ -1,4 +1,4 @@
-import datetime
+import datetime as dt
 import random
 
 import esphome.codegen as cg
@@ -167,7 +167,7 @@ async def _attr_to_code(config: ConfigType) -> None:
             basic_attrs.date_code,
             # Local build time, matching the esp32 implementation
             # (App.get_build_time() in C++).
-            datetime.datetime.now().astimezone().strftime("%Y%m%d %H%M%S"),
+            dt.datetime.now().astimezone().strftime("%Y%m%d %H%M%S"),
         ),
         zigbee_assign(
             basic_attrs.power_source,
