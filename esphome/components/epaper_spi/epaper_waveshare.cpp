@@ -48,12 +48,7 @@ void EpaperWaveshare::refresh_screen(bool partial) {
   this->next_delay_ = partial ? 100 : 3000;
 }
 
-void EpaperWaveshare::deep_sleep() {
-  // Sleeping can only be left by a reset, which a partial update must avoid.
-  if (this->must_keep_base_image_())
-    return;
-  this->cmd_data(0x10, {0x01});
-}
+void EpaperWaveshare::deep_sleep() { this->cmd_data(0x10, {0x01}); }
 
 bool EpaperWaveshare::reset() {
   // Resetting the controller restarts the alternation between the two RAM banks, so a partial
