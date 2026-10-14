@@ -1,3 +1,9 @@
+#define ESP_LOGW(...) ((void) 0)
+#define ESP_LOGI(...) ((void) 0)
+#define ESP_LOGD(...) ((void) 0)
+#define ESP_LOGV(...) ((void) 0)
+#define ESP_LOGCONFIG(...) ((void) 0)
+#define LOG_WATER_HEATER(...) ((void) 0)
 #include "esphome/components/haier/water_heater/hon_water_heater.cpp"
 #include <cassert>
 using namespace esphome;

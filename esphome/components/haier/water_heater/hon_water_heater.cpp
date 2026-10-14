@@ -6,9 +6,18 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 
+// Compatibility with ESPHome revisions predating the flash-resident log-tag macro.
+#ifndef ESPHOME_LOG_TAG
+#ifdef USE_ESP8266
+#define ESPHOME_LOG_TAG(tag, name) static const char tag[] PROGMEM = name
+#else
+#define ESPHOME_LOG_TAG(tag, name) static const char tag[] = name
+#endif
+#endif
+
 namespace esphome::haier {
 
-static const char *const TAG = "haier.water_heater";
+ESPHOME_LOG_TAG(TAG, "haier.water_heater");
 using water_heater_protocol::HonMode;
 
 // TextSensor accepts ordinary strings rather than flash-resident LogString values.
@@ -153,13 +162,14 @@ void HonWaterHeater::loop() {
     if (!this->read_byte(&value))
       break;
     this->last_byte_ = now;
-    if (this->parser_.feed(value))
+    if (this->parser_.feed(value)) {
       this->process_frame_();
-    else if (this->parser_.complete()) {
-      if ((this->parser_.data()[1] & 0x80) != 0)
+    } else if (this->parser_.complete()) {
+      if ((this->parser_.data()[1] & 0x80) != 0) {
         ESP_LOGW(TAG, "RX: XOR-encrypted frames (flag 0x80) are not supported and will be dropped");
-      else
+      } else {
         ESP_LOGW(TAG, "RX: unsupported flags or invalid checksum/CRC");
+      }
     }
   }
 }
@@ -251,8 +261,8 @@ void HonWaterHeater::process_frame_() {
   if (this->heating_time_sensor_ != nullptr)
     this->heating_time_sensor_->publish_state(status.estimated_heating_time);
   if (this->water_sensor_ != nullptr) {
-    static constexpr uint8_t percentages[] = {0, 33, 66, 100};
-    this->water_sensor_->publish_state(status.available_water <= 3 ? percentages[status.available_water] : NAN);
+    static constexpr uint8_t PERCENTAGES[] = {0, 33, 66, 100};
+    this->water_sensor_->publish_state(status.available_water <= 3 ? PERCENTAGES[status.available_water] : NAN);
   }
   if (this->power_sensor_ != nullptr)
     this->power_sensor_->publish_state(status.powered);
@@ -314,12 +324,13 @@ void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
     // Captures establish transitions through Normal, not direct ECO/BPS transitions.
     if (this->reported_mode_ != HonMode::HON_MODE_NORMAL && *mode != WATER_HEATER_MODE_ELECTRIC)
       append(0x05, 0x00);
-    if (*mode == WATER_HEATER_MODE_ELECTRIC)
+    if (*mode == WATER_HEATER_MODE_ELECTRIC) {
       append(0x05, 0x00);
-    else if (*mode == WATER_HEATER_MODE_ECO)
+    } else if (*mode == WATER_HEATER_MODE_ECO) {
       append(0x05, 0x01);
-    else if (*mode == WATER_HEATER_MODE_PERFORMANCE)
+    } else if (*mode == WATER_HEATER_MODE_PERFORMANCE) {
       append(0x17, 0x01);
+    }
   }
   if (!std::isnan(temperature))
     append(0x02, static_cast<uint8_t>(temperature - 30));

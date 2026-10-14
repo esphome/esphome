@@ -30,6 +30,8 @@ def test_controller(tmp_path: Path):
             "ziglang",
             "c++",
             "-std=c++20",
+            "-DESPHOME_LOG_LEVEL=0",
+            "-DESPHOME_LOG_LEVEL_VERBOSE=6",
             "-I",
             str(tmp_path),
             "-I",
