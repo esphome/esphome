@@ -1,13 +1,8 @@
-from dataclasses import dataclass
-import logging
-import math
-
+from esphome import preferences
 import esphome.codegen as cg
 from esphome.components import text
-from esphome.components.esp8266.const import CONF_RESTORE_FROM_FLASH
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PLATFORM, ENTITY_CATEGORY_CONFIG
-from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -22,8 +17,6 @@ from . import (  # noqa: F401  pylint: disable=unused-import
 )
 
 DEPENDENCIES = ["ld2450"]
-
-_LOGGER = logging.getLogger(__name__)
 
 ICON_VECTOR_POLYGON = "mdi:vector-polygon"
 
@@ -40,15 +33,8 @@ POLYGON_PATTERN = (
 # Home Assistant's limit for a state; the longest polygon the device publishes is 252 characters
 POLYGON_MAX_LENGTH = 255
 
-# ESP8266 space for saved settings, in 4-byte words. Must match esp8266/preferences.cpp: RTC memory has two regions
-# (RTC_NORMAL_REGION_WORDS, RTC_EBOOT_REGION_WORDS) that one saved value can't span; with restore_from_flash,
-# everything goes to flash (ESP8266_FLASH_STORAGE_SIZE)
-PREFERENCES_RTC_REGION_WORDS = (78, 32)
-PREFERENCES_FLASH_WORDS = 128
 # sizeof(Polygon), pinned by a static_assert in polygon.h
 POLYGON_SAVED_BYTES = 94
-# Saved polygon in words, plus the checksum word
-POLYGON_ZONE_SAVED_WORDS = math.ceil(POLYGON_SAVED_BYTES / 4) + 1
 
 PolygonZone = ld2450_ns.class_("PolygonZone", text.Text)
 
@@ -81,58 +67,9 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-@dataclass
-class _TextData:
-    esp8266_space_checked: bool = False
-
-
-def _get_data() -> _TextData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = _TextData()
-    return CORE.data[DOMAIN]
-
-
-def _check_esp8266_space(full_config: ConfigType) -> None:
-    """Check that every polygon zone, of every LD2450, fits in the ESP8266's space for saved settings.
-
-    A zone that doesn't fit can never be saved, so it could never be set.
-    """
-    data = _get_data()
-    if not CORE.is_esp8266 or data.esp8266_space_checked:
-        return
-    data.esp8266_space_checked = True
-
-    zones = sum(
-        len(text_conf[CONF_POLYGON_ZONES])
-        for text_conf in full_config.get("text", [])
-        if text_conf.get(CONF_PLATFORM) == "ld2450"
-    )
-    in_flash = full_config.get("esp8266", {}).get(CONF_RESTORE_FROM_FLASH, False)
-    regions = (PREFERENCES_FLASH_WORDS,) if in_flash else PREFERENCES_RTC_REGION_WORDS
-    max_zones = sum(words // POLYGON_ZONE_SAVED_WORDS for words in regions)
-    where = "in flash ('restore_from_flash: true')" if in_flash else "in RTC memory"
-    if zones > max_zones:
-        hint = (
-            "" if in_flash else ", or set 'restore_from_flash: true' under 'esp8266:'"
-        )
-        raise cv.Invalid(
-            f"{zones} polygon zones don't fit in the ESP8266's space for saved settings {where}: at most "
-            f"{max_zones} fit, and the others could never be saved; use fewer zones{hint}"
-        )
-    if zones == max_zones:
-        _LOGGER.warning(
-            "%d polygon zones fill the ESP8266's space for saved settings %s; with other saved settings, some "
-            "zones may not be saved, and then can't be set",
-            zones,
-            where,
-        )
-
-
 def _final_validate(config: ConfigType) -> None:
     """Each polygon zone must have exactly one presence binary sensor, on the same LD2450."""
     full_config = fv.full_config.get()
-    _check_esp8266_space(full_config)
-
     # Polygon zone id -> the LD2450 id of each presence binary sensor that uses it
     references: dict[str, list[str]] = {}
     for binary_sensor_conf in full_config.get("binary_sensor", []):
@@ -171,6 +108,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD2450_ID])
+    # Each zone saves its polygon; the ESP8266 checks that every component's saved values fit
+    preferences.reserve_preferences(
+        len(config[CONF_POLYGON_ZONES]), POLYGON_SAVED_BYTES
+    )
     for zone_conf in config[CONF_POLYGON_ZONES]:
         zone = await text.new_text(
             zone_conf, max_length=POLYGON_MAX_LENGTH, pattern=POLYGON_PATTERN
