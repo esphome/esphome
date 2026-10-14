@@ -33,7 +33,7 @@ static constexpr uint8_t SWAP_XY = 4;
 static constexpr uint32_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
 // Longer busy waits are the waveform or a stuck pin, and are polled at the normal loop pace
-static constexpr int FAST_BUSY_POLL_MS = 50;
+static constexpr uint32_t FAST_BUSY_POLL_MS = 50;
 static constexpr uint8_t DELAY_FLAG = 0xFF;
 
 class EPaperBase : public Display,

@@ -131,12 +131,10 @@ void EPaperBase::update() {
 }
 
 void EPaperBase::wait_for_idle_(bool should_wait) {
+  // The wait starts when the step's delay ends, or now for a wait in the middle of a step
   const uint32_t now = millis();
-  this->waiting_for_idle_start_ = now;
+  this->waiting_for_idle_start_ = static_cast<int32_t>(this->delay_until_ - now) > 0 ? this->delay_until_ : now;
   this->waiting_for_idle_ = should_wait;
-  // loop() times the fast busy poll from delay_until_, so a wait in the middle of a step restarts it
-  if (should_wait && static_cast<int>(now - this->delay_until_) > 0)
-    this->delay_until_ = now;
 }
 
 /**
@@ -166,11 +164,12 @@ void EPaperBase::loop() {
       ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
 #endif
     } else {
-      if (now - this->waiting_for_idle_start_ > this->busy_timeout_seconds_ * 1000u) {
+      const uint32_t busy_for = now - this->waiting_for_idle_start_;
+      if (busy_for > this->busy_timeout_seconds_ * 1000u) {
         this->abandon_update_();
         return;
       }
-      if (diff > FAST_BUSY_POLL_MS)
+      if (busy_for > FAST_BUSY_POLL_MS)
         this->high_frequency_loop_.stop();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       if (now - this->waiting_for_idle_last_print_ >= 1000) {
@@ -284,12 +283,12 @@ void EPaperBase::process_state_() {
 void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   ESP_LOGV(TAG, "Exit state %s", this->epaper_state_to_string_());
   this->state_ = state;
-  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
   // allow subclasses to nominate delays
   if (delay == 0)
     delay = this->next_delay_;
   this->next_delay_ = 0;
   this->delay_until_ = millis() + delay;
+  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", this->epaper_state_to_string_(), delay,
            TRUEFALSE(this->waiting_for_idle_));
   // Each step of an update otherwise waits for the next loop iteration; loop() slows down again for long waits

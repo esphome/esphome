@@ -5,16 +5,10 @@
 #include "esphome/components/epaper_spi/epaper_spi_t133a01.h"
 
 namespace esphome::epaper_spi::testing {
+// Other test files define fixtures with the same names; keep these to this file
+namespace {
 
-/// A busy pin the test can hold at "busy" and release.
-class SwitchableBusyPin : public RecordingPin {
- public:
-  bool digital_read() override { return this->busy; }
-
-  bool busy{false};
-};
-
-static const uint8_t MALFORMED_INIT_SEQUENCE[] = {0x01};
+constexpr uint8_t MALFORMED_INIT_SEQUENCE[] = {0x01};
 
 class TestableSSD1683 : public EPaperSSD1683 {
  public:
@@ -214,4 +208,5 @@ TEST(EPaperFastLoop, WaitInTheMiddleOfAStepIsPolledFast) {
   EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
 }
 
+}  // namespace
 }  // namespace esphome::epaper_spi::testing
