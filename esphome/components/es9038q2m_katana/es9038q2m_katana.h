@@ -33,8 +33,10 @@ class ES9038Q2MKatana : public audio_dac::AudioDac, public Component, public i2c
   void setup() override;
   void dump_config() override;
 
+  // Cubic below 50%, then 0.5 dB per 1% above, meeting at -25 dB.
+  // Zero selects full attenuation (-127.5 dB).
   bool set_volume(float volume) override;
-  float volume() override { return remap<float, uint8_t>(this->volume_reg_, 255, 0, 0.0f, 1.0f); }
+  float volume() override;
   bool set_mute_off() override { return this->set_mute_state_(false); }
   bool set_mute_on() override { return this->set_mute_state_(true); }
   bool is_muted() override { return this->is_muted_; }

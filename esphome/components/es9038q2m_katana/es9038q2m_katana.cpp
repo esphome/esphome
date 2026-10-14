@@ -3,6 +3,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <cmath>
+
 namespace esphome::es9038q2m_katana {
 
 ESPHOME_LOG_TAG(TAG, "es9038q2m_katana");
@@ -22,6 +24,12 @@ constexpr uint8_t KATANA_REG_DOP = 0x07;
 constexpr uint8_t KATANA_REG_FORMAT = 0x08;
 constexpr uint8_t KATANA_REG_COMMAND = 0x09;
 constexpr uint8_t KATANA_REG_MUTE_STREAM = 0x0A;
+
+static constexpr float KATANA_VOLUME_MIDPOINT = 0.5f;
+static constexpr float KATANA_VOLUME_MIDPOINT_STEPS = 50.0f;  // -25 dB at 50% volume.
+// Cubic amplitude gain: -20 * log10(volume^3) / 0.5 attenuation steps.
+static constexpr float KATANA_VOLUME_CUBIC_SCALE = 120.0f;
+static constexpr uint8_t KATANA_VOLUME_FULL_ATTENUATION = 255;
 
 // The control logic ignores writes for this long after a reset.
 constexpr uint32_t RESET_SETTLE_DELAY_MS = 10;
@@ -131,12 +139,29 @@ bool ES9038Q2MKatana::check_write_(bool ok) {
 bool ES9038Q2MKatana::set_volume(float volume) {
   if (this->is_failed())
     return false;
+  volume = clamp(volume, 0.0f, 1.0f);
   const uint8_t previous = this->volume_reg_;
-  this->volume_reg_ = remap<uint8_t, float>(clamp(volume, 0.0f, 1.0f), 0.0f, 1.0f, 255, 0);
+  float attenuation = KATANA_VOLUME_FULL_ATTENUATION;
+  if (volume >= KATANA_VOLUME_MIDPOINT) {
+    attenuation = KATANA_VOLUME_MIDPOINT_STEPS * (1.0f - volume) / (1.0f - KATANA_VOLUME_MIDPOINT);
+  } else if (volume > 0.0f) {
+    attenuation = KATANA_VOLUME_MIDPOINT_STEPS - KATANA_VOLUME_CUBIC_SCALE * log10f(volume / KATANA_VOLUME_MIDPOINT);
+  }
+  this->volume_reg_ =
+      static_cast<uint8_t>(lroundf(clamp(attenuation, 0.0f, static_cast<float>(KATANA_VOLUME_FULL_ATTENUATION))));
   if (this->check_write_(this->write_volume_()))
     return true;
   this->volume_reg_ = previous;
   return false;
+}
+
+float ES9038Q2MKatana::volume() {
+  if (this->volume_reg_ == KATANA_VOLUME_FULL_ATTENUATION)
+    return 0.0f;
+  if (this->volume_reg_ <= KATANA_VOLUME_MIDPOINT_STEPS)
+    return 1.0f - this->volume_reg_ * (1.0f - KATANA_VOLUME_MIDPOINT) / KATANA_VOLUME_MIDPOINT_STEPS;
+  return KATANA_VOLUME_MIDPOINT *
+         powf(10.0f, (KATANA_VOLUME_MIDPOINT_STEPS - this->volume_reg_) / KATANA_VOLUME_CUBIC_SCALE);
 }
 
 bool ES9038Q2MKatana::set_mute_state_(bool mute_state) {
