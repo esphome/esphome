@@ -5,7 +5,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.inkplate13spectra";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.inkplate13spectra");
 
 // Native hardware color codes for this panel's 4-bit color values.
 enum Inkplate13SpectraColor : uint8_t {

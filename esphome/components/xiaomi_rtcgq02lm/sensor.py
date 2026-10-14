@@ -9,6 +9,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from . import XiaomiRTCGQ02LM
 
@@ -29,9 +30,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ID])
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_ID])
 
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(parent.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_LEVEL, hub.set_battery_level)

@@ -16,6 +16,9 @@ class PCF8574Component final : public Component,
   PCF8574Component() = default;
 
   void set_pcf8575(bool pcf8575) { pcf8575_ = pcf8575; }
+  void set_reset(bool reset) { this->reset_ = reset; }
+  // Called by pin setters before any component's setup or GPIO writes.
+  void register_input_pin(uint8_t pin) { this->configured_input_pins_ |= 1 << pin; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
   /// Check i2c availability and setup masks
@@ -44,6 +47,11 @@ class PCF8574Component final : public Component,
   uint16_t output_mask_{0x00};
   /// The state read in read_gpio_ - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
+  // Pins configured as inputs before setup; 1 means input. With reset disabled, all other pins
+  // (including undeclared pins) are treated as outputs seeded from their observed levels.
+  uint16_t configured_input_pins_{0x00};
+  // Keep in sync with DEFAULT_RESET in __init__.py; codegen omits the setter for the default.
+  bool reset_{true};
   bool pcf8575_;  ///< TRUE->16-channel PCF8575, FALSE->8-channel PCF8574
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
@@ -51,6 +59,9 @@ class PCF8574Component final : public Component,
 /// Helper class to expose a PCF8574 pin as an internal input GPIO pin.
 class PCF8574GPIOPin final : public GPIOPin {
  public:
+  // User provided, not "= default": `new(p) PCF8574GPIOPin()` would zero-fill .bss that is already zero.
+  PCF8574GPIOPin() {}
+
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
@@ -60,15 +71,16 @@ class PCF8574GPIOPin final : public GPIOPin {
   void set_parent(PCF8574Component *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
+  // Call after set_parent() and set_pin(): input flags register the pin with the parent.
+  void set_flags(gpio::Flags flags);
 
   gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
-  PCF8574Component *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  PCF8574Component *parent_{nullptr};
+  uint8_t pin_{0};
+  bool inverted_{false};
+  gpio::Flags flags_{};
 };
 
 }  // namespace esphome::pcf8574

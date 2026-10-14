@@ -4,7 +4,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.event";
+ESPHOME_LOG_TAG(TAG, "uart.event");
 
 void UARTEvent::setup() {}
 

@@ -10,6 +10,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "exposure_notifications"
 
 exposure_notifications_ns = cg.esphome_ns.namespace("exposure_notifications")
 ExposureNotification = exposure_notifications_ns.struct("ExposureNotification")
@@ -58,7 +59,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for conf in config.get(CONF_ON_EXPOSURE_NOTIFICATION, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         await automation.build_automation(trigger, [(ExposureNotification, "x")], conf)

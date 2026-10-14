@@ -5,7 +5,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.t133a01";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.t133a01");
 
 // Native hardware color codes for this panel's 4-bit color values.
 enum T133A01Color : uint8_t {

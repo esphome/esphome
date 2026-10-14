@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_MILLIMETER,
 )
+from esphome.types import ConfigType
 
 from . import CONF_RD03D_ID, RD03DComponent
 
@@ -75,12 +76,11 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend({cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(MAX_TARGETS)})
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_RD03D_ID])
 
-    if target_count_config := config.get(CONF_TARGET_COUNT):
-        sens = await sensor.new_sensor(target_count_config)
-        cg.add(hub.set_target_count_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TARGET_COUNT, hub.set_target_count_sensor)
 
     for i in range(MAX_TARGETS):
         if target_config := config.get(f"target_{i + 1}"):

@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.dualcs";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.dualcs");
 
 void EPaperDualCS::setup() {
   EPaperBase::setup();
@@ -431,6 +431,19 @@ bool EPaperDualCS::transfer_data() {
       return true;
   }
   return false;
+}
+
+void EPaperDualCS::abort_transfer() {
+  // A DTM data stream is open, with one of the chip selects held low, while the full path has
+  // sent rows (current_data_index_ != 0) or the partial path is in one of its DATA states.
+  bool stream_open = this->transfer_sub_ == TRF_FULL
+                         ? this->current_data_index_ != 0
+                         : (this->transfer_sub_ == TRF_PARTIAL_DATA_M || this->transfer_sub_ == TRF_PARTIAL_DATA_S);
+  if (!stream_open)
+    return;
+  this->disable();
+  this->cs_pin_->digital_write(true);
+  this->cs1_pin_->digital_write(true);
 }
 
 }  // namespace esphome::epaper_spi

@@ -99,6 +99,7 @@ class EPaperDualCS : public EPaper4bpp {
   };
 
   bool transfer_data() override;
+  void abort_transfer() override;
 
   /// Full-refresh transfer: CS phase then CS1 phase, each streaming the whole half-buffer
   /// with CS held low across yields. See class comment for provenance.

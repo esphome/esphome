@@ -4,7 +4,7 @@
 
 namespace esphome::ultrasonic {
 
-static const char *const TAG = "ultrasonic.sensor";
+ESPHOME_LOG_TAG(TAG, "ultrasonic.sensor");
 
 static constexpr uint32_t DEBOUNCE_US = 50;          // Ignore edges within 50us of each other (noise filtering)
 static constexpr uint32_t START_DELAY_US = 100;      // Ignore edges within 100us of trigger (filters bleed-through)
