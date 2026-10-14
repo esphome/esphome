@@ -45,6 +45,13 @@ esphome:
         id: template_climate_fahrenheit
         current_temperature: 20°C
         target_temperature: 70
+    - climate.control:
+        id: template_climate_fahrenheit
+        target_temperature: 22°C
+    - water_heater.template.publish:
+        id: template_water_heater_fahrenheit
+        current_temperature: 45°C
+        target_temperature: 120
     - climate.template.publish:
         id: template_climate_custom_modes
         custom_fan_mode: "turbo"

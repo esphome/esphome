@@ -170,7 +170,15 @@ def temperature_unit_of_id(climate_id: ID) -> str:
     for conf in CORE.config.get(DOMAIN, []):
         if conf[CONF_ID] == climate_id:
             return temperature_unit_of(conf)
-    return UNIT_CELSIUS
+    raise KeyError(f"No climate with id {climate_id}")
+
+
+def temperature_in_entity_unit(
+    config: ConfigType, value: tuple[float, str | None]
+) -> str:
+    """Render a static action temperature in the unit of the climate the action targets."""
+    unit = temperature_unit_of_id(config[CONF_ID])
+    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
 
 
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
@@ -493,9 +501,13 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Climate),
         cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
-        cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
-        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
-        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
+        cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature_with_unit),
+        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(
+            cv.temperature_with_unit
+        ),
+        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(
+            cv.temperature_with_unit
+        ),
         cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
         cv.Optional(CONF_AWAY): cv.invalid("Use preset instead"),
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
@@ -515,12 +527,23 @@ automation.register_apply_action(
     "climate.control",
     CLIMATE_CONTROL_ACTION_SCHEMA,
     automation.ApplyField(CONF_MODE, "set_mode", ClimateMode),
-    automation.ApplyField(CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
     automation.ApplyField(
-        CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_
+        CONF_TARGET_TEMPERATURE,
+        "set_target_temperature",
+        cg.float_,
+        temperature_in_entity_unit,
     ),
     automation.ApplyField(
-        CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_
+        CONF_TARGET_TEMPERATURE_LOW,
+        "set_target_temperature_low",
+        cg.float_,
+        temperature_in_entity_unit,
+    ),
+    automation.ApplyField(
+        CONF_TARGET_TEMPERATURE_HIGH,
+        "set_target_temperature_high",
+        cg.float_,
+        temperature_in_entity_unit,
     ),
     automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
     automation.ApplyField(CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),

@@ -433,14 +433,6 @@ CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
 )
 
 
-def _temperature_in_entity_unit(
-    config: ConfigType, value: tuple[float, str | None]
-) -> str:
-    # The entity's unit is only known once every climate has been validated
-    unit = climate.temperature_unit_of_id(config[CONF_ID])
-    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
-
-
 automation.register_apply_action(
     "climate.template.publish",
     CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA,
@@ -448,26 +440,26 @@ automation.register_apply_action(
         CONF_CURRENT_TEMPERATURE,
         "current_temperature = {}",
         cg.float_,
-        _temperature_in_entity_unit,
+        climate.temperature_in_entity_unit,
     ),
     automation.ApplyField(CONF_CURRENT_HUMIDITY, "current_humidity = {}", cg.float_),
     automation.ApplyField(
         CONF_TARGET_TEMPERATURE,
         "set_target_temperature",
         cg.float_,
-        _temperature_in_entity_unit,
+        climate.temperature_in_entity_unit,
     ),
     automation.ApplyField(
         CONF_TARGET_TEMPERATURE_LOW,
         "set_target_temperature_low",
         cg.float_,
-        _temperature_in_entity_unit,
+        climate.temperature_in_entity_unit,
     ),
     automation.ApplyField(
         CONF_TARGET_TEMPERATURE_HIGH,
         "set_target_temperature_high",
         cg.float_,
-        _temperature_in_entity_unit,
+        climate.temperature_in_entity_unit,
     ),
     automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
     automation.ApplyField(CONF_MODE, "set_mode", climate.ClimateMode),

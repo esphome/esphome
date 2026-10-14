@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_VISUAL,
     UNIT_CELSIUS,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
@@ -50,6 +50,14 @@ def temperature_unit_of(config: ConfigType) -> str:
     option through ``water_heater_schema``, else Celsius."""
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
     return unit if unit in TEMPERATURE_UNITS else UNIT_CELSIUS
+
+
+def temperature_unit_of_id(water_heater_id: ID) -> str:
+    """The unit of the water heater with this id, for actions that take static temperatures."""
+    for conf in CORE.config.get(DOMAIN, []):
+        if conf[CONF_ID] == water_heater_id:
+            return temperature_unit_of(conf)
+    raise KeyError(f"No water heater with id {water_heater_id}")
 
 
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
