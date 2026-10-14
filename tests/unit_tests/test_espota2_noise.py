@@ -858,16 +858,23 @@ def test_probe_ota_key_resolution_failure(
 ) -> None:
     """A name that never resolves is retried until the deadline, then reported."""
     pytest.importorskip("aioesphomeapi.noise")
+    clock = [0.0]
+
+    def sleep(seconds: float) -> None:
+        clock[0] += seconds
+
     with (
         patch("esphome.espota2.resolve_ip_address", **kwargs) as resolve,
-        patch("time.sleep"),
+        patch("time.sleep", side_effect=sleep),
+        patch("time.monotonic", side_effect=lambda: clock[0]),
         caplog.at_level(logging.WARNING),
     ):
         assert (
-            espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=0.2)
+            espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=10)
             is not ProbeResult.ACCEPTED
         )
-    assert resolve.call_count > 1
+    # Looked up at 0, 3, 6 and 9 s; the last pause stops at the deadline
+    assert resolve.call_count == 4
     assert any("failed, unreachable" in r.message for r in caplog.records)
 
 
