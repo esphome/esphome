@@ -24,3 +24,11 @@ WaveshareB(
     data_rate="10MHz",
     minimum_update_interval="1s",
 )
+
+WaveshareB(
+    "waveshare-2.66in-b",
+    width=152,
+    height=296,
+    data_rate="10MHz",
+    minimum_update_interval="15s",
+)

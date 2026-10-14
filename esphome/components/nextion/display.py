@@ -11,6 +11,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, TimePeriod
+from esphome.types import ConfigType, TemplateArgsType
 
 from . import FILTER_SOURCE_FILES, Nextion, nextion_ns, nextion_ref  # noqa: F401  pylint: disable=unused-import
 from .base_component import (
@@ -177,6 +178,10 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_BUFFER_OVERFLOW, "add_buffer_overflow_event_callback"
     ),
+)
+
+# The strings live only while the callback runs
+_CUSTOM_CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_CUSTOM_BINARY_SENSOR,
         "add_custom_binary_sensor_callback",
@@ -293,3 +298,18 @@ async def to_code(config):
             cg.add_define(define_name)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    for entry in _CUSTOM_CALLBACK_AUTOMATIONS:
+        for conf in config.get(entry.conf_key, []):
+            await automation.build_callback_automation(
+                var, entry.callback_method, _owning_args(entry.args, conf), conf
+            )
+
+
+def _owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:
+    """Pass std::string instead of StringRef to an automation that defers, as it keeps its arguments."""
+    if not automation.has_non_synchronous_actions(conf):
+        return args
+    return [
+        (cg.std_string if type_ is cg.StringRef else type_, name)
+        for type_, name in args
+    ]
