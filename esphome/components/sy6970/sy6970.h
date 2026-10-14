@@ -62,11 +62,8 @@ enum ChargeStatus {
   CHARGE_STATUS_CHARGE_DONE = 3,
 };
 
-// I2C watchdog timeout values (REG07[5:4]). The chip resets several other
-// registers - including CHG_CONFIG (REG03) and STAT_DIS (REG07) - back to
-// power-on defaults once this timer elapses without being reset, so a
-// watchdog left running is kicked on its own interval (independent of
-// update_interval) or it will silently re-enable charging and the STAT LED.
+// REG07[5:4]. When the watchdog elapses the chip reverts CHG_CONFIG and STAT_DIS to their defaults,
+// so an enabled watchdog is kicked on its own interval.
 enum I2CWatchdogTimeout {
   I2C_WATCHDOG_DISABLED = 0,
   I2C_WATCHDOG_40S = 1,
@@ -115,10 +112,7 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   void set_enable_adc_measure(bool enabled = true);
   void set_i2c_watchdog_timeout(I2CWatchdogTimeout timeout);
 
-  // Resets (kicks) the I2C watchdog timer (REG03 bit 6, self-clearing). Called
-  // automatically on its own interval whenever the watchdog is enabled;
-  // exposed publicly so a lambda can also call it directly if needed.
-  // Returns false if the reset could not be written.
+  /// Kick the I2C watchdog (REG03 bit 6); runs on its own interval while enabled. Returns false when not written.
   bool reset_i2c_watchdog();
 
  protected:

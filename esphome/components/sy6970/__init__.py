@@ -26,12 +26,7 @@ SY6970Component = sy6970_ns.class_(
 SY6970Listener = sy6970_ns.class_("SY6970Listener")
 I2CWatchdogTimeout = sy6970_ns.enum("I2CWatchdogTimeout")
 
-# The chip's own I2C watchdog (REG07[5:4]) reverts charge_enabled and the
-# STAT LED setting back to power-on defaults once it elapses; ESPHome kicks
-# it on its own interval (independent of update_interval) while it is
-# enabled, so "40S" (the chip's power-on default) is safe to leave running
-# rather than disabling it, and any update_interval - including `never` -
-# stays valid.
+# REG07[5:4]; the component kicks the watchdog itself, so the chip's 40S default can stay on
 I2C_WATCHDOG_TIMEOUTS = {
     "DISABLED": I2CWatchdogTimeout.I2C_WATCHDOG_DISABLED,
     "40S": I2CWatchdogTimeout.I2C_WATCHDOG_40S,

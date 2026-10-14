@@ -226,9 +226,7 @@ void SY6970Component::set_i2c_watchdog_timeout(I2CWatchdogTimeout timeout) {
     return;
 
   if (timeout != I2C_WATCHDOG_DISABLED) {
-    // Kick under the old period before changing it: register writes do not
-    // restart the chip's timer, so after a reboot or a switch to a shorter
-    // timeout it could already be close to expiring.
+    // Changing the timeout does not restart the chip's timer, which may be close to expiring
     this->reset_i2c_watchdog();
   }
 
@@ -239,26 +237,19 @@ void SY6970Component::set_i2c_watchdog_timeout(I2CWatchdogTimeout timeout) {
   }
 
   if (timeout == I2C_WATCHDOG_DISABLED) {
-    // Only stop kicking once the chip is known to have its watchdog off.
     if (written) {
       this->i2c_watchdog_timeout_ = timeout;
       this->cancel_interval(I2C_WATCHDOG_KICK_INTERVAL_ID);
     } else {
-      // The chip may still be running its 40s power-on default (or an earlier
-      // timeout), so make sure a kick is running at the shortest period.
+      // The chip may still be on its 40s default, so keep kicking at the shortest period
       this->set_interval(I2C_WATCHDOG_KICK_INTERVAL_ID, 20000U, [this]() { this->reset_i2c_watchdog(); });
     }
     return;
   }
 
-  // Even if the write failed the chip may still be running its 40s power-on
-  // default, so keep kicking; an unneeded kick is harmless.
+  // Kept even when the write failed: the chip may still be on its 40s default, and an extra kick is harmless
   this->i2c_watchdog_timeout_ = timeout;
-
-  // Kick on its own interval, independent of update_interval, so any
-  // update_interval (including a long one, or `never`) stays valid. The enum
-  // is 1/2/3 for 40/80/160s, so half the timeout is 20s << (timeout - 1).
-  // Re-registering the same id replaces any previous interval.
+  // Half the timeout: the enum is 1/2/3 for 40/80/160 s
   uint32_t kick_interval_ms = 20000U << (timeout - 1);
   this->set_interval(I2C_WATCHDOG_KICK_INTERVAL_ID, kick_interval_ms, [this]() { this->reset_i2c_watchdog(); });
 }
@@ -267,7 +258,7 @@ bool SY6970Component::reset_i2c_watchdog() {
   if (this->is_failed())
     return false;
 
-  // REG03 bit 6 (WD_RST): self-clearing, writing 1 kicks the watchdog timer.
+  // WD_RST, self-clearing
   if (!this->update_register_(SY6970_REG_SYS_CONTROL, 0x40, 0x40)) {
     ESP_LOGW(TAG, "I2C watchdog reset failed, settings may revert");
     return false;
