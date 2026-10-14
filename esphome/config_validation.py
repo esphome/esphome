@@ -88,6 +88,7 @@ from esphome.core import (
     CORE,
     HexInt,
     Lambda,
+    TemperatureWithUnit,
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
@@ -1463,7 +1464,7 @@ def temperature_unit(value: Any) -> TemperatureUnitValue:
     return TemperatureUnitValue(one_of(*TEMPERATURE_UNITS)(value))
 
 
-def temperature_with_unit(value: Any) -> tuple[float, str | None]:
+def temperature_with_unit(value: Any) -> TemperatureWithUnit:
     """Parse a temperature and keep the unit written with it; the unit is None when there is none."""
     for validator, unit in (
         (_temperature_k, UNIT_KELVIN),
@@ -1471,10 +1472,10 @@ def temperature_with_unit(value: Any) -> tuple[float, str | None]:
         (_temperature_c_strict, UNIT_CELSIUS),
     ):
         try:
-            return validator(value), unit
+            return TemperatureWithUnit(validator(value), unit)
         except Invalid:
             pass
-    return _temperature_c(value), None
+    return TemperatureWithUnit(_temperature_c(value), None)
 
 
 # unit = celsius * scale + offset

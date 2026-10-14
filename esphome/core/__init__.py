@@ -6,7 +6,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from esphome.const import (
     CONF_BUILD_PATH,
@@ -97,6 +97,16 @@ def is_approximately_integer(value):
     if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
+
+
+class TemperatureWithUnit(NamedTuple):
+    """A temperature as written: the number and the unit it came with, None without one."""
+
+    value: float
+    unit: str | None
+
+    def __str__(self) -> str:
+        return f"{self.value}{self.unit or ''}"
 
 
 class TimePeriod:

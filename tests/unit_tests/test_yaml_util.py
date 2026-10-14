@@ -2300,3 +2300,15 @@ def test_find_secret_references_in_flow_collections() -> None:
     """Flow mapping and sequence punctuation is not part of the secret name."""
     text = "a: {password: !secret wifi_pw}\nb: [!secret one, !secret 'two']\n"
     assert yaml_util.find_secret_references(text) == {"wifi_pw", "one", "two"}
+
+
+@pytest.mark.parametrize("written", ["70°F", "21", "300 K", "0.5°C"])
+def test_dumped_temperature_validates_again(written: str) -> None:
+    """A parsed temperature dumps as a scalar with its unit, so `esphome config` output is valid input."""
+    parsed = cv.temperature_with_unit(written)
+
+    dumped = yaml_util.dump({"target": parsed})
+    reloaded = yaml_util.parse_yaml(Path("dump.yaml"), io.StringIO(dumped))
+
+    assert "[" not in dumped
+    assert cv.temperature_with_unit(reloaded["target"]) == parsed
