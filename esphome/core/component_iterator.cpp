@@ -22,23 +22,23 @@ void ComponentIterator::advance_platform_() {
   this->at_ = 0;
 }
 
-void ComponentIterator::advance() {
+bool ComponentIterator::advance_step_() {
   switch (this->state_) {
     case IteratorState::NONE:
       // not started
-      return;
+      return false;
     case IteratorState::BEGIN:
       if (this->on_begin()) {
         advance_platform_();
+        return true;
       }
-      break;
+      return false;
 
 // Entity iterator cases (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   case IteratorState::upper: \
-    this->process_platform_item_(App.get_##plural(), &ComponentIterator::on_##singular); \
-    break;
+    return this->process_platform_item_(App.get_##plural(), &ComponentIterator::on_##singular);
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
 #include "esphome/core/entity_types.h"
@@ -48,26 +48,29 @@ void ComponentIterator::advance() {
 
 #ifdef USE_API_USER_DEFINED_ACTIONS
     case IteratorState::SERVICE:
-      this->process_platform_item_(api::global_api_server->get_user_services(), &ComponentIterator::on_service);
-      break;
+      return this->process_platform_item_(api::global_api_server->get_user_services(), &ComponentIterator::on_service);
 #endif
 
 #ifdef USE_CAMERA
     case IteratorState::CAMERA: {
       camera::Camera *camera_instance = camera::Camera::instance();
-      if (camera_instance != nullptr && (!camera_instance->is_internal() || this->include_internal_)) {
-        this->on_camera(camera_instance);
+      if (camera_instance != nullptr && (!camera_instance->is_internal() || this->include_internal_) &&
+          !this->on_camera(camera_instance)) {
+        return false;
       }
       advance_platform_();
-    } break;
+      return true;
+    }
 #endif
 
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;
+        return true;
       }
-      return;
+      return false;
   }
+  return false;
 }
 
 bool ComponentIterator::on_end() { return true; }

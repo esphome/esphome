@@ -4,7 +4,7 @@
 
 namespace esphome::number {
 
-static const char *const TAG = "number";
+ESPHOME_LOG_TAG(TAG, "number");
 
 // Helper functions to reduce code size for logging
 void NumberCall::log_perform_warning_(const LogString *message) {
