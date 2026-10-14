@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
@@ -28,7 +29,6 @@ extern "C" {
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
-#include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
 // Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
@@ -77,8 +77,9 @@ static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
 
 void ESP32BLE::setup() {
   global_ble = this;
-  if (!ble_pre_setup_()) {
-    ESP_LOGE(TAG, "BLE could not be prepared for configuration");
+  // Preferences opens NVS in app_main(); a zero handle means it could not be opened, even after an erase
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGE(TAG, "NVS unavailable");
     this->mark_failed();
     return;
   }
@@ -184,15 +185,6 @@ void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_refresh();
 }
 #endif
-
-bool ESP32BLE::ble_pre_setup_() {
-  esp_err_t err = nvs_flash_init();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
-    return false;
-  }
-  return true;
-}
 
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_init_() {
