@@ -506,6 +506,17 @@ TEST(VncHandshake, LongServerNameIsSkipped) {
   EXPECT_TRUE(s.client.is_connected());
 }
 
+TEST(VncHandshake, RunningOnlyAfterTheWholeServerName) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.attach();
+  Bytes init = Rfb().version().security_list({1}).security_result(0).server_init(64, 48, std::string(700, 'n')).bytes;
+  s.deliver(Bytes(init.begin(), init.end() - 1));
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_HANDSHAKE);
+  s.deliver(Bytes(init.end() - 1, init.end()));
+  EXPECT_TRUE(s.client.is_connected());
+}
+
 TEST(VncHandshake, EmptyServerScreenIsTransient) {
   FakeDisplay display(64, 48);
   Session s(&display);

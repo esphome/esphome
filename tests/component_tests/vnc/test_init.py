@@ -69,6 +69,42 @@ touchscreen:
 """
 
 
+S3_BASE = """
+esphome:
+  name: vnc-test
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+wifi:
+  ssid: MySSID
+  password: password1
+"""
+
+RPI_DPI_RGB = """
+display:
+  - platform: rpi_dpi_rgb
+    id: rgb
+    dimensions:
+      width: 800
+      height: 480
+    de_pin: 40
+    hsync_pin: 39
+    vsync_pin: 41
+    pclk_pin: 42
+    data_pins:
+      red: [45, 48, 47, 21, 14]
+      green: [5, 6, 7, 15, 16, 4]
+      blue: [8, 3, 46, 9, 1]
+"""
+
+
 @pytest.fixture(autouse=True)
 def _clear_toolchain() -> None:
     # A host build earlier in the same session leaves the host toolchain selected.
@@ -77,9 +113,9 @@ def _clear_toolchain() -> None:
 
 @pytest.fixture
 def write_yaml(tmp_path: Path) -> Callable[..., Path]:
-    def writer(*parts: str) -> Path:
+    def writer(*parts: str, base: str = BASE) -> Path:
         path = tmp_path / "vnc.yaml"
-        path.write_text(BASE + "".join(parts), encoding="utf-8")
+        path.write_text(base + "".join(parts), encoding="utf-8")
         return path
 
     return writer
@@ -91,8 +127,8 @@ def config_error(
 ) -> Callable[..., str]:
     """Validate a config that must fail and return the printed errors."""
 
-    def validate(*parts: str) -> str:
-        CORE.config_path = write_yaml(*parts)
+    def validate(*parts: str, base: str = BASE) -> str:
+        CORE.config_path = write_yaml(*parts, base=base)
         assert read_config({}) is None
         return capsys.readouterr().out
 
@@ -412,6 +448,18 @@ display:
     )
 
     assert "Display 'epd' uses the mipi_spi platform" in out
+
+
+def test_rotated_rpi_dpi_rgb_rejected(config_error: Callable[..., str]) -> None:
+    out = config_error(RPI_DPI_RGB, "    rotation: 90\n", VNC, base=S3_BASE)
+
+    assert "Display 'rgb' uses the rpi_dpi_rgb platform, which ignores rotation" in out
+
+
+def test_unrotated_rpi_dpi_rgb_accepted(write_yaml: Callable[..., Path]) -> None:
+    CORE.config_path = write_yaml(RPI_DPI_RGB, VNC, base=S3_BASE)
+
+    assert read_config({}) is not None
 
 
 def test_waveshare_epaper_rejected(config_error: Callable[..., str]) -> None:

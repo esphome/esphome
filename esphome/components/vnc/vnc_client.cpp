@@ -635,11 +635,13 @@ VncParse VncClient::parse_() {
         ESP_LOGI(TAG, "Server '%.*s', %ux%u, RFB 3.%u", static_cast<int>(this->text_len_),
                  reinterpret_cast<const char *>(p), this->fb_w_, this->fb_h_, this->minor_);
         this->rx_pos_ += this->text_len_;
-        const uint32_t rest = this->skip_left_ - this->text_len_;
-        this->start_session_(App.get_loop_component_start_time());
-        this->skip_(rest, VncStep::VNC_STEP_MESSAGE);
+        this->skip_(this->skip_left_ - this->text_len_, VncStep::VNC_STEP_SESSION_START);
         break;
       }
+      case VncStep::VNC_STEP_SESSION_START:
+        this->start_session_(App.get_loop_component_start_time());
+        this->step_ = VncStep::VNC_STEP_MESSAGE;
+        break;
       case VncStep::VNC_STEP_MESSAGE: {
         if (avail < 1) {
           return VncParse::VNC_PARSE_MORE;

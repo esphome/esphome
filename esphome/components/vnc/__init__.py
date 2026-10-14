@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PLATFORM,
     CONF_PORT,
+    CONF_ROTATION,
     CONF_TEXT,
     CONF_X,
     CONF_Y,
@@ -70,6 +71,8 @@ UNSUPPORTED_DISPLAYS = {
     "mipi_spi": "it is not supported by vnc yet",
     "waveshare_epaper": "it draws every colour except pure black as ink; use epaper_spi",
 }
+# Their RGB565 fast path draws in panel coordinates and skips software rotation.
+UNROTATED_DISPLAYS = ("rpi_dpi_rgb", "st7701s")
 
 
 def validate_password(value: object) -> str:
@@ -146,6 +149,12 @@ def _final_validate(config: ConfigType) -> None:
         raise cv.Invalid(
             f"Display '{disp_id}' uses the {platform} platform: "
             f"{UNSUPPORTED_DISPLAYS[platform]}",
+            path=[CONF_DISPLAY_ID],
+        )
+    if platform in UNROTATED_DISPLAYS and disp_conf.get(CONF_ROTATION, 0):
+        raise cv.Invalid(
+            f"Display '{disp_id}' uses the {platform} platform, which ignores rotation "
+            "for pixels drawn by vnc; remove rotation from it",
             path=[CONF_DISPLAY_ID],
         )
     if (
