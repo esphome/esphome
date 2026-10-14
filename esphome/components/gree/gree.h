@@ -95,6 +95,17 @@ class GreeClimate final : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
+  void set_use_fahrenheit(bool use_fahrenheit) { this->use_fahrenheit_ = use_fahrenheit; }
+
+  /// Map a Celsius target onto the (Temp, TempExtraDegreeF) pair whose Fahrenheit display matches it.
+  ///
+  /// The unit displays trunc(celsiusToFahrenheit(GREE_TEMP_MIN + temp_field + 0.5 * extra_degree)):
+  /// TempExtraDegreeF is a half-degree *Celsius* step, not an extra Fahrenheit degree as its name
+  /// suggests. Every whole degree from 61 to 86 F is reachable that way, so search for the pair whose
+  /// displayed value matches rather than converting with a rounding fudge factor.
+  ///
+  /// Static and public so it can be unit-tested without a transmitter.
+  static void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_degree);
   void set_mode_bit(uint8_t bit_mask, bool enabled);
 
  protected:

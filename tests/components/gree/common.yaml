@@ -3,6 +3,7 @@ climate:
     name: GREE
     id: my_gree_ac
     model: YAN
+    use_fahrenheit: true
     transmitter_id: xmitr
 
 switch:

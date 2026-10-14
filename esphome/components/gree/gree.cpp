@@ -1,4 +1,7 @@
 #include "gree.h"
+
+#include <climits>
+#include <cmath>
 #include "esphome/components/remote_base/remote_base.h"
 
 namespace esphome::gree {
@@ -27,6 +30,30 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
     this->mode_bits_ &= ~bit_mask;
   }
   this->transmit_state();
+}
+
+void GreeClimate::fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_degree) {
+  temp_field = 0;
+  extra_degree = false;
+  if (!std::isfinite(target_celsius)) {
+    return;
+  }
+
+  const int desired_f = static_cast<int>(roundf(target_celsius * 9.0f / 5.0f + 32.0f));
+  int best_error = INT_MAX;
+  for (uint8_t candidate = 0; candidate <= (GREE_TEMP_MAX - GREE_TEMP_MIN); candidate++) {
+    for (uint8_t half = 0; half <= 1; half++) {
+      const float celsius = static_cast<float>(GREE_TEMP_MIN + candidate) + 0.5f * static_cast<float>(half);
+      // The unit truncates rather than rounds when converting to Fahrenheit.
+      const int shown = static_cast<int>(celsius * 9.0f / 5.0f + 32.0f);
+      const int error = shown > desired_f ? shown - desired_f : desired_f - shown;
+      if (error < best_error) {
+        best_error = error;
+        temp_field = candidate;
+        extra_degree = half != 0;
+      }
+    }
+  }
 }
 
 void GreeClimate::transmit_state() {
@@ -86,8 +113,28 @@ void GreeClimate::transmit_state() {
     }
   }
 
+  // Fahrenheit display. byte 3 bit 3 selects Fahrenheit on the unit's own panel and bit 2 is
+  // TempExtraDegreeF, a half-degree Celsius step. Verified against frames captured from a real YX1FF
+  // remote on a Blueridge mini-split, and confirmed on the unit's display at 65, 71, 77 and 78 F.
+  if (this->use_fahrenheit_) {
+    remote_state[3] |= 0x08;
+    uint8_t temp_field;
+    bool extra_degree;
+    fahrenheit_fields(this->target_temperature, temp_field, extra_degree);
+    remote_state[1] = temp_field;
+    if (extra_degree) {
+      remote_state[3] |= 0x04;
+    }
+  }
+
   // Calculate the checksum
-  if (model == GREE_YAN || model == GREE_YX1FF) {
+  // NOTE: the YAN/YX1FF formula below does not include byte 3, so it cannot follow the Fahrenheit
+  // bits and the unit rejects such a frame. Every frame captured from a real YX1FF remote -- in both
+  // Celsius and Fahrenheit -- matches the generic formula instead, which suggests the YAN/YX1FF
+  // variant may be wrong in general. It is left in place for Celsius so that existing YAN and YX1FF
+  // installations are bit-for-bit unchanged; only hardware owners can confirm whether the generic
+  // formula should apply to those models unconditionally. See the linked issue.
+  if ((model == GREE_YAN || model == GREE_YX1FF) && !this->use_fahrenheit_) {
     remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
   } else {
     remote_state[7] =
