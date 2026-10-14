@@ -331,7 +331,7 @@
 #define USE_NOISE
 #define USE_NOISE_SPARE_EPHEMERAL
 #define USE_SHA256
-#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
+#if !defined(USE_RP2) && !defined(USE_HOST)  // no MQTT backend or esp_wireguard library on RP2 and host
 #define USE_MQTT
 #define USE_MQTT_COVER_JSON
 #define USE_WIREGUARD
