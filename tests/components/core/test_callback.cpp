@@ -53,7 +53,7 @@ TEST(CallbackCreate, MutableStateIsKeptAcrossCalls) {
   auto counter = [n = 0](int x) mutable { mutable_seen = (n += x); };
   static_assert(sizeof(counter) <= sizeof(void *) && std::is_trivially_copyable_v<decltype(counter)>);
   // create() never frees its heap path; held for the whole run like a callback registered in setup().
-  static const auto cb = IntCallback::create(counter);
+  static auto cb = IntCallback::create(counter);
   cb.call(1);
   cb.call(2);
   EXPECT_EQ(mutable_seen, 3);
