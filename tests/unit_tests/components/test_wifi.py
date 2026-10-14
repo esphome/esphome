@@ -251,3 +251,25 @@ def test_wisp_mode_accepts_ap_password(monkeypatch: pytest.MonkeyPatch) -> None:
         wifi_final_validate(config)
     finally:
         fv.full_config.reset(token)
+
+
+def test_wisp_mode_rejects_captive_portal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The WISP access point never runs the captive portal."""
+    monkeypatch.setitem(
+        CORE.data,
+        KEY_CORE,
+        {
+            KEY_TARGET_PLATFORM: Platform.ESP32,
+            KEY_TARGET_FRAMEWORK: "esp-idf",
+        },
+    )
+    config = {
+        CONF_NETWORKS: [{}],
+        CONF_AP: {CONF_AP_MODE: "WISP", CONF_PASSWORD: "securepassword"},
+    }
+    token = fv.full_config.set({CONF_WIFI: config, "captive_portal": {}})
+    try:
+        with pytest.raises(cv.Invalid, match="captive_portal"):
+            wifi_final_validate(config)
+    finally:
+        fv.full_config.reset(token)

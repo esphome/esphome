@@ -212,11 +212,7 @@ WIFI_8266_PHY_MODES = {
     "11N": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11N,
 }
 
-WiFiAPMode = wifi_ns.enum("WiFiAPMode")
-WIFI_AP_MODES = {
-    "FALLBACK": WiFiAPMode.WIFI_AP_MODE_FALLBACK,
-    "WISP": WiFiAPMode.WIFI_AP_MODE_WISP,
-}
+WIFI_AP_MODES = ("FALLBACK", "WISP")
 
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
@@ -313,8 +309,8 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
         cv.Optional(
             CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_AP_MODE, default="FALLBACK"): cv.enum(
-            WIFI_AP_MODES, upper=True
+        cv.Optional(CONF_AP_MODE, default="FALLBACK"): cv.one_of(
+            *WIFI_AP_MODES, upper=True
         ),
         cv.Optional(CONF_DNS_SERVERS): cv.All(
             cv.ensure_list(cv.ipv4address), cv.Length(min=1, max=2)
@@ -408,10 +404,9 @@ def final_validate(config):
                 )
             if CONF_DNS_SERVERS in ap_config and not ap_is_wisp_mode:
                 raise cv.Invalid("wifi.ap.dns_servers requires ap_mode: WISP")
-            if ap_is_wisp_mode and CONF_DNS_SERVERS not in ap_config:
-                _LOGGER.warning(
-                    "WISP mode is enabled but no dns_servers are configured. "
-                    "Clients may not receive DNS via DHCP."
+            if ap_is_wisp_mode and has_captive_portal:
+                raise cv.Invalid(
+                    "captive_portal is not supported together with ap_mode: WISP"
                 )
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp_mode:
@@ -756,7 +751,6 @@ async def to_code(config):
             cg.add(var.set_ap_timeout(ap_timeout))
         # Configure NAT routing if WISP mode is enabled
         if conf[CONF_AP_MODE] == "WISP":
-            cg.add(var.set_ap_mode(WiFiAPMode.WIFI_AP_MODE_WISP))
             cg.add_define("USE_WIFI_NAT")
             # Enable NAT in ESP-IDF sdkconfig
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
@@ -765,7 +759,9 @@ async def to_code(config):
             # Configure upstream DNS servers for DHCP to advertise to clients
             if CONF_DNS_SERVERS in conf:
                 for dns_server in conf[CONF_DNS_SERVERS]:
-                    cg.add(var.add_dns_server(ip_address_literal(str(dns_server))))
+                    # lwIP stores IPv4 addresses with the first octet in the lowest byte
+                    packed = int.from_bytes(dns_server.packed, "little")
+                    cg.add(var.add_dns_server(cg.RawExpression(f"0x{packed:08X}U")))
 
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP

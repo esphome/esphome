@@ -662,8 +662,8 @@ void WiFiComponent::setup() {
   if (provisioning::global_provisioning_manager != nullptr) {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
       this->end_ap_portal_();  // no-op when nothing is active, so not tied to ap_setup_
-      // In WISP mode the AP is a bridge, not a provisioning surface, so it stays up
-      if (this->ap_setup_ && this->ap_mode_ != WIFI_AP_MODE_WISP) {
+#ifndef USE_WIFI_NAT           // In WISP mode the AP is a bridge, not a provisioning surface, so it stays up
+      if (this->ap_setup_) {
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
 #ifdef USE_WIFI_AP_EXCLUSIVE
         // The networks wait while the AP runs on its own; hand them the radio
@@ -675,6 +675,7 @@ void WiFiComponent::setup() {
 #endif
         this->wifi_mode_({}, false);
       }
+#endif
     });
   }
 #endif
@@ -737,9 +738,11 @@ void WiFiComponent::start() {
 
 #ifdef USE_WIFI_AP
     // Start AP immediately if WISP mode is enabled (before STA connection starts)
-    if (this->has_ap() && this->ap_mode_ == WIFI_AP_MODE_WISP) {
+#ifdef USE_WIFI_NAT
+    if (this->has_ap()) {
       this->setup_ap_config_();
     }
+#endif
 #endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
@@ -1753,18 +1756,11 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #ifdef USE_WIFI_AP
     if (this->has_ap()) {
 #ifdef USE_WIFI_NAT
-      if (this->ap_mode_ == WIFI_AP_MODE_WISP) {
-        // The AP stays up as a bridge; only the setup portals are torn down (don't expose them to the internet)
-        this->end_ap_portal_();
-        ESP_LOGD(TAG, "Keeping AP active in WISP mode");
-        if (this->ap_setup_) {
-          this->enable_nat_esp_idf_();
-        }
-      } else
+      // The WISP AP stays up as a bridge; only the setup portals are torn down
+      this->end_ap_portal_();
+#else
+      this->disable_ap_();
 #endif
-      {
-        this->disable_ap_();
-      }
     }
 #endif
 #ifdef USE_IMPROV_BLE
