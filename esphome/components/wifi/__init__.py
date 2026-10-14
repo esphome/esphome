@@ -18,9 +18,9 @@ from esphome.components.esp32 import (
 from esphome.components.network import (
     add_use_address,
     get_network_priority,
-    has_high_performance_networking,
+    has_high_performance_wifi,
     ip_address_literal,
-    require_high_performance_networking,
+    require_high_performance_wifi,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
@@ -428,8 +428,8 @@ def final_validate(config):
             raise cv.Invalid(
                 "captive_portal is not supported together with ap_mode: WISP"
             )
-        # All client traffic passes through the device
-        require_high_performance_networking()
+        # Every client packet passes through the WiFi driver, none through the device's own sockets
+        require_high_performance_wifi()
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
@@ -891,8 +891,8 @@ async def to_code(config):
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
-    # Apply high performance WiFi settings if high performance networking is enabled
-    if CORE.is_esp32 and has_high_performance_networking():
+    # Apply high performance WiFi settings if a component asked for them
+    if CORE.is_esp32 and has_high_performance_wifi():
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
 

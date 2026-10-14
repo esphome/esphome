@@ -27,7 +27,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # High performance networking tracking infrastructure
 # Components can request high performance networking and this configures lwip and WiFi settings
-KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
+KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"  # lwip tier
+KEY_HIGH_PERFORMANCE_WIFI = "high_performance_wifi"  # WiFi driver buffers
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 CONF_TCP_SEND_BUFFER = "tcp_send_buffer"
 
@@ -225,9 +226,24 @@ def require_high_performance_networking() -> None:
             _request_high_performance_networking,
         )
     """
-    # Only set up once (idempotent - multiple components can call this)
-    if not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False):
-        CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+    CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+    require_high_performance_wifi()
+
+
+def require_high_performance_wifi() -> None:
+    """Request only the WiFi driver part of high performance networking.
+
+    For traffic that passes through the device below its own sockets, such as the
+    NAT of a WISP access point: more RX/TX buffers and AMPDU aggregation help every
+    forwarded packet, while the larger lwip TCP windows would only serve the
+    device's own connections and cost internal RAM for nothing.
+    """
+    CORE.data[KEY_HIGH_PERFORMANCE_WIFI] = True
+
+
+def has_high_performance_wifi() -> bool:
+    """True when a component asked for the high performance WiFi driver settings."""
+    return CORE.data.get(KEY_HIGH_PERFORMANCE_WIFI, False)
 
 
 def has_high_performance_networking() -> bool:

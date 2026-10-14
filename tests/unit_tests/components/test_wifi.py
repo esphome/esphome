@@ -3,6 +3,10 @@
 import pytest
 
 from esphome.components.esp32 import const
+from esphome.components.network import (
+    KEY_HIGH_PERFORMANCE_NETWORKING,
+    KEY_HIGH_PERFORMANCE_WIFI,
+)
 from esphome.components.wifi import (
     CONF_AP_MODE,
     CONF_AP_TIMEOUT,
@@ -319,3 +323,6 @@ def test_wisp_rejects_captive_portal() -> None:
 @pytest.mark.usefixtures("wisp_core")
 def test_wisp_final_validate_accepts_sta_and_ap() -> None:
     _final_validate({CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()})
+    # NAT needs the WiFi driver buffers, not the lwip TCP windows
+    assert CORE.data.get(KEY_HIGH_PERFORMANCE_WIFI) is True
+    assert not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING)
