@@ -51,7 +51,7 @@ class OpenThreadComponent final : public Component {
   /// Returns true once the OpenThread stack is initialized and the OT lock is usable.
   bool is_lock_initialized() const { return this->lock_initialized_; }
 #ifdef USE_ESP32
-  /// True once the OpenThread task gave up; waiting for its lock would never end
+  /// True once the OpenThread task failed or gave up on its radio
   bool is_task_failed() const { return this->task_failed_; }
 #endif
   network::IPAddresses get_ip_addresses();

@@ -301,9 +301,10 @@ bool OpenThreadComponent::teardown() {
       // Stop OpenThread
       global_openthread_component = nullptr;
       ESP_LOGV(TAG, "Stop OpenThread");
-      int error = this->openthread_stop_();
-      if (error != 0) {
+      if (int error = this->openthread_stop_(); error != 0) {
+        // Nothing will mark the stage complete for us; do not wait out the teardown timeout
         ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
+        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
       }
     } break;
     case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:

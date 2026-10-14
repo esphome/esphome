@@ -240,6 +240,7 @@ void OpenThreadComponent::ot_main_() {
 
   // Clean up - reset lock flag before deinit destroys the semaphore
   this->lock_initialized_ = false;
+  this->connected_ = false;
   esp_openthread_netif_glue_deinit();
   esp_netif_destroy(netif);
   esp_openthread_deinit();
@@ -327,10 +328,10 @@ InstanceLock InstanceLock::try_acquire(int delay) {
   return InstanceLock(esp_openthread_lock_acquire(delay));
 }
 
-// The lock only comes back once the task that owns it is gone, so waiting would never end
+// A failed task may never release the lock again, so waiting for it could never end
 static void abort_if_task_failed() {
   if (global_openthread_component->is_task_failed()) {
-    ESP_LOGE(TAG, "OpenThread failed to start, cannot acquire instance lock");
+    ESP_LOGE(TAG, "OpenThread task failed, cannot acquire instance lock");
     abort();
   }
 }
