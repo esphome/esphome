@@ -28,6 +28,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp32_hosted"
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
 AUTO_LOAD = ["watchdog"]
 

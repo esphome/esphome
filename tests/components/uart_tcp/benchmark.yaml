@@ -1,0 +1,3 @@
+# The disconnects counter is compiled only with USE_SENSOR; declaring the
+# sensor domain makes the C++ unit test build define it.
+sensor:

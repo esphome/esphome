@@ -8,7 +8,7 @@
 
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {

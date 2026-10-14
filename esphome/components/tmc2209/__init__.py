@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_THRESHOLD
 
 CODEOWNERS = ["@remcom"]
+DOMAIN = "tmc2209"
 
 CONF_SEDN = "sedn"
 CONF_SEIMIN = "seimin"

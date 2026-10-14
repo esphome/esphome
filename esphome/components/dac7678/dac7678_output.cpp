@@ -5,7 +5,7 @@
 
 namespace esphome::dac7678 {
 
-static const char *const TAG = "dac7678";
+ESPHOME_LOG_TAG(TAG, "dac7678");
 
 static const uint8_t DAC7678_REG_INPUT_N = 0x00;
 static const uint8_t DAC7678_REG_SELECT_UPDATE_N = 0x10;

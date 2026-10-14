@@ -17,7 +17,7 @@ using MideaPreset = dudanov::midea::ac::Preset;
 
 class Constants {
  public:
-  static const char *const TAG;
+  static const char TAG[];  // PROGMEM, like ESPHOME_LOG_TAG
   static const char *const FREEZE_PROTECTION;
   static const char *const SILENT;
   static const char *const TURBO;

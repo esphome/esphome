@@ -5,7 +5,7 @@
 
 namespace esphome::tm1621 {
 
-static const char *const TAG = "tm1621";
+ESPHOME_LOG_TAG(TAG, "tm1621");
 
 const uint8_t TM1621_PULSE_WIDTH = 10;  // microseconds (Sonoff = 100)
 

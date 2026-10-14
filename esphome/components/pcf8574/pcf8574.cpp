@@ -3,7 +3,7 @@
 
 namespace esphome::pcf8574 {
 
-static const char *const TAG = "pcf8574";
+ESPHOME_LOG_TAG(TAG, "pcf8574");
 
 void PCF8574Component::setup() {
   if (!this->read_gpio_()) {
@@ -12,8 +12,13 @@ void PCF8574Component::setup() {
     return;
   }
 
-  this->write_gpio_();
-  this->read_gpio_();
+  if (this->reset_) {
+    this->write_gpio_();
+    this->read_gpio_();
+  } else {
+    this->output_mask_ = this->input_mask_;
+    this->mode_mask_ = ~this->configured_input_pins_;
+  }
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
@@ -40,8 +45,9 @@ void PCF8574Component::loop() {
 void PCF8574Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PCF8574:\n"
-                "  Is PCF8575: %s",
-                YESNO(this->pcf8575_));
+                "  Is PCF8575: %s\n"
+                "  Reset: %s",
+                YESNO(this->pcf8575_), YESNO(this->reset_));
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
@@ -82,20 +88,12 @@ void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 bool PCF8574Component::read_gpio_() {
   if (this->is_failed())
     return false;
-  bool success;
-  uint8_t data[2];
-  if (this->pcf8575_) {
-    success = this->read_bytes_raw(data, 2);
-    this->input_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
-  } else {
-    success = this->read_bytes_raw(data, 1);
-    this->input_mask_ = data[0];
-  }
-
-  if (!success) {
+  uint8_t data[2]{};  // Keep the bytes zero for the PCF8574's one-byte read.
+  if (!this->read_bytes_raw(data, this->pcf8575_ ? 2 : 1)) {
     this->status_set_warning();
     return false;
   }
+  this->input_mask_ = (uint16_t(data[1]) << 8) | data[0];
   this->status_clear_warning();
   return true;
 }
@@ -123,6 +121,11 @@ bool PCF8574Component::write_gpio_() {
 float PCF8574Component::get_setup_priority() const { return setup_priority::IO; }
 
 void PCF8574GPIOPin::setup() { pin_mode(flags_); }
+void PCF8574GPIOPin::set_flags(gpio::Flags flags) {
+  this->flags_ = flags;
+  if (flags & gpio::FLAG_INPUT)
+    this->parent_->register_input_pin(this->pin_);
+}
 void PCF8574GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool PCF8574GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void PCF8574GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }

@@ -12,7 +12,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.component";
+ESPHOME_LOG_TAG(TAG, "mqtt.component");
 
 // Entity category MQTT strings indexed by EntityCategory enum: NONE(0) is skipped, CONFIG(1), DIAGNOSTIC(2)
 PROGMEM_STRING_TABLE(EntityCategoryMqttStrings, "", "config", "diagnostic");

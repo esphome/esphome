@@ -16,6 +16,7 @@ from esphome.const import (
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "rf_bridge"
 
 rf_bridge_ns = cg.esphome_ns.namespace("rf_bridge")
 RFBridgeComponent = rf_bridge_ns.class_(

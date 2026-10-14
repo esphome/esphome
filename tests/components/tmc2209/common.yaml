@@ -120,5 +120,5 @@ sensor:
       name: PWM Gradient Auto
   - platform: tmc2209
     tmc2209_id: tmc2209_serial
-    actual_current:
-      name: Serial Actual Current
+    stallguard_result:
+      name: Serial StallGuard Result

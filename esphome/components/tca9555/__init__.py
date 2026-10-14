@@ -15,6 +15,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mobrembski"]
+DOMAIN = "tca9555"
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
@@ -62,7 +63,7 @@ TCA9555_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_TCA9555): cv.use_id(TCA9555Component),
+        cv.Required(CONF_TCA9555): pins.use_id_or_address(TCA9555Component),
     }
 )
 

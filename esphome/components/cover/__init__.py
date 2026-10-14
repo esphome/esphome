@@ -62,6 +62,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 ]
+DOMAIN = "cover"
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.number";
+ESPHOME_LOG_TAG(TAG, "homeassistant.number");
 
 void HomeassistantNumber::state_changed_(StringRef state) {
   auto number_value = parse_number<float>(state.c_str());
@@ -79,6 +79,13 @@ void HomeassistantNumber::control(float value) {
     ESP_LOGE(TAG, "No clients connected to API server");
     return;
   }
+
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
 
   this->publish_state(value);
 

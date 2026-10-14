@@ -17,6 +17,8 @@ KEY_SERIAL_REQUIRED = "serial_required"
 KEY_SERIAL1_REQUIRED = "serial1_required"
 # Set for the native (non-PlatformIO) toolchain's build generator
 KEY_SCANF_FLOAT = "scanf_float"
+# Force-included std::__throw_* overrides, relative to the src dir
+THROW_STUBS_HEADER = "esphome/components/esp8266/throw_stubs.h"
 # Per-board flash-layout override consumed by board_ld_script()
 KEY_LDSCRIPT = "ldscript"
 # Crash-decode tools, resolved once per run by __init__

@@ -3,7 +3,7 @@
 
 namespace esphome::as5600 {
 
-static const char *const TAG = "as5600";
+ESPHOME_LOG_TAG(TAG, "as5600");
 
 // Configuration registers
 static const uint8_t REGISTER_ZMCO = 0x00;  // 8 bytes  / R

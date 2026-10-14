@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.text_sensor";
+ESPHOME_LOG_TAG(TAG, "mqtt.text_sensor");
 
 using namespace esphome::text_sensor;
 

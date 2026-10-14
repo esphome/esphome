@@ -7,7 +7,7 @@
 
 namespace esphome::ring_buffer {
 
-static const char *const TAG = "ring_buffer";
+ESPHOME_LOG_TAG(TAG, "ring_buffer");
 
 RingBuffer::~RingBuffer() {
   // create() only builds the ring buffer once storage_ is allocated
