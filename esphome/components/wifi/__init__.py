@@ -759,11 +759,9 @@ async def to_code(config):
             cg.add(var.set_ap_timeout(ap_timeout))
 
         if conf.get(CONF_COEXIST, False):
-            cg.add(var.set_ap_coexist(True))
             cg.add_define("USE_WIFI_APSTA")
 
         if conf.get(CONF_NAPT, False):
-            cg.add(var.set_ap_napt(True))
             cg.add_define("USE_WIFI_AP_NAPT")
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)

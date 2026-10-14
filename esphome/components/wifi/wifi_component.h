@@ -477,12 +477,6 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
-#ifdef USE_WIFI_APSTA
-  void set_ap_coexist(bool coexist) { this->ap_coexist_ = coexist; }
-#endif
-#ifdef USE_WIFI_AP_NAPT
-  void set_ap_napt(bool napt) { this->ap_napt_ = napt; }
-#endif
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -721,9 +715,6 @@ class WiFiComponent final : public Component {
   void setup_ap_config_();
   /// End the portals and turn the AP off.
   void disable_ap_();
-  /// End the captive portal, leaving the AP in place. Does nothing when no portal
-  /// is being served right now.
-  void stop_captive_portal_();
 #ifdef USE_WIFI_AP_EXCLUSIVE
   /// Drop the fallback AP so the networks can be tried; it comes back after ap_timeout.
   void pause_exclusive_ap_();
@@ -832,15 +823,6 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_AP
   bool wifi_ap_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
-#ifdef USE_WIFI_AP_NAPT
-  /// Advertise the station's DNS server to AP clients; see the definition in
-  /// wifi_component_esp_idf.cpp for the contract.
-  bool apply_sta_dns_to_ap_();
-#endif  // USE_WIFI_AP_NAPT
-#ifdef USE_CAPTIVE_PORTAL
-  /// Bring up the captive portal on the AP that has just started.
-  void start_captive_portal_();
-#endif  // USE_CAPTIVE_PORTAL
 #endif  // USE_WIFI_AP
 
   bool wifi_disconnect_();
@@ -852,7 +834,9 @@ class WiFiComponent final : public Component {
   bool is_captive_portal_active_();
   /// captive_portal or the web_server AP mode is serving a user on the access point
   bool is_ap_portal_active_();
+  /// Bring up the portal that serves the access point, if it is not up already.
   void start_ap_portal_();
+  /// Tear down the portal that serves the access point, if one is up.
   void end_ap_portal_();
   bool is_improv_ble_active_();
 
@@ -1085,11 +1069,7 @@ class WiFiComponent final : public Component {
   bool ap_setup_{false};
   bool ap_started_{false};
 #ifdef USE_WIFI_APSTA
-  bool ap_coexist_{false};
   uint32_t ap_coexist_last_attempt_{0};  // 0 = not attempted yet; throttles coexist AP retries
-#endif
-#ifdef USE_WIFI_AP_NAPT
-  bool ap_napt_{false};
 #endif
 #ifdef USE_WIFI_AP_EXCLUSIVE
   uint8_t ap_clients_{0};  // Devices joined to the AP, which keep it from pausing

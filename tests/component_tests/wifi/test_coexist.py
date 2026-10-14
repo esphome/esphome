@@ -2,7 +2,9 @@
 
 Both options live in the ``wifi:`` ``ap:`` block and are ESP32/ESP-IDF only;
 ``coexist:`` keeps the access point up while the station stays connected, and
-``napt:`` routes the AP subnet out through the station.
+``napt:`` routes the AP subnet out through the station. Both are compile-time
+choices: they emit the ``USE_WIFI_APSTA`` and ``USE_WIFI_AP_NAPT`` defines and no
+C++ setters, so the firmware either has the mode or it does not.
 """
 
 from collections.abc import Callable
@@ -50,8 +52,6 @@ def test_coexist_emits_apsta_without_napt(
     main_cpp = generate_main(component_config_path(config_file))
     defines = _defines()
 
-    assert "set_ap_coexist(true);" in main_cpp
-    assert "set_ap_napt(" not in main_cpp
     assert _AP_DEFINE in defines
     assert _APSTA_DEFINE in defines
     assert _NAPT_DEFINE not in defines
@@ -66,11 +66,9 @@ def test_napt_emits_ip_forwarding(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """``napt:`` turns on lwip forwarding and the driver's NAPT hook."""
-    main_cpp = generate_main(component_config_path("coexist_napt.yaml"))
+    generate_main(component_config_path("coexist_napt.yaml"))
     defines = _defines()
 
-    assert "set_ap_coexist(true);" in main_cpp
-    assert "set_ap_napt(true);" in main_cpp
     assert _APSTA_DEFINE in defines
     assert _NAPT_DEFINE in defines
     assert sdkconfig_option("CONFIG_LWIP_IP_FORWARD") is True
@@ -85,8 +83,6 @@ def test_ap_defaults_stay_plain(
     main_cpp = generate_main(component_config_path("ap_default.yaml"))
     defines = _defines()
 
-    assert "set_ap_coexist(" not in main_cpp
-    assert "set_ap_napt(" not in main_cpp
     assert _AP_DEFINE in defines
     assert _APSTA_DEFINE not in defines
     assert _NAPT_DEFINE not in defines

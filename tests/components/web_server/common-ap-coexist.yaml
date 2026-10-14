@@ -1,0 +1,16 @@
+# AP mode with AP+STA coexistence: the access point stays up while the station is
+# connected, so the captive mode follows the station instead - it is ended when the
+# station connects and served again while the station is down, without captive_portal.
+wifi:
+  networks:
+    - ssid: MySSID
+      password: password1
+  # coexist: true is rejected while the default post_connect_roaming applies
+  post_connect_roaming: false
+  ap:
+    ssid: "ESPHome-Test"
+    password: "Test1234!"
+    coexist: true
+
+web_server:
+  local: true
