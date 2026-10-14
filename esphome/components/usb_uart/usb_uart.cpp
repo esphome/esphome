@@ -434,8 +434,7 @@ void USBUartTypeCdcAcm::on_connected() {
     if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
         channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
       if (!this->claim_comm_interface_) {
-        ESP_LOGD(TAG, "Skipping comm interface %d (claim_comm_interface: false)",
-                 channel->cdc_dev_.interrupt_interface_number);
+        ESP_LOGD(TAG, "Comm interface %d left unclaimed", channel->cdc_dev_.interrupt_interface_number);
       } else {
         auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
                                                  channel->cdc_dev_.interrupt_interface_number, 0);
