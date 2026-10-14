@@ -111,9 +111,9 @@ static uint8_t find_nearest_index(float value, const float *arr, int size) {
 }
 
 // Read with 32-bit loads or progmem_memcpy only; the radar takes the floats little-endian
-static const float INSTALL_HEIGHT[7] PROGMEM = {2.4f, 2.5f, 2.6f, 2.7f, 2.8f, 2.9f, 3.0f};
-static const float HEIGHT_THRESHOLD[7] PROGMEM = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f};
-static const float SENSITIVITY[3] PROGMEM = {3, 15, 30};
+alignas(4) static const float INSTALL_HEIGHT[7] PROGMEM = {2.4f, 2.5f, 2.6f, 2.7f, 2.8f, 2.9f, 3.0f};
+alignas(4) static const float HEIGHT_THRESHOLD[7] PROGMEM = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f};
+alignas(4) static const float SENSITIVITY[3] PROGMEM = {3, 15, 30};
 
 /**
  * @brief Convert a 32-bit unsigned integer to a byte array.
