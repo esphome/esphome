@@ -277,7 +277,11 @@ bool OpenThreadComponent::teardown() {
           ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
           return false;
         }
-        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
+        // The OpenThread task may have completed on its own in the meantime; never move back from there
+        TeardownStage expected = TeardownStage::TEARDOWN_STAGE_NOT_STARTED;
+        if (!this->teardown_stage_.compare_exchange_strong(expected, TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS)) {
+          break;
+        }
         otInstance *instance = lock.get_instance();
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
         if (this->border_router_started_) {

@@ -191,9 +191,11 @@ def set_sdkconfig_options(config: ConfigType) -> None:
     require_mbedtls_tls_extras(
         ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
     )
+    # Widens the TLS role only where TLS is compiled in: a commissioner or border agent enabled
+    # through sdkconfig_options needs the DTLS server side too
+    require_mbedtls_tls_server()
     if border_router:
         require_mbedtls_tls()
-        require_mbedtls_tls_server()
 
     if not config.get(CONF_TLV):
         if (pan_id := config.get(CONF_PAN_ID)) is not None:

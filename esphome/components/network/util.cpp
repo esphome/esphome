@@ -15,11 +15,18 @@ void fill_ip6_addresses(esp_netif_t *netif, IPAddresses &addresses) {
   size_t count = esp_netif_get_all_ip6(netif, ip6s);
   // Slot 0 holds the IPv4 address
   if (count > addresses.size() - 1) {
-    static bool truncation_logged = false;
-    if (!truncation_logged) {
-      truncation_logged = true;
-      ESP_LOGW(TAG, "%s has %zu IPv6 addresses, only %zu are reported", esp_netif_get_desc(netif), count,
-               addresses.size() - 1);
+    // Warn once per interface
+    static esp_netif_t *warned[3]{};
+    for (auto &slot : warned) {
+      if (slot == netif) {
+        break;
+      }
+      if (slot == nullptr) {
+        slot = netif;
+        ESP_LOGW(TAG, "%s has %zu IPv6 addresses, only %zu are reported", esp_netif_get_desc(netif), count,
+                 addresses.size() - 1);
+        break;
+      }
     }
     count = addresses.size() - 1;
   }

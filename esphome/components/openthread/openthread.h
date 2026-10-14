@@ -51,8 +51,8 @@ class OpenThreadComponent final : public Component {
   /// Returns true once the OpenThread stack is initialized and the OT lock is usable.
   bool is_lock_initialized() const { return this->lock_initialized_; }
 #ifdef USE_ESP32
-  /// True once the OpenThread task failed or gave up on its radio
-  bool is_task_failed() const { return this->task_failed_; }
+  /// True once the OpenThread task has torn the stack down; its lock never comes back
+  bool is_task_exited() const { return this->task_exited_; }
 #endif
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
@@ -105,7 +105,7 @@ class OpenThreadComponent final : public Component {
   std::atomic<TeardownStage> teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
   std::atomic<bool> connected_{false};
 #ifdef USE_ESP32
-  std::atomic<bool> task_failed_{false};
+  std::atomic<bool> task_exited_{false};
 #endif
 #ifdef USE_OPENTHREAD_RCP_UART
   uint32_t rcp_baud_rate_{0};

@@ -143,6 +143,7 @@ void OpenThreadComponent::ot_main_() {
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 
+  otInstance *instance = esp_openthread_get_instance();
   bool launch_mainloop = true;
 #if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART)
   // The native 802.15.4 radio shares the RF frontend with Wi-Fi. Coexistence has to be on before
@@ -162,7 +163,6 @@ void OpenThreadComponent::ot_main_() {
     this->lock_initialized_ = true;
     InstanceLock lock = InstanceLock::acquire();
     esp_openthread_lock_release();
-    otInstance *instance = lock.get_instance();
 
 #ifndef USE_OPENTHREAD_BORDER_ROUTER
     this->apply_linkmode_(instance);
@@ -238,9 +238,15 @@ void OpenThreadComponent::ot_main_() {
     }
   }
 
-  // Clean up - reset lock flag before deinit destroys the semaphore
+  // Clean up. Taking the lock once more lets every guard finish; the stack is stopped and the
+  // lock withdrawn while it is held, before deinit destroys the semaphore.
+  esp_openthread_lock_acquire(portMAX_DELAY);
+  otThreadSetEnabled(instance, false);
+  otIp6SetEnabled(instance, false);
   this->lock_initialized_ = false;
   this->connected_ = false;
+  this->task_exited_ = true;
+  esp_openthread_lock_release();
   esp_openthread_netif_glue_deinit();
   esp_netif_destroy(netif);
   esp_openthread_deinit();
@@ -250,7 +256,6 @@ void OpenThreadComponent::ot_main_() {
 
 // Runs on the OpenThread task; the component state belongs to the main loop
 void OpenThreadComponent::mark_task_failed_() {
-  this->task_failed_ = true;
   this->defer([this]() { this->mark_failed(); });
 }
 
@@ -328,10 +333,10 @@ InstanceLock InstanceLock::try_acquire(int delay) {
   return InstanceLock(esp_openthread_lock_acquire(delay));
 }
 
-// A failed task may never release the lock again, so waiting for it could never end
-static void abort_if_task_failed() {
-  if (global_openthread_component->is_task_failed()) {
-    ESP_LOGE(TAG, "OpenThread task failed, cannot acquire instance lock");
+// The lock went away with the task, so waiting for it could never end
+static void abort_if_task_exited() {
+  if (global_openthread_component->is_task_exited()) {
+    ESP_LOGE(TAG, "OpenThread task has exited, cannot acquire instance lock");
     abort();
   }
 }
@@ -348,7 +353,7 @@ InstanceLock InstanceLock::acquire() {
   constexpr uint32_t lock_init_timeout_ms = 10000;
   uint32_t start = millis();
   while (!global_openthread_component->is_lock_initialized()) {
-    abort_if_task_failed();
+    abort_if_task_exited();
     if (millis() - start > lock_init_timeout_ms) {
       ESP_LOGE(TAG, "OpenThread lock not initialized after %" PRIu32 "ms, aborting", lock_init_timeout_ms);
       abort();
@@ -357,7 +362,7 @@ InstanceLock InstanceLock::acquire() {
     esp_task_wdt_reset();
   }
   while (!esp_openthread_lock_acquire(100)) {
-    abort_if_task_failed();
+    abort_if_task_exited();
     esp_task_wdt_reset();
   }
   return InstanceLock(true);
