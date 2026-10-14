@@ -288,6 +288,21 @@ ANALYZER_SKIPPED_FILES: frozenset[str] = frozenset(
 )
 
 
+# C++-only flags the compile command carries; clang rejects or ignores them for C.
+CXX_ONLY_FLAGS = frozenset(
+    {"-fno-rtti", "-fuse-cxa-atexit", "-fno-use-cxa-atexit", "-fno-threadsafe-statics"}
+)
+
+
+def c_options(options):
+    """The compile command for a C file: the same flags, but as C17 and without C++-only ones."""
+    return [
+        "-std=gnu17" if flag == "-std=gnu++20" else flag
+        for flag in options
+        if flag not in CXX_ONLY_FLAGS
+    ]
+
+
 def run_tidy(
     executable, args, options, tmpdir, path_queue, lock, failed_files, timings
 ):
@@ -329,7 +344,7 @@ def run_tidy(
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
         invocation.append(str(Path(path).resolve()))
         invocation.append("--")
-        invocation.extend(options)
+        invocation.extend(c_options(options) if path.endswith(".c") else options)
 
         proc = subprocess.run(
             invocation,
@@ -429,7 +444,7 @@ def main():
     args = parser.parse_args()
 
     cwd = Path.cwd()
-    files = [os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp"])]
+    files = [os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp", "*.c"])]
     # Exclude benchmark files — they require google benchmark headers not
     # available in the ESP32 toolchain and use different naming conventions.
     files = [f for f in files if not f.startswith("tests/benchmarks/")]
