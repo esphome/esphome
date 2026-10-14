@@ -22,7 +22,7 @@ from esphome.components.esp32 import (
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 from esphome.components.network import add_use_address, request_ipv4_off, require_ipv6
 from esphome.components.nrf52.framework import include_west_project
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_framework_type
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -283,6 +283,26 @@ def _validate_core_option_value(value: Any) -> str:
     return value
 
 
+def _validate_core_options_platform(options: dict[str, str]) -> dict[str, str]:
+    if CORE.is_nrf52:
+        raise cv.Invalid(
+            "core_options is not supported on nRF52: OpenThread is a prebuilt Nordic "
+            "library there"
+        )
+    if not CORE.is_zephyr:
+        return cv.only_on_esp32(options)
+    if zephyr_framework_type() != "zephyr":
+        raise cv.Invalid("core_options on Zephyr requires 'framework: type: zephyr'")
+    # CONFIG_OPENTHREAD_CUSTOM_PARAMETERS is split on spaces into KEY=VALUE definitions
+    for name, value in options.items():
+        if " " in value:
+            raise cv.Invalid(
+                "OpenThread core option value must not contain spaces on Zephyr",
+                path=[name],
+            )
+    return options
+
+
 def _validate_tlv_hex(value: Any) -> str:
     s = cv.string_strict(value)
     if len(s) % 2 != 0:
@@ -316,9 +336,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_CORE_OPTIONS): cv.All(
-                cv.only_on_esp32,
                 {cv.string_strict: _validate_core_option_value},
                 _validate_core_option_names,
+                _validate_core_options_platform,
             ),
         }
     ).extend(_CONNECTION_SCHEMA),
@@ -410,6 +430,13 @@ async def to_code(config: ConfigType) -> None:
         else:
             # Mainline Zephyr builds OpenThread from source.
             zephyr_add_prj_conf("OPENTHREAD_SOURCES", True)
+            if options := config.get(CONF_CORE_OPTIONS):
+                params = " ".join(
+                    f"{name}={value}" for name, value in sorted(options.items())
+                )
+                # A Kconfig string value: escape what would end it early
+                params = params.replace("\\", "\\\\").replace('"', '\\"')
+                zephyr_add_prj_conf("OPENTHREAD_CUSTOM_PARAMETERS", params)
             zephyr_add_prj_conf("OPENTHREAD_SRP_CLIENT", True)
             # SRP client's ECDSA key export uses the same mbedTLS/PSA machinery as a DTLS
             # handshake, and hits PSA_ERROR_INSUFFICIENT_MEMORY at the 1024-byte default.
