@@ -1462,7 +1462,8 @@ void WiFiComponent::disable() {
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
 #ifdef USE_WIFI_AP
-  // The AP went down with the radio; enable() has to configure it again
+  // The AP went down with the radio; enable() has to configure it, and its portal, again
+  this->end_ap_portal_();
   this->ap_setup_ = false;
   this->ap_clients_ = 0;
 #endif
