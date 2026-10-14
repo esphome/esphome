@@ -90,7 +90,12 @@ void MQTTClientComponent::setup() {
     if (logger::crash_log_pending()) {
       char topic[ESPHOME_TOPIC_BUFFER_SIZE];
       format_esphome_topic(topic, "logs");
-      this->subscribe(topic, [](const std::string &, const std::string &) { logger::log_crash_to_client(); });
+      // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
+      // log for every line it logs
+      this->subscribe(topic, [](const std::string &, const std::string &payload) {
+        if (payload.empty())
+          logger::log_crash_to_client();
+      });
     }
 #endif
   }
