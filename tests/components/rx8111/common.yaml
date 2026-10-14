@@ -1,0 +1,11 @@
+esphome:
+  name: rx8111-basic-test
+  on_boot:
+    then:
+      - rx8111.read_time: rtc
+      - rx8111.write_time: rtc
+
+time:
+  - platform: rx8111
+    id: rtc
+    i2c_id: i2c_bus
