@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <span>
+#include <vector>
 
 #include "esphome/components/nfc/ndef_message.h"
 #include "esphome/components/nfc/ndef_record.h"
@@ -9,16 +11,66 @@
 
 namespace esphome::pn532::testing {
 
-/// Exposes the protected TLV parser so it can be driven directly with synthetic tag memory.
+/// Exposes the protected Ultralight helpers and stands in for the bus. Each MIFARE READ is answered with the
+/// 16 bytes of `tag_memory` starting at the requested page, so the full read path can run against synthetic tags.
 class TestablePN532 : public PN532 {
  public:
   using PN532::find_mifare_ultralight_ndef_;
+  using PN532::read_mifare_ultralight_tag_;
 
-  bool is_read_ready() override { return false; }
-  bool write_data(const std::vector<uint8_t> &data) override { return false; }
-  bool read_data(std::vector<uint8_t> &data, uint8_t len) override { return false; }
-  bool read_response(uint8_t command, std::vector<uint8_t> &data) override { return false; }
+  /// Tag memory starting at page 0 (4 bytes per page)
+  std::vector<uint8_t> tag_memory;
+
+ protected:
+  bool is_read_ready() override { return true; }
+  bool write_data(std::span<const uint8_t> data) override {
+    this->last_written_.assign(data.begin(), data.end());
+    return true;
+  }
+  // only used for ACK frames; index 0 is the I2C status byte
+  bool read_data(PN532Frame &data, size_t len) override {
+    data = {0x01, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
+    return true;
+  }
+  bool read_response(uint8_t command, PN532Frame &data) override {
+    // frame is preamble, start code (2), LEN, LCS, TFI, InDataExchange, Tg, READ, page, DCS, postamble
+    if (this->last_written_.size() < 3)
+      return false;
+    const size_t start = this->last_written_[this->last_written_.size() - 3] * nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;
+    data.clear();
+    data.push_back(0x00);  // status: success
+    for (size_t i = start; i < start + MIFARE_READ_SIZE; i++) {
+      data.push_back(i < this->tag_memory.size() ? this->tag_memory[i] : 0x00);
+    }
+    return true;
+  }
+
+  std::vector<uint8_t> last_written_;
 };
+
+/// Builds Ultralight/NTAG tag memory holding `tlv` at page 4, with a capability container that reports
+/// `capacity_bytes` of user memory.
+std::vector<uint8_t> make_tag_memory(const std::vector<uint8_t> &tlv, uint16_t capacity_bytes) {
+  // pages 0-2: UID, lock bytes; page 3: CC (magic, version, size / 8, access)
+  std::vector<uint8_t> memory(12, 0x00);
+  memory.insert(memory.end(), {0xE1, 0x10, static_cast<uint8_t>(capacity_bytes / 8), 0x00});
+  memory.insert(memory.end(), tlv.begin(), tlv.end());
+  memory.resize(16 + capacity_bytes, 0x00);
+  return memory;
+}
+
+/// Wraps an encoded NDEF message in a Type 2 Tag TLV, using the long form when it is 255 bytes or more.
+std::vector<uint8_t> wrap_tlv(const std::vector<uint8_t> &encoded) {
+  std::vector<uint8_t> tlv = {0x03};
+  if (encoded.size() < 255) {
+    tlv.push_back(static_cast<uint8_t>(encoded.size()));
+  } else {
+    tlv.insert(tlv.end(), {0xFF, static_cast<uint8_t>(encoded.size() >> 8), static_cast<uint8_t>(encoded.size())});
+  }
+  tlv.insert(tlv.end(), encoded.begin(), encoded.end());
+  tlv.push_back(0xFE);
+  return tlv;
+}
 
 // Builds a 16-byte page_3_to_6 buffer: 4 filler bytes for page 3 (unused by this function),
 // followed by the given bytes starting at page 4, zero-padded out to the real 4-page read size.
@@ -168,6 +220,54 @@ TEST(FindMifareUltralightNdef, LongFormMessageRoundTripsThroughNdefMessage) {
   EXPECT_EQ(records[1]->get_payload(), "Hello, ESPHome!");
   EXPECT_EQ(records[2]->get_type(), "application/json");
   EXPECT_EQ(records[2]->get_payload(), json_payload);
+}
+
+/// End-to-end: a tag holding a message well past 255 bytes is read in full. The read buffer must grow to fit the
+/// whole message; a fixed 255-byte buffer would cut it short and the records would fail to parse.
+TEST(ReadMifareUltralightTag, LongFormMessageIsReadInFull) {
+  nfc::NdefMessage message;
+  message.add_uri_record("https://esphome.io/");
+  const std::string text(600, 'x');
+  message.add_text_record(text);
+  auto encoded = message.encode();
+  ASSERT_GT(encoded.size(), 600u);
+
+  TestablePN532 pn532;
+  pn532.tag_memory = make_tag_memory(wrap_tlv(encoded), 888);  // NTAG216
+  nfc::NfcTagUid uid = {0x04, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
+
+  auto tag = pn532.read_mifare_ultralight_tag_(uid);
+  ASSERT_TRUE(tag->has_ndef_message());
+  const auto &records = tag->get_ndef_message()->get_records();
+  ASSERT_EQ(records.size(), 2u);
+  EXPECT_EQ(records[0]->get_payload(), "https://esphome.io/");
+  EXPECT_EQ(records[1]->get_payload(), text);
+}
+
+TEST(ReadMifareUltralightTag, ShortFormMessageIsRead) {
+  nfc::NdefMessage message;
+  message.add_uri_record("https://esphome.io/");
+  auto encoded = message.encode();
+
+  TestablePN532 pn532;
+  pn532.tag_memory = make_tag_memory(wrap_tlv(encoded), 144);  // NTAG213
+  nfc::NfcTagUid uid = {0x04, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
+
+  auto tag = pn532.read_mifare_ultralight_tag_(uid);
+  ASSERT_TRUE(tag->has_ndef_message());
+  const auto &records = tag->get_ndef_message()->get_records();
+  ASSERT_EQ(records.size(), 1u);
+  EXPECT_EQ(records[0]->get_payload(), "https://esphome.io/");
+}
+
+/// A length larger than the tag's capacity is rejected before any further pages are read.
+TEST(ReadMifareUltralightTag, LengthBeyondCapacityIsRejected) {
+  TestablePN532 pn532;
+  pn532.tag_memory = make_tag_memory({0x03, 0xFF, 0x01, 0x2C}, 144);  // claims 300 bytes on a 144-byte tag
+  nfc::NfcTagUid uid = {0x04, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
+
+  auto tag = pn532.read_mifare_ultralight_tag_(uid);
+  EXPECT_FALSE(tag->has_ndef_message());
 }
 
 }  // namespace esphome::pn532::testing

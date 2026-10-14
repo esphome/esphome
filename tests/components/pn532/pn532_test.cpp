@@ -163,7 +163,8 @@ TEST(PN532Mifare, UltralightReadTrimsLastChunk) {
   pn532.responses.push_back(first);
   pn532.responses.push_back(second);
 
-  UltralightReadBuffer data;
+  FixedVector<uint8_t> data;
+  data.init(20);
   ASSERT_TRUE(pn532.read_mifare_ultralight_bytes_(4, 20, data));
   ASSERT_EQ(data.size(), 20u);
   EXPECT_EQ(data[15], 15);
