@@ -6,7 +6,7 @@
 
 namespace esphome::lock {
 
-static const char *const TAG = "lock";
+ESPHOME_LOG_TAG(TAG, "lock");
 
 // Lock state strings indexed by LockState enum.
 // Index 0 is UNKNOWN (for LOCK_STATE_NONE), also used as fallback for out-of-range

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <algorithm>
+#include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/color.h"
 
 /* Utility for converting internal \a Color RGB representation to supported IC hardware color keys
@@ -13,8 +14,24 @@
 
 namespace esphome::epaper_spi {
 
+// The Rec.601 luma helpers and the RGB565 mono lookup live in the shared display utilities, so other
+// drivers (e.g. it8951 in its 1 bit per pixel mode) can use them too.
+using display::color_to_mono;
+using display::rec601_luma;
+using display::Rgb565ToMono;
+
 /** Delta for when to regard as gray */
 static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
+
+/** Map RGB color to one of 4 discrete gray levels (2 bits per pixel)
+ *
+ * @param color RGB color to convert from
+ * @return      Gray level: 0 = black, 3 = white
+ */
+constexpr uint8_t color_to_gray4(Color color) {
+  const uint8_t level = (uint8_t) ((rec601_luma(color) + 32u) >> 6);  // quantize 0..255 to 0..3, rounded
+  return level > 3 ? 3 : level;
+}
 
 /** Map RGB color to discrete BWYR hex 4 color key
  *
@@ -25,7 +42,6 @@ static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
  * @param hw_yellow Native value for yellow
  * @param hw_red    Native value for red
  * @return          Converted native hardware color value
- * @internal Constexpr. Does not depend on side effects ("pure").
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white, NATIVE_COLOR hw_yellow,
@@ -38,11 +54,7 @@ constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_
 
   if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
     // It's a shade of gray. Map to BLACK or WHITE.
-    // We split the luminance at the halfway point (382 = (255*3)/2)
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
-      return hw_white;
-    }
-    return hw_black;
+    return color_to_mono(color) ? hw_white : hw_black;
   }
 
   // --- Step 2: Check for Primary/Secondary Colors ---
@@ -96,7 +108,6 @@ constexpr NATIVE_COLOR color_to_bwr(Color color, NATIVE_COLOR hw_black, NATIVE_C
  * @param hw_green  Native value for green
  * @param hw_blue   Native value for blue
  * @return          Converted native hardware color value
- * @internal Constexpr. Does not depend on side effects ("pure").
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwyrgb(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white,
@@ -105,10 +116,7 @@ constexpr NATIVE_COLOR color_to_bwyrgb(Color color, NATIVE_COLOR hw_black, NATIV
   const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
 
   if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
-      return hw_white;
-    }
-    return hw_black;
+    return color_to_mono(color) ? hw_white : hw_black;
   }
 
   const bool r_on = (color.r > 128);
@@ -158,7 +166,6 @@ constexpr NATIVE_COLOR color_to_bwyrgb(Color color, NATIVE_COLOR hw_black, NATIV
  * @param hw_blue   Native value for blue
  * @param hw_orange Native value for orange
  * @return          Converted native hardware color value
- * @internal Constexpr. Does not depend on side effects ("pure").
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwyrgbo(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white,
@@ -167,10 +174,7 @@ constexpr NATIVE_COLOR color_to_bwyrgbo(Color color, NATIVE_COLOR hw_black, NATI
   const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
 
   if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
-      return hw_white;
-    }
-    return hw_black;
+    return color_to_mono(color) ? hw_white : hw_black;
   }
 
   const bool r_on = (color.r > 128);

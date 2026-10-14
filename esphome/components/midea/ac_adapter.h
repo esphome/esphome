@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 // MideaUART
 #include <Appliance/AirConditioner/AirConditioner.h>
@@ -17,7 +17,7 @@ using MideaPreset = dudanov::midea::ac::Preset;
 
 class Constants {
  public:
-  static const char *const TAG;
+  static const char TAG[];  // PROGMEM, like ESPHOME_LOG_TAG
   static const char *const FREEZE_PROTECTION;
   static const char *const SILENT;
   static const char *const TURBO;
@@ -44,4 +44,4 @@ class Converters {
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

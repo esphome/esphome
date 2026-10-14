@@ -13,15 +13,6 @@
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
-#ifdef USE_ESP32_CRASH_HANDLER
-#include "esphome/components/esp32/crash_handler.h"
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-#include "esphome/components/esp8266/crash_handler.h"
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-#include "esphome/components/rp2/crash_handler.h"
-#endif
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "mqtt_component.h"
@@ -35,7 +26,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt";
+ESPHOME_LOG_TAG(TAG, "mqtt");
 
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.
@@ -50,10 +41,21 @@ MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
   char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
   get_mac_address_into_buffer(mac_addr);
-  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr, MAC_ADDRESS_BUFFER_SIZE - 1);
+  const StringRef &name = App.get_name();
+  char client_id[MAX_NAME_WITH_SUFFIX_SIZE];
+  size_t len = make_name_with_suffix_to(client_id, sizeof(client_id), name.c_str(), name.size(), '-', mac_addr,
+                                        MAC_ADDRESS_BUFFER_SIZE - 1);
+  this->credentials_.client_id.assign(client_id, len);
 }
 
 // Connection
+// Room for "esphome/<kind>/<name>" with the longest kind, "discover"
+static constexpr size_t ESPHOME_TOPIC_BUFFER_SIZE = sizeof("esphome/discover/") + ESPHOME_DEVICE_NAME_MAX_LEN;
+
+static void format_esphome_topic(char (&topic)[ESPHOME_TOPIC_BUFFER_SIZE], const char *kind) {
+  buf_append_printf(topic, sizeof(topic), 0, "esphome/%s/%s", kind, App.get_name().c_str());
+}
+
 void MQTTClientComponent::setup() {
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
@@ -83,23 +85,13 @@ void MQTTClientComponent::setup() {
         this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
           static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
         });
-#if defined(USE_ESP32_CRASH_HANDLER) || defined(USE_ESP8266_CRASH_HANDLER) || defined(USE_RP2_CRASH_HANDLER)
-    // "esphome/logs/" (13) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
-    constexpr size_t logs_topic_buffer_size = 13 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
-    char logs_topic[logs_topic_buffer_size];
-    buf_append_printf(logs_topic, sizeof(logs_topic), 0, "esphome/logs/%s", App.get_name().c_str());
-    this->subscribe(logs_topic, [](const std::string &, const std::string &) {
-#ifdef USE_ESP32_CRASH_HANDLER
-      esp32::crash_handler_log();
-      esp32::crash_handler_clear();
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-      esp8266::crash_handler_log();
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-      rp2::crash_handler_log();
-#endif
-    });
+#ifdef USE_CRASH_HANDLER
+    // `esphome logs` announces itself here, like an API client's log subscription
+    if (logger::crash_log_pending()) {
+      char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+      format_esphome_topic(topic, "logs");
+      this->subscribe(topic, [](const std::string &, const std::string &) { logger::log_crash_to_client(); });
+    }
 #endif
   }
 #endif
@@ -110,10 +102,8 @@ void MQTTClientComponent::setup() {
         2);
 
     // Format topic on stack - subscribe() copies it
-    // "esphome/ping/" (13) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
-    constexpr size_t ping_topic_buffer_size = 13 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
-    char ping_topic[ping_topic_buffer_size];
-    buf_append_printf(ping_topic, sizeof(ping_topic), 0, "esphome/ping/%s", App.get_name().c_str());
+    char ping_topic[ESPHOME_TOPIC_BUFFER_SIZE];
+    format_esphome_topic(ping_topic, "ping");
     this->subscribe(
         ping_topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
   }
@@ -128,10 +118,8 @@ void MQTTClientComponent::send_device_info_() {
     return;
   }
   // Format topic on stack to avoid heap allocation
-  // "esphome/discover/" (17) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
-  constexpr size_t topic_buffer_size = 17 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
-  char topic[topic_buffer_size];
-  buf_append_printf(topic, sizeof(topic), 0, "esphome/discover/%s", App.get_name().c_str());
+  char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(topic, "discover");
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   this->publish_json(
@@ -462,7 +450,7 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Subscribe failed for topic='%s'. Will retry", topic);
-    this->status_momentary_warning("subscribe", 1000);
+    this->status_momentary_warning(1000);
   }
   return ret != 0;
 }
@@ -522,7 +510,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'.", topic.c_str());
-    this->status_momentary_warning("unsubscribe", 1000);
+    this->status_momentary_warning(1000);
   }
 
   auto it = subscriptions_.begin();
@@ -576,7 +564,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
       ESP_LOGVV(TAG, "Publish payload (len=%u): '%.*s'", payload_length, static_cast<int>(payload_length), payload);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", topic, payload_length);
-      this->status_momentary_warning("publish", 1000);
+      this->status_momentary_warning(1000);
     }
   }
   return ret != 0;
@@ -695,9 +683,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 // Setters
 void MQTTClientComponent::disable_log_message() { this->log_message_.topic = ""; }
 bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_message_.topic.empty(); }
-void MQTTClientComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
-void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
@@ -710,10 +696,6 @@ void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, cons
   }
 }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
-void MQTTClientComponent::set_publish_nan_as_none(bool publish_nan_as_none) {
-  this->publish_nan_as_none_ = publish_nan_as_none;
-}
-bool MQTTClientComponent::is_publish_nan_as_none() const { return this->publish_nan_as_none_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
   this->recalculate_availability_();
@@ -793,8 +775,6 @@ MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-
 
 // MQTTMessageTrigger
 MQTTMessageTrigger::MQTTMessageTrigger(std::string topic) : topic_(std::move(topic)) {}
-void MQTTMessageTrigger::set_qos(uint8_t qos) { this->qos_ = qos; }
-void MQTTMessageTrigger::set_payload(const std::string &payload) { this->payload_ = payload; }
 void MQTTMessageTrigger::setup() {
   global_mqtt_client->subscribe(
       this->topic_,

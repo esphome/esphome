@@ -1,0 +1,13 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+output:
+  - platform: ac_dimmer
+    id: dimmer
+    gate_pin: GPIO4
+    zero_cross_pin: GPIO5
+    min_power: 0%
