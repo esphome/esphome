@@ -67,8 +67,10 @@ void EPaperInkplate13Spectra::set_all_pins_low_() {
     p->pin_mode(gpio::FLAG_OUTPUT);
     // busy_pin_ is configured inverted (active-low semantics), so a plain digital_write(false)
     // would drive it physically HIGH here. is_inverted() as the write value always lands on
-    // physical LOW regardless of the pin's inversion.
-    p->digital_write(((InternalGPIOPin *) p)->is_inverted());
+    // physical LOW regardless of the pin's inversion. Only internal pins expose is_inverted(),
+    // so any other pin (e.g. on an I/O expander) gets a plain logical LOW.
+    bool inverted = p->is_internal() && static_cast<InternalGPIOPin *>(p)->is_inverted();
+    p->digital_write(inverted);
   }
 }
 
