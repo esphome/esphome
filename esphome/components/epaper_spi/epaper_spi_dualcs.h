@@ -116,8 +116,9 @@ class EPaperDualCS : public EPaper4bpp {
   /// -- see class comment. The buffer must already contain the updated pixels.
   void start_partial_update_(int x, int y, int w, int h);
 
-  /// Fills ptlw_primary_/ptlw_secondary_ from partial_x_/y_/w_/h_.
-  void compute_ptlw_params_();
+  /// Fills ptlw_primary_/ptlw_secondary_ for the given logical rectangle. Returns false if
+  /// nothing of it is left after clipping to the screen.
+  bool compute_ptlw_params_(int x, int y, int w, int h);
 
   GPIOPin *cs_pin_{nullptr};
   GPIOPin *cs1_pin_{nullptr};
@@ -129,11 +130,6 @@ class EPaperDualCS : public EPaper4bpp {
   TransferSub transfer_sub_{TRF_FULL};
   size_t transfer_row_{0};  // used only by the partial path -- the full path uses current_data_index_
 
-  bool partial_update_{false};
-  int partial_x_{0};
-  int partial_y_{0};
-  int partial_w_{0};
-  int partial_h_{0};
   PartialChipParams ptlw_primary_;
   PartialChipParams ptlw_secondary_;
 };

@@ -31,10 +31,8 @@ void EPaperDualCS::dump_config() {
 // start: EPaperBase::update() ignores calls while the display is busy, and switching an
 // in-flight partial transfer to the full-frame path would corrupt it.
 void EPaperDualCS::update() {
-  if (this->state_ == EPaperState::IDLE) {
-    this->partial_update_ = false;
+  if (this->state_ == EPaperState::IDLE)
     this->transfer_sub_ = TRF_FULL;
-  }
   EPaperBase::update();
 }
 
@@ -43,14 +41,15 @@ void EPaperDualCS::start_partial_update_(int x, int y, int w, int h) {
     ESP_LOGW(TAG, "start_partial_update_(): skipped, display busy (state %s)", this->epaper_state_to_string_());
     return;
   }
-  this->partial_x_ = x;
-  this->partial_y_ = y;
-  this->partial_w_ = w;
-  this->partial_h_ = h;
-  this->partial_update_ = true;
+  if (!this->compute_ptlw_params_(x, y, w, h)) {
+    ESP_LOGV(TAG, "start_partial_update_(): rectangle is empty or off screen, nothing to refresh");
+    return;
+  }
   this->transfer_sub_ = TRF_PARTIAL_SETUP_M;
-  this->compute_ptlw_params_();
   this->enable_loop();
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  this->update_start_time_ = millis();
+#endif
   this->set_state_(EPaperState::RESET);
 }
 
@@ -82,11 +81,9 @@ void EPaperDualCS::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size
 // splits that physical window across the two chips (primary: left half, secondary: right
 // half). HRST/HRED are in half-column units, VRST/VRED in half-row units -- that's the
 // panel's own addressing granularity, not something this code chose.
-void EPaperDualCS::compute_ptlw_params_() {
+bool EPaperDualCS::compute_ptlw_params_(int x, int y, int w, int h) {
   this->ptlw_primary_.needed = false;
   this->ptlw_secondary_.needed = false;
-
-  int x = this->partial_x_, y = this->partial_y_, w = this->partial_w_, h = this->partial_h_;
 
   // Clip the requested region to the logical (rotation-aware) canvas.
   if (x < 0) {
@@ -102,7 +99,7 @@ void EPaperDualCS::compute_ptlw_params_() {
   if (y + h > this->get_height())
     h = this->get_height() - y;
   if (w <= 0 || h <= 0)
-    return;
+    return false;
 
   const int16_t panel_w = (int16_t) this->width_;   // physical panel width
   const int16_t panel_h = (int16_t) this->height_;  // physical panel height
@@ -196,6 +193,7 @@ void EPaperDualCS::compute_ptlw_params_() {
     p.row_end = row_end;
     p.needed = true;
   }
+  return this->ptlw_primary_.needed || this->ptlw_secondary_.needed;
 }
 
 // T133A01's original full-refresh algorithm, now shared. CS is held LOW for the ENTIRE DTM
