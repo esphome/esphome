@@ -42,6 +42,10 @@ esphome:
         target_temperature: !lambda "return 23.0f;"
 
     - climate.template.publish:
+        id: template_climate_fahrenheit
+        current_temperature: 20°C
+        target_temperature: 70
+    - climate.template.publish:
         id: template_climate_custom_modes
         custom_fan_mode: "turbo"
         custom_preset: "eco_plus"
@@ -602,6 +606,9 @@ climate:
     supported_modes:
       - "OFF"
       - HEAT
+    initial_state:
+      mode: HEAT
+      target_temperature: 21°C
     visual:
       min_temperature: 60
       max_temperature: 30°C

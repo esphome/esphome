@@ -51,7 +51,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     UNIT_CELSIUS,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
@@ -158,9 +158,24 @@ def visual_temperature_step(value: Any) -> ConfigType:
     return {CONF_TARGET_TEMPERATURE: value, CONF_CURRENT_TEMPERATURE: value}
 
 
+def temperature_unit_of(config: ConfigType) -> str:
+    """The unit a climate reports in: ``unit_of_measurement`` when the platform took the option
+    through ``climate_schema``, else Celsius (anova has an unrelated option of that name)."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    return unit if unit in TEMPERATURE_UNITS else UNIT_CELSIUS
+
+
+def temperature_unit_of_id(climate_id: ID) -> str:
+    """The unit of the climate with this id, for actions that take static temperatures."""
+    for conf in CORE.config.get(DOMAIN, []):
+        if conf[CONF_ID] == climate_id:
+            return temperature_unit_of(conf)
+    return UNIT_CELSIUS
+
+
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
-    """Convert the visual temperatures into the entity's unit, Celsius unless the platform takes one."""
-    unit = config.get(CONF_UNIT_OF_MEASUREMENT, UNIT_CELSIUS)
+    """Convert the visual temperatures into the entity's unit."""
+    unit = temperature_unit_of(config)
     visual = config[CONF_VISUAL]
     for key in (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE):
         if isinstance(value := visual.get(key), tuple):
@@ -322,8 +337,6 @@ async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
     if (max_humidity := visual.get(CONF_MAX_HUMIDITY)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_humidity_override(max_humidity))
-    if (unit := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

@@ -27,7 +27,9 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_HIGH,
     CONF_TARGET_TEMPERATURE_LOW,
+    CONF_UNIT_OF_MEASUREMENT,
 )
+from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType
 
 from .. import template_ns
@@ -162,6 +164,13 @@ def _resolve_supports(config: ConfigType) -> ConfigType:
     return config
 
 
+TEMPERATURE_KEYS = (
+    CONF_TARGET_TEMPERATURE,
+    CONF_TARGET_TEMPERATURE_LOW,
+    CONF_TARGET_TEMPERATURE_HIGH,
+)
+
+
 def _validate_initial_state(config: ConfigType) -> ConfigType:
     # Climate keeps target_temperature and target_temperature_low in a union, so writing the wrong
     # one of the pair corrupts the setpoint with no runtime complaint.
@@ -191,6 +200,10 @@ def _validate_initial_state(config: ConfigType) -> ConfigType:
             f"'{CONF_TARGET_HUMIDITY}' requires '{CONF_SUPPORTS_TARGET_HUMIDITY}' to be enabled",
             path=[CONF_INITIAL_STATE, CONF_TARGET_HUMIDITY],
         )
+    unit = climate.temperature_unit_of(config)
+    for key in TEMPERATURE_KEYS:
+        if isinstance(value := initial_state.get(key), tuple):
+            initial_state[key] = cv.convert_temperature(*value, unit)
     return config
 
 
@@ -200,9 +213,9 @@ INITIAL_STATE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MODE): climate.validate_climate_mode,
-            cv.Optional(CONF_TARGET_TEMPERATURE): cv.temperature,
-            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.temperature,
-            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.temperature_with_unit,
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.temperature_with_unit,
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.temperature_with_unit,
             cv.Optional(CONF_TARGET_HUMIDITY): cv.percentage_int,
             cv.Exclusive(CONF_FAN_MODE, "fan_mode"): climate.validate_climate_fan_mode,
             cv.Exclusive(
@@ -295,6 +308,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
+    if (unit := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
     if (sens := config.get(CONF_SENSOR)) is not None:
         cg.add(var.set_sensor(await cg.get_variable(sens)))
@@ -381,11 +396,19 @@ CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(TemplateClimate),
-            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(cv.temperature),
+            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(
+                cv.temperature_with_unit
+            ),
             cv.Optional(CONF_CURRENT_HUMIDITY): cv.templatable(cv.percentage_int),
-            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
-            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
-            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(
+                cv.temperature_with_unit
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(
+                cv.temperature_with_unit
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(
+                cv.temperature_with_unit
+            ),
             cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
             cv.Optional(CONF_MODE): cv.templatable(climate.validate_climate_mode),
             cv.Optional(CONF_ACTION): cv.templatable(climate.validate_climate_action),
@@ -410,19 +433,41 @@ CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
 )
 
 
+def _temperature_in_entity_unit(
+    config: ConfigType, value: tuple[float, str | None]
+) -> str:
+    # The entity's unit is only known once every climate has been validated
+    unit = climate.temperature_unit_of_id(config[CONF_ID])
+    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
+
+
 automation.register_apply_action(
     "climate.template.publish",
     CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA,
     automation.ApplyField(
-        CONF_CURRENT_TEMPERATURE, "current_temperature = {}", cg.float_
+        CONF_CURRENT_TEMPERATURE,
+        "current_temperature = {}",
+        cg.float_,
+        _temperature_in_entity_unit,
     ),
     automation.ApplyField(CONF_CURRENT_HUMIDITY, "current_humidity = {}", cg.float_),
-    automation.ApplyField(CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
     automation.ApplyField(
-        CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_
+        CONF_TARGET_TEMPERATURE,
+        "set_target_temperature",
+        cg.float_,
+        _temperature_in_entity_unit,
     ),
     automation.ApplyField(
-        CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_
+        CONF_TARGET_TEMPERATURE_LOW,
+        "set_target_temperature_low",
+        cg.float_,
+        _temperature_in_entity_unit,
+    ),
+    automation.ApplyField(
+        CONF_TARGET_TEMPERATURE_HIGH,
+        "set_target_temperature_high",
+        cg.float_,
+        _temperature_in_entity_unit,
     ),
     automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
     automation.ApplyField(CONF_MODE, "set_mode", climate.ClimateMode),

@@ -12,9 +12,11 @@ from esphome.const import (
     CONF_SET_ACTION,
     CONF_SUPPORTED_MODES,
     CONF_TARGET_TEMPERATURE,
+    CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType
 
 from .. import template_ns
@@ -65,6 +67,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await water_heater.register_water_heater(var, config)
+    if (unit := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
 

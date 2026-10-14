@@ -4,6 +4,7 @@ import pytest
 
 from esphome.components.climate import (
     _visual_temperatures_in_entity_unit,
+    temperature_unit_of,
     visual_temperature_step,
 )
 from esphome.const import (
@@ -62,6 +63,15 @@ def test_visual_temperatures_follow_unit_of_measurement() -> None:
     assert visual[CONF_MAX_TEMPERATURE] == pytest.approx(86.0)
     assert visual[CONF_TEMPERATURE_STEP][CONF_TARGET_TEMPERATURE] == 1.0
     assert visual[CONF_TEMPERATURE_STEP][CONF_CURRENT_TEMPERATURE] == pytest.approx(0.9)
+
+
+def test_platform_with_its_own_unit_option_keeps_celsius() -> None:
+    # anova validates unit_of_measurement as c|f for the device, not for the entity
+    assert temperature_unit_of({CONF_UNIT_OF_MEASUREMENT: "f"}) == UNIT_CELSIUS
+    assert (
+        temperature_unit_of({CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT})
+        == UNIT_FAHRENHEIT
+    )
 
 
 def test_visual_temperatures_converted_once() -> None:

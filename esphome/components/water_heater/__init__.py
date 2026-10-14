@@ -45,9 +45,16 @@ WATER_HEATER_MODES = {
 validate_water_heater_mode = cv.enum(WATER_HEATER_MODES, upper=True)
 
 
+def temperature_unit_of(config: ConfigType) -> str:
+    """The unit a water heater reports in: ``unit_of_measurement`` when the platform took the
+    option through ``water_heater_schema``, else Celsius."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    return unit if unit in TEMPERATURE_UNITS else UNIT_CELSIUS
+
+
 def _visual_temperatures_in_entity_unit(config: ConfigType) -> ConfigType:
-    """Convert the visual temperatures into the entity's unit, Celsius unless the platform takes one."""
-    unit = config.get(CONF_UNIT_OF_MEASUREMENT, UNIT_CELSIUS)
+    """Convert the visual temperatures into the entity's unit."""
+    unit = temperature_unit_of(config)
     visual = config[CONF_VISUAL]
     for key in (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE):
         if isinstance(value := visual.get(key), tuple):
@@ -114,8 +121,6 @@ async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> Non
     if (temp_step := visual.get(CONF_TARGET_TEMPERATURE_STEP)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
         cg.add(var.set_visual_target_temperature_step_override(temp_step))
-    if (unit := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
 
 async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pvariable:
