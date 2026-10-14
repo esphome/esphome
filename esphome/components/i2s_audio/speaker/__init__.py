@@ -14,9 +14,11 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TIMEOUT,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
+    CONF_I2S_AUDIO_ID,
     CONF_I2S_DOUT_PIN,
     CONF_I2S_MODE,
     CONF_LEFT,
@@ -237,6 +239,17 @@ def _final_validate(config: ConfigType) -> None:
             raise cv.Invalid("SPDIF mode requires 'i2s_comm_fmt: stand_i2s'")
         if config[CONF_MCLK_MULTIPLE] != 256:
             raise cv.Invalid("SPDIF mode requires 'mclk_multiple: 256'")
+        if config[CONF_KEEP_ALIVE]:
+            raise cv.Invalid("SPDIF mode does not support 'keep_alive'")
+
+    if config[CONF_KEEP_ALIVE]:
+        # A kept channel holds the port's TX side, so another speaker on the same bus could never start
+        bus = config[CONF_I2S_AUDIO_ID]
+        speakers = fv.full_config.get().get("speaker", [])
+        if sum(1 for s in speakers if s.get(CONF_I2S_AUDIO_ID) == bus) > 1:
+            raise cv.Invalid(
+                "'keep_alive' needs its own I2S bus; another speaker shares this one"
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
