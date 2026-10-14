@@ -145,7 +145,7 @@ TEST(ImageDraw, TransparentAndOtherFormatsStayPerPixel) {
   EXPECT_GT(display.pixels, 0);
 }
 
-// The base class fallback must read the pixels in the byte order the image declares.
+// The base class fallback reads pixels in the image's byte order.
 static void expect_fallback_decodes(bool big_endian) {
   const auto data = make_data(2);
   Image image(data.data(), W, H, IMAGE_TYPE_RGB565, TRANSPARENCY_OPAQUE, big_endian);
@@ -163,8 +163,7 @@ static void expect_fallback_decodes(bool big_endian) {
 TEST(ImageDraw, FallbackDecodesLittleEndian) { expect_fallback_decodes(false); }
 TEST(ImageDraw, FallbackDecodesBigEndian) { expect_fallback_decodes(true); }
 
-// The per pixel reader behind get_pixel() and the transparent draws must read
-// RGB565 in the byte order the image declares.
+// The per pixel reader behind get_pixel() reads RGB565 in the image's byte order.
 static void expect_reader_decodes(bool big_endian) {
   const auto data = make_data(2);
   Image image(data.data(), W, H, IMAGE_TYPE_RGB565, TRANSPARENCY_OPAQUE, big_endian);
@@ -183,8 +182,7 @@ static void expect_reader_decodes(bool big_endian) {
 TEST(ImageDraw, ReaderDecodesLittleEndian) { expect_reader_decodes(false); }
 TEST(ImageDraw, ReaderDecodesBigEndian) { expect_reader_decodes(true); }
 
-// A chroma keyed RGB565 image stays per pixel, so its draw goes through the
-// same reader; every drawn pixel must match get_pixel() in both byte orders.
+// A chroma keyed RGB565 draw stays per pixel and must match get_pixel().
 static void expect_keyed_draw_matches_reader(bool big_endian) {
   const auto data = make_data(2);
   Image image(data.data(), W, H, IMAGE_TYPE_RGB565, TRANSPARENCY_CHROMA_KEY, big_endian);
@@ -199,8 +197,7 @@ static void expect_keyed_draw_matches_reader(bool big_endian) {
 TEST(ImageDraw, KeyedDrawMatchesReaderLittleEndian) { expect_keyed_draw_matches_reader(false); }
 TEST(ImageDraw, KeyedDrawMatchesReaderBigEndian) { expect_keyed_draw_matches_reader(true); }
 
-// An RGB image through the fallback must give every pixel the colour get_pixel() reads,
-// which keeps red and blue in the order the image stores them.
+// The fallback keeps red and blue in the order the image stores them.
 TEST(ImageDraw, FallbackKeepsRgbChannelOrder) {
   const auto data = make_data(3);
   Image image(data.data(), W, H, IMAGE_TYPE_RGB, TRANSPARENCY_OPAQUE);

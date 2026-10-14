@@ -9,12 +9,9 @@ ESPHOME_LOG_TAG(TAG, "image");
 
 namespace esphome::image {
 
-// Walks the clipped image range with rows (ROWS_OUTER) or columns as the outer
-// loop and hands the pixel body its coordinates plus its index in a row major
-// image of the given width, with the row part hoisted out of the inner loop.
-// The coordinate selection folds at compile time, and the pixel body must be
-// ESPHOME_ALWAYS_INLINE: at -Os GCC otherwise leaves it out of line and calls
-// it once per pixel.
+// Walks the clipped range with rows (ROWS_OUTER) or columns outer and hands the
+// body its coordinates and row major index. The body must be ESPHOME_ALWAYS_INLINE,
+// at -Os GCC otherwise calls it once per pixel.
 template<bool ROWS_OUTER, typename F>
 static void for_each_pixel(int x_start, int x_end, int y_start, int y_end, int width, F &&f) {
   const int outer_start = ROWS_OUTER ? y_start : x_start;
@@ -49,13 +46,11 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
   }
 
 #ifndef USE_ESP8266
-  // Opaque RGB565 and RGB pixels are already in the layout draw_pixels_at()
-  // takes, so hand the window to the display: drivers with a bulk path blit
-  // it, the others walk it per pixel as before. Not on the ESP8266, where the
-  // pixels live in flash and only progmem_read_byte() may read them.
+  // Opaque RGB565 and RGB are already laid out for draw_pixels_at(), so the display
+  // gets the whole window. Not on the ESP8266, whose image bytes need progmem_read_byte().
   if (this->transparency_ == TRANSPARENCY_OPAQUE &&
       (this->type_ == IMAGE_TYPE_RGB565 || this->type_ == IMAGE_TYPE_RGB)) {
-    // Clamp to the display so the block never reaches off screen
+    // Keep the block on screen
     x_start = std::max(x_start, -x);
     y_start = std::max(y_start, -y);
     x_end = std::min(x_end, display->get_width() - x);
@@ -70,26 +65,22 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
   }
 #endif
 
-  // Pixel data and frame buffers are row-major, so walking rows keeps the
-  // image read and the frame buffer write sequential. When the display swaps
-  // the axes before writing, walking columns keeps the write sequential
-  // instead; a strided write costs more than a strided read.
+  // Rows keep the read and the write sequential; when the display swaps the axes
+  // columns keep the write sequential instead, and a strided write costs more.
 #ifdef USE_PSRAM
   if (display->pixel_axes_swapped()) {
     this->draw_<false>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
     return;
   }
 #endif
-  // Without PSRAM the frame buffer is in uncached RAM, where the strided write
-  // is free, so one copy of the loops is enough.
+  // Without PSRAM a strided write is free, so one copy of the loops is enough
   this->draw_<true>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
 }
 
 template<bool ROWS_OUTER>
 void Image::draw_(int x, int y, display::Display *display, Color color_on, Color color_off, int x_start, int x_end,
                   int y_start, int y_end) {
-  // Local copies: draw_pixel_at() is an opaque virtual call, so members read
-  // in the loop would otherwise be reloaded every pixel.
+  // Local copies, or the virtual draw_pixel_at() forces a reload every pixel
   const Transparency transparency = this->transparency_;
   const int width = this->width_;
   switch (this->type_) {
@@ -262,7 +253,7 @@ Color Image::get_rgb_pixel_(int x, int y) const {
 }
 Color Image::get_rgb565_pixel_(int x, int y) const {
   const uint8_t *pos = this->data_start_ + (x + y * this->width_) * static_cast<size_t>(this->bpp_) / 8;
-  // The high byte sits at pos when big endian, at pos + 1 otherwise
+  // High byte first when big endian
   const uint8_t high = this->big_endian_ ? 0 : 1;
   const uint16_t rgb565 = encode_uint16(progmem_read_byte(pos + high), progmem_read_byte(pos + 1 - high));
   auto r = (rgb565 & 0xF800) >> 11;
