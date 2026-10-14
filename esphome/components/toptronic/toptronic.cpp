@@ -257,9 +257,10 @@ void TopTronic::register_input_callbacks() {
   }
 }
 void TopTronic::update_all() {
-  for (const auto &d : this->devices_)
+  for (const auto &d : this->devices_) {
     for (const auto &s : d.second->get_sensors())
       s.second->update();
+  }
 }
 TopTronicBase *TopTronic::get_sensor_(uint32_t device_id, uint32_t sensor_id) {
   auto device_it = this->devices_.find(device_id);
