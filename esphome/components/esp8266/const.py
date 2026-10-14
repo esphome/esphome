@@ -37,15 +37,20 @@ def preference_words(value_bytes: int) -> int:
     return (value_bytes + 3) // 4 + 1
 
 
-def preference_slots(value_bytes: int, restore_from_flash: bool) -> int:
-    """How many values of this size fit, given where restore_from_flash sends them."""
+def preference_slots(value_bytes: int, in_flash: bool, restore_from_flash: bool) -> int:
+    """How many values of this size fit where make_preference() puts them."""
     words = preference_words(value_bytes)
-    regions = (
-        (PREFERENCES_FLASH_WORDS,)
-        if restore_from_flash
-        else (PREFERENCES_RTC_NORMAL_WORDS, PREFERENCES_RTC_EBOOT_WORDS)
+    if in_flash or restore_from_flash:
+        store = (
+            PREFERENCES_FLASH_WORDS
+            if restore_from_flash
+            else PREFERENCES_FLASH_WORDS_WITHOUT_RESTORE
+        )
+        return store // words
+    return sum(
+        region // words
+        for region in (PREFERENCES_RTC_NORMAL_WORDS, PREFERENCES_RTC_EBOOT_WORDS)
     )
-    return sum(region // words for region in regions)
 
 
 # esp8266 namespace is already defined by arduino, manually prefix esphome

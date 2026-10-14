@@ -27,7 +27,9 @@ static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WO
 static constexpr uint32_t RTC_EBOOT_REGION_WORDS = ESP8266_PREFERENCES_RTC_EBOOT_WORDS;
 static constexpr uint32_t RTC_NORMAL_REGION_WORDS = ESP8266_PREFERENCES_RTC_NORMAL_WORDS;
 static constexpr uint32_t PREF_TOTAL_WORDS = RTC_EBOOT_REGION_WORDS + RTC_NORMAL_REGION_WORDS;  // 110
-static_assert(PREF_TOTAL_WORDS <= ESP_RTC_USER_MEM_SIZE_WORDS, "preference regions overflow RTC memory");
+static constexpr uint32_t RTC_CRASH_HANDLER_WORDS = 18;  // Words 110-127, see crash_handler.cpp
+static_assert(PREF_TOTAL_WORDS + RTC_CRASH_HANDLER_WORDS <= ESP_RTC_USER_MEM_SIZE_WORDS,
+              "preference regions overlap the crash handler's RTC words");
 
 // Maximum preference size in words (limited by uint8_t length_words field)
 static constexpr uint32_t MAX_PREFERENCE_WORDS = 255;
@@ -54,7 +56,7 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
     return false;
   }
-  if (index < 32 && s_prevent_write) {
+  if (index < RTC_EBOOT_REGION_WORDS && s_prevent_write) {
     return false;
   }
 
