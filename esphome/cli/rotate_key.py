@@ -103,8 +103,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         edits = locate_key_edits(old_key, new_key)
         # The previous key stays in the config as old_key so an install still
         # reaches the device if it ends up running either key
-        secret = next((edit.secret for edit in edits if edit.secret), None)
-        edits += old_key_edit(old_key, secret)
+        edits += old_key_edit(old_key)
         unchecked = with_sharers(edits)
     except EsphomeError as err:
         return fail(str(err))
