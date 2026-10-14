@@ -1123,10 +1123,8 @@ void WiFiComponent::disable_ap_() {
   this->end_ap_portal_();
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
-#ifdef USE_WIFI_AP
   // Clients drop with the AP without a disconnect event for each
   this->ap_clients_ = 0;
-#endif
 }
 
 void WiFiComponent::set_ap(const WiFiAP &ap) {
