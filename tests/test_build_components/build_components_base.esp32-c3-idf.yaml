@@ -6,6 +6,9 @@ esp32:
   board: lolin_c3_mini
   framework:
     type: esp-idf
+  # Use custom partition table with larger app partition (3MB)
+  # Default IDF partitions only allow 1.75MB which is too small for grouped tests
+  partitions: ../partitions_testing.csv
 
 logger:
   level: VERY_VERBOSE

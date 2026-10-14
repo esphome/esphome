@@ -11,8 +11,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sn74hc595 {
+namespace esphome::sn74hc595 {
 
 class SN74HC595Component : public Component {
  public:
@@ -48,13 +47,13 @@ class SN74HC595Component : public Component {
 };
 
 /// Helper class to expose a SC74HC595 pin as an internal output GPIO pin.
-class SN74HC595GPIOPin : public GPIOPin, public Parented<SN74HC595Component> {
+class SN74HC595GPIOPin final : public GPIOPin, public Parented<SN74HC595Component> {
  public:
   void setup() override {}
   void pin_mode(gpio::Flags flags) override {}
   bool digital_read() override { return false; }
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_pin(uint16_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -67,7 +66,7 @@ class SN74HC595GPIOPin : public GPIOPin, public Parented<SN74HC595Component> {
   bool inverted_;
 };
 
-class SN74HC595GPIOComponent : public SN74HC595Component {
+class SN74HC595GPIOComponent final : public SN74HC595Component {
  public:
   void setup() override;
   void set_data_pin(GPIOPin *pin) { data_pin_ = pin; }
@@ -81,9 +80,9 @@ class SN74HC595GPIOComponent : public SN74HC595Component {
 };
 
 #ifdef USE_SPI
-class SN74HC595SPIComponent : public SN74HC595Component,
-                              public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                    spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
+class SN74HC595SPIComponent final : public SN74HC595Component,
+                                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                          spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
  public:
   void setup() override;
 
@@ -93,5 +92,4 @@ class SN74HC595SPIComponent : public SN74HC595Component,
 
 #endif
 
-}  // namespace sn74hc595
-}  // namespace esphome
+}  // namespace esphome::sn74hc595

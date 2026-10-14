@@ -1,37 +1,40 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "audio_pipeline.h"
 
 #include "esphome/components/audio/audio.h"
-
 #include "esphome/components/media_player/media_player.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/preferences.h"
+
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include <deque>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
   optional<float> volume;
   optional<bool> announce;
   optional<std::string *> url;  // Must be manually deleted after receiving this struct from a queue
-  optional<audio::AudioFile *> file;
+  optional<const audio::AudioFile *> file;
   optional<bool> enqueue;
 };
 
 struct PlaylistItem {
   optional<std::string> url;
-  optional<audio::AudioFile *> file;
+  optional<const audio::AudioFile *> file;
 };
 
 struct VolumeRestoreState {
@@ -39,11 +42,21 @@ struct VolumeRestoreState {
   bool is_muted;
 };
 
-class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
+class SpeakerMediaPlayer final : public Component,
+                                 public media_player::MediaPlayer
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                                 public ota::OTAGlobalStateListener
+#endif
+{
  public:
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
   void setup() override;
   void loop() override;
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
   // MediaPlayer implementations
   media_player::MediaPlayerTraits get_traits() override;
@@ -70,11 +83,11 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
     this->media_format_ = media_format;
   }
 
-  Trigger<> *get_mute_trigger() const { return this->mute_trigger_; }
-  Trigger<> *get_unmute_trigger() const { return this->unmute_trigger_; }
-  Trigger<float> *get_volume_trigger() const { return this->volume_trigger_; }
+  Trigger<> *get_mute_trigger() { return &this->mute_trigger_; }
+  Trigger<> *get_unmute_trigger() { return &this->unmute_trigger_; }
+  Trigger<float> *get_volume_trigger() { return &this->volume_trigger_; }
 
-  void play_file(audio::AudioFile *media_file, bool announcement, bool enqueue);
+  void play_file(const audio::AudioFile *media_file, bool announcement, bool enqueue);
 
   void set_playlist_delay_ms(AudioPipelineType pipeline_type, uint32_t delay_ms);
 
@@ -98,6 +111,9 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   /// media pipelines are defined.
   inline bool single_pipeline_() { return (this->media_speaker_ == nullptr); }
 
+  /// Stops the media pipeline and polls until stopped to unpause it, avoiding an audible glitch.
+  void stop_and_unpause_media_();
+
   // Processes commands from media_control_command_queue_.
   void watch_media_commands_();
 
@@ -109,11 +125,15 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   optional<media_player::MediaPlayerSupportedFormat> media_format_;
   AudioPipelineState media_pipeline_state_{AudioPipelineState::STOPPED};
   bool media_repeat_one_{false};
+  // Set when the media pipeline reports an error, consumed when it stops, so the failed item is dropped
+  bool media_item_failed_{false};
   uint32_t media_playlist_delay_ms_{0};
 
   optional<media_player::MediaPlayerSupportedFormat> announcement_format_;
   AudioPipelineState announcement_pipeline_state_{AudioPipelineState::STOPPED};
   bool announcement_repeat_one_{false};
+  // Set when the announcement pipeline reports an error, consumed when it stops, so the failed item is dropped
+  bool announcement_item_failed_{false};
   uint32_t announcement_playlist_delay_ms_{0};
 
   QueueHandle_t media_control_command_queue_;
@@ -127,6 +147,11 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
 
   bool is_paused_{false};
   bool is_muted_{false};
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  bool is_turn_off_{false};
+#endif
+  uint8_t unpause_media_remaining_{0};
+  uint8_t unpause_announcement_remaining_{0};
 
   // The amount to change the volume on volume up/down commands
   float volume_increment_;
@@ -140,12 +165,11 @@ class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
   // Used to save volume/mute state for restoration on reboot
   ESPPreferenceObject pref_;
 
-  Trigger<> *mute_trigger_ = new Trigger<>();
-  Trigger<> *unmute_trigger_ = new Trigger<>();
-  Trigger<float> *volume_trigger_ = new Trigger<float>();
+  Trigger<> mute_trigger_;
+  Trigger<> unmute_trigger_;
+  Trigger<float> volume_trigger_;
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

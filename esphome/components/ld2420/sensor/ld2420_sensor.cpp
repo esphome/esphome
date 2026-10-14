@@ -2,15 +2,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
-static const char *const TAG = "ld2420.sensor";
+ESPHOME_LOG_TAG(TAG, "ld2420.sensor");
 
 void LD2420Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Sensor:");
   LOG_SENSOR("  ", "Distance", this->distance_sensor_);
 }
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

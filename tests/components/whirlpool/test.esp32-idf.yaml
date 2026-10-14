@@ -1,4 +1,4 @@
-substitutions:
-  pin: GPIO2
-
-<<: !include common.yaml
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
+  remote_receiver: !include ../../test_build_components/common/remote_receiver/esp32-idf.yaml
+  whirlpool: !include common.yaml

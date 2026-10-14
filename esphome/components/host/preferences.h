@@ -1,50 +1,43 @@
 #pragma once
-
 #ifdef USE_HOST
 
-#include "esphome/core/preferences.h"
+#include "esphome/core/preference_backend.h"
+#include <cstring>
 #include <map>
+#include <string>
+#include <vector>
 
-namespace esphome {
-namespace host {
+namespace esphome::host {
 
-class HostPreferenceBackend : public ESPPreferenceBackend {
+class HostPreferences final : public PreferencesMixin<HostPreferences> {
  public:
-  explicit HostPreferenceBackend(uint32_t key) { this->key_ = key; }
+  using PreferencesMixin<HostPreferences>::make_preference;
+  bool sync();
+  bool reset();
 
-  bool save(const uint8_t *data, size_t len) override;
-  bool load(uint8_t *data, size_t len) override;
-
- protected:
-  uint32_t key_{};
-};
-
-class HostPreferences : public ESPPreferences {
- public:
-  bool sync() override;
-  bool reset() override;
-
-  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override;
-  ESPPreferenceObject make_preference(size_t length, uint32_t type) override {
-    return make_preference(length, type, false);
-  }
+  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash);
+  ESPPreferenceObject make_preference(size_t length, uint32_t type) { return make_preference(length, type, false); }
 
   bool save(uint32_t key, const uint8_t *data, size_t len) {
     if (len > 255)
       return false;
     this->setup_();
     std::vector vec(data, data + len);
-    this->data[key] = vec;
+    this->data_[key] = vec;
     return true;
   }
+
+  /// One-shot read of a stored preference by key, without allocating a backend
+  bool load_from_key(uint32_t type, uint8_t *data, size_t len) { return this->load(type, data, len); }
 
   bool load(uint32_t key, uint8_t *data, size_t len) {
     if (len > 255)
       return false;
     this->setup_();
-    if (this->data.count(key) == 0)
+    auto it = this->data_.find(key);
+    if (it == this->data_.end())
       return false;
-    auto vec = this->data[key];
+    const auto &vec = it->second;
     if (vec.size() != len)
       return false;
     memcpy(data, vec.data(), len);
@@ -55,12 +48,14 @@ class HostPreferences : public ESPPreferences {
   void setup_();
   bool setup_complete_{};
   std::string filename_{};
-  std::map<uint32_t, std::vector<uint8_t>> data{};
+  std::map<uint32_t, std::vector<uint8_t>> data_{};
 };
+
 void setup_preferences();
 extern HostPreferences *host_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace host
-}  // namespace esphome
+}  // namespace esphome::host
+
+DECLARE_PREFERENCE_ALIASES(esphome::host::HostPreferences)
 
 #endif  // USE_HOST

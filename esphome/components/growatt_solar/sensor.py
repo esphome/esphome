@@ -12,7 +12,9 @@ from esphome.const import (
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
@@ -20,9 +22,11 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_HERTZ,
+    UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 CONF_ENERGY_PRODUCTION_DAY = "energy_production_day"
 CONF_TOTAL_ENERGY_PRODUCTION = "total_energy_production"
@@ -30,7 +34,6 @@ CONF_TOTAL_GENERATION_TIME = "total_generation_time"
 CONF_TODAY_GENERATION_TIME = "today_generation_time"
 CONF_PV1 = "pv1"
 CONF_PV2 = "pv2"
-UNIT_KILOWATT_HOURS = "kWh"
 UNIT_HOURS = "h"
 UNIT_KOHM = "kΩ"
 UNIT_MILLIAMPERE = "mA"
@@ -45,7 +48,7 @@ CODEOWNERS = ["@leeuwte"]
 
 growatt_solar_ns = cg.esphome_ns.namespace("growatt_solar")
 GrowattSolar = growatt_solar_ns.class_(
-    "GrowattSolar", cg.PollingComponent, modbus.ModbusDevice
+    "GrowattSolar", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 PHASE_SENSORS = {
@@ -53,6 +56,7 @@ PHASE_SENSORS = {
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_CURRENT: sensor.sensor_schema(
         unit_of_measurement=UNIT_AMPERE,
@@ -72,6 +76,7 @@ PV_SENSORS = {
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_CURRENT: sensor.sensor_schema(
         unit_of_measurement=UNIT_AMPERE,
@@ -118,6 +123,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_HERTZ,
                 icon=ICON_CURRENT_AC,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACTIVE_POWER): sensor.sensor_schema(
@@ -147,6 +153,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_INVERTER_MODULE_TEMP): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -156,40 +163,28 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("growatt_solar", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
     cg.add(var.set_protocol_version(config[CONF_PROTOCOL_VERSION]))
 
-    if CONF_INVERTER_STATUS in config:
-        sens = await sensor.new_sensor(config[CONF_INVERTER_STATUS])
-        cg.add(var.set_inverter_status_sensor(sens))
-
-    if CONF_FREQUENCY in config:
-        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
-        cg.add(var.set_grid_frequency_sensor(sens))
-
-    if CONF_ACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_ACTIVE_POWER])
-        cg.add(var.set_grid_active_power_sensor(sens))
-
-    if CONF_PV_ACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_PV_ACTIVE_POWER])
-        cg.add(var.set_pv_active_power_sensor(sens))
-
-    if CONF_ENERGY_PRODUCTION_DAY in config:
-        sens = await sensor.new_sensor(config[CONF_ENERGY_PRODUCTION_DAY])
-        cg.add(var.set_today_production_sensor(sens))
-
-    if CONF_TOTAL_ENERGY_PRODUCTION in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_ENERGY_PRODUCTION])
-        cg.add(var.set_total_energy_production_sensor(sens))
-
-    if CONF_INVERTER_MODULE_TEMP in config:
-        sens = await sensor.new_sensor(config[CONF_INVERTER_MODULE_TEMP])
-        cg.add(var.set_inverter_module_temp_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_INVERTER_STATUS, var.set_inverter_status_sensor)
+    await sensors(CONF_FREQUENCY, var.set_grid_frequency_sensor)
+    await sensors(CONF_ACTIVE_POWER, var.set_grid_active_power_sensor)
+    await sensors(CONF_PV_ACTIVE_POWER, var.set_pv_active_power_sensor)
+    await sensors(CONF_ENERGY_PRODUCTION_DAY, var.set_today_production_sensor)
+    await sensors(CONF_TOTAL_ENERGY_PRODUCTION, var.set_total_energy_production_sensor)
+    await sensors(CONF_INVERTER_MODULE_TEMP, var.set_inverter_module_temp_sensor)
 
     for i, phase in enumerate([CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]):
         if phase not in config:

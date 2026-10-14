@@ -4,8 +4,7 @@
 #include "bmp280_spi.h"
 #include <esphome/components/bmp280_base/bmp280_base.h>
 
-namespace esphome {
-namespace bmp280_spi {
+namespace esphome::bmp280_spi {
 
 uint8_t set_bit(uint8_t num, uint8_t position) {
   uint8_t mask = 1 << position;
@@ -28,7 +27,7 @@ void BMP280SPIComponent::setup() {
 // 0x77 is transferred, for read access, the byte 0xF7 is transferred.
 // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp280-ds001.pdf
 
-bool BMP280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
+bool BMP280SPIComponent::bmp_read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
   this->transfer_byte(set_bit(a_register, 7));
   *data = this->transfer_byte(0);
@@ -36,7 +35,7 @@ bool BMP280SPIComponent::read_byte(uint8_t a_register, uint8_t *data) {
   return true;
 }
 
-bool BMP280SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
+bool BMP280SPIComponent::bmp_write_byte(uint8_t a_register, uint8_t data) {
   this->enable();
   this->transfer_byte(clear_bit(a_register, 7));
   this->transfer_byte(data);
@@ -44,7 +43,7 @@ bool BMP280SPIComponent::write_byte(uint8_t a_register, uint8_t data) {
   return true;
 }
 
-bool BMP280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
+bool BMP280SPIComponent::bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
   this->enable();
   this->transfer_byte(set_bit(a_register, 7));
   this->read_array(data, len);
@@ -52,7 +51,7 @@ bool BMP280SPIComponent::read_bytes(uint8_t a_register, uint8_t *data, size_t le
   return true;
 }
 
-bool BMP280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
+bool BMP280SPIComponent::bmp_read_byte_16(uint8_t a_register, uint16_t *data) {
   this->enable();
   this->transfer_byte(set_bit(a_register, 7));
   ((uint8_t *) data)[1] = this->transfer_byte(0);
@@ -61,5 +60,4 @@ bool BMP280SPIComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
   return true;
 }
 
-}  // namespace bmp280_spi
-}  // namespace esphome
+}  // namespace esphome::bmp280_spi

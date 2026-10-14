@@ -1,0 +1,13 @@
+# Common Modbus configuration for ESP32 IDF tests
+# Provides a shared Modbus bus that all components can use
+
+packages:
+  uart: !include ../uart/esp32-idf.yaml
+
+substitutions:
+  flow_control_pin: GPIO4
+
+modbus:
+  - id: modbus_bus
+    uart_id: uart_bus
+    flow_control_pin: ${flow_control_pin}

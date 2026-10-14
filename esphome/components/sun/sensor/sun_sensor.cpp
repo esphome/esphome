@@ -1,12 +1,10 @@
 #include "sun_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
-static const char *const TAG = "sun.sensor";
+ESPHOME_LOG_TAG(TAG, "sun.sensor");
 
 void SunSensor::dump_config() { LOG_SENSOR("", "Sun Sensor", this); }
 
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

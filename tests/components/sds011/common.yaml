@@ -1,9 +1,3 @@
-uart:
-  - id: uart_sdm_sds011
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 115200
-
 sensor:
   - platform: sds011
     pm_2_5:

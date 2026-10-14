@@ -1,9 +1,3 @@
-uart:
-  - id: uart_rf_bridge
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 115200
-
 rf_bridge:
   on_code_received:
     - lambda: |-
@@ -33,3 +27,6 @@ rf_bridge:
         code: "ABC123"
     - rf_bridge.send_raw:
         raw: "AAA5070008001000ABC12355"
+    - rf_bridge.start_bucket_sniffing:
+    - rf_bridge.beep:
+        duration: !lambda return 100;

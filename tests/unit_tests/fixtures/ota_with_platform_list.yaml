@@ -1,0 +1,19 @@
+esphome:
+  name: test-device3
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# OTA with proper list format
+ota:
+  - platform: esphome
+    password: "test123"
+
+wifi:
+  ssid: "test"
+  password: "test"
+
+# Captive portal auto-loads ota.web_server
+captive_portal:

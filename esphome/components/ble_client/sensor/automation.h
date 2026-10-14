@@ -5,10 +5,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
-class BLESensorNotifyTrigger : public Trigger<float>, public BLESensor {
+class BLESensorNotifyTrigger final : public Trigger<float>, public BLESensor {
  public:
   explicit BLESensorNotifyTrigger(BLESensor *sensor) { sensor_ = sensor; }
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -35,7 +34,6 @@ class BLESensorNotifyTrigger : public Trigger<float>, public BLESensor {
   BLESensor *sensor_;
 };
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif

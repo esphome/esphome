@@ -1,12 +1,13 @@
 #ifdef USE_HOST
 
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace host {
 
-static const char *const TAG = "host";
+ESPHOME_LOG_TAG(TAG, "host");
 
 struct ISRPinArg {
   uint8_t pin;
@@ -20,16 +21,12 @@ ISRInternalGPIOPin HostGPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void HostGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void HostGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   ESP_LOGD(TAG, "Attaching interrupt %p to pin %d and mode %d", func, pin_, (uint32_t) type);
 }
 void HostGPIOPin::pin_mode(gpio::Flags flags) { ESP_LOGD(TAG, "Setting pin %d mode to %02X", pin_, (uint32_t) flags); }
 
-std::string HostGPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%u", pin_);
-  return buffer;
-}
+size_t HostGPIOPin::dump_summary(char *buffer, size_t len) const { return snprintf(buffer, len, "GPIO%u", this->pin_); }
 
 bool HostGPIOPin::digital_read() { return inverted_; }
 void HostGPIOPin::digital_write(bool value) {

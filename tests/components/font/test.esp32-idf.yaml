@@ -1,7 +1,7 @@
 substitutions:
-  i2c_scl: GPIO16
-  i2c_sda: GPIO17
   display_reset_pin: GPIO13
 
 packages:
-  common: !include common.yaml
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+<<: !include common.yaml

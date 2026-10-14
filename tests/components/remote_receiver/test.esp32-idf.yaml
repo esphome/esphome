@@ -1,6 +1,8 @@
 substitutions:
   pin: GPIO2
   clock_resolution: "2000000"
+  carrier_duty_percent: "25"
+  carrier_frequency: "30000"
   filter_symbols: "2"
   receive_symbols: "4"
   rmt_symbols: "64"

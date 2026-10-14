@@ -1,0 +1,27 @@
+{{ comment_marker }}
+## Memory Impact Analysis
+
+**Components:** {{ components_str }}
+**Platform:** `{{ platform }}`
+
+| Metric | Target Branch | This PR | Change |
+|--------|--------------|---------|--------|
+| **RAM** | {{ target_ram }} | {{ pr_ram }} | {{ ram_change }} |
+| **Flash** | {{ target_flash }} | {{ pr_flash }} | {{ flash_change }} |
+{% if component_breakdown %}
+{{ component_breakdown }}
+{% endif %}
+{% if symbol_changes %}
+{{ symbol_changes }}
+{% endif %}
+{%- if target_cache_hit %}
+
+> ⚡ Target branch analysis was loaded from cache (build skipped for faster CI).
+{%- endif %}
+
+---
+> **Note:** This analysis measures **static RAM and Flash usage** only (compile-time allocation).
+> **Dynamic memory (heap)** cannot be measured automatically.
+> **⚠️ You must test this PR on a real device** to measure free heap and ensure no runtime memory issues.
+
+*This analysis runs automatically when components change. Memory usage is measured from {{ config_note }}.*

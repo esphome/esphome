@@ -2,4 +2,6 @@ substitutions:
   tx_pin: GPIO12
   rx_pin: GPIO14
 
-<<: !include common.yaml
+packages:
+  uart_38400_even: !include ../../test_build_components/common/uart_38400_even/esp32-idf.yaml
+  cse7761: !include common.yaml

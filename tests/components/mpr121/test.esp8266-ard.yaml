@@ -2,4 +2,7 @@ substitutions:
   i2c_scl: GPIO5
   i2c_sda: GPIO4
 
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
+
 <<: !include common.yaml

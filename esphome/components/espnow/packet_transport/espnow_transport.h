@@ -1,0 +1,40 @@
+#pragma once
+
+#include "../espnow_component.h"
+
+#if defined(USE_ESP32) || defined(USE_ESP8266)
+
+#include "esphome/core/component.h"
+#include "esphome/components/packet_transport/packet_transport.h"
+
+#include <vector>
+
+namespace esphome::espnow {
+
+class ESPNowTransport final : public packet_transport::PacketTransport,
+                              public Parented<ESPNowComponent>,
+                              public ESPNowReceivedPacketHandler,
+                              public ESPNowBroadcastHandler {
+ public:
+  void setup() override;
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
+  void set_peer_address(peer_address_t address) {
+    memcpy(this->peer_address_.data(), address.data(), ESP_NOW_ETH_ALEN);
+  }
+
+  // ESPNow handler interface
+  bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override;
+  bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override;
+
+ protected:
+  void send_packet(const std::vector<uint8_t> &buf) const override;
+  size_t get_max_packet_size() override { return ESPNOW_MAX_DATA_LEN; }
+  bool should_send() override;
+
+  peer_address_t peer_address_{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
+};
+
+}  // namespace esphome::espnow
+
+#endif  // USE_ESP32 || USE_ESP8266

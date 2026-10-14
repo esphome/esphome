@@ -1,59 +1,35 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_CAPTIVE_PORTAL
-#include <memory>
-#ifdef USE_ARDUINO
-#include <DNSServer.h>
-#endif
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#include "esphome/components/web_server_base/captive_dns.h"
 
-namespace esphome {
+namespace esphome::captive_portal {
 
-namespace captive_portal {
-
-class CaptivePortal : public AsyncWebHandler, public Component {
+class CaptivePortal final : public AsyncWebHandler, public Component {
  public:
   CaptivePortal(web_server_base::WebServerBase *base);
   void setup() override;
   void dump_config() override;
-#ifdef USE_ARDUINO
-  void loop() override {
-    if (this->dns_server_ != nullptr) {
-      this->dns_server_->processNextRequest();
-    } else {
-      this->disable_loop();
-    }
-  }
-#endif
+  void loop() override { this->dns_.loop(); }
   float get_setup_priority() const override;
   void start();
   bool is_active() const { return this->active_; }
   void end() {
     this->active_ = false;
+    this->disable_loop();  // Stop processing DNS requests
     this->base_->deinit();
-#ifdef USE_ARDUINO
-    this->dns_server_->stop();
-    this->dns_server_ = nullptr;
-#endif
+    this->dns_.stop();
   }
 
   bool canHandle(AsyncWebServerRequest *request) const override {
-    if (!this->active_)
-      return false;
-
-    if (request->method() == HTTP_GET) {
-      if (request->url() == "/")
-        return true;
-      if (request->url() == "/config.json")
-        return true;
-      if (request->url() == "/wifisave")
-        return true;
-    }
-
-    return false;
+    // Handle all GET requests when captive portal is active
+    // This allows us to respond with the portal page for any URL,
+    // triggering OS captive portal detection
+    return this->active_ && request->method() == HTTP_GET;
   }
 
   void handle_config(AsyncWebServerRequest *request);
@@ -66,13 +42,11 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   web_server_base::WebServerBase *base_;
   bool initialized_{false};
   bool active_{false};
-#ifdef USE_ARDUINO
-  std::unique_ptr<DNSServer> dns_server_{nullptr};
-#endif
+  web_server_base::CaptiveDNS dns_;
 };
 
 extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace captive_portal
-}  // namespace esphome
+}  // namespace esphome::captive_portal
+
 #endif

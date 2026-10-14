@@ -9,25 +9,40 @@ import pytest
 
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
+    CONF_ENTITY_CATEGORY,
     CONF_ICON,
+    CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    _register_string,
+    _setup_entity_impl,
     entity_duplicate_validator,
+    finalize_entity_strings,
     get_base_entity_object_id,
+    register_device_class,
+    register_icon,
+    register_unit_of_measurement,
+    setup_device_class,
     setup_entity,
+    setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj
-from esphome.helpers import sanitize, snake_case
+from esphome.helpers import fnv1_hash, sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting object IDs from expressions
-OBJECT_ID_PATTERN = re.compile(r'\.set_object_id\(["\'](.*?)["\']\)')
+# Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
+# Matches: .configure_entity_("name", ...) or .set_name("name", ...)
+ENTITY_NAME_PATTERN = re.compile(
+    r'\.(?:configure_entity_|set_name)\(["\']([^"\']*)["\']'
+)
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -159,10 +174,11 @@ def test_empty_name_fallback() -> None:
 def test_name_add_mac_suffix_behavior() -> None:
     """Test behavior related to name_add_mac_suffix.
 
-    In C++, when name_add_mac_suffix is enabled and entity has no name,
-    get_object_id() returns str_sanitize(str_snake_case(App.get_friendly_name()))
-    dynamically. Our function always returns the same result since we're
-    calculating the base for duplicate tracking.
+    In C++, an entity's object_id is computed from its name_ via
+    write_object_id_to() (sanitized snake_case). When an entity has no name,
+    configure_entity_() sets name_ from the friendly name, with the MAC suffix
+    appended when name_add_mac_suffix is enabled. Our function always returns
+    the same result since we're calculating the base for duplicate tracking.
     """
     # The function should always return the same result regardless of
     # name_add_mac_suffix setting, as we're calculating the base object_id
@@ -269,21 +285,36 @@ def setup_test_environment() -> Generator[list[str], None, None]:
     entity_helpers.add = original_add
 
 
+def extract_object_id_from_config(config: dict[str, Any]) -> str | None:
+    """Extract the object ID from config keys set by _setup_entity_impl."""
+    name = config.get("_entity_name")
+    if name is None:
+        return None
+    if name:
+        return sanitize(snake_case(name))
+    # Empty name - fall back to friendly_name or device name
+    if CORE.friendly_name:
+        return sanitize(snake_case(CORE.friendly_name))
+    return sanitize(snake_case(CORE.name)) if CORE.name else None
+
+
 def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
-    """Extract the object ID that was set from the generated expressions."""
+    """Extract the object ID from configure_entity_() calls in generated expressions."""
     for expr in expressions:
-        # Look for set_object_id calls with regex to handle various formats
-        # Matches: var.set_object_id("temperature_2") or var.set_object_id('temperature_2')
-        if match := OBJECT_ID_PATTERN.search(expr):
-            return match.group(1)
+        if match := ENTITY_NAME_PATTERN.search(expr):
+            name = match.group(1)
+            if name:
+                return sanitize(snake_case(name))
+            # Empty name - fall back to friendly_name or device name
+            if CORE.friendly_name:
+                return sanitize(snake_case(CORE.friendly_name))
+            return sanitize(snake_case(CORE.name)) if CORE.name else None
     return None
 
 
 @pytest.mark.asyncio
 async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> None:
     """Test setup_entity with unique names."""
-
-    added_expressions = setup_test_environment
 
     # Create mock entities
     var1 = MockObj("sensor1")
@@ -294,24 +325,21 @@ async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> 
         CONF_NAME: "Temperature",
         CONF_DISABLED_BY_DEFAULT: False,
     }
-    await setup_entity(var1, config1, "sensor")
+    await _setup_entity_impl(var1, config1, "sensor")
 
-    # Get object ID from first entity
-    object_id1 = extract_object_id_from_expressions(added_expressions)
+    # Get object ID from first entity (stored in config, emitted later by finalize)
+    object_id1 = extract_object_id_from_config(config1)
     assert object_id1 == "temperature"
-
-    # Clear for next entity
-    added_expressions.clear()
 
     # Set up second entity with different name
     config2 = {
         CONF_NAME: "Humidity",
         CONF_DISABLED_BY_DEFAULT: False,
     }
-    await setup_entity(var2, config2, "sensor")
+    await _setup_entity_impl(var2, config2, "sensor")
 
     # Get object ID from second entity
-    object_id2 = extract_object_id_from_expressions(added_expressions)
+    object_id2 = extract_object_id_from_config(config2)
     assert object_id2 == "humidity"
 
 
@@ -320,8 +348,6 @@ async def test_setup_entity_different_platforms(
     setup_test_environment: list[str],
 ) -> None:
     """Test that same name on different platforms doesn't conflict."""
-
-    added_expressions = setup_test_environment
 
     # Create mock entities
     sensor = MockObj("sensor1")
@@ -340,15 +366,11 @@ async def test_setup_entity_different_platforms(
         (text_sensor, "text_sensor"),
     ]
 
-    object_ids: list[str] = []
     for var, platform in platforms:
-        added_expressions.clear()
-        await setup_entity(var, config, platform)
-        object_id = extract_object_id_from_expressions(added_expressions)
-        object_ids.append(object_id)
+        await _setup_entity_impl(var, config, platform)
 
-    # All should get base object ID without suffix
-    assert all(obj_id == "status" for obj_id in object_ids)
+    # All should get the same object ID (name stored in config, not platform-specific)
+    assert extract_object_id_from_config(config) == "status"
 
 
 @pytest.fixture
@@ -373,7 +395,6 @@ async def test_setup_entity_with_devices(
     setup_test_environment: list[str], mock_get_variable: dict[ID, MockObj]
 ) -> None:
     """Test that same name on different devices doesn't conflict."""
-    added_expressions = setup_test_environment
 
     # Create mock devices
     device1_id = ID("device1", type="Device")
@@ -402,23 +423,17 @@ async def test_setup_entity_with_devices(
     }
 
     # Get object IDs
-    object_ids: list[str] = []
     for var, config in [(sensor1, config1), (sensor2, config2)]:
-        added_expressions.clear()
-        await setup_entity(var, config, "sensor")
-        object_id = extract_object_id_from_expressions(added_expressions)
-        object_ids.append(object_id)
+        await _setup_entity_impl(var, config, "sensor")
 
     # Both should get base object ID without suffix (different devices)
-    assert object_ids[0] == "temperature"
-    assert object_ids[1] == "temperature"
+    assert extract_object_id_from_config(config1) == "temperature"
+    assert extract_object_id_from_config(config2) == "temperature"
 
 
 @pytest.mark.asyncio
 async def test_setup_entity_empty_name(setup_test_environment: list[str]) -> None:
     """Test setup_entity with empty entity name."""
-
-    added_expressions = setup_test_environment
 
     var = MockObj("sensor1")
 
@@ -427,9 +442,9 @@ async def test_setup_entity_empty_name(setup_test_environment: list[str]) -> Non
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
-    object_id = extract_object_id_from_expressions(added_expressions)
+    object_id = extract_object_id_from_config(config)
     # Should use friendly name
     assert object_id == "test_device"
 
@@ -440,8 +455,6 @@ async def test_setup_entity_special_characters(
 ) -> None:
     """Test setup_entity with names containing special characters."""
 
-    added_expressions = setup_test_environment
-
     var = MockObj("sensor1")
 
     config = {
@@ -449,8 +462,8 @@ async def test_setup_entity_special_characters(
         CONF_DISABLED_BY_DEFAULT: False,
     }
 
-    await setup_entity(var, config, "sensor")
-    object_id = extract_object_id_from_expressions(added_expressions)
+    await _setup_entity_impl(var, config, "sensor")
+    object_id = extract_object_id_from_config(config)
 
     # Special characters should be sanitized
     assert object_id == "temperature_sensor_"
@@ -460,8 +473,6 @@ async def test_setup_entity_special_characters(
 async def test_setup_entity_with_icon(setup_test_environment: list[str]) -> None:
     """Test setup_entity sets icon correctly."""
 
-    added_expressions = setup_test_environment
-
     var = MockObj("sensor1")
 
     config = {
@@ -470,12 +481,10 @@ async def test_setup_entity_with_icon(setup_test_environment: list[str]) -> None
         CONF_ICON: "mdi:thermometer",
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
-    # Check icon was set
-    assert any(
-        'sensor1.set_icon("mdi:thermometer")' in expr for expr in added_expressions
-    )
+    # Check icon index was stored in config for finalize_entity_strings
+    assert config.get("_entity_icon_idx", 0) > 0
 
 
 @pytest.mark.asyncio
@@ -484,8 +493,6 @@ async def test_setup_entity_disabled_by_default(
 ) -> None:
     """Test setup_entity sets disabled_by_default correctly."""
 
-    added_expressions = setup_test_environment
-
     var = MockObj("sensor1")
 
     config = {
@@ -493,12 +500,10 @@ async def test_setup_entity_disabled_by_default(
         CONF_DISABLED_BY_DEFAULT: True,
     }
 
-    await setup_entity(var, config, "sensor")
+    await _setup_entity_impl(var, config, "sensor")
 
-    # Check disabled_by_default was set
-    assert any(
-        "sensor1.set_disabled_by_default(true)" in expr for expr in added_expressions
-    )
+    # disabled_by_default is now packed into config for configure_entity_()
+    assert config.get("_entity_disabled_by_default") == 1
 
 
 def test_entity_duplicate_validator() -> None:
@@ -510,13 +515,19 @@ def test_entity_duplicate_validator() -> None:
     config1 = {CONF_NAME: "Temperature"}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("", "sensor", "temperature") in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    # Check metadata was stored
+    metadata = CORE.unique_ids[("", "sensor", fnv1_hash("temperature"))]
+    assert metadata["name"] == "Temperature"
+    assert metadata["platform"] == "sensor"
 
     # Second entity with different name should pass
     config2 = {CONF_NAME: "Humidity"}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("", "sensor", "humidity") in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("humidity")) in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("", "sensor", fnv1_hash("humidity"))]
+    assert metadata2["name"] == "Humidity"
 
     # Duplicate entity should fail
     config3 = {CONF_NAME: "Temperature"}
@@ -524,6 +535,34 @@ def test_entity_duplicate_validator() -> None:
         Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
     ):
         validator(config3)
+
+
+def test_entity_duplicate_validator_hash_collision() -> None:
+    """Test that two different object_ids with the same FNV-1 hash are rejected."""
+    # Brute-forced FNV-1 32-bit collision pair; both object_ids hash to 0xe95747e4
+    name_a = "Sensor aooxzi"
+    name_b = "Sensor baraia"
+    object_id_a = sanitize(snake_case(name_a))
+    object_id_b = sanitize(snake_case(name_b))
+    assert object_id_a != object_id_b
+    assert fnv1_hash(object_id_a) == fnv1_hash(object_id_b)
+
+    validator = entity_duplicate_validator("sensor")
+
+    config1 = {CONF_NAME: name_a}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    config2 = {CONF_NAME: name_b}
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"Duplicate sensor entity with name 'Sensor baraia' found.*"
+            r"produce the same entity key hash \(0xe95747e4\)",
+            re.DOTALL,
+        ),
+    ):
+        validator(config2)
 
 
 def test_entity_duplicate_validator_with_devices() -> None:
@@ -539,12 +578,16 @@ def test_entity_duplicate_validator_with_devices() -> None:
     config1 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("device1", "sensor", "temperature") in CORE.unique_ids
+    assert ("device1", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    metadata1 = CORE.unique_ids[("device1", "sensor", fnv1_hash("temperature"))]
+    assert metadata1["device_id"] == "device1"
 
     config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device2}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("device2", "sensor", "temperature") in CORE.unique_ids
+    assert ("device2", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("device2", "sensor", fnv1_hash("temperature"))]
+    assert metadata2["device_id"] == "device2"
 
     # Duplicate on same device should fail
     config3 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
@@ -595,6 +638,54 @@ def test_entity_different_platforms_yaml_validation(
     assert result is not None
 
 
+def test_entity_duplicate_validator_error_message() -> None:
+    """Test that duplicate entity error messages include helpful metadata."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # Set current component to simulate validation context for uptime sensor
+    CORE.current_component = "sensor.uptime"
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Battery", CONF_ID: ID("battery_1")}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Reset component to simulate template sensor
+    CORE.current_component = "sensor.template"
+
+    # Duplicate entity should fail with detailed error
+    config2 = {CONF_NAME: "Battery", CONF_ID: ID("battery_2")}
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate sensor entity with name 'Battery' found.*"
+        r"Conflicts with entity 'Battery' \(id: battery_1\) from component 'sensor\.uptime'",
+    ):
+        validator(config2)
+
+    # Clean up
+    CORE.current_component = None
+
+
+def test_entity_conflict_between_components_yaml(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that conflicts between different components show helpful error messages."""
+    result = load_config_from_fixture(
+        yaml_file, "entity_conflict_components.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    # Check for the enhanced error message
+    captured = capsys.readouterr()
+    # The error should mention both the conflict and which component created it
+    assert "Duplicate sensor entity with name 'Battery' found" in captured.out
+    # Should mention it conflicts with an entity from a specific sensor platform
+    assert "from component 'sensor." in captured.out
+    # Should show it's a conflict between wifi_signal and template
+    assert "sensor.wifi_signal" in captured.out or "sensor.template" in captured.out
+
+
 def test_entity_duplicate_validator_internal_entities() -> None:
     """Test that internal entities are excluded from duplicate name validation."""
     # Create validator for sensor platform
@@ -605,21 +696,28 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     validated1 = validator(config1)
     assert validated1 == config1
     # New format includes device_id (empty string for main device)
-    assert ("", "sensor", "temperature") in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
 
     # Internal entity with same name should pass (not added to unique_ids)
     config2 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
     validated2 = validator(config2)
     assert validated2 == config2
     # Internal entity should not be added to unique_ids
-    assert len([k for k in CORE.unique_ids if k == ("", "sensor", "temperature")]) == 1
+    # Count how many times the key appears (should still be 1)
+    count = sum(
+        1 for k in CORE.unique_ids if k == ("", "sensor", fnv1_hash("temperature"))
+    )
+    assert count == 1
 
     # Another internal entity with same name should also pass
     config3 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
     validated3 = validator(config3)
     assert validated3 == config3
     # Still only one entry in unique_ids (from the non-internal entity)
-    assert len([k for k in CORE.unique_ids if k == ("", "sensor", "temperature")]) == 1
+    count = sum(
+        1 for k in CORE.unique_ids if k == ("", "sensor", fnv1_hash("temperature"))
+    )
+    assert count == 1
 
     # Non-internal entity with same name should fail
     config4 = {CONF_NAME: "Temperature"}
@@ -627,3 +725,572 @@ def test_entity_duplicate_validator_internal_entities() -> None:
         Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
     ):
         validator(config4)
+
+
+def test_empty_or_null_device_id_on_entity() -> None:
+    """Test that empty or null device IDs are handled correctly."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # Entity with empty device_id should pass
+    config1 = {CONF_NAME: "Battery", CONF_DEVICE_ID: ""}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Entity with None device_id should pass
+    config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: None}
+    validated2 = validator(config2)
+    assert validated2 == config2
+
+
+def test_entity_duplicate_validator_non_ascii_names() -> None:
+    """Test that non-ASCII names show helpful error messages."""
+    # Create validator for binary_sensor platform
+    validator = entity_duplicate_validator("binary_sensor")
+
+    # First Russian sensor should pass
+    config1 = {CONF_NAME: "Датчик открытия основного крана"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second Russian sensor with different text but same ASCII conversion should fail
+    config2 = {CONF_NAME: "Датчик закрытия основного крана"}
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"Duplicate binary_sensor entity with name 'Датчик закрытия основного крана' found.*"
+            r"Original names: 'Датчик закрытия основного крана' and 'Датчик открытия основного крана'.*"
+            r"Both convert to ASCII ID: '_______________________________'.*"
+            r"To fix: Add unique ASCII characters \(e\.g\., '1', '2', or 'A', 'B'\)",
+            re.DOTALL,
+        ),
+    ):
+        validator(config2)
+
+
+def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:
+    """Test that identical names don't show the enhanced message."""
+    # Create validator for sensor platform
+    validator = entity_duplicate_validator("sensor")
+
+    # First entity should pass
+    config1 = {CONF_NAME: "Temperature"}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    # Second entity with exact same name should fail without enhanced message
+    config2 = {CONF_NAME: "Temperature"}
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate sensor entity with name 'Temperature' found.*"
+        r"Each entity on a device must have a unique name within its platform\.$",
+    ):
+        validator(config2)
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_device(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty entity name on a sub-device.
+
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from the device's actual name.
+    """
+    added_expressions = setup_test_environment
+
+    # Mock get_variable to return a mock device
+    original_get_variable = entity_helpers.get_variable
+
+    async def mock_get_variable(id_: ID) -> MockObj:
+        return MockObj("sub_device_1")
+
+    entity_helpers.get_variable = mock_get_variable
+
+    var = MockObj("sensor1")
+    device_id = ID("sub_device_1", type="Device")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_DEVICE_ID: device_id,
+    }
+
+    await _setup_entity_impl(var, config, "sensor")
+
+    entity_helpers.get_variable = original_get_variable
+
+    # Check that set_device_ was called (separate protected call, accessible via friend)
+    assert any("sensor1.set_device_" in expr for expr in added_expressions)
+
+    # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
+    assert config.get("_entity_name") == ""
+    assert config.get("_entity_object_id_hash") == 0
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_mac_suffix(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name and MAC suffix enabled.
+
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from friendly_name (bug-for-bug compatibility).
+    """
+
+    # Set up CORE.config with name_add_mac_suffix enabled
+    CORE.config = {"name_add_mac_suffix": True}
+    # Set friendly_name to a specific value
+    CORE.friendly_name = "My Device"
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await _setup_entity_impl(var, config, "sensor")
+
+    # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
+    assert config.get("_entity_name") == ""
+    assert config.get("_entity_object_id_hash") == 0
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name, MAC suffix enabled, but no friendly_name.
+
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime. In this case C++ will hash the empty friendly_name
+    (bug-for-bug compatibility).
+    """
+
+    # Set up CORE.config with name_add_mac_suffix enabled
+    CORE.config = {"name_add_mac_suffix": True}
+    # Set friendly_name to empty
+    CORE.friendly_name = ""
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await _setup_entity_impl(var, config, "sensor")
+
+    # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
+    assert config.get("_entity_name") == ""
+    assert config.get("_entity_object_id_hash") == 0
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name, no MAC suffix, and no friendly_name.
+
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from the device name.
+    """
+
+    # No MAC suffix (either not set or False)
+    CORE.config = {}
+    # No friendly_name
+    CORE.friendly_name = ""
+    # Device name is set
+    CORE.name = "my-test-device"
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await _setup_entity_impl(var, config, "sensor")
+
+    # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
+    assert config.get("_entity_name") == ""
+    assert config.get("_entity_object_id_hash") == 0
+
+
+def test_register_string_overflow() -> None:
+    """Test _register_string raises ValueError when max count is exceeded."""
+    category: dict[str, int] = {}
+    for i in range(3):
+        _register_string(f"val_{i}", category, 3, "test")
+    with pytest.raises(ValueError, match="Too many unique test values"):
+        _register_string("overflow", category, 3, "test")
+
+
+def test_register_icon_max_length() -> None:
+    """Test register_icon rejects icons exceeding 63 characters."""
+    # 63 chars should succeed
+    max_icon = "mdi:" + "a" * 59  # 63 total
+    idx = register_icon(max_icon)
+    assert idx > 0
+
+    # 64 chars should fail
+    too_long = "mdi:" + "a" * 60  # 64 total
+    with pytest.raises(ValueError, match="Icon string too long"):
+        register_icon(too_long)
+
+    # Empty string returns 0
+    assert register_icon("") == 0
+
+
+def test_register_device_class_max_length() -> None:
+    """Test register_device_class rejects device classes exceeding 47 characters."""
+    # 47 chars should succeed
+    max_dc = "a" * 47
+    idx = register_device_class(max_dc)
+    assert idx > 0
+
+    # 48 chars should fail
+    too_long = "a" * 48
+    with pytest.raises(ValueError, match="Device class string too long"):
+        register_device_class(too_long)
+
+    # Empty string returns 0
+    assert register_device_class("") == 0
+
+
+def test_register_unit_of_measurement_max_length() -> None:
+    """Test register_unit_of_measurement rejects units exceeding 63 characters."""
+    # 63 chars should succeed
+    max_uom = "a" * 63
+    idx = register_unit_of_measurement(max_uom)
+    assert idx > 0
+
+    # 64 chars should fail
+    too_long = "a" * 64
+    with pytest.raises(ValueError, match="Unit of measurement string too long"):
+        register_unit_of_measurement(too_long)
+
+    # Empty string returns 0
+    assert register_unit_of_measurement("") == 0
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_with_entity_category(
+    setup_test_environment: list[str],
+) -> None:
+    """Test entity_category is packed correctly through the full setup flow."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Temperature",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ENTITY_CATEGORY: "diagnostic",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    assert "category:diagnostic" in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_direct_call(setup_test_environment: list[str]) -> None:
+    """Test setup_entity in direct call mode (legacy / backward compat)."""
+    added_expressions = setup_test_environment
+
+    var = MockObj("camera1")
+    config = {
+        CONF_NAME: "My Camera",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ICON: "mdi:camera",
+    }
+
+    # Direct call mode: await setup_entity(var, config, "camera")
+    await setup_entity(var, config, "camera")
+
+    # Should have emitted configure_entity_
+    object_id = extract_object_id_from_expressions(added_expressions)
+    assert object_id == "my_camera"
+
+    # Icon index should have been stored and finalized
+    assert config.get("_entity_icon_idx", 0) > 0
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_decorator_mode(setup_test_environment: list[str]) -> None:
+    """Test setup_entity in decorator mode."""
+    added_expressions = setup_test_environment
+
+    body_called = False
+
+    @setup_entity("sensor")
+    async def my_setup(var, config):
+        nonlocal body_called
+        body_called = True
+
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Temperature",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await my_setup(var, config)
+
+    assert body_called
+    object_id = extract_object_id_from_expressions(added_expressions)
+    assert object_id == "temperature"
+
+
+# Tests for finalize_entity_strings packing
+#
+# These tests verify that flags and string indices produce non-zero packed values
+# and correct inline comments. The actual bit layout correctness (Python _*_SHIFT
+# matching C++ ENTITY_FIELD_*_SHIFT) is verified end-to-end by the integration
+# test test_host_mode_entity_fields, which compiles firmware and checks values
+# via the native API.
+
+
+def _extract_packed_value(expressions: list[str]) -> int:
+    """Extract the third argument (packed value) from a configure_entity_() call."""
+    for expr in expressions:
+        if "configure_entity_" in expr:
+            # Match the last integer argument before the closing ");"
+            match = re.search(r",\s*(\d+)\s*\)", expr)
+            if match:
+                return int(match.group(1))
+    raise AssertionError("No configure_entity_ call found")
+
+
+@pytest.mark.asyncio
+async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
+    """Test entity with no special flags — packed value is 0, no comment."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed == 0
+    assert "//" not in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_internal(setup_test_environment: list[str]) -> None:
+    """Test entity with internal=True packs the internal flag."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_INTERNAL: True,
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    assert "// internal" in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_disabled_by_default(
+    setup_test_environment: list[str],
+) -> None:
+    """Test entity with disabled_by_default=True packs the flag."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: True,
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    assert "// disabled_by_default" in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_entity_category(
+    setup_test_environment: list[str],
+) -> None:
+    """Test entity_category values are packed and described in comment."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+
+    # Test diagnostic
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ENTITY_CATEGORY: "diagnostic",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed_diag = _extract_packed_value(added_expressions)
+    assert packed_diag != 0
+    assert "category:diagnostic" in added_expressions[0]
+
+    # Test config — different packed value
+    added_expressions.clear()
+    config2 = {
+        CONF_NAME: "Test2",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ENTITY_CATEGORY: "config",
+    }
+    await _setup_entity_impl(var, config2, "sensor")
+    finalize_entity_strings(var, config2)
+    packed_cfg = _extract_packed_value(added_expressions)
+    assert packed_cfg != 0
+    assert packed_cfg != packed_diag
+    assert "category:config" in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_string_indices(
+    setup_test_environment: list[str],
+) -> None:
+    """Test device_class, unit_of_measurement, and icon produce non-zero packed value."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_DEVICE_CLASS: "temperature",
+        CONF_UNIT_OF_MEASUREMENT: "°C",
+        CONF_ICON: "mdi:thermometer",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    comment = added_expressions[0]
+    assert "dc:temperature" in comment
+    assert "uom:°C" in comment
+    assert "icon:mdi:thermometer" in comment
+
+
+@pytest.mark.asyncio
+async def test_finalize_all_fields(
+    setup_test_environment: list[str],
+) -> None:
+    """Test all fields set: flags, string indices, and comment."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: True,
+        CONF_INTERNAL: True,
+        CONF_ENTITY_CATEGORY: "diagnostic",
+        CONF_DEVICE_CLASS: "temperature",
+        CONF_UNIT_OF_MEASUREMENT: "°C",
+        CONF_ICON: "mdi:thermometer",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    # Verify comment contains all flags with actual string values
+    comment_line = added_expressions[0]
+    assert (
+        "// internal, disabled_by_default, category:diagnostic,"
+        " dc:temperature, uom:°C, icon:mdi:thermometer" in comment_line
+    )
+
+
+@pytest.mark.asyncio
+async def test_finalize_comment_sanitization(
+    setup_test_environment: list[str],
+) -> None:
+    """Test that user strings in comments are sanitized against injection."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+        # Backslash at end would cause line splice eating next code line
+        CONF_ICON: "mdi:evil\\",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    comment_line = added_expressions[0]
+    # Backslash must be replaced to prevent line splice
+    assert "\\" not in comment_line
+    assert "mdi:evil/" in comment_line
+
+    added_expressions.clear()
+    config2 = {
+        CONF_NAME: "Test2",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ICON: "mdi:evil\nINJECTED_CODE();",
+    }
+    await _setup_entity_impl(var, config2, "sensor")
+    finalize_entity_strings(var, config2)
+    comment_line = added_expressions[0]
+    # Newline must be replaced to prevent breaking out of comment
+    assert "\n" not in comment_line
+    assert "INJECTED_CODE" in comment_line  # still visible but safe in comment
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_creates_and_sets(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """A configured key creates the entity, sets the parent before the setter and returns it."""
+    calls: list[tuple[Any, ...]] = []
+    created = MockObj("child")
+
+    async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
+        calls.append((conf, args, kwargs))
+        return created
+
+    async def fake_register_parented(var: MockObj, parent: MockObj) -> None:
+        setup_test_environment.append(f"parent {var} {parent}")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fake_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {}}, parent=hub)
+
+    assert await sub("child", hub.set_child, 1, step=2) is created
+    assert calls == [({}, (1,), {"step": 2})]
+    assert setup_test_environment == ["parent child hub", "hub->set_child(child)"]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_missing_key(setup_test_environment: list[str]) -> None:
+    """A missing key creates nothing and emits no code."""
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        raise AssertionError("must not be called")
+
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {})
+
+    assert await sub("child", hub.set_child) is None
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_without_parent(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Without a bound parent, register_parented is not called."""
+
+    async def fail_register_parented(var: MockObj, parent: MockObj) -> None:
+        raise AssertionError("must not be called")
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        return MockObj("child")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {CONF_ID: "child"}})
+
+    assert await sub("child", hub.set_child) is not None
+    assert setup_test_environment == ["hub->set_child(child)"]

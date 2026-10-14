@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_mcp4728
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 mcp4728:
   - id: mcp4728_dac
+    i2c_id: i2c_bus
 
 output:
   - platform: mcp4728

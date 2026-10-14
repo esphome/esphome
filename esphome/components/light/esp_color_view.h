@@ -4,8 +4,7 @@
 #include "esp_hsv_color.h"
 #include "esp_color_correction.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class ESPColorSettable {
  public:
@@ -20,10 +19,7 @@ class ESPColorSettable {
   virtual void lighten(uint8_t delta) = 0;
   virtual void darken(uint8_t delta) = 0;
   void set(const ESPHSVColor &color) { this->set_hsv(color); }
-  void set_hsv(const ESPHSVColor &color) {
-    Color rgb = color.to_rgb();
-    this->set_rgb(rgb.r, rgb.g, rgb.b);
-  }
+  void set_hsv(const ESPHSVColor &color) { this->set(color.to_rgb()); }
   void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
     this->set_red(red);
     this->set_green(green);
@@ -106,5 +102,4 @@ class ESPColorView : public ESPColorSettable {
   const ESPColorCorrection *color_correction_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

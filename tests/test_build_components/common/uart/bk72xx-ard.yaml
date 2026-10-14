@@ -1,0 +1,13 @@
+# Common UART configuration for BK72XX Arduino tests
+# Provides a shared UART bus that components can use
+# Components will auto-use this bus if they don't specify uart_id
+
+substitutions:
+  tx_pin: TX1
+  rx_pin: RX1
+
+uart:
+  - id: uart_bus
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600

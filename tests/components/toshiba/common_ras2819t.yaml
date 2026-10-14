@@ -1,0 +1,5 @@
+climate:
+  - platform: toshiba
+    name: "RAS-2819T Climate"
+    model: RAS-2819T
+    receiver_id: rcvr

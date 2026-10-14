@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
     CONF_HAS_TARGET,
+    CONF_ID,
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_PRESENCE,
@@ -12,6 +13,7 @@ from esphome.const import (
     ICON_ACCOUNT,
     ICON_MOTION_SENSOR,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2410_ID, LD2410Component
 
@@ -19,38 +21,38 @@ DEPENDENCIES = ["ld2410"]
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_HAS_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
+        filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_ACCOUNT,
     ),
     cv.Optional(CONF_HAS_MOVING_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_MOTION,
+        filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_MOTION_SENSOR,
     ),
     cv.Optional(CONF_HAS_STILL_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
+        filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_MOTION_SENSOR,
     ),
     cv.Optional(CONF_OUT_PIN_PRESENCE_STATUS): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_PRESENCE,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_ACCOUNT,
     ),
 }
 
 
-async def to_code(config):
-    ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    if has_target_config := config.get(CONF_HAS_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_target_config)
-        cg.add(ld2410_component.set_target_binary_sensor(sens))
-    if has_moving_target_config := config.get(CONF_HAS_MOVING_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_moving_target_config)
-        cg.add(ld2410_component.set_moving_target_binary_sensor(sens))
-    if has_still_target_config := config.get(CONF_HAS_STILL_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_still_target_config)
-        cg.add(ld2410_component.set_still_target_binary_sensor(sens))
-    if out_pin_presence_status_config := config.get(CONF_OUT_PIN_PRESENCE_STATUS):
-        sens = await binary_sensor.new_binary_sensor(out_pin_presence_status_config)
-        cg.add(ld2410_component.set_out_pin_presence_status_binary_sensor(sens))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2410_ID])
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_HAS_TARGET, hub.set_target_binary_sensor)
+    await binary_sensors(CONF_HAS_MOVING_TARGET, hub.set_moving_target_binary_sensor)
+    await binary_sensors(CONF_HAS_STILL_TARGET, hub.set_still_target_binary_sensor)
+    await binary_sensors(
+        CONF_OUT_PIN_PRESENCE_STATUS, hub.set_out_pin_presence_status_binary_sensor
+    )

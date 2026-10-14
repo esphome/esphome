@@ -1,0 +1,43 @@
+fancy_component: &id001
+  - id: component9
+    value: 9
+some_component:
+  - id: component1
+    value: 1
+  - id: component2
+    value: 2
+  - id: component3
+    value: 3
+  - id: component4
+    value: 4
+  - id: component5
+    value: 79
+    power: 200
+  - id: component6
+    value: 6
+  - id: component7
+    value: 7
+switch: &id002
+  - platform: gpio
+    id: switch1
+    pin: 12
+  - platform: gpio
+    id: switch2
+    pin: 13
+display:
+  - platform: ili9xxx
+    dimensions:
+      width: 100
+      height: 480
+substitutions:
+  extended_component: component5
+  package_options:
+    alternative_package:
+      alternative_component:
+        - id: component8
+          value: 8
+    fancy_package:
+      fancy_component: *id001
+  pin: 12
+  some_switches: *id002
+  package_selection: fancy_package

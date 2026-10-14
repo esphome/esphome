@@ -2,5 +2,30 @@ substitutions:
   binary_sensor_pin: GPIO12
   output_pin: GPIO13
   switch_pin: GPIO14
+  switch_pin_2: GPIO15
+  switch_pin_3: GPIO16
+  switch_pin_4: GPIO17
 
-<<: !include common.yaml
+packages:
+  gpio: !include common.yaml
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO18
+      hold_state: true
+    id: gpio_binary_sensor_esp32
+
+output:
+  - platform: gpio
+    pin:
+      number: GPIO19
+      hold_state: true
+    id: gpio_output_esp32
+
+switch:
+  - platform: gpio
+    pin:
+      number: GPIO21
+      hold_state: true
+    id: gpio_switch_esp32

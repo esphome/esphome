@@ -1,14 +1,21 @@
 #pragma once
 
-#include "esphome/core/automation.h"
-#include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
-namespace esphome {
-namespace ags10 {
+namespace esphome::ags10 {
 
-class AGS10Component : public PollingComponent, public i2c::I2CDevice {
+enum AGS10SetZeroPointActionMode {
+  // Zero-point reset.
+  FACTORY_DEFAULT,
+  // Zero-point calibration with current resistance.
+  CURRENT_VALUE,
+  // Zero-point calibration with custom resistance.
+  CUSTOM_VALUE,
+};
+
+class AGS10Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /**
    * Sets TVOC sensor.
@@ -47,6 +54,11 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
    * Sets zero-point with current sensor resistance.
    */
   bool set_zero_point_with_current_resistance();
+
+  /**
+   * Sets zero-point by mode; the value is only used for CUSTOM_VALUE.
+   */
+  void set_zero_point(AGS10SetZeroPointActionMode mode, uint16_t value);
 
   /**
    * Sets zero-point with the value.
@@ -99,52 +111,6 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
    * Read, checks and returns data from the sensor.
    */
   template<size_t N> optional<std::array<uint8_t, N>> read_and_check_(uint8_t a_register);
-
-  /**
-   * Calculates CRC8 value.
-   *
-   * CRC8 calculation, initial value: 0xFF, polynomial: 0x31 (x8+ x5+ x4+1)
-   *
-   * @param[in] dat the data buffer
-   * @param num number of bytes in the buffer
-   */
-  template<size_t N> uint8_t calc_crc8_(std::array<uint8_t, N> dat, uint8_t num);
 };
 
-template<typename... Ts> class AGS10NewI2cAddressAction : public Action<Ts...>, public Parented<AGS10Component> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, new_address)
-
-  void play(Ts... x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
-};
-
-enum AGS10SetZeroPointActionMode {
-  // Zero-point reset.
-  FACTORY_DEFAULT,
-  // Zero-point calibration with current resistance.
-  CURRENT_VALUE,
-  // Zero-point calibration with custom resistance.
-  CUSTOM_VALUE,
-};
-
-template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, public Parented<AGS10Component> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, value)
-  TEMPLATABLE_VALUE(AGS10SetZeroPointActionMode, mode)
-
-  void play(Ts... x) override {
-    switch (this->mode_.value(x...)) {
-      case FACTORY_DEFAULT:
-        this->parent_->set_zero_point_with_factory_defaults();
-        break;
-      case CURRENT_VALUE:
-        this->parent_->set_zero_point_with_current_resistance();
-        break;
-      case CUSTOM_VALUE:
-        this->parent_->set_zero_point_with(this->value_.value(x...));
-        break;
-    }
-  }
-};
-}  // namespace ags10
-}  // namespace esphome
+}  // namespace esphome::ags10

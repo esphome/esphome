@@ -1,0 +1,6 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    advanced:
+      loop_task_stack_size: 16384

@@ -1,7 +1,0 @@
-substitutions:
-  pin_a: GPIO12
-  pin_b: GPIO13
-  pin_c: GPIO14
-  pin_d: GPIO15
-
-<<: !include common.yaml

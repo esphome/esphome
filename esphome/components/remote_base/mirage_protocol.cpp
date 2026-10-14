@@ -1,10 +1,13 @@
 #include "mirage_protocol.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+#include <algorithm>
 
-static const char *const TAG = "remote.mirage";
+namespace esphome::remote_base {
+
+ESPHOME_LOG_TAG(TAG, "remote.mirage");
 
 constexpr uint32_t HEADER_MARK_US = 8360;
 constexpr uint32_t HEADER_SPACE_US = 4248;
@@ -13,16 +16,24 @@ constexpr uint32_t BIT_ONE_SPACE_US = 1592;
 constexpr uint32_t BIT_ZERO_SPACE_US = 545;
 
 constexpr unsigned int MIRAGE_IR_PACKET_BIT_SIZE = 120;
+// Max data bytes in packet (excluding checksum)
+constexpr size_t MIRAGE_MAX_DATA_BYTES = (MIRAGE_IR_PACKET_BIT_SIZE / 8);
 
-void MirageProtocol::encode(RemoteTransmitData *dst, const MirageData &data) {
-  ESP_LOGI(TAG, "Transive Mirage: %s", format_hex_pretty(data.data).c_str());
+void MirageProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t len) {
+  // data may be a PROGMEM table, so log a RAM copy
+  uint8_t log_buf[MIRAGE_MAX_DATA_BYTES];
+  const size_t log_len = std::min(len, MIRAGE_MAX_DATA_BYTES);
+  progmem_memcpy(log_buf, data, log_len);
+  char hex_buf[format_hex_pretty_size(MIRAGE_MAX_DATA_BYTES)];
+  ESP_LOGI(TAG, "Transmit Mirage: %s", format_hex_pretty_to(hex_buf, log_buf, log_len));
   dst->set_carrier_frequency(38000);
-  dst->reserve(5 + ((data.data.size() + 1) * 2));
+  dst->reserve(5 + ((len + 1) * 2));
   dst->mark(HEADER_MARK_US);
   dst->space(HEADER_SPACE_US);
   dst->mark(BIT_MARK_US);
   uint8_t checksum = 0;
-  for (uint8_t item : data.data) {
+  for (size_t i = 0; i < len; i++) {
+    const uint8_t item = progmem_read_byte(data + i);
     this->encode_byte_(dst, item);
     checksum += (item >> 4) + (item & 0xF);
   }
@@ -77,8 +88,8 @@ optional<MirageData> MirageProtocol::decode(RemoteReceiveData src) {
 }
 
 void MirageProtocol::dump(const MirageData &data) {
-  ESP_LOGI(TAG, "Received Mirage: %s", format_hex_pretty(data.data).c_str());
+  char hex_buf[format_hex_pretty_size(MIRAGE_MAX_DATA_BYTES)];
+  ESP_LOGI(TAG, "Received Mirage: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -1,10 +1,9 @@
 #include "mpu6050.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mpu6050 {
+namespace esphome::mpu6050 {
 
-static const char *const TAG = "mpu6050";
+ESPHOME_LOG_TAG(TAG, "mpu6050");
 
 const uint8_t MPU6050_REGISTER_WHO_AM_I = 0x75;
 const uint8_t MPU6050_REGISTER_POWER_MANAGEMENT_1 = 0x6B;
@@ -140,7 +139,5 @@ void MPU6050Component::update() {
 
   this->status_clear_warning();
 }
-float MPU6050Component::get_setup_priority() const { return setup_priority::DATA; }
 
-}  // namespace mpu6050
-}  // namespace esphome
+}  // namespace esphome::mpu6050

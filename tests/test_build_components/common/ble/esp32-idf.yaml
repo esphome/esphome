@@ -1,0 +1,9 @@
+# Common BLE tracker configuration for ESP32 IDF tests
+# BLE client components share this tracker infrastructure
+# Each component defines its own ble_client with unique MAC address
+
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 1100ms
+    window: 1100ms
+    active: true

@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace kmeteriso {
+namespace esphome::kmeteriso {
 
-static const char *const TAG = "kmeteriso.sensor";
+ESPHOME_LOG_TAG(TAG, "kmeteriso.sensor");
 
 static const uint8_t KMETER_ERROR_STATUS_REG = 0x20;
 static const uint8_t KMETER_TEMP_VAL_REG = 0x00;
@@ -22,7 +21,7 @@ void KMeterISOComponent::setup() {
     this->reset_to_construction_state();
   }
 
-  auto err = this->bus_->writev(this->address_, nullptr, 0);
+  auto err = this->bus_->write_readv(this->address_, nullptr, 0, nullptr, 0);
   if (err == esphome::i2c::ERROR_OK) {
     ESP_LOGCONFIG(TAG, "Could write to the address %d.", this->address_);
   } else {
@@ -46,8 +45,6 @@ void KMeterISOComponent::setup() {
     return;
   }
 }
-
-float KMeterISOComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void KMeterISOComponent::update() {
   uint8_t read_buf[4];
@@ -76,5 +73,4 @@ void KMeterISOComponent::update() {
   }
 }
 
-}  // namespace kmeteriso
-}  // namespace esphome
+}  // namespace esphome::kmeteriso

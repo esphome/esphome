@@ -1,16 +1,49 @@
 #include "heatpumpir.h"
 
-#ifdef USE_ARDUINO
+#include "receiver_mitsubishi_heavy.h"
 
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
+
+#include <cmath>
 #include <map>
-#include "ir_sender_esphome.h"
-#include "HeatpumpIRFactory.h"
+#include <IRSender.h>
+#include <HeatpumpIRFactory.h>
+#include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace heatpumpir {
+namespace esphome::heatpumpir {
 
-static const char *const TAG = "heatpumpir.climate";
+// IRSenderESPHome - bridge between ESPHome's remote_transmitter and HeatpumpIR library
+// Defined here (not in a header) to isolate HeatpumpIR's headers from the rest of ESPHome,
+// as they define conflicting symbols like millis() in the global namespace.
+class IRSenderESPHome : public IRSender {
+ public:
+  IRSenderESPHome(remote_base::RemoteTransmitterBase *transmitter) : IRSender(0), transmit_(transmitter->transmit()) {}
+
+  void setFrequency(int frequency) override {  // NOLINT(readability-identifier-naming)
+    auto *data = this->transmit_.get_data();
+    data->set_carrier_frequency(1000 * frequency);
+  }
+
+  void space(int space_length) override {
+    if (space_length) {
+      auto *data = this->transmit_.get_data();
+      data->space(space_length);
+    } else {
+      this->transmit_.perform();
+    }
+  }
+
+  void mark(int mark_length) override {
+    auto *data = this->transmit_.get_data();
+    data->mark(mark_length);
+  }
+
+ protected:
+  remote_base::RemoteTransmitterBase::TransmitCall transmit_;
+};
+
+ESPHOME_LOG_TAG(TAG, "heatpumpir.climate");
 
 const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP = {
     {PROTOCOL_AUX, []() { return new AUXHeatpumpIR(); }},                                    // NOLINT
@@ -83,7 +116,7 @@ void HeatpumpIRClimate::setup() {
       this->current_temperature = state;
 
       IRSenderESPHome esp_sender(this->transmitter_);
-      this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature + 0.5)));
+      this->heatpump_ir_->send(esp_sender, uint8_t(std::lround(this->current_temperature)));
 
       // current temperature changed, publish state
       this->publish_state();
@@ -92,6 +125,13 @@ void HeatpumpIRClimate::setup() {
   } else {
     this->current_temperature = NAN;
   }
+}
+
+void HeatpumpIRClimate::control(const climate::ClimateCall &call) {
+  // Picking a fan speed ends HiPower or Econo, as it does on the remote
+  if (this->has_fan_byte_presets_() && call.get_fan_mode().has_value() && !call.get_preset().has_value())
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  climate_ir::ClimateIR::control(call);
 }
 
 void HeatpumpIRClimate::transmit_state() {
@@ -156,20 +196,37 @@ void HeatpumpIRClimate::transmit_state() {
     swing_h_cmd = HDIR_SWING;
   }
 
+  // MitsubishiMSCHeatpumpIR only knows FAN_1..FAN_3 and sends anything else as auto,
+  // so low/medium/high have to start at FAN_1 there instead of FAN_2. Mitsubishi Heavy
+  // ZJ and ZMP also stop at FAN_3 and use FAN_4 and FAN_5 for HiPower and Econo.
+  const bool three_speed_fan = this->protocol_ == PROTOCOL_MITSUBISHI_MSC || this->has_fan_byte_presets_();
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
-      fan_speed_cmd = FAN_2;
+      fan_speed_cmd = three_speed_fan ? FAN_1 : FAN_2;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed_cmd = FAN_3;
+      fan_speed_cmd = three_speed_fan ? FAN_2 : FAN_3;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fan_speed_cmd = FAN_4;
+      fan_speed_cmd = three_speed_fan ? FAN_3 : FAN_4;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
       fan_speed_cmd = FAN_AUTO;
       break;
+  }
+
+  if (this->has_fan_byte_presets_()) {
+    switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
+      case climate::CLIMATE_PRESET_BOOST:
+        fan_speed_cmd = FAN_4;  // HiPower
+        break;
+      case climate::CLIMATE_PRESET_ECO:
+        fan_speed_cmd = FAN_5;  // Econo
+        break;
+      default:
+        break;
+    }
   }
 
   switch (this->mode) {
@@ -181,6 +238,11 @@ void HeatpumpIRClimate::transmit_state() {
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_HEAT;
       break;
+    // Map HEAT_COOL to hardware AUTO mode (automatic heat/cool changeover based on temperature).
+    // In hardware AUTO mode, the device automatically switches between heating and cooling
+    // based on the current temperature versus the target temperature.
+    // See https://github.com/esphome/esphome/issues/11161 for further discussion.
+    case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_AUTO:
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_AUTO;
@@ -207,7 +269,23 @@ void HeatpumpIRClimate::transmit_state() {
                      swing_h_cmd);
 }
 
-}  // namespace heatpumpir
-}  // namespace esphome
+bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
+  switch (this->protocol_) {
+    case PROTOCOL_MITSUBISHI_HEAVY_ZMP: {
+      uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH];
+      if (!decode_mitsubishi_heavy_frame(data, frame, *this))
+        return false;
+      decode_mitsubishi_heavy_zmp(frame, *this);
+      break;
+    }
+    default:
+      return false;  // no decoder for this protocol
+  }
+  this->target_temperature = clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
+  this->publish_state();
+  return true;
+}
+
+}  // namespace esphome::heatpumpir
 
 #endif

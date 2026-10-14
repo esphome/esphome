@@ -2,12 +2,13 @@
 #include <cstdio>
 #include <cstring>
 
-namespace esphome {
-namespace anova {
+#include "esphome/core/alloc_helpers.h"
 
-float ftoc(float f) { return (f - 32.0) * (5.0f / 9.0f); }
+namespace esphome::anova {
 
-float ctof(float c) { return (c * 9.0f / 5.0f) + 32.0; }
+float ftoc(float f) { return (f - 32.0f) * (5.0f / 9.0f); }
+
+float ctof(float c) { return (c * 9.0f / 5.0f) + 32.0f; }
 
 AnovaPacket *AnovaCodec::clean_packet_() {
   this->packet_.length = strlen((char *) this->packet_.data);
@@ -18,31 +19,31 @@ AnovaPacket *AnovaCodec::clean_packet_() {
 
 AnovaPacket *AnovaCodec::get_read_device_status_request() {
   this->current_query_ = READ_DEVICE_STATUS;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_DEVICE_STATUS);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_DEVICE_STATUS);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_target_temp_request() {
   this->current_query_ = READ_TARGET_TEMPERATURE;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_TARGET_TEMP);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_TARGET_TEMP);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_current_temp_request() {
   this->current_query_ = READ_CURRENT_TEMPERATURE;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_CURRENT_TEMP);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_CURRENT_TEMP);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_unit_request() {
   this->current_query_ = READ_UNIT;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_UNIT);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_UNIT);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_data_request() {
   this->current_query_ = READ_DATA;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_DATA);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_DATA);
   return this->clean_packet_();
 }
 
@@ -50,25 +51,25 @@ AnovaPacket *AnovaCodec::get_set_target_temp_request(float temperature) {
   this->current_query_ = SET_TARGET_TEMPERATURE;
   if (this->fahrenheit_)
     temperature = ctof(temperature);
-  sprintf((char *) this->packet_.data, CMD_SET_TARGET_TEMP, temperature);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), CMD_SET_TARGET_TEMP, temperature);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_set_unit_request(char unit) {
   this->current_query_ = SET_UNIT;
-  sprintf((char *) this->packet_.data, CMD_SET_TEMP_UNIT, unit);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), CMD_SET_TEMP_UNIT, unit);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_start_request() {
   this->current_query_ = START;
-  sprintf((char *) this->packet_.data, CMD_START);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_START);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_stop_request() {
   this->current_query_ = STOP;
-  sprintf((char *) this->packet_.data, CMD_STOP);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_STOP);
   return this->clean_packet_();
 }
 
@@ -105,14 +106,14 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
     }
     case READ_TARGET_TEMPERATURE:
     case SET_TARGET_TEMPERATURE: {
-      this->target_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);
+      this->target_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);  // NOLINT
       if (this->fahrenheit_)
         this->target_temp_ = ftoc(this->target_temp_);
       this->has_target_temp_ = true;
       break;
     }
     case READ_CURRENT_TEMPERATURE: {
-      this->current_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);
+      this->current_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);  // NOLINT
       if (this->fahrenheit_)
         this->current_temp_ = ftoc(this->current_temp_);
       this->has_current_temp_ = true;
@@ -130,5 +131,4 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
   }
 }
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova

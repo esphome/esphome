@@ -1,4 +1,3 @@
-substitutions:
-  pin: GPIO5
-
-<<: !include common.yaml
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp8266-ard.yaml
+  daikin_brc: !include common.yaml

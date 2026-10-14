@@ -5,10 +5,11 @@ from esphome.const import (
     CONF_EQUATION,
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
-    ICON_WATER,
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     STATE_CLASS_MEASUREMENT,
     UNIT_GRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 absolute_humidity_ns = cg.esphome_ns.namespace("absolute_humidity")
 AbsoluteHumidityComponent = absolute_humidity_ns.class_(
@@ -27,8 +28,8 @@ EQUATION = {
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_GRAMS_PER_CUBIC_METER,
-        icon=ICON_WATER,
         accuracy_decimals=2,
+        device_class=DEVICE_CLASS_ABSOLUTE_HUMIDITY,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
@@ -43,7 +44,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

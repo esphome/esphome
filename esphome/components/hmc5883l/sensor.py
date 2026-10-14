@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
@@ -17,6 +20,8 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_MICROTESLA,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -59,14 +64,16 @@ HMC5883L_RANGES = {
 }
 
 
-def validate_enum(enum_values, units=None, int=True):
+def validate_enum(
+    enum_values: dict[Any, Any], units: str | list[str] | None = None, int: bool = True
+) -> Callable[[Any], Any]:
     _units = []
     if units is not None:
         _units = units if isinstance(units, list) else [units]
         _units = [str(x) for x in _units]
     enum_bound = cv.enum(enum_values, int=int)
 
-    def validate_enum_bound(value):
+    def validate_enum_bound(value: Any) -> Any:
         value = cv.string(value)
         for unit in _units:
             if value.endswith(unit):
@@ -87,6 +94,7 @@ heading_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_DEGREES,
     icon=ICON_SCREEN_ROTATION,
     accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 
 CONFIG_SCHEMA = (
@@ -111,7 +119,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def auto_data_rate(config):
+def auto_data_rate(config: ConfigType) -> MockObj:
     interval_msec = config[CONF_UPDATE_INTERVAL].total_milliseconds
     interval_hz = 1000.0 / interval_msec
     for datarate in sorted(HMC5883LDatarates.keys()):
@@ -120,7 +128,7 @@ def auto_data_rate(config):
     return HMC5883LDatarates[75]
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -128,15 +136,8 @@ async def to_code(config):
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_datarate(auto_data_rate(config)))
     cg.add(var.set_range(config[CONF_RANGE]))
-    if CONF_FIELD_STRENGTH_X in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_X])
-        cg.add(var.set_x_sensor(sens))
-    if CONF_FIELD_STRENGTH_Y in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_Y])
-        cg.add(var.set_y_sensor(sens))
-    if CONF_FIELD_STRENGTH_Z in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_Z])
-        cg.add(var.set_z_sensor(sens))
-    if CONF_HEADING in config:
-        sens = await sensor.new_sensor(config[CONF_HEADING])
-        cg.add(var.set_heading_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FIELD_STRENGTH_X, var.set_x_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Y, var.set_y_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)
+    await sensors(CONF_HEADING, var.set_heading_sensor)

@@ -1,16 +1,14 @@
 #pragma once
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include "esphome/components/output/float_output.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace rp2040_pwm {
+namespace esphome::rp2040_pwm {
 
-class RP2040PWM : public output::FloatOutput, public Component {
+class RP2040PWM final : public output::FloatOutput, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
@@ -40,20 +38,6 @@ class RP2040PWM : public output::FloatOutput, public Component {
   bool frequency_changed_{false};
 };
 
-template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
- public:
-  SetFrequencyAction(RP2040PWM *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, frequency);
+}  // namespace esphome::rp2040_pwm
 
-  void play(Ts... x) {
-    float freq = this->frequency_.value(x...);
-    this->parent_->update_frequency(freq);
-  }
-
-  RP2040PWM *parent_;
-};
-
-}  // namespace rp2040_pwm
-}  // namespace esphome
-
-#endif  // USE_RP2040
+#endif  // USE_RP2

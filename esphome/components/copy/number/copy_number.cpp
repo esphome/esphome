@@ -1,10 +1,9 @@
 #include "copy_number.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-static const char *const TAG = "copy.number";
+ESPHOME_LOG_TAG(TAG, "copy.number");
 
 void CopyNumber::setup() {
   source_->add_on_state_callback([this](float value) { this->publish_state(value); });
@@ -25,5 +24,4 @@ void CopyNumber::control(float value) {
   call2.perform();
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

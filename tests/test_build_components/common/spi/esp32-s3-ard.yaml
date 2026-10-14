@@ -1,0 +1,12 @@
+# Common SPI configuration for ESP32-S3 Arduino tests
+
+substitutions:
+  clk_pin: GPIO40
+  mosi_pin: GPIO6
+  miso_pin: GPIO41
+
+spi:
+  - id: spi_bus
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}

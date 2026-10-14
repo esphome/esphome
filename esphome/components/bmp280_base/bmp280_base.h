@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bmp280_base {
+namespace esphome::bmp280_base {
 
 /// Internal struct storing the calibration values of an BMP280.
 struct BMP280CalibrationData {
@@ -60,19 +59,18 @@ class BMP280Component : public PollingComponent {
   /// Set the oversampling value for the pressure sensor. Default is 16x.
   void set_pressure_oversampling(BMP280Oversampling pressure_over_sampling);
   /// Set the IIR Filter used to increase accuracy, defaults to no IIR Filter.
-  void set_iir_filter(BMP280IIRFilter iir_filter);
+  void set_iir_filter(BMP280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
-  virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
-  virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
-  virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
-  virtual bool read_byte_16(uint8_t a_register, uint16_t *data) = 0;
-
  protected:
+  virtual bool bmp_read_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bool bmp_write_byte(uint8_t a_register, uint8_t data) = 0;
+  virtual bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
+  virtual bool bmp_read_byte_16(uint8_t a_register, uint16_t *data) = 0;
+
   /// Read the temperature value and store the calculated ambient temperature in t_fine.
   float read_temperature_(int32_t *t_fine);
   /// Read the pressure value in hPa using the provided t_fine value.
@@ -94,5 +92,4 @@ class BMP280Component : public PollingComponent {
   } error_code_{NONE};
 };
 
-}  // namespace bmp280_base
-}  // namespace esphome
+}  // namespace esphome::bmp280_base

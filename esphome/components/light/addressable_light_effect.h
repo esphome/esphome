@@ -1,14 +1,13 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 inline static int16_t sin16_c(uint16_t theta) {
   static const uint16_t BASE[] = {0, 6393, 12539, 18204, 23170, 27245, 30273, 32137};
@@ -30,7 +29,7 @@ inline static uint8_t half_sin8(uint8_t v) { return sin16_c(uint16_t(v) * 128u) 
 
 class AddressableLightEffect : public LightEffect {
  public:
-  explicit AddressableLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit AddressableLightEffect(const char *name) : LightEffect(name) {}
   void start_internal() override {
     this->get_addressable_()->set_effect_active(true);
     this->get_addressable_()->clear_effect_data();
@@ -44,16 +43,22 @@ class AddressableLightEffect : public LightEffect {
     this->apply(*this->get_addressable_(), current_color);
   }
 
+  /// Get effect index specifically for addressable effects.
+  /// Can be used by effects to modify behavior based on their position in the list.
+  uint32_t get_effect_index() const { return this->get_index(); }
+
+  /// Check if this is the currently running addressable effect.
+  bool is_current_effect() const { return this->is_active() && this->get_addressable_()->is_effect_active(); }
+
  protected:
   AddressableLight *get_addressable_() const { return (AddressableLight *) this->state_->get_output(); }
 };
 
 class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
-  AddressableLambdaLightEffect(const std::string &name,
-                               std::function<void(AddressableLight &, Color, bool initial_run)> f,
+  AddressableLambdaLightEffect(const char *name, void (*f)(AddressableLight &, Color, bool initial_run),
                                uint32_t update_interval)
-      : AddressableLightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
+      : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {}
   void start() override { this->initial_run_ = true; }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
@@ -66,7 +71,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
   }
 
  protected:
-  std::function<void(AddressableLight &, Color, bool initial_run)> f_;
+  void (*f_)(AddressableLight &, Color, bool initial_run);
   uint32_t update_interval_;
   uint32_t last_run_{0};
   bool initial_run_;
@@ -74,7 +79,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
 
 class AddressableRainbowLightEffect : public AddressableLightEffect {
  public:
-  explicit AddressableRainbowLightEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableRainbowLightEffect(const char *name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &it, const Color &current_color) override {
     ESPHSVColor hsv;
     hsv.value = 255;
@@ -105,8 +110,8 @@ struct AddressableColorWipeEffectColor {
 
 class AddressableColorWipeEffect : public AddressableLightEffect {
  public:
-  explicit AddressableColorWipeEffect(const std::string &name) : AddressableLightEffect(name) {}
-  void set_colors(const std::vector<AddressableColorWipeEffectColor> &colors) { this->colors_ = colors; }
+  explicit AddressableColorWipeEffect(const char *name) : AddressableLightEffect(name) {}
+  void set_colors(const std::initializer_list<AddressableColorWipeEffectColor> &colors) { this->colors_ = colors; }
   void set_add_led_interval(uint32_t add_led_interval) { this->add_led_interval_ = add_led_interval; }
   void set_reverse(bool reverse) { this->reverse_ = reverse; }
   void apply(AddressableLight &it, const Color &current_color) override {
@@ -148,7 +153,7 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
   }
 
  protected:
-  std::vector<AddressableColorWipeEffectColor> colors_;
+  FixedVector<AddressableColorWipeEffectColor> colors_;
   size_t at_color_{0};
   uint32_t last_add_{0};
   uint32_t add_led_interval_{};
@@ -158,7 +163,7 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
 
 class AddressableScanEffect : public AddressableLightEffect {
  public:
-  explicit AddressableScanEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableScanEffect(const char *name) : AddressableLightEffect(name) {}
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
   void set_scan_width(uint32_t scan_width) { this->scan_width_ = scan_width; }
   void apply(AddressableLight &it, const Color &current_color) override {
@@ -166,12 +171,27 @@ class AddressableScanEffect : public AddressableLightEffect {
     if (now - this->last_move_ < this->move_interval_)
       return;
 
-    if (direction_) {
+    const auto num_leds = static_cast<uint32_t>(it.size());
+    if (this->scan_width_ >= num_leds) {
+      it.all() = current_color;
+      it.schedule_show();
+      this->last_move_ = now;
+      return;
+    }
+
+    const uint32_t max_pos = num_leds - this->scan_width_;
+    if (this->at_led_ >= max_pos) {
+      this->at_led_ = max_pos;
+      this->direction_ = false;
+    }
+
+    if (this->direction_) {
       this->at_led_++;
-      if (this->at_led_ == it.size() - this->scan_width_)
+      if (this->at_led_ >= max_pos)
         this->direction_ = false;
     } else {
-      this->at_led_--;
+      if (this->at_led_ > 0)
+        this->at_led_--;
       if (this->at_led_ == 0)
         this->direction_ = true;
     }
@@ -195,7 +215,7 @@ class AddressableScanEffect : public AddressableLightEffect {
 
 class AddressableTwinkleEffect : public AddressableLightEffect {
  public:
-  explicit AddressableTwinkleEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableTwinkleEffect(const char *name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &addressable, const Color &current_color) override {
     const uint32_t now = millis();
     uint8_t pos_add = 0;
@@ -237,7 +257,7 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
 
 class AddressableRandomTwinkleEffect : public AddressableLightEffect {
  public:
-  explicit AddressableRandomTwinkleEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableRandomTwinkleEffect(const char *name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
     uint8_t pos_add = 0;
@@ -286,7 +306,7 @@ class AddressableRandomTwinkleEffect : public AddressableLightEffect {
 
 class AddressableFireworksEffect : public AddressableLightEffect {
  public:
-  explicit AddressableFireworksEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableFireworksEffect(const char *name) : AddressableLightEffect(name) {}
   void start() override {
     auto &it = *this->get_addressable_();
     it.all() = Color::BLACK;
@@ -304,6 +324,8 @@ class AddressableFireworksEffect : public AddressableLightEffect {
         target *= 170;
       view = target;
     }
+    if (it.size() < 2)
+      return;
     int last = it.size() - 1;
     it[0].set(it[0].get() + (it[1].get() * 128));
     for (int i = 1; i < last; i++) {
@@ -335,7 +357,7 @@ class AddressableFireworksEffect : public AddressableLightEffect {
 
 class AddressableFlickerEffect : public AddressableLightEffect {
  public:
-  explicit AddressableFlickerEffect(const std::string &name) : AddressableLightEffect(name) {}
+  explicit AddressableFlickerEffect(const char *name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
     const uint8_t intensity = this->intensity_;
@@ -365,5 +387,4 @@ class AddressableFlickerEffect : public AddressableLightEffect {
   uint8_t intensity_{13};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import ICON_CURRENT_DC, UNIT_AMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -22,6 +23,8 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import CONF_BMS_DALY_ID, DalyBmsComponent
 
@@ -55,13 +58,10 @@ CONF_CELL_15_VOLTAGE = "cell_15_voltage"
 CONF_CELL_16_VOLTAGE = "cell_16_voltage"
 CONF_CELL_17_VOLTAGE = "cell_17_voltage"
 CONF_CELL_18_VOLTAGE = "cell_18_voltage"
-ICON_CURRENT_DC = "mdi:current-dc"
 ICON_BATTERY_OUTLINE = "mdi:battery-outline"
 ICON_THERMOMETER_CHEVRON_UP = "mdi:thermometer-chevron-up"
 ICON_THERMOMETER_CHEVRON_DOWN = "mdi:thermometer-chevron-down"
 ICON_CAR_BATTERY = "mdi:car-battery"
-
-UNIT_AMPERE_HOUR = "Ah"
 
 TYPES = [
     CONF_VOLTAGE,
@@ -224,13 +224,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def setup_conf(config, key, hub):
+async def setup_conf(config: ConfigType, key: str, hub: MockObj) -> None:
     if sensor_config := config.get(key):
         sens = await sensor.new_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BMS_DALY_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

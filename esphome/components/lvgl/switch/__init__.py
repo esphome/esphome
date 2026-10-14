@@ -7,18 +7,15 @@ from esphome.cpp_types import Component
 
 from ..defines import CONF_WIDGET, literal
 from ..lvcode import (
-    API_EVENT,
     EVENT_ARG,
     UPDATE_EVENT,
     LambdaContext,
-    LvConditional,
     LvContext,
-    lv,
     lv_add,
     lvgl_static,
 )
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
-from ..widgets import get_widgets, wait_for_widgets
+from ..widgets import get_widgets
 
 LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch, Component)
 CONFIG_SCHEMA = switch_schema(LVGLSwitch).extend(
@@ -31,15 +28,10 @@ CONFIG_SCHEMA = switch_schema(LVGLSwitch).extend(
 async def to_code(config):
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
-    await wait_for_widgets()
     switch_id = MockObj(config[CONF_ID], "->")
     v = literal("v")
     async with LambdaContext([(cg.bool_, "v")]) as control:
-        with LvConditional(v) as cond:
-            widget.add_state(LV_STATE.CHECKED)
-            cond.else_()
-            widget.clear_state(LV_STATE.CHECKED)
-        lv.event_send(widget.obj, API_EVENT, cg.nullptr)
+        widget.set_state(LV_STATE.CHECKED, literal("v"))
         control.add(switch_id.publish_state(v))
     switch = cg.new_Pvariable(config[CONF_ID], await control.get_lambda())
     await cg.register_component(switch, config)

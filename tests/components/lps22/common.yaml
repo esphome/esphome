@@ -1,5 +1,6 @@
 sensor:
   - platform: lps22
+    i2c_id: i2c_bus
     address: 0x5d
     update_interval: 10s
     temperature:

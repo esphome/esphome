@@ -1,0 +1,7 @@
+# Exercises the dict form of fast_connect overriding the ESP8266 default (rtc)
+# back to flash storage.
+wifi:
+  ssid: MySSID
+  password: password1
+  fast_connect:
+    storage: flash

@@ -1,10 +1,9 @@
 #include "as5600.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as5600 {
+namespace esphome::as5600 {
 
-static const char *const TAG = "as5600";
+ESPHOME_LOG_TAG(TAG, "as5600");
 
 // Configuration registers
 static const uint8_t REGISTER_ZMCO = 0x00;  // 8 bytes  / R
@@ -134,5 +133,4 @@ optional<uint16_t> AS5600Component::read_raw_position() {
   return pos;
 }
 
-}  // namespace as5600
-}  // namespace esphome
+}  // namespace esphome::as5600

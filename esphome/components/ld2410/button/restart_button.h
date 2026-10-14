@@ -3,10 +3,9 @@
 #include "esphome/components/button/button.h"
 #include "../ld2410.h"
 
-namespace esphome {
-namespace ld2410 {
+namespace esphome::ld2410 {
 
-class RestartButton : public button::Button, public Parented<LD2410Component> {
+class RestartButton final : public button::Button, public Parented<LD2410Component> {
  public:
   RestartButton() = default;
 
@@ -14,5 +13,4 @@ class RestartButton : public button::Button, public Parented<LD2410Component> {
   void press_action() override;
 };
 
-}  // namespace ld2410
-}  // namespace esphome
+}  // namespace esphome::ld2410

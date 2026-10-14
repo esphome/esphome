@@ -1,5 +1,3 @@
-substitutions:
-  scl_pin: GPIO5
-  sda_pin: GPIO4
-
-<<: !include common.yaml
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
+  tmp102: !include common.yaml

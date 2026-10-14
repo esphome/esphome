@@ -1,0 +1,7 @@
+packages:
+  ble: !include ../../test_build_components/common/ble/esp32-p4-idf.yaml
+
+# tx_power is not supported on ESP-Hosted platforms
+esp32_ble_beacon:
+  type: iBeacon
+  uuid: 'c29ce823-e67a-4e71-bff2-abaa32e77a98'

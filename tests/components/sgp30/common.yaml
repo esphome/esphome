@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_sgp30
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: sgp30
+    i2c_id: i2c_bus
     eco2:
       name: Workshop eCO2
       accuracy_decimals: 1

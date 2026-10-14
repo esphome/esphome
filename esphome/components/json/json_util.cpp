@@ -1,77 +1,168 @@
 #include "json_util.h"
+
+#include <cstring>
 #include "esphome/core/log.h"
 
 // ArduinoJson::Allocator is included via ArduinoJson.h in json_util.h
 
-namespace esphome {
-namespace json {
+namespace esphome::json {
 
-static const char *const TAG = "json";
+ESPHOME_LOG_TAG(TAG, "json");
 
-// Build an allocator for the JSON Library using the RAMAllocator class
-struct SpiRamAllocator : ArduinoJson::Allocator {
-  void *allocate(size_t size) override { return this->allocator_.allocate(size); }
+#ifdef USE_PSRAM
+// Global allocator that outlives all JsonDocuments returned by parse_json()
+// This prevents dangling pointer issues when JsonDocuments are returned from functions
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - Must be mutable for ArduinoJson::Allocator
+static SpiRamAllocator global_json_allocator;
+#endif
 
-  void deallocate(void *pointer) override {
-    // ArduinoJson's Allocator interface doesn't provide the size parameter in deallocate.
-    // RAMAllocator::deallocate() requires the size, which we don't have access to here.
-    // RAMAllocator::deallocate implementation just calls free() regardless of whether
-    // the memory was allocated with heap_caps_malloc or malloc.
-    // This is safe because ESP-IDF's heap implementation internally tracks the memory region
-    // and routes free() to the appropriate heap.
-    free(pointer);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
-  }
-
-  void *reallocate(void *ptr, size_t new_size) override {
-    return this->allocator_.reallocate(static_cast<uint8_t *>(ptr), new_size);
-  }
-
- protected:
-  RAMAllocator<uint8_t> allocator_{RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::NONE)};
-};
-
-std::string build_json(const json_build_t &f) {
+SerializationBuffer<> build_json(const json_build_t &f) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  auto doc_allocator = SpiRamAllocator();
-  JsonDocument json_document(&doc_allocator);
-  if (json_document.overflowed()) {
-    ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
-    return "{}";
-  }
-  JsonObject root = json_document.to<JsonObject>();
+  JsonBuilder builder;
+  JsonObject root = builder.root();
   f(root);
-  if (json_document.overflowed()) {
-    ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
-    return "{}";
-  }
-  std::string output;
-  serializeJson(json_document, output);
-  return output;
+  return builder.serialize();
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
 bool parse_json(const std::string &data, const json_parse_t &f) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size(), f);
+}
+
+bool parse_json(const uint8_t *data, size_t len, const json_parse_t &f) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  auto doc_allocator = SpiRamAllocator();
-  JsonDocument json_document(&doc_allocator);
-  if (json_document.overflowed()) {
-    ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
+  JsonDocument doc = parse_json(data, len);
+  if (doc.overflowed() || doc.isNull())
     return false;
-  }
-  DeserializationError err = deserializeJson(json_document, data);
-
-  JsonObject root = json_document.as<JsonObject>();
-
-  if (err == DeserializationError::Ok) {
-    return f(root);
-  } else if (err == DeserializationError::NoMemory) {
-    ESP_LOGE(TAG, "Can not allocate more memory for deserialization. Consider making source string smaller");
-    return false;
-  }
-  ESP_LOGE(TAG, "Parse error: %s", err.c_str());
-  return false;
+  return f(doc.as<JsonObject>());
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-}  // namespace json
-}  // namespace esphome
+JsonDocument parse_json(const uint8_t *data, size_t len) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks,clang-analyzer-core.StackAddressEscape) false positives with
+  // ArduinoJson
+  if (data == nullptr || len == 0) {
+    ESP_LOGE(TAG, "No data to parse");
+    return JsonObject();  // return unbound object
+  }
+  JsonDocument json_document(heap_json_allocator());
+  if (json_document.overflowed()) {
+    ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
+    return JsonObject();  // return unbound object
+  }
+  DeserializationError err = deserializeJson(json_document, data, len);
+
+  if (err == DeserializationError::Ok) {
+    return json_document;
+  } else if (err == DeserializationError::NoMemory) {
+    ESP_LOGE(TAG, "Can not allocate more memory for deserialization. Consider making source string smaller");
+    return JsonObject();  // return unbound object
+  }
+  ESP_LOGE(TAG, "Parse error: %s", err.c_str());
+  return JsonObject();  // return unbound object
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks,clang-analyzer-core.StackAddressEscape)
+}
+
+JsonBuilder::JsonBuilder() : doc_(heap_json_allocator()) {}
+#ifdef USE_JSON_ARENA
+JsonBuilder::JsonBuilder(ArduinoJson::Allocator *allocator) : doc_(allocator) {}
+#endif
+
+ArduinoJson::Allocator *heap_json_allocator() {
+#ifdef USE_PSRAM
+  return &global_json_allocator;
+#else
+  return ArduinoJson::detail::DefaultAllocator::instance();
+#endif
+}
+
+size_t JsonBuilder::serialize_to(char *buf, size_t cap) {
+  if (doc_.overflowed()) {
+    ESP_LOGE(TAG, "JSON document overflow");
+    // Same contract as serializeJson; written by hand so no "{}" literal lives in RAM on ESP8266
+    size_t n = 0;
+    if (n < cap)
+      buf[n++] = '{';
+    if (n < cap)
+      buf[n++] = '}';
+    if (n < cap)
+      buf[n] = '\0';
+    return n;
+  }
+  return serializeJson(doc_, buf, cap);
+}
+
+SerializationBuffer<> JsonBuilder::serialize() {
+  // ===========================================================================================
+  // CRITICAL: NRVO (Named Return Value Optimization) - DO NOT REFACTOR WITHOUT UNDERSTANDING
+  // ===========================================================================================
+  //
+  // This function is carefully structured to enable NRVO. The compiler constructs `result`
+  // directly in the caller's stack frame, eliminating the move constructor call entirely.
+  //
+  // WITHOUT NRVO: Each return would trigger SerializationBuffer's move constructor, which
+  // must memcpy up to 512 bytes of stack buffer content. This happens on EVERY JSON
+  // serialization (sensor updates, web server responses, MQTT publishes, etc.).
+  //
+  // WITH NRVO: Zero memcpy, zero move constructor overhead. The buffer lives directly
+  // where the caller needs it.
+  //
+  // Requirements for NRVO to work:
+  //   1. Single named variable (`result`) returned from ALL paths
+  //   2. All paths must return the SAME variable (not different variables)
+  //   3. No std::move() on the return statement
+  //
+  // If you must modify this function:
+  //   - Keep a single `result` variable declared at the top
+  //   - All code paths must return `result` (not a different variable)
+  //   - Verify NRVO still works by checking the disassembly for move constructor calls
+  //   - Test: objdump -d -C firmware.elf | grep "SerializationBuffer.*SerializationBuffer"
+  //     Should show only destructor, NOT move constructor
+  //
+  // Try stack buffer first. 640 bytes covers 99.9% of JSON payloads (sensors ~200B,
+  // lights ~170B, climate ~500-700B). Only entities with 40+ options exceed this.
+  //
+  // IMPORTANT: ArduinoJson's serializeJson() with a bounded buffer returns the actual
+  // bytes written (truncated count), NOT the would-be size like snprintf(). When the
+  // payload exceeds the buffer, the return value equals the buffer capacity. The heap
+  // fallback doubles the buffer size until the payload fits. This avoids instantiating
+  // measureJson()'s DummyWriter templates (~736 bytes flash) at the cost of temporarily
+  // over-allocating heap (at most 2x) for the rare payloads that exceed 640 bytes.
+  //
+  // ===========================================================================================
+  constexpr size_t buf_size = SerializationBuffer<>::BUFFER_SIZE;
+  SerializationBuffer<> result(buf_size - 1);  // Max content size (reserve 1 for null)
+
+  size_t size = this->serialize_to(result.data_writable_(), buf_size);
+  if (size < buf_size) {
+    // Fits in stack buffer - update size to actual length
+    result.set_size_(size);
+    return result;
+  }
+
+  // Payload exceeded stack buffer. Double the buffer and retry until it fits.
+  // In practice, one iteration (1024 bytes) covers all known entity types.
+  // Payloads exceeding 1024 bytes are not known to exist in real configurations.
+  // Cap at 5120 as a safety limit to prevent runaway allocation.
+  constexpr size_t max_heap_size = 5120;
+  size_t heap_size = buf_size * 2;
+  while (heap_size <= max_heap_size) {
+    result.reallocate_heap_(heap_size - 1);
+    size = this->serialize_to(result.data_writable_(), heap_size);
+    if (size < heap_size) {
+      result.set_size_(size);
+      return result;
+    }
+    heap_size *= 2;
+  }
+  // Payload exceeds 5120 bytes - return truncated result
+  // heap_size was doubled after the last iteration, so the actual allocated
+  // buffer capacity is heap_size/2. Clamp to avoid writing past the buffer.
+  size_t max_content = heap_size / 2 - 1;
+  ESP_LOGW(TAG, "JSON payload too large, truncated to %zu bytes", max_content);
+  result.set_size_(max_content);
+  return result;
+}
+
+}  // namespace esphome::json

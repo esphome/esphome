@@ -1,1 +1,1 @@
-CODEOWNERS = ["@jesserockz"]
+DOMAIN = "inkplate6"

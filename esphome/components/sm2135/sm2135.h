@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace sm2135 {
+namespace esphome::sm2135 {
 
 enum SM2135Current : uint8_t {
   SM2135_CURRENT_10MA = 0x00,
@@ -22,7 +21,7 @@ enum SM2135Current : uint8_t {
   SM2135_CURRENT_60MA = 0x0A,
 };
 
-class SM2135 : public Component {
+class SM2135 final : public Component {
  public:
   class Channel;
 
@@ -50,7 +49,7 @@ class SM2135 : public Component {
   /// Send new values if they were updated.
   void loop() override;
 
-  class Channel : public output::FloatOutput {
+  class Channel final : public output::FloatOutput {
    public:
     void set_parent(SM2135 *parent) { parent_ = parent; }
     void set_channel(uint8_t channel) { channel_ = channel; }
@@ -86,5 +85,4 @@ class SM2135 : public Component {
   bool update_{true};
 };
 
-}  // namespace sm2135
-}  // namespace esphome
+}  // namespace esphome::sm2135

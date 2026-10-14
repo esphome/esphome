@@ -1,0 +1,15 @@
+esphome:
+  name: componenttestnrf52
+  friendly_name: $component_name
+
+nrf52:
+  board: xiao_ble
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

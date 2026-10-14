@@ -3,18 +3,18 @@
 //
 #pragma once
 
-#if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/log.h"
 
 #include "esp_lcd_panel_rgb.h"
 
-namespace esphome {
-namespace qspi_dbi {
+namespace esphome::qspi_dbi {
 
-constexpr static const char *const TAG = "display.qspi_dbi";
+ESPHOME_LOG_TAG(TAG, "display.qspi_dbi");
 static const uint8_t SW_RESET_CMD = 0x01;
 static const uint8_t SLEEP_OUT = 0x11;
 static const uint8_t NORON = 0x13;
@@ -54,9 +54,9 @@ enum Model {
   RM67162,
 };
 
-class QspiDbi : public display::DisplayBuffer,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_1MHZ> {
+class QspiDbi final : public display::DisplayBuffer,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_1MHZ> {
  public:
   void set_model(const char *model) { this->model_ = model; }
   void update() override;
@@ -168,6 +168,5 @@ class QspiDbi : public display::DisplayBuffer,
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace qspi_dbi
-}  // namespace esphome
+}  // namespace esphome::qspi_dbi
 #endif

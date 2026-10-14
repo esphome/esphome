@@ -1,10 +1,9 @@
 #include "fs3000.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace fs3000 {
+namespace esphome::fs3000 {
 
-static const char *const TAG = "fs3000";
+ESPHOME_LOG_TAG(TAG, "fs3000");
 
 void FS3000Component::setup() {
   if (model_ == FIVE) {
@@ -43,12 +42,7 @@ void FS3000Component::update() {
   }
 
   // checksum passes if the modulo 256 sum of the five bytes is 0
-  uint8_t checksum = 0;
-  for (uint8_t i : data) {
-    checksum += i;
-  }
-
-  if (checksum != 0) {
+  if (sum_bytes(data, sizeof(data)) != 0) {
     this->status_set_warning();
     ESP_LOGW(TAG, "Checksum failure when reading from FS3000");
     return;
@@ -101,5 +95,4 @@ float FS3000Component::fit_raw_(uint16_t raw_value) {
   }
 }
 
-}  // namespace fs3000
-}  // namespace esphome
+}  // namespace esphome::fs3000

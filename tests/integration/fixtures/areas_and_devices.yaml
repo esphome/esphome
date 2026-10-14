@@ -55,6 +55,12 @@ sensor:
     lambda: return 4.0;
     update_interval: 0.1s
 
+  - platform: template
+    name: Living Room Sensor
+    device_id: ""
+    lambda: return 5.0;
+    update_interval: 0.1s
+
 # Switches with the same name on different devices to test device_id lookup
 switch:
   # Switch with no device_id (defaults to 0)
@@ -96,3 +102,23 @@ switch:
       - logger.log: "Turning on Test Switch on Motion Detector"
     turn_off_action:
       - logger.log: "Turning off Test Switch on Motion Detector"
+
+  - platform: template
+    name: Living Room Blank Switch
+    device_id: ""
+    id: test_switch_blank_living_room
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Living Room Blank Switch"
+    turn_off_action:
+      - logger.log: "Turning off Living Room Blank Switch"
+
+  - platform: template
+    name: Living Room None Switch
+    device_id:
+    id: test_switch_none_living_room
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Living Room None Switch"
+    turn_off_action:
+      - logger.log: "Turning off Living Room None Switch"

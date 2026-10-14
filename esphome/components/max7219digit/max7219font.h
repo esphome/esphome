@@ -2,12 +2,11 @@
 
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace max7219digit {
+namespace esphome::max7219digit {
 
 // bit patterns for the CP437 font
 
-const uint8_t MAX7219_DOT_MATRIX_FONT[256][8] PROGMEM = {
+constexpr uint8_t MAX7219_DOT_MATRIX_FONT[256][8] PROGMEM = {
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},  // 0x00
     {0x7E, 0x81, 0x95, 0xB1, 0xB1, 0x95, 0x81, 0x7E},  // 0x01
     {0x7E, 0xFF, 0xEB, 0xCF, 0xCF, 0xEB, 0xFF, 0x7E},  // 0x02
@@ -266,5 +265,4 @@ const uint8_t MAX7219_DOT_MATRIX_FONT[256][8] PROGMEM = {
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},  // 0xFF
 };                                                     // end of MAX7219_Dot_Matrix_font
 
-}  // namespace max7219digit
-}  // namespace esphome
+}  // namespace esphome::max7219digit

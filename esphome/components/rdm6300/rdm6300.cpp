@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace rdm6300 {
+namespace esphome::rdm6300 {
 
-static const char *const TAG = "rdm6300";
+ESPHOME_LOG_TAG(TAG, "rdm6300");
 
 static const uint8_t RDM6300_START_BYTE = 0x02;
 static const uint8_t RDM6300_END_BYTE = 0x03;
@@ -34,6 +33,8 @@ void rdm6300::RDM6300Component::loop() {
         this->buffer_[this->read_state_ / 2] += value;
       }
       this->read_state_++;
+    } else if (data == 0x0D || data == 0x0A) {
+      // Skip CR/LF bytes (ID-20LA compatibility)
     } else if (data != RDM6300_END_BYTE) {
       ESP_LOGW(TAG, "Invalid end byte from RDM6300!");
       this->read_state_ = RDM6300_STATE_WAITING_FOR_START;
@@ -65,5 +66,4 @@ void rdm6300::RDM6300Component::loop() {
   }
 }
 
-}  // namespace rdm6300
-}  // namespace esphome
+}  // namespace esphome::rdm6300

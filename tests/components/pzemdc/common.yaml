@@ -3,15 +3,9 @@ esphome:
     then:
       - pzemdc.reset_energy: pzemdc1
 
-uart:
-  - id: uart_pzemdc
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-    stop_bits: 2
-
 sensor:
   - platform: pzemdc
+    modbus_id: modbus_bus
     id: pzemdc1
     voltage:
       name: PZEMDC Voltage

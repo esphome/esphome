@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_hyt271
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: hyt271
+    i2c_id: i2c_bus
     temperature:
       name: Temperature
     humidity:

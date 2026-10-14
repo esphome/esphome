@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace mpr121 {
+namespace esphome::mpr121 {
 
 enum {
   MPR121_TOUCHSTATUS_L = 0x00,
@@ -58,7 +57,7 @@ class MPR121Channel {
   virtual void process(uint16_t data) = 0;
 };
 
-class MPR121Component : public Component, public i2c::I2CDevice {
+class MPR121Component final : public Component, public i2c::I2CDevice {
  public:
   void register_channel(MPR121Channel *channel) { this->channels_.push_back(channel); }
   void set_touch_debounce(uint8_t debounce);
@@ -88,7 +87,6 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
-    WRONG_CHIP_STATE,
   } error_code_{NONE};
 
   bool flush_gpio_();
@@ -104,13 +102,13 @@ class MPR121Component : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose a MPR121 pin as an internal input GPIO pin.
-class MPR121GPIOPin : public GPIOPin {
+class MPR121GPIOPin final : public GPIOPin {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_parent(MPR121Component *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
@@ -126,5 +124,4 @@ class MPR121GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace mpr121
-}  // namespace esphome
+}  // namespace esphome::mpr121

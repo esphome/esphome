@@ -1,36 +1,35 @@
 #include "teleinfo.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace teleinfo {
+namespace esphome::teleinfo {
 
-static const char *const TAG = "teleinfo";
+ESPHOME_LOG_TAG(TAG, "teleinfo");
 
 /* Helpers */
-static int get_field(char *dest, char *buf_start, char *buf_end, int sep, int max_len) {
-  char *field_end;
+static int get_field(char *dest, uint8_t *buf_start, uint8_t *buf_end, int sep, int max_len) {
+  uint8_t *field_end;
   int len;
 
-  field_end = static_cast<char *>(memchr(buf_start, sep, buf_end - buf_start));
+  field_end = static_cast<uint8_t *>(memchr(buf_start, sep, buf_end - buf_start));
   if (!field_end)
     return 0;
   len = field_end - buf_start;
   if (len >= max_len)
     return len;
-  strncpy(dest, buf_start, len);
+  memcpy(dest, buf_start, len);
   dest[len] = '\0';
 
   return len;
 }
 /* TeleInfo methods */
-bool TeleInfo::check_crc_(const char *grp, const char *grp_end) {
+bool TeleInfo::check_crc_(const uint8_t *grp, const uint8_t *grp_end) {
   int grp_len = grp_end - grp;
+  if (grp_len < this->checksum_area_end_) {
+    ESP_LOGE(TAG, "Empty or too short group");
+    return false;
+  }
   uint8_t raw_crc = grp[grp_len - 1];
-  uint8_t crc_tmp = 0;
-  int i;
-
-  for (i = 0; i < grp_len - checksum_area_end_; i++)
-    crc_tmp += grp[i];
+  uint8_t crc_tmp = sum_bytes(grp, grp_len - this->checksum_area_end_);
 
   crc_tmp &= 0x3F;
   crc_tmp += 0x20;
@@ -47,7 +46,8 @@ bool TeleInfo::read_chars_until_(bool drop, uint8_t c) {
 
   while (available() > 0 && j < 128) {
     j++;
-    received = read();
+    if (!read_byte(&received))
+      break;
     if (received == c)
       return true;
     if (drop)
@@ -58,7 +58,7 @@ bool TeleInfo::read_chars_until_(bool drop, uint8_t c) {
      */
     if (buf_index_ >= (MAX_BUF_SIZE - 1)) {
       ESP_LOGW(TAG, "Internal buffer full");
-      state_ = OFF;
+      state_ = STATE_OFF;
       return false;
     }
     buf_[buf_index_++] = received;
@@ -66,18 +66,18 @@ bool TeleInfo::read_chars_until_(bool drop, uint8_t c) {
 
   return false;
 }
-void TeleInfo::setup() { state_ = OFF; }
+void TeleInfo::setup() { state_ = STATE_OFF; }
 void TeleInfo::update() {
-  if (state_ == OFF) {
+  if (state_ == STATE_OFF) {
     buf_index_ = 0;
-    state_ = ON;
+    state_ = STATE_ON;
   }
 }
 void TeleInfo::loop() {
   switch (state_) {
-    case OFF:
+    case STATE_OFF:
       break;
-    case ON:
+    case STATE_ON:
       /* Dequeue chars until start frame (0x2) */
       if (read_chars_until_(true, 0x2))
         state_ = START_FRAME_RECEIVED;
@@ -88,9 +88,9 @@ void TeleInfo::loop() {
         state_ = END_FRAME_RECEIVED;
       break;
     case END_FRAME_RECEIVED:
-      char *buf_finger;
-      char *grp_end;
-      char *buf_end;
+      uint8_t *buf_finger;
+      uint8_t *grp_end;
+      uint8_t *buf_end;
       int field_len;
 
       buf_finger = buf_;
@@ -117,8 +117,7 @@ void TeleInfo::loop() {
        * 0xa | Tag | 0x9 | Timestamp | 0x9 | 0x9 | CRC | 0xd
        *
        */
-      while ((buf_finger = static_cast<char *>(memchr(buf_finger, (int) 0xa, buf_index_ - 1))) &&
-             ((buf_finger - buf_) < buf_index_)) {  // NOLINT(clang-diagnostic-sign-compare)
+      while ((buf_finger = static_cast<uint8_t *>(memchr(buf_finger, (int) 0xa, buf_end - buf_finger)))) {
         /*
          * Make sure timesamp is nullified between each tag as some tags don't
          * have a timestamp
@@ -128,7 +127,7 @@ void TeleInfo::loop() {
         buf_finger += 1;
 
         /* Group len */
-        grp_end = static_cast<char *>(memchr(buf_finger, 0xd, buf_end - buf_finger));
+        grp_end = static_cast<uint8_t *>(memchr(buf_finger, 0xd, buf_end - buf_finger));
         if (!grp_end) {
           ESP_LOGE(TAG, "No group found");
           break;
@@ -155,7 +154,7 @@ void TeleInfo::loop() {
         if (std::count(buf_finger, grp_end, separator_) == 2 && strcmp(tag_, "DATE") != 0 && separator_ != 0x20) {
           field_len = get_field(timestamp_, buf_finger, grp_end, separator_, MAX_TIMESTAMP_SIZE);
           if (!field_len || field_len >= MAX_TIMESTAMP_SIZE) {
-            ESP_LOGE(TAG, "Invalid timestamp for tag %s", timestamp_);
+            ESP_LOGE(TAG, "Invalid timestamp for tag %s", tag_);
             continue;
           }
 
@@ -169,12 +168,12 @@ void TeleInfo::loop() {
           continue;
         }
 
-        /* Advance buf_finger to end of group */
-        buf_finger += field_len + 1 + 1 + 1;
+        /* Resume after the group's 0xd; grp_end < buf_end, so this stays in bounds. */
+        buf_finger = grp_end + 1;
 
         publish_value_(std::string(tag_), std::string(val_));
       }
-      state_ = OFF;
+      state_ = STATE_OFF;
       break;
   }
 }
@@ -185,10 +184,7 @@ void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
     element->publish_val(val);
   }
 }
-void TeleInfo::dump_config() {
-  ESP_LOGCONFIG(TAG, "TeleInfo:");
-  this->check_uart_settings(baud_rate_, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
-}
+void TeleInfo::dump_config() { ESP_LOGCONFIG(TAG, "TeleInfo:"); }
 TeleInfo::TeleInfo(bool historical_mode) {
   if (historical_mode) {
     /*
@@ -196,14 +192,11 @@ TeleInfo::TeleInfo(bool historical_mode) {
      */
     checksum_area_end_ = 2;
     separator_ = 0x20;
-    baud_rate_ = 1200;
   } else {
     checksum_area_end_ = 1;
     separator_ = 0x9;
-    baud_rate_ = 9600;
   }
 }
 void TeleInfo::register_teleinfo_listener(TeleInfoListener *listener) { teleinfo_listeners_.push_back(listener); }
 
-}  // namespace teleinfo
-}  // namespace esphome
+}  // namespace esphome::teleinfo

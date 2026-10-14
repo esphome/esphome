@@ -1,0 +1,6 @@
+<<: !include tinyusb_common.yaml
+
+usb_cdc_acm:
+  interfaces:
+    - id: usb_cdc_acm1
+    - id: usb_cdc_acm2

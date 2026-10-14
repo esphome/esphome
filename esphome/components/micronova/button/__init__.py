@@ -1,15 +1,16 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MEMORY_ADDRESS,
     CONF_MEMORY_LOCATION,
     CONF_MICRONOVA_ID,
-    MICRONOVA_LISTENER_SCHEMA,
+    MICRONOVA_ADDRESS_SCHEMA,
     MicroNova,
-    MicroNovaFunctions,
     micronova_ns,
+    register_micronova_writer,
 )
 
 MicroNovaButton = micronova_ns.class_("MicroNovaButton", button.Button, cg.Component)
@@ -24,21 +25,21 @@ CONFIG_SCHEMA = cv.Schema(
             MicroNovaButton,
         )
         .extend(
-            MICRONOVA_LISTENER_SCHEMA(
-                default_memory_location=0xA0, default_memory_address=0x7D
+            MICRONOVA_ADDRESS_SCHEMA(
+                is_polling_component=False,
             )
         )
-        .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range()}),
+        .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range(min=0x00, max=0xFF)}),
     }
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     if custom_button_config := config.get(CONF_CUSTOM_BUTTON):
+        register_micronova_writer()
         bt = await button.new_button(custom_button_config, mv)
-        cg.add(bt.set_memory_location(custom_button_config.get(CONF_MEMORY_LOCATION)))
-        cg.add(bt.set_memory_address(custom_button_config.get(CONF_MEMORY_ADDRESS)))
+        cg.add(bt.set_memory_location(custom_button_config[CONF_MEMORY_LOCATION]))
+        cg.add(bt.set_memory_address(custom_button_config[CONF_MEMORY_ADDRESS]))
         cg.add(bt.set_memory_data(custom_button_config[CONF_MEMORY_DATA]))
-        cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_CUSTOM))

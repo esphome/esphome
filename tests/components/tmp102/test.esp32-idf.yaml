@@ -1,5 +1,3 @@
-substitutions:
-  scl_pin: GPIO16
-  sda_pin: GPIO17
-
-<<: !include common.yaml
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  tmp102: !include common.yaml

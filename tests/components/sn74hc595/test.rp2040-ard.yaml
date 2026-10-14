@@ -1,12 +1,12 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
 substitutions:
-  clk_pin: GPIO6
-  mosi_pin: GPIO7
-  miso_pin: GPIO8
   clock_pin: GPIO5
-  data_pin: GPIO4
+  data_pin: GPIO0
   latch_pin1: GPIO1
-  oe_pin1: GPIO2
-  latch_pin2: GPIO3
+  oe_pin1: GPIO6
+  latch_pin2: GPIO7
   oe_pin2: GPIO9
 
 <<: !include common.yaml

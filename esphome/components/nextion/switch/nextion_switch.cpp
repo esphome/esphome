@@ -2,10 +2,9 @@
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
-static const char *const TAG = "nextion_switch";
+ESPHOME_LOG_TAG(TAG, "nextion_switch");
 
 void NextionSwitch::process_bool(const std::string &variable_name, bool on) {
   if (!this->nextion_->is_setup())
@@ -48,5 +47,4 @@ void NextionSwitch::set_state(bool state, bool publish, bool send_to_nextion) {
 
 void NextionSwitch::write_state(bool state) { this->set_state(state); }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

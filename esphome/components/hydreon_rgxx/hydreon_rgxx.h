@@ -8,8 +8,7 @@
 #endif
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace hydreon_rgxx {
+namespace esphome::hydreon_rgxx {
 
 enum RGModel {
   RG9 = 1,
@@ -33,7 +32,7 @@ static const uint8_t NUM_SENSORS = 1;
 
 #define HYDREON_RGXX_IGNORE_LIST(F, SEP) F("Emitters") SEP F("Event") SEP F("Reset")
 
-class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
+class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_sensor(sensor::Sensor *sensor, int index) { this->sensors_[index] = sensor; }
 #ifdef USE_BINARY_SENSOR
@@ -52,8 +51,6 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   /// Setup the sensor and test for a connection.
   void setup() override;
   void dump_config() override;
-
-  float get_setup_priority() const override;
 
   void set_disable_led(bool disable_led) { this->disable_led_ = disable_led; }
 
@@ -89,10 +86,9 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   int sensors_received_ = -1;
 };
 
-class HydreonRGxxBinaryComponent : public Component {
+class HydreonRGxxBinaryComponent final : public Component {
  public:
   HydreonRGxxBinaryComponent(HydreonRGxxComponent *parent) {}
 };
 
-}  // namespace hydreon_rgxx
-}  // namespace esphome
+}  // namespace esphome::hydreon_rgxx

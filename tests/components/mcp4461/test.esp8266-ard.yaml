@@ -1,5 +1,4 @@
-substitutions:
-  sda_pin: GPIO4
-  scl_pin: GPIO5
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
 
 <<: !include common.yaml

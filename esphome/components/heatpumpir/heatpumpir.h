@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
@@ -8,8 +8,7 @@
 // that conflict with ESPHome.
 class HeatpumpIR;
 
-namespace esphome {
-namespace heatpumpir {
+namespace esphome::heatpumpir {
 
 // Simple enum to represent protocols.
 enum Protocol {
@@ -94,17 +93,21 @@ enum VerticalDirection {
 const float TEMP_MIN = 0;    // Celsius
 const float TEMP_MAX = 100;  // Celsius
 
-class HeatpumpIRClimate : public climate_ir::ClimateIR {
+class HeatpumpIRClimate final : public climate_ir::ClimateIR {
  public:
   HeatpumpIRClimate()
-      : climate_ir::ClimateIR(
-            TEMP_MIN, TEMP_MAX, 1.0f, true, true,
-            std::set<climate::ClimateFanMode>{climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                                              climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_AUTO},
-            std::set<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
-                                                climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
+      : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
+                               climate::CLIMATE_FAN_AUTO},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
+                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
   void setup() override;
-  void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
+  void set_protocol(Protocol protocol) {
+    this->protocol_ = protocol;
+    if (this->has_fan_byte_presets_()) {
+      this->presets_ = {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST};
+    }
+  }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
   }
@@ -117,8 +120,15 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
 
  protected:
   HeatpumpIR *heatpump_ir_;
+  void control(const climate::ClimateCall &call) override;
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  /// Mitsubishi Heavy ZJ and ZMP carry HiPower and Econo in the fan byte as FAN_4 and FAN_5
+  bool has_fan_byte_presets_() const {
+    return this->protocol_ == PROTOCOL_MITSUBISHI_HEAVY_ZJ || this->protocol_ == PROTOCOL_MITSUBISHI_HEAVY_ZMP;
+  }
+  /// Handle received IR data from the remote control.
+  bool on_receive(remote_base::RemoteReceiveData data) override;
   Protocol protocol_;
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;
@@ -127,7 +137,6 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
   float min_temperature_;
 };
 
-}  // namespace heatpumpir
-}  // namespace esphome
+}  // namespace esphome::heatpumpir
 
 #endif

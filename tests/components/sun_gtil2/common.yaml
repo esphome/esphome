@@ -1,8 +1,3 @@
-uart:
-  - id: uart_sun_gtil2
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 sun_gtil2:
 
 sensor:

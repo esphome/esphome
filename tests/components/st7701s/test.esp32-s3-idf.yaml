@@ -1,5 +1,7 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
 substitutions:
-  clk_pin: GPIO41
   mosi_pin: GPIO48
   cs_pin: GPIO44
   de_pin: GPIO18

@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_max44009
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: max44009
+    i2c_id: i2c_bus
     name: MAX44009 Brightness
     internal: true
     mode: low_power

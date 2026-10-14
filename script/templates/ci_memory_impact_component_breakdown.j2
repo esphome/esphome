@@ -1,0 +1,15 @@
+
+<details open>
+<summary>📊 Component Memory Breakdown</summary>
+
+| Component | Target Flash | PR Flash | Change |
+|-----------|--------------|----------|--------|
+{% for comp, target_flash, pr_flash, delta in changed_components[:max_rows] -%}
+{% set threshold = component_change_threshold if comp.startswith("[esphome]") else none -%}
+| `{{ comp }}` | {{ target_flash|format_bytes }} | {{ pr_flash|format_bytes }} | {{ format_change(target_flash, pr_flash, threshold=threshold) }} |
+{% endfor -%}
+{% if changed_components|length > max_rows -%}
+| ... | ... | ... | *({{ changed_components|length - max_rows }} more components not shown)* |
+{% endif -%}
+
+</details>

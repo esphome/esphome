@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace htu21d {
+namespace esphome::htu21d {
 
-static const char *const TAG = "htu21d";
+ESPHOME_LOG_TAG(TAG, "htu21d");
 
 static const uint8_t HTU21D_ADDRESS = 0x40;
 static const uint8_t HTU21D_REGISTER_RESET = 0xFE;
@@ -57,7 +56,6 @@ void HTU21DComponent::update() {
 
     if (this->temperature_ != nullptr)
       this->temperature_->publish_state(temperature);
-    this->status_clear_warning();
 
     if (this->write(&HTU21D_REGISTER_HUMIDITY, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -79,10 +77,11 @@ void HTU21DComponent::update() {
       if (this->humidity_ != nullptr)
         this->humidity_->publish_state(humidity);
 
-      int8_t heater_level;
+      this->status_clear_warning();
 
       // HTU21D does have a heater module but does not have heater level
       // Setting heater level to 1 in case the heater is ON
+      uint8_t heater_level = 0;
       if (this->sensor_model_ == HTU21D_SENSOR_MODEL_HTU21D) {
         if (this->is_heater_enabled()) {
           heater_level = 1;
@@ -97,34 +96,30 @@ void HTU21DComponent::update() {
 
       if (this->heater_ != nullptr)
         this->heater_->publish_state(heater_level);
-      this->status_clear_warning();
     });
   });
 }
 
 bool HTU21DComponent::is_heater_enabled() {
   uint8_t raw_heater;
-  if (this->read_register(HTU21D_REGISTER_STATUS, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
+  if (this->read_register(HTU21D_REGISTER_STATUS, &raw_heater, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return false;
   }
-  raw_heater = i2c::i2ctohs(raw_heater);
-  return (bool) (((raw_heater) >> (HTU21D_REG_HTRE_BIT)) & 0x01);
+  return (bool) ((raw_heater >> HTU21D_REG_HTRE_BIT) & 0x01);
 }
 
 void HTU21DComponent::set_heater(bool status) {
   uint8_t raw_heater;
-  if (this->read_register(HTU21D_REGISTER_STATUS, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
+  if (this->read_register(HTU21D_REGISTER_STATUS, &raw_heater, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  raw_heater = i2c::i2ctohs(raw_heater);
   if (status) {
-    raw_heater |= (1 << (HTU21D_REG_HTRE_BIT));
+    raw_heater |= (1 << HTU21D_REG_HTRE_BIT);
   } else {
-    raw_heater &= ~(1 << (HTU21D_REG_HTRE_BIT));
+    raw_heater &= ~(1 << HTU21D_REG_HTRE_BIT);
   }
-
   if (this->write_register(HTU21D_WRITERHT_REG_CMD, &raw_heater, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
@@ -138,17 +133,13 @@ void HTU21DComponent::set_heater_level(uint8_t level) {
   }
 }
 
-int8_t HTU21DComponent::get_heater_level() {
-  int8_t raw_heater;
-  if (this->read_register(HTU21D_READHEATER_REG_CMD, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
+uint8_t HTU21DComponent::get_heater_level() {
+  uint8_t raw_heater;
+  if (this->read_register(HTU21D_READHEATER_REG_CMD, &raw_heater, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return 0;
   }
-  raw_heater = i2c::i2ctohs(raw_heater);
-  return raw_heater;
+  return raw_heater & 0xF;
 }
 
-float HTU21DComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace htu21d
-}  // namespace esphome
+}  // namespace esphome::htu21d

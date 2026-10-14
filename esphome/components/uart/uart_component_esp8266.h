@@ -7,10 +7,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "software_serial_rx_decoder.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class ESP8266SoftwareSerial {
  public:
@@ -24,30 +24,36 @@ class ESP8266SoftwareSerial {
 
   void write_byte(uint8_t data);
 
-  int available();
+  size_t available();
 
  protected:
+  /// Above SW_SERIAL_EDGE_MODE_MAX_BAUD; reads the whole byte in the ISR.
   static void gpio_intr(ESP8266SoftwareSerial *arg);
+  static void gpio_intr_edge(ESP8266SoftwareSerial *arg);
 
-  void wait_(uint32_t *wait, const uint32_t &start);
-  bool read_bit_(uint32_t *wait, const uint32_t &start);
-  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
+  void wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  bool read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time);
 
+  void rx_finalize_pending_();
+  void ESPHOME_ALWAYS_INLINE rx_sync_() {
+    if (this->rx_.pending())
+      this->rx_finalize_pending_();
+  }
+
+  // Members ordered largest to smallest to minimize padding
   uint32_t bit_time_{0};
-  uint8_t *rx_buffer_{nullptr};
-  size_t rx_buffer_size_;
-  volatile size_t rx_in_pos_{0};
-  size_t rx_out_pos_{0};
-  uint8_t stop_bits_;
-  uint8_t data_bits_;
-  UARTParityOptions parity_;
   InternalGPIOPin *gpio_tx_pin_{nullptr};
   ISRInternalGPIOPin tx_pin_;
   InternalGPIOPin *gpio_rx_pin_{nullptr};
   ISRInternalGPIOPin rx_pin_;
+  SoftwareSerialRxDecoder rx_;
+  UARTParityOptions parity_;
+  uint8_t stop_bits_;
+  uint8_t data_bits_;
 };
 
-class ESP8266UartComponent : public UARTComponent, public Component {
+class ESP8266UartComponent final : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -58,8 +64,9 @@ class ESP8266UartComponent : public UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
 
-  int available() override;
-  void flush() override;
+  size_t available() override;
+  size_t available_for_write() override;
+  UARTFlushResult flush() override;
 
   uint32_t get_config();
 
@@ -76,7 +83,7 @@ class ESP8266UartComponent : public UARTComponent, public Component {
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
   void load_settings(bool dump_config) override;
-  void load_settings() override { this->load_settings(true); }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
  protected:
   void check_logger_conflict() override;
@@ -85,10 +92,9 @@ class ESP8266UartComponent : public UARTComponent, public Component {
   ESP8266SoftwareSerial *sw_serial_{nullptr};
 
  private:
-  static bool serial0_in_use;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static bool serial0_in_use;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static bool serial0_swapped;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_ESP8266
