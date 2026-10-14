@@ -75,6 +75,9 @@ void I2SAudioSpeaker::dump_config() {
 
 void I2SAudioSpeaker::run_speaker_task() {
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STARTING);
+  // Stale records from the previous run would pair with the wrong DMA events
+  xQueueReset(this->i2s_event_queue_);
+  xQueueReset(this->write_records_queue_);
 
   const uint32_t dma_buffers_duration_ms = DMA_BUFFER_DURATION_MS * DMA_BUFFERS_COUNT;
   // Ensure ring buffer duration is at least the duration of all DMA buffers
@@ -426,8 +429,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     return ESP_ERR_INVALID_STATE;
   }
 
-  // A channel kept alive from the previous session is reused as is when the stream format is unchanged;
-  // otherwise it is rebuilt with the new format under the lock taken above
+  // Reuse a kept channel while the stream format matches
   if (this->tx_handle_ != nullptr) {
     if (this->current_stream_info_ == audio_stream_info) {
       return ESP_OK;

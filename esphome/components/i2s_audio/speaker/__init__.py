@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, speaker
+from esphome.components.microphone import DOMAIN as MICROPHONE_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -243,12 +244,18 @@ def _final_validate(config: ConfigType) -> None:
             raise cv.Invalid("SPDIF mode does not support 'keep_alive'")
 
     if config[CONF_KEEP_ALIVE]:
-        # A kept channel holds the port's TX side, so another speaker on the same bus could never start
+        # A kept channel holds the port between sessions, so nothing else may share the bus
         bus = config[CONF_I2S_AUDIO_ID]
-        speakers = fv.full_config.get().get("speaker", [])
-        if sum(1 for s in speakers if s.get(CONF_I2S_AUDIO_ID) == bus) > 1:
+        full_config = fv.full_config.get()
+        on_bus = sum(
+            1
+            for domain in (speaker.DOMAIN, MICROPHONE_DOMAIN)
+            for entry in full_config.get(domain, [])
+            if entry.get(CONF_I2S_AUDIO_ID) == bus
+        )
+        if on_bus > 1:
             raise cv.Invalid(
-                "'keep_alive' needs its own I2S bus; another speaker shares this one"
+                "'keep_alive' needs its own I2S bus; another speaker or microphone shares this one"
             )
 
 
@@ -277,7 +284,8 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
-    cg.add(var.set_keep_alive(config[CONF_KEEP_ALIVE]))
+    if config[CONF_KEEP_ALIVE]:
+        cg.add(var.set_keep_alive(True))
 
 
 # The SPDIF encoder and speaker are fully #ifdef'd on USE_I2S_AUDIO_SPDIF_MODE,

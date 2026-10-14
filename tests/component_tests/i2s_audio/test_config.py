@@ -21,6 +21,7 @@ def test_keep_alive_generates_setter(
     ("config_file", "message"),
     [
         ("keep_alive_shared_bus.yaml", "needs its own I2S bus"),
+        ("keep_alive_shared_mic.yaml", "needs its own I2S bus"),
         ("keep_alive_spdif.yaml", "SPDIF mode does not support 'keep_alive'"),
     ],
 )

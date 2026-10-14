@@ -136,8 +136,8 @@ void I2SAudioSpeakerBase::loop() {
         break;
       }
 
-      // Still starting up or winding down from a previous run; a kept channel with no task is ready for reuse
-      if ((this->speaker_task_handle_ != nullptr) || (this->tx_handle_ != nullptr && !this->keep_alive_)) {
+      // Still winding down from a previous run
+      if (this->speaker_task_handle_ != nullptr) {
         break;
       }
 
@@ -273,31 +273,25 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
   err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to initialize I2S channel");
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
+    this->delete_channel_();
     this->parent_->unlock();
     return err;
   }
 
+  // Both queues are drained by the speaker task before it preloads, whether the channel is new or kept
   if (this->i2s_event_queue_ == nullptr) {
     this->i2s_event_queue_ = xQueueCreate(event_queue_size, sizeof(int64_t));
-  } else {
-    // Reset queue to clear any stale events from previous task
-    xQueueReset(this->i2s_event_queue_);
   }
 
   // Lockstep records queue. One record per in-flight DMA buffer; sized to match the I2S event queue
   // so a fully-saturated DMA pipeline cannot overflow either side before drain.
   if (this->write_records_queue_ == nullptr) {
     this->write_records_queue_ = xQueueCreate(event_queue_size, sizeof(uint32_t));
-  } else {
-    xQueueReset(this->write_records_queue_);
   }
 
   if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
+    this->delete_channel_();
     this->parent_->unlock();
     return ESP_ERR_NO_MEM;
   }
@@ -308,19 +302,9 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
 void I2SAudioSpeakerBase::stop_i2s_driver_(bool keep_channel) {
   if (this->tx_handle_ != nullptr) {
     i2s_channel_disable(this->tx_handle_);
-    if (keep_channel) {
-      // Leave the channel allocated so the next start skips i2s_new_channel and i2s_channel_init_std_mode,
-      // whose GPIO and clock reconfiguration is the audible pop. The callback must be cleared while the
-      // channel is disabled, and the queues drained so the next preload starts empty.
-      const i2s_event_callbacks_t callbacks = {.on_sent = nullptr};
-      i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
-      if (this->i2s_event_queue_ != nullptr) {
-        xQueueReset(this->i2s_event_queue_);
-      }
-      if (this->write_records_queue_ != nullptr) {
-        xQueueReset(this->write_records_queue_);
-      }
-    } else {
+    // A kept channel lets the next start skip i2s_new_channel and i2s_channel_init_std_mode, whose GPIO and
+    // clock reconfiguration is the audible pop
+    if (!keep_channel) {
       this->delete_channel_();
     }
   }
