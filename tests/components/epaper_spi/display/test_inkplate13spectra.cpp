@@ -2,6 +2,7 @@
 
 #include "../common.h"
 #include "esphome/components/epaper_spi/epaper_spi_inkplate13spectra.h"
+#include "esphome/core/application.h"
 
 namespace esphome::epaper_spi::testing {
 
@@ -10,7 +11,8 @@ class TestableInkplate13Spectra : public EPaperInkplate13Spectra {
  public:
   TestableInkplate13Spectra() : EPaperInkplate13Spectra("test", 8, 2, nullptr, 0, false) {}
 
-  void install() {
+  void install(spi::SPIDelegate *delegate = nullptr) {
+    this->delegate_ = delegate;
     this->set_dc_pin(&this->dc);
     this->set_cs_pins(&this->cs, &this->cs1);
     this->set_busy_pin(&this->busy);
@@ -19,6 +21,9 @@ class TestableInkplate13Spectra : public EPaperInkplate13Spectra {
     this->set_bs_pins(&this->bs0, &this->bs1);
   }
 
+  using EPaperInkplate13Spectra::check_refresh_ran_;
+  using EPaperInkplate13Spectra::refresh_screen;
+  using EPaperInkplate13Spectra::refresh_started_ms_;
   using EPaperInkplate13Spectra::reset;
   using EPaperInkplate13Spectra::reset_sub_;
   using EPaperInkplate13Spectra::state_;
@@ -54,6 +59,39 @@ TEST(EPaperInkplate13Spectra, NewCycleRunsFullPowerUpAfterAnUnfinishedOne) {
   EXPECT_FALSE(display.reset());
   EXPECT_EQ(display.reset_sub_, TestableInkplate13Spectra::RST_IO_WAIT);
   EXPECT_TRUE(display.pwr_en.level) << "panel power was not switched on";
+}
+
+/// When the panel ignores the refresh command (for example because it never powered up), the
+/// busy pin is released almost at once. That must be flagged rather than reported as a normal
+/// update, which is what happened in the field: the log showed a successful update while the
+/// screen never changed.
+TEST(EPaperInkplate13Spectra, RefreshThatEndsAtOnceIsFlagged) {
+  TestableInkplate13Spectra display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+
+  display.refresh_screen(false);  // the busy pin is released in the same loop pass
+  EXPECT_FALSE(display.check_refresh_ran_()) << "an instant refresh was accepted as real";
+}
+
+TEST(EPaperInkplate13Spectra, RefreshThatKeepsThePanelBusyIsAccepted) {
+  TestableInkplate13Spectra display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+
+  display.refresh_screen(false);
+  // Pretend the refresh command went out 20 s ago, as long as a real refresh takes.
+  display.refresh_started_ms_ = App.get_loop_component_start_time() - 20000;
+  EXPECT_TRUE(display.check_refresh_ran_());
+}
+
+/// power_off() also runs when an update is abandoned before the refresh command was sent; there
+/// is nothing to check then, so no warning may be raised.
+TEST(EPaperInkplate13Spectra, NoRefreshCommandMeansNothingToCheck) {
+  TestableInkplate13Spectra display;
+  display.install();
+
+  EXPECT_TRUE(display.check_refresh_ran_());
 }
 
 }  // namespace esphome::epaper_spi::testing

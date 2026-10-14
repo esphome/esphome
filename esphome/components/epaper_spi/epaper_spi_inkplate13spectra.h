@@ -66,12 +66,20 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
   /// Replays the panel register init table.
   void send_init_sequence_();
 
+  /// Called once the busy pin has cleared after a refresh command. A real refresh keeps the
+  /// panel busy for about 20 s; if it cleared much sooner the panel ignored the command (for
+  /// example because it never powered up), which would otherwise be reported as a normal
+  /// update. Logs a warning in that case and returns false.
+  bool check_refresh_ran_();
+
   GPIOPin *rst_pin_{nullptr};
   GPIOPin *pwr_en_pin_{nullptr};
   GPIOPin *bs0_pin_{nullptr};
   GPIOPin *bs1_pin_{nullptr};
 
+  uint32_t refresh_started_ms_{0};
   ResetSub reset_sub_{RST_PINS_LOW};
+  bool refresh_pending_{false};  // a refresh command was sent and not yet checked
 };
 
 }  // namespace esphome::epaper_spi
