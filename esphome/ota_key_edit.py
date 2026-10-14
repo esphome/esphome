@@ -38,6 +38,10 @@ class KeyEdit(LineEdit):
     shared_with: list[Path] = field(default_factory=list)
 
 
+def _api_encryption() -> ConfigType:
+    return ((CORE.raw_config or {}).get(CONF_API) or {}).get(CONF_ENCRYPTION) or {}
+
+
 def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
     """The api and esphome ota ``encryption:`` mappings whose key is ``key``."""
     blocks = [raw.get(CONF_API) or {}, *esphome_ota_items(raw)]
@@ -71,9 +75,10 @@ _SUBSTITUTED_INCLUDE_RE = re.compile(
 )
 
 
-def _secret_ref(name: str = r"[^\s#\"']+") -> str:
-    """`!secret name` as the whole scalar; `!secret ota key` is not `ota`."""
-    return rf"!secret\s+(?P<q>[\"']?)(?P<name>{name})(?P=q)(?=\s*(?:#|$))"
+def _secret_ref(name: str = r"[^\s\"']+") -> str:
+    """`!secret name` as the whole scalar: `!secret ota key` is not `ota`, and
+    a comment needs whitespace before its `#`, so `a#b` is one name."""
+    return rf"!secret\s+(?P<q>[\"']?)(?P<name>{name})(?P=q)(?=\s+#|\s*$)"
 
 
 def _secret_field_re(name: str) -> re.Pattern[str]:
@@ -283,10 +288,18 @@ def _refuse_other_own_uses(name: str, allowed: set[tuple[Path, int]]) -> None:
                 )
 
 
-def old_key_edit(old_key: str, secret: str | None = None) -> list[KeyEdit]:
+def _secret_name(block: ConfigType) -> str | None:
+    """The secrets file name a ``key: !secret <name>`` line of ``block`` holds."""
+    if source_of(block, CONF_KEY) is None:
+        return None
+    match = _KEY_SECRET_RE.match(source_line(block, CONF_KEY)[2])
+    return match["name"] if match else None
+
+
+def old_key_edit(old_key: str) -> list[KeyEdit]:
     """Set ``old_key:`` on the esphome ota block, rewriting or adding it. A
-    key from secrets.yaml (``secret``) stays there as ``<secret>_old``. Of
-    several entries the one with its own old_key or key line gets it."""
+    key from secrets.yaml stays there as ``<name>_old``. Of several entries
+    the one with its own old_key or key line gets it."""
     items = [
         (item, item[CONF_ENCRYPTION] or {})
         for item in esphome_ota_items(CORE.raw_config or {})
@@ -331,7 +344,9 @@ def old_key_edit(old_key: str, secret: str | None = None) -> list[KeyEdit]:
             f"{doc}:{line_no + 1} does not hold '{anchor}:' as a block line; "
             "edit it by hand"
         )
-    if secret is None:
+    # The block's own key line decides; a bare block takes after the api key
+    keyed = encryption if mapping is encryption else _api_encryption()
+    if (secret := _secret_name(keyed)) is None:
         rendered = f'{CONF_OLD_KEY}: "{old_key}"'
         extra = []
     else:

@@ -59,9 +59,7 @@ def _setup(tmp_path: Path, yaml_text: str, secrets: str | None = None) -> Path:
 
 def _edits() -> list[KeyEdit]:
     """Everything a rotation writes, the way the command collects it."""
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    secret = next((e.secret for e in edits if e.secret), None)
-    edits += old_key_edit(OLD_KEY, secret)
+    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
     with_sharers(edits)
     return edits
 
@@ -816,7 +814,7 @@ def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     is reused."""
     secrets = f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n"
     _setup(tmp_path, SECRET_YAML, secrets)
-    (edit, kept) = old_key_edit(OLD_KEY, "device_key")
+    (edit, kept) = old_key_edit(OLD_KEY)
     assert kept.new_line == f"device_key_old: {OLD_KEY}"
     (tmp_path / "other.yaml").write_bytes(
         b"wifi:\n  password: !secret device_key_old\n"
@@ -825,7 +823,7 @@ def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     with pytest.raises(
         EsphomeError, match="'device_key_old:' in .* is used by .*other.yaml"
     ):
-        old_key_edit(OLD_KEY, "device_key")
+        old_key_edit(OLD_KEY)
     (tmp_path / "other.yaml").unlink()
     _setup(
         tmp_path, SECRET_YAML + "wifi:\n  password: !secret device_key_old\n", secrets
@@ -833,14 +831,14 @@ def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     with pytest.raises(
         EsphomeError, match="'device_key_old:' in .* is used by .*test.yaml"
     ):
-        old_key_edit(OLD_KEY, "device_key")
+        old_key_edit(OLD_KEY)
 
 
 def test_key_secret_with_a_folded_value_gets_no_old_line(tmp_path: Path) -> None:
     """The `<name>_old` line goes under the key's own line, which must be plain."""
     _setup(tmp_path, SECRET_YAML, f"device_key: >-\n  {OLD_KEY}\n")
     with pytest.raises(EsphomeError, match="No plain 'device_key:' line"):
-        old_key_edit(OLD_KEY, "device_key")
+        old_key_edit(OLD_KEY)
 
 
 def test_old_secret_collision_check_refuses_an_unreadable_file(
@@ -850,7 +848,7 @@ def test_old_secret_collision_check_refuses_an_unreadable_file(
     (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: 1\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n")
     with pytest.raises(EsphomeError, match="Could not read every configuration"):
-        old_key_edit(OLD_KEY, "device_key")
+        old_key_edit(OLD_KEY)
 
 
 def test_old_key_secret_with_a_folded_value_is_refused(tmp_path: Path) -> None:
@@ -960,7 +958,7 @@ def test_scan_reports_what_it_could_not_read(tmp_path: Path) -> None:
     assert any("latin1.yaml" in u for u in unchecked)
     assert any("is a link" in u for u in unchecked)
     with pytest.raises(EsphomeError, match="Could not read every configuration"):
-        old_key_edit(OLD_KEY, "device_key")
+        old_key_edit(OLD_KEY)
 
 
 def test_secret_used_elsewhere_in_this_configuration_is_refused(
@@ -1012,7 +1010,7 @@ def test_old_secret_goes_to_the_secrets_file_of_the_block_that_gets_old_key(
     with pytest.raises(
         EsphomeError, match="No plain 'device_key:' line in .*secrets.yaml"
     ):
-        old_key_edit(OLD_KEY, "device_key")
+        old_key_edit(OLD_KEY)
 
 
 def test_a_commented_out_secret_use_does_not_count(tmp_path: Path) -> None:
@@ -1035,6 +1033,49 @@ def test_a_directory_include_is_reported_as_unchecked(tmp_path: Path) -> None:
     assert unchecked == [
         f"{tmp_path.resolve() / 'other.yaml'} includes the directory packages"
     ]
+
+
+def test_a_hash_inside_a_secret_name_is_part_of_it(tmp_path: Path) -> None:
+    """A comment needs whitespace before its `#`; `device_key#prod` is the name."""
+    _setup(
+        tmp_path,
+        SECRET_YAML.replace("!secret device_key", "!secret device_key#prod"),
+        f"device_key: other\ndevice_key#prod: {OLD_KEY}\n",
+    )
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.line, e.secret) for e in edits] == [(1, "device_key#prod")]
+
+
+def test_old_key_follows_the_ota_block_not_the_api_secret(tmp_path: Path) -> None:
+    """An api key from a secret next to an ota block with its own literal
+    key: the literal goes under the ota key line, no `_old` secret."""
+    (tmp_path / "api.yaml").write_bytes(b"encryption:\n  key: !secret device_key\n")
+    yaml_text = f"""esphome:
+  name: test
+
+api: !include api.yaml
+
+ota:
+  - platform: esphome
+    encryption:
+      key: "{OLD_KEY}"
+"""
+    path = _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\n")
+    _rotate()
+    assert path.read_text() == yaml_text.replace(
+        f'      key: "{OLD_KEY}"\n',
+        f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
+    )
+    assert (tmp_path / "secrets.yaml").read_text() == f"device_key: {NEW_KEY}\n"
+
+
+def test_bare_block_after_an_api_key_without_a_line(tmp_path: Path) -> None:
+    """An api key validation rebuilt has no line to read a secret from, so
+    the inherited key is kept as a literal."""
+    path = _setup(tmp_path, API_YAML)
+    CORE.raw_config["api"]["encryption"] = {"key": OLD_KEY}
+    (edit,) = old_key_edit(OLD_KEY)
+    assert (edit.path, edit.new_line) == (path, f'      old_key: "{OLD_KEY}"')
 
 
 def test_secret_name_with_spaces_is_not_a_plain_reference(tmp_path: Path) -> None:
@@ -1068,7 +1109,7 @@ def test_existing_old_key_secret_used_elsewhere_is_refused(tmp_path: Path) -> No
     )
     _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\ndevice_key_old: {OLDER_KEY}\n")
     with pytest.raises(EsphomeError, match="'device_key_old' is also used at"):
-        old_key_edit(OLD_KEY, "device_key")
+        old_key_edit(OLD_KEY)
 
 
 def test_a_key_merged_from_an_anchor_is_refused(tmp_path: Path) -> None:
