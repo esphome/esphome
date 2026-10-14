@@ -37,7 +37,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.cpp_generator import RawExpression
-from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["split_buffer"]
@@ -348,11 +347,8 @@ def _final_validate(config: ConfigType) -> None:
         config
     )
 
-    global_config = full_config.get()
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
-
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
-        if LVGL_DOMAIN in global_config:
+        if display.has_external_writer(config[CONF_ID]):
             if CONF_UPDATE_INTERVAL not in config:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
