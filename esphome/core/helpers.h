@@ -1725,7 +1725,8 @@ enum class TemperatureUnit : uint8_t {
 /// No null check, no exceptions, no heap allocation for small trivially-copyable callables.
 ///
 /// With C++20 if constexpr, automatically detects [this] lambdas (sizeof <= sizeof(void*),
-/// trivially copyable) and stores them inline. Larger callables are heap-allocated.
+/// trivially copyable, callable as const) and stores them inline. Larger callables, and mutable
+/// ones whose state must survive between calls, are heap-allocated.
 template<typename... X> struct Callback;
 
 template<typename... Ts> struct Callback<void(Ts...)> {
