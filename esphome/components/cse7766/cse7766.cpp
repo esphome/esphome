@@ -67,10 +67,7 @@ bool CSE7766Component::check_byte_() {
   }
 
   if (index == CSE7766_RAW_DATA_SIZE - 1) {
-    uint8_t checksum = 0;
-    for (uint8_t i = 2; i < CSE7766_RAW_DATA_SIZE - 1; i++) {
-      checksum += this->raw_data_[i];
-    }
+    const uint8_t checksum = sum_bytes(this->raw_data_ + 2, CSE7766_RAW_DATA_SIZE - 3);
 
     if (checksum != this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]) {
       ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum,
@@ -205,9 +202,10 @@ void CSE7766Component::parse_data_() {
       float pf = NAN;
       if (apparent_power > 0) {
         pf = power / apparent_power;
-        if (pf < 0 || pf > 1) {
-          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
-          pf = NAN;
+        if (pf > 1) {
+          // Noise near the chip's resolution limit, seen during inrush, pushes the ratio past unity
+          ESP_LOGD(TAG, "Power factor %.4f above 1, clamped", pf);
+          pf = 1.0f;
         }
       } else if (apparent_power == 0 && power == 0) {
         // No load, report ideal power factor

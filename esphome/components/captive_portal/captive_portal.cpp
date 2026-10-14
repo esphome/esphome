@@ -6,9 +6,6 @@
 #include "esphome/core/string_ref.h"
 #include "esphome/components/wifi/scan_list.h"
 #include "esphome/components/wifi/wifi_component.h"
-#ifdef USE_PROVISIONING
-#include "esphome/components/provisioning/provisioning.h"
-#endif
 #include "captive_index.h"
 
 namespace esphome::captive_portal {
@@ -81,20 +78,6 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
 void CaptivePortal::setup() {
   // Disable loop by default - will be enabled when captive portal starts
   this->disable_loop();
-#ifdef USE_PROVISIONING
-  // The captive portal is a provisioning surface: once the provisioning window
-  // has closed, stop serving it. WiFi's own closed-callback shuts down the
-  // access point the portal runs on, and the gated fallback in WiFiComponent's
-  // loop() ensures neither is started again afterwards.
-  if (provisioning::global_provisioning_manager != nullptr) {
-    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
-      if (this->active_) {
-        ESP_LOGD(TAG, "Provisioning window closed; stopping captive portal");
-        this->end();
-      }
-    });
-  }
-#endif
 }
 void CaptivePortal::start() {
   this->base_->init();
@@ -102,17 +85,7 @@ void CaptivePortal::start() {
     this->base_->add_handler_without_auth(this);
   }
 
-  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-
-#if defined(USE_ESP32)
-  // Create DNS server instance for ESP-IDF
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->start(ip);
-#elif defined(USE_ARDUINO)
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  this->dns_server_->start(53, ESPHOME_F("*"), ip);
-#endif
+  this->dns_.start(wifi::global_wifi_component->wifi_soft_ap_ip());
 
   this->initialized_ = true;
   this->active_ = true;
