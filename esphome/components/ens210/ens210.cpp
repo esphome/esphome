@@ -10,10 +10,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ens210 {
+namespace esphome::ens210 {
 
-static const char *const TAG = "ens210";
+ESPHOME_LOG_TAG(TAG, "ens210");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 // ENS210 chip constants
 static const uint8_t ENS210_BOOTING_MS = 2;  // Booting time in ms (also after reset, or going to high power)
@@ -136,8 +137,6 @@ void ENS210Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-float ENS210Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void ENS210Component::update() {
   // Execute a single measurement
   if (!this->write_byte(ENS210_REGISTER_SENS_RUN, 0x00)) {
@@ -152,7 +151,7 @@ void ENS210Component::update() {
     return;
   }
   // Wait for measurement to complete
-  this->set_timeout("data", uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
     int temperature_data, temperature_status, humidity_data, humidity_status;
     uint8_t data[6];
     uint32_t h_val_data, t_val_data;
@@ -219,11 +218,10 @@ void ENS210Component::extract_measurement_(uint32_t val, int *data, int *status)
 // Sets ENS210 to low (true) or high (false) power. Returns false on I2C problems.
 bool ENS210Component::set_low_power_(bool enable) {
   uint8_t low_power_cmd = enable ? 0x01 : 0x00;
-  ESP_LOGD(TAG, "Enable low power: %s", enable ? "true" : "false");
+  ESP_LOGD(TAG, "Enable low power: %s", enable ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
   bool result = this->write_byte(ENS210_REGISTER_SYS_CTRL, low_power_cmd);
   delay(ENS210_BOOTING_MS);
   return result;
 }
 
-}  // namespace ens210
-}  // namespace esphome
+}  // namespace esphome::ens210

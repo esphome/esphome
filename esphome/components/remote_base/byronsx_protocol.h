@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct ByronSXData {
   uint8_t address;
@@ -22,25 +21,11 @@ struct ByronSXData {
 
 class ByronSXProtocol : public RemoteProtocol<ByronSXData> {
  public:
-  void encode(RemoteTransmitData *dst, const ByronSXData &data) override;
-  optional<ByronSXData> decode(RemoteReceiveData src) override;
-  void dump(const ByronSXData &data) override;
+  void encode(RemoteTransmitData *dst, const ByronSXData &data);
+  optional<ByronSXData> decode(RemoteReceiveData src);
+  void dump(const ByronSXData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(ByronSX)
 
-template<typename... Ts> class ByronSXAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    ByronSXData data{};
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    ByronSXProtocol().encode(dst, data);
-  }
-};
-
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

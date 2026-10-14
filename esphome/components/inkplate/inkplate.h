@@ -7,8 +7,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace inkplate {
+namespace esphome::inkplate {
 
 enum InkplateModel : uint8_t {
   INKPLATE_6 = 0,
@@ -32,7 +31,7 @@ static constexpr uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0
 static constexpr uint8_t PIXEL_MASK_LUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
 static constexpr uint8_t PIXEL_MASK_GLUT[2] = {0x0F, 0xF0};
 
-class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
+class Inkplate final : public display::DisplayBuffer, public i2c::I2CDevice {
  public:
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
@@ -152,16 +151,16 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
 
   size_t get_buffer_length_();
 
-  int get_data_pin_mask_() {
-    int data = 0;
-    data |= (1 << this->display_data_0_pin_->get_pin());
-    data |= (1 << this->display_data_1_pin_->get_pin());
-    data |= (1 << this->display_data_2_pin_->get_pin());
-    data |= (1 << this->display_data_3_pin_->get_pin());
-    data |= (1 << this->display_data_4_pin_->get_pin());
-    data |= (1 << this->display_data_5_pin_->get_pin());
-    data |= (1 << this->display_data_6_pin_->get_pin());
-    data |= (1 << this->display_data_7_pin_->get_pin());
+  uint32_t get_data_pin_mask_() {
+    uint32_t data = 0;
+    data |= (1UL << this->display_data_0_pin_->get_pin());
+    data |= (1UL << this->display_data_1_pin_->get_pin());
+    data |= (1UL << this->display_data_2_pin_->get_pin());
+    data |= (1UL << this->display_data_3_pin_->get_pin());
+    data |= (1UL << this->display_data_4_pin_->get_pin());
+    data |= (1UL << this->display_data_5_pin_->get_pin());
+    data |= (1UL << this->display_data_6_pin_->get_pin());
+    data |= (1UL << this->display_data_7_pin_->get_pin());
     return data;
   }
 
@@ -210,5 +209,4 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   GPIOPin *wakeup_pin_;
 };
 
-}  // namespace inkplate
-}  // namespace esphome
+}  // namespace esphome::inkplate

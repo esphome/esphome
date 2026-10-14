@@ -5,33 +5,47 @@
 #include "esphome/components/canbus/canbus.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace esp32_can {
+#include <driver/twai.h>
 
-class ESP32Can : public canbus::Canbus {
+namespace esphome::esp32_can {
+
+enum CanMode : uint8_t {
+  CAN_MODE_NORMAL = 0,
+  CAN_MODE_LISTEN_ONLY = 1,
+  CAN_MODE_NO_ACK = 2,
+};
+
+class ESP32Can final : public canbus::Canbus {
  public:
   void set_rx(int rx) { rx_ = rx; }
   void set_tx(int tx) { tx_ = tx; }
+  void set_mode(CanMode mode) { mode_ = mode; }
   void set_tx_queue_len(uint32_t tx_queue_len) { this->tx_queue_len_ = tx_queue_len; }
   void set_rx_queue_len(uint32_t rx_queue_len) { this->rx_queue_len_ = rx_queue_len; }
   void set_tx_enqueue_timeout_ms(uint32_t tx_enqueue_timeout_ms) {
     this->tx_enqueue_timeout_ticks_ = pdMS_TO_TICKS(tx_enqueue_timeout_ms);
   }
+  canbus::CanStatus get_status() override;
   ESP32Can(){};
 
  protected:
   bool setup_internal() override;
+  canbus::CanEventFlags get_events() override;
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message(struct canbus::CanFrame *frame) override;
+  void handle_bus_off_recovery_();
 
   int rx_{-1};
   int tx_{-1};
+  CanMode mode_{CAN_MODE_NORMAL};
+  bool recovery_pending_{false};
+  bool restart_pending_{false};
   TickType_t tx_enqueue_timeout_ticks_{};
   optional<uint32_t> tx_queue_len_{};
   optional<uint32_t> rx_queue_len_{};
+  twai_handle_t twai_handle_{nullptr};
 };
 
-}  // namespace esp32_can
-}  // namespace esphome
+}  // namespace esphome::esp32_can
 
 #endif

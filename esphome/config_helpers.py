@@ -1,7 +1,6 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 
 from esphome.const import (
-    CONF_ID,
     CONF_LEVEL,
     CONF_LOGGER,
     KEY_CORE,
@@ -10,11 +9,31 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.util import OrderedDict
 
 # Pre-build lookup map from (platform, framework) tuples to PlatformFramework enum
 _PLATFORM_FRAMEWORK_LOOKUP = {
     (pf.value[0].value, pf.value[1].value): pf for pf in PlatformFramework
 }
+
+
+def merge_dicts_ordered(*dicts: dict) -> OrderedDict:
+    """Merge multiple dicts into an OrderedDict, preserving key order.
+
+    This is a helper to ensure that dictionary merging preserves OrderedDict type,
+    which is important for operations like move_to_end().
+
+    Args:
+        *dicts: Variable number of dictionaries to merge (later dicts override earlier ones)
+
+    Returns:
+        OrderedDict with merged contents
+    """
+    result = OrderedDict()
+    for d in dicts:
+        if d:
+            result.update(d)
+    return result
 
 
 class Extend:
@@ -55,69 +74,41 @@ class Remove:
         return isinstance(b, Remove) and self.value == b.value
 
 
-def merge_config(full_old, full_new):
-    def merge(old, new):
-        if isinstance(new, dict):
-            if not isinstance(old, dict):
-                return new
-            res = old.copy()
-            for k, v in new.items():
-                if isinstance(v, Remove) and k in old:
-                    del res[k]
-                else:
-                    res[k] = merge(old[k], v) if k in old else v
-            return res
-        if isinstance(new, list):
-            if not isinstance(old, list):
-                return new
-            res = old.copy()
-            ids = {
-                v_id: i
-                for i, v in enumerate(res)
-                if isinstance(v, dict)
-                and (v_id := v.get(CONF_ID))
-                and isinstance(v_id, str)
-            }
-            extend_ids = {
-                v_id.value: i
-                for i, v in enumerate(res)
-                if isinstance(v, dict)
-                and (v_id := v.get(CONF_ID))
-                and isinstance(v_id, Extend)
-            }
-
-            ids_to_delete = []
-            for v in new:
-                if isinstance(v, dict) and (new_id := v.get(CONF_ID)):
-                    if isinstance(new_id, Extend):
-                        new_id = new_id.value
-                        if new_id in ids:
-                            v[CONF_ID] = new_id
-                            res[ids[new_id]] = merge(res[ids[new_id]], v)
-                            continue
-                    elif isinstance(new_id, Remove):
-                        new_id = new_id.value
-                        if new_id in ids:
-                            ids_to_delete.append(ids[new_id])
-                            continue
-                    elif (
-                        new_id in extend_ids
-                    ):  # When a package is extending a non-packaged item
-                        extend_res = res[extend_ids[new_id]]
-                        extend_res[CONF_ID] = new_id
-                        new_v = merge(v, extend_res)
-                        res[extend_ids[new_id]] = new_v
-                        continue
-                    else:
-                        ids[new_id] = len(res)
-                res.append(v)
-            return [v for i, v in enumerate(res) if i not in ids_to_delete]
-        if new is None:
-            return old
-
+def merge_config(old, new):
+    if isinstance(new, Remove):
         return new
+    if isinstance(new, dict):
+        if not isinstance(old, dict):
+            return new
+        # Preserve OrderedDict type by copying to OrderedDict if either input is OrderedDict
+        if isinstance(old, OrderedDict) or isinstance(new, OrderedDict):
+            res = OrderedDict(old)
+        else:
+            res = old.copy()
+        for k, v in new.items():
+            res[k] = merge_config(old.get(k), v)
+        return res
+    if isinstance(new, list):
+        if not isinstance(old, list):
+            return new
+        return old + new
+    if new is None:
+        return old
 
-    return merge(full_old, full_new)
+    return new
+
+
+def frameworks_for_platforms(platforms: Collection[str]) -> set[PlatformFramework]:
+    """All PlatformFramework members whose platform is in `platforms`.
+
+    For FILTER_SOURCE_FILES maps that must stay in sync with a platform
+    registry: deriving the framework set here means a platform added to the
+    registry cannot validate and then fail at link on a filtered-out file.
+    """
+    known = {pf.value[0].value for pf in PlatformFramework}
+    if unknown := set(platforms) - known:
+        raise ValueError(f"unknown platform(s): {sorted(unknown)}")
+    return {pf for pf in PlatformFramework if pf.value[0].value in platforms}
 
 
 def filter_source_files_from_platform(
@@ -155,6 +146,31 @@ def filter_source_files_from_platform(
             filename
             for filename, platforms in files_map.items()
             if current_platform_framework not in platforms
+        ]
+
+    return filter_source_files
+
+
+def filter_source_files_from_defines(
+    files_map: dict[str, str | tuple[str, ...]],
+) -> Callable[[], list[str]]:
+    """Helper to build a FILTER_SOURCE_FILES function from a define mapping.
+
+    Args:
+        files_map: Dict mapping filename to the define name (or tuple of
+            define names) that keeps the file in the build; the file is
+            excluded when none of its defines is set for the current config.
+
+    Returns:
+        Function that returns the files to exclude for the current config.
+    """
+
+    def filter_source_files() -> list[str]:
+        defines = {define.name for define in CORE.defines}
+        return [
+            filename
+            for filename, needed in files_map.items()
+            if defines.isdisjoint((needed,) if isinstance(needed, str) else needed)
         ]
 
     return filter_source_files

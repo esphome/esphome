@@ -1,0 +1,25 @@
+esphome:
+  name: safe-mode-loop-runs
+
+host:
+
+logger:
+
+safe_mode:
+  num_attempts: 10
+  on_safe_mode:
+    - lambda: |-
+        // Spawn a detached thread that logs a unique marker. The
+        // non-main-thread log goes through the task log buffer, which
+        // is only drained by Logger::loop(). If looping components
+        // weren't initialized (the bug fixed in #16269), the buffer is
+        // never read and the marker never reaches the console.
+        struct MarkerThread {
+          static void *thread_func(void *) {
+            ESP_LOGI("safe_mode_test", "looping component ran in safe mode");
+            return nullptr;
+          }
+        };
+        pthread_t t;
+        pthread_create(&t, nullptr, MarkerThread::thread_func, nullptr);
+        pthread_detach(t);

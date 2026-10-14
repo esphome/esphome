@@ -1,2 +1,0 @@
-packages:
-  common: !include common.yaml

@@ -1,13 +1,12 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/component.h"
 #include "i2c_bus.h"
 #include <driver/i2c_master.h>
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 enum RecoveryCode {
   RECOVERY_FAILED_SCL_LOW,
@@ -15,7 +14,7 @@ enum RecoveryCode {
   RECOVERY_COMPLETED,
 };
 
-class IDFI2CBus : public InternalI2CBus, public Component {
+class IDFI2CBus final : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -30,15 +29,33 @@ class IDFI2CBus : public InternalI2CBus, public Component {
   void set_scl_pullup_enabled(bool scl_pullup_enabled) { this->scl_pullup_enabled_ = scl_pullup_enabled; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
+#if SOC_LP_I2C_SUPPORTED
+  void set_lp_mode(bool lp_mode) { this->lp_mode_ = lp_mode; }
+#endif
 
   int get_port() const override { return this->port_; }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  /// Register a frequency used on the bus so setup() creates its device handle
+  void add_frequency(uint32_t frequency);
+  ErrorCode switch_frequency(uint32_t frequency) override;
+  uint32_t get_frequency() const override { return this->frequency_; }
+#endif
 
  private:
   void recover_();
+  i2c_master_dev_handle_t add_device_(uint32_t frequency);
   RecoveryCode recovery_result_{};
 
  protected:
   i2c_master_dev_handle_t dev_{};
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  // One handle per frequency used on the bus, registered at code generation
+  struct FrequencyDevice {
+    uint32_t frequency;
+    i2c_master_dev_handle_t dev;
+  };
+  StaticVector<FrequencyDevice, I2C_PORT_FREQUENCY_COUNT + 1> devices_;
+#endif
   i2c_master_bus_handle_t bus_{};
   i2c_port_t port_{};
   uint8_t sda_pin_{};
@@ -48,9 +65,11 @@ class IDFI2CBus : public InternalI2CBus, public Component {
   uint32_t frequency_{};
   uint32_t timeout_ = 0;
   bool initialized_ = false;
+#if SOC_LP_I2C_SUPPORTED
+  bool lp_mode_ = false;
+#endif
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

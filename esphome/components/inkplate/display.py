@@ -6,10 +6,12 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
     CONF_ID,
+    CONF_IGNORE_STRAPPING_WARNING,
     CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_NUMBER,
     CONF_OE_PIN,
     CONF_PAGES,
     CONF_TRANSFORM,
@@ -17,11 +19,11 @@ from esphome.const import (
     PLATFORM_ESP32,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .const import INKPLATE_10_CUSTOM_WAVEFORMS, WAVEFORMS
 
-DEPENDENCIES = ["i2c", "esp32"]
-AUTO_LOAD = ["psram"]
+DEPENDENCIES = ["i2c", "esp32", "psram"]
 
 CONF_DISPLAY_DATA_0_PIN = "display_data_0_pin"
 CONF_DISPLAY_DATA_1_PIN = "display_data_1_pin"
@@ -67,7 +69,7 @@ MODELS = {
 CONF_CUSTOM_WAVEFORM = "custom_waveform"
 
 
-def _validate_custom_waveform(config):
+def _validate_custom_waveform(config: ConfigType) -> ConfigType:
     if CONF_CUSTOM_WAVEFORM in config and config[CONF_MODEL] != "inkplate_10":
         raise cv.Invalid("Custom waveforms are only supported on the Inkplate 10")
     return config
@@ -102,14 +104,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SPV_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_VCOM_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_CL_PIN, default=0): pins.internal_gpio_output_pin_schema,
-            cv.Optional(CONF_LE_PIN, default=2): pins.internal_gpio_output_pin_schema,
+            cv.Optional(
+                CONF_CL_PIN,
+                default={CONF_NUMBER: 0, CONF_IGNORE_STRAPPING_WARNING: True},
+            ): pins.internal_gpio_output_pin_schema,
+            cv.Optional(
+                CONF_LE_PIN,
+                default={CONF_NUMBER: 2, CONF_IGNORE_STRAPPING_WARNING: True},
+            ): pins.internal_gpio_output_pin_schema,
             # Data pins
             cv.Optional(
                 CONF_DISPLAY_DATA_0_PIN, default=4
             ): pins.internal_gpio_output_pin_schema,
             cv.Optional(
-                CONF_DISPLAY_DATA_1_PIN, default=5
+                CONF_DISPLAY_DATA_1_PIN,
+                default={CONF_NUMBER: 5, CONF_IGNORE_STRAPPING_WARNING: True},
             ): pins.internal_gpio_output_pin_schema,
             cv.Optional(
                 CONF_DISPLAY_DATA_2_PIN, default=18
@@ -138,19 +147,18 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_cpu_frequency(config):
+def _validate_cpu_frequency(config: ConfigType) -> None:
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
         raise cv.Invalid(
             "Inkplate requires 240MHz CPU frequency (set in esp32 component)"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _validate_cpu_frequency
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await display.register_display(var, config)

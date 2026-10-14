@@ -8,14 +8,14 @@
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
+#include "esphome/core/log.h"
 #include "esp_lcd_panel_ops.h"
 
 #include "esp_lcd_panel_rgb.h"
 
-namespace esphome {
-namespace st7701s {
+namespace esphome::st7701s {
 
-constexpr static const char *const TAG = "display.st7701s";
+ESPHOME_LOG_TAG(TAG, "display.st7701s");
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;
@@ -27,13 +27,12 @@ const uint8_t CMD2_BKSEL = 0xFF;
 const uint8_t CMD2_BK0[5] = {0x77, 0x01, 0x00, 0x00, 0x10};
 const uint8_t ST7701S_DELAY_FLAG = 0xFF;
 
-class ST7701S : public display::Display,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_1MHZ> {
+class ST7701S final : public display::Display,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_1MHZ> {
  public:
   void update() override { this->do_update_(); }
   void setup() override;
-  void complete_setup_();
   void loop() override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
@@ -113,6 +112,5 @@ class ST7701S : public display::Display,
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace st7701s
-}  // namespace esphome
+}  // namespace esphome::st7701s
 #endif

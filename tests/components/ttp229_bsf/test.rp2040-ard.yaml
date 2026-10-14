@@ -1,5 +1,8 @@
 substitutions:
-  scl_pin: GPIO5
-  sdo_pin: GPIO4
+  ttp229_scl_pin: GPIO2
+  ttp229_sdo_pin: GPIO6
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
 
 <<: !include common.yaml

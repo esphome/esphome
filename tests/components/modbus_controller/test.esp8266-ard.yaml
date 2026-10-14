@@ -1,8 +1,4 @@
-substitutions:
-  client_tx_pin: GPIO1
-  client_rx_pin: GPIO3
-  server_tx_pin: GPIO4
-  server_rx_pin: GPIO5
-  flow_control_pin: GPIO13
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp8266-ard.yaml
 
 <<: !include common.yaml

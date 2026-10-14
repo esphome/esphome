@@ -6,14 +6,14 @@
 #include "esphome/components/lvgl/lvgl_proxy.h"
 #endif  // USE_LVGL
 
-namespace esphome {
-namespace image {
+namespace esphome::image {
 
 enum ImageType {
   IMAGE_TYPE_BINARY = 0,
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB = 2,
   IMAGE_TYPE_RGB565 = 3,
+  IMAGE_TYPE_RGB111 = 4,  // one bit per channel plus an optional alpha bit, for colour e-paper
 };
 
 enum Transparency {
@@ -41,10 +41,11 @@ class Image : public display::BaseImage {
   bool has_transparency() const { return this->transparency_ != TRANSPARENCY_OPAQUE; }
 
 #ifdef USE_LVGL
-  lv_img_dsc_t *get_lv_img_dsc();
+  lv_image_dsc_t *get_lv_image_dsc();
 #endif
  protected:
   bool get_binary_pixel_(int x, int y) const;
+  Color get_rgb111_pixel_(int x, int y) const;
   Color get_rgb_pixel_(int x, int y) const;
   Color get_rgb565_pixel_(int x, int y) const;
   Color get_grayscale_pixel_(int x, int y) const;
@@ -55,11 +56,9 @@ class Image : public display::BaseImage {
   const uint8_t *data_start_;
   Transparency transparency_;
   size_t bpp_{};
-  size_t stride_{};
 #ifdef USE_LVGL
   lv_img_dsc_t dsc_{};
 #endif
 };
 
-}  // namespace image
-}  // namespace esphome
+}  // namespace esphome::image

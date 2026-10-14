@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
 #include <array>
@@ -8,11 +9,10 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const uint8_t MAX_DATA_LENGTH = 15;
-static const uint8_t DATA_LENGTH_MASK = 0x3f;
+static constexpr uint8_t MAX_DATA_LENGTH = 15;
+static constexpr uint8_t DATA_LENGTH_MASK = 0x3f;
 
 /*
 Message Format:
@@ -33,19 +33,13 @@ Message Format:
 class ABBWelcomeData {
  public:
   // Make default
-  ABBWelcomeData() {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
-    this->data_[0] = 0x55;
-    this->data_[1] = 0xff;
-  }
+  ABBWelcomeData() : data_{0x55, 0xff} {}
   // Make from initializer_list
-  ABBWelcomeData(std::initializer_list<uint8_t> data) {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
+  ABBWelcomeData(std::initializer_list<uint8_t> data) : data_{} {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Make from vector
-  ABBWelcomeData(const std::vector<uint8_t> &data) {
-    std::fill(std::begin(this->data_), std::end(this->data_), 0);
+  ABBWelcomeData(const std::vector<uint8_t> &data) : data_{} {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
   // Default copy constructor
@@ -118,14 +112,21 @@ class ABBWelcomeData {
     return (this->data_[7] << 16) + (this->data_[8] << 8) + this->data_[9];
   }
   void set_message_id(uint8_t message_id) { this->data_[4 + 2 * this->get_address_length()] = message_id; }
+  /// A configured id, which finalize() keeps instead of picking one
+  void set_fixed_message_id(uint8_t message_id) {
+    this->set_message_id(message_id);
+    this->auto_message_id = false;
+  }
   uint8_t get_message_id() const { return this->data_[4 + 2 * this->get_address_length()]; }
-  void set_data(std::vector<uint8_t> data) {
-    uint8_t size = std::min(MAX_DATA_LENGTH, static_cast<uint8_t>(data.size()));
+  /// data may be a PROGMEM table
+  void set_data(const uint8_t *data, size_t len) {
+    uint8_t size = static_cast<uint8_t>(std::min<size_t>(MAX_DATA_LENGTH, len));
     this->data_[2] &= (0xff ^ DATA_LENGTH_MASK);
     this->data_[2] |= (size & DATA_LENGTH_MASK);
     if (size)
-      std::copy_n(data.begin(), size, this->data_.begin() + 5 + 2 * this->get_address_length());
+      progmem_memcpy(this->data_.data() + 5 + 2 * this->get_address_length(), data, size);
   }
+  void set_data(const std::vector<uint8_t> &data) { this->set_data(data.data(), data.size()); }
   std::vector<uint8_t> get_data() const {
     std::vector<uint8_t> data(this->data_.begin() + 5 + 2 * this->get_address_length(),
                               this->data_.begin() + 5 + 2 * this->get_address_length() + this->get_data_size());
@@ -142,22 +143,12 @@ class ABBWelcomeData {
     this->data_[1] = 0xff;
     this->data_[this->size() - 1] = this->calc_cs_();
   }
-  std::string to_string(uint8_t max_print_bytes = 255) const {
-    std::string info;
-    if (this->is_valid()) {
-      info = str_sprintf(this->get_three_byte_address() ? "[%06" PRIX32 " %s %06" PRIX32 "] Type: %02X"
-                                                        : "[%04" PRIX32 " %s %04" PRIX32 "] Type: %02X",
-                         this->get_source_address(), this->get_retransmission() ? "»" : ">",
-                         this->get_destination_address(), this->get_message_type());
-      if (this->get_data_size())
-        info += str_sprintf(", Data: %s", format_hex_pretty(this->get_data()).c_str());
-    } else {
-      info = "[Invalid]";
-    }
-    uint8_t print_bytes = std::min(this->size(), max_print_bytes);
-    if (print_bytes)
-      info = str_sprintf("%s %s", format_hex_pretty(this->data_.data(), print_bytes).c_str(), info.c_str());
-    return info;
+  // Buffer size: max raw hex output (27*3-1=80) + space(1) + type_info(27) + data(52) + null(1) = 161, rounded up
+  static constexpr size_t FORMAT_BUFFER_SIZE = 192;
+
+  template<size_t N> char *format_to(char (&buffer)[N], uint8_t max_print_bytes = 255) const {
+    static_assert(N >= FORMAT_BUFFER_SIZE, "Buffer too small for format_to()");
+    return this->format_to_internal_(buffer, max_print_bytes);
   }
   bool operator==(const ABBWelcomeData &rhs) const {
     if (std::equal(this->data_.begin(), this->data_.begin() + this->size(), rhs.data_.begin()))
@@ -174,13 +165,43 @@ class ABBWelcomeData {
   std::array<uint8_t, 12 + MAX_DATA_LENGTH> data_;
   // Calculate checksum
   uint8_t calc_cs_() const;
+  // Internal format implementation - buffer guaranteed >= FORMAT_BUFFER_SIZE by caller
+  char *format_to_internal_(char *buffer, uint8_t max_print_bytes) const {
+    char *ptr = buffer;
+    char *end = buffer + FORMAT_BUFFER_SIZE;
+
+    uint8_t print_bytes = std::min(this->size(), max_print_bytes);
+    if (print_bytes) {
+      char raw_hex[format_hex_pretty_size(12 + MAX_DATA_LENGTH)];
+      format_hex_pretty_to(raw_hex, this->data_.data(), print_bytes, '.');
+      ptr += snprintf(ptr, end - ptr, "%s ", raw_hex);
+    }
+
+    if (this->is_valid()) {
+      ptr += snprintf(ptr, end - ptr,
+                      this->get_three_byte_address() ? "[%06" PRIX32 " %s %06" PRIX32 "] Type: %02X"
+                                                     : "[%04" PRIX32 " %s %04" PRIX32 "] Type: %02X",
+                      this->get_source_address(), this->get_retransmission() ? "»" : ">",
+                      this->get_destination_address(), this->get_message_type());
+      if (this->get_data_size()) {
+        char data_hex[format_hex_pretty_size(MAX_DATA_LENGTH)];
+        format_hex_pretty_to(data_hex, this->data_.data() + 5 + 2 * this->get_address_length(), this->get_data_size(),
+                             '.');
+        snprintf(ptr, end - ptr, ", Data: %s", data_hex);
+      }
+    } else {
+      snprintf(ptr, end - ptr, "[Invalid]");
+    }
+
+    return buffer;
+  }
 };
 
 class ABBWelcomeProtocol : public RemoteProtocol<ABBWelcomeData> {
  public:
-  void encode(RemoteTransmitData *dst, const ABBWelcomeData &src) override;
-  optional<ABBWelcomeData> decode(RemoteReceiveData src) override;
-  void dump(const ABBWelcomeData &data) override;
+  void encode(RemoteTransmitData *dst, const ABBWelcomeData &src);
+  optional<ABBWelcomeData> decode(RemoteReceiveData src);
+  void dump(const ABBWelcomeData &data);
 
  protected:
   void encode_byte_(RemoteTransmitData *dst, uint8_t data) const;
@@ -212,42 +233,4 @@ class ABBWelcomeBinarySensor : public RemoteReceiverBinarySensorBase {
 using ABBWelcomeTrigger = RemoteReceiverTrigger<ABBWelcomeProtocol>;
 using ABBWelcomeDumper = RemoteReceiverDumper<ABBWelcomeProtocol>;
 
-template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterActionBase<Ts...> {
-  TEMPLATABLE_VALUE(uint32_t, source_address)
-  TEMPLATABLE_VALUE(uint32_t, destination_address)
-  TEMPLATABLE_VALUE(bool, retransmission)
-  TEMPLATABLE_VALUE(bool, three_byte_address)
-  TEMPLATABLE_VALUE(uint8_t, message_type)
-  TEMPLATABLE_VALUE(uint8_t, message_id)
-  TEMPLATABLE_VALUE(bool, auto_message_id)
-  void set_data_static(std::vector<uint8_t> data) { data_static_ = std::move(data); }
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
-    has_data_func_ = true;
-  }
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    ABBWelcomeData data;
-    data.set_three_byte_address(this->three_byte_address_.value(x...));
-    data.set_source_address(this->source_address_.value(x...));
-    data.set_destination_address(this->destination_address_.value(x...));
-    data.set_retransmission(this->retransmission_.value(x...));
-    data.set_message_type(this->message_type_.value(x...));
-    data.set_message_id(this->message_id_.value(x...));
-    data.auto_message_id = this->auto_message_id_.value(x...);
-    if (has_data_func_) {
-      data.set_data(this->data_func_(x...));
-    } else {
-      data.set_data(this->data_static_);
-    }
-    data.finalize();
-    ABBWelcomeProtocol().encode(dst, data);
-  }
-
- protected:
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
-  bool has_data_func_{false};
-};
-
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

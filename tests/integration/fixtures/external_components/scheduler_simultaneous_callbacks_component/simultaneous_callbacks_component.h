@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include <atomic>
 
-namespace esphome {
-namespace scheduler_simultaneous_callbacks_component {
+namespace esphome::scheduler_simultaneous_callbacks_component {
 
 class SchedulerSimultaneousCallbacksComponent : public Component {
  public:
@@ -20,5 +19,4 @@ class SchedulerSimultaneousCallbacksComponent : public Component {
   std::atomic<int> max_concurrent_{0};
 };
 
-}  // namespace scheduler_simultaneous_callbacks_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_simultaneous_callbacks_component

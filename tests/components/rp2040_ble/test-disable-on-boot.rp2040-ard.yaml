@@ -1,0 +1,2 @@
+rp2040_ble:
+  enable_on_boot: false

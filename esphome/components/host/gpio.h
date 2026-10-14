@@ -2,12 +2,11 @@
 
 #ifdef USE_HOST
 
-#include "esphome/core/hal.h"
+#include "esphome/core/gpio_pin.h"
 
-namespace esphome {
-namespace host {
+namespace esphome::host {
 
-class HostGPIOPin : public InternalGPIOPin {
+class HostGPIOPin final : public GPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -17,22 +16,25 @@ class HostGPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
-  void detach_interrupt() const override;
-  ISRInternalGPIOPin to_isr() const override;
-  uint8_t get_pin() const override { return pin_; }
+  size_t dump_summary(char *buffer, size_t len) const override;
+  void detach_interrupt() const;
+  template<typename T> void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
+    this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
+  }
+  ISRInternalGPIOPin to_isr() const;
+  uint8_t get_pin() const { return pin_; }
   gpio::Flags get_flags() const override { return flags_; }
-  bool is_inverted() const override { return inverted_; }
+  bool is_inverted() const { return inverted_; }
+  bool is_internal() override { return true; }
 
  protected:
-  void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
+  void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
 
   uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  bool inverted_{};
+  gpio::Flags flags_{};
 };
 
-}  // namespace host
-}  // namespace esphome
+}  // namespace esphome::host
 
 #endif  // USE_HOST

@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sdp3x {
+namespace esphome::sdp3x {
 
-static const char *const TAG = "sdp3x.sensor";
+ESPHOME_LOG_TAG(TAG, "sdp3x.sensor");
 static const uint16_t SDP3X_SOFT_RESET = 0x0006;
 static const uint16_t SDP3X_READ_ID1 = 0x367C;
 static const uint16_t SDP3X_READ_ID2 = 0xE102;
@@ -114,7 +113,4 @@ void SDP3XComponent::read_pressure_() {
   this->status_clear_warning();
 }
 
-float SDP3XComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace sdp3x
-}  // namespace esphome
+}  // namespace esphome::sdp3x

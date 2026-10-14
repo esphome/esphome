@@ -1,10 +1,9 @@
 #include "esphome/core/log.h"
 #include "pm2005.h"
 
-namespace esphome {
-namespace pm2005 {
+namespace esphome::pm2005 {
 
-static const char *const TAG = "pm2005";
+ESPHOME_LOG_TAG(TAG, "pm2005");
 
 // Converts a sensor situation to a human readable string
 static const LogString *pm2005_get_situation_string(int status) {
@@ -117,5 +116,4 @@ void PM2005Component::dump_config() {
   LOG_SENSOR("  ", "PM10 ", this->pm_10_0_sensor_);
 }
 
-}  // namespace pm2005
-}  // namespace esphome
+}  // namespace esphome::pm2005

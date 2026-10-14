@@ -3,11 +3,22 @@ esphome:
     then:
       - lock.lock: test_lock1
       - lock.unlock: test_lock1
-      - lock.open: test_lock1
+      - lock.open:
+          id: test_lock1
+      - if:
+          condition:
+            lock.is_locked: test_lock1
+          then:
+            - logger.log: locked
+      - if:
+          condition:
+            lock.is_unlocked: test_lock1
+          then:
+            - logger.log: unlocked
 
 output:
   - platform: gpio
-    id: test_binary
+    id: lock_test_binary
     pin: 4
 
 lock:
@@ -17,9 +28,8 @@ lock:
     lambda: |-
       if (millis() > 10000) {
         return LOCK_STATE_LOCKED;
-      } else {
-        return LOCK_STATE_UNLOCKED;
       }
+      return LOCK_STATE_UNLOCKED;
     optimistic: true
     assumed_state: false
     on_unlock:
@@ -27,8 +37,10 @@ lock:
           id: test_lock1
           state: !lambda "return LOCK_STATE_UNLOCKED;"
     on_lock:
-      - lock.template.publish: LOCKED
+      - lock.template.publish:
+          id: test_lock1
+          state: LOCKED
   - platform: output
     name: Generic Output Lock
     id: test_lock2
-    output: test_binary
+    output: lock_test_binary

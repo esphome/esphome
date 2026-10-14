@@ -2,16 +2,9 @@ wifi:
   ssid: MySSID
   password: password1
 
-uart:
-  - id: uart_haier
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 climate:
   - platform: haier
     id: haier_ac
-    uart_id: uart_haier
     protocol: hOn
     name: Haier AC
     wifi_signal: true
@@ -50,6 +43,12 @@ climate:
             level: DEBUG
             format: "Alarm deactivated. Code: %d. Message: \"%s\""
             args: [code, message]
+    on_status_message:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Status message: %u bytes"
+            args: [(unsigned) data_size]
 
 sensor:
   - platform: haier
@@ -122,3 +121,11 @@ switch:
       name: Haier health mode
     quiet_mode:
       name: Haier quiet mode
+
+select:
+  - platform: haier
+    haier_id: haier_ac
+    horizontal_airflow:
+      name: Haier airflow horizontal
+    vertical_airflow:
+      name: Haier airflow vertical

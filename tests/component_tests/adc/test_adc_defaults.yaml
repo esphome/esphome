@@ -1,0 +1,20 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    pin: GPIO36
+    name: ADC Defaults
+    id: adc_defaults
+
+  - platform: adc
+    pin: GPIO39
+    name: ADC Custom
+    id: adc_custom
+    raw: true
+    attenuation: 6db
+    sampling_mode: max
+    samples: 4

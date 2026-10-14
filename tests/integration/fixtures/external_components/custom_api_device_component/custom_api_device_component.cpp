@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_API
-namespace esphome {
-namespace custom_api_device_component {
+namespace esphome::custom_api_device_component {
 
 static const char *const TAG = "custom_api";
 
@@ -17,6 +16,10 @@ void CustomAPIDeviceComponent::setup() {
   // Test array types
   register_service(&CustomAPIDeviceComponent::on_service_with_arrays, "custom_service_with_arrays",
                    {"bool_array", "int_array", "float_array", "string_array"});
+
+  // Test Home Assistant state subscription using std::string API (custom_api_device.h)
+  // This tests the backward compatibility of the std::string overloads
+  subscribe_homeassistant_state(&CustomAPIDeviceComponent::on_ha_state_changed, std::string("sensor.custom_test"));
 }
 
 void CustomAPIDeviceComponent::on_test_service() { ESP_LOGI(TAG, "Custom test service called!"); }
@@ -48,6 +51,11 @@ void CustomAPIDeviceComponent::on_service_with_arrays(std::vector<bool> bool_arr
   }
 }
 
-}  // namespace custom_api_device_component
-}  // namespace esphome
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+void CustomAPIDeviceComponent::on_ha_state_changed(std::string entity_id, std::string state) {
+  ESP_LOGI(TAG, "Home Assistant state changed for %s: %s", entity_id.c_str(), state.c_str());
+  ESP_LOGI(TAG, "This subscription uses std::string API for backward compatibility");
+}
+
+}  // namespace esphome::custom_api_device_component
 #endif  // USE_API

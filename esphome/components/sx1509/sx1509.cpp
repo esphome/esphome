@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
-static const char *const TAG = "sx1509";
+ESPHOME_LOG_TAG(TAG, "sx1509");
 
 void SX1509Component::setup() {
   ESP_LOGV(TAG, "  Resetting devices");
@@ -49,23 +48,25 @@ void SX1509Component::loop() {
     uint16_t key_data = this->read_key_data();
     for (auto *binary_sensor : this->keypad_binary_sensors_)
       binary_sensor->process(key_data);
-    if (this->keys_.empty())
+    if (this->keys_ == nullptr)
       return;
     if (key_data == 0) {
       this->last_key_ = 0;
       return;
     }
     int row, col;
-    for (row = 0; row < 7; row++) {
+    for (row = 0; row < 8; row++) {
       if (key_data & (1 << row))
         break;
     }
-    for (col = 8; col < 15; col++) {
+    for (col = 8; col < 16; col++) {
       if (key_data & (1 << col))
         break;
     }
     col -= 8;
-    uint8_t key = this->keys_[row * this->cols_ + col];
+    if (row >= this->rows_ || col >= this->cols_)  // a partial read can leave only a row or a column bit
+      return;
+    uint8_t key = progmem_read_byte(&this->keys_[row * this->cols_ + col]);
     if (key == this->last_key_)
       return;
     this->last_key_ = key;
@@ -229,7 +230,7 @@ void SX1509Component::setup_keypad_() {
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   for (int i = 0; i < this->rows_; i++)
     this->ddr_mask_ &= ~(1 << i);
-  for (int i = 8; i < (this->cols_ * 2); i++)
+  for (int i = 8; i < (8 + this->cols_); i++)
     this->ddr_mask_ |= (1 << i);
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
@@ -309,9 +310,8 @@ void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8
   set_debounce_time_(time);
   for (uint16_t i = 0; i < num_rows; i++)
     set_debounce_pin_(i);
-  for (uint16_t i = 0; i < (8 + num_cols); i++)
-    set_debounce_pin_(i);
+  for (uint16_t i = 0; i < num_cols; i++)
+    set_debounce_pin_(i + 8);
 }
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

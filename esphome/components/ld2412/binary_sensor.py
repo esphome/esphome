@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
     CONF_HAS_TARGET,
+    CONF_ID,
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_RUNNING,
@@ -12,6 +13,7 @@ from esphome.const import (
     ICON_ACCOUNT,
     ICON_MOTION_SENSOR,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2412_ID, LD2412Component
 
@@ -20,6 +22,7 @@ DEPENDENCIES = ["ld2412"]
 CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS = "dynamic_background_correction_status"
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(
         CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS
@@ -46,25 +49,13 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    if dynamic_background_correction_status_config := config.get(
-        CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS
-    ):
-        sens = await binary_sensor.new_binary_sensor(
-            dynamic_background_correction_status_config
-        )
-        cg.add(
-            LD2412_component.set_dynamic_background_correction_status_binary_sensor(
-                sens
-            )
-        )
-    if has_target_config := config.get(CONF_HAS_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_target_config)
-        cg.add(LD2412_component.set_target_binary_sensor(sens))
-    if has_moving_target_config := config.get(CONF_HAS_MOVING_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_moving_target_config)
-        cg.add(LD2412_component.set_moving_target_binary_sensor(sens))
-    if has_still_target_config := config.get(CONF_HAS_STILL_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_still_target_config)
-        cg.add(LD2412_component.set_still_target_binary_sensor(sens))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(
+        CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS,
+        hub.set_dynamic_background_correction_status_binary_sensor,
+    )
+    await binary_sensors(CONF_HAS_TARGET, hub.set_target_binary_sensor)
+    await binary_sensors(CONF_HAS_MOVING_TARGET, hub.set_moving_target_binary_sensor)
+    await binary_sensors(CONF_HAS_STILL_TARGET, hub.set_still_target_binary_sensor)

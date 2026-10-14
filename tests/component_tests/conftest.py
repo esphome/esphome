@@ -6,6 +6,7 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 import sys
 from typing import Any
+from unittest import mock
 
 import pytest
 
@@ -17,6 +18,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.types import ConfigType
+from esphome.util import OrderedDict
 
 # Add package root to python path
 here = Path(__file__).parent
@@ -40,9 +42,9 @@ def config_path(request: pytest.FixtureRequest) -> Generator[None]:
     if config_dir.exists():
         # Set config_path to a dummy yaml file in the config directory
         # This ensures CORE.config_dir points to the config directory
-        CORE.config_path = str(config_dir / "dummy.yaml")
+        CORE.config_path = config_dir / "dummy.yaml"
     else:
-        CORE.config_path = str(Path(request.fspath).parent / "dummy.yaml")
+        CORE.config_path = Path(request.fspath).parent / "dummy.yaml"
 
     yield
     CORE.config_path = original_path
@@ -55,6 +57,14 @@ def reset_core() -> Generator[None]:
     CORE.reset()
 
 
+@pytest.fixture(autouse=True)
+def reset_full_config() -> Generator[None]:
+    """Give each test a clean final-validate config and restore it after."""
+    token = final_validate.full_config.set(Config())
+    yield
+    final_validate.full_config.reset(token)
+
+
 @pytest.fixture
 def set_core_config() -> Generator[SetCoreConfigCallable]:
     """Fixture to set up the core configuration for tests."""
@@ -65,7 +75,7 @@ def set_core_config() -> Generator[SetCoreConfigCallable]:
         *,
         core_data: ConfigType | None = None,
         platform_data: ConfigType | None = None,
-        full_config: dict[str, ConfigType] | None = None,
+        full_config: dict[str, ConfigType] | Config | None = None,
     ) -> None:
         platform, framework = platform_framework.value
 
@@ -84,7 +94,12 @@ def set_core_config() -> Generator[SetCoreConfigCallable]:
             CORE.data[platform.value] = platform_data
 
         config.path_context.set([])
-        final_validate.full_config.set(full_config or Config())
+        # Production always installs a Config (a FinalValidateConfig), never a plain dict.
+        if not isinstance(full_config, Config):
+            full = Config()
+            full.update(full_config or {})
+            full_config = full
+        final_validate.full_config.set(full_config)
 
     yield setter
 
@@ -100,6 +115,54 @@ def set_component_config() -> Callable[[str, Any], None]:
         final_validate.full_config.get()[name] = value
 
     return setter
+
+
+@pytest.fixture
+def choose_variant_with_pins() -> Generator[Callable[[list], None]]:
+    """Set the ESP32 variant to the first one on which all internal pins are valid.
+
+    For ESP32 only, since the other platforms do not have variants. The core
+    configuration must already have been set up for an ESP32 target.
+    Pins supplied by external components are validated by the caller's component
+    schema and do not affect ESP32 variant selection.
+    Using local imports to avoid importing when ESP32 is not the target.
+    """
+    from esphome import config_validation as cv
+    from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANTS
+    from esphome.components.esp32.gpio import validate_gpio_pin
+    from esphome.const import CONF_INPUT, CONF_OUTPUT
+    from esphome.pins import PIN_SCHEMA_REGISTRY, gpio_pin_schema
+
+    def chooser(pins: list) -> None:
+        for variant in VARIANTS:
+            try:
+                CORE.data[KEY_ESP32][KEY_VARIANT] = variant
+                for pin in pins:
+                    if pin is not None:
+                        # Pins provided by external components do not constrain
+                        # the ESP32 variant. Their own schemas are exercised by
+                        # the component configuration test.
+                        if (
+                            isinstance(pin, dict)
+                            and PIN_SCHEMA_REGISTRY.get_key(pin) != CORE.target_platform
+                        ):
+                            continue
+                        pin = gpio_pin_schema(
+                            {
+                                CONF_INPUT: True,
+                                CONF_OUTPUT: True,
+                            },
+                            internal=True,
+                        )(pin)
+                        validate_gpio_pin(pin)
+                return
+            except cv.Invalid:
+                continue
+        raise cv.Invalid(
+            f"No compatible variant found for pins: {', '.join(map(str, pins))}"
+        )
+
+    yield chooser
 
 
 @pytest.fixture
@@ -129,9 +192,35 @@ def generate_main() -> Generator[Callable[[str | Path], str]]:
     """Generates the C++ main.cpp from a given yaml file and returns it in string form."""
 
     def generator(path: str | Path) -> str:
-        CORE.config_path = str(path)
+        CORE.config_path = Path(path)
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
-        return CORE.cpp_main_section
+        return CORE.cpp_global_section + CORE.cpp_main_section
 
     yield generator
+
+
+@pytest.fixture
+def mock_clone_or_update() -> Generator[Any]:
+    """Mock git.clone_or_update for testing."""
+    with mock.patch("esphome.git.clone_or_update") as mock_func:
+        # Default return value
+        mock_func.return_value = (Path("/tmp/test"), None)
+        yield mock_func
+
+
+@pytest.fixture
+def mock_load_yaml() -> Generator[Any]:
+    """Mock yaml_util.load_yaml for testing."""
+
+    with mock.patch("esphome.yaml_util.load_yaml") as mock_func:
+        # Default return value
+        mock_func.return_value = OrderedDict({"sensor": []})
+        yield mock_func
+
+
+@pytest.fixture
+def mock_install_meta_finder() -> Generator[Any]:
+    """Mock loader.install_meta_finder for testing."""
+    with mock.patch("esphome.loader.install_meta_finder") as mock_func:
+        yield mock_func

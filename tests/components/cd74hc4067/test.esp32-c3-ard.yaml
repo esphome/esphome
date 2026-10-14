@@ -1,8 +1,0 @@
-substitutions:
-  pin_s0: GPIO2
-  pin_s1: GPIO3
-  pin_s2: GPIO4
-  pin_s3: GPIO5
-  pin: GPIO0
-
-<<: !include common.yaml

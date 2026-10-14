@@ -1,0 +1,69 @@
+substitutions:
+  a: from base config
+  b: from package3
+  c: from nested package4
+  nested_package:
+    nested_package_test_list:
+      - a: from base config
+      - b: from package3
+      - c: from nested package4
+  package1:
+    package1_test_list:
+      - a: from base config
+      - b: from package3
+      - c: from nested package4
+  package2:
+    package2_test_list:
+      - a: from package2 vars
+      - b: from package3
+      - c: from nested package4
+  package3:
+    package3_test_list:
+      - a: from base config
+      - b: from package3
+      - c: from nested package4
+  package4:
+    packages:
+      - nested_package_test_list:
+          - a: from base config
+          - b: from package3
+          - c: from nested package4
+  package_map:
+    package1:
+      package1_test_list:
+        - a: from base config
+        - b: from package3
+        - c: from nested package4
+    package2:
+      package2_test_list:
+        - a: from package2 vars
+        - b: from package3
+        - c: from nested package4
+    package3: &id001
+      package3_test_list:
+        - a: from base config
+        - b: from package3
+        - c: from nested package4
+  selected_package_number: 3
+  selected_package_name: package3
+  selected_package: *id001
+base_test_list:
+  - a: from base config
+  - b: from package3
+  - c: from nested package4
+package1_test_list:
+  - a: from base config
+  - b: from package3
+  - c: from nested package4
+package2_test_list:
+  - a: from package2 vars
+  - b: from package3
+  - c: from nested package4
+package3_test_list:
+  - a: from base config
+  - b: from package3
+  - c: from nested package4
+nested_package_test_list:
+  - a: from base config
+  - b: from package3
+  - c: from nested package4

@@ -1,14 +1,22 @@
+import errno
+import io
 import logging
+import os
+from pathlib import Path
 import socket
-from unittest.mock import patch
+import stat
+import types
+from unittest.mock import MagicMock, call, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis.strategies import ip_addresses
 import pytest
 
 from esphome import helpers
-from esphome.core import EsphomeError
+from esphome.address_cache import AddressCache
+from esphome.core import CORE, EsphomeError
+from esphome.helpers import ProgressBar, format_ip_url
 
 
 @pytest.mark.parametrize(
@@ -87,6 +95,50 @@ def test_cpp_string_escape(string, expected):
 
 
 @pytest.mark.parametrize(
+    "string, expected",
+    (
+        ("foo", 'u"foo"'),
+        ("foo\nbar", 'u"foo\\012bar"'),
+        ("foo\\bar", 'u"foo\\134bar"'),
+        ('foo "bar"', 'u"foo \\042bar\\042"'),
+        ("caf\u00e9", 'u"caf\\U000000E9"'),
+        ("foo 🐍", 'u"foo \\U0001F40D"'),
+    ),
+)
+def test_cpp_u16string_escape(string: str, expected: str) -> None:
+    assert helpers.cpp_u16string_escape(string) == expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        # Basic underscore→dash conversion.
+        ("Living Room Sensor", "living-room-sensor"),
+        # Already-slugified input passes through with dash output.
+        ("kitchen_light", "kitchen-light"),
+        # Accents are stripped (matches the underlying ``slugify``).
+        ("Café Caché", "cafe-cache"),
+        # Mixed casing + multiple separators collapse correctly.
+        ("Foo  Bar__Baz", "foo-bar-baz"),
+        # Empty input yields empty output.
+        ("", ""),
+        # Numbers survive intact.
+        ("Sensor 42", "sensor-42"),
+    ),
+)
+def test_friendly_name_slugify(value, expected):
+    """Friendly-name → URL-safe dash-slug.
+
+    Stable mapping is part of the cross-tool contract
+    (legacy dashboard + device-builder both depend on it for
+    filename → device-name routing). Lock the cases here so a
+    refactor can't accidentally change a slug shape and break
+    on-disk filenames in already-deployed installs.
+    """
+    assert helpers.friendly_name_slugify(value) == expected
+
+
+@pytest.mark.parametrize(
     "host",
     (
         "127.0.0",
@@ -100,6 +152,23 @@ def test_is_ip_address__invalid(host):
     assert actual is False
 
 
+@pytest.mark.parametrize(
+    ("family", "sockaddr", "expected"),
+    (
+        (socket.AF_INET, ("192.168.1.5", 80), "http://192.168.1.5:80/events"),
+        (socket.AF_INET6, ("2001:db8::1", 80, 0, 0), "http://[2001:db8::1]:80/events"),
+        (
+            socket.AF_INET6,
+            ("fe80::1", 8080, 0, 7),
+            "http://[fe80::1%257]:8080/events",
+        ),
+    ),
+)
+def test_format_ip_url(family, sockaddr, expected):
+    assert format_ip_url(family, sockaddr, sockaddr[1], "/events") == expected
+
+
+@settings(deadline=None)
 @given(value=ip_addresses(v=4).map(str))
 def test_is_ip_address__valid(value):
     actual = helpers.is_ip_address(value)
@@ -119,6 +188,13 @@ def test_is_ip_address__valid(value):
         ("FOO", "fAlSe", True, False),
         ("FOO", "Yes", False, True),
         ("FOO", "123", False, True),
+        # cv.boolean's spellings; falsy rows use default=True on purpose
+        ("FOO", "on", False, True),
+        ("FOO", "enable", False, True),
+        ("FOO", "no", True, False),
+        ("FOO", "off", True, False),
+        ("FOO", "OFF", True, False),
+        ("FOO", "Disable", True, False),
     ),
 )
 def test_get_bool_env(monkeypatch, var, value, default, expected):
@@ -144,17 +220,44 @@ def test_is_ha_addon(monkeypatch, value, expected):
     assert actual == expected
 
 
+def test_add_git_ceiling_directory_sets_when_unset():
+    """An empty env gets GIT_CEILING_DIRECTORIES set to the directory."""
+    env: dict[str, str] = {}
+    directory = Path("/home/user/config")
+    helpers.add_git_ceiling_directory(env, directory)
+    assert env["GIT_CEILING_DIRECTORIES"] == str(directory)
+
+
+def test_add_git_ceiling_directory_appends_to_existing():
+    """An existing value is preserved and the new directory is appended."""
+    env = {"GIT_CEILING_DIRECTORIES": str(Path("/some/ceiling"))}
+    directory = Path("/home/user/config")
+    helpers.add_git_ceiling_directory(env, directory)
+    assert env["GIT_CEILING_DIRECTORIES"].split(os.pathsep) == [
+        str(Path("/some/ceiling")),
+        str(directory),
+    ]
+
+
+def test_add_git_ceiling_directory_skips_duplicate():
+    """A directory already in the list is not appended again."""
+    directory = Path("/home/user/config")
+    env = {"GIT_CEILING_DIRECTORIES": str(directory)}
+    helpers.add_git_ceiling_directory(env, directory)
+    assert env["GIT_CEILING_DIRECTORIES"] == str(directory)
+
+
 def test_walk_files(fixture_path):
     path = fixture_path / "helpers"
 
     actual = list(helpers.walk_files(path))
 
     # Ensure paths start with the root
-    assert all(p.startswith(str(path)) for p in actual)
+    assert all(p.is_relative_to(path) for p in actual)
 
 
 class Test_write_file_if_changed:
-    def test_src_and_dst_match(self, tmp_path):
+    def test_src_and_dst_match(self, tmp_path: Path):
         text = "A files are unique.\n"
         initial = text
         dst = tmp_path / "file-a.txt"
@@ -164,7 +267,7 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
-    def test_src_and_dst_do_not_match(self, tmp_path):
+    def test_src_and_dst_do_not_match(self, tmp_path: Path):
         text = "A files are unique.\n"
         initial = "B files are unique.\n"
         dst = tmp_path / "file-a.txt"
@@ -174,7 +277,32 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
-    def test_dst_does_not_exist(self, tmp_path):
+    def test_damaged_existing_file_is_replaced(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        """A non-UTF-8 existing file is logged and overwritten."""
+        dst = tmp_path / "generated.txt"
+        dst.write_bytes(b"\xff\xfe")
+
+        assert helpers.write_file_if_changed(dst, "fresh content") is True
+
+        assert dst.read_text(encoding="utf-8") == "fresh content"
+        assert "Replacing damaged file" in caplog.text
+
+    def test_unreadable_existing_file_still_raises(self, tmp_path: Path):
+        """An OSError on the comparison read still raises EsphomeError."""
+        dst = tmp_path / "generated.txt"
+        dst.write_text("intact")
+
+        with (
+            patch.object(Path, "read_text", side_effect=OSError("permission denied")),
+            pytest.raises(EsphomeError, match="Error reading file"),
+        ):
+            helpers.write_file_if_changed(dst, "fresh content")
+
+        assert dst.exists()
+
+    def test_dst_does_not_exist(self, tmp_path: Path):
         text = "A files are unique.\n"
         dst = tmp_path / "file-a.txt"
 
@@ -184,7 +312,7 @@ class Test_write_file_if_changed:
 
 
 class Test_copy_file_if_changed:
-    def test_src_and_dst_match(self, tmp_path, fixture_path):
+    def test_src_and_dst_match(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         initial = fixture_path / "helpers" / "file-a.txt"
         dst = tmp_path / "file-a.txt"
@@ -193,7 +321,7 @@ class Test_copy_file_if_changed:
 
         helpers.copy_file_if_changed(src, dst)
 
-    def test_src_and_dst_do_not_match(self, tmp_path, fixture_path):
+    def test_src_and_dst_do_not_match(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         initial = fixture_path / "helpers" / "file-c.txt"
         dst = tmp_path / "file-a.txt"
@@ -204,7 +332,7 @@ class Test_copy_file_if_changed:
 
         assert src.read_text() == dst.read_text()
 
-    def test_dst_does_not_exist(self, tmp_path, fixture_path):
+    def test_dst_does_not_exist(self, tmp_path: Path, fixture_path: Path):
         src = fixture_path / "helpers" / "file-a.txt"
         dst = tmp_path / "file-a.txt"
 
@@ -271,6 +399,77 @@ def test_snake_case(text, expected):
 )
 def test_sanitize(text, expected):
     actual = helpers.sanitize(text)
+
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    ("name", "expected_hash"),
+    (
+        # Basic strings - hash of sanitize(snake_case(name))
+        ("foo", 0x408F5E13),
+        ("Foo", 0x408F5E13),  # Same as "foo" (lowercase)
+        ("FOO", 0x408F5E13),  # Same as "foo" (lowercase)
+        # Spaces become underscores
+        ("foo bar", 0x3AE35AA1),  # Transforms to "foo_bar"
+        ("Foo Bar", 0x3AE35AA1),  # Same (lowercase + underscore)
+        # Already snake_case
+        ("foo_bar", 0x3AE35AA1),
+        # Special chars become underscores
+        ("foo!bar", 0x3AE35AA1),  # Transforms to "foo_bar"
+        ("foo@bar", 0x3AE35AA1),  # Transforms to "foo_bar"
+        # Hyphens are preserved
+        ("foo-bar", 0x438B12E3),
+        # Numbers are preserved
+        ("foo123", 0xF3B0067D),
+        # Empty string
+        ("", 0x811C9DC5),  # FNV1_OFFSET_BASIS (no chars processed)
+        # Single char
+        ("a", 0x050C5D7E),
+        # Mixed case and spaces
+        ("My Sensor Name", 0x2760962A),  # Transforms to "my_sensor_name"
+    ),
+)
+def test_fnv1_hash_object_id(name, expected_hash):
+    """Test fnv1_hash_object_id produces expected hashes.
+
+    These expected values were computed to match the C++ implementation
+    in esphome/core/helpers.h. If this test fails after modifying either
+    implementation, ensure both Python and C++ versions stay in sync.
+    """
+    actual = helpers.fnv1_hash_object_id(name)
+
+    assert actual == expected_hash
+
+
+def _fnv1_hash_py(s: str) -> int:
+    """Python implementation of FNV-1 hash for verification."""
+    hash_val = 2166136261  # FNV1_OFFSET_BASIS
+    for c in s:
+        hash_val = (hash_val * 16777619) & 0xFFFFFFFF  # FNV1_PRIME
+        hash_val ^= ord(c)
+    return hash_val
+
+
+@pytest.mark.parametrize(
+    "name",
+    (
+        "Simple",
+        "With Space",
+        "MixedCase",
+        "special!@#chars",
+        "already_snake_case",
+        "123numbers",
+    ),
+)
+def test_fnv1_hash_object_id_matches_manual_calculation(name):
+    """Verify fnv1_hash_object_id matches snake_case + sanitize + standard FNV-1."""
+    # Manual calculation: snake_case -> sanitize -> fnv1_hash
+    transformed = helpers.sanitize(helpers.snake_case(name))
+    expected = _fnv1_hash_py(transformed)
+
+    # Direct calculation via fnv1_hash_object_id
+    actual = helpers.fnv1_hash_object_id(name)
 
     assert actual == expected
 
@@ -450,9 +649,27 @@ def test_resolve_ip_address_mixed_list() -> None:
         # Mix of IP and hostname - should use async resolver
         result = helpers.resolve_ip_address(["192.168.1.100", "test.local"], 6053)
 
+        assert len(result) == 2
+        assert result[0][4][0] == "192.168.1.100"
+        assert result[1][4][0] == "192.168.1.200"
+        MockResolver.assert_called_once_with(["test.local"], 6053)
+        mock_resolver.resolve.assert_called_once()
+
+
+def test_resolve_ip_address_mixed_list_fail() -> None:
+    """Test resolving a mix of IPs and hostnames with resolve failed."""
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.side_effect = EsphomeError(
+            "Error resolving IP address: [test.local]"
+        )
+
+        # Mix of IP and hostname - should use async resolver
+        result = helpers.resolve_ip_address(["192.168.1.100", "test.local"], 6053)
+
         assert len(result) == 1
-        assert result[0][4][0] == "192.168.1.200"
-        MockResolver.assert_called_once_with(["192.168.1.100", "test.local"], 6053)
+        assert result[0][4][0] == "192.168.1.100"
+        MockResolver.assert_called_once_with(["test.local"], 6053)
         mock_resolver.resolve.assert_called_once()
 
 
@@ -554,6 +771,288 @@ def test_addr_preference_ipv6_link_local_with_scope() -> None:
     assert helpers.addr_preference_(addr_info) == 1  # Has scope, so it's usable
 
 
+def test_mkdir_p(tmp_path: Path) -> None:
+    """Test mkdir_p creates directories recursively."""
+    # Test creating nested directories
+    nested_path = tmp_path / "level1" / "level2" / "level3"
+    helpers.mkdir_p(nested_path)
+    assert nested_path.exists()
+    assert nested_path.is_dir()
+
+    # Test that mkdir_p is idempotent (doesn't fail if directory exists)
+    helpers.mkdir_p(nested_path)
+    assert nested_path.exists()
+
+    # Test with empty path (should do nothing)
+    helpers.mkdir_p("")
+
+    # Test with existing directory
+    existing_dir = tmp_path / "existing"
+    existing_dir.mkdir()
+    helpers.mkdir_p(existing_dir)
+    assert existing_dir.exists()
+
+
+def test_mkdir_p_file_exists_error(tmp_path: Path) -> None:
+    """Test mkdir_p raises error when path is a file."""
+    # Create a file
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text("test content")
+
+    # Try to create directory with same name as existing file
+    with pytest.raises(EsphomeError, match=r"Error creating directories"):
+        helpers.mkdir_p(file_path)
+
+
+def test_mkdir_p_with_existing_file_raises_error(tmp_path: Path) -> None:
+    """Test mkdir_p raises error when trying to create dir over existing file."""
+    # Create a file where we want to create a directory
+    file_path = tmp_path / "existing_file"
+    file_path.write_text("content")
+
+    # Try to create a directory with a path that goes through the file
+    dir_path = file_path / "subdir"
+
+    with pytest.raises(EsphomeError, match=r"Error creating directories"):
+        helpers.mkdir_p(dir_path)
+
+
+def test_read_file(tmp_path: Path) -> None:
+    """Test read_file reads file content correctly."""
+    # Test reading regular file
+    test_file = tmp_path / "test.txt"
+    expected_content = "Test content\nLine 2\n"
+    test_file.write_text(expected_content)
+
+    content = helpers.read_file(test_file)
+    assert content == expected_content
+
+    # Test reading file with UTF-8 characters
+    utf8_file = tmp_path / "utf8.txt"
+    utf8_content = "Hello 世界 🌍"
+    utf8_file.write_text(utf8_content, encoding="utf-8")
+
+    content = helpers.read_file(utf8_file)
+    assert content == utf8_content
+
+
+def test_read_file_not_found() -> None:
+    """Test read_file raises error for non-existent file."""
+    with pytest.raises(EsphomeError, match=r"Error reading file"):
+        helpers.read_file(Path("/nonexistent/file.txt"))
+
+
+def test_read_file_unicode_decode_error(tmp_path: Path) -> None:
+    """Test read_file raises error for invalid UTF-8."""
+    test_file = tmp_path / "invalid.txt"
+    # Write invalid UTF-8 bytes
+    test_file.write_bytes(b"\xff\xfe")
+
+    with pytest.raises(EsphomeError, match=r"Error reading file"):
+        helpers.read_file(test_file)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+def test_write_file_unix(tmp_path: Path) -> None:
+    """Test write_file writes content correctly on Unix."""
+    # Test writing string content
+    test_file = tmp_path / "test.txt"
+    content = "Test content\nLine 2"
+    helpers.write_file(test_file, content)
+
+    assert test_file.read_text() == content
+    # Check file permissions
+    assert oct(test_file.stat().st_mode)[-3:] == "644"
+
+    # Test overwriting existing file
+    new_content = "New content"
+    helpers.write_file(test_file, new_content)
+    assert test_file.read_text() == new_content
+
+    # Test writing to nested directories (should create them)
+    nested_file = tmp_path / "dir1" / "dir2" / "file.txt"
+    helpers.write_file(nested_file, content)
+    assert nested_file.read_text() == content
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+def test_write_file_windows(tmp_path: Path) -> None:
+    """Test write_file writes content correctly on Windows."""
+    # Test writing string content
+    test_file = tmp_path / "test.txt"
+    content = "Test content\nLine 2"
+    helpers.write_file(test_file, content)
+
+    assert test_file.read_text() == content
+    # Windows doesn't have Unix-style 644 permissions
+
+    # Test overwriting existing file
+    new_content = "New content"
+    helpers.write_file(test_file, new_content)
+    assert test_file.read_text() == new_content
+
+    # Test writing to nested directories (should create them)
+    nested_file = tmp_path / "dir1" / "dir2" / "file.txt"
+    helpers.write_file(nested_file, content)
+    assert nested_file.read_text() == content
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_write_file_to_non_writable_directory_unix(tmp_path: Path) -> None:
+    """Test write_file raises error when directory is not writable on Unix."""
+    # Create a directory and make it read-only
+    read_only_dir = tmp_path / "readonly"
+    read_only_dir.mkdir()
+    test_file = read_only_dir / "test.txt"
+
+    # Make directory read-only (no write permission)
+    read_only_dir.chmod(0o555)
+
+    try:
+        with pytest.raises(EsphomeError, match=r"Could not write file"):
+            helpers.write_file(test_file, "content")
+    finally:
+        # Restore write permissions for cleanup
+        read_only_dir.chmod(0o755)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+def test_write_file_to_non_writable_directory_windows(tmp_path: Path) -> None:
+    """Test write_file error handling on Windows."""
+    # Windows handles permissions differently - test a different error case
+    # Try to write to a file path that contains an existing file as a directory component
+    existing_file = tmp_path / "file.txt"
+    existing_file.write_text("content")
+
+    # Try to write to a path that treats the file as a directory
+    invalid_path = existing_file / "subdir" / "test.txt"
+
+    with pytest.raises(EsphomeError, match=r"Could not write file"):
+        helpers.write_file(invalid_path, "content")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_write_file_with_permission_bits_unix(tmp_path: Path) -> None:
+    """Test that write_file sets correct permissions on Unix."""
+    test_file = tmp_path / "test.txt"
+    helpers.write_file(test_file, "content")
+
+    # Check that file has 644 permissions
+    file_mode = test_file.stat().st_mode
+    assert stat.S_IMODE(file_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Unix-specific permission test")
+def test_copy_file_if_changed_permission_recovery_unix(tmp_path: Path) -> None:
+    """Test copy_file_if_changed handles permission errors correctly on Unix."""
+    # Test with read-only destination file
+    src = tmp_path / "source.txt"
+    dst = tmp_path / "dest.txt"
+    src.write_text("new content")
+    dst.write_text("old content")
+    dst.chmod(0o444)  # Make destination read-only
+
+    try:
+        # Should handle permission error by deleting and retrying
+        helpers.copy_file_if_changed(src, dst)
+        assert dst.read_text() == "new content"
+    finally:
+        # Restore write permissions for cleanup
+        if dst.exists():
+            dst.chmod(0o644)
+
+
+def test_copy_file_if_changed_creates_directories(tmp_path: Path) -> None:
+    """Test copy_file_if_changed creates missing directories."""
+    src = tmp_path / "source.txt"
+    dst = tmp_path / "subdir" / "nested" / "dest.txt"
+    src.write_text("content")
+
+    helpers.copy_file_if_changed(src, dst)
+    assert dst.exists()
+    assert dst.read_text() == "content"
+
+
+def test_copy_file_if_changed_nonexistent_source(tmp_path: Path) -> None:
+    """Test copy_file_if_changed with non-existent source."""
+    src = tmp_path / "nonexistent.txt"
+    dst = tmp_path / "dest.txt"
+
+    with pytest.raises(EsphomeError, match=r"Error copying file"):
+        helpers.copy_file_if_changed(src, dst)
+
+
+def test_rmtree_removes_tree(tmp_path: Path) -> None:
+    """Test rmtree removes a populated directory tree."""
+    target = tmp_path / "target"
+    (target / "sub").mkdir(parents=True)
+    (target / "sub" / "file.txt").write_text("content")
+
+    helpers.rmtree(target)
+    assert not target.exists()
+
+
+def test_rmtree_nonexistent_path(tmp_path: Path) -> None:
+    """Test rmtree on an already-removed path is a no-op."""
+    helpers.rmtree(tmp_path / "gone")
+
+
+def test_rmtree_retries_when_directory_repopulated(tmp_path: Path) -> None:
+    """Test rmtree retries when a file appears mid-delete (Finder .DS_Store race)."""
+    target = tmp_path / "target"
+    (target / "sub").mkdir(parents=True)
+    real_rmdir = os.rmdir
+    repopulated = False
+
+    def racy_rmdir(path, **kwargs):
+        nonlocal repopulated
+        if not repopulated and Path(path).name == "target":
+            repopulated = True
+            (target / ".DS_Store").write_text("x")  # Finder wins the race
+        real_rmdir(path, **kwargs)
+
+    with patch("os.rmdir", side_effect=racy_rmdir), patch("time.sleep"):
+        helpers.rmtree(target)
+    assert repopulated
+    assert not target.exists()
+
+
+def test_rmtree_raises_after_retries_exhausted(tmp_path: Path) -> None:
+    """Test rmtree gives up on a persistent ENOTEMPTY once attempts run out."""
+    target = tmp_path / "target"
+    target.mkdir()
+    errs = [
+        OSError(errno.ENOTEMPTY, "Directory not empty", str(target))
+        for _ in range(helpers.RMTREE_MAX_ATTEMPTS)
+    ]
+
+    with (
+        patch("shutil.rmtree", side_effect=errs) as mock_rmtree,
+        patch("time.sleep") as mock_sleep,
+        pytest.raises(OSError, match="Directory not empty") as excinfo,
+    ):
+        helpers.rmtree(target)
+    assert mock_rmtree.call_count == helpers.RMTREE_MAX_ATTEMPTS
+    assert mock_sleep.call_args_list == [call(0.05), call(0.1)]
+    # Final failure chains to the last retried race
+    assert excinfo.value is errs[-1]
+    assert excinfo.value.__cause__ is errs[-2]
+
+
+def test_rmtree_does_not_retry_other_oserror(tmp_path: Path) -> None:
+    """Test rmtree raises non-ENOTEMPTY errors immediately."""
+    target = tmp_path / "target"
+    target.mkdir()
+    err = OSError(errno.EACCES, "Permission denied", str(target))
+
+    with (
+        patch("shutil.rmtree", side_effect=err) as mock_rmtree,
+        pytest.raises(OSError, match="Permission denied"),
+    ):
+        helpers.rmtree(target)
+    assert mock_rmtree.call_count == 1
+
+
 def test_resolve_ip_address_sorting() -> None:
     """Test that results are sorted by preference."""
     # Create multiple address infos with different preferences
@@ -594,3 +1093,212 @@ def test_resolve_ip_address_sorting() -> None:
         assert result[0][4][0] == "2001:db8::1"  # IPv6 (preference 1)
         assert result[1][4][0] == "192.168.1.100"  # IPv4 (preference 2)
         assert result[2][4][0] == "fe80::1"  # Link-local no scope (preference 3)
+
+
+def test_resolve_ip_address_with_cache() -> None:
+    """Test that the cache is used when provided."""
+    cache = AddressCache(
+        mdns_cache={"test.local": ["192.168.1.100", "192.168.1.101"]},
+        dns_cache={
+            "example.com": ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"]
+        },
+    )
+
+    # Test mDNS cache hit
+    result = helpers.resolve_ip_address("test.local", 6053, address_cache=cache)
+
+    # Should return cached addresses without calling resolver
+    assert len(result) == 2
+    assert result[0][4][0] == "192.168.1.100"
+    assert result[1][4][0] == "192.168.1.101"
+
+    # Test DNS cache hit
+    result = helpers.resolve_ip_address("example.com", 6053, address_cache=cache)
+
+    # Should return cached addresses with IPv6 first due to preference
+    assert len(result) == 2
+    assert result[0][4][0] == "2606:2800:220:1:248:1893:25c8:1946"  # IPv6 first
+    assert result[1][4][0] == "93.184.216.34"  # IPv4 second
+
+
+def test_resolve_ip_address_cache_miss() -> None:
+    """Test that resolver is called when not in cache."""
+    cache = AddressCache(mdns_cache={"other.local": ["192.168.1.200"]})
+
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.return_value = [mock_addr_info]
+
+        result = helpers.resolve_ip_address("test.local", 6053, address_cache=cache)
+
+        # Should call resolver since test.local is not in cache
+        MockResolver.assert_called_once_with(["test.local"], 6053)
+        assert len(result) == 1
+        assert result[0][4][0] == "192.168.1.100"
+
+
+@pytest.mark.parametrize("hostname", ["test.local", "example.com"])
+def test_resolve_ip_address_empty_cache_entry_falls_back(hostname: str) -> None:
+    """An empty CLI cache entry must use normal DNS or mDNS resolution."""
+    cache = AddressCache.from_cli_args([f"{hostname}="], [f"{hostname}="])
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        MockResolver.return_value.resolve.return_value = [mock_addr_info]
+
+        result = helpers.resolve_ip_address(hostname, 6053, address_cache=cache)
+
+        MockResolver.assert_called_once_with([hostname], 6053)
+        assert result[0][4][0] == "192.168.1.100"
+
+
+def test_resolve_ip_address_mixed_cached_uncached() -> None:
+    """Test resolution with mix of cached and uncached hosts."""
+    cache = AddressCache(mdns_cache={"cached.local": ["192.168.1.50"]})
+
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.return_value = [mock_addr_info]
+
+        # Pass a list with cached IP, cached hostname, and uncached hostname
+        result = helpers.resolve_ip_address(
+            ["192.168.1.10", "cached.local", "uncached.local"],
+            6053,
+            address_cache=cache,
+        )
+
+        # Should only resolve uncached.local
+        MockResolver.assert_called_once_with(["uncached.local"], 6053)
+
+        # Results should include all addresses
+        addresses = [r[4][0] for r in result]
+        assert "192.168.1.10" in addresses  # Direct IP
+        assert "192.168.1.50" in addresses  # From cache
+        assert "192.168.1.100" in addresses  # From resolver
+
+
+def test_progressbar_enabled_on_tty(monkeypatch) -> None:
+    """Interactive TTY: progress writes through (pre-existing behaviour)."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = True
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is True
+
+
+def test_progressbar_disabled_on_pipe_without_dashboard(monkeypatch) -> None:
+    """Piped output without --dashboard: progress suppressed."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = False
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is False
+
+
+def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
+    r"""Piped output under --dashboard: progress writes through.
+
+    The dashboard captures stderr through a pipe (so ``isatty()`` is False)
+    and parses ``\rUploading: NN%`` frames to drive its progress UI.
+    Gating purely on ``isatty()`` silently disables every dashboard-side
+    flash-progress indicator.
+    """
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = False
+    monkeypatch.setattr(CORE, "dashboard", True)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is True
+
+
+def test_progressbar_interrupt_keeps_finished_bar_done(monkeypatch) -> None:
+    """interrupt() on a bar whose 100% frame already ended its own line
+    must not reset it, or the next tick would redraw a second Done row."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = True
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    bar.update(1)
+    assert bar.last_progress == 100
+    bar.interrupt()
+    assert bar.last_progress == 100
+
+
+@pytest.mark.parametrize(
+    ("seconds", "expected"),
+    [
+        (0, "0s"),
+        (42, "42s"),
+        (60, "1min"),
+        (3661, "1h 1min"),
+        (86400, "1d"),
+        (90000, "1d 1h"),
+        (86700, "1d 5min"),
+        (-5, "0s"),
+    ],
+)
+def test_format_duration(seconds: float, expected: str) -> None:
+    """Test that durations are rendered as short human-readable strings."""
+    assert helpers.format_duration(seconds) == expected
+
+
+def test_get_usable_cpu_count() -> None:
+    """Returns a positive int on the real host."""
+    count = helpers.get_usable_cpu_count()
+    assert isinstance(count, int)
+    assert count > 0
+
+
+def test_get_usable_cpu_count_sources() -> None:
+    """Prefers process_cpu_count, falls back to cpu_count, degrades to 1."""
+    mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
+    with patch("esphome.helpers.os", mock_os):
+        assert helpers.get_usable_cpu_count() == 8
+
+    mock_os_no_process = types.SimpleNamespace(cpu_count=lambda: 4)
+    with patch("esphome.helpers.os", mock_os_no_process):
+        assert helpers.get_usable_cpu_count() == 4
+
+    # An undeterminable count degrades to one worker, never zero
+    mock_os_unknown = types.SimpleNamespace(cpu_count=lambda: None)
+    with patch("esphome.helpers.os", mock_os_unknown):
+        assert helpers.get_usable_cpu_count() == 1
+
+
+def test_zstd_module_falls_back_to_the_backport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Before Python 3.14 the standard library has no zstd, so the backport is used."""
+    backport = object()
+
+    def import_module(name: str) -> object:
+        if name == "compression.zstd":
+            raise ImportError(name)
+        assert name == "backports.zstd"
+        return backport
+
+    monkeypatch.setattr(helpers.importlib, "import_module", import_module)
+
+    assert helpers.zstd_module() is backport

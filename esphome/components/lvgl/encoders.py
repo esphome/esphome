@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
+from esphome.components.rotary_encoder import DOMAIN as ROTARY_ENCODER_DOMAIN
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
 import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID, CONF_SENSOR
@@ -13,8 +14,8 @@ from .defines import (
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
     CONF_RIGHT_BUTTON,
+    add_lv_use,
 )
-from .helpers import lvgl_components_required, requires_component
 from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
 from .types import lv_group_t, lv_indev_type_t, lv_key_t
@@ -26,7 +27,8 @@ ENCODERS_CONFIG = cv.ensure_list(
             cv.Required(CONF_ENTER_BUTTON): cv.use_id(BinarySensor),
             cv.Required(CONF_SENSOR): cv.Any(
                 cv.All(
-                    cv.use_id(RotaryEncoderSensor), requires_component("rotary_encoder")
+                    cv.use_id(RotaryEncoderSensor),
+                    cv.requires_component(ROTARY_ENCODER_DOMAIN),
                 ),
                 cv.Schema(
                     {
@@ -48,7 +50,7 @@ def get_default_group(config):
 
 async def encoders_to_code(var, config, default_group):
     for enc_conf in config[CONF_ENCODERS]:
-        lvgl_components_required.add("KEY_LISTENER")
+        add_lv_use("KEY_LISTENER", "ROTARY_ENCODER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(
@@ -71,7 +73,7 @@ async def encoders_to_code(var, config, default_group):
             lv_assign(group, lv_expr.group_create())
         else:
             group = default_group
-        lv.indev_set_group(lv_expr.indev_drv_register(listener.get_drv()), group)
+        lv.indev_set_group(listener.get_drv(), group)
 
 
 async def initial_focus_to_code(config):

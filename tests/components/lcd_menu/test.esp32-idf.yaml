@@ -3,7 +3,7 @@ substitutions:
   d1_pin: GPIO13
   d2_pin: GPIO14
   d3_pin: GPIO15
-  enable_pin: GPIO16
+  enable_pin: GPIO4
   rs_pin: GPIO5
 
 <<: !include common.yaml

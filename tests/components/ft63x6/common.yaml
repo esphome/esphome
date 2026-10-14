@@ -1,25 +1,19 @@
-spi:
-  - id: spi_ft63x6
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-
-i2c:
-  - id: i2c_ft63x6
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 display:
   - platform: ssd1306_i2c
-    id: ssd1306_display
+    i2c_id: i2c_bus
+    id: ft63x6_display
     model: SSD1306_128X64
     reset_pin: ${reset_pin}
     pages:
-      - id: page1
+      - id: ft63x6_page1
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
 
 touchscreen:
   - platform: ft63x6
+    i2c_id: i2c_bus
+    display: ft63x6_display
+    id: ft63x6_touchscreen
     interrupt_pin: ${interrupt_pin}
     transform:
       swap_xy: true
@@ -42,6 +36,7 @@ touchscreen:
 
 binary_sensor:
   - platform: touchscreen
+    touchscreen_id: ft63x6_touchscreen
     name: Bottom Left Touch
     use_raw: true
     x_min: 0

@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, sensor
@@ -37,7 +39,6 @@ from esphome.const import (
     CONF_HEAT_MODE,
     CONF_HEAT_OVERRUN,
     CONF_HUMIDITY_SENSOR,
-    CONF_ID,
     CONF_IDLE_ACTION,
     CONF_MAX_COOLING_RUN_TIME,
     CONF_MAX_HEATING_RUN_TIME,
@@ -70,10 +71,17 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
     CONF_VISUAL,
 )
+from esphome.helpers import cpp_string_escape
+from esphome.types import ConfigType
 
-CONF_PRESET_CHANGE = "preset_change"
 CONF_DEFAULT_PRESET = "default_preset"
+CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION = "humidity_control_dehumidify_action"
+CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION = "humidity_control_humidify_action"
+CONF_HUMIDITY_CONTROL_OFF_ACTION = "humidity_control_off_action"
+CONF_HUMIDITY_HYSTERESIS = "humidity_hysteresis"
 CONF_ON_BOOT_RESTORE_FROM = "on_boot_restore_from"
+CONF_PRESET_CHANGE = "preset_change"
+CONF_TARGET_HUMIDITY_CHANGE_ACTION = "target_humidity_change_action"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -85,6 +93,8 @@ ThermostatClimate = thermostat_ns.class_(
 ThermostatClimateTargetTempConfig = thermostat_ns.struct(
     "ThermostatClimateTargetTempConfig"
 )
+ThermostatPresetEntry = thermostat_ns.struct("ThermostatPresetEntry")
+ThermostatCustomPresetEntry = thermostat_ns.struct("ThermostatCustomPresetEntry")
 OnBootRestoreFrom = thermostat_ns.enum("OnBootRestoreFrom")
 ON_BOOT_RESTORE_FROM = {
     "MEMORY": OnBootRestoreFrom.MEMORY,
@@ -108,20 +118,24 @@ ClimatePreset = climate_ns.enum("ClimatePreset")
 
 PRESET_CONFIG_SCHEMA = cv.Schema(
     {
+        # Still accepted for existing configs; presets are flash table entries, not variables.
         cv.GenerateID(): cv.declare_id(ThermostatClimateTargetTempConfig),
         cv.Required(CONF_NAME): cv.string_strict,
         cv.Optional(CONF_MODE): validate_climate_mode,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
-        cv.Optional(CONF_FAN_MODE): cv.templatable(climate.validate_climate_fan_mode),
-        cv.Optional(CONF_SWING_MODE): cv.templatable(
-            climate.validate_climate_swing_mode
-        ),
+        cv.Optional(CONF_FAN_MODE): climate.validate_climate_fan_mode,
+        cv.Optional(CONF_SWING_MODE): climate.validate_climate_swing_mode,
     }
 )
 
 
-def validate_temperature_preset(preset, root_config, name, requirements):
+def validate_temperature_preset(
+    preset: ConfigType,
+    root_config: ConfigType,
+    name: str,
+    requirements: dict[str, list[str]],
+) -> None:
     # verify temperature settings for the provided preset / default / away configuration
     for config_temp, req_actions in requirements.items():
         for req_action in req_actions:
@@ -137,7 +151,7 @@ def validate_temperature_preset(preset, root_config, name, requirements):
                 )
 
 
-def generate_comparable_preset(config, name):
+def generate_comparable_preset(config: ConfigType, name: str) -> str:
     comparable_preset = f"{CONF_PRESET}:\n  -  {CONF_NAME}: {name}\n"
 
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
@@ -148,7 +162,20 @@ def generate_comparable_preset(config, name):
     return comparable_preset
 
 
-def validate_thermostat(config):
+def validate_heat_cool_mode(value: Any) -> list:
+    """Validate heat_cool_mode - accepts either True or an automation."""
+    if value is True:
+        # Convert True to empty automation list
+        return []
+    if value is False:
+        raise cv.Invalid(
+            "heat_cool_mode cannot be 'false'. Specify 'true' to enable the mode or provide an automation"
+        )
+    # Otherwise validate as automation
+    return automation.validate_automation(single=True)(value)
+
+
+def validate_thermostat(config: ConfigType) -> ConfigType:
     # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
         CONF_HEAT_COOL_MODE: [
@@ -213,12 +240,6 @@ def validate_thermostat(config):
             CONF_SUPPLEMENTAL_HEATING_ACTION,
             CONF_SUPPLEMENTAL_HEATING_DELTA,
         ],
-        CONF_MIN_COOLING_OFF_TIME: [
-            CONF_COOL_ACTION,
-        ],
-        CONF_MIN_COOLING_RUN_TIME: [
-            CONF_COOL_ACTION,
-        ],
         CONF_MIN_FANNING_OFF_TIME: [
             CONF_FAN_ONLY_ACTION,
         ],
@@ -241,6 +262,14 @@ def validate_thermostat(config):
             CONF_MAX_HEATING_RUN_TIME,
             CONF_SUPPLEMENTAL_HEATING_ACTION,
         ],
+        CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION: [
+            CONF_HUMIDITY_CONTROL_OFF_ACTION,
+            CONF_HUMIDITY_SENSOR,
+        ],
+        CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION: [
+            CONF_HUMIDITY_CONTROL_OFF_ACTION,
+            CONF_HUMIDITY_SENSOR,
+        ],
     }
     for config_trigger, req_triggers in requirements.items():
         for req_trigger in req_triggers:
@@ -248,6 +277,17 @@ def validate_thermostat(config):
                 raise cv.Invalid(
                     f"{req_trigger} must be defined to use {config_trigger}"
                 )
+
+    # Dry mode runs on the cooling timers, so a dehumidifier needs no cool_action.
+    for timer in (CONF_MIN_COOLING_OFF_TIME, CONF_MIN_COOLING_RUN_TIME):
+        if (
+            timer in config
+            and CONF_COOL_ACTION not in config
+            and CONF_DRY_ACTION not in config
+        ):
+            raise cv.Invalid(
+                f"{CONF_COOL_ACTION} or {CONF_DRY_ACTION} must be defined to use {timer}"
+            )
 
     if CONF_FAN_ONLY_ACTION in config:
         # determine validation requirements based on fan_only_action_uses_fan_mode_timer setting
@@ -338,7 +378,7 @@ def validate_thermostat(config):
     # Warn about using the removed CONF_DEFAULT_MODE and advise users
     if CONF_DEFAULT_MODE in config and config[CONF_DEFAULT_MODE] is not None:
         raise cv.Invalid(
-            f"{CONF_DEFAULT_MODE} is no longer valid. Please switch to using presets and specify a {CONF_DEFAULT_PRESET}."
+            f"{CONF_DEFAULT_MODE} is no longer valid. Please switch to using presets and specify a {CONF_DEFAULT_PRESET}"
         )
 
     default_mode = config[CONF_DEFAULT_MODE]
@@ -477,7 +517,7 @@ def validate_thermostat(config):
     # If restoring default preset on boot is true then ensure we have a default preset
     if (
         CONF_ON_BOOT_RESTORE_FROM in config
-        and config[CONF_ON_BOOT_RESTORE_FROM] is OnBootRestoreFrom.DEFAULT_PRESET
+        and config[CONF_ON_BOOT_RESTORE_FROM] == "DEFAULT_PRESET"
         and CONF_DEFAULT_PRESET not in config
     ):
         raise cv.Invalid(
@@ -541,9 +581,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAN_ONLY_MODE): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_HEAT_COOL_MODE): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_HEAT_COOL_MODE): validate_heat_cool_mode,
             cv.Optional(CONF_HEAT_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_OFF_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_FAN_MODE_ON_ACTION): automation.validate_automation(
@@ -589,10 +627,25 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(
+                CONF_TARGET_HUMIDITY_CHANGE_ACTION
+            ): automation.validate_automation(single=True),
+            cv.Optional(
                 CONF_TARGET_TEMPERATURE_CHANGE_ACTION
             ): automation.validate_automation(single=True),
+            cv.Exclusive(
+                CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION,
+                group_of_exclusion="humidity_control",
+            ): automation.validate_automation(single=True),
+            cv.Exclusive(
+                CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION,
+                group_of_exclusion="humidity_control",
+            ): automation.validate_automation(single=True),
+            cv.Optional(
+                CONF_HUMIDITY_CONTROL_OFF_ACTION
+            ): automation.validate_automation(single=True),
+            cv.Optional(CONF_HUMIDITY_HYSTERESIS, default=1.0): cv.percentage,
             cv.Optional(CONF_DEFAULT_MODE, default=None): cv.valid,
-            cv.Optional(CONF_DEFAULT_PRESET): cv.templatable(cv.string),
+            cv.Optional(CONF_DEFAULT_PRESET): cv.string,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Optional(
@@ -629,7 +682,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
                 }
             ),
-            cv.Optional(CONF_PRESET): cv.ensure_list(PRESET_CONFIG_SCHEMA),
+            cv.Optional(CONF_PRESET): cv.All(
+                cv.ensure_list(PRESET_CONFIG_SCHEMA), cv.Length(max=255)
+            ),
             cv.Optional(CONF_ON_BOOT_RESTORE_FROM): validate_on_boot_restore_from,
             cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(
                 single=True
@@ -644,7 +699,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 
@@ -800,9 +855,11 @@ async def to_code(config):
         )
         cg.add(var.set_supports_heat(True))
     if CONF_HEAT_COOL_MODE in config:
-        await automation.build_automation(
-            var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
-        )
+        # Build automation only if user provided actions (not just `true`)
+        if config[CONF_HEAT_COOL_MODE]:
+            await automation.build_automation(
+                var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
+            )
         cg.add(var.set_supports_heat_cool(True))
     if CONF_OFF_MODE in config:
         await automation.build_automation(
@@ -882,59 +939,86 @@ async def to_code(config):
             config[CONF_SWING_VERTICAL_ACTION],
         )
         cg.add(var.set_supports_swing_mode_vertical(True))
+    if CONF_TARGET_HUMIDITY_CHANGE_ACTION in config:
+        await automation.build_automation(
+            var.get_humidity_change_trigger(),
+            [],
+            config[CONF_TARGET_HUMIDITY_CHANGE_ACTION],
+        )
     if CONF_TARGET_TEMPERATURE_CHANGE_ACTION in config:
         await automation.build_automation(
             var.get_temperature_change_trigger(),
             [],
             config[CONF_TARGET_TEMPERATURE_CHANGE_ACTION],
         )
+    if CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION in config:
+        cg.add(var.set_supports_dehumidification(True))
+        await automation.build_automation(
+            var.get_humidity_control_dehumidify_action_trigger(),
+            [],
+            config[CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION],
+        )
+    if CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION in config:
+        cg.add(var.set_supports_humidification(True))
+        await automation.build_automation(
+            var.get_humidity_control_humidify_action_trigger(),
+            [],
+            config[CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION],
+        )
+    if CONF_HUMIDITY_CONTROL_OFF_ACTION in config:
+        await automation.build_automation(
+            var.get_humidity_control_off_action_trigger(),
+            [],
+            config[CONF_HUMIDITY_CONTROL_OFF_ACTION],
+        )
+    cg.add(var.set_humidity_hysteresis(config[CONF_HUMIDITY_HYSTERESIS]))
 
     if CONF_PRESET in config:
+        # Presets live in shared PROGMEM tables; the thermostat keeps a pointer and a count.
+        standard_presets: list[cg.StructInitializer] = []
+        custom_presets: list[cg.StructInitializer] = []
+        nan = float("nan")
+        unset = cg.RawExpression("std::nullopt")
+
         for preset_config in config[CONF_PRESET]:
             name = preset_config[CONF_NAME]
-            standard_preset = None
-            if name.upper() in climate.CLIMATE_PRESETS:
-                standard_preset = climate.CLIMATE_PRESETS[name.upper()]
-
+            low = preset_config.get(CONF_DEFAULT_TARGET_TEMPERATURE_LOW)
+            high = preset_config.get(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH)
             if two_points_available:
-                preset_target_config = ThermostatClimateTargetTempConfig(
-                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
-                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
-                )
-            elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in preset_config:
-                preset_target_config = ThermostatClimateTargetTempConfig(
-                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
-                )
-            elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in preset_config:
-                preset_target_config = ThermostatClimateTargetTempConfig(
-                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
+                temperatures = (nan, low, high)
+            else:
+                temperatures = (high if high is not None else low, nan, nan)
+            target = ThermostatClimateTargetTempConfig(
+                *(nan if t is None else t for t in temperatures),
+                preset_config.get(CONF_MODE, unset),
+                preset_config.get(CONF_FAN_MODE, unset),
+                preset_config.get(CONF_SWING_MODE, unset),
+            )
+            if (standard := climate.CLIMATE_PRESETS.get(name.upper())) is not None:
+                standard_presets.append(
+                    cg.StructInitializer(
+                        ThermostatPresetEntry, ("preset", standard), ("config", target)
+                    )
                 )
             else:
-                preset_target_config = None
-
-            preset_target_variable = cg.new_variable(
-                preset_config[CONF_ID], preset_target_config
-            )
-
-            if CONF_MODE in preset_config:
-                cg.add(preset_target_variable.set_mode(preset_config[CONF_MODE]))
-
-            if CONF_FAN_MODE in preset_config:
-                cg.add(
-                    preset_target_variable.set_fan_mode(preset_config[CONF_FAN_MODE])
-                )
-
-            if CONF_SWING_MODE in preset_config:
-                cg.add(
-                    preset_target_variable.set_swing_mode(
-                        preset_config[CONF_SWING_MODE]
+                custom_presets.append(
+                    cg.StructInitializer(
+                        ThermostatCustomPresetEntry,
+                        ("name", cg.RawExpression(cpp_string_escape(name))),
+                        ("config", target),
                     )
                 )
 
-            if standard_preset is not None:
-                cg.add(var.set_preset_config(standard_preset, preset_target_variable))
-            else:
-                cg.add(var.set_custom_preset_config(name, preset_target_variable))
+        if standard_presets:
+            table = cg.shared_progmem_array(
+                "thermostat_presets", ThermostatPresetEntry, standard_presets
+            )
+            cg.add(var.set_preset_config(table, len(standard_presets)))
+        if custom_presets:
+            table = cg.shared_progmem_array(
+                "thermostat_custom_presets", ThermostatCustomPresetEntry, custom_presets
+            )
+            cg.add(var.set_custom_preset_config(table, len(custom_presets)))
 
     if CONF_DEFAULT_PRESET in config:
         default_preset_name = config[CONF_DEFAULT_PRESET]

@@ -1,4 +1,0 @@
-substitutions:
-  pin: GPIO12
-
-<<: !include common-variants.yaml

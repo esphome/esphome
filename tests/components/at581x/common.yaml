@@ -12,16 +12,17 @@ esphome:
           trigger_keep: 10s
           stage_gain: 3
           power_consumption: 70uA
+      - at581x.settings:
+          id: waveradar
+          frequency: !lambda "return 5800;"
+          poweron_selfcheck_time: !lambda "return 2000;"
+          power_consumption: !lambda "return 70;"
       - at581x.reset:
           id: waveradar
 
 at581x:
+  i2c_id: i2c_bus
   id: waveradar
-
-i2c:
-  - id: i2c_at581x
-    scl: ${scl_pin}
-    sda: ${sda_pin}
 
 switch:
   - platform: at581x

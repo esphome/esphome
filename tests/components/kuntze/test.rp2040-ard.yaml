@@ -3,4 +3,7 @@ substitutions:
   rx_pin: GPIO5
   flow_control_pin: GPIO3
 
+packages:
+  modbus: !include ../../test_build_components/common/modbus/rp2040-ard.yaml
+
 <<: !include common.yaml

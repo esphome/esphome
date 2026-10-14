@@ -2,11 +2,17 @@
 
 #include "list_entities.h"
 
+#include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#include "esphome/components/web_server_base/captive_dns.h"
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
+#include "esphome/core/progmem.h"
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 #include <functional>
 #include <list>
@@ -30,33 +36,51 @@ extern const uint8_t ESPHOME_WEBSERVER_JS_INCLUDE[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 #endif
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
+
+// ESP-IDF cuts a log event here: nothing a browser log view needs is longer, and it bounds the
+// tail a stalled client keeps. The Arduino backend takes a C string and sends the whole line.
+constexpr size_t LOG_EVENT_MAX_LEN = 512;
+
+// Parameter names live in flash on ESP8266
+using ParamNameType = ProgmemStr;
+
+// All platforms need to defer actions to main loop thread.
+// Multi-core platforms need this for thread safety.
+// ESP8266 needs this because ESPAsyncWebServer callbacks run in "sys" context
+// (SDK system context), not "cont" context (continuation/main loop). Calling
+// yield() from sys context causes a panic in the Arduino core.
+#define DEFER_ACTION(capture, action) this->defer([capture]() mutable { action; })
+
+/// Result of matching a URL against an entity
+struct EntityMatchResult {
+  bool matched;          ///< True if entity matched the URL
+  bool action_is_empty;  ///< True if no action/method segment in URL
+};
 
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
-  const char *domain;  ///< Pointer to domain within URL, for example "sensor"
-  const char *id;      ///< Pointer to id within URL, for example "living_room_fan"
-  const char *method;  ///< Pointer to method within URL, for example "turn_on"
-  uint8_t domain_len;  ///< Length of domain string
-  uint8_t id_len;      ///< Length of id string
-  uint8_t method_len;  ///< Length of method string
-  bool valid;          ///< Whether this match is valid
+  StringRef domain;  ///< Domain within URL, for example "sensor"
+  StringRef id;      ///< Entity name/id within URL, for example "Temperature"
+  StringRef method;  ///< Method within URL, for example "turn_on"
+#ifdef USE_DEVICES
+  StringRef device_name;  ///< Device name within URL, empty for main device
+#endif
+  bool valid{false};  ///< Whether this match is valid
 
   // Helper methods for string comparisons
-  bool domain_equals(const char *str) const {
-    return domain && domain_len == strlen(str) && memcmp(domain, str, domain_len) == 0;
-  }
+  bool domain_equals(const char *str) const { return this->domain == str; }
+  bool method_equals(const char *str) const { return this->method == str; }
 
-  bool id_equals(const std::string &str) const {
-    return id && id_len == str.length() && memcmp(id, str.c_str(), id_len) == 0;
-  }
+#ifdef USE_ESP8266
+  // Overloads for flash strings on ESP8266
+  bool domain_equals(const __FlashStringHelper *str) const { return this->domain == str; }
+  bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
+#endif
 
-  bool method_equals(const char *str) const {
-    return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
-  }
-
-  bool method_empty() const { return method_len == 0; }
+  /// Match entity by name
+  /// Returns EntityMatchResult with match status and whether action segment is empty
+  EntityMatchResult match_entity(EntityBase *entity) const;
 };
 
 #ifdef USE_WEBSERVER_SORTING
@@ -81,20 +105,20 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   implemented in a more straightforward way for ESP-IDF. Arduino platform will eventually go away and this workaround
   can be forgotten.
 */
-#ifdef USE_ARDUINO
-using message_generator_t = std::string(WebServer *, void *);
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
+using message_generator_t = void(WebServer *, void *, json::JsonBuilder &);
 
 class DeferredUpdateEventSourceList;
-class DeferredUpdateEventSource : public AsyncEventSource {
+class DeferredUpdateEventSource final : public AsyncEventSource {
   friend class DeferredUpdateEventSourceList;
 
   /*
     This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
     that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
-    the same component are backed up, and take up only 8 bytes of memory.  The entry in the deferred queue (a
-    std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only 8 bytes per
-    entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
-    because of dedup) would take up only 0.8 kB.
+    the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
+    std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two
+    pointers per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors
+    publishing because of dedup) would take up only 0.8 kB.
   */
   struct DeferredEvent {
     friend class DeferredUpdateEventSource;
@@ -109,7 +133,9 @@ class DeferredUpdateEventSource : public AsyncEventSource {
     bool operator==(const DeferredEvent &test) const {
       return (source_ == test.source_ && message_generator_ == test.message_generator_);
     }
-  } __attribute__((packed));
+  };
+  static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
+                "DeferredEvent should have no padding");
 
  protected:
   // surface a couple methods from the base class
@@ -136,19 +162,22 @@ class DeferredUpdateEventSource : public AsyncEventSource {
   void loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
 };
 
-class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource *> {
+class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
  protected:
-  void on_client_connect_(WebServer *ws, DeferredUpdateEventSource *source);
+  void on_client_connect_(DeferredUpdateEventSource *source);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
-  void loop();
+  /// Returns true if there are event sources remaining (including pending cleanup).
+  bool loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request);
 };
@@ -161,10 +190,10 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * by esphome.io by default), an event source under '/events' that automatically sends
  * all state updates in real time + the debug log. Lastly, there's an REST API available
  * under the '/light/...', '/sensor/...', ... URLs. A full documentation for this API
- * can be found under https://esphome.io/web-api/index.html.
+ * can be found under https://esphome.io/web-api/.
  */
-class WebServer : public Controller, public Component, public AsyncWebHandler {
-#ifdef USE_ARDUINO
+class WebServer final : public Component, public AsyncWebHandler {
+#if !defined(USE_ESP32) && defined(USE_ARDUINO)
   friend class DeferredUpdateEventSourceList;
 #endif
 
@@ -177,14 +206,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    *
    * @param css_url The url to the web server stylesheet.
    */
-  void set_css_url(const char *css_url);
+  void set_css_url(const char *css_url) { this->css_url_ = css_url; }
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
-  void set_js_url(const char *js_url);
+  void set_js_url(const char *js_url) { this->js_url_ = js_url; }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -192,7 +221,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    *
    * @param css_include Local path to web server script.
    */
-  void set_css_include(const char *css_include);
+  void set_css_include(const char *css_include) { this->css_include_ = css_include; }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
@@ -200,7 +229,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    *
    * @param js_include Local path to web server script.
    */
-  void set_js_include(const char *js_include);
+  void set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
   /** Determine whether internal components should be displayed on the web server.
@@ -215,6 +244,22 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  /** Set the origins that browsers are allowed to make cross-origin requests from.
+   *
+   * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
+   * are always allowed. Requests whose `Origin` matches the address the device is served on
+   * (same-origin) are always allowed. Any other browser origin must appear in this list, or the
+   * request is rejected. A single "*" entry allows any origin. Each other entry must exactly match
+   * the requesting page's `Origin` header (e.g. "https://example.com").
+   *
+   * This list is also used to authorize Private Network Access requests when that feature is enabled.
+   *
+   * @param origins nullptr-terminated table of allowed origins; must outlive the server.
+   */
+  void set_allowed_origins(const char *const *origins) { this->allowed_origins_ = origins; }
+#endif
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.
@@ -223,14 +268,26 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   void dump_config() override;
 
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
+#endif
+
   /// MQTT setup priority.
   float get_setup_priority() const override;
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
 
+#ifdef USE_WEBSERVER_CAPTIVE
+  /// AP mode: DNS answers every name with the AP address and unknown URLs redirect to the interface.
+  /// wifi calls start before setup(), so it may touch nothing but dns_ (enable_loop is a no-op then).
+  void start_captive();
+  void end_captive();
+  bool is_captive() const { return this->dns_.is_running(); }
+#endif
+
   /// Return the webserver configuration as JSON.
-  std::string get_config_json();
+  json::SerializationBuffer<> get_config_json();
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   /// Handle included css request under '/0.css'.
@@ -248,235 +305,221 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_SENSOR
-  void on_sensor_update(sensor::Sensor *obj, float state) override;
+  void on_sensor_update(sensor::Sensor *obj);
   /// Handle a sensor request under '/sensor/<id>'.
   void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string sensor_state_json_generator(WebServer *web_server, void *source);
-  static std::string sensor_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the sensor state with its value as a JSON string.
-  std::string sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config);
+  static void sensor_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void sensor_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_SWITCH
-  void on_switch_update(switch_::Switch *obj, bool state) override;
+  void on_switch_update(switch_::Switch *obj);
 
   /// Handle a switch request under '/switch/<id>/</turn_on/turn_off/toggle>'.
   void handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string switch_state_json_generator(WebServer *web_server, void *source);
-  static std::string switch_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the switch state with its value as a JSON string.
-  std::string switch_json(switch_::Switch *obj, bool value, JsonDetail start_config);
+  static void switch_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void switch_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_BUTTON
   /// Handle a button request under '/button/<id>/press'.
   void handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string button_state_json_generator(WebServer *web_server, void *source);
-  static std::string button_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the button details with its value as a JSON string.
-  std::string button_json(button::Button *obj, JsonDetail start_config);
+  // Buttons are stateless, so there is no button_state_json_generator
+  static void button_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
+  void on_binary_sensor_update(binary_sensor::BinarySensor *obj);
 
   /// Handle a binary sensor request under '/binary_sensor/<id>'.
   void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string binary_sensor_state_json_generator(WebServer *web_server, void *source);
-  static std::string binary_sensor_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the binary sensor state with its value as a JSON string.
-  std::string binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config);
+  static void binary_sensor_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void binary_sensor_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_FAN
-  void on_fan_update(fan::Fan *obj) override;
+  void on_fan_update(fan::Fan *obj);
 
   /// Handle a fan request under '/fan/<id>/</turn_on/turn_off/toggle>'.
   void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string fan_state_json_generator(WebServer *web_server, void *source);
-  static std::string fan_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the fan state as a JSON string.
-  std::string fan_json(fan::Fan *obj, JsonDetail start_config);
+  static void fan_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void fan_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_LIGHT
-  void on_light_update(light::LightState *obj) override;
+  void on_light_update(light::LightState *obj);
 
   /// Handle a light request under '/light/<id>/</turn_on/turn_off/toggle>'.
   void handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string light_state_json_generator(WebServer *web_server, void *source);
-  static std::string light_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the light state as a JSON string.
-  std::string light_json(light::LightState *obj, JsonDetail start_config);
+  static void light_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void light_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj);
 
   /// Handle a text sensor request under '/text_sensor/<id>'.
   void handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string text_sensor_state_json_generator(WebServer *web_server, void *source);
-  static std::string text_sensor_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the text sensor state with its value as a JSON string.
-  std::string text_sensor_json(text_sensor::TextSensor *obj, const std::string &value, JsonDetail start_config);
+  static void text_sensor_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void text_sensor_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_COVER
-  void on_cover_update(cover::Cover *obj) override;
+  void on_cover_update(cover::Cover *obj);
 
   /// Handle a cover request under '/cover/<id>/<open/close/stop/set>'.
   void handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string cover_state_json_generator(WebServer *web_server, void *source);
-  static std::string cover_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the cover state as a JSON string.
-  std::string cover_json(cover::Cover *obj, JsonDetail start_config);
+  static void cover_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void cover_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_NUMBER
-  void on_number_update(number::Number *obj, float state) override;
+  void on_number_update(number::Number *obj);
   /// Handle a number request under '/number/<id>'.
   void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string number_state_json_generator(WebServer *web_server, void *source);
-  static std::string number_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the number state with its value as a JSON string.
-  std::string number_json(number::Number *obj, float value, JsonDetail start_config);
+  static void number_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void number_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_DATETIME_DATE
-  void on_date_update(datetime::DateEntity *obj) override;
+  void on_date_update(datetime::DateEntity *obj);
   /// Handle a date request under '/date/<id>'.
   void handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string date_state_json_generator(WebServer *web_server, void *source);
-  static std::string date_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the date state with its value as a JSON string.
-  std::string date_json(datetime::DateEntity *obj, JsonDetail start_config);
+  static void date_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void date_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_DATETIME_TIME
-  void on_time_update(datetime::TimeEntity *obj) override;
+  void on_time_update(datetime::TimeEntity *obj);
   /// Handle a time request under '/time/<id>'.
   void handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string time_state_json_generator(WebServer *web_server, void *source);
-  static std::string time_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the time state with its value as a JSON string.
-  std::string time_json(datetime::TimeEntity *obj, JsonDetail start_config);
+  static void time_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void time_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  void on_datetime_update(datetime::DateTimeEntity *obj);
   /// Handle a datetime request under '/datetime/<id>'.
   void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string datetime_state_json_generator(WebServer *web_server, void *source);
-  static std::string datetime_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the datetime state with its value as a JSON string.
-  std::string datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config);
+  static void datetime_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void datetime_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_TEXT
-  void on_text_update(text::Text *obj, const std::string &state) override;
+  void on_text_update(text::Text *obj);
   /// Handle a text input request under '/text/<id>'.
   void handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string text_state_json_generator(WebServer *web_server, void *source);
-  static std::string text_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the text state with its value as a JSON string.
-  std::string text_json(text::Text *obj, const std::string &value, JsonDetail start_config);
+  static void text_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void text_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
+  void on_select_update(select::Select *obj);
   /// Handle a select request under '/select/<id>'.
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string select_state_json_generator(WebServer *web_server, void *source);
-  static std::string select_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the select state with its value as a JSON string.
-  std::string select_json(select::Select *obj, const std::string &value, JsonDetail start_config);
+  static void select_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void select_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_CLIMATE
-  void on_climate_update(climate::Climate *obj) override;
+  void on_climate_update(climate::Climate *obj);
   /// Handle a climate request under '/climate/<id>'.
   void handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string climate_state_json_generator(WebServer *web_server, void *source);
-  static std::string climate_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the climate details
-  std::string climate_json(climate::Climate *obj, JsonDetail start_config);
+  static void climate_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void climate_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_LOCK
-  void on_lock_update(lock::Lock *obj) override;
+  void on_lock_update(lock::Lock *obj);
 
   /// Handle a lock request under '/lock/<id>/</lock/unlock/open>'.
   void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string lock_state_json_generator(WebServer *web_server, void *source);
-  static std::string lock_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the lock state with its value as a JSON string.
-  std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
+  static void lock_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void lock_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_VALVE
-  void on_valve_update(valve::Valve *obj) override;
+  void on_valve_update(valve::Valve *obj);
 
   /// Handle a valve request under '/valve/<id>/<open/close/stop/set>'.
   void handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string valve_state_json_generator(WebServer *web_server, void *source);
-  static std::string valve_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the valve state as a JSON string.
-  std::string valve_json(valve::Valve *obj, JsonDetail start_config);
+  static void valve_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void valve_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj);
 
   /// Handle a alarm_control_panel request under '/alarm_control_panel/<id>'.
   void handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string alarm_control_panel_state_json_generator(WebServer *web_server, void *source);
-  static std::string alarm_control_panel_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the alarm_control_panel state with its value as a JSON string.
-  std::string alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
-                                       alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
+  static void alarm_control_panel_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void alarm_control_panel_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+#endif
+
+#ifdef USE_WATER_HEATER
+  void on_water_heater_update(water_heater::WaterHeater *obj);
+
+  /// Handle a water_heater request under '/water_heater/<id>/<mode/set>'.
+  void handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static void water_heater_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void water_heater_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+#endif
+
+#ifdef USE_INFRARED
+  /// Handle an infrared request under '/infrared/<id>/transmit'.
+  void handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static void infrared_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  /// Handle a radio frequency request under '/radio_frequency/<id>/transmit'.
+  void handle_radio_frequency_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static void radio_frequency_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+  // Not exposed over HTTP; the stub only satisfies ControllerContract
+  void on_media_player_update(media_player::MediaPlayer *) {}
 #endif
 
 #ifdef USE_EVENT
-  void on_event(event::Event *obj, const std::string &event_type) override;
+  void on_event(event::Event *obj);
 
-  static std::string event_state_json_generator(WebServer *web_server, void *source);
-  static std::string event_all_json_generator(WebServer *web_server, void *source);
+  static void event_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void event_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 
   /// Handle a event request under '/event<id>'.
   void handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match);
-
-  /// Dump the event details with its value as a JSON string.
-  std::string event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
 
 #ifdef USE_UPDATE
-  void on_update(update::UpdateEntity *obj) override;
+  void on_update(update::UpdateEntity *obj);
 
   /// Handle a update request under '/update/<id>'.
   void handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string update_state_json_generator(WebServer *web_server, void *source);
-  static std::string update_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the update state with its value as a JSON string.
-  std::string update_json(update::UpdateEntity *obj, JsonDetail start_config);
+  static void update_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
+  static void update_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder);
 #endif
 
   /// Override the web handler's canHandle method.
@@ -497,73 +540,84 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   bool include_internal_{false};
 
  protected:
+  // Declared here so it packs into the padding after include_internal_
+  bool expose_log_{true};
+
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
 
 #ifdef USE_LIGHT
   // Helper to parse and apply a float parameter with optional scaling
   template<typename T, typename Ret>
-  void parse_light_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float),
+  void parse_light_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float),
                           float scale = 1.0f) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
-      if (value.has_value()) {
-        (call.*setter)(*value / scale);
-      }
+    auto value = parse_number<float>(request->arg(param_name).c_str());
+    if (value.has_value()) {
+      (call.*setter)(*value / scale);
     }
   }
 
   // Helper to parse and apply a uint32_t parameter with optional scaling
   template<typename T, typename Ret>
-  void parse_light_param_uint_(AsyncWebServerRequest *request, const char *param_name, T &call,
+  void parse_light_param_uint_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                                Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
-      if (value.has_value()) {
-        (call.*setter)(*value * scale);
-      }
+    auto value = parse_number<uint32_t>(request->arg(param_name).c_str());
+    if (value.has_value()) {
+      (call.*setter)(*value * scale);
     }
   }
 #endif
 
-  // Generic helper to parse and apply a float parameter
-  template<typename T, typename Ret>
-  void parse_float_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float)) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
-      if (value.has_value()) {
-        (call.*setter)(*value);
-      }
+  // Generic helper to parse and apply a numeric parameter
+  template<typename NumT, typename T, typename Ret>
+  void parse_num_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(NumT)) {
+    auto value = parse_number<NumT>(request->arg(param_name).c_str());
+    if (value.has_value()) {
+      (call.*setter)(*value);
     }
   }
 
-  // Generic helper to parse and apply an int parameter
+  // Generic helper to parse and apply a string parameter using const char* setter (avoids std::string allocation)
   template<typename T, typename Ret>
-  void parse_int_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(int)) {
-    if (request->hasParam(param_name)) {
-      auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
-      if (value.has_value()) {
-        (call.*setter)(*value);
-      }
+  void parse_cstr_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
+                         Ret (T::*setter)(const char *, size_t)) {
+    if (request->hasArg(param_name)) {
+      const auto &value = request->arg(param_name);
+      (call.*setter)(value.c_str(), value.length());
     }
   }
 
-  // Generic helper to parse and apply a string parameter
+  // Generic helper to parse and apply a bool parameter
+  // Accepts: "on", "true", "1" (case-insensitive) as true
+  // Accepts: "off", "false", "0" (case-insensitive) as false
+  // Invalid values are ignored (setter not called)
   template<typename T, typename Ret>
-  void parse_string_param_(AsyncWebServerRequest *request, const char *param_name, T &call,
-                           Ret (T::*setter)(const std::string &)) {
-    if (request->hasParam(param_name)) {
-      // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
-      std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
-      (call.*setter)(value);
+  void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
+    const auto &param_value = request->arg(param_name);
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (param_value.length() > 0) {  // NOLINT(readability-container-size-empty)
+      // First check on/off (default), then true/false (custom)
+      auto val = parse_on_off(param_value.c_str());
+      if (val == PARSE_NONE) {
+        val = parse_on_off(param_value.c_str(), "true", "false");
+      }
+      if (val == PARSE_ON || param_value == "1") {
+        (call.*setter)(true);
+      } else if (val == PARSE_OFF || param_value == "0") {
+        (call.*setter)(false);
+      }
+      // PARSE_NONE/PARSE_TOGGLE: ignore invalid values
     }
   }
 
   web_server_base::WebServerBase *base_;
-#ifdef USE_ARDUINO
+#ifdef USE_ESP32
+  AsyncEventSource events_{StringRef::from_lit("/events"), this};
+#elif USE_ARDUINO
   DeferredUpdateEventSourceList events_;
 #endif
-#ifdef USE_ESP_IDF
-  AsyncEventSource events_{"/events", this};
+#ifdef USE_WEBSERVER_CAPTIVE
+  void handle_not_found_(AsyncWebServerRequest *request);
+  web_server_base::CaptiveDNS dns_;
 #endif
 
 #if USE_WEBSERVER_VERSION == 1
@@ -576,9 +630,96 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool expose_log_{true};
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
+  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
+  const char *const *allowed_origins_{nullptr};
+#endif
+
+  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
+  /// request was sent to) and requests without an Origin header are always allowed; any other
+  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
+  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
+
+ private:
+#ifdef USE_SENSOR
+  void sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_SWITCH
+  void switch_json_(switch_::Switch *obj, bool value, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_BUTTON
+  void button_json_(button::Button *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_BINARY_SENSOR
+  void binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config,
+                           json::JsonBuilder &builder);
+#endif
+#ifdef USE_FAN
+  void fan_json_(fan::Fan *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_LIGHT
+  void light_json_(light::LightState *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_TEXT_SENSOR
+  void text_sensor_json_(text_sensor::TextSensor *obj, const std::string &value, JsonDetail start_config,
+                         json::JsonBuilder &builder);
+#endif
+#ifdef USE_COVER
+  void cover_json_(cover::Cover *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_NUMBER
+  void number_json_(number::Number *obj, float value, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_DATETIME_DATE
+  void date_json_(datetime::DateEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_DATETIME_TIME
+  void time_json_(datetime::TimeEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_DATETIME_DATETIME
+  void datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_TEXT
+  void text_json_(text::Text *obj, const std::string &value, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_SELECT
+  void select_json_(select::Select *obj, StringRef value, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_CLIMATE
+  void climate_json_(climate::Climate *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_LOCK
+  void lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_VALVE
+  void valve_json_(valve::Valve *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  void alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel *obj,
+                                 alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config,
+                                 json::JsonBuilder &builder);
+#endif
+#ifdef USE_EVENT
+  void event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_WATER_HEATER
+  void water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_INFRARED
+  void infrared_json_(infrared::Infrared *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  void radio_frequency_json_(radio_frequency::RadioFrequency *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
+#ifdef USE_UPDATE
+  void update_json_(update::UpdateEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
+#endif
 };
 
-}  // namespace web_server
-}  // namespace esphome
+#ifdef USE_WEBSERVER_CAPTIVE
+extern WebServer *global_web_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
+
+}  // namespace esphome::web_server
 #endif
