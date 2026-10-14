@@ -377,7 +377,6 @@ void WiFiComponent::wifi_pre_setup_() {}
 #ifdef USE_WIFI_AP
 // Firmware event ids the driver header leaves out
 static constexpr uint32_t AP_STATION_ASSOC_IND = 8;
-static constexpr uint32_t AP_STATION_REASSOC_IND = 10;
 
 // The driver hands every firmware event to cyw43_cb_process_async_event and ignores the AP station
 // ones, so they are counted here before it sees them. Runs in the driver's context. Verified with
@@ -389,8 +388,8 @@ extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_a
   if (ev->interface == CYW43_ITF_AP) {
     switch (ev->event_type) {
       case AP_STATION_ASSOC_IND:
-      case AP_STATION_REASSOC_IND:
-        // A refused association carries its status here and has no leave event to balance it
+        // A refused association carries its status here and has no leave event to balance it. A
+        // reassociation comes from a station that is already counted, whether or not its leave was seen.
         if (ev->status == CYW43_STATUS_SUCCESS)
           esphome::wifi::global_wifi_component->ap_clients_++;
         break;

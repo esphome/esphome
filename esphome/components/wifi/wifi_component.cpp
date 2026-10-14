@@ -1762,6 +1762,8 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     }
 #endif
 
+    // The fallback and reboot checks later in this pass must see the connection, not the old timestamp
+    this->last_connected_ = now;
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     // Refresh is_connected() cache; loop()'s refresh ran before this transition.
     this->update_connected_state_();

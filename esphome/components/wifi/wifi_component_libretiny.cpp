@@ -881,6 +881,7 @@ bool WiFiComponent::wifi_loop_() {
   // so if pop() returned nullptr above we can skip this check.
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
+    // A dropped station event cannot be made up for: the BK72xx core has no station query
     ESP_LOGW(TAG, "Dropped %" PRIu16 " WiFi events due to buffer overflow", dropped);
   }
   return true;

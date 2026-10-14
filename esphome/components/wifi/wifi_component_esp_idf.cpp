@@ -945,6 +945,12 @@ bool WiFiComponent::wifi_loop_() {
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);
+#ifdef USE_WIFI_AP
+    // A dropped join or leave would leave the station count wrong, so take it from the driver
+    wifi_sta_list_t sta_list;
+    if (this->ap_setup_ && esp_wifi_ap_get_sta_list(&sta_list) == ESP_OK)
+      this->ap_clients_ = sta_list.num;
+#endif
   }
   return true;
 }
