@@ -53,7 +53,9 @@ extern "C" {
 
 #ifdef USE_WIFI_AP
 // The linker routes the driver's firmware events here; wifi/__init__.py adds the wrap flag
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif
 #endif
 
@@ -912,7 +914,9 @@ class WiFiComponent final : public Component {
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
 #ifdef USE_WIFI_AP
+  // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
   friend void ::__wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+  // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif
 #endif
 
