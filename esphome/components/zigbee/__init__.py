@@ -463,3 +463,9 @@ automation.register_apply_action(
     ZIGBEE_ACTION_SCHEMA,
     automation.ApplyCall("factory_reset()"),
 )
+
+automation.register_apply_action(
+    "zigbee.report",
+    ZIGBEE_ACTION_SCHEMA,
+    automation.ApplyCall("report()"),
+)

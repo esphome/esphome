@@ -39,6 +39,11 @@ output:
     type: binary
     write_action:
       - zigbee.factory_reset
+  - platform: template
+    id: output_report
+    type: binary
+    write_action:
+      - zigbee.report
 
 switch:
   - platform: template
