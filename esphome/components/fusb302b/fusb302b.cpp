@@ -334,8 +334,7 @@ void FUSB302B::try_attach_() {
   this->attached_ = true;
   this->cc_ambiguous_logged_ = false;
   this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT);
-  this->set_contract_(DEFAULT_CONTRACT);
-  this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
+  this->set_state_and_contract_(PdState::PD_STATE_DEFAULT_CONTRACT, DEFAULT_CONTRACT);
 }
 
 void FUSB302B::detach_() {
@@ -355,8 +354,7 @@ void FUSB302B::handle_hard_reset_() {
     this->enter_error_();
     return;
   }
-  this->set_contract_(DEFAULT_CONTRACT);
-  this->set_state_(PdState::PD_STATE_DEFAULT_CONTRACT);
+  this->set_state_and_contract_(PdState::PD_STATE_DEFAULT_CONTRACT, DEFAULT_CONTRACT);
   this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT);
 }
 
