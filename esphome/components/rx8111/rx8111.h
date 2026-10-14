@@ -7,8 +7,11 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace rx8111 {
+namespace esphome::rx8111 {
+
+void log_invalid_alarm_field(const char *field, unsigned min_value, unsigned max_value, unsigned value);
+void log_invalid_relative_alarm(const char *reason);
+void log_relative_alarm_schedule(const ESPTime &now, const ESPTime &target, uint32_t seconds);
 
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
@@ -238,10 +241,10 @@ class RX8111Component : public time::RealTimeClock, public i2c::I2CDevice {
   bool clear_event_flag_();
 
   // ---- Shared helpers (non-virtual) ----------------------------------------
-  static uint8_t bcd_to_uint8_(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
-  static uint8_t uint8_to_bcd_(uint8_t val) { return ((val / 10) << 4) | (val % 10); }
-  static uint8_t weekday_to_onehot_(uint8_t dow) { return static_cast<uint8_t>(1u << (dow - 1)); }
-  static uint8_t onehot_to_weekday_(uint8_t onehot) {
+  static uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
+  static uint8_t uint8_to_bcd(uint8_t val) { return ((val / 10) << 4) | (val % 10); }
+  static uint8_t weekday_to_onehot(uint8_t dow) { return static_cast<uint8_t>(1u << (dow - 1)); }
+  static uint8_t onehot_to_weekday(uint8_t onehot) {
     if (onehot == 0 || onehot > 0x40 || (onehot & (onehot - 1)) != 0)
       return 0;
     return static_cast<uint8_t>(__builtin_ctz(onehot & 0x7F) + 1);
@@ -342,8 +345,7 @@ template<typename... Ts> class SetAlarmAction final : public Action<Ts...>, publ
  protected:
   bool validate_alarm_field_(const char *field, uint16_t value, uint8_t min_value, uint8_t max_value, uint8_t *out) {
     if (value < min_value || value > max_value) {
-      ESP_LOGE("rx8111", "set_alarm: %s must be %u-%u, got %u", field, static_cast<unsigned>(min_value),
-               static_cast<unsigned>(max_value), static_cast<unsigned>(value));
+      log_invalid_alarm_field(field, min_value, max_value, value);
       return false;
     }
     *out = static_cast<uint8_t>(value);
@@ -373,34 +375,28 @@ template<typename... Ts> class ScheduleAlarmInAction final : public Action<Ts...
 
   void play(const Ts &...x) override {
     if (this->seconds_ == 0) {
-      ESP_LOGE("rx8111", "schedule_alarm_in: seconds must be > 0");
+      log_invalid_relative_alarm("seconds must be > 0");
       return;
     }
     auto *parent = this->parent_;
     if (!parent->is_alarm_enabled()) {
-      ESP_LOGE("rx8111", "schedule_alarm_in: alarm is disabled "
-                         "(set alarm_enabled: true in the time component configuration)");
+      log_invalid_relative_alarm("alarm is disabled (set alarm_enabled: true in the time component configuration)");
       return;
     }
     auto now = parent->utcnow();
     if (!now.is_valid()) {
-      ESP_LOGE("rx8111", "schedule_alarm_in: current time is invalid");
+      log_invalid_relative_alarm("current time is invalid");
       return;
     }
     time_t target_epoch = now.timestamp + this->seconds_;
     auto target = ESPTime::from_epoch_utc(target_epoch);
     if (!target.is_valid()) {
-      ESP_LOGE("rx8111", "schedule_alarm_in: computed target time is invalid");
+      log_invalid_relative_alarm("computed target time is invalid");
       return;
     }
     // Program all available fields from the target time — identical to set_alarm.
     uint8_t second = static_cast<uint8_t>(target.second);
-    ESP_LOGI("rx8111",
-             "schedule_alarm_in: now=%04d-%02d-%02d %02d:%02d:%02d UTC, +%lu s "
-             "-> target=%04d-%02d-%02d %02d:%02d:%02d UTC",
-             now.year, now.month, now.day_of_month, now.hour, now.minute, now.second,
-             static_cast<unsigned long>(this->seconds_), target.year, target.month, target.day_of_month, target.hour,
-             target.minute, target.second);
+    log_relative_alarm_schedule(now, target, this->seconds_);
     parent->set_alarm_runtime(second, static_cast<uint8_t>(target.minute), static_cast<uint8_t>(target.hour),
                               0xFF,  // weekday not used for relative alarms
                               static_cast<uint8_t>(target.day_of_month));
@@ -438,5 +434,4 @@ template<typename... Ts> class ClearEventFlagAction final : public Action<Ts...>
   void play(const Ts &...x) override { this->parent_->clear_event_flag(); }
 };
 
-}  // namespace rx8111
-}  // namespace esphome
+}  // namespace esphome::rx8111

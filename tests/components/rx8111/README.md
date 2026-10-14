@@ -1,10 +1,11 @@
 # RX8111 time-only PR 1 hardware test
 
-`time_bench.yaml` is a **destructive** automatic test for the classic ESP32
+`time_bench.yaml` is a **destructive** automatic test for the dedicated classic ESP32
 Adafruit Feather HUZZAH32 and RX8111CE. It does not load the RX8111 binary or
 text sensor platforms. It rewrites the RTC time to **2026-01-31 23:59:57 UTC**
 and modifies alarm, timer, EVIN, FOUT, and flag registers. Every reboot repeats
-the test. Do not run this firmware on the Freezer Monitor ESP32-C3.
+the test. Do not run this firmware on the Freezer Monitor ESP32-C3. The HUZZAH32
+fixture is used for testing, not as a deployed clock or monitor.
 
 Keep the Feather powered by **USB independently of the RTC /INT line**. Connect
 grounds and keep all signals at 3.3 V. **Remove any other driver from EVIN**
@@ -29,15 +30,11 @@ From `/home/test/Documents/GitHub/esphome`, with the bench connected:
 /home/test/.cache/tmp102-review-venv/bin/python -m esphome run tests/components/rx8111/time_bench.yaml --device /dev/ttyUSB0
 ```
 
-The first hardware run on commit `d27ef8140cbb52c4c08829fea4edea1d6e617a33`
-reported `PASS=4 FAIL=1 SKIP=3`. The AF-clear check read the cached GPIO
-binary sensor `.state` immediately after the I2C write. The revised bench on
-`ba6cbbbc3e3a999e4add8c3597464a9047dafc67` waits for the next GPIO loop
-update before checking INT release and logs FLAG and CONTROL if INT stays
-asserted. Its HUZZAH32 hardware run reported `PASS=17 FAIL=0 SKIP=3` in 163
-seconds. The three skips remain unverified; the first run remains a failed test.
-Subsequent progress-only edits do not change the test assertions; record the
-actual firmware revision when testing them.
+On October 14, 2026 the PR 1 worktree after clang-tidy cleanup was flashed to the HUZZAH32 and
+reported `PASS=17 FAIL=0 SKIP=3` in 163 seconds. This is a test of that
+worktree, not of any later edits. The serial log is
+`/tmp/rx8111-hardware-tidy-cleanup.log`. This dedicated test fixture does not
+need normal firmware or trusted RTC time restored after a bench run.
 
 Observe serial output until the `RESULT:` line (allow several minutes for the
 1/60 Hz timer and 1 Hz FOUT windows). Long phases log `WAIT:` progress every
@@ -51,13 +48,16 @@ retention, voltage thresholds, charging, other EVIN settings, and long-term
 accuracy remain **unverified** without additional equipment. The runner uses
 raw registers for timer/EVIN/FOUT changes where no runtime action exists; it
 does not independently exercise every static configuration path.
+The absence of short `/INT` glitches and the battery voltage thresholds are
+electrical characteristics, not software-only acceptance criteria. Correct
+interrupt flag handling and register mapping for backup and EVIN options are
+still component responsibilities; the bench verifies only the combinations
+it actually runs.
 
-**After testing, restore normal firmware and resynchronize RTC time from a
-trusted source before battery use.** Even a successful test leaves the clock
-at a synthetic date and disables RTC wake interrupts. A failure can leave
-hardware in an uncertain state. Do not treat a compile or simulator run as a
-physical PASS. Record the tested branch commit and any uncommitted changes,
-framework, wiring, and results so the exact firmware is identifiable.
+The bench leaves the RTC at a synthetic date and disables RTC wake interrupts;
+that is intentional for this dedicated test fixture. Do not treat a compile or
+simulator run as a physical PASS. Record the tested worktree, framework, wiring
+and results so the tested firmware is identifiable.
 
 Native action/schema tests:
 

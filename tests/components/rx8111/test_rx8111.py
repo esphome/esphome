@@ -63,7 +63,7 @@ def test_invalid_set(tmp_path: Path, fields: dict) -> None:
     assert validate_rx8111(tmp_path, configuration(tmp_path, actions)).errors
 
 
-def test_timer_callback_requires_count(tmp_path):
+def test_timer_callback_requires_count(tmp_path: Path) -> None:
     config = configuration(tmp_path)
     config["time"][0]["on_timer"] = [{"logger.log": "timer"}]
     assert validate_rx8111(tmp_path, config).errors

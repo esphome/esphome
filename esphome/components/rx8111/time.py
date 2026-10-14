@@ -5,6 +5,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, time
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DAY,
@@ -13,6 +14,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MINUTE,
     CONF_MINUTES,
+    CONF_ON_EVENT,
     CONF_SECOND,
     CONF_SECONDS,
     CONF_TRIGGER_ID,
@@ -64,14 +66,12 @@ CONF_ON_TIMER = "on_timer"
 
 CONF_EVENT_LEVEL = "event_level"
 CONF_EVENT_ENABLED = "event_enabled"
-CONF_ON_EVENT = "on_event"
 CONF_EVIN_FILTER = "evin_filter"
 CONF_EVIN_PULL = "evin_pull"
 
-CONF_TIMESTAMP = "timestamp_enabled"
+CONF_TIMESTAMP_ENABLED = "timestamp_enabled"
 CONF_TIMESTAMP_RECORD_MODE = "timestamp_record_mode"
 CONF_WEEKDAY = "weekday"
-CONF_ENABLED = "enabled"
 CONF_WEEKDAYS = "weekdays"
 CONF_DAYS = "days"
 
@@ -248,7 +248,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_EVIN_FILTER): cv.int_range(min=0, max=3),
             cv.Optional(CONF_EVIN_PULL): cv.enum(EVIN_PULL_MAP, lower=True),
             # ---- RX8111CE-specific ----------------------------------------
-            cv.Optional(CONF_TIMESTAMP, default=False): cv.boolean,
+            cv.Optional(CONF_TIMESTAMP_ENABLED, default=False): cv.boolean,
             cv.Optional(CONF_TIMESTAMP_RECORD_MODE): cv.enum(
                 TIMESTAMP_RECORD_MODE_MAP, lower=True
             ),
@@ -296,7 +296,7 @@ async def to_code(config):
     cg.add(var.set_alarm_weekday(config.get(CONF_ALARM_WEEKDAY, 0xFF)))
     cg.add(var.set_alarm_day(config.get(CONF_ALARM_DAY, 0xFF)))
 
-    cg.add(var.set_timestamp_enabled(config[CONF_TIMESTAMP]))
+    cg.add(var.set_timestamp_enabled(config[CONF_TIMESTAMP_ENABLED]))
     if CONF_TIMESTAMP_RECORD_MODE in config:
         cg.add(var.set_timestamp_record_mode(config[CONF_TIMESTAMP_RECORD_MODE]))
 

@@ -4,14 +4,27 @@
 #include "rx8111.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace rx8111 {
+namespace esphome::rx8111 {
 
 ESPHOME_LOG_TAG(TAG, "rx8111");
 
+void log_invalid_alarm_field(const char *field, unsigned min_value, unsigned max_value, unsigned value) {
+  ESP_LOGE(TAG, "set_alarm: %s must be %u-%u, got %u", field, min_value, max_value, value);
+}
+
+void log_invalid_relative_alarm(const char *reason) { ESP_LOGE(TAG, "schedule_alarm_in: %s", reason); }
+
+void log_relative_alarm_schedule(const ESPTime &now, const ESPTime &target, uint32_t seconds) {
+  ESP_LOGI(TAG,
+           "schedule_alarm_in: now=%04d-%02d-%02d %02d:%02d:%02d UTC, +%lu s "
+           "-> target=%04d-%02d-%02d %02d:%02d:%02d UTC",
+           now.year, now.month, now.day_of_month, now.hour, now.minute, now.second, static_cast<unsigned long>(seconds),
+           target.year, target.month, target.day_of_month, target.hour, target.minute, target.second);
+}
+
 namespace {
 
-[[maybe_unused]] const char *timestamp_record_mode_to_string_(TimestampRecordMode mode) {
+[[maybe_unused]] const char *timestamp_record_mode_to_string(TimestampRecordMode mode) {
   switch (mode) {
     case TIMESTAMP_RECORD_LATEST:
       return "latest";
@@ -194,16 +207,22 @@ void RX8111Component::update() {
   this->prev_event_flag_ = event_set;
 
   // Fire trigger objects only on rising-edge transition (0->1).
-  if (alarm_edge)
-    for (auto *t : this->alarm_triggers_)
+  if (alarm_edge) {
+    for (auto *t : this->alarm_triggers_) {
       t->trigger();
-  if (timer_edge)
-    for (auto *t : this->timer_triggers_)
+    }
+  }
+  if (timer_edge) {
+    for (auto *t : this->timer_triggers_) {
       t->trigger();
+    }
+  }
 
-  if (event_edge)
-    for (auto *t : this->event_triggers_)
+  if (event_edge) {
+    for (auto *t : this->event_triggers_) {
       t->trigger();
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +250,6 @@ void RX8111Component::dump_config() {
       fout_str = "1 Hz";
       break;
     case FoutFrequency::FOUT_OFF:
-      fout_str = "OFF";
       break;
   }
   ESP_LOGCONFIG(TAG, "  FOUT Frequency: %s", fout_str);
@@ -242,15 +260,17 @@ void RX8111Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Timer: enabled (count=%" PRIu32 ")", this->timer_count_);
   }
   if (this->event_enabled_) {
-    ESP_LOGCONFIG(TAG, "  Event: enabled (%s level)", this->event_level_ == EVENT_LEVEL_HIGH ? "high" : "low");
+    ESP_LOGCONFIG(TAG, "  Event: enabled (%s level)",
+                  this->event_level_ == EVENT_LEVEL_HIGH ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"));
   }
   ESP_LOGCONFIG(TAG, "  Timestamp Capture: %s", ONOFF(this->timestamp_capture_active_()));
   if (this->timestamp_capture_active_()) {
-    ESP_LOGCONFIG(TAG, "  Timestamp Record Mode: %s", timestamp_record_mode_to_string_(this->timestamp_record_mode_));
+    ESP_LOGCONFIG(TAG, "  Timestamp Record Mode: %s", timestamp_record_mode_to_string(this->timestamp_record_mode_));
   }
   if (this->event_enabled_ || this->timestamp_capture_active_()) {
     static const char *const FILTER_NAMES[] = {"off", "3.9ms", "15.6ms", "125ms"};
-    ESP_LOGCONFIG(TAG, "  EVIN Event Level: %s", this->event_level_ == EVENT_LEVEL_HIGH ? "high" : "low");
+    ESP_LOGCONFIG(TAG, "  EVIN Event Level: %s",
+                  this->event_level_ == EVENT_LEVEL_HIGH ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"));
     ESP_LOGCONFIG(TAG, "  EVIN Filter: %s (level %u)", FILTER_NAMES[this->evin_filter_], this->evin_filter_);
     const char *pull_str = "none (Hi-Z)";
     switch (this->evin_pull_) {
@@ -301,20 +321,20 @@ void RX8111Component::read_time() {
       return;
     }
   }
-  const uint8_t weekday = onehot_to_weekday_(buf[3]);
+  const uint8_t weekday = onehot_to_weekday(buf[3]);
   if (weekday == 0) {
     ESP_LOGW(TAG, "Invalid RTC weekday");
     return;
   }
   ESPTime rtc_time{
-      .second = bcd_to_uint8_(buf[0] & 0x7F),
-      .minute = bcd_to_uint8_(buf[1] & 0x7F),
-      .hour = bcd_to_uint8_(buf[2] & 0x3F),
+      .second = bcd_to_uint8(buf[0] & 0x7F),
+      .minute = bcd_to_uint8(buf[1] & 0x7F),
+      .hour = bcd_to_uint8(buf[2] & 0x3F),
       .day_of_week = weekday,
-      .day_of_month = bcd_to_uint8_(buf[4] & 0x3F),
+      .day_of_month = bcd_to_uint8(buf[4] & 0x3F),
       .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
-      .month = bcd_to_uint8_(buf[5] & 0x1F),
-      .year = static_cast<uint16_t>(bcd_to_uint8_(buf[6]) + 2000),
+      .month = bcd_to_uint8(buf[5] & 0x1F),
+      .year = static_cast<uint16_t>(bcd_to_uint8(buf[6]) + 2000),
       .is_dst = false,
       .timestamp = 0,  // overwritten by recalc_timestamp_utc
   };
@@ -354,13 +374,13 @@ void RX8111Component::write_time() {
   }
 
   uint8_t buf[7];
-  buf[0] = uint8_to_bcd_(now.second);
-  buf[1] = uint8_to_bcd_(now.minute);
-  buf[2] = uint8_to_bcd_(now.hour);
-  buf[3] = weekday_to_onehot_(now.day_of_week);
-  buf[4] = uint8_to_bcd_(now.day_of_month);
-  buf[5] = uint8_to_bcd_(now.month);
-  buf[6] = uint8_to_bcd_(static_cast<uint8_t>((now.year - 2000) % 100));
+  buf[0] = uint8_to_bcd(now.second);
+  buf[1] = uint8_to_bcd(now.minute);
+  buf[2] = uint8_to_bcd(now.hour);
+  buf[3] = weekday_to_onehot(now.day_of_week);
+  buf[4] = uint8_to_bcd(now.day_of_month);
+  buf[5] = uint8_to_bcd(now.month);
+  buf[6] = uint8_to_bcd(static_cast<uint8_t>((now.year - 2000) % 100));
 
   bool ok = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
 
@@ -452,10 +472,11 @@ bool RX8111Component::configure_battery_backup_() {
     return false;
   }
 
-  if (this->battery_backup_)
+  if (this->battery_backup_) {
     reg |= RX8111_PWR_INIEN;
-  else
+  } else {
     reg &= ~RX8111_PWR_INIEN;
+  }
 
   if (this->battery_backup_ && this->battery_charging_) {
     reg |= RX8111_PWR_CHGEN;
@@ -515,7 +536,7 @@ bool RX8111Component::configure_alarm_(bool enable_interrupt) {
   // --- Second alarm (0x2C) ---
   uint8_t sec_alarm = RX8111_ALARM_AE;  // AE=1 -> disabled
   if (this->alarm_second_ != 0xFF) {
-    sec_alarm = uint8_to_bcd_(this->alarm_second_);  // AE=0 -> enabled
+    sec_alarm = uint8_to_bcd(this->alarm_second_);  // AE=0 -> enabled
   }
   if (!this->write_byte(RX8111_REG_SEC_ALARM, sec_alarm))
     return false;
@@ -523,7 +544,7 @@ bool RX8111Component::configure_alarm_(bool enable_interrupt) {
   // --- Minute alarm (0x17) ---
   uint8_t min_alarm = RX8111_ALARM_AE;
   if (this->alarm_minute_ != 0xFF) {
-    min_alarm = uint8_to_bcd_(this->alarm_minute_);
+    min_alarm = uint8_to_bcd(this->alarm_minute_);
   }
   if (!this->write_byte(RX8111_REG_MIN_ALARM, min_alarm))
     return false;
@@ -531,7 +552,7 @@ bool RX8111Component::configure_alarm_(bool enable_interrupt) {
   // --- Hour alarm (0x18) ---
   uint8_t hour_alarm = RX8111_ALARM_AE;
   if (this->alarm_hour_ != 0xFF) {
-    hour_alarm = uint8_to_bcd_(this->alarm_hour_);
+    hour_alarm = uint8_to_bcd(this->alarm_hour_);
   }
   if (!this->write_byte(RX8111_REG_HOUR_ALARM, hour_alarm))
     return false;
@@ -544,11 +565,11 @@ bool RX8111Component::configure_alarm_(bool enable_interrupt) {
   uint8_t wd_alarm = RX8111_ALARM_AE;
   if (this->alarm_weekday_ != 0xFF) {
     // WEEK alarm mode: one-hot weekday, WADA=0
-    wd_alarm = weekday_to_onehot_(this->alarm_weekday_);
+    wd_alarm = weekday_to_onehot(this->alarm_weekday_);
     ext &= ~RX8111_EXT_WADA;
   } else if (this->alarm_day_ != 0xFF) {
     // DAY alarm mode: BCD day, WADA=1
-    wd_alarm = uint8_to_bcd_(this->alarm_day_);
+    wd_alarm = uint8_to_bcd(this->alarm_day_);
     ext |= RX8111_EXT_WADA;
   }
   if (!this->write_byte(RX8111_REG_WD_ALARM, wd_alarm))
@@ -618,10 +639,7 @@ bool RX8111Component::configure_timer_() {
     return false;
 
   ext |= RX8111_EXT_TE;
-  if (!this->write_byte(RX8111_REG_EXTENSION, ext))
-    return false;
-
-  return true;
+  return this->write_byte(RX8111_REG_EXTENSION, ext);
 }
 
 // ---------------------------------------------------------------------------
@@ -665,9 +683,7 @@ bool RX8111Component::disable_timer_() {
   if (!this->read_byte(RX8111_REG_EXTENSION, &ext))
     return false;
   ext &= ~RX8111_EXT_TE;
-  if (!this->write_byte(RX8111_REG_EXTENSION, ext))
-    return false;
-  return true;
+  return this->write_byte(RX8111_REG_EXTENSION, ext);
 }
 
 // ---------------------------------------------------------------------------
@@ -681,9 +697,7 @@ bool RX8111Component::configure_event_() {
   if (!this->read_byte(RX8111_REG_CONTROL, &ctrl))
     return false;
   ctrl |= RX8111_CTRL_EIE;
-  if (!this->write_byte(RX8111_REG_CONTROL, ctrl))
-    return false;
-  return true;
+  return this->write_byte(RX8111_REG_CONTROL, ctrl);
 }
 
 // ---------------------------------------------------------------------------
@@ -698,9 +712,7 @@ bool RX8111Component::disable_event_() {
   if (!this->read_byte(RX8111_REG_CONTROL, &ctrl))
     return false;
   ctrl &= ~RX8111_CTRL_EIE;
-  if (!this->write_byte(RX8111_REG_CONTROL, ctrl))
-    return false;
-  return true;
+  return this->write_byte(RX8111_REG_CONTROL, ctrl);
 }
 
 // ---------------------------------------------------------------------------
@@ -805,5 +817,4 @@ bool RX8111Component::clear_timestamp_ram_() {
   return true;
 }
 
-}  // namespace rx8111
-}  // namespace esphome
+}  // namespace esphome::rx8111

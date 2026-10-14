@@ -21,13 +21,13 @@ class Runner {
     this->rtc_ = rtc;
     this->started_ = millis();
     this->phase_ = CLOCK;
-    ESP_LOGW("rx8111_time_bench", "Destructive RTC test: keep independent USB power connected");
+    esph_log_w("rx8111_time_bench", "Destructive RTC test: keep independent USB power connected");
     uint8_t flags, power;
     if (!this->require(!rtc->is_failed(), "RTC setup") || !this->read(RX8111_REG_FLAG, flags) ||
         !this->read(RX8111_REG_PWRSWITCH, power) ||
         !this->require(!(power & RX8111_PWR_CHGEN), "Charging must be disabled"))
       return;
-    ESP_LOGI("rx8111_time_bench", "Initial FLAG=%02X, charging off", flags);
+    esph_log_i("rx8111_time_bench", "Initial FLAG=%02X, charging off", flags);
     this->pass("RTC I2C and charging-off readback");
     id(evin_driver).turn_off();
     if (!this->write(RX8111_REG_CONTROL, 0) || !this->require(this->rtc_->unset_alarm(), "Unset boot alarm") ||
@@ -75,9 +75,9 @@ class Runner {
 
     if (this->timeout_ >= 7000 && elapsed / 5000 > this->last_wait_report_) {
       this->last_wait_report_ = elapsed / 5000;
-      ESP_LOGI("rx8111_time_bench", "WAIT: %s elapsed=%lus deadline=%lus PASS=%u FAIL=%u", this->label_,
-               static_cast<unsigned long>(elapsed / 1000), static_cast<unsigned long>(this->timeout_ / 1000),
-               this->passed_, this->failed_);
+      esph_log_i("rx8111_time_bench", "WAIT: %s elapsed=%lus deadline=%lus PASS=%u FAIL=%u", this->label_,
+                 static_cast<unsigned long>(elapsed / 1000), static_cast<unsigned long>(this->timeout_ / 1000),
+                 this->passed_, this->failed_);
     }
 
     switch (this->phase_) {
@@ -137,7 +137,7 @@ class Runner {
           if (elapsed >= this->timeout_) {
             uint8_t control = 0;
             if (this->read(RX8111_REG_CONTROL, control)) {
-              ESP_LOGE("rx8111_time_bench", "INT stayed LOW: FLAG=%02X CONTROL=%02X", flags, control);
+              esph_log_e("rx8111_time_bench", "INT stayed LOW: FLAG=%02X CONTROL=%02X", flags, control);
             }
             this->fail("INT remains LOW after AF clear; check other flags and wiring");
           }
@@ -258,7 +258,7 @@ class Runner {
         const float average = this->sum_ / this->samples_;
         const float expected_rate = FOUT_RATES[this->fout_index_];
         const float tolerance = this->fout_index_ == 0 ? 0.1f : (this->fout_index_ == 1 ? 0.3f : expected_rate * 0.05f);
-        ESP_LOGI("rx8111_time_bench", "FOUT expected=%.0fHz measured=%.2fHz", expected_rate, average);
+        esph_log_i("rx8111_time_bench", "FOUT expected=%.0fHz measured=%.2fHz", expected_rate, average);
         if (!this->require(std::fabs(average - expected_rate) <= tolerance, "FOUT frequency"))
           return;
         this->pass("FOUT frequency selection and PCNT measurement");
@@ -310,11 +310,11 @@ class Runner {
     this->phase_started_ = millis();
     this->timeout_ = timeout;
     this->last_wait_report_ = 0;
-    ESP_LOGI("rx8111_time_bench", "RUN: %s", label);
+    esph_log_i("rx8111_time_bench", "RUN: %s", label);
   }
   void pass(const char *label) {
     this->passed_++;
-    ESP_LOGI("rx8111_time_bench", "PASS: %s", label);
+    esph_log_i("rx8111_time_bench", "PASS: %s", label);
   }
   bool require(bool ok, const char *label) {
     if (!ok)
@@ -323,7 +323,7 @@ class Runner {
   }
   void fail(const char *label) {
     this->failed_++;
-    ESP_LOGE("rx8111_time_bench", "FAIL: %s (phase %s)", label, this->label_);
+    esph_log_e("rx8111_time_bench", "FAIL: %s (phase %s)", label, this->label_);
     this->finish();
   }
   bool read(uint8_t reg, uint8_t &value) { return this->require(this->rtc_->read_byte(reg, &value), "I2C read"); }
@@ -397,8 +397,8 @@ class Runner {
         !this->write(RX8111_REG_EXTENSION, RX8111_EXT_FSEL_MASK | RX8111_EXT_TE | this->timer_index_))
       return;
     this->timer_base_ = this->timer_callbacks;
-    ESP_LOGI("rx8111_time_bench", "Timer source=%s count=%lu", NAMES[this->timer_index_],
-             static_cast<unsigned long>(count));
+    esph_log_i("rx8111_time_bench", "Timer source=%s count=%lu", NAMES[this->timer_index_],
+               static_cast<unsigned long>(count));
     this->enter(TIMER_WAIT, "Timer source/TF/on_timer", this->timer_period_ + 3000);
   }
   void start_event() {
@@ -436,16 +436,16 @@ class Runner {
     const bool ok = control_ok && timer_ok && extension_ok && flags_ok;
     if (!ok) {
       this->failed_++;
-      ESP_LOGE("rx8111_time_bench", "FAIL: cleanup I2C writes; RTC state uncertain");
+      esph_log_e("rx8111_time_bench", "FAIL: cleanup I2C writes; RTC state uncertain");
     }
     this->skipped_ += 3;
-    ESP_LOGW("rx8111_time_bench", "SKIP: narrow INT pulses/glitches need a scope");
-    ESP_LOGW("rx8111_time_bench", "SKIP: backup switchover/retention, thresholds and charging need equipment");
-    ESP_LOGW("rx8111_time_bench", "SKIP: long-term accuracy and other EVIN levels/filters need separate testing");
-    ESP_LOGI("rx8111_time_bench", "RESULT: %s PASS=%u FAIL=%u SKIP=%u elapsed=%lus",
-             this->failed_ ? "FAILED" : "AUTOMATED CHECKS PASSED (SKIPS UNVERIFIED)", this->passed_, this->failed_,
-             this->skipped_, static_cast<unsigned long>((millis() - this->started_) / 1000));
-    ESP_LOGW("rx8111_time_bench", "Restore normal firmware and RTC time");
+    esph_log_w("rx8111_time_bench", "SKIP: narrow INT pulses/glitches need a scope");
+    esph_log_w("rx8111_time_bench", "SKIP: backup switchover/retention, thresholds and charging need equipment");
+    esph_log_w("rx8111_time_bench", "SKIP: long-term accuracy and other EVIN levels/filters need separate testing");
+    esph_log_i("rx8111_time_bench", "RESULT: %s PASS=%u FAIL=%u SKIP=%u elapsed=%lus",
+               this->failed_ ? "FAILED" : "AUTOMATED CHECKS PASSED (SKIPS UNVERIFIED)", this->passed_, this->failed_,
+               this->skipped_, static_cast<unsigned long>((millis() - this->started_) / 1000));
+    esph_log_w("rx8111_time_bench", "Restore normal firmware and RTC time");
   }
 };
 
