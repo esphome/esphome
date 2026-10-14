@@ -691,6 +691,8 @@
 #endif
 
 #ifdef USE_HOST
+#define USE_ESPHOME_HOST_MAC_ADDRESS \
+  { 0x98, 0x35, 0x69, 0xab, 0xf6, 0x79 }
 #define USE_HTTP_REQUEST_RESPONSE
 // Host only: the uart arm would shadow the native logger UART arms in other envs
 #define USE_IMPROV_SERIAL_UART

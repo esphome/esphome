@@ -68,6 +68,9 @@ def clang_options(idedata, environment):
 
     # extract target architecture from triplet in g++ filename
     triplet = Path(idedata["cxx_path"]).name[:-4]
+    # env:host compiles with the system g++, so there is no triplet and the
+    # host's own target and headers are the right ones.
+    native = "-" not in triplet
     if triplet.startswith("xtensa-"):
         # clang has an Xtensa frontend, but only a generic core -- the esp32 IDF
         # toolchain headers (xtruntime, xtensa/config) need the GCC core config
@@ -83,6 +86,8 @@ def clang_options(idedata, environment):
         cmd.append("-D__XTENSA__")
         cmd.append("-D__XTENSA_EL__")
         cmd.append("-D_LIBC")
+    elif native:
+        cmd.append("-Qunused-arguments")
     else:
         # RISC-V (and other non-Xtensa targets) have a real clang backend, so
         # compile for the actual triplet. Espressif's RISC-V GCC -march adds
@@ -118,7 +123,7 @@ def clang_options(idedata, environment):
             "-mfp16-format=ieee",
             "--param=min-pagesize=0",
         )
-    else:
+    elif not native:
         cmd.extend(
             [
                 # disable built-in include directories from the host
@@ -127,10 +132,11 @@ def clang_options(idedata, environment):
         )
 
     # set flags
+    if not native:
+        # disable built-in include directories from the host
+        cmd.append("-nostdinc")
     cmd.extend(
         [
-            # disable built-in include directories from the host
-            "-nostdinc",
             # allow to condition code on the presence of clang-tidy
             "-DCLANG_TIDY",
             # (esp-idf) Fix __once_callable in some libstdc++ headers
@@ -322,11 +328,17 @@ def run_tidy(
                 "-bugprone-pointer-arithmetic-on-polymorphic-object",
                 "-cert-ctr56-cpp",
             ]
+        if args.environment.startswith("host"):
+            # glibc's assert() expands to a call the check mistakes for a
+            # constant condition.
+            disabled_checks += ["-misc-static-assert", "-cert-dcl03-c"]
         if os.path.normpath(path) in ANALYZER_SKIPPED_FILES:
             disabled_checks.append("-clang-analyzer-*")
         if disabled_checks:
             invocation.append("--checks=" + ",".join(disabled_checks))
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
+        # Vendored third-party headers are kept as upstream wrote them.
+        invocation.append("--exclude-header-filter=.*/http_request/httplib\\.h")
         invocation.append(str(Path(path).resolve()))
         invocation.append("--")
         invocation.extend(options)
