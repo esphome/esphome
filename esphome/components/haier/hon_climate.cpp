@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <chrono>
 #include <string>
 #include "esphome/components/climate/climate.h"
@@ -929,7 +928,7 @@ static void publish_airflow_index(select::Select *sel, const std::array<Mode, N>
   if (sel == nullptr) {
     return;
   }
-  // Saved settings never hold AUTO after initialization(), so Center only covers a corrupt value
+  // Saved settings never hold AUTO after initialization(); any other value outside the table shows as Center
   size_t index = N;
   size_t center = 0;
   for (size_t i = 0; i < N; i++) {
