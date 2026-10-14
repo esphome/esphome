@@ -3,6 +3,7 @@
 #include <string>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
@@ -1189,7 +1190,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     // Saving last known non auto mode for vertical and horizontal swing
     this->current_vertical_swing_ = (hon_protocol::VerticalSwingMode) packet.control.vertical_swing_mode;
     this->current_horizontal_swing_ = (hon_protocol::HorizontalSwingMode) packet.control.horizontal_swing_mode;
-    const uint32_t now_ms = millis();
+    const uint32_t now_ms = App.get_loop_component_start_time();
     bool save_vertical = !in_debounce(this->vertical_direction_set_time_, now_ms) &&
                          !is_auto(this->current_vertical_swing_.value()) &&
                          (this->current_vertical_swing_.value() != this->settings_.last_vertiacal_swing);
@@ -1412,8 +1413,12 @@ void HonClimate::fill_control_messages_queue_() {
                                               (uint8_t) hon_protocol::DataParameters::VERTICAL_SWING_MODE,
                                           vertical_swing_buf, 2);
   }
+  // A swing change above already sent both axes from settings_.last_*, which set_*_airflow() updated
+  const bool swing_sent = climate_control.swing_mode.has_value();
   if (this->pending_vertical_direction_.has_value()) {
-    if (!vertical_axis_is_auto(target_swing_mode)) {
+    if (vertical_axis_is_auto(target_swing_mode)) {
+      ESP_LOGD(TAG, "Vertical swing is on; the position is kept for when it is turned off");
+    } else if (!swing_sent) {
       uint8_t vertical_swing_buf[] = {0x00, (uint8_t) this->pending_vertical_direction_.value()};
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
@@ -1423,7 +1428,9 @@ void HonClimate::fill_control_messages_queue_() {
     this->pending_vertical_direction_.reset();
   }
   if (this->pending_horizontal_direction_.has_value()) {
-    if (!horizontal_axis_is_auto(target_swing_mode)) {
+    if (horizontal_axis_is_auto(target_swing_mode)) {
+      ESP_LOGD(TAG, "Horizontal swing is on; the position is kept for when it is turned off");
+    } else if (!swing_sent) {
       uint8_t horizontal_swing_buf[] = {0x00, (uint8_t) this->pending_horizontal_direction_.value()};
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
