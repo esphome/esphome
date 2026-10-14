@@ -54,8 +54,6 @@ void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // Big endian RGB565 at rotation 0 copies as is; anything else, or a block drawn under a clipping region, goes
-  // per pixel
   if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB || !big_endian ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,

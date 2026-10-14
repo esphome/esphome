@@ -671,15 +671,12 @@ class MipiSpiBuffer
   }
 
  protected:
-  // Convert per pixel into the buffer
   void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                         display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
                         int x_pad) override {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
   }
-  // Rotate the coordinates to match the display orientation.
-
   // Convert a color to the buffer pixel format.
   static BUFFERTYPE convert_color(const Color &color) {
     if constexpr (BUFFERPIXEL == PIXEL_MODE_8) {

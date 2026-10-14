@@ -80,8 +80,25 @@ class MipiRgb : public display::Display {
   }
   /// Send the region touched since the last flush to the panel.
   void flush_dirty_();
-  void flush_now_();
-  void rotate_(int &x, int &y) const;
+  // Maps drawn coordinates to the buffer the way draw_pixel_at() stores them
+  void rotate_(int &x, int &y) const {
+    switch (this->rotation_) {
+      case display::DISPLAY_ROTATION_0_DEGREES:
+        break;
+      case display::DISPLAY_ROTATION_90_DEGREES:
+        std::swap(x, y);
+        x = this->width_ - x - 1;
+        break;
+      case display::DISPLAY_ROTATION_180_DEGREES:
+        x = this->width_ - x - 1;
+        y = this->height_ - y - 1;
+        break;
+      case display::DISPLAY_ROTATION_270_DEGREES:
+        std::swap(x, y);
+        y = this->height_ - y - 1;
+        break;
+    }
+  }
   void mark_dirty_(int x_start, int y_start, int w, int h);
   void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void setup_enables_();
@@ -104,11 +121,11 @@ class MipiRgb : public display::Display {
   bool invert_colors_{};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
   bool big_endian_{true};
+  bool updating_{false};
   size_t width_;
   size_t height_;
   uint16_t *buffer_{nullptr};
   std::vector<GPIOPin *> enable_pins_{};
-  bool updating_{false};
   uint16_t x_low_{1};
   uint16_t y_low_{1};
   uint16_t x_high_{0};
