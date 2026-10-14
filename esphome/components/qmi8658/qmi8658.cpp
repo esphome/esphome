@@ -1,10 +1,15 @@
 #include "qmi8658.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::qmi8658 {
 
 ESPHOME_LOG_TAG(TAG, "qmi8658");
+
+PROGMEM_STRING_TABLE(AccelRangeStrings, "±2g", "±4g", "±8g", "±16g");
+PROGMEM_STRING_TABLE(GyroRangeStrings, "±16°/s", "±32°/s", "±64°/s", "±128°/s", "±256°/s", "±512°/s", "±1024°/s",
+                     "±2048°/s");
 
 // Acceleration scale (g per LSB), indexed by accel_range_ >> 4.
 // Full-scale = range_g, mapped over a signed 16-bit value (2^15 counts).
@@ -86,12 +91,10 @@ void QMI8658Component::dump_config() {
     return;
   }
 
-  static constexpr const char *const ACCEL_RANGE_STRS[] = {"±2g", "±4g", "±8g", "±16g"};
-  static constexpr const char *const GYRO_RANGE_STRS[] = {"±16°/s",  "±32°/s",  "±64°/s",   "±128°/s",
-                                                          "±256°/s", "±512°/s", "±1024°/s", "±2048°/s"};
-
-  ESP_LOGCONFIG(TAG, "  Accel range : %s", ACCEL_RANGE_STRS[this->accel_range_ >> 4]);
-  ESP_LOGCONFIG(TAG, "  Gyro  range : %s", GYRO_RANGE_STRS[this->gyro_range_ >> 4]);
+  ESP_LOGCONFIG(TAG, "  Accel range : %s",
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_ >> 4, AccelRangeStrings::LAST_INDEX)));
+  ESP_LOGCONFIG(TAG, "  Gyro  range : %s",
+                LOG_STR_ARG(GyroRangeStrings::get_log_str(this->gyro_range_ >> 4, GyroRangeStrings::LAST_INDEX)));
   MotionComponent::dump_config();
 }
 
