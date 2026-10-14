@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components.const import CONF_BORDER_ROUTER
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
@@ -29,7 +30,6 @@ DOMAIN = "mdns"
 # IMPORTANT: If you add a new component here, you must also update the corresponding
 # #ifdef blocks in mdns_component.cpp compile_records_() method
 COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "sendspin", "web_server")
-CONF_BORDER_ROUTER = "border_router"
 
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
@@ -189,24 +189,26 @@ def enable_mdns_storage() -> None:
     cg.add_define("USE_MDNS_STORE_SERVICES")
 
 
+def _openthread_srp_registers_services() -> bool:
+    """Without border_router, the OpenThread SRP client registers the services instead of mDNS."""
+    openthread_config = CORE.config.get(CONF_OPENTHREAD)
+    return openthread_config is not None and CONF_BORDER_ROUTER not in openthread_config
+
+
 def request_service_enable_disable() -> bool:
     """Request MDNSComponent::set_service_enabled() support.
 
-    ESP32 only, not with OpenThread SRP. Returns True when the
+    ESP32 only, not with the OpenThread SRP client. Returns True when the
     USE_MDNS_SUPPORTS_ENABLE_DISABLE define was added; guard C++ usage with it.
 
     Public API for external components. Do not remove.
     """
     mdns_config = CORE.config.get(DOMAIN)
-    openthread_config = CORE.config.get(CONF_OPENTHREAD)
     if (
         mdns_config is None
         or mdns_config[CONF_DISABLED]
         or not CORE.is_esp32
-        or (
-            openthread_config is not None
-            and CONF_BORDER_ROUTER not in openthread_config
-        )
+        or _openthread_srp_registers_services()
     ):
         return False
     cg.add_define("USE_MDNS_SUPPORTS_ENABLE_DISABLE")
@@ -293,13 +295,13 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     # With both wifi and ethernet, the _esphomelib "network" TXT value follows the
-    # connected interface. OpenThread hands its services to the SRP client once,
+    # connected interface. The OpenThread SRP client registers the services once,
     # so it keeps the fixed value.
     if (
         CONF_API in CORE.config
         and CONF_WIFI in CORE.config
         and CONF_ETHERNET in CORE.config
-        and CONF_OPENTHREAD not in CORE.config
+        and not _openthread_srp_registers_services()
     ):
         from esphome.components import network
 

@@ -1,15 +1,14 @@
 #include "esphome/core/defines.h"
 #if defined(USE_OPENTHREAD) && defined(USE_ESP32)
-#include <algorithm>
-
-#include <openthread/logging.h>
 #include <openthread/dataset.h>
 #include "openthread.h"
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-#include "esp_coexist.h"
 #include "esp_openthread_border_router.h"
 #include "esphome/components/wifi/wifi_component.h"
+#ifndef USE_OPENTHREAD_RCP_UART
+#include "esp_coexist.h"
+#endif
 #endif
 #ifdef USE_OPENTHREAD_RCP_UART
 #include "esp_openthread_spinel.h"
@@ -17,17 +16,15 @@
 #include "esp_log.h"
 #include "esp_openthread.h"
 #include "esp_openthread_lock.h"
-
+#include "esp_openthread_types.h"
 #include "esp_task_wdt.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "esp_err.h"
-#include "esp_event.h"
 #include "esp_netif.h"
-#include "esp_netif_types.h"
-#include "esp_openthread_cli.h"
 #include "esp_openthread_netif_glue.h"
 #include "esp_vfs_eventfd.h"
 #include "freertos/FreeRTOS.h"
@@ -50,16 +47,10 @@ void OpenThreadComponent::setup() {
   esp_openthread_set_backbone_netif(backbone_netif);
 #endif
 
-  // Used eventfds:
-  // * netif
-  // * ot task queue
-  // * radio driver
+  // Used eventfds: netif, ot task queue, radio driver, and one more for a border router on the
+  // native radio (the UART Spinel transport has none)
 #if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART)
-  // * border router
   constexpr size_t max_eventfds = 4;
-#elif defined(USE_OPENTHREAD_BORDER_ROUTER)
-  // UART Spinel does not use an eventfd for the radio transport.
-  constexpr size_t max_eventfds = 3;
 #else
   constexpr size_t max_eventfds = 3;
 #endif
@@ -70,12 +61,16 @@ void OpenThreadComponent::setup() {
   ESP_ERROR_CHECK(nvs_flash_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
+  // Own task instead of esp_openthread_start(): the dataset activation has to run on the task
+  // that holds the OpenThread task-switching lock, and a border router must not become the
+  // default netif
   if (xTaskCreate(
           [](void *arg) {
-            static_cast<OpenThreadComponent *>(arg)->ot_main();
+            static_cast<OpenThreadComponent *>(arg)->ot_main_();
             vTaskDelete(nullptr);
           },
-          "ot_main", 10240, this, 5, nullptr) != pdPASS) {
+          CONFIG_OPENTHREAD_TASK_NAME, CONFIG_OPENTHREAD_TASK_SIZE, this, CONFIG_OPENTHREAD_TASK_PRIORITY,
+          nullptr) != pdPASS) {
     ESP_LOGE(TAG, "Failed to create OpenThread task");
     esp_vfs_eventfd_unregister();
     this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
@@ -83,16 +78,7 @@ void OpenThreadComponent::setup() {
   }
 }
 
-static esp_netif_t *init_openthread_netif(const esp_openthread_platform_config_t *config) {
-  esp_netif_config_t cfg = ESP_NETIF_DEFAULT_OPENTHREAD();
-  esp_netif_t *netif = esp_netif_new(&cfg);
-  assert(netif != nullptr);
-  ESP_ERROR_CHECK(esp_netif_attach(netif, esp_openthread_netif_glue_init(config)));
-
-  return netif;
-}
-
-void OpenThreadComponent::ot_main() {
+void OpenThreadComponent::ot_main_() {
   esp_openthread_platform_config_t config = {
       .radio_config =
           {
@@ -135,6 +121,7 @@ void OpenThreadComponent::ot_main() {
   };
 
 #ifdef USE_OPENTHREAD_RCP_UART
+  // Without a reset pin there is nothing to do on a failure beyond the Spinel driver's own recovery
   if (this->rcp_reset_pin_ != nullptr) {
     this->rcp_reset_pin_->setup();
     esp_openthread_register_rcp_failure_handler(OpenThreadComponent::rcp_failure_handler);
@@ -143,133 +130,108 @@ void OpenThreadComponent::ot_main() {
   }
 #endif
 
-  // Initialize the OpenThread stack
-  // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
   ESP_ERROR_CHECK(esp_openthread_init(&config));
+
+  // Initialize the esp_netif bindings
+  esp_netif_config_t netif_config = ESP_NETIF_DEFAULT_OPENTHREAD();
+  esp_netif_t *netif = esp_netif_new(&netif_config);
+  assert(netif != nullptr);
+  ESP_ERROR_CHECK(esp_netif_attach(netif, esp_openthread_netif_glue_init(&config)));
+#ifndef USE_OPENTHREAD_BORDER_ROUTER
+  esp_netif_set_default_netif(netif);
+#endif
+
+  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
+
   // Mark lock as initialized so InstanceLock callers know it's safe to acquire.
   // Must be set after esp_openthread_init() which creates the internal semaphore.
   this->lock_initialized_ = true;
 
   bool launch_mainloop = true;
 #if defined(USE_OPENTHREAD_BORDER_ROUTER) && !defined(USE_OPENTHREAD_RCP_UART)
-  // Enable Wi-Fi/802.15.4 coexistence as soon as the native radio is initialized, before the
-  // Thread network is auto-started below. The native 802.15.4 radio and Wi-Fi share the same RF
-  // frontend on chips like the ESP32-C6; without this, both radios contend for the RF outside the
-  // coexistence arbiter and Wi-Fi scanning/association can fail outright. Doing this only after
-  // Wi-Fi has connected (as the border router used to do) is too late, since the Thread network
-  // auto-starts immediately below while Wi-Fi may still be trying to connect.
+  // The native 802.15.4 radio shares the RF frontend with Wi-Fi. Coexistence has to be on before
+  // the Thread network starts below, or Wi-Fi scanning and association can fail outright.
   if (const esp_err_t err = esp_coex_wifi_i154_enable(); err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to enable Wi-Fi/802.15.4 coexistence: %s", esp_err_to_name(err));
     this->mark_task_failed_();
     launch_mainloop = false;
   }
 #endif
-  // Fetch OT instance once to avoid repeated call into OT stack
-  otInstance *instance = esp_openthread_get_instance();
 
-#if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
-  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(instance));
-#endif
-
-#if CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC
-  // The OpenThread log level directly matches ESP log level
-  (void) otLoggingSetLevel(CONFIG_LOG_DEFAULT_LEVEL);
-#endif
-  // Initialize the OpenThread cli
-#if CONFIG_OPENTHREAD_CLI
-  esp_openthread_cli_init();
-#endif
-
-  // Initialize the esp_netif bindings
-  this->openthread_netif_ = init_openthread_netif(&config);
-#ifndef USE_OPENTHREAD_BORDER_ROUTER
-  esp_netif_set_default_netif(this->openthread_netif_);
-#endif
-
-#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-  esp_cli_custom_command_init();
-#endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-
-  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
-
-#ifndef USE_OPENTHREAD_BORDER_ROUTER
-  this->apply_linkmode_(instance);
-#endif
-
-  if (this->output_power_.has_value()) {
-    if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
-    }
-  }
-
-  // Run the main loop
-#if CONFIG_OPENTHREAD_CLI
-  esp_openthread_cli_create_task();
-#endif
-  ESP_LOGI(TAG, "Activating dataset...");
-  otOperationalDatasetTlvs dataset = {};
-
-#ifndef USE_OPENTHREAD_FORCE_DATASET
   {
-    // Hold the OpenThread lock for all instance access below, matching Espressif's own
-    // ot_network_auto_start() helper (see the comment on esp_openthread_auto_start() below).
+    // One lock for the whole bring-up, so the main loop (actions, teardown, the SRP component)
+    // cannot call into the stack half way through
     InstanceLock lock = InstanceLock::acquire();
+    otInstance *instance = lock.get_instance();
+
+#ifndef USE_OPENTHREAD_BORDER_ROUTER
+    this->apply_linkmode_(instance);
+#endif
+
+    if (this->output_power_.has_value()) {
+      if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
+        ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+      }
+    }
+
+    ESP_LOGI(TAG, "Activating dataset...");
+    otOperationalDatasetTlvs dataset = {};
+#ifndef USE_OPENTHREAD_FORCE_DATASET
     // Check if openthread has a valid dataset from a previous execution
-    otError error = otDatasetGetActiveTlvs(instance, &dataset);
-    if (error != OT_ERROR_NONE) {
+    if (otDatasetGetActiveTlvs(instance, &dataset) != OT_ERROR_NONE) {
       // Make sure the length is 0 so we fallback to the configuration
       dataset.mLength = 0;
     } else {
       ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
     }
-  }
 #endif
 
 #ifdef USE_OPENTHREAD_TLVS
-  if (dataset.mLength == 0) {
-    // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
-    constexpr size_t len = (sizeof(USE_OPENTHREAD_TLVS) - 1) / 2;
-    static_assert(len <= sizeof(dataset.mTlvs), "OpenThread dataset TLV is too long");
-    parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
-    dataset.mLength = len;
-  }
+    if (dataset.mLength == 0) {
+      // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
+      constexpr size_t len = (sizeof(USE_OPENTHREAD_TLVS) - 1) / 2;
+      static_assert(len <= sizeof(dataset.mTlvs), "OpenThread dataset TLV is too long");
+      parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
+      dataset.mLength = len;
+    }
 #endif
 
-  if (dataset.mLength > 0 && !otDatasetIsValid(&dataset, true)) {
-    ESP_LOGE(TAG, "Configured OpenThread Active Operational Dataset TLV is invalid");
-    this->mark_task_failed_();
-    launch_mainloop = false;
-  } else if (launch_mainloop) {
-    // esp_openthread_auto_start() calls into otIp6SetEnabled(), which (for Border Router
-    // builds) starts the DNS-SD server and opens a UDP socket via otPlatUdpSocket(). That
-    // path temporarily releases and re-acquires the OpenThread task-switching lock, which
-    // asserts unless this task already holds the OpenThread lock. Espressif's own examples
-    // (ot_network_auto_start() in ot_examples_common) always take the lock around
-    // esp_openthread_auto_start() for this reason.
-    InstanceLock lock = InstanceLock::acquire();
-    if (const esp_err_t err = esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr); err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to start OpenThread: %s", esp_err_to_name(err));
+    if (dataset.mLength > 0 && !otDatasetIsValid(&dataset, true)) {
+      ESP_LOGE(TAG, "Configured OpenThread Active Operational Dataset TLV is invalid");
       this->mark_task_failed_();
       launch_mainloop = false;
+    } else if (launch_mainloop) {
+      // esp_openthread_auto_start() enables IPv6, which (for Border Router builds) opens a UDP socket
+      // via otPlatUdpSocket(). That path releases and re-acquires the OpenThread task-switching lock,
+      // which asserts unless this task holds the OpenThread lock, as it does here.
+      if (const esp_err_t err = esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr); err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start OpenThread: %s", esp_err_to_name(err));
+        this->mark_task_failed_();
+        launch_mainloop = false;
+      }
+    }
+
+    if (launch_mainloop) {
+      // Register state change callback to update connected_ reactively instead of polling
+      otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
+      if (ot_err != OT_ERROR_NONE) {
+        ESP_LOGE(TAG, "Failed to register state change callback: %d", ot_err);
+        // Without this callback connected_ would never update, so the component would look
+        // healthy forever while never actually reporting the device as connected.
+        this->mark_task_failed_();
+        launch_mainloop = false;
+      }
     }
   }
 
   if (launch_mainloop) {
-    // Register state change callback to update connected_ reactively instead of polling
-    otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
-    if (ot_err != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to register state change callback: %d", ot_err);
-      // Without this callback connected_ would never update, so the component would look
-      // healthy forever while never actually reporting the device as connected.
-      this->mark_task_failed_();
-      launch_mainloop = false;
-    }
-  }
-
-  if (launch_mainloop) {
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
     this->mainloop_running_ = true;
+#endif
     const esp_err_t err = esp_openthread_launch_mainloop();
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
     this->mainloop_running_ = false;
+#endif
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "OpenThread main loop failed: %s", esp_err_to_name(err));
       this->mark_task_failed_();
@@ -278,18 +240,15 @@ void OpenThreadComponent::ot_main() {
 
   // Clean up - reset lock flag before deinit destroys the semaphore
   this->lock_initialized_ = false;
-  esp_openthread_deinit();
   esp_openthread_netif_glue_deinit();
-  esp_netif_destroy(this->openthread_netif_);
-  this->openthread_netif_ = nullptr;
-
+  esp_netif_destroy(netif);
+  esp_openthread_deinit();
   esp_vfs_eventfd_unregister();
   this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
-  vTaskDelete(NULL);
 }
 
+// Runs on the OpenThread task; the component state belongs to the main loop
 void OpenThreadComponent::mark_task_failed_() {
-  this->task_failed_ = true;
   this->defer([this]() { this->mark_failed(); });
 }
 
@@ -305,17 +264,17 @@ void OpenThreadComponent::rcp_failure_handler() {
 void OpenThreadComponent::reset_rcp_(bool recovery_attempt) {
   if (recovery_attempt) {
     static constexpr uint8_t MAX_RESET_ATTEMPTS = 5;
-    uint8_t attempt = ++this->rcp_reset_attempts_;
+    uint8_t attempt = this->rcp_reset_attempts_;
+    if (attempt > MAX_RESET_ATTEMPTS) {
+      return;  // Gave up earlier; the driver keeps reporting the failure
+    }
+    this->rcp_reset_attempts_ = ++attempt;
     if (attempt > MAX_RESET_ATTEMPTS) {
       ESP_LOGE(TAG, "RCP failed to recover after %u reset attempts", MAX_RESET_ATTEMPTS);
       this->mark_task_failed_();
       return;
     }
     ESP_LOGW(TAG, "RCP failure detected, reset attempt %u of %u", attempt, MAX_RESET_ATTEMPTS);
-  }
-  if (this->rcp_reset_pin_ == nullptr) {
-    ESP_LOGW(TAG, "RCP reset requested but no reset pin is configured");
-    return;
   }
   this->rcp_reset_pin_->digital_write(true);
   vTaskDelay(pdMS_TO_TICKS(10));
@@ -328,62 +287,24 @@ int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exi
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
-  esp_netif_t *netif = this->openthread_netif_;
-  if (netif == nullptr) {
-    return addresses;
-  }
-  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
-  uint8_t count = esp_netif_get_all_ip6(netif, if_ip6s);
-  assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
-  if (count > addresses.size() - 1) {
-    static bool truncation_logged = false;
-    if (!truncation_logged) {
-      truncation_logged = true;
-      ESP_LOGW(TAG, "OpenThread has %u IPv6 addresses, but only %zu fit; some are not reported", count,
-               addresses.size() - 1);
-    }
-  }
-  count = std::min<size_t>(count, addresses.size() - 1);
-  for (uint8_t i = 0; i < count; i++) {
-    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
+  if (esp_netif_t *netif = esp_openthread_get_netif(); netif != nullptr) {
+    network::fill_ip6_addresses(netif, addresses);
   }
   return addresses;
 }
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
 void OpenThreadComponent::loop() {
-  if (this->border_router_started_ || this->is_failed()) {
-    return;
-  }
-  if (this->task_failed_) {
-    this->mark_failed();
-    return;
-  }
+  // Thread starts on its own; border routing waits for the Wi-Fi backbone to have an address
   if (!this->mainloop_running_ || !wifi::global_wifi_component->is_connected()) {
     return;
   }
-
-  auto lock = InstanceLock::try_acquire(100);
+  // Never wait for the lock on the main loop; the OpenThread task releases it between events
+  auto lock = InstanceLock::try_acquire(0);
   if (!lock) {
-    // Each loop() call retries after a 100 ms lock-acquire timeout; warn if it keeps
-    // failing for a while so a wedged OpenThread task doesn't fail silently forever.
-    static constexpr uint16_t WARN_AFTER_ATTEMPTS = 20;   // ~2s
-    static constexpr uint16_t FAIL_AFTER_ATTEMPTS = 100;  // ~10s
-    if (++this->lock_wait_failures_ == WARN_AFTER_ATTEMPTS) {
-      ESP_LOGW(TAG, "Border router init has been waiting on the OpenThread lock for %u attempts",
-               this->lock_wait_failures_);
-    } else if (this->lock_wait_failures_ >= FAIL_AFTER_ATTEMPTS) {
-      ESP_LOGE(TAG, "Border router init could not acquire the OpenThread lock after %u attempts, giving up",
-               this->lock_wait_failures_);
-      this->mark_failed();
-    }
     return;
   }
-  // Wi-Fi/802.15.4 coexistence (native radio builds only) is enabled earlier, right after the
-  // OpenThread radio is initialized in ot_main() -- see the comment there for why it can't wait
-  // until Wi-Fi is connected.
-  esp_err_t err = esp_openthread_border_router_init();
-  if (err != ESP_OK) {
+  if (const esp_err_t err = esp_openthread_border_router_init(); err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to initialize OpenThread Border Router: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
@@ -404,7 +325,13 @@ InstanceLock InstanceLock::try_acquire(int delay) {
 }
 
 InstanceLock InstanceLock::acquire() {
-  // Wait for the lock to be created by ot_main() before attempting to acquire it.
+  // teardown() clears global_openthread_component before the stack fully stops; a caller
+  // racing teardown would otherwise dereference a null pointer below.
+  if (global_openthread_component == nullptr) {
+    ESP_LOGE(TAG, "OpenThread component torn down, cannot acquire instance lock");
+    abort();
+  }
+  // Wait for the lock to be created before attempting to acquire it.
   // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
   constexpr uint32_t lock_init_timeout_ms = 10000;
   uint32_t start = millis();

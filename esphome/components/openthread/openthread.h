@@ -16,10 +16,6 @@
 #include <optional>
 #include <vector>
 
-#ifdef USE_ESP32
-#include "esp_netif.h"
-#endif
-
 namespace esphome::openthread {
 
 class InstanceLock;
@@ -34,7 +30,7 @@ class OpenThreadComponent final : public Component {
  public:
   OpenThreadComponent();
 #ifdef USE_OPENTHREAD_RCP_UART
-  OpenThreadComponent(uint32_t rcp_baud_rate, int rcp_rx_pin, int rcp_tx_pin, GPIOPin *rcp_reset_pin);
+  OpenThreadComponent(uint32_t rcp_baud_rate, uint8_t rcp_rx_pin, uint8_t rcp_tx_pin, GPIOPin *rcp_reset_pin);
 #endif
   ~OpenThreadComponent();
   void dump_config() override;
@@ -52,17 +48,14 @@ class OpenThreadComponent final : public Component {
   }
 
   bool is_connected() const { return this->connected_; }
-  /// Returns true once esp_openthread_start() has completed and the OT lock is usable.
+  /// Returns true once the OpenThread stack is initialized and the OT lock is usable.
   bool is_lock_initialized() const { return this->lock_initialized_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
-  void ot_main();
-#ifdef USE_OPENTHREAD_BORDER_ROUTER
-  void on_factory_reset(const std::function<void()> &callback);
-#else
   void on_factory_reset(std::function<void()> callback);
-#endif
+#ifdef USE_OPENTHREAD_SRP
   void defer_factory_reset_external_callback();
+#endif
 
   /// Returns nullptr when no explicit use_address is configured and the address is
   /// derived at runtime from the device name (see network::get_use_address_to()).
@@ -86,7 +79,10 @@ class OpenThreadComponent final : public Component {
    * Callers running outside the OpenThread task must hold InstanceLock.
    */
   void apply_linkmode_(otInstance *instance);
+#ifdef USE_ESP32
+  void ot_main_();
   void mark_task_failed_();
+#endif
 #ifdef USE_OPENTHREAD_RCP_UART
   void reset_rcp_(bool recovery_attempt);
 #endif
@@ -94,30 +90,26 @@ class OpenThreadComponent final : public Component {
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
+#ifdef USE_OPENTHREAD_SRP
   std::function<void()> factory_reset_external_callback_;
+#endif
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
   std::atomic<TeardownStage> teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
-  std::atomic<bool> mainloop_running_{false};
-  std::atomic<bool> task_failed_{false};
   std::atomic<bool> connected_{false};
-#ifdef USE_ESP32
-  std::atomic<esp_netif_t *> openthread_netif_{nullptr};
-#endif
 #ifdef USE_OPENTHREAD_RCP_UART
   uint32_t rcp_baud_rate_{0};
-  int rcp_rx_pin_{-1};
-  int rcp_tx_pin_{-1};
+  uint8_t rcp_rx_pin_{0};
+  uint8_t rcp_tx_pin_{0};
   GPIOPin *rcp_reset_pin_{nullptr};
   std::atomic<uint8_t> rcp_reset_attempts_{0};
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
+  std::atomic<bool> mainloop_running_{false};
   bool border_router_started_{false};
-  uint16_t lock_wait_failures_{0};
-  uint16_t teardown_lock_failures_{0};
 #endif
 
  private:
@@ -128,7 +120,7 @@ class OpenThreadComponent final : public Component {
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#ifndef USE_OPENTHREAD_BORDER_ROUTER
+#ifdef USE_OPENTHREAD_SRP
 class OpenThreadSrpComponent final : public Component {
  public:
   void set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }

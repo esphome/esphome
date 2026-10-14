@@ -126,8 +126,8 @@ class MDNSComponent final : public Component
 #ifndef USE_MDNS_STORE_SERVICES
 #error "USE_MDNS_SUPPORTS_ENABLE_DISABLE requires USE_MDNS_STORE_SERVICES"
 #endif
-#if defined(USE_OPENTHREAD) && !defined(USE_OPENTHREAD_BORDER_ROUTER)
-#error "USE_MDNS_SUPPORTS_ENABLE_DISABLE is not supported with OpenThread SRP"
+#ifdef USE_OPENTHREAD_SRP
+#error "USE_MDNS_SUPPORTS_ENABLE_DISABLE is not supported with the OpenThread SRP client"
 #endif
   /// Enable or disable a compiled-in service, matched by type and proto (e.g. "_sendspin", "_tcp").
   /// Only valid once this component is ready. Re-enabling re-reads the port but keeps the boot-time TXT values.

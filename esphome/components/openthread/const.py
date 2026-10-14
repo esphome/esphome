@@ -1,4 +1,3 @@
-CONF_BORDER_ROUTER = "border_router"
 CONF_CORE_OPTIONS = "core_options"
 CONF_DEVICE_TYPE = "device_type"
 CONF_EXT_PAN_ID = "ext_pan_id"

@@ -564,31 +564,26 @@
 #define USE_MICRO_WAKE_WORD
 #define USE_MICRO_WAKE_WORD_INTERNAL_RAM
 #define USE_MICRO_WAKE_WORD_VAD
-#if defined(USE_ESP32_VARIANT_ESP32C6)
+#if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #define USE_OPENTHREAD
-#define USE_OPENTHREAD_BORDER_ROUTER
+#define USE_OPENTHREAD_SRP
 #define USE_ZIGBEE
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32H2)
-// H2 has no Wi-Fi, so it cannot act as an OpenThread Border Router
-// (border_router: requires a Wi-Fi STA backbone; see _final_validate()).
-#define USE_OPENTHREAD
-#define USE_ZIGBEE
-#endif
-#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
-    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-#define USE_ESPECTRE
 #if defined(USE_ESP32_VARIANT_ESP32S3)
+// Border router with a UART RCP; a native-radio border router (C5/C6) adds only the coexistence call
 #define USE_OPENTHREAD
 #define USE_OPENTHREAD_BORDER_ROUTER
 #define USE_OPENTHREAD_RCP_UART
 #endif
-#ifndef USE_OPENTHREAD
+#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
+    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#define USE_ESPECTRE
+#endif
+#ifndef USE_OPENTHREAD_SRP
 #define USE_MDNS_SUPPORTS_ENABLE_DISABLE
 #ifdef USE_ETHERNET
 #define USE_MDNS_ACTIVE_INTERFACE_LISTENER
 #define USE_MDNS_DYNAMIC_NETWORK_TXT
-#endif
 #endif
 #endif
 #endif

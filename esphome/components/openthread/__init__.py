@@ -3,6 +3,7 @@ from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_BORDER_ROUTER
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -12,9 +13,9 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
-    idf_version,
     include_builtin_idf_component,
     only_on_variant,
+    request_software_coexistence,
     require_mbedtls_ecp,
     require_mbedtls_tls,
     require_mbedtls_tls_extras,
@@ -47,6 +48,7 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
+    CONF_WIFI,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
@@ -64,7 +66,6 @@ from esphome.types import ConfigType
 from esphome.writer import clean_build
 
 from .const import (
-    CONF_BORDER_ROUTER,
     CONF_CORE_OPTIONS,
     CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
@@ -105,6 +106,24 @@ NATIVE_BORDER_ROUTER_VARIANTS = {
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
 }
+# ESP-IDF options a border router needs on top of the plain OpenThread ones
+BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
+    "CONFIG_OPENTHREAD_PLATFORM_NETIF": True,
+    "CONFIG_OPENTHREAD_BORDER_ROUTER": True,
+    "CONFIG_LWIP_IPV6_FORWARD": True,
+    "CONFIG_LWIP_IPV6_NUM_ADDRESSES": 12,
+    "CONFIG_LWIP_MULTICAST_PING": True,
+    "CONFIG_LWIP_NETIF_STATUS_CALLBACK": True,
+    "CONFIG_LWIP_HOOK_IP6_ROUTE_DEFAULT": True,
+    "CONFIG_LWIP_HOOK_ND6_GET_GW_DEFAULT": True,
+    "CONFIG_LWIP_HOOK_IP6_INPUT_CUSTOM": True,
+    "CONFIG_LWIP_HOOK_IP6_SELECT_SRC_ADDR_CUSTOM": True,
+    "CONFIG_MDNS_MULTIPLE_INSTANCE": True,
+    "CONFIG_MBEDTLS_CMAC_C": True,
+    "CONFIG_MBEDTLS_SSL_PROTO_DTLS": True,
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECJPAKE": True,
+    "CONFIG_MBEDTLS_ECJPAKE_C": True,
+}
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
 OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
@@ -124,9 +143,13 @@ def _validate_txpower(value: Any) -> int | float:
     return value  # Unsupported, fail later with clear error
 
 
+def _get_rcp(config: ConfigType) -> ConfigType | None:
+    return config.get(CONF_BORDER_ROUTER, {}).get(CONF_RCP)
+
+
 def set_sdkconfig_options(config: ConfigType) -> None:
     border_router = CONF_BORDER_ROUTER in config
-    rcp = border_router and CONF_RCP in config[CONF_BORDER_ROUTER]
+    rcp = _get_rcp(config) is not None
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_NATIVE", not rcp)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_SPINEL_UART", rcp)
@@ -183,27 +206,11 @@ def set_sdkconfig_options(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     if border_router:
-        # The Border Router's secure transport uses mbedTLS directly, so keep
-        # TLS enabled above, as well as server-side crypto features.
-        add_idf_sdkconfig_option("CONFIG_OPENTHREAD_PLATFORM_NETIF", True)
-        add_idf_sdkconfig_option("CONFIG_OPENTHREAD_BORDER_ROUTER", True)
+        for name, value in BORDER_ROUTER_SDKCONFIG_OPTIONS.items():
+            add_idf_sdkconfig_option(name, value)
         if not rcp:
-            add_idf_sdkconfig_option("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", True)
-
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_FORWARD", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_NUM_ADDRESSES", 12)
-        add_idf_sdkconfig_option("CONFIG_LWIP_MULTICAST_PING", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_NETIF_STATUS_CALLBACK", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_HOOK_IP6_ROUTE_DEFAULT", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_HOOK_ND6_GET_GW_DEFAULT", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_HOOK_IP6_INPUT_CUSTOM", True)
-        add_idf_sdkconfig_option("CONFIG_LWIP_HOOK_IP6_SELECT_SRC_ADDR_CUSTOM", True)
-
-        add_idf_sdkconfig_option("CONFIG_MDNS_MULTIPLE_INSTANCE", True)
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CMAC_C", True)
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_PROTO_DTLS", True)
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_KEY_EXCHANGE_ECJPAKE", True)
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_ECJPAKE_C", True)
+            # The native 802.15.4 radio shares the RF frontend with Wi-Fi
+            request_software_coexistence()
 
     # TODO: Add support for synchronized sleepy end devices (SSED)
     add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
@@ -239,44 +246,33 @@ OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
 OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Component)
 
 
-def _validate_border_router(value: object) -> ConfigType:
-    if value is None:
-        value = {}
-    return cv.Schema(
-        {
-            cv.Optional(CONF_RCP): _RCP_SCHEMA,
-        }
-    )(value)
-
-
 def _validate_reset_pin(value: object) -> ConfigType:
     value = {CONF_NUMBER: value} if not isinstance(value, dict) else dict(value)
     value.setdefault(CONF_INVERTED, True)
     return pins.internal_gpio_output_pin_schema(value)
 
 
-def _validate_rcp(config: ConfigType) -> ConfigType:
-    pin_numbers = {config[CONF_RX_PIN], config[CONF_TX_PIN]}
-    if len(pin_numbers) != 2:
-        raise cv.Invalid("RCP UART RX and TX pins must be different")
-    if (reset_pin := config.get(CONF_RESET_PIN)) is not None and reset_pin[
-        CONF_NUMBER
-    ] in pin_numbers:
-        raise cv.Invalid("RCP reset pin must be different from RX and TX pins")
-    return config
-
-
-_RCP_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
-            cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_BAUD_RATE, default=460800): cv.int_range(min=9600),
-            cv.Optional(CONF_RESET_PIN): _validate_reset_pin,
-        }
-    ),
-    _validate_rcp,
+# The pin registry rejects a pin used twice, so RX, TX and reset need no check of their own
+_RCP_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
+        cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_BAUD_RATE, default=460800): cv.int_range(min=9600),
+        cv.Optional(CONF_RESET_PIN): _validate_reset_pin,
+    }
 )
+
+_BORDER_ROUTER_SCHEMA = cv.All(
+    cv.require_framework_version(
+        esp_idf=cv.Version(5, 5, 0),
+        extra_message="OpenThread Border Router requires ESP-IDF 5.5.0 or newer",
+    ),
+    cv.Schema({cv.Optional(CONF_RCP): _RCP_SCHEMA}),
+)
+
+
+def _validate_border_router(value: object) -> ConfigType:
+    return _BORDER_ROUTER_SCHEMA({} if value is None else value)
 
 
 _CONNECTION_SCHEMA = cv.Schema(
@@ -310,6 +306,8 @@ def _validate(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
+    if CONF_BORDER_ROUTER in config and device_type != "FTD":
+        raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
 
     return config
 
@@ -319,9 +317,7 @@ def _require_vfs(config: ConfigType) -> ConfigType:
     # OpenThread uses esp_vfs_eventfd which requires VFS select support (ESP32 only)
     if CORE.is_esp32:
         require_vfs_select()
-        if (
-            border_router := config.get(CONF_BORDER_ROUTER)
-        ) is not None and CONF_RCP in border_router:
+        if _get_rcp(config) is not None:
             require_vfs_dir()
     return config
 
@@ -329,10 +325,18 @@ def _require_vfs(config: ConfigType) -> ConfigType:
 def _validate_platform(config: ConfigType) -> ConfigType:
     if CORE.using_zephyr:
         return config
-    if (
-        border_router := config.get(CONF_BORDER_ROUTER)
-    ) is not None and CONF_RCP in border_router:
-        return cv.only_on([PLATFORM_ESP32])(config)
+    if CONF_BORDER_ROUTER in config:
+        # _BORDER_ROUTER_SCHEMA already limits this to ESP32 with ESP-IDF
+        if (
+            _get_rcp(config) is None
+            and get_esp32_variant() not in NATIVE_BORDER_ROUTER_VARIANTS
+        ):
+            raise cv.Invalid(
+                "OpenThread Border Router with a native radio requires an ESP32 variant "
+                "with both Wi-Fi and IEEE 802.15.4 support. "
+                "Configure 'rcp:' to use an external OpenThread Radio Co-Processor."
+            )
+        return config
     return only_on_variant(
         supported=[
             VARIANT_ESP32C5,
@@ -429,34 +433,13 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "Please set `enable_ipv6: true` in the `network` configuration."
         )
 
-    border_router = CONF_BORDER_ROUTER in config
-    wifi_config = full_config.get("wifi")
-    if not border_router:
+    wifi_config = full_config.get(CONF_WIFI)
+    if CONF_BORDER_ROUTER not in config:
         if wifi_config is not None:
             raise cv.Invalid(
                 "OpenThread can only be used with Wi-Fi when 'border_router:' is configured."
             )
     else:
-        rcp = config[CONF_BORDER_ROUTER].get(CONF_RCP)
-        if not CORE.is_esp32:
-            raise cv.Invalid(
-                "OpenThread Border Router currently requires an ESP32 with the "
-                "ESP-IDF framework."
-            )
-        if CORE.using_arduino:
-            raise cv.Invalid("OpenThread Border Router requires the ESP-IDF framework.")
-        if rcp is None and get_esp32_variant() not in NATIVE_BORDER_ROUTER_VARIANTS:
-            raise cv.Invalid(
-                "OpenThread Border Router with a native radio requires an ESP32 variant "
-                "with both Wi-Fi and IEEE 802.15.4 support. "
-                "Configure 'rcp:' to use an external OpenThread Radio Co-Processor."
-            )
-        if idf_version() < cv.Version(5, 5, 0):
-            raise cv.Invalid(
-                "OpenThread Border Router requires ESP-IDF 5.5.0 or newer."
-            )
-        if config[CONF_DEVICE_TYPE] != "FTD":
-            raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
         if wifi_config is None:
             raise cv.Invalid("OpenThread Border Router requires a Wi-Fi STA backbone.")
         if CONF_AP in wifi_config:
@@ -471,7 +454,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 "OpenThread Border Router requires Wi-Fi 'enable_on_boot: true'."
             )
-        if rcp is not None:
+        if _get_rcp(config) is not None:
             if full_config.get("uart") is not None:
                 raise cv.Invalid(
                     "OpenThread RCP uses ESP-IDF's dedicated Spinel UART driver and "
@@ -514,20 +497,20 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config: ConfigType) -> None:
     border_router = CONF_BORDER_ROUTER in config
-    rcp = config[CONF_BORDER_ROUTER].get(CONF_RCP) if border_router else None
+    rcp = _get_rcp(config)
 
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
         # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
         require_mbedtls_ecp()
-        if border_router:
-            # openthread_esp.cpp uses esp_coexist.h whenever border_router: is configured
-            include_builtin_idf_component("esp_coex")
 
     cg.add_define("USE_OPENTHREAD")
     if border_router:
         cg.add_define("USE_OPENTHREAD_BORDER_ROUTER")
+    else:
+        # The SRP client registers the mDNS services with the Thread network
+        cg.add_define("USE_OPENTHREAD_SRP")
     if rcp is not None:
         cg.add_define("USE_OPENTHREAD_RCP_UART")
     if config.get(CONF_FORCE_DATASET):
