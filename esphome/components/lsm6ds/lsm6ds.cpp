@@ -27,10 +27,16 @@ static const LogString *gyro_range_to_str(LSM6DSGyroRange range) {
   }
 }
 
-static const struct {
-  uint8_t who_am_i;
-  const char *const name;
-} CHIP_IDS[] = {{0x69, "LSMDSO"}, {0x6A, "LSM6DS3"}};
+static const LogString *chip_name_from_who_am_i(uint8_t who_am_i) {
+  switch (who_am_i) {
+    case 0x69:
+      return LOG_STR("LSMDSO");
+    case 0x6A:
+      return LOG_STR("LSM6DS3");
+    default:
+      return nullptr;
+  }
+}
 
 void LSM6DSComponent::setup() {
   MotionComponent::setup();
@@ -40,19 +46,13 @@ void LSM6DSComponent::setup() {
     this->mark_failed();
     return;
   }
-  const char *chip_name = nullptr;
-  for (const auto &chip : CHIP_IDS) {
-    if (chip.who_am_i == who_am_i) {
-      chip_name = chip.name;
-      break;
-    }
-  }
+  const LogString *chip_name = chip_name_from_who_am_i(who_am_i);
   if (chip_name == nullptr) {
     ESP_LOGE(TAG, "Unknown WHO_AM_I: 0x%02X", who_am_i);
     this->mark_failed(LOG_STR("Unknown WHO_AM_I value"));
     return;
   }
-  ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", chip_name, who_am_i);
+  ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", LOG_STR_ARG(chip_name), who_am_i);
   this->chip_name_ = chip_name;
 
   // 2. Software reset — clears all registers to defaults
@@ -106,7 +106,7 @@ void LSM6DSComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LSM6DS IMU:\n"
                 "  Chip type: %s\n",
-                this->chip_name_);
+                LOG_STR_ARG(this->chip_name_ != nullptr ? this->chip_name_ : LOG_STR("Unknown")));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 

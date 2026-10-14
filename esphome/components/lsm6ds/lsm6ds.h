@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/motion/motion_component.h"
 
@@ -97,7 +98,7 @@ class LSM6DSComponent final : public motion::MotionComponent, public i2c::I2CDev
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
 
  protected:
-  const char *chip_name_{"Unknown"};
+  const LogString *chip_name_{nullptr};
   bool update_data(motion::MotionData &data) override;
 
   LSM6DSAccelRange accel_range_{LSM6DS_ACCEL_RANGE_4G};
