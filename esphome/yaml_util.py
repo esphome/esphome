@@ -1120,33 +1120,15 @@ def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> An
             res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
-    return _resolve_include(res)
-
-
-def _resolve_include(res) -> Any:
-    # Top-level !include returns a deferred IncludeFile; resolve it so
-    # callers always receive the final content.
-    if isinstance(res, IncludeFile):
-        res = res.load() if res.should_load() else {}
     return res
 
 
-_loader_wrappers = {}
-
-
-def _wrap_loader(yaml_loader):
-    # Wraps an external loader to make sure _resolve_include is applied.
-    # Cache wrappers to avoid repeated wrapping and recursive re-wrapping.
-    wrapper = _loader_wrappers.get(yaml_loader)
-    if wrapper is None:
-
-        @functools.wraps(yaml_loader)
-        def wrapper(fname: Path):
-            return _resolve_include(yaml_loader(fname))
-
-        _loader_wrappers[yaml_loader] = wrapper
-        _loader_wrappers[wrapper] = wrapper
-    return wrapper
+def _resolve_include(res: Any) -> Any:
+    # A document that is just `!include` parses to a deferred IncludeFile; resolve it so
+    # every parse_yaml caller, including the VS Code and ACE loaders, gets the final content.
+    if isinstance(res, IncludeFile):
+        res = res.load() if res.should_load() else {}
+    return res
 
 
 _FAST_YAML_LOADER = functools.partial(_load_yaml_internal, track_document_range=False)
@@ -1169,7 +1151,7 @@ def parse_yaml(
         # tracked mode; reject the combination instead of half-applying it.
         raise ValueError("track_document_range=False requires the default yaml_loader")
     try:
-        return _load_yaml_internal_with_type(
+        res = _load_yaml_internal_with_type(
             ESPHomeLoader,
             file_name,
             file_handle,
@@ -1181,13 +1163,15 @@ def parse_yaml(
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
-        return _load_yaml_internal_with_type(
+        res = _load_yaml_internal_with_type(
             ESPHomePurePythonLoader,
             file_name,
             file_handle,
             yaml_loader,
             track_document_range=track_document_range,
         )
+    # Resolved after the fallback so a failed first parse never loads the include twice
+    return _resolve_include(res)
 
 
 def _load_yaml_internal_with_type(

@@ -954,18 +954,21 @@ def test_yaml_merge_chain_include_resolves() -> None:
     assert config["base"]["existing"] == "value"
 
 
-def test_parse_yaml_custom_loader_resolves_chained_include() -> None:
-    """A custom loader returning a deferred include chain yields the final content."""
+def test_parse_yaml_custom_loader_resolves_root_include() -> None:
+    """A document that is only `!include` is resolved for a custom loader too."""
     parent = Path("/fake/main.yaml")
+    loader_calls: list[Path] = []
 
-    inner = yaml_util.IncludeFile(parent, "inner.yaml", lambda _: {"x": 1})
-    outer = yaml_util.IncludeFile(parent, "outer.yaml", lambda _: inner)
+    def custom_loader(fname: Path) -> dict[str, int]:
+        loader_calls.append(fname)
+        return {"x": 1}
 
-    yaml_text = "base: !include outer.yaml\n"
-    config = yaml_util.parse_yaml(parent, io.StringIO(yaml_text), lambda _: outer)
-    config = substitutions.do_substitution_pass(config)
+    config = yaml_util.parse_yaml(
+        parent, io.StringIO("!include inner.yaml\n"), custom_loader
+    )
 
-    assert config["base"] == {"x": 1}
+    assert config == {"x": 1}
+    assert loader_calls == [Path("/fake/inner.yaml")]
 
 
 def test_yaml_merge_chain_include_depth_exceeded() -> None:
