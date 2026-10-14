@@ -21,6 +21,7 @@ from esphome.components.network import (
     get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
+    require_high_performance_networking,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
@@ -412,6 +413,9 @@ def final_validate(config):
                 raise cv.Invalid(
                     "captive_portal is not supported together with ap_mode: WISP"
                 )
+            if ap_is_wisp_mode:
+                # All client traffic passes through the device, so use larger buffers
+                require_high_performance_networking()
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp_mode:
         _LOGGER.warning(
@@ -759,6 +763,11 @@ async def to_code(config):
             # Enable NAT in ESP-IDF sdkconfig
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+            # Every packet is received and sent again, so keeping the radio and
+            # lwIP fast paths in IRAM raises throughput
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_IRAM_OPT", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_IRAM_OPT", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IRAM_OPTIMIZATION", True)
 
             # Configure upstream DNS servers for DHCP to advertise to clients
             if CONF_DNS_SERVERS in conf:
