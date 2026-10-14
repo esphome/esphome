@@ -40,7 +40,9 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
   static_assert(sizeof(type_str) - 1 <= MQTT_COMPONENT_TYPE_MAX_LEN, \
                 #class_name "::component_type() exceeds MQTT_COMPONENT_TYPE_MAX_LEN");
 
-// Macro to define custom topic getter/setter with compile-time suffix length verification
+// Macro to define custom topic getter/setter with compile-time suffix length verification.
+// Set the topic before setup(): subscriptions rebuild it when needed, so a later change only reaches the broker
+// after a reconnect.
 #define MQTT_COMPONENT_CUSTOM_TOPIC_(name, type) \
   static_assert(sizeof(#name "/" #type) - 1 <= MQTT_SUFFIX_MAX_LEN, \
                 "topic suffix " #name "/" #type " exceeds MQTT_SUFFIX_MAX_LEN"); \
@@ -123,6 +125,7 @@ class MQTTComponent : public Component {
   template<typename T> void set_custom_state_topic(T &&custom_state_topic) {
     this->custom_state_topic_ = std::forward<T>(custom_state_topic);
   }
+  /// Set a custom command topic before setup(); a later change only reaches the broker after a reconnect.
   template<typename T> void set_custom_command_topic(T &&custom_command_topic) {
     this->custom_command_topic_ = std::forward<T>(custom_command_topic);
   }

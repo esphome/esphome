@@ -10,7 +10,7 @@ ESPHOME_LOG_TAG(TAG, "mqtt_subscribe.sensor");
 
 void MQTTSubscribeSensor::setup() {
   mqtt::global_mqtt_client->subscribe(
-      mqtt::static_topic(this->topic_.c_str()),
+      this->topic_,
       [this](const std::string &topic, const std::string &payload) {
         auto val = parse_number<float>(payload);
         if (!val.has_value()) {
