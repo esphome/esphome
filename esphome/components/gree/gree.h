@@ -121,6 +121,7 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   Model model_{};
   uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};  // The display light is on until a switch says otherwise
+  bool use_fahrenheit_{false};
 };
 
 }  // namespace esphome::gree
