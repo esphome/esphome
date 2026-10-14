@@ -787,7 +787,9 @@ void WiFiComponent::start() {
       this->start_scanning();
     }
 #endif
-    this->start_ap_portal_();
+    // A failed start is retried by the fallback path, which starts the portal once the AP is up
+    if (this->ap_setup_)
+      this->start_ap_portal_();
 #endif  // USE_WIFI_AP
   }
 #ifdef USE_IMPROV_BLE
@@ -940,18 +942,11 @@ void WiFiComponent::loop() {
         provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #endif
     if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
-      if (this->ap_timeout_ != 0 &&
-          (now - this->last_connected_ > this->ap_timeout_)
-#ifdef USE_WIFI_AP_EXCLUSIVE
-          // After a pause, or a start that failed, the networks get a full
-          // ap_timeout before the AP is tried again.
-          && now - this->ap_changed_ > this->ap_timeout_
-#endif
-      ) {
+      // After a pause, or a start that failed, a full ap_timeout passes before the AP is tried again
+      if (this->ap_timeout_ != 0 && now - this->last_connected_ > this->ap_timeout_ &&
+          now - this->ap_changed_ > this->ap_timeout_) {
         ESP_LOGI(TAG, "Starting fallback AP");
-#ifdef USE_WIFI_AP_EXCLUSIVE
         this->ap_changed_ = now;
-#endif
         this->setup_ap_config_();
         // A portal is only started behind an AP that came up: the portal keeps a reference to the web server
         // on every start, and a failed start is tried again later

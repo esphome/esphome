@@ -996,7 +996,7 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
+#ifdef USE_WIFI_AP
   uint32_t ap_changed_{0};  // When the AP was last started or paused
 #endif
   uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
