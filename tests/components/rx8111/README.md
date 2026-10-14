@@ -30,15 +30,19 @@ From `/home/test/Documents/GitHub/esphome`, with the bench connected:
 ```
 
 The first hardware run on commit `d27ef8140cbb52c4c08829fea4edea1d6e617a33`
-reported `PASS=4 FAIL=1 SKIP=3`: the bench read the cached GPIO binary
-sensor `.state` immediately after clearing AF over I2C. This revision waits
-for the next GPIO loop update before checking INT release and logs FLAG and
-CONTROL if INT remains asserted. The earlier result remains a **failed test**;
-the revised bench still requires a fresh hardware run.
+reported `PASS=4 FAIL=1 SKIP=3`. The AF-clear check read the cached GPIO
+binary sensor `.state` immediately after the I2C write. The revised bench on
+`ba6cbbbc3e3a999e4add8c3597464a9047dafc67` waits for the next GPIO loop
+update before checking INT release and logs FLAG and CONTROL if INT stays
+asserted. Its HUZZAH32 hardware run reported `PASS=17 FAIL=0 SKIP=3` in 163
+seconds. The three skips remain unverified; the first run remains a failed test.
+Subsequent progress-only edits do not change the test assertions; record the
+actual firmware revision when testing them.
 
 Observe serial output until the `RESULT:` line (allow several minutes for the
-1/60 Hz timer and 1 Hz FOUT windows). Report **PASS, FAIL and SKIP counts**,
-and any phase-level messages. The time-only runner checks RTC time read/write,
+1/60 Hz timer and 1 Hz FOUT windows). Long phases log `WAIT:` progress every
+five seconds with elapsed time, deadline and current counts. Report **PASS,
+FAIL and SKIP counts**, and any phase-level messages. The time-only runner checks RTC time read/write,
 invalid weekdays, clock/calendar rollover, fixed and relative alarms and flag
 clearing, four timer sources and repeat intervals, EVIN/EVF/INT and raw latest
 timestamp capture, charging-off readback, and measured FOUT frequencies. GPIO

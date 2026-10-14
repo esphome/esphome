@@ -73,6 +73,13 @@ class Runner {
         !this->clock_registers(expected))
       return;
 
+    if (this->timeout_ >= 7000 && elapsed / 5000 > this->last_wait_report_) {
+      this->last_wait_report_ = elapsed / 5000;
+      ESP_LOGI("rx8111_time_bench", "WAIT: %s elapsed=%lus deadline=%lus PASS=%u FAIL=%u", this->label_,
+               static_cast<unsigned long>(elapsed / 1000), static_cast<unsigned long>(this->timeout_ / 1000),
+               this->passed_, this->failed_);
+    }
+
     switch (this->phase_) {
       case CLOCK: {
         if (elapsed < 5000)
@@ -291,7 +298,7 @@ class Runner {
   unsigned passed_{0}, failed_{0}, skipped_{0};
   unsigned alarm_base_{0}, timer_base_{0}, event_base_{0};
   unsigned timer_index_{0}, fout_index_{0}, samples_{0};
-  uint32_t started_{0}, phase_started_{0}, timeout_{0}, seed_ms_{0};
+  uint32_t started_{0}, phase_started_{0}, timeout_{0}, seed_ms_{0}, last_wait_report_{0};
   uint32_t timer_period_{0}, first_timer_ms_{0};
   time_t seed_epoch_{0};
   float sum_{0};
@@ -302,6 +309,7 @@ class Runner {
     this->label_ = label;
     this->phase_started_ = millis();
     this->timeout_ = timeout;
+    this->last_wait_report_ = 0;
     ESP_LOGI("rx8111_time_bench", "RUN: %s", label);
   }
   void pass(const char *label) {
