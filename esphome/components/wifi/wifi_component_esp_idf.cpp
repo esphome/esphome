@@ -1269,7 +1269,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ssid[sizeof(sta.ssid)] = '\0';
     memcpy(password, sta.password, sizeof(sta.password));
     password[sizeof(sta.password)] = '\0';
-    ESP_LOGI(TAG, "DPP configured network '%s'", ssid);
+    ESP_LOGI(TAG, "DPP configured network " LOG_SECRET("'%s'"), ssid);
     // The wait for a configurator does not count against reboot_timeout or the re-listen delay
     this->last_connected_ = App.get_loop_component_start_time();
     // Saved and added like credentials from the captive portal, then connected through the state
