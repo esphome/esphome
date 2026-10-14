@@ -88,6 +88,40 @@ display:
       inverted: true
 
   - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.13in-g
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.13in-g-v1
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  - platform: epaper_spi
     model: seeed-reterminal-e1002
   - platform: epaper_spi
     model: seeed-reterminal-e1004
@@ -217,6 +251,27 @@ display:
   - platform: epaper_spi
     spi_id: spi_bus
     model: waveshare-2.13in-bv4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
+
+  # Waveshare 2.66" B 3-color e-paper (152x296, BWR, SSD1680)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.66in-b
     cs_pin:
       allow_other_uses: true
       number: GPIO5
