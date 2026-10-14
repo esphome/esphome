@@ -44,9 +44,9 @@ void MicrophoneSource::process_audio_(const std::vector<uint8_t> &data, std::vec
   // Enabled channels in ascending order, which is their order in each output frame
   std::array<uint8_t, 8> channel_map;
   uint8_t target_channels = 0;
-  for (uint8_t channel = 0; channel < this->channels_.size(); ++channel) {
+  for (size_t channel = 0; channel < this->channels_.size(); ++channel) {
     if (this->channels_.test(channel)) {
-      channel_map[target_channels++] = channel;
+      channel_map[target_channels++] = static_cast<uint8_t>(channel);
     }
   }
 
