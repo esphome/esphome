@@ -161,7 +161,7 @@ InstanceLock InstanceLock::acquire() {
   }
   // A failed setup() never creates the lock; say so now instead of after the wait below
   if (global_openthread_component->is_failed()) {
-    ESP_LOGE(TAG, "OpenThread setup failed, cannot acquire instance lock");
+    ESP_LOGE(TAG, "Setup failed, cannot acquire instance lock");
     abort();
   }
   // Wait for the lock to be created before attempting to acquire it.
