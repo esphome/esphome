@@ -927,11 +927,19 @@ static void publish_airflow_index(select::Select *sel, const std::array<Mode, N>
     return;
   }
   // Saved settings never hold AUTO after initialization(), so Center only covers a corrupt value
-  const auto *it = std::find(order.begin(), order.end(), mode);
-  if (it == order.end()) {
-    it = std::find(order.begin(), order.end(), Mode::CENTER);
+  size_t index = N;
+  size_t center = 0;
+  for (size_t i = 0; i < N; i++) {
+    const Mode entry = airflow_order_at(order, i);
+    if (entry == mode) {
+      index = i;
+    } else if (entry == Mode::CENTER) {
+      center = i;
+    }
   }
-  const size_t index = it - order.begin();
+  if (index == N) {
+    index = center;
+  }
   const auto active = sel->active_index();
   if (active.has_value() && *active == index) {
     return;

@@ -19,24 +19,30 @@
 #include "esphome/components/select/select.h"
 #endif
 #include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
 #include "haier_base.h"
 #include "hon_packet.h"
 
 namespace esphome::haier {
 
 #ifdef USE_SELECT
-// Positions in the order the select platform lists them
-inline constexpr std::array<hon_protocol::VerticalSwingMode, 7> VERTICAL_SWING_MODES_ORDER{
+// Positions in the order the select platform lists them; in flash on ESP8266, so read with airflow_order_at()
+inline constexpr std::array<hon_protocol::VerticalSwingMode, 7> VERTICAL_SWING_MODES_ORDER PROGMEM{
     hon_protocol::VerticalSwingMode::HEALTH_UP,   hon_protocol::VerticalSwingMode::MAX_UP,
     hon_protocol::VerticalSwingMode::UP,          hon_protocol::VerticalSwingMode::CENTER,
     hon_protocol::VerticalSwingMode::DOWN,        hon_protocol::VerticalSwingMode::MAX_DOWN,
     hon_protocol::VerticalSwingMode::HEALTH_DOWN,
 };
-inline constexpr std::array<hon_protocol::HorizontalSwingMode, 5> HORIZONTAL_SWING_MODES_ORDER{
+inline constexpr std::array<hon_protocol::HorizontalSwingMode, 5> HORIZONTAL_SWING_MODES_ORDER PROGMEM{
     hon_protocol::HorizontalSwingMode::MAX_LEFT,  hon_protocol::HorizontalSwingMode::LEFT,
     hon_protocol::HorizontalSwingMode::CENTER,    hon_protocol::HorizontalSwingMode::RIGHT,
     hon_protocol::HorizontalSwingMode::MAX_RIGHT,
 };
+
+template<typename Mode, size_t N> Mode airflow_order_at(const std::array<Mode, N> &order, size_t index) {
+  static_assert(sizeof(Mode) == 1);
+  return static_cast<Mode>(progmem_read_byte(reinterpret_cast<const uint8_t *>(order.data() + index)));
+}
 #endif
 
 enum class CleaningState : uint8_t {
