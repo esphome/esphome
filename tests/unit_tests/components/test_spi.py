@@ -27,7 +27,7 @@ from esphome.const import (
     PLATFORM_ZEPHYR,
 )
 from esphome.core import CORE
-from tests.unit_tests.components.zephyr_state import empty_zephyr_data
+from tests.unit_tests.components.zephyr.zephyr_state import empty_zephyr_data
 
 
 def test_quad_platform_validator_accepts_esp32_arduino_idf() -> None:

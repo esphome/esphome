@@ -3,9 +3,10 @@ from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_API,
     CONF_DISABLED,
+    CONF_ETHERNET,
     CONF_ID,
-    CONF_MDNS,
     CONF_OPENTHREAD,
     CONF_PORT,
     CONF_PROTOCOL,
@@ -22,6 +23,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
+DOMAIN = "mdns"
 
 # Components that create mDNS services at runtime
 # IMPORTANT: If you add a new component here, you must also update the corresponding
@@ -194,7 +196,7 @@ def request_service_enable_disable() -> bool:
 
     Public API for external components. Do not remove.
     """
-    mdns_config = CORE.config.get(CONF_MDNS)
+    mdns_config = CORE.config.get(DOMAIN)
     if (
         mdns_config is None
         or mdns_config[CONF_DISABLED]
@@ -235,7 +237,7 @@ async def to_code(config: ConfigType) -> None:
                 ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.12.0")
+        add_idf_component(name="espressif/mdns", ref="1.14.0")
         # ESPHome only advertises; the browse APIs are unused
         add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_BROWSE", False)
         # The mdns console CLI is never used by ESPHome
@@ -311,6 +313,23 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # With both wifi and ethernet, the _esphomelib "network" TXT value follows the
+    # connected interface. OpenThread hands its services to the SRP client once,
+    # so it keeps the fixed value.
+    if (
+        CONF_API in CORE.config
+        and CONF_WIFI in CORE.config
+        and CONF_ETHERNET in CORE.config
+        and CONF_OPENTHREAD not in CORE.config
+    ):
+        from esphome.components import network
+
+        cg.add_define("USE_MDNS_DYNAMIC_NETWORK_TXT")
+        # Where the network component tracks the default route (ESP32), follow
+        # it; otherwise mdns checks the connected interface every second.
+        if await network.register_active_interface_listener(var):
+            cg.add_define("USE_MDNS_ACTIVE_INTERFACE_LISTENER")
 
     for service in config[CONF_SERVICES]:
         txt_records = [

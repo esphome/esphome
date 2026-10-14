@@ -21,7 +21,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_zephyr";
+ESPHOME_LOG_TAG(TAG, "wifi_zephyr");
 
 // Must match the forward declaration in wifi_component.h -- not in the anonymous namespace below.
 struct ZephyrWiFiEvent {
@@ -395,7 +395,12 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 #if USE_NETWORK_IPV6
   this->num_ipv6_addresses_ = 0;
 #endif
-  int ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, sta_iface, &params, sizeof(params));
+  int ret;
+  {
+    // The driver blocks until the join has started
+    UnavoidableBlockingScope scope;
+    ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, sta_iface, &params, sizeof(params));
+  }
   if (ret != 0) {
     ESP_LOGW(TAG, "NET_REQUEST_WIFI_CONNECT failed: %d", ret);
     g_sta_status = WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;

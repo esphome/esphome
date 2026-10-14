@@ -8,7 +8,7 @@
 
 namespace esphome::zephyr {
 
-static const char *const TAG = "zephyr.i2c_emulator";
+ESPHOME_LOG_TAG(TAG, "zephyr.i2c_emulator");
 
 void ZephyrI2CEmulator::add_register(uint8_t reg, const uint8_t *data, uint8_t entry_len, uint8_t seq_len) {
   if (this->registers_.size() >= this->registers_.capacity()) {

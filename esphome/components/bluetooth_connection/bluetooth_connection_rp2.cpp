@@ -15,7 +15,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_connection";
+ESPHOME_LOG_TAG(TAG, "bluetooth_connection");
 
 using ble_device_base::ESPBTUUID;
 using ble_device_base::GATT_ERR_NOT_CONNECTED;

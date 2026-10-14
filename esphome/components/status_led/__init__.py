@@ -5,6 +5,8 @@ from esphome.const import CONF_ID, CONF_PIN
 from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
+DOMAIN = "status_led"
+
 status_led_ns = cg.esphome_ns.namespace("status_led")
 StatusLED = status_led_ns.class_("StatusLED", cg.Component)
 

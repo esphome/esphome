@@ -148,6 +148,8 @@ def validate_wakeup_pin(
         processed_pins: list[ConfigType] = [{CONF_PIN: value}]
     else:
         processed_pins = list(value)
+        if not processed_pins:
+            raise cv.Invalid("'wakeup_pin' needs at least one entry")
 
     for i, pin_config in enumerate(processed_pins):
         # now validate each item
@@ -166,29 +168,34 @@ def validate_config(config: ConfigType) -> ConfigType:
             f"deep_sleep is not supported on the Zephyr {zephyr_variant()} variant"
         )
 
-    # right now only BK72XX supports the list format for wakeup pins
-    if CORE.is_bk72xx:
-        if CONF_WAKEUP_PIN_MODE in config:
-            wakeup_pins = config.get(CONF_WAKEUP_PIN, [])
-            if len(wakeup_pins) > 1:
-                raise cv.Invalid(
-                    "You need to remove the global wakeup_pin_mode and define it per pin"
-                )
-            if wakeup_pins:
-                if CONF_WAKEUP_PIN_MODE in wakeup_pins[0]:
-                    raise cv.Invalid(
-                        "Specify wakeup_pin_mode either at the top level under deep_sleep "
-                        "or under the pin entry, not both"
-                    )
-                wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
-    elif (
-        isinstance(config.get(CONF_WAKEUP_PIN), list)
-        and len(config[CONF_WAKEUP_PIN]) > 1
-    ):
+    wakeup_pins = config.get(CONF_WAKEUP_PIN)
+    has_pin_mode = CONF_WAKEUP_PIN_MODE in config
+    if has_pin_mode and wakeup_pins is None:
         raise cv.Invalid(
-            "Your platform does not support providing multiple entries in wakeup_pin"
+            "'wakeup_pin_mode' requires 'wakeup_pin'", path=[CONF_WAKEUP_PIN_MODE]
         )
-
+    multiple_pins = wakeup_pins is not None and len(wakeup_pins) > 1
+    # wakeup_pin is limited to ESP32 and BK72XX, and only BK72XX accepts a list
+    if not CORE.is_bk72xx:
+        if multiple_pins:
+            raise cv.Invalid(
+                "ESP32 does not support multiple entries for 'wakeup_pin'",
+                path=[CONF_WAKEUP_PIN],
+            )
+    elif has_pin_mode:
+        if multiple_pins:
+            raise cv.Invalid(
+                "Remove the global 'wakeup_pin_mode' and define it per pin",
+                path=[CONF_WAKEUP_PIN_MODE],
+            )
+        if CONF_WAKEUP_PIN_MODE in (pin := wakeup_pins[0]):
+            raise cv.Invalid(
+                "Specify 'wakeup_pin_mode' either at the top level under 'deep_sleep' "
+                "or under the pin entry, not both",
+                path=[CONF_WAKEUP_PIN, 0, CONF_WAKEUP_PIN_MODE],
+            )
+        # Move the global mode into the single pin entry, which to_code() reads
+        pin[CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
     return config
 
 
@@ -215,11 +222,11 @@ def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
     if CORE.is_bk72xx:
         max_duration = core.TimePeriod(hours=36)
         if value > max_duration:
-            raise cv.Invalid("sleep duration cannot be more than 36 hours on BK72XX")
+            raise cv.Invalid("'sleep_duration' cannot be more than 36 hours on BK72XX")
     elif CORE.using_zephyr:
         max_duration = core.TimePeriod(days=49)
         if value > max_duration:
-            raise cv.Invalid("sleep duration cannot be more than 49 days on Zephyr")
+            raise cv.Invalid("'sleep_duration' cannot be more than 49 days on Zephyr")
     return value
 
 
@@ -302,7 +309,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 _validate_sleep_duration,
             ),
-            cv.Optional(CONF_WAKEUP_PIN): validate_wakeup_pin,
+            cv.Optional(CONF_WAKEUP_PIN): cv.All(
+                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
+                validate_wakeup_pin,
+            ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
                 cv.enum(WAKEUP_PIN_MODES, upper=True),
@@ -367,11 +377,10 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
-    if CONF_WAKEUP_PIN in config:
-        pins_as_list = config.get(CONF_WAKEUP_PIN, [])
+    if (wakeup_pins := config.get(CONF_WAKEUP_PIN)) is not None:
         if CORE.is_bk72xx:
-            cg.add(var.init_wakeup_pins(len(pins_as_list)))
-            for item in pins_as_list:
+            cg.add(var.init_wakeup_pins(len(wakeup_pins)))
+            for item in wakeup_pins:
                 cg.add(
                     var.add_wakeup_pin(
                         await cg.gpio_pin_expression(item[CONF_PIN]),
@@ -381,7 +390,7 @@ async def to_code(config: ConfigType) -> None:
                     )
                 )
         else:
-            pin = await cg.gpio_pin_expression(pins_as_list[0][CONF_PIN])
+            pin = await cg.gpio_pin_expression(wakeup_pins[0][CONF_PIN])
             cg.add(var.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
         cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
@@ -511,6 +520,7 @@ for _name, _call in (
     )
 
 
+DOMAIN = "deep_sleep"
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "deep_sleep_esp32.cpp": {

@@ -47,3 +47,19 @@ def test_zephyr_adc_channel_node_name_is_hex(
     assert "channel@16 {" in overlay  # A5, AN022
     assert "reg = <22>;" in overlay
     assert "channel@22 {" not in overlay
+
+
+def test_adc_default_setters_are_not_emitted(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Raw, attenuation and sampling mode matching the C++ initializers are skipped."""
+    main_cpp = generate_main("tests/component_tests/adc/test_adc_defaults.yaml")
+
+    assert "adc_defaults->set_output_raw(" not in main_cpp
+    assert "adc_defaults->set_attenuation(" not in main_cpp
+    assert "adc_defaults->set_sampling_mode(" not in main_cpp
+    assert "adc_defaults->set_sample_count(" not in main_cpp
+    assert "adc_custom->set_output_raw(true);" in main_cpp
+    assert "adc_custom->set_attenuation(ADC_ATTEN_DB_6);" in main_cpp
+    assert "adc_custom->set_sampling_mode(adc::SamplingMode::MAX);" in main_cpp
+    assert "adc_custom->set_sample_count(4);" in main_cpp

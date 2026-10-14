@@ -4,7 +4,7 @@
 
 namespace esphome::waveshare_io_ch32v003 {
 
-static const char *const TAG = "waveshare_io_ch32v003.output";
+ESPHOME_LOG_TAG(TAG, "waveshare_io_ch32v003.output");
 
 void WaveshareIOCH32V003Output::write_state(float state) {
   uint8_t pwm_value = static_cast<uint8_t>(state * 255.0f);

@@ -31,7 +31,7 @@
 
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
 static void init_usb_serial_jtag() {

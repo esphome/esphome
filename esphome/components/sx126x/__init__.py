@@ -10,6 +10,7 @@ from esphome.core import ID, TimePeriod
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
+DOMAIN = "sx126x"
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["spi"]

@@ -14,6 +14,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "socket"
 
 socket_ns = cg.esphome_ns.namespace("socket")
 Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
@@ -274,7 +275,9 @@ async def to_code(config: ConfigType) -> None:
 # consumers that called the matching require_ function.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
+        "lwip_raw_common_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "lwip_raw_tcp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
+        "lwip_raw_udp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
         "ipv4_resolve.cpp": "USE_SOCKET_IPV4_RESOLVE",

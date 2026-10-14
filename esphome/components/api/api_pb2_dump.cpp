@@ -928,6 +928,25 @@ template<> const char *proto_enum_to_string<enums::SerialProxyIdentityFlag>(enum
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+#ifdef USE_SENDSPIN
+template<>
+const char *proto_enum_to_string<enums::SendspinPairingTokenStatus>(enums::SendspinPairingTokenStatus value) {
+  switch (value) {
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_OK");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_FAILED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#endif
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HelloRequest"));
@@ -1096,6 +1115,13 @@ const char *WizardCapabilities::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_SENDSPIN
+const char *SendspinCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  return out.c_str();
+}
+#endif
 const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceCapabilitiesResponse"));
 #ifdef USE_BLUETOOTH_PROXY
@@ -1123,6 +1149,11 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_WIZARD
   out.append(2, ' ').append_p(ESPHOME_PSTR("wizard")).append(": ");
   this->wizard.dump_to(out);
+  out.append("\n");
+#endif
+#ifdef USE_SENDSPIN
+  out.append(2, ' ').append_p(ESPHOME_PSTR("sendspin")).append(": ");
+  this->sendspin.dump_to(out);
   out.append("\n");
 #endif
   return out.c_str();
@@ -2941,6 +2972,14 @@ const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsResponse"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);
   dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+#endif
+#ifdef USE_SENDSPIN
+const char *SendspinPairingTokenResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinPairingTokenResponse"));
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SendspinPairingTokenStatus>(this->status));
+  dump_field(out, ESPHOME_PSTR("token"), this->token);
   return out.c_str();
 }
 #endif

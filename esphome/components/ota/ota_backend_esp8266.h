@@ -28,6 +28,7 @@ class ESP8266OTABackend final {
   static constexpr bool requires_sha256_checksum() { return false; }
 
  protected:
+  UpdateLock lock_;
   /// Erase flash sector if current address is at sector boundary
   bool erase_sector_if_needed_();
 

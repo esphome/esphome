@@ -27,6 +27,7 @@ class HostOTABackend final {
   static constexpr bool requires_sha256_checksum() { return false; }
 
  protected:
+  UpdateLock lock_;
   md5::MD5Digest md5_{};
   std::string staging_path_;
   std::string final_path_;

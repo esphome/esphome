@@ -41,6 +41,7 @@ class ZephyrOTABackend final {
 #endif
 
  protected:
+  UpdateLock lock_;
   sha256::SHA256 sha256_{};
   size_t expected_size_{0};
   size_t bytes_written_{0};

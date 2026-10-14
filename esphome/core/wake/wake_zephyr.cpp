@@ -28,9 +28,11 @@ std::atomic<uint8_t> g_wake_requested{0};
 volatile uint8_t g_wake_requested = 0;
 #endif
 
+void wake_scheduler_threadsafe() { k_sem_give(&esphome_wake_sem); }
+
 void wake_loop_threadsafe() {
   wake_request_set();
-  k_sem_give(&esphome_wake_sem);
+  wake_scheduler_threadsafe();
 }
 
 namespace internal {

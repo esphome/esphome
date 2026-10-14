@@ -271,9 +271,11 @@ _NRFUTIL_REQUIREMENT = (
     "@7fdfe15feee5f304fb7d9b031721dcefa1f72b58"
 )
 # (dev-type, sd-req) per bootloader, from Nordic SoftDevice release notes.
+# The bootloader resets on a package whose sd_req does not list its SoftDevice,
+# so v7 accepts S140 7.0.1, 7.2.0 and 7.3.0 (e.g. Seeed XIAO nRF52840).
 _GENPKG_PARAMS = {
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
-    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA,0x0100,0x0123"),
 }
 _DFU_PACKAGE = "firmware.zip"
 

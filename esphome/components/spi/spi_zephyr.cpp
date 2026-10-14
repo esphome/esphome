@@ -5,7 +5,7 @@
 
 namespace esphome::spi {
 
-static const char *const TAG = "spi.zephyr";
+ESPHOME_LOG_TAG(TAG, "spi.zephyr");
 
 static spi_operation_t build_operation(SPIBitOrder bit_order, SPIMode mode) {
   spi_operation_t op = SPI_OP_MODE_MASTER | SPI_WORD_SET(8);

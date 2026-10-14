@@ -5,7 +5,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.switch";
+ESPHOME_LOG_TAG(TAG, "homeassistant.switch");
 
 using namespace esphome::switch_;
 

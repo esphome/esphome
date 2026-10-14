@@ -13,7 +13,7 @@ template<size_t N> static const char *lookup_str(const char *const (&table)[N], 
   return (index < N) ? table[index] : "UNKNOWN";
 }
 
-static const char *const TAG = "esp32_touch";
+ESPHOME_LOG_TAG(TAG, "esp32_touch");
 
 static constexpr uint32_t SETUP_MODE_LOG_INTERVAL_MS = 250;
 static constexpr uint32_t INITIAL_STATE_DELAY_MS = 1500;

@@ -21,6 +21,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["logger"]
+DOMAIN = "debug"
 
 CONF_DEBUG_ID = "debug_id"
 debug_ns = cg.esphome_ns.namespace("debug")

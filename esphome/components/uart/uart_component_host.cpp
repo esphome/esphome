@@ -98,7 +98,7 @@ speed_t get_baud(int baud) {
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 HostUartComponent::~HostUartComponent() {
   if (this->file_descriptor_ != -1) {
@@ -157,6 +157,8 @@ void HostUartComponent::setup() {
     case UART_CONFIG_PARITY_ODD:
       options.c_cflag |= PARENB;
       options.c_cflag |= PARODD;
+      break;
+    default:
       break;
   };
   // Set stop bits

@@ -4,7 +4,7 @@
 
 namespace esphome::hlw8032 {
 
-static const char *const TAG = "hlw8032";
+ESPHOME_LOG_TAG(TAG, "hlw8032");
 
 static constexpr uint8_t STATE_REG_OFFSET = 0;
 static constexpr uint8_t VOLTAGE_PARAM_OFFSET = 2;

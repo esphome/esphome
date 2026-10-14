@@ -8,7 +8,7 @@
 
 namespace esphome::tcp_uart {
 
-static const char *const TAG = "tcp_uart";
+ESPHOME_LOG_TAG(TAG, "tcp_uart");
 
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 

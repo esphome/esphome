@@ -7,7 +7,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 void ZephyrUartComponent::uart_irq_handler_s(const struct device *dev, void *user_data) {
   static_cast<ZephyrUartComponent *>(user_data)->uart_irq_handler_();

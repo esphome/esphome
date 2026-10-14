@@ -119,6 +119,7 @@ from .variants import (
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@tomaszduda23", "@rwrozelle"]
+DOMAIN = "zephyr"
 IS_TARGET_PLATFORM = True
 AUTO_LOAD = ["preferences"]
 

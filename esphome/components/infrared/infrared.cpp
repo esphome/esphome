@@ -4,7 +4,7 @@
 
 namespace esphome::infrared {
 
-static const char *const TAG = "infrared";
+ESPHOME_LOG_TAG(TAG, "infrared");
 
 void Infrared::dump_config() {
   ESP_LOGCONFIG(TAG,

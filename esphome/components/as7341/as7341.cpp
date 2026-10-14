@@ -4,7 +4,7 @@
 
 namespace esphome::as7341 {
 
-static const char *const TAG = "as7341";
+ESPHOME_LOG_TAG(TAG, "as7341");
 
 void AS7341Component::setup() {
   LOG_I2C_DEVICE(this);

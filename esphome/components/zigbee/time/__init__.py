@@ -14,6 +14,7 @@ from ..zigbee_zephyr import (
     ZigbeeClusterDesc,
     ZigbeeComponent,
     get_slot_index,
+    zigbee_assign,
     zigbee_new_attr_list,
     zigbee_new_cluster_list,
     zigbee_new_variable,
@@ -83,6 +84,7 @@ async def _add_time_zephyr(config: ConfigType) -> None:
 
     # Create the binary attributes structure
     time_attrs = zigbee_new_variable(attrs_name, "zb_zcl_time_attrs_t")
+    zigbee_assign(time_attrs.time, cg.RawExpression("ZB_ZCL_TIME_TIME_INVALID_VALUE"))
     attr_list = zigbee_new_attr_list(
         attr_list_name,
         "ZB_ZCL_DECLARE_TIME_ATTR_LIST",

@@ -40,7 +40,7 @@ namespace esphome::ota {
 
 namespace {
 
-const char *const TAG = "ota.zephyr";
+ESPHOME_LOG_TAG(TAG, "ota.zephyr");
 
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
 constexpr size_t MAX_OTA_SIZE = 256u * 1024u * 1024u;  // 256 MiB
@@ -152,6 +152,8 @@ void ZephyrOTABackend::set_update_sha256(const char *sha256) {
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
 
 OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
   if (ota_type != OTA_TYPE_UPDATE_APP)
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   if (image_size > MAX_OTA_SIZE) {
@@ -266,10 +268,13 @@ OTAResponseTypes ZephyrOTABackend::end() {
   zephyr::arm_reexec(this->final_path_);
   this->staging_path_.clear();
   ESP_LOGI(TAG, "OTA staged at %s; will re-exec on reboot", this->final_path_.c_str());
+  this->lock_.hold_until_reboot();
   return OTA_RESPONSE_OK;
 }
 
 void ZephyrOTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin()
+    return;
   if (this->fd_ >= 0) {
     ::close(this->fd_);
     this->fd_ = -1;
@@ -298,6 +303,8 @@ bool ZephyrOTABackend::active_slot_is_secondary() const {
 // whichever slot has the higher version in place, so the target must be whichever
 // slot ISN'T currently executing (see active_slot_is_secondary()).
 OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
   if (ota_type != OTA_TYPE_UPDATE_APP)
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
 
@@ -391,10 +398,13 @@ OTAResponseTypes ZephyrOTABackend::end() {
   }
 
   ESP_LOGI(TAG, "OTA staged; will boot new image on reboot");
+  this->lock_.hold_until_reboot();
   return OTA_RESPONSE_OK;
 }
 
 void ZephyrOTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin()
+    return;
   // No explicit cancel API: as long as boot_request_upgrade() was never reached, MCUboot
   // never sees a pending-swap trailer, so a partially-written image is just ignored on
   // next boot -- same trust model as esp_idf's esp_ota_abort().

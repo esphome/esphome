@@ -9,7 +9,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.button";
+ESPHOME_LOG_TAG(TAG, "homeassistant.button");
 
 void HomeassistantButton::dump_config() {
   LOG_BUTTON("", "Homeassistant Button", this);

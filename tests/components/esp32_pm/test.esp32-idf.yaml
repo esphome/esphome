@@ -1,7 +1,0 @@
-substitutions:
-  max_frequency: 160MHZ
-  min_frequency: 40MHZ
-  power_down_peripherals: false
-
-packages:
-  esp32_pm: !include common.yaml

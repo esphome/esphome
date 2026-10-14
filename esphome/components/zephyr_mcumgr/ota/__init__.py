@@ -25,6 +25,7 @@ from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
     KEY_FRAMEWORK_TYPE,
+    KEY_PM_STATIC,
     KEY_SYSBUILD,
     ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_NRF52,
@@ -224,13 +225,14 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("MCUMGR_MGMT_NOTIFICATION_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK", True)
+    # OS management group (reset, MCUMGR_PARAMETERS query, etc.) isn't transport-specific --
+    # every mcumgr transport needs it, not just BLE.
+    zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
+    zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
     transport = config[CONF_TRANSPORT]
     if transport[CONF_BLE]:
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
-
-        zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
-        zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         # NCS-only sample Kconfig (undefined in mainline Zephyr -- EFR32MG24 is the
         # first supported variant that isn't NCS-based, and mainline treats an
@@ -309,10 +311,12 @@ async def to_code(config: ConfigType) -> None:
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:
-        sections = BOOTLOADER_CONFIG[bootloader]
-        # Derive partition addresses from the SoftDevice and bootloader sections so
-        # that the DTS flash map matches what the Partition Manager produces:
+        # Derive partition addresses from the SoftDevice and bootloader sections
+        # registered with the Partition Manager (moved in testing mode) so that
+        # the DTS flash map matches what it produces:
         #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
+        # platform: zephyr's nrf52 variant never registers PM static sections
+        sections = zephyr_data()[KEY_PM_STATIC] or BOOTLOADER_CONFIG[bootloader]
         mcuboot_size = 0x9000
         sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
         bl_start = next(s.address for s in sections if "Adafruit" in s.name)

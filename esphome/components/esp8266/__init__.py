@@ -53,6 +53,7 @@ from .const import (
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
+    THROW_STUBS_HEADER,
     enable_serial,
     enable_serial1,
     esp8266_ns,
@@ -70,6 +71,7 @@ CONF_ENABLE_SCANF_FLOAT = "enable_scanf_float"
 _SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "esp8266"
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
@@ -442,6 +444,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
     cg.add_build_flag("-Wno-nonnull-compare")
+    # .rodata is linked into RAM on ESP8266; keep switch lookup tables (CSWTCH) out of it
+    cg.add_build_flag("-fno-tree-switch-conversion")
     if use_platformio:
         cg.add_platformio_option("framework", "arduino")
         cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
@@ -477,11 +481,9 @@ async def to_code(config: ConfigType) -> None:
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
-    # See throw_stubs.h. Unconditional: the native build generator reads
-    # the same option, keeping one source of truth.
-    cg.add_platformio_option(
-        "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
-    )
+    # See throw_stubs.h. The native build generator reads this option, also
+    # passes it to the core and libraries, and drops it with exceptions on.
+    cg.add_platformio_option("build_src_flags", f"-include {THROW_STUBS_HEADER}")
 
     # In testing mode, fake larger memory to allow linking grouped component tests
     # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing

@@ -17,6 +17,7 @@ CONF_XL9535 = "xl9535"
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@mreditor97"]
+DOMAIN = "xl9535"
 
 xl9535_ns = cg.esphome_ns.namespace(CONF_XL9535)
 
