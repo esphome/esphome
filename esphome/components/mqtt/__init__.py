@@ -40,7 +40,7 @@ from esphome.const import (
     CONF_LEVEL,
     CONF_LOG_TOPIC,
     CONF_MODE_COMMAND_TOPIC,
-    CONF_MQTT,
+    CONF_MQTT as CONF_MQTT,
     CONF_MQTT_ID,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
@@ -326,93 +326,93 @@ CONFIG_SCHEMA = cv.All(
 # topic is longer than this (its default maxTopicLength)
 ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN = 128
 # name_add_mac_suffix appends "-" plus 6 hex digits to the name at runtime
-MAC_SUFFIX_LEN = 7
-# Entity domains whose MQTT component always subscribes to a command topic:
-# the topic suffix, and the config key that replaces the whole topic
-_COMMAND_TOPICS = {
-    "alarm_control_panel": ("command", CONF_COMMAND_TOPIC),
-    "button": ("command", CONF_COMMAND_TOPIC),
-    "climate": ("mode/command", CONF_MODE_COMMAND_TOPIC),
-    "cover": ("command", CONF_COMMAND_TOPIC),
-    "datetime": ("command", CONF_COMMAND_TOPIC),
-    "fan": ("command", CONF_COMMAND_TOPIC),
-    "light": ("command", CONF_COMMAND_TOPIC),
-    "lock": ("command", CONF_COMMAND_TOPIC),
-    "number": ("command", CONF_COMMAND_TOPIC),
-    "select": ("command", CONF_COMMAND_TOPIC),
-    "switch": ("command", CONF_COMMAND_TOPIC),
-    "text": ("command", CONF_COMMAND_TOPIC),
-    "update": ("command", CONF_COMMAND_TOPIC),
-    "valve": ("command", CONF_COMMAND_TOPIC),
-}
+MAC_SUFFIX = "-xxxxxx"
+# Entity domains whose MQTT component always subscribes to its command topic
+_COMMAND_TOPIC_DOMAINS = (
+    "alarm_control_panel",
+    "button",
+    "climate",
+    "cover",
+    "datetime",
+    "fan",
+    "light",
+    "lock",
+    "number",
+    "select",
+    "switch",
+    "text",
+    "update",
+    "valve",
+)
 
 
 def _entity_command_topic(
     domain: str, config: ConfigType, topic_prefix: str, mac_suffix: bool
 ) -> str | None:
-    """Return the topic an entity's MQTT component subscribes to, None if it does not."""
-    suffix, custom_key = _COMMAND_TOPICS[domain]
+    """Return the topic an entity's MQTT component always subscribes to, if known."""
+    if domain == "climate":
+        suffix, custom_key = "mode/command", CONF_MODE_COMMAND_TOPIC
+    else:
+        suffix, custom_key = "command", CONF_COMMAND_TOPIC
     if (custom := config.get(custom_key)) is not None:
         # A lambda topic is only known at runtime
-        return custom if isinstance(custom, str) and custom else None
+        return custom if isinstance(custom, str) else None
     # Mirrors MQTTComponent::compute_is_internal_(): internal components never subscribe
-    if (state_topic := config.get(CONF_STATE_TOPIC)) is not None:
-        internal = state_topic == ""
+    if CONF_STATE_TOPIC in config:
+        internal = config[CONF_STATE_TOPIC] == ""
     else:
         internal = config.get(CONF_INTERNAL, False)
-    if internal or not topic_prefix:
+    if internal:
         return None
     device = config.get(CONF_DEVICE_ID)
     object_id = get_base_entity_object_id(
         config.get(CONF_NAME) or "", CORE.friendly_name, device.id if device else None
     )
     if mac_suffix and not config.get(CONF_NAME):
-        object_id += "_" * MAC_SUFFIX_LEN
+        object_id += MAC_SUFFIX
     component_type = config[CONF_TYPE].lower() if domain == "datetime" else domain
     return f"{topic_prefix}/{component_type}/{object_id}/{suffix}"
 
 
-def _subscribed_topics(config: ConfigType) -> Iterator[tuple[list, str]]:
-    """Yield the path and topic of every subscription whose topic is known at build time."""
+def _subscribed_topics(config: ConfigType) -> Iterator[str]:
+    """Yield every subscribed topic that is known at build time."""
     full_config = fv.full_config.get()
     mac_suffix = full_config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
-    topic_prefix = config[CONF_TOPIC_PREFIX]
-    if mac_suffix and topic_prefix == CORE.name:
-        topic_prefix += "-" * MAC_SUFFIX_LEN
-    for domain in _COMMAND_TOPICS:
-        for index, entity in enumerate(full_config.get(domain) or []):
-            if CONF_MQTT_ID in entity and (
-                topic := _entity_command_topic(domain, entity, topic_prefix, mac_suffix)
-            ):
-                yield [domain, index], topic
+    if topic_prefix := config[CONF_TOPIC_PREFIX]:
+        if mac_suffix and topic_prefix == CORE.name:
+            topic_prefix += MAC_SUFFIX
+        for domain in _COMMAND_TOPIC_DOMAINS:
+            for entity in full_config.get(domain) or []:
+                if CONF_MQTT_ID in entity and (
+                    topic := _entity_command_topic(
+                        domain, entity, topic_prefix, mac_suffix
+                    )
+                ):
+                    yield topic
     for key in (CONF_ON_MESSAGE, CONF_ON_JSON_MESSAGE):
-        for index, trigger in enumerate(config.get(key, [])):
-            yield [CONF_MQTT, key, index, CONF_TOPIC], trigger[CONF_TOPIC]
+        for trigger in config.get(key, []):
+            yield trigger[CONF_TOPIC]
     for domain in ("sensor", "text_sensor"):
-        for index, entity in enumerate(full_config.get(domain) or []):
+        for entity in full_config.get(domain) or []:
             if entity[CONF_PLATFORM] == "mqtt_subscribe":
-                yield [domain, index, CONF_TOPIC], entity[CONF_TOPIC]
+                yield entity[CONF_TOPIC]
 
 
 def _validate_topic_lengths(config: ConfigType) -> ConfigType:
     """Reject topics that the ESP8266 and LibreTiny MQTT client would silently drop."""
     if not (CORE.is_esp8266 or CORE.is_libretiny):
         return config
-    for path, topic in _subscribed_topics(config):
+    for topic in _subscribed_topics(config):
         # A wildcard filter matches topics of any length, so only literals are checked
         if (
-            "+" in topic
-            or "#" in topic
-            or len(topic) <= ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN
+            len(topic) > ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN
+            and "+" not in topic
+            and "#" not in topic
         ):
-            continue
-        raise cv.Invalid(
-            f"MQTT topic '{topic}' is {len(topic)} characters, but the MQTT client on "
-            f"this platform drops messages whose topic is longer than "
-            f"{ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN}, so they would never arrive. Use a "
-            f"shorter entity name or topic_prefix, or set a shorter command topic.",
-            path=path,
-        )
+            raise cv.Invalid(
+                f"MQTT topic '{topic}' is {len(topic)} characters; the MQTT client on "
+                f"this platform drops topics longer than {ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN}"
+            )
     return config
 
 

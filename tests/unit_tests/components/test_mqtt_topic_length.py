@@ -25,6 +25,11 @@ from esphome.types import ConfigType
 # "dev/switch/<object_id>/command" is 19 characters around the object id
 FITS = "a" * (ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN - 19)
 TOO_LONG = FITS + "a"
+LONG_LITERAL = "t" * (ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN + 1)
+
+
+def _switch(name: str, **extra) -> dict:
+    return {"switch": [{CONF_NAME: name, CONF_MQTT_ID: "mqtt_switch", **extra}]}
 
 
 def _run(
@@ -37,86 +42,99 @@ def _run(
     monkeypatch.setattr(CORE, "name", "dev")
     monkeypatch.setattr(CORE, "friendly_name", None)
     config = {"topic_prefix": "dev", **(mqtt or {})}
-    full_config = {CONF_ESPHOME: {}, **full_config}
-    token = fv.full_config.set(full_config)
+    token = fv.full_config.set({CONF_ESPHOME: {}, **full_config})
     try:
         return _validate_topic_lengths(config)
     finally:
         fv.full_config.reset(token)
 
 
-def _switch(name: str, **extra) -> dict:
-    return {CONF_NAME: name, CONF_MQTT_ID: "mqtt_switch", **extra}
-
-
-def test_command_topic_at_the_limit_passes(monkeypatch: pytest.MonkeyPatch) -> None:
-    _run(monkeypatch, {"switch": [_switch(FITS)]})
-
-
-def test_command_topic_over_the_limit_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    with pytest.raises(cv.Invalid, match="129 characters"):
-        _run(monkeypatch, {"switch": [_switch(TOO_LONG)]})
-
-
-def test_libretiny_is_checked(monkeypatch: pytest.MonkeyPatch) -> None:
-    with pytest.raises(cv.Invalid):
-        _run(monkeypatch, {"switch": [_switch(TOO_LONG)]}, platform=PLATFORM_BK72XX)
-
-
-def test_esp32_is_not_checked(monkeypatch: pytest.MonkeyPatch) -> None:
-    _run(monkeypatch, {"switch": [_switch(TOO_LONG)]}, platform=PLATFORM_ESP32)
-
-
-def test_mac_suffix_counts(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The default topic_prefix gains a MAC suffix at runtime."""
-    with pytest.raises(cv.Invalid):
-        _run(
-            monkeypatch,
+@pytest.mark.parametrize(
+    ("full_config", "mqtt", "platform"),
+    [
+        pytest.param(_switch(TOO_LONG), None, PLATFORM_ESP8266, id="command_topic"),
+        pytest.param(_switch(TOO_LONG), None, PLATFORM_BK72XX, id="libretiny"),
+        pytest.param(
+            {CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True}, **_switch(FITS)},
+            None,
+            PLATFORM_ESP8266,
+            id="mac_suffix",
+        ),
+        pytest.param(
+            _switch("s", command_topic=LONG_LITERAL),
+            None,
+            PLATFORM_ESP8266,
+            id="custom_command_topic",
+        ),
+        pytest.param(
             {
-                CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True},
-                "switch": [_switch(FITS)],
+                "climate": [
+                    # "dev/climate/<object_id>/mode/command" is 25 characters around it
+                    {CONF_NAME: "a" * 104, CONF_MQTT_ID: "mqtt_climate"}
+                ]
             },
-        )
-
-
-def test_custom_command_topic_replaces_the_default(
-    monkeypatch: pytest.MonkeyPatch,
+            None,
+            PLATFORM_ESP8266,
+            id="climate_mode_command",
+        ),
+        pytest.param(
+            {},
+            {"on_message": [{"topic": LONG_LITERAL}]},
+            PLATFORM_ESP8266,
+            id="trigger",
+        ),
+        pytest.param(
+            {"sensor": [{"platform": "mqtt_subscribe", "topic": LONG_LITERAL}]},
+            None,
+            PLATFORM_ESP8266,
+            id="mqtt_subscribe",
+        ),
+    ],
+)
+def test_rejected(
+    monkeypatch: pytest.MonkeyPatch, full_config: dict, mqtt: dict | None, platform: str
 ) -> None:
-    _run(monkeypatch, {"switch": [_switch(TOO_LONG, command_topic="short/cmd")]})
-    with pytest.raises(cv.Invalid):
-        _run(monkeypatch, {"switch": [_switch("s", command_topic="x" * 129)]})
+    with pytest.raises(cv.Invalid, match="characters"):
+        _run(monkeypatch, full_config, mqtt, platform)
 
 
-def test_lambda_command_topic_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
-    lam = Lambda('return "x";')
-    _run(monkeypatch, {"switch": [_switch(TOO_LONG, command_topic=lam)]})
+@pytest.mark.parametrize(
+    ("full_config", "mqtt", "platform"),
+    [
+        pytest.param(_switch(FITS), None, PLATFORM_ESP8266, id="at_the_limit"),
+        pytest.param(_switch(TOO_LONG), None, PLATFORM_ESP32, id="esp32"),
+        pytest.param(
+            _switch(TOO_LONG, command_topic="short/cmd"),
+            None,
+            PLATFORM_ESP8266,
+            id="short_custom_topic",
+        ),
+        pytest.param(
+            _switch(TOO_LONG, command_topic=Lambda('return "x";')),
+            None,
+            PLATFORM_ESP8266,
+            id="lambda_topic",
+        ),
+        pytest.param(
+            _switch(TOO_LONG, internal=True), None, PLATFORM_ESP8266, id="internal"
+        ),
+        pytest.param(
+            {"switch": [{CONF_NAME: TOO_LONG}]}, None, PLATFORM_ESP8266, id="no_mqtt"
+        ),
+        pytest.param(
+            {},
+            {"on_message": [{"topic": LONG_LITERAL + "/#"}]},
+            PLATFORM_ESP8266,
+            id="wildcard",
+        ),
+    ],
+)
+def test_accepted(
+    monkeypatch: pytest.MonkeyPatch, full_config: dict, mqtt: dict | None, platform: str
+) -> None:
+    _run(monkeypatch, full_config, mqtt, platform)
 
 
-def test_internal_entity_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
-    _run(monkeypatch, {"switch": [_switch(TOO_LONG, internal=True)]})
-
-
-def test_entity_without_mqtt_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
-    _run(monkeypatch, {"switch": [{CONF_NAME: TOO_LONG}]})
-
-
-def test_climate_uses_mode_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    # "dev/climate/<object_id>/mode/command" is 25 characters around the object id
-    name = "a" * (ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN - 24)
-    climate = {CONF_NAME: name, CONF_MQTT_ID: "mqtt_climate"}
-    with pytest.raises(cv.Invalid):
-        _run(monkeypatch, {"climate": [climate]})
-
-
-def test_trigger_and_mqtt_subscribe_literals(monkeypatch: pytest.MonkeyPatch) -> None:
-    with pytest.raises(cv.Invalid):
-        _run(monkeypatch, {}, mqtt={"on_message": [{"topic": "t" * 129}]})
-    with pytest.raises(cv.Invalid):
-        _run(
-            monkeypatch,
-            {"sensor": [{"platform": "mqtt_subscribe", "topic": "t" * 129}]},
-        )
-
-
-def test_wildcards_are_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
-    _run(monkeypatch, {}, mqtt={"on_message": [{"topic": "t" * 129 + "/#"}]})
+def test_message_names_the_topic_and_length(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(cv.Invalid, match=rf"'dev/switch/{TOO_LONG}/command' is 129"):
+        _run(monkeypatch, _switch(TOO_LONG))
