@@ -229,6 +229,14 @@ WiFiConfigureAction = wifi_ns.class_(
 )
 
 
+def _validate_dpp_device_info(value: object) -> str:
+    """The supplicant puts the text on a space separated command line and reads it up to the next space."""
+    value = cv.string_strict(value)
+    if any(c.isspace() for c in value):
+        raise cv.Invalid("device_info cannot contain whitespace")
+    return value
+
+
 def validate_password(value):
     value = cv.string_strict(value)
     if not value:
@@ -299,7 +307,7 @@ EAP_AUTH_SCHEMA = cv.All(
 DPP_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(cv.string_strict),
-        cv.Optional(CONF_DEVICE_INFO): cv.string_strict,
+        cv.Optional(CONF_DEVICE_INFO): _validate_dpp_device_info,
         cv.Optional(CONF_CHANNELS, default=[6]): cv.ensure_list(
             cv.int_range(min=1, max=14)
         ),

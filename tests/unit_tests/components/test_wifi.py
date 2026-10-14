@@ -4,10 +4,12 @@ import pytest
 
 from esphome.components.esp32 import const
 from esphome.components.wifi import (
+    _validate_dpp_device_info,
     check_placeholder_credentials,
     has_native_wifi,
     variant_has_wifi,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_NETWORKS,
@@ -197,3 +199,11 @@ def test_check_placeholder_credentials_skips_template_ssid() -> None:
     """A templated (Lambda) SSID is not a string and is skipped."""
     config = _wifi_config(networks=[{CONF_SSID: Lambda('return "x";')}])
     assert check_placeholder_credentials(config) is None
+
+
+@pytest.mark.parametrize("info", ["ESPHome bench", "a\tb", " x"])
+def test_dpp_device_info_rejects_whitespace(info: str) -> None:
+    """The supplicant reads the text up to the first space."""
+    with pytest.raises(cv.Invalid, match="whitespace"):
+        _validate_dpp_device_info(info)
+    assert _validate_dpp_device_info("bench-01") == "bench-01"

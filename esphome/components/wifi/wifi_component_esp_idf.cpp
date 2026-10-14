@@ -412,6 +412,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
+#ifdef USE_WIFI_DPP
+  // A connect attempt ends the supplicant's listen; loop() starts it again once the attempt has failed
+  this->stop_dpp_listen_();
+#endif
 
   // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
   wifi_config_t conf;
