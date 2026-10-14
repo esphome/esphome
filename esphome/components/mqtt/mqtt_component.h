@@ -21,23 +21,12 @@ struct SendDiscoveryConfig {
   bool command_topic{true};  ///< If the command topic should be included. Default to true.
 };
 
-// Max lengths for stack-based topic building.
-// These limits are enforced at Python config validation time in mqtt/__init__.py
-// using cv.Length() validators for topic_prefix and discovery_prefix.
-// This ensures the stack buffers are always large enough.
-static constexpr size_t MQTT_COMPONENT_TYPE_MAX_LEN = 20;
-static constexpr size_t MQTT_SUFFIX_MAX_LEN = 32;
-static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
-// Stack buffer size - safe because all inputs are length-validated at config time
-// Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
-static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
-    MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
-static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
-// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
-static constexpr size_t MQTT_DISCOVERY_TOPIC_MAX_LEN = MQTT_DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN +
-                                                       1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
-
 class MQTTComponent;  // Forward declaration
+
+/// The class a `get_*_topic_to` getter belongs to, for topic_source_().
+template<typename T> struct MemberClass;
+template<typename C, typename R, typename... A> struct MemberClass<R (C::*)(A...) const> { using type = C; };
+
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
 
 #define LOG_MQTT_COMPONENT(state_topic, command_topic) log_mqtt_component(TAG, this, state_topic, command_topic)
@@ -63,6 +52,10 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
     if (!this->custom_##name##_##type##_topic_.empty()) \
       return StringRef(this->custom_##name##_##type##_topic_.data(), this->custom_##name##_##type##_topic_.size()); \
     return this->get_default_topic_for_to_(buf, #name "/" #type, sizeof(#name "/" #type) - 1); \
+  } \
+  MQTTTopicSource get_##name##_##type##_topic_source() const { \
+    using Self = std::remove_cvref_t<decltype(*this)>; \
+    return this->topic_source_<&Self::get_##name##_##type##_topic_to>(); \
   } \
   std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
@@ -255,25 +248,25 @@ class MQTTComponent : public Component {
 
   /** Subscribe to a MQTT topic.
    *
-   * @param topic The topic. Wildcards are currently not supported.
+   * @param topic The topic: an MQTTTopicSource, or a string that is copied to the heap.
    * @param callback The callback that will be called when a message with matching topic is received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  template<typename F> void subscribe(std::string topic, F &&callback, uint8_t qos = 0) {
-    global_mqtt_client->subscribe(std::move(topic), std::forward<F>(callback), qos);
+  template<typename T, typename F> void subscribe(T &&topic, F &&callback, uint8_t qos = 0) {
+    global_mqtt_client->subscribe(std::forward<T>(topic), std::forward<F>(callback), qos);
   }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
    * If an invalid JSON payload is received, the callback will not be called.
    *
-   * @param topic The topic. Wildcards are currently not supported.
+   * @param topic The topic: an MQTTTopicSource, or a string that is copied to the heap.
    * @param callback The callback with a parsed JsonObject that will be called when a message with matching topic is
    * received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  template<typename F> void subscribe_json(std::string topic, F &&callback, uint8_t qos = 0) {
-    global_mqtt_client->subscribe_json(std::move(topic), std::forward<F>(callback), qos);
+  template<typename T, typename F> void subscribe_json(T &&topic, F &&callback, uint8_t qos = 0) {
+    global_mqtt_client->subscribe_json(std::forward<T>(topic), std::forward<F>(callback), qos);
   }
 
  protected:
@@ -322,6 +315,18 @@ class MQTTComponent : public Component {
   /// @param buf Buffer of exactly MQTT_DEFAULT_TOPIC_MAX_LEN bytes.
   /// @return StringRef pointing to the topic in the buffer.
   StringRef get_command_topic_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const;
+
+  /// The command topic as a subscription source. A lambda topic is read once and copied, as it may change.
+  MQTTTopicSource command_topic_source_() const;
+
+  /// A topic built by one of this component's `get_*_topic_to` getters, rebuilt when needed.
+  template<auto Getter> MQTTTopicSource topic_source_() const {
+    using C = typename MemberClass<decltype(Getter)>::type;
+    return {[](const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
+              return (static_cast<const C *>(context)->*Getter)(buf);
+            },
+            static_cast<const C *>(this)};
+  }
 
   /// Get the MQTT topic that new states will be shared to (allocates std::string).
   std::string get_state_topic_() const;

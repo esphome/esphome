@@ -114,6 +114,17 @@ MQTT_MESSAGE_SCHEMA = cv.Any(
 )
 
 mqtt_ns = cg.esphome_ns.namespace("mqtt")
+# Size of the stack buffer topics are built into, MQTT_DEFAULT_TOPIC_MAX_LEN in mqtt_client.h
+MQTT_DEFAULT_TOPIC_MAX_LEN = 248
+
+
+def _topic_source(topic: str) -> cg.MockObj:
+    # On ESP8266 a topic that fits the buffer stays in flash and is copied out when needed
+    if CORE.is_esp8266 and len(topic.encode()) < MQTT_DEFAULT_TOPIC_MAX_LEN:
+        return mqtt_ns.progmem_topic(cg.FlashStringLiteral(topic))
+    return mqtt_ns.static_topic(topic)
+
+
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
@@ -460,9 +471,7 @@ async def to_code(config):
                 ((CONF_PAYLOAD, cg.std_string, automation.string_ref_literal),),
             ),
         )
-        cg.add(
-            var.subscribe(cg.progmem_string(conf[CONF_TOPIC]), callback, conf[CONF_QOS])
-        )
+        cg.add(var.subscribe(_topic_source(conf[CONF_TOPIC]), callback, conf[CONF_QOS]))
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
         callback = await automation.build_trigger_callback(
@@ -473,7 +482,7 @@ async def to_code(config):
         )
         cg.add(
             var.subscribe_json(
-                cg.progmem_string(conf[CONF_TOPIC]), callback, conf[CONF_QOS]
+                _topic_source(conf[CONF_TOPIC]), callback, conf[CONF_QOS]
             )
         )
 
