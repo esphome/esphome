@@ -43,10 +43,13 @@ class Frame {
   /// The bytes after the header, starting with the opcode
   std::span<const uint8_t> payload() const { return this->bytes().subspan(1); }
   ESPHOME_ALWAYS_INLINE void clear() { this->size_ = 0; }
-  ESPHOME_ALWAYS_INLINE void push_back(uint8_t data) {
-    if (this->size_ < MAX_LENGTH) {
-      this->data_[this->size_++] = data;
+  /// False when the frame is full already; the bus allows no more
+  ESPHOME_ALWAYS_INLINE bool push_back(uint8_t data) {
+    if (this->size_ == MAX_LENGTH) {
+      return false;
     }
+    this->data_[this->size_++] = data;
+    return true;
   }
 
  protected:
@@ -86,6 +89,9 @@ template<size_t SIZE> class FrameRingBuffer {
 /// passes, because one transmission keeps the CPU for up to 400 ms and may have to be repeated.
 class CECTransmit {
  public:
+  static constexpr uint32_t TOTAL_BIT_US = 2400;
+  static constexpr uint32_t SIGNAL_FREE_TIME_NEW_INITIATOR = TOTAL_BIT_US * 5;
+
   void setup(ISRInternalGPIOPin isr_pin);
   ISRInternalGPIOPin isr_pin() const { return this->isr_pin_; }
   bool queue_for_send(uint8_t source, uint8_t destination, std::span<const uint8_t> payload);
@@ -107,6 +113,8 @@ class CECTransmit {
   }
   /// Drive the frame onto the line; false when another initiator sent at the same time
   bool transmit_frame_(const Frame *frame);
+  /// Keep the frame for another attempt, or drop it once the attempts are used up
+  void finish_attempt_(bool sent_ok);
   bool send_start_bit_();
   void send_bit_(bool bit_value);
   bool send_high_and_test_();
@@ -115,7 +123,8 @@ class CECTransmit {
   FrameRingBuffer<SEND_QUEUE_SIZE> send_queue_;
   ISRInternalGPIOPin isr_pin_;
   std::atomic<uint32_t> last_edge_us_{0};  // the bus is busy until this is some time ago
-  uint32_t required_idle_period_{0};
+  uint32_t last_attempt_us_{0};            // a refused start bit drives no edge, so it is timed here
+  uint32_t required_idle_period_{SIGNAL_FREE_TIME_NEW_INITIATOR};
   uint8_t transmit_attempts_{0};
   uint8_t n_bytes_received_{0};
   uint8_t n_acks_received_{0};
@@ -135,6 +144,8 @@ class CECReceive {
   bool get_monitor_mode() const { return this->monitor_mode_; }
   const Frame *next_frame() { return this->frames_queue_.front(); }
   void pop_frame() { this->frames_queue_.pop_front(); }
+  /// Frames lost because the queue was full, since the last call
+  uint8_t take_dropped_frames();
 
  protected:
   enum class ReceiverState : uint8_t {
@@ -156,6 +167,8 @@ class CECReceive {
   ISRInternalGPIOPin isr_pin_;
   Frame *recv_frame_buffer_{nullptr};
   uint32_t last_falling_edge_us_{0};
+  std::atomic<uint8_t> dropped_frames_{0};  // written by the interrupt only
+  uint8_t reported_dropped_frames_{0};
   uint8_t address_;
   uint8_t recv_bit_counter_{0};
   uint8_t recv_byte_buffer_{0};

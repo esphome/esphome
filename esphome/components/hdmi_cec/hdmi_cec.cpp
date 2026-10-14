@@ -15,8 +15,8 @@ static constexpr uint32_t HIGH_BIT_MIN_US = 400;  // shortest low period of a lo
 static constexpr uint32_t HIGH_BIT_US = 600;      // nominal low period of a logical 1
 static constexpr uint32_t LOW_BIT_US = 1500;      // nominal low period of a logical 0
 static constexpr uint32_t SAFE_SAMPLE_US = 1050;  // the line is sampled here; a longer low period is a logical 0
-static constexpr uint32_t TOTAL_BIT_US = 2400;
-static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_RECEIVE = TOTAL_BIT_US * 5;
+static constexpr uint32_t TOTAL_BIT_US = CECTransmit::TOTAL_BIT_US;
+static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_RECEIVE = CECTransmit::SIGNAL_FREE_TIME_NEW_INITIATOR;
 static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_FAIL = TOTAL_BIT_US * 3;
 static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = TOTAL_BIT_US * 7;
 static constexpr uint32_t ABORTED_FRAME_US = TOTAL_BIT_US * 15;  // no edge for this long: our frame was cut short
@@ -49,6 +49,10 @@ void HDMICEC::dump_config() {
 }
 
 void HDMICEC::loop() {
+  if (const uint8_t dropped = this->recv_.take_dropped_frames(); dropped != 0) {
+    ESP_LOGW(TAG, "%u received frame%s dropped, queue full", dropped,
+             dropped > 1 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(""));
+  }
   // One inbound frame per pass keeps the time spent in the automations bounded
   if (const Frame *frame = this->recv_.next_frame()) {
 #ifdef ESPHOME_LOG_HAS_DEBUG
@@ -70,7 +74,11 @@ void HDMICEC::loop() {
 
 bool HDMICEC::send(uint8_t source, uint8_t destination, std::span<const uint8_t> payload) {
   if (this->recv_.get_monitor_mode()) {
-    // Monitor mode shows no presence on the bus
+    ESP_LOGW(TAG, "Monitor mode, not sending 0x%X->0x%X", source, destination);
+    return false;
+  }
+  if (source > 0xf || destination > 0xf) {
+    ESP_LOGE(TAG, "Send abort: logical address 0x%X->0x%X out of range", source, destination);
     return false;
   }
   if (payload.size() > Frame::MAX_PAYLOAD_LENGTH) {
@@ -124,23 +132,18 @@ void CECTransmit::transmit_message() {
     } else {
       ESP_LOGD(TAG, "Send frame not acknowledged on attempt %u", this->transmit_attempts_);
     }
-    this->required_idle_period_ = sent_ok ? SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS : SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
-    if (!sent_ok && this->transmit_attempts_ < MAX_ATTEMPTS) {
-      return;  // the signal free time has to pass before the retry
-    }
-    if (!sent_ok) {
-      ESP_LOGD(TAG, "Frame not sent after %u attempts, dropped", this->transmit_attempts_);
-    }
-    this->transmit_attempts_ = 0;
-    this->send_queue_.pop_front();
+    this->finish_attempt_(sent_ok);
   }
 
   const Frame *frame = this->send_queue_.front();
-  // An edge within the signal free time means the bus is in use or not yet free for us
-  if (frame == nullptr || since_last_edge < this->required_idle_period_) {
+  // An edge within the signal free time means the bus is in use or not yet free for us; a start
+  // bit refused by a held line drives no edge, so that attempt is timed on its own
+  if (frame == nullptr || since_last_edge < this->required_idle_period_ ||
+      now - this->last_attempt_us_ < this->required_idle_period_) {
     return;
   }
 
+  this->last_attempt_us_ = now;
   this->transmit_attempts_++;
 #ifdef ESPHOME_LOG_HAS_DEBUG
   if (this->transmit_attempts_ == 1) {
@@ -154,12 +157,23 @@ void CECTransmit::transmit_message() {
   atomic_set(this->eom_received_, false);
   this->transmitting_ = true;
   if (!this->transmit_frame_(frame)) {
-    // Another initiator sent at the same time; the interrupt saw our edges, so the signal free
-    // time counts from now
-    this->required_idle_period_ = SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
+    // The line was held, or another initiator sent at the same time
     this->transmitting_ = false;
+    this->finish_attempt_(false);
   }
   // Otherwise the acknowledge result arrives through the receive interrupt
+}
+
+void CECTransmit::finish_attempt_(bool sent_ok) {
+  this->required_idle_period_ = sent_ok ? SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS : SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
+  if (!sent_ok && this->transmit_attempts_ < MAX_ATTEMPTS) {
+    return;  // the signal free time has to pass before the retry
+  }
+  if (!sent_ok) {
+    ESP_LOGW(TAG, "Frame not sent after %u attempts, dropped", this->transmit_attempts_);
+  }
+  this->transmit_attempts_ = 0;
+  this->send_queue_.pop_front();
 }
 
 bool CECTransmit::transmit_frame_(const Frame *frame) {
@@ -259,6 +273,13 @@ void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
   }
 }
 
+uint8_t CECReceive::take_dropped_frames() {
+  const uint8_t dropped = atomic_get(this->dropped_frames_);
+  const uint8_t since_last = dropped - this->reported_dropped_frames_;
+  this->reported_dropped_frames_ = dropped;
+  return since_last;
+}
+
 void CECReceive::setup(InternalGPIOPin *pin, Component *parent) {
   this->parent_ = parent;
   this->isr_pin_ = this->xmit_.isr_pin();
@@ -297,8 +318,11 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
   if (pulse_duration > START_BIT_MIN_US) {
     this->reset_state_variables_();
     this->receiver_state_ = ReceiverState::RECEIVER_STATE_RECEIVING_BYTE;
-    this->recv_frame_buffer_ = this->frames_queue_.back();  // null while the queue is full
-    if (this->recv_frame_buffer_ != nullptr) {
+    this->recv_frame_buffer_ = this->frames_queue_.back();
+    if (this->recv_frame_buffer_ == nullptr) {
+      // The queue is full; the frame is still acknowledged below but not delivered
+      atomic_set<uint8_t>(this->dropped_frames_, atomic_get(this->dropped_frames_) + 1);
+    } else {
       this->recv_frame_buffer_->clear();
     }
     return;
@@ -312,8 +336,8 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
     case ReceiverState::RECEIVER_STATE_RECEIVING_BYTE:
       this->recv_byte_buffer_ = (this->recv_byte_buffer_ << 1) | value;
       if (++this->recv_bit_counter_ >= 8) {
-        if (this->recv_frame_buffer_ != nullptr) {
-          this->recv_frame_buffer_->push_back(this->recv_byte_buffer_);
+        if (this->recv_frame_buffer_ != nullptr && !this->recv_frame_buffer_->push_back(this->recv_byte_buffer_)) {
+          this->recv_frame_buffer_ = nullptr;  // longer than the bus allows: corrupt, do not deliver it
         }
         this->recv_bit_counter_ = 0;
         this->recv_byte_buffer_ = 0;
