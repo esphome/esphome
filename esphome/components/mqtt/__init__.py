@@ -63,6 +63,7 @@ from esphome.const import (
     CONF_SKIP_CERT_CN_CHECK,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
+    CONF_TARGET_TEMPERATURE_COMMAND_TOPIC,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_USE_ABBREVIATIONS,
@@ -135,21 +136,21 @@ MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
-# The topic each entity MQTT class always subscribes to, keyed by class:
-# (component type, topic suffix, config key that replaces the whole topic)
-_COMMAND_TOPICS: dict[str, tuple[str, str, str]] = {}
+# The topics each entity MQTT class always subscribes to, keyed by class:
+# component type, then (topic suffix, config key that replaces the whole topic) pairs
+_COMMAND_TOPICS: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {}
+_COMMAND = (("command", CONF_COMMAND_TOPIC),)
 
 
 def _entity_class(
     name: str,
     component_type: str | None = None,
-    suffix: str = "command",
-    custom_key: str = CONF_COMMAND_TOPIC,
+    topics: tuple[tuple[str, str], ...] = _COMMAND,
 ) -> MockObjClass:
-    """Declare an entity MQTT class; a component_type means it subscribes to a command topic."""
+    """Declare an entity MQTT class; a component_type means it subscribes to command topics."""
     cls = mqtt_ns.class_(name, MQTTComponent)
     if component_type is not None:
-        _COMMAND_TOPICS[str(cls)] = (component_type, suffix, custom_key)
+        _COMMAND_TOPICS[str(cls)] = (component_type, topics)
     return cls
 
 
@@ -157,8 +158,15 @@ MQTTAlarmControlPanelComponent = _entity_class(
     "MQTTAlarmControlPanelComponent", "alarm_control_panel"
 )
 MQTTBinarySensorComponent = _entity_class("MQTTBinarySensorComponent")
+# Climate also always subscribes to a target temperature topic: target_temperature, or the
+# longer _low and _high pair on two-point devices, so the shorter one is a safe bound
 MQTTClimateComponent = _entity_class(
-    "MQTTClimateComponent", "climate", "mode/command", CONF_MODE_COMMAND_TOPIC
+    "MQTTClimateComponent",
+    "climate",
+    (
+        ("mode/command", CONF_MODE_COMMAND_TOPIC),
+        ("target_temperature/command", CONF_TARGET_TEMPERATURE_COMMAND_TOPIC),
+    ),
 )
 MQTTCoverComponent = _entity_class("MQTTCoverComponent", "cover")
 MQTTFanComponent = _entity_class("MQTTFanComponent", "fan")
@@ -350,11 +358,11 @@ ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN = 128
 MAC_SUFFIX = "-xxxxxx"
 
 
-def _entity_command_topic(
+def _entity_command_topics(
     config: ConfigType, topic_prefix: str, mac_suffix: bool, devices: dict[str, str]
-) -> str | None:
-    """Return the topic an entity's MQTT component always subscribes to, if known."""
-    component_type, suffix, custom_key = _COMMAND_TOPICS[str(config[CONF_MQTT_ID].type)]
+) -> Iterator[str]:
+    """Yield the topics an entity's MQTT component always subscribes to, where known."""
+    component_type, topics = _COMMAND_TOPICS[str(config[CONF_MQTT_ID].type)]
     # Mirrors MQTTComponent::compute_is_internal_(): internal components never subscribe
     if CONF_STATE_TOPIC in config:
         internal = config[CONF_STATE_TOPIC] == ""
@@ -363,21 +371,23 @@ def _entity_command_topic(
     else:
         internal = not topic_prefix or config.get(CONF_INTERNAL, False)
     if internal:
-        return None
-    if (custom := config.get(custom_key)) is not None:
-        # A lambda topic is only known at runtime
-        return custom if isinstance(custom, str) else None
-    if not topic_prefix:
-        return None
+        return
     device = config.get(CONF_DEVICE_ID)
     object_id = get_base_entity_object_id(
         config.get(CONF_NAME) or "",
         CORE.friendly_name,
         devices.get(device.id) if device else None,
     )
-    if mac_suffix and not config.get(CONF_NAME):
+    # Only an unnamed entity on the main device takes the friendly name, which gains the MAC
+    if mac_suffix and not config.get(CONF_NAME) and device is None:
         object_id += MAC_SUFFIX
-    return f"{topic_prefix}/{component_type}/{object_id}/{suffix}"
+    for suffix, custom_key in topics:
+        if (custom := config.get(custom_key)) is not None:
+            # A lambda topic is only known at runtime
+            if isinstance(custom, str):
+                yield custom
+        elif topic_prefix:
+            yield f"{topic_prefix}/{component_type}/{object_id}/{suffix}"
 
 
 def _subscribed_topics(config: ConfigType) -> Iterator[str]:
@@ -399,8 +409,7 @@ def _subscribed_topics(config: ConfigType) -> Iterator[str]:
         entity = full_config
         for key in path[:-1]:
             entity = entity[key]
-        if topic := _entity_command_topic(entity, topic_prefix, mac_suffix, devices):
-            yield topic
+        yield from _entity_command_topics(entity, topic_prefix, mac_suffix, devices)
     for key in (CONF_ON_MESSAGE, CONF_ON_JSON_MESSAGE):
         for trigger in config.get(key, []):
             yield trigger[CONF_TOPIC]

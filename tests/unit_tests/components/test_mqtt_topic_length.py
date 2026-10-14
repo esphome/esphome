@@ -126,6 +126,18 @@ def _run(
             PLATFORM_ESP8266,
             id="nested_entity",
         ),
+        pytest.param(
+            # "dev/climate/<object_id>/target_temperature/command" is 39 around it,
+            # while mode/command still fits
+            {
+                "climate": [
+                    {CONF_NAME: "a" * 90, CONF_MQTT_ID: _mqtt_id(MQTTClimateComponent)}
+                ]
+            },
+            None,
+            PLATFORM_ESP8266,
+            id="climate_target_temperature",
+        ),
     ],
 )
 def test_rejected(
@@ -163,6 +175,19 @@ def test_rejected(
             None,
             PLATFORM_ESP8266,
             id="internal_by_empty_state_topic",
+        ),
+        pytest.param(
+            # The MAC suffix goes on the friendly name, never on a sub-device's name
+            {
+                CONF_ESPHOME: {
+                    CONF_NAME_ADD_MAC_SUFFIX: True,
+                    CONF_DEVICES: [{CONF_ID: ID("sub"), CONF_NAME: FITS}],
+                },
+                **_switch("", device_id=ID("sub")),
+            },
+            {"topic_prefix": "abc"},
+            PLATFORM_ESP8266,
+            id="sub_device_has_no_mac_suffix",
         ),
         pytest.param(
             {},
