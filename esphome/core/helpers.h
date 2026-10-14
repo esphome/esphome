@@ -1725,7 +1725,8 @@ enum class TemperatureUnit : uint8_t {
 /// No null check, no exceptions, no heap allocation for small trivially-copyable callables.
 ///
 /// With C++20 if constexpr, automatically detects [this] lambdas (sizeof <= sizeof(void*),
-/// trivially copyable) and stores them inline. Larger callables are heap-allocated.
+/// trivially copyable, callable as const) and stores them inline. Larger callables, and mutable
+/// ones whose state must survive between calls, are heap-allocated.
 template<typename... X> struct Callback;
 
 template<typename... Ts> struct Callback<void(Ts...)> {
@@ -1740,11 +1741,19 @@ template<typename... Ts> struct Callback<void(Ts...)> {
   /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
   void call(Ts... args) const { this->fn_(this->ctx_, std::forward<Ts>(args)...); }
 
+  /// Whether create() stores F inline in the ctx pointer. The inline path invokes a copy, so a
+  /// callable that mutates its captures (a mutable lambda) is kept whole on the heap instead.
+  template<typename F> static constexpr bool fits_inline() {
+    using DecayF = std::decay_t<F>;
+    return sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF> &&
+           std::is_invocable_v<const DecayF &, Ts...>;
+  }
+
   /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
   /// are stored inline in the ctx pointer without heap allocation.
   template<typename F> static Callback create(F &&callable) {
     using DecayF = std::decay_t<F>;
-    if constexpr (sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF>) {
+    if constexpr (fits_inline<F>()) {
       // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
       // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
       // creates objects of implicit-lifetime types (trivially copyable qualifies).
@@ -1766,6 +1775,28 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       auto *stored = new DecayF(std::forward<F>(callable));
       return {[](void *c, Ts... args) { (*static_cast<DecayF *>(c))(args...); }, static_cast<void *>(stored)};
     }
+  }
+
+  /// Heap home of a callable stored by create_boxed(); the header knows how to free it.
+  struct Box {
+    void (*free)(Box *box);
+  };
+
+  /// Store any callable on the heap with a deleter, for an owner that can later free_boxed() it.
+  template<typename F> static Callback create_boxed(F &&callable) {
+    struct Boxed : Box {
+      std::decay_t<F> fn;
+    };
+    auto *box = new Boxed{{[](Box *b) { delete static_cast<Boxed *>(b); }},  // NOLINT(cppcoreguidelines-owning-memory)
+                          std::forward<F>(callable)};
+    return {[](void *c, Ts... args) { static_cast<Boxed *>(static_cast<Box *>(c))->fn(args...); },
+            static_cast<Box *>(box)};
+  }
+
+  /// Free the callable of a Callback made by create_boxed(); the Callback must not be called afterwards.
+  void free_boxed() const {
+    auto *box = static_cast<Box *>(this->ctx_);
+    box->free(box);
   }
 };
 
