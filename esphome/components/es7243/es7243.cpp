@@ -3,7 +3,6 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <driver/gpio.h>
@@ -14,7 +13,12 @@ namespace esphome::es7243 {
 
 ESPHOME_LOG_TAG(TAG, "es7243");
 
-static constexpr uint8_t REG_GAIN = 0x08;
+// Register map from the ES7243 datasheet
+static constexpr uint8_t REG_MODE_CONFIG = 0x00;
+static constexpr uint8_t REG_SDP_FORMAT = 0x01;
+static constexpr uint8_t REG_MUTE_CONTROL = 0x05;
+static constexpr uint8_t REG_STATE_CONTROL = 0x06;
+static constexpr uint8_t REG_GAIN = 0x08;  // ANACTRL1
 static constexpr uint8_t MCLK_PULSES = 20;
 
 struct GainEntry {
@@ -26,16 +30,15 @@ static constexpr GainEntry GAIN_TABLE[] = {
     {1.0f, 0x11},  {3.5f, 0x13},  {18.0f, 0x21}, {20.5f, 0x23},
     {22.5f, 0x06}, {24.5f, 0x41}, {25.0f, 0x07}, {27.0f, 0x43},
 };
-static constexpr float MIN_GAIN = GAIN_TABLE[0].db;
-static constexpr float MAX_GAIN = GAIN_TABLE[std::size(GAIN_TABLE) - 1].db;
 
-static uint8_t gain_reg_value(float gain_db) {
+// The table entry nearest the requested gain; values outside the table snap to its ends
+static const GainEntry &nearest_gain(float gain_db) {
   const GainEntry *best = GAIN_TABLE;
   for (const auto &entry : GAIN_TABLE) {
     if (std::fabs(gain_db - entry.db) < std::fabs(gain_db - best->db))
       best = &entry;
   }
-  return best->reg;
+  return *best;
 }
 
 void ES7243::setup() {
@@ -50,8 +53,10 @@ void ES7243::setup() {
     delay(1);
   }
 
-  const bool ok = this->write_byte(0x00, 0x01) && this->write_byte(0x06, 0x00) && this->write_byte(0x05, 0x1B) &&
-                  this->write_byte(0x01, 0x0C) && this->write_mic_gain_() && this->write_byte(0x05, 0x13);
+  // The ESP-ADF sequence: mute while the format and gain are set, then unmute
+  const bool ok = this->write_byte(REG_MODE_CONFIG, 0x01) && this->write_byte(REG_STATE_CONTROL, 0x00) &&
+                  this->write_byte(REG_MUTE_CONTROL, 0x1B) && this->write_byte(REG_SDP_FORMAT, 0x0C) &&
+                  this->write_mic_gain_() && this->write_byte(REG_MUTE_CONTROL, 0x13);
   if (!ok) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
@@ -71,7 +76,8 @@ void ES7243::dump_config() {
 }
 
 bool ES7243::set_mic_gain(float mic_gain) {
-  this->mic_gain_ = clamp(mic_gain, MIN_GAIN, MAX_GAIN);
+  // Store the gain the chip will use, so mic_gain() and dump_config() report it
+  this->mic_gain_ = nearest_gain(mic_gain).db;
   if (!this->setup_complete_)
     return true;
   const bool ok = this->write_mic_gain_();
@@ -83,7 +89,7 @@ bool ES7243::set_mic_gain(float mic_gain) {
   return ok;
 }
 
-bool ES7243::write_mic_gain_() { return this->write_byte(REG_GAIN, gain_reg_value(this->mic_gain_)); }
+bool ES7243::write_mic_gain_() { return this->write_byte(REG_GAIN, nearest_gain(this->mic_gain_).reg); }
 
 }  // namespace esphome::es7243
 
