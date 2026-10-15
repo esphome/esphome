@@ -115,6 +115,56 @@ TEST_F(SEN0609SequencerTest, LateAnswerIsNotTakenForNextCommand) {
   this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
 }
 
+TEST_F(SEN0609SequencerTest, LateVersionLineIsStillUsed) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  for (int i = 0; i < 3; i++)
+    ASSERT_EQ(this->next_command_(), "getSWV");
+  ASSERT_EQ(this->next_command_(), "sensorStart");
+  // The answer to the last getSWV arrives after it timed out; the version line names its value
+  this->feed_("getSWV\r\nSoftwareVersion:V1.0.4\r\nDone\r\nDFRobot:/>");
+  this->answer_("sensorStart");
+  EXPECT_EQ(this->version_.state, "V1.0.4");
+}
+
+TEST_F(SEN0609SequencerTest, MissingVersionLineIsRetried) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  this->expect_and_answer_("getSWV");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  EXPECT_EQ(this->version_.state, "V1.0.4");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SequencerTest, FailedConfigurationIsRetriedLater) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(this->next_command_(), "setRunApp 0");
+    this->feed_("setRunApp 0\r\nError\r\nDFRobot:/>");
+  }
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  // The sensor is not started in an unknown mode
+  EXPECT_EQ(this->next_command_(20000), "");
+  ASSERT_EQ(this->next_command_(15000), "setRunApp 0");
+  this->answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
 TEST_F(SEN0609SequencerTest, SilentModuleBacksOffAndKeepsWork) {
   this->hub_.setup();
   for (int i = 0; i < 3; i++)
@@ -196,6 +246,62 @@ TEST_F(SEN0609SequencerTest, AlreadyStoppedCountsAsStopped) {
   ASSERT_EQ(this->next_command_(), "sensorStop");
   this->feed_("sensorStop\r\nsensor stopped already\r\nDFRobot:/>");
   EXPECT_EQ(this->next_command_(), "setRunApp 0");
+}
+
+TEST_F(SEN0609SequencerTest, NotStoppedStopsAgainBeforeRetry) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  ASSERT_EQ(this->next_command_(), "setRunApp 0");
+  // The sensor was started again behind the hub's back
+  this->feed_("setRunApp 0\r\nsensor is not stopped\r\nDFRobot:/>");
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  EXPECT_EQ(this->next_command_(), "setUartOutput 1 1 1 1.0");
+}
+
+TEST_F(SEN0609SequencerTest, AlreadyStartedCountsAsStarted) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  // As left by an earlier sequence that failed
+  this->hub_.status_set_warning();
+  ASSERT_EQ(this->next_command_(), "sensorStart");
+  this->feed_("sensorStart\r\nsensor started already\r\nDFRobot:/>");
+  EXPECT_EQ(this->next_command_(), "");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SequencerTest, PresenceFramesKeepConfiguration) {
+  this->boot_();
+  for (int i = 0; i < 15; i++) {
+    this->feed_("$DFHPD,0, , , *\r\n");
+    this->run_(1000);
+  }
+  EXPECT_EQ(this->uart_.tx, "");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SequencerTest, MissingPresenceFramesReapplyConfiguration) {
+  this->boot_();
+  this->feed_("$DFHPD,1, , , *\r\n");
+  EXPECT_TRUE(this->has_target_.state);
+  EXPECT_EQ(this->next_command_(9000), "");
+  // The module restarted on its own and stopped sending frames
+  ASSERT_EQ(this->next_command_(), "sensorStop");
+  EXPECT_FALSE(this->has_target_.has_state());
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  this->answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
 class SEN0609SettingsTest : public SEN0609Test {
