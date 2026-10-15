@@ -1,8 +1,14 @@
 #include "tmp102.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#ifdef USE_TMP102_TEXT_SENSOR
+#include "esphome/core/progmem.h"
+#endif
 
 #include <cmath>
+#ifdef USE_TMP102_TEXT_SENSOR
+#include <cstdio>
+#endif
 
 namespace esphome::tmp102 {
 
@@ -12,6 +18,30 @@ static constexpr uint32_t READ_TEMP_TIMEOUT_ID = 0;
 
 static constexpr uint8_t TMP102_REGISTER_TEMPERATURE = 0x00;
 static constexpr float TMP102_CONVERSION_FACTOR = 0.0625f;
+
+enum TMP102ThresholdStatus : uint8_t {
+  TMP102_THRESHOLD_STATUS_NOT_CONFIGURED,
+  TMP102_THRESHOLD_STATUS_SETUP_FAILED,
+  TMP102_THRESHOLD_STATUS_OK,
+  TMP102_THRESHOLD_STATUS_RESTORE_RESET,
+  TMP102_THRESHOLD_STATUS_RESTORE_RESET_SAVE_FAILED,
+  TMP102_THRESHOLD_STATUS_PREFERENCE_SAVE_FAILED,
+  TMP102_THRESHOLD_STATUS_RECOVERY_FAILED,
+  TMP102_THRESHOLD_STATUS_RECOVERED,
+  TMP102_THRESHOLD_STATUS_WRITE_HIGH_FAILED,
+  TMP102_THRESHOLD_STATUS_WRITE_LOW_FAILED,
+  TMP102_THRESHOLD_STATUS_SENSOR_SETUP_FAILED,
+  TMP102_THRESHOLD_STATUS_COUNT,
+};
+
+#ifdef USE_TMP102_TEXT_SENSOR
+PROGMEM_STRING_TABLE(ThresholdStatusStrings, "Not configured", "Setup failed", "OK", "Restored thresholds reset",
+                     "Restore reset; save failed", "Preference save failed", "Configuration recovery failed",
+                     "Configuration restored", "Write failed: high threshold", "Write failed: low threshold",
+                     "Rejected: sensor setup failed");
+static_assert(ThresholdStatusStrings::COUNT == TMP102_THRESHOLD_STATUS_COUNT);
+#endif
+
 #if defined(USE_TMP102_CONFIGURE) || defined(USE_TMP102_BINARY_SENSOR)
 static constexpr uint8_t TMP102_REGISTER_CONFIGURATION = 0x01;
 static constexpr uint16_t TMP102_ALERT_BIT = 0x0020;
@@ -42,15 +72,30 @@ static uint16_t encode_temperature(float temperature, bool extended) {
   return static_cast<uint16_t>(static_cast<uint32_t>(static_cast<uint16_t>(steps)) << (extended ? 3 : 4));
 }
 #endif
+#endif
 
+#if defined(USE_TMP102_CONFIGURE) || defined(USE_TMP102_TEXT_SENSOR)
 void TMP102Component::setup() {
-  if (!this->configure_)
+#ifdef USE_TMP102_CONFIGURE
+  if (this->configure_) {
+    this->setup_configured_();
     return;
+  }
+#endif
+  this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_NOT_CONFIGURED);
+}
+#endif
+
+#ifdef USE_TMP102_CONFIGURE
+void TMP102Component::setup_configured_() {
+  bool corrected = false;
 #ifdef USE_TMP102_NUMBER
   float restored[2]{};
-  this->prepare_number_limits_(restored);
+  bool restore_corrected[2]{};
+  corrected = this->prepare_number_limits_(restored, restore_corrected);
 #endif
   if (!this->write_configuration_()) {
+    this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_SETUP_FAILED);
     this->mark_failed();
     return;
   }
@@ -61,14 +106,17 @@ void TMP102Component::setup() {
     if (control == nullptr)
       continue;
     const float value = this->get_limit_temperature_(static_cast<TMP102LimitType>(limit));
-    if (value != restored[limit])
+    if (restore_corrected[limit] || value != restored[limit])
       saved &= control->save_value_(value);
     control->publish_state(value);
   }
   if (!saved) {
     ESP_LOGW(TAG, "Failed to save threshold preferences");
+    this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_RESTORE_RESET_SAVE_FAILED);
+    return;
   }
 #endif
+  this->publish_threshold_status_(corrected ? TMP102_THRESHOLD_STATUS_RESTORE_RESET : TMP102_THRESHOLD_STATUS_OK);
 }
 #endif
 
@@ -82,6 +130,9 @@ void TMP102Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this);
 #ifdef USE_TMP102_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Alert", this->alert_binary_sensor_);
+#endif
+#ifdef USE_TMP102_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Threshold Status", this->threshold_status_text_sensor_);
 #endif
 #ifdef USE_TMP102_CONFIGURE
   if (!this->configure_)
@@ -203,6 +254,9 @@ bool TMP102Component::check_configuration_() {
   this->set_warning_and_invalidate_alert_();
   if (!this->write_configuration_()) {
     ESP_LOGW(TAG, "Failed to restore configuration and thresholds");
+    this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_RECOVERY_FAILED);
+  } else {
+    this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_RECOVERED);
   }
   return false;
 }
@@ -228,22 +282,25 @@ void TMP102Component::set_limit_control(TMP102LimitNumber *number) {
   this->limit_controls_[number->limit_type_] = number;
 }
 
-void TMP102Component::prepare_number_limits_(float *restored) {
+bool TMP102Component::prepare_number_limits_(float *restored, bool *restore_corrected) {
   const bool extended = this->config_ & TMP102_EXTENDED_MODE_BIT;
   uint16_t raw[2] = {this->low_limit_, this->high_limit_};
+  bool corrected = false;
   for (uint8_t limit = 0; limit < 2; ++limit) {
     TMP102LimitNumber *control = this->limit_controls_[limit];
     if (control == nullptr)
       continue;
-    restored[limit] = control->load_value_(decode_temperature(raw[limit], extended));
+    restored[limit] = control->load_value_(decode_temperature(raw[limit], extended), restore_corrected[limit]);
+    corrected |= restore_corrected[limit];
     raw[limit] = encode_temperature(restored[limit], extended);
   }
   if (static_cast<int16_t>(raw[TMP102_LIMIT_LOW]) > static_cast<int16_t>(raw[TMP102_LIMIT_HIGH])) {
     ESP_LOGW(TAG, "Restored thresholds are inverted; using configured values");
-    return;
+    return true;
   }
   this->low_limit_ = raw[TMP102_LIMIT_LOW];
   this->high_limit_ = raw[TMP102_LIMIT_HIGH];
+  return corrected;
 }
 
 float TMP102Component::get_limit_temperature_(TMP102LimitType limit) const {
@@ -261,16 +318,45 @@ bool TMP102Component::set_limit_temperature_(TMP102LimitType limit, float temper
     ESP_LOGW(TAG, "Rejected %s threshold %.4f°C: crosses %s threshold %.4f°C",
              high ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"), decode_temperature(raw, extended),
              high ? LOG_STR_LITERAL("low") : LOG_STR_LITERAL("high"), decode_temperature(other, extended));
+    this->publish_threshold_rejection_(high, decode_temperature(raw, extended), decode_temperature(other, extended));
     return false;
   }
   if (!this->write_register_(static_cast<uint8_t>(TMP102_REGISTER_LOW_LIMIT + limit), raw)) {
     this->status_set_warning();
+    this->publish_threshold_status_(high ? TMP102_THRESHOLD_STATUS_WRITE_HIGH_FAILED
+                                         : TMP102_THRESHOLD_STATUS_WRITE_LOW_FAILED);
     return false;
   }
   (high ? this->high_limit_ : this->low_limit_) = raw;
   return true;
 }
 #endif
+#endif
+
+#ifdef USE_TMP102_TEXT_SENSOR
+void TMP102Component::publish_threshold_status_(uint8_t status) {
+  if (this->threshold_status_text_sensor_ == nullptr)
+    return;
+  char text[40];
+  ESPHOME_strncpy_P(
+      text,
+      reinterpret_cast<ESPHOME_PGM_P>(ThresholdStatusStrings::get_progmem_str(status, TMP102_THRESHOLD_STATUS_OK)),
+      sizeof(text));
+  text[sizeof(text) - 1] = '\0';
+  this->threshold_status_text_sensor_->publish_state(text);
+}
+
+void TMP102Component::publish_threshold_rejection_(bool high, float value, float other) {
+  if (this->threshold_status_text_sensor_ == nullptr)
+    return;
+  char text[96];
+  if (high) {
+    ESPHOME_snprintf_P(text, sizeof(text), ESPHOME_PSTR("Rejected: high %.4f°C crosses low %.4f°C"), value, other);
+  } else {
+    ESPHOME_snprintf_P(text, sizeof(text), ESPHOME_PSTR("Rejected: low %.4f°C crosses high %.4f°C"), value, other);
+  }
+  this->threshold_status_text_sensor_->publish_state(text);
+}
 #endif
 
 #ifdef USE_TMP102_BINARY_SENSOR
@@ -294,7 +380,7 @@ bool TMP102Component::read_alert_state_() {
 #endif
 
 #ifdef USE_TMP102_NUMBER
-float TMP102LimitNumber::load_value_(float fallback) {
+float TMP102LimitNumber::load_value_(float fallback, bool &corrected) {
   float value = fallback;
   if (this->restore_value_) {
     this->pref_ = this->make_entity_preference<float>();
@@ -303,6 +389,7 @@ float TMP102LimitNumber::load_value_(float fallback) {
   if (!std::isfinite(value) || value < this->traits.get_min_value() || value > this->traits.get_max_value()) {
     ESP_LOGW(TAG, "Invalid restored threshold; using configured value");
     value = fallback;
+    corrected = true;
   }
   return value;
 }
@@ -313,6 +400,7 @@ void TMP102LimitNumber::control(float value) {
   // A chip that failed setup holds nothing the entity could show
   if (this->parent_->is_failed()) {
     ESP_LOGW(TAG, "Rejected threshold change: sensor setup failed");
+    this->parent_->publish_threshold_status_(TMP102_THRESHOLD_STATUS_SENSOR_SETUP_FAILED);
     return;
   }
   const bool accepted = this->parent_->set_limit_temperature_(this->limit_type_, value);
@@ -320,6 +408,9 @@ void TMP102LimitNumber::control(float value) {
   this->publish_state(value);
   if (accepted && !this->save_value_(value)) {
     ESP_LOGW(TAG, "Failed to save threshold preference");
+    this->parent_->publish_threshold_status_(TMP102_THRESHOLD_STATUS_PREFERENCE_SAVE_FAILED);
+  } else if (accepted) {
+    this->parent_->publish_threshold_status_(TMP102_THRESHOLD_STATUS_OK);
   }
 }
 #endif
