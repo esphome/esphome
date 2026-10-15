@@ -27,7 +27,9 @@ def build_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def run_cmd(tmp_path: Path) -> Iterator[Mock]:
+def run_cmd(tmp_path: Path, request: pytest.FixtureRequest) -> Iterator[Mock]:
+    """The build's command runner; an indirect parameter picks the bootloader."""
+    bootloader = getattr(request, "param", BOOTLOADER_ADAFRUIT_NRF52_SD140_V7)
     with (
         patch.object(nrf52, "check_and_install"),
         patch.object(nrf52, "_generate_cmake_lists", return_value=False),
@@ -40,10 +42,7 @@ def run_cmd(tmp_path: Path) -> Iterator[Mock]:
         patch.object(
             nrf52,
             "zephyr_data",
-            return_value={
-                KEY_BOARD: "board",
-                KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-            },
+            return_value={KEY_BOARD: "board", KEY_BOOTLOADER: bootloader},
         ),
         patch.object(nrf52.pch, "pch_enabled", return_value=False),
         patch.object(nrf52, "run_command_ok", return_value=True) as run,
@@ -51,13 +50,20 @@ def run_cmd(tmp_path: Path) -> Iterator[Mock]:
         yield run
 
 
+def _uf2_cmd(run_cmd: Mock) -> list[str]:
+    return next(c.args[0] for c in run_cmd.call_args_list if "-f" in c.args[0])
+
+
+def _genpkg_cmd(run_cmd: Mock) -> list[str]:
+    return next(c.args[0] for c in run_cmd.call_args_list if "genpkg" in c.args[0])
+
+
 def _uf2_hex(run_cmd: Mock) -> str:
-    cmd = next(c.args[0] for c in run_cmd.call_args_list if "-f" in c.args[0])
-    return cmd[-1]
+    return _uf2_cmd(run_cmd)[-1]
 
 
 def _dfu_hex(run_cmd: Mock) -> str:
-    cmd = next(c.args[0] for c in run_cmd.call_args_list if "genpkg" in c.args[0])
+    cmd = _genpkg_cmd(run_cmd)
     return cmd[cmd.index("--application") + 1]
 
 
@@ -133,32 +139,22 @@ def test_stale_merged_hex_is_removed_before_building(
     assert _dfu_hex(run_cmd) == app_hex
 
 
-def test_sd140_v7_dfu_accepts_all_s140_7_softdevices(
-    build_dir: Path, run_cmd: Mock
+@pytest.mark.parametrize(
+    ("run_cmd", "sd_req"),
+    [
+        # Boards such as the Seeed XIAO nRF52840 ship S140 7.3.0, not 7.0.1
+        (BOOTLOADER_ADAFRUIT_NRF52_SD140_V7, ["0x00CA", "0x0100", "0x0123"]),
+        # The Makerdiary MDK USB Dongle's bootloader has no SoftDevice to require
+        (BOOTLOADER_ADAFRUIT_NRF52_NOSD, ["0x00"]),
+    ],
+    indirect=["run_cmd"],
+)
+def test_dfu_package_requires_the_bootloaders_softdevices(
+    build_dir: Path, run_cmd: Mock, sd_req: list[str]
 ) -> None:
-    """Boards such as the Seeed XIAO nRF52840 ship S140 7.3.0, not 7.0.1."""
     _build(build_dir, cv.Version(3, 4, 0), ["zephyr/zephyr/zephyr.hex"], run_cmd)
-    cmd = next(c.args[0] for c in run_cmd.call_args_list if "genpkg" in c.args[0])
-    sd_req = cmd[cmd.index("--sd-req") + 1].split(",")
-    assert sd_req == ["0x00CA", "0x0100", "0x0123"]
-
-
-def test_softdevice_free_adafruit_layout_requires_no_softdevice(
-    build_dir: Path, run_cmd: Mock
-) -> None:
-    """The Makerdiary MDK USB Dongle's bootloader takes an nRF52840 UF2 and a package that
-    does not ask for a SoftDevice."""
-    with patch.object(
-        nrf52,
-        "zephyr_data",
-        return_value={
-            KEY_BOARD: "board",
-            KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_NOSD,
-        },
-    ):
-        _build(build_dir, cv.Version(3, 4, 0), ["zephyr/zephyr/zephyr.hex"], run_cmd)
-    uf2 = next(c.args[0] for c in run_cmd.call_args_list if "-f" in c.args[0])
+    cmd = _genpkg_cmd(run_cmd)
+    assert cmd[cmd.index("--dev-type") + 1] == "0x0052"
+    assert cmd[cmd.index("--sd-req") + 1].split(",") == sd_req
+    uf2 = _uf2_cmd(run_cmd)
     assert uf2[uf2.index("-f") + 1] == "0xADA52840"
-    genpkg = next(c.args[0] for c in run_cmd.call_args_list if "genpkg" in c.args[0])
-    assert genpkg[genpkg.index("--dev-type") + 1] == "0x0052"
-    assert genpkg[genpkg.index("--sd-req") + 1] == "0x00"

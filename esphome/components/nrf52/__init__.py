@@ -208,6 +208,12 @@ SERIAL_DFU_BOOTLOADERS = (
     BOOTLOADER_NRF,
 )
 BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
+# SoftDevice id and major version in front of the application, for the debug component's check
+SOFTDEVICES: dict[str, tuple[int, int | None]] = {
+    BOOTLOADER_ADAFRUIT_NRF52_SD132: (132, None),
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: (140, 6),
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: (140, 7),
+}
 
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
@@ -429,13 +435,11 @@ async def to_code(config: ConfigType) -> None:
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
-    elif "_sd" in config[KEY_BOOTLOADER]:
-        bootloader = config[KEY_BOOTLOADER].split("_")
-        sd_id = bootloader[2][2:]
-        cg.add_define("USE_SOFTDEVICE_ID", int(sd_id))
-        if (len(bootloader)) > 3:
-            sd_version = bootloader[3][1:]
-            cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
+    elif softdevice := SOFTDEVICES.get(config[KEY_BOOTLOADER]):
+        sd_id, sd_version = softdevice
+        cg.add_define("USE_SOFTDEVICE_ID", sd_id)
+        if sd_version is not None:
+            cg.add_define("USE_SOFTDEVICE_VERSION", sd_version)
 
     zephyr_setup_preferences()
     zephyr_to_code(config)

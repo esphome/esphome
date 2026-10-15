@@ -65,27 +65,29 @@ MCUMGR_OTA_BOOTLOADERS = (
 
 # https://github.com/ffenix113/zigbee_home/blob/17bb7b9e9d375e756da9e38913f53303937fb66a/types/board/known_boards.go
 # https://learn.adafruit.com/introducing-the-adafruit-nrf52840-feather?view=all#hathach-memory-map
+# The bootloader with its settings and the MBR parameters, at the top of the flash
+_ADAFRUIT_BOOTLOADER = Section(
+    "Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"
+)
+
 BOOTLOADER_CONFIG = {
     BOOTLOADER_ADAFRUIT_NRF52_SD132: [
         Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
-        Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
+        _ADAFRUIT_BOOTLOADER,
     ],
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: [
         Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
-        Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
+        _ADAFRUIT_BOOTLOADER,
     ],
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: [
         Section("SoftDevice", 0x0, 0x27000, "flash_primary"),
-        Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
+        _ADAFRUIT_BOOTLOADER,
     ],
     # The board's BOARD_HAS_NRF5_BOOTLOADER already reserves the MBR page at 0x0, so the application
     # links at 0x1000, where the bootloader loads it; only the bootloader itself is reserved here
     BOOTLOADER_NRF: [
         Section("open_bootloader", 0xE0000, 0x20000, "flash_primary"),
     ],
-    # Same MBR page and application start as above; the bootloader, its settings and the MBR
-    # parameters fill the last 48 KB
-    BOOTLOADER_ADAFRUIT_NRF52_NOSD: [
-        Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
-    ],
+    # Same MBR page and application start as above
+    BOOTLOADER_ADAFRUIT_NRF52_NOSD: [_ADAFRUIT_BOOTLOADER],
 }

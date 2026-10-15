@@ -29,21 +29,23 @@ def test_detect_bootloader_reports_a_missing_board() -> None:
         _detect_bootloader({})
 
 
-def test_dongle_defaults_to_nrf_bootloader() -> None:
-    """The dongle's only bootloader is the factory one, so it is selected without a config line."""
-    config = _detect_bootloader({"board": "nrf52840dongle"})
-    assert config["bootloader"] == BOOTLOADER_NRF
+@pytest.mark.parametrize(
+    ("board", "bootloader"),
+    [
+        # The dongle's only bootloader is the factory one
+        ("nrf52840dongle", BOOTLOADER_NRF),
+        # Makerdiary's UF2 bootloader is an Adafruit fork that ships without a SoftDevice
+        ("nrf52840_mdk_usb_dongle", BOOTLOADER_ADAFRUIT_NRF52_NOSD),
+    ],
+)
+def test_board_selects_its_factory_bootloader(board: str, bootloader: str) -> None:
+    """The factory bootloader is selected without a config line."""
+    assert _detect_bootloader({"board": board})["bootloader"] == bootloader
 
 
 def test_dongle_rejects_foreign_bootloader() -> None:
     with pytest.raises(cv.Invalid, match="nrf52840dongle does not support"):
         _detect_bootloader({"board": "nrf52840dongle", "bootloader": "mcuboot"})
-
-
-def test_mdk_usb_dongle_defaults_to_the_softdevice_free_adafruit_layout() -> None:
-    """Makerdiary's UF2 bootloader is an Adafruit fork that ships without a SoftDevice."""
-    config = _detect_bootloader({"board": "nrf52840_mdk_usb_dongle"})
-    assert config["bootloader"] == BOOTLOADER_ADAFRUIT_NRF52_NOSD
 
 
 def _dongle_core_data(
@@ -76,8 +78,7 @@ def test_nrf_bootloader_reserves_factory_region() -> None:
 
 
 def test_adafruit_nosd_reserves_only_the_bootloader() -> None:
-    """Without a SoftDevice the app follows the MBR page at 0x1000, as with the Open DFU
-    bootloader; the Adafruit bootloader keeps its usual place at the top of the flash."""
+    """Without a SoftDevice the app follows the MBR page, as with the Open DFU bootloader."""
     _dongle_core_data("nrf52840_mdk_usb_dongle", BOOTLOADER_ADAFRUIT_NRF52_NOSD)
     registered = {s.name: s for s in CORE.data[KEY_ZEPHYR][KEY_PM_STATIC]}
     assert set(registered) == {"Adafruit_nRF52_Bootloader"}
