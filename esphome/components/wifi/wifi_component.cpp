@@ -940,14 +940,16 @@ void WiFiComponent::loop() {
         provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #endif
     if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
+      // A wifi.disable and wifi.enable earlier in this pass set last_connected_ after now; count that as zero
+      const uint32_t since_connected =
+          static_cast<int32_t>(now - this->last_connected_) > 0 ? now - this->last_connected_ : 0;
       if (this->ap_timeout_ != 0 &&
 #ifdef USE_WIFI_AP_EXCLUSIVE
           // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again
-          now - this->last_connected_ > this->ap_timeout_ && now - this->ap_changed_ > this->ap_timeout_
+          since_connected > this->ap_timeout_ && now - this->ap_changed_ > this->ap_timeout_
 #else
           // Tried in whole ap_timeout slots after the last connection; after UINT8_MAX slots it is no longer tried
-          this->ap_start_failures_ != UINT8_MAX &&
-          (now - this->last_connected_) / this->ap_timeout_ > this->ap_start_failures_
+          this->ap_start_failures_ != UINT8_MAX && since_connected / this->ap_timeout_ > this->ap_start_failures_
 #endif
       ) {
         ESP_LOGI(TAG, "Starting fallback AP");
@@ -958,7 +960,7 @@ void WiFiComponent::loop() {
 #ifndef USE_WIFI_AP_EXCLUSIVE
         if (!this->ap_setup_) {
           // Skip the next slot too, so at least a full ap_timeout passes wherever in its slot this try ran
-          uint32_t slot = (now - this->last_connected_) / this->ap_timeout_ + 1;
+          uint32_t slot = since_connected / this->ap_timeout_ + 1;
           this->ap_start_failures_ = slot < UINT8_MAX ? slot : UINT8_MAX;
         }
 #endif
