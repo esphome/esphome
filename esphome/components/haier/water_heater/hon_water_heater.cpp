@@ -280,8 +280,9 @@ void HonWaterHeater::publish_status_(const Status &status) {
   if (this->heating_time_sensor_ != nullptr)
     this->heating_time_sensor_->publish_state(status.estimated_heating_time);
   if (this->water_sensor_ != nullptr) {
-    // Three segments of available hot water, published as a percentage.
-    this->water_sensor_->publish_state(status.available_water <= 3 ? status.available_water * 100 / 3 : NAN);
+    // Three segments of available hot water, published as 0, 33, 66 or 100 percent.
+    const uint8_t percent = status.available_water * 100 / 3;
+    this->water_sensor_->publish_state(status.available_water <= 3 ? percent : NAN);
   }
   if (this->power_sensor_ != nullptr)
     this->power_sensor_->publish_state(status.powered);
