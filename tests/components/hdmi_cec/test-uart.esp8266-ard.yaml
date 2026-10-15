@@ -1,0 +1,6 @@
+substitutions:
+  cec_pin: GPIO14
+
+packages:
+  uart: !include ../../test_build_components/common/uart_2083/esp8266-ard.yaml
+  hdmi_cec: !include common-uart.yaml

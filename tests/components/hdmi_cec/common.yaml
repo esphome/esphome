@@ -2,6 +2,8 @@ hdmi_cec:
   id: cec
   pin: ${cec_pin}  # HDMI pin 13, with HDMI pin 17 as ground
   address: 0x5
+  physical_address: 0x4000
+  osd_name: ESPHome
   promiscuous_mode: true
   on_message:
     - opcode: 0x8F  # Give Device Power Status
