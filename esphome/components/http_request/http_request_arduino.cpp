@@ -41,8 +41,9 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
 
   bool secure = strstr(url, "https:") != nullptr;
   container->set_secure(secure);
+  container->set_watchdog_timeout(this->get_watchdog_timeout(timeout_ms));
 
-  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(container->get_watchdog_timeout());
 
   if (this->follow_redirects_) {
     container->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
@@ -204,7 +205,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
 // and sets content_length = bytes_read_ so is_read_complete() returns true.
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
@@ -399,7 +400,7 @@ int HttpContainerArduino::read_chunked_(uint8_t *buf, size_t max_len, WiFiClient
 }
 
 void HttpContainerArduino::end() {
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
   this->client_.end();
 }
 

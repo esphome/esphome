@@ -105,7 +105,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
   config.buffer_size_tx = this->buffer_size_tx_;
 
   const uint32_t start = millis();
-  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+  const uint32_t watchdog_timeout = this->get_watchdog_timeout(timeout_ms);
+  watchdog::WatchdogManager wdm(watchdog_timeout);
 
   config.event_handler = http_event_handler;
 
@@ -118,6 +119,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
 
   std::shared_ptr<HttpContainerIDF> container = std::make_shared<HttpContainerIDF>(client);
   container->set_parent(this);
+  container->set_watchdog_timeout(watchdog_timeout);
 
   container->set_secure(secure);
 
@@ -262,7 +264,7 @@ bool HttpContainerIDF::is_read_complete() const {
 // This is passed through as a negative return value, which callers treat as an error.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
   // Check if we've already read all expected content (non-chunked and no-body only).
   // Use the base class check here, NOT the override: esp_http_client_is_complete_data_received()
@@ -305,7 +307,7 @@ void HttpContainerIDF::end() {
   if (this->client_ == nullptr) {
     return;  // Already cleaned up
   }
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);

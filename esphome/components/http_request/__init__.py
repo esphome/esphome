@@ -270,6 +270,9 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
+        cv.Optional(CONF_TIMEOUT): cv.templatable(
+            cv.positive_time_period_milliseconds
+        ),
     }
 )
 HTTP_REQUEST_GET_ACTION_SCHEMA = automation.maybe_conf(
@@ -346,6 +349,10 @@ async def http_request_action_to_code(
         cg.add_define("USE_HTTP_REQUEST_RESPONSE")
 
     cg.add(var.set_max_response_buffer_size(config[CONF_MAX_RESPONSE_BUFFER_SIZE]))
+
+    if CONF_TIMEOUT in config:
+        template_ = await cg.templatable(config[CONF_TIMEOUT], args, cg.uint32)
+        cg.add(var.set_timeout(template_))
 
     if CONF_BODY in config:
         template_ = await cg.templatable(config[CONF_BODY], args, cg.std_string)
