@@ -372,6 +372,8 @@ void IRAM_ATTR HDMICEC::gpio_isr_() {
     return;  // glitch
   }
   const bool value = pulse_duration <= SAFE_SAMPLE_US;
+  // Our own frame is on the bus until its end of message; send() may give it any initiator address
+  const bool own_frame = this->transmitting_ && !atomic_get(this->eom_received_);
 
   switch (this->receiver_state_) {
     case ReceiverState::RECEIVER_STATE_IDLE:
@@ -394,10 +396,10 @@ void IRAM_ATTR HDMICEC::gpio_isr_() {
     case ReceiverState::RECEIVER_STATE_WAITING_FOR_EOM:
       this->recv_eom_ = value;
       // A frame for us is acknowledged on the next bit, unless there is no room for it (so its
-      // initiator retries) or it is our own: a polling message from a device claiming our
-      // logical address must not be acknowledged. A polling message for us (header only) needs
-      // no room, and goes unacknowledged only when nobody holds the address
-      if (!this->monitor_mode_ && (this->recv_frame_ != nullptr || (value && this->recv_length_ == 1)) &&
+      // initiator retries) or it is our own, which includes a polling message from a device
+      // claiming our logical address. A polling message for us (header only) needs no room, and
+      // goes unacknowledged only when nobody holds the address
+      if (!this->monitor_mode_ && !own_frame && (this->recv_frame_ != nullptr || (value && this->recv_length_ == 1)) &&
           (this->recv_header_ & 0xf) == this->address_ && (this->recv_header_ >> 4) != this->address_) {
         this->recv_ack_queued_ = true;
       }
@@ -405,8 +407,8 @@ void IRAM_ATTR HDMICEC::gpio_isr_() {
       break;
 
     case ReceiverState::RECEIVER_STATE_WAITING_FOR_ACK:
-      if (this->transmitting_ && !atomic_get(this->eom_received_)) {
-        // Our own frame: a low acknowledge bit means the addressed device took the byte
+      if (own_frame) {
+        // A low acknowledge bit means the addressed device took the byte
         // (for a broadcast it means some device refused it)
         this->n_bytes_received_++;
         if (!value) {
@@ -422,7 +424,7 @@ void IRAM_ATTR HDMICEC::gpio_isr_() {
       // only), which the acknowledge answered already, and that are addressed to us unless
       // promiscuous
       const uint8_t destination = this->recv_header_ & 0xf;
-      const bool wanted = this->recv_length_ > 1 && (this->recv_header_ >> 4) != this->address_ &&
+      const bool wanted = this->recv_length_ > 1 && !own_frame && (this->recv_header_ >> 4) != this->address_ &&
                           (this->promiscuous_mode_ || destination == 0xf || destination == this->address_);
       if (!wanted) {
         // nothing to deliver
