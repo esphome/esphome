@@ -18,6 +18,7 @@ DEPENDENCIES = ["uart"]
 DOMAIN = "mitsubishi_cn105"
 
 CONF_MITSUBISHI_CN105_ID = f"{DOMAIN}_id"
+CONF_HEATPUMP_REQUEST_MIN_INTERVAL = "heatpump_request_min_interval"
 CONF_TELEMETRY_REQUEST_MIN_INTERVAL = "telemetry_request_min_interval"
 CONF_VANE = "vane"
 CONF_VERTICAL = "vertical"
@@ -51,6 +52,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MitsubishiCN105Component),
             cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.update_interval,
+            cv.Optional(
+                CONF_HEATPUMP_REQUEST_MIN_INTERVAL, default="60s"
+            ): cv.update_interval,
             cv.Optional(
                 CONF_TELEMETRY_REQUEST_MIN_INTERVAL, default="60s"
             ): cv.update_interval,
@@ -93,6 +97,11 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    cg.add(
+        var.set_heatpump_request_min_interval(
+            config[CONF_HEATPUMP_REQUEST_MIN_INTERVAL]
+        )
+    )
     cg.add(
         var.set_telemetry_request_min_interval(
             config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL]
