@@ -33,9 +33,7 @@ class HomeassistantLight final : public light::LightOutput, public Component {
     optional<bool> state;
   };
 
-  /// Parses a Home Assistant attribute as a number, logging the attribute name when it is not one
-  optional<float> parse_attribute_(const char *name, StringRef value);
-  /// Parses a Home Assistant attribute as an integer from 1 to max, logging a value outside that
+  /// Parses a Home Assistant attribute as an integer from 1 to max, logging anything else
   optional<uint16_t> parse_integer_(const char *name, StringRef value, uint16_t max);
   /// Schedules apply_imported_() once for the attributes of one update
   void schedule_apply_();

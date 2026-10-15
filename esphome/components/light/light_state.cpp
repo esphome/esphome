@@ -185,6 +185,9 @@ bool LightState::set_external_state(const LightColorValues &values) {
   if (this->next_write_ || this->transformer_ != nullptr) {
     return false;
   }
+  if (values == this->remote_values && values == this->current_values) {
+    return true;  // nothing new to tell
+  }
   this->current_values = values;
   this->remote_values = values;
   this->publish_state();

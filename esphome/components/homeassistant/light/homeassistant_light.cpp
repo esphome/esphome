@@ -42,13 +42,11 @@ enum ActionString : uint8_t {
 };
 
 optional<ColorMode> parse_color_mode(StringRef name) {
-  for (uint8_t i = 0; i < ColorModeNames::COUNT; i++) {
-    const char *entry = ColorModeNames::get_(i, i);
-    if (ESPHOME_strlen_P(entry) == name.size() && ESPHOME_strncmp_P(name.c_str(), entry, name.size()) == 0) {
-      return i < sizeof(COLOR_MODES) ? static_cast<ColorMode>(progmem_read_byte(&COLOR_MODES[i])) : ColorMode::RGB;
-    }
+  const int8_t i = find_in_table<ColorModeNames>(name);
+  if (i < 0) {
+    return nullopt;
   }
-  return nullopt;
+  return i < sizeof(COLOR_MODES) ? static_cast<ColorMode>(progmem_read_byte(&COLOR_MODES[i])) : ColorMode::RGB;
 }
 
 /// Reads a Python tuple of three integers such as "(255, 0, 0)"; false for anything else
@@ -182,20 +180,13 @@ void HomeassistantLight::dump_config() {
                 this->entity_id_);
 }
 
-optional<float> HomeassistantLight::parse_attribute_(const char *name, StringRef value) {
+optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRef value, uint16_t max) {
   if (is_unset(value)) {
     return nullopt;
   }
   auto number = parse_number<float>(value.c_str());
   if (!number.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert '%s' value '%s' to number!", this->entity_id_, name, value.c_str());
-  }
-  return number;
-}
-
-optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRef value, uint16_t max) {
-  auto number = this->parse_attribute_(name, value);
-  if (!number.has_value()) {
     return nullopt;
   }
   // Written so that NaN fails too
@@ -234,9 +225,7 @@ void HomeassistantLight::apply_imported_() {
     // modes, so only the ones of the mode it reports are taken over
     const ColorMode mode = values.get_color_mode();
     if (mode == ColorMode::COLOR_TEMPERATURE) {
-      if (imported.color_temp_kelvin != 0) {
-        values.set_color_temperature(1e6f / imported.color_temp_kelvin);
-      }
+      values.set_color_temperature_kelvin(imported.color_temp_kelvin);  // ignores an unreported 0
     } else if (mode == ColorMode::RGB) {
       if (imported.has_rgb) {
         values.set_red(imported.rgb[0] / 255.0f);
@@ -248,13 +237,13 @@ void HomeassistantLight::apply_imported_() {
       values.set_white(1.0f);
     }
   }
+  this->apply_scheduled_ = false;
   if (!this->state_->set_external_state(values)) {
     // A local change still waits for LightState::loop() to send it, or a local transition or flash
-    // runs; write_state() picks the report up once that is over
+    // runs; write_state() schedules the report again once that is over
     this->import_waiting_ = true;
     return;
   }
-  this->apply_scheduled_ = false;
   ESP_LOGD(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
 }
 
@@ -265,7 +254,7 @@ void HomeassistantLight::write_state(LightState *state) {
   }
   if (this->import_waiting_) {
     this->import_waiting_ = false;
-    this->defer([this]() { this->apply_imported_(); });
+    this->schedule_apply_();
   }
   if (!this->imported_.state.has_value()) {
     return;  // nothing reported yet, so this is the light core's initial state, which Home Assistant does not need
@@ -286,8 +275,8 @@ void HomeassistantLight::write_state(LightState *state) {
 
   // The request refers to these strings and buffers until it is sent below
   ProgmemStringTableCopy<ActionStrings> strings;
-  char level_buf[UINT32_MAX_STR_SIZE];
-  char color_temp_buf[UINT32_MAX_STR_SIZE];
+  char level_buf[4];       // up to 255
+  char color_temp_buf[6];  // up to 65535
   char color_buf[16];
 
   api::HomeassistantActionRequest resp;
@@ -296,10 +285,10 @@ void HomeassistantLight::write_state(LightState *state) {
   entity_id.key = StringRef(strings.get(ACTION_STRING_ENTITY_ID));
   entity_id.value = StringRef(this->entity_id_);
 
-  auto add_number = [&](uint8_t key, char *buf, size_t size, unsigned number) {
+  auto add_number = [&](uint8_t key, auto &buf, unsigned number) {
     auto &entry = resp.data.emplace_back();
     entry.key = StringRef(strings.get(key));
-    entry.value = StringRef(buf, buf_append_printf(buf, size, 0, "%u", number));
+    entry.value = StringRef(buf, buf_append_printf(buf, sizeof(buf), 0, "%u", number));
   };
   if (!values.is_on()) {
     resp.service = StringRef(strings.get(ACTION_STRING_TURN_OFF));
@@ -310,16 +299,17 @@ void HomeassistantLight::write_state(LightState *state) {
       // Home Assistant has one level, so the channel brightness of the mode folds into it. In
       // white mode it goes under "white", which also selects that mode
       float level = values.get_brightness();
+      uint8_t key = ACTION_STRING_BRIGHTNESS;
       if (color_mode == ColorMode::RGB) {
         level *= values.get_color_brightness();
       } else if (color_mode == ColorMode::WHITE) {
         level *= values.get_white();
+        key = ACTION_STRING_WHITE;
       }
-      add_number(color_mode == ColorMode::WHITE ? ACTION_STRING_WHITE : ACTION_STRING_BRIGHTNESS, level_buf,
-                 sizeof(level_buf), to_uint8_scale(level));
+      add_number(key, level_buf, to_uint8_scale(level));
     }
     if (color_mode == ColorMode::COLOR_TEMPERATURE && values.get_color_temperature() > 0.0f) {
-      add_number(ACTION_STRING_COLOR_TEMP_KELVIN, color_temp_buf, sizeof(color_temp_buf),
+      add_number(ACTION_STRING_COLOR_TEMP_KELVIN, color_temp_buf,
                  static_cast<unsigned>(lroundf(values.get_color_temperature_kelvin())));
     }
     if (color_mode == ColorMode::RGB) {

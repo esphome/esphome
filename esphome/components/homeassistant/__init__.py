@@ -70,7 +70,3 @@ def setup_home_assistant_entity(var: MockObj, config: ConfigType) -> None:
     if CONF_ATTRIBUTE in config:
         cg.add(var.set_attribute(config[CONF_ATTRIBUTE]))
     cg.add_define("USE_API_HOMEASSISTANT_STATES")
-
-
-async def to_code(config: ConfigType) -> None:
-    """Nothing to generate; a platform loads the component for its shared C++ helpers."""

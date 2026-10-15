@@ -98,7 +98,7 @@ class LightState : public EntityBase, public Component {
    * light's state from outside: the values become the current and the target values at once and
    * are published, but the output is not written and nothing is saved, as the other light shows
    * them already. Returns false and changes nothing while a local change still waits to be written
-   * or a transition or flash runs; the caller tries again once the output has been written.
+   * or a transition or flash runs; the caller tries again from its next write_state().
    */
   bool set_external_state(const LightColorValues &values);
 

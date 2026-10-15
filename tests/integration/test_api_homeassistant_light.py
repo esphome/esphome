@@ -127,7 +127,8 @@ async def test_api_homeassistant_light(
         state = await next_state(lambda s: s.color_mode == COLOR_TEMPERATURE)
         assert state.color_temperature == 250.0
         report("rgb_color", "(0, 255, 0)")
-        state = await next_state(lambda s: True)
+        report("brightness", "200")
+        state = await next_state(lambda s: s.brightness == pytest.approx(200 / 255))
         assert state.color_mode == COLOR_TEMPERATURE
 
         # Local changes go to Home Assistant with its attribute names and scales
