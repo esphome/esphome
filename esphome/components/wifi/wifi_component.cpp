@@ -696,7 +696,8 @@ void WiFiComponent::setup() {
 
 void WiFiComponent::start() {
   ESP_LOGCONFIG(TAG, "Starting");
-  this->set_last_connected_(millis());
+  // The loop's time, not millis(): a wifi.enable from a trigger in this pass must not stamp a time after now
+  this->set_last_connected_(App.get_loop_component_start_time());
 
   uint32_t hash = this->has_sta() ? App.get_config_version_hash() : 88491487UL;
 
@@ -946,9 +947,7 @@ void WiFiComponent::loop() {
     // the captive portal on it) - the device must stay unprovisionable until it is
     // power-cycled.
     if (this->has_ap() && !this->ap_setup_ && !this->is_provisioning_closed_()) {
-      // A wifi.disable and wifi.enable earlier in this pass set last_connected_ just after now; count that as zero
-      const uint32_t since_connected =
-          this->last_connected_ - now < this->ap_timeout_ ? 0 : now - this->last_connected_;
+      const uint32_t since_connected = now - this->last_connected_;
       if (this->ap_timeout_ != 0 &&
 #ifdef USE_WIFI_AP_EXCLUSIVE
           // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again
