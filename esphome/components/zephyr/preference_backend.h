@@ -1,5 +1,6 @@
 #pragma once
 #ifdef USE_ZEPHYR
+#ifdef CONFIG_SETTINGS
 
 #include <cstddef>
 #include <cstdint>
@@ -43,4 +44,5 @@ namespace esphome {
 using PreferenceBackend = zephyr::ZephyrPreferenceBackend;
 }  // namespace esphome
 
+#endif  // CONFIG_SETTINGS
 #endif  // USE_ZEPHYR
