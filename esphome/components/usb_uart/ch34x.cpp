@@ -6,6 +6,9 @@
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
+#include <algorithm>
+#include <iterator>
+
 namespace esphome::usb_uart {
 
 using namespace bytebuffer;
@@ -14,6 +17,13 @@ static constexpr uint8_t CH341_REQ_MODEM_CTRL = 0xA4;
 // Modem control bits, sent inverted
 static constexpr uint8_t CH341_BIT_DTR = 1 << 5;
 static constexpr uint8_t CH341_BIT_RTS = 1 << 6;
+
+static constexpr uint8_t CH341_REQ_WRITE_REG = 0x9A;
+static constexpr uint8_t CH341_REG_FLOW_CTL = 0x27;
+static constexpr uint8_t CH341_FLOW_CTL_NONE = 0x00;
+static constexpr uint8_t CH341_FLOW_CTL_RTSCTS = 0x01;
+// The single-port chips Linux ch341 drives, which have the flow control register
+static constexpr uint16_t CH341_PIDS[] = {0x5523, 0x7522, 0x7523};
 
 struct CH34xEntry {
   const char *name;
@@ -102,6 +112,13 @@ void USBUartTypeCH34X::dump_config() {
 
 bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                    const uint8_t *response) {
+  // TODO: the multi-port chips (PIDs 0x55Dx) use cdc_acm in Linux, which has no flow control.
+  // Only the WCH ch343ser driver sets it on them.
+  const bool has_flow_ctl_reg =
+      std::find(std::begin(CH341_PIDS), std::end(CH341_PIDS), this->pid_) != std::end(CH341_PIDS);
+  if (!has_flow_ctl_reg && step >= 1)
+    step++;
+
   uint8_t cmd = 0xA1 + channel->index_;
   if (channel->index_ >= 2)
     cmd += 0xE;
@@ -149,7 +166,16 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
       this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd, value, (factor << 8) | divisor);
       return true;
     }
-    case 1:
+    case 1: {
+      // Re-applied on every settings change, as set_termios does. The chip has no XON/XOFF.
+      const bool rts_cts = channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS;
+      const uint8_t flow_ctl = rts_cts ? CH341_FLOW_CTL_RTSCTS : CH341_FLOW_CTL_NONE;
+      ESP_LOGD(TAG, "FLOW_CTL: RTS/CTS=%s", ONOFF(rts_cts));
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, CH341_REQ_WRITE_REG,
+                             (CH341_REG_FLOW_CTL << 8) | CH341_REG_FLOW_CTL, (flow_ctl << 8) | flow_ctl);
+      return true;
+    }
+    case 2:
       this->modem_control_transfer(channel);
       return true;
     default:
