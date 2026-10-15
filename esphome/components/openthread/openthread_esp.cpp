@@ -313,6 +313,8 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 }
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
+static constexpr uint32_t BORDER_ROUTER_RETRY_MS = 10000;
+
 void OpenThreadComponent::loop() {
   // Thread starts on its own; border routing waits for the Wi-Fi backbone to have an address
   if (!this->mainloop_running_ || !wifi::global_wifi_component->is_connected()) {
@@ -324,10 +326,14 @@ void OpenThreadComponent::loop() {
     return;
   }
   if (const esp_err_t err = esp_openthread_border_router_init(); err != ESP_OK) {
+    // Thread itself keeps running; the backbone may just not be ready, so try again in a while
     ESP_LOGE(TAG, "Failed to initialize OpenThread Border Router: %s", esp_err_to_name(err));
-    this->mark_failed();
+    this->status_set_error(LOG_STR("Border router init failed"));
+    this->disable_loop();
+    this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
     return;
   }
+  this->status_clear_error();
   this->border_router_started_ = true;
   this->disable_loop();
 }
