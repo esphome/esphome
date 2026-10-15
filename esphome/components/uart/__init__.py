@@ -55,6 +55,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
 
@@ -260,7 +261,10 @@ DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix);
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
-def maybe_empty_debug(value):
+@schema_extractor("schema")
+def maybe_empty_debug(value: ConfigType | None) -> ConfigType:
+    if value is SCHEMA_EXTRACT:
+        return DEBUG_SCHEMA
     if value is None:
         value = {}
     return DEBUG_SCHEMA(value)
