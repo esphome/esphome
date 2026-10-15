@@ -17,31 +17,29 @@ using namespace esphome::light;
 
 namespace {
 
-// Home Assistant's color mode names, in flash on the ESP8266. Every color mode is handled as
-// RGB: Home Assistant reports rgb_color for all of them and derives the white channels from
-// rgb_color itself.
+// Home Assistant's color mode names, in flash on the ESP8266. The names from "hs" on are every
+// color mode, all handled as RGB: Home Assistant reports rgb_color for all of them and derives
+// the white channels from rgb_color itself.
 PROGMEM_STRING_TABLE(ColorModeNames, "onoff", "brightness", "white", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww");
 static const uint8_t COLOR_MODES[] PROGMEM = {
-    static_cast<uint8_t>(ColorMode::ON_OFF), static_cast<uint8_t>(ColorMode::BRIGHTNESS),
-    static_cast<uint8_t>(ColorMode::WHITE),  static_cast<uint8_t>(ColorMode::COLOR_TEMPERATURE),
-    static_cast<uint8_t>(ColorMode::RGB),    static_cast<uint8_t>(ColorMode::RGB),
-    static_cast<uint8_t>(ColorMode::RGB),    static_cast<uint8_t>(ColorMode::RGB),
-    static_cast<uint8_t>(ColorMode::RGB),
+    static_cast<uint8_t>(ColorMode::ON_OFF),
+    static_cast<uint8_t>(ColorMode::BRIGHTNESS),
+    static_cast<uint8_t>(ColorMode::WHITE),
+    static_cast<uint8_t>(ColorMode::COLOR_TEMPERATURE),
 };
-static_assert(sizeof(COLOR_MODES) == ColorModeNames::COUNT, "one color mode per name");
 
 optional<ColorMode> parse_color_mode(StringRef name) {
   for (uint8_t i = 0; i < ColorModeNames::COUNT; i++) {
     const char *entry = ColorModeNames::get_(i, i);
     if (ESPHOME_strlen_P(entry) == name.size() && ESPHOME_strncmp_P(name.c_str(), entry, name.size()) == 0) {
-      return static_cast<ColorMode>(progmem_read_byte(&COLOR_MODES[i]));
+      return i < sizeof(COLOR_MODES) ? static_cast<ColorMode>(progmem_read_byte(&COLOR_MODES[i])) : ColorMode::RGB;
     }
   }
   return nullopt;
 }
 
-/// Reads the integers of a Python tuple such as "(255, 0, 0)"; false when there are fewer than `values`
-template<size_t N> bool parse_tuple(const char *text, std::array<uint8_t, N> &values) {
+/// Reads the integers of a Python tuple such as "(255, 0, 0)"; false when there are fewer than three
+bool parse_rgb(const char *text, std::array<uint8_t, 3> &values) {
   for (auto &value : values) {
     while (*text != '\0' && (*text < '0' || *text > '9')) {
       text++;
@@ -90,38 +88,53 @@ void HomeassistantLight::setup() {
     }
   });
 
+  // An attribute is "None" while the light is off or does not report it; the last value stays
   server->subscribe_home_assistant_state(this->entity_id_, nullptr, [this](StringRef value) {
-    auto on_off = parse_on_off(value.c_str());
-    if (on_off == PARSE_ON || on_off == PARSE_OFF) {
-      this->import_(this->imported_.state, on_off == PARSE_ON);
-    } else if (value != "None") {
-      ESP_LOGW(TAG, "'%s': Can't parse '%s' as state!", this->entity_id_, value.c_str());
+    if (value == "None") {
+      return;
     }
+    auto on_off = parse_on_off(value.c_str());
+    if (on_off != PARSE_ON && on_off != PARSE_OFF) {
+      ESP_LOGW(TAG, "'%s': Can't parse '%s' as state!", this->entity_id_, value.c_str());
+      return;
+    }
+    this->imported_.state = on_off == PARSE_ON;
+    this->schedule_apply_();
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_mode", [this](StringRef value) {
-    if (auto mode = parse_color_mode(value)) {
-      this->import_(this->imported_.color_mode, *mode);
-    } else if (value != "None") {
-      ESP_LOGE(TAG, "'%s': Can't parse 'color_mode' value '%s' as color mode!", this->entity_id_, value.c_str());
+    if (value == "None") {
+      return;
     }
+    auto mode = parse_color_mode(value);
+    if (!mode.has_value()) {
+      ESP_LOGE(TAG, "'%s': Can't parse 'color_mode' value '%s' as color mode!", this->entity_id_, value.c_str());
+      return;
+    }
+    this->imported_.color_mode = *mode;
+    this->schedule_apply_();
   });
   server->subscribe_home_assistant_state(this->entity_id_, "brightness", [this](StringRef value) {
     if (auto brightness = this->parse_attribute_("brightness", value)) {
-      this->import_(this->imported_.brightness, *brightness / 255.0f);
+      this->imported_.brightness = static_cast<uint8_t>(clamp(*brightness, 1.0f, 255.0f));
+      this->schedule_apply_();
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_temp_kelvin", [this](StringRef value) {
-    if (auto mireds = this->parse_kelvin_("color_temp_kelvin", value)) {
-      this->import_(this->imported_.color_temp, *mireds);
+    if (auto kelvin = this->parse_attribute_("color_temp_kelvin", value)) {
+      this->imported_.color_temp_kelvin = static_cast<uint16_t>(clamp(*kelvin, 1.0f, 65535.0f));
+      this->schedule_apply_();
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "rgb_color", [this](StringRef value) {
-    std::array<uint8_t, 3> rgb;
-    if (parse_tuple(value.c_str(), rgb)) {
-      this->import_(this->imported_.rgb, rgb);
-    } else if (value != "None") {
-      ESP_LOGE(TAG, "'%s': Can't parse 'rgb_color' value '%s'!", this->entity_id_, value.c_str());
+    if (value == "None") {
+      return;
     }
+    if (!parse_rgb(value.c_str(), this->imported_.rgb)) {
+      ESP_LOGE(TAG, "'%s': Can't parse 'rgb_color' value '%s'!", this->entity_id_, value.c_str());
+      return;
+    }
+    this->imported_.has_rgb = true;
+    this->schedule_apply_();
   });
 }
 
@@ -151,8 +164,7 @@ optional<float> HomeassistantLight::parse_kelvin_(const char *name, StringRef va
   return nullopt;
 }
 
-template<typename T> void HomeassistantLight::import_(optional<T> &field, T value) {
-  field = value;
+void HomeassistantLight::schedule_apply_() {
   // One update changes several attributes, each arriving as its own message; apply them as one call
   if (!this->apply_scheduled_) {
     this->apply_scheduled_ = true;
@@ -166,16 +178,23 @@ void HomeassistantLight::apply_imported_() {
   auto call = this->state_->make_call().set_save(false);
   call.set_state(imported.state);
   if (imported.state.value_or(true)) {
-    call.set_color_mode(imported.color_mode);
-    call.set_brightness(imported.brightness);
+    if (imported.color_mode != ColorMode::UNKNOWN) {
+      call.set_color_mode(imported.color_mode);
+    }
+    if (imported.brightness != 0) {
+      call.set_brightness(imported.brightness / 255.0f);
+    }
     // Home Assistant reports rgb_color in every mode and keeps the attributes of the other
     // modes, so only the ones of the mode it reports are applied
-    const ColorMode mode = imported.color_mode.value_or(this->state_->remote_values.get_color_mode());
+    const ColorMode mode =
+        imported.color_mode != ColorMode::UNKNOWN ? imported.color_mode : this->state_->remote_values.get_color_mode();
     if (mode == ColorMode::COLOR_TEMPERATURE) {
-      call.set_color_temperature(imported.color_temp);
+      if (imported.color_temp_kelvin != 0) {
+        call.set_color_temperature(1e6f / imported.color_temp_kelvin);
+      }
     } else if (mode == ColorMode::RGB) {
-      if (imported.rgb.has_value()) {
-        const auto &rgb = *imported.rgb;
+      if (imported.has_rgb) {
+        const auto &rgb = imported.rgb;
         call.set_rgb(rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f);
       }
       call.set_color_brightness(1.0f);  // brightness is the only level Home Assistant has
@@ -202,7 +221,7 @@ void HomeassistantLight::write_state(LightState *state) {
   }
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->state_->get_name().c_str());
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", state->get_name().c_str());
     return;
   }
 #endif
@@ -225,6 +244,11 @@ void HomeassistantLight::write_state(LightState *state) {
   char level_buf[UINT32_MAX_STR_SIZE];
   char color_temp_buf[UINT32_MAX_STR_SIZE];
   char color_buf[16];
+  auto add_number = [&resp](StringRef key, char *buf, size_t size, unsigned number) {
+    auto &entry = resp.data.emplace_back();
+    entry.key = key;
+    entry.value = StringRef(buf, buf_append_printf(buf, size, 0, "%u", number));
+  };
   if (!values.is_on()) {
     resp.service = SERVICE_OFF;
   } else {
@@ -239,27 +263,21 @@ void HomeassistantLight::write_state(LightState *state) {
       } else if (color_mode == ColorMode::WHITE) {
         level *= values.get_white();
       }
-      auto &entry = resp.data.emplace_back();
-      entry.key = color_mode == ColorMode::WHITE ? WHITE_KEY : BRIGHTNESS_KEY;
-      entry.value = StringRef(level_buf, buf_append_printf(level_buf, sizeof(level_buf), 0, "%u",
-                                                           static_cast<unsigned>(level * 255.0f + 0.5f)));
+      add_number(color_mode == ColorMode::WHITE ? WHITE_KEY : BRIGHTNESS_KEY, level_buf, sizeof(level_buf),
+                 to_uint8_scale(level));
     }
     if (color_mode == ColorMode::COLOR_TEMPERATURE && values.get_color_temperature() > 0.0f) {
-      auto &color_temp = resp.data.emplace_back();
-      color_temp.key = COLOR_TEMP_KEY;
-      color_temp.value = StringRef(
-          color_temp_buf, buf_append_printf(color_temp_buf, sizeof(color_temp_buf), 0, "%u",
-                                            static_cast<unsigned>(1e6f / values.get_color_temperature() + 0.5f)));
+      add_number(COLOR_TEMP_KEY, color_temp_buf, sizeof(color_temp_buf),
+                 static_cast<unsigned>(lroundf(values.get_color_temperature_kelvin())));
     }
     if (color_mode == ColorMode::RGB) {
       // A list, which only a template renders as one
       resp.data_template.init(1);
       auto &color = resp.data_template.emplace_back();
       color.key = RGB_COLOR_KEY;
-      color.value = StringRef(color_buf, buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]",
-                                                           static_cast<unsigned>(values.get_red() * 255.0f + 0.5f),
-                                                           static_cast<unsigned>(values.get_green() * 255.0f + 0.5f),
-                                                           static_cast<unsigned>(values.get_blue() * 255.0f + 0.5f)));
+      color.value = StringRef(
+          color_buf, buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]", to_uint8_scale(values.get_red()),
+                                       to_uint8_scale(values.get_green()), to_uint8_scale(values.get_blue())));
     }
   }
   api::global_api_server->send_homeassistant_action(resp);

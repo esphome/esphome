@@ -26,22 +26,24 @@ class HomeassistantLight final : public light::LightOutput, public light::LightR
   void on_light_remote_values_update() override { this->remote_values_version_++; }
 
  protected:
-  /// What Home Assistant reported last. Each attribute arrives as its own message and stays
-  /// until the next report of it, so an update may change any subset.
+  /// What Home Assistant reported last, in its own units. Each attribute arrives as its own
+  /// message and stays until the next report of it, so an update may change any subset; zero,
+  /// ColorMode::UNKNOWN and has_rgb say an attribute was never reported.
   struct Attributes {
+    uint16_t color_temp_kelvin{0};
+    uint8_t brightness{0};
+    std::array<uint8_t, 3> rgb{};
+    light::ColorMode color_mode{light::ColorMode::UNKNOWN};
+    bool has_rgb{false};
     optional<bool> state;
-    optional<light::ColorMode> color_mode;
-    optional<float> brightness;
-    optional<float> color_temp;  // mireds
-    optional<std::array<uint8_t, 3>> rgb;
   };
 
   /// Parses a Home Assistant attribute as a number, logging the attribute name when it is not one
   optional<float> parse_attribute_(const char *name, StringRef value);
   /// Parses a color temperature in Kelvin into mireds
   optional<float> parse_kelvin_(const char *name, StringRef value);
-  /// Records an attribute and schedules apply_imported_() once
-  template<typename T> void import_(optional<T> &field, T value);
+  /// Schedules apply_imported_() once for the attributes of one update
+  void schedule_apply_();
   void apply_imported_();
 
   const char *entity_id_{nullptr};

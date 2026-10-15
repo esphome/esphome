@@ -30,7 +30,7 @@ SUBSCRIPTIONS = {
 COLOR_TEMPERATURE = (
     LightColorCapability.ON_OFF
     | LightColorCapability.BRIGHTNESS
-    | (LightColorCapability.COLOR_TEMPERATURE)
+    | LightColorCapability.COLOR_TEMPERATURE
 )
 RGB = (
     LightColorCapability.ON_OFF

@@ -40,15 +40,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_DEFAULT_TRANSITION_LENGTH, default="0s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_GAMMA_CORRECT): _RENDERED_BY_HOME_ASSISTANT,
-            cv.Optional(CONF_EFFECTS): _RENDERED_BY_HOME_ASSISTANT,
-            cv.Optional(CONF_FLASH_TRANSITION_LENGTH): _RENDERED_BY_HOME_ASSISTANT,
-            cv.Optional(
-                light.CONF_TRANSITION_STATE_PUBLISH_INTERVAL
-            ): _RENDERED_BY_HOME_ASSISTANT,
-            cv.Optional(CONF_RESTORE_MODE): _RENDERED_BY_HOME_ASSISTANT,
-            cv.Optional(CONF_RESTORE_STATE): _RENDERED_BY_HOME_ASSISTANT,
-            cv.Optional(CONF_INITIAL_STATE): _RENDERED_BY_HOME_ASSISTANT,
+            **{
+                cv.Optional(key): _RENDERED_BY_HOME_ASSISTANT
+                for key in (
+                    CONF_GAMMA_CORRECT,
+                    CONF_EFFECTS,
+                    CONF_FLASH_TRANSITION_LENGTH,
+                    light.CONF_TRANSITION_STATE_PUBLISH_INTERVAL,
+                    CONF_RESTORE_MODE,
+                    CONF_RESTORE_STATE,
+                    CONF_INITIAL_STATE,
+                )
+            },
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
