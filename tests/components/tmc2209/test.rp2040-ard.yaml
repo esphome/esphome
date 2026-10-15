@@ -3,6 +3,7 @@ substitutions:
   dir_pin: GPIO3
   enn_pin: GPIO6
   index_pin: GPIO7
+  diag_pin: GPIO8
 
 packages:
   uart_115200: !include ../../test_build_components/common/uart_115200/rp2040-ard.yaml

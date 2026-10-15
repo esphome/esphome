@@ -50,6 +50,13 @@ extern "C" {
 }
 
 #include <WiFi.h>
+
+#ifdef USE_WIFI_AP
+// The linker routes the driver's firmware events here; wifi/__init__.py adds the wrap flag
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif
 #endif
 
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
@@ -721,6 +728,19 @@ class WiFiComponent final : public Component {
 #endif
 #endif  // USE_WIFI_AP
 
+#ifdef USE_WIFI_AP_WISP
+  /// Whether there is an IPv4 resolver to offer AP clients: a configured one, or the station's
+  bool ap_dns_known_();
+  /// Hand the AP DHCP server its resolvers; false when one could not be set
+  bool write_ap_dns_();
+  /// Take the bridge down so loop() runs its setup again after ap_timeout
+  void fail_bridge_();
+#ifndef USE_WIFI_AP_WISP_STATIC_DNS
+  /// Pass the station's resolvers on to AP clients when they changed
+  void apply_ap_dns_();
+#endif
+#endif
+
   void print_connect_params_();
   WiFiAP build_params_for_current_phase_();
 
@@ -906,6 +926,11 @@ class WiFiComponent final : public Component {
 #ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
+#ifdef USE_WIFI_AP
+  // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+  friend void ::__wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+  // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif
 #endif
 
 #ifdef USE_LIBRETINY
@@ -971,8 +996,8 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-#ifdef USE_WIFI_AP_EXCLUSIVE
-  uint32_t ap_exclusive_changed_{0};  // When the AP was last started or paused
+#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
+  uint32_t ap_changed_{0};  // When the AP was last started or paused
 #endif
   uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t roaming_last_check_{0};
@@ -982,7 +1007,7 @@ class WiFiComponent final : public Component {
   // WiFiAP is byte aligned unless manual IP or EAP is enabled; placed before the
   // 1-byte members so they pack into its trailing bytes instead of padding after it
   WiFiAP ap_;
-#endif
+#endif  // USE_WIFI_AP
 
   // 1-byte enums and integers
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
@@ -1066,8 +1091,12 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
-#ifdef USE_WIFI_AP_EXCLUSIVE
-  uint8_t ap_clients_{0};  // Devices joined to the AP, which keep it from pausing
+#ifdef USE_WIFI_AP
+  // Stations joined to the AP; they hold the reboot timeout and keep an exclusive AP from pausing.
+  // Counted on the main loop on ESP32 and LibreTiny (queued events), in the SDK callback on ESP8266 and
+  // in the driver's interrupt context on the Pico W. The main loop only reads the byte while the AP is up
+  // and only writes it (a reset) while the AP is down, so no lock is needed.
+  uint8_t ap_clients_{0};
 #endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};

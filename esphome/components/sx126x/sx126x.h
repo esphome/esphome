@@ -48,7 +48,7 @@ enum SX126xBw : uint8_t {
   SX126X_BW_500000,
 };
 
-enum class SX126xError { NONE = 0, TIMEOUT, INVALID_PARAMS };
+enum class SX126xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX126X_ERROR_NOT_READY };
 
 class SX126xListener {
  public:
