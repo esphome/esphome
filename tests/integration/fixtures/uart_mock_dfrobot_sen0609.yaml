@@ -27,9 +27,20 @@ uart_mock:
             std::string cmd(data.begin(), data.end());
             if (cmd == "\r\n")
               return;
+            static float min_range = 0.6f;
+            static float max_range = 12.0f;
             std::string reply = cmd + "\r\n";
-            if (cmd == "getSWV")
+            if (cmd == "getRange") {
+              char buf[48];
+              snprintf(buf, sizeof(buf), "Response %.1f %.1f\r\n", min_range, max_range);
+              reply += buf;
+            } else if (cmd.rfind("setRange ", 0) == 0) {
+              sscanf(cmd.c_str() + 9, "%f %f", &min_range, &max_range);
+            } else if (cmd == "saveConfig") {
+              ESP_LOGI("sim", "Saved range %.2f %.2f", min_range, max_range);
+            } else if (cmd == "getSWV") {
               reply += "SoftwareVersion:V1.0.4\r\n";
+            }
             reply += "Done\r\nDFRobot:/>";
             id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>(reply.begin(), reply.end()));
 
@@ -49,6 +60,13 @@ binary_sensor:
   - platform: dfrobot_sen0609
     has_target:
       name: Has Target
+
+number:
+  - platform: dfrobot_sen0609
+    min_range:
+      name: Min Range
+    max_range:
+      name: Max Range
 
 text_sensor:
   - platform: dfrobot_sen0609
