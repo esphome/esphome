@@ -353,14 +353,15 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 static constexpr uint32_t BORDER_ROUTER_RETRY_MS = 10000;
 
 void OpenThreadComponent::loop() {
-  // Thread starts on its own. Border routing starts once the Wi-Fi backbone has an address; after
-  // that the stack is told whenever the backbone goes away or comes back, which makes it stop and
-  // restart routing on that interface. The Wi-Fi listener enables the loop on every link change
+  // Thread starts on its own. Border routing starts once the Wi-Fi backbone has an address. When the
+  // backbone goes away the stack is told so it pauses routing on that interface; when it comes back
+  // the border router is created afresh, since the port's infra interface keeps the socket and the
+  // addresses of the backbone as it was. The Wi-Fi listener enables the loop on every link change
   if (!this->mainloop_running_) {
     return;
   }
   const bool backbone_up = wifi::global_wifi_component->is_connected();
-  if (this->border_router_started_ && backbone_up == this->backbone_up_) {
+  if (backbone_up == this->backbone_up_) {
     this->disable_loop();
     return;
   }
@@ -369,39 +370,34 @@ void OpenThreadComponent::loop() {
   if (!lock) {
     return;
   }
-  if (!this->border_router_started_) {
-    if (!backbone_up) {
-      this->disable_loop();
-      return;
+  if (!backbone_up) {
+    if (this->border_router_started_) {
+      ESP_LOGI(TAG, "Wi-Fi backbone lost, border routing pauses");
+      esp_netif_t *backbone = esp_openthread_get_backbone_netif();
+      (void) otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), false);
     }
-    if (const esp_err_t err = esp_openthread_border_router_init(); err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to initialize OpenThread Border Router: %s", esp_err_to_name(err));
-      this->status_set_error(LOG_STR("Border router init failed"));
-      this->disable_loop();
-      this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
-      return;
-    }
-    this->status_clear_error();
-    this->border_router_started_ = true;
-    this->backbone_up_ = true;
-    ESP_LOGI(TAG, "Border routing started");
+    this->backbone_up_ = false;
     this->disable_loop();
     return;
   }
-  ESP_LOGI(
-      TAG, "Wi-Fi backbone %s",
-      backbone_up ? LOG_STR_LITERAL("back, border routing resumes") : LOG_STR_LITERAL("lost, border routing pauses"));
-  esp_netif_t *backbone = esp_openthread_get_backbone_netif();
-  const otError err =
-      otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), backbone_up);
-  if (err != OT_ERROR_NONE) {
-    // The stack did not take the report; try again in a while rather than leave it with a stale link state
-    ESP_LOGW(TAG, "Failed to report the backbone state to OpenThread: %s", otThreadErrorToString(err));
+  if (this->border_router_started_) {
+    ESP_LOGI(TAG, "Wi-Fi backbone back, border routing restarts");
+    if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
+    }
+    this->border_router_started_ = false;
+  }
+  if (const esp_err_t err = esp_openthread_border_router_init(); err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to initialize OpenThread Border Router: %s", esp_err_to_name(err));
+    this->status_set_error(LOG_STR("Border router init failed"));
     this->disable_loop();
     this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
     return;
   }
-  this->backbone_up_ = backbone_up;
+  this->status_clear_error();
+  this->border_router_started_ = true;
+  this->backbone_up_ = true;
+  ESP_LOGI(TAG, "Border routing started");
   this->disable_loop();
 }
 #endif
