@@ -7,7 +7,10 @@ ESPHOME_LOG_TAG(TAG, "gree.switch");
 
 void GreeFeatureSwitch::setup() {
   if (this->parent_->supports_feature_state_rx()) {
-    this->set_restore_mode(switch_::SWITCH_RESTORE_DISABLED);
+    if (this->restore_mode != switch_::SWITCH_RESTORE_DISABLED) {
+      ESP_LOGD(TAG, "GREE switch %s: disabling restore_mode; state is synchronized from IR RX", this->name_);
+      this->set_restore_mode(switch_::SWITCH_RESTORE_DISABLED);
+    }
     this->publish_state(this->parent_->get_feature_state(this->feature_));
     return;
   }

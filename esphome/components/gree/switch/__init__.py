@@ -108,8 +108,20 @@ def _validate_model(config: ConfigType) -> None:
     _validate_features_for_model(model, config)
     if model in RX_FEATURE_MODELS:
         for feature, *_ in SWITCH_CONFIGS:
-            if feature in config:
-                config[feature][CONF_RESTORE_MODE] = RX_RESTORE_MODE
+            if feature not in config:
+                continue
+            # switch_schema inserts RESTORE_DEFAULT_ON/OFF before final validation.
+            # C++ disables restoration at setup; do not mutate validated config.
+            schema_default = switch.RESTORE_MODES[
+                "RESTORE_DEFAULT_ON" if feature == CONF_LIGHT else "RESTORE_DEFAULT_OFF"
+            ]
+            restore_mode = config[feature].get(CONF_RESTORE_MODE, schema_default)
+            if restore_mode not in (schema_default, RX_RESTORE_MODE):
+                raise cv.Invalid(
+                    f"Gree model {model} receives {feature} state from IR; "
+                    "restore_mode must be DISABLED or omitted",
+                    path=[feature, CONF_RESTORE_MODE],
+                )
 
 
 FINAL_VALIDATE_SCHEMA = _validate_model

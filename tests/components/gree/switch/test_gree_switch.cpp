@@ -93,6 +93,20 @@ TEST(GreeFeatureSwitch, LegacySetupRetainsRestoreAndTransmitBehavior) {
   EXPECT_TRUE(device.get_feature_state(GREE_FEATURE_TURBO));
 }
 
+TEST(GreeFeatureSwitch, UnsupportedModelFeatureDoesNotTransmitAndRestoresState) {
+  GreeSwitchTestTransmitter transmitter;
+  GreeClimate device;
+  initialize_climate(device, GREE_YX1FF, transmitter);
+  GreeFeatureSwitch turbo("Unsupported Gree Turbo", GREE_FEATURE_TURBO);
+  register_switch(device, turbo, GREE_FEATURE_TURBO);
+
+  turbo.turn_on();
+
+  EXPECT_EQ(transmitter.send_count, 0U);
+  EXPECT_FALSE(turbo.state);
+  EXPECT_FALSE(device.get_feature_state(GREE_FEATURE_TURBO));
+}
+
 TEST(GreeFeatureSwitch, EnablingYB1FATurboSetsEffectiveFanHigh) {
   GreeSwitchTestTransmitter transmitter;
   GreeClimate device;

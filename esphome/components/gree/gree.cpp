@@ -76,6 +76,24 @@ static climate::ClimateMode decode_operation_mode(uint8_t mode) {
   return climate::CLIMATE_MODE_HEAT_COOL;
 }
 
+// Use if-else rather than lookup tables to avoid RAM usage on ESP8266.
+static climate::ClimateFanMode decode_fan_mode(Model model, uint8_t fan) {
+  if (fan == GREE_FAN_AUTO)
+    return climate::CLIMATE_FAN_AUTO;
+  if (model == GREE_YX1FF) {
+    if (fan == GREE_FAN_1)
+      return climate::CLIMATE_FAN_QUIET;
+    if (fan == GREE_FAN_2)
+      return climate::CLIMATE_FAN_LOW;
+    return climate::CLIMATE_FAN_MEDIUM;
+  }
+  if (fan == GREE_FAN_1)
+    return climate::CLIMATE_FAN_LOW;
+  if (fan == GREE_FAN_2)
+    return climate::CLIMATE_FAN_MEDIUM;
+  return climate::CLIMATE_FAN_HIGH;
+}
+
 void GreeProtocol::encode(remote_base::RemoteTransmitData *data, const GreeState &state) const {
   data->reserve(140);
   data->set_carrier_frequency(GREE_IR_FREQUENCY);
@@ -355,20 +373,7 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
   if (power)
     data.mode = decode_operation_mode(mode);
 
-  switch (fan) {
-    case GREE_FAN_1:
-      data.fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-    case GREE_FAN_2:
-      data.fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-    case GREE_FAN_3:
-      data.fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-    case GREE_FAN_AUTO:
-      data.fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
-  }
+  data.fan_mode = decode_fan_mode(model, fan);
 
   return data;
 }
@@ -406,39 +411,7 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
   if (power)
     data.mode = decode_operation_mode(mode);
 
-  if (turbo) {
-    data.fan_mode = climate::CLIMATE_FAN_HIGH;
-  } else if (model == GREE_YX1FF) {
-    switch (fan) {
-      case GREE_FAN_1:
-        data.fan_mode = climate::CLIMATE_FAN_QUIET;
-        break;
-      case GREE_FAN_2:
-        data.fan_mode = climate::CLIMATE_FAN_LOW;
-        break;
-      case GREE_FAN_3:
-        data.fan_mode = climate::CLIMATE_FAN_MEDIUM;
-        break;
-      case GREE_FAN_AUTO:
-        data.fan_mode = climate::CLIMATE_FAN_AUTO;
-        break;
-    }
-  } else {
-    switch (fan) {
-      case GREE_FAN_1:
-        data.fan_mode = climate::CLIMATE_FAN_LOW;
-        break;
-      case GREE_FAN_2:
-        data.fan_mode = climate::CLIMATE_FAN_MEDIUM;
-        break;
-      case GREE_FAN_3:
-        data.fan_mode = climate::CLIMATE_FAN_HIGH;
-        break;
-      case GREE_FAN_AUTO:
-        data.fan_mode = climate::CLIMATE_FAN_AUTO;
-        break;
-    }
-  }
+  data.fan_mode = turbo ? climate::CLIMATE_FAN_HIGH : decode_fan_mode(model, fan);
 
   return data;
 }
@@ -449,9 +422,8 @@ void GreeClimate::set_model(Model model) {
     this->swing_modes_.erase(climate::CLIMATE_SWING_HORIZONTAL);
     this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
   }
-  if (model == GREE_YX1FF)
-    this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
   if (model == GREE_YX1FF) {
+    this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
     this->presets_.insert(climate::CLIMATE_PRESET_NONE);
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
@@ -462,8 +434,14 @@ void GreeClimate::set_model(Model model) {
 
 void GreeClimate::set_feature_state(GreeFeature feature, bool enabled) {
   const uint8_t bit = gree_feature_bit(feature);
-  if (!(supported_feature_mask(this->model_) & bit))
+  if (!(supported_feature_mask(this->model_) & bit)) {
+    ESP_LOGW(TAG, "GREE model %u does not support feature %u", static_cast<unsigned>(this->model_),
+             static_cast<unsigned>(feature));
+#ifdef USE_SWITCH
+    this->publish_feature_state_(feature);
+#endif
     return;
+  }
 
   // YB1FA reports Turbo as effective HIGH fan. Keep the Climate and feature entities consistent when Turbo is enabled.
   const bool fan_changed = this->model_ == GREE_YB1FA && feature == GREE_FEATURE_TURBO && enabled &&
@@ -542,9 +520,15 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!state.has_value())
     return false;
 
+  // Auxiliary 0x70 YAC frames are expected follow-ups and not climate states.
+  if (this->model_ == GREE_YAC && ((*state)[3] & 0xF0) == 0x70)
+    return false;
+
   auto decoded = GreeClimateCodec::decode(this->model_, *state);
   if (!decoded.has_value()) {
-    ESP_LOGV(TAG, "Received a valid GREE frame that is not supported by the selected model");
+    ESP_LOGD(TAG, "GREE frame rejected for model %u: %02X %02X %02X %02X %02X %02X %02X %02X",
+             static_cast<unsigned>(this->model_), (*state)[0], (*state)[1], (*state)[2], (*state)[3], (*state)[4],
+             (*state)[5], (*state)[6], (*state)[7]);
     return false;
   }
 
