@@ -29,7 +29,7 @@ Parsed parse(const char *text) {
 }  // namespace
 
 TEST(PythonList, ReadsStringsWithTheirEscapes) {
-  auto parsed = parse("['Low', \"It's high\", 'caf\\xe9']");
+  auto parsed = parse(R"(['Low', "It's high", 'caf\xe9'])");
   ASSERT_TRUE(parsed.valid);
   ASSERT_EQ(parsed.items.size(), 3u);
   EXPECT_EQ(parsed.items[0], "Low");
