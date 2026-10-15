@@ -16,10 +16,8 @@ class EPaperBWR : public EPaperBase {
  public:
   EPaperBWR(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
             size_t init_sequence_length, bool invert_red)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR),
-        invert_red_(invert_red) {
-    this->buffer_length_ = this->row_width_ * height * 2;
-  }
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR, 1, 2),
+        invert_red_(invert_red) {}
 
   void fill(Color color) override;
 
