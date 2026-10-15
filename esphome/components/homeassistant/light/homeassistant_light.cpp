@@ -42,7 +42,7 @@ enum ActionString : uint8_t {
 };
 
 optional<ColorMode> parse_color_mode(StringRef name) {
-  const int8_t i = find_in_table<ColorModeNames>(name);
+  const int8_t i = progmem_string_table_find<ColorModeNames>(name);
   if (i < 0) {
     return nullopt;
   }
@@ -240,9 +240,10 @@ void HomeassistantLight::apply_imported_() {
   this->apply_scheduled_ = false;
   if (!this->state_->set_external_state(values)) {
     // A local change still waits for LightState::loop() to send it, or a local transition or flash
-    // runs. The report is older than that change, and Home Assistant reports again once the change
-    // has reached it, so it is dropped
-    ESP_LOGV(TAG, "'%s': Report dropped, a local change is on its way", this->entity_id_);
+    // runs; write_state() schedules the report again once that change has gone out, so the light
+    // ends on the reported state even when the change never reaches Home Assistant
+    ESP_LOGD(TAG, "'%s': Report waits for a local change to go out", this->entity_id_);
+    this->report_waiting_ = true;
     return;
   }
   ESP_LOGD(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
@@ -257,6 +258,12 @@ void HomeassistantLight::write_state(LightState *state) {
   }
   if (state->is_transitioning()) {
     return;  // Home Assistant gets the target once it is reached
+  }
+  if (this->report_waiting_) {
+    // The report that had to wait goes after this change; Home Assistant's echo of the change
+    // follows and overrides it, unless the change got lost on the way
+    this->report_waiting_ = false;
+    this->schedule_apply_();
   }
   const LightColorValues &values = state->current_values;
   if (!api::global_api_server->is_connected()) {

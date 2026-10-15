@@ -8,6 +8,7 @@
 #include <string>
 
 #include "esphome/core/hal.h"  // For PROGMEM definition
+#include "esphome/core/string_ref.h"
 
 // Platform-agnostic macros for PROGMEM string handling
 // On ESP8266/Arduino: Use Arduino's F() macro for PROGMEM strings
@@ -152,6 +153,17 @@ struct LogString;
       return reinterpret_cast<const ::esphome::LogString *>(get_(idx, fallback)); \
     } \
   }
+
+/// The index of value in a PROGMEM_STRING_TABLE, or -1 when it is not one of its strings
+template<typename Table> int8_t progmem_string_table_find(StringRef value) {
+  for (uint8_t i = 0; i < Table::COUNT; i++) {
+    const char *entry = Table::get_(i, i);
+    if (ESPHOME_strlen_P(entry) == value.size() && ESPHOME_strncmp_P(value.c_str(), entry, value.size()) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
 
 /// The strings of a PROGMEM_STRING_TABLE addressable as plain pointers, for code that hands them on
 /// without reading them itself, such as an API request. On the ESP8266 this is a copy of the table on
