@@ -250,6 +250,13 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       this->set_flow_transfer_(channel);
       return true;
     }
+    case 6:
+      // Linux raises the lines once more on open (cp210x_dtr_rts). On firmware with erratum E104
+      // this SET_MHS is what puts RTS on the wire, as SET_FLOW misreads its RTS bits. Init only.
+      if (reload)
+        return false;
+      this->modem_control_transfer(channel);
+      return true;
     default:
       return false;
   }
