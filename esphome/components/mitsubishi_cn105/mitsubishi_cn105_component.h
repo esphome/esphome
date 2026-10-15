@@ -107,6 +107,7 @@ class MitsubishiCN105Component final : public Component, public uart::UARTDevice
   const MitsubishiCN105::Status &status() const { return this->hp_.status(); }
   bool is_status_initialized() const { return this->hp_.is_status_initialized(); }
   bool is_telemetry_polling_enabled() const { return this->hp_.is_telemetry_polling_enabled(); }
+  bool is_heatpump_polling_enabled() const { return this->hp_.is_heatpump_polling_enabled(); }
   const TemperatureMapping &get_temperature_mapping() const { return this->temperature_mapping_; }
 
   template<typename F> void add_on_status_callback(F &&callback) {
