@@ -178,14 +178,50 @@ TEST_F(SEN0609SequencerTest, SilentModuleBacksOffAndKeepsWork) {
   EXPECT_EQ(this->next_command_(), "setRunApp 0");
 }
 
-TEST_F(SEN0609SequencerTest, PairedValueUnknownSkipsWriteAndRereads) {
+TEST_F(SEN0609SequencerTest, PairedValueUnknownIsReadBeforeWrite) {
   // No boot reads, so the trigger sensitivity paired with hold sensitivity is unknown
   this->hub_.control_number(NUMBER_HOLD_SENSITIVITY, 3.0f);
   this->expect_and_answer_("sensorStop");
   this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 3.0f);
+  this->expect_and_answer_("setSensitivity 3 5");
+  this->expect_and_answer_("saveConfig");
   this->expect_and_answer_("sensorStart");
-  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 7.0f);
   EXPECT_EQ(this->next_command_(), "");
+}
+
+TEST_F(SEN0609SequencerTest, PairedValueReadFailureDropsWrite) {
+  this->hub_.control_number(NUMBER_HOLD_SENSITIVITY, 3.0f);
+  this->expect_and_answer_("sensorStop");
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(this->next_command_(), "getSensitivity");
+    this->feed_("getSensitivity\r\nError\r\nDFRobot:/>");
+  }
+  this->expect_and_answer_("sensorStart");
+  EXPECT_EQ(this->next_command_(), "");
+  EXPECT_TRUE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SequencerTest, ChangeAfterFailedBootReadIsWritten) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(this->next_command_(), "getRange");
+    this->feed_("getRange\r\nError\r\nDFRobot:/>");
+  }
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("sensorStart");
+  this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("setRange 1.00 12.00");
+  this->expect_and_answer_("saveConfig");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_FLOAT_EQ(this->min_range_.state, 1.0f);
+  EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
 TEST_F(SEN0609SequencerTest, ChangeBeforeBootReadWaitsForPairedValue) {
@@ -213,6 +249,56 @@ TEST_F(SEN0609SequencerTest, ChangeDuringWriteIsWrittenAgain) {
   this->expect_and_answer_("saveConfig");
   this->expect_and_answer_("sensorStart");
   EXPECT_EQ(this->next_command_(), "");
+}
+
+TEST_F(SEN0609SequencerTest, ChangesDuringSequenceShareOneSave) {
+  this->boot_();
+  this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);
+  this->expect_and_answer_("sensorStop");
+  ASSERT_EQ(this->next_command_(), "setRange 1.00 12.00");
+  this->hub_.control_number(NUMBER_MAX_RANGE, 10.0f);
+  this->answer_("setRange 1.00 12.00");
+  this->expect_and_answer_("setRange 1.00 10.00");
+  // The save waits a second after the last change
+  EXPECT_EQ(this->next_command_(500), "");
+  this->hub_.control_number(NUMBER_HOLD_SENSITIVITY, 3.0f);
+  this->expect_and_answer_("setSensitivity 3 5");
+  this->expect_and_answer_("saveConfig");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_EQ(this->next_command_(), "");
+}
+
+TEST_F(SEN0609SequencerTest, ReadAfterFailedWriteKeepsNewerPartnerChange) {
+  this->boot_();
+  this->hub_.control_number(NUMBER_HOLD_SENSITIVITY, 9.0f);
+  this->expect_and_answer_("sensorStop");
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(this->next_command_(), "setSensitivity 9 5");
+    this->feed_("setSensitivity 9 5\r\nError\r\nDFRobot:/>");
+  }
+  ASSERT_EQ(this->next_command_(), "getSensitivity");
+  this->hub_.control_number(NUMBER_TRIGGER_SENSITIVITY, 4.0f);
+  this->answer_("getSensitivity", "Response 7 5\r\n");
+  // The rejected hold sensitivity is put back, the newer trigger sensitivity is kept
+  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 7.0f);
+  this->expect_and_answer_("setSensitivity 7 4");
+}
+
+TEST_F(SEN0609SequencerTest, AutomationDuringReadKeepsItsChange) {
+  bool changed = false;
+  this->min_range_.add_on_state_callback([this, &changed](float) {
+    if (!changed) {
+      changed = true;
+      this->hub_.control_number(NUMBER_MAX_RANGE, 8.0f);
+    }
+  });
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  EXPECT_FLOAT_EQ(this->max_range_.state, 8.0f);
+  this->expect_and_answer_("setRange 0.60 8.00");
 }
 
 TEST_F(SEN0609SequencerTest, ChangeDuringReadIsKept) {

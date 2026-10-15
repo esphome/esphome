@@ -50,6 +50,7 @@ static constexpr SwitchSetting led_switch(Param param) {
 #endif
 
 #ifdef USE_NUMBER
+static_assert(NUMBER_COUNT <= 16, "changed_numbers_ holds one bit per number");
 static constexpr uint8_t NUMBER_PARAMS[NUMBER_COUNT] PROGMEM = {
     PARAM_RANGE,   PARAM_RANGE,   PARAM_TRIG_RANGE, PARAM_SENSITIVITY, PARAM_SENSITIVITY,
     PARAM_LATENCY, PARAM_LATENCY, PARAM_INHIBIT,    PARAM_THR_FACTOR,
@@ -422,12 +423,14 @@ void DFRobotSEN0609Component::check_frames_(uint32_t now) {
 }
 
 void DFRobotSEN0609Component::request_write_(Param param) {
+  const uint32_t now = App.get_loop_component_start_time();
   this->pending_writes_ |= param_bit(param);
+  this->last_change_ms_ = now;
   if (this->operation_ != Operation::OPERATION_NONE || this->stopped_)
     return;
   // Start a new sequence a little later, so changes made together end in one flash write.
   // A longer hold, such as the back-off from a module that does not answer, is not cut short.
-  const uint32_t elapsed = App.get_loop_component_start_time() - this->hold_start_ms_;
+  const uint32_t elapsed = now - this->hold_start_ms_;
   if (elapsed >= this->hold_ms_ || this->hold_ms_ - elapsed < COALESCE_MS)
     this->hold_(COALESCE_MS);
 }
@@ -442,8 +445,16 @@ void DFRobotSEN0609Component::control_number(NumberSetting setting, float value)
       this->publish_number_(setting, this->number_values_[setting]);
     return;
   }
+  this->changed_numbers_ |= 1U << setting;
   this->publish_number_(setting, value);
   this->request_write_(static_cast<Param>(progmem_read_byte(&NUMBER_PARAMS[setting])));
+}
+
+void DFRobotSEN0609Component::forget_number_changes_(Param param) {
+  for (uint8_t i = 0; i < NUMBER_COUNT; i++) {
+    if (progmem_read_byte(&NUMBER_PARAMS[i]) == param)
+      this->changed_numbers_ &= ~(1U << i);
+  }
 }
 
 void DFRobotSEN0609Component::publish_number_(NumberSetting setting, float value) {
@@ -517,6 +528,9 @@ void DFRobotSEN0609Component::run_sequencer_() {
     operation = Operation::OPERATION_WRITE;
     param = static_cast<Param>(__builtin_ctz(this->pending_writes_));
   } else if (this->save_pending_) {
+    // Changes made within a second of each other share one flash write, also while a sequence runs
+    if (now - this->last_change_ms_ < COALESCE_MS)
+      return;
     operation = Operation::OPERATION_SAVE;
   } else {
     operation = Operation::OPERATION_READ;
@@ -525,17 +539,24 @@ void DFRobotSEN0609Component::run_sequencer_() {
 
   const uint16_t bit = param_bit(param);
   bool built = this->build_command_(operation, param);
-  if (!built && operation == Operation::OPERATION_WRITE && (this->pending_reads_ & bit) != 0) {
-    // The value this write is paired with is unknown, but its read is due: read first, the write stays pending
-    operation = Operation::OPERATION_READ;
-    built = this->build_command_(operation, param);
+  if (!built && operation == Operation::OPERATION_WRITE) {
+    // The value this write is paired with is unknown: read it first, once, and keep the write pending
+    if ((this->paired_reads_ & bit) == 0)
+      this->pending_reads_ |= this->wanted_reads_() & bit;
+    if ((this->pending_reads_ & bit) != 0) {
+      this->paired_reads_ |= bit;
+      operation = Operation::OPERATION_READ;
+      built = this->build_command_(operation, param);
+    }
   }
   if (!built) {
     if (operation == Operation::OPERATION_WRITE) {
-      ESP_LOGW(TAG, "Setting not written: the value it is paired with is unknown");
+      ESP_LOGW(TAG, "Setting not written: the value it is paired with could not be read");
       this->pending_writes_ &= ~bit;
-      // Show the module's value again
-      this->pending_reads_ |= this->wanted_reads_() & bit;
+      this->paired_reads_ &= ~bit;
+#ifdef USE_NUMBER
+      this->forget_number_changes_(param);
+#endif
     } else {
       ESP_LOGE(TAG, "No command for %s of parameter %u", LOG_STR_ARG(operation_to_str(operation)),
                static_cast<unsigned>(param));
@@ -546,8 +567,13 @@ void DFRobotSEN0609Component::run_sequencer_() {
     return;
   }
   // Cleared now, so a change made while the write is on its way is written again
-  if (operation == Operation::OPERATION_WRITE)
+  if (operation == Operation::OPERATION_WRITE) {
     this->pending_writes_ &= ~bit;
+    this->paired_reads_ &= ~bit;
+#ifdef USE_NUMBER
+    this->forget_number_changes_(param);
+#endif
+  }
   this->operation_ = operation;
   this->param_ = param;
   this->response_count_ = 0;
@@ -661,8 +687,9 @@ bool DFRobotSEN0609Component::apply_read_(Param param) {
   // A change still waiting to be written is newer than what the module holds
   const bool write_pending = (this->pending_writes_ & param_bit(param)) != 0;
 #ifdef USE_NUMBER
-  auto read_number = [this, write_pending](NumberSetting setting, float value) {
-    if (!write_pending || std::isnan(this->number_values_[setting]))
+  // Checked for each number: publishing runs automations, which may change the next one
+  auto read_number = [this](NumberSetting setting, float value) {
+    if ((this->changed_numbers_ & (1U << setting)) == 0)
       this->publish_number_(setting, value);
   };
 #endif
@@ -763,6 +790,7 @@ void DFRobotSEN0609Component::finish_operation_() {
         return;
       }
       this->pending_reads_ &= ~param_bit(this->param_);
+      this->paired_reads_ &= ~param_bit(this->param_);
       break;
     default:
       return;

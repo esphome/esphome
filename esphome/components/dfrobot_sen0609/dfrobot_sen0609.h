@@ -145,6 +145,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 
 #ifdef USE_NUMBER
   void publish_number_(NumberSetting setting, float value);
+  void forget_number_changes_(Param param);
 #endif
 #ifdef USE_SWITCH
   void publish_switch_(SwitchSetting setting, bool state);
@@ -172,8 +173,15 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint32_t hold_start_ms_{0};
   uint32_t hold_ms_{0};
   uint32_t last_frame_ms_{0};
+  uint32_t last_change_ms_{0};
   uint16_t pending_writes_{0};
   uint16_t pending_reads_{0};
+  // Reads made for a write whose paired value is unknown; the write is dropped when the read fails
+  uint16_t paired_reads_{0};
+#ifdef USE_NUMBER
+  // Numbers changed since their last write was sent, one bit per NumberSetting
+  uint16_t changed_numbers_{0};
+#endif
   RunMode mode_;
   Operation operation_{Operation::OPERATION_NONE};
   Param param_{PARAM_COUNT};
