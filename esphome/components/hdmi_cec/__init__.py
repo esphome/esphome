@@ -186,7 +186,8 @@ async def to_code(config: ConfigType) -> None:
     if (physical_address := config.get(CONF_PHYSICAL_ADDRESS)) is not None:
         cg.add(var.set_physical_address(physical_address))
     if (osd_name := config.get(CONF_OSD_NAME)) is not None:
-        cg.add(var.set_osd_name(cg.shared_progmem_string(osd_name), len(osd_name)))
+        cg.extern_progmem_array("esphome::hdmi_cec::OSD_NAME", cg.char, osd_name)
+        cg.add_define("HDMI_CEC_OSD_NAME_LENGTH", len(osd_name))
     if (uart_id := config.get(CONF_UART_ID)) is not None:
         cg.add_define("USE_HDMI_CEC_UART")
         cg.add(var.set_uart(await cg.get_variable(uart_id)))
@@ -204,10 +205,10 @@ async def to_code(config: ConfigType) -> None:
         {conf[CONF_DATA][0] for conf in for_us if CONF_DATA in conf}
     )
     if claimed_opcodes:
-        table = cg.shared_progmem_array(
-            "hdmi_cec_claimed_opcodes", cg.uint8, claimed_opcodes
+        cg.extern_progmem_array(
+            "esphome::hdmi_cec::CLAIMED_OPCODES", cg.uint8, claimed_opcodes
         )
-        cg.add(var.set_claimed_opcodes(table, len(claimed_opcodes)))
+        cg.add_define("HDMI_CEC_CLAIMED_OPCODE_COUNT", len(claimed_opcodes))
     if all(CONF_DATA in conf for conf in for_us):
         cg.add_define("USE_HDMI_CEC_FEATURE_ABORT")
 

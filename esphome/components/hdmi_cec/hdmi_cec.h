@@ -25,6 +25,14 @@ class UARTComponent;
 
 namespace esphome::hdmi_cec {
 
+// Generated from the configuration, in flash
+#ifdef HDMI_CEC_OSD_NAME_LENGTH
+extern const char OSD_NAME[] PROGMEM;
+#endif
+#ifdef HDMI_CEC_CLAIMED_OPCODE_COUNT
+extern const uint8_t CLAIMED_OPCODES[] PROGMEM;
+#endif
+
 // Release/acquire store and load. The read-modify-write forms of std::atomic are not available on
 // every target (the ESP8266 has none), so a writer computes the new value itself; that is safe here
 // because every atomic in this component has exactly one writer.
@@ -42,6 +50,7 @@ class Frame {
  public:
   static constexpr size_t MAX_LENGTH = 16;  // HDMI-CEC 1.4
   static constexpr size_t MAX_PAYLOAD_LENGTH = MAX_LENGTH - 1;
+  static constexpr uint8_t BROADCAST_ADDRESS = 0xF;  // also the address of an unregistered device
 
   Frame() = default;
   /// The payload is at most MAX_PAYLOAD_LENGTH bytes; send() checks that
@@ -49,7 +58,7 @@ class Frame {
 
   ESPHOME_ALWAYS_INLINE uint8_t initiator_addr() const { return this->data_[0] >> 4; }
   ESPHOME_ALWAYS_INLINE uint8_t destination_addr() const { return this->data_[0] & 0xf; }
-  ESPHOME_ALWAYS_INLINE bool is_broadcast() const { return this->destination_addr() == 0xf; }
+  ESPHOME_ALWAYS_INLINE bool is_broadcast() const { return this->destination_addr() == BROADCAST_ADDRESS; }
   ESPHOME_ALWAYS_INLINE size_t size() const { return this->size_; }
   std::span<const uint8_t> bytes() const { return {this->data_.data(), this->size_}; }
   /// The bytes after the header, starting with the opcode
@@ -113,16 +122,6 @@ class HDMICEC : public Component {
   /// A lambda may change it at run time, for instance after reading it from the HDMI sink's EDID
   void set_physical_address(uint16_t physical_address) { this->physical_address_ = physical_address; }
   uint16_t get_physical_address() const { return this->physical_address_; }
-  /// Answer "Give OSD Name" with this name; it lives in flash
-  void set_osd_name(const char *name, uint8_t length) {
-    this->osd_name_ = name;
-    this->osd_name_length_ = length;
-  }
-  /// Opcodes an on_message automation answers itself, sorted, in flash; no built-in reply for them
-  void set_claimed_opcodes(const uint8_t *opcodes, uint8_t count) {
-    this->claimed_opcodes_ = opcodes;
-    this->claimed_opcode_count_ = count;
-  }
 #ifdef USE_HDMI_CEC_UART
   /// Send the frame body from this UART (its TX pin on the line through a diode) instead of bit-banging it
   void set_uart(uart::UARTComponent *uart) { this->uart_ = uart; }
@@ -177,9 +176,9 @@ class HDMICEC : public Component {
   static void ack_timer_isr_s(uint alarm_num);
 #endif
 
-  /// The built-in replies to a frame addressed to us that no automation claims
+  /// The built-in replies to a frame directed at us that no automation claims
   void reply_builtin_(const Frame *frame);
-  bool is_claimed_(uint8_t opcode) const;
+  static bool is_claimed_(uint8_t opcode);
 
   // Transmit side, in loop()
   void transmit_message_();
@@ -190,10 +189,9 @@ class HDMICEC : public Component {
   bool send_start_bit_();
   /// Send one bit; false when a logical 1 found the line held low by another initiator
   bool send_bit_(bool bit_value);
-#ifdef USE_HDMI_CEC_UART
-  /// Hand the frame after the initiator address to the UART, five UART bits per CEC bit
-  void transmit_on_uart_(const Frame *frame);
-#endif
+  /// Drive the frame after the initiator address: bit-banged, or from the UART, five UART bits
+  /// per CEC bit, while loop() goes on
+  void transmit_body_(const Frame *frame);
   ESPHOME_ALWAYS_INLINE void set_pin_input_high_() { this->isr_pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
   ESPHOME_ALWAYS_INLINE void set_pin_output_low_() {
     this->isr_pin_.pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
@@ -214,8 +212,6 @@ class HDMICEC : public Component {
 #endif
   InternalGPIOPin *pin_;
   ISRInternalGPIOPin isr_pin_;
-  const char *osd_name_{nullptr};            // in flash
-  const uint8_t *claimed_opcodes_{nullptr};  // in flash, sorted
 #ifdef USE_HDMI_CEC_UART
   uart::UARTComponent *uart_{nullptr};
 #endif
@@ -232,6 +228,7 @@ class HDMICEC : public Component {
   uint32_t last_falling_edge_us_{0};       // interrupt only
   uint32_t last_attempt_us_{0};            // loop() only; a refused start bit drives no edge, so it is timed here
   uint16_t required_idle_period_{0};       // loop() only
+  uint16_t physical_address_{UNSET_PHYSICAL_ADDRESS};
 
   // Shared with the interrupt. The tally of our own frame is written by the interrupt while
   // transmitting_ is set and no end of message has passed yet; loop() reads it once eom_received_
@@ -250,10 +247,7 @@ class HDMICEC : public Component {
   bool recv_ack_queued_{false};
   bool prev_pin_level_{true};
 
-  uint16_t physical_address_{UNSET_PHYSICAL_ADDRESS};
-  uint8_t osd_name_length_{0};
-  uint8_t claimed_opcode_count_{0};
-  uint8_t address_;  // logical address, 0xf when only listening
+  uint8_t address_;  // logical address, Frame::BROADCAST_ADDRESS when only listening
   bool promiscuous_mode_{false};
   bool monitor_mode_{false};
 
