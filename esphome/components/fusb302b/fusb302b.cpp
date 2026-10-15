@@ -75,25 +75,29 @@ void FUSB302B::setup() {
   this->interrupt_pin_->attach_interrupt(&FUSB302B::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
 }
 
-void FUSB302B::on_state_changed() {
-  const PdState state = this->state_;
-  if (state != this->queued_state_) {
-    this->queued_state_ = state;
-    const uint8_t head = this->state_queue_head_.load(std::memory_order_relaxed);
-    if (static_cast<uint8_t>(head - this->state_queue_tail_.load(std::memory_order_acquire)) < STATE_QUEUE_SIZE) {
-      this->state_queue_[head % STATE_QUEUE_SIZE] = state;
-      this->state_queue_head_.store(head + 1, std::memory_order_release);
-    } else {
-      this->state_queue_overflow_ = true;
-    }
+void FUSB302B::queue_event_(uint8_t event) {
+  const uint8_t head = this->event_queue_head_.load(std::memory_order_relaxed);
+  if (static_cast<uint8_t>(head - this->event_queue_tail_.load(std::memory_order_acquire)) < EVENT_QUEUE_SIZE) {
+    this->event_queue_[head % EVENT_QUEUE_SIZE] = event;
+    this->event_queue_head_.store(head + 1, std::memory_order_release);
+  } else {
+    this->event_queue_overflow_ = true;
   }
   this->enable_loop_soon_any_context();
 }
 
-void FUSB302B::on_request_failed() {
-  this->request_failed_pending_ = true;
-  this->enable_loop_soon_any_context();
+void FUSB302B::on_state_changed() {
+  const PdState state = this->state_;
+  if (state == this->queued_state_) {
+    // Only the contract changed
+    this->enable_loop_soon_any_context();
+    return;
+  }
+  this->queued_state_ = state;
+  this->queue_event_(static_cast<uint8_t>(state));
 }
+
+void FUSB302B::on_request_failed() { this->queue_event_(EVENT_REQUEST_FAILED); }
 
 void FUSB302B::loop() {
   const uint32_t contract = this->contract_;
@@ -102,21 +106,23 @@ void FUSB302B::loop() {
     this->publish_contract_(PackedContract{contract});
   }
 
-  uint8_t tail = this->state_queue_tail_.load(std::memory_order_relaxed);
-  const uint8_t head = this->state_queue_head_.load(std::memory_order_acquire);
+  uint8_t tail = this->event_queue_tail_.load(std::memory_order_relaxed);
+  const uint8_t head = this->event_queue_head_.load(std::memory_order_acquire);
   while (tail != head) {
-    const PdState state = this->state_queue_[tail % STATE_QUEUE_SIZE];
-    this->state_queue_tail_.store(++tail, std::memory_order_release);
-    this->publish_state_(state);
+    const uint8_t event = this->event_queue_[tail % EVENT_QUEUE_SIZE];
+    this->event_queue_tail_.store(++tail, std::memory_order_release);
+    if (event == EVENT_REQUEST_FAILED) {
+      this->request_failed_callback_.call();
+    } else {
+      this->publish_state_(static_cast<PdState>(event));
+    }
   }
-  if (this->state_queue_overflow_.exchange(false)) {
-    ESP_LOGW(TAG, "State changes arrived faster than the main loop handled them; some triggers were skipped");
+  if (this->event_queue_overflow_.exchange(false)) {
+    ESP_LOGW(TAG, "Events arrived faster than the main loop handled them; some triggers were skipped");
     // Drop what is queued before reading the state, so no older state is replayed after it
-    this->state_queue_tail_.store(this->state_queue_head_.load(std::memory_order_acquire), std::memory_order_release);
+    this->event_queue_tail_.store(this->event_queue_head_.load(std::memory_order_acquire), std::memory_order_release);
     this->publish_state_(this->state_);
   }
-  if (this->request_failed_pending_.exchange(false))
-    this->request_failed_callback_.call();
   // Re-enabled by on_state_changed() or on_request_failed() from the PHY task
   this->disable_loop();
 }
@@ -482,7 +488,11 @@ void FUSB302B::enter_error_() {
 
 void FUSB302B::start_negotiation_() {
   ESP_LOGD(TAG, "Requesting source capabilities for %u V", this->get_request_voltage());
-  this->send_message(this->make_control_msg_(PD_CNTRL_GET_SOURCE_CAP));
+  // send_message() logs a failure; the soft reset is the next step either way, so do not wait for an answer
+  if (!this->send_message(this->make_control_msg_(PD_CNTRL_GET_SOURCE_CAP))) {
+    this->send_soft_reset_();
+    return;
+  }
   this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_GET_SENT);
 }
 
@@ -508,7 +518,10 @@ void FUSB302B::check_source_caps_() {
       if (elapsed < SOURCE_CAP_WAIT_MS)
         return;
       ESP_LOGD(TAG, "No source capabilities received, requesting them");
-      this->send_message(this->make_control_msg_(PD_CNTRL_GET_SOURCE_CAP));
+      if (!this->send_message(this->make_control_msg_(PD_CNTRL_GET_SOURCE_CAP))) {
+        this->send_soft_reset_();
+        return;
+      }
       this->source_cap_step_ = SourceCapStep::SOURCE_CAP_STEP_GET_SENT;
       break;
     case SourceCapStep::SOURCE_CAP_STEP_GET_SENT:

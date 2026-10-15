@@ -94,6 +94,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
 
   void publish_contract_(PackedContract contract);
   void publish_state_(PdState state);
+  void queue_event_(uint8_t event);
 
   InternalGPIOPin *interrupt_pin_;
   StaticTask task_;
@@ -108,14 +109,15 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   // Last state put in the queue
   PdState queued_state_{PdState::PD_STATE_DISCONNECTED};
 
-  // State changes from the PHY task, replayed in order by loop() so no transition is lost while the main loop is
-  // blocked. The PHY task only writes head, the main loop only writes tail.
-  static constexpr uint8_t STATE_QUEUE_SIZE = 8;
-  std::array<PdState, STATE_QUEUE_SIZE> state_queue_{};
-  std::atomic<uint8_t> state_queue_head_{0};
-  std::atomic<uint8_t> state_queue_tail_{0};
-  std::atomic<bool> state_queue_overflow_{false};
-  std::atomic<bool> request_failed_pending_{false};
+  // State changes and request failures from the PHY task, replayed in order by loop() so no event is lost while the
+  // main loop is blocked. An entry is a PdState value or EVENT_REQUEST_FAILED. The PHY task only writes head, the
+  // main loop only writes tail.
+  static constexpr uint8_t EVENT_QUEUE_SIZE = 8;
+  static constexpr uint8_t EVENT_REQUEST_FAILED = 0xFF;
+  std::array<uint8_t, EVENT_QUEUE_SIZE> event_queue_{};
+  std::atomic<uint8_t> event_queue_head_{0};
+  std::atomic<uint8_t> event_queue_tail_{0};
+  std::atomic<bool> event_queue_overflow_{false};
 
   // Main loop only
   PdState published_state_{PdState::PD_STATE_DISCONNECTED};
