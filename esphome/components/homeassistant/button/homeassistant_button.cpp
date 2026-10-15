@@ -5,6 +5,7 @@
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
@@ -31,22 +32,21 @@ void HomeassistantButton::press_action() {
   }
 #endif
 
-  static constexpr auto SERVICE_BUTTON = StringRef::from_lit("button.press");
-  static constexpr auto SERVICE_INPUT_BUTTON = StringRef::from_lit("input_button.press");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr char INPUT_PREFIX[] = "input_";
+  // In flash on the ESP8266 and encoded from there
+  static const char SERVICE_BUTTON[] PROGMEM = "button.press";
+  static const char SERVICE_INPUT_BUTTON[] PROGMEM = "input_button.press";
+  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
 
   api::HomeassistantActionRequest resp;
-  if (strncmp(this->entity_id_, INPUT_PREFIX, sizeof(INPUT_PREFIX) - 1) == 0) {
-    resp.service = SERVICE_INPUT_BUTTON;
-  } else {
-    resp.service = SERVICE_BUTTON;
-  }
+  // An input helper entity id starts with the "input_" its action name starts with
+  const bool input_helper = ESPHOME_strncmp_P(this->entity_id_, SERVICE_INPUT_BUTTON, sizeof("input_") - 1) == 0;
+  resp.service =
+      input_helper ? ProgmemStringRef::from_lit(SERVICE_INPUT_BUTTON) : ProgmemStringRef::from_lit(SERVICE_BUTTON);
 
   resp.data.init(1);
   auto &entity_id_kv = resp.data.emplace_back();
-  entity_id_kv.key = ENTITY_ID_KEY;
-  entity_id_kv.value = StringRef(this->entity_id_);
+  entity_id_kv.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entity_id_kv.value = ProgmemStringRef(StringRef(this->entity_id_));
 
   api::global_api_server->send_homeassistant_action(resp);
 }
