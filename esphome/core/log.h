@@ -190,8 +190,9 @@ struct LogString;
 
 #endif
 
-// Declares a static log tag at namespace scope in a .cpp file; on ESP8266 it lives in flash, so read it with
-// the _P functions, never strcmp/strlen.
+// Declares a static log tag at namespace scope, in a source file or a header; on ESP8266 it lives in flash, so
+// read it with the _P functions, never strcmp/strlen. Not usable for a class member: the ESP8266 form is a
+// PROGMEM array, which cannot be initialized in a class.
 #ifdef USE_ESP8266
 #define ESPHOME_LOG_TAG(name, tag) static const char name[] PROGMEM = tag
 #else

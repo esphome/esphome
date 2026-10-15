@@ -13,7 +13,7 @@ template<typename... Ts> class UDPWriteAction final : public Action<Ts...>, publ
   TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-    // One write per packet: WiFiUDP appends all or nothing, so a failed allocation never sends a partial packet
+    // One sendto per packet, so a failed allocation never sends a partial packet
     this->data_.template visit<STACK_PAYLOAD_SIZE>(
         [this](const uint8_t *data, size_t len) { this->parent_->send_packet(data, len); }, x...);
   }

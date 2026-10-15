@@ -58,10 +58,7 @@ void WTS01Sensor::process_packet_() {
   // Based on Tasmota implementation
   // Format: 55 01 01 04 01 11 16 12 95
   // header            T  Td Ck  - T = Temperature, Td = Temperature decimal, Ck = Checksum
-  uint8_t calculated_checksum = 0;
-  for (uint8_t i = 0; i < PACKET_SIZE - 1; i++) {
-    calculated_checksum += this->buffer_[i];
-  }
+  const uint8_t calculated_checksum = sum_bytes(this->buffer_, PACKET_SIZE - 1);
 
   uint8_t received_checksum = this->buffer_[PACKET_SIZE - 1];
   if (calculated_checksum != received_checksum) {

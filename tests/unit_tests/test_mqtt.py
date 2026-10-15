@@ -15,6 +15,7 @@ from esphome import mqtt as mqtt_module
 from esphome.components.const import CONF_VERIFY_SSL
 from esphome.components.mqtt import CONF_TLS
 from esphome.const import (
+    CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
     CONF_CLIENT_CERTIFICATE,
@@ -22,11 +23,108 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_MQTT,
     CONF_NAME,
+    CONF_PAYLOAD,
     CONF_PORT,
+    CONF_RETAIN,
     CONF_SKIP_CERT_CN_CHECK,
+    CONF_TOPIC,
 )
 from esphome.core import EsphomeError
-from esphome.mqtt import get_esphome_device_ip
+from esphome.mqtt import get_esphome_device_ip, show_logs
+
+
+@pytest.mark.parametrize(
+    "birth",
+    [
+        None,
+        {CONF_TOPIC: "test-device/status", CONF_PAYLOAD: "online", CONF_RETAIN: False},
+        {CONF_TOPIC: "test-device/status", CONF_PAYLOAD: "", CONF_RETAIN: True},
+    ],
+    ids=["no birth message", "unretained birth message", "empty birth payload"],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_asks_on_connect(
+    mock_initialize: MagicMock, birth: dict | None
+) -> None:
+    """Without a retained birth message nothing tells a later CLI the device is up, so it asks on connect."""
+    config = _discovery_config()
+    if birth is not None:
+        config[CONF_MQTT][CONF_BIRTH_MESSAGE] = birth
+
+    show_logs(config)
+
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    on_connect(client, None, None, 0)
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device", None, retain=False
+    )
+    if birth is None or not birth[CONF_PAYLOAD]:
+        assert mock_initialize.call_args.args[1] == ["test-device/debug"]
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_logs_requests_crash_log_when_device_reports_online(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """With a retained birth message the request follows the device coming online, not the CLI connecting."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config)
+
+    assert mock_initialize.call_args.args[1] == [
+        "test-device/debug",
+        "test-device/status",
+    ]
+    on_message = mock_initialize.call_args.args[2]
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    on_connect(client, None, None, 0)
+    client.publish.assert_not_called()
+
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
+    client.publish.assert_not_called()
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device", None, retain=False
+    )
+    mock_print.assert_not_called()
+
+    on_message(
+        client, None, MagicMock(topic="test-device/debug", payload=b"[I][app]: hi")
+    )
+    assert mock_print.call_args.args[0].endswith("[I][app]: hi")
+    client.publish.assert_called_once()
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_logs_prints_a_birth_message_inside_the_log_subscription(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """A birth topic covered by the log topic is still printed, and still requests the crash log."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config, topic="test-device/#")
+
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device", None, retain=False
+    )
+    assert mock_print.call_args.args[0].endswith("online")
 
 
 def test_get_esphome_device_ip_empty_broker() -> None:
