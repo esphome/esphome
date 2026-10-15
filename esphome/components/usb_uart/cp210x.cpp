@@ -125,7 +125,7 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, baud.get_data());
       return true;
     }
-    case 3:  // Apply the modem lines (init only)
+    case 3:  // Assert DTR+RTS (init only)
       if (reload)
         return false;
       this->modem_control_transfer(channel);

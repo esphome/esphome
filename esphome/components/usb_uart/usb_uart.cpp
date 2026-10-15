@@ -499,7 +499,6 @@ void USBUartTypeCdcAcm::on_disconnected() {
     channel->initialised_.store(false);
     // The descriptors these point into are freed with the device
     channel->cdc_dev_ = {};
-    // The next device starts like a freshly opened port
     channel->dtr_ = true;
     channel->rts_ = true;
   }
@@ -536,7 +535,7 @@ bool USBUartTypeCdcAcm::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 1:
-      // Signal DTE presence (init only).
+      // Assert DTR+RTS to signal DTE is present (init only).
       if (reload)
         return false;
       this->modem_control_transfer(channel);
@@ -764,7 +763,7 @@ bool USBUartChannelBase::set_modem_control(bool dtr, bool rts) {
   const bool changed = dtr != this->dtr_ || rts != this->rts_;
   this->dtr_ = dtr;
   this->rts_ = rts;
-  // The device already has this state; a transfer would only hold up the config machine
+  // Nothing to send when the request matches the previous one
   if (changed)
     this->parent_->apply_modem_control(this);
   return true;

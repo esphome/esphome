@@ -279,7 +279,7 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 1:
-      // Apply the modem lines (init only)
+      // Assert DTR + RTS (init only)
       if (reload)
         return false;
       this->modem_control_transfer(channel);

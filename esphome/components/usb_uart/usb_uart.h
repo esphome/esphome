@@ -237,7 +237,7 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
-  // Asserted on init and reset on disconnect, as a host driver does when it opens the port
+  // Asserted whenever a device connects, as a host driver does when it opens the port
   bool dtr_{true};
   bool rts_{true};
   // Line settings or DTR/RTS changed while the config machine was busy; sent once it is idle
