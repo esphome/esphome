@@ -499,6 +499,9 @@ void USBUartTypeCdcAcm::on_disconnected() {
     channel->initialised_.store(false);
     // The descriptors these point into are freed with the device
     channel->cdc_dev_ = {};
+    // The next device starts like a freshly opened port
+    channel->dtr_ = true;
+    channel->rts_ = true;
   }
   USBClient::on_disconnected();
 }
