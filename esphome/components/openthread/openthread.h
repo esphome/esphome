@@ -4,6 +4,9 @@
 
 #include "esphome/components/mdns/mdns_component.h"
 #include "esphome/components/network/ip_address.h"
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 
@@ -26,7 +29,11 @@ enum class TeardownStage : uint8_t {
   TEARDOWN_STAGE_COMPLETED,
 };
 
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+class OpenThreadComponent final : public Component, public wifi::WiFiConnectStateListener {
+#else
 class OpenThreadComponent final : public Component {
+#endif
  public:
   OpenThreadComponent();
 #ifdef USE_OPENTHREAD_RCP_UART
@@ -37,6 +44,8 @@ class OpenThreadComponent final : public Component {
   void setup() override;
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   void loop() override;
+  /// Border routing follows the Wi-Fi backbone; loop() does the work and sleeps in between
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override { this->enable_loop(); }
 #endif
   bool teardown() override;
   float get_setup_priority() const override {
@@ -120,8 +129,6 @@ class OpenThreadComponent final : public Component {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   std::atomic<bool> mainloop_running_{false};
   bool border_router_started_{false};
-  bool border_router_failed_{false};
-  uint32_t border_router_attempt_ms_{0};
 #endif
 
  private:

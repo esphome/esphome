@@ -3,6 +3,7 @@ from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components import wifi
 from esphome.components.const import CONF_BORDER_ROUTER
 from esphome.components.esp32 import (
     VARIANT_ESP32,
@@ -229,6 +230,8 @@ def set_sdkconfig_options(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     if border_router:
+        # Border routing follows the Wi-Fi link
+        wifi.request_wifi_connect_state_listener()
         for name, value in BORDER_ROUTER_SDKCONFIG_OPTIONS.items():
             add_idf_sdkconfig_option(name, value)
         if not rcp:
