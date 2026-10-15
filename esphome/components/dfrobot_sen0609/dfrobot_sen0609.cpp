@@ -221,7 +221,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
   if (starts_with(line, ESPHOME_PSTR("$DFHPD,"))) {
     const char presence = line[7];
     if (presence != '0' && presence != '1') {
-      ESP_LOGW(TAG, "Malformed presence frame: %s", line);
+      this->log_bad_frame_(LOG_STR("Malformed presence frame"), line);
       return;
     }
     this->last_frame_ms_ = App.get_loop_component_start_time();
@@ -233,11 +233,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
   }
   // $DFDMD,<targets>,<reserved>,<distance m>,<speed m/s>,<energy>,...*
   if (!starts_with(line, ESPHOME_PSTR("$DFDMD,"))) {
-    // Logged once, as the module sends its frames several times a second
-    if (!this->unknown_frame_logged_) {
-      ESP_LOGW(TAG, "Unknown frame: %s", line);
-      this->unknown_frame_logged_ = true;
-    }
+    this->log_bad_frame_(LOG_STR("Unknown frame"), line);
     return;
   }
   char *fields[FRAME_FIELDS];
@@ -245,12 +241,12 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
   float speed;
   float energy;
   if (split_fields(line + 7, fields, FRAME_FIELDS) < FRAME_FIELDS) {
-    ESP_LOGW(TAG, "Malformed target frame");
+    this->log_bad_frame_(LOG_STR("Malformed target frame"), line);
     return;
   }
   const optional<uint8_t> targets = parse_number<uint8_t>(fields[0]);
   if (!targets.has_value()) {
-    ESP_LOGW(TAG, "Malformed target frame");
+    this->log_bad_frame_(LOG_STR("Malformed target frame"), line);
     return;
   }
   if (*targets == 0) {
@@ -264,7 +260,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     return;
   }
   if (!parse_float(fields[2], distance) || !parse_float(fields[3], speed) || !parse_float(fields[4], energy)) {
-    ESP_LOGW(TAG, "Malformed target frame");
+    this->log_bad_frame_(LOG_STR("Malformed target frame"), line);
     return;
   }
 #ifdef USE_BINARY_SENSOR
@@ -274,6 +270,14 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
 #ifdef USE_SENSOR
   this->publish_target_(distance, speed, energy);
 #endif
+}
+
+void DFRobotSEN0609Component::log_bad_frame_(const LogString *problem, const char *line) {
+  // The module sends frames several times a second, so only the first bad one is logged
+  if (this->bad_frame_logged_)
+    return;
+  this->bad_frame_logged_ = true;
+  ESP_LOGW(TAG, "%s: %s", LOG_STR_ARG(problem), line);
 }
 
 #ifdef USE_SENSOR

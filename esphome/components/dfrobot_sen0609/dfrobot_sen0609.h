@@ -66,6 +66,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   void readline_(uint8_t c);
   void handle_line_(char *line);
   void handle_frame_(char *line);
+  void log_bad_frame_(const LogString *problem, const char *line);
 
   void queue_configuration_();
   uint16_t wanted_reads_() const;
@@ -102,7 +103,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t aux_attempts_{0};
   bool line_overflow_{false};
   bool read_failed_{false};
-  bool unknown_frame_logged_{false};
+  bool bad_frame_logged_{false};
   bool echo_seen_{false};
   bool version_received_{false};
   bool stopped_{false};
