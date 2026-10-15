@@ -1043,11 +1043,13 @@ def run_compile(args, config: ConfigType) -> bool:
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     bootloader = zephyr_data()[KEY_BOOTLOADER]
 
-    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
+    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes.
+    # The bootloader resets on a package whose sd_req does not list its SoftDevice,
+    # so v7 accepts S140 7.0.1, 7.2.0 and 7.3.0 (e.g. Seeed XIAO nRF52840).
     _GENPKG_PARAMS = {
         BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA,0x0100,0x0123"),
     }
     # UF2 family IDs — nRF52832 vs nRF52840 per SoftDevice variant
     _UF2_FAMILY_IDS = {
