@@ -131,7 +131,5 @@ def test_rx_capable_switches_reject_custom_restore_modes(
 
 
 def test_legacy_switches_keep_custom_restore_modes() -> None:
-    config = _validate_switch_config(
-        "yan", {CONF_LIGHT}, {CONF_LIGHT: "ALWAYS_OFF"}
-    )
+    config = _validate_switch_config("yan", {CONF_LIGHT}, {CONF_LIGHT: "ALWAYS_OFF"})
     assert config[CONF_LIGHT][CONF_RESTORE_MODE] == switch.RESTORE_MODES["ALWAYS_OFF"]
