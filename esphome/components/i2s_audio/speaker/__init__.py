@@ -1,4 +1,4 @@
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, speaker
 from esphome.components.microphone import DOMAIN as MICROPHONE_DOMAIN
@@ -49,6 +49,8 @@ CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_KEEP_ALIVE = "keep_alive"
 CONF_SPDIF_MODE = "spdif_mode"
+CONF_ON_AUDIO_START = "on_audio_start"
+CONF_ON_AUDIO_END = "on_audio_end"
 
 I2SAudioSpeakerBase = i2s_audio_ns.class_(
     "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
@@ -177,6 +179,8 @@ BASE_SCHEMA = (
                 cv.positive_time_period_milliseconds,
                 cv.one_of(CONF_NEVER, lower=True),
             ),
+            cv.Optional(CONF_ON_AUDIO_START): automation.validate_automation({}),
+            cv.Optional(CONF_ON_AUDIO_END): automation.validate_automation({}),
             cv.Optional(CONF_KEEP_ALIVE, default=False): cv.boolean,
         }
     )
@@ -224,6 +228,10 @@ def _final_validate(config: ConfigType) -> None:
 
     if config.get(CONF_SPDIF_MODE, False):
         # SPDIF mode specific validations
+        if config.get(CONF_ON_AUDIO_START) or config.get(CONF_ON_AUDIO_END):
+            raise cv.Invalid(
+                "Audio start/end automations are not supported in SPDIF mode"
+            )
         if config[CONF_SAMPLE_RATE] not in [44100, 48000]:
             raise cv.Invalid(
                 "SPDIF mode only supports 44100 Hz or 48000 Hz sample rates"
@@ -286,6 +294,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
     if config[CONF_KEEP_ALIVE]:
         cg.add(var.set_keep_alive(True))
+
+    for conf in config.get(CONF_ON_AUDIO_START, []):
+        await automation.build_callback_automation(
+            var, "add_on_audio_start_callback", [], conf
+        )
+
+    for conf in config.get(CONF_ON_AUDIO_END, []):
+        await automation.build_callback_automation(
+            var, "add_on_audio_end_callback", [], conf
+        )
 
 
 # The SPDIF encoder and speaker are fully #ifdef'd on USE_I2S_AUDIO_SPDIF_MODE,
