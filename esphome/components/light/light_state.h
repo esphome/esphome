@@ -93,8 +93,8 @@ class LightState : public EntityBase, public Component {
   LightCall make_call();
 
   /// Take over the state of a light mirrored from elsewhere: current and target values at once,
-  /// published but not written or saved. False while a write is pending or a transition, flash or
-  /// effect runs; a caller stops an effect first with make_call().set_effect(0).
+  /// published but not written or saved; a running effect stops. False while a write is pending or
+  /// a transition or flash runs.
   bool set_external_state(const LightColorValues &values);
 
   // ========== INTERNAL METHODS ==========

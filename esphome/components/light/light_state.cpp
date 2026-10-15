@@ -182,10 +182,11 @@ void LightState::loop() {
 }
 
 bool LightState::set_external_state(const LightColorValues &values) {
-  // Each of these would write its own values over the reported ones
-  if (this->next_write_ || this->transformer_ != nullptr || this->active_effect_index_ != 0) {
+  // Either would write its own values over the reported ones
+  if (this->next_write_ || this->transformer_ != nullptr) {
     return false;
   }
+  this->stop_effect_();  // schedules no write, unlike a call that sets effect 0
   if (values == this->remote_values && values == this->current_values) {
     return true;  // nothing new to tell
   }
