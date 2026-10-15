@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 import logging
 import string
@@ -248,6 +248,23 @@ def flash_string(config: ConfigType, value: str) -> str:
     return str(cg.progmem_string(value))
 
 
+def flash_compare(config: ConfigType, value: str) -> str:
+    """Default renderer for ``std::string`` constants in conditions; compares in flash on ESP8266."""
+    if CORE.is_esp8266:
+        return f"::esphome::ProgmemStringRef{{PSTR({cg.safe_exp(value)}), {len(value.encode('utf-8'))}}}"
+    return str(cg.safe_exp(value))
+
+
+def _default_std_string(
+    members: list[tuple[str, Any, Any]], renderer: Callable[[ConfigType, str], str]
+) -> list[tuple[str, Any, Any]]:
+    """Give ``cg.std_string`` members without a renderer the given default."""
+    return [
+        (key, t, fn or (renderer if t is cg.std_string else None))
+        for key, t, fn in members
+    ]
+
+
 def literal_with_length(config: ConfigType, value: str) -> str:
     """Renderer for a ``(const char *, size_t)`` target: a plain literal plus its byte length.
 
@@ -465,6 +482,22 @@ def register_apply_action(
 ) -> None:
     """Register an action that only forwards config values to its parent, with no C++ class.
 
+    See ``apply_action_builder``.
+    """
+    register_action(name, ApplyAction, schema, synchronous=True)(
+        apply_action_builder(name, schema, *fields, call=call, id_key=id_key)
+    )
+
+
+def apply_action_builder(
+    name: str,
+    schema: cv.Schema,
+    *fields: ApplyField | ApplyCall,
+    call: str | None = None,
+    id_key: str = CONF_ID,
+) -> Callable[..., Awaitable[MockObj]]:
+    """The builder ``register_apply_action`` registers, for a caller that wraps it.
+
     Generates one static function with the parent (read from ``id_key``) and constants baked
     in, lambdas called inline with the trigger args, and an ``ApplyAction`` templated on it.
     A constant that is an id (``cv.use_id`` under ``cv.templatable``) is the object it names.
@@ -475,10 +508,7 @@ def register_apply_action(
     statements_spec = [
         (
             c.target,
-            [
-                (key, t, fn or (flash_string if t is cg.std_string else None))
-                for key, t, fn in c.members
-            ],
+            _default_std_string(c.members, flash_string),
         )
         for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
     ]
@@ -515,7 +545,7 @@ def register_apply_action(
             action_id, cg.void, template_arg, lambda_args, statements
         )
 
-    register_action(name, ApplyAction, schema, synchronous=True)(builder)
+    return builder
 
 
 def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -> bool:
@@ -547,11 +577,12 @@ def register_apply_condition(
     ``check`` is applied to the parent: ``"is_playing()"`` becomes ``parent->is_playing()``; an
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
-    String constants are plain literals, so compare a ``std::string`` or ``StringRef`` member.
+    A ``cg.std_string`` constant stays in flash on ESP8266 and supports only ``==`` or ``!=``
+    against a ``std::string`` or ``StringRef`` member; other string types are plain literals.
     Generates one static predicate and an ``ApplyCondition`` templated on it.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
-    members = call.members
+    members = _default_std_string(call.members, flash_compare)
     _check_key_in_schema(name, schema, id_key)
     for conf_key, _, _ in members:
         _check_key_in_schema(name, schema, conf_key)
@@ -724,7 +755,7 @@ async def condition_group_to_code(
     if len(conditions) == 1:
         return conditions[0]
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -840,11 +871,13 @@ async def if_action_to_code(
     condition = await build_condition(config[cond_conf], template_arg, args)
     var = cg.new_Pvariable(action_id, if_template_arg, condition)
     if CONF_THEN in config:
-        actions = await build_action_list(config[CONF_THEN], template_arg, args)
-        cg.add(var.add_then(actions))
+        for action in await build_action_list(config[CONF_THEN], template_arg, args):
+            cg.add(var.add_then_action(action))
+        cg.add(var.finish_then())
     if has_else:
-        actions = await build_action_list(config[CONF_ELSE], template_arg, args)
-        cg.add(var.add_else(actions))
+        for action in await build_action_list(config[CONF_ELSE], template_arg, args):
+            cg.add(var.add_else_action(action))
+        cg.add(var.finish_else())
     return var
 
 
@@ -867,9 +900,25 @@ async def while_action_to_code(
 ) -> MockObj:
     condition = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, condition)
-    actions = await build_action_list(config[CONF_THEN], template_arg, args)
-    cg.add(var.add_then(actions))
+    for action in await build_action_list(config[CONF_THEN], template_arg, args):
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
+
+
+def _shadow_iteration(args: TemplateArgsType) -> TemplateArgsType:
+    """Rename an inherited `iteration` so the inner repeat's own counter can shadow it."""
+    names = {name for _, name in args}
+    renamed: TemplateArgsType = []
+    for type_, name in args:
+        if name == "iteration":
+            depth = 1
+            while f"iteration_{depth}" in names:
+                depth += 1
+            name = f"iteration_{depth}"
+            names.add(name)
+        renamed.append((type_, name))
+    return renamed
 
 
 @register_action(
@@ -895,9 +944,11 @@ async def repeat_action_to_code(
     actions = await build_action_list(
         config[CONF_THEN],
         cg.TemplateArguments(cg.uint32, *template_arg.args),
-        [(cg.uint32, "iteration"), *args],
+        [(cg.uint32, "iteration"), *_shadow_iteration(args)],
     )
-    cg.add(var.add_then(actions))
+    for action in actions:
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -1033,18 +1084,30 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
     Non-synchronous actions (delay, wait_until, script.wait, etc.) store
     trigger args for later execution, making non-owning types like StringRef
     unsafe.
+
+    Accepts an action list, a single action, or an automation. Only the keys of
+    action entries are looked up as action names; the options of an action are
+    only searched for nested action lists (``then:``, ``else:``, ...), so an
+    option that shares a name with an action, such as the ``delay:`` option of
+    ``speaker_source.set_playlist_delay``, is not mistaken for that action.
     """
     if isinstance(actions, list):
         return any(has_non_synchronous_actions(item) for item in actions)
     if isinstance(actions, dict):
-        for key in actions:
+        for key, options in actions.items():
             if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
                 return True
-        return any(
-            has_non_synchronous_actions(v)
-            for v in actions.values()
-            if isinstance(v, (list, dict))
-        )
+            if _options_have_non_synchronous_actions(options):
+                return True
+    return False
+
+
+def _options_have_non_synchronous_actions(options: Any) -> bool:
+    """Search an action's options for nested action lists, without treating option keys as actions."""
+    if isinstance(options, list):
+        return has_non_synchronous_actions(options)
+    if isinstance(options, dict):
+        return any(_options_have_non_synchronous_actions(v) for v in options.values())
     return False
 
 
@@ -1101,7 +1164,8 @@ async def _new_automation(
     templ = cg.TemplateArguments(*(arg[0] for arg in args))
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     actions = await build_action_list(config[CONF_THEN], templ, args)
-    cg.add(obj.add_actions(actions))
+    for action in actions:
+        cg.add(obj.add_action(action))
     return obj
 
 

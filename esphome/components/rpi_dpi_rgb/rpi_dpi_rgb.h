@@ -16,7 +16,7 @@
 
 namespace esphome::rpi_dpi_rgb {
 
-constexpr static const char *const TAG = "rpi_dpi_rgb";
+ESPHOME_LOG_TAG(TAG, "rpi_dpi_rgb");
 
 class RpiDpiRgb final : public display::Display {
  public:
