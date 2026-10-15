@@ -54,6 +54,8 @@ class TestableUC8279 : public EPaperUC8279 {
     }
   }
 
+  bool transfer() { return this->transfer_data(); }
+
   using EPaperUC8279::on_safe_shutdown;
 
   RecordingPin dc;
@@ -158,6 +160,22 @@ TEST(EPaperUC8279, PreviousImageRewriteIsTimeSliced) {
 
   EXPECT_EQ(Bytes(bus.data[0x10].begin() + 6, bus.data[0x10].end()), (Bytes{0xFF, 0xFF, 0x0F, 0xF0, 0x3C, 0xC3}));
   EXPECT_EQ(bus.commands.back(), 0x02);
+}
+
+/// In a full update the white DTM1 plane starts on the pass after DTM2 ends, so one pass never writes both planes.
+TEST(EPaperUC8279, FullTransferWritesOnePlanePerPass) {
+  TestableUC8279 display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 1);
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+
+  EXPECT_FALSE(display.transfer());
+  EXPECT_EQ(count(bus.commands, 0x13), 1u);
+  EXPECT_EQ(count(bus.commands, 0x10), 0u) << "DTM1 started in the same pass as DTM2";
+
+  EXPECT_TRUE(display.transfer());
+  EXPECT_EQ(count(bus.commands, 0x13), 1u);
+  EXPECT_EQ(bus.data[0x10], (Bytes(6, 0xFF)));
 }
 
 /// The full refresh that comes round after partial ones resets the controller, configures it again and writes a white

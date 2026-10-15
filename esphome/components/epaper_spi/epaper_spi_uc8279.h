@@ -9,7 +9,7 @@ namespace esphome::epaper_spi {
  *
  * Buffer layout: 1 bit per pixel, 1=white, 0=black (the base class default).
  *
- * The controller scans gate_offset + height gates; the panel is bonded to the last height of them,
+ * The controller scans offset_height + height gates; the panel is bonded to the last height of them,
  * so every image plane is written for all gates, white outside the panel.
  *
  * A full refresh writes the new image to DTM2 and white to DTM1. A partial refresh writes only DTM2
@@ -21,9 +21,9 @@ namespace esphome::epaper_spi {
 class EPaperUC8279 : public EPaperUltraChip {
  public:
   EPaperUC8279(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-               size_t init_sequence_length, uint16_t gate_offset)
+               size_t init_sequence_length, uint16_t offset_height)
       : EPaperUltraChip(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY),
-        gate_offset_(gate_offset) {
+        offset_height_(offset_height) {
     this->buffer_length_ = this->row_width_ * height;
   }
 
@@ -36,13 +36,13 @@ class EPaperUC8279 : public EPaperUltraChip {
   void power_off() override;
   bool after_refresh() override;
 
-  uint16_t gate_count_() const { return this->gate_offset_ + this->height_; }
+  uint16_t gate_count_() const { return this->offset_height_ + this->height_; }
   // Writes one gate's row of the image, or white for a gate outside the panel or when white is true
   void write_gate_(size_t gate, bool white);
   // Writes one plane in time slices, sending `command` at its first gate; true once all gates are written
   bool write_plane_(uint8_t command, bool white, size_t base);
 
-  uint16_t gate_offset_;
+  uint16_t offset_height_;
 };
 
 }  // namespace esphome::epaper_spi

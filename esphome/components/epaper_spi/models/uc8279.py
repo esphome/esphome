@@ -28,6 +28,7 @@ class UC8279(EpaperModel):
     ) -> None:
         defaults.setdefault(CONF_DATA_RATE, data_rate)
         defaults.setdefault("partial_update", True)
+        defaults.setdefault(CONF_OFFSET_HEIGHT, 0)
         defaults.setdefault("width_multiple", 8)
         super().__init__(name, class_name=class_name, **defaults)
 

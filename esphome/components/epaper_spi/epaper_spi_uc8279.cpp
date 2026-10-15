@@ -45,7 +45,7 @@ bool EPaperUC8279::initialise(bool partial) {
 
 void EPaperUC8279::write_gate_(size_t gate, bool white) {
   const size_t row_width = this->row_width_;
-  if (white || gate < this->gate_offset_) {
+  if (white || gate < this->offset_height_) {
     uint8_t white_bytes[MAX_TRANSFER_SIZE];
     memset(white_bytes, 0xFF, sizeof(white_bytes));
     for (size_t written = 0; written != row_width;) {
@@ -55,7 +55,7 @@ void EPaperUC8279::write_gate_(size_t gate, bool white) {
     }
     return;
   }
-  size_t index = (gate - this->gate_offset_) * row_width;
+  size_t index = (gate - this->offset_height_) * row_width;
   for (size_t remaining = row_width; remaining != 0;) {
     size_t length;
     const uint8_t *data = this->buffer_.get_span(index, length);
@@ -88,8 +88,13 @@ bool HOT EPaperUC8279::write_plane_(uint8_t command, bool white, size_t base) {
 // DTM2 gets the new image; a full refresh also writes a white DTM1, so every pixel transitions
 bool HOT EPaperUC8279::transfer_data() {
   const size_t gates = this->gate_count_();
-  if (this->current_data_index_ < gates && !this->write_plane_(CMD_DTM2, false, 0))
-    return false;
+  if (this->current_data_index_ < gates) {
+    if (!this->write_plane_(CMD_DTM2, false, 0))
+      return false;
+    // Start DTM1 on the next pass, so this one stays within its time slice
+    if (!this->partial_)
+      return false;
+  }
   if (!this->partial_ && !this->write_plane_(CMD_DTM1, true, gates))
     return false;
   this->current_data_index_ = 0;
@@ -112,7 +117,7 @@ void EPaperUC8279::power_on() {
 void EPaperUC8279::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen (%s)", partial ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
   if (partial)
-    this->set_partial_window_(0, this->width_ - 1, this->gate_offset_, this->gate_count_() - 1);
+    this->set_partial_window_(0, this->width_ - 1, this->offset_height_, this->gate_count_() - 1);
   // Power-on reloads the panel's stored settings, so the panel setting only takes when written after it
   this->cmd_data(CMD_PSR, {PSR0_OTP_LUT, PSR1});
   this->command(CMD_REFRESH);

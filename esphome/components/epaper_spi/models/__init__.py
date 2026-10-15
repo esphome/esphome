@@ -93,10 +93,10 @@ class EpaperModel:
 
     def get_offset_height(self, config) -> int:
         # The panel's first row within the controller's addressable area; from explicit dimensions or the model default
-        dimensions = config.get(CONF_DIMENSIONS)
-        if isinstance(dimensions, dict):
-            return dimensions.get(CONF_OFFSET_HEIGHT, 0)
-        return self.get_default(CONF_OFFSET_HEIGHT, 0)
+        dimensions = config.get(CONF_DIMENSIONS, {})
+        return dimensions.get(
+            CONF_OFFSET_HEIGHT, self.get_default(CONF_OFFSET_HEIGHT, 0)
+        )
 
     def extend(self, name, **kwargs) -> "EpaperModel":
         """

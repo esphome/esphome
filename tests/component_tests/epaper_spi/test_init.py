@@ -13,7 +13,12 @@ from esphome.components.epaper_spi.display import (
     FINAL_VALIDATE_SCHEMA,
     MODELS,
 )
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    VARIANT_ESP32S3,
+)
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
@@ -603,6 +608,49 @@ def test_uc8279_offset_height_plus_height_must_fit_16_bits(
                 "model": "uc8279",
                 "dc_pin": 21,
                 "dimensions": {"width": 16, "height": 2, "offset_height": 0xFFFF},
+            }
+        )
+
+
+def test_uc8279_x4pro_explicit_dimensions_keep_the_model_offset(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Writing out the X4 Pro's dimensions without offset_height keeps the panel's offset of 120."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 12, "mosi_pin": 11})
+
+    config = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "xteink-x4pro-uc8279",
+            "dimensions": {"width": 800, "height": 480},
+        }
+    )
+    assert MODELS["XTEINK-X4PRO-UC8279"].get_constructor_args(config) == (120,)
+
+
+def test_offset_height_rejected_by_models_without_it(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """A model that does not use offset_height rejects it rather than ignoring it."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="offset_height"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1677",
+                "dc_pin": 21,
+                "dimensions": {"width": 200, "height": 200, "offset_height": 8},
             }
         )
 
