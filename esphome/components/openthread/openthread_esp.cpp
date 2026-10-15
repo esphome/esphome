@@ -2,6 +2,7 @@
 #if defined(USE_OPENTHREAD) && defined(USE_ESP32)
 #include <openthread/dataset.h>
 #include <openthread/ip6.h>
+#include <openthread/tasklet.h>
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
 #include <openthread/platform/infra_if.h>
 #endif
@@ -162,7 +163,7 @@ void OpenThreadComponent::ot_main_() {
   // the Thread network starts below, or Wi-Fi scanning and association can fail outright.
   if (const esp_err_t err = esp_coex_wifi_i154_enable(); err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to enable Wi-Fi/802.15.4 coexistence: %s", esp_err_to_name(err));
-    this->mark_task_failed_();
+    this->mark_task_failed_(LOG_STR("Coexistence could not be enabled"));
     launch_mainloop = false;
   }
 #endif
@@ -216,7 +217,7 @@ void OpenThreadComponent::ot_main_() {
       } else {
         ESP_LOGE(TAG, "Configured OpenThread Active Operational Dataset TLV is invalid");
       }
-      this->mark_task_failed_();
+      this->mark_task_failed_(LOG_STR("Invalid dataset"));
       launch_mainloop = false;
     } else if (launch_mainloop) {
       // esp_openthread_auto_start() enables IPv6, which (for Border Router builds) opens a UDP socket
@@ -224,7 +225,7 @@ void OpenThreadComponent::ot_main_() {
       // which asserts unless this task holds the OpenThread lock, as it does here.
       if (const esp_err_t err = esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr); err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start OpenThread: %s", esp_err_to_name(err));
-        this->mark_task_failed_();
+        this->mark_task_failed_(LOG_STR("Start failed"));
         launch_mainloop = false;
       }
     }
@@ -236,7 +237,7 @@ void OpenThreadComponent::ot_main_() {
         ESP_LOGE(TAG, "Failed to register state change callback: %d", ot_err);
         // Without this callback connected_ would never update, so the component would look
         // healthy forever while never actually reporting the device as connected.
-        this->mark_task_failed_();
+        this->mark_task_failed_(LOG_STR("State callback could not be registered"));
         launch_mainloop = false;
       }
     }
@@ -252,7 +253,7 @@ void OpenThreadComponent::ot_main_() {
 #endif
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "OpenThread main loop failed: %s", esp_err_to_name(err));
-      this->mark_task_failed_();
+      this->mark_task_failed_(LOG_STR("Main loop failed"));
     }
   }
 
@@ -269,6 +270,11 @@ void OpenThreadComponent::ot_main_() {
 #endif
   (void) otThreadSetEnabled(instance, false);
   (void) otIp6SetEnabled(instance, false);
+  // Nothing runs the main loop any more, so the stack's reaction to the disables (the border
+  // agent closing its sockets, for one) is run here, with the lock held
+  for (uint8_t i = 0; i < 16 && otTaskletsArePending(instance); i++) {
+    otTaskletsProcess(instance);
+  }
   this->lock_initialized_ = false;
   this->connected_ = false;
   this->task_exited_ = true;
@@ -283,9 +289,13 @@ void OpenThreadComponent::ot_main_() {
   this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
 }
 
-// Runs on the OpenThread task; the component state belongs to the main loop
-void OpenThreadComponent::mark_task_failed_() {
-  this->defer([this]() { this->mark_failed(); });
+// Runs on the OpenThread task; the component state belongs to the main loop, and the log goes
+// out from there too, where an abort that follows on the task cannot swallow it
+void OpenThreadComponent::mark_task_failed_(const LogString *reason) {
+  this->defer([this, reason]() {
+    ESP_LOGE(TAG, "OpenThread task failed: %s", LOG_STR_ARG(reason));
+    this->mark_failed();
+  });
 }
 
 #ifdef USE_OPENTHREAD_RCP_UART
@@ -307,7 +317,7 @@ void OpenThreadComponent::reset_rcp_(bool recovery_attempt) {
     this->rcp_reset_attempts_ = ++attempt;
     if (attempt > MAX_RESET_ATTEMPTS) {
       ESP_LOGE(TAG, "RCP failed to recover after %u reset attempts", MAX_RESET_ATTEMPTS);
-      this->mark_task_failed_();
+      this->mark_task_failed_(LOG_STR("RCP does not recover"));
       return;
     }
     ESP_LOGW(TAG, "RCP failure detected, reset attempt %u of %u", attempt, MAX_RESET_ATTEMPTS);

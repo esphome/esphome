@@ -95,7 +95,7 @@ class OpenThreadComponent final : public Component {
   void apply_linkmode_(otInstance *instance);
 #ifdef USE_ESP32
   void ot_main_();
-  void mark_task_failed_();
+  void mark_task_failed_(const LogString *reason);
 #endif
 #ifdef USE_OPENTHREAD_RCP_UART
   void reset_rcp_(bool recovery_attempt);
