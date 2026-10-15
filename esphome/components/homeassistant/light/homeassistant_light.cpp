@@ -254,10 +254,9 @@ void HomeassistantLight::apply_imported_() {
   this->apply_scheduled_ = false;
   if (!this->state_->set_external_state(values)) {
     // A local change still waits for LightState::loop() to send it, or a local transition or flash
-    // runs; write_state() schedules the report again once that change has gone out, so the light
-    // ends on the reported state even when the change never reaches Home Assistant
-    ESP_LOGD(TAG, "'%s': Report waits for a local change to go out", this->entity_id_);
-    this->report_waiting_ = true;
+    // runs. Home Assistant reports again once that change reaches it; when it does not, the echo
+    // timeout write_state() arms brings the light back to what was reported last
+    ESP_LOGD(TAG, "'%s': Report dropped, a local change is on its way", this->entity_id_);
     return;
   }
   ESP_LOGD(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
@@ -272,12 +271,6 @@ void HomeassistantLight::write_state(LightState *state) {
   }
   if (state->is_transitioning()) {
     return;  // Home Assistant gets the target once it is reached
-  }
-  if (this->report_waiting_) {
-    // Home Assistant echoes this change in a moment, which makes the report that had to wait moot;
-    // when no echo comes, the change got lost on the way and the report is applied after all
-    this->report_waiting_ = false;
-    this->set_timeout(ECHO_TIMEOUT_ID, ECHO_TIMEOUT_MS, [this]() { this->schedule_apply_(); });
   }
   const LightColorValues &values = state->current_values;
   if (!api::global_api_server->is_connected()) {
@@ -345,6 +338,14 @@ void HomeassistantLight::write_state(LightState *state) {
     }
   }
   api::global_api_server->send_homeassistant_action(resp);
+  // Home Assistant reports the change back in a moment, which cancels this; when it does not, the
+  // change got lost on the way (no subscriber yet, the entity unavailable, the action refused) and
+  // the light goes back to what was reported last
+  this->set_timeout(ECHO_TIMEOUT_ID, ECHO_TIMEOUT_MS, [this]() {
+    ESP_LOGW(TAG, "'%s': Home Assistant did not report the change back, falling back to its last state",
+             this->entity_id_);
+    this->schedule_apply_();
+  });
 }
 
 }  // namespace esphome::homeassistant

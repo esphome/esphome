@@ -44,8 +44,7 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   light::LightTraits traits_{};
   Attributes imported_{};
   bool apply_scheduled_{false};
-  bool report_waiting_{false};  // a report waits for a local change to be written first
-  bool initial_write_{true};    // the light core's own first write is not a local change
+  bool initial_write_{true};  // the light core's own first write is not a local change
 };
 
 }  // namespace esphome::homeassistant

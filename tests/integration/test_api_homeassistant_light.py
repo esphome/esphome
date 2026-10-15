@@ -160,6 +160,16 @@ async def test_api_homeassistant_light(
         client.light_command(key, state=False)
         assert (await next_call()).service == "light.turn_off"
 
+        # Without a report of the change within two seconds, the light goes back to the reported state
+        report(None, "on")
+        await next_state(lambda s: s.state)
+        client.light_command(key, state=False)
+        assert (await next_call()).service == "light.turn_off"
+        await next_state(lambda s: s.state)
+        await waiter.wait_for("did not report the change back", timeout=5.0)
+        report(None, "off")
+        await next_state(lambda s: not s.state)
+
         # An automation changing the light while a report is applied is a local change too
         await client.execute_service(set_force_off, {"value": True})
         report(None, "on")
