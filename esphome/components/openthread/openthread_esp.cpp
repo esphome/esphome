@@ -392,7 +392,7 @@ void OpenThreadComponent::loop() {
       TAG, "Wi-Fi backbone %s",
       backbone_up ? LOG_STR_LITERAL("back, border routing resumes") : LOG_STR_LITERAL("lost, border routing pauses"));
   esp_netif_t *backbone = esp_openthread_get_backbone_netif();
-  otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), backbone_up);
+  (void) otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), backbone_up);
   this->backbone_up_ = backbone_up;
   this->disable_loop();
 }
