@@ -257,7 +257,7 @@ void HomeassistantLight::apply_imported_() {
     // place of the values it ends at; a trait or a repeated report has nothing newer to say
     if (this->state_->is_transitioning() && this->report_changed_) {
       this->report_held_ = true;
-      this->held_hash_ = state_hash_(this->state_->remote_values);
+      this->held_hash_ = state_hash(this->state_->remote_values);
       return;
     }
     // A local change still waits for LightState::loop() to send it. Home Assistant reports again
@@ -270,7 +270,7 @@ void HomeassistantLight::apply_imported_() {
   ESP_LOGV(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
 }
 
-uint32_t HomeassistantLight::state_hash_(const LightColorValues &values) {
+uint32_t HomeassistantLight::state_hash(const LightColorValues &values) {
   uint32_t hash = fnv1a_hash_extend(FNV1_OFFSET_BASIS, static_cast<uint8_t>(values.get_color_mode()));
   for (const float channel :
        {values.get_state(), values.get_brightness(), values.get_color_brightness(), values.get_red(),
@@ -328,7 +328,7 @@ void HomeassistantLight::write_state(LightState *state) {
   if (state->is_transitioning()) {
     // A transition or flash runs here alone; Home Assistant gets the state it ends at. A call that
     // replaces the transition a report was held for retargets it and is newer than the report
-    if (this->report_held_ && state_hash_(state->remote_values) != this->held_hash_) {
+    if (this->report_held_ && state_hash(state->remote_values) != this->held_hash_) {
       this->report_held_ = false;
     }
     this->transitioned_ = true;
