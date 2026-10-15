@@ -342,6 +342,20 @@ class TestUploadProgramSerialDfu:
         assert host in cmd
         assert "--singlebank" in cmd
 
+    def test_serial_upload_refuses_an_unlisted_bootloader(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """A bootloader without a serial DFU path fails before any tool runs."""
+        from esphome.components.nrf52 import upload_program
+
+        paths, _ = _prepare_serial_dfu(tmp_path, "future")
+        host = "/dev/ttyACM0"
+        with ExitStack() as stack:
+            mock_run = _enter_serial_dfu_patches(stack, host, tmp_path, paths)
+            with pytest.raises(EsphomeError, match="not implemented for the future"):
+                upload_program(config={}, args=None, host=host)
+        mock_run.assert_not_called()
+
     def test_open_dfu_bootloader_skips_the_touch(
         self, setup_core: Path, tmp_path: Path
     ) -> None:

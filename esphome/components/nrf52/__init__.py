@@ -760,6 +760,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             if result != 0:
                 raise EsphomeError(f"Upload failed with result: {result}")
             return True
+        elif bootloader not in SERIAL_DFU_BOOTLOADERS:
+            raise EsphomeError(
+                f"Serial upload is not implemented for the {bootloader} bootloader"
+            )
         else:
             env = get_build_env(None)  # no compile, just the DFU tool
             dfu_package = CORE.relative_pioenvs_path(CORE.name) / DFU_PACKAGE
