@@ -217,9 +217,8 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // 888 is always b,g,r in memory, so only 565 has a byte order to match
-  const bool same_layout = bitness != display::COLOR_BITNESS_565 || big_endian == this->big_endian_;
-  if (bitness != this->color_depth_ || order != display::COLOR_ORDER_RGB || !same_layout ||
+  if (bitness != this->color_depth_ || order != display::COLOR_ORDER_RGB ||
+      (bitness == display::COLOR_BITNESS_565 && big_endian != this->big_endian_) ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
