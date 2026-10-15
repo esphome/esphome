@@ -70,22 +70,19 @@ void RX8111Component::read_time() {
       .hour = bcd_to_uint8(buf[2]),
       .day_of_week = weekday,
       .day_of_month = bcd_to_uint8(buf[4]),
-      .day_of_year = 1,
       .month = bcd_to_uint8(buf[5]),
       .year = static_cast<uint16_t>(bcd_to_uint8(buf[6]) + 2000),
       .is_dst = false,
       .timestamp = 0,
   };
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid() || rtc_time.second >= 60) {
+  if (!rtc_time.is_valid(true, false) || rtc_time.second >= 60) {
     ESP_LOGW(TAG, "Invalid RTC time, not syncing to system clock");
     this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
-  const auto calendar = ESPTime::from_epoch_utc(rtc_time.timestamp);
-  if (calendar.year != rtc_time.year || calendar.month != rtc_time.month ||
-      calendar.day_of_month != rtc_time.day_of_month || calendar.day_of_week != weekday) {
-    ESP_LOGW(TAG, "Invalid RTC calendar date or weekday");
+  if (ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week != weekday) {
+    ESP_LOGW(TAG, "RTC weekday does not match calendar date");
     this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
