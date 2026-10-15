@@ -52,7 +52,8 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
 
 std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const char *method, const std::string &body,
                                                        const std::vector<Header> &request_headers,
-                                                       const std::vector<std::string> &lower_case_collect_headers) {
+                                                       const std::vector<std::string> &lower_case_collect_headers,
+                                                       uint32_t timeout_ms) {
   if (!network::is_connected()) {
     this->status_momentary_error(ERROR_DURATION_MS);
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
@@ -82,7 +83,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
 
   config.url = url;
   config.method = method_idf;
-  config.timeout_ms = this->timeout_;
+  config.timeout_ms = timeout_ms;
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
   config.auth_type = HTTP_AUTH_TYPE_BASIC;

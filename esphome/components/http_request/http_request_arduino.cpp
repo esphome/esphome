@@ -26,7 +26,8 @@ static constexpr int ESP8266_SSL_ERR_OOM = -1000;
 
 std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, const char *method, const std::string &body,
                                                            const std::vector<Header> &request_headers,
-                                                           const std::vector<std::string> &lower_case_collect_headers) {
+                                                           const std::vector<std::string> &lower_case_collect_headers,
+                                                           uint32_t timeout_ms) {
   if (!network::is_connected()) {
     this->status_momentary_error(1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -90,7 +91,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
   }
 
   container->client_.setReuse(true);
-  container->client_.setTimeout(this->timeout_);
+  container->client_.setTimeout(timeout_ms);
 
   if (this->useragent_ != nullptr) {
     container->client_.setUserAgent(this->useragent_);
