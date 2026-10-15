@@ -38,6 +38,11 @@ class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
   audio::AudioStreamInfo full_duplex_stream_info_() const;
 #endif
 
+  /// @brief Frame multiple for DMA buffers and writes; 2 keeps ESP32 mono sample pairs word-aligned.
+  static uint32_t dma_frame_multiple(const audio::AudioStreamInfo &stream_info) {
+    return esp32_mono_swap_needed(stream_info) ? 2 : 1;
+  }
+
   I2SCommFmt i2s_comm_fmt_{I2SCommFmt::STANDARD};
 };
 
