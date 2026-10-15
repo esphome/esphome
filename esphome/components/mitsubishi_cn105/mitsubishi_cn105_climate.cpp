@@ -86,6 +86,7 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
     traits.set_visual_current_temperature_step(use_fahrenheit ? 1.0f : 0.5f);
   }
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
 
   return traits;
 }
@@ -148,6 +149,33 @@ void MitsubishiCN105Climate::apply_values_() {
           this->swing_mode_manager_.update_and_get_swing_mode(status.vane_mode, status.wide_vane_mode)) {
     this->swing_mode = *swing_mode;
   }
+
+  // the current action i.e. heating, cooling, or idle.
+  using Action = climate::ClimateAction;
+  Action action = climate::CLIMATE_ACTION_IDLE;
+  if (!status.power_on) {
+    action = climate::CLIMATE_ACTION_OFF;
+  } else if (status.operating) {
+    switch (status.mode) {
+      case MitsubishiCN105::Mode::COOL:
+        action = climate::CLIMATE_ACTION_COOLING;
+        break;
+      case MitsubishiCN105::Mode::HEAT:
+        action = climate::CLIMATE_ACTION_HEATING;
+        break;
+      case MitsubishiCN105::Mode::AUTO:
+        if (this->parent_->is_telemetry_polling_enabled() && !std::isnan(status.room_temperature) &&
+            !std::isnan(status.target_temperature)) {
+          action = status.room_temperature > status.target_temperature ? climate::CLIMATE_ACTION_COOLING
+                                                                       : climate::CLIMATE_ACTION_HEATING;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  this->action = action;
+
 
   this->publish_state();
 }
