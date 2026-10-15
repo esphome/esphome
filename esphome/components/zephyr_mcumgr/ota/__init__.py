@@ -104,8 +104,10 @@ def _validate_bootloader(config: ConfigType) -> None:
         return
     # The image slot is placed between the SoftDevice and the Adafruit bootloader (see to_code), so
     # OTA needs a layout that has both
-    sections = BOOTLOADER_CONFIG.get(bootloader, [])
-    if not any("SoftDevice" in section.name for section in sections):
+    names = [section.name for section in BOOTLOADER_CONFIG.get(bootloader, [])]
+    if not any("SoftDevice" in name for name in names) or not any(
+        "Adafruit" in name for name in names
+    ):
         raise cv.Invalid(f"{bootloader} does not support OTA")
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(2, 9, 2):

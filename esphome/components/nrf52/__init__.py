@@ -1220,5 +1220,8 @@ def run_compile(args, config: ConfigType) -> bool:
         genpkg_cmd += ["--application", str(hex_file), str(dfu_package)]
         if not run_command_ok(genpkg_cmd, env=env, stream_output=True):
             raise EsphomeError("Failed to create the DFU package")
+    else:
+        # A package left by an earlier serial DFU build would be offered for download with this one
+        (build_dir / "firmware.zip").unlink(missing_ok=True)
 
     return True
