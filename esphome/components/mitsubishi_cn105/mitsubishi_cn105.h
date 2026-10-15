@@ -75,6 +75,12 @@ class MitsubishiCN105 {
   uint32_t get_update_interval() const { return this->update_interval_ms_; }
   void set_update_interval(uint32_t interval_ms) { this->update_interval_ms_ = interval_ms; }
 
+  uint32_t get_heatpump_request_min_interval() const { return this->heatpump_request_min_interval_ms_; }
+  bool is_heatpump_polling_enabled() const { return this->heatpump_request_min_interval_ms_ != SCHEDULER_DONT_RUN; }
+  void set_heatpump_request_min_interval(uint32_t interval_ms) {
+    this->heatpump_request_min_interval_ms_ = interval_ms;
+  }
+
   uint32_t get_telemetry_request_min_interval() const { return this->telemetry_request_min_interval_ms_; }
   bool is_telemetry_polling_enabled() const { return this->telemetry_request_min_interval_ms_ != SCHEDULER_DONT_RUN; }
   void set_telemetry_request_min_interval(uint32_t interval_ms) {
@@ -164,6 +170,7 @@ class MitsubishiCN105 {
   bool parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len);
   void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
+  bool should_request_heatpump_() const;
   bool should_request_telemetry_() const;
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
@@ -180,7 +187,9 @@ class MitsubishiCN105 {
   // Default 60s; legacy climate-owned hub compatibility relies on this when current_temperature_min_interval is
   // omitted. Remove legacy note in 2027.2.0.
   uint32_t telemetry_request_min_interval_ms_{60000};
+  uint32_t heatpump_request_min_interval_ms_{10007};
   std::optional<uint32_t> last_telemetry_update_ms_;
+  std::optional<uint32_t> last_heatpump_request_ms_;
   Status status_{};
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
