@@ -57,6 +57,9 @@ class MitsubishiCN105 {
   struct Status {
     float target_temperature{NAN};
     float room_temperature{NAN};
+    // True when the unit reports it is actively operating (compressor running).
+    // This is decoded only from the 0x06 / heatpump-status packet.
+    bool operating{false};
     bool power_on{false};
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
