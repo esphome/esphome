@@ -859,6 +859,9 @@ void WiFiComponent::loop() {
           this->skip_cooldown_next_cycle_ = false;
           ESP_LOGD(TAG, "Leaving the cooldown early for new WiFi credentials");
           this->retry_connect();
+          // An adapter restart comes straight back here with the credentials still untried: skip that cooldown too
+          if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN)
+            this->skip_cooldown_next_cycle_ = true;
           break;
         }
         // Use longer cooldown when a portal/improv is active to avoid disrupting a user on the AP
