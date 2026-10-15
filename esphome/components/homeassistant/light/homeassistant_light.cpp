@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
 
@@ -30,19 +31,6 @@ const uint8_t COLOR_MODES[] PROGMEM = {
     static_cast<uint8_t>(ColorMode::BRIGHTNESS),
     static_cast<uint8_t>(ColorMode::WHITE),
     static_cast<uint8_t>(ColorMode::COLOR_TEMPERATURE),
-};
-
-// The service and data names of the actions, in flash on the ESP8266; ActionString indexes them
-PROGMEM_STRING_TABLE(ActionStrings, "light.turn_on", "light.turn_off", "entity_id", "brightness", "white",
-                     "color_temp_kelvin", "rgb_color");
-enum ActionString : uint8_t {
-  ACTION_STRING_TURN_ON,
-  ACTION_STRING_TURN_OFF,
-  ACTION_STRING_ENTITY_ID,
-  ACTION_STRING_BRIGHTNESS,
-  ACTION_STRING_WHITE,
-  ACTION_STRING_COLOR_TEMP_KELVIN,
-  ACTION_STRING_RGB_COLOR,
 };
 
 optional<ColorMode> parse_color_mode(StringRef name) {
@@ -203,7 +191,8 @@ optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRe
     return nullopt;
   }
   // Written so that NaN fails too
-  if (!(*number >= 1.0f && *number <= max)) {
+  const bool in_range = *number >= 1.0f && *number <= max;
+  if (!in_range) {
     ESP_LOGW(TAG, "'%s': '%s' value %.0f is out of range!", this->entity_id_, name, *number);
     return nullopt;
   }
@@ -267,7 +256,7 @@ void HomeassistantLight::apply_imported_() {
 
 bool HomeassistantLight::is_imported_(const Attributes &outgoing) const {
   const Attributes &imported = this->imported_;
-  if (!imported.state.has_value() || *imported.state != *outgoing.state) {
+  if (!imported.state.has_value() || !outgoing.state.has_value() || *imported.state != *outgoing.state) {
     return false;
   }
   if (!*outgoing.state) {
@@ -356,8 +345,16 @@ void HomeassistantLight::write_state(LightState *state) {
   }
 #endif
 
-  // The request refers to these strings and buffers until it is sent below
-  ProgmemStringTableCopy<ActionStrings> strings;
+  // In flash on the ESP8266 and encoded from there
+  static const char SERVICE_TURN_ON[] PROGMEM = "light.turn_on";
+  static const char SERVICE_TURN_OFF[] PROGMEM = "light.turn_off";
+  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
+  static const char BRIGHTNESS_KEY[] PROGMEM = "brightness";
+  static const char WHITE_KEY[] PROGMEM = "white";
+  static const char COLOR_TEMP_KELVIN_KEY[] PROGMEM = "color_temp_kelvin";
+  static const char RGB_COLOR_KEY[] PROGMEM = "rgb_color";
+
+  // The request refers to these buffers until it is sent below
   char level_buf[4];       // up to 255
   char color_temp_buf[6];  // up to 65535
   char color_buf[16];
@@ -365,33 +362,35 @@ void HomeassistantLight::write_state(LightState *state) {
   api::HomeassistantActionRequest resp;
   resp.data.init(3);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.key = StringRef(strings.get(ACTION_STRING_ENTITY_ID));
-  entity_id.value = StringRef(this->entity_id_);
+  entity_id.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entity_id.value = ProgmemStringRef(StringRef(this->entity_id_));
 
-  auto add_number = [&](uint8_t key, auto &buf, unsigned number) {
+  auto add_number = [&](ProgmemStringRef key, auto &buf, unsigned number) {
     auto &entry = resp.data.emplace_back();
-    entry.key = StringRef(strings.get(key));
-    entry.value = StringRef(buf, buf_append_printf(buf, sizeof(buf), 0, "%u", number));
+    entry.key = key;
+    entry.value = ProgmemStringRef(StringRef(buf, buf_append_printf(buf, sizeof(buf), 0, "%u", number)));
   };
   if (!*outgoing.state) {
-    resp.service = StringRef(strings.get(ACTION_STRING_TURN_OFF));
+    resp.service = ProgmemStringRef::from_lit(SERVICE_TURN_OFF);
   } else {
-    resp.service = StringRef(strings.get(ACTION_STRING_TURN_ON));
+    resp.service = ProgmemStringRef::from_lit(SERVICE_TURN_ON);
     if (outgoing.color_mode != ColorMode::ON_OFF) {
       // The level goes under "white" in that mode, which also selects the mode
-      add_number(outgoing.color_mode == ColorMode::WHITE ? ACTION_STRING_WHITE : ACTION_STRING_BRIGHTNESS, level_buf,
-                 outgoing.brightness);
+      add_number(outgoing.color_mode == ColorMode::WHITE ? ProgmemStringRef::from_lit(WHITE_KEY)
+                                                         : ProgmemStringRef::from_lit(BRIGHTNESS_KEY),
+                 level_buf, outgoing.brightness);
     }
     if (outgoing.color_temp_kelvin != 0) {
-      add_number(ACTION_STRING_COLOR_TEMP_KELVIN, color_temp_buf, outgoing.color_temp_kelvin);
+      add_number(ProgmemStringRef::from_lit(COLOR_TEMP_KELVIN_KEY), color_temp_buf, outgoing.color_temp_kelvin);
     }
     if (outgoing.has_rgb) {
       // A list, which only a template renders as one
       resp.data_template.init(1);
       auto &color = resp.data_template.emplace_back();
-      color.key = StringRef(strings.get(ACTION_STRING_RGB_COLOR));
-      color.value = StringRef(color_buf, buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]",
-                                                           outgoing.rgb[0], outgoing.rgb[1], outgoing.rgb[2]));
+      color.key = ProgmemStringRef::from_lit(RGB_COLOR_KEY);
+      color.value =
+          ProgmemStringRef(StringRef(color_buf, buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]",
+                                                                  outgoing.rgb[0], outgoing.rgb[1], outgoing.rgb[2])));
     }
   }
   api::global_api_server->send_homeassistant_action(resp);
