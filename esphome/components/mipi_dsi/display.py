@@ -198,7 +198,6 @@ async def to_code(config: ConfigType) -> None:
         model.get_dimensions(config)
     )
     var = cg.new_Pvariable(config[CONF_ID], width, height, color_depth, pixel_mode)
-    cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     cg.add(var.set_big_endian(config[CONF_BYTE_ORDER] == BYTE_ORDER_BIG))
 
     sequence = model.get_sequence(config)

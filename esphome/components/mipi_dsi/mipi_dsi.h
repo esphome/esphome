@@ -43,8 +43,6 @@ class MipiDsi final : public display::Display {
  public:
   MipiDsi(size_t width, size_t height, display::ColorBitness color_depth, uint8_t pixel_mode)
       : width_(width), height_(height), color_depth_(color_depth), pixel_mode_(pixel_mode) {}
-  display::ColorOrder get_color_mode() { return this->color_mode_; }
-  void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
   void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
   void set_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
@@ -134,7 +132,6 @@ class MipiDsi final : public display::Display {
   uint8_t lanes_{2};           // 1, 2, 3 or 4 lanes
 
   bool invert_colors_{};
-  display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
   display::ColorBitness color_depth_;
   bool big_endian_{false};
   bool updating_{false};

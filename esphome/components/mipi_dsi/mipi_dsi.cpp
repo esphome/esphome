@@ -217,10 +217,8 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // An RGB ordered little endian 888 block is b,g,r in memory, as the BGR colour mode writes it
-  const bool same_layout = bitness == display::COLOR_BITNESS_565
-                               ? big_endian == this->big_endian_
-                               : big_endian == (this->color_mode_ == display::COLOR_ORDER_RGB);
+  // 888 is always b,g,r in memory, so only 565 has a byte order to match
+  const bool same_layout = bitness != display::COLOR_BITNESS_565 || big_endian == this->big_endian_;
   if (bitness != this->color_depth_ || order != display::COLOR_ORDER_RGB || !same_layout ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
@@ -342,15 +340,10 @@ void MipiDsi::draw_pixel_at(int x, int y, Color color) {
       break;
     }
     case display::COLOR_BITNESS_888:
-      if (this->color_mode_ == display::COLOR_ORDER_BGR) {
-        this->buffer_[pos * 3] = color.b;
-        this->buffer_[pos * 3 + 1] = color.g;
-        this->buffer_[pos * 3 + 2] = color.r;
-      } else {
-        this->buffer_[pos * 3] = color.r;
-        this->buffer_[pos * 3 + 1] = color.g;
-        this->buffer_[pos * 3 + 2] = color.b;
-      }
+      // The panel applies the colour order, so the buffer keeps the standard b,g,r layout
+      this->buffer_[pos * 3] = color.b;
+      this->buffer_[pos * 3 + 1] = color.g;
+      this->buffer_[pos * 3 + 2] = color.r;
       break;
     case display::COLOR_BITNESS_332:
       break;
@@ -384,19 +377,12 @@ void MipiDsi::fill(Color color) {
     }
 
     case display::COLOR_BITNESS_888:
-      if (this->color_mode_ == display::COLOR_ORDER_BGR) {
-        for (size_t i = 0; i != this->width_ * this->height_; i++) {
-          this->buffer_[i * 3 + 0] = color.b;
-          this->buffer_[i * 3 + 1] = color.g;
-          this->buffer_[i * 3 + 2] = color.r;
-        }
-      } else {
-        for (size_t i = 0; i != this->width_ * this->height_; i++) {
-          this->buffer_[i * 3 + 0] = color.r;
-          this->buffer_[i * 3 + 1] = color.g;
-          this->buffer_[i * 3 + 2] = color.b;
-        }
+      for (size_t i = 0; i != this->width_ * this->height_; i++) {
+        this->buffer_[i * 3 + 0] = color.b;
+        this->buffer_[i * 3 + 1] = color.g;
+        this->buffer_[i * 3 + 2] = color.r;
       }
+      break;
 
     default:
       break;

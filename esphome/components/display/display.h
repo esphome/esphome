@@ -357,7 +357,8 @@ class Display : public PollingComponent {
    * \param ptr A pointer to the start of the data to be copied
    * \param order The ordering of the colors
    * \param bitness Defines the number of bits and their format for each pixel
-   * \param big_endian True if 16 bit values are stored big-endian
+   * \param big_endian True if 16 bit values are stored big-endian. Ignored for 888, which is always b,g,r
+   *                   in memory for RGB order, as LVGL and ESPHome images store it.
    * \param x_offset The initial x-offset into the source buffer.
    * \param y_offset The initial y-offset into the source buffer.
    * \param x_pad How many pixels are in each line after the end of the pixels to be copied.

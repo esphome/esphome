@@ -81,8 +81,8 @@ jobs:
       - name: Install apt packages (cached)
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
   determine-jobs:
     name: Determine which jobs to run
@@ -415,8 +415,8 @@ jobs:
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -680,7 +680,7 @@ jobs:
         include:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP8266
-            options: --environment esp8266-arduino-tidy --grep USE_ESP8266
+            options: --environment esp8266-arduino-tidy --grep USE_ESP8266 --grep USE_SOCKET_IMPL_LWIP_TCP --grep USE_SHD_FIRMWARE_DATA
             pio_cache_key: tidyesp8266
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 Arduino
@@ -693,12 +693,16 @@ jobs:
             ignore_errors: false
           - id: clang-tidy
             name: Run script/clang-tidy for RP2
-            options: --environment rp2-tidy --grep USE_RP2
+            options: --environment rp2-tidy --grep USE_RP2 --grep USE_BLE_SCAN_RESPONSE_MERGER
             pio_cache_key: tidyrp2
+          - id: clang-tidy
+            name: Run script/clang-tidy for host
+            options: --environment host-tidy --grep USE_HOST
+            pio_cache_key: tidyhost
           - id: clang-tidy
             name: Run script/clang-tidy for LibreTiny
             environments: bk72xx-tidy ln882h-tidy rtl87xxb-tidy rtl87xxc-tidy
-            options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
+            options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X --grep USE_LN882H_BLE --grep USE_SOCKET_IMPL_LWIP_SOCKETS
             pio_cache_key: tidylibretiny
 
     steps:
@@ -707,6 +711,16 @@ jobs:
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
+      - name: Install apt packages (cached)
+        if: matrix.pio_cache_key == 'tidyhost'
+        # libsdl2-dev is needed by the sdl component on the host, libmbedtls-dev
+        # by dsmr and dlms_meter. Packages and version must match seed-apt-cache
+        # exactly.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
       - name: Restore Python
         id: restore-python
@@ -989,14 +1003,14 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 S3
             # yamllint disable-line rule:line-length
-            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC
+            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC --grep SOC_I2S_SUPPORTS_TDM --grep USE_OPENTHREAD
             tidy_environment: esp32s3-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
             # so their code paths differ -- lint them under the P4 build too.
             # yamllint disable-line rule:line-length
-            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
+            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep CONFIG_IDF_TARGET_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
             tidy_environment: esp32p4-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
@@ -1102,8 +1116,8 @@ jobs:
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
