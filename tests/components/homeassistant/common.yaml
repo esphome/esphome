@@ -58,6 +58,7 @@ light:
   - platform: homeassistant
     entity_id: light.my_cool_light
     id: ha_my_cool_light
+    report_timeout: 30s
 
 binary_sensor:
   - platform: homeassistant

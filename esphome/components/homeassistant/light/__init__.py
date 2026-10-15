@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_RESTORE_STATE,
 )
+from esphome.core import TimePeriod
 from esphome.types import ConfigType
 
 from .. import (
@@ -24,6 +25,7 @@ CODEOWNERS = ["@egormanga"]
 DEPENDENCIES = ["api"]
 AUTO_LOAD = ["homeassistant"]
 
+CONF_REPORT_TIMEOUT = "report_timeout"
 SUPPORTED_DOMAINS = ["light"]
 
 HomeassistantLight = homeassistant_ns.class_(
@@ -43,6 +45,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_DEFAULT_TRANSITION_LENGTH, default="0s"
             ): cv.positive_time_period_milliseconds,
+            # Stored in a byte of seconds; a light polled by Home Assistant can take a minute
+            cv.Optional(CONF_REPORT_TIMEOUT, default="10s"): cv.All(
+                cv.positive_time_period_seconds,
+                cv.Range(min=TimePeriod(seconds=1), max=TimePeriod(seconds=255)),
+            ),
             **{
                 cv.Optional(key): _RENDERED_BY_HOME_ASSISTANT
                 for key in (
@@ -68,4 +75,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = await light.new_light(config)
     await cg.register_component(var, config)
+    cg.add(var.set_report_timeout(config[CONF_REPORT_TIMEOUT].total_seconds))
     setup_home_assistant_entity(var, config)

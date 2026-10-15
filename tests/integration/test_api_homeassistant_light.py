@@ -187,7 +187,7 @@ async def test_api_homeassistant_light(
         ha.client.light_command(ha.key, state=False)
         assert (await ha.next_call()).service == "light.turn_off"
 
-        # Without a report of the change within two seconds, the light goes back to the reported state
+        # Without a report of the change within report_timeout, the light goes back to the reported state
         ha.report(None, "on")
         await ha.next_state(lambda s: s.state)
         ha.client.light_command(ha.key, state=False)
@@ -309,7 +309,7 @@ async def test_api_homeassistant_light(
 
         # A flash ends where it began, which Home Assistant has, so nothing is sent and the user is told
         ha.client.light_command(ha.key, state=True, flash_length=0.5)
-        await ha.waiter.wait_for("a flash is never sent", timeout=5.0)
+        await ha.waiter.wait_for("nothing to send (a flash never is)", timeout=5.0)
 
         assert ha.calls.empty()
 

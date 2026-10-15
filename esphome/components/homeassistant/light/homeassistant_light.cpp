@@ -16,7 +16,6 @@ namespace esphome::homeassistant {
 ESPHOME_LOG_TAG(TAG, "homeassistant.light");
 
 static constexpr uint32_t ECHO_TIMEOUT_ID = 0;
-static constexpr uint32_t ECHO_TIMEOUT_MS = 2000;  // Home Assistant answers an action well within this
 
 using namespace esphome::light;
 
@@ -382,7 +381,8 @@ void HomeassistantLight::write_state(LightState *state) {
   if (!this->echo_pending_ && this->is_imported_(outgoing)) {
     if (transitioned) {
       // A flash ends where it began, and Home Assistant only ever gets the end
-      ESP_LOGW(TAG, "'%s': Home Assistant has the state this ended at; a flash is never sent", this->entity_id_);
+      ESP_LOGW(TAG, "'%s': Ended at the state Home Assistant already has, nothing to send (a flash never is)",
+               this->entity_id_);
     } else {
       ESP_LOGD(TAG, "'%s': Home Assistant already has this state", this->entity_id_);
     }
@@ -458,7 +458,7 @@ void HomeassistantLight::write_state(LightState *state) {
   // Home Assistant reports the change back in a moment, which cancels this; when it does not, the
   // change got lost on the way (no subscriber yet, the entity unavailable, the action refused)
   this->echo_pending_ = true;
-  this->set_timeout(ECHO_TIMEOUT_ID, ECHO_TIMEOUT_MS, [this]() {
+  this->set_timeout(ECHO_TIMEOUT_ID, this->report_timeout_s_ * 1000u, [this]() {
     this->echo_pending_ = false;
     ESP_LOGW(TAG, "'%s': Home Assistant did not report the change back", this->entity_id_);
     this->fall_back_();
