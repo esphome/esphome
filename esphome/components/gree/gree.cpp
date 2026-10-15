@@ -33,11 +33,11 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
 }
 
 uint8_t frame_checksum(const uint8_t *remote_state) {
-  return ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) +
-            (remote_state[3] & 0x0F) + ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) +
-            ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
-           0x0F)
-          << 4);
+  return (
+      (((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
+        ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
+       0x0F)
+      << 4);
 }
 
 #ifdef USE_GREE_FAHRENHEIT

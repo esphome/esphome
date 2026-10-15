@@ -71,7 +71,6 @@ TEST(GreeClimateTest, FahrenheitFieldsHandleNonFiniteTarget) {
   EXPECT_FALSE(extra_degree);
 }
 
-
 // Checksums of the two frames captured from a real YX1FF remote and verified on the unit's display.
 // Byte 7 is zeroed here because frame_checksum() computes it.
 TEST(GreeClimateTest, FrameChecksumMatchesCapturedFrames) {
