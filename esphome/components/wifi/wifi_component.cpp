@@ -1270,10 +1270,11 @@ void WiFiComponent::connect_soon_() {
     return;
   }
 #endif
-  // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
+  // In a cooldown the next loop pass retries through skip_cooldown_next_cycle_, set by set_sta(). The retry
+  // must not run here: a save from the captive portal arrives in the web server's context, lwIP's on the
+  // ESP8266, where retry_connect() yields and panics. Already connecting or connected: nothing to do
   if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
     ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
-    this->retry_connect();
   }
 }
 
