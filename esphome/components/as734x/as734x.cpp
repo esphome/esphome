@@ -7,7 +7,6 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <cstring>
 
 namespace esphome::as734x {
 
@@ -637,9 +636,9 @@ void AS734XComponent::publish_color_() {
   char rgb_hex[7] = "000000";  // no usable chromaticity reads as black rather than an empty string
   const float sum = tri_x + tri_y + tri_z;
   if (sum > MIN_TRISTIMULUS_SUM) {
-    uint8_t r, g, b;
-    tristimulus_to_rgb(tri_x / sum, tri_y / sum, tri_z / sum, r, g, b);
-    snprintf(rgb_hex, sizeof(rgb_hex), "%02x%02x%02x", r, g, b);
+    uint8_t rgb[3];
+    tristimulus_to_rgb(tri_x / sum, tri_y / sum, tri_z / sum, rgb[0], rgb[1], rgb[2]);
+    format_hex_to(rgb_hex, rgb, sizeof(rgb));
   }
   this->rgb_hex_sensor_->publish_state(rgb_hex);
 #endif
