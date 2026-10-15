@@ -106,11 +106,6 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         # The acknowledge bit is released from a general purpose timer, left out of the build by default
         include_builtin_idf_component("esp_driver_gptimer")
-    if CORE.is_esp8266:
-        # The acknowledge bit is released from hardware timer 1, which only one component can drive
-        from esphome.components.esp8266.const import use_timer1
-
-        use_timer1(DOMAIN)
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_ADDRESS])
     await cg.register_component(var, config)
