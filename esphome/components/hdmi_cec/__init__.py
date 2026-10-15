@@ -103,6 +103,11 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import use_timer1
+
+        # The acknowledge bit is released from hardware timer 1
+        use_timer1(DOMAIN)
     if CORE.is_esp32:
         # The acknowledge bit is released from a general purpose timer, left out of the build by default
         include_builtin_idf_component("esp_driver_gptimer")
