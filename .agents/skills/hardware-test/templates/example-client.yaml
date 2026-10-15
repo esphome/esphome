@@ -1,0 +1,19 @@
+# Client board for the /wifisave hammer. Copy into a scratch directory next to a secrets.yaml;
+# ap_ssid must match the device under test, real_ssid and real_psk must be URL safe.
+substitutions:
+  name: hwtest-client-1
+  ap_ssid: hwtest-ap
+  real_ssid: !secret wifi_ssid
+  real_psk: !secret wifi_password
+  bogus_saves: "15"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# esp8266:
+#   board: d1_mini
+
+packages:
+  hwtest: !include client-wifisave.yaml
