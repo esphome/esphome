@@ -10,16 +10,14 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 
 #include "esp_err.h"
 #include "esp_netif.h"
 #include "esp_openthread_netif_glue.h"
 #include "esp_vfs_eventfd.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "lwip/dns.h"
 #include "lwip/ip_addr.h"
-#include "nvs_flash.h"
 
 ESPHOME_LOG_TAG(TAG, "openthread");
 
@@ -33,8 +31,14 @@ void OpenThreadComponent::setup() {
   esp_vfs_eventfd_config_t eventfd_config = {
       .max_fds = 3,
   };
-  // Network interface setup handled by network component
-  ESP_ERROR_CHECK(nvs_flash_init());
+  // Network interface setup handled by network component.
+  // Preferences opens NVS in app_main(); OpenThread keeps its dataset there, and esp_openthread_start()
+  // aborts without it, so fail this component instead.
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGE(TAG, "NVS unavailable");
+    this->mark_failed();
+    return;
+  }
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
   esp_openthread_config_t config = {.netif_config = ESP_NETIF_DEFAULT_OPENTHREAD(),
@@ -155,6 +159,11 @@ InstanceLock InstanceLock::acquire() {
   // racing teardown would otherwise dereference a null pointer below.
   if (global_openthread_component == nullptr) {
     ESP_LOGE(TAG, "OpenThread component torn down, cannot acquire instance lock");
+    abort();
+  }
+  // A failed setup() never creates the lock; say so now instead of after the wait below
+  if (global_openthread_component->is_failed()) {
+    ESP_LOGE(TAG, "Setup failed, cannot acquire instance lock");
     abort();
   }
   // Wait for the lock to be created before attempting to acquire it.

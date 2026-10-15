@@ -183,6 +183,7 @@ esphome/components/es7243e/* @kbx81
 esphome/components/es8156/* @kbx81
 esphome/components/es8311/* @kahrendt @kroimon
 esphome/components/es8388/* @P4uLT
+esphome/components/es9038q2m_katana/* @GioMez
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @bdraco @jesserockz @Rapsssito
 esphome/components/esp32_ble_client/* @bdraco @jesserockz
@@ -219,6 +220,7 @@ esphome/components/friedrich/* @rwrozelle
 esphome/components/fs3000/* @kahrendt
 esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio
+esphome/components/fusb302b/* @remcom
 esphome/components/gcja5/* @gcormier
 esphome/components/gdk101/* @Szewcson
 esphome/components/gl_r01_i2c/* @pkejval
@@ -240,6 +242,7 @@ esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
 esphome/components/haier/binary_sensor/* @paveldn
 esphome/components/haier/button/* @paveldn
+esphome/components/haier/select/* @paveldn
 esphome/components/haier/sensor/* @paveldn
 esphome/components/haier/switch/* @paveldn
 esphome/components/haier/text_sensor/* @paveldn
@@ -385,6 +388,7 @@ esphome/components/microphone/* @jesserockz @kahrendt
 esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
+esphome/components/midea_portasplit/* @Fexiven
 esphome/components/mipi_dsi/* @clydebarrow
 esphome/components/mipi_rgb/* @clydebarrow
 esphome/components/mipi_spi/* @clydebarrow
@@ -439,6 +443,7 @@ esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/packet_transport/* @clydebarrow
 esphome/components/pca6416a/* @Mat931
+esphome/components/pca9505/* @ajfriesen @ssieb
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman

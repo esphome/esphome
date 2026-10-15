@@ -330,7 +330,9 @@ async def write_image(
         if byte_order is not None:
             # Check for valid type has already been done in validate_settings
             encoder.set_big_endian(byte_order == "BIG_ENDIAN")
-        pixels = encoder.convert(image.resize((width, height)), path).getdata()
+        pixels = encoder.convert(
+            image.resize((width, height)), path
+        ).get_flattened_data()
         for row in range(height):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
