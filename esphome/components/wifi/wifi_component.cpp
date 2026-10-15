@@ -1253,27 +1253,19 @@ void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
   WiFiAP sta{};
   sta.set_ssid(ssid);
   sta.set_password(password);
+  // Arms skip_cooldown_next_cycle_: a cooldown ends on the loop's next pass. No retry from here, a save from the
+  // captive portal arrives in the web server's context, lwIP's on the ESP8266, where retry_connect() yields and
+  // panics. Already connecting or connected: nothing to do
   this->set_sta(sta);
-
-  // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
-  this->connect_soon_();
-}
-
-void WiFiComponent::connect_soon_() {
 #ifdef USE_WIFI_AP_EXCLUSIVE
-  // New credentials from the portal: the AP pauses for them once its answer
-  // is out, and the STA state machine picks them up from there.
+  // The AP pauses for the new credentials once its answer is out, and the STA state machine picks them up
   if (this->ap_setup_) {
     this->set_timeout(AP_HANDOVER_TIMEOUT_ID, WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
       if (this->ap_setup_)
         this->pause_exclusive_ap_();
     });
-    return;
   }
 #endif
-  // In a cooldown the loop retries on its next pass through skip_cooldown_next_cycle_, set by set_sta(). Not
-  // here: a save from the captive portal arrives in the web server's context, lwIP's on the ESP8266, where
-  // retry_connect() yields and panics. Already connecting or connected: nothing to do
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
