@@ -10,6 +10,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include "esphome/core/log.h"
+#include <array>
 #include <atomic>
 #include <functional>
 
@@ -351,14 +352,29 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   bool claim_comm_interface_{true};
 };
 
+// The block GET_FLOW and SET_FLOW transfer, little-endian on the wire as in memory
+struct CP210xFlowBlock {
+  uint32_t control_handshake;
+  uint32_t flow_replace;
+  uint32_t xon_limit;
+  uint32_t xoff_limit;
+};
+
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
  public:
   USBUartTypeCP210X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
  protected:
+  // Matches max_channels of the CP210X type in __init__.py
+  static constexpr uint8_t MAX_CHANNELS = 3;
+
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   void modem_control_transfer(USBUartChannelBase *channel) override;
+  void set_flow_transfer_(USBUartChannelBase *channel);
+
+  // The block last read for each channel, so a DTR/RTS change under RTS/CTS is a single SET_FLOW
+  std::array<CP210xFlowBlock, MAX_CHANNELS> flow_blocks_{};
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:

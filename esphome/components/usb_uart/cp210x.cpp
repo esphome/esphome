@@ -6,6 +6,9 @@
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
+#include <cinttypes>
+#include <iterator>
+
 namespace esphome::usb_uart {
 
 using namespace bytebuffer;
@@ -48,6 +51,39 @@ static constexpr uint16_t CONTROL_DTR = 0x0001;
 static constexpr uint16_t CONTROL_RTS = 0x0002;
 static constexpr uint16_t CONTROL_WRITE_DTR = 0x0100;
 static constexpr uint16_t CONTROL_WRITE_RTS = 0x0200;
+
+// CP210xFlowBlock::control_handshake bits
+static constexpr uint32_t SERIAL_DTR_MASK = 0x03;
+static constexpr uint32_t SERIAL_DTR_INACTIVE = 0x00;
+static constexpr uint32_t SERIAL_DTR_ACTIVE = 0x01;
+static constexpr uint32_t SERIAL_CTS_HANDSHAKE = 1 << 3;
+static constexpr uint32_t SERIAL_DSR_HANDSHAKE = 1 << 4;
+static constexpr uint32_t SERIAL_DCD_HANDSHAKE = 1 << 5;
+static constexpr uint32_t SERIAL_DSR_SENSITIVITY = 1 << 6;
+
+// CP210xFlowBlock::flow_replace bits
+static constexpr uint32_t SERIAL_AUTO_TRANSMIT = 1 << 0;
+static constexpr uint32_t SERIAL_AUTO_RECEIVE = 1 << 1;
+static constexpr uint32_t SERIAL_RTS_MASK = 0xC0;
+static constexpr uint32_t SERIAL_RTS_INACTIVE = 0x00;
+static constexpr uint32_t SERIAL_RTS_ACTIVE = 0x40;
+static constexpr uint32_t SERIAL_RTS_FLOW_CTL = 0x80;
+
+// Receive queue levels at which the chip sends XON and XOFF
+static constexpr uint32_t XON_XOFF_LIMIT = 128;
+// SET_CHARS block: EOF, error, break, event, XON and XOFF characters. XON and XOFF are the
+// termios defaults DC1 and DC3.
+static constexpr uint8_t SPECIAL_CHARS[] = {0, 0, 0, 0, 0x11, 0x13};
+
+// Put DTR and RTS into the block. Under RTS/CTS an asserted RTS hands the line to the chip.
+static void set_block_modem_lines(CP210xFlowBlock &block, bool dtr, bool rts) {
+  block.control_handshake =
+      (block.control_handshake & ~SERIAL_DTR_MASK) | (dtr ? SERIAL_DTR_ACTIVE : SERIAL_DTR_INACTIVE);
+  uint32_t rts_bits = SERIAL_RTS_INACTIVE;
+  if (rts)
+    rts_bits = (block.control_handshake & SERIAL_CTS_HANDSHAKE) ? SERIAL_RTS_FLOW_CTL : SERIAL_RTS_ACTIVE;
+  block.flow_replace = (block.flow_replace & ~SERIAL_RTS_MASK) | rts_bits;
+}
 
 std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev_hdl) {
   const usb_config_desc_t *config_desc;
@@ -105,12 +141,15 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
 
 bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
-  // TODO: flow_control_ is accepted but not applied. Linux reads the 16 byte flow block with
-  // GET_FLOW, sets CTS_HANDSHAKE and RTS_FLOW_CTL (or AUTO_TRANSMIT and AUTO_RECEIVE plus
-  // SET_CHARS for XON/XOFF), and writes it back with SET_FLOW; RTS then has to go through
-  // SET_FLOW too, not SET_MHS. CP2102N firmware <= 1.0.4 (erratum E104) cannot do it at all.
+  // TODO: CP2102N firmware 1.0.4 and older reads xon_limit as flow_replace (erratum E104).
+  // Linux finds these chips with GET_PARTNUM and GET_FW_VER_2N and applies no flow control.
+
   // On reload, skip the one-time IFC_ENABLE step (the interface is already enabled).
   if (reload)
+    step++;
+  // SET_CHARS is only needed for XON/XOFF
+  const bool xon_xoff = channel->flow_control_ == uart::UART_FLOW_CONTROL_XON_XOFF;
+  if (!xon_xoff && step >= 3)
     step++;
   switch (step) {
     case 0:
@@ -129,21 +168,69 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, baud.get_data());
       return true;
     }
-    case 3:  // Assert DTR+RTS (init only)
-      if (reload)
-        return false;
-      this->modem_control_transfer(channel);
+    case 3:
+      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_CHARS, 0, channel->index_,
+                             std::vector<uint8_t>(std::begin(SPECIAL_CHARS), std::end(SPECIAL_CHARS)));
       return true;
+    case 4: {
+      // Read into the channel's cached block, which the next step edits and writes back
+      CP210xFlowBlock *block = &this->flow_blocks_[channel->index_];
+      this->submit_config_transfer_(
+          USB_VENDOR_IFC | usb_host::USB_DIR_IN, GET_FLOW, 0, channel->index_,
+          [this, block](const usb_host::TransferStatus &status) {
+            const bool read_ok = status.success && status.data_len == usb_host::SETUP_PACKET_SIZE + sizeof(*block);
+            if (read_ok)
+              memcpy(block, status.data + usb_host::SETUP_PACKET_SIZE, sizeof(*block));
+            this->complete_config_transfer_(status, read_ok);
+          },
+          std::vector<uint8_t>(sizeof(CP210xFlowBlock)));
+      return true;
+    }
+    case 5: {
+      // Set flow control, re-applied on every settings change as set_termios does. The block
+      // also carries DTR and RTS, so this puts them on the wire too.
+      auto &block = this->flow_blocks_[channel->index_];
+      block.control_handshake &=
+          ~(SERIAL_DSR_HANDSHAKE | SERIAL_DCD_HANDSHAKE | SERIAL_DSR_SENSITIVITY | SERIAL_CTS_HANDSHAKE);
+      if (channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS)
+        block.control_handshake |= SERIAL_CTS_HANDSHAKE;
+      if (xon_xoff) {
+        block.flow_replace |= SERIAL_AUTO_TRANSMIT | SERIAL_AUTO_RECEIVE;
+        block.xon_limit = XON_XOFF_LIMIT;
+        block.xoff_limit = XON_XOFF_LIMIT;
+      } else {
+        block.flow_replace &= ~(SERIAL_AUTO_TRANSMIT | SERIAL_AUTO_RECEIVE);
+      }
+      set_block_modem_lines(block, channel->dtr_, channel->rts_);
+      this->set_flow_transfer_(channel);
+      return true;
+    }
     default:
       return false;
   }
 }
 
 void USBUartTypeCP210X::modem_control_transfer(USBUartChannelBase *channel) {
+  // Under RTS/CTS the chip drives RTS, so the lines go through SET_FLOW as in Linux
+  auto &block = this->flow_blocks_[channel->index_];
+  if (block.control_handshake & SERIAL_CTS_HANDSHAKE) {
+    set_block_modem_lines(block, channel->dtr_, channel->rts_);
+    this->set_flow_transfer_(channel);
+    return;
+  }
   const uint16_t value =
       CONTROL_WRITE_DTR | CONTROL_WRITE_RTS | (channel->dtr_ ? CONTROL_DTR : 0) | (channel->rts_ ? CONTROL_RTS : 0);
   ESP_LOGD(TAG, "SET_MHS: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
   this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_MHS, value, channel->index_);
+}
+
+void USBUartTypeCP210X::set_flow_transfer_(USBUartChannelBase *channel) {
+  const auto &block = this->flow_blocks_[channel->index_];
+  ESP_LOGD(TAG, "SET_FLOW: control handshake 0x%02" PRIX32 ", flow replace 0x%02" PRIX32, block.control_handshake,
+           block.flow_replace);
+  const auto *bytes = reinterpret_cast<const uint8_t *>(&block);
+  this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_FLOW, 0, channel->index_,
+                         std::vector<uint8_t>(bytes, bytes + sizeof(block)));
 }
 }  // namespace esphome::usb_uart
 
