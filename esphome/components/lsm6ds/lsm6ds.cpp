@@ -1,15 +1,42 @@
 #include "lsm6ds.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::lsm6ds {
 
 ESPHOME_LOG_TAG(TAG, "lsm6ds");
 
-static const struct {
-  uint8_t who_am_i;
-  const char *const name;
-} CHIP_IDS[] = {{0x69, "LSMDSO"}, {0x6A, "LSM6DS3"}};
+// Indexed by the accel range field, which is not in ascending order (datasheet Table 3)
+PROGMEM_STRING_TABLE(AccelRangeStrings, "±2g", "±16g", "±4g", "±8g");
+
+static const LogString *gyro_range_to_str(LSM6DSGyroRange range) {
+  switch (range) {
+    case LSM6DS_GYRO_RANGE_125:
+      return LOG_STR("±125dps");
+    case LSM6DS_GYRO_RANGE_250:
+      return LOG_STR("±250dps");
+    case LSM6DS_GYRO_RANGE_500:
+      return LOG_STR("±500dps");
+    case LSM6DS_GYRO_RANGE_1000:
+      return LOG_STR("±1000dps");
+    case LSM6DS_GYRO_RANGE_2000:
+      return LOG_STR("±2000dps");
+    default:
+      return LOG_STR("unknown");
+  }
+}
+
+static const LogString *chip_name_from_who_am_i(uint8_t who_am_i) {
+  switch (who_am_i) {
+    case 0x69:
+      return LOG_STR("LSMDSO");
+    case 0x6A:
+      return LOG_STR("LSM6DS3");
+    default:
+      return nullptr;
+  }
+}
 
 void LSM6DSComponent::setup() {
   MotionComponent::setup();
@@ -19,19 +46,13 @@ void LSM6DSComponent::setup() {
     this->mark_failed();
     return;
   }
-  const char *chip_name = nullptr;
-  for (const auto &chip : CHIP_IDS) {
-    if (chip.who_am_i == who_am_i) {
-      chip_name = chip.name;
-      break;
-    }
-  }
+  const LogString *chip_name = chip_name_from_who_am_i(who_am_i);
   if (chip_name == nullptr) {
     ESP_LOGE(TAG, "Unknown WHO_AM_I: 0x%02X", who_am_i);
     this->mark_failed(LOG_STR("Unknown WHO_AM_I value"));
     return;
   }
-  ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", chip_name, who_am_i);
+  ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", LOG_STR_ARG(chip_name), who_am_i);
   this->chip_name_ = chip_name;
 
   // 2. Software reset — clears all registers to defaults
@@ -85,34 +106,10 @@ void LSM6DSComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LSM6DS IMU:\n"
                 "  Chip type: %s\n",
-                this->chip_name_);
+                LOG_STR_ARG(this->chip_name_ != nullptr ? this->chip_name_ : LOG_STR("Unknown")));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
-  // Accel range — index into the sensitivity table (datasheet Table 3)
-  static const char *const ACCEL_RANGE_STR[] = {"±2g", "±16g", "±4g", "±8g"};
-
-  const char *gyro_str;
-  switch (this->gyro_range_) {
-    case LSM6DS_GYRO_RANGE_125:
-      gyro_str = "±125dps";
-      break;
-    case LSM6DS_GYRO_RANGE_250:
-      gyro_str = "±250dps";
-      break;
-    case LSM6DS_GYRO_RANGE_500:
-      gyro_str = "±500dps";
-      break;
-    case LSM6DS_GYRO_RANGE_1000:
-      gyro_str = "±1000dps";
-      break;
-    case LSM6DS_GYRO_RANGE_2000:
-      gyro_str = "±2000dps";
-      break;
-    default:
-      gyro_str = "unknown";
-      break;
-  }
   auto accel_odr = this->accel_odr_ == 0 ? 0 : 13 * (1 << (this->accel_odr_ - 1));
   auto gyro_odr = this->gyro_odr_ == 0 ? 0 : 13 * (1 << (this->gyro_odr_ - 1));
   ESP_LOGCONFIG(TAG,
@@ -120,7 +117,8 @@ void LSM6DSComponent::dump_config() {
                 "  Accel data rate : %dHz\n"
                 "  Gyro  range : %s\n"
                 "  Gyro  data rate : %dHz",
-                ACCEL_RANGE_STR[this->accel_range_], accel_odr, gyro_str, gyro_odr);
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_, AccelRangeStrings::LAST_INDEX)),
+                accel_odr, LOG_STR_ARG(gyro_range_to_str(this->gyro_range_)), gyro_odr);
 }
 
 //  update_data()
