@@ -3,13 +3,11 @@
 #include <cmath>
 
 #include "esphome/core/application.h"
-#ifdef USE_WIFI
-#include "esphome/components/wifi/wifi_component.h"
-#endif
-#ifdef USE_ETHERNET
-#include "esphome/components/ethernet/ethernet_component.h"
+#ifdef USE_NETWORK
+#include "esphome/components/network/util.h"
 #endif
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 // Compatibility with ESPHome revisions predating the flash-resident log-tag macro.
 #ifndef ESPHOME_LOG_TAG
@@ -25,39 +23,14 @@ namespace esphome::haier {
 ESPHOME_LOG_TAG(TAG, "haier.water_heater");
 using water_heater_protocol::HonMode;
 
-// TextSensor accepts ordinary strings rather than flash-resident LogString values.
-static const char *hon_mode_label(HonMode mode) {
-  switch (mode) {
-    case HonMode::HON_MODE_NORMAL:
-      return "Normal";
-    case HonMode::HON_MODE_ECO:
-      return "ECO";
-    case HonMode::HON_MODE_BPS:
-      return "BPS";
-    case HonMode::HON_MODE_UNKNOWN:
-      return "Unknown";
-  }
-  return "Unknown";
-}
+// Indexed by HonMode, with Unknown as the fallback for out-of-range values.
+PROGMEM_STRING_TABLE(HonModeLabels, "Unknown", "Normal", "ECO", "BPS");
 
 void HonWaterHeater::update_network_status_() {
-  bool ready = false;
-#if defined(USE_WIFI) || defined(USE_ETHERNET)
-  const auto connected_with_ip = [](auto *interface) {
-    if (interface == nullptr || !interface->is_connected())
-      return false;
-    for (const auto &ip : interface->get_ip_addresses()) {
-      if (ip.is_set())
-        return true;
-    }
-    return false;
-  };
-#ifdef USE_ETHERNET
-  ready |= connected_with_ip(ethernet::global_eth_component);
-#endif
-#ifdef USE_WIFI
-  ready |= connected_with_ip(wifi::global_wifi_component);
-#endif
+#ifdef USE_NETWORK
+  const bool ready = network::is_connected();
+#else
+  const bool ready = false;
 #endif
   const uint8_t status = ready ? 0x07 : 0x05;
   if (status != this->network_status_) {
@@ -68,12 +41,12 @@ void HonWaterHeater::update_network_status_() {
 }
 
 void HonWaterHeater::setup() {
-  this->status_set_warning("Waiting for a valid appliance status frame");
+  this->status_set_warning(LOG_STR("Waiting for a valid appliance status frame"));
   if (this->communication_sensor_ != nullptr)
     this->communication_sensor_->publish_state(false);
   this->update_network_status_();
-  this->set_interval("network_status", 500, [this]() { this->update_network_status_(); });
-  this->set_interval("status_poll", 5000, [this]() { this->poll_status_(); });
+  this->set_interval(NETWORK_STATUS_INTERVAL_ID, 500, [this]() { this->update_network_status_(); });
+  this->set_interval(STATUS_POLL_INTERVAL_ID, 5000, [this]() { this->poll_status_(); });
 }
 
 void HonWaterHeater::send_frame_(uint8_t type, const uint8_t *payload, size_t size) {
@@ -128,7 +101,7 @@ void HonWaterHeater::loop() {
   this->expire_poll_(now);
   if (this->have_status_ && now - this->last_status_ >= this->communication_timeout_) {
     this->have_status_ = false;
-    this->status_set_warning("Heater communication timed out");
+    this->status_set_warning(LOG_STR("Heater communication timed out"));
     ESP_LOGW(TAG, "Heater communication lost: no valid status for %u ms",
              static_cast<unsigned>(this->communication_timeout_));
     if (this->communication_sensor_ != nullptr)
@@ -273,8 +246,14 @@ void HonWaterHeater::process_frame_() {
     this->power_sensor_->publish_state(status.powered);
   if (this->heating_sensor_ != nullptr)
     this->heating_sensor_->publish_state(status.heating);
-  if (this->mode_sensor_ != nullptr)
-    this->mode_sensor_->publish_state(hon_mode_label(status.mode));
+  if (this->mode_sensor_ != nullptr) {
+    char label[HonModeLabels::MAX_LENGTH + 1];
+    ESPHOME_strncpy_P(label,
+                      reinterpret_cast<ESPHOME_PGM_P>(HonModeLabels::get_progmem_str(
+                          static_cast<uint8_t>(status.mode), static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN))),
+                      sizeof(label));
+    this->mode_sensor_->publish_state(label);
+  }
   this->publish_state();
 }
 

@@ -45,8 +45,8 @@ class TestableHeater : public HonWaterHeater {
   bool pending_off() const { return this->pending_off_; }
   uint8_t command_count() const { return this->command_count_; }
   void cancel_test_intervals() {
-    this->cancel_interval("network_status");
-    this->cancel_interval("status_poll");
+    this->cancel_interval(NETWORK_STATUS_INTERVAL_ID);
+    this->cancel_interval(STATUS_POLL_INTERVAL_ID);
   }
 };
 

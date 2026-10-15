@@ -28,6 +28,9 @@ class HonWaterHeater : public Component, public water_heater::WaterHeater, publi
   void set_mode_sensor(text_sensor::TextSensor *value) { this->mode_sensor_ = value; }
 
  protected:
+  static constexpr uint32_t NETWORK_STATUS_INTERVAL_ID = 0;
+  static constexpr uint32_t STATUS_POLL_INTERVAL_ID = 1;
+
   void control(const water_heater::WaterHeaterCall &call) override;
   water_heater::WaterHeaterTraits traits() override;
   void process_frame_();
