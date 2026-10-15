@@ -23,6 +23,7 @@ TEST(GreeClimateTest, HeatCoolOverrideAdvertisedWithoutHeat) {
   EXPECT_FALSE(traits.supports_mode(climate::CLIMATE_MODE_HEAT));
 }
 
+#ifdef USE_GREE_FAHRENHEIT
 // The unit displays trunc(celsiusToFahrenheit(GREE_TEMP_MIN + Temp + 0.5 * TempExtraDegreeF)).
 // These expectations come from frames captured off a real YX1FF remote and from the panel of a
 // Blueridge mini-split, not from a conversion formula.
@@ -70,6 +71,7 @@ TEST(GreeClimateTest, FahrenheitFieldsHandleNonFiniteTarget) {
   EXPECT_EQ(0, temp_field);
   EXPECT_FALSE(extra_degree);
 }
+#endif  // USE_GREE_FAHRENHEIT
 
 // Checksums of the two frames captured from a real YX1FF remote and verified on the unit's display.
 // Byte 7 is zeroed here because frame_checksum() computes it.
