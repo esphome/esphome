@@ -1445,8 +1445,8 @@ inline char *buf_append_sep_str(char *buf, size_t remaining, char separator, con
   return buf;
 }
 
-/// Return 10^n for small non-negative n (0-3) as uint32_t, avoiding float.
-inline uint32_t small_pow10(int8_t n) { return n == 3 ? 1000 : n == 2 ? 100 : n == 1 ? 10 : 1; }
+/// Return 10^n for small non-negative n (0-4) as uint32_t, avoiding float.
+inline uint32_t small_pow10(int8_t n) { return n == 4 ? 10000 : n == 3 ? 1000 : n == 2 ? 100 : n == 1 ? 10 : 1; }
 
 /// Minimum buffer size for uint32_to_str: 10 digits + null terminator.
 static constexpr size_t UINT32_MAX_STR_SIZE = 11;
