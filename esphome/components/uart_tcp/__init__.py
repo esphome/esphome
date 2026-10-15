@@ -7,6 +7,7 @@ from esphome.components.const import (
     CONF_RECONNECT_INTERVAL,
     CONF_ROLE,
 )
+from esphome.components.tcp_uart import DOMAIN as TCP_UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
@@ -70,18 +71,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _subtree_references_uart(node: object, uart_id: str) -> bool:
-    if isinstance(node, dict):
-        return any(
-            (key == CONF_UART_ID and str(value) == uart_id)
-            or _subtree_references_uart(value, uart_id)
-            for key, value in node.items()
-        )
-    if isinstance(node, list):
-        return any(_subtree_references_uart(item, uart_id) for item in node)
-    return False
-
-
 def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
     debug = uart_conf.get(CONF_DEBUG)
     if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
@@ -110,7 +99,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # Bare `id:` references (a uart.write action) and lambdas are not caught.
     if not CORE.testing_mode:
         for domain, domain_conf in full_config.items():
-            if domain != DOMAIN and _subtree_references_uart(domain_conf, uart_id):
+            if domain != DOMAIN and uart.subtree_references_uart(domain_conf, uart_id):
                 raise cv.Invalid(
                     f"The UART '{uart_id}' is also used by '{domain}'. "
                     "uart_tcp requires exclusive use of that UART.",
@@ -125,7 +114,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         ports = data.setdefault(CONF_PORT, set())
         if port in ports or any(
             conf[CONF_ROLE] == "server" and conf[CONF_PORT] == port
-            for conf in full_config.get("tcp_uart", [])
+            for conf in full_config.get(TCP_UART_DOMAIN, [])
         ):
             raise cv.Invalid(
                 f"Port {port} is already the listen port of another uart_tcp "

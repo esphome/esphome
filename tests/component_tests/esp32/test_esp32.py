@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from esphome.components.const import CONF_HOLD_STATE
 from esphome.components.esp32 import (
     _ESP_TLS_LINKING_COMPONENTS,
     DEFAULT_EXCLUDED_IDF_COMPONENTS,
@@ -29,6 +30,8 @@ from esphome.components.esp32 import (
     _reconcile_network_sdkconfig,
     _reconcile_vfs_fatfs_sdkconfig,
     _user_sdkconfig_wants_tls,
+    allow_insecure_tls,
+    idf_version,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
@@ -38,13 +41,30 @@ from esphome.components.esp32.const import (
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
-from esphome.components.esp32.gpio import validate_gpio_pin
+from esphome.components.esp32.gpio import validate_gpio_pin, validate_supports
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
+    CONF_INPUT,
+    CONF_MODE,
     CONF_NUMBER,
+    CONF_OPEN_DRAIN,
+    CONF_OUTPUT,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
     PlatformFramework,
     Toolchain,
 )
@@ -57,7 +77,7 @@ def test_esp32_config(
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
 
-    from esphome.components.esp32 import CONFIG_SCHEMA, VARIANT_ESP32, VARIANT_FRIENDLY
+    from esphome.components.esp32 import CONFIG_SCHEMA, VARIANT_FRIENDLY
 
     # Example ESP32 configuration
     config = {
@@ -91,6 +111,245 @@ def test_esp32_config(
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
+
+
+@pytest.mark.parametrize(
+    (
+        "sdkconfig_options",
+        "cpu_frequency",
+        "expected_frequency",
+        "warns",
+        "variant",
+        "framework_type",
+    ),
+    [
+        pytest.param(
+            {
+                "CONFIG_ESP32_DEFAULT_CPU_FREQ_160": "y",
+                "CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ": "160",
+            },
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32,
+            "esp-idf",
+            id="legacy-frequency-options-with-default",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32_DEFAULT_CPU_FREQ_160": "y"},
+            "160MHz",
+            "160MHZ",
+            False,
+            VARIANT_ESP32,
+            "esp-idf",
+            id="explicit-cpu-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ": "160"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32,
+            "esp-idf",
+            id="legacy-scalar-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32_DEFAULT_CPU_FREQ_160": "y"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32,
+            "esp-idf",
+            id="legacy-frequency-choice",
+        ),
+        pytest.param(
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160": "y"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32,
+            "esp-idf",
+            id="current-idf-frequency-choice",
+        ),
+        pytest.param(
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160": "n"},
+            None,
+            "240MHZ",
+            False,
+            VARIANT_ESP32,
+            "esp-idf",
+            id="disabled-frequency-choice",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ_240": "n"},
+            "240MHz",
+            "240MHZ",
+            False,
+            VARIANT_ESP32,
+            "esp-idf",
+            id="ignore-unrecognized-legacy-disabled-choice",
+        ),
+        pytest.param(
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ": "160"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32C3,
+            "esp-idf",
+            id="current-scalar-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32S2_DEFAULT_CPU_FREQ_MHZ": "160"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32S2,
+            "esp-idf",
+            id="s2-legacy-scalar-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32S3_DEFAULT_CPU_FREQ_160": "y"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32S3,
+            "esp-idf",
+            id="s3-legacy-choice-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32C3_DEFAULT_CPU_FREQ_80": "y"},
+            None,
+            "80MHZ",
+            True,
+            VARIANT_ESP32C3,
+            "esp-idf",
+            id="c3-legacy-choice-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ": "160"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32,
+            "arduino",
+            id="arduino-framework-current-scalar-frequency",
+        ),
+    ],
+)
+def test_sdkconfig_cpu_frequency_is_honored(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    sdkconfig_options: dict[str, str],
+    cpu_frequency: str | None,
+    expected_frequency: str,
+    warns: bool,
+    variant: str,
+    framework_type: str,
+) -> None:
+    """SDK config frequency settings are honored and recommend the native config key."""
+    platform_framework = (
+        PlatformFramework.ESP32_ARDUINO
+        if framework_type == "arduino"
+        else PlatformFramework.ESP32_IDF
+    )
+    set_core_config(platform_framework)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    config: dict[str, Any] = {
+        "variant": variant,
+        "framework": {
+            "type": framework_type,
+            "sdkconfig_options": sdkconfig_options,
+        },
+    }
+    if cpu_frequency is not None:
+        config["cpu_frequency"] = cpu_frequency
+
+    with caplog.at_level(logging.WARNING):
+        config = CONFIG_SCHEMA(config)
+
+    assert ("CPU frequency setting" in caplog.text) is warns
+    assert config["cpu_frequency"] == expected_frequency
+
+
+@pytest.mark.parametrize(
+    ("variant", "cpu_frequency", "sdkconfig_options", "error_match"),
+    [
+        pytest.param(
+            VARIANT_ESP32C3,
+            None,
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ": "fast"},
+            "must be an integer MHz value",
+            id="integer-option-not-a-number",
+        ),
+        pytest.param(
+            VARIANT_ESP32C3,
+            None,
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": "y"},
+            "ESP32C3 does not support",
+            id="unsupported-frequency",
+        ),
+        pytest.param(
+            VARIANT_ESP32C3,
+            None,
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160": "yes"},
+            "must be y or n",
+            id="choice-option-not-y-or-n",
+        ),
+        pytest.param(
+            VARIANT_ESP32C3,
+            None,
+            {
+                "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160": "y",
+                "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": "y",
+            },
+            r"conflicting CPU frequencies \(160MHz, 240MHz\)",
+            id="two-frequencies-selected",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            "160MHz",
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": "y"},
+            "conflicts with sdkconfig_options",
+            id="conflicts-with-explicit-value",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            None,
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": "n"},
+            "disables the selected CPU frequency",
+            id="default-frequency-disabled",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            "160MHz",
+            {"CONFIG_ESP32_DEFAULT_CPU_FREQ_160": "n"},
+            "disables the selected CPU frequency",
+            id="explicit-frequency-disabled-by-legacy-option",
+        ),
+    ],
+)
+def test_sdkconfig_cpu_frequency_errors(
+    set_core_config: SetCoreConfigCallable,
+    variant: str,
+    cpu_frequency: str | None,
+    sdkconfig_options: dict[str, str],
+    error_match: str,
+) -> None:
+    """Bad, conflicting or disabled sdkconfig frequencies fail at validation."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    config: dict[str, Any] = {
+        "variant": variant,
+        "framework": {"type": "esp-idf", "sdkconfig_options": sdkconfig_options},
+    }
+    if cpu_frequency is not None:
+        config["cpu_frequency"] = cpu_frequency
+
+    with pytest.raises(cv.Invalid, match=error_match) as exc_info:
+        CONFIG_SCHEMA(config)
+    assert exc_info.value.path == ["framework", "sdkconfig_options"]
 
 
 @pytest.mark.parametrize(
@@ -723,6 +982,17 @@ def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> N
     assert _user_sdkconfig_wants_tls(options) is wants_tls
 
 
+def _tls_compiled_out(sdkconfig: dict[str, Any]) -> bool:
+    """IDF 6 compiles TLS out with CONFIG_MBEDTLS_TLS_ENABLED=n; IDF 5 has no
+    prompt for that and uses CONFIG_MBEDTLS_TLS_DISABLED=y instead."""
+    if idf_version() >= cv.Version(6, 0, 0):
+        value = sdkconfig.get("CONFIG_MBEDTLS_TLS_ENABLED")
+        if isinstance(value, RawSdkconfigValue):
+            return value.value == "n"
+        return value is False
+    return sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+
+
 @pytest.mark.parametrize(
     ("config_file", "tls_off", "ecp_off", "esp_tls_excluded"),
     [
@@ -776,7 +1046,7 @@ def test_tls_disabled_sdkconfig(
     """TLS is compiled out unless a component or a raw sdkconfig option asks for it."""
     generate_main(component_config_path(config_file))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert (sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True) is tls_off
+    assert _tls_compiled_out(sdkconfig) is tls_off
     assert sdkconfig.get("CONFIG_MBEDTLS_ECP_C") is (False if ecp_off else None)
     assert (
         "esp-tls" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
@@ -1722,9 +1992,8 @@ def test_esp32_s31_gpio_validation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """S31: GPIO26-28/30-32 are reserved for the SPI flash interface, GPIO29
-    and GPIO41 do not exist, GPIO33 is a normal pin, and GPIO36 is a
+    and GPIO41 do not exist, GPIO35 is a normal pin, and GPIO36 is a
     strapping pin."""
-    from esphome.components.esp32.const import VARIANT_ESP32S31
     from esphome.components.esp32.gpio import validate_supports
     from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
 
@@ -1735,8 +2004,8 @@ def test_esp32_s31_gpio_validation(
     input_mode = {CONF_INPUT: True, CONF_OUTPUT: False, CONF_OPEN_DRAIN: False}
 
     # Not reserved; a normal GPIO
-    pin = {CONF_NUMBER: 33, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
-    assert validate_gpio_pin(pin)[CONF_NUMBER] == 33
+    pin = {CONF_NUMBER: 35, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    assert validate_gpio_pin(pin)[CONF_NUMBER] == 35
 
     # Reserved for the SPI flash interface, but can be bypassed with
     # ignore_pin_validation_error
@@ -1762,6 +2031,113 @@ def test_esp32_s31_gpio_validation(
     with caplog.at_level("WARNING"):
         validate_supports(pin)
     assert "GPIO36 is a strapping pin" in caplog.text
+
+
+_INPUT_ONLY_SETTINGS = (
+    (CONF_OUTPUT, "does not support output pin mode"),
+    (CONF_PULLUP, "does not support pullups"),
+    (CONF_PULLDOWN, "does not support pulldowns"),
+    (CONF_HOLD_STATE, "is input-only and cannot be held"),
+)
+
+
+@pytest.mark.parametrize(
+    ("variant", "number", "setting", "error"),
+    [
+        pytest.param(
+            variant, number, setting, error, id=f"{name}-gpio{number}-{setting}"
+        )
+        for variant, name, numbers in (
+            (VARIANT_ESP32, "esp32", range(34, 40)),
+            (VARIANT_ESP32S2, "s2", (46,)),
+        )
+        for number in numbers
+        for setting, error in _INPUT_ONLY_SETTINGS
+    ]
+    + [
+        pytest.param(
+            VARIANT_ESP32,
+            20,
+            CONF_HOLD_STATE,
+            "GPIO20 has no hold function",
+            id="esp32-gpio20-hold_state",
+        )
+    ],
+)
+def test_input_only_gpio_rejects_unsupported_modes(
+    set_core_config: SetCoreConfigCallable,
+    variant: str,
+    number: int,
+    setting: str,
+    error: str,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
+    mode = {
+        CONF_INPUT: True,
+        CONF_OUTPUT: False,
+        CONF_OPEN_DRAIN: False,
+        CONF_PULLUP: False,
+        CONF_PULLDOWN: False,
+    }
+    pin = {CONF_NUMBER: number, CONF_MODE: mode}
+    if setting == CONF_HOLD_STATE:
+        pin[setting] = True
+    else:
+        mode[setting] = True
+
+    with pytest.raises(cv.Invalid, match=error):
+        validate_supports(pin)
+
+
+@pytest.mark.parametrize(
+    ("variant", "number"),
+    [
+        pytest.param(VARIANT_ESP32C3, 18, id="c3-18"),
+        pytest.param(VARIANT_ESP32C3, 19, id="c3-19"),
+        pytest.param(VARIANT_ESP32C5, 13, id="c5-13"),
+        pytest.param(VARIANT_ESP32C5, 14, id="c5-14"),
+        pytest.param(VARIANT_ESP32C6, 12, id="c6-12"),
+        pytest.param(VARIANT_ESP32C6, 13, id="c6-13"),
+        pytest.param(VARIANT_ESP32C61, 12, id="c61-12"),
+        pytest.param(VARIANT_ESP32C61, 13, id="c61-13"),
+        pytest.param(VARIANT_ESP32H2, 26, id="h2-26"),
+        pytest.param(VARIANT_ESP32H2, 27, id="h2-27"),
+        pytest.param(VARIANT_ESP32H4, 13, id="h4-13"),
+        pytest.param(VARIANT_ESP32H4, 14, id="h4-14"),
+        pytest.param(VARIANT_ESP32H21, 17, id="h21-17"),
+        pytest.param(VARIANT_ESP32H21, 18, id="h21-18"),
+        pytest.param(VARIANT_ESP32P4, 24, id="p4-24"),
+        pytest.param(VARIANT_ESP32P4, 25, id="p4-25"),
+        pytest.param(VARIANT_ESP32S3, 19, id="s3-19"),
+        pytest.param(VARIANT_ESP32S3, 20, id="s3-20"),
+        pytest.param(VARIANT_ESP32S31, 33, id="s31-33"),
+        pytest.param(VARIANT_ESP32S31, 34, id="s31-34"),
+    ],
+)
+def test_usb_jtag_gpio_hold_state_warns(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    variant: str,
+    number: int,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
+    pin = {
+        CONF_NUMBER: number,
+        CONF_MODE: {
+            CONF_INPUT: True,
+            CONF_OUTPUT: False,
+            CONF_OPEN_DRAIN: False,
+        },
+        CONF_HOLD_STATE: True,
+    }
+
+    with caplog.at_level(logging.WARNING):
+        validate_supports(pin)
+
+    assert (
+        f"GPIO{number} cannot hold at low level during wakeup from deep sleep."
+        in caplog.text
+    )
 
 
 _TLS_SERVER_OPTIONS = (
@@ -1804,7 +2180,7 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     deterministic ECDSA are plain crypto, and OpenThread keeps those two."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    assert _tls_compiled_out(sdkconfig)
     # require_mbedtls_ecp() keeps ECP for the SRP host key while TLS is off
     assert "CONFIG_MBEDTLS_ECP_C" not in sdkconfig
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
@@ -1821,7 +2197,7 @@ def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
     deterministic ECDSA."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    assert _tls_compiled_out(sdkconfig)
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
         assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
@@ -1864,9 +2240,10 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
-    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    """The Border Router needs TLS/DTLS server support and OpenThread crypto extras."""
+    generate_main(component_config_path("mbedtls_tls_openthread_border_router.yaml"))
     mbedtls = CORE.data[KEY_ESP32][KEY_MBEDTLS_SDKCONFIG]
+    assert mbedtls.tls_required is True
     assert mbedtls.tls_server_required is True
     assert mbedtls.tls_extras_required == _CCM_ECDSA_EXTRAS
 
@@ -2037,3 +2414,20 @@ def test_nvs_cache_in_psram_explicit_true_on_valid_board_is_quiet(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is True
     assert "nvs_cache_in_psram" not in caplog.text
+
+
+def test_allow_insecure_tls_only_switches_the_flags_on(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A component that verifies certificates must not undo another one's request."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: {}}
+
+    allow_insecure_tls()
+    # A second caller, or a verifying component that no longer touches the flags, leaves them on
+    allow_insecure_tls()
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == {
+        "CONFIG_ESP_TLS_INSECURE": True,
+        "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY": True,
+    }

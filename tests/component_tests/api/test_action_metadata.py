@@ -2,23 +2,19 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
 from esphome.components.api import (
     _action_strings,
-    _action_strings_size,
     _has_action_metadata,
-    _validate_esp8266_action_strings,
     validate_variable,
 )
 from esphome.config_validation import Invalid
-from esphome.const import PlatformFramework
 from esphome.core import CORE
 from esphome.cpp_generator import safe_exp
 from esphome.helpers import fnv1_hash
-from tests.component_tests.helpers import get_define_value
-from tests.component_tests.types import SetCoreConfigCallable
 
 CONFIG = "tests/component_tests/api/test_action_metadata.yaml"
 CONFIG_ESP8266 = "tests/component_tests/api/test_action_metadata_esp8266.yaml"
@@ -28,44 +24,52 @@ CONFIG_SHORTHAND = "tests/component_tests/api/test_action_metadata_shorthand.yam
 def test_metadata_is_emitted_as_progmem_table(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """Every action string is a PROGMEM array referenced from one PROGMEM table."""
+    """Every action string is a literal referenced from one PROGMEM table."""
     main_cpp = generate_main(CONFIG)
 
     assert (
-        'static constexpr char api_action_str0[] PROGMEM = "play_buzzer";' in main_cpp
-    )
-    assert (
-        'static constexpr char api_action_str1[] PROGMEM = "Play an RTTTL melody on the buzzer";'
-        in main_cpp
-    )
-    assert (
-        'static constexpr char api_action_str4[] PROGMEM = "two_short:d=4,o=5,b=100:16e6,16e6";'
-        in main_cpp
-    )
-    assert (
         "static constexpr const char * api_action0_strings[] PROGMEM = {"
-        "api_action_str0, api_action_str1, api_action_str2, api_action_str3, "
-        "api_action_str4, api_action_str5, nullptr, nullptr};" in main_cpp
+        '"play_buzzer", "Play an RTTTL melody on the buzzer", "song_str", '
+        '"RTTTL melody string", "two_short:d=4,o=5,b=100:16e6,16e6", "volume", '
+        "nullptr, nullptr};" in main_cpp
     )
     # An action without metadata still carries the metadata slots (as nullptr)
     assert (
         "static constexpr const char * api_action1_strings[] PROGMEM = {"
-        "api_action_str6, nullptr, api_action_str7, nullptr, nullptr};" in main_cpp
+        '"plain_action", nullptr, "value", nullptr, nullptr};' in main_cpp
     )
     assert f"(api_action0_strings, {safe_exp(fnv1_hash('play_buzzer'))});" in main_cpp
     assert "USE_API_USER_DEFINED_ACTION_METADATA" in {d.name for d in CORE.defines}
-    assert get_define_value("API_USER_ACTION_STRINGS_SCRATCH_SIZE") is None
 
 
-def test_esp8266_sizes_scratch_buffer_for_largest_action(
+def test_esp8266_strings_are_shared_progmem_arrays(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """ESP8266 gets a scratch buffer define equal to the byte total of the largest action."""
-    generate_main(CONFIG_ESP8266)
+    """On ESP8266 each string is its own PROGMEM array, referenced from the table."""
+    main_cpp = generate_main(CONFIG_ESP8266)
 
-    # play_buzzer: name, description, two variable names, one description, one example,
-    # each with a terminator
-    assert get_define_value("API_USER_ACTION_STRINGS_SCRATCH_SIZE") == "117"
+    def array_for(text: str) -> str:
+        match = re.search(
+            rf'static constexpr char (progmem_str\w*)\[\] PROGMEM = "{text}";', main_cpp
+        )
+        assert match, text
+        return match.group(1)
+
+    assert array_for("play_buzzer")
+    assert (
+        "static constexpr const char * api_action1_strings[] PROGMEM = {"
+        f"{array_for('plain_action')}, nullptr, {array_for('value')}, nullptr, nullptr}};"
+        in main_cpp
+    )
+
+
+def test_esp8266_encodes_action_strings_from_flash(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """ESP8266 uses the same flash string table."""
+    main_cpp = generate_main(CONFIG_ESP8266)
+
+    assert "api_action0_strings[] PROGMEM" in main_cpp
 
 
 def test_shorthand_variables_emit_no_metadata(
@@ -76,7 +80,7 @@ def test_shorthand_variables_emit_no_metadata(
 
     assert (
         "static constexpr const char * api_action0_strings[] PROGMEM = "
-        "{api_action_str0, api_action_str1};" in main_cpp
+        '{"plain_action", "value"};' in main_cpp
     )
     assert "USE_API_USER_DEFINED_ACTION_METADATA" not in {d.name for d in CORE.defines}
 
@@ -101,36 +105,8 @@ def test_variable_rejects_invalid(value: object) -> None:
         validate_variable(value)
 
 
-def _oversized_action_config() -> dict:
-    return {
-        "actions": [
-            {
-                "action": "big",
-                "description": "x" * 300,
-                "variables": {"a": {"type": "string", "example": "y" * 300}},
-            }
-        ]
-    }
-
-
-def test_esp8266_rejects_actions_over_string_budget(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    set_core_config(PlatformFramework.ESP8266_ARDUINO)
-    with pytest.raises(Invalid, match="ESP8266 allows at most 384 bytes"):
-        _validate_esp8266_action_strings(_oversized_action_config())
-
-
-def test_other_platforms_have_no_string_budget(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    set_core_config(PlatformFramework.ESP32_IDF)
-    config = _oversized_action_config()
-    assert _validate_esp8266_action_strings(config) is config
-
-
-def test_empty_metadata_is_unset_and_not_counted() -> None:
-    """An empty description or example emits nullptr and takes no scratch space."""
+def test_empty_metadata_is_unset() -> None:
+    """An empty description or example emits nullptr."""
     conf = {
         "action": "a",
         "description": "",
@@ -138,8 +114,6 @@ def test_empty_metadata_is_unset_and_not_counted() -> None:
     }
     strings = _action_strings(conf, has_metadata=True)
     assert strings == ["a", None, "b", None, "ex"]
-    # Every emitted string counts its terminator: "a" + "b" + "ex"
-    assert _action_strings_size(strings) == 2 + 2 + 3
 
 
 def test_empty_metadata_does_not_enable_the_define() -> None:

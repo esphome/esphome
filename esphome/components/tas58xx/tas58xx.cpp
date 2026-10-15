@@ -8,7 +8,7 @@
 
 namespace esphome::tas58xx {
 
-static const char *const TAG = "tas58xx";
+ESPHOME_LOG_TAG(TAG, "tas58xx");
 
 static constexpr uint8_t TAS58XX_PAGE_SELECT = 0x00;  // Page Select, in every book
 static constexpr uint8_t TAS58XX_BOOK_SELECT = 0x7F;  // Book Select, on page 0 of every book

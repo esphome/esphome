@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@FredM67"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "mk2pvrouter"
 
 mk2pvrouter_ns = cg.esphome_ns.namespace("mk2pvrouter")
 Mk2PVRouter = mk2pvrouter_ns.class_("Mk2PVRouter", cg.Component, uart.UARTDevice)

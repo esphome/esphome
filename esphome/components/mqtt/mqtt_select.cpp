@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.select";
+ESPHOME_LOG_TAG(TAG, "mqtt.select");
 
 using namespace esphome::select;
 

@@ -12,7 +12,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.component";
+ESPHOME_LOG_TAG(TAG, "mqtt.component");
 
 // Entity category MQTT strings indexed by EntityCategory enum: NONE(0) is skipped, CONFIG(1), DIAGNOSTIC(2)
 PROGMEM_STRING_TABLE(EntityCategoryMqttStrings, "", "config", "diagnostic");
@@ -416,14 +416,6 @@ bool MQTTComponent::send_discovery_() {
 
 bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
-}
-
-void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
-  global_mqtt_client->subscribe(topic, std::move(callback), qos);
-}
-
-void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
-  global_mqtt_client->subscribe_json(topic, callback, qos);
 }
 
 MQTTComponent::MQTTComponent() = default;

@@ -3,7 +3,7 @@
 
 namespace esphome::mk2pvrouter {
 
-static const char *const TAG = "mk2pvrouter_text_sensor";
+ESPHOME_LOG_TAG(TAG, "mk2pvrouter_text_sensor");
 
 Mk2PVRouterTextSensor::Mk2PVRouterTextSensor(const char *tag) : Mk2PVRouterListener(tag) {}
 

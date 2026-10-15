@@ -4,7 +4,7 @@
 
 namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann_hcp.light";
+ESPHOME_LOG_TAG(TAG, "hoermann_hcp.light");
 
 light::LightTraits HoermannHcpLight::get_traits() {
   auto traits = light::LightTraits();

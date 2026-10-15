@@ -20,7 +20,7 @@
 
 namespace esphome::serial_proxy {
 
-static const char *const TAG = "serial_proxy";
+ESPHOME_LOG_TAG(TAG, "serial_proxy");
 
 uint32_t SerialProxy::stall_loop_time = 0;
 uint32_t SerialProxy::stall_spent_ms = 0;
@@ -277,9 +277,15 @@ SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_conn
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
            mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? LOG_STR_LITERAL("PROTOCOL") : LOG_STR_LITERAL("RAW"));
 #ifdef USE_SERIAL_PROXY_TAP
+  const bool entering_protocol_mode =
+      this->mode_ != api::enums::SERIAL_PROXY_MODE_PROTOCOL && mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL;
   const bool leaving_protocol_mode =
       this->mode_ != api::enums::SERIAL_PROXY_MODE_RAW && mode == api::enums::SERIAL_PROXY_MODE_RAW;
   this->mode_ = mode;
+
+  if (entering_protocol_mode && this->tap_ != nullptr) {
+    this->tap_->on_protocol_enabled();
+  }
 
   // Only for an explicit client request, not for reset_mode_() at the end of a session:
   // an ordinary disconnect says nothing about the device, whereas a client deliberately
@@ -412,6 +418,8 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
     msg.usb.product_id = scratch.product_id;
     msg.usb.bcd_device = scratch.bcd_device;
     msg.usb.interface_number = this->usb_channel_->get_interface_number();
+    msg.usb.interface_class = this->usb_channel_->get_interface_class();
+    msg.usb.port_number = this->usb_channel_->get_port_number();
     msg.manufacturer = StringRef(scratch.manufacturer);
     msg.product = StringRef(scratch.product);
     msg.serial_number = StringRef(scratch.serial_number);
@@ -426,6 +434,14 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
 void SerialProxy::on_usb_connection_changed_(bool connected) {
   ESP_LOGD(TAG, "USB device %s serial proxy [%" PRIu32 "]",
            connected ? LOG_STR_LITERAL("attached to") : LOG_STR_LITERAL("removed from"), this->instance_index_);
+#ifdef USE_SERIAL_PROXY_TAP
+  // Before telling clients, so a tap never acknowledges a frame from the old device after
+  // a client has been told it is gone. The subscriber and the mode stay: both belong to
+  // the client's session, and only the client knows whether that session is over.
+  if (!connected && this->tap_ != nullptr) {
+    this->tap_->on_device_disconnected();
+  }
+#endif
 #ifdef USE_API
   if (api::global_api_server == nullptr) {
     return;

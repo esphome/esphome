@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jasstrong"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "rd03d"
 MULTI_CONF = True
 
 CONF_RD03D_ID = "rd03d_id"

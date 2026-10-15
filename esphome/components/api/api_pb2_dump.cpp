@@ -12,8 +12,9 @@ namespace esphome::api {
 
 #ifdef USE_ESP8266
 // Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
-void DumpBuffer::append_p_esp8266(const char *str) {
-  size_t len = strlen_P(str);
+void DumpBuffer::append_p_esp8266(const char *str) { this->append_p_esp8266(str, strlen_P(str)); }
+
+void DumpBuffer::append_p_esp8266(const char *str, size_t len) {
   size_t space = CAPACITY - 1 - pos_;
   if (len > space)
     len = space;
@@ -133,6 +134,13 @@ static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, co
   len = std::min(len, sizeof(data_buf));
   progmem_memcpy(data_buf, data, len);
   dump_bytes_field(out, field_name, data_buf, len, indent);
+}
+
+// Helper for string fields in flash
+static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
+                                      int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append_p(value.progmem_ptr(), value.size()).append("'\n");
 }
 #pragma GCC diagnostic pop
 
@@ -928,6 +936,25 @@ template<> const char *proto_enum_to_string<enums::SerialProxyIdentityFlag>(enum
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+#ifdef USE_SENDSPIN
+template<>
+const char *proto_enum_to_string<enums::SendspinPairingTokenStatus>(enums::SendspinPairingTokenStatus value) {
+  switch (value) {
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_OK");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_FAILED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#endif
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HelloRequest"));
@@ -1096,6 +1123,14 @@ const char *WizardCapabilities::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_SENDSPIN
+const char *SendspinCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("client_id"), this->client_id);
+  return out.c_str();
+}
+#endif
 const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceCapabilitiesResponse"));
 #ifdef USE_BLUETOOTH_PROXY
@@ -1123,6 +1158,11 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_WIZARD
   out.append(2, ' ').append_p(ESPHOME_PSTR("wizard")).append(": ");
   this->wizard.dump_to(out);
+  out.append("\n");
+#endif
+#ifdef USE_SENDSPIN
+  out.append(2, ' ').append_p(ESPHOME_PSTR("sendspin")).append(": ");
+  this->sendspin.dump_to(out);
   out.append("\n");
 #endif
   return out.c_str();
@@ -1480,13 +1520,13 @@ const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 const char *HomeassistantServiceMap::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantServiceMap"));
-  dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("value"), this->value);
+  dump_progmem_string_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("value"), this->value);
   return out.c_str();
 }
 const char *HomeassistantActionRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantActionRequest"));
-  dump_field(out, ESPHOME_PSTR("service"), this->service);
+  dump_progmem_string_field(out, ESPHOME_PSTR("service"), this->service);
   for (const auto &it : this->data) {
     out.append(4, ' ').append_p(ESPHOME_PSTR("data")).append(": ");
     it.dump_to(out);
@@ -1581,19 +1621,19 @@ const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_USER_DEFINED_ACTIONS
 const char *ListEntitiesServicesArgument::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesArgument"));
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ServiceArgType>(this->type));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("description"), this->description);
+  dump_progmem_string_field(out, ESPHOME_PSTR("description"), this->description);
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("example"), this->example);
+  dump_progmem_string_field(out, ESPHOME_PSTR("example"), this->example);
 #endif
   return out.c_str();
 }
 const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesResponse"));
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
   for (const auto &it : this->args) {
     out.append(4, ' ').append_p(ESPHOME_PSTR("args")).append(": ");
@@ -1602,7 +1642,7 @@ const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
   }
   dump_field(out, ESPHOME_PSTR("supports_response"), static_cast<enums::SupportsResponseType>(this->supports_response));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("description"), this->description);
+  dump_progmem_string_field(out, ESPHOME_PSTR("description"), this->description);
 #endif
   return out.c_str();
 }
@@ -2911,6 +2951,8 @@ const char *UsbDeviceDescriptor::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("product_id"), this->product_id);
   dump_field(out, ESPHOME_PSTR("bcd_device"), this->bcd_device);
   dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
+  dump_field(out, ESPHOME_PSTR("interface_class"), this->interface_class);
+  dump_field(out, ESPHOME_PSTR("port_number"), this->port_number);
   return out.c_str();
 }
 const char *SerialProxyIdentity::dump_to(DumpBuffer &out) const {
@@ -2941,6 +2983,14 @@ const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsResponse"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);
   dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+#endif
+#ifdef USE_SENDSPIN
+const char *SendspinPairingTokenResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinPairingTokenResponse"));
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SendspinPairingTokenStatus>(this->status));
+  dump_field(out, ESPHOME_PSTR("token"), this->token);
   return out.c_str();
 }
 #endif

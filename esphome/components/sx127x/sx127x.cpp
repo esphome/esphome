@@ -1,10 +1,11 @@
 #include "sx127x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sx127x {
 
-static const char *const TAG = "sx127x";
+ESPHOME_LOG_TAG(TAG, "sx127x");
 static const uint32_t FXOSC = 32000000u;
 static const uint16_t RAMP[16] = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
 static const uint32_t BW_HZ[22] = {2604,  3125,  3906,  5208,  6250,  7812,   10416,  12500,  15625,  20833,  25000,
@@ -256,6 +257,11 @@ size_t SX127x::get_max_packet_size() {
 }
 
 SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
+  // Callers such as a template number's on_value can run before setup() or after a failed setup
+  if (!this->is_ready()) {
+    ESP_LOGW(TAG, "Radio not ready, packet dropped");
+    return SX127xError::SX127X_ERROR_NOT_READY;
+  }
   if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
     return SX127xError::INVALID_PARAMS;
@@ -292,6 +298,7 @@ SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
   // wait until transmit completes, typically the delay will be less than 100 ms
   uint32_t start = millis();
   while (!this->dio0_pin_->digital_read()) {
+    App.feed_wdt();
     if (millis() - start > 4000) {
       ESP_LOGE(TAG, "Transmit packet failure");
       ret = SX127xError::TIMEOUT;

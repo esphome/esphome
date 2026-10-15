@@ -40,7 +40,7 @@ extern "C" {
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_esp8266";
+ESPHOME_LOG_TAG(TAG, "wifi_esp8266");
 
 enum class ESP8266WiFiSTAState : uint8_t {
   IDLE,             // Not connecting
@@ -572,6 +572,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STACONNECTED: {
+#ifdef USE_WIFI_AP
+      global_wifi_component->ap_clients_++;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_connected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -581,6 +584,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STADISCONNECTED: {
+#ifdef USE_WIFI_AP
+      if (global_wifi_component->ap_clients_ > 0)
+        global_wifi_component->ap_clients_--;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_disconnected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

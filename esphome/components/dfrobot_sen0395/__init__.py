@@ -12,6 +12,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@niklasweber"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "dfrobot_sen0395"
 MULTI_CONF = True
 
 dfrobot_sen0395_ns = cg.esphome_ns.namespace("dfrobot_sen0395")

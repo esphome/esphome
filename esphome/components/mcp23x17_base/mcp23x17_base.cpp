@@ -4,7 +4,7 @@
 
 namespace esphome::mcp23x17_base {
 
-static const char *const TAG = "mcp23x17_base";
+ESPHOME_LOG_TAG(TAG, "mcp23x17_base");
 
 bool MCP23X17Base::digital_read_hw(uint8_t pin) {
   uint8_t data;

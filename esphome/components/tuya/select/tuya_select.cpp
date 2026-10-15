@@ -3,7 +3,7 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.select";
+ESPHOME_LOG_TAG(TAG, "tuya.select");
 
 void TuyaSelect::setup() {
   this->parent_->register_listener(this->select_id_, [this](const TuyaDatapoint &datapoint) {

@@ -5,7 +5,7 @@
 
 namespace esphome::anova {
 
-static const char *const TAG = "anova";
+ESPHOME_LOG_TAG(TAG, "anova");
 
 using namespace esphome::climate;
 

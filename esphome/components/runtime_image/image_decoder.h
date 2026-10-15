@@ -127,6 +127,10 @@ class ImageDecoder {
   }
 
  protected:
+  /// The image's pixel buffer, for decoders that write their output straight into it
+  uint8_t *image_buffer_() const;
+  bool image_is_big_endian_() const;
+
   double x_scale_ = 1.0;
   double y_scale_ = 1.0;
   RuntimeImage *image_;

@@ -5,7 +5,7 @@
 
 namespace esphome::mmc5603 {
 
-static const char *const TAG = "mmc5603";
+ESPHOME_LOG_TAG(TAG, "mmc5603");
 static const uint8_t MMC5603_ADDRESS = 0x30;
 static const uint8_t MMC56X3_PRODUCT_ID = 0x39;
 

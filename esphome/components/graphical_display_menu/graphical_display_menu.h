@@ -70,17 +70,7 @@ class GraphicalDisplayMenu final : public display_menu_base::DisplayMenuComponen
   Color foreground_color_{COLOR_ON};
   Color background_color_{COLOR_OFF};
 
-  CallbackManager<void()> on_redraw_callbacks_{};
-};
-
-class GraphicalDisplayMenuOnRedrawTrigger final : public Trigger<const GraphicalDisplayMenu *> {
- public:
-  explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) : parent_(parent) {
-    parent->add_on_redraw_callback([this]() { this->trigger(this->parent_); });
-  }
-
- protected:
-  GraphicalDisplayMenu *parent_;
+  LazyCallbackManager<void(const GraphicalDisplayMenu *)> on_redraw_callbacks_{};
 };
 
 }  // namespace graphical_display_menu

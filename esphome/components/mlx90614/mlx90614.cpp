@@ -24,7 +24,7 @@ static const uint8_t MLX90614_ID2 = 0x3D;
 static const uint8_t MLX90614_ID3 = 0x3E;
 static const uint8_t MLX90614_ID4 = 0x3F;
 
-static const char *const TAG = "mlx90614";
+ESPHOME_LOG_TAG(TAG, "mlx90614");
 
 // The EEPROM cell has a limited number of write cycles, so stop retrying after a few failures
 static constexpr uint8_t EMISSIVITY_WRITE_ATTEMPTS = 3;

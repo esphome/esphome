@@ -4,7 +4,9 @@
 
 namespace esphome::veml3235 {
 
-static const char *const TAG = "veml3235.sensor";
+ESPHOME_LOG_TAG(TAG, "veml3235.sensor");
+
+static constexpr uint32_t REREAD_TIMEOUT_ID = 0;
 
 // ADC counts at or above this value (98% of full scale) are treated as clipped: the true light level cannot
 // be estimated from such a reading, so auto-gain restarts from minimum sensitivity instead
@@ -71,7 +73,7 @@ void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
     const uint32_t old_integration_time_ms = this->integration_time_ms_();
     if (this->adjust_sensitivity_(als_counts)) {
       const uint32_t wait_ms = old_integration_time_ms + 2 * this->integration_time_ms_();
-      this->set_timeout("reread", wait_ms,
+      this->set_timeout(REREAD_TIMEOUT_ID, wait_ms,
                         [this, adjustments_left]() { this->read_and_publish_(adjustments_left - 1); });
       return;
     }

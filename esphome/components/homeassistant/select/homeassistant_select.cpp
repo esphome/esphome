@@ -6,11 +6,12 @@
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.select";
+ESPHOME_LOG_TAG(TAG, "homeassistant.select");
 
 namespace {
 
@@ -237,27 +238,26 @@ void HomeassistantSelect::control(size_t index) {
   }
 #endif
 
-  static constexpr auto SERVICE_SELECT = StringRef::from_lit("select.select_option");
-  static constexpr auto SERVICE_INPUT_SELECT = StringRef::from_lit("input_select.select_option");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto OPTION_KEY = StringRef::from_lit("option");
-  static constexpr char INPUT_PREFIX[] = "input_";
+  // In flash on the ESP8266 and encoded from there
+  static const char SERVICE_SELECT[] PROGMEM = "select.select_option";
+  static const char SERVICE_INPUT_SELECT[] PROGMEM = "input_select.select_option";
+  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
+  static const char OPTION_KEY[] PROGMEM = "option";
 
   api::HomeassistantActionRequest resp;
-  if (strncmp(this->entity_id_, INPUT_PREFIX, sizeof(INPUT_PREFIX) - 1) == 0) {
-    resp.service = SERVICE_INPUT_SELECT;
-  } else {
-    resp.service = SERVICE_SELECT;
-  }
+  // An input helper entity id starts with the "input_" its action name starts with
+  const bool input_helper = ESPHOME_strncmp_P(this->entity_id_, SERVICE_INPUT_SELECT, sizeof("input_") - 1) == 0;
+  resp.service =
+      input_helper ? ProgmemStringRef::from_lit(SERVICE_INPUT_SELECT) : ProgmemStringRef::from_lit(SERVICE_SELECT);
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ENTITY_ID_KEY;
-  entity_id.value = StringRef(this->entity_id_);
+  entity_id.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entity_id.value = ProgmemStringRef(StringRef(this->entity_id_));
 
   auto &option = resp.data.emplace_back();
-  option.key = OPTION_KEY;
-  option.value = StringRef(this->option_at(index));
+  option.key = ProgmemStringRef::from_lit(OPTION_KEY);
+  option.value = ProgmemStringRef(StringRef(this->option_at(index)));
 
   api::global_api_server->send_homeassistant_action(resp);
 }
