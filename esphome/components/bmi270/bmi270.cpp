@@ -2,6 +2,7 @@
 #include "bmi270_config.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::bmi270 {
 
@@ -10,6 +11,9 @@ using namespace bmm150;  // NOLINT - sole consumer of the BMM150 aux-device defi
 #endif
 
 ESPHOME_LOG_TAG(TAG, "bmi270");
+
+PROGMEM_STRING_TABLE(AccelRangeStrings, "±2g", "±4g", "±8g", "±16g");
+PROGMEM_STRING_TABLE(GyroRangeStrings, "±2000°/s", "±1000°/s", "±500°/s", "±250°/s", "±125°/s");
 
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
 static constexpr size_t MAX_I2C_BUFFER_SIZE = 32;
@@ -273,11 +277,10 @@ void BMI270Component::dump_config() {
     return;
   }
 
-  static constexpr const char *const ACCEL_RANGE_STRS[] = {"±2g", "±4g", "±8g", "±16g"};
-  static constexpr const char *const GYRO_RANGE_STRS[] = {"±2000°/s", "±1000°/s", "±500°/s", "±250°/s", "±125°/s"};
-
-  ESP_LOGCONFIG(TAG, "  Accel range : %s", ACCEL_RANGE_STRS[accel_range_]);
-  ESP_LOGCONFIG(TAG, "  Gyro  range : %s", GYRO_RANGE_STRS[gyro_range_]);
+  ESP_LOGCONFIG(TAG, "  Accel range : %s",
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_, AccelRangeStrings::LAST_INDEX)));
+  ESP_LOGCONFIG(TAG, "  Gyro  range : %s",
+                LOG_STR_ARG(GyroRangeStrings::get_log_str(this->gyro_range_, GyroRangeStrings::LAST_INDEX)));
 #ifdef USE_BMI270_BMM150
   if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
     ESP_LOGCONFIG(TAG, "  Aux device  : BMM150 magnetometer (%s)",
@@ -315,7 +318,8 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   }
   // Scale factor: LSB/g depends on range
   // raw is a signed 16-bit value; full-scale = range_g * 2^15 lsb
-  static constexpr float ACCEL_SCALE[] = {
+  // In PROGMEM; each read is a 32-bit load, which is safe from flash on ESP8266
+  alignas(4) static constexpr float ACCEL_SCALE[] PROGMEM = {
       2.0f / 32768.0f,
       4.0f / 32768.0f,
       8.0f / 32768.0f,
@@ -329,7 +333,7 @@ bool BMI270Component::update_data(motion::MotionData &data) {
 
   // Gyroscope: registers 0x12–0x17 (6 bytes)
   // Scale: full-scale range / 2^15
-  static constexpr float GYRO_SCALE[] = {
+  alignas(4) static constexpr float GYRO_SCALE[] PROGMEM = {
       2000.0f / 32768.0f, 1000.0f / 32768.0f, 500.0f / 32768.0f, 250.0f / 32768.0f, 125.0f / 32768.0f,
   };
   static constexpr uint8_t GYR_OFFS = BMI270_REG_DATA_14 - BMI270_REG_DATA_8;
