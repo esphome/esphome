@@ -117,4 +117,30 @@ TEST_F(SEN0609SequencerTest, AlreadyStoppedCountsAsStopped) {
   EXPECT_EQ(this->next_command_(), "setRunApp 0");
 }
 
+TEST_F(SEN0609SequencerTest, NotStoppedStopsAgainBeforeRetry) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  ASSERT_EQ(this->next_command_(), "setRunApp 0");
+  // The sensor was started again behind the hub's back
+  this->feed_("setRunApp 0\r\nsensor is not stopped\r\nDFRobot:/>");
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  EXPECT_EQ(this->next_command_(), "setUartOutput 1 1 1 1.0");
+}
+
+TEST_F(SEN0609SequencerTest, AlreadyStartedCountsAsStarted) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("getHWV", "HardwareVersion:V2.0\r\n");
+  // As left by an earlier sequence that failed
+  this->hub_.status_set_warning();
+  ASSERT_EQ(this->next_command_(), "sensorStart");
+  this->feed_("sensorStart\r\nsensor started already\r\nDFRobot:/>");
+  EXPECT_EQ(this->next_command_(), "");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
 }  // namespace esphome::dfrobot_sen0609::testing
