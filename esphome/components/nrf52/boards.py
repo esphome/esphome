@@ -70,19 +70,24 @@ _ADAFRUIT_BOOTLOADER = Section(
     "Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"
 )
 
+
+def _softdevice_layout(end: int) -> list[Section]:
+    """Nordic's MBR page, the SoftDevice behind it up to ``end``, and the Adafruit bootloader.
+
+    The MBR page is named as the partition manager names it, so on a board that declares the
+    nRF5 bootloader it is not added a second time behind the SoftDevice, which would move the
+    application away from where the SoftDevice jumps to."""
+    return [
+        Section("nrf5_mbr", 0x0, 0x1000, "flash_primary"),
+        Section("SoftDevice", 0x1000, end - 0x1000, "flash_primary"),
+        _ADAFRUIT_BOOTLOADER,
+    ]
+
+
 BOOTLOADER_CONFIG = {
-    BOOTLOADER_ADAFRUIT_NRF52_SD132: [
-        Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
-        _ADAFRUIT_BOOTLOADER,
-    ],
-    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: [
-        Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
-        _ADAFRUIT_BOOTLOADER,
-    ],
-    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: [
-        Section("SoftDevice", 0x0, 0x27000, "flash_primary"),
-        _ADAFRUIT_BOOTLOADER,
-    ],
+    BOOTLOADER_ADAFRUIT_NRF52_SD132: _softdevice_layout(0x26000),
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: _softdevice_layout(0x26000),
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: _softdevice_layout(0x27000),
     # The board's BOARD_HAS_NRF5_BOOTLOADER already reserves the MBR page at 0x0, so the application
     # links at 0x1000, where the bootloader loads it; only the bootloader itself is reserved here
     BOOTLOADER_NRF: [

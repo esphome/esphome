@@ -13,6 +13,7 @@ from esphome.components.nrf52 import (
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
 from esphome.components.nrf52.const import (
     BOOTLOADER_ADAFRUIT_NRF52_NOSD,
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_NRF,
 )
 from esphome.components.zephyr.const import KEY_PM_STATIC, KEY_ZEPHYR
@@ -75,6 +76,16 @@ def test_nrf_bootloader_reserves_factory_region() -> None:
     assert "mbr" not in registered
     assert registered["open_bootloader"].address == 0xE0000
     assert registered["open_bootloader"].end_address == 0x100000
+
+
+def test_softdevice_layout_names_the_mbr_page() -> None:
+    """On a board with an nRF5 bootloader the partition manager adds an MBR page of its own
+    unless one is declared, which would push the app behind where the SoftDevice jumps to."""
+    _dongle_core_data("nrf52840_mdk_usb_dongle", BOOTLOADER_ADAFRUIT_NRF52_SD140_V6)
+    registered = {s.name: s for s in CORE.data[KEY_ZEPHYR][KEY_PM_STATIC]}
+    assert registered["nrf5_mbr"].address == 0x0
+    assert registered["nrf5_mbr"].end_address == registered["SoftDevice"].address
+    assert registered["SoftDevice"].end_address == 0x26000
 
 
 def test_adafruit_nosd_reserves_only_the_bootloader() -> None:
