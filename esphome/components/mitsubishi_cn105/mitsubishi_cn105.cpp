@@ -157,11 +157,20 @@ void MitsubishiCN105::did_transition_(State to) {
       // deferring transmission to a later loop iteration; some units might not respond if a request is sent
       // immediately after a response, causing the request to time out.
       const bool should_apply_pending_settings = this->pending_updates_.any() && this->is_status_initialized();
-      if (!should_apply_pending_settings && this->current_status_msg_type_ == STATUS_MSG_SETTINGS &&
-          this->should_request_telemetry_()) {
-        this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
-        this->set_state_(State::DEFERRED_STATUS_REQUEST);
-      } else {
+      if (!should_apply_pending_settings && this->current_status_msg_type_ == STATUS_MSG_SETTINGS) {
+        if (this->should_request_telemetry_()) {
+          this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
+          this->set_state_(State::DEFERRED_STATUS_REQUEST);
+          break;
+        }
+        if (this->should_request_heatpump_()) {
+          this->current_status_msg_type_ = STATUS_MSG_HEATPUMP;
+          this->last_heatpump_request_ms_ = get_loop_time_ms();
+          this->set_state_(State::DEFERRED_STATUS_REQUEST);
+          break;
+        }
+      }
+      {
         this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       }
       break;
@@ -205,6 +214,18 @@ bool MitsubishiCN105::should_request_telemetry_() const {
   }
 
   return (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+}
+
+bool MitsubishiCN105::should_request_heatpump_() const {
+  if (!this->is_heatpump_polling_enabled()) {
+    return false;
+  }
+
+  if (!this->last_heatpump_request_ms_.has_value()) {
+    return true;
+  }
+
+  return (get_loop_time_ms() - *this->last_heatpump_request_ms_) >= this->heatpump_request_min_interval_ms_;
 }
 
 void MitsubishiCN105::send_packet_(std::span<const uint8_t> packet) {
