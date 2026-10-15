@@ -212,14 +212,11 @@ BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 BUILD_INFO_DATA_CPP_TARGET = "esphome/core/build_info_data.cpp"
 ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
 # Headers that must not be included bare from esphome.h or the clang-tidy
-# all-headers file: X-macro files, headers main.cpp includes itself, and
-# deprecated headers that only resolve when their new component is loaded.
+# all-headers file: X-macro files and headers main.cpp includes itself.
 ESPHOME_H_EXCLUDE = {
     Path(ENTITY_TYPES_H_TARGET),
     # main.cpp includes it after defining esphome_controllers()
     Path("esphome/core/controller_dispatch.h"),
-    # moved to components/ring_buffer/, removed in 2026.11.0
-    Path("esphome/core/ring_buffer.h"),
     # build machinery, not user API
     Path("esphome/core/pch_prefix.h"),
 }

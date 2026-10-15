@@ -68,8 +68,10 @@ NEW_CAPABILITY_FIELDS: dict[str, dict[str, int]] = {
         "zwave_proxy": 3,
         "serial_proxies": 4,
         "wizard": 5,
+        "sendspin": 6,
     },
     "WizardCapabilities": {"configured": 1},
+    "SendspinCapabilities": {"feature_flags": 1},
     "BluetoothProxyCapabilities": {
         "feature_flags": 1,
         "mac_address": 2,
@@ -443,6 +445,39 @@ def test_device_wizard_rpc_requires_authentication() -> None:
     must not set `needs_authentication` and inherits the default of true.
     """
     body = _extract_rpc_body(PROTO_TEXT, "device_wizard")
+    assert "needs_authentication" not in body
+
+
+def test_sendspin_pairing_token_messages_keep_their_wire_ids() -> None:
+    """Message ids are part of the wire protocol and must not change."""
+    for message, expected in (
+        ("SendspinPairingTokenRequest", 159),
+        ("SendspinPairingTokenResponse", 160),
+    ):
+        body = _extract_proto_message(PROTO_TEXT, message)
+        match = re.search(r"option \(id\) = (\d+);", body)
+        assert match is not None, f"{message} is missing `option (id)`"
+        assert int(match.group(1)) == expected, (
+            f"{message} has id {match.group(1)}, expected {expected}"
+        )
+
+
+def test_sendspin_pairing_token_response_fields_keep_their_wire_numbers() -> None:
+    """Clients decode the response purely by field number."""
+    body = _extract_proto_message(PROTO_TEXT, "SendspinPairingTokenResponse")
+    for field_name, number in (("status", 1), ("token", 2)):
+        line = _field_declaration_line(body, field_name)
+        assert re.search(rf"\b{field_name}\s*=\s*{number}\b", line), (
+            f"{field_name} in SendspinPairingTokenResponse is no longer field "
+            f"number {number}"
+        )
+
+
+def test_sendspin_pairing_token_rpc_requires_authentication() -> None:
+    """The pairing token is a long-lived secret, so the rpc must not set
+    `needs_authentication` and inherits the default of true.
+    """
+    body = _extract_rpc_body(PROTO_TEXT, "sendspin_pairing_token")
     assert "needs_authentication" not in body
 
 

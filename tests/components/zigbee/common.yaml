@@ -1,3 +1,11 @@
+esphome:
+  area:
+    id: testing_area
+    name: Testing Area
+  project:
+    name: esphome.test
+    version: "1.1"
+
 binary_sensor:
   - platform: template
     name: "Garage Door Open 1"
@@ -31,6 +39,11 @@ output:
     type: binary
     write_action:
       - zigbee.factory_reset
+  - platform: template
+    id: output_report
+    type: binary
+    write_action:
+      - zigbee.report
 
 switch:
   - platform: template

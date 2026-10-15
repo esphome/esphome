@@ -1,4 +1,0 @@
-power_management:
-  - platform: zephyr_pm
-    id: pm_id
-    power_down_device: true

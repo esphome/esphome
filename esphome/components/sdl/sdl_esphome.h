@@ -13,7 +13,7 @@
 
 namespace esphome::sdl {
 
-constexpr static const char *const TAG = "sdl";
+ESPHOME_LOG_TAG(TAG, "sdl");
 
 class Sdl final : public display::Display, public snapshot::Snapshot {
  public:

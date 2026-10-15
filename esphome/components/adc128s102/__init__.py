@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
+DOMAIN = "adc128s102"
 MULTI_CONF = True
 CODEOWNERS = ["@DeerMaximum"]
 

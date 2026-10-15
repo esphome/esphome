@@ -8,7 +8,7 @@
 
 namespace esphome::zephyr {
 
-static const char *const TAG = "usb_baud_rate";
+ESPHOME_LOG_TAG(TAG, "usb_baud_rate");
 
 // Zephyr's USB event hook has no user data argument, so the callback finds the instance here.
 static UsbBaudRate *instance{nullptr};   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

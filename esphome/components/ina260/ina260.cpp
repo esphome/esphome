@@ -4,7 +4,7 @@
 
 namespace esphome::ina260 {
 
-static const char *const TAG = "ina260";
+ESPHOME_LOG_TAG(TAG, "ina260");
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |

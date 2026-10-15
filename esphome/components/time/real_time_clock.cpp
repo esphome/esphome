@@ -21,7 +21,7 @@
 
 namespace esphome::time {
 
-static const char *const TAG = "time";
+ESPHOME_LOG_TAG(TAG, "time");
 
 RealTimeClock::RealTimeClock() = default;
 

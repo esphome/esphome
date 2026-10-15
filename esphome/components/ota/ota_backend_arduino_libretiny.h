@@ -21,6 +21,7 @@ class ArduinoLibreTinyOTABackend final {
   static constexpr bool requires_sha256_checksum() { return false; }
 
  private:
+  UpdateLock lock_;
   bool md5_set_{false};
 };
 

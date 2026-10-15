@@ -178,7 +178,7 @@ __sprintf(  // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,r
 
 namespace esphome::ln882h_ble {
 
-static const char *const TAG = "ln882h_ble";
+ESPHOME_LOG_TAG(TAG, "ln882h_ble");
 
 // The SDK event callback is a plain C function pointer with no user argument,
 // so it reaches the (single) component instance through a file-static pointer.

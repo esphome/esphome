@@ -223,6 +223,10 @@ class APIConnection final : public APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
 
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  void on_sendspin_pairing_token_request();
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg);
@@ -431,6 +435,9 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
 #ifdef USE_VOICE_ASSISTANT
   bool send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg);
+#endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  bool send_sendspin_pairing_token_response_();
 #endif
 
 #ifdef USE_CAMERA

@@ -27,6 +27,10 @@ class ZephyrI2CBus final : public InternalI2CBus, public Component {
   void set_sda_pin(const char *sda_pin) { this->sda_pin_ = sda_pin; }
   void set_scl_pin(const char *scl_pin) { this->scl_pin_ = scl_pin; }
   void set_frequency(uint32_t frequency);
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  ErrorCode switch_frequency(uint32_t frequency) override;
+  uint32_t get_frequency() const override { return this->frequency_; }
+#endif
 
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
   void set_linux_bus(const std::string &linux_bus) { this->linux_bus_ = linux_bus; }
@@ -41,6 +45,9 @@ class ZephyrI2CBus final : public InternalI2CBus, public Component {
   const char *sda_pin_{""};
   const char *scl_pin_{""};
   uint32_t dev_config_{};
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  uint32_t frequency_{};
+#endif
 
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
   std::string linux_bus_{};

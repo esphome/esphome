@@ -3,7 +3,7 @@
 
 namespace esphome::mcp4725 {
 
-static const char *const TAG = "mcp4725";
+ESPHOME_LOG_TAG(TAG, "mcp4725");
 
 void MCP4725::setup() {
   auto err = this->write(nullptr, 0);

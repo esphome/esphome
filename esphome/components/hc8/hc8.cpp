@@ -7,7 +7,7 @@
 
 namespace esphome::hc8 {
 
-static const char *const TAG = "hc8";
+ESPHOME_LOG_TAG(TAG, "hc8");
 static const std::array<uint8_t, 5> HC8_COMMAND_GET_PPM{0x64, 0x69, 0x03, 0x5E, 0x4E};
 static const std::array<uint8_t, 3> HC8_COMMAND_CALIBRATE_PREAMBLE{0x11, 0x03, 0x03};
 

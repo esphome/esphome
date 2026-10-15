@@ -22,6 +22,7 @@ from esphome.types import ConfigType
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "ota"
 
 
 def AUTO_LOAD() -> list[str]:

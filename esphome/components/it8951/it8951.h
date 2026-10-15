@@ -150,6 +150,7 @@ class IT8951Display : public Display,
   void loop() override;
   void dump_config() override;
   void on_safe_shutdown() override;
+  void on_powerdown() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   // --- Config setters (called from generated code) ---
@@ -203,6 +204,7 @@ class IT8951Display : public Display,
                       ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
   int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
+  bool pixel_axes_swapped() const override { return this->effective_transform_ & TRANSFORM_SWAP_XY; }
 
  protected:
   int get_height_internal() override { return this->height_; }

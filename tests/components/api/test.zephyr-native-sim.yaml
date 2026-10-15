@@ -1,3 +1,4 @@
-network:
+packages:
+  api: !include common.yaml
 
-api:
+network:

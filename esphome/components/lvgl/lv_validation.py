@@ -3,19 +3,17 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import image
-from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
+from esphome.components.color import (
+    CONF_HEX,
+    DOMAIN as COLOR_DOMAIN,
+    ColorStruct,
+    from_rgbw,
+)
 from esphome.components.const.css_colors import CSS_COLORS
-from esphome.components.font import Font
+from esphome.components.font import DOMAIN as FONT_DOMAIN, Font
 from esphome.components.image import Image_
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ARGS,
-    CONF_COLOR,
-    CONF_FORMAT,
-    CONF_ID,
-    CONF_TIME,
-    CONF_VALUE,
-)
+from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_ID, CONF_TIME, CONF_VALUE
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj, StaticCastExpression, call_lambda
 from esphome.cpp_types import ESPTime, int32, uint32
@@ -81,7 +79,7 @@ def get_component_colors(value):
     if isinstance(value, int):
         return value >> 16, value >> 8 & 0xFF, value & 0xFF
     if isinstance(value, ID):
-        cval = [x for x in CORE.config[CONF_COLOR] if x[CONF_ID] == value][0]
+        cval = [x for x in CORE.config[COLOR_DOMAIN] if x[CONF_ID] == value][0]
         if CONF_HEX in cval:
             r, g, b = cval[CONF_HEX]
         else:
@@ -437,7 +435,7 @@ class LvFont(LValidator):
             add_lv_use("font")
             fontval = cv.use_id(Font)(value)
             get_esphome_fonts_used().add(fontval)
-            return cv.requires_component("font")(fontval)
+            return cv.requires_component(FONT_DOMAIN)(fontval)
 
         # Use font::Font* as return type for lambdas returning ESPHome fonts
         # The inline overloads in lvgl_esphome.h handle conversion to lv_font_t*

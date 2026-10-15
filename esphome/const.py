@@ -28,6 +28,15 @@ class Toolchain(StrEnum):
     HOST = "host"
 
 
+class ErrorFormat(StrEnum):
+    """How configuration errors are printed."""
+
+    # Errors embedded in a dump of the failing YAML
+    YAML = "yaml"
+    # One `file:line:col: error: message` line per error
+    LINE = "line"
+
+
 # Toolchains that drive their build natively and never read platformio.ini.
 # SDK_NRF and SDK_ZEPHYR are absent on purpose: the zephyr backend (shared by
 # both) keeps consuming platformio_options.

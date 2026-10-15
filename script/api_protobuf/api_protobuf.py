@@ -3546,7 +3546,7 @@ namespace esphome::api {
 
 namespace esphome::api {
 
-static const char *const TAG = "api.service";
+ESPHOME_LOG_TAG(TAG, "api.service");
 
 """
 

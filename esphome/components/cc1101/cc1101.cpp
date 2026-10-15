@@ -11,7 +11,7 @@
 
 namespace esphome::cc1101 {
 
-static const char *const TAG = "cc1101";
+ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
 
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {

@@ -7,6 +7,7 @@ import subprocess
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -57,6 +58,7 @@ from .gpio import rp2_pin_to_code  # noqa: F401
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "rp2"
 IS_TARGET_PLATFORM = True
 
 # Legacy top-level YAML keys that route here. The framework
@@ -194,6 +196,8 @@ def _parse_platform_version(value: Any) -> str:
 #  * The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
+#  * rp2_pio pins its own pioasm build (PIOASM_REPO_VERSION in rp2_pio/__init__.py); check
+#    https://github.com/earlephilhower/pico-quick-toolchain/releases for a matching release
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
@@ -315,6 +319,7 @@ CONFIG_SCHEMA = cv.All(
     _detect_variant,
     cv.require_platformio_toolchain("RP2"),
     set_core_data,
+    network.require_ipv4(PLATFORM_RP2),
 )
 
 

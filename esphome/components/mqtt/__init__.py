@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import logger, socket
+from esphome.components import logger, network, socket
 from esphome.components.esp32 import (
     add_idf_component,
     idf_version,
@@ -34,6 +34,7 @@ from esphome.const import (
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_MQTT,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -68,6 +69,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
+DOMAIN = "mqtt"
 
 
 def AUTO_LOAD():
@@ -223,6 +225,17 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+# The parsed JSON document is freed once the automation returns
+JSON_MESSAGE_AUTOMATION_SCHEMA = automation.validate_synchronous_automation(
+    "on_json_message",
+    "the parsed JSON document",
+    {
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTJsonMessageTrigger),
+        cv.Required(CONF_TOPIC): cv.subscribe_topic,
+        cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+    },
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -303,15 +316,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_PAYLOAD): cv.string_strict,
                 }
             ),
-            cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MQTTJsonMessageTrigger
-                    ),
-                    cv.Required(CONF_TOPIC): cv.subscribe_topic,
-                    cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-                }
-            ),
+            cv.Optional(CONF_ON_JSON_MESSAGE): JSON_MESSAGE_AUTOMATION_SCHEMA,
             cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
             cv.Optional(CONF_WAIT_FOR_CONNECTION, default=False): cv.boolean,
         }
@@ -327,6 +332,7 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
     _consume_mqtt_sockets,
+    network.require_ipv4(CONF_MQTT),
 )
 
 

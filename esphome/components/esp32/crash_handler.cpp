@@ -161,7 +161,7 @@ static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 namespace esphome::esp32 {
 
-static const char *const TAG = "esp32.crash";
+ESPHOME_LOG_TAG(TAG, "esp32.crash");
 
 // RAM copy of the build timestamp. The generated constant lives in flash,
 // which the panic handler must not read (cache may be disabled during
@@ -531,6 +531,9 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Xtensa: walk the backtrace using the public API
   if (info->frame != nullptr) {
     auto *xt_frame = (XtExcFrame *) info->frame;
+    // IDF leaves addr unset for SoC-level panics (cache error, interrupt WDT)
+    if (info->pseudo_excause)
+      s_raw_crash_data.pc = xt_frame->pc;
     if (!g_panic_abort) {
       // Abort-class frames carry no useful cause/vaddr: TWDT task snapshots
       // never wrote them and abort() traps describe only the synthetic trap.

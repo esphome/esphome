@@ -3,7 +3,7 @@
 
 namespace esphome::bang_bang {
 
-static const char *const TAG = "bang_bang.climate";
+ESPHOME_LOG_TAG(TAG, "bang_bang.climate");
 
 BangBangClimate::BangBangClimate() = default;
 

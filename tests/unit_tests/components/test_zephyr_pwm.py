@@ -6,7 +6,7 @@ from esphome.components.zephyr.const import KEY_ZEPHYR
 from esphome.components.zephyr_pwm.output import PWMBlock, _overlay_pwm_renesas
 from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_ZEPHYR
 from esphome.core import CORE
-from tests.unit_tests.components.zephyr_state import empty_zephyr_data
+from tests.unit_tests.components.zephyr.zephyr_state import empty_zephyr_data
 
 
 def test_renesas_overlay_uses_gtioc_function_for_any_gpt_channel() -> None:

@@ -13,7 +13,7 @@
 
 namespace esphome::espectre {
 
-static const char *const TAG = "espectre";
+ESPHOME_LOG_TAG(TAG, "espectre");
 
 struct TrafficModeOption {
   const char *name;

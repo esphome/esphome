@@ -3,7 +3,7 @@
 
 namespace esphome::motion {
 
-static const char *const TAG = "motion";
+ESPHOME_LOG_TAG(TAG, "motion");
 
 static void log_matrix(const float m[9]) {
   ESP_LOGCONFIG(TAG, "  Calibration matrix:");

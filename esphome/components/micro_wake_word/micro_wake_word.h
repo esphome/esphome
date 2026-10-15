@@ -93,8 +93,8 @@ class MicroWakeWord final : public Component
   uint8_t get_features_step_size() const { return this->features_step_size_; }
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
-  void add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
-                     size_t tensor_arena_size);
+  void add_vad_model(const uint8_t *model_start, size_t model_size, uint8_t probability_cutoff,
+                     size_t sliding_window_size, size_t tensor_arena_size);
 
   // Intended for the voice assistant component to fetch VAD status
   bool get_vad_state() { return this->vad_state_; }

@@ -1,6 +1,8 @@
 #include "debug_component.h"
 #ifdef USE_ZEPHYR
+#include <cinttypes>
 #include <climits>
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <esphome/components/zephyr/reset_reason.h>
@@ -29,7 +31,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 #ifdef USE_NRF52
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
@@ -517,18 +519,17 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   }
 #endif
-  auto uicr = [](volatile uint32_t *data, uint8_t sz) {
-    std::string res;
-    for (size_t i = 0; i < sz; i++) {
-      if (i > 0) {
-        res += ' ';
-      }
-      res += format_hex_pretty<uint32_t>(data[i], '\0', false);
+  // 13 words of 8 hex digits, separated by spaces
+  char uicr_buf[13 * 9];
+  auto uicr = [&uicr_buf](volatile uint32_t *data, uint8_t size) {
+    size_t len = 0;
+    for (size_t i = 0; i < size; i++) {
+      len = buf_append_printf(uicr_buf, sizeof(uicr_buf), len, i > 0 ? " %08" PRIX32 : "%08" PRIX32, data[i]);
     }
-    return res;
+    return uicr_buf;
   };
-  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
-  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
+  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13));
+  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12));
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   log_peripherals_info();
 #endif

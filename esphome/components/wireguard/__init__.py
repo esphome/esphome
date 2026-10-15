@@ -3,7 +3,7 @@ import re
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import time
+from esphome.components import network, time
 from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import (
@@ -33,6 +33,7 @@ CONF_WIREGUARD_ID = "wireguard_id"
 
 DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
+DOMAIN = "wireguard"
 
 # The key validation regex has been described by Jason Donenfeld himself
 # url: https://lists.zx2c4.com/pipermail/wireguard/2020-December/006222.html
@@ -91,6 +92,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_LN882X,
         ]
     ),
+    network.require_ipv4("wireguard"),
 )
 
 
@@ -120,16 +122,19 @@ async def to_code(config):
         )
     )
 
+    # Shared flash table ended by an empty entry, so the component stores only a pointer.
+    entries = [
+        cg.StructInitializer(
+            AllowedIP,
+            ("ip", str(ip.network_address)),
+            ("netmask", str(ip.netmask)),
+        )
+        for ip in allowed_ips
+    ]
+    end = cg.StructInitializer(AllowedIP, ("ip", cg.nullptr), ("netmask", cg.nullptr))
     cg.add(
         var.set_allowed_ips(
-            [
-                cg.StructInitializer(
-                    AllowedIP,
-                    ("ip", str(ip.network_address)),
-                    ("netmask", str(ip.netmask)),
-                )
-                for ip in allowed_ips
-            ]
+            cg.shared_progmem_array("wireguard_allowed_ips", AllowedIP, [*entries, end])
         )
     )
 

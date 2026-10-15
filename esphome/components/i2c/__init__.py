@@ -46,7 +46,6 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_DEVICE,
     CONF_FREQUENCY,
-    CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
     CONF_LOW_POWER_MODE,
@@ -67,6 +66,7 @@ from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+DOMAIN = "i2c"
 LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
 i2c_ns = cg.esphome_ns.namespace("i2c")
@@ -317,7 +317,7 @@ def _final_validate(config: ConfigType) -> None:
             config[CONF_DEVICE],
         )
 
-    full_config = fv.full_config.get()[CONF_I2C]
+    full_config = fv.full_config.get()[DOMAIN]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
     if CORE.is_rp2:
@@ -399,7 +399,7 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("EMUL", True)
             zephyr_add_prj_conf("I2C_EMUL", True)
             i2c = resolve_zephyr_bus(
-                "i2c",
+                DOMAIN,
                 zephyr_dts_board_id(board),
                 override_key=CONF_DTS_NODE_OVERRIDE,
                 override=config.get(CONF_DTS_NODE_OVERRIDE),
@@ -426,7 +426,7 @@ async def to_code(config: ConfigType) -> None:
                 i2c = "i2c1" if board == "xiao_ble" else "i2c0"
             else:
                 i2c = resolve_zephyr_bus(
-                    "i2c",
+                    DOMAIN,
                     zephyr_dts_board_id(board),
                     override_key=CONF_DTS_NODE_OVERRIDE,
                     override=config.get(CONF_DTS_NODE_OVERRIDE),

@@ -18,6 +18,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     only_on_variant,
 )
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
@@ -62,6 +63,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
+DOMAIN = "spi"
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 QuadSPIComponent = spi_ns.class_("QuadSPIComponent", cg.Component)
@@ -191,7 +193,7 @@ def _validate_psram_dma(value: Any) -> bool:
             msg_prefix="PSRAM DMA",
         ),
         cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
-        cv.requires_component("psram"),
+        cv.requires_component(PSRAM_DOMAIN),
     )(value)
 
 
@@ -543,7 +545,7 @@ def _zephyr_setup_spi(spi, resolved_buses: set[str]) -> tuple[str, str]:
     interface = spi[CONF_INTERFACE]
     override = interface if interface not in ("hardware", "any") else None
     bus = resolve_zephyr_bus(
-        "spi",
+        DOMAIN,
         zephyr_dts_board_id(board),
         override_key=CONF_INTERFACE,
         override=override,

@@ -19,6 +19,7 @@ from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@kbx81"]
 AUTO_LOAD = ["ir_rf_base"]
+DOMAIN = "infrared"
 
 IS_PLATFORM_COMPONENT = True
 

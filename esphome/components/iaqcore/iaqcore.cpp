@@ -5,7 +5,7 @@
 
 namespace esphome::iaqcore {
 
-static const char *const TAG = "iaqcore";
+ESPHOME_LOG_TAG(TAG, "iaqcore");
 
 enum IAQCoreErrorCode : uint8_t { ERROR_OK = 0, ERROR_RUNIN = 0x10, ERROR_BUSY = 0x01, ERROR_ERROR = 0x80 };
 

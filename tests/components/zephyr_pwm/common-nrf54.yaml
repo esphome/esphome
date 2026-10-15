@@ -1,0 +1,10 @@
+output:
+  - platform: zephyr_pwm
+    id: pwm_output_1
+    pin: P0.02
+  - platform: zephyr_pwm
+    id: pwm_output_2
+    pin:
+      # gpio0 has only 7 (nRF54L15) or 10 (nRF54LM20A) pins, so pin 10 does not exist
+      number: 5
+      inverted: true

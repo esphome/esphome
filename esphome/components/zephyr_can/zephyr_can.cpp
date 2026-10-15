@@ -11,7 +11,7 @@
 
 namespace esphome::zephyr_can {
 
-static const char *const TAG = "zephyr_can";
+ESPHOME_LOG_TAG(TAG, "zephyr_can");
 
 // Controller state and error counters are only read this often -- they are polled from
 // loop(), which runs far more frequently than a bus error can meaningfully change.

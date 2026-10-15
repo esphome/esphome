@@ -31,6 +31,7 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
     PLATFORM_ZEPHYR,
+    ErrorFormat,
     Toolchain,
 )
 
@@ -682,6 +683,8 @@ class EsphomeCore:
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # How configuration errors are printed
+        self.error_format: ErrorFormat = ErrorFormat.YAML
         # A list of all known ID classes
         self.id_classes = {}
         # The current component being processed during validation
@@ -735,6 +738,7 @@ class EsphomeCore:
         self._config_hash = None
         self.skip_external_update = False
         self.toolchain = None
+        self.error_format = ErrorFormat.YAML
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager

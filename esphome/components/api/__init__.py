@@ -8,6 +8,7 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
+from esphome.components.network import require_ipv4, require_ipv6
 
 # ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
 # components and downstream consumers that import them from api
@@ -28,7 +29,6 @@ from esphome.const import (
     CONF_DATA,
     CONF_DATA_TEMPLATE,
     CONF_DELAY,
-    CONF_ENABLE_IPV6,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -52,8 +52,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import Expression, MockObj, TemplateArgsType
-import esphome.final_validate as fv
-from esphome.helpers import cpp_string_escape, fnv1_hash
+from esphome.helpers import fnv1_hash
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
 
@@ -342,7 +341,10 @@ def _validate_outgoing_host(value: str) -> IPv4Address | IPv6Address:
                 "give the address without the '%' part"
             )
         if (mapped := address.ipv4_mapped) is not None:
-            return mapped
+            address = mapped
+    # The build must carry the host's address family for the dial to work
+    require = require_ipv6 if isinstance(address, IPv6Address) else require_ipv4
+    require("api.outgoing_connection")(value)
     return address
 
 
@@ -516,24 +518,6 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
-    """An IPv6 host can never be parsed, so never dialed, without IPv6."""
-    if (
-        (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None
-        or (host := outgoing.get(CONF_HOST)) is None
-        or host.version != 6
-    ):
-        return config
-    network_conf = fv.full_config.get().get("network") or {}
-    if not network_conf.get(CONF_ENABLE_IPV6):
-        raise cv.Invalid(
-            "outgoing_connection host is an IPv6 address but IPv6 is not "
-            "enabled; set 'network: enable_ipv6: true'",
-            path=[CONF_OUTGOING_CONNECTION, CONF_HOST],
-        )
-    return config
-
-
 def _validate_wizard(config: ConfigType) -> ConfigType:
     wizard.final_validate(config)
     return config
@@ -541,33 +525,15 @@ def _validate_wizard(config: ConfigType) -> ConfigType:
 
 FINAL_VALIDATE_SCHEMA = cv.All(
     _validate_esp8266_action_strings,
-    _validate_outgoing_host_ipv6,
     _validate_wizard,
 )
 
 
-def _add_action_strings(
-    index: int, strings: list[str | None], interned: dict[str, MockObj]
-) -> MockObj:
-    """Emit the PROGMEM string table for one action.
-
-    Each string is its own PROGMEM array because on ESP8266 .rodata is RAM, and identical
-    strings are shared between actions through `interned`.
-    """
-    entries: list[MockObj] = []
-    for string in strings:
-        if string is None:
-            entries.append(cg.nullptr)
-            continue
-        if (var := interned.get(string)) is None:
-            var = interned[string] = cg.progmem_array(
-                ID(f"api_action_str{len(interned)}", is_declaration=True, type=cg.char),
-                string,
-            )
-        entries.append(var)
+def _add_action_strings(index: int, strings: list[str | None]) -> MockObj:
+    """Emit the PROGMEM string table for one action."""
     return cg.progmem_array(
         ID(f"api_action{index}_strings", is_declaration=True, type=cg.const_char_ptr),
-        entries,
+        [cg.nullptr if s is None else cg.shared_progmem_string(s) for s in strings],
     )
 
 
@@ -620,7 +586,6 @@ async def to_code(config: ConfigType) -> None:
         has_metadata = _has_action_metadata(actions)
         if has_metadata:
             cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
-        interned_strings: dict[str, MockObj] = {}
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.MockObj] = []
         for index, conf in enumerate(actions):
@@ -665,7 +630,7 @@ async def to_code(config: ConfigType) -> None:
                 service_template_args.append(native)
                 func_args.append((native, name))
             strings = _action_strings(conf, has_metadata)
-            table = _add_action_strings(index, strings, interned_strings)
+            table = _add_action_strings(index, strings)
             if CORE.is_esp8266:
                 scratch_size = max(scratch_size, _action_strings_size(strings))
             # Template args: supports_response mode, then user service arg types
@@ -691,7 +656,7 @@ async def to_code(config: ConfigType) -> None:
                     unregister_id,
                     var,
                 )
-                cg.add(auto.add_actions([unregister_action]))
+                cg.add(auto.add_action(unregister_action))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
     if CORE.is_esp8266 and has_user_actions:
@@ -837,14 +802,6 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
 )
 
 
-def _field_string(value: str) -> Expression:
-    # ESP8266 can only keep a string in flash as its own PROGMEM array
-    literal = cg.RawExpression(cpp_string_escape(value))
-    if CORE.is_esp8266:
-        return cg.shared_progmem_array("ha_field_str", cg.char, literal)
-    return literal
-
-
 async def _new_service_call_action(
     server_id: ID,
     action_id: ID,
@@ -867,12 +824,12 @@ async def _new_service_call_action(
     )
 
     async def field(key: str | None, value: Any, output_type: Any = None) -> Expression:
-        key_exp = cg.nullptr if key is None else _field_string(key)
+        key_exp = cg.nullptr if key is None else cg.shared_progmem_string(key)
         if cg.is_template(value):
             # output_type=None lets lambdas return numbers or char pointers; C++ converts them
             lam = await cg.process_lambda(value, args, return_type=output_type)
             return cg.RawExpression(f"{field_type}::from_lambda({key_exp}, {lam})")
-        return cg.ArrayInitializer(key_exp, _field_string(value), cg.nullptr)
+        return cg.ArrayInitializer(key_exp, cg.shared_progmem_string(value), cg.nullptr)
 
     entries = [await field(None, service, cg.std_string)]
     for group in groups:

@@ -18,7 +18,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.speaker.std";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.speaker.std");
 
 static constexpr uint32_t DMA_BUFFER_DURATION_MS = 10;
 static constexpr size_t DMA_BUFFERS_COUNT = 5;

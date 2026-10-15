@@ -1,2 +1,0 @@
-packages:
-  zephyr_pm: !include common-policy.yaml
