@@ -1,6 +1,7 @@
 #include "esphome/core/defines.h"
 #if defined(USE_OPENTHREAD) && defined(USE_ESP32)
 #include <openthread/dataset.h>
+#include <openthread/ip6.h>
 #include "openthread.h"
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
@@ -58,10 +59,11 @@ void OpenThreadComponent::setup() {
       .max_fds = max_eventfds,
   };
   // Network interface setup handled by network component.
-  // Preferences opens NVS in app_main(); OpenThread keeps its dataset there, and esp_openthread_start()
+  // Preferences opens NVS in app_main(); OpenThread keeps its dataset there, and esp_openthread_init()
   // aborts without it, so fail this component instead.
   if (global_preferences->nvs_handle == 0) {
     ESP_LOGE(TAG, "NVS unavailable");
+    this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
     this->mark_failed();
     return;
   }
@@ -247,7 +249,8 @@ void OpenThreadComponent::ot_main_() {
   // Clean up. Taking the lock once more lets every guard finish; the stack is stopped and the
   // lock withdrawn while it is held, before deinit destroys the semaphore.
   esp_openthread_lock_acquire(portMAX_DELAY);
-  // Best effort: after a normal teardown both are off already
+  // Best effort: after a normal teardown all of this is done already
+  otIp6SetAddressCallback(instance, nullptr, nullptr);
   (void) otThreadSetEnabled(instance, false);
   (void) otIp6SetEnabled(instance, false);
   this->lock_initialized_ = false;
@@ -337,7 +340,15 @@ InstanceLock InstanceLock::try_acquire(int delay) {
   if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     return InstanceLock(false);
   }
-  return InstanceLock(esp_openthread_lock_acquire(delay));
+  if (!esp_openthread_lock_acquire(delay)) {
+    return InstanceLock(false);
+  }
+  // The clean-up may have released the lock to a waiter just before deinit destroys it
+  if (global_openthread_component->is_task_exited()) {
+    esp_openthread_lock_release();
+    return InstanceLock(false);
+  }
+  return InstanceLock(true);
 }
 
 // The lock went away with the task, so waiting for it could never end
@@ -376,6 +387,11 @@ InstanceLock InstanceLock::acquire() {
   while (!esp_openthread_lock_acquire(100)) {
     abort_if_task_exited();
     esp_task_wdt_reset();
+  }
+  // The clean-up may have released the lock to this waiter just before deinit destroys it
+  if (global_openthread_component->is_task_exited()) {
+    esp_openthread_lock_release();
+    abort_if_task_exited();
   }
   return InstanceLock(true);
 }
