@@ -308,14 +308,15 @@ void IRAM_ATTR HDMICEC::gpio_isr_() {
       break;
 
     case ReceiverState::RECEIVER_STATE_WAITING_FOR_EOM:
+      this->recv_eom_ = value;
       // A frame for us is acknowledged on the next bit, unless there is no room for it (so its
       // initiator retries) or it is our own: a polling message from a device claiming our
-      // logical address must not be acknowledged
-      if (this->recv_frame_ != nullptr && (this->recv_header_ & 0xf) == this->address_ &&
-          (this->recv_header_ >> 4) != this->address_) {
+      // logical address must not be acknowledged. A polling message for us (header only) needs
+      // no room, and goes unacknowledged only when nobody holds the address
+      if ((this->recv_frame_ != nullptr || (value && this->recv_length_ == 1)) &&
+          (this->recv_header_ & 0xf) == this->address_ && (this->recv_header_ >> 4) != this->address_) {
         this->recv_ack_queued_ = true;
       }
-      this->recv_eom_ = value;
       this->receiver_state_ = ReceiverState::RECEIVER_STATE_WAITING_FOR_ACK;
       break;
 
