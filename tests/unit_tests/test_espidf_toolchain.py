@@ -1275,11 +1275,11 @@ def test_run_compile_stops_on_ninja_failure(setup_core: Path) -> None:
 
 @pytest.mark.parametrize("memory_ld_rc", [0, 3])
 def test_run_compile_testing_mode_builds_memory_ld_first(
-    setup_core: Path, memory_ld_rc: int
+    setup_core: Path, memory_ld_rc: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Testing mode builds and patches memory.ld before the main build."""
     _setup_build(setup_core)
-    CORE.testing_mode = True
+    monkeypatch.setattr(CORE, "testing_mode", True)  # CORE.reset() does not clear it
     targets: list[tuple[str, ...]] = []
 
     def record(*run_targets: str, **kwargs: object) -> int:
