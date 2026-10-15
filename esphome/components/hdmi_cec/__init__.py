@@ -43,9 +43,7 @@ _request_message_callback_slot = cg.slot_counter("HDMI_CEC_MESSAGE_CALLBACK_COUN
 
 logical_address = cv.int_range(min=0, max=MAX_LOGICAL_ADDRESS)
 payload = cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(max=MAX_PAYLOAD_LENGTH))
-payload_prefix = cv.All(
-    cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1, max=MAX_PAYLOAD_LENGTH)
-)
+payload_prefix = cv.All(payload, cv.Length(min=1))
 
 
 def _validate_message_filter(config: ConfigType) -> ConfigType:
@@ -141,3 +139,20 @@ automation.register_apply_action(
         ((CONF_DESTINATION, cg.uint8), (CONF_DATA, _PAYLOAD_VECTOR)),
     ),
 )
+
+
+# Timer 1 of the ESP8266 releases the acknowledge bit; these drive the same timer
+_TIMER1_USERS = ("esp8266_pwm", "lightwaverf", "opentherm")
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    if CORE.is_esp8266:
+        for other in _TIMER1_USERS:
+            if other in CORE.loaded_integrations:
+                raise cv.Invalid(
+                    f"hdmi_cec and {other} both need hardware timer 1 on the ESP8266"
+                )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate

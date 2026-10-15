@@ -53,6 +53,7 @@ void HDMICEC::setup() {
   ack_timer_owner = this;
   timer1_isr_init();
   timer1_attachInterrupt(HDMICEC::ack_timer_isr_s);
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_SINGLE);  // 5 ticks per microsecond; a write arms one shot
 #endif
   this->pin_->attach_interrupt(HDMICEC::gpio_isr_s, this, gpio::INTERRUPT_ANY_EDGE);
   // loop() only has work once the interrupt queues a frame or send() queues one
@@ -72,9 +73,9 @@ void HDMICEC::dump_config() {
 void HDMICEC::loop() {
   const uint8_t dropped = atomic_get(this->dropped_frames_);
   if (dropped != this->reported_dropped_frames_) {
-    ESP_LOGW(TAG, "%u received frame%s dropped (queue full or oversized)",
-             static_cast<uint8_t>(dropped - this->reported_dropped_frames_),
-             dropped - this->reported_dropped_frames_ == 1 ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("s"));
+    const uint8_t count = dropped - this->reported_dropped_frames_;
+    ESP_LOGW(TAG, "%u received frame%s dropped (queue full or oversized)", count,
+             count == 1 ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("s"));
     this->reported_dropped_frames_ = dropped;
   }
   // One inbound frame per pass keeps the time spent in the automations bounded
@@ -88,10 +89,11 @@ void HDMICEC::loop() {
 #endif
     this->frames_queue_.pop_front();
   }
-  if (!this->is_transmit_idle_()) {
+  // A frame being sent stays at the front of the queue until its attempts are over
+  if (!this->send_queue_.is_empty()) {
     this->transmit_message_();
   }
-  if (this->frames_queue_.is_empty() && this->is_transmit_idle_()) {
+  if (this->frames_queue_.is_empty() && this->send_queue_.is_empty()) {
     this->disable_loop();
   }
 }
@@ -281,16 +283,14 @@ bool HDMICEC::setup_ack_timer_() {
     return false;
   }
   gptimer_event_callbacks_t callbacks = {.on_alarm = HDMICEC::ack_timer_isr_s};
+  // The alarm reloads the count to zero itself, so the interrupt only has to start the timer
+  gptimer_alarm_config_t alarm = {
+      .alarm_count = LOW_BIT_US, .reload_count = 0, .flags = {.auto_reload_on_alarm = true}};
   return gptimer_register_event_callbacks(this->ack_timer_, &callbacks, this) == ESP_OK &&
-         gptimer_enable(this->ack_timer_) == ESP_OK;
+         gptimer_set_alarm_action(this->ack_timer_, &alarm) == ESP_OK && gptimer_enable(this->ack_timer_) == ESP_OK;
 }
 
-void IRAM_ATTR HDMICEC::start_ack_timer_() {
-  static const gptimer_alarm_config_t ALARM = {.alarm_count = LOW_BIT_US, .reload_count = 0, .flags = {}};
-  gptimer_set_raw_count(this->ack_timer_, 0);
-  gptimer_set_alarm_action(this->ack_timer_, &ALARM);
-  gptimer_start(this->ack_timer_);
-}
+void IRAM_ATTR HDMICEC::start_ack_timer_() { gptimer_start(this->ack_timer_); }
 
 bool IRAM_ATTR HDMICEC::ack_timer_isr_s(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *arg) {
   auto *self = static_cast<HDMICEC *>(arg);
@@ -301,10 +301,7 @@ bool IRAM_ATTR HDMICEC::ack_timer_isr_s(gptimer_handle_t timer, const gptimer_al
 #endif
 
 #ifdef USE_ESP8266
-void IRAM_ATTR HDMICEC::start_ack_timer_() {
-  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_SINGLE);  // 5 ticks per microsecond
-  timer1_write(LOW_BIT_US * 5);
-}
+void IRAM_ATTR HDMICEC::start_ack_timer_() { timer1_write(LOW_BIT_US * 5); }
 
 void IRAM_ATTR HDMICEC::ack_timer_isr_s() { ack_timer_owner->set_pin_input_high_(); }
 #endif
@@ -327,7 +324,7 @@ void IRAM_ATTR HDMICEC::gpio_isr_() {
       this->reset_receiver_();
     }
     this->last_falling_edge_us_ = now;
-    if (this->recv_ack_queued_ && !this->monitor_mode_) {
+    if (this->recv_ack_queued_) {
       // Acknowledge by stretching this low period
       this->send_ack_();
       this->recv_ack_queued_ = false;
@@ -376,7 +373,7 @@ void IRAM_ATTR HDMICEC::gpio_isr_() {
       // initiator retries) or it is our own: a polling message from a device claiming our
       // logical address must not be acknowledged. A polling message for us (header only) needs
       // no room, and goes unacknowledged only when nobody holds the address
-      if ((this->recv_frame_ != nullptr || (value && this->recv_length_ == 1)) &&
+      if (!this->monitor_mode_ && (this->recv_frame_ != nullptr || (value && this->recv_length_ == 1)) &&
           (this->recv_header_ & 0xf) == this->address_ && (this->recv_header_ >> 4) != this->address_) {
         this->recv_ack_queued_ = true;
       }

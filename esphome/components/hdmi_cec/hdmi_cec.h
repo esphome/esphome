@@ -141,10 +141,11 @@ class HDMICEC : public Component {
 #ifdef USE_ESP8266
   static void ack_timer_isr_s();
 #endif
+#if defined(USE_ESP32) || defined(USE_ESP8266)
   void start_ack_timer_();
+#endif
 
   // Transmit side, in loop()
-  bool is_transmit_idle_() const { return !this->transmitting_ && this->send_queue_.is_empty(); }
   void transmit_message_();
   /// Keep the frame for another attempt, or drop it once the attempts are used up
   void finish_attempt_(bool sent_ok);
@@ -177,10 +178,16 @@ class HDMICEC : public Component {
   gptimer_handle_t ack_timer_{nullptr};
 #endif
 
+  // The word-sized fields come first and the single-byte ones form one run, so nothing is padded
+  std::atomic<uint32_t> last_edge_us_{0};  // the bus is busy until this is some time ago; interrupt writes
+  Frame *recv_frame_{nullptr};             // interrupt only; null when the queue was full or the frame too long
+  uint32_t last_falling_edge_us_{0};       // interrupt only
+  uint32_t last_attempt_us_{0};            // loop() only; a refused start bit drives no edge, so it is timed here
+  uint16_t required_idle_period_{0};       // loop() only
+
   // Shared with the interrupt. The tally of our own frame is written by the interrupt while
   // transmitting_ is set and no end of message has passed yet; loop() reads it once eom_received_
   // says the frame is over
-  std::atomic<uint32_t> last_edge_us_{0};  // the bus is busy until this is some time ago
   std::atomic<bool> eom_received_{false};  // set for every frame, ours or not
   std::atomic<uint8_t> dropped_frames_{0};
   uint8_t n_bytes_received_{0};
@@ -188,18 +195,12 @@ class HDMICEC : public Component {
   bool transmitting_{false};
 
   // Receive state, interrupt only
-  Frame *recv_frame_{nullptr};  // null when the queue was full or the frame too long
-  uint32_t last_falling_edge_us_{0};
   uint8_t recv_header_{0};  // kept outside the frame so a dropped frame can still be judged
   uint8_t recv_length_{0};
   ReceiverState receiver_state_{ReceiverState::RECEIVER_STATE_IDLE};
   bool recv_eom_{false};
   bool recv_ack_queued_{false};
   bool prev_pin_level_{true};
-
-  // Transmit state, loop() only
-  uint32_t last_attempt_us_{0};  // a refused start bit drives no edge, so it is timed here
-  uint32_t required_idle_period_{0};
 
   uint8_t address_;  // logical address, 0xf when only listening
   bool promiscuous_mode_{false};
