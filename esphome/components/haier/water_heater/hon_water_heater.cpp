@@ -152,7 +152,8 @@ void HonWaterHeater::send_next_control_(uint32_t now) {
 void HonWaterHeater::read_frames_(uint32_t now) {
   if (now - this->last_byte_ > FRAME_GAP_MS)
     this->parser_.reset();
-  for (uint8_t i = 0; i<MAX_BYTES_PER_LOOP &&this->available()> 0; i++) {
+  uint8_t budget = MAX_BYTES_PER_LOOP;
+  while (budget-- > 0 && this->available() > 0) {
     uint8_t value;
     if (!this->read_byte(&value))
       break;
@@ -301,11 +302,38 @@ void HonWaterHeater::publish_status_(const Status &status) {
 
 void HonWaterHeater::dump_config() {
   LOG_WATER_HEATER("", "Haier hOn", this);
-  ESP_LOGCONFIG(TAG, "  Polling interval: %u ms", static_cast<unsigned>(POLL_INTERVAL_MS));
+  ESP_LOGCONFIG(TAG,
+                "  Polling interval: %u ms\n"
+                "  Communication timeout: %u ms",
+                static_cast<unsigned>(POLL_INTERVAL_MS), static_cast<unsigned>(this->communication_timeout_));
+  this->check_uart_settings(9600);
+  LOG_SENSOR("  ", "Primary temperature", this->primary_sensor_);
+  LOG_SENSOR("  ", "Secondary temperature", this->secondary_sensor_);
+  LOG_SENSOR("  ", "Target temperature", this->target_sensor_);
+  LOG_SENSOR("  ", "Estimated heating time", this->heating_time_sensor_);
+  LOG_SENSOR("  ", "Available water", this->water_sensor_);
+  LOG_BINARY_SENSOR("  ", "Communication", this->communication_sensor_);
+  LOG_BINARY_SENSOR("  ", "Power", this->power_sensor_);
+  LOG_BINARY_SENSOR("  ", "Heating", this->heating_sensor_);
+  LOG_TEXT_SENSOR("  ", "Mode", this->mode_sensor_);
 }
 
 water_heater::WaterHeaterCallInternal HonWaterHeater::make_call() {
   return water_heater::WaterHeaterCallInternal(this);
+}
+
+// The appliance mode a water heater mode maps to; Unknown for modes the appliance does not have.
+static HonMode hon_mode(water_heater::WaterHeaterMode mode) {
+  switch (mode) {
+    case water_heater::WATER_HEATER_MODE_ELECTRIC:
+      return HonMode::HON_MODE_NORMAL;
+    case water_heater::WATER_HEATER_MODE_ECO:
+      return HonMode::HON_MODE_ECO;
+    case water_heater::WATER_HEATER_MODE_PERFORMANCE:
+      return HonMode::HON_MODE_BPS;
+    default:
+      return HonMode::HON_MODE_UNKNOWN;
+  }
 }
 
 void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
@@ -354,7 +382,7 @@ void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
   };
   if ((on.has_value() && *on) || (mode.has_value() && !this->is_on()))
     append(Parameter::PARAMETER_POWER, 1);
-  if (mode.has_value()) {
+  if (mode.has_value() && hon_mode(*mode) != this->reported_mode_) {
     // Captures show the appliance moves between ECO and BPS through Normal, never directly.
     if (*mode != WATER_HEATER_MODE_ELECTRIC && this->reported_mode_ != HonMode::HON_MODE_NORMAL)
       append(Parameter::PARAMETER_ECO, 0);
