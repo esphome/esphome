@@ -40,6 +40,8 @@ from esphome.const import (
     CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
     CONF_ID,
+    CONF_INVERTED,
+    CONF_NUMBER,
     CONF_OTA,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
@@ -66,7 +68,7 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
+from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -255,6 +257,18 @@ _DFU_SCHEMA = cv.Schema(
 )
 
 
+def _default_self_reset_pin(config: ConfigType) -> ConfigType:
+    # The factory bootloader ignores the retained register the touch sets, so a board with a GPIO
+    # wired to RESET resets itself through that pin
+    dfu = config.get(CONF_DFU)
+    number = SELF_RESET_PINS.get(config[CONF_BOARD])
+    if dfu and number and CONF_RESET_PIN not in dfu:
+        dfu[CONF_RESET_PIN] = pins.gpio_output_pin_schema(
+            {CONF_NUMBER: number, CONF_INVERTED: True}
+        )
+    return config
+
+
 def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     if isinstance(value, bool):
         if not value:
@@ -305,6 +319,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
+    _default_self_reset_pin,
     _resolve_toolchain,
     set_framework,
 )
@@ -679,17 +694,40 @@ def _wait_for_port_permissions(host: str) -> None:
     check_permissions(host)  # raises with helpful message
 
 
-def _require_open_dfu_port(host: str) -> None:
-    """Check that the port belongs to the Open DFU bootloader, which has no auto-entry."""
+def _find_open_dfu_port() -> str | None:
     import serial.tools.list_ports as _list_ports
 
-    ports = _list_ports.comports(include_links=True)
-    port = next((p for p in ports if p.device == host), None)
-    if port is None or (port.vid, port.pid) != OPEN_DFU_USB_ID:
-        raise EsphomeError(
-            f"{host} is not the Open DFU bootloader. Enter bootloader mode first "
-            "(press the RESET button on the side of the dongle; the red LED pulses while the bootloader runs)."
-        )
+    for port in _list_ports.comports(include_links=True):
+        if (port.vid, port.pid) == OPEN_DFU_USB_ID:
+            return port.device
+    return None
+
+
+def _enter_open_dfu(host: str) -> str:
+    """The port of the Open DFU bootloader: ``host`` when it is one already, otherwise the one that
+    appears after the 1200 bps touch reboots an application built with ``dfu:`` into it. The
+    bootloader is its own USB device, so it never comes back under the application's path."""
+    import time as _time
+
+    import serial as _serial
+
+    if (port := _find_open_dfu_port()) == host:
+        return host
+    try:
+        _serial.Serial(host, baudrate=1200, timeout=1).close()
+    except _serial.SerialException as err:
+        raise EsphomeError(f"Failed to open {host}: {err}") from err
+    deadline = _time.monotonic() + 10
+    while _time.monotonic() < deadline:
+        _time.sleep(0.1)
+        if (port := _find_open_dfu_port()) is not None:
+            _wait_for_port_permissions(port)
+            return port
+    raise EsphomeError(
+        f"{host} did not enter the Open DFU bootloader. An application built with 'dfu:' enters it "
+        "on upload; otherwise press the RESET button on the side of the dongle (the red LED pulses "
+        "while the bootloader runs) and upload again."
+    )
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
@@ -725,7 +763,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError("Firmware not found. Please compile first.")
             if bootloader == BOOTLOADER_NRF:
                 # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol
-                _require_open_dfu_port(host)
                 dfu_cmd = [
                     ensure_nordic_nrfutil(env),
                     "nrf5sdk-tools",
@@ -734,7 +771,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     "-pkg",
                     str(dfu_package),
                     "-p",
-                    host,
+                    _enter_open_dfu(host),
                 ]
             else:
                 check_and_install()

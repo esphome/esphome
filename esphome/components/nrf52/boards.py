@@ -40,6 +40,12 @@ BOARDS_ZEPHYR = {
 
 # https://github.com/ffenix113/zigbee_home/blob/17bb7b9e9d375e756da9e38913f53303937fb66a/types/board/known_boards.go
 # https://learn.adafruit.com/introducing-the-adafruit-nrf52840-feather?view=all#hathach-memory-map
+# Boards with a GPIO wired to their RESET pin: driving it low is a pin reset, which the factory
+# bootloader takes as its cue to stay in DFU mode (Nordic's own USB DFU trigger does the same)
+SELF_RESET_PINS = {
+    "nrf52840dongle": "P0.19",
+}
+
 # Bootloaders whose layout has a SoftDevice and the Adafruit bootloader, between which the mcumgr OTA
 # image slot is placed
 MCUMGR_OTA_BOOTLOADERS = (

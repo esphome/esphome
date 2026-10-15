@@ -1,2 +1,3 @@
 nrf52:
   dcdc: False
+  dfu: true  # the 1200 bps touch reboots into the factory bootloader

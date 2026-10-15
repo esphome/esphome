@@ -365,18 +365,65 @@ class TestUploadProgramSerialDfu:
         assert str(dfu_package) in cmd
         assert host in cmd
 
-    def test_open_dfu_bootloader_rejects_an_application_port(
+    def test_open_dfu_application_port_is_touched_and_the_bootloader_port_flashed(
         self, setup_core: Path, tmp_path: Path
     ) -> None:
-        """A port that is not the bootloader fails with the RESET hint instead of running DFU."""
-        from esphome.components.nrf52 import upload_program
+        """An application port gets the 1200 bps touch; the bootloader then appears as its own port."""
+        import serial
 
-        paths, _ = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
+        from esphome.components.nrf52 import OPEN_DFU_USB_ID, upload_program
+
+        paths, dfu_package = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
         host = "/dev/ttyACM0"
+        bootloader_port = "/dev/ttyACM1"
+        calls = [0]
+
+        def _comports(**_kwargs):
+            calls[0] += 1
+            app = MagicMock(device=host, vid=0x2FE3, pid=0x0100)
+            if calls[0] == 1:
+                return [app]  # still the application when the upload starts
+            return [
+                MagicMock(
+                    device=bootloader_port,
+                    vid=OPEN_DFU_USB_ID[0],
+                    pid=OPEN_DFU_USB_ID[1],
+                )
+            ]
+
         with ExitStack() as stack:
             mock_run = _enter_serial_dfu_patches(
                 stack, host, tmp_path, paths, usb_id=(0x2FE3, 0x0100)
             )
+            stack.enter_context(
+                patch.object(serial.tools.list_ports, "comports", side_effect=_comports)
+            )
+            assert upload_program(config={}, args=None, host=host) is True
+            serial.Serial.assert_called_once_with(host, baudrate=1200, timeout=1)  # pylint: disable=no-member
+
+        cmd = mock_run.call_args[0][0]
+        assert cmd[cmd.index("-p") + 1] == bootloader_port
+        assert str(dfu_package) in cmd
+
+    def test_open_dfu_bootloader_that_never_appears_gets_the_reset_hint(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """Without ``dfu:`` the touch does nothing; the hint names the RESET button."""
+        from esphome.components.nrf52 import upload_program
+
+        paths, _ = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
+        host = "/dev/ttyACM0"
+        clock = [0.0]
+
+        def _monotonic() -> float:
+            clock[0] += 1.0
+            return clock[0]
+
+        with ExitStack() as stack:
+            mock_run = _enter_serial_dfu_patches(
+                stack, host, tmp_path, paths, usb_id=(0x2FE3, 0x0100)
+            )
+            stack.enter_context(patch("time.monotonic", side_effect=_monotonic))
             with pytest.raises(EsphomeError, match="press the RESET button"):
                 upload_program(config={}, args=None, host=host)
         mock_run.assert_not_called()
