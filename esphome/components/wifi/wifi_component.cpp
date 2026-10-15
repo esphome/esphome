@@ -854,10 +854,11 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
-        // Skip cooldown if new credentials were provided while connecting
+        // New credentials arrived (set_sta()): retry now, whatever the driver reports, from the main loop
         if (this->skip_cooldown_next_cycle_) {
           this->skip_cooldown_next_cycle_ = false;
-          this->check_connecting_finished(now);
+          ESP_LOGD(TAG, "Leaving the cooldown early for new WiFi credentials");
+          this->retry_connect();
           break;
         }
         // Use longer cooldown when a portal/improv is active to avoid disrupting a user on the AP
@@ -1270,12 +1271,9 @@ void WiFiComponent::connect_soon_() {
     return;
   }
 #endif
-  // In a cooldown the next loop pass retries through skip_cooldown_next_cycle_, set by set_sta(). The retry
-  // must not run here: a save from the captive portal arrives in the web server's context, lwIP's on the
-  // ESP8266, where retry_connect() yields and panics. Already connecting or connected: nothing to do
-  if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
-    ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
-  }
+  // In a cooldown the loop retries on its next pass through skip_cooldown_next_cycle_, set by set_sta(). Not
+  // here: a save from the captive portal arrives in the web server's context, lwIP's on the ESP8266, where
+  // retry_connect() yields and panics. Already connecting or connected: nothing to do
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
