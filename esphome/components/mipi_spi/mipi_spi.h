@@ -562,8 +562,6 @@ class MipiSpiBuffer
     // for updates with a small buffer, we repeatedly call the writer_ function, clipping the height to a fraction of
     // the display height,
     auto increment = (this->get_height_internal() / FRACTION / ROUNDING) * ROUNDING;
-    // test_card() clears show_test_card_, so read it once here to draw the card in every strip
-    const bool draw_test_card = this->show_test_card_;
     for (this->start_line_ = 0; this->start_line_ < this->get_height_internal(); this->start_line_ = this->end_line_) {
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
       auto lap = millis();
@@ -572,11 +570,11 @@ class MipiSpiBuffer
       if (this->auto_clear_enabled_) {
         this->clear();
       }
-      if (draw_test_card || (this->page_ == nullptr && !this->writer_.has_value())) {
+      if (this->show_test_card_) {
         this->test_card();
       } else if (this->page_ != nullptr) {
         this->page_->get_writer()(*this);
-      } else {
+      } else if (this->writer_.has_value()) {
         (*this->writer_)(*this);
       }
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
