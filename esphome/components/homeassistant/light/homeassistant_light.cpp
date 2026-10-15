@@ -267,7 +267,6 @@ void HomeassistantLight::apply_imported_() {
     return;
   }
   this->report_changed_ = false;
-  this->settled_hash_ = state_hash_(values);
   ESP_LOGV(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
 }
 
@@ -327,20 +326,26 @@ void HomeassistantLight::write_state(LightState *state) {
     return;
   }
   if (state->is_transitioning()) {
-    return;  // a transition or flash runs here alone; Home Assistant gets the state it ends at
+    // A transition or flash runs here alone; Home Assistant gets the state it ends at. A call that
+    // replaces the transition a report was held for retargets it and is newer than the report
+    if (this->report_held_ && state_hash_(state->remote_values) != this->held_hash_) {
+      this->report_held_ = false;
+    }
+    this->transitioned_ = true;
+    return;
   }
   const bool held = this->report_held_;
+  const bool transitioned = this->transitioned_;
   this->report_held_ = false;
+  this->transitioned_ = false;
   this->report_changed_ = false;  // this change is newer than any report so far, held or dropped
-  const uint32_t hash = state_hash_(state->remote_values);
   // Home Assistant changed meanwhile; its report is newer than what the transition ends at or
-  // what the flash goes back to, but older than a transition that replaced them, which is sent
-  if (held && (hash == this->held_hash_ || hash == this->settled_hash_)) {
+  // what the flash goes back to
+  if (held) {
     ESP_LOGD(TAG, "'%s': Applying the report that arrived during the transition", this->entity_id_);
     this->schedule_apply_();
     return;
   }
-  this->settled_hash_ = hash;
   // What Home Assistant holds after the change. It has one level, so the channel brightness of the
   // mode folds into it
   const LightColorValues &values = state->current_values;
@@ -375,7 +380,12 @@ void HomeassistantLight::write_state(LightState *state) {
   // Home Assistant reports only what changed, so a change that leaves it as it is gets no report:
   // nothing to send and no echo to wait for. A change still on its way may alter it first, though
   if (!this->echo_pending_ && this->is_imported_(outgoing)) {
-    ESP_LOGD(TAG, "'%s': Home Assistant already has this state", this->entity_id_);
+    if (transitioned) {
+      // A flash ends where it began, and Home Assistant only ever gets the end
+      ESP_LOGW(TAG, "'%s': Home Assistant has the state this ended at; a flash is never sent", this->entity_id_);
+    } else {
+      ESP_LOGD(TAG, "'%s': Home Assistant already has this state", this->entity_id_);
+    }
     return;
   }
   if (!api::global_api_server->is_connected()) {

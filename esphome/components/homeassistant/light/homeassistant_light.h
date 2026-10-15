@@ -40,8 +40,7 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   optional<uint16_t> parse_integer_(const char *name, StringRef value, uint16_t max);
   /// A state or attribute report: answers a pending echo and schedules the apply
   void on_report_(bool changed);
-  /// A state at the resolution Home Assistant gets, to tell the end of a transition or flash
-  /// from a newer transition that replaced it
+  /// A state at the resolution Home Assistant gets, to see a transition retargeted by a newer call
   static uint32_t state_hash_(const light::LightColorValues &values);
   /// Schedules apply_imported_() once for the attributes of one update
   void schedule_apply_();
@@ -55,12 +54,12 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   light::LightState *state_{nullptr};
   light::LightTraits traits_{};
   Attributes imported_{};
-  uint32_t held_hash_{0};     // state_hash_() of what the transition a report was held for ends at
-  uint32_t settled_hash_{0};  // state_hash_() of the last state written outside a transition
+  uint32_t held_hash_{0};  // state_hash_() of what the transition a report was held for ends at
   bool apply_scheduled_ : 1 {false};
   bool initial_write_ : 1 {true};    // the light core's own first write is not a local change
   bool echo_pending_ : 1 {false};    // a sent change waits for Home Assistant to report it back
   bool report_held_ : 1 {false};     // a report arrived during a transition or flash; applied when it ends
+  bool transitioned_ : 1 {false};    // a transition or flash ran since the last write sent
   bool report_changed_ : 1 {false};  // the reports since the last apply changed an attribute
 };
 

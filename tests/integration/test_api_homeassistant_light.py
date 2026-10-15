@@ -254,6 +254,17 @@ async def test_api_homeassistant_light(
         report("color_temp_kelvin", "4000")
         await next_state(lambda s: s.color_temperature == 250.0)
 
+        # Or a transition back to where the one the report was held for started
+        client.light_command(key, brightness=0.5, transition_length=1.0)
+        report("brightness", "50")
+        await asyncio.sleep(0.1)
+        client.light_command(key, brightness=1.0, transition_length=1.0)
+        call = await next_call()
+        assert call.service == "light.turn_on"
+        assert call.data["brightness"] == "255"
+        report("brightness", "255")
+        await next_state(lambda s: s.brightness == 1.0)
+
         # And when it goes back to the state the transition started from
         client.light_command(key, state=False)
         assert (await next_call()).service == "light.turn_off"
@@ -267,5 +278,9 @@ async def test_api_homeassistant_light(
         assert (await next_call()).service == "light.turn_off"
         report(None, "off")
         await next_state(lambda s: not s.state)
+
+        # A flash ends where it began, which Home Assistant has, so nothing is sent and the user is told
+        client.light_command(key, state=True, flash_length=0.5)
+        await waiter.wait_for("a flash is never sent", timeout=5.0)
 
         assert calls.empty()
