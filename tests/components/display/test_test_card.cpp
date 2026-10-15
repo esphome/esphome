@@ -28,9 +28,6 @@ class TestCardDisplay : public Display {
   std::vector<uint32_t> colors_;
 };
 
-static int writer_calls = 0;
-static void count_writer(Display &) { writer_calls++; }
-
 namespace {
 class TestCard : public ::testing::Test {
  protected:
@@ -38,26 +35,29 @@ class TestCard : public ::testing::Test {
     // test_card() stops the poller, which needs the scheduler; the test main does not construct App.
     static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
     (void) APP_CONSTRUCTED;
-    writer_calls = 0;
+  }
+  int writer_calls_{0};
+  display_writer_t count_writer() {
+    return [this](Display &) { this->writer_calls_++; };
   }
 };
 }  // namespace
 
 TEST_F(TestCard, DrawnOnEveryUpdateInsteadOfLambda) {
   TestCardDisplay display;
-  display.set_writer(count_writer);
+  display.set_writer(this->count_writer());
   display.show_test_card();
   for (int i = 0; i != 3; i++) {
     display.reset();
     display.update();
     EXPECT_TRUE(display.drew_test_card()) << "update " << i;
   }
-  EXPECT_EQ(writer_calls, 0);
+  EXPECT_EQ(this->writer_calls_, 0);
 }
 
 TEST_F(TestCard, DrawnOnEveryUpdateInsteadOfPages) {
   TestCardDisplay display;
-  DisplayPage page(count_writer);
+  DisplayPage page(this->count_writer());
   display.set_pages({&page});
   display.show_test_card();
   for (int i = 0; i != 3; i++) {
@@ -65,16 +65,16 @@ TEST_F(TestCard, DrawnOnEveryUpdateInsteadOfPages) {
     display.update();
     EXPECT_TRUE(display.drew_test_card()) << "update " << i;
   }
-  EXPECT_EQ(writer_calls, 0);
+  EXPECT_EQ(this->writer_calls_, 0);
 }
 
 TEST_F(TestCard, LambdaRunsWithoutTestCard) {
   TestCardDisplay display;
-  display.set_writer(count_writer);
+  display.set_writer(this->count_writer());
   display.update();
   display.update();
   EXPECT_FALSE(display.drew_test_card());
-  EXPECT_EQ(writer_calls, 2);
+  EXPECT_EQ(this->writer_calls_, 2);
 }
 
 }  // namespace esphome::display::testing
