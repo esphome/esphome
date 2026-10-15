@@ -41,7 +41,8 @@ class OpenThreadComponent final : public Component {
   bool teardown() override;
   float get_setup_priority() const override {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-    return setup_priority::WIFI - 1.0f;
+    // After every network interface, whichever order network.priority gives them: the backbone netif has to exist
+    return setup_priority::BEFORE_CONNECTION;
 #else
     return setup_priority::WIFI;
 #endif

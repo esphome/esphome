@@ -228,7 +228,7 @@ def test_border_router_requires_idf_5_5(
 ) -> None:
     _set_esp32_idf_core(set_core_config, idf_version=cv.Version(5, 4, 0))
 
-    with pytest.raises(cv.Invalid, match="at least framework version 5.5.0"):
+    with pytest.raises(cv.Invalid, match="at least framework version 5.5.5"):
         _validate_border_router({})
 
 

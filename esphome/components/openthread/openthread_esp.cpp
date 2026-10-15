@@ -184,12 +184,14 @@ void OpenThreadComponent::ot_main_() {
 
     ESP_LOGI(TAG, "Activating dataset...");
     otOperationalDatasetTlvs dataset = {};
+    bool stored_dataset = false;
 #ifndef USE_OPENTHREAD_FORCE_DATASET
     // Check if openthread has a valid dataset from a previous execution
     if (otDatasetGetActiveTlvs(instance, &dataset) != OT_ERROR_NONE) {
       // Make sure the length is 0 so we fallback to the configuration
       dataset.mLength = 0;
     } else {
+      stored_dataset = true;
       ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
     }
 #endif
@@ -205,7 +207,11 @@ void OpenThreadComponent::ot_main_() {
 #endif
 
     if (dataset.mLength > 0 && !otDatasetIsValid(&dataset, true)) {
-      ESP_LOGE(TAG, "Configured OpenThread Active Operational Dataset TLV is invalid");
+      if (stored_dataset) {
+        ESP_LOGE(TAG, "Stored OpenThread Active Operational Dataset is invalid; set force_dataset: true to replace it");
+      } else {
+        ESP_LOGE(TAG, "Configured OpenThread Active Operational Dataset TLV is invalid");
+      }
       this->mark_task_failed_();
       launch_mainloop = false;
     } else if (launch_mainloop) {
@@ -251,6 +257,12 @@ void OpenThreadComponent::ot_main_() {
   esp_openthread_lock_acquire(portMAX_DELAY);
   // Best effort: after a normal teardown all of this is done already
   otIp6SetAddressCallback(instance, nullptr, nullptr);
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  if (this->border_router_started_) {
+    (void) esp_openthread_border_router_deinit();
+    this->border_router_started_ = false;
+  }
+#endif
   (void) otThreadSetEnabled(instance, false);
   (void) otIp6SetEnabled(instance, false);
   this->lock_initialized_ = false;
@@ -305,6 +317,11 @@ int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exi
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
 #if USE_NETWORK_IPV6
+  // The task's clean-up destroys the netif under the lock, so the netif is only read while it is held
+  auto lock = InstanceLock::try_acquire(100);
+  if (!lock) {
+    return addresses;
+  }
   if (esp_netif_t *netif = esp_openthread_get_netif(); netif != nullptr) {
     network::fill_ip6_addresses(netif, addresses);
   }

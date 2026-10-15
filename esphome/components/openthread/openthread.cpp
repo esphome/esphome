@@ -162,7 +162,13 @@ void OpenThreadSrpComponent::srp_factory_reset_callback(otError err, const otSrp
 }
 
 void OpenThreadSrpComponent::setup() {
-  if (global_openthread_component->is_failed()) {
+  // A start-up failure on the OpenThread task reaches the component as a deferred mark_failed();
+  // the task itself may already be gone, and acquire() would abort instead of waiting
+  if (global_openthread_component->is_failed()
+#ifdef USE_ESP32
+      || global_openthread_component->is_task_exited()
+#endif
+  ) {
     this->mark_failed();
     return;
   }
@@ -301,6 +307,7 @@ bool OpenThreadComponent::teardown() {
           if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
             ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
           }
+          this->border_router_started_ = false;
         }
 #endif
 #ifdef USE_OPENTHREAD_SRP
