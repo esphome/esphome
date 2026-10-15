@@ -39,6 +39,9 @@ def test_dongle_rejects_foreign_bootloader() -> None:
 
 def _dongle_core_data() -> None:
     CORE.data[KEY_CORE] = {}
+    CORE.testing_mode = (
+        False  # the real flash, not the larger one faked for grouped tests
+    )
     set_core_data({"board": "nrf52840dongle", "bootloader": BOOTLOADER_NRF})
 
 
