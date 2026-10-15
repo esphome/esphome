@@ -15,6 +15,13 @@ hdmi_cec:
       then:
         - lambda: |-
             id(cec).send(0xf, {0x87, 0x00, 0x09, 0xb0});
+    - opcode: 0x9F  # Get CEC Version, asked of the playback device we also stand in for
+      destination: 0x4
+      then:
+        - hdmi_cec.send_as:
+            source: 0x4
+            destination: !lambda return source;
+            data: [0x9E, 0x05]  # CEC Version 1.4
     - data: [0x44, 0x41]  # User Control Pressed: Volume Up
       then:
         - logger.log: "HDMI-CEC Volume Up"

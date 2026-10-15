@@ -2,14 +2,18 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.esp32 import include_builtin_idf_component
+from esphome.components.logger import UART1
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_DATA,
+    CONF_HARDWARE_UART,
     CONF_ID,
+    CONF_LOGGER,
     CONF_NUMBER,
     CONF_ON_MESSAGE,
     CONF_PIN,
+    CONF_RX_PIN,
     CONF_SOURCE,
     CONF_TX_PIN,
     CONF_UART_ID,
@@ -122,16 +126,23 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-# The ESP8266 drives these from a hardware UART; any other pin gets a software UART that sends with
-# interrupts off, which holds the main loop and hides our own frame from the receive interrupt
-ESP8266_HARDWARE_TX_PINS = (1, 2, 15)
+# On the ESP8266 only UART1, transmit only on GPIO2, is free of the logger; UART0 carries the log
+# and any other pin gets a software UART that sends with interrupts off, which holds the main loop
+# and hides our own frame from the receive interrupt
+ESP8266_UART1_TX_PIN = 2
 
 
-def _hardware_tx_pin(hub_config: ConfigType) -> ConfigType:
-    if hub_config[CONF_TX_PIN][CONF_NUMBER] not in ESP8266_HARDWARE_TX_PINS:
+def _esp8266_uart1(hub_config: ConfigType) -> ConfigType:
+    if (
+        hub_config[CONF_TX_PIN][CONF_NUMBER] != ESP8266_UART1_TX_PIN
+        or CONF_RX_PIN in hub_config
+    ):
         raise cv.Invalid(
-            f"{DOMAIN} needs a hardware UART tx_pin on the ESP8266: GPIO1, GPIO2 or GPIO15"
+            f"{DOMAIN} needs the hardware UART1 on the ESP8266: tx_pin GPIO2 and no rx_pin"
         )
+    logger = fv.full_config.get().get(CONF_LOGGER, {})
+    if logger.get(CONF_HARDWARE_UART) == UART1:
+        raise cv.Invalid(f"{DOMAIN} needs UART1 on the ESP8266, which the logger uses")
     return hub_config
 
 
@@ -150,7 +161,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
             cv.Schema(
                 {
                     cv.Required(CONF_UART_ID): fv.id_declaration_match_schema(
-                        _hardware_tx_pin
+                        _esp8266_uart1
                     )
                 },
                 extra=cv.ALLOW_EXTRA,
@@ -181,24 +192,23 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_uart(await cg.get_variable(uart_id)))
 
     on_message = config.get(CONF_ON_MESSAGE, [])
-    # An automation that runs for every frame addressed to us (no source filter, no other
-    # destination) and has a data prefix claims its opcode: the built-in replies leave it alone.
-    # One without a prefix sees every such frame, so nothing is unhandled and no Feature Abort is sent
+    # An automation for frames addressed to us with a data prefix claims its opcode from every
+    # initiator, whatever its source filter or the rest of its prefix, so the built-in replies never
+    # contradict an answer it sends. One without a prefix sees every such frame, so nothing is
+    # unhandled and no Feature Abort is sent
     address = config[CONF_ADDRESS]
-    for_every_initiator = [
-        conf
-        for conf in on_message
-        if CONF_SOURCE not in conf and conf.get(CONF_DESTINATION, address) == address
+    for_us = [
+        conf for conf in on_message if conf.get(CONF_DESTINATION, address) == address
     ]
     claimed_opcodes = sorted(
-        {conf[CONF_DATA][0] for conf in for_every_initiator if CONF_DATA in conf}
+        {conf[CONF_DATA][0] for conf in for_us if CONF_DATA in conf}
     )
     if claimed_opcodes:
         table = cg.shared_progmem_array(
             "hdmi_cec_claimed_opcodes", cg.uint8, claimed_opcodes
         )
         cg.add(var.set_claimed_opcodes(table, len(claimed_opcodes)))
-    if all(CONF_DATA in conf for conf in for_every_initiator):
+    if all(CONF_DATA in conf for conf in for_us):
         cg.add_define("USE_HDMI_CEC_FEATURE_ABORT")
 
     for conf in on_message:
@@ -224,5 +234,26 @@ automation.register_apply_action(
     automation.ApplyCall(
         "send({}, {})",
         ((CONF_DESTINATION, cg.uint8), (CONF_DATA, _PAYLOAD_VECTOR)),
+    ),
+)
+
+# A frame under another logical address, for a device that stands in for several
+automation.register_apply_action(
+    "hdmi_cec.send_as",
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(HDMICEC),
+            cv.Required(CONF_SOURCE): cv.templatable(logical_address),
+            cv.Required(CONF_DESTINATION): cv.templatable(logical_address),
+            cv.Required(CONF_DATA): cv.templatable(payload),
+        }
+    ),
+    automation.ApplyCall(
+        "send({}, {}, {})",
+        (
+            (CONF_SOURCE, cg.uint8),
+            (CONF_DESTINATION, cg.uint8),
+            (CONF_DATA, _PAYLOAD_VECTOR),
+        ),
     ),
 )
