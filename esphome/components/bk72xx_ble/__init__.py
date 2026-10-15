@@ -4,12 +4,11 @@ The platform analog of esp32_ble / rp2040_ble: owns the Beken BDK BLE stack
 bring-up and the controller BLE address. Consumers (bk72xx_ble_tracker) build
 on this component and contain no SDK calls of their own.
 
-Supported SoCs (BLE 5.x): BK7231N/BK7236 (BLE 5.1), BK7252N/BK7253 (BLE 5.2),
-and any future BLE-5.x SoC. BK7238 (BLE 5.2) is blocked for now: with BLE
-compiled in, the Beken SDK erases the bootloader flash sector at boot because
-LibreTiny's partition table has no BLE bonding entry (esphome#18646,
-libretiny-eu/libretiny#408). Known non-5.x families and BK7238 are rejected in
-to_code. Unknown families are capability-checked at compile time via
+Supported SoCs (BLE 5.x): BK7231N/BK7236 (BLE 5.1), BK7238/BK7252N/BK7253 (BLE 5.2),
+and any future BLE-5.x SoC. LibreTiny 1.14 or newer is required: earlier releases
+have no BLE bonding partition, so the Beken SDK erases the bootloader flash sector
+at boot on BK7238 (esphome#18646, libretiny-eu/libretiny#408). Known non-5.x
+families are rejected in to_code. Unknown families are capability-checked at compile time via
 `__has_include("app_ble.h")`, a header only on the BLE 5.x include path
 (ble_api.h ships for every SoC, so it cannot be the probe). A non-5.x build
 fails with a clear #error.
@@ -29,7 +28,6 @@ from esphome.components.libretiny.const import (
     FAMILY_BK7231N,
     FAMILY_BK7231Q,
     FAMILY_BK7231T,
-    FAMILY_BK7238,
     FAMILY_BK7251,
 )
 import esphome.config_validation as cv
@@ -86,14 +84,6 @@ def _unsupported_family_message(family: str) -> str | None:
         )
     if family == FAMILY_BK7231Q:
         return "bk72xx_ble does not support BK7231Q: this SoC has no BLE"
-    if family == FAMILY_BK7238:
-        return (
-            "bk72xx_ble is disabled on BK7238: with BLE compiled in, the Beken SDK "
-            "erases the bootloader flash sector at boot and the device can no longer "
-            "start (see https://github.com/esphome/esphome/issues/18646); support "
-            "returns once the LibreTiny partition table fix "
-            "(libretiny-eu/libretiny#408) is released"
-        )
     return None
 
 
