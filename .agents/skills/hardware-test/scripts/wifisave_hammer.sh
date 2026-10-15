@@ -30,8 +30,9 @@ INVALID=""
 AP_WAIT=120; UPLOAD_WAIT=300; SAVE_WAIT=240
 # Crash signatures (extended regex), not bare words: "aborting connection attempt" is a normal Wi-Fi retry line
 CRASH_RE='Panic |abort\(\)|Fatal exception|Exception \(|Guru Meditation|HardFault|Bus Fault|Backtrace:|Soft WDT reset|wdt reset|Brownout|rst cause:[24]'
-# A boot banner, or the CDC port going away (a Pico reboot shows only as a port loss)
-BOOT_RE='Log initialized\|\[capture\] port lost'
+# Boot banners and port losses are counted apart: a Pico reboot shows as a port loss (and maybe a banner too),
+# while on a UART board a port loss comes from the adapter or the hub, not the chip
+BANNER_RE='Log initialized'; LOSS_RE='\[capture\] port lost'
 DUT_CAPTURE=$((AP_WAIT + UPLOAD_WAIT + SAVE_WAIT + SETTLE + 60)); CLIENT_CAPTURE=$((SAVE_WAIT + SETTLE + 60))
 
 bound() { local t=$1; shift; if command -v timeout >/dev/null; then timeout "$t" "$@"; else perl -e 'alarm shift; exec @ARGV' "$t" "$@"; fi; }
@@ -82,7 +83,8 @@ if ! n=$(wait_for "$DLOG" "Captive portal\|Starting fallback AP" $AP_WAIT); then
   fail "DUT never raised its AP within ${n}s, see $DLOG"
 fi
 echo "[hammer] DUT fallback AP after ${n}s"; sleep 2
-BOOT_BASE=$(count "$BOOT_RE" "$DLOG")  # reboots are counted from here; the first banner may predate the capture
+# reboots are counted from here; the first banner may predate the capture
+BANNER_BASE=$(count "$BANNER_RE" "$DLOG"); LOSS_BASE=$(count "$LOSS_RE" "$DLOG")
 
 esp_upload "$CYAML" "$CPORT" "$CTREE" || fail "client upload failed"
 : > "$CLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$CPORT" $CLIENT_CAPTURE "$CLOG" 2> "${CLOG%-serial.log}-capture.err" &)
@@ -100,11 +102,16 @@ for spec in "$DPORT:${DLOG%-serial.log}-capture.err" "$CPORT:${CLOG%-serial.log}
   pgrep -f "[s]erial_capture.py $port " >/dev/null || INVALID="${INVALID:+$INVALID; }the capture on $port ended before the run did, see $err"
   [ -s "$err" ] && INVALID="${INVALID:+$INVALID; }the capture on $port reported an error, see $err"
 done
-CRASHES=$(LC_ALL=C grep -a -c -E "$CRASH_RE" "$DLOG"); BOOTS=$(count "$BOOT_RE" "$DLOG")
+CRASHES=$(LC_ALL=C grep -a -c -E "$CRASH_RE" "$DLOG")
+BANNERS=$(( $(count "$BANNER_RE" "$DLOG") - BANNER_BASE )); LOSSES=$(( $(count "$LOSS_RE" "$DLOG") - LOSS_BASE ))
+if [ "$KIND" = pico ]; then
+  REBOOTS=$BANNERS; [ "$LOSSES" -gt "$REBOOTS" ] && REBOOTS=$LOSSES  # one reboot can show as both, so take the larger
+else
+  REBOOTS=$BANNERS; [ "$LOSSES" -gt 0 ] && INVALID="${INVALID:+$INVALID; }the DUT port dropped $LOSSES time(s) mid-run (adapter or hub, not the chip)"
+fi
 STA=$(LC_ALL=C grep -a 'IP Address:' "$DLOG" | grep -v -c '192\.168\.4\.'); REAL=$(LC_ALL=C grep -a -o 'real save status [-0-9]*' "$CLOG" | tail -1 | awk '{print $4}')
 SAVES=$(count 'Requested WiFi Settings Change' "$DLOG"); EXITS=$(count 'cooldown early' "$DLOG"); ANSWERED=$(count 'bogus save status 200' "$CLOG")
-REBOOTS=$((BOOTS - BOOT_BASE))
-echo "[hammer] $DNAME: saves requested $SAVES, cooldown exits $EXITS, crash markers $CRASHES, reboots after the AP came up $REBOOTS, STA addresses $STA"
+echo "[hammer] $DNAME: saves requested $SAVES, cooldown exits $EXITS, crash markers $CRASHES, after the AP came up: boot banners $BANNERS, port losses $LOSSES, reboots $REBOOTS; STA addresses $STA"
 FAILED=$(count 'bogus save status -1' "$CLOG")
 echo "[hammer] $CNAME: bogus saves answered $ANSWERED, failed $FAILED, real save status ${REAL:-none}"
 # Only whole messages, matched where the message starts, so a credential line or an odd SSID never gets in
