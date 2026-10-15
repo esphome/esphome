@@ -319,7 +319,7 @@ class USBUartComponent : public usb_host::USBClient {
   // Config state machine
   USBUartChannelBase *cfg_single_{nullptr};  // non-null: single-channel run (RELOAD or MODEM)
   std::atomic<bool> cfg_done_{false};        // synchronizes cfg_ok_/cfg_response_ across threads
-  uint8_t cfg_response_[8]{};                // last IN transfer payload (for detection reads)
+  uint8_t cfg_response_[8]{};                // last IN transfer payload
   uint8_t cfg_channel_idx_{0};
   uint8_t cfg_step_{0};
   ConfigMode cfg_mode_{ConfigMode::CONFIG_MODE_INIT};

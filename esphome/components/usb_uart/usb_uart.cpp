@@ -612,8 +612,10 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
         this->cfg_ok_ = status.success;
         if (!status.success) {
           ESP_LOGW(TAG, "Config control transfer failed: %s", esp_err_to_name(status.error_code));
-        } else if (status.data_len > 0) {
-          memcpy(this->cfg_response_, status.data, std::min<size_t>(status.data_len, sizeof(this->cfg_response_)));
+        } else if (status.data_len > usb_host::SETUP_PACKET_SIZE) {
+          // The buffer and its length both start with the setup packet
+          memcpy(this->cfg_response_, status.data + usb_host::SETUP_PACKET_SIZE,
+                 std::min<size_t>(status.data_len - usb_host::SETUP_PACKET_SIZE, sizeof(this->cfg_response_)));
         }
         // Release: publishes cfg_ok_/cfg_response_ before the loop observes cfg_done_.
         this->cfg_done_.store(true, std::memory_order_release);
