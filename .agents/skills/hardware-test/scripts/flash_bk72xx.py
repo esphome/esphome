@@ -33,12 +33,14 @@ def flash_hw_reset(self) -> None:
 
 
 def flash_connect(self) -> None:
-    if self.bk and self.conn.linked:
+    pending = getattr(self, "_reset_pending", False)
+    if self.bk and self.conn.linked and not pending:
         return
     self.flash_build_protocol()
-    if getattr(self, "_reset_pending", False):
+    if pending:
         self._reset_pending = False
         self.bk.hw_reset()
+        self.conn.linked = False  # the chip rebooted, so link again below
     _connect(self)
 
 

@@ -69,7 +69,8 @@ esac
 
 : > "$DLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$DPORT" $DUT_CAPTURE "$DLOG" $TAILOPT &)
 if ! n=$(wait_for "$DLOG" "Captive portal\|Starting fallback AP" $AP_WAIT); then
-  if LC_ALL=C grep -a -q '\[capture\] open failed' "$DLOG" && ! LC_ALL=C grep -a -q '^\[[0-9:]*\]\[^\[]' "$DLOG"; then
+  # an open failure and no line that is not a capture note: the port, not the firmware
+  if LC_ALL=C grep -a -q '\[capture\] open failed' "$DLOG" && ! LC_ALL=C grep -a -q -v '^\[[0-9:]*\]\[capture\]' "$DLOG"; then
     fail "could not open $DPORT (held by another process, or the wrong port), see $DLOG"
   fi
   fail "DUT never raised its AP within ${n}s, see $DLOG"

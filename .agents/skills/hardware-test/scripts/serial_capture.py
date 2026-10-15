@@ -102,6 +102,9 @@ def capture(args: argparse.Namespace, out) -> int:
         try:
             data = s.read(4096)
         except PORT_ERRORS as err:
+            if buf:  # keep the cut-off line apart from the next boot's first line
+                write_line(out, b"[partial]", buf)
+                buf = b""
             note(out, f"port lost: {err}")
             with contextlib.suppress(*PORT_ERRORS):
                 s.close()
