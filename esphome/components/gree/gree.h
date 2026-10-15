@@ -82,6 +82,17 @@ static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
 static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
 static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 
+/// Map a Celsius target onto the (Temp, TempExtraDegreeF) pair whose Fahrenheit display matches it.
+///
+/// The unit displays trunc(celsiusToFahrenheit(GREE_TEMP_MIN + temp_field + 0.5 * extra_degree)):
+/// TempExtraDegreeF is a half-degree *Celsius* step, not an extra Fahrenheit degree as its name
+/// suggests. Every whole degree from 61 to 86 F is reachable that way, so search for the pair whose
+/// displayed value matches rather than converting with a rounding fudge factor.
+///
+/// A free function rather than a member: it needs no instance state, it keeps the class API
+/// unchanged, and GreeClimate is final so a test cannot subclass it to reach a protected member.
+void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_degree);
+
 // Model codes
 enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
 
@@ -108,13 +119,6 @@ class GreeClimate final : public climate_ir::ClimateIR {
   uint8_t vertical_swing_();
   uint8_t temperature_();
 
-  /// Map a Celsius target onto the (Temp, TempExtraDegreeF) pair whose Fahrenheit display matches it.
-  ///
-  /// The unit displays trunc(celsiusToFahrenheit(GREE_TEMP_MIN + temp_field + 0.5 * extra_degree)):
-  /// TempExtraDegreeF is a half-degree *Celsius* step, not an extra Fahrenheit degree as its name
-  /// suggests. Every whole degree from 61 to 86 F is reachable that way, so search for the pair whose
-  /// displayed value matches rather than converting with a rounding fudge factor.
-  void fahrenheit_fields_(float target_celsius, uint8_t &temp_field, bool &extra_degree) const;
   uint8_t preset_();
 
   Model model_{};

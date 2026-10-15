@@ -32,7 +32,7 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
   this->transmit_state();
 }
 
-void GreeClimate::fahrenheit_fields_(float target_celsius, uint8_t &temp_field, bool &extra_degree) const {
+void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_degree) {
   temp_field = 0;
   extra_degree = false;
   if (!std::isfinite(target_celsius)) {
@@ -121,7 +121,7 @@ void GreeClimate::transmit_state() {
     remote_state[3] |= 0x08;
     uint8_t temp_field;
     bool extra_degree;
-    this->fahrenheit_fields_(this->target_temperature, temp_field, extra_degree);
+    fahrenheit_fields(this->target_temperature, temp_field, extra_degree);
     remote_state[1] = temp_field;
     if (extra_degree) {
       remote_state[3] |= 0x04;
