@@ -46,6 +46,17 @@ static constexpr uint8_t SET_BAUDRATE = 0x1E;     // Set the baud rate.
 static constexpr uint8_t SET_CHARS = 0x19;        // Set special characters.
 static constexpr uint8_t VENDOR_SPECIFIC = 0xFF;  // Vendor specific command.
 
+// VENDOR_SPECIFIC wValue reads
+static constexpr uint16_t GET_FW_VER_2N = 0x0010;
+static constexpr uint16_t GET_PARTNUM = 0x370B;
+
+static constexpr uint8_t PARTNUM_CP2102N_QFN28 = 0x20;
+static constexpr uint8_t PARTNUM_CP2102N_QFN24 = 0x21;
+static constexpr uint8_t PARTNUM_CP2102N_QFN20 = 0x22;
+
+// CP2102N firmware up to 1.0.4 reads xon_limit as flow_replace (erratum E104)
+static constexpr uint32_t CP2102N_LAST_FW_WITHOUT_FLOW_CONTROL = 0x010004;
+
 // SET_MHS value bits. The high byte selects which lines the low byte changes.
 static constexpr uint16_t CONTROL_DTR = 0x0001;
 static constexpr uint16_t CONTROL_RTS = 0x0002;
@@ -139,16 +150,47 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
   return cdc_devs;
 }
 
+bool USBUartTypeCP210X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
+  switch (step) {
+    case 0:
+      this->no_flow_control_ = false;
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_IN, VENDOR_SPECIFIC, GET_PARTNUM, 0,
+                             std::vector<uint8_t>(1));
+      return true;
+    case 1:
+      if (!ok)
+        return false;
+      ESP_LOGD(TAG, "Part number 0x%02X", response[0]);
+      if (response[0] != PARTNUM_CP2102N_QFN28 && response[0] != PARTNUM_CP2102N_QFN24 &&
+          response[0] != PARTNUM_CP2102N_QFN20)
+        return false;
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_IN, VENDOR_SPECIFIC, GET_FW_VER_2N, 0,
+                             std::vector<uint8_t>(3));
+      return true;
+    case 2: {
+      if (!ok)
+        return false;
+      const uint32_t version = (response[0] << 16) | (response[1] << 8) | response[2];
+      ESP_LOGD(TAG, "CP2102N firmware %u.%u.%u", response[0], response[1], response[2]);
+      this->no_flow_control_ = version <= CP2102N_LAST_FW_WITHOUT_FLOW_CONTROL;
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
 bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
-  // TODO: CP2102N firmware 1.0.4 and older reads xon_limit as flow_replace (erratum E104).
-  // Linux finds these chips with GET_PARTNUM and GET_FW_VER_2N and applies no flow control.
+  // As Linux does, apply none where the firmware cannot do flow control
+  const uart::UARTFlowControl flow_control =
+      this->no_flow_control_ ? uart::UART_FLOW_CONTROL_NONE : channel->flow_control_;
 
   // On reload, skip the one-time IFC_ENABLE step (the interface is already enabled).
   if (reload)
     step++;
   // SET_CHARS is only needed for XON/XOFF
-  const bool xon_xoff = channel->flow_control_ == uart::UART_FLOW_CONTROL_XON_XOFF;
+  const bool xon_xoff = flow_control == uart::UART_FLOW_CONTROL_XON_XOFF;
   if (!xon_xoff && step >= 3)
     step++;
   switch (step) {
@@ -189,10 +231,13 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
     case 5: {
       // Set flow control, re-applied on every settings change as set_termios does. The block
       // also carries DTR and RTS, so this puts them on the wire too.
+      if (flow_control != channel->flow_control_) {
+        ESP_LOGW(TAG, "CP2102N firmware 1.0.4 and older cannot do flow control (erratum E104), using none");
+      }
       auto &block = this->flow_blocks_[channel->index_];
       block.control_handshake &=
           ~(SERIAL_DSR_HANDSHAKE | SERIAL_DCD_HANDSHAKE | SERIAL_DSR_SENSITIVITY | SERIAL_CTS_HANDSHAKE);
-      if (channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS)
+      if (flow_control == uart::UART_FLOW_CONTROL_RTS_CTS)
         block.control_handshake |= SERIAL_CTS_HANDSHAKE;
       if (xon_xoff) {
         block.flow_replace |= SERIAL_AUTO_TRANSMIT | SERIAL_AUTO_RECEIVE;

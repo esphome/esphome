@@ -371,10 +371,13 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   void modem_control_transfer(USBUartChannelBase *channel) override;
+  bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
   void set_flow_transfer_(USBUartChannelBase *channel);
 
   // The block last read for each channel, so a DTR/RTS change under RTS/CTS is a single SET_FLOW
   std::array<CP210xFlowBlock, MAX_CHANNELS> flow_blocks_{};
+  // A CP2102N whose firmware has erratum E104
+  bool no_flow_control_{false};
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
