@@ -142,14 +142,12 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
     ESP_LOGV(TAG, "Received ping: 0x%01X -> 0x%01X", src_addr, dest_addr);
     return;
   }
-
   ESP_LOGD_HEX(TAG, frame->bytes().data(), frame->size(), Frame::MAX_LENGTH, "Received: %s");
 #ifdef HDMI_CEC_MESSAGE_CALLBACK_COUNT
-    this->message_callbacks_.call(src_addr, dest_addr, frame->payload());
+  this->message_callbacks_.call(src_addr, dest_addr, frame->payload());
 #endif
 
-
-    std::vector<uint8_t> data(frame->size() - 1);
+  std::vector<uint8_t> data(frame->size() - 1);
   for (int i = 1; i < frame->size(); i++)
     data[i - 1] = frame->at(i);
 
@@ -167,7 +165,7 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
       handled_by_trigger = true;
     }
   }
-// TODO(jos) claimed vs triggered???
+// TODO(jos) callbacks_.call vs claimed vs triggered???
   bool is_directly_addressed = (dest_addr == address_) && !frame->is_broadcast();
   if (!this->monitor_mode_ && is_directly_addressed &&
       !this->is_claimed_(frame->opcode()) && !handled_by_trigger) {
@@ -175,7 +173,7 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
   }
 }
 
-bool HDMICEC::is_claimed_(uint8_t opcode) {
+bool HDMICEC::is_claimed(uint8_t opcode) {
 #ifdef HDMI_CEC_CLAIMED_OPCODE_COUNT
   for (uint8_t i = 0; i < HDMI_CEC_CLAIMED_OPCODE_COUNT; i++) {
     if (progmem_read_byte(&CLAIMED_OPCODES[i]) == opcode) {
