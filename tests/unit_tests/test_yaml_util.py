@@ -431,12 +431,12 @@ def test_track_yaml_loads_empty_outside_context(tmp_path: Path) -> None:
 
 def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
     """Listener is removed even if the body raises."""
-    before = len(yaml_util._load_listeners)
+    before = len(yaml_util.load_listeners)
 
     with pytest.raises(RuntimeError), yaml_util.track_yaml_loads():
         raise RuntimeError("boom")
 
-    assert len(yaml_util._load_listeners) == before
+    assert len(yaml_util.load_listeners) == before
 
 
 def test_track_yaml_loads_no_duplicate_load_on_top_level_include_failure(
