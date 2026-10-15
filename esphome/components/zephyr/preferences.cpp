@@ -1,9 +1,11 @@
 #ifdef USE_ZEPHYR
+#ifdef CONFIG_SETTINGS
 
 #include <zephyr/kernel.h>
 #include "preferences.h"
 #include "esphome/core/log.h"
 #include <zephyr/settings/settings.h>
+#include <sys/types.h>
 #include <cinttypes>
 #include <cstring>
 
@@ -23,7 +25,7 @@ bool ZephyrPreferenceBackend::load(uint8_t *data, size_t len) {
     char key_buf[KEY_BUFFER_SIZE];
     this->format_key(key_buf, sizeof(key_buf));
     if (this->data.empty()) {
-      ESP_LOGV(TAG, "setting key %s not found (first boot or no persistence)", key_buf);
+      ESP_LOGV(TAG, "setting key %s not found", key_buf);
     } else {
       ESP_LOGE(TAG, "size of setting key %s changed, from: %zu, to: %zu", key_buf, this->data.size(), len);
     }
@@ -174,4 +176,5 @@ namespace esphome {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace esphome
 
-#endif  // USE_ZEPHYR
+#endif
+#endif
