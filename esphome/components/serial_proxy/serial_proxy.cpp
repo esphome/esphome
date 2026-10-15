@@ -383,15 +383,8 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   const bool dtr = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_DTR) != 0;
   ESP_LOGV(TAG, "Setting modem pins [%" PRIu32 "]: RTS=%s, DTR=%s", this->instance_index_, ONOFF(rts), ONOFF(dtr));
 
-  if (this->rts_pin_ != nullptr) {
-    this->rts_state_ = rts;
-    this->rts_pin_->digital_write(rts);
-  }
-  if (this->dtr_pin_ != nullptr) {
-    this->dtr_state_ = dtr;
-    this->dtr_pin_->digital_write(dtr);
-  }
-  // A line with a GPIO pin keeps the UART's current state; with both on GPIO there is nothing to send
+  // The UART goes first, so a failure leaves every line as it was. A line with a GPIO pin keeps
+  // the UART's current state; with both on GPIO there is nothing to send
   bool applied = true;
   if (this->rts_pin_ == nullptr || this->dtr_pin_ == nullptr) {
     this->with_modem_uart_([this, dtr, rts, &applied](auto *uart) {
@@ -402,6 +395,14 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   if (!applied) {
     ESP_LOGW(TAG, "Modem pins did not reach the UART on serial proxy [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_ERROR;
+  }
+  if (this->rts_pin_ != nullptr) {
+    this->rts_state_ = rts;
+    this->rts_pin_->digital_write(rts);
+  }
+  if (this->dtr_pin_ != nullptr) {
+    this->dtr_state_ = dtr;
+    this->dtr_pin_->digital_write(dtr);
   }
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
