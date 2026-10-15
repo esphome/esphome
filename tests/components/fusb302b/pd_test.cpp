@@ -195,6 +195,38 @@ TEST(FUSB302BPd, PsRdyAfterSequenceTimeoutIsIgnored) {
   pd.advance_ms(2001);
   pd.receive(PD_CNTRL_PS_RDY, 2);
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_TRANSITION);
+  // The missing PS_RDY is a transition timeout, not a failed request
+  EXPECT_EQ(pd.request_failures, 0);
+}
+
+TEST(FUSB302BPd, UnansweredFirstRequestEndsNegotiation) {
+  FakePhy pd;
+  pd.attach();
+  pd.set_request_voltage(20);
+  pd.receive_source_caps(0);
+  EXPECT_TRUE(pd.check_ams_());
+  pd.advance_ms(2001);
+  EXPECT_FALSE(pd.check_ams_());
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
+  EXPECT_EQ(pd.request_failures, 1);
+  // Reported once
+  EXPECT_FALSE(pd.check_ams_());
+  EXPECT_EQ(pd.request_failures, 1);
+}
+
+TEST(FUSB302BPd, MissingPsRdyForSameContractFailsRequest) {
+  FakePhy pd;
+  pd.set_request_voltage(20);
+  pd.receive_source_caps(0);
+  pd.receive(PD_CNTRL_ACCEPT, 1);
+  pd.receive(PD_CNTRL_PS_RDY, 2);
+  pd.receive_source_caps(3);
+  pd.receive(PD_CNTRL_ACCEPT, 4);
+  pd.advance_ms(2001);
+  EXPECT_FALSE(pd.check_ams_());
+  EXPECT_EQ(pd.get_state(), PdState::PD_STATE_EXPLICIT_CONTRACT);
+  EXPECT_FLOAT_EQ(pd.contract().voltage(), 20.0f);
+  EXPECT_EQ(pd.request_failures, 1);
 }
 
 TEST(FUSB302BPd, TransitionTimeoutFallsBackToDefault) {

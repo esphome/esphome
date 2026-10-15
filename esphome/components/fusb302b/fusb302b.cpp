@@ -518,9 +518,25 @@ void FUSB302B::send_soft_reset_() {
     this->enter_error_();
     return;
   }
-  this->send_message(this->make_control_msg_(PD_CNTRL_SOFT_RESET));
+  if (!this->send_message(this->make_control_msg_(PD_CNTRL_SOFT_RESET))) {
+    // No answer can come, so do not wait for one
+    this->source_caps_failed_();
+    return;
+  }
   // The source answers a soft reset with new source capabilities
   this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT);
+}
+
+void FUSB302B::source_caps_failed_() {
+  this->waiting_for_source_caps_ = false;
+  if (this->state_ == PdState::PD_STATE_DEFAULT_CONTRACT) {
+    ESP_LOGW(TAG, "PD negotiation failed, staying at 5 V");
+    this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
+  } else {
+    // A request made at runtime got no answer. A soft reset keeps the power level, so the contract in place stays.
+    ESP_LOGW(TAG, "Renegotiation failed, keeping the current contract");
+  }
+  this->on_request_failed();
 }
 
 void FUSB302B::start_source_cap_wait_(SourceCapStep step) {
@@ -553,15 +569,7 @@ void FUSB302B::check_source_caps_() {
     case SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT:
       if (elapsed < SOURCE_CAP_RETRY_MS)
         return;
-      this->waiting_for_source_caps_ = false;
-      if (this->state_ == PdState::PD_STATE_DEFAULT_CONTRACT) {
-        ESP_LOGW(TAG, "PD negotiation failed, staying at 5 V");
-        this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
-      } else {
-        // A request made at runtime got no answer. A soft reset keeps the power level, so the contract in place stays.
-        ESP_LOGW(TAG, "Renegotiation failed, keeping the current contract");
-      }
-      this->on_request_failed();
+      this->source_caps_failed_();
       return;
   }
   this->source_cap_step_start_ = millis();

@@ -90,6 +90,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   void start_source_cap_wait_(SourceCapStep step);
   void start_negotiation_();
   void send_soft_reset_();
+  void source_caps_failed_();
   void check_source_caps_();
   void enter_error_();
 
