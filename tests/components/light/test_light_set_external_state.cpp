@@ -38,6 +38,31 @@ class PublishListener : public LightRemoteValuesListener {
   int published{0};
 };
 
+// Counts the target-reached calls that find the light off, as the on_turn_off trigger does
+class OffReachedListener : public LightTargetStateReachedListener {
+ public:
+  explicit OffReachedListener(LightState *state) : state_(state) {}
+  void on_light_target_state_reached() override { this->reached_off += !this->state_->current_values.is_on(); }
+  int reached_off{0};
+
+ protected:
+  LightState *state_;
+};
+
+// An automation that turns the light off as soon as it is reported on
+class TurnOffOnPublish : public LightRemoteValuesListener {
+ public:
+  explicit TurnOffOnPublish(LightState *state) : state_(state) {}
+  void on_light_remote_values_update() override {
+    if (this->state_->remote_values.is_on()) {
+      this->state_->make_call().set_state(false).perform();
+    }
+  }
+
+ protected:
+  LightState *state_;
+};
+
 LightColorValues on_at(float brightness) {
   LightColorValues values;
   values.set_color_mode(ColorMode::BRIGHTNESS);
@@ -123,6 +148,20 @@ TEST(LightStateExternal, PublishesWhenOnlyAnEffectStops) {
   EXPECT_TRUE(state.set_external_state(state.remote_values));
   EXPECT_EQ(state.get_current_effect_index(), 0u);
   EXPECT_EQ(listener.published, published + 1);
+}
+
+TEST(LightStateExternal, AnAutomationRunByThePublishReportsItsOwnCall) {
+  CountingOutput output;
+  LightState state(&output);
+  OffReachedListener reached(&state);
+  state.add_target_state_reached_listener(&reached);
+  TurnOffOnPublish automation(&state);
+  state.add_remote_values_listener(&automation);
+  state.loop();
+
+  EXPECT_TRUE(state.set_external_state(on_at(0.5f)));
+  EXPECT_FALSE(state.remote_values.is_on());
+  EXPECT_EQ(reached.reached_off, 1);  // once from the turn-off call, not again from the report
 }
 
 TEST(LightStateExternal, SaysNothingWhenNothingChanges) {

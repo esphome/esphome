@@ -193,13 +193,14 @@ bool LightState::set_external_state(const LightColorValues &values) {
   }
   this->current_values = values;
   this->remote_values = values;
-  this->publish_state();
-  // Reached at once, as after an instant call
+  // Reached at once, as after an instant call, and told before the publish like there: an
+  // automation run by the publish may change the light again, and its own call reports that
   if (this->target_state_reached_listeners_) {
     for (auto *listener : *this->target_state_reached_listeners_) {
       listener->on_light_target_state_reached();
     }
   }
+  this->publish_state();
   return true;
 }
 
