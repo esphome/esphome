@@ -39,6 +39,22 @@ class FakeUART : public uart::UARTComponent {
   size_t rx_pos{0};
 };
 
+// The hub publishes read values; writes are driven through control_number() directly.
+class TestNumber : public number::Number {
+ protected:
+  void control(float value) override {}
+};
+
+class TestSwitch : public switch_::Switch {
+ protected:
+  void write_state(bool state) override {}
+};
+
+class TestSelect : public select::Select {
+ protected:
+  void control(size_t index) override {}
+};
+
 class SEN0609Test : public ::testing::Test {
  protected:
   explicit SEN0609Test(RunMode mode = RunMode::RUN_MODE_PRESENCE) : hub_(mode) {}
@@ -58,6 +74,14 @@ class SEN0609Test : public ::testing::Test {
   void feed_(const std::string &text) {
     this->uart_.rx += text;
     this->run_();
+  }
+
+  // Feeds a presence frame every second, so the frame watchdog stays quiet, for `seconds` or until the hub sends
+  void feed_frames_(int seconds) {
+    for (int i = 0; i < seconds && this->uart_.tx.empty(); i++) {
+      this->feed_("$DFHPD,0, , , *\r\n");
+      this->run_(1000);
+    }
   }
 
   // Runs the loop until the hub writes a full command line, and returns it without the line end
