@@ -437,10 +437,14 @@ void DFRobotSEN0609Component::request_write_(Param param) {
 
 #ifdef USE_NUMBER
 void DFRobotSEN0609Component::control_number(NumberSetting setting, float value) {
-  // A value not read yet is NAN and never fails the comparison
-  if ((setting == NUMBER_MIN_RANGE && value > this->number_values_[NUMBER_MAX_RANGE]) ||
-      (setting == NUMBER_MAX_RANGE && value < this->number_values_[NUMBER_MIN_RANGE])) {
-    ESP_LOGW(TAG, "Minimum range above maximum range, not written");
+  // The module needs min_range <= trigger_range <= max_range; a value not read yet is NAN and passes
+  const auto &values = this->number_values_;
+  const float min_range = setting == NUMBER_MIN_RANGE ? value : values[NUMBER_MIN_RANGE];
+  const float max_range = setting == NUMBER_MAX_RANGE ? value : values[NUMBER_MAX_RANGE];
+  const float trigger_range = setting == NUMBER_TRIGGER_RANGE ? value : values[NUMBER_TRIGGER_RANGE];
+  if (setting <= NUMBER_TRIGGER_RANGE &&
+      (min_range > max_range || trigger_range < min_range || trigger_range > max_range)) {
+    ESP_LOGW(TAG, "Ranges must keep minimum <= trigger <= maximum, not written");
     if (!std::isnan(this->number_values_[setting]))
       this->publish_number_(setting, this->number_values_[setting]);
     return;

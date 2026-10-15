@@ -428,6 +428,31 @@ TEST_F(SEN0609SequencerTest, MinRangeAboveMaxRangeIsRefused) {
   EXPECT_EQ(this->next_command_(3000), "");
 }
 
+TEST_F(SEN0609SequencerTest, TriggerRangeOutsideRangeIsRefused) {
+  TestNumber trigger_range;
+  this->hub_.set_number(NUMBER_TRIGGER_RANGE, &trigger_range);
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("getTrigRange", "Response 6.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("sensorStart");
+  this->hub_.control_number(NUMBER_TRIGGER_RANGE, 13.0f);
+  EXPECT_FLOAT_EQ(trigger_range.state, 6.0f);
+  // Lowering the maximum below the trigger range is refused too
+  this->hub_.control_number(NUMBER_MAX_RANGE, 5.0f);
+  EXPECT_FLOAT_EQ(this->max_range_.state, 12.0f);
+  this->hub_.control_number(NUMBER_MIN_RANGE, 7.0f);
+  EXPECT_FLOAT_EQ(this->min_range_.state, 0.6f);
+  EXPECT_EQ(this->next_command_(3000), "");
+  this->hub_.control_number(NUMBER_TRIGGER_RANGE, 8.0f);
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setTrigRange 8.00");
+}
+
 class SEN0609SettingsTest : public SEN0609Test {
  protected:
   void SetUp() override {
