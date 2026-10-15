@@ -110,7 +110,9 @@ void FUSB302B::loop() {
     this->publish_state_(state);
   }
   if (this->state_queue_overflow_.exchange(false)) {
-    ESP_LOGD(TAG, "State changes arrived faster than the main loop handled them; some were skipped");
+    ESP_LOGW(TAG, "State changes arrived faster than the main loop handled them; some triggers were skipped");
+    // Drop what is queued before reading the state, so no older state is replayed after it
+    this->state_queue_tail_.store(this->state_queue_head_.load(std::memory_order_acquire), std::memory_order_release);
     this->publish_state_(this->state_);
   }
   if (this->request_failed_pending_.exchange(false))
@@ -175,6 +177,11 @@ void FUSB302B::request_voltage(int voltage) {
     ESP_LOGW(TAG, "Requested %d V is outside %u-%u V, clamping", voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE);
   }
   this->set_request_voltage(static_cast<uint8_t>(std::clamp<int>(voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE)));
+  if (this->is_failed()) {
+    ESP_LOGW(TAG, "Cannot request %u V, the component failed", this->get_request_voltage());
+    return;
+  }
+  // Before setup() the voltage is simply used at the first attach
   if (this->task_.is_created())
     xTaskNotify(this->task_.get_handle(), NOTIFY_REQUEST, eSetBits);
 }
@@ -215,7 +222,8 @@ void FUSB302B::run_task_() {
     }
     this->check_transition_timeout_();
     this->check_request_retry_();
-    if (this->request_pending_ && !this->check_ams_()) {
+    // Waits for a pending Wait retry to end in a contract or a failure, so the two sequences never overlap
+    if (this->request_pending_ && !this->retry_request_pending_ && !this->check_ams_()) {
       this->request_pending_ = false;
       this->start_negotiation_();
     }
@@ -516,10 +524,10 @@ void FUSB302B::check_source_caps_() {
       if (this->state_ == PdState::PD_STATE_DEFAULT_CONTRACT) {
         ESP_LOGW(TAG, "PD negotiation failed, staying at 5 V");
         this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
-        return;
+      } else {
+        // A request made at runtime got no answer. A soft reset keeps the power level, so the contract in place stays.
+        ESP_LOGW(TAG, "Renegotiation failed, keeping the current contract");
       }
-      // A request made at runtime got no answer. A soft reset keeps the power level, so the contract in place stays.
-      ESP_LOGW(TAG, "Renegotiation failed, keeping the current contract");
       this->on_request_failed();
       return;
   }
