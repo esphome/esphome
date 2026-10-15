@@ -232,6 +232,8 @@ class ProgmemStringRef {
   constexpr ProgmemStringRef() = default;
   constexpr ProgmemStringRef(const char *s, size_t len) : ref_(s, len) {}
   constexpr explicit ProgmemStringRef(const StringRef &s) : ref_(s) {}
+  /// A PROGMEM char array, with its length known at compile time
+  template<size_t N> static constexpr ProgmemStringRef from_lit(const char (&s)[N]) { return {s, N - 1}; }
 
   constexpr const char *progmem_ptr() const { return this->ref_.c_str(); }
   constexpr size_t size() const { return this->ref_.size(); }

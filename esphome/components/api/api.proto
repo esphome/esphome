@@ -1026,8 +1026,8 @@ message SubscribeHomeassistantServicesRequest {
 }
 
 message HomeassistantServiceMap {
-  string key = 1;
-  string value = 2;
+  string key = 1 [(progmem) = true];
+  string value = 2 [(progmem) = true];
 }
 
 message HomeassistantActionRequest {
@@ -1036,7 +1036,7 @@ message HomeassistantActionRequest {
   option (no_delay) = true;
   option (ifdef) = "USE_API_HOMEASSISTANT_SERVICES";
 
-  string service = 1;
+  string service = 1 [(progmem) = true];
   repeated HomeassistantServiceMap data = 2 [(fixed_vector) = true];
   repeated HomeassistantServiceMap data_template = 3 [(fixed_vector) = true];
   repeated HomeassistantServiceMap variables = 4 [(fixed_vector) = true];

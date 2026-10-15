@@ -1388,8 +1388,8 @@ class NoiseEncryptionSetKeyResponse final : public ProtoMessage {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 class HomeassistantServiceMap final : public ProtoMessage {
  public:
-  StringRef key{nullptr, 0};    // null until set, encode only
-  StringRef value{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef key{};
+  ProgmemStringRef value{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -1409,7 +1409,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("homeassistant_action_request"); }
 #endif
-  StringRef service{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef service{};
   FixedVector<HomeassistantServiceMap> data{};
   FixedVector<HomeassistantServiceMap> data_template{};
   FixedVector<HomeassistantServiceMap> variables{};

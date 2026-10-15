@@ -1140,8 +1140,8 @@ uint32_t NoiseEncryptionSetKeyResponse::calc_size_msg(const void *self) {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 uint8_t *HomeassistantServiceMap::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const HomeassistantServiceMap *>(self);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.key);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.value);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.key);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.value);
   return pos;
 }
 uint32_t HomeassistantServiceMap::calc_size_msg(const void *self) {
@@ -1153,7 +1153,7 @@ uint32_t HomeassistantServiceMap::calc_size_msg(const void *self) {
 }
 uint8_t *HomeassistantActionRequest::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const HomeassistantActionRequest *>(self);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.service);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.service);
   for (auto &it : msg.data) {
     pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 2, it);
   }

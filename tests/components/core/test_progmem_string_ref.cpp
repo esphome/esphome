@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::core::testing {
@@ -10,6 +11,13 @@ TEST(ProgmemStringRef, EqualsComparesLengthAndContent) {
   EXPECT_FALSE(ref.equals(StringRef("Kitche")));
   EXPECT_FALSE(ref.equals(StringRef("Kitchens")));
   EXPECT_FALSE(ref.equals(StringRef("Bedroom")));
+}
+
+TEST(ProgmemStringRef, FromLitTakesTheLengthAtCompileTime) {
+  static const char NAME[] PROGMEM = "entity_id";
+  constexpr ProgmemStringRef ref = ProgmemStringRef::from_lit(NAME);
+  static_assert(ref.size() == 9);
+  EXPECT_TRUE(ref.equals(StringRef("entity_id")));
 }
 
 TEST(ProgmemStringRef, DefaultIsEmpty) {

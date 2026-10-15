@@ -1519,13 +1519,13 @@ const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 const char *HomeassistantServiceMap::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantServiceMap"));
-  dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("value"), this->value);
+  dump_progmem_string_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("value"), this->value);
   return out.c_str();
 }
 const char *HomeassistantActionRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantActionRequest"));
-  dump_field(out, ESPHOME_PSTR("service"), this->service);
+  dump_progmem_string_field(out, ESPHOME_PSTR("service"), this->service);
   for (const auto &it : this->data) {
     out.append(4, ' ').append_p(ESPHOME_PSTR("data")).append(": ");
     it.dump_to(out);
