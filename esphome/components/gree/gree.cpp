@@ -169,7 +169,6 @@ static bool gree_read_byte(remote_base::RemoteReceiveData &data, uint32_t bit_ma
   return true;
 }
 
-
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN) {
     // YAN only has a vertical vane; the horizontal swing IR bytes are not defined for this model.
@@ -583,11 +582,11 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->mode = gree_decode_mode(buffer[0] & 0x07);
   }
 
-  if (buffer[1] < GREE_TEMP_MIN || buffer[1] > GREE_TEMP_MAX) {
+  if (buffer[1] > (GREE_TEMP_MAX - GREE_TEMP_MIN)) {
     GREE_LOG_DECODE("Unsupported temperature value: 0x%02X", buffer[1]);
     return false;
   }
-  this->target_temperature = float(buffer[1]);
+  this->target_temperature = float(buffer[1] + GREE_TEMP_MIN);
 
   if (this->model_ == GREE_YX1FF) {
     const uint8_t fan_speed = (buffer[2] & GREE_FAN_TURBO_BIT) != 0 ? GREE_FAN_TURBO : (buffer[0] & 0x30);
