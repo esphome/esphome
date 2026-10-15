@@ -22,7 +22,7 @@
 #if USE_NETWORK_IPV6
 using ip4_addr_t = struct in_addr;
 using ip6_addr_t = struct in6_addr;
-struct ip_addr_t {
+struct ip_addr_t {  // NOLINT(readability-identifier-naming) mirrors the lwIP name the other platforms use
   union {
     struct in6_addr ip6;
     struct in_addr ip4;
@@ -196,8 +196,8 @@ struct IPAddress {
   operator ip_addr_t() const { return this->ip_addr_; }
   bool is_set() const {
     if (this->ip_addr_.type == IPADDR_TYPE_V6) {
-      static constexpr uint8_t zero[sizeof(struct in6_addr)] = {};
-      return memcmp(this->ip_addr_.u_addr.ip6.s6_addr, zero, sizeof(zero)) != 0;
+      static constexpr uint8_t ZERO[sizeof(struct in6_addr)] = {};
+      return memcmp(this->ip_addr_.u_addr.ip6.s6_addr, ZERO, sizeof(ZERO)) != 0;
     }
     return this->ip_addr_.u_addr.ip4.s_addr != 0;
   }
