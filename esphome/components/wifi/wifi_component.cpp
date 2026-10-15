@@ -945,7 +945,9 @@ void WiFiComponent::loop() {
           // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again
           now - this->last_connected_ > this->ap_timeout_ && now - this->ap_changed_ > this->ap_timeout_
 #else
-          // Tried 1, 2, 3... ap_timeouts after the last connection, so a failed start waits a full ap_timeout
+          // Tried 1, 2, 3... ap_timeouts after the last connection, so a failed start waits a full ap_timeout;
+          // after UINT8_MAX of them it is no longer tried
+          this->ap_start_failures_ != UINT8_MAX &&
           (now - this->last_connected_) / this->ap_timeout_ > this->ap_start_failures_
 #endif
       ) {
@@ -955,8 +957,11 @@ void WiFiComponent::loop() {
 #endif
         this->setup_ap_config_();
 #ifndef USE_WIFI_AP_EXCLUSIVE
-        if (!this->ap_setup_ && this->ap_start_failures_ != UINT8_MAX)
-          this->ap_start_failures_++;
+        if (!this->ap_setup_) {
+          // The slot that just ran, so the next try waits for the next one
+          uint32_t slot = (now - this->last_connected_) / this->ap_timeout_;
+          this->ap_start_failures_ = slot < UINT8_MAX ? slot : UINT8_MAX;
+        }
 #endif
         this->start_ap_portal_();
       }
@@ -2376,7 +2381,7 @@ bool WiFiComponent::is_ap_portal_active_() {
 // global_web_server needs no null check: codegen always instantiates WebServer when
 // USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
 void WiFiComponent::start_ap_portal_() {
-  // Only behind an AP that came up; with an ap_timeout the fallback path retries a failed start
+  // Only behind an AP that came up; a fallback AP (networks and an ap_timeout) is retried by loop()
   if (!this->ap_setup_)
     return;
 #ifdef USE_CAPTIVE_PORTAL
