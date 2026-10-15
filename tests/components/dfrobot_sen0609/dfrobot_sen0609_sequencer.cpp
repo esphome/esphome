@@ -143,4 +143,32 @@ TEST_F(SEN0609SequencerTest, AlreadyStartedCountsAsStarted) {
   EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
+TEST_F(SEN0609SequencerTest, PresenceFramesKeepConfiguration) {
+  this->boot_();
+  for (int i = 0; i < 15; i++) {
+    this->feed_("$DFHPD,0, , , *\r\n");
+    this->run_(1000);
+  }
+  EXPECT_EQ(this->uart_.tx, "");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SequencerTest, MissingPresenceFramesReapplyConfiguration) {
+  this->boot_();
+  this->feed_("$DFHPD,1, , , *\r\n");
+  EXPECT_TRUE(this->has_target_.state);
+  EXPECT_EQ(this->next_command_(9000), "");
+  // The module restarted on its own and stopped sending frames
+  ASSERT_EQ(this->next_command_(), "sensorStop");
+  EXPECT_FALSE(this->has_target_.has_state());
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  this->answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("getHWV", "HardwareVersion:V2.0\r\n");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
 }  // namespace esphome::dfrobot_sen0609::testing

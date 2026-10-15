@@ -20,6 +20,8 @@ static constexpr uint32_t COMMAND_GAP_MS = 100;
 static constexpr uint32_t DEFAULT_TIMEOUT_MS = 1000;
 static constexpr uint32_t LONG_TIMEOUT_MS = 2000;
 static constexpr uint32_t GIVE_UP_BACKOFF_MS = 30000;
+// Presence frames come every second (setUartOutput period); this long without one means the module lost them
+static constexpr uint32_t FRAME_TIMEOUT_MS = 10000;
 static constexpr uint8_t FRAME_FIELDS = 5;
 
 static constexpr uint8_t LINE_END[] = {'\r', '\n'};
@@ -122,8 +124,14 @@ void DFRobotSEN0609Component::loop() {
   size_t avail = this->available();
   while (avail > 0) {
     const size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read))
+    if (!this->read_array(buf, to_read)) {
+      if (!this->read_failed_) {
+        ESP_LOGW(TAG, "UART read failed");
+      }
+      this->read_failed_ = true;
       break;
+    }
+    this->read_failed_ = false;
     avail -= to_read;
     for (size_t i = 0; i < to_read; i++)
       this->readline_(buf[i]);
@@ -203,6 +211,8 @@ void DFRobotSEN0609Component::handle_line_(char *line) {
   } else if (starts_with(line, ESPHOME_PSTR("Error")) || contains(line, ESPHOME_PSTR("not recognized"))) {
     ESP_LOGW(TAG, "Command '%s' rejected: %s", this->command_, line);
     this->fail_operation_();
+  } else {
+    ESP_LOGD(TAG, "Unexpected answer to '%s': %s", this->command_, line);
   }
 }
 
@@ -214,6 +224,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
       ESP_LOGW(TAG, "Malformed presence frame: %s", line);
       return;
     }
+    this->last_frame_ms_ = App.get_loop_component_start_time();
 #ifdef USE_BINARY_SENSOR
     if (this->has_target_binary_sensor_ != nullptr)
       this->has_target_binary_sensor_->publish_state(presence == '1');
@@ -294,6 +305,21 @@ uint16_t DFRobotSEN0609Component::wanted_reads_() const {
   return reads;
 }
 
+void DFRobotSEN0609Component::check_frames_(uint32_t now) {
+  // Speed mode frames are not watched: whether the module sends them without a target is not known
+  if (this->mode_ != RunMode::RUN_MODE_PRESENCE || now - this->last_frame_ms_ < FRAME_TIMEOUT_MS)
+    return;
+  // The module most likely restarted on its own and lost the configuration applied at boot
+  ESP_LOGW(TAG, "No presence frames, applying the configuration again");
+  this->status_set_warning();
+#ifdef USE_BINARY_SENSOR
+  if (this->has_target_binary_sensor_ != nullptr)
+    this->has_target_binary_sensor_->invalidate_state();
+#endif
+  this->last_frame_ms_ = now;
+  this->queue_configuration_();
+}
+
 void DFRobotSEN0609Component::hold_(uint32_t duration_ms) {
   this->hold_start_ms_ = App.get_loop_component_start_time();
   this->hold_ms_ = duration_ms;
@@ -316,8 +342,10 @@ void DFRobotSEN0609Component::run_sequencer_() {
   Operation operation;
   Param param = PARAM_COUNT;
   if (!work_pending) {
-    if (!this->stopped_)
+    if (!this->stopped_) {
+      this->check_frames_(now);
       return;
+    }
     operation = Operation::OPERATION_START;
   } else if (!this->stopped_) {
     operation = Operation::OPERATION_STOP;
@@ -388,6 +416,7 @@ void DFRobotSEN0609Component::finish_operation_() {
       break;
     case Operation::OPERATION_START:
       this->stopped_ = false;
+      this->last_frame_ms_ = App.get_loop_component_start_time();
       if (!this->sequence_failed_)
         this->status_clear_warning();
       this->sequence_failed_ = false;

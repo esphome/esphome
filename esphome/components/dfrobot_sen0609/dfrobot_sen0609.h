@@ -70,6 +70,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   void queue_configuration_();
   uint16_t wanted_reads_() const;
   void run_sequencer_();
+  void check_frames_(uint32_t now);
   bool build_command_(Operation operation, Param param);
   void finish_operation_();
   void fail_operation_();
@@ -90,6 +91,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint32_t sent_ms_{0};
   uint32_t hold_start_ms_{0};
   uint32_t hold_ms_{0};
+  uint32_t last_frame_ms_{0};
   uint16_t pending_writes_{0};
   uint16_t pending_reads_{0};
   RunMode mode_;
@@ -99,6 +101,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t attempts_{0};
   uint8_t aux_attempts_{0};
   bool line_overflow_{false};
+  bool read_failed_{false};
   bool echo_seen_{false};
   bool version_received_{false};
   bool stopped_{false};
