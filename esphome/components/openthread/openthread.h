@@ -114,10 +114,14 @@ class OpenThreadComponent final : public Component {
   uint8_t rcp_tx_pin_{0};
   GPIOPin *rcp_reset_pin_{nullptr};
   std::atomic<uint8_t> rcp_reset_attempts_{0};
+  uint32_t last_rcp_reset_ms_{0};  // the attempts are forgotten once the RCP has run long enough
+  static constexpr uint32_t RCP_RESET_FORGET_MS = 10 * 60 * 1000;
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   std::atomic<bool> mainloop_running_{false};
   bool border_router_started_{false};
+  bool border_router_failed_{false};
+  uint32_t border_router_attempt_ms_{0};
 #endif
 
  private:

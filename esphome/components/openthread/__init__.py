@@ -288,7 +288,7 @@ _RCP_SCHEMA = cv.Schema(
 _BORDER_ROUTER_SCHEMA = cv.All(
     cv.require_framework_version(
         esp_idf=cv.Version(5, 5, 5),
-        extra_message="OpenThread Border Router requires ESP-IDF 5.5.0 or newer",
+        extra_message="OpenThread Border Router requires ESP-IDF 5.5.5 or newer; older 5.5 releases can deadlock the OpenThread lock",
     ),
     cv.Schema({cv.Optional(CONF_RCP): _RCP_SCHEMA}),
 )
