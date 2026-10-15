@@ -374,7 +374,11 @@ void OpenThreadComponent::loop() {
     if (this->border_router_started_) {
       ESP_LOGI(TAG, "Wi-Fi backbone lost, border routing pauses");
       esp_netif_t *backbone = esp_openthread_get_backbone_netif();
-      (void) otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), false);
+      // A refused report is not retried: the border router is created afresh when the backbone returns
+      if (otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), false) !=
+          OT_ERROR_NONE) {
+        ESP_LOGW(TAG, "Stack did not take the backbone loss, routes stay until Wi-Fi returns");
+      }
     }
     this->backbone_up_ = false;
     this->disable_loop();
