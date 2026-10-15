@@ -24,8 +24,7 @@ class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
   void run_speaker_task() override;
   esp_err_t start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) override;
 
-  /// @brief Frame count that every DMA buffer and every write must be a multiple of. Two when the ESP32 mono swap
-  /// applies, so each write starts on a DMA word boundary; otherwise one.
+  /// @brief Frame multiple for DMA buffers and writes; 2 keeps ESP32 mono sample pairs word-aligned.
   uint32_t dma_frame_multiple_() const { return this->esp32_mono_swap_needed_() ? 2 : 1; }
 
   I2SCommFmt i2s_comm_fmt_{I2SCommFmt::STANDARD};

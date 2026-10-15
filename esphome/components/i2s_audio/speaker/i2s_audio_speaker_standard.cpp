@@ -43,8 +43,7 @@ static constexpr TickType_t WRITE_TIMEOUT_TICKS = pdMS_TO_TICKS(DMA_BUFFER_DURAT
 // maximum DMA descriptor size. This is only the value handed to the channel config: ESP-IDF may still adjust
 // it (e.g. cache-line rounding on some targets), so the speaker task reads the size actually allocated back
 // from the driver instead of assuming this value. Clamping here keeps the request in range and avoids a
-// noisy ESP-IDF "dma frame num is out of dma buffer size" warning at high sample rates or bit depths. The result is
-// rounded down to a multiple of frame_multiple.
+// noisy ESP-IDF "dma frame num is out of dma buffer size" warning at high sample rates or bit depths.
 static uint32_t dma_buffer_frames(const audio::AudioStreamInfo &stream_info, uint32_t frame_multiple) {
   const uint32_t frames_from_duration = stream_info.ms_to_frames(DMA_BUFFER_DURATION_MS);
   const uint32_t max_frames = I2S_DMA_BUFFER_MAX_SIZE / stream_info.frames_to_bytes(1);
@@ -86,11 +85,9 @@ void I2SAudioSpeaker::run_speaker_task() {
 
   // The ring buffer holds input-format audio (what play() receives), so size it from the input stream info.
   const size_t bytes_per_frame = this->current_stream_info_.frames_to_bytes(1);
-  // The ESP32 mono swap pairs samples by their position in each DMA word, so the source only hands over whole pairs
-  // and every write keeps the next one word-aligned. A final unpaired sample at the end of a stream is dropped.
+  // Hand over whole ESP32 mono sample pairs so writes stay word-aligned; a final unpaired sample is dropped.
   const size_t source_alignment = bytes_per_frame * this->dma_frame_multiple_();
-  // Round the ring buffer size down to a multiple of source_alignment so the wrap boundary stays aligned and
-  // avoids unnecessary splices.
+  // Round the ring buffer size down to a multiple of source_alignment so the wrap boundary avoids splices.
   const size_t ring_buffer_size =
       (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / source_alignment) * source_alignment;
 
