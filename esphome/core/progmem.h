@@ -157,9 +157,9 @@ struct LogString;
 /// without reading them itself, such as an API request. On the ESP8266 this is a copy of the table on
 /// the stack that lives as long as the object; elsewhere the table is read in place.
 ///
-/// Example:
+/// Example, with an enum that numbers the table's strings:
 ///   ProgmemStringTableCopy<MyStrings> strings;
-///   request.service = StringRef(strings.get(MyStrings::TURN_ON));
+///   request.service = StringRef(strings.get(MY_STRING_TURN_ON));
 template<typename Name> class ProgmemStringTableCopy {
   static_assert(Name::Table::INDEXED, "the table needs offsets");
 

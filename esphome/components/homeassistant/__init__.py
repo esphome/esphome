@@ -9,10 +9,6 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter", "@esphome/core"]
 DOMAIN = "homeassistant"
-
-# The component itself has no options; a platform that uses the shared C++ helpers loads it with
-# AUTO_LOAD so that they are compiled in
-CONFIG_SCHEMA = cv.Schema({})
 homeassistant_ns = cg.esphome_ns.namespace("homeassistant")
 
 
@@ -77,4 +73,4 @@ def setup_home_assistant_entity(var: MockObj, config: ConfigType) -> None:
 
 
 async def to_code(config: ConfigType) -> None:
-    """Nothing to generate; the component only carries the shared C++ helpers."""
+    """Nothing to generate; a platform loads the component for its shared C++ helpers."""

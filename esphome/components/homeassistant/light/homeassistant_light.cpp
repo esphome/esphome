@@ -277,11 +277,13 @@ void HomeassistantLight::write_state(LightState *state) {
   }
   if (!api::global_api_server->is_connected()) {
     ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost", this->entity_id_);
+    this->schedule_apply_();  // back to the state Home Assistant reported, which the light still has
     return;
   }
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
     ESP_LOGW(TAG, "'%s': No entity ID set yet", state->get_name().c_str());
+    this->schedule_apply_();
     return;
   }
 #endif
