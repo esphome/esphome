@@ -23,9 +23,8 @@ class ColorUtil {
         return (ptr[idx] << 8) + ptr[idx + 1];
       return ptr[idx] + (ptr[idx + 1] << 8);
     } else if constexpr (BITNESS == COLOR_BITNESS_888) {
+      // Always the LVGL RGB888 layout, b,g,r in memory for RGB order; byte order applies to 565 only
       const size_t idx = index * 3;
-      if (big_endian)
-        return (ptr[idx + 0] << 16) + (ptr[idx + 1] << 8) + ptr[idx + 2];
       return ptr[idx + 0] + (ptr[idx + 1] << 8) + (ptr[idx + 2] << 16);
     } else {
       return ptr[index];
