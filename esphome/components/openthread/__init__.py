@@ -288,13 +288,7 @@ _RCP_SCHEMA = cv.Schema(
     }
 )
 
-_BORDER_ROUTER_SCHEMA = cv.All(
-    cv.require_framework_version(
-        esp_idf=cv.Version(5, 5, 5),
-        extra_message="OpenThread Border Router requires ESP-IDF 5.5.5 or newer; older 5.5 releases can deadlock the OpenThread lock",
-    ),
-    cv.Schema({cv.Optional(CONF_RCP): _RCP_SCHEMA}),
-)
+_BORDER_ROUTER_SCHEMA = cv.Schema({cv.Optional(CONF_RCP): _RCP_SCHEMA})
 
 
 def _validate_border_router(value: object) -> ConfigType:
@@ -351,8 +345,12 @@ def _require_vfs(config: ConfigType) -> ConfigType:
 def _validate_platform(config: ConfigType) -> ConfigType:
     if CORE.using_zephyr:
         return config
+    # Older 5.5 releases keep the first lock mutex when a timed wait for the second one runs out
+    cv.require_framework_version(
+        esp_idf=cv.Version(5, 5, 5),
+        extra_message="OpenThread requires ESP-IDF 5.5.5 or newer; older 5.5 releases can deadlock the OpenThread lock",
+    )(config)
     if CONF_BORDER_ROUTER in config:
-        # _BORDER_ROUTER_SCHEMA already limits this to ESP32 with ESP-IDF
         variant = get_esp32_variant()
         if _get_rcp(config) is not None:
             if variant not in RCP_BORDER_ROUTER_VARIANTS:

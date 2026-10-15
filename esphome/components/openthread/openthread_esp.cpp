@@ -18,7 +18,6 @@
 #ifdef USE_OPENTHREAD_RCP_UART
 #include "esp_openthread_spinel.h"
 #endif
-#include "esp_idf_version.h"
 #include "esp_log.h"
 #include "esp_openthread.h"
 #include "esp_openthread_lock.h"
@@ -425,13 +424,7 @@ InstanceLock InstanceLock::try_acquire(int delay) {
   if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     return InstanceLock(false);
   }
-  TickType_t ticks = delay;
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 5)
-  // Before 5.5.5 a timed-out wait for the second mutex keeps the first one held, which deadlocks the
-  // stack for good; a wait that cannot time out is the lesser harm there
-  ticks = portMAX_DELAY;
-#endif
-  if (!esp_openthread_lock_acquire(ticks)) {
+  if (!esp_openthread_lock_acquire(delay)) {
     return InstanceLock(false);
   }
   // The clean-up may have released the lock to a waiter just before deinit destroys it

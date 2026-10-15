@@ -25,7 +25,6 @@ from esphome.components.openthread import (
     RCP_BORDER_ROUTER_VARIANTS,
     _final_validate,
     _validate,
-    _validate_border_router,
     _validate_platform,
 )
 from esphome.components.openthread.const import CONF_DEVICE_TYPE, CONF_RCP
@@ -223,20 +222,18 @@ def test_native_border_router_rejects_variant_without_ieee802154(
         _validate_platform(otbr_config)
 
 
-def test_border_router_requires_idf_5_5(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    _set_esp32_idf_core(set_core_config, idf_version=cv.Version(5, 4, 0))
+def test_requires_idf_5_5_5(set_core_config: SetCoreConfigCallable) -> None:
+    _set_esp32_idf_core(set_core_config, idf_version=cv.Version(5, 5, 2))
 
     with pytest.raises(cv.Invalid, match="at least framework version 5.5.5"):
-        _validate_border_router({})
+        _validate_platform({CONF_DEVICE_TYPE: DEVICE_TYPE_FTD})
 
 
-def test_border_router_rejects_arduino(set_core_config: SetCoreConfigCallable) -> None:
+def test_rejects_arduino(set_core_config: SetCoreConfigCallable) -> None:
     set_core_config(PlatformFramework.ESP32_ARDUINO)
 
     with pytest.raises(cv.Invalid, match="incompatible with ESP32 using arduino"):
-        _validate_border_router(None)
+        _validate_platform({CONF_DEVICE_TYPE: DEVICE_TYPE_FTD})
 
 
 @pytest.mark.parametrize("variant", sorted(RCP_BORDER_ROUTER_VARIANTS))
