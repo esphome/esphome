@@ -11,10 +11,11 @@ struct KeeloqData {
   uint8_t command;     // Button Status S2-S1-S0-S3
   bool repeat;         // Repeated command bit
   bool vlow;           // Battery status bit
+  uint16_t suffix{0};  // Optional bits after the 66-bit HCS301 word
+  uint8_t suffix_bits{0};
 
   bool operator==(const KeeloqData &rhs) const {
-    // Treat 0x10 as a special, wildcard button press
-    // This allows us to match on just the address if wanted.
+    // 0x10 matches any command. The suffix is not compared: the binary sensor does not take it.
     if (address != rhs.address) {
       return false;
     }
@@ -30,22 +31,5 @@ class KeeloqProtocol : public RemoteProtocol<KeeloqData> {
 };
 
 DECLARE_REMOTE_PROTOCOL(Keeloq)
-
-template<typename... Ts> class KeeloqAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, address)
-  TEMPLATABLE_VALUE(uint32_t, encrypted)
-  TEMPLATABLE_VALUE(uint8_t, command)
-  TEMPLATABLE_VALUE(bool, vlow)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    KeeloqData data{};
-    data.address = this->address_.value(x...);
-    data.encrypted = this->encrypted_.value(x...);
-    data.command = this->command_.value(x...);
-    data.vlow = this->vlow_.value(x...);
-    KeeloqProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

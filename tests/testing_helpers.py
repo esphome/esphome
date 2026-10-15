@@ -1,6 +1,7 @@
 from typing import Any
 
 from esphome.loader import ComponentManifest, _replace_component_manifest
+from esphome.types import ConfigType
 
 
 class ComponentManifestOverride:
@@ -61,3 +62,24 @@ def set_testing_manifest(domain: str, manifest: ComponentManifestOverride) -> No
     directory provides an ``override_manifest`` function.
     """
     _replace_component_manifest(domain, manifest)
+
+
+def add_defines_to_code(manifest: ComponentManifestOverride, *defines: str) -> None:
+    """Keep the component's real ``to_code`` and add the given defines after it.
+
+    For host test and benchmark builds of code that is gated on a platform
+    define, such as loops that only exist on boards with PSRAM.
+    """
+    from esphome import codegen as cg
+
+    manifest.enable_codegen()
+    original_to_code = manifest.to_code
+
+    async def to_code(config: ConfigType) -> None:
+        await original_to_code(config)
+        for define in defines:
+            cg.add_define(define)
+
+    if hasattr(original_to_code, "priority"):
+        to_code.priority = original_to_code.priority
+    manifest.to_code = to_code

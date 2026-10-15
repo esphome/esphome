@@ -7,6 +7,8 @@
 
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #include "esphome/core/log.h"
 #include "display_color_utils.h"
@@ -137,6 +139,11 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+/// Whether a rotation swaps the x and y axes.
+constexpr bool rotation_swaps_axes(DisplayRotation rotation) {
+  return rotation == DISPLAY_ROTATION_90_DEGREES || rotation == DISPLAY_ROTATION_270_DEGREES;
+}
+
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;
@@ -173,7 +180,6 @@ enum RegularPolygonDrawing {
 
 class Display;
 class DisplayPage;
-class DisplayOnPageChangeTrigger;
 
 /** Optimized display writer that uses function pointers for stateless lambdas.
  *
@@ -294,7 +300,7 @@ using display_writer_t = DisplayWriter<Display>;
                   prefix type "\n" \
                               "%s  Rotations: %d °\n" \
                               "%s  Dimensions: %dpx x %dpx", \
-                  prefix, log_display_obj->rotation_, prefix, log_display_obj->get_width(), \
+                  prefix, log_display_obj->get_rotation(), prefix, log_display_obj->get_width(), \
                   log_display_obj->get_height()); \
   }
 
@@ -351,7 +357,8 @@ class Display : public PollingComponent {
    * \param ptr A pointer to the start of the data to be copied
    * \param order The ordering of the colors
    * \param bitness Defines the number of bits and their format for each pixel
-   * \param big_endian True if 16 bit values are stored big-endian
+   * \param big_endian True if 16 bit values are stored big-endian. Ignored for 888, which is always b,g,r
+   *                   in memory for RGB order, as LVGL and ESPHome images store it.
    * \param x_offset The initial x-offset into the source buffer.
    * \param y_offset The initial y-offset into the source buffer.
    * \param x_pad How many pixels are in each line after the end of the pixels to be copied.
@@ -702,7 +709,11 @@ class Display : public PollingComponent {
 
   const DisplayPage *get_active_page() const { return this->page_; }
 
-  void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  template<typename F> void add_on_page_change_callback(F &&callback) {
+    this->page_change_callback_.add(std::forward<F>(callback));
+  }
+#endif
 
   /// Internal method to set the display rotation with.
   virtual void set_rotation(DisplayRotation rotation);
@@ -710,7 +721,13 @@ class Display : public PollingComponent {
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
-  DisplayRotation get_rotation() const { return this->rotation_; }
+  virtual DisplayRotation get_rotation() const { return this->rotation_; }
+
+  /// True when draw_pixel_at() swaps x and y before writing, so pixels that are
+  /// neighbours along x land a row apart in the frame buffer. Not the same as
+  /// get_width()/get_height() swapping: a display that rotates in hardware
+  /// reports swapped dimensions but writes unswapped pixels.
+  virtual bool pixel_axes_swapped() const { return rotation_swaps_axes(this->rotation_); }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
@@ -809,8 +826,9 @@ class Display : public PollingComponent {
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   display_writer_t writer_{};
   DisplayPage *page_{nullptr};
-  DisplayPage *previous_page_{nullptr};
-  std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  StaticCallbackManager<DISPLAY_PAGE_CHANGE_CALLBACK_COUNT, void(DisplayPage *, DisplayPage *)> page_change_callback_;
+#endif
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
   uint8_t wdt_pixel_counter_{0};
@@ -848,18 +866,6 @@ template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...
       page->show();
     }
   }
-};
-
-class DisplayOnPageChangeTrigger final : public Trigger<DisplayPage *, DisplayPage *> {
- public:
-  explicit DisplayOnPageChangeTrigger(Display *parent) { parent->add_on_page_change_trigger(this); }
-  void process(DisplayPage *from, DisplayPage *to);
-  void set_from(DisplayPage *p) { this->from_ = p; }
-  void set_to(DisplayPage *p) { this->to_ = p; }
-
- protected:
-  DisplayPage *from_{nullptr};
-  DisplayPage *to_{nullptr};
 };
 
 const LogString *text_align_to_string(TextAlign textalign);

@@ -37,7 +37,7 @@ class StaticTask {
   /// @param param      Parameter passed to task function
   /// @param priority   FreeRTOS task priority
   /// @param use_psram  If true, allocate stack in PSRAM; otherwise internal RAM
-  /// @param core_id    Core on which the task should run, or tskNO_AFFINITY
+  /// @param core_id    CPU core, or tskNO_AFFINITY to leave scheduling unrestricted
   /// @return true on success; false if either allocation fails or the task cannot be created
   bool create(TaskFunction_t fn, const char *name, uint32_t stack_size, void *param, UBaseType_t priority,
               bool use_psram, BaseType_t core_id = tskNO_AFFINITY);
