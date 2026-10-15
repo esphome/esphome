@@ -28,6 +28,10 @@ CDIR=$(dirname "$CYAML"); CNAME=$(basename "$CYAML" .yaml)
 DLOG=$DDIR/$DNAME-serial.log; CLOG=$CDIR/$CNAME-serial.log
 INVALID=""
 AP_WAIT=120; UPLOAD_WAIT=300; SAVE_WAIT=240
+# Crash signatures (extended regex), not bare words: "aborting connection attempt" is a normal Wi-Fi retry line
+CRASH_RE='Panic |abort\(\)|Fatal exception|Exception \(|Guru Meditation|HardFault|Bus Fault|Backtrace:|Soft WDT reset|wdt reset|Brownout|rst cause:[24]'
+# A boot banner, or the CDC port going away (a Pico reboot shows only as a port loss)
+BOOT_RE='Log initialized\|\[capture\] port lost'
 DUT_CAPTURE=$((AP_WAIT + UPLOAD_WAIT + SAVE_WAIT + SETTLE + 60)); CLIENT_CAPTURE=$((SAVE_WAIT + SETTLE + 60))
 
 bound() { local t=$1; shift; if command -v timeout >/dev/null; then timeout "$t" "$@"; else perl -e 'alarm shift; exec @ARGV' "$t" "$@"; fi; }
@@ -78,7 +82,7 @@ if ! n=$(wait_for "$DLOG" "Captive portal\|Starting fallback AP" $AP_WAIT); then
   fail "DUT never raised its AP within ${n}s, see $DLOG"
 fi
 echo "[hammer] DUT fallback AP after ${n}s"; sleep 2
-BOOT_BASE=$(count 'Log initialized' "$DLOG")  # reboots are counted from here; the first banner may predate the capture
+BOOT_BASE=$(count "$BOOT_RE" "$DLOG")  # reboots are counted from here; the first banner may predate the capture
 
 esp_upload "$CYAML" "$CPORT" "$CTREE" || fail "client upload failed"
 : > "$CLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$CPORT" $CLIENT_CAPTURE "$CLOG" 2> "${CLOG%-serial.log}-capture.err" &)
@@ -93,10 +97,10 @@ fi
 # A verdict needs complete evidence: both captures must have lasted the run and logged no error of their own
 for spec in "$DPORT:${DLOG%-serial.log}-capture.err" "$CPORT:${CLOG%-serial.log}-capture.err"; do
   port=${spec%%:*}; err=${spec#*:}
-  pgrep -f "[s]erial_capture.py $port " >/dev/null || INVALID="the capture on $port ended before the run did, see $err"
-  [ -s "$err" ] && INVALID="the capture on $port reported an error, see $err"
+  pgrep -f "[s]erial_capture.py $port " >/dev/null || INVALID="${INVALID:+$INVALID; }the capture on $port ended before the run did, see $err"
+  [ -s "$err" ] && INVALID="${INVALID:+$INVALID; }the capture on $port reported an error, see $err"
 done
-CRASHES=$(count 'Panic\|HardFault\|Fault\|abort\|Backtrace\|Exception\|Guru' "$DLOG"); BOOTS=$(count 'Log initialized' "$DLOG")
+CRASHES=$(LC_ALL=C grep -a -c -E "$CRASH_RE" "$DLOG"); BOOTS=$(count "$BOOT_RE" "$DLOG")
 STA=$(LC_ALL=C grep -a 'IP Address:' "$DLOG" | grep -v -c '192\.168\.4\.'); REAL=$(LC_ALL=C grep -a -o 'real save status [-0-9]*' "$CLOG" | tail -1 | awk '{print $4}')
 SAVES=$(count 'Requested WiFi Settings Change' "$DLOG"); EXITS=$(count 'cooldown early' "$DLOG"); ANSWERED=$(count 'bogus save status 200' "$CLOG")
 REBOOTS=$((BOOTS - BOOT_BASE))
@@ -104,7 +108,7 @@ echo "[hammer] $DNAME: saves requested $SAVES, cooldown exits $EXITS, crash mark
 FAILED=$(count 'bogus save status -1' "$CLOG")
 echo "[hammer] $CNAME: bogus saves answered $ANSWERED, failed $FAILED, real save status ${REAL:-none}"
 # Only whole messages, matched where the message starts, so a credential line or an odd SSID never gets in
-LC_ALL=C grep -a -E '^\[[0-9:]+\](\[[A-Z]\]\[[a-z_]+:[0-9]+\]: *(Exiting cooldown early|Starting fallback AP|Captive portal|Requested WiFi Settings Change|Retry phase|Connected$|IP Address: )|(Panic|Fatal exception|Exception|HardFault|Bus Fault|Guru Meditation))' "$DLOG" | LC_ALL=C tr -cd '\11\12\15\40-\176' | sed -E 's/(IP Address: )[^ ]+/\1<redacted>/' | cut -c1-110 | head -80 > "$DDIR/$DNAME-events.txt"
+LC_ALL=C grep -a -E "^\[[0-9:]+\](\[[A-Z]\]\[[a-z_]+:[0-9]+\]: *(Exiting cooldown early|Starting fallback AP|Captive portal|Requested WiFi Settings Change|Retry phase|Connected\$|IP Address: )|\[capture\] port lost|($CRASH_RE))" "$DLOG" | LC_ALL=C tr -cd '\11\12\15\40-\176' | sed -E 's/(IP Address: )[^ ]+/\1<redacted>/' | cut -c1-110 | head -80 > "$DDIR/$DNAME-events.txt"
 echo "[hammer] events: $DDIR/$DNAME-events.txt"
 stop_tails
 [ -z "$INVALID" ] || { echo "[hammer] RESULT INVALID: $INVALID"; exit 2; }
