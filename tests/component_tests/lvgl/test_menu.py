@@ -6,6 +6,7 @@ action, and the code they generate.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import pytest
 
@@ -400,8 +401,10 @@ def test_set_page_action_targets_sidebar_when_flagged(main_cpp: str) -> None:
 
 
 def test_on_value_passes_current_main_page(main_cpp: str) -> None:
-    assert (
-        "->trigger(lv_menu_get_cur_main_page(test_menu), event);\n"
-        "    \n"
-        "}, LV_EVENT_VALUE_CHANGED, lvgl::lv_update_event, nullptr);"
-    ) in main_cpp
+    callback = re.search(
+        r"add_event_cb\(test_menu, (.*?)\}, LV_EVENT_VALUE_CHANGED, lvgl::lv_update_event, nullptr\);",
+        main_cpp,
+        re.DOTALL,
+    )
+    assert callback is not None
+    assert "->trigger(lv_menu_get_cur_main_page(test_menu), event);" in callback[1]
