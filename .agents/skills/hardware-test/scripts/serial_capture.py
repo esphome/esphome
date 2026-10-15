@@ -11,7 +11,8 @@
 Exit status 1 when nothing was received (wrong port name, or a port another capture still holds).
 Lines are written as [HH:MM:SS]text with ANSI colour stripped and flushed one by one, so a shell
 loop can grep the file while the capture runs. If the port is missing or disappears (USB CDC boards
-re-enumerate on reboot) the script retries the open until the deadline instead of dying.
+re-enumerate on reboot) the script retries until the deadline, and follows the board by its USB serial
+number when it comes back under another device path.
 
 Never run an open-ended serial session: every capture has a deadline, and a flash on the same port
 needs the capture stopped first (pkill -f "[s]erial_capture.py" does not match the killing shell).
@@ -25,14 +26,31 @@ import sys
 import time
 
 import serial
+from serial.tools import list_ports
 
 ANSI = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
 PORT_ERRORS = (serial.SerialException, OSError)
 
 
-def open_port(args: argparse.Namespace) -> serial.Serial:
+def serial_number_of(port: str) -> str | None:
+    for p in list_ports.comports():
+        if p.device == port:
+            return p.serial_number
+    return None
+
+
+def current_path(port: str, serial_number: str | None) -> str:
+    """The port's current device path: a USB CDC board can come back under a new name after a reboot."""
+    if serial_number:
+        for p in sorted(list_ports.comports(), key=lambda p: p.device):
+            if p.serial_number == serial_number:
+                return p.device
+    return port
+
+
+def open_port(args: argparse.Namespace, path: str) -> serial.Serial:
     s = serial.Serial(port=None, baudrate=args.baud, timeout=0.2)
-    s.port = args.port
+    s.port = path
     if args.released:
         s.dtr = False
         s.rts = False
@@ -61,11 +79,17 @@ def capture(args: argparse.Namespace, out) -> int:
     buf = b""
     s = None
     received = 0
+    serial_number = None
     while time.time() < deadline:
         if s is None:
+            path = current_path(args.port, serial_number)
             try:
-                s = open_port(args)
+                s = open_port(args, path)
                 args.reset = False  # only reset on the first open
+                if serial_number is None:
+                    serial_number = serial_number_of(path)
+                if path != args.port:
+                    note(out, f"reopened as {path}")
             except PORT_ERRORS as err:
                 note(out, f"open failed: {err}")
                 time.sleep(1)

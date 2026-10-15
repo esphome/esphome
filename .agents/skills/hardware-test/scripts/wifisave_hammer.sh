@@ -25,6 +25,8 @@ DDIR=$(dirname "$DYAML"); DNAME=$(basename "$DYAML" .yaml)
 CDIR=$(dirname "$CYAML"); CNAME=$(basename "$CYAML" .yaml)
 DLOG=$DDIR/$DNAME-serial.log; CLOG=$CDIR/$CNAME-serial.log
 INVALID=""
+AP_WAIT=120; UPLOAD_WAIT=300; SAVE_WAIT=240
+DUT_CAPTURE=$((AP_WAIT + UPLOAD_WAIT + SAVE_WAIT + SETTLE + 60)); CLIENT_CAPTURE=$((SAVE_WAIT + SETTLE + 60))
 
 bound() { local t=$1; shift; if command -v timeout >/dev/null; then timeout "$t" "$@"; else perl -e 'alarm shift; exec @ARGV' "$t" "$@"; fi; }
 count() { LC_ALL=C grep -a -c "$1" "$2"; }
@@ -36,7 +38,7 @@ compile() { # compile YAML TREE
   (cd "$2" && PYTHONUNBUFFERED=1 bound 1500 "$PY" -m esphome compile "$1" > "${1%.yaml}-compile.log" 2>&1); local rc=$?
   echo "[hammer] compile $(basename "$1"): rc=$rc"; return $rc; }
 esp_upload() { # esp_upload YAML PORT TREE
-  (cd "$3" && bound 300 "$PY" -m esphome upload "$1" --device "$2" > "${1%.yaml}-upload.log" 2>&1)
+  (cd "$3" && bound $UPLOAD_WAIT "$PY" -m esphome upload "$1" --device "$2" > "${1%.yaml}-upload.log" 2>&1)
   local ok; ok=$(count 'Successfully uploaded' "${1%.yaml}-upload.log"); echo "[hammer] upload $(basename "$1"): ok=$ok"; [ "$ok" -ge 1 ]; }
 
 stop_tails
@@ -49,8 +51,8 @@ case $KIND in
   pico)
     SN=$("$PY" "$SKILL/scripts/ports.py" --serial-of "$DPORT") || fail "no USB serial number for $DPORT"
     esp_upload "$DYAML" "$DPORT" "$DTREE" || fail "DUT upload failed"
-    # The Pico drops its CDC port on reboot: wait for this board to vanish, then come back under any name
-    n=0; while "$PY" "$SKILL/scripts/ports.py" --wait 2e8a --serial "$SN" --timeout 0 >/dev/null 2>&1 && [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done
+    # The Pico drops its CDC port on reboot and may already be back: take whatever path this board has now;
+    # the capture follows the serial number if the path changes again
     DPORT=$("$PY" "$SKILL/scripts/ports.py" --wait 2e8a --serial "$SN" --timeout 60) || fail "pico did not re-enumerate"
     echo "[hammer] pico port after upload: $DPORT"; sleep 2 ;;
   bw15|bk)
@@ -64,13 +66,13 @@ case $KIND in
   *) echo "unknown DUT_KIND $KIND"; exit 1 ;;
 esac
 
-: > "$DLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$DPORT" 420 "$DLOG" $TAILOPT &)
-n=$(wait_for "$DLOG" "Captive portal\|Starting fallback AP" 120) || fail "DUT never raised its AP within ${n}s, see $DLOG"
+: > "$DLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$DPORT" $DUT_CAPTURE "$DLOG" $TAILOPT &)
+n=$(wait_for "$DLOG" "Captive portal\|Starting fallback AP" $AP_WAIT) || fail "DUT never raised its AP within ${n}s, see $DLOG"
 echo "[hammer] DUT fallback AP after ${n}s"; sleep 2
 
 esp_upload "$CYAML" "$CPORT" "$CTREE" || fail "client upload failed"
-: > "$CLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$CPORT" 300 "$CLOG" &)
-if n=$(wait_for "$CLOG" "real save status\|posting the real" 240); then
+: > "$CLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$CPORT" $CLIENT_CAPTURE "$CLOG" &)
+if n=$(wait_for "$CLOG" "real save status\|posting the real" $SAVE_WAIT); then
   echo "[hammer] client posted the real credentials after ${n}s; settling ${SETTLE}s"; sleep "$SETTLE"
 else
   INVALID="client never reached the real save within ${n}s"; echo "[hammer] WARNING: $INVALID"
@@ -78,7 +80,7 @@ fi
 
 echo "[hammer] $DNAME: saves requested $(count 'Requested WiFi Settings Change' "$DLOG"), cooldown exits $(count 'cooldown early' "$DLOG"), crash markers $(count 'Panic\|HardFault\|Fault\|abort\|Backtrace\|Exception\|Guru' "$DLOG"), boots $(count 'Log initialized' "$DLOG"), STA addresses $(LC_ALL=C grep -a 'IP Address:' "$DLOG" | grep -v -c '192\.168\.4\.')"
 echo "[hammer] $CNAME: bogus saves answered $(count 'bogus save status 200' "$CLOG"), failed $(count 'status -1' "$CLOG"), real save $(LC_ALL=C grep -a -o 'real save status [-0-9]*' "$CLOG" | tail -1)"
-LC_ALL=C grep -a "cooldown early\|Panic\|Fault\|Exception\|Retry phase\|Requested WiFi\|Connected\|IP Address\|Captive portal\|fallback AP" "$DLOG" | LC_ALL=C tr -cd '\11\12\15\40-\176' | sed -E 's/(IP Address: )[0-9.]+/\1<redacted>/' | cut -c1-110 | head -80 > "$DDIR/$DNAME-events.txt"
+LC_ALL=C grep -a "cooldown early\|Panic\|Fault\|Exception\|Retry phase\|Requested WiFi\|Connected\|IP Address\|Captive portal\|fallback AP" "$DLOG" | LC_ALL=C tr -cd '\11\12\15\40-\176' | sed -E 's/(IP Address: )[^ ]+/\1<redacted>/' | cut -c1-110 | head -80 > "$DDIR/$DNAME-events.txt"
 echo "[hammer] events: $DDIR/$DNAME-events.txt"
 stop_tails
 [ -z "$INVALID" ] || { echo "[hammer] RESULT INVALID: $INVALID"; exit 2; }
