@@ -111,9 +111,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 - The client never joins the AP: another board may still run an AP with the same SSID, or the device
   booted with saved credentials because the name was reused. One AP device at a time on the bench.
 - Builds come out byte-identical between branches: the wrong tree was imported (rule 3).
-- Multicast from the host never arrives on some access points; test multicast device to device.
-  Broadcast to boards is lossy under Wi-Fi power save, unicast is not. Throttle UDP floods to a fixed
-  packet rate.
+- Multicast from the host never arrives on some access points: test it device to device. Broadcast
+  is lossy under Wi-Fi power save, unicast is not. Throttle UDP floods to a fixed packet rate.
 - `api:` reboots a board after 15 min without a client: `reboot_timeout: 0s` on `api:` and `mqtt:` for
   soak tests.
 

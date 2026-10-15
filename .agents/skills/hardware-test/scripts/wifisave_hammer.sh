@@ -4,9 +4,8 @@
 # prints counts. Configs come from templates/example-dut.yaml and templates/example-client.yaml.
 #
 # Usage: wifisave_hammer.sh DUT_KIND DUT_PORT DUT_YAML DUT_TREE CLIENT_PORT CLIENT_YAML CLIENT_TREE [SETTLE_S]
-#   DUT_KIND    esp | pico | bw15 | bk
-#               esp: esphome upload; pico: upload then re-find the CDC port by its USB serial number because it
-#               re-enumerates; bw15: flash_rtl87xx_kit.py; bk: flash_bk72xx.py
+#   DUT_KIND    esp (esphome upload), pico (upload, then re-find the CDC port by USB serial number),
+#               bw15 (flash_rtl87xx_kit.py) or bk (flash_bk72xx.py)
 #   *_YAML      absolute path; the file name without .yaml must equal the config's `name`
 #   *_TREE      checkout or worktree whose esphome code must build that yaml (cwd for python -m esphome)
 #   SETTLE_S    seconds to keep capturing after the client reports the real save (default 40; BW15 wants 90)

@@ -12,8 +12,7 @@ esp32:
   framework:
     type: esp-idf
 
-# esp8266:
-#   board: d1_mini
+# esp8266: {board: d1_mini}
 
 packages:
   hwtest: !include client-wifisave.yaml

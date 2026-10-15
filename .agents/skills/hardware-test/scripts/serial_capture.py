@@ -2,10 +2,10 @@
 
   serial_capture.py PORT SECONDS OUTFILE [--baud 115200] [--released] [--reset]
 
-  default      open with DTR/RTS as pyserial leaves them (asserted). Fine for ESP devkits and the Pico.
-  --released   drive DTR and RTS low before opening. Required for the BW15 and BK7238 CH340 kits: their
-               CH340 straps the boot pin (DTR) and reset (RTS), so a plain open holds the chip in reset.
-  --reset      after opening, pulse reset (DTR low, RTS high 100 ms, RTS low) to capture from a fresh boot.
+  default      open with DTR/RTS as pyserial leaves them (asserted); fine for ESP devkits and the Pico.
+  --released   drive DTR and RTS low before opening: the BW15 and BK7238 CH340 kits strap the boot pin
+               (DTR) and reset (RTS), so a plain open holds the chip in reset.
+  --reset      pulse reset after opening (DTR low, RTS high 100 ms, RTS low) to capture a fresh boot.
   --baud       115200 by default; 74880 shows the ESP8266 ROM boot messages.
 
 Exit status 1 when nothing was received (wrong port name, or a port another capture still holds).
@@ -68,9 +68,14 @@ def open_port(args: argparse.Namespace, path: str) -> serial.Serial:
     return s
 
 
-def note(out, text: str) -> None:
-    out.write(f"[{time.strftime('%H:%M:%S')}][capture] {text}\n".encode())
+def write_line(out, tag: bytes, data: bytes) -> None:
+    stamp = time.strftime("[%H:%M:%S]").encode()
+    out.write(stamp + tag + ANSI.sub(b"", data) + b"\n")
     out.flush()
+
+
+def note(out, text: str) -> None:
+    write_line(out, b"[capture] ", text.encode())
 
 
 def capture(args: argparse.Namespace, out) -> int:
@@ -109,18 +114,9 @@ def capture(args: argparse.Namespace, out) -> int:
         buf += data
         while b"\n" in buf:
             line, buf = buf.split(b"\n", 1)
-            line = ANSI.sub(b"", line).rstrip(b"\r")
-            out.write(b"[" + time.strftime("%H:%M:%S").encode() + b"]" + line + b"\n")
-            out.flush()
+            write_line(out, b"", line.rstrip(b"\r"))
     if buf:
-        out.write(
-            b"["
-            + time.strftime("%H:%M:%S").encode()
-            + b"][partial]"
-            + ANSI.sub(b"", buf)
-            + b"\n"
-        )
-        out.flush()
+        write_line(out, b"[partial]", buf)
     if s is not None:
         s.close()
     return received
