@@ -2,7 +2,8 @@
 
 A plain open asserts both lines and holds the chip in reset. Here every open keeps DTR high and RTS
 released; the first open pulses RTS so the ROM comes up; after the command DTR low plus an RTS pulse
-boots the app. The exit status is ltchiptool's, and the boot pulse never hides its error.
+boots the app. The exit status is ltchiptool's; 2 means the flash succeeded but the boot pulse
+failed, so the board is still in the ROM and needs a reset.
 
 Usage: python flash_rtl87xx_kit.py flash write -d <port> firmware.uf2
 """
@@ -68,6 +69,8 @@ def main() -> int:
                 print("[flash_rtl87xx_kit] application booted")
             except (serial.SerialException, OSError) as err:
                 print(f"[flash_rtl87xx_kit] boot pulse failed: {err}", file=sys.stderr)
+                if rc == 0:
+                    rc = 2  # flashed, but the board is still in the ROM: press reset
     return rc
 
 
