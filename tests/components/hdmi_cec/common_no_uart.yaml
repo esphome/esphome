@@ -1,0 +1,21 @@
+hdmi_cec:
+  id: cec
+  pin:   # to HDMI pin 13 (CEC), with HDMI pin 17 (DDC/CEC ground)
+    number: ${cec_pin}
+    mode:
+      input: true
+      pullup: true
+
+  address: 0x5
+  physical_address: 0x4000
+  promiscuous_mode: true
+  on_message:
+    # Give Device Power Status
+    - opcode: 0x8F
+      then:
+        - lambda: !lambda |-
+            id(cec).send(source, {0x90, 0x01});
+     # Volume Up from TV remote
+    - data: [0x44, 0x41]
+      then:
+        - logger.log: "HDMI-CEC Volume Up"
