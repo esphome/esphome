@@ -304,6 +304,44 @@ TEST_F(SEN0609SequencerTest, MissingPresenceFramesReapplyConfiguration) {
   EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
+TEST_F(SEN0609SequencerTest, ChangeDuringBackOffKeepsBackOff) {
+  this->hub_.setup();
+  for (int i = 0; i < 3; i++)
+    ASSERT_EQ(this->next_command_(), "sensorStop");
+  this->run_(2100);  // the last attempt times out
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);
+  EXPECT_EQ(this->next_command_(20000), "");
+  EXPECT_EQ(this->next_command_(15000), "sensorStop");
+}
+
+TEST_F(SEN0609SequencerTest, FailedSaveIsRetriedLater) {
+  this->boot_();
+  this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRange 1.00 12.00");
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(this->next_command_(), "saveConfig");
+    this->feed_("saveConfig\r\nError\r\nDFRobot:/>");
+  }
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->next_command_(20000), "");
+  ASSERT_EQ(this->next_command_(15000), "saveConfig");
+  this->answer_("saveConfig");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_EQ(this->next_command_(), "");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SequencerTest, MinRangeAboveMaxRangeIsRefused) {
+  this->boot_();
+  this->hub_.control_number(NUMBER_MIN_RANGE, 13.0f);
+  EXPECT_FLOAT_EQ(this->min_range_.state, 0.6f);
+  this->hub_.control_number(NUMBER_MAX_RANGE, 0.5f);
+  EXPECT_FLOAT_EQ(this->max_range_.state, 12.0f);
+  EXPECT_EQ(this->next_command_(3000), "");
+}
+
 class SEN0609SettingsTest : public SEN0609Test {
  protected:
   void SetUp() override {
@@ -348,6 +386,22 @@ TEST_F(SEN0609SettingsTest, BootWritesLedsAndReadsSettings) {
   EXPECT_EQ(this->out_pin_level_.active_index(), optional<size_t>(1));
   EXPECT_EQ(this->hardware_version_.state, "V2.0");
   EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SettingsTest, FailedLedWriteShowsAcceptedStateAgain) {
+  this->boot_();
+  this->hub_.control_switch(SWITCH_OUT_LED, true);
+  EXPECT_TRUE(this->out_led_.state);
+  this->expect_and_answer_("sensorStop");
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(this->next_command_(), "setLedMode 2 0");
+    this->feed_("setLedMode 2 0\r\nError\r\nDFRobot:/>");
+  }
+  // The LEDs cannot be read back, so the state the module accepted at boot is shown again
+  EXPECT_FALSE(this->out_led_.state);
+  this->expect_and_answer_("sensorStart");
+  EXPECT_EQ(this->next_command_(), "");
+  EXPECT_TRUE(this->hub_.status_has_warning());
 }
 
 TEST_F(SEN0609SettingsTest, SwitchAndSelectChangesAreWrittenAndSaved) {

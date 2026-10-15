@@ -42,6 +42,13 @@ static constexpr uint16_t PERSISTENT_PARAMS =
 // The frames depend on these, so their writes are kept until they succeed
 static constexpr uint16_t FRAME_PARAMS = param_bit(PARAM_RUN_APP) | param_bit(PARAM_UART_OUTPUT);
 
+#ifdef USE_SWITCH
+static constexpr bool is_led(Param param) { return param == PARAM_RUN_LED || param == PARAM_OUT_LED; }
+static constexpr SwitchSetting led_switch(Param param) {
+  return param == PARAM_RUN_LED ? SWITCH_RUN_LED : SWITCH_OUT_LED;
+}
+#endif
+
 #ifdef USE_NUMBER
 static constexpr uint8_t NUMBER_PARAMS[NUMBER_COUNT] PROGMEM = {
     PARAM_RANGE,   PARAM_RANGE,   PARAM_TRIG_RANGE, PARAM_SENSITIVITY, PARAM_SENSITIVITY,
@@ -416,13 +423,25 @@ void DFRobotSEN0609Component::check_frames_(uint32_t now) {
 
 void DFRobotSEN0609Component::request_write_(Param param) {
   this->pending_writes_ |= param_bit(param);
-  // Start a new sequence a little later, so changes made together end in one flash write
-  if (this->operation_ == Operation::OPERATION_NONE && !this->stopped_)
+  if (this->operation_ != Operation::OPERATION_NONE || this->stopped_)
+    return;
+  // Start a new sequence a little later, so changes made together end in one flash write.
+  // A longer hold, such as the back-off from a module that does not answer, is not cut short.
+  const uint32_t elapsed = App.get_loop_component_start_time() - this->hold_start_ms_;
+  if (elapsed >= this->hold_ms_ || this->hold_ms_ - elapsed < COALESCE_MS)
     this->hold_(COALESCE_MS);
 }
 
 #ifdef USE_NUMBER
 void DFRobotSEN0609Component::control_number(NumberSetting setting, float value) {
+  // A value not read yet is NAN and never fails the comparison
+  if ((setting == NUMBER_MIN_RANGE && value > this->number_values_[NUMBER_MAX_RANGE]) ||
+      (setting == NUMBER_MAX_RANGE && value < this->number_values_[NUMBER_MIN_RANGE])) {
+    ESP_LOGW(TAG, "Minimum range above maximum range, not written");
+    if (!std::isnan(this->number_values_[setting]))
+      this->publish_number_(setting, this->number_values_[setting]);
+    return;
+  }
   this->publish_number_(setting, value);
   this->request_write_(static_cast<Param>(progmem_read_byte(&NUMBER_PARAMS[setting])));
 }
@@ -575,7 +594,8 @@ bool DFRobotSEN0609Component::build_command_(Operation operation, Param param) {
     case PARAM_RUN_LED:
     case PARAM_OUT_LED: {
       // 0 turns the LED on
-      const bool on = this->switch_states_[param == PARAM_RUN_LED ? SWITCH_RUN_LED : SWITCH_OUT_LED];
+      const bool on = this->switch_states_[led_switch(param)];
+      this->sent_led_on_ = on;
       ESPHOME_snprintf_P(buf, len, ESPHOME_PSTR("setLedMode %u %u"), param == PARAM_RUN_LED ? 1U : 2U, on ? 0U : 1U);
       return true;
     }
@@ -725,6 +745,13 @@ void DFRobotSEN0609Component::finish_operation_() {
     case Operation::OPERATION_WRITE:
       if (PERSISTENT_PARAMS & param_bit(this->param_))
         this->save_pending_ = true;
+#ifdef USE_SWITCH
+      if (is_led(this->param_)) {
+        const uint8_t bit = 1U << led_switch(this->param_);
+        this->led_known_ |= bit;
+        this->led_on_ = this->sent_led_on_ ? (this->led_on_ | bit) : (this->led_on_ & ~bit);
+      }
+#endif
       break;
     case Operation::OPERATION_SAVE:
       this->save_pending_ = false;
@@ -756,6 +783,8 @@ void DFRobotSEN0609Component::fail_operation_() {
   this->operation_ = Operation::OPERATION_NONE;
   this->hold_(COMMAND_GAP_MS);
   const bool keep_write = operation == Operation::OPERATION_WRITE && (FRAME_PARAMS & param_bit(this->param_)) != 0;
+  // The entities show the changes as kept, but without the save they are lost at power off: keep it too
+  const bool keep = keep_write || operation == Operation::OPERATION_SAVE;
   const bool retry = ++attempts < MAX_ATTEMPTS;
   if (operation == Operation::OPERATION_WRITE && (retry || keep_write))
     this->pending_writes_ |= param_bit(this->param_);
@@ -764,8 +793,8 @@ void DFRobotSEN0609Component::fail_operation_() {
 
   attempts = 0;
   this->status_set_warning();
-  if (aux || keep_write) {
-    // Without stop, start or the configuration the sensor cannot run as set up; try again later
+  if (aux || keep) {
+    // Without stop, start, the configuration or the save the sensor cannot run as set up; try again later
     ESP_LOGW(TAG, "Command '%s' failed, trying again later", this->command_);
     this->hold_ms_ = GIVE_UP_BACKOFF_MS;
     return;
@@ -774,11 +803,17 @@ void DFRobotSEN0609Component::fail_operation_() {
   this->sequence_failed_ = true;
   switch (operation) {
     case Operation::OPERATION_WRITE:
+#ifdef USE_SWITCH
+      if (is_led(this->param_)) {
+        // The LEDs cannot be read: show the state the module last accepted, unless a newer change is pending
+        const uint8_t bit = 1U << led_switch(this->param_);
+        if ((this->led_known_ & bit) != 0 && (this->pending_writes_ & param_bit(this->param_)) == 0)
+          this->publish_switch_(led_switch(this->param_), (this->led_on_ & bit) != 0);
+        break;
+      }
+#endif
       // The entity shows a value the module never got; show the module's value again
       this->pending_reads_ |= this->wanted_reads_() & param_bit(this->param_);
-      break;
-    case Operation::OPERATION_SAVE:
-      this->save_pending_ = false;
       break;
     case Operation::OPERATION_READ:
       this->pending_reads_ &= ~param_bit(this->param_);

@@ -182,6 +182,12 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t out_pin_level_{0};
   uint8_t attempts_{0};
   uint8_t aux_attempts_{0};
+#ifdef USE_SWITCH
+  // The module cannot be asked for its LED states: the ones it last accepted, one bit per SwitchSetting
+  uint8_t led_known_{0};
+  uint8_t led_on_{0};
+  bool sent_led_on_{false};
+#endif
   bool line_overflow_{false};
   bool read_failed_{false};
   bool bad_frame_logged_{false};
