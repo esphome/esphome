@@ -13,8 +13,9 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
 ## Ground rules
 
 1. **Serial ports cannot be shared.** One bounded capture per port, stopped before any flash on that
-   port, never an open-ended `esphome logs`. Stop captures with `pkill -f "[s]erial_capture.py"`; the
-   bracket keeps the pattern from matching the shell that runs it. Never run `esphome logs` in a
+   port, never an open-ended `esphome logs`. Stop a capture with `pkill -f "[s]erial_capture.py <port> "`,
+   naming the port so a capture on another board survives; the bracket keeps the pattern from matching
+   the shell that runs it. Never run `esphome logs` in a
    `while true` loop: the loop respawns it and holds the port.
 2. **Credentials stay local.** Put a `secrets.yaml` next to the scratch configs and reference it with
    `!secret`. Never paste a config with credentials into a PR, never commit scratch configs or logs.
@@ -83,7 +84,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 ## Scripts in `$SKILL/scripts`
 
 - `ports.py`: list ports with VID:PID, product, serial and a board guess; `--wait VID[:PID]`,
-  `--product NAME`.
+  `--product NAME`, `--serial SN` (one specific board, whatever path it comes back under) and
+  `--serial-of PORT` (the serial number behind a path).
 - `serial_capture.py PORT SECONDS OUT [--baud] [--released] [--reset]`: bounded timestamped capture,
   ANSI stripped, reopens a vanished port, exits at the deadline.
 - `flash_rtl87xx_kit.py`: ltchiptool wrapper for the BW15 kit whose CH340 drives CEN (RTS) and the boot
@@ -91,7 +93,9 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 - `flash_bk72xx.py`: ltchiptool wrapper for BK72xx boards whose RTS drives CEN.
 - `wifisave_hammer.sh KIND DUT_PORT DUT_YAML DUT_TREE CLIENT_PORT CLIENT_YAML CLIENT_TREE [SETTLE]`:
   the fallback AP plus captive portal hammer end to end (compile, flash, capture, counts) with the
-  templates below. KIND is `esp`, `pico`, `bw15` or `bk`.
+  templates below. KIND is `esp`, `pico`, `bw15` or `bk`. It ends with `RESULT PASS` (exit 0),
+  `RESULT FAIL` (exit 3, the counts show a crash, an extra boot or no provisioning), `RESULT INVALID`
+  (exit 2, a precondition was missed) or exits 1 when a build, flash or port step failed.
 
 ## Templates in `$SKILL/templates`
 

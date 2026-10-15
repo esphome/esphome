@@ -112,6 +112,15 @@ def capture(args: argparse.Namespace, out) -> int:
             line = ANSI.sub(b"", line).rstrip(b"\r")
             out.write(b"[" + time.strftime("%H:%M:%S").encode() + b"]" + line + b"\n")
             out.flush()
+    if buf:
+        out.write(
+            b"["
+            + time.strftime("%H:%M:%S").encode()
+            + b"][partial]"
+            + ANSI.sub(b"", buf)
+            + b"\n"
+        )
+        out.flush()
     if s is not None:
         s.close()
     return received
