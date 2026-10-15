@@ -4,6 +4,7 @@
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
+#include "../homeassistant.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -25,6 +26,19 @@ const uint8_t COLOR_MODES[] PROGMEM = {
     static_cast<uint8_t>(ColorMode::BRIGHTNESS),
     static_cast<uint8_t>(ColorMode::WHITE),
     static_cast<uint8_t>(ColorMode::COLOR_TEMPERATURE),
+};
+
+// The service and data names of the actions, in flash on the ESP8266; ActionString indexes them
+PROGMEM_STRING_TABLE(ActionStrings, "light.turn_on", "light.turn_off", "entity_id", "brightness", "white",
+                     "color_temp_kelvin", "rgb_color");
+enum ActionString : uint8_t {
+  ACTION_STRING_TURN_ON,
+  ACTION_STRING_TURN_OFF,
+  ACTION_STRING_ENTITY_ID,
+  ACTION_STRING_BRIGHTNESS,
+  ACTION_STRING_WHITE,
+  ACTION_STRING_COLOR_TEMP_KELVIN,
+  ACTION_STRING_RGB_COLOR,
 };
 
 optional<ColorMode> parse_color_mode(StringRef name) {
@@ -67,7 +81,7 @@ void HomeassistantLight::setup() {
   auto *server = api::global_api_server;
   // Home Assistant repeats these with every update, so a light that comes up late still gets them
   server->subscribe_home_assistant_state(this->entity_id_, "supported_color_modes", [this](StringRef value) {
-    if (value == "None") {
+    if (is_unset(value)) {
       return;  // the light is unavailable; its traits stay
     }
     // A Python list, "['hs', 'color_temp']" or "[<ColorMode.HS: 'hs'>, ...]": the names are the quoted parts
@@ -103,7 +117,7 @@ void HomeassistantLight::setup() {
 
   // An attribute is "None" while the light is off or does not report it; the last value stays
   server->subscribe_home_assistant_state(this->entity_id_, nullptr, [this](StringRef value) {
-    if (value == "None" || value == "unavailable" || value == "unknown") {
+    if (is_unset(value)) {
       return;  // normal while Home Assistant or the light is starting up or offline
     }
     auto on_off = parse_on_off(value.c_str());
@@ -115,7 +129,7 @@ void HomeassistantLight::setup() {
     this->schedule_apply_();
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_mode", [this](StringRef value) {
-    if (value == "None" || value == "unknown") {
+    if (is_unset(value)) {
       return;
     }
     auto mode = parse_color_mode(value);
@@ -139,7 +153,7 @@ void HomeassistantLight::setup() {
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "rgb_color", [this](StringRef value) {
-    if (value == "None") {
+    if (is_unset(value)) {
       return;
     }
     if (!parse_rgb(value.c_str(), this->imported_.rgb)) {
@@ -159,7 +173,7 @@ void HomeassistantLight::dump_config() {
 }
 
 optional<float> HomeassistantLight::parse_attribute_(const char *name, StringRef value) {
-  if (value == "None") {
+  if (is_unset(value)) {
     return nullopt;
   }
   auto number = parse_number<float>(value.c_str());
@@ -243,33 +257,27 @@ void HomeassistantLight::write_state(LightState *state) {
   }
 #endif
 
-  static constexpr auto SERVICE_ON = StringRef::from_lit("light.turn_on");
-  static constexpr auto SERVICE_OFF = StringRef::from_lit("light.turn_off");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto BRIGHTNESS_KEY = StringRef::from_lit("brightness");
-  static constexpr auto WHITE_KEY = StringRef::from_lit("white");
-  static constexpr auto COLOR_TEMP_KEY = StringRef::from_lit("color_temp_kelvin");
-  static constexpr auto RGB_COLOR_KEY = StringRef::from_lit("rgb_color");
+  // The request refers to these strings and buffers until it is sent below
+  ProgmemStringTableCopy<ActionStrings> strings;
+  char level_buf[UINT32_MAX_STR_SIZE];
+  char color_temp_buf[UINT32_MAX_STR_SIZE];
+  char color_buf[16];
 
   api::HomeassistantActionRequest resp;
   resp.data.init(3);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ENTITY_ID_KEY;
+  entity_id.key = StringRef(strings.get(ACTION_STRING_ENTITY_ID));
   entity_id.value = StringRef(this->entity_id_);
 
-  // The request refers to these buffers until it is sent below
-  char level_buf[UINT32_MAX_STR_SIZE];
-  char color_temp_buf[UINT32_MAX_STR_SIZE];
-  char color_buf[16];
-  auto add_number = [&resp](StringRef key, char *buf, size_t size, unsigned number) {
+  auto add_number = [&](uint8_t key, char *buf, size_t size, unsigned number) {
     auto &entry = resp.data.emplace_back();
-    entry.key = key;
+    entry.key = StringRef(strings.get(key));
     entry.value = StringRef(buf, buf_append_printf(buf, size, 0, "%u", number));
   };
   if (!values.is_on()) {
-    resp.service = SERVICE_OFF;
+    resp.service = StringRef(strings.get(ACTION_STRING_TURN_OFF));
   } else {
-    resp.service = SERVICE_ON;
+    resp.service = StringRef(strings.get(ACTION_STRING_TURN_ON));
     const ColorMode color_mode = values.get_color_mode();
     if (color_mode != ColorMode::ON_OFF) {
       // Home Assistant has one level, so the channel brightness of the mode folds into it. In
@@ -280,18 +288,18 @@ void HomeassistantLight::write_state(LightState *state) {
       } else if (color_mode == ColorMode::WHITE) {
         level *= values.get_white();
       }
-      add_number(color_mode == ColorMode::WHITE ? WHITE_KEY : BRIGHTNESS_KEY, level_buf, sizeof(level_buf),
-                 to_uint8_scale(level));
+      add_number(color_mode == ColorMode::WHITE ? ACTION_STRING_WHITE : ACTION_STRING_BRIGHTNESS, level_buf,
+                 sizeof(level_buf), to_uint8_scale(level));
     }
     if (color_mode == ColorMode::COLOR_TEMPERATURE && values.get_color_temperature() > 0.0f) {
-      add_number(COLOR_TEMP_KEY, color_temp_buf, sizeof(color_temp_buf),
+      add_number(ACTION_STRING_COLOR_TEMP_KELVIN, color_temp_buf, sizeof(color_temp_buf),
                  static_cast<unsigned>(lroundf(values.get_color_temperature_kelvin())));
     }
     if (color_mode == ColorMode::RGB) {
       // A list, which only a template renders as one
       resp.data_template.init(1);
       auto &color = resp.data_template.emplace_back();
-      color.key = RGB_COLOR_KEY;
+      color.key = StringRef(strings.get(ACTION_STRING_RGB_COLOR));
       color.value = StringRef(
           color_buf, buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]", to_uint8_scale(values.get_red()),
                                        to_uint8_scale(values.get_green()), to_uint8_scale(values.get_blue())));

@@ -22,6 +22,7 @@ from .. import (
 
 CODEOWNERS = ["@egormanga"]
 DEPENDENCIES = ["api"]
+AUTO_LOAD = ["homeassistant"]
 
 HomeassistantLight = homeassistant_ns.class_(
     "HomeassistantLight", light.LightOutput, cg.Component

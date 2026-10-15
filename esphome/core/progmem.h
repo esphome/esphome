@@ -153,4 +153,26 @@ struct LogString;
     } \
   }
 
+/// The strings of a PROGMEM_STRING_TABLE addressable as plain pointers, for code that hands them on
+/// without reading them itself, such as an API request. On the ESP8266 this is a copy of the table on
+/// the stack that lives as long as the object; elsewhere the table is read in place.
+///
+/// Example:
+///   ProgmemStringTableCopy<MyStrings> strings;
+///   request.service = StringRef(strings.get(MyStrings::TURN_ON));
+template<typename Name> class ProgmemStringTableCopy {
+  static_assert(Name::Table::INDEXED, "the table needs offsets");
+
+ public:
+#ifdef USE_ESP8266
+  ProgmemStringTableCopy() { progmem_memcpy(this->blob_, Name::BLOB.data(), Name::BLOB_SIZE); }
+  const char *get(uint8_t idx) const { return this->blob_ + progmem_read_byte(&Name::OFFSETS[idx]); }
+
+ private:
+  char blob_[Name::BLOB_SIZE];
+#else
+  const char *get(uint8_t idx) const { return Name::get_(idx, idx); }
+#endif
+};
+
 }  // namespace esphome
