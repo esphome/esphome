@@ -123,3 +123,66 @@ def test_deep_sleep_bk72xx_top_level_wakeup_pin_mode_moved_onto_single_pin(
     assert (
         result[CONF_WAKEUP_PIN][0][deep_sleep.CONF_WAKEUP_PIN_MODE] == "INVERT_WAKEUP"
     )
+
+
+def test_deep_sleep_empty_wakeup_pin_list_rejected() -> None:
+    """An empty wakeup_pin list is rejected at validation instead of crashing codegen."""
+    with pytest.raises(cv.Invalid, match="at least one entry"):
+        deep_sleep.validate_wakeup_pin([])
+
+
+def test_deep_sleep_bk72xx_wakeup_pin_mode_without_wakeup_pin_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On BK72xx, a top-level wakeup_pin_mode with no wakeup_pin is rejected at validation."""
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+    with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
+        deep_sleep.validate_config(config)
+
+
+def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On ESP32 the same mode-only config is rejected too, instead of being silently dead."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+    with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
+        deep_sleep.validate_config(config)
+
+
+@pytest.mark.parametrize(
+    "platform", [PlatformFramework.ESP8266_ARDUINO, PlatformFramework.NRF52_ZEPHYR]
+)
+def test_deep_sleep_wakeup_pin_rejected_on_unsupported_platform(
+    set_core_config: SetCoreConfigCallable, platform: PlatformFramework
+) -> None:
+    """wakeup_pin is rejected where the C++ component has no wakeup pin support."""
+    set_core_config(platform)
+    with pytest.raises(cv.Invalid, match="only available on"):
+        deep_sleep.CONFIG_SCHEMA({CONF_WAKEUP_PIN: "GPIO4"})
+
+
+def test_deep_sleep_esp32_multiple_wakeup_pins_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """ESP32 accepts only one wakeup_pin entry."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = {CONF_WAKEUP_PIN: [{"pin": "GPIO4"}, {"pin": "GPIO5"}]}
+    with pytest.raises(cv.Invalid, match="ESP32 does not support multiple") as exc:
+        deep_sleep.validate_config(config)
+    assert exc.value.path == [CONF_WAKEUP_PIN]
+
+
+def test_deep_sleep_bk72xx_global_wakeup_pin_mode_with_multiple_pins_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On BK72xx, a top-level wakeup_pin_mode cannot be applied to several pins."""
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    config = {
+        CONF_WAKEUP_PIN: [{"pin": "GPIO12"}, {"pin": "GPIO13"}],
+        deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE",
+    }
+    with pytest.raises(cv.Invalid, match="define it per pin") as exc:
+        deep_sleep.validate_config(config)
+    assert exc.value.path == [deep_sleep.CONF_WAKEUP_PIN_MODE]
