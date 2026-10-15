@@ -95,7 +95,7 @@ void USBUartTypeCH34X::dump_config() {
   ESP_LOGCONFIG(TAG, "  CH34x chip: %s", this->chip_name_);
 }
 
-bool USBUartTypeCH34X::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                    const uint8_t *response) {
   uint8_t cmd = 0xA1 + channel->index_;
   if (channel->index_ >= 2)
@@ -132,15 +132,12 @@ bool USBUartTypeCH34X::config_step(USBUartChannel *channel, uint8_t step, bool r
       factor = 256 - factor;
 
       uint16_t value = 0xC0;
-      if (channel->stop_bits_ == UART_CONFIG_STOP_BITS_2)
+      if (channel->line_stop_bits_() == LineStopBits::LINE_STOP_BITS_2)
         value |= 4;
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_NONE:
-          break;
-        default:
-          value |= 8 | ((channel->parity_ - 1) << 4);
-          break;
-      }
+      // Parity enable, then 0 = odd, 1 = even, 2 = mark, 3 = space
+      const LineParity parity = channel->line_parity_();
+      if (parity != LineParity::LINE_PARITY_NONE)
+        value |= 8 | ((static_cast<uint8_t>(parity) - 1) << 4);
       value |= channel->data_bits_ - 5;
       value <<= 8;
       value |= 0x8C;
@@ -155,14 +152,6 @@ bool USBUartTypeCH34X::config_step(USBUartChannel *channel, uint8_t step, bool r
   }
 }
 
-std::vector<CdcEps> USBUartTypeCH34X::parse_descriptors(usb_device_handle_t dev_hdl) {
-  auto result = USBUartTypeCdcAcm::parse_descriptors(dev_hdl);
-  // ch34x doesn't use the interrupt endpoint, and we don't have endpoints to spare
-  for (auto &cdc_dev : result) {
-    cdc_dev.interrupt_interface_number = 0xFF;
-  }
-  return result;
-}
 }  // namespace esphome::usb_uart
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||

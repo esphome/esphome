@@ -35,8 +35,8 @@ void MipiDsi::setup() {
       .bus_id = 0,  // index from 0, specify the DSI host to use
       .num_data_lanes =
           this->lanes_,  // Number of data lanes to use, can't set a value that exceeds the chip's capability
-      .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,  // Clock source for the DPHY
-      .lane_bit_rate_mbps = this->lane_bit_rate_,   // Bit rate of the data lanes, in Mbps
+      // phy_clk_src left at 0 to enable runtime auto-select.
+      .lane_bit_rate_mbps = this->lane_bit_rate_,  // Bit rate of the data lanes, in Mbps
   };
   auto err = esp_lcd_new_dsi_bus(&bus_config, &this->bus_handle_);
   if (err != ESP_OK) {
@@ -121,20 +121,21 @@ void MipiDsi::setup() {
     return;
   }
   size_t index = 0;
-  auto &vec = this->init_sequence_;
-  while (index != vec.size()) {
-    if (vec.size() - index < 2) {
+  const uint8_t *seq = this->init_sequence_;
+  const size_t len = this->init_sequence_len_;
+  while (index != len) {
+    if (len - index < 2) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
-    uint8_t cmd = vec[index++];
-    uint8_t x = vec[index++];
+    uint8_t cmd = seq[index++];
+    uint8_t x = seq[index++];
     if (x == DELAY_FLAG) {
       ESP_LOGD(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
       uint8_t num_args = x & 0x7F;
-      if (vec.size() - index < num_args) {
+      if (len - index < num_args) {
         this->mark_failed(LOG_STR("Malformed init sequence"));
         return;
       }
@@ -145,7 +146,7 @@ void MipiDsi::setup() {
           delay(duration);
         }
       }
-      const auto *ptr = vec.data() + index;
+      const auto *ptr = seq + index;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
       char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
 #endif
@@ -237,8 +238,9 @@ void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const ui
       xSemaphoreTake(this->io_lock_, portMAX_DELAY);
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 bool MipiDsi::check_buffer_() {
@@ -258,7 +260,7 @@ bool MipiDsi::check_buffer_() {
 }
 
 void MipiDsi::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;
 
   switch (this->rotation_) {

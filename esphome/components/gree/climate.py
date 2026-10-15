@@ -3,6 +3,7 @@ from esphome.components import climate_ir
 from esphome.components.const import CONF_HORIZONTAL_DEFAULT, CONF_VERTICAL_DEFAULT
 import esphome.config_validation as cv
 from esphome.const import CONF_MODEL
+from esphome.types import ConfigType
 
 from . import gree_ns
 
@@ -69,7 +70,7 @@ def _validate_direction_defaults(config):
 CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_direction_defaults)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))

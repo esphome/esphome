@@ -3,7 +3,7 @@
 
 namespace esphome::gree {
 
-static const char *const TAG = "gree.switch";
+ESPHOME_LOG_TAG(TAG, "gree.switch");
 
 void GreeModeBitSwitch::setup() {
   this->parent_->register_mode_bit_switch(this->bit_mask_, this, GreeModeBitSwitch::publish_mode_bit_state);

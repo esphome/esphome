@@ -20,6 +20,7 @@ from typing import Any
 
 from esphome import const, yaml_util
 from esphome.const import (
+    BUNDLE_EXTENSION,
     CONF_ESPHOME,
     CONF_EXTERNAL_COMPONENTS,
     CONF_INCLUDES,
@@ -29,12 +30,12 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.util import filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "bundle"
 
-BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 MANIFEST_FILENAME = "manifest.json"
 CURRENT_MANIFEST_VERSION = 1
 MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -101,25 +102,21 @@ _KNOWN_FILE_EXTENSIONS = frozenset(
 )
 
 
-# Matches !secret references in YAML text.  An optional surrounding
-# quote pair around the key is allowed and ignored: YAML treats
-# ``!secret 'foo'`` and ``!secret foo`` as the same key.  This is
-# intentionally a simple regex scan rather than a YAML parse — it may
-# match inside comments or multi-line strings, which is the conservative
-# direction (include more secrets rather than fewer).
-_SECRET_RE = re.compile(r"""!secret\s+['"]?([^\s'"]+)""")
-
-
 def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
     """Scan YAML files for ``!secret <key>`` references."""
     keys: set[str] = set()
     for fpath in yaml_files:
         try:
             text = fpath.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except (OSError, UnicodeDecodeError) as err:
+            _LOGGER.warning(
+                "Could not scan %s for !secret references (%s); the bundled "
+                "secret set may be incomplete",
+                fpath,
+                err,
+            )
             continue
-        for match in _SECRET_RE.finditer(text):
-            keys.add(match.group(1))
+        keys |= yaml_util.find_secret_references(text)
     return keys
 
 
@@ -128,6 +125,9 @@ class BundleData:
     """Files components asked to include, keyed under DOMAIN in CORE.data."""
 
     extra_files: list[Path] = field(default_factory=list)
+    # Directories whose YAML files are scanned for !secret references but
+    # never bundled, e.g. git package checkouts the builder re-fetches.
+    secret_scan_dirs: set[Path] = field(default_factory=set)
     # Original config dir parsed from an extracted bundle's manifest.json,
     # kept in the path flavor of the machine the bundle was created on.
     # The checked flag makes the manifest lookup happen at most once per run;
@@ -153,6 +153,30 @@ def add_bundle_file(path: Path) -> None:
     config directory are skipped when the bundle is built.
     """
     _get_data().extra_files.append(CORE.relative_config_path(path))
+
+
+def add_secret_scan_dir(path: Path) -> None:
+    """Register a directory to scan for ``!secret`` references when bundling.
+
+    The directory's files are not added to the bundle. Components call this
+    for YAML the build consumes without bundling it — such as git-fetched
+    packages, which the builder re-fetches — so the secrets those files
+    reference are still shipped in the filtered secrets file.
+
+    A relative path is taken as relative to the config directory.
+    """
+    if not path.is_absolute():
+        path = CORE.relative_config_path(path)
+    _get_data().secret_scan_dirs.add(path)
+
+
+def _secret_scan_yaml_files() -> list[Path]:
+    """Return the YAML files inside registered secret-scan directories."""
+    return filter_yaml_files(
+        f
+        for scan_dir in _get_data().secret_scan_dirs
+        for f in yaml_util.find_files(scan_dir, "*")
+    )
 
 
 # Windows paths start with a drive letter or contain backslashes; POSIX
@@ -310,6 +334,7 @@ class ConfigBundleCreator:
         yaml_sources = [
             bf.source for bf in files if bf.source.suffix in (".yaml", ".yml")
         ]
+        yaml_sources.extend(_secret_scan_yaml_files())
         used_secret_keys = _find_used_secret_keys(yaml_sources)
         filtered_secrets = self._build_filtered_secrets(used_secret_keys)
 
@@ -393,7 +418,26 @@ class ConfigBundleCreator:
         must ship every candidate so the remote build can pick any one.
         """
         discovered = yaml_util.discover_user_yaml_files(self._config_path)
+        if discovered.load_errors:
+            _LOGGER.warning(
+                "Bundle may be incomplete; could not load all configuration files: %s",
+                "; ".join(discovered.load_errors),
+            )
+        if discovered.unresolved:
+            _LOGGER.warning(
+                "Bundle may be incomplete; %d !include path(s) use "
+                "substitutions and cannot be captured: %s",
+                len(discovered.unresolved),
+                ", ".join(discovered.unresolved),
+            )
         self._secrets_paths.update(discovered.secrets)
+        # A !secret inside a file this re-parse does not reach (for example
+        # a git-fetched package the builder re-fetches) still resolves
+        # against the config-dir secrets.yaml at build time, so always
+        # consider that file; filtering no-ops when no key matches.
+        default_secrets = self._config_dir / yaml_util.SECRET_YAML
+        if default_secrets.is_file():
+            self._secrets_paths.add(default_secrets.resolve())
         config_resolved = self._config_path.resolve()
         for fpath in discovered.files:
             if fpath == config_resolved:
@@ -717,11 +761,6 @@ def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
                 f"Invalid bundle: decompressed size exceeds "
                 f"{MAX_DECOMPRESSED_SIZE // (1024 * 1024)}MB limit"
             )
-
-
-def is_bundle_path(path: Path) -> bool:
-    """Check if a path looks like a bundle file."""
-    return path.name.lower().endswith(BUNDLE_EXTENSION)
 
 
 def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:

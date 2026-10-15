@@ -4,7 +4,7 @@
 
 namespace esphome::sht4x {
 
-static const char *const TAG = "sht4x";
+ESPHOME_LOG_TAG(TAG, "sht4x");
 
 static const uint8_t MEASURECOMMANDS[] = {0xFD, 0xF6, 0xE0};
 static const uint8_t SERIAL_NUMBER_COMMAND = 0x89;

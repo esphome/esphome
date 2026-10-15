@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import ble_client, climate
 import esphome.config_validation as cv
 from esphome.const import CONF_UNIT_OF_MEASUREMENT
+from esphome.types import ConfigType
 
 UNITS = {
     "f": "f",
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)

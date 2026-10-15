@@ -12,7 +12,7 @@
 
 namespace esphome::esp32 {
 
-static const char *const TAG = "preferences";
+ESPHOME_LOG_TAG(TAG, "preferences");
 
 struct NVSData {
   uint32_t key;
@@ -131,6 +131,7 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
 void ESP32Preferences::open() {
   // Runs from app_main() before the logger is initialized; any logging here
   // must be deferred. See s_open_err and make_preference() below.
+  // Components that need NVS check nvs_handle instead of initializing it again.
   nvs_flash_init();
   esp_err_t err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
   if (err == 0)
@@ -176,12 +177,21 @@ ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t ty
     }
     s_open_err = ESP_OK;
   }
-  auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
-  pref->nvs_handle = this->nvs_handle;
-  pref->key = type;
-  pref->in_flash = true;
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  return ESPPreferenceObject(new ESP32PreferenceBackend(this->make_backend_(type)));
+}
 
-  return ESPPreferenceObject(pref);
+ESP32PreferenceBackend ESP32Preferences::make_backend_(uint32_t type) const {
+  // in_flash keeps its default of true, selecting the NVS path
+  ESP32PreferenceBackend backend;
+  backend.nvs_handle = this->nvs_handle;
+  backend.key = type;
+  return backend;
+}
+
+bool ESP32Preferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+  ESP32PreferenceBackend backend = this->make_backend_(type);
+  return backend.load(data, len);
 }
 
 #ifdef USE_ESP32_RTC_PREFERENCES_STORAGE

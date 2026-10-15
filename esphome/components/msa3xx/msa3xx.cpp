@@ -5,7 +5,7 @@
 
 namespace esphome::msa3xx {
 
-static const char *const TAG = "msa3xx";
+ESPHOME_LOG_TAG(TAG, "msa3xx");
 
 const uint8_t MSA_3XX_PART_ID = 0x13;
 

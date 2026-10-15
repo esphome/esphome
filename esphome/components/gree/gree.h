@@ -82,8 +82,14 @@ static constexpr uint8_t GREE_PRESET_NONE = 0x00;
 static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
+// Mode bits stored in remote_state[2] bits 4..7 for YAN/YAA/YAC/YAC1FB9.
+static constexpr uint8_t GREE_MODE_BIT_TURBO = 0x10;
+static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
+static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
+static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
+
 // Model codes
-enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG, GREE_YAP1F };
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG, GREE_YAP1F };
 
 // Direction enums (used for default fixed vane positions)
 enum HorizontalDirections {
@@ -128,7 +134,6 @@ class GreeClimate : public climate_ir::ClimateIR {
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
-  climate::ClimateTraits traits() override;
 
   uint8_t operation_mode_();
   uint8_t fan_speed_();
@@ -138,7 +143,7 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t preset_();
 
   Model model_{};
-  uint8_t mode_bits_{0};  // Combined mode bits for remote_state[2]
+  uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};  // The display light is on until a switch says otherwise
 
   HorizontalDirections default_horizontal_direction_{HORIZONTAL_DIRECTION_AUTO};
   VerticalDirections default_vertical_direction_{VERTICAL_DIRECTION_AUTO};

@@ -88,16 +88,16 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
       ESP_LOGE(TAG, "in_ep: usb_parse_endpoint_descriptor_by_index failed");
       continue;
     }
-    if (in_ep->bEndpointAddress & usb_host::USB_DIR_IN) {
-      cdc_devs.push_back({CdcEps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber}});
-    } else {
-      cdc_devs.push_back({CdcEps{nullptr, out_ep, in_ep, data_desc->bInterfaceNumber}});
-    }
+    CdcEps eps = in_ep->bEndpointAddress & usb_host::USB_DIR_IN
+                     ? CdcEps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber}
+                     : CdcEps{nullptr, out_ep, in_ep, data_desc->bInterfaceNumber};
+    eps.bulk_interface_class = data_desc->bInterfaceClass;
+    cdc_devs.push_back(eps);
   }
   return cdc_devs;
 }
 
-bool USBUartTypeCP210X::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   // On reload, skip the one-time IFC_ENABLE step (the interface is already enabled).
   if (reload)
@@ -107,8 +107,8 @@ bool USBUartTypeCP210X::config_step(USBUartChannel *channel, uint8_t step, bool 
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, IFC_ENABLE, 1, channel->index_);
       return true;
     case 1: {
-      uint16_t line_control = channel->stop_bits_;
-      line_control |= static_cast<uint8_t>(channel->parity_) << 4;
+      uint16_t line_control = static_cast<uint8_t>(channel->line_stop_bits_());
+      line_control |= static_cast<uint8_t>(channel->line_parity_()) << 4;
       line_control |= channel->data_bits_ << 8;
       ESP_LOGD(TAG, "Line control value 0x%X", line_control);
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_LINE_CTL, line_control, channel->index_);

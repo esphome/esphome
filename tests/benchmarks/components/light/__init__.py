@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components.light import generate_gamma_table
+from esphome.components.light import gamma_table_initializer
 from tests.testing_helpers import ComponentManifestOverride
 
 
@@ -12,15 +12,13 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code(config):
         await original_to_code(config)
         cg.add_define("USE_LIGHT_GAMMA_LUT")
-        # Use the light component's own generate_gamma_table() so the
+        # Use the light component's own gamma_table_initializer() so the
         # benchmark stays in sync with any formula changes.
-        forward = generate_gamma_table(2.8)
-        values = ", ".join(f"0x{int(v):04X}" for v in forward)
-        # Use extern-visible (non-static) array so the benchmark .cpp
-        # can reference it via extern declaration.
+        # Extern-visible (non-static) so the benchmark .cpp can reference it.
         cg.add_global(
             cg.RawStatement(
-                f"extern const uint16_t bench_gamma_2_8_fwd[256] PROGMEM = {{{values}}};"
+                "extern const esphome::light::GammaTable bench_gamma_2_8 PROGMEM = "
+                f"{gamma_table_initializer(2.8)};"
             )
         )
 

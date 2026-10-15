@@ -3,7 +3,6 @@
 #include <cstring>
 #include <limits>
 #include <string>
-#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
@@ -11,6 +10,9 @@
 #include "esphome/core/string_ref.h"
 
 namespace esphome::event {
+
+/// A codegen table in flash, or a heap copy of a runtime list (see ConstVector).
+using EventTypes = ConstVector<const char *, true>;
 
 #define LOG_EVENT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -21,25 +23,33 @@ namespace esphome::event {
 
 class Event : public EntityBase {
  public:
-  void trigger(const std::string &event_type);
+  /// Trigger an event; the type is matched against the configured types by string compare.
+  void trigger(const char *event_type);
+  void trigger(const std::string &event_type) { this->trigger(event_type.c_str()); }
 
-  /// Set the event types supported by this event (from initializer list).
-  void set_event_types(std::initializer_list<const char *> event_types) {
-    this->types_ = event_types;
-    this->last_event_type_ = nullptr;  // Reset when types change
+  /// Codegen only: points at a table that outlives the event (see ConstVector::assign_static).
+  void set_event_types_static(const char *const *event_types, size_t count) {
+    this->types_.assign_static(event_types, count);
+    this->last_event_type_ = nullptr;
   }
-  /// Set the event types supported by this event (from FixedVector).
-  void set_event_types(const FixedVector<const char *> &event_types);
-  /// Set the event types supported by this event (from vector).
-  void set_event_types(const std::vector<const char *> &event_types);
+  /// Runtime lists are copied; the strings must still outlive the event.
+  void set_event_types(std::initializer_list<const char *> event_types) {
+    this->set_event_types_copy_(event_types.begin(), event_types.size());
+  }
+  /// Copy the event types of another event, for components that wrap one.
+  void set_event_types(const EventTypes &event_types) {
+    this->set_event_types_copy_(event_types.data(), event_types.size());
+  }
+  void set_event_types(const FixedVector<const char *> &event_types) {
+    this->set_event_types_copy_(event_types.begin(), event_types.size());
+  }
 
   // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
   void set_event_types(std::initializer_list<std::string> event_types) = delete;
   void set_event_types(const FixedVector<std::string> &event_types) = delete;
-  void set_event_types(const std::vector<std::string> &event_types) = delete;
 
   /// Return the event types supported by this event.
-  const FixedVector<const char *> &get_event_types() const { return this->types_; }
+  const EventTypes &get_event_types() const { return this->types_; }
 
   /// Return the last triggered event type, or empty StringRef if no event triggered yet.
   StringRef get_last_event_type() const { return StringRef::from_maybe_nullptr(this->last_event_type_); }
@@ -70,8 +80,10 @@ class Event : public EntityBase {
   }
 
  protected:
+  void set_event_types_copy_(const char *const *event_types, size_t count);
+
   LazyCallbackManager<void(StringRef event_type)> event_callback_;
-  FixedVector<const char *> types_;
+  EventTypes types_;
 
  private:
   /// Last triggered event type - must point to entry in types_ to ensure valid lifetime.

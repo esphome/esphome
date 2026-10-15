@@ -2,9 +2,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
+DOMAIN = "async_tcp"
 
 
 def AUTO_LOAD() -> list[str]:
@@ -25,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema({})
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_TRANSPORT)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         # https://github.com/ESP32Async/AsyncTCP
         from esphome.components.esp32 import add_idf_component

@@ -10,7 +10,14 @@ from PIL import Image, UnidentifiedImageError
 import esphome.codegen as cg
 from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
-from esphome.const import CONF_DEFAULTS, CONF_FILE, CONF_ID, CONF_PLATFORM, CONF_TYPE
+from esphome.const import (
+    CONF_DEFAULTS,
+    CONF_FILE,
+    CONF_FILES,
+    CONF_ID,
+    CONF_PLATFORM,
+    CONF_TYPE,
+)
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -47,6 +54,9 @@ TRANSPARENCY_TYPES = (
     CONF_CHROMA_KEY,
     CONF_ALPHA_CHANNEL,
 )
+
+# Shared validator for the image platform schemas and `_drop_incompatible_byte_order`.
+validate_byte_order = cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True)
 
 
 def get_image_type_enum(type):
@@ -135,13 +145,42 @@ def is_alpha_only(image: Image):
     return all(b.getextrema()[1] == 0 for b in image.split()[:-1])
 
 
-class ImageBinary(ImageEncoder):
+class BitPackedEncoder(ImageEncoder):
+    """Packs pixels MSB first, with every row padded to a whole byte."""
+
+    def __init__(
+        self,
+        bpp: int,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+    ):
+        self.bpp = bpp
+        super().__init__(
+            (width * bpp + 7) // 8, height, transparency, dither, invert_alpha
+        )
+        self.bitno = 0
+
+    def add_bit(self, bit: bool) -> None:
+        if bit:
+            self.data[self.index] |= 0x80 >> self.bitno
+        self.bitno += 1
+        if self.bitno == 8:
+            self.end_row()
+
+    def end_row(self) -> None:
+        if self.bitno != 0:
+            self.bitno = 0
+            self.index += 1
+
+
+class ImageBinary(BitPackedEncoder):
     allow_config = {CONF_OPAQUE, CONF_INVERT_ALPHA, CONF_CHROMA_KEY}
 
     def __init__(self, width, height, transparency, dither, invert_alpha):
-        self.width8 = (width + 7) // 8
-        super().__init__(self.width8, height, transparency, dither, invert_alpha)
-        self.bitno = 0
+        super().__init__(1, width, height, transparency, dither, invert_alpha)
 
     def convert(self, image, path):
         if is_alpha_only(image):
@@ -149,22 +188,46 @@ class ImageBinary(ImageEncoder):
         return image.convert("1", dither=self.dither)
 
     def encode(self, pixel):
-        if self.invert_alpha:
-            pixel = not pixel
-        if pixel:
-            self.data[self.index] |= 0x80 >> (self.bitno % 8)
-        self.bitno += 1
-        if self.bitno == 8:
-            self.bitno = 0
-            self.index += 1
+        self.add_bit(bool(pixel) != self.invert_alpha)
 
-    def end_row(self):
-        """
-        Pad rows to a byte boundary
-        """
-        if self.bitno != 0:
-            self.bitno = 0
-            self.index += 1
+
+# The eight colours one bit per channel can express, for dithering.
+_RGB111_PALETTE = Image.new("P", (1, 1))
+_RGB111_PALETTE.putpalette([255 * int(x) for i in range(8) for x in f"{i:03b}"])
+
+
+class ImageRGB111(BitPackedEncoder):
+    allow_config = {CONF_OPAQUE, CONF_ALPHA_CHANNEL}
+
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+    ):
+        bpp = 4 if transparency == CONF_ALPHA_CHANNEL else 3
+        super().__init__(bpp, width, height, transparency, dither, invert_alpha)
+
+    def convert(self, image: Image, path: str):
+        image = image.convert("RGBA")
+        if self.dither != Image.Dither.FLOYDSTEINBERG:
+            return image
+        alpha = image.getchannel("A")
+        image = image.convert("RGB").quantize(
+            palette=_RGB111_PALETTE, dither=Image.Dither.FLOYDSTEINBERG
+        )
+        image = image.convert("RGB")
+        image.putalpha(alpha)
+        return image
+
+    def encode(self, pixel: tuple[int, int, int, int]):
+        r, g, b, a = pixel
+        if self.invert_alpha:
+            a ^= 0xFF
+        for channel in (r, g, b, a)[: self.bpp]:
+            self.add_bit(channel > 127)
 
 
 class ImageGrayscale(ImageEncoder):
@@ -305,6 +368,7 @@ class ReplaceWith:
 IMAGE_TYPE = {
     "BINARY": ImageBinary,
     "GRAYSCALE": ImageGrayscale,
+    "RGB111": ImageRGB111,
     "RGB565": ImageRGB565,
     "RGB": ImageRGB,
     "TRANSPARENT_BINARY": ReplaceWith("'type: BINARY' and 'transparency: chroma_key'"),
@@ -405,6 +469,120 @@ def get_image_metadata(image_id: str) -> ImageMetaData | None:
 
 
 # ---------------------------------------------------------------------------
+# `defaults:`/`files:` expansion: a `platform:` entry merges shared `defaults:`
+# into every `files:` entry; the platform's CONFIG_SCHEMA validates each.
+# Permanent, unlike the legacy migration below.
+# ---------------------------------------------------------------------------
+
+
+def _drop_incompatible_byte_order(
+    merged: dict, explicit: dict, *, index: int | None = None
+) -> dict:
+    """Drop `byte_order` when the resolved type doesn't support it, unless written directly on `explicit`.
+
+    With `index`, inherited values are validated before being dropped (the legacy flattener always drops).
+    """
+    if CONF_BYTE_ORDER in explicit:
+        return merged
+    type_class = IMAGE_TYPE.get(str(merged.get(CONF_TYPE, "")).upper())
+    if (
+        CONF_BYTE_ORDER in merged
+        and isinstance(type_class, type)
+        and issubclass(type_class, ImageEncoder)
+        and not type_class.is_endian()
+    ):
+        if index is not None:
+            try:
+                validate_byte_order(merged[CONF_BYTE_ORDER])
+            except cv.Invalid as exc:
+                exc.prepend([index])
+                raise
+        del merged[CONF_BYTE_ORDER]
+    return merged
+
+
+def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
+    if CONF_FILES not in entry:
+        if CONF_DEFAULTS in entry:
+            raise cv.Invalid(
+                f"'{CONF_DEFAULTS}' may only be used together with '{CONF_FILES}'",
+                path=[index],
+            )
+        return [entry]
+
+    extra_keys = set(entry) - {CONF_PLATFORM, CONF_DEFAULTS, CONF_FILES}
+    if extra_keys:
+        raise cv.Invalid(
+            f"'{CONF_FILES}' cannot be combined with "
+            f"{', '.join(sorted(extra_keys))} on the same entry",
+            path=[index],
+        )
+
+    files = entry[CONF_FILES]
+    if files is None:
+        raise cv.Invalid(f"'{CONF_FILES}' must not be empty", path=[index])
+    if not isinstance(files, list):
+        raise cv.Invalid(f"'{CONF_FILES}' must be a list", path=[index])
+    if not files:
+        raise cv.Invalid(f"'{CONF_FILES}' must not be empty", path=[index])
+
+    defaults = entry.get(CONF_DEFAULTS, {})
+    if defaults is None:
+        defaults = {}
+    if not isinstance(defaults, dict):
+        raise cv.Invalid(f"'{CONF_DEFAULTS}' must be a mapping", path=[index])
+    # Neither `id:` nor `platform:` makes sense inside `defaults:`.
+    for disallowed in (CONF_ID, CONF_PLATFORM):
+        if disallowed in defaults:
+            raise cv.Invalid(
+                f"'{disallowed}' is not allowed inside '{CONF_DEFAULTS}'",
+                path=[index],
+            )
+
+    from esphome import yaml_util
+
+    platform = entry[CONF_PLATFORM]
+    result: list[dict] = []
+    for file_entry in files:
+        if not isinstance(file_entry, dict):
+            raise cv.Invalid(
+                f"each entry in '{CONF_FILES}' must be a mapping", path=[index]
+            )
+        # The platform is chosen by the entry's own `platform:` key, not per file.
+        if CONF_PLATFORM in file_entry:
+            raise cv.Invalid(
+                f"'{CONF_PLATFORM}' is not allowed inside '{CONF_FILES}'",
+                path=[index],
+            )
+        # Keep the `files:` item's source range so whole-entry errors anchor there;
+        # `make_data_base` needs a real ESPHomeDataBase, so skip it for plain dicts.
+        source = (
+            file_entry if isinstance(file_entry, yaml_util.ESPHomeDataBase) else None
+        )
+        merged = yaml_util.make_data_base(
+            {CONF_PLATFORM: platform, **defaults, **file_entry}, source
+        )
+        result.append(_drop_incompatible_byte_order(merged, file_entry, index=index))
+    return result
+
+
+def expand_platform_config(config: list) -> list:
+    """Expand `defaults:`/`files:` entries; the platform's own CONFIG_SCHEMA validates each result."""
+    result = []
+    for i, entry in enumerate(config):
+        if isinstance(entry, dict) and CONF_PLATFORM in entry:
+            result.extend(_expand_platform_entry(i, entry))
+        else:
+            result.append(entry)
+    return result
+
+
+EXPAND_PLATFORM_CONFIG = expand_platform_config
+
+# --------------------- end defaults/files expansion -------------------------
+
+
+# ---------------------------------------------------------------------------
 # Legacy top-level component -> `image:` platform deprecation helpers
 # -- REMOVE after 2027.1.0 together with the `animation:`/`online_image:` shims.
 #
@@ -496,11 +674,17 @@ def _is_legacy_image_format(config: object) -> bool:
     proper error instead of the migration silently dropping the input.
     """
     if isinstance(config, list):
-        # A bare list of (not-yet-platform-tagged) image dicts.
+        # Exclude `files:` entries -- the list branch would otherwise silently
+        # migrate them to `platform: file` instead of raising the missing-platform error.
         return bool(config) and all(
-            isinstance(entry, dict) and CONF_PLATFORM not in entry for entry in config
+            isinstance(entry, dict)
+            and CONF_PLATFORM not in entry
+            and CONF_FILES not in entry
+            for entry in config
         )
-    if not isinstance(config, dict):
+    if not isinstance(config, dict) or CONF_PLATFORM in config or CONF_FILES in config:
+        # `platform:`/`files:` dicts are new-format (left for list-wrapping +
+        # expansion); the legacy flattener has no `files:` branch and would drop them.
         return False
     # A single image dict, or the grouped `defaults:`/`images:`/type-key form.
     return (
@@ -532,18 +716,8 @@ def _flatten_legacy_image_config(config: object) -> list[dict]:
 
     def _add(entry: dict, extra: dict) -> None:
         merged = {**defaults, **extra, **entry}
-        # The legacy `defaults:`/type-grouped forms only applied `byte_order` to
-        # types that support it. Replicate that so an endian default merged into
-        # e.g. a binary image stays valid.
-        type_class = IMAGE_TYPE.get(str(merged.get(CONF_TYPE, "")).upper())
-        if (
-            CONF_BYTE_ORDER in merged
-            and isinstance(type_class, type)
-            and issubclass(type_class, ImageEncoder)
-            and not type_class.is_endian()
-        ):
-            del merged[CONF_BYTE_ORDER]
-        result.append(merged)
+        # Always drop, matching the pre-platform behavior -- see `_drop_incompatible_byte_order`.
+        result.append(_drop_incompatible_byte_order(merged, {}))
 
     def _add_entries(entries: object, extra: dict) -> None:
         # `entries` may be a single image dict or a list of them; non-dict

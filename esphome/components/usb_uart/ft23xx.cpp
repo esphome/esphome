@@ -217,6 +217,7 @@ static optional<CdcEps> get_uart(const usb_config_desc_t *config_desc, uint8_t i
   }
 
   eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+  eps.bulk_interface_class = intf_desc->bInterfaceClass;
   return eps;
 }
 
@@ -270,7 +271,7 @@ std::vector<CdcEps> USBUartTypeFT23XX::parse_descriptors(usb_device_handle_t dev
   return cdc_devs;
 }
 
-void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
+void USBUartTypeFT23XX::start_input(USBUartChannelBase *channel) {
   if (!channel->initialised_.load())
     return;
 
@@ -336,12 +337,12 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
   }
 }
 
-void USBUartTypeFT23XX::on_rx_overflow(USBUartChannel *channel) {
+void USBUartTypeFT23XX::on_rx_overflow(USBUartChannelBase *channel) {
   ESP_LOGW(TAG, "RX buffer overflow on channel %d, clearing to resync", channel->index_);
   channel->input_buffer_.clear();
 }
 
-bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   // On reload (settings change on an open channel) skip the SIO reset; the FTDI set_termios
   // path only re-applies baud + line properties and does not re-assert DTR/RTS.
@@ -362,34 +363,8 @@ bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool 
     }
     case 2: {  // set line properties (data bits / parity / stop bits)
       uint16_t value = channel->data_bits_;
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_NONE:
-          value |= (0x00 << 8);
-          break;
-        case UART_CONFIG_PARITY_ODD:
-          value |= (0x01 << 8);
-          break;
-        case UART_CONFIG_PARITY_EVEN:
-          value |= (0x02 << 8);
-          break;
-        case UART_CONFIG_PARITY_MARK:
-          value |= (0x03 << 8);
-          break;
-        case UART_CONFIG_PARITY_SPACE:
-          value |= (0x04 << 8);
-          break;
-      }
-      switch (channel->stop_bits_) {
-        default:  // 1 bit
-          value |= (0x00 << 11);
-          break;
-        case UART_CONFIG_STOP_BITS_1_5:
-          value |= (0x01 << 11);
-          break;
-        case UART_CONFIG_STOP_BITS_2:
-          value |= (0x02 << 11);
-          break;
-      }
+      value |= static_cast<uint8_t>(channel->line_parity_()) << 8;
+      value |= static_cast<uint8_t>(channel->line_stop_bits_()) << 11;
       value |= (0x00 << 14);
       this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x04, value,
                              channel->cdc_dev_.bulk_interface_number + 1);

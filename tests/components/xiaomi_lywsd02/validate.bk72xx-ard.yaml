@@ -1,0 +1,22 @@
+# Config-only: the CI base board (generic-bk7252, BLE 4.2) cannot compile the
+# BLE 5.x tracker, so this fixture proves validation (schema + neutral binding)
+# on a non-esp32 platform; codegen and compilation are not exercised here.
+bk72xx_ble_tracker:
+  id: ble_tracker_hub
+
+sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
+  - platform: xiaomi_lywsd02
+    ble_hub_id: ble_tracker_hub
+    mac_address: 3F:5B:7D:82:58:4E
+    temperature:
+      name: Xiaomi LYWSD02 Temperature
+    humidity:
+      name: Xiaomi LYWSD02 Humidity
+    battery_level:
+      name: Xiaomi LYWSD02 Battery Level
+  # No ble_hub_id: exercises the generated binding real configs use.
+  - platform: xiaomi_lywsd02
+    mac_address: 3F:5B:7D:82:58:4F
+    temperature:
+      name: BK Xiaomi LYWSD02 Implicit Temperature

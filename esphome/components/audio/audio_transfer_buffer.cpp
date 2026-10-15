@@ -51,14 +51,14 @@ void AudioTransferBuffer::increase_buffer_length(size_t bytes) { this->buffer_le
 
 void AudioTransferBuffer::clear_buffered_data() {
   this->buffer_length_ = 0;
-  if (this->ring_buffer_.use_count() > 0) {
+  if (this->ring_buffer_ != nullptr) {
     this->ring_buffer_->reset();
   }
 }
 
 void AudioSinkTransferBuffer::clear_buffered_data() {
   this->buffer_length_ = 0;
-  if (this->ring_buffer_.use_count() > 0) {
+  if (this->ring_buffer_ != nullptr) {
     this->ring_buffer_->reset();
   }
 #ifdef USE_SPEAKER
@@ -69,7 +69,7 @@ void AudioSinkTransferBuffer::clear_buffered_data() {
 }
 
 bool AudioTransferBuffer::has_buffered_data() const {
-  if (this->ring_buffer_.use_count() > 0) {
+  if (this->ring_buffer_ != nullptr) {
     return ((this->ring_buffer_->available() > 0) || (this->available() > 0));
   }
   return (this->available() > 0);
@@ -144,7 +144,7 @@ size_t AudioSourceTransferBuffer::transfer_data_from_source(TickType_t ticks_to_
   size_t bytes_to_read = AudioTransferBuffer::free();
   size_t bytes_read = 0;
   if (bytes_to_read > 0) {
-    if (this->ring_buffer_.use_count() > 0) {
+    if (this->ring_buffer_ != nullptr) {
       bytes_read = this->ring_buffer_->read((void *) this->get_buffer_end(), bytes_to_read, ticks_to_wait);
     }
 
@@ -161,7 +161,7 @@ size_t AudioSinkTransferBuffer::transfer_data_to_sink(TickType_t ticks_to_wait, 
       bytes_written = this->speaker_->play(this->data_start_, this->available(), ticks_to_wait);
     } else
 #endif
-        if (this->ring_buffer_.use_count() > 0) {
+        if (this->ring_buffer_ != nullptr) {
       bytes_written =
           this->ring_buffer_->write_without_replacement((void *) this->data_start_, this->available(), ticks_to_wait);
     } else if (this->sink_callback_ != nullptr) {
@@ -186,7 +186,7 @@ bool AudioSinkTransferBuffer::has_buffered_data() const {
     return (this->speaker_->has_buffered_data() || (this->available() > 0));
   }
 #endif
-  if (this->ring_buffer_.use_count() > 0) {
+  if (this->ring_buffer_ != nullptr) {
     return ((this->ring_buffer_->available() > 0) || (this->available() > 0));
   }
   return (this->available() > 0);

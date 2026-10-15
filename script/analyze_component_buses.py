@@ -52,6 +52,7 @@ COMMON_BUS_PATH = (
 # the packages on the right as well
 PACKAGE_DEPENDENCIES = {
     "modbus": ["uart"],  # modbus packages include uart packages
+    "modbus_server": ["uart"],  # modbus_server packages include uart packages
     # Add more package dependencies here as needed
 }
 
@@ -80,7 +81,9 @@ ISOLATED_SIGNATURE_PREFIX = "isolated_"
 # NOTE: This should be kept in sync with both test_build_components and split_components_for_ci.py
 ISOLATED_COMPONENTS = {
     "animation": "Has display lambda in common.yaml that requires existing display platform - breaks when merged without display",
+    "cdc_acm_uart": "Depends on tinyusb which conflicts with usb_host",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
+    "ecocomfort2": "Needs esp32_ble with io_capability: none and sc_bond, which a merged esp32_ble: block overrides",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
     "gps": "TinyGPSPlus library declares millis() function that creates ambiguity with ESPHome millis() macro when merged with components using millis() in lambdas",
@@ -95,6 +98,8 @@ ISOLATED_COMPONENTS = {
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
+    "tinyusb_keyboard": "Depends on tinyusb which conflicts with usb_host",
+    "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
 }
 

@@ -15,8 +15,11 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PASCAL,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@danielkent-net"]
+DOMAIN = "spa06_base"
 
 spa06_ns = cg.esphome_ns.namespace("spa06_base")
 
@@ -55,7 +58,7 @@ OVERSAMPLING_OPTIONS = {
 SPA06Component = spa06_ns.class_("SPA06Component", cg.PollingComponent)
 
 
-def spa_oversample_time(oversample):
+def spa_oversample_time(oversample: str) -> float:
     # Pressure oversampling conversion times are listed on datasheet Pg. 26
     # Datasheet does not have a table for temperature oversampling;
     # assumption is that it is the same as pressure
@@ -72,7 +75,7 @@ def spa_oversample_time(oversample):
     return OVERSAMPLING_CONVERSION_TIMES[oversample]
 
 
-def spa_sample_rate(rate):
+def spa_sample_rate(rate: str) -> float:
     SAMPLE_RATE_OPTIONS_HZ = {
         "1": 1.0,
         "2": 2.0,
@@ -94,7 +97,7 @@ def spa_sample_rate(rate):
     return SAMPLE_RATE_OPTIONS_HZ[rate]
 
 
-def compute_measurement_conversion_time(config):
+def compute_measurement_conversion_time(config: ConfigType) -> int:
     # - adds up sensor conversion time based on temperature and pressure oversampling rates given in datasheet
     # - returns a rounded up time in ms
 
@@ -115,7 +118,7 @@ def compute_measurement_conversion_time(config):
     return math.ceil(1.05 * (pressure_conversion_time + temperature_conversion_time))
 
 
-def measurement_timing_check(config):
+def measurement_timing_check(config: ConfigType) -> ConfigType:
 
     temp_time = 0.0
     if temperature_config := config.get(CONF_TEMPERATURE):
@@ -176,12 +179,12 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 CONFIG_SCHEMA_BASE.add_extra(measurement_timing_check)
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_TEMPERATURE, var.set_temperature_sensor):
+        temperature_config = config[CONF_TEMPERATURE]
         cg.add(
             var.set_temperature_oversampling_config(
                 temperature_config[CONF_OVERSAMPLING]
@@ -191,9 +194,8 @@ async def to_code_base(config):
             var.set_temperature_sample_rate_config(temperature_config[CONF_SAMPLE_RATE])
         )
 
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
+        pressure_config = config[CONF_PRESSURE]
         cg.add(var.set_pressure_oversampling_config(pressure_config[CONF_OVERSAMPLING]))
         cg.add(var.set_pressure_sample_rate_config(pressure_config[CONF_SAMPLE_RATE]))
 

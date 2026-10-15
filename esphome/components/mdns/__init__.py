@@ -1,14 +1,19 @@
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_component
+from esphome.components.const import CONF_BORDER_ROUTER
+from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_API,
     CONF_DISABLED,
+    CONF_ETHERNET,
     CONF_ID,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_PROTOCOL,
     CONF_SERVICE,
     CONF_SERVICES,
+    CONF_WIFI,
     PlatformFramework,
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
@@ -19,6 +24,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
+DOMAIN = "mdns"
 
 # Components that create mDNS services at runtime
 # IMPORTANT: If you add a new component here, you must also update the corresponding
@@ -31,7 +37,7 @@ MDNSTXTRecord = mdns_ns.struct("MDNSTXTRecord")
 MDNSService = mdns_ns.struct("MDNSService")
 
 
-def _remove_id_if_disabled(value):
+def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
     value = value.copy()
     if value[CONF_DISABLED]:
         value.pop(CONF_ID)
@@ -62,7 +68,7 @@ def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def _require_network_interface(config: ConfigType) -> ConfigType:
+def _require_network_interface(config: ConfigType) -> None:
     """Require a network interface for mDNS on Arduino/LEAmDNS platforms.
 
     On ESP8266 and RP2040 the C++ implementation needs at least one IP state
@@ -71,7 +77,7 @@ def _require_network_interface(config: ConfigType) -> ConfigType:
     that never initializes.
     """
     if config.get(CONF_DISABLED) or not (CORE.is_esp8266 or CORE.is_rp2):
-        return config
+        return
     full_config = fv.full_config.get()
     has_wifi = "wifi" in full_config
     has_ethernet = CORE.is_rp2 and "ethernet" in full_config
@@ -81,7 +87,6 @@ def _require_network_interface(config: ConfigType) -> ConfigType:
             "mdns on this platform requires a network interface — "
             f"add a {options} component to your configuration."
         )
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -118,7 +123,7 @@ def mdns_txt_record(key: str, value: str) -> cg.RawExpression:
 
 
 async def _mdns_txt_record_templated(
-    mdns_comp: cg.Pvariable, key: str, value: Lambda | str
+    mdns_comp: cg.MockObj, key: str, value: Lambda | str
 ) -> cg.RawExpression:
     """Create a mDNS TXT record with support for templated values.
 
@@ -173,7 +178,7 @@ def mdns_service(
     )
 
 
-def enable_mdns_storage():
+def enable_mdns_storage() -> None:
     """Enable persistent storage of mDNS services in the MDNSComponent.
 
     Called by external components (like OpenThread) that need access to
@@ -184,14 +189,44 @@ def enable_mdns_storage():
     cg.add_define("USE_MDNS_STORE_SERVICES")
 
 
+def _openthread_srp_registers_services() -> bool:
+    """Without border_router, the OpenThread SRP client registers the services instead of mDNS."""
+    openthread_config = CORE.config.get(CONF_OPENTHREAD)
+    return openthread_config is not None and CONF_BORDER_ROUTER not in openthread_config
+
+
+def request_service_enable_disable() -> bool:
+    """Request MDNSComponent::set_service_enabled() support.
+
+    ESP32 only, not with the OpenThread SRP client. Returns True when the
+    USE_MDNS_SUPPORTS_ENABLE_DISABLE define was added; guard C++ usage with it.
+
+    Public API for external components. Do not remove.
+    """
+    mdns_config = CORE.config.get(DOMAIN)
+    if (
+        mdns_config is None
+        or mdns_config[CONF_DISABLED]
+        or not CORE.is_esp32
+        or _openthread_srp_registers_services()
+    ):
+        return False
+    cg.add_define("USE_MDNS_SUPPORTS_ENABLE_DISABLE")
+    # Services must stay stored so a disabled service can be re-registered
+    enable_mdns_storage()
+    return True
+
+
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED] is True:
         return
 
     if CORE.using_arduino:
         if CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
+            # No MDNS global in the build; mdns_esp8266.cpp owns a guarded MDNSResponder
+            cg.add_build_flag("-DNO_GLOBAL_MDNS")
         elif CORE.is_rp2:
             cg.add_library("LEAmDNS", None)
 
@@ -209,7 +244,16 @@ async def to_code(config):
                 ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.11.0")
+        add_idf_component(name="espressif/mdns", ref="1.14.0")
+        # ESPHome only advertises; the browse APIs are unused
+        add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_BROWSE", False)
+        # The mdns console CLI is never used by ESPHome
+        add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_CONSOLE_CLI", False)
+        if CONF_WIFI not in CORE.config:
+            # Without WiFi the predefined STA/AP interface handlers are dead
+            # code; disabling them lets mdns build without the WiFi stack.
+            add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_STA", False)
+            add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_AP", False)
 
     cg.add_define("USE_MDNS")
 
@@ -249,6 +293,23 @@ async def to_code(config):
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # With both wifi and ethernet, the _esphomelib "network" TXT value follows the
+    # connected interface. The OpenThread SRP client registers the services once,
+    # so it keeps the fixed value.
+    if (
+        CONF_API in CORE.config
+        and CONF_WIFI in CORE.config
+        and CONF_ETHERNET in CORE.config
+        and not _openthread_srp_registers_services()
+    ):
+        from esphome.components import network
+
+        cg.add_define("USE_MDNS_DYNAMIC_NETWORK_TXT")
+        # Where the network component tracks the default route (ESP32), follow
+        # it; otherwise mdns checks the connected interface every second.
+        if await network.register_active_interface_listener(var):
+            cg.add_define("USE_MDNS_ACTIVE_INTERFACE_LISTENER")
 
     for service in config[CONF_SERVICES]:
         txt_records = [

@@ -13,6 +13,7 @@ from esphome.const import (
     ICON_RESTART,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2412_ID, LD2412_ns, LD2412Component
 
@@ -54,23 +55,13 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    if factory_reset_config := config.get(CONF_FACTORY_RESET):
-        b = await button.new_button(factory_reset_config)
-        await cg.register_parented(b, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_factory_reset_button(b))
-    if query_params_config := config.get(CONF_QUERY_PARAMS):
-        b = await button.new_button(query_params_config)
-        await cg.register_parented(b, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_query_button(b))
-    if restart_config := config.get(CONF_RESTART):
-        b = await button.new_button(restart_config)
-        await cg.register_parented(b, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_restart_button(b))
-    if start_dynamic_background_correction_config := config.get(
-        CONF_START_DYNAMIC_BACKGROUND_CORRECTION
-    ):
-        b = await button.new_button(start_dynamic_background_correction_config)
-        await cg.register_parented(b, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_start_dynamic_background_correction_button(b))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
+    buttons = button.sub_buttons(config, parent=hub)
+    await buttons(CONF_FACTORY_RESET, hub.set_factory_reset_button)
+    await buttons(CONF_QUERY_PARAMS, hub.set_query_button)
+    await buttons(CONF_RESTART, hub.set_restart_button)
+    await buttons(
+        CONF_START_DYNAMIC_BACKGROUND_CORRECTION,
+        hub.set_start_dynamic_background_correction_button,
+    )

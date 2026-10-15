@@ -2,7 +2,7 @@
 
 namespace esphome::micronova {
 
-static const char *const TAG = "micronova.button";
+ESPHOME_LOG_TAG(TAG, "micronova.button");
 
 void MicroNovaButton::dump_config() {
   LOG_BUTTON("", "Micronova button", this);

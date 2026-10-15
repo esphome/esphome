@@ -16,7 +16,7 @@
 
 namespace esphome::ld2450 {
 
-static const char *const TAG = "ld2450";
+ESPHOME_LOG_TAG(TAG, "ld2450");
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -180,11 +180,16 @@ void LD2450Component::setup() {
     this->set_presence_timeout();
   }
 #endif
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  for (PolygonZone *zone : this->polygon_zones_) {
+    zone->setup();
+  }
+#endif
   this->restart_and_read_all_info();
 }
 
 void LD2450Component::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
   const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
   ld24xx::format_version_str(this->version_, version_s);
@@ -264,6 +269,12 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Buttons:");
   LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
   LOG_BUTTON("  ", "Restart", this->restart_button_);
+#endif
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  ESP_LOGCONFIG(TAG, "Polygon Zones:");
+  for (PolygonZone *zone : this->polygon_zones_) {
+    zone->dump_config();
+  }
 #endif
 }
 
@@ -465,15 +476,15 @@ void LD2450Component::handle_periodic_data_() {
 #if defined(USE_BINARY_SENSOR) || defined(USE_SENSOR) || defined(USE_TEXT_SENSOR)
   // Loop thru targets
   for (index = 0; index < MAX_TARGETS; index++) {
-#ifdef USE_SENSOR
     // X
     start = TARGET_X + index * 8;
     is_moving = false;
-    // tx is used for further calculations, so always needs to be populated
+    // tx and ty are used for further calculations, so always need to be populated
     tx = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
     // Y
     start = TARGET_Y + index * 8;
     ty = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
+#ifdef USE_SENSOR
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
     res = (this->buffer_data_[start + 1] << 8) | this->buffer_data_[start];
@@ -542,6 +553,23 @@ void LD2450Component::handle_periodic_data_() {
   still_target_count = target_count - moving_target_count;
 #endif
 
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  const uint32_t now = App.get_loop_component_start_time();
+  for (PolygonZone *zone : this->polygon_zones_) {
+    if (!zone->has_polygon())
+      continue;
+    bool target_inside = false;
+    for (const Target &target : this->target_info_) {
+      // Untracked targets are stored as (0, 0)
+      if ((target.x != 0 || target.y != 0) && zone->contains(target.x, target.y)) {
+        target_inside = true;
+        break;
+      }
+    }
+    zone->update(target_inside, now, this->get_timeout_status_(zone->get_last_inside_ms()));
+  }
+#endif
+
 #ifdef USE_SENSOR
   // Loop thru zones
   uint8_t zone_still_targets = 0;
@@ -602,7 +630,7 @@ void LD2450Component::handle_periodic_data_() {
     }
   }
 #endif
-#ifdef USE_SENSOR
+#ifdef USE_BINARY_SENSOR
   // For presence timeout check
   if (target_count > 0) {
     this->presence_millis_ = App.get_loop_component_start_time();
@@ -680,7 +708,7 @@ bool LD2450Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      char mac_s[18];
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR

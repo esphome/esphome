@@ -3,11 +3,13 @@ from esphome.components import esp32, i2c
 from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Framework
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor"]
 CONFLICTS_WITH = ["bme68x_bsec2"]
+DOMAIN = "bme680_bsec"
 MULTI_CONF = True
 
 CONF_BME680_BSEC_ID = "bme680_bsec_id"
@@ -76,7 +78,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

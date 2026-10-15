@@ -1,0 +1,3 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  sendspin: !include common-image.yaml

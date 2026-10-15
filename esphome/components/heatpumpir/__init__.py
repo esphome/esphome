@@ -1,1 +1,1 @@
-AUTO_LOAD = ["climate_ir"]
+DOMAIN = "heatpumpir"

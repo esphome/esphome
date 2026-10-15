@@ -4,7 +4,7 @@
 
 namespace esphome::st7789v {
 
-static const char *const TAG = "st7789v";
+ESPHOME_LOG_TAG(TAG, "st7789v");
 #ifdef USE_ESP32
 static constexpr size_t TEMP_BUFFER_SIZE = 1024;
 #else
@@ -151,8 +151,6 @@ void ST7789V::update() {
   this->do_update_();
   this->write_display_data();
 }
-
-void ST7789V::set_model_str(const char *model_str) { this->model_str_ = model_str; }
 
 void ST7789V::write_display_data() {
   uint16_t x1 = this->offset_width_;

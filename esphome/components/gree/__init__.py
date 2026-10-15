@@ -1,5 +1,5 @@
 import esphome.codegen as cg
 
-AUTO_LOAD = ["climate_ir"]
+DOMAIN = "gree"
 
 gree_ns = cg.esphome_ns.namespace("gree")
