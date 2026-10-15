@@ -25,6 +25,7 @@ static constexpr uint8_t PACKET_TYPE_STATUS_REQUEST = 0x42;
 static constexpr uint8_t PACKET_TYPE_STATUS_RESPONSE = 0x62;
 static constexpr uint8_t STATUS_MSG_SETTINGS = 0x02;
 static constexpr uint8_t STATUS_MSG_TELEMETRY = 0x03;
+static constexpr uint8_t STATUS_MSG_HEATPUMP = 0x06;
 
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
@@ -255,7 +256,8 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
   bool changed =
       previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
       previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
-      previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode;
+      previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode ||
+      previous.operating != this->status_.operating;
 
   if (this->is_telemetry_polling_enabled()) {
     changed |= previous.room_temperature != this->status_.room_temperature;
@@ -279,6 +281,15 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
         ESP_LOGVV(TAG, "RX telemetry payload too short");
         return false;
       }
+      this->last_telemetry_update_ms_ = get_loop_time_ms();
+      return true;
+
+    case STATUS_MSG_HEATPUMP:
+      if (len <= 3) {
+        ESP_LOGVV(TAG, "RX 0x06 payload too short");
+        return false;
+      }
+      this->status_.operating = payload[3] != 0;
       this->last_telemetry_update_ms_ = get_loop_time_ms();
       return true;
 
