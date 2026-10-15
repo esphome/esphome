@@ -1,6 +1,5 @@
 #include "homeassistant_light.h"
 
-#include <cstdlib>
 #include <cstring>
 
 #include "esphome/components/api/api_pb2.h"
@@ -47,13 +46,14 @@ bool parse_rgb(const char *text, std::array<uint8_t, 3> &values) {
     if (*text < '0' || *text > '9') {
       return false;
     }
-    char *end;
-    const long number = strtol(text, &end, 10);
-    if (number > 255) {
-      return false;
+    uint16_t number = 0;
+    while (*text >= '0' && *text <= '9') {
+      number = number * 10 + (*text++ - '0');
+      if (number > 255) {
+        return false;
+      }
     }
     value = static_cast<uint8_t>(number);
-    text = end;
   }
   while (*text == ' ' || *text == ',' || *text == ')') {
     text++;
@@ -67,6 +67,9 @@ void HomeassistantLight::setup() {
   auto *server = api::global_api_server;
   // Home Assistant repeats these with every update, so a light that comes up late still gets them
   server->subscribe_home_assistant_state(this->entity_id_, "supported_color_modes", [this](StringRef value) {
+    if (value == "None") {
+      return;  // the light is unavailable; its traits stay
+    }
     // A Python list, "['hs', 'color_temp']" or "[<ColorMode.HS: 'hs'>, ...]": the names are the quoted parts
     ColorModeMask modes;
     const char *text = value.c_str();
@@ -112,7 +115,7 @@ void HomeassistantLight::setup() {
     this->schedule_apply_();
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_mode", [this](StringRef value) {
-    if (value == "None") {
+    if (value == "None" || value == "unknown") {
       return;
     }
     auto mode = parse_color_mode(value);
