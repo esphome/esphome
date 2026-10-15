@@ -167,28 +167,35 @@ void DFRobotSEN0609Component::handle_line_(char *line) {
     this->handle_frame_(line);
     return;
   }
-  if (this->operation_ == Operation::OPERATION_NONE)
+  // Version lines name their value, so they are used even when they arrive late
+  const bool software = starts_with(line, ESPHOME_PSTR("SoftwareVersion:"));
+  if (software || starts_with(line, ESPHOME_PSTR("HardwareVersion:"))) {
+    if (this->operation_ == Operation::OPERATION_READ &&
+        this->param_ == (software ? PARAM_SW_VERSION : PARAM_HW_VERSION))
+      this->version_received_ = true;
+#ifdef USE_TEXT_SENSOR
+    text_sensor::TextSensor *sens = software ? this->version_text_sensor_ : this->hardware_version_text_sensor_;
+    if (sens != nullptr)
+      sens->publish_state(line + 16);
+#endif
     return;
+  }
+  if (this->operation_ == Operation::OPERATION_NONE) {
+    ESP_LOGD(TAG, "Ignored line, no command pending: %s", line);
+    return;
+  }
   if (strcmp(line, this->command_) == 0) {
     this->echo_seen_ = true;
     return;
   }
   // The module echoes every command first; lines before the echo belong to an earlier command
-  if (!this->echo_seen_)
+  if (!this->echo_seen_) {
+    ESP_LOGD(TAG, "Ignored line from an earlier command: %s", line);
     return;
+  }
 
   if (starts_with(line, ESPHOME_PSTR("Done")) || answer_means_done(this->operation_, line)) {
     this->finish_operation_();
-  } else if (starts_with(line, ESPHOME_PSTR("SoftwareVersion:"))) {
-#ifdef USE_TEXT_SENSOR
-    if (this->version_text_sensor_ != nullptr)
-      this->version_text_sensor_->publish_state(line + 16);
-#endif
-  } else if (starts_with(line, ESPHOME_PSTR("HardwareVersion:"))) {
-#ifdef USE_TEXT_SENSOR
-    if (this->hardware_version_text_sensor_ != nullptr)
-      this->hardware_version_text_sensor_->publish_state(line + 16);
-#endif
   } else if (contains(line, ESPHOME_PSTR("not stopped"))) {
     // Stop the sensor before the next attempt
     this->stopped_ = false;
@@ -322,31 +329,41 @@ void DFRobotSEN0609Component::run_sequencer_() {
     param = static_cast<Param>(__builtin_ctz(this->pending_reads_));
   }
 
-  this->build_command_(operation, param);
+  const uint16_t bit = param_bit(param);
+  uint16_t &pending = operation == Operation::OPERATION_WRITE ? this->pending_writes_ : this->pending_reads_;
+  if (!this->build_command_(operation, param)) {
+    ESP_LOGE(TAG, "No command for %s of parameter %u", LOG_STR_ARG(operation_to_str(operation)),
+             static_cast<unsigned>(param));
+    pending &= ~bit;
+    this->sequence_failed_ = true;
+    this->status_set_warning();
+    return;
+  }
   if (operation == Operation::OPERATION_WRITE)
-    this->pending_writes_ &= ~param_bit(param);
+    pending &= ~bit;
   this->operation_ = operation;
   this->param_ = param;
   this->echo_seen_ = false;
+  this->version_received_ = false;
   this->sent_ms_ = now;
   ESP_LOGV(TAG, "TX: %s", this->command_);
   this->write_str(this->command_);
   this->write_array(LINE_END, sizeof(LINE_END));
 }
 
-void DFRobotSEN0609Component::build_command_(Operation operation, Param param) {
+bool DFRobotSEN0609Component::build_command_(Operation operation, Param param) {
   char *buf = this->command_;
   constexpr size_t len = MAX_COMMAND_LENGTH;
   switch (operation) {
     case Operation::OPERATION_STOP:
       ESPHOME_strncpy_P(buf, ESPHOME_PSTR("sensorStop"), len);
-      return;
+      return true;
     case Operation::OPERATION_START:
       ESPHOME_strncpy_P(buf, ESPHOME_PSTR("sensorStart"), len);
-      return;
+      return true;
     case Operation::OPERATION_READ:
       ESPHOME_strncpy_P(buf, reinterpret_cast<ESPHOME_PGM_P>(ReadCommands::get_progmem_str(param, 0)), len);
-      return;
+      return buf[0] != '\0';
     default:
       break;
   }
@@ -354,12 +371,13 @@ void DFRobotSEN0609Component::build_command_(Operation operation, Param param) {
   switch (param) {
     case PARAM_RUN_APP:
       ESPHOME_snprintf_P(buf, len, ESPHOME_PSTR("setRunApp %u"), static_cast<unsigned>(this->mode_));
-      return;
+      return true;
     case PARAM_UART_OUTPUT:
       ESPHOME_strncpy_P(buf, ESPHOME_PSTR("setUartOutput 1 1 1 1.0"), len);
-      return;
+      return true;
     default:
-      break;
+      buf[0] = '\0';
+      return false;
   }
 }
 
@@ -378,6 +396,11 @@ void DFRobotSEN0609Component::finish_operation_() {
       break;
     case Operation::OPERATION_READ:
       // The versions are published as their lines arrive
+      if (!this->version_received_) {
+        ESP_LOGW(TAG, "No version in the answer to '%s'", this->command_);
+        this->fail_operation_();
+        return;
+      }
       this->pending_reads_ &= ~param_bit(this->param_);
       break;
     default:
@@ -398,17 +421,17 @@ void DFRobotSEN0609Component::fail_operation_() {
   const Operation operation = this->operation_;
   this->operation_ = Operation::OPERATION_NONE;
   this->hold_(COMMAND_GAP_MS);
-  if (++attempts < MAX_ATTEMPTS) {
-    if (operation == Operation::OPERATION_WRITE)
-      this->pending_writes_ |= param_bit(this->param_);
+  // The writes are the boot configuration, which the frames depend on: keep them until they succeed
+  if (operation == Operation::OPERATION_WRITE)
+    this->pending_writes_ |= param_bit(this->param_);
+  if (++attempts < MAX_ATTEMPTS)
     return;
-  }
 
   attempts = 0;
   this->status_set_warning();
-  if (aux) {
-    // Without stop or start nothing else can run; keep the work and try again later
-    ESP_LOGW(TAG, "Module not answering to %s, trying again later", LOG_STR_ARG(operation_to_str(operation)));
+  if (aux || operation == Operation::OPERATION_WRITE) {
+    // Without stop, start or the configuration the sensor cannot run as set up; try again later
+    ESP_LOGW(TAG, "Command '%s' failed, trying again later", this->command_);
     this->hold_ms_ = GIVE_UP_BACKOFF_MS;
     return;
   }

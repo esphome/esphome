@@ -61,6 +61,40 @@ TEST_F(SEN0609SequencerTest, LateAnswerIsNotTakenForNextCommand) {
   this->answer_("getHWV", "HardwareVersion:V2.0\r\n");
   this->expect_and_answer_("sensorStart");
   EXPECT_EQ(this->hardware_version_.state, "V2.0");
+  // The late version line names its value, so it is still used
+  EXPECT_EQ(this->version_.state, "V1.0.4");
+}
+
+TEST_F(SEN0609SequencerTest, MissingVersionLineIsRetried) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getSWV");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  EXPECT_EQ(this->version_.state, "V1.0.4");
+  this->expect_and_answer_("getHWV", "HardwareVersion:V2.0\r\n");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SequencerTest, FailedConfigurationIsRetriedLater) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(this->next_command_(), "setRunApp 0");
+    this->feed_("setRunApp 0\r\nError\r\nDFRobot:/>");
+  }
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  // The sensor is not started in an unknown mode
+  EXPECT_EQ(this->next_command_(20000), "");
+  ASSERT_EQ(this->next_command_(15000), "setRunApp 0");
+  this->answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("getHWV", "HardwareVersion:V2.0\r\n");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
 TEST_F(SEN0609SequencerTest, SilentModuleBacksOffAndKeepsWork) {
