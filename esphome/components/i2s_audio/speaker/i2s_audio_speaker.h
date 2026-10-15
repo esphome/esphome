@@ -192,6 +192,9 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   optional<uint32_t> timeout_;
 
+  // A format start_i2s_driver() refused. Those checks compare against fixed settings, so it can never start.
+  optional<audio::AudioStreamInfo> rejected_stream_info_;
+
   bool pause_state_{false};
   bool keep_alive_{false};
 

@@ -46,6 +46,13 @@ void I2SAudioMicrophone::setup() {
     return;
   }
 
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex() && this->parent_->is_failed()) {
+    this->mark_failed(LOG_STR("Full duplex bus setup failed"));
+    return;
+  }
+#endif
+
   this->configure_stream_settings_();
 }
 

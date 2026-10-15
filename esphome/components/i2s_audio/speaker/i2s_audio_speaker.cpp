@@ -45,6 +45,9 @@ void I2SAudioSpeakerBase::setup() {
   // The parent set up before us and already routed dout to the shared TX channel, which is never re-initialized.
   // Parking would detach the pin for good. SPDIF speakers cannot use a full duplex bus.
   if (this->parent_->is_full_duplex()) {
+    if (this->parent_->is_failed()) {
+      this->mark_failed(LOG_STR("Full duplex bus setup failed"));
+    }
     return;
   }
 #endif
@@ -138,7 +141,7 @@ void I2SAudioSpeakerBase::loop() {
 
   // Handle the speaker's state
   switch (this->state_) {
-    case speaker::STATE_STARTING:
+    case speaker::STATE_STARTING: {
       if (this->status_has_error()) {
         break;
       }
@@ -154,7 +157,15 @@ void I2SAudioSpeakerBase::loop() {
         break;
       }
 #endif
-      if (this->start_i2s_driver(this->audio_stream_info_) != ESP_OK) {
+      const esp_err_t err = this->start_i2s_driver(this->audio_stream_info_);
+      if (err == ESP_ERR_NOT_SUPPORTED) {
+        // Retrying cannot help; stay stopped so the audio source gives up instead of waiting forever
+        ESP_LOGE(TAG, "Stream format not supported; not starting");
+        this->rejected_stream_info_ = this->audio_stream_info_;
+        this->state_ = speaker::STATE_STOPPED;
+        break;
+      }
+      if (err != ESP_OK) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
         this->status_momentary_error(1000);
         break;
@@ -173,6 +184,7 @@ void I2SAudioSpeakerBase::loop() {
         this->stop_i2s_driver_(false);  // Stops the driver to return the lock; will be reloaded in next attempt
       }
       break;
+    }
     case speaker::STATE_RUNNING:   // Intentional fallthrough
     case speaker::STATE_STOPPING:  // Intentional fallthrough
     case speaker::STATE_STOPPED:
@@ -253,6 +265,9 @@ void I2SAudioSpeakerBase::start() {
   if (!this->is_ready() || this->is_failed() || this->status_has_error())
     return;
   if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING))
+    return;
+  // play() calls start() on every write, so without this a rejected stream would be retried and logged nonstop
+  if (this->rejected_stream_info_.has_value() && this->rejected_stream_info_.value() == this->audio_stream_info_)
     return;
 
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);

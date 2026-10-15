@@ -432,6 +432,10 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
       ESP_LOGE(TAG, "Full duplex requires %u-bit, %u channel audio at %" PRIu32 " Hz",
                (unsigned) required.get_bits_per_sample(), (unsigned) required.get_channels(),
                required.get_sample_rate());
+      if (this->output_stream_info_.get_channels() != required.get_channels()) {
+        ESP_LOGE(TAG, "A resampler does not change the channel count; add a mixer speaker with num_channels: %u",
+                 (unsigned) required.get_channels());
+      }
       return ESP_ERR_NOT_SUPPORTED;
     }
     // The speaker task will enable the channel after preloading.
