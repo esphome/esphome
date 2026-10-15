@@ -37,6 +37,8 @@ class HomeassistantLight final : public light::LightOutput, public Component {
 
   /// Parses a Home Assistant attribute as an integer from 1 to max, logging anything else
   optional<uint16_t> parse_integer_(const char *name, StringRef value, uint16_t max);
+  /// A state or attribute report: answers a pending echo and schedules the apply
+  void on_report_();
   /// Schedules apply_imported_() once for the attributes of one update
   void schedule_apply_();
   void apply_imported_();
@@ -52,6 +54,7 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   bool apply_scheduled_ : 1 {false};
   bool initial_write_ : 1 {true};  // the light core's own first write is not a local change
   bool echo_pending_ : 1 {false};  // a sent change waits for Home Assistant to report it back
+  bool report_held_ : 1 {false};   // a report arrived during a transition or flash; applied when it ends
 };
 
 }  // namespace esphome::homeassistant

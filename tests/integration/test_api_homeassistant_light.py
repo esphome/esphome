@@ -182,4 +182,23 @@ async def test_api_homeassistant_light(
         client.light_command(key, state=False)
         await waiter.wait_for("already has this state", timeout=5.0)
 
+        # A trait that arrives while a change waits for its report is not that report, and does
+        # not bring the old state back early either
+        client.light_command(key, state=True)
+        assert (await next_call()).service == "light.turn_on"
+        await next_state(lambda s: s.state)
+        report("max_color_temp_kelvin", "6500")
+        await next_state(lambda s: not s.state)
+        assert (
+            sum("did not report the change back" in line for line in waiter.lines) == 2
+        )
+
+        # A report that arrives during a flash is applied when the flash ends instead of being undone
+        client.light_command(key, state=True, flash_length=1.0)
+        report(None, "on")
+        report("brightness", "77")
+        state = await next_state(lambda s: s.brightness == pytest.approx(77 / 255))
+        assert state.state
+        await waiter.wait_for("arrived during the transition", timeout=5.0)
+
         assert calls.empty()

@@ -133,7 +133,7 @@ void HomeassistantLight::setup() {
       return;
     }
     this->imported_.state = on_off == PARSE_ON;
-    this->schedule_apply_();
+    this->on_report_();
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_mode", [this](StringRef value) {
     if (is_unset(value)) {
@@ -145,18 +145,18 @@ void HomeassistantLight::setup() {
       return;
     }
     this->imported_.color_mode = *mode;
-    this->schedule_apply_();
+    this->on_report_();
   });
   server->subscribe_home_assistant_state(this->entity_id_, "brightness", [this](StringRef value) {
     if (auto brightness = this->parse_integer_("brightness", value, 255)) {
       this->imported_.brightness = *brightness;
-      this->schedule_apply_();
+      this->on_report_();
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_temp_kelvin", [this](StringRef value) {
     if (auto kelvin = this->parse_integer_("color_temp_kelvin", value, UINT16_MAX)) {
       this->imported_.color_temp_kelvin = *kelvin;
-      this->schedule_apply_();
+      this->on_report_();
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "rgb_color", [this](StringRef value) {
@@ -170,7 +170,7 @@ void HomeassistantLight::setup() {
     }
     this->imported_.rgb = rgb;
     this->imported_.has_rgb = true;
-    this->schedule_apply_();
+    this->on_report_();
   });
 }
 
@@ -199,12 +199,16 @@ optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRe
   return static_cast<uint16_t>(*number);
 }
 
-void HomeassistantLight::schedule_apply_() {
-  // A report answers the change that armed the echo timeout
+void HomeassistantLight::on_report_() {
+  // A report answers the change that armed the echo timeout; a trait does not
   if (this->echo_pending_) {
     this->echo_pending_ = false;
     this->cancel_timeout(ECHO_TIMEOUT_ID);
   }
+  this->schedule_apply_();
+}
+
+void HomeassistantLight::schedule_apply_() {
   // One update changes several attributes, each arriving as its own message; apply them as one call
   if (!this->apply_scheduled_) {
     this->apply_scheduled_ = true;
@@ -214,8 +218,10 @@ void HomeassistantLight::schedule_apply_() {
 
 void HomeassistantLight::apply_imported_() {
   this->apply_scheduled_ = false;
-  if (!this->imported_.state.has_value()) {
-    return;  // the traits came in before any state
+  // Nothing to apply before the first state; while a sent change waits for its report the reported
+  // state is the old one, so a trait that arrives then does not bring it back
+  if (!this->imported_.state.has_value() || this->echo_pending_) {
+    return;
   }
   // Attributes Home Assistant has not reported keep what the light has
   const Attributes &imported = this->imported_;
@@ -245,9 +251,14 @@ void HomeassistantLight::apply_imported_() {
     }
   }
   if (!this->state_->set_external_state(values)) {
-    // A local change still waits for LightState::loop() to send it, or a local transition or flash
-    // runs. Home Assistant reports again once that change reaches it; when it does not, the echo
-    // timeout write_state() arms brings the light back to what was reported last
+    if (this->state_->is_transitioning()) {
+      // Applied once the transition or flash ends, in place of the values it ends at
+      this->report_held_ = true;
+      return;
+    }
+    // A local change still waits for LightState::loop() to send it. Home Assistant reports again
+    // once that change reaches it; when it does not, the echo timeout write_state() arms brings the
+    // light back to what was reported last
     ESP_LOGD(TAG, "'%s': Report dropped, a local change is on its way", this->entity_id_);
     return;
   }
@@ -294,6 +305,13 @@ void HomeassistantLight::write_state(LightState *state) {
   }
   if (state->is_transitioning()) {
     return;  // a transition or flash runs here alone; Home Assistant gets the state it ends at
+  }
+  if (this->report_held_) {
+    // Home Assistant changed meanwhile; its report is newer than what the transition or flash ends at
+    this->report_held_ = false;
+    ESP_LOGD(TAG, "'%s': Applying the report that arrived during the transition", this->entity_id_);
+    this->schedule_apply_();
+    return;
   }
   // What Home Assistant holds after the change. It has one level, so the channel brightness of the
   // mode folds into it
