@@ -142,7 +142,7 @@ automation.register_apply_action(
 
 
 # Timer 1 of the ESP8266 releases the acknowledge bit; these drive the same timer
-_TIMER1_USERS = ("esp8266_pwm", "lightwaverf", "opentherm")
+_TIMER1_USERS = ("ac_dimmer", "esp8266_pwm", "lightwaverf", "opentherm")
 
 
 def _final_validate(config: ConfigType) -> ConfigType:

@@ -13,6 +13,9 @@
 #ifdef USE_ESP32
 #include "driver/gptimer.h"
 #endif
+#ifdef USE_RP2040
+#include <hardware/timer.h>
+#endif
 
 namespace esphome::hdmi_cec {
 
@@ -132,8 +135,8 @@ class HDMICEC : public Component {
   void reset_receiver_();
   /// Pull the line low for the acknowledge bit of a frame addressed to us
   void send_ack_();
-  // On the ESP32 and ESP8266 a hardware one-shot timer releases the line after the acknowledge
-  // bit, so the interrupt returns at once instead of holding the line for 1.5 ms
+  // On the ESP32, ESP8266 and RP2040 a hardware one-shot timer releases the line after the
+  // acknowledge bit, so the interrupt returns at once instead of holding the line for 1.5 ms
 #ifdef USE_ESP32
   bool setup_ack_timer_();
   static bool ack_timer_isr_s(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *arg);
@@ -141,7 +144,10 @@ class HDMICEC : public Component {
 #ifdef USE_ESP8266
   static void ack_timer_isr_s();
 #endif
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#ifdef USE_RP2040
+  static void ack_timer_isr_s(uint alarm_num);
+#endif
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   void start_ack_timer_();
 #endif
 
@@ -176,6 +182,9 @@ class HDMICEC : public Component {
   ISRInternalGPIOPin isr_pin_;
 #ifdef USE_ESP32
   gptimer_handle_t ack_timer_{nullptr};
+#endif
+#ifdef USE_RP2040
+  int ack_alarm_{-1};
 #endif
 
   // The word-sized fields come first and the single-byte ones form one run, so nothing is padded

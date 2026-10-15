@@ -5,13 +5,16 @@
 #ifdef USE_ESP8266
 #include <Arduino.h>
 #endif
+#ifdef USE_RP2040
+#include <pico/time.h>
+#endif
 
 namespace esphome::hdmi_cec {
 
 ESPHOME_LOG_TAG(TAG, "hdmi_cec");
 
-#ifdef USE_ESP8266
-// Timer 1 is the only hardware timer and its interrupt takes no argument
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+// The timer interrupt of these platforms carries no argument
 static HDMICEC *ack_timer_owner = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
@@ -48,6 +51,16 @@ void HDMICEC::setup() {
     this->mark_failed();
     return;
   }
+#endif
+#ifdef USE_RP2040
+  this->ack_alarm_ = hardware_alarm_claim_unused(false);
+  if (this->ack_alarm_ < 0) {
+    ESP_LOGE(TAG, "No hardware alarm left for the acknowledge timer");
+    this->mark_failed();
+    return;
+  }
+  ack_timer_owner = this;
+  hardware_alarm_set_callback(this->ack_alarm_, HDMICEC::ack_timer_isr_s);
 #endif
 #ifdef USE_ESP8266
   ack_timer_owner = this;
@@ -263,7 +276,7 @@ bool HDMICEC::send_bit_(bool bit_value) {
 void IRAM_ATTR HDMICEC::send_ack_() {
   // The acknowledge has to start right at this falling edge
   this->set_pin_output_low_();
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   this->start_ack_timer_();
 #else
   // Without a one-shot timer the interrupt holds the line itself
@@ -304,6 +317,14 @@ bool IRAM_ATTR HDMICEC::ack_timer_isr_s(gptimer_handle_t timer, const gptimer_al
 void IRAM_ATTR HDMICEC::start_ack_timer_() { timer1_write(LOW_BIT_US * 5); }
 
 void IRAM_ATTR HDMICEC::ack_timer_isr_s() { ack_timer_owner->set_pin_input_high_(); }
+#endif
+
+#ifdef USE_RP2040
+void IRAM_ATTR HDMICEC::start_ack_timer_() {
+  hardware_alarm_set_target(this->ack_alarm_, make_timeout_time_us(LOW_BIT_US));
+}
+
+void IRAM_ATTR HDMICEC::ack_timer_isr_s(uint alarm_num) { ack_timer_owner->set_pin_input_high_(); }
 #endif
 
 void IRAM_ATTR HDMICEC::gpio_isr_s(HDMICEC *self) { self->gpio_isr_(); }
