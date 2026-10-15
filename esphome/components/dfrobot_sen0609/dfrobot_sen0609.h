@@ -102,6 +102,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t aux_attempts_{0};
   bool line_overflow_{false};
   bool read_failed_{false};
+  bool unknown_frame_logged_{false};
   bool echo_seen_{false};
   bool version_received_{false};
   bool stopped_{false};

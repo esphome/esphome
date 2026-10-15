@@ -232,8 +232,14 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     return;
   }
   // $DFDMD,<targets>,<reserved>,<distance m>,<speed m/s>,<energy>,...*
-  if (!starts_with(line, ESPHOME_PSTR("$DFDMD,")))
+  if (!starts_with(line, ESPHOME_PSTR("$DFDMD,"))) {
+    // Logged once, as the module sends its frames several times a second
+    if (!this->unknown_frame_logged_) {
+      ESP_LOGW(TAG, "Unknown frame: %s", line);
+      this->unknown_frame_logged_ = true;
+    }
     return;
+  }
   char *fields[FRAME_FIELDS];
   float distance;
   float speed;
