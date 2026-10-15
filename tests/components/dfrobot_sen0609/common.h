@@ -39,6 +39,22 @@ class FakeUART : public uart::UARTComponent {
   size_t rx_pos{0};
 };
 
+// The hub publishes read values; writes are driven through control_number() directly.
+class TestNumber : public number::Number {
+ protected:
+  void control(float value) override {}
+};
+
+class TestSwitch : public switch_::Switch {
+ protected:
+  void write_state(bool state) override {}
+};
+
+class TestSelect : public select::Select {
+ protected:
+  void control(size_t index) override {}
+};
+
 class SEN0609Test : public ::testing::Test {
  protected:
   explicit SEN0609Test(RunMode mode = RunMode::RUN_MODE_PRESENCE) : hub_(mode) {}

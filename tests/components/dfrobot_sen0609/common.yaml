@@ -15,3 +15,37 @@ text_sensor:
       name: Software Version
     hardware_version:
       name: Hardware Version
+
+number:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_presence
+    min_range:
+      name: Minimum Range
+    max_range:
+      name: Maximum Range
+    trigger_range:
+      name: Trigger Range
+    hold_sensitivity:
+      name: Hold Sensitivity
+    trigger_sensitivity:
+      name: Trigger Sensitivity
+    on_latency:
+      name: On Latency
+    off_latency:
+      name: Off Latency
+    inhibit_time:
+      name: Inhibit Time
+
+switch:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_presence
+    run_led:
+      name: Run LED
+    out_led:
+      name: Out LED
+
+select:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_presence
+    out_pin_level:
+      name: Out Pin Level
