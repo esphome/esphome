@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/components/light/light_output.h"
-#include "esphome/components/light/light_state.h"
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
 
@@ -10,7 +9,7 @@ namespace esphome::homeassistant {
 /// A light in Home Assistant, driven from here: its state and attributes are imported over the
 /// native API, and every change made on this side is sent back as a light.turn_on or
 /// light.turn_off action.
-class HomeassistantLight final : public light::LightOutput, public light::LightRemoteValuesListener, public Component {
+class HomeassistantLight final : public light::LightOutput, public Component {
  public:
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
   void setup() override;
@@ -18,12 +17,8 @@ class HomeassistantLight final : public light::LightOutput, public light::LightR
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
   light::LightTraits get_traits() override { return this->traits_; }
-  void setup_state(light::LightState *state) override {
-    this->state_ = state;
-    state->add_remote_values_listener(this);
-  }
+  void setup_state(light::LightState *state) override { this->state_ = state; }
   void write_state(light::LightState *state) override;
-  void on_light_remote_values_update() override { this->remote_values_version_++; }
 
  protected:
   /// What Home Assistant reported last, in its own units. Each attribute arrives as its own
@@ -50,12 +45,6 @@ class HomeassistantLight final : public light::LightOutput, public light::LightR
   light::LightState *state_{nullptr};
   light::LightTraits traits_{};
   Attributes imported_{};
-  // Every published change counts, so write_state() can tell the one apply_imported_() made
-  // from a local change, even one made from an automation while that import was applied. The
-  // initial state of LightState::setup() is version 1 and is not sent either.
-  uint32_t remote_values_version_{0};
-  uint32_t import_version_{1};
-  uint32_t written_version_{0};  // the last one write_state() handled
   bool apply_scheduled_{false};
   bool import_waiting_{false};  // a report waits for a local change to be written first
 };

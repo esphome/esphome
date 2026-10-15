@@ -92,6 +92,16 @@ class LightState : public EntityBase, public Component {
   bool is_transitioning() const { return this->transformer_ != nullptr; }
   LightCall make_call();
 
+  /** Take over the state of a light that lives elsewhere, without a call and without a write.
+   *
+   * For an output that mirrors another light, such as a Home Assistant light, and is told that
+   * light's state from outside: the values become the current and the target values at once and
+   * are published, but the output is not written and nothing is saved, as the other light shows
+   * them already. Returns false and changes nothing while a local change still waits to be written
+   * or a transition or flash runs; the caller tries again once the output has been written.
+   */
+  bool set_external_state(const LightColorValues &values);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Load state from preferences

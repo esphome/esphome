@@ -181,6 +181,16 @@ void LightState::loop() {
   }
 }
 
+bool LightState::set_external_state(const LightColorValues &values) {
+  if (this->next_write_ || this->transformer_ != nullptr) {
+    return false;
+  }
+  this->current_values = values;
+  this->remote_values = values;
+  this->publish_state();
+  return true;
+}
+
 void LightState::publish_state() {
   if (this->remote_values_listeners_) {
     for (auto *listener : *this->remote_values_listeners_) {

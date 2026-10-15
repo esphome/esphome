@@ -219,62 +219,58 @@ void HomeassistantLight::apply_imported_() {
     this->apply_scheduled_ = false;
     return;  // the traits came in before any state
   }
-  if (this->remote_values_version_ != this->written_version_ || this->state_->is_transformer_active()) {
+  // Attributes Home Assistant has not reported keep what the light has
+  const Attributes &imported = this->imported_;
+  LightColorValues values = this->state_->remote_values;
+  values.set_state(*imported.state);
+  if (*imported.state) {
+    if (imported.color_mode != ColorMode::UNKNOWN) {
+      values.set_color_mode(imported.color_mode);
+    }
+    if (imported.brightness != 0) {
+      values.set_brightness(imported.brightness / 255.0f);
+    }
+    // Home Assistant reports rgb_color in every mode and keeps the attributes of the other
+    // modes, so only the ones of the mode it reports are taken over
+    const ColorMode mode = values.get_color_mode();
+    if (mode == ColorMode::COLOR_TEMPERATURE) {
+      if (imported.color_temp_kelvin != 0) {
+        values.set_color_temperature(1e6f / imported.color_temp_kelvin);
+      }
+    } else if (mode == ColorMode::RGB) {
+      if (imported.has_rgb) {
+        values.set_red(imported.rgb[0] / 255.0f);
+        values.set_green(imported.rgb[1] / 255.0f);
+        values.set_blue(imported.rgb[2] / 255.0f);
+      }
+      values.set_color_brightness(1.0f);  // brightness is the only level Home Assistant has
+    } else if (mode == ColorMode::WHITE) {
+      values.set_white(1.0f);
+    }
+  }
+  if (!this->state_->set_external_state(values)) {
     // A local change still waits for LightState::loop() to send it, or a local transition or flash
     // runs; write_state() picks the report up once that is over
     this->import_waiting_ = true;
     return;
   }
   this->apply_scheduled_ = false;
-  const Attributes &imported = this->imported_;
-  auto call = this->state_->make_call().set_save(false);
-  call.set_state(imported.state);
-  if (imported.state.value_or(true)) {
-    if (imported.color_mode != ColorMode::UNKNOWN) {
-      call.set_color_mode(imported.color_mode);
-    }
-    if (imported.brightness != 0) {
-      call.set_brightness(imported.brightness / 255.0f);
-    }
-    // Home Assistant reports rgb_color in every mode and keeps the attributes of the other
-    // modes, so only the ones of the mode it reports are applied
-    const ColorMode mode =
-        imported.color_mode != ColorMode::UNKNOWN ? imported.color_mode : this->state_->remote_values.get_color_mode();
-    if (mode == ColorMode::COLOR_TEMPERATURE) {
-      if (imported.color_temp_kelvin != 0) {
-        call.set_color_temperature(1e6f / imported.color_temp_kelvin);
-      }
-    } else if (mode == ColorMode::RGB) {
-      if (imported.has_rgb) {
-        const auto &rgb = imported.rgb;
-        call.set_rgb(rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f);
-      }
-      call.set_color_brightness(1.0f);  // brightness is the only level Home Assistant has
-    } else if (mode == ColorMode::WHITE) {
-      call.set_white(1.0f);
-    }
-  }
-  ESP_LOGD(TAG, "'%s': Applying the state reported by Home Assistant", this->entity_id_);
-  this->import_version_ = this->remote_values_version_ + 1;  // the version perform() publishes
-  call.perform();
+  ESP_LOGD(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
 }
 
 void HomeassistantLight::write_state(LightState *state) {
-  const LightColorValues &values = state->current_values;
-  if (values != state->remote_values) {
-    return;  // a transition runs here; Home Assistant gets the target once it is reached
+  // A reported state is taken over without a write, so every write is a local change
+  if (state->is_transitioning()) {
+    return;  // Home Assistant gets the target once it is reached
   }
-  if (this->remote_values_version_ == this->written_version_) {
-    return;  // a transition that ends where it started writes the same values on every pass
-  }
-  this->written_version_ = this->remote_values_version_;
   if (this->import_waiting_) {
     this->import_waiting_ = false;
     this->defer([this]() { this->apply_imported_(); });
   }
-  if (this->remote_values_version_ == this->import_version_) {
-    return;  // this change came from Home Assistant
+  if (!this->imported_.state.has_value()) {
+    return;  // nothing reported yet, so this is the light core's initial state, which Home Assistant does not need
   }
+  const LightColorValues &values = state->current_values;
   if (!api::global_api_server->is_connected()) {
     ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost", this->entity_id_);
     this->schedule_apply_();  // back to the state Home Assistant reported, which the light still has
