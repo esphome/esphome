@@ -181,6 +181,25 @@ void LightState::loop() {
   }
 }
 
+bool LightState::set_external_state(const LightColorValues &values) {
+  if (this->next_write_ || this->transformer_ != nullptr) {
+    return false;
+  }
+  if (values == this->remote_values && values == this->current_values) {
+    return true;  // nothing new to tell
+  }
+  this->current_values = values;
+  this->remote_values = values;
+  this->publish_state();
+  // The values are reached at once, so the triggers that wait for that fire as after an instant call
+  if (this->target_state_reached_listeners_) {
+    for (auto *listener : *this->target_state_reached_listeners_) {
+      listener->on_light_target_state_reached();
+    }
+  }
+  return true;
+}
+
 void LightState::publish_state() {
   if (this->remote_values_listeners_) {
     for (auto *listener : *this->remote_values_listeners_) {
