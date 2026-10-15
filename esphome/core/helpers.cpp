@@ -598,7 +598,7 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
   }
 }
 
-// Fast float-to-string for accuracy_decimals 0-3 (covers virtually all sensor usage).
+// Fast float-to-string for accuracy_decimals 0-4 (covers sensors and small PID coefficients).
 // Avoids snprintf("%.*f") which pulls in heavy float formatting machinery.
 // Caller must guarantee value is finite and |value| * mult fits in uint32_t.
 static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy_decimals, uint32_t mult) {
@@ -625,9 +625,9 @@ static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy
 size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
 
-  // Fast path for accuracy 0-3, finite values whose scaled magnitude fits in uint32_t.
-  // For 3 decimals that's |value| < ~4.29e6; larger totals fall through to snprintf.
-  if (accuracy_decimals <= 3 && std::isfinite(value)) {
+  // Fast path for accuracy 0-4, finite values whose scaled magnitude fits in uint32_t.
+  // For 4 decimals that's |value| < ~4.29e5; larger totals fall through to snprintf.
+  if (accuracy_decimals <= 4 && std::isfinite(value)) {
     const uint32_t mult = small_pow10(accuracy_decimals);
     if (std::fabs(value) < static_cast<float>(UINT32_MAX) / mult) {
       return value_accuracy_to_buf_fast(buf.data(), value, accuracy_decimals, mult);
