@@ -289,13 +289,14 @@ bool HostUartComponent::set_modem_control(bool dtr, bool rts) {
   if (this->file_descriptor_ == -1) {
     return false;
   }
-  const int to_set = (dtr ? TIOCM_DTR : 0) | (rts ? TIOCM_RTS : 0);
-  const int to_clear = (dtr ? 0 : TIOCM_DTR) | (rts ? 0 : TIOCM_RTS);
-  if (to_set != 0 && ioctl(this->file_descriptor_, TIOCMBIS, &to_set) == -1) {
+  // One TIOCMSET so the device never sees a state in between the old and the new one
+  int bits;
+  if (ioctl(this->file_descriptor_, TIOCMGET, &bits) == -1) {
     this->update_error_(strerror(errno));
     return false;
   }
-  if (to_clear != 0 && ioctl(this->file_descriptor_, TIOCMBIC, &to_clear) == -1) {
+  bits = (bits & ~(TIOCM_DTR | TIOCM_RTS)) | (dtr ? TIOCM_DTR : 0) | (rts ? TIOCM_RTS : 0);
+  if (ioctl(this->file_descriptor_, TIOCMSET, &bits) == -1) {
     this->update_error_(strerror(errno));
     return false;
   }
