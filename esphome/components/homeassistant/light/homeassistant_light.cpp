@@ -21,7 +21,7 @@ namespace {
 // color mode, all handled as RGB: Home Assistant reports rgb_color for all of them and derives
 // the white channels from rgb_color itself.
 PROGMEM_STRING_TABLE(ColorModeNames, "onoff", "brightness", "white", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww");
-static const uint8_t COLOR_MODES[] PROGMEM = {
+const uint8_t COLOR_MODES[] PROGMEM = {
     static_cast<uint8_t>(ColorMode::ON_OFF),
     static_cast<uint8_t>(ColorMode::BRIGHTNESS),
     static_cast<uint8_t>(ColorMode::WHITE),
@@ -38,25 +38,35 @@ optional<ColorMode> parse_color_mode(StringRef name) {
   return nullopt;
 }
 
-/// Reads the integers of a Python tuple such as "(255, 0, 0)"; false when there are fewer than three
+/// Reads a Python tuple of three integers such as "(255, 0, 0)"; false for anything else
 bool parse_rgb(const char *text, std::array<uint8_t, 3> &values) {
   for (auto &value : values) {
-    while (*text != '\0' && (*text < '0' || *text > '9')) {
+    while (*text == ' ' || *text == ',' || *text == '(') {
       text++;
     }
-    if (*text == '\0') {
+    if (*text < '0' || *text > '9') {
       return false;
     }
-    value = static_cast<uint8_t>(std::min(strtol(text, const_cast<char **>(&text), 10), 255L));
+    char *end;
+    const long number = strtol(text, &end, 10);
+    if (number > 255) {
+      return false;
+    }
+    value = static_cast<uint8_t>(number);
+    text = end;
   }
-  return true;
+  while (*text == ' ' || *text == ',' || *text == ')') {
+    text++;
+  }
+  return *text == '\0';
 }
 
 }  // namespace
 
 void HomeassistantLight::setup() {
   auto *server = api::global_api_server;
-  server->get_home_assistant_state(this->entity_id_, "supported_color_modes", [this](StringRef value) {
+  // Home Assistant repeats these with every update, so a light that comes up late still gets them
+  server->subscribe_home_assistant_state(this->entity_id_, "supported_color_modes", [this](StringRef value) {
     // A Python list, "['hs', 'color_temp']" or "[<ColorMode.HS: 'hs'>, ...]": the names are the quoted parts
     ColorModeMask modes;
     const char *text = value.c_str();
@@ -77,21 +87,21 @@ void HomeassistantLight::setup() {
     this->traits_.set_supported_color_modes(modes);
   });
   // Home Assistant reports the temperature range in Kelvin, the light core works in mireds
-  server->get_home_assistant_state(this->entity_id_, "min_color_temp_kelvin", [this](StringRef value) {
-    if (auto mireds = this->parse_kelvin_("min_color_temp_kelvin", value)) {
-      this->traits_.set_max_mireds(*mireds);
+  server->subscribe_home_assistant_state(this->entity_id_, "min_color_temp_kelvin", [this](StringRef value) {
+    if (auto kelvin = this->parse_kelvin_("min_color_temp_kelvin", value)) {
+      this->traits_.set_max_mireds(1e6f / *kelvin);
     }
   });
-  server->get_home_assistant_state(this->entity_id_, "max_color_temp_kelvin", [this](StringRef value) {
-    if (auto mireds = this->parse_kelvin_("max_color_temp_kelvin", value)) {
-      this->traits_.set_min_mireds(*mireds);
+  server->subscribe_home_assistant_state(this->entity_id_, "max_color_temp_kelvin", [this](StringRef value) {
+    if (auto kelvin = this->parse_kelvin_("max_color_temp_kelvin", value)) {
+      this->traits_.set_min_mireds(1e6f / *kelvin);
     }
   });
 
   // An attribute is "None" while the light is off or does not report it; the last value stays
   server->subscribe_home_assistant_state(this->entity_id_, nullptr, [this](StringRef value) {
-    if (value == "None") {
-      return;
+    if (value == "None" || value == "unavailable" || value == "unknown") {
+      return;  // normal while Home Assistant or the light is starting up or offline
     }
     auto on_off = parse_on_off(value.c_str());
     if (on_off != PARSE_ON && on_off != PARSE_OFF) {
@@ -120,8 +130,8 @@ void HomeassistantLight::setup() {
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_temp_kelvin", [this](StringRef value) {
-    if (auto kelvin = this->parse_attribute_("color_temp_kelvin", value)) {
-      this->imported_.color_temp_kelvin = static_cast<uint16_t>(clamp(*kelvin, 1.0f, 65535.0f));
+    if (auto kelvin = this->parse_kelvin_("color_temp_kelvin", value)) {
+      this->imported_.color_temp_kelvin = *kelvin;
       this->schedule_apply_();
     }
   });
@@ -156,12 +166,16 @@ optional<float> HomeassistantLight::parse_attribute_(const char *name, StringRef
   return number;
 }
 
-optional<float> HomeassistantLight::parse_kelvin_(const char *name, StringRef value) {
+optional<uint16_t> HomeassistantLight::parse_kelvin_(const char *name, StringRef value) {
   auto kelvin = this->parse_attribute_(name, value);
-  if (kelvin.has_value() && *kelvin > 0.0f) {
-    return 1e6f / *kelvin;
+  if (!kelvin.has_value()) {
+    return nullopt;
   }
-  return nullopt;
+  if (*kelvin < 1.0f || *kelvin > UINT16_MAX) {
+    ESP_LOGW(TAG, "'%s': '%s' value %.0f is out of range!", this->entity_id_, name, *kelvin);
+    return nullopt;
+  }
+  return static_cast<uint16_t>(*kelvin);
 }
 
 void HomeassistantLight::schedule_apply_() {
@@ -216,7 +230,7 @@ void HomeassistantLight::write_state(LightState *state) {
     return;  // this change came from Home Assistant
   }
   if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "No clients connected to API server");
+    ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost", this->entity_id_);
     return;
   }
 #ifdef USE_API_WIZARD_LINKED_INPUTS

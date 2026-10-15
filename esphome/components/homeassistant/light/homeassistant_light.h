@@ -40,8 +40,8 @@ class HomeassistantLight final : public light::LightOutput, public light::LightR
 
   /// Parses a Home Assistant attribute as a number, logging the attribute name when it is not one
   optional<float> parse_attribute_(const char *name, StringRef value);
-  /// Parses a color temperature in Kelvin into mireds
-  optional<float> parse_kelvin_(const char *name, StringRef value);
+  /// Parses a color temperature in Kelvin, logging a value that is not usable
+  optional<uint16_t> parse_kelvin_(const char *name, StringRef value);
   /// Schedules apply_imported_() once for the attributes of one update
   void schedule_apply_();
   void apply_imported_();

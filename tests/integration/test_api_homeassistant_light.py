@@ -93,6 +93,18 @@ async def test_api_homeassistant_light(
         report("min_color_temp_kelvin", "2000")
         report("max_color_temp_kelvin", "6500")
         await waiter.wait_for("Supported color modes retrieved", timeout=5.0)
+        # Normal while Home Assistant starts, so no warning
+        report(None, "unavailable")
+        report(None, "unknown")
+        # Rejected, so the color stays unknown and the warnings name the attribute
+        report("rgb_color", "(127.5, 64.0, 0.0)")
+        report("rgb_color", "(0, 256, 0)")
+        report("color_temp_kelvin", "0")
+        await waiter.wait_for(
+            "'color_temp_kelvin' value 0 is out of range", timeout=5.0
+        )
+        assert sum("Can't parse 'rgb_color'" in line for line in waiter.lines) == 2
+        assert not any("as state!" in line for line in waiter.lines)
 
         # A report arrives as several attribute messages and is applied as one change
         report(None, "on")
