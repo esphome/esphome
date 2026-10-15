@@ -32,6 +32,12 @@ class ReachedListener : public LightTargetStateReachedListener {
   int reached{0};
 };
 
+class PublishListener : public LightRemoteValuesListener {
+ public:
+  void on_light_remote_values_update() override { this->published++; }
+  int published{0};
+};
+
 LightColorValues on_at(float brightness) {
   LightColorValues values;
   values.set_color_mode(ColorMode::BRIGHTNESS);
@@ -98,6 +104,25 @@ TEST(LightStateExternal, StopsARunningEffect) {
   EXPECT_EQ(state.remote_values, on_at(0.5f));
   state.loop();
   EXPECT_EQ(output.writes, writes);  // the stopped effect schedules no write either
+}
+
+TEST(LightStateExternal, PublishesWhenOnlyAnEffectStops) {
+  CountingOutput output;
+  LightState state(&output);
+  NoopEffect effect("Noop");
+  LightEffect *effects[] = {&effect};
+  state.add_effects(effects, 1);
+  PublishListener listener;
+  state.add_remote_values_listener(&listener);
+  state.loop();
+
+  state.make_call().set_state(true).set_effect("Noop").perform();
+  state.loop();
+  const int published = listener.published;
+  // The values stay, but the effect name clients show has to go
+  EXPECT_TRUE(state.set_external_state(state.remote_values));
+  EXPECT_EQ(state.get_current_effect_index(), 0u);
+  EXPECT_EQ(listener.published, published + 1);
 }
 
 TEST(LightStateExternal, SaysNothingWhenNothingChanges) {
