@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 
+#include "esphome/core/defines.h"
+
 namespace esphome::as734x {
 
 // Smallest tristimulus sum that still carries a usable hue.

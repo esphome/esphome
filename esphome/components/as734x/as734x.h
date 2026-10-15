@@ -158,9 +158,8 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void read_step_();
   void abort_measurement_(const LogString *reason);
   void calculate_basic_counts_();
-  void calculate_light_metrics_();
-  void calculate_color_();
   void publish_light_metrics_();
+  void publish_color_();
   void publish_measurement_();
   void publish_basic_counts_();
   float normalization_divisor_() const;
@@ -179,11 +178,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   float max_basic_count_{0.0f};       // largest of every channel
   float max_band_basic_count_{0.0f};  // largest of the visible bands only
   float clear_basic_count_{0.0f};     // the wideband clear channel
-  float irradiance_photopic_{0.0f};
-  float irradiance_par_{0.0f};
-  float ppfd_{0.0f};
-  float illuminance_{0.0f};
-  float color_temperature_{0.0f};
   uint16_t astep_{0};
   uint16_t peak_raw_count_{0};  // highest ADC value of this measurement, before the clear channels are averaged
   // What the running measurement was started with, so the maths matches the data even if the
@@ -199,7 +193,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   bool bank_low_{true};  // unknown until setup() writes CFG0
 #ifdef USE_AS734X_RGB
   text_sensor::TextSensor *rgb_hex_sensor_{nullptr};
-  char rgb_hex_[7]{"000000"};  // valid before the first measurement completes
 #endif
 };
 

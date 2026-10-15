@@ -570,7 +570,9 @@ void AS734XComponent::publish_basic_counts_() {
 
 // Each band contributes a fixed amount per basic count to every integrated quantity, so the
 // totals are a weighted sum over the bands.
-void AS734XComponent::calculate_light_metrics_() {
+// The weighted sums can go negative under light the tables were not fitted for, such as pure blue or
+// far red, so the published values are floored at zero.
+void AS734XComponent::publish_light_metrics_() {
   float irradiance_photopic = 0.0f;
   float irradiance_par = 0.0f;
   float ppfd = 0.0f;
@@ -584,17 +586,28 @@ void AS734XComponent::calculate_light_metrics_() {
     irradiance_par += contribution.irradiance_par * basic_count;
     ppfd += contribution.ppfd * basic_count;
   }
+  irradiance_photopic = std::max(irradiance_photopic, 0.0f);
+  irradiance_par = std::max(irradiance_par, 0.0f);
+  ppfd = std::max(ppfd, 0.0f) * 1e3f;
+  const float illuminance = irradiance_photopic * LUMENS_PER_WATT;
 
-  this->irradiance_photopic_ = irradiance_photopic;
-  this->irradiance_par_ = irradiance_par;
-  this->ppfd_ = ppfd * 1e3f;
-  this->illuminance_ = irradiance_photopic * LUMENS_PER_WATT;
-
-  ESP_LOGV(TAG, "Photopic irradiance %.4f, PAR %.4f, PPFD %.4f, illuminance %.2f lx", this->irradiance_photopic_,
-           this->irradiance_par_, this->ppfd_, this->illuminance_);
+  ESP_LOGV(TAG, "Photopic irradiance %.4f, PAR %.4f, PPFD %.4f, illuminance %.2f lx", irradiance_photopic,
+           irradiance_par, ppfd, illuminance);
+  if (this->illuminance_sensor_ != nullptr) {
+    this->illuminance_sensor_->publish_state(illuminance);
+  }
+  if (this->irradiance_photopic_sensor_ != nullptr) {
+    this->irradiance_photopic_sensor_->publish_state(irradiance_photopic);
+  }
+  if (this->irradiance_par_sensor_ != nullptr) {
+    this->irradiance_par_sensor_->publish_state(irradiance_par);
+  }
+  if (this->ppfd_sensor_ != nullptr) {
+    this->ppfd_sensor_->publish_state(ppfd);
+  }
 }
 
-void AS734XComponent::calculate_color_() {
+void AS734XComponent::publish_color_() {
   float tri_x = 0.0f;
   float tri_y = 0.0f;
   float tri_z = 0.0f;
@@ -609,52 +622,31 @@ void AS734XComponent::calculate_color_() {
     tri_z += tristimulus.z * basic_count;
   }
 
-  this->color_temperature_ = tristimulus_to_cct(tri_x, tri_y, tri_z);
-  ESP_LOGV(TAG, "XYZ %.4f, %.4f, %.4f -> CCT %.0f K", tri_x, tri_y, tri_z, this->color_temperature_);
+  const float color_temperature = tristimulus_to_cct(tri_x, tri_y, tri_z);
+  ESP_LOGV(TAG, "XYZ %.4f, %.4f, %.4f -> CCT %.0f K", tri_x, tri_y, tri_z, color_temperature);
+  if (this->color_temperature_sensor_ != nullptr) {
+    this->color_temperature_sensor_->publish_state(color_temperature);
+  }
 
 #ifdef USE_AS734X_RGB
+  if (this->rgb_hex_sensor_ == nullptr) {
+    return;
+  }
   // Convert to chromaticity first, so the colour describes the hue rather than the brightness.
   // Absolute tristimulus values clamp to white under anything but dim light.
+  char rgb_hex[7] = "000000";  // no usable chromaticity reads as black rather than an empty string
   const float sum = tri_x + tri_y + tri_z;
   if (sum > MIN_TRISTIMULUS_SUM) {
     uint8_t r, g, b;
     tristimulus_to_rgb(tri_x / sum, tri_y / sum, tri_z / sum, r, g, b);
-    snprintf(this->rgb_hex_, sizeof(this->rgb_hex_), "%02x%02x%02x", r, g, b);
-  } else {
-    // No usable chromaticity, so report black rather than leaving the previous colour in place or
-    // publishing an empty string.
-    strncpy(this->rgb_hex_, "000000", sizeof(this->rgb_hex_));
+    snprintf(rgb_hex, sizeof(rgb_hex), "%02x%02x%02x", r, g, b);
   }
-#endif
-}
-
-void AS734XComponent::publish_light_metrics_() {
-  if (this->illuminance_sensor_ != nullptr) {
-    this->illuminance_sensor_->publish_state(this->illuminance_);
-  }
-  if (this->irradiance_photopic_sensor_ != nullptr) {
-    this->irradiance_photopic_sensor_->publish_state(this->irradiance_photopic_);
-  }
-  if (this->irradiance_par_sensor_ != nullptr) {
-    this->irradiance_par_sensor_->publish_state(this->irradiance_par_);
-  }
-  if (this->ppfd_sensor_ != nullptr) {
-    this->ppfd_sensor_->publish_state(this->ppfd_);
-  }
-  if (this->color_temperature_sensor_ != nullptr) {
-    this->color_temperature_sensor_->publish_state(this->color_temperature_);
-  }
-#ifdef USE_AS734X_RGB
-  if (this->rgb_hex_sensor_ != nullptr) {
-    this->rgb_hex_sensor_->publish_state(this->rgb_hex_);
-  }
+  this->rgb_hex_sensor_->publish_state(rgb_hex);
 #endif
 }
 
 void AS734XComponent::publish_measurement_() {
   this->calculate_basic_counts_();
-  this->calculate_light_metrics_();
-  this->calculate_color_();
   for (uint8_t band = 0; band < NUM_BANDS; band++) {
     if (this->sensors_[band] != nullptr) {
       this->sensors_[band]->publish_state(this->raw_counts_[band]);
@@ -662,6 +654,7 @@ void AS734XComponent::publish_measurement_() {
   }
   this->publish_basic_counts_();
   this->publish_light_metrics_();
+  this->publish_color_();
   if (this->saturation_level_sensor_ != nullptr) {
     const uint32_t max_adc =
         std::min<uint32_t>((this->reading_atime_ + 1UL) * (this->reading_astep_ + 1UL), MAX_ADC_COUNT);
