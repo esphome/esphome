@@ -23,9 +23,7 @@ class EPaperUC8279 : public EPaperUltraChip {
   EPaperUC8279(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                size_t init_sequence_length, uint16_t offset_height)
       : EPaperUltraChip(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY),
-        offset_height_(offset_height) {
-    this->buffer_length_ = this->row_width_ * height;
-  }
+        offset_height_(offset_height) {}
 
  protected:
   bool reset() override;

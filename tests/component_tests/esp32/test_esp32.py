@@ -31,6 +31,7 @@ from esphome.components.esp32 import (
     _reconcile_vfs_fatfs_sdkconfig,
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
+    idf_version,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
@@ -981,6 +982,17 @@ def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> N
     assert _user_sdkconfig_wants_tls(options) is wants_tls
 
 
+def _tls_compiled_out(sdkconfig: dict[str, Any]) -> bool:
+    """IDF 6 compiles TLS out with CONFIG_MBEDTLS_TLS_ENABLED=n; IDF 5 has no
+    prompt for that and uses CONFIG_MBEDTLS_TLS_DISABLED=y instead."""
+    if idf_version() >= cv.Version(6, 0, 0):
+        value = sdkconfig.get("CONFIG_MBEDTLS_TLS_ENABLED")
+        if isinstance(value, RawSdkconfigValue):
+            return value.value == "n"
+        return value is False
+    return sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+
+
 @pytest.mark.parametrize(
     ("config_file", "tls_off", "ecp_off", "esp_tls_excluded"),
     [
@@ -1034,7 +1046,7 @@ def test_tls_disabled_sdkconfig(
     """TLS is compiled out unless a component or a raw sdkconfig option asks for it."""
     generate_main(component_config_path(config_file))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert (sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True) is tls_off
+    assert _tls_compiled_out(sdkconfig) is tls_off
     assert sdkconfig.get("CONFIG_MBEDTLS_ECP_C") is (False if ecp_off else None)
     assert (
         "esp-tls" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
@@ -2168,7 +2180,7 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     deterministic ECDSA are plain crypto, and OpenThread keeps those two."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    assert _tls_compiled_out(sdkconfig)
     # require_mbedtls_ecp() keeps ECP for the SRP host key while TLS is off
     assert "CONFIG_MBEDTLS_ECP_C" not in sdkconfig
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
@@ -2185,7 +2197,7 @@ def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
     deterministic ECDSA."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    assert _tls_compiled_out(sdkconfig)
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
         assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
@@ -2228,9 +2240,10 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
-    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    """The Border Router needs TLS/DTLS server support and OpenThread crypto extras."""
+    generate_main(component_config_path("mbedtls_tls_openthread_border_router.yaml"))
     mbedtls = CORE.data[KEY_ESP32][KEY_MBEDTLS_SDKCONFIG]
+    assert mbedtls.tls_required is True
     assert mbedtls.tls_server_required is True
     assert mbedtls.tls_extras_required == _CCM_ECDSA_EXTRAS
 
