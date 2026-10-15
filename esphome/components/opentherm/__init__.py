@@ -78,7 +78,8 @@ async def to_code(config: dict[str, Any]) -> None:
     if CORE.is_esp8266:
         from esphome.components.esp8266.const import use_timer1
 
-        use_timer1(DOMAIN)
+        # Per hub: every hub programs the timer and the interrupt has one instance pointer
+        use_timer1(f"{DOMAIN} {config[CONF_ID]}")
     if CORE.is_esp32:
         include_builtin_idf_component("esp_driver_gptimer")
 

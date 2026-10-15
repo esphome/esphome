@@ -25,9 +25,16 @@ def _check() -> None:
 
 
 def test_one_user_passes() -> None:
-    use_timer1("opentherm")
-    use_timer1("opentherm")
+    use_timer1("opentherm ot")
+    use_timer1("opentherm ot")
     _check()
+
+
+def test_two_opentherm_hubs_are_refused() -> None:
+    use_timer1("opentherm ot1")
+    use_timer1("opentherm ot2")
+    with pytest.raises(EsphomeError, match="opentherm ot1 and opentherm ot2"):
+        _check()
 
 
 def test_two_users_are_refused() -> None:
