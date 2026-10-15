@@ -238,6 +238,7 @@ def _enter_serial_dfu_patches(
     tmp_path: Path,
     paths: dict,
     usb_id: tuple[int, int] | None = None,
+    nrfutil: str | None = "/opt/nordic/nrfutil",
 ) -> MagicMock:
     """Enter all context managers needed for the serial DFU happy path.
 
@@ -277,6 +278,9 @@ def _enter_serial_dfu_patches(
         patch("esphome.components.nrf52.get_build_env", return_value={})
     )
     stack.enter_context(patch("time.sleep"))
+    stack.enter_context(
+        patch("esphome.components.nrf52._nordic_nrfutil", return_value=nrfutil)
+    )
     # Patch directly on the real pyserial module so the deferred imports inside
     # upload_program see our mocks regardless of how sys.modules is cached.
     stack.enter_context(patch.object(serial, "Serial"))
@@ -372,12 +376,16 @@ class TestUploadProgramSerialDfu:
             assert upload_program(config={}, args=None, host=host) is True
             assert not serial.Serial.mock_calls  # pylint: disable=no-member
 
-        assert str(dfu_package) in mock_run.call_args[0][0]
+        # Nordic's tool speaks the Secure DFU protocol of this bootloader
+        cmd = mock_run.call_args[0][0]
+        assert cmd[:4] == ["/opt/nordic/nrfutil", "nrf5sdk-tools", "dfu", "usb-serial"]
+        assert str(dfu_package) in cmd
+        assert host in cmd
 
     def test_open_dfu_bootloader_rejects_an_application_port(
         self, setup_core: Path, tmp_path: Path
     ) -> None:
-        """A port that is not the bootloader fails with the SW1 hint instead of running DFU."""
+        """A port that is not the bootloader fails with the RESET hint instead of running DFU."""
         from esphome.components.nrf52 import upload_program
 
         paths, _ = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
@@ -386,7 +394,23 @@ class TestUploadProgramSerialDfu:
             mock_run = _enter_serial_dfu_patches(
                 stack, host, tmp_path, paths, usb_id=(0x2FE3, 0x0100)
             )
-            with pytest.raises(EsphomeError, match="hold SW1"):
+            with pytest.raises(EsphomeError, match="press the RESET button"):
+                upload_program(config={}, args=None, host=host)
+        mock_run.assert_not_called()
+
+    def test_open_dfu_bootloader_needs_nordic_nrfutil(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """Without Nordic's nrfutil the upload says how to install it instead of trying adafruit-nrfutil."""
+        from esphome.components.nrf52 import OPEN_DFU_USB_ID, upload_program
+
+        paths, _ = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
+        host = "/dev/ttyACM0"
+        with ExitStack() as stack:
+            mock_run = _enter_serial_dfu_patches(
+                stack, host, tmp_path, paths, usb_id=OPEN_DFU_USB_ID, nrfutil=None
+            )
+            with pytest.raises(EsphomeError, match="nrfutil install nrf5sdk-tools"):
                 upload_program(config={}, args=None, host=host)
         mock_run.assert_not_called()
 

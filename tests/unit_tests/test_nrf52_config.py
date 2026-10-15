@@ -39,11 +39,13 @@ def _dongle_core_data() -> None:
 
 
 def test_nrf_bootloader_reserves_factory_region() -> None:
-    """The MBR page and the Open DFU bootloader are registered as static partitions around the app."""
+    """Only the Open DFU bootloader is registered as a static partition; the board's own
+    nrf5_mbr partition takes the first page, so the app lands at 0x1000 where the bootloader loads it."""
     _dongle_core_data()
     registered = {s.name: s for s in CORE.data[KEY_ZEPHYR][KEY_PM_STATIC]}
     assert {s.name for s in BOOTLOADER_CONFIG[BOOTLOADER_NRF]} <= set(registered)
-    assert registered["mbr"].address == 0x0
+    assert "mbr" not in registered
+    assert registered["open_bootloader"].address == 0xE0000
     assert registered["open_bootloader"].end_address == 0x100000
 
 
