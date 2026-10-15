@@ -32,8 +32,9 @@ void EPaperSSD1680::setup() {
   EPaperMono::setup();
   if (this->is_failed() || !this->is_using_partial_update_())
     return;
-  if (!this->sent_.init(this->buffer_length_))
+  if (!this->sent_.init(this->buffer_length_)) {
     ESP_LOGW(TAG, "No memory for the previous frame; partial updates will degrade unchanged areas");
+  }
 }
 
 void EPaperSSD1680::power_on() {

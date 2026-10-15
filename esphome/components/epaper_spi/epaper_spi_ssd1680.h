@@ -16,7 +16,6 @@ class EPaperSSD1680 : public EPaperMono {
                 size_t init_sequence_length)
       : EPaperMono(name, width, height, init_sequence, init_sequence_length) {}
 
- public:
   void setup() override;
 
  protected:
