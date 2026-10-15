@@ -946,9 +946,9 @@ void WiFiComponent::loop() {
     // the captive portal on it) - the device must stay unprovisionable until it is
     // power-cycled.
     if (this->has_ap() && !this->ap_setup_ && !this->is_provisioning_closed_()) {
-      // A wifi.disable and wifi.enable earlier in this pass set last_connected_ after now; count that as zero
+      // A wifi.disable and wifi.enable earlier in this pass set last_connected_ just after now; count that as zero
       const uint32_t since_connected =
-          static_cast<int32_t>(now - this->last_connected_) > 0 ? now - this->last_connected_ : 0;
+          this->last_connected_ - now < this->ap_timeout_ ? 0 : now - this->last_connected_;
       if (this->ap_timeout_ != 0 &&
 #ifdef USE_WIFI_AP_EXCLUSIVE
           // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again

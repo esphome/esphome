@@ -1308,7 +1308,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->dpp_listening_ = false;
     ESP_LOGI(TAG, "DPP configured network " LOG_SECRET("'%s'"), credentials->ssid);
     // The reboot timer starts over for the connect attempt, as after a boot with saved credentials
-    this->last_connected_ = App.get_loop_component_start_time();
+    this->set_last_connected_(App.get_loop_component_start_time());
     // Saved like portal credentials; from a cooldown this already restarts the retries
     this->save_wifi_sta(credentials->ssid, credentials->password);
     if (this->state_ == WIFI_COMPONENT_STATE_OFF || this->state_ == WIFI_COMPONENT_STATE_AP) {
