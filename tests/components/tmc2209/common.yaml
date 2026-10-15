@@ -78,6 +78,21 @@ esphome:
           seup: 1
           sedn: 0
           seimin: true
+      - tmc2209.chopconf:
+          id: tmc2209_step_dir
+          toff: 4
+          tbl: 2
+          hend: 0
+          hstrt: !lambda "return 5;"
+      - tmc2209.pwmconf:
+          id: tmc2209_serial
+          pwm_ofs: 36
+          pwm_grad: 14
+          pwm_freq: 1
+          pwm_autoscale: true
+          pwm_autograd: true
+          pwm_reg: 4
+          pwm_lim: 12
       - tmc2209.enable: tmc2209_serial
       - stepper.set_target:
           id: tmc2209_serial
