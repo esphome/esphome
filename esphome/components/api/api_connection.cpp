@@ -2131,6 +2131,7 @@ bool APIConnection::send_device_capabilities_response_() {
 #endif
 #if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
   resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
+  resp.sendspin.client_id = sendspin_::global_sendspin_hub->get_client_id();
 #endif
   return this->send_message(resp);
 }
