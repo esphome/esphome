@@ -696,7 +696,8 @@ void WiFiComponent::setup() {
 
 void WiFiComponent::start() {
   ESP_LOGCONFIG(TAG, "Starting");
-  this->last_connected_ = millis();
+  // The loop's time, not millis(): a wifi.enable from a trigger in this pass must not stamp a time after now
+  this->set_last_connected_(App.get_loop_component_start_time());
 
   uint32_t hash = this->has_sta() ? App.get_config_version_hash() : 88491487UL;
 
@@ -890,7 +891,7 @@ void WiFiComponent::loop() {
           this->retry_connect();
         } else {
           this->status_clear_warning();
-          this->last_connected_ = now;
+          this->set_last_connected_(now);
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
           // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the
@@ -946,12 +947,14 @@ void WiFiComponent::loop() {
     // the captive portal on it) - the device must stay unprovisionable until it is
     // power-cycled.
     if (this->has_ap() && !this->ap_setup_ && !this->is_provisioning_closed_()) {
+      const uint32_t since_connected = now - this->last_connected_;
       if (this->ap_timeout_ != 0 &&
-          (now - this->last_connected_ > this->ap_timeout_)
 #ifdef USE_WIFI_AP_EXCLUSIVE
-          // After a pause, or a start that failed, the networks get a full
-          // ap_timeout before the AP is tried again.
-          && now - this->ap_changed_ > this->ap_timeout_
+          // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again
+          since_connected > this->ap_timeout_ && now - this->ap_changed_ > this->ap_timeout_
+#else
+          // Tried in whole ap_timeout slots after the last connection; after UINT8_MAX slots it is no longer tried
+          this->ap_start_failures_ != UINT8_MAX && since_connected / this->ap_timeout_ > this->ap_start_failures_
 #endif
       ) {
         ESP_LOGI(TAG, "Starting fallback AP");
@@ -959,16 +962,14 @@ void WiFiComponent::loop() {
         this->ap_changed_ = now;
 #endif
         this->setup_ap_config_();
-        // A portal is only started behind an AP that came up: the portal keeps a reference to the web server
-        // on every start, and a failed start is tried again later
-        if (this->ap_setup_) {
-#ifdef USE_CAPTIVE_PORTAL
-          // Reset so we force one full scan after captive portal starts
-          // (previous scans were filtered because captive portal wasn't active yet)
-          this->has_completed_scan_after_captive_portal_start_ = false;
-#endif
-          this->start_ap_portal_();
+#ifndef USE_WIFI_AP_EXCLUSIVE
+        if (!this->ap_setup_) {
+          // Skip the next slot too, so at least a full ap_timeout passes wherever in its slot this try ran
+          uint32_t slot = since_connected / this->ap_timeout_ + 1;
+          this->ap_start_failures_ = slot < UINT8_MAX ? slot : UINT8_MAX;
         }
+#endif
+        this->start_ap_portal_();
       }
     }
 #endif  // USE_WIFI_AP
@@ -1825,7 +1826,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #endif
 
     // The fallback and reboot checks later in this pass must see the connection, not the old timestamp
-    this->last_connected_ = now;
+    this->set_last_connected_(now);
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     // Refresh is_connected() cache; loop()'s refresh ran before this transition.
     this->update_connected_state_();
@@ -2441,7 +2442,12 @@ bool WiFiComponent::is_ap_portal_active_() {
 // global_web_server needs no null check: codegen always instantiates WebServer when
 // USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
 void WiFiComponent::start_ap_portal_() {
+  // Only behind an AP that came up; a fallback AP (networks and an ap_timeout) is retried by loop()
+  if (!this->ap_setup_)
+    return;
 #ifdef USE_CAPTIVE_PORTAL
+  // Force one full scan now that the portal lists networks (earlier scans were filtered)
+  this->has_completed_scan_after_captive_portal_start_ = false;
   if (captive_portal::global_captive_portal != nullptr)
     captive_portal::global_captive_portal->start();
 #endif

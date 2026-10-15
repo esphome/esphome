@@ -1,0 +1,19 @@
+dfrobot_sen0609:
+  id: sen0609_speed
+  mode: speed_and_distance
+
+binary_sensor:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_speed
+    has_target:
+      name: Target
+
+sensor:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_speed
+    target_distance:
+      name: Target Distance
+    target_speed:
+      name: Target Speed
+    target_energy:
+      name: Target Energy
