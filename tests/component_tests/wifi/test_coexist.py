@@ -15,7 +15,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 from esphome.components.wifi import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-from esphome.const import Platform, PlatformFramework
+from esphome.const import KEY_FRAMEWORK_VERSION, Platform, PlatformFramework
 from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
@@ -24,6 +24,7 @@ from tests.component_tests.wifi import sdkconfig_option
 _AP_DEFINE = "USE_WIFI_AP"
 _APSTA_DEFINE = "USE_WIFI_APSTA"
 _NAPT_DEFINE = "USE_WIFI_AP_NAPT"
+_WISP_DEFINE = "USE_WIFI_AP_WISP"
 
 _STA_NETWORK: ConfigType = {"ssid": "test", "password": "testtest"}
 
@@ -96,6 +97,25 @@ def test_ap_defaults_stay_plain(
     assert sdkconfig_option("CONFIG_LWIP_DHCPS") is None
 
 
+def test_wisp_stays_on_its_own_path(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """``ap_mode: WISP`` routes the AP by itself, without the coexist options.
+
+    The bridge shares its routed-AP code with ``napt:``, so neither may turn
+    the other's defines on.
+    """
+    generate_main(component_config_path("wisp.yaml"))
+    defines = _defines()
+
+    assert _WISP_DEFINE in defines
+    assert _APSTA_DEFINE not in defines
+    assert _NAPT_DEFINE not in defines
+    assert sdkconfig_option("CONFIG_LWIP_IP_FORWARD") is True
+    assert sdkconfig_option("CONFIG_LWIP_IPV4_NAPT") is True
+
+
 @pytest.mark.parametrize(
     ("platform_framework", "wifi", "match"),
     [
@@ -148,6 +168,34 @@ def test_ap_defaults_stay_plain(
             },
             "no effect with",
         ),
+        # The bridge keeps the AP up and routes its subnet on its own, so these
+        # options would set up a second routed access point.
+        (
+            PlatformFramework.ESP32_IDF,
+            {
+                "networks": [_STA_NETWORK],
+                "ap": {
+                    "ssid": "fallback",
+                    "password": "fallback123",
+                    "ap_mode": "WISP",
+                    "coexist": True,
+                },
+            },
+            "keeps the access point up and routes its subnet",
+        ),
+        (
+            PlatformFramework.ESP32_IDF,
+            {
+                "networks": [_STA_NETWORK],
+                "ap": {
+                    "ssid": "fallback",
+                    "password": "fallback123",
+                    "ap_mode": "WISP",
+                    "napt": True,
+                },
+            },
+            "keeps the access point up and routes its subnet",
+        ),
     ],
 )
 def test_invalid_combinations(
@@ -164,6 +212,9 @@ def test_invalid_combinations(
     platform, _ = platform_framework.value
     set_core_config(
         platform_framework,
+        # A loaded config always has a framework version; the WISP entries ask
+        # for one because the bridge needs esp_netif_napt_enable().
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
         # The esp32 split defaults are keyed by variant, so a schema that reads
         # one needs the variant set even before any esp32 config is loaded.
         platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32}
