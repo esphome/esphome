@@ -106,6 +106,11 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         # The acknowledge bit is released from a general purpose timer, left out of the build by default
         include_builtin_idf_component("esp_driver_gptimer")
+    if CORE.is_esp8266:
+        # The acknowledge bit is released from hardware timer 1, which only one component can drive
+        from esphome.components.esp8266.const import use_timer1
+
+        use_timer1(DOMAIN)
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_ADDRESS])
     await cg.register_component(var, config)
@@ -139,20 +144,3 @@ automation.register_apply_action(
         ((CONF_DESTINATION, cg.uint8), (CONF_DATA, _PAYLOAD_VECTOR)),
     ),
 )
-
-
-# Timer 1 of the ESP8266 releases the acknowledge bit; these drive the same timer
-_TIMER1_USERS = ("ac_dimmer", "esp8266_pwm", "lightwaverf", "opentherm")
-
-
-def _final_validate(config: ConfigType) -> ConfigType:
-    if CORE.is_esp8266:
-        for other in _TIMER1_USERS:
-            if other in CORE.loaded_integrations:
-                raise cv.Invalid(
-                    f"hdmi_cec and {other} both need hardware timer 1 on the ESP8266"
-                )
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
