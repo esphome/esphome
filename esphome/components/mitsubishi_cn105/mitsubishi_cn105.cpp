@@ -165,7 +165,6 @@ void MitsubishiCN105::did_transition_(State to) {
         }
         if (this->should_request_heatpump_()) {
           this->current_status_msg_type_ = STATUS_MSG_HEATPUMP;
-          this->last_heatpump_request_ms_ = get_loop_time_ms();
           this->set_state_(State::DEFERRED_STATUS_REQUEST);
           break;
         }
@@ -309,7 +308,7 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
         return false;
       }
       this->status_.operating = payload[3] != 0;
-      this->last_telemetry_update_ms_ = get_loop_time_ms();
+      this->last_heatpump_request_ms_ = get_loop_time_ms();
       return true;
 
     default:
