@@ -156,8 +156,8 @@ bool USBUartTypeCP210X::config_device_step(uint8_t step, bool ok, const uint8_t 
       // A fresh device: the previous one's cached blocks must not steer modem_control_transfer()
       this->no_flow_control_ = false;
       this->flow_blocks_.fill({});
-      this->config_read_(USB_VENDOR_DEV | usb_host::USB_DIR_IN, VENDOR_SPECIFIC, GET_PARTNUM, 0, this->cfg_response_,
-                         1);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_IN, VENDOR_SPECIFIC, GET_PARTNUM, 0,
+                             std::vector<uint8_t>(1), this->cfg_response_);
       return true;
     case 1:
       if (!ok)
@@ -166,8 +166,8 @@ bool USBUartTypeCP210X::config_device_step(uint8_t step, bool ok, const uint8_t 
       if (response[0] != PARTNUM_CP2102N_QFN28 && response[0] != PARTNUM_CP2102N_QFN24 &&
           response[0] != PARTNUM_CP2102N_QFN20)
         return false;
-      this->config_read_(USB_VENDOR_DEV | usb_host::USB_DIR_IN, VENDOR_SPECIFIC, GET_FW_VER_2N, 0, this->cfg_response_,
-                         3);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_IN, VENDOR_SPECIFIC, GET_FW_VER_2N, 0,
+                             std::vector<uint8_t>(3), this->cfg_response_);
       return true;
     case 2: {
       if (!ok)
@@ -224,8 +224,9 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     case 4: {
       // Read into the channel's cached block, which the next step edits and writes back
-      this->config_read_(USB_VENDOR_IFC | usb_host::USB_DIR_IN, GET_FLOW, 0, channel->index_,
-                         reinterpret_cast<uint8_t *>(&this->flow_blocks_[channel->index_]), sizeof(CP210xFlowBlock));
+      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_IN, GET_FLOW, 0, channel->index_,
+                             std::vector<uint8_t>(sizeof(CP210xFlowBlock)),
+                             reinterpret_cast<uint8_t *>(&this->flow_blocks_[channel->index_]));
       return true;
     }
     case 5: {

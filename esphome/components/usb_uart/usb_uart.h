@@ -290,16 +290,10 @@ class USBUartComponent : public usb_host::USBClient {
   // callback (USB-task context) records the result/IN data, marks the step done and
   // wakes the loop so run_config_machine_() advances on the loop thread. Call exactly
   // once from config_step_()/config_device_step_() when issuing a step.
+  // An IN reply goes to cfg_response_, or to `dest` when set. A `dest` reply must be
+  // exactly data.size() bytes, else the step fails.
   void config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
-                        const std::vector<uint8_t> &data = {});
-  // Issue an IN step that succeeds only when exactly `length` bytes come back, copied to `dest`
-  void config_read_(uint8_t type, uint8_t request, uint16_t value, uint16_t index, uint8_t *dest, size_t length);
-  // Submit a config transfer whose callback stores the reply itself and then calls
-  // complete_config_transfer_(). A failed submission completes the step as failed.
-  void submit_config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
-                               const usb_host::transfer_cb_t &callback, const std::vector<uint8_t> &data);
-  // End the step in flight with the given result and wake the loop. Called from the USB task.
-  void complete_config_transfer_(const usb_host::TransferStatus &status, bool ok);
+                        const std::vector<uint8_t> &data = {}, uint8_t *dest = nullptr);
   // (Re)start the config state machine. INIT runs over all channels; the other modes act
   // on cfg_single_ only.
   void start_config_(ConfigMode mode);
@@ -329,8 +323,8 @@ class USBUartComponent : public usb_host::USBClient {
   USBUartChannelBase *cfg_single_{nullptr};  // non-null: single-channel run (RELOAD or MODEM)
   std::atomic<bool> cfg_done_{false};        // synchronizes cfg_ok_/cfg_response_ across threads
   uint8_t cfg_response_[8]{};                // last IN transfer payload
-  uint8_t *cfg_read_dest_{nullptr};          // where the config_read_() in flight stores its reply
-  size_t cfg_read_len_{0};                   // and the exact length it expects
+  uint8_t *cfg_read_dest_{nullptr};          // where the step in flight stores its reply, if not cfg_response_
+  size_t cfg_read_len_{0};                   // and the exact length it then expects
   uint8_t cfg_channel_idx_{0};
   uint8_t cfg_step_{0};
   ConfigMode cfg_mode_{ConfigMode::CONFIG_MODE_INIT};
