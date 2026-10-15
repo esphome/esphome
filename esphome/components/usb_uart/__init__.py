@@ -75,6 +75,7 @@ class Type:
         baud_rate_required: bool = True,
         max_baud: int = 1_000_000,
         has_comm_interface: bool = False,
+        flow_control: bool = False,
     ) -> None:
         self.name = name
         cls = cls or name
@@ -86,6 +87,8 @@ class Type:
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
         self.max_baud = max_baud
+        # True for types whose driver puts RTS/CTS on the wire
+        self.flow_control = flow_control
         # True for types that claim the CDC comm (interrupt) interface; only these
         # accept the claim_comm_interface option.
         self.has_comm_interface = has_comm_interface
@@ -108,8 +111,8 @@ uart_types = (
         "CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False, has_comm_interface=True
     ),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4, max_baud=2_000_000),
-    Type("CH340", 0x1A86, 0x7523, "CH34X", 1, max_baud=2_000_000),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3, max_baud=2_000_000),
+    Type("CH340", 0x1A86, 0x7523, "CH34X", 1, max_baud=2_000_000, flow_control=True),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3, max_baud=2_000_000, flow_control=True),
     Type(
         "ESP_JTAG",
         0x303A,
@@ -119,16 +122,28 @@ uart_types = (
         baud_rate_required=False,
         has_comm_interface=True,
     ),
-    Type("FT232", 0x0403, 0x6001, "FT23XX", 1, max_baud=3_000_000),
-    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2, max_baud=12_000_000),
-    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4, max_baud=12_000_000),
-    Type("PL2303", 0x067B, 0x2303, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1, max_baud=6_000_000),
+    Type("FT232", 0x0403, 0x6001, "FT23XX", 1, max_baud=3_000_000, flow_control=True),
+    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2, max_baud=12_000_000, flow_control=True),
+    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4, max_baud=12_000_000, flow_control=True),
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1, max_baud=6_000_000, flow_control=True),
+    Type(
+        "PL2303GB", 0x067B, 0x23B3, "PL2303", 1, max_baud=6_000_000, flow_control=True
+    ),
+    Type(
+        "PL2303GC", 0x067B, 0x23A3, "PL2303", 1, max_baud=6_000_000, flow_control=True
+    ),
+    Type(
+        "PL2303GE", 0x067B, 0x23E3, "PL2303", 1, max_baud=6_000_000, flow_control=True
+    ),
+    Type(
+        "PL2303GL", 0x067B, 0x23D3, "PL2303", 1, max_baud=6_000_000, flow_control=True
+    ),
+    Type(
+        "PL2303GS", 0x067B, 0x23F3, "PL2303", 1, max_baud=6_000_000, flow_control=True
+    ),
+    Type(
+        "PL2303GT", 0x067B, 0x23C3, "PL2303", 1, max_baud=6_000_000, flow_control=True
+    ),
     Type(
         "STM32_VCP",
         0x0483,
@@ -247,8 +262,9 @@ async def to_code(config: list[ConfigType]) -> None:
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
-        if (driver := _TYPES_BY_NAME[device[CONF_TYPE]].driver) is not None:
-            cg.add_define(_driver_define(driver))
+        type_ = _TYPES_BY_NAME[device[CONF_TYPE]]
+        if type_.driver is not None:
+            cg.add_define(_driver_define(type_.driver))
         var = await register_usb_client(device)
         # The C++ default is true; only emit the override
         if not device.get(CONF_CLAIM_COMM_INTERFACE, True):
@@ -256,6 +272,8 @@ async def to_code(config: list[ConfigType]) -> None:
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
+            if type_.flow_control:
+                cg.add(chvar.set_flow_control_supported(True))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
             cg.add(chvar.set_data_bits(channel[CONF_DATA_BITS]))
             cg.add(chvar.set_parity(channel[CONF_PARITY]))
