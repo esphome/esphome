@@ -453,8 +453,7 @@ class HttpRequestComponent : public Component {
       lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url.c_str(), method.c_str(), body,
-                         std::vector<Header>(request_headers.begin(), request_headers.end()), lower,
-                         this->timeout_);
+                         std::vector<Header>(request_headers.begin(), request_headers.end()), lower, this->timeout_);
   }
 
   // Remove before 2027.1.0
