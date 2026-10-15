@@ -44,10 +44,10 @@ static constexpr TickType_t WRITE_TIMEOUT_TICKS = pdMS_TO_TICKS(DMA_BUFFER_DURAT
 // it (e.g. cache-line rounding on some targets), so the speaker task reads the size actually allocated back
 // from the driver instead of assuming this value. Clamping here keeps the request in range and avoids a
 // noisy ESP-IDF "dma frame num is out of dma buffer size" warning at high sample rates or bit depths.
-static uint32_t dma_buffer_frames(const audio::AudioStreamInfo &stream_info) {
+static uint32_t dma_buffer_frames(const audio::AudioStreamInfo &stream_info, uint32_t frame_multiple) {
   const uint32_t frames_from_duration = stream_info.ms_to_frames(DMA_BUFFER_DURATION_MS);
   const uint32_t max_frames = I2S_DMA_BUFFER_MAX_SIZE / stream_info.frames_to_bytes(1);
-  return std::min(frames_from_duration, max_frames);
+  return (std::min(frames_from_duration, max_frames) / frame_multiple) * frame_multiple;
 }
 
 void I2SAudioSpeaker::dump_config() {
@@ -85,10 +85,12 @@ void I2SAudioSpeaker::run_speaker_task() {
 
   // The ring buffer holds input-format audio (what play() receives), so size it from the input stream info.
   const size_t bytes_per_frame = this->current_stream_info_.frames_to_bytes(1);
-  // Round the ring buffer size down to a multiple of bytes_per_frame so the wrap boundary stays frame-aligned and
-  // avoids unnecessary single-frame splices.
+  // Hand over whole ESP32 mono sample pairs so writes stay word-aligned
+  const size_t source_alignment = bytes_per_frame * this->dma_frame_multiple_();
+  const bool pair_aligned = source_alignment > bytes_per_frame;
+  // Round the ring buffer size down to a multiple of source_alignment so the wrap boundary avoids splices.
   const size_t ring_buffer_size =
-      (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / bytes_per_frame) * bytes_per_frame;
+      (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / source_alignment) * source_alignment;
 
   // Per-frame byte widths and whether the task must narrow the bit depth before writing to the I2S peripheral.
   const uint8_t channels = this->current_stream_info_.get_channels();
@@ -108,7 +110,8 @@ void I2SAudioSpeaker::run_speaker_task() {
     dma_buffer_bytes = chan_info.total_dma_buf_size / DMA_BUFFERS_COUNT;
   } else {
     // Should not happen for a READY channel; fall back to the requested size.
-    dma_buffer_bytes = this->output_stream_info_.frames_to_bytes(dma_buffer_frames(this->output_stream_info_));
+    dma_buffer_bytes = this->output_stream_info_.frames_to_bytes(
+        dma_buffer_frames(this->output_stream_info_, this->dma_frame_multiple_()));
   }
   // dma_buffer_bytes counts output-format bytes; convert with the output stream info.
   const uint32_t frames_per_dma_buffer = this->output_stream_info_.bytes_to_frames(dma_buffer_bytes);
@@ -128,7 +131,7 @@ void I2SAudioSpeaker::run_speaker_task() {
 
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
     audio_source = audio::RingBufferAudioSource::create(temp_ring_buffer, dma_buffer_input_bytes,
-                                                        static_cast<uint8_t>(bytes_per_frame));
+                                                        static_cast<uint8_t>(source_alignment));
 
     if (audio_source != nullptr) {
       // audio_source is nullptr if the ring buffer fails to allocate
@@ -295,9 +298,20 @@ void I2SAudioSpeaker::run_speaker_task() {
 
           // Convert as many whole frames as fit in the remaining DMA space, bounded by what the source
           // currently exposes. Frame counts are shared between input and output; only the byte widths differ.
-          const uint32_t frames_available = this->current_stream_info_.bytes_to_frames(audio_source->available());
+          uint32_t frames_available = this->current_stream_info_.bytes_to_frames(audio_source->available());
           const uint32_t frames_room =
               this->output_stream_info_.bytes_to_frames(dma_buffer_bytes - bytes_written_total);
+          uint32_t padding_frames = 0;
+          if (pair_aligned && frames_available == 0 && frames_room >= 2 && !audio_source->has_buffered_data()) {
+            // Silence padding follows, so write a held half pair now with a silent partner rather than strand it.
+            // Only the real frame is reported as played.
+            const size_t real_bytes = audio_source->expose_padded_partial(bytes_per_frame);
+            if (real_bytes > 0) {
+              this->apply_software_volume_(audio_source->mutable_data(), real_bytes);
+              frames_available = this->current_stream_info_.bytes_to_frames(audio_source->available());
+              padding_frames = frames_available - this->current_stream_info_.bytes_to_frames(real_bytes);
+            }
+          }
           const uint32_t frames_to_write = std::min(frames_available, frames_room);
           if (frames_to_write == 0) {
             // Ring buffer has nothing more to hand over right now; pad the rest of this DMA buffer
@@ -326,13 +340,17 @@ void I2SAudioSpeaker::run_speaker_task() {
             ESP_LOGE(TAG, "Partial DMA write (%u of %u bytes), resyncing DMA lockstep", (unsigned) bw,
                      (unsigned) output_bytes);
             audio_source->consume(input_bytes);
-            real_frames_total += frames_to_write;
+            real_frames_total += frames_to_write - padding_frames;
             partial_write_failure = true;
             break;
           }
           audio_source->consume(input_bytes);
           bytes_written_total += output_bytes;
-          real_frames_total += frames_to_write;
+          real_frames_total += frames_to_write - padding_frames;
+          if (padding_frames > 0) {
+            // The source was already empty; skip waiting on another fill() before the silence padding
+            break;
+          }
         }
         if (real_frames_total > 0) {
           last_data_received_time = millis();
@@ -440,7 +458,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   this->current_stream_info_ = audio_stream_info;
 
   // The DMA buffers hold output-format (post-narrowing) samples, so size them from the output stream info.
-  uint32_t dma_buffer_length = dma_buffer_frames(this->output_stream_info_);
+  uint32_t dma_buffer_length = dma_buffer_frames(this->output_stream_info_, this->dma_frame_multiple_());
 
   i2s_role_t i2s_role = this->i2s_role_;
   i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;

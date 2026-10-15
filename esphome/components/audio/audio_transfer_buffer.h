@@ -254,6 +254,12 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   /// state, and resets the underlying ring buffer. Must be invoked from the ring buffer's consumer thread.
   void clear_buffered_data();
 
+  /// @brief Zero-pads held whole frames short of an alignment unit and exposes them, so a stream's tail is not
+  /// stranded. A held partial frame is left to wait for its remaining bytes.
+  /// @param frame_bytes Bytes per audio frame
+  /// @return Real (unpadded) bytes exposed, or 0 if nothing is exposable
+  size_t expose_padded_partial(size_t frame_bytes);
+
   /// @brief Returns a mutable pointer to the currently exposed audio data.
   /// The pointer may reference the ring buffer's internal storage or, when exposing a stitched frame
   /// across a wrap boundary, an internal splice buffer. In either case mutations are safe but data

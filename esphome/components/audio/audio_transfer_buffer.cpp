@@ -268,6 +268,23 @@ void RingBufferAudioSource::clear_buffered_data() {
   this->ring_buffer_->reset();
 }
 
+size_t RingBufferAudioSource::expose_padded_partial(size_t frame_bytes) {
+  if (this->current_available_ > 0 || this->queued_length_ > 0) {
+    return 0;
+  }
+  // Moves any trailing bytes still inside a held item into the splice buffer
+  this->release_item_();
+  const size_t real_bytes = this->splice_length_;
+  if (real_bytes == 0 || frame_bytes == 0 || real_bytes % frame_bytes != 0) {
+    return 0;
+  }
+  std::memset(this->splice_buffer_ + real_bytes, 0, this->alignment_bytes_ - real_bytes);
+  this->splice_length_ = 0;
+  this->current_data_ = this->splice_buffer_;
+  this->current_available_ = this->alignment_bytes_;
+  return real_bytes;
+}
+
 bool RingBufferAudioSource::has_buffered_data() const {
   // splice_length_ is deliberately not considered here. It holds an incomplete frame whose completion
   // bytes must still arrive through the ring buffer, which ring_buffer_->available() already reports.
