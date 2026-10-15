@@ -162,8 +162,10 @@ void MitsubishiCN105Climate::apply_values_() {
     switch (status.mode) {
       case MitsubishiCN105::Mode::DRY:
         action = climate::CLIMATE_ACTION_DRYING;
+        break;
       case MitsubishiCN105::Mode::FAN_ONLY:
         action = climate::CLIMATE_ACTION_FAN;
+        break;
       case MitsubishiCN105::Mode::COOL:
         action = climate::CLIMATE_ACTION_COOLING;
         break;
