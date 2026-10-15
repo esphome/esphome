@@ -182,7 +182,7 @@ void LightState::loop() {
 }
 
 bool LightState::set_external_state(const LightColorValues &values) {
-  // A running effect would keep writing its own values over the reported ones
+  // Each of these would write its own values over the reported ones
   if (this->next_write_ || this->transformer_ != nullptr || this->active_effect_index_ != 0) {
     return false;
   }
@@ -192,7 +192,7 @@ bool LightState::set_external_state(const LightColorValues &values) {
   this->current_values = values;
   this->remote_values = values;
   this->publish_state();
-  // The values are reached at once, so the triggers that wait for that fire as after an instant call
+  // Reached at once, as after an instant call
   if (this->target_state_reached_listeners_) {
     for (auto *listener : *this->target_state_reached_listeners_) {
       listener->on_light_target_state_reached();
