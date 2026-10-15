@@ -555,8 +555,11 @@ void USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
 
 void USBUartComponent::enable_channels() {
   this->cfg_single_ = nullptr;
-  this->cfg_pending_reload_ = nullptr;
-  this->cfg_pending_modem_ = nullptr;
+  // Init sends every channel's current line settings and DTR/RTS
+  for (auto *channel : this->channels_) {
+    channel->reload_pending_ = false;
+    channel->modem_pending_ = false;
+  }
   this->cfg_channel_idx_ = 0;
   this->start_config_(ConfigMode::CONFIG_MODE_INIT);
 }
@@ -565,10 +568,9 @@ void USBUartComponent::apply_channel_settings(USBUartChannelBase *channel) {
   if (this->cfg_active_) {
     // A config sequence is already running. Defer this reload until it finishes to preserve
     // the one-control-transfer-at-a-time guarantee (restarting mid-flight would let an
-    // in-flight callback complete against fresh state). The pending slot coalesces multiple
+    // in-flight callback complete against fresh state). The per-channel flag coalesces multiple
     // requests; the channel's live settings are read when the reload eventually runs.
-    // Note: multiple channel reloads are not queued; only one pending reload is supported at a time.
-    this->cfg_pending_reload_ = channel;
+    channel->reload_pending_ = true;
     return;
   }
   this->cfg_single_ = channel;
@@ -577,10 +579,9 @@ void USBUartComponent::apply_channel_settings(USBUartChannelBase *channel) {
 
 void USBUartComponent::apply_modem_control(USBUartChannelBase *channel) {
   if (this->cfg_active_) {
-    // Deferred like a reload, and with the same single slot: a request for another channel
-    // in the meantime replaces this one. The transfer sends whatever dtr_/rts_ hold when it
-    // runs, so a channel that is set several times before then only sends its latest state.
-    this->cfg_pending_modem_ = channel;
+    // Deferred like a reload. The transfer sends whatever dtr_/rts_ hold when it runs, so a
+    // channel that is set several times before then only sends its latest state.
+    channel->modem_pending_ = true;
     return;
   }
   this->cfg_single_ = channel;
@@ -702,17 +703,22 @@ bool USBUartComponent::run_config_machine_() {
   }
 
   // If the machine just went idle and a run was requested while it was busy, start it now.
-  // A pending modem change waits for a pending reload: the reload's init-only steps are
-  // skipped, so it cannot undo the modem lines.
+  // A channel's pending modem change waits for its pending reload: the reload's init-only
+  // steps are skipped, so it cannot undo the modem lines.
   if (!this->cfg_active_) {
-    if (this->cfg_pending_reload_ != nullptr) {
-      this->cfg_single_ = this->cfg_pending_reload_;
-      this->cfg_pending_reload_ = nullptr;
-      this->start_config_(ConfigMode::CONFIG_MODE_RELOAD);
-    } else if (this->cfg_pending_modem_ != nullptr) {
-      this->cfg_single_ = this->cfg_pending_modem_;
-      this->cfg_pending_modem_ = nullptr;
-      this->start_config_(ConfigMode::CONFIG_MODE_MODEM);
+    for (auto *pending : this->channels_) {
+      if (pending->reload_pending_) {
+        pending->reload_pending_ = false;
+        this->cfg_single_ = pending;
+        this->start_config_(ConfigMode::CONFIG_MODE_RELOAD);
+        break;
+      }
+      if (pending->modem_pending_) {
+        pending->modem_pending_ = false;
+        this->cfg_single_ = pending;
+        this->start_config_(ConfigMode::CONFIG_MODE_MODEM);
+        break;
+      }
     }
   }
   return true;

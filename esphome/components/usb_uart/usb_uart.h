@@ -240,6 +240,9 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   // Asserted on init, as a host driver does when it opens the port
   bool dtr_{true};
   bool rts_{true};
+  // Line settings or DTR/RTS changed while the config machine was busy; sent once it is idle
+  bool reload_pending_{false};
+  bool modem_pending_{false};
 };
 
 // Concrete channel type for CDC-style USB serial devices (2 bulk endpoints per
@@ -315,8 +318,6 @@ class USBUartComponent : public usb_host::USBClient {
 
   // Config state machine
   USBUartChannelBase *cfg_single_{nullptr};          // non-null: single-channel run (RELOAD or MODEM)
-  USBUartChannelBase *cfg_pending_reload_{nullptr};  // reload requested while the machine was busy
-  USBUartChannelBase *cfg_pending_modem_{nullptr};   // modem control requested while the machine was busy
   std::atomic<bool> cfg_done_{false};                // synchronizes cfg_ok_/cfg_response_ across threads
   uint8_t cfg_response_[8]{};                        // last IN transfer payload (for detection reads)
   uint8_t cfg_channel_idx_{0};
