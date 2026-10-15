@@ -53,7 +53,8 @@ TEST(PythonList, AcceptsAnEmptyList) {
 
 TEST(PythonList, RejectsMalformedLists) {
   for (const char *text : {"", "[", "['a'", "['a',", "['a' 'b']", "['a'] x", "[1]", "['a\\q']", "[<ColorMode.HS: 'hs'",
-                           "[<ColorMode.HS>]"}) {
+                           "[<ColorMode.HS>]", "[<ColorMode.HS>, <ColorMode.RGB: 'rgb'>]",
+                           "[<ColorMode.HS: 'hs', <ColorMode.RGB: 'rgb'>]", "[<X: 'a' 'b'>]", "[<X 'a'>]", "[<'a'>]"}) {
     EXPECT_FALSE(parse(text).valid) << text;
   }
 }
