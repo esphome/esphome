@@ -293,7 +293,11 @@ void WiFiComponent::wifi_lazy_init_() {
 #ifdef USE_WIFI_DPP
 void WiFiComponent::wifi_dpp_init_() {
   // With no callback the supplicant posts WIFI_EVENT_DPP_* events, handled with the other events
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  esp_err_t err = esp_supp_dpp_init();
+#else
   esp_err_t err = esp_supp_dpp_init(nullptr);
+#endif
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "%s failed: %s", LOG_STR_LITERAL("esp_supp_dpp_init"), esp_err_to_name(err));
     return;
