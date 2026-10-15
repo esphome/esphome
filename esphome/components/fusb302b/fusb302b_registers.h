@@ -22,9 +22,10 @@ static constexpr uint8_t FUSB_STATUS0 = 0x40;
 static constexpr uint8_t FUSB_STATUS1 = 0x41;
 static constexpr uint8_t FUSB_FIFOS = 0x43;
 
-// DEVICE_ID values of the FUSB302B revisions
-static constexpr uint8_t FUSB_DEVICE_ID_A = 0x81;
-static constexpr uint8_t FUSB_DEVICE_ID_B = 0x91;
+// DEVICE_ID: version in bits 7:4, product variant (I2C address 0x22-0x25) in bits 3:2, silicon revision in bits 1:0
+static constexpr uint8_t FUSB_DEVICE_ID_VERSION_MASK = 0xF0;
+static constexpr uint8_t FUSB_DEVICE_ID_VERSION_A = 0x80;
+static constexpr uint8_t FUSB_DEVICE_ID_VERSION_B = 0x90;
 
 // SWITCHES0 bits
 static constexpr uint8_t FUSB_SWITCHES0_MEAS_CC2 = 1 << 3;
@@ -43,7 +44,6 @@ static constexpr uint8_t FUSB_MEASURE_MDAC_CC = 49;
 
 // CONTROL0 bits
 static constexpr uint8_t FUSB_CONTROL0_TX_FLUSH = 1 << 6;
-static constexpr uint8_t FUSB_CONTROL0_INT_MASK = 1 << 5;
 
 // CONTROL1 bits
 static constexpr uint8_t FUSB_CONTROL1_RX_FLUSH = 1 << 2;
