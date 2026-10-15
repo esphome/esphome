@@ -559,7 +559,6 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
         return []
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
-    DFU_PATH = "firmware.zip"
     HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1 without OTA, SDK 3.4.0+
     HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2 to 3.3.x, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
@@ -588,12 +587,12 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
             },
         ]
     # Bootloaders without a UF2 family (the dongle's Open DFU bootloader) still get a DFU package
-    if has_uf2 or (build_dir / DFU_PATH).is_file():
+    if (build_dir / DFU_PACKAGE).is_file():
         types += [
             {
                 "title": "DFU package",
                 "description": "For flashing via nrfutil using USB CDC.",
-                "file": DFU_PATH,
+                "file": DFU_PACKAGE,
                 "download": f"dfu-{storage_json.name}.zip",
             },
         ]
@@ -623,6 +622,7 @@ def _upload_using_platformio(
 
 # USB vendor and product id the nRF52840 Dongle enumerates with while its Open DFU bootloader runs
 OPEN_DFU_USB_ID = (0x1915, 0x521F)
+DFU_PACKAGE = "firmware.zip"  # the serial DFU package, next to the firmware in the build directory
 
 
 def _reset_into_bootloader(host: str) -> None:
@@ -713,54 +713,51 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         bootloader = zephyr_data()[KEY_BOOTLOADER]
         if bootloader == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
+        elif CORE.using_toolchain_platformio:
+            result = _upload_using_platformio(config, host, ["-t", "upload"])
+            if result != 0:
+                raise EsphomeError(f"Upload failed with result: {result}")
+            return True
         else:
-            if not CORE.using_toolchain_platformio:
-                if bootloader not in SERIAL_DFU_BOOTLOADERS:
-                    raise EsphomeError("Not implemented yet")
+            env = get_build_env(None)  # no compile, just the DFU tool
+            dfu_package = CORE.relative_pioenvs_path(CORE.name) / DFU_PACKAGE
+            if not dfu_package.is_file():
+                raise EsphomeError("Firmware not found. Please compile first.")
+            if bootloader == BOOTLOADER_NRF:
+                # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol
+                _require_open_dfu_port(host)
+                dfu_cmd = [
+                    ensure_nordic_nrfutil(env),
+                    "nrf5sdk-tools",
+                    "dfu",
+                    "usb-serial",
+                    "-pkg",
+                    str(dfu_package),
+                    "-p",
+                    host,
+                ]
+            else:
                 check_and_install()
                 paths = get_build_paths()
-                env = get_build_env(None)  # no compile, just nrfutil
-                build_dir = CORE.relative_pioenvs_path(CORE.name)
-                dfu_package = build_dir / "firmware.zip"
-                if not dfu_package.is_file():
-                    raise EsphomeError("Firmware not found. Please compile first.")
-                if bootloader == BOOTLOADER_NRF:
-                    _require_open_dfu_port(host)
-                    # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol
-                    dfu_cmd = [
-                        ensure_nordic_nrfutil(env),
-                        "nrf5sdk-tools",
-                        "dfu",
-                        "usb-serial",
-                        "-pkg",
-                        str(dfu_package),
-                        "-p",
-                        host,
-                    ]
-                else:
-                    _reset_into_bootloader(host)
-                    _wait_for_port_permissions(host)
-                    dfu_cmd = [
-                        str(paths["python_executable"]),
-                        "-m",
-                        "nordicsemi.__main__",
-                        "dfu",
-                        "serial",
-                        "-pkg",
-                        str(dfu_package),
-                        "-p",
-                        host,
-                        "-b",
-                        "115200",
-                        "--singlebank",
-                    ]
-                if not run_command_ok(dfu_cmd, env=env, stream_output=True):
-                    raise EsphomeError("nRF52 serial DFU upload failed")
-            else:
-                result = _upload_using_platformio(config, host, ["-t", "upload"])
-                if result != 0:
-                    raise EsphomeError(f"Upload failed with result: {result}")
-            return True  # Handled: serial upload
+                _reset_into_bootloader(host)
+                _wait_for_port_permissions(host)
+                dfu_cmd = [
+                    str(paths["python_executable"]),
+                    "-m",
+                    "nordicsemi.__main__",
+                    "dfu",
+                    "serial",
+                    "-pkg",
+                    str(dfu_package),
+                    "-p",
+                    host,
+                    "-b",
+                    "115200",
+                    "--singlebank",
+                ]
+            if not run_command_ok(dfu_cmd, env=env, stream_output=True):
+                raise EsphomeError("nRF52 serial DFU upload failed")
+            return True
 
     if host == "PYOCD":
         if not CORE.using_toolchain_platformio:
@@ -1159,10 +1156,14 @@ def run_compile(args, config: ConfigType) -> bool:
         ):
             raise EsphomeError(f"Failed to generate UF2 from {hex_file.name}")
 
-    if bootloader == BOOTLOADER_NRF:
+    # The serial DFU package follows the hex it is made from; a package from another bootloader's
+    # build would otherwise be offered for download with this one
+    dfu_package = build_dir / DFU_PACKAGE
+    if bootloader not in SERIAL_DFU_BOOTLOADERS:
+        dfu_package.unlink(missing_ok=True)
+    elif bootloader == BOOTLOADER_NRF:
         # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol, which only Nordic's own
         # tool packages
-        dfu_package = build_dir / "firmware.zip"
         if not run_command_ok(
             [
                 ensure_nordic_nrfutil(env),
@@ -1183,8 +1184,7 @@ def run_compile(args, config: ConfigType) -> bool:
             stream_output=True,
         ):
             raise EsphomeError("Failed to create the DFU package")
-    elif bootloader in SERIAL_DFU_BOOTLOADERS:
-        dfu_package = build_dir / "firmware.zip"
+    else:
         genpkg_cmd = [
             str(paths["python_executable"]),
             "-m",
@@ -1198,8 +1198,5 @@ def run_compile(args, config: ConfigType) -> bool:
         genpkg_cmd += ["--application", str(hex_file), str(dfu_package)]
         if not run_command_ok(genpkg_cmd, env=env, stream_output=True):
             raise EsphomeError("Failed to create the DFU package")
-    else:
-        # A package left by an earlier serial DFU build would be offered for download with this one
-        (build_dir / "firmware.zip").unlink(missing_ok=True)
 
     return True

@@ -688,18 +688,16 @@ NORDIC_NRFUTIL_MIRRORS = [
 ]
 
 
+_NRFUTIL_OS_SUFFIX = {
+    "linux": "unknown-linux-gnu",
+    "macos": "apple-darwin",
+    "windows": "pc-windows-msvc",
+}
+
+
 def _nrfutil_target_triple() -> str:
-    system = platform.system()
-    machine = platform.machine()
-    if system == "Darwin":
-        return "aarch64-apple-darwin" if machine == "arm64" else "x86_64-apple-darwin"
-    if system == "Windows":
-        return "x86_64-pc-windows-msvc"
-    return (
-        "aarch64-unknown-linux-gnu"
-        if machine in ("aarch64", "arm64")
-        else "x86_64-unknown-linux-gnu"
-    )
+    sysname, machine, _ = _get_toolchain_platform_info()
+    return f"{machine}-{_NRFUTIL_OS_SUFFIX[sysname]}"
 
 
 def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
@@ -713,7 +711,7 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
     # NRFUTIL_HOME/bin and runs that, so it must not sit there itself or it runs itself forever
     root = get_sdk_nrf_tools_path() / "nrfutil"
     home = root / "home"
-    name = "nrfutil.exe" if platform.system() == "Windows" else "nrfutil"
+    name = "nrfutil.exe" if os.name == "nt" else "nrfutil"
     exe = root / "launcher" / name
     env["NRFUTIL_HOME"] = str(home)
     sentinel = root / ".ready"
@@ -728,8 +726,7 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
                 {"triple": _nrfutil_target_triple(), "name": name},
                 exe,
             )
-            if name == "nrfutil":
-                exe.chmod(0o755)
+            exe.chmod(0o755)
             _LOGGER.info("Installing nrfutil's nrf5sdk-tools command ...")
             if not run_command_ok([str(exe), "install", "nrf5sdk-tools"], env=env):
                 raise EsphomeError("Failed to install nrfutil's nrf5sdk-tools command")

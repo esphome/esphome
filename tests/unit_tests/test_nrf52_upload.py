@@ -238,7 +238,6 @@ def _enter_serial_dfu_patches(
     tmp_path: Path,
     paths: dict,
     usb_id: tuple[int, int] | None = None,
-    nrfutil: str | None = "/opt/nordic/nrfutil",
 ) -> MagicMock:
     """Enter all context managers needed for the serial DFU happy path.
 
@@ -281,10 +280,7 @@ def _enter_serial_dfu_patches(
     stack.enter_context(
         patch(
             "esphome.components.nrf52.ensure_nordic_nrfutil",
-            return_value=nrfutil,
-            side_effect=None
-            if nrfutil
-            else EsphomeError("Failed to download Nordic's nrfutil"),
+            return_value="/opt/nordic/nrfutil",
         )
     )
     # Patch directly on the real pyserial module so the deferred imports inside
@@ -299,25 +295,6 @@ def _enter_serial_dfu_patches(
 
 
 class TestUploadProgramSerialDfu:
-    def test_unsupported_bootloader_raises(
-        self, setup_core: Path, tmp_path: Path
-    ) -> None:
-        """An unknown bootloader must raise EsphomeError before touching the port."""
-        from esphome.components.nrf52 import upload_program
-        from esphome.upload_targets import PortType
-
-        _setup_nrf52_core(
-            bootloader="unknown_bootloader", build_path=tmp_path / "build"
-        )
-        CORE.config_path = tmp_path / "test.yaml"
-
-        with (
-            patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL),
-            patch("esphome.__main__.check_permissions"),
-            pytest.raises(EsphomeError, match="Not implemented"),
-        ):
-            upload_program(config={}, args=None, host="/dev/ttyACM0")
-
     def test_missing_firmware_raises(self, setup_core: Path, tmp_path: Path) -> None:
         """Missing firmware.zip must raise EsphomeError before opening the serial port."""
         from esphome.components.nrf52 import upload_program
@@ -414,7 +391,13 @@ class TestUploadProgramSerialDfu:
         host = "/dev/ttyACM0"
         with ExitStack() as stack:
             mock_run = _enter_serial_dfu_patches(
-                stack, host, tmp_path, paths, usb_id=OPEN_DFU_USB_ID, nrfutil=None
+                stack, host, tmp_path, paths, usb_id=OPEN_DFU_USB_ID
+            )
+            stack.enter_context(
+                patch(
+                    "esphome.components.nrf52.ensure_nordic_nrfutil",
+                    side_effect=EsphomeError("Failed to download Nordic's nrfutil"),
+                )
             )
             with pytest.raises(EsphomeError, match="download Nordic's nrfutil"):
                 upload_program(config={}, args=None, host=host)

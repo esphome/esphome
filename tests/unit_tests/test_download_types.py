@@ -96,10 +96,12 @@ def _nrf52_files(tmp_path: Path, *built: str) -> list[str]:
     [
         # Adafruit bootloader with the mcumgr OTA: MCUboot is chained behind it.
         (
-            ["zephyr/zephyr.uf2", "zephyr/app_update.bin"],
+            ["zephyr/zephyr.uf2", "firmware.zip", "zephyr/app_update.bin"],
             ["zephyr/zephyr.uf2", "firmware.zip", "zephyr/app_update.bin"],
         ),
-        (["zephyr/zephyr.uf2"], ["zephyr/zephyr.uf2", "firmware.zip"]),
+        (["zephyr/zephyr.uf2", "firmware.zip"], ["zephyr/zephyr.uf2", "firmware.zip"]),
+        # The DFU package is offered only when the build made one
+        (["zephyr/zephyr.uf2"], ["zephyr/zephyr.uf2"]),
         (
             ["zephyr/merged.hex", "zephyr/app_update.bin"],
             ["zephyr/merged.hex", "zephyr/app_update.bin"],
