@@ -750,6 +750,7 @@ class WizardCapabilities final : public ProtoMessage {
 class SendspinCapabilities final : public ProtoMessage {
  public:
   uint32_t feature_flags{0};
+  StringRef client_id{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -1390,8 +1391,8 @@ class NoiseEncryptionSetKeyResponse final : public ProtoMessage {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 class HomeassistantServiceMap final : public ProtoMessage {
  public:
-  StringRef key{nullptr, 0};    // null until set, encode only
-  StringRef value{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef key{};
+  ProgmemStringRef value{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -1411,7 +1412,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("homeassistant_action_request"); }
 #endif
-  StringRef service{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef service{};
   FixedVector<HomeassistantServiceMap> data{};
   FixedVector<HomeassistantServiceMap> data_template{};
   FixedVector<HomeassistantServiceMap> variables{};
@@ -1578,13 +1579,13 @@ class GetTimeResponse final : public ProtoDecodableMessage {
 #ifdef USE_API_USER_DEFINED_ACTIONS
 class ListEntitiesServicesArgument final : public ProtoMessage {
  public:
-  StringRef name{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef name{};
   enums::ServiceArgType type{};
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  StringRef description{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef description{};
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  StringRef example{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef example{};
 #endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1605,12 +1606,12 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_services_response"); }
 #endif
-  StringRef name{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef name{};
   uint32_t key{0};
   FixedVector<ListEntitiesServicesArgument> args{};
   enums::SupportsResponseType supports_response{};
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  StringRef description{nullptr, 0};  // null until set, encode only
+  ProgmemStringRef description{};
 #endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -4085,6 +4086,8 @@ class UsbDeviceDescriptor final : public ProtoMessage {
   uint32_t product_id{0};
   uint32_t bcd_device{0};
   uint32_t interface_number{0};
+  uint32_t interface_class{0};
+  uint32_t port_number{0};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
