@@ -1,4 +1,5 @@
 #include "wifi_component.h"
+#include "esphome/components/network/util.h"
 
 #ifdef USE_WIFI
 #ifdef USE_ESP32
@@ -293,7 +294,11 @@ void WiFiComponent::wifi_lazy_init_() {
 #ifdef USE_WIFI_DPP
 void WiFiComponent::wifi_dpp_init_() {
   // With no callback the supplicant posts WIFI_EVENT_DPP_* events, handled with the other events
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  esp_err_t err = esp_supp_dpp_init();
+#else
   esp_err_t err = esp_supp_dpp_init(nullptr);
+#endif
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "%s failed: %s", LOG_STR_LITERAL("esp_supp_dpp_init"), esp_err_to_name(err));
     return;
@@ -859,14 +864,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     addresses[0] = network::IPAddress(&ip.ip);
   }
 #if USE_NETWORK_IPV6
-  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
-  uint8_t count = 0;
-  count = esp_netif_get_all_ip6(s_sta_netif, if_ip6s);
-  assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
-  assert(count < addresses.size());
-  for (int i = 0; i < count; i++) {
-    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
-  }
+  network::fill_ip6_addresses(s_sta_netif, addresses);
 #endif /* USE_NETWORK_IPV6 */
   return addresses;
 }
