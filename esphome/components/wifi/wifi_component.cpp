@@ -945,8 +945,7 @@ void WiFiComponent::loop() {
           // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again
           now - this->last_connected_ > this->ap_timeout_ && now - this->ap_changed_ > this->ap_timeout_
 #else
-          // Tried 1, 2, 3... ap_timeouts after the last connection, so a failed start waits a full ap_timeout;
-          // after UINT8_MAX of them it is no longer tried
+          // Tried in whole ap_timeout slots after the last connection; after UINT8_MAX slots it is no longer tried
           this->ap_start_failures_ != UINT8_MAX &&
           (now - this->last_connected_) / this->ap_timeout_ > this->ap_start_failures_
 #endif
@@ -958,8 +957,8 @@ void WiFiComponent::loop() {
         this->setup_ap_config_();
 #ifndef USE_WIFI_AP_EXCLUSIVE
         if (!this->ap_setup_) {
-          // The slot that just ran, so the next try waits for the next one
-          uint32_t slot = (now - this->last_connected_) / this->ap_timeout_;
+          // Skip the next slot too, so at least a full ap_timeout passes wherever in its slot this try ran
+          uint32_t slot = (now - this->last_connected_) / this->ap_timeout_ + 1;
           this->ap_start_failures_ = slot < UINT8_MAX ? slot : UINT8_MAX;
         }
 #endif
