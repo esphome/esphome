@@ -76,6 +76,14 @@ class SEN0609Test : public ::testing::Test {
     this->run_();
   }
 
+  // Feeds a presence frame every second, so the frame watchdog stays quiet, for `seconds` or until the hub sends
+  void feed_frames_(int seconds) {
+    for (int i = 0; i < seconds && this->uart_.tx.empty(); i++) {
+      this->feed_("$DFHPD,0, , , *\r\n");
+      this->run_(1000);
+    }
+  }
+
   // Runs the loop until the hub writes a full command line, and returns it without the line end
   std::string next_command_(uint32_t max_ms = 5000) {
     for (uint32_t waited = 0; waited <= max_ms; waited += 16) {

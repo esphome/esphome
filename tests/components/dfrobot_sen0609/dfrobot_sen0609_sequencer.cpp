@@ -84,6 +84,17 @@ TEST_F(SEN0609SequencerTest, MalformedAnswerIsRetried) {
   EXPECT_FLOAT_EQ(this->max_range_.state, 12.0f);
 }
 
+TEST_F(SEN0609SequencerTest, NonFiniteAnswerIsRetried) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response nan 12.0\r\n");
+  this->expect_and_answer_("getRange", "Response 0.6 inf\r\n");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  EXPECT_FLOAT_EQ(this->min_range_.state, 0.6f);
+}
+
 TEST_F(SEN0609SequencerTest, ErrorAnswerIsRetriedThenSkipped) {
   this->hub_.setup();
   this->expect_and_answer_("sensorStop");
@@ -200,6 +211,8 @@ TEST_F(SEN0609SequencerTest, PairedValueReadFailureDropsWrite) {
   this->expect_and_answer_("sensorStart");
   EXPECT_EQ(this->next_command_(), "");
   EXPECT_TRUE(this->hub_.status_has_warning());
+  // Whether the change reached the module is unknown
+  EXPECT_TRUE(std::isnan(this->hold_sensitivity_.state));
 }
 
 TEST_F(SEN0609SequencerTest, ChangeAfterFailedBootReadIsWritten) {
@@ -410,13 +423,27 @@ TEST_F(SEN0609SequencerTest, FailedSaveIsRetriedLater) {
     ASSERT_EQ(this->next_command_(), "saveConfig");
     this->feed_("saveConfig\r\nError\r\nDFRobot:/>");
   }
+  // The sensor runs again meanwhile
+  this->expect_and_answer_("sensorStart");
   EXPECT_TRUE(this->hub_.status_has_warning());
-  EXPECT_EQ(this->next_command_(20000), "");
-  ASSERT_EQ(this->next_command_(15000), "saveConfig");
-  this->answer_("saveConfig");
+  this->feed_frames_(28);
+  EXPECT_EQ(this->uart_.tx, "");
+  this->feed_frames_(4);
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("saveConfig");
   this->expect_and_answer_("sensorStart");
   EXPECT_EQ(this->next_command_(), "");
   EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SequencerTest, ErrorMentioningNoParameterIsNotASave) {
+  this->boot_();
+  this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRange 1.00 12.00");
+  ASSERT_EQ(this->next_command_(), "saveConfig");
+  this->feed_("saveConfig\r\nError: no parameter saved\r\nDFRobot:/>");
+  EXPECT_EQ(this->next_command_(), "saveConfig");
 }
 
 TEST_F(SEN0609SequencerTest, MinRangeAboveMaxRangeIsRefused) {
@@ -513,6 +540,32 @@ TEST_F(SEN0609SettingsTest, FailedLedWriteShowsAcceptedStateAgain) {
   this->expect_and_answer_("sensorStart");
   EXPECT_EQ(this->next_command_(), "");
   EXPECT_TRUE(this->hub_.status_has_warning());
+}
+
+TEST_F(SEN0609SettingsTest, FailedBootLedWriteIsRetriedLater) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(this->next_command_(), "setLedMode 1 1");
+    this->feed_("setLedMode 1 1\r\nError\r\nDFRobot:/>");
+  }
+  this->expect_and_answer_("setLedMode 2 1");
+  this->expect_and_answer_("getMicroMotion", "Response 1\r\n");
+  this->expect_and_answer_("getGpioMode 1", "Response 1 1\r\n");
+  this->expect_and_answer_("getHWV", "HardwareVersion:V2.0\r\n");
+  // The sensor runs without the LED state, which is written again later
+  this->expect_and_answer_("sensorStart");
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  this->feed_frames_(28);
+  EXPECT_EQ(this->uart_.tx, "");
+  this->feed_frames_(4);
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setLedMode 1 1");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_EQ(this->next_command_(), "");
+  EXPECT_FALSE(this->hub_.status_has_warning());
 }
 
 TEST_F(SEN0609SettingsTest, SwitchAndSelectChangesAreWrittenAndSaved) {

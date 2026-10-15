@@ -95,7 +95,7 @@ static bool answer_means_done(Operation operation, const char *line) {
     case Operation::OPERATION_START:
       return contains(line, ESPHOME_PSTR("started already"));
     case Operation::OPERATION_SAVE:
-      return contains(line, ESPHOME_PSTR("no parameter"));
+      return starts_with(line, ESPHOME_PSTR("no parameter"));
     default:
       return false;
   }
@@ -360,7 +360,8 @@ void DFRobotSEN0609Component::parse_response_(const char *args) {
   while (this->response_count_ < MAX_RESPONSE_VALUES) {
     char *end;
     const float value = strtof(args, &end);
-    if (end == args)
+    // strtof also takes "nan" and "inf", which no setting can hold
+    if (end == args || !std::isfinite(value))
       break;
     this->response_[this->response_count_++] = value;
     args = end;
@@ -454,10 +455,13 @@ void DFRobotSEN0609Component::control_number(NumberSetting setting, float value)
   this->request_write_(static_cast<Param>(progmem_read_byte(&NUMBER_PARAMS[setting])));
 }
 
-void DFRobotSEN0609Component::forget_number_changes_(Param param) {
+void DFRobotSEN0609Component::forget_number_changes_(Param param, bool unknown) {
   for (uint8_t i = 0; i < NUMBER_COUNT; i++) {
-    if (progmem_read_byte(&NUMBER_PARAMS[i]) == param)
-      this->changed_numbers_ &= ~(1U << i);
+    if (progmem_read_byte(&NUMBER_PARAMS[i]) != param)
+      continue;
+    this->changed_numbers_ &= ~(1U << i);
+    if (unknown)
+      this->publish_number_(static_cast<NumberSetting>(i), NAN);
   }
 }
 
@@ -523,6 +527,13 @@ void DFRobotSEN0609Component::run_sequencer_() {
   if (!work_pending) {
     if (!this->stopped_) {
       this->check_frames_(now);
+      // Work given up on is tried again in a later sequence, so the sensor runs in between
+      if ((this->deferred_writes_ != 0 || this->deferred_save_) && now - this->deferred_ms_ >= GIVE_UP_BACKOFF_MS) {
+        this->pending_writes_ |= this->deferred_writes_;
+        this->save_pending_ = this->save_pending_ || this->deferred_save_;
+        this->deferred_writes_ = 0;
+        this->deferred_save_ = false;
+      }
       return;
     }
     operation = Operation::OPERATION_START;
@@ -559,7 +570,8 @@ void DFRobotSEN0609Component::run_sequencer_() {
       this->pending_writes_ &= ~bit;
       this->paired_reads_ &= ~bit;
 #ifdef USE_NUMBER
-      this->forget_number_changes_(param);
+      // Both values come from the read that failed, so what the module holds is unknown
+      this->forget_number_changes_(param, true);
 #endif
     } else {
       ESP_LOGE(TAG, "No command for %s of parameter %u", LOG_STR_ARG(operation_to_str(operation)),
@@ -575,7 +587,7 @@ void DFRobotSEN0609Component::run_sequencer_() {
     this->pending_writes_ &= ~bit;
     this->paired_reads_ &= ~bit;
 #ifdef USE_NUMBER
-    this->forget_number_changes_(param);
+    this->forget_number_changes_(param, false);
 #endif
   }
   this->operation_ = operation;
@@ -774,6 +786,7 @@ void DFRobotSEN0609Component::finish_operation_() {
       this->sequence_failed_ = false;
       break;
     case Operation::OPERATION_WRITE:
+      this->deferred_writes_ &= ~param_bit(this->param_);
       if (PERSISTENT_PARAMS & param_bit(this->param_))
         this->save_pending_ = true;
 #ifdef USE_SWITCH
@@ -786,6 +799,7 @@ void DFRobotSEN0609Component::finish_operation_() {
       break;
     case Operation::OPERATION_SAVE:
       this->save_pending_ = false;
+      this->deferred_save_ = false;
       break;
     case Operation::OPERATION_READ:
       if (!this->apply_read_(this->param_)) {
@@ -815,8 +829,6 @@ void DFRobotSEN0609Component::fail_operation_() {
   this->operation_ = Operation::OPERATION_NONE;
   this->hold_(COMMAND_GAP_MS);
   const bool keep_write = operation == Operation::OPERATION_WRITE && (FRAME_PARAMS & param_bit(this->param_)) != 0;
-  // The entities show the changes as kept, but without the save they are lost at power off: keep it too
-  const bool keep = keep_write || operation == Operation::OPERATION_SAVE;
   const bool retry = ++attempts < MAX_ATTEMPTS;
   if (operation == Operation::OPERATION_WRITE && (retry || keep_write))
     this->pending_writes_ |= param_bit(this->param_);
@@ -825,8 +837,8 @@ void DFRobotSEN0609Component::fail_operation_() {
 
   attempts = 0;
   this->status_set_warning();
-  if (aux || keep) {
-    // Without stop, start, the configuration or the save the sensor cannot run as set up; try again later
+  if (aux || keep_write) {
+    // Without stop, start or the configuration the sensor cannot run as set up; try again later
     ESP_LOGW(TAG, "Command '%s' failed, trying again later", this->command_);
     this->hold_ms_ = GIVE_UP_BACKOFF_MS;
     return;
@@ -837,15 +849,28 @@ void DFRobotSEN0609Component::fail_operation_() {
     case Operation::OPERATION_WRITE:
 #ifdef USE_SWITCH
       if (is_led(this->param_)) {
-        // The LEDs cannot be read: show the state the module last accepted, unless a newer change is pending
+        // A newer change is written anyway
+        if ((this->pending_writes_ & param_bit(this->param_)) != 0)
+          break;
+        // The LEDs cannot be read: show the state the module last accepted, or write this one again later
         const uint8_t bit = 1U << led_switch(this->param_);
-        if ((this->led_known_ & bit) != 0 && (this->pending_writes_ & param_bit(this->param_)) == 0)
+        if ((this->led_known_ & bit) != 0) {
           this->publish_switch_(led_switch(this->param_), (this->led_on_ & bit) != 0);
+        } else {
+          this->deferred_writes_ |= param_bit(this->param_);
+          this->deferred_ms_ = App.get_loop_component_start_time();
+        }
         break;
       }
 #endif
       // The entity shows a value the module never got; show the module's value again
       this->pending_reads_ |= this->wanted_reads_() & param_bit(this->param_);
+      break;
+    case Operation::OPERATION_SAVE:
+      // The entities show the changes as kept, but unsaved they are lost at power off: save in a later sequence
+      this->save_pending_ = false;
+      this->deferred_save_ = true;
+      this->deferred_ms_ = App.get_loop_component_start_time();
       break;
     case Operation::OPERATION_READ:
       this->pending_reads_ &= ~param_bit(this->param_);
