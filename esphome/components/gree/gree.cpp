@@ -32,6 +32,15 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
   this->transmit_state();
 }
 
+uint8_t frame_checksum(const uint8_t *remote_state) {
+  return ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) +
+            (remote_state[3] & 0x0F) + ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) +
+            ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
+           0x0F)
+          << 4);
+}
+
+#ifdef USE_GREE_FAHRENHEIT
 void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_degree) {
   temp_field = 0;
   extra_degree = false;
@@ -55,6 +64,7 @@ void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_de
     }
   }
 }
+#endif
 
 void GreeClimate::transmit_state() {
   uint8_t remote_state[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
@@ -113,6 +123,7 @@ void GreeClimate::transmit_state() {
     }
   }
 
+#ifdef USE_GREE_FAHRENHEIT
   // Fahrenheit display. byte 3 bit 3 selects Fahrenheit on the unit's own panel and bit 2 is
   // TempExtraDegreeF, a half-degree Celsius step. Verified against frames captured from a real YX1FF
   // remote on a Blueridge mini-split, and confirmed on the unit's display at 65, 71, 77 and 78 F.
@@ -127,13 +138,9 @@ void GreeClimate::transmit_state() {
       remote_state[3] |= 0x04;
     }
   }
+#endif
 
-  // Calculate the checksum
-  remote_state[7] =
-      ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
-         ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
-        0x0F)
-       << 4);
+  remote_state[7] = frame_checksum(remote_state);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();

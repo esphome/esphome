@@ -71,4 +71,41 @@ TEST(GreeClimateTest, FahrenheitFieldsHandleNonFiniteTarget) {
   EXPECT_FALSE(extra_degree);
 }
 
+
+// Checksums of the two frames captured from a real YX1FF remote and verified on the unit's display.
+// Byte 7 is zeroed here because frame_checksum() computes it.
+TEST(GreeClimateTest, FrameChecksumMatchesCapturedFrames) {
+  const uint8_t frame_65f[GREE_STATE_FRAME_SIZE] = {0x09, 0x02, 0x60, 0x5C, 0x00, 0x20, 0x00, 0x00};
+  EXPECT_EQ(0x30, frame_checksum(frame_65f));
+
+  const uint8_t frame_78f[GREE_STATE_FRAME_SIZE] = {0x09, 0x0A, 0x60, 0x58, 0x00, 0x20, 0x00, 0x00};
+  EXPECT_EQ(0x70, frame_checksum(frame_78f));
+}
+
+// The yan/yx1ff checksum that used to live in transmit_state(),
+// `(b0 << 4) + (b1 << 4) + 0xC0`, is this same formula with the constants folded in for every frame
+// those models emit: bytes 2 and 3 contribute nothing in their low nibbles, bytes 4 and 6 nothing in
+// their high nibbles, and byte 5 adds 2, giving 0 + 2 + 0xA = 0xC. Removing it was therefore
+// bit-for-bit identical for existing installations; this pins that so it cannot regress silently.
+TEST(GreeClimateTest, FrameChecksumMatchesTheRemovedFoldedFormula) {
+  int mismatches = 0;
+  for (int byte0 = 0; byte0 < 256; byte0++) {
+    for (int byte1 = 0; byte1 < 256; byte1++) {
+      // byte 2 is 0x00/0x20/0x60 plus an optional turbo bit -- all high-nibble, low nibble always 0
+      static const uint8_t BYTE2_VALUES[] = {0x00, 0x20, 0x60, 0x70};
+      for (const uint8_t byte2 : BYTE2_VALUES) {
+        for (uint8_t byte4 = 0; byte4 <= GREE_VDIR_DOWN; byte4++) {
+          const uint8_t frame[GREE_STATE_FRAME_SIZE] = {
+              static_cast<uint8_t>(byte0), static_cast<uint8_t>(byte1), byte2, 0x50, byte4, 0x20, 0x00, 0x00};
+          const uint8_t folded = static_cast<uint8_t>((byte0 << 4) + (byte1 << 4) + 0xC0);
+          if (frame_checksum(frame) != folded) {
+            mismatches++;
+          }
+        }
+      }
+    }
+  }
+  EXPECT_EQ(0, mismatches);
+}
+
 }  // namespace esphome::gree::testing

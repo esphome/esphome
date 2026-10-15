@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/core/defines.h"
 
 namespace esphome::gree {
 
@@ -82,6 +83,15 @@ static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
 static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
 static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 
+/// Compute a frame's checksum: the low nibbles of bytes 0-3 plus the high nibbles of bytes 4-6 plus
+/// 0x0A, masked to a nibble and placed in the high nibble of byte 7.
+///
+/// This is the only formula. The yan/yx1ff variant that used to exist,
+/// `(b0 << 4) + (b1 << 4) + 0xC0`, is this same formula with the constants folded in for the frames
+/// those models emit, and a unit test pins that equivalence.
+uint8_t frame_checksum(const uint8_t *remote_state);
+
+#ifdef USE_GREE_FAHRENHEIT
 /// Map a Celsius target onto the (Temp, TempExtraDegreeF) pair whose Fahrenheit display matches it.
 ///
 /// The unit displays trunc(celsiusToFahrenheit(GREE_TEMP_MIN + temp_field + 0.5 * extra_degree)):
@@ -92,6 +102,7 @@ static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 /// A free function rather than a member: it needs no instance state, it keeps the class API
 /// unchanged, and GreeClimate is final so a test cannot subclass it to reach a protected member.
 void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_degree);
+#endif
 
 // Model codes
 enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
@@ -106,7 +117,9 @@ class GreeClimate final : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
+#ifdef USE_GREE_FAHRENHEIT
   void set_use_fahrenheit(bool use_fahrenheit) { this->use_fahrenheit_ = use_fahrenheit; }
+#endif
   void set_mode_bit(uint8_t bit_mask, bool enabled);
 
  protected:
@@ -123,7 +136,9 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   Model model_{};
   uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};  // The display light is on until a switch says otherwise
+#ifdef USE_GREE_FAHRENHEIT
   bool use_fahrenheit_{false};
+#endif
 };
 
 }  // namespace esphome::gree
