@@ -367,7 +367,7 @@ InstanceLock InstanceLock::acquire() {
     abort();
   }
   // A failed setup() never creates the lock; say so now instead of after the wait below
-  if (global_openthread_component->is_failed()) {
+  if (global_openthread_component->is_failed() && !global_openthread_component->is_lock_initialized()) {
     ESP_LOGE(TAG, "Setup failed, cannot acquire instance lock");
     abort();
   }

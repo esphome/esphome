@@ -274,9 +274,8 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 #endif
 
 bool OpenThreadComponent::teardown() {
-  // Nothing was started
-  if (this->is_failed())
-    return true;
+  // A setup() failure marks the stage complete itself; a failure with the task running, such as a
+  // border router that did not come up or an RCP that stays silent, still needs the stop below
   switch (this->teardown_stage_) {
     case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
       {
