@@ -167,26 +167,38 @@ template<typename Table> int16_t progmem_string_table_find(const char *value, si
   return -1;
 }
 
-/// The strings of a PROGMEM_STRING_TABLE addressable as plain pointers, for code that hands them on
-/// without reading them itself, such as an API request. On the ESP8266 this is a copy of the table on
-/// the stack that lives as long as the object; elsewhere the table is read in place.
-///
-/// Example, with an enum that numbers the table's strings:
-///   ProgmemStringTableCopy<MyStrings> strings;
-///   request.service = StringRef(strings.get(MY_STRING_TURN_ON));
-template<typename Name> class ProgmemStringTableCopy {
+/// A PROGMEM_STRING_TABLE copied onto the stack, so its strings are plain pointers that live as long
+/// as the object
+template<typename Name> class ProgmemStringTableStackCopy {
   static_assert(Name::Table::INDEXED, "the table needs offsets");
 
  public:
-#ifdef USE_ESP8266
-  ProgmemStringTableCopy() { progmem_memcpy(this->blob_, Name::BLOB.data(), Name::BLOB_SIZE); }
+  ProgmemStringTableStackCopy() { progmem_memcpy(this->blob_, Name::BLOB.data(), Name::BLOB_SIZE); }
   const char *get(uint8_t idx) const { return this->blob_ + progmem_read_byte(&Name::OFFSETS[idx]); }
 
  private:
   char blob_[Name::BLOB_SIZE];
-#else
-  const char *get(uint8_t idx) const { return Name::get_(idx, idx); }
-#endif
 };
+
+/// A PROGMEM_STRING_TABLE read in place, with the interface of ProgmemStringTableStackCopy
+template<typename Name> class ProgmemStringTableView {
+  static_assert(Name::Table::INDEXED, "the table needs offsets");
+
+ public:
+  const char *get(uint8_t idx) const { return Name::get_(idx, idx); }
+};
+
+/// The strings of a PROGMEM_STRING_TABLE addressable as plain pointers, for code that hands them on
+/// without reading them itself, such as an API request. On the ESP8266 this is a copy of the table on
+/// the stack; elsewhere the table is read in place.
+///
+/// Example, with an enum that numbers the table's strings:
+///   ProgmemStringTableCopy<MyStrings> strings;
+///   request.service = StringRef(strings.get(MY_STRING_TURN_ON));
+#ifdef USE_ESP8266
+template<typename Name> using ProgmemStringTableCopy = ProgmemStringTableStackCopy<Name>;
+#else
+template<typename Name> using ProgmemStringTableCopy = ProgmemStringTableView<Name>;
+#endif
 
 }  // namespace esphome
