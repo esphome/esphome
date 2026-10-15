@@ -330,10 +330,11 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       // Write it back with only the flow control bits changed
       const uint8_t reg = is_hxn ? HXN_FLOWCTRL_REG : FLOWCTRL_REG;
       const uint8_t mask = is_hxn ? HXN_FLOWCTRL_MASK : FLOWCTRL_MASK;
-      const uint8_t value = (response[0] & ~mask) | pl2303_flow_control_bits(this->chip_type_, channel->flow_control_);
-      ESP_LOGD(TAG, "PL2303: flow control register 0x%02X: 0x%02X -> 0x%02X", reg, response[0], value);
+      const uint8_t new_byte =
+          (response[0] & ~mask) | pl2303_flow_control_bits(this->chip_type_, channel->flow_control_);
+      ESP_LOGD(TAG, "PL2303: flow control register 0x%02X: 0x%02X -> 0x%02X", reg, response[0], new_byte);
       this->config_transfer_(VENDOR_WRITE_REQUEST_TYPE, is_hxn ? VENDOR_WRITE_NREQUEST : VENDOR_WRITE_REQUEST, reg,
-                             value);
+                             new_byte);
       return true;
     }
     case 3:
