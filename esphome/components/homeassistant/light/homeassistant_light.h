@@ -57,6 +57,7 @@ class HomeassistantLight final : public light::LightOutput, public light::LightR
   uint32_t import_version_{1};
   uint32_t written_version_{0};  // the last one write_state() handled
   bool apply_scheduled_{false};
+  bool import_waiting_{false};  // a report waits for a local change to be written first
 };
 
 }  // namespace esphome::homeassistant

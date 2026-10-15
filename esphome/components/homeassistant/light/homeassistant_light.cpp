@@ -100,6 +100,10 @@ void HomeassistantLight::setup() {
       }
       text++;
     }
+    if (modes.empty()) {
+      ESP_LOGW(TAG, "'%s': No color mode found in '%s', keeping the current ones", this->entity_id_, value.c_str());
+      return;
+    }
     ESP_LOGD(TAG, "'%s': Supported color modes retrieved: %s", this->entity_id_, value.c_str());
     this->traits_.set_supported_color_modes(modes);
   });
@@ -207,8 +211,8 @@ void HomeassistantLight::schedule_apply_() {
 
 void HomeassistantLight::apply_imported_() {
   if (this->remote_values_version_ != this->written_version_) {
-    // A local change still waits for LightState::loop() to send it; the report goes after it
-    this->defer([this]() { this->apply_imported_(); });
+    // A local change still waits for LightState::loop() to send it; write_state() picks the report up after it
+    this->import_waiting_ = true;
     return;
   }
   this->apply_scheduled_ = false;
@@ -251,6 +255,10 @@ void HomeassistantLight::write_state(LightState *state) {
     return;  // a transition runs here; Home Assistant gets the target once it is reached
   }
   this->written_version_ = this->remote_values_version_;
+  if (this->import_waiting_) {
+    this->import_waiting_ = false;
+    this->defer([this]() { this->apply_imported_(); });
+  }
   if (this->remote_values_version_ == this->import_version_) {
     return;  // this change came from Home Assistant
   }
