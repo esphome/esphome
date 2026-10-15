@@ -94,7 +94,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 - `wifisave_hammer.sh KIND DUT_PORT DUT_YAML DUT_TREE CLIENT_PORT CLIENT_YAML CLIENT_TREE [SETTLE]`:
   the fallback AP plus captive portal hammer end to end (compile, flash, capture, counts) with the
   templates below. KIND is `esp`, `pico`, `bw15` or `bk`. It ends with `RESULT PASS` (exit 0),
-  `RESULT FAIL` (exit 3, the counts show a crash, an extra boot or no provisioning), `RESULT INVALID`
+  `RESULT FAIL` (exit 3: a crash, a reboot after the AP came up, or the device never joined the network),
+  `RESULT INVALID`
   (exit 2, a precondition was missed) or exits 1 when a build, flash or port step failed.
 
 ## Templates in `$SKILL/templates`

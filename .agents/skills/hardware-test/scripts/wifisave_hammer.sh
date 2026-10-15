@@ -13,8 +13,8 @@
 #      (LibreTiny penv python with ltchiptool; default ~/.platformio/penv/.libretiny/bin/python)
 # Output next to each yaml: NAME-compile.log, NAME-upload.log, NAME-serial.log, NAME-capture.err, and DUT NAME-events.txt
 # (addresses redacted so the extract can go on a PR; the serial logs themselves stay local).
-# Exit status: 0 RESULT PASS (no crash marker or reboot after the AP came up, real save answered 200, a
-# station address, and real stimulus: saves answered and a cooldown exit); 3 RESULT FAIL (the counts show
+# Exit status: 0 RESULT PASS (no crash marker or reboot after the AP came up, the device joined the network,
+# and real stimulus: saves answered and a cooldown exit); 3 RESULT FAIL (the counts show
 # a failure); 2 RESULT INVALID (a precondition or the stimulus was missed); 1 when a build, flash or port
 # step fails (nothing is reported).
 set -u
@@ -100,8 +100,10 @@ LC_ALL=C grep -a -E '^\[[0-9:]+\](\[[A-Z]\]\[[a-z_]+:[0-9]+\]: *(Exiting cooldow
 echo "[hammer] events: $DDIR/$DNAME-events.txt"
 stop_tails
 [ -z "$INVALID" ] || { echo "[hammer] RESULT INVALID: $INVALID"; exit 2; }
-if [ "$CRASHES" -gt 0 ] || [ "$REBOOTS" -gt 0 ] || [ "${REAL:-0}" != 200 ] || [ "$STA" -lt 1 ]; then
-  echo "[hammer] RESULT FAIL: crash markers $CRASHES, reboots $REBOOTS, real save status ${REAL:-none}, STA addresses $STA"; exit 3
+# Provisioning is proven by the device joining the network; the client's answer to the real save can time
+# out because the device leaves the AP before replying, so its status is information only
+if [ "$CRASHES" -gt 0 ] || [ "$REBOOTS" -gt 0 ] || [ "$STA" -lt 1 ]; then
+  echo "[hammer] RESULT FAIL: crash markers $CRASHES, reboots $REBOOTS, STA addresses $STA, real save status ${REAL:-none}"; exit 3
 fi
 # A pass needs the stimulus the flow is about: saves answered and at least one that landed in a cooldown
 if [ "$ANSWERED" -lt 1 ] || [ "$EXITS" -lt 1 ]; then
