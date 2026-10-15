@@ -58,11 +58,11 @@ class HonControllerTest : public ::testing::Test {
     (void) APP_CONSTRUCTED;
     this->heater_.set_uart_parent(&this->uart_);
     this->heater_.set_network_pending(false);
-    this->set_clock(100);
+    this->set_clock_(100);
   }
   void TearDown() override { this->heater_.cancel_test_intervals(); }
-  void set_clock(uint32_t ms) { LoopBlockingGuard clock{nullptr, nullptr, ms}; }
-  void status(bool powered, bool unknown = false, bool eco = false) {
+  void set_clock_(uint32_t ms) { LoopBlockingGuard clock{nullptr, nullptr, ms}; }
+  void status_(bool powered, bool unknown = false, bool eco = false) {
     std::array<uint8_t, 61> core{};
     core[0] = 60;
     core[7] = 2;
@@ -87,18 +87,18 @@ class HonControllerTest : public ::testing::Test {
     }
     this->heater_.loop();
   }
-  void request_bps() {
+  void request_bps_() {
     auto call = this->heater_.make_call();
     call.set_mode(water_heater::WATER_HEATER_MODE_PERFORMANCE);
     call.perform();
     this->heater_.loop();
   }
-  void request_off() {
+  void request_off_() {
     auto call = this->heater_.make_call();
     call.set_on(false);
     call.perform();
   }
-  void expect_off() {
+  void expect_off_() {
     ASSERT_FALSE(this->uart_.sent.empty());
     const std::vector<uint8_t> expected = {0xFF, 0xFF, 0x0C, 0, 0, 0, 0, 0, 0, 1, 0x5D, 1, 0, 0, 0x6B};
     EXPECT_EQ(this->uart_.sent.back(), expected);
@@ -113,12 +113,12 @@ TEST_F(HonControllerTest, OffIgnoresTemperatureWithoutStatus) {
   call.set_target_temperature(40);
   call.perform();
   this->heater_.loop();
-  this->expect_off();
+  this->expect_off_();
 }
 
 TEST_F(HonControllerTest, OffSurvivesTimeoutAndCancelsQueuedMode) {
-  this->status(false);
-  this->request_bps();
+  this->status_(false);
+  this->request_bps_();
   ASSERT_EQ(this->heater_.command_count(), 2);
   auto call = this->heater_.make_call();
   call.set_on(false);
@@ -126,21 +126,21 @@ TEST_F(HonControllerTest, OffSurvivesTimeoutAndCancelsQueuedMode) {
   call.perform();
   EXPECT_TRUE(this->heater_.pending_off());
   EXPECT_EQ(this->heater_.command_count(), 1);
-  this->set_clock(5101);
+  this->set_clock_(5101);
   this->heater_.loop();
-  this->expect_off();
+  this->expect_off_();
   EXPECT_FALSE(this->heater_.pending_off());
   EXPECT_EQ(this->uart_.sent.size(), 2);
 }
 
 TEST_F(HonControllerTest, OffFollowsConfirmedInFlightCommand) {
-  this->status(false);
-  this->request_bps();
-  this->request_off();
-  this->set_clock(200);
-  this->status(true);
+  this->status_(false);
+  this->request_bps_();
+  this->request_off_();
+  this->set_clock_(200);
+  this->status_(true);
   this->heater_.loop();
-  this->expect_off();
+  this->expect_off_();
   EXPECT_EQ(this->uart_.sent.size(), 2);
 }
 
@@ -151,19 +151,19 @@ TEST_F(HonControllerTest, CommunicationTimeoutAndRecovery) {
   ASSERT_TRUE(health.has_state());
   EXPECT_FALSE(health.state);
   EXPECT_TRUE(this->heater_.status_has_warning());
-  this->status(false);
+  this->status_(false);
   EXPECT_TRUE(health.state);
   EXPECT_FALSE(this->heater_.status_has_warning());
-  this->set_clock(20099);
+  this->set_clock_(20099);
   this->heater_.loop();
   EXPECT_TRUE(health.state);
-  this->set_clock(20100);
+  this->set_clock_(20100);
   this->heater_.loop();
   EXPECT_FALSE(health.state);
   EXPECT_TRUE(this->heater_.status_has_warning());
   this->heater_.loop();
   EXPECT_FALSE(health.state);
-  this->status(false);
+  this->status_(false);
   EXPECT_TRUE(health.state);
   EXPECT_FALSE(this->heater_.status_has_warning());
 }
@@ -172,18 +172,18 @@ TEST_F(HonControllerTest, PollTimeoutReleasesNetworkUpdateThenPollingResumes) {
   this->heater_.poll_status_();
   ASSERT_TRUE(this->heater_.waiting_poll());
   this->heater_.set_network_pending(true);
-  this->set_clock(5099);
+  this->set_clock_(5099);
   this->heater_.loop();
   ASSERT_EQ(this->uart_.sent.size(), 1);
-  this->set_clock(5100);
+  this->set_clock_(5100);
   this->heater_.poll_status_();
   this->heater_.loop();
   EXPECT_FALSE(this->heater_.waiting_poll());
   ASSERT_EQ(this->uart_.sent.size(), 2);
   EXPECT_EQ(this->uart_.sent.back()[9], 0xF7);
-  this->set_clock(7201);
+  this->set_clock_(7201);
   this->heater_.loop();
-  this->set_clock(10100);
+  this->set_clock_(10100);
   this->heater_.poll_status_();
   EXPECT_TRUE(this->heater_.waiting_poll());
   EXPECT_EQ(this->uart_.sent.back()[9], 0x70);
@@ -191,24 +191,24 @@ TEST_F(HonControllerTest, PollTimeoutReleasesNetworkUpdateThenPollingResumes) {
 
 TEST_F(HonControllerTest, OffFollowsPollTimeout) {
   this->heater_.poll_status_();
-  this->request_off();
-  this->set_clock(5100);
+  this->request_off_();
+  this->set_clock_(5100);
   this->heater_.loop();
-  this->expect_off();
+  this->expect_off_();
 }
 
 TEST_F(HonControllerTest, UnknownModeRetainsActiveModeAcrossOff) {
-  this->status(true, true);
+  this->status_(true, true);
   EXPECT_TRUE(this->heater_.is_on());
   EXPECT_EQ(this->heater_.get_mode(), water_heater::WATER_HEATER_MODE_ELECTRIC);
-  this->status(true, false, true);
+  this->status_(true, false, true);
   EXPECT_EQ(this->heater_.get_mode(), water_heater::WATER_HEATER_MODE_ECO);
-  this->status(false, true);
+  this->status_(false, true);
   EXPECT_EQ(this->heater_.get_mode(), water_heater::WATER_HEATER_MODE_OFF);
-  this->status(true, true);
+  this->status_(true, true);
   EXPECT_TRUE(this->heater_.is_on());
   EXPECT_EQ(this->heater_.get_mode(), water_heater::WATER_HEATER_MODE_ECO);
-  this->status(true);
+  this->status_(true);
   EXPECT_EQ(this->heater_.get_mode(), water_heater::WATER_HEATER_MODE_ELECTRIC);
 }
 
@@ -217,14 +217,14 @@ TEST_F(HonControllerTest, CustomCommunicationTimeout) {
   this->heater_.set_communication_sensor(&health);
   this->heater_.set_communication_timeout(7500);
   this->heater_.setup();
-  this->status(false);
-  this->set_clock(7599);
+  this->status_(false);
+  this->set_clock_(7599);
   this->heater_.loop();
   EXPECT_TRUE(health.state);
-  this->set_clock(7600);
+  this->set_clock_(7600);
   this->heater_.loop();
   EXPECT_FALSE(health.state);
-  this->status(false);
+  this->status_(false);
   EXPECT_TRUE(health.state);
 }
 
