@@ -64,8 +64,8 @@ TEST(ProgmemStringTable, LargeTableIsScanned) {
 
 TEST(ProgmemStringTable, StrstrFindsTableEntryInRamString) {
   const char *line = "MODE HEAT ON";
-  auto heat = reinterpret_cast<ESPHOME_PGM_P>(SmallStrings::get_progmem_str(1, SmallStrings::LAST_INDEX));
-  auto cool = reinterpret_cast<ESPHOME_PGM_P>(SmallStrings::get_progmem_str(2, SmallStrings::LAST_INDEX));
+  const auto *heat = reinterpret_cast<ESPHOME_PGM_P>(SmallStrings::get_progmem_str(1, SmallStrings::LAST_INDEX));
+  const auto *cool = reinterpret_cast<ESPHOME_PGM_P>(SmallStrings::get_progmem_str(2, SmallStrings::LAST_INDEX));
   EXPECT_EQ(ESPHOME_strstr_P(line, heat), line + 5);
   EXPECT_EQ(ESPHOME_strstr_P(line, cool), nullptr);
 }
