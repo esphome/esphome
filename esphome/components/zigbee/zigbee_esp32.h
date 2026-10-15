@@ -44,7 +44,8 @@ class ZigbeeComponent final : public Component {
 
   void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
   void set_keep_alive(uint32_t keep_alive) { this->keep_alive_ = keep_alive; }
-  void set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source);
+  void set_basic_cluster(const char *model, const char *manufacturer, const char *location, const char *sw_build_id,
+                         uint8_t power_source, uint8_t app_version);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, uint16_t device_id);
   bool register_device();
@@ -60,6 +61,7 @@ class ZigbeeComponent final : public Component {
   static void esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode);
 
   void factory_reset();
+  void report();
 
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
@@ -80,7 +82,10 @@ class ZigbeeComponent final : public Component {
     uint8_t *model;
     uint8_t *manufacturer;
     uint8_t *date;
+    uint8_t *location;
+    uint8_t *sw_build_id;
     uint8_t power_source;
+    uint8_t app_version;
   } basic_cluster_data_;
 #ifdef CONFIG_ZB_ZED
   ezb_nwk_device_type_t device_role_ = EZB_NWK_DEVICE_TYPE_END_DEVICE;
