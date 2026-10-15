@@ -392,7 +392,15 @@ void OpenThreadComponent::loop() {
       TAG, "Wi-Fi backbone %s",
       backbone_up ? LOG_STR_LITERAL("back, border routing resumes") : LOG_STR_LITERAL("lost, border routing pauses"));
   esp_netif_t *backbone = esp_openthread_get_backbone_netif();
-  (void) otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), backbone_up);
+  const otError err =
+      otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), backbone_up);
+  if (err != OT_ERROR_NONE) {
+    // The stack did not take the report; try again in a while rather than leave it with a stale link state
+    ESP_LOGW(TAG, "Failed to report the backbone state to OpenThread: %s", otThreadErrorToString(err));
+    this->disable_loop();
+    this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
+    return;
+  }
   this->backbone_up_ = backbone_up;
   this->disable_loop();
 }
