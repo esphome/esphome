@@ -201,4 +201,23 @@ async def test_api_homeassistant_light(
         assert state.state
         await waiter.wait_for("arrived during the transition", timeout=5.0)
 
+        # A trait or a repeated report during a local transition is nothing new, so the change the
+        # transition ends at is still sent
+        client.light_command(key, state=False, transition_length=1.0)
+        report("max_color_temp_kelvin", "6500")
+        report(None, "on")
+        assert (await next_call()).service == "light.turn_off"
+        report(None, "off")
+        await next_state(lambda s: not s.state)
+
+        # A newer local command wins over a report held during a transition
+        client.light_command(key, state=True, transition_length=1.0)
+        report("brightness", "50")
+        client.light_command(key, state=True, brightness=1.0)
+        call = await next_call()
+        assert call.service == "light.turn_on"
+        assert call.data["brightness"] == "255"
+        report("brightness", "255")
+        await next_state(lambda s: s.brightness == 1.0)
+
         assert calls.empty()
