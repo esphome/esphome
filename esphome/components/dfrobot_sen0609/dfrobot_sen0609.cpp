@@ -21,6 +21,9 @@ static constexpr uint32_t COMMAND_GAP_MS = 100;
 static constexpr uint32_t COALESCE_MS = 1000;
 static constexpr uint32_t DEFAULT_TIMEOUT_MS = 1000;
 static constexpr uint32_t LONG_TIMEOUT_MS = 2000;
+static constexpr uint32_t FACTORY_RESET_TIMEOUT_MS = 3000;
+// resetSystem has no answer; this is how long the module takes to boot again
+static constexpr uint32_t RESTART_MS = 1500;
 static constexpr uint32_t GIVE_UP_BACKOFF_MS = 30000;
 static constexpr uint8_t FRAME_FIELDS = 5;
 
@@ -101,6 +104,10 @@ static const LogString *operation_to_str(Operation operation) {
       return LOG_STR("stop");
     case Operation::OPERATION_START:
       return LOG_STR("start");
+    case Operation::OPERATION_RESTART:
+      return LOG_STR("restart");
+    case Operation::OPERATION_FACTORY_RESET:
+      return LOG_STR("factory reset");
     case Operation::OPERATION_WRITE:
       return LOG_STR("write");
     case Operation::OPERATION_SAVE:
@@ -148,6 +155,11 @@ void DFRobotSEN0609Component::dump_config() {
 #endif
 #ifdef USE_SELECT
   LOG_SELECT("  ", "OutPinLevel", this->out_pin_level_select_);
+#endif
+#ifdef USE_BUTTON
+  LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
+  LOG_BUTTON("  ", "Query", this->query_button_);
+  LOG_BUTTON("  ", "Restart", this->restart_button_);
 #endif
 }
 
@@ -376,6 +388,21 @@ void DFRobotSEN0609Component::request_write_(Param param) {
     this->hold_(COALESCE_MS);
 }
 
+void DFRobotSEN0609Component::restart() {
+  this->restart_pending_ = true;
+  this->hold_(COMMAND_GAP_MS);
+}
+
+void DFRobotSEN0609Component::factory_reset() {
+  this->factory_reset_pending_ = true;
+  this->hold_(COMMAND_GAP_MS);
+}
+
+void DFRobotSEN0609Component::query_params() {
+  this->pending_reads_ |= this->wanted_reads_();
+  this->hold_(COMMAND_GAP_MS);
+}
+
 #ifdef USE_NUMBER
 void DFRobotSEN0609Component::control_number(NumberSetting setting, float value) {
   this->publish_number_(setting, value);
@@ -428,25 +455,48 @@ void DFRobotSEN0609Component::hold_(uint32_t duration_ms) {
 void DFRobotSEN0609Component::run_sequencer_() {
   const uint32_t now = App.get_loop_component_start_time();
   if (this->operation_ != Operation::OPERATION_NONE) {
-    const bool slow = this->operation_ == Operation::OPERATION_STOP || this->operation_ == Operation::OPERATION_SAVE;
-    if (now - this->sent_ms_ < (slow ? LONG_TIMEOUT_MS : DEFAULT_TIMEOUT_MS))
+    uint32_t timeout = DEFAULT_TIMEOUT_MS;
+    switch (this->operation_) {
+      case Operation::OPERATION_RESTART:
+        timeout = RESTART_MS;
+        break;
+      case Operation::OPERATION_FACTORY_RESET:
+        timeout = FACTORY_RESET_TIMEOUT_MS;
+        break;
+      case Operation::OPERATION_STOP:
+      case Operation::OPERATION_SAVE:
+        timeout = LONG_TIMEOUT_MS;
+        break;
+      default:
+        break;
+    }
+    if (now - this->sent_ms_ < timeout)
       return;
-    ESP_LOGD(TAG, "No answer to '%s'", this->command_);
-    this->fail_operation_();
+    if (this->operation_ == Operation::OPERATION_RESTART) {
+      this->finish_operation_();
+    } else {
+      ESP_LOGD(TAG, "No answer to '%s'", this->command_);
+      this->fail_operation_();
+    }
     return;
   }
   if (now - this->hold_start_ms_ < this->hold_ms_)
     return;
 
-  const bool work_pending = this->save_pending_ || this->pending_writes_ != 0 || this->pending_reads_ != 0;
+  const bool work_pending =
+      this->factory_reset_pending_ || this->save_pending_ || this->pending_writes_ != 0 || this->pending_reads_ != 0;
   Operation operation;
   Param param = PARAM_COUNT;
-  if (!work_pending) {
+  if (this->restart_pending_) {
+    operation = Operation::OPERATION_RESTART;
+  } else if (!work_pending) {
     if (!this->stopped_)
       return;
     operation = Operation::OPERATION_START;
   } else if (!this->stopped_) {
     operation = Operation::OPERATION_STOP;
+  } else if (this->factory_reset_pending_) {
+    operation = Operation::OPERATION_FACTORY_RESET;
   } else if (this->pending_writes_ != 0) {
     operation = Operation::OPERATION_WRITE;
     param = static_cast<Param>(__builtin_ctz(this->pending_writes_));
@@ -498,6 +548,12 @@ bool DFRobotSEN0609Component::build_command_(Operation operation, Param param) {
       return true;
     case Operation::OPERATION_START:
       ESPHOME_strncpy_P(buf, ESPHOME_PSTR("sensorStart"), len);
+      return true;
+    case Operation::OPERATION_RESTART:
+      ESPHOME_strncpy_P(buf, ESPHOME_PSTR("resetSystem"), len);
+      return true;
+    case Operation::OPERATION_FACTORY_RESET:
+      ESPHOME_strncpy_P(buf, ESPHOME_PSTR("resetCfg"), len);
       return true;
     case Operation::OPERATION_SAVE:
       ESPHOME_strncpy_P(buf, ESPHOME_PSTR("saveConfig"), len);
@@ -667,6 +723,16 @@ void DFRobotSEN0609Component::finish_operation_() {
         this->status_clear_warning();
       this->sequence_failed_ = false;
       break;
+    case Operation::OPERATION_RESTART:
+      // The module starts sensing on its own after a reboot
+      this->restart_pending_ = false;
+      this->stopped_ = false;
+      this->queue_configuration_();
+      break;
+    case Operation::OPERATION_FACTORY_RESET:
+      this->factory_reset_pending_ = false;
+      this->queue_configuration_();
+      break;
     case Operation::OPERATION_WRITE:
       if (PERSISTENT_PARAMS & param_bit(this->param_))
         this->save_pending_ = true;
@@ -717,6 +783,12 @@ void DFRobotSEN0609Component::fail_operation_() {
   ESP_LOGW(TAG, "Giving up on %s '%s'", LOG_STR_ARG(operation_to_str(operation)), this->command_);
   this->sequence_failed_ = true;
   switch (operation) {
+    case Operation::OPERATION_RESTART:
+      this->restart_pending_ = false;
+      break;
+    case Operation::OPERATION_FACTORY_RESET:
+      this->factory_reset_pending_ = false;
+      break;
     case Operation::OPERATION_WRITE:
       // The entity shows a value the module never got; show the module's value again
       this->pending_reads_ |= this->wanted_reads_() & param_bit(this->param_);

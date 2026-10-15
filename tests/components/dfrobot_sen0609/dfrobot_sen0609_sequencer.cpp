@@ -191,11 +191,44 @@ TEST_F(SEN0609SequencerTest, FailedWriteShowsModuleValueAgain) {
   EXPECT_TRUE(this->hub_.status_has_warning());
 }
 
+TEST_F(SEN0609SequencerTest, QueryKeepsGapAfterAnswer) {
+  this->boot_();
+  this->hub_.query_params();
+  this->run_();
+  EXPECT_EQ(this->uart_.tx, "");
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("sensorStart");
+}
+
 TEST_F(SEN0609SequencerTest, AlreadyStoppedCountsAsStopped) {
   this->hub_.setup();
   ASSERT_EQ(this->next_command_(), "sensorStop");
   this->feed_("sensorStop\r\nsensor stopped already\r\nDFRobot:/>");
   EXPECT_EQ(this->next_command_(), "setRunApp 0");
+}
+
+TEST_F(SEN0609SequencerTest, RestartReappliesConfiguration) {
+  this->boot_();
+  this->hub_.restart();
+  ASSERT_EQ(this->next_command_(), "resetSystem");
+  // resetSystem has no answer; the hub waits for the reboot
+  EXPECT_EQ(this->next_command_(1000), "");
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+}
+
+TEST_F(SEN0609SequencerTest, FactoryResetRereadsSettings) {
+  this->boot_();
+  this->hub_.factory_reset();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("resetCfg");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 25.0\r\n");
+  EXPECT_FLOAT_EQ(this->max_range_.state, 25.0f);
 }
 
 class SEN0609SettingsTest : public SEN0609Test {
