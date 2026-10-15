@@ -1,12 +1,13 @@
 """Bounded, timestamped serial capture that always exits and closes the port.
 
-  serial_capture.py PORT SECONDS OUTFILE [--baud 115200] [--released] [--reset]
+  serial_capture.py PORT SECONDS OUTFILE [--baud 115200] [--released] [--reset] [--append]
 
   default      open with DTR/RTS as pyserial leaves them (asserted); fine for ESP devkits and the Pico.
   --released   drive DTR and RTS low before opening: the BW15 and BK7238 CH340 kits strap the boot pin
                (DTR) and reset (RTS), so a plain open holds the chip in reset.
   --reset      pulse reset after opening (DTR low, RTS high 100 ms, RTS low) to capture a fresh boot.
   --baud       115200 by default; 74880 shows the ESP8266 ROM boot messages.
+  --append     keep what OUTFILE already holds; by default it is truncated so counts cover this run only.
 
 Exit status 1 when nothing was received (wrong port name, or a port another capture still holds).
 Text ESPHome marks as secret (LOG_SECRET, the Wi-Fi password) is written as <secret>.
@@ -142,8 +143,9 @@ def main() -> int:
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--released", action="store_true")
     ap.add_argument("--reset", action="store_true")
+    ap.add_argument("--append", action="store_true")
     args = ap.parse_args()
-    with pathlib.Path(args.outfile).open("ab") as out:
+    with pathlib.Path(args.outfile).open("ab" if args.append else "wb") as out:
         received = capture(args, out)
     if received == 0:
         print(f"[capture] nothing received from {args.port}", file=sys.stderr)

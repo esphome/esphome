@@ -86,8 +86,9 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 - `ports.py`: list ports with VID:PID, product, serial and a board guess; `--wait VID[:PID]`,
   `--product NAME`, `--serial SN` (one specific board, whatever path it comes back under) and
   `--serial-of PORT` (the serial number behind a path).
-- `serial_capture.py PORT SECONDS OUT [--baud] [--released] [--reset]`: bounded timestamped capture,
-  ANSI stripped, reopens a vanished port, exits at the deadline.
+- `serial_capture.py PORT SECONDS OUT [--baud] [--released] [--reset] [--append]`: bounded timestamped
+  capture, ANSI stripped, `LOG_SECRET` text written as `<secret>`, reopens a vanished port, exits at the
+  deadline. OUT is truncated unless `--append` is given, so counts over it cover one run.
 - `flash_rtl87xx_kit.py`: ltchiptool wrapper for the BW15 kit whose CH340 drives CEN (RTS) and the boot
   strap (DTR). `flash read` needs the family `realtek-ambz2`; `flash write` does not.
 - `flash_bk72xx.py`: ltchiptool wrapper for BK72xx boards whose RTS drives CEN.
@@ -96,7 +97,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
   templates below. KIND is `esp`, `pico`, `bw15` or `bk`. It ends with `RESULT PASS` (exit 0),
   `RESULT FAIL` (exit 3: a crash, a reboot after the AP came up, or the device never joined the network),
   `RESULT INVALID`
-  (exit 2, a precondition was missed) or exits 1 when a build, flash or port step failed.
+  (exit 2: a precondition was missed, the stimulus was insufficient, or a capture did not last the run)
+  or exits 1 when a build, flash or port step failed.
 
 ## Templates in `$SKILL/templates`
 

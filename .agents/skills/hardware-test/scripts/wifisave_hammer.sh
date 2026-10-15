@@ -15,8 +15,8 @@
 # (addresses redacted so the extract can go on a PR; the serial logs themselves stay local).
 # Exit status: 0 RESULT PASS (no crash marker or reboot after the AP came up, the device joined the network,
 # and real stimulus: saves answered and a cooldown exit); 3 RESULT FAIL (the counts show
-# a failure); 2 RESULT INVALID (a precondition or the stimulus was missed); 1 when a build, flash or port
-# step fails (nothing is reported).
+# a failure); 2 RESULT INVALID (a precondition or the stimulus was missed, or a capture did not last the run);
+# 1 when a build, flash or port step fails (nothing is reported).
 set -u
 SKILL=$(cd "$(dirname "$0")/.." && pwd)
 KIND=$1; DPORT=$2; DYAML=$3; DTREE=$4; CPORT=$5; CYAML=$6; CTREE=$7; SETTLE=${8:-40}
@@ -90,6 +90,12 @@ else
   INVALID="client never reached the real save within ${n}s"; echo "[hammer] WARNING: $INVALID"
 fi
 
+# A verdict needs complete evidence: both captures must have lasted the run and logged no error of their own
+for spec in "$DPORT:${DLOG%-serial.log}-capture.err" "$CPORT:${CLOG%-serial.log}-capture.err"; do
+  port=${spec%%:*}; err=${spec#*:}
+  pgrep -f "[s]erial_capture.py $port " >/dev/null || INVALID="the capture on $port ended before the run did, see $err"
+  [ -s "$err" ] && INVALID="the capture on $port reported an error, see $err"
+done
 CRASHES=$(count 'Panic\|HardFault\|Fault\|abort\|Backtrace\|Exception\|Guru' "$DLOG"); BOOTS=$(count 'Log initialized' "$DLOG")
 STA=$(LC_ALL=C grep -a 'IP Address:' "$DLOG" | grep -v -c '192\.168\.4\.'); REAL=$(LC_ALL=C grep -a -o 'real save status [-0-9]*' "$CLOG" | tail -1 | awk '{print $4}')
 SAVES=$(count 'Requested WiFi Settings Change' "$DLOG"); EXITS=$(count 'cooldown early' "$DLOG"); ANSWERED=$(count 'bogus save status 200' "$CLOG")
