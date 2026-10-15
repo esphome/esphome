@@ -655,12 +655,7 @@ CONFIG_SCHEMA = cv.All(
             ): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
-            # Easy Connect is only exercised on the ESP32-S3 so far; other variants follow once tested
-            cv.Optional(CONF_DPP): cv.All(
-                cv.only_on_esp32,
-                only_on_variant(supported=[const.VARIANT_ESP32S3]),
-                _dpp_schema,
-            ),
+            cv.Optional(CONF_DPP): cv.All(cv.only_on_esp32, _dpp_schema),
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default=DEFAULT_REBOOT_TIMEOUT
