@@ -8,12 +8,13 @@
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/log.h"
 
 #include "esp_lcd_panel_rgb.h"
 
 namespace esphome::qspi_dbi {
 
-constexpr static const char *const TAG = "display.qspi_dbi";
+ESPHOME_LOG_TAG(TAG, "display.qspi_dbi");
 static const uint8_t SW_RESET_CMD = 0x01;
 static const uint8_t SLEEP_OUT = 0x11;
 static const uint8_t NORON = 0x13;

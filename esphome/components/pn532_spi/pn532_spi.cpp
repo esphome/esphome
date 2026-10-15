@@ -127,12 +127,8 @@ bool PN532Spi::read_response(uint8_t command, pn532::PN532Frame &data) {
 
   ESP_LOGV(TAG, "Response data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
 
-  uint8_t checksum = header[5] + header[6];  // TFI + Command response code
-  for (int i = 0; i < len - 1; i++) {
-    uint8_t dat = data[i];
-    checksum += dat;
-  }
-  checksum = ~checksum + 1;
+  // TFI + Command response code + data
+  const uint8_t checksum = -sum_bytes(data.data(), len - 1, header[5] + header[6]);
 
   if (data[len - 1] != checksum) {
     ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[len - 1], checksum);

@@ -75,6 +75,9 @@ void I2SAudioSpeaker::dump_config() {
 
 void I2SAudioSpeaker::run_speaker_task() {
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STARTING);
+  // Stale records from the previous run would pair with the wrong DMA events
+  xQueueReset(this->i2s_event_queue_);
+  xQueueReset(this->write_records_queue_);
 
   const uint32_t dma_buffers_duration_ms = DMA_BUFFER_DURATION_MS * DMA_BUFFERS_COUNT;
   // Ensure ring buffer duration is at least the duration of all DMA buffers
@@ -395,8 +398,6 @@ void I2SAudioSpeaker::run_speaker_task() {
 }
 
 esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) {
-  this->current_stream_info_ = audio_stream_info;
-
   if ((this->i2s_role_ & I2S_ROLE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT
     // Can't reconfigure I2S bus, so the sample rate must match the configured value
     ESP_LOGE(TAG, "Incompatible stream settings");
@@ -433,6 +434,16 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     ESP_LOGE(TAG, "Parent bus is busy");
     return ESP_ERR_INVALID_STATE;
   }
+
+  // Reuse a kept channel while the stream format matches
+  if (this->tx_handle_ != nullptr) {
+    if (this->current_stream_info_ == audio_stream_info) {
+      return ESP_OK;
+    }
+    this->delete_channel_();
+  }
+
+  this->current_stream_info_ = audio_stream_info;
 
   // The DMA buffers hold output-format (post-narrowing) samples, so size them from the output stream info.
   uint32_t dma_buffer_length = dma_buffer_frames(this->output_stream_info_);

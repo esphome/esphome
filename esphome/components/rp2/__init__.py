@@ -195,6 +195,8 @@ def _parse_platform_version(value: Any) -> str:
 #  * The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
+#  * rp2_pio pins its own pioasm build (PIOASM_REPO_VERSION in rp2_pio/__init__.py); check
+#    https://github.com/earlephilhower/pico-quick-toolchain/releases for a matching release
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
@@ -390,6 +392,7 @@ async def to_code(config: ConfigType) -> None:
         "USE_RP2040_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT]
     )  # back-compat alias
     cg.add_define("USE_RP2_CRASH_HANDLER")
+    cg.add_define("USE_CRASH_HANDLER")
     cg.add_define("USE_RP2040_CRASH_HANDLER")  # back-compat alias
 
     _configure_lwip()

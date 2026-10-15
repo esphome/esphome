@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, speaker
+from esphome.components.microphone import DOMAIN as MICROPHONE_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -14,9 +15,11 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TIMEOUT,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
+    CONF_I2S_AUDIO_ID,
     CONF_I2S_DOUT_PIN,
     CONF_I2S_MODE,
     CONF_LEFT,
@@ -44,6 +47,7 @@ I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
 
 CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
+CONF_KEEP_ALIVE = "keep_alive"
 CONF_SPDIF_MODE = "spdif_mode"
 CONF_ON_AUDIO_START = "on_audio_start"
 CONF_ON_AUDIO_END = "on_audio_end"
@@ -177,6 +181,7 @@ BASE_SCHEMA = (
             ),
             cv.Optional(CONF_ON_AUDIO_START): automation.validate_automation({}),
             cv.Optional(CONF_ON_AUDIO_END): automation.validate_automation({}),
+            cv.Optional(CONF_KEEP_ALIVE, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -243,6 +248,23 @@ def _final_validate(config: ConfigType) -> None:
             raise cv.Invalid("SPDIF mode requires 'i2s_comm_fmt: stand_i2s'")
         if config[CONF_MCLK_MULTIPLE] != 256:
             raise cv.Invalid("SPDIF mode requires 'mclk_multiple: 256'")
+        if config[CONF_KEEP_ALIVE]:
+            raise cv.Invalid("SPDIF mode does not support 'keep_alive'")
+
+    if config[CONF_KEEP_ALIVE]:
+        # A kept channel holds the port between sessions, so nothing else may share the bus
+        bus = config[CONF_I2S_AUDIO_ID]
+        full_config = fv.full_config.get()
+        on_bus = sum(
+            1
+            for domain in (speaker.DOMAIN, MICROPHONE_DOMAIN)
+            for entry in full_config.get(domain, [])
+            if entry.get(CONF_I2S_AUDIO_ID) == bus
+        )
+        if on_bus > 1:
+            raise cv.Invalid(
+                "'keep_alive' needs its own I2S bus; another speaker or microphone shares this one"
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -270,6 +292,8 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
+    if config[CONF_KEEP_ALIVE]:
+        cg.add(var.set_keep_alive(True))
 
     for conf in config.get(CONF_ON_AUDIO_START, []):
         await automation.build_callback_automation(
