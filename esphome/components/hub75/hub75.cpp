@@ -160,7 +160,8 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
     // 24-bit: 3 bytes per pixel, tightly packed
     format = Hub75PixelFormat::RGB888;
     bytes_per_pixel = 3;
-    // Note: 24-bit is always RGB order in LVGL
+    // ESPHome RGB order 888 is b,g,r in memory, which hub75 calls BGR
+    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::BGR : Hub75ColorOrder::RGB;
 #else
     ESP_LOGE(TAG, "Unsupported LV_COLOR_DEPTH: %d", LV_COLOR_DEPTH);
     return;
@@ -169,7 +170,8 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
     // Non-LVGL mode: standard 24-bit RGB888
     format = Hub75PixelFormat::RGB888;
     bytes_per_pixel = 3;
-    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::RGB : Hub75ColorOrder::BGR;
+    // ESPHome RGB order 888 is b,g,r in memory, which hub75 calls BGR
+    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::BGR : Hub75ColorOrder::RGB;
 #endif
   } else {
     ESP_LOGE(TAG, "Unsupported bitness: %d", static_cast<int>(bitness));
