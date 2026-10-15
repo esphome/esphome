@@ -251,7 +251,7 @@ automation.register_apply_action(
             # so a trigger arg with the same name cannot shadow it.
             (
                 CONF_MEDIA_FILE,
-                audio.AudioFile.operator("ptr"),
+                audio.AudioFile.operator("const").operator("ptr"),
                 lambda _, value: f"::{value}",
             ),
             (CONF_ANNOUNCEMENT, cg.bool_),

@@ -4,7 +4,7 @@
 
 namespace esphome::systa_bus {
 
-static const char *const TAG = "systa_bus.sensor";
+ESPHOME_LOG_TAG(TAG, "systa_bus.sensor");
 
 static int16_t get_i16be(std::span<const uint8_t> message, size_t start) {
   return static_cast<int16_t>(encode_uint16(message[start], message[start + 1]));

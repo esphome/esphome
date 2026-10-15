@@ -4,7 +4,7 @@
 
 namespace esphome::xdb401 {
 
-static const char *const TAG = "xdb401";
+ESPHOME_LOG_TAG(TAG, "xdb401");
 
 static const uint8_t REG_PRESSURE = 0x06;
 static const uint8_t REG_TEMPERATURE = 0x09;

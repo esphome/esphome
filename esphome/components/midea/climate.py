@@ -41,9 +41,11 @@ AUTO_LOAD = ["sensor"]
 CONF_POWER_USAGE = "power_usage"
 CONF_COMPRESSOR_POWER = "compressor_power"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
+CONF_DISPLAY_CONTROL = "display_control"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
 Capabilities = midea_ac_ns.namespace("Constants")
+DisplayControl = midea_ac_ns.enum("DisplayControl", is_class=True)
 
 
 def templatize(value):
@@ -84,11 +86,29 @@ CUSTOM_PRESETS = {
     "FREEZE_PROTECTION": Capabilities.FREEZE_PROTECTION,
 }
 
+# How midea_ac.display_toggle reaches the appliance; see do_display_toggle() for the AUTO rules
+DISPLAY_CONTROLS = {
+    "UART": DisplayControl.DISPLAY_CONTROL_UART,
+    "AUTO": DisplayControl.DISPLAY_CONTROL_AUTO,
+    "IR": DisplayControl.DISPLAY_CONTROL_IR,
+}
+
 validate_modes = cv.enum(ALLOWED_CLIMATE_MODES, upper=True)
 validate_presets = cv.enum(ALLOWED_CLIMATE_PRESETS, upper=True)
 validate_swing_modes = cv.enum(ALLOWED_CLIMATE_SWING_MODES, upper=True)
 validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 validate_custom_presets = cv.enum(CUSTOM_PRESETS, upper=True)
+validate_display_control = cv.enum(DISPLAY_CONTROLS, upper=True)
+
+
+def validate_display_control_with_transmitter(config: ConfigType) -> ConfigType:
+    """`display_control: IR` needs a `remote_transmitter` to send through; UART and AUTO do not."""
+    if config.get(CONF_DISPLAY_CONTROL) == "IR" and CONF_TRANSMITTER_ID not in config:
+        raise cv.Invalid(
+            f"'{CONF_DISPLAY_CONTROL}: IR' requires '{CONF_TRANSMITTER_ID}' to be set"
+        )
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(AirConditioner)
@@ -102,6 +122,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
             cv.Optional(CONF_AUTOCONF, default=True): cv.boolean,
+            cv.Optional(CONF_DISPLAY_CONTROL, default="AUTO"): validate_display_control,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(validate_modes),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
                 validate_swing_modes
@@ -142,6 +163,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
+    validate_display_control_with_transmitter,
     cv.only_on(
         [
             PLATFORM_ESP32,
@@ -212,6 +234,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_transmitter(transmitter_))
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
+    cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
     if CONF_SUPPORTED_SWING_MODES in config:

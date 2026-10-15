@@ -8,6 +8,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@nagyrobi"]
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "bthome_mithermometer"
 
 
 bthome_mithermometer_ns = cg.esphome_ns.namespace("bthome_mithermometer")

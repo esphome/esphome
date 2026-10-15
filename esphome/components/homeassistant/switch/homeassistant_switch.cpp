@@ -5,7 +5,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.switch";
+ESPHOME_LOG_TAG(TAG, "homeassistant.switch");
 
 using namespace esphome::switch_;
 
@@ -39,6 +39,13 @@ void HomeassistantSwitch::write_state(bool state) {
     ESP_LOGE(TAG, "No clients connected to API server");
     return;
   }
+
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
 
   static constexpr auto SERVICE_ON = StringRef::from_lit("homeassistant.turn_on");
   static constexpr auto SERVICE_OFF = StringRef::from_lit("homeassistant.turn_off");

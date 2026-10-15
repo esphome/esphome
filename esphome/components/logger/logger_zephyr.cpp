@@ -37,7 +37,7 @@ __attribute__((section(".noinit"))) struct {
 #endif
 } crash_buf;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_CDC
 void Logger::cdc_loop_() {

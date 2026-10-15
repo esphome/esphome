@@ -7,7 +7,7 @@
 
 namespace esphome::sen5x {
 
-static const char *const TAG = "sen5x";
+ESPHOME_LOG_TAG(TAG, "sen5x");
 
 static const uint16_t SEN5X_CMD_AUTO_CLEANING_INTERVAL = 0x8004;
 static const uint16_t SEN5X_CMD_GET_DATA_READY_STATUS = 0x0202;
