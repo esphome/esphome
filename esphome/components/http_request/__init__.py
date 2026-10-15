@@ -270,9 +270,7 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
-        cv.Optional(CONF_TIMEOUT): cv.templatable(
-            cv.positive_time_period_milliseconds
-        ),
+        cv.Optional(CONF_TIMEOUT): cv.templatable(cv.positive_time_period_milliseconds),
     }
 )
 HTTP_REQUEST_GET_ACTION_SCHEMA = automation.maybe_conf(
