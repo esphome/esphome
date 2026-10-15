@@ -264,9 +264,12 @@ void AS734XComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   for (uint8_t band = 0; band < NUM_BANDS; band++) {
+    char label[24];
     const char *name = LOG_STR_ARG(BandNames::get_log_str(band, BandNames::LAST_INDEX));
-    sensor::log_sensor(TAG, "  Counts ", name, this->sensors_[band]);
-    sensor::log_sensor(TAG, "  Basic counts ", name, this->basic_counts_sensors_[band]);
+    snprintf(label, sizeof(label), "Counts %s", name);
+    sensor::log_sensor(TAG, "  ", label, this->sensors_[band]);
+    snprintf(label, sizeof(label), "Basic counts %s", name);
+    sensor::log_sensor(TAG, "  ", label, this->basic_counts_sensors_[band]);
   }
   LOG_SENSOR("  ", "Saturation level", this->saturation_level_sensor_);
   if (this->is_failed()) {
@@ -291,6 +294,8 @@ void AS734XComponent::enable_led(bool enable) {
   if (!enable && led_sel_reg != 0) {
     ok = this->update_bits_(led_sel_reg, CONFIG_LED_SEL, false) && ok;
   }
+  // The measurement path assumes the high bank, so leave the chip there for a reading in flight
+  ok = this->select_bank_(REG_ENABLE) && ok;
   if (!ok) {
     ESP_LOGW(TAG, "Failed to switch the LED");
   }
