@@ -7,7 +7,10 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome.components import nrf52
-from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
+from esphome.components.nrf52.const import (
+    BOOTLOADER_ADAFRUIT_NRF52_NOSD,
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+)
 from esphome.components.zephyr.const import KEY_BOARD, KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
@@ -138,3 +141,24 @@ def test_sd140_v7_dfu_accepts_all_s140_7_softdevices(
     cmd = next(c.args[0] for c in run_cmd.call_args_list if "genpkg" in c.args[0])
     sd_req = cmd[cmd.index("--sd-req") + 1].split(",")
     assert sd_req == ["0x00CA", "0x0100", "0x0123"]
+
+
+def test_softdevice_free_adafruit_layout_requires_no_softdevice(
+    build_dir: Path, run_cmd: Mock
+) -> None:
+    """The Makerdiary MDK USB Dongle's bootloader takes an nRF52840 UF2 and a package that
+    does not ask for a SoftDevice."""
+    with patch.object(
+        nrf52,
+        "zephyr_data",
+        return_value={
+            KEY_BOARD: "board",
+            KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_NOSD,
+        },
+    ):
+        _build(build_dir, cv.Version(3, 4, 0), ["zephyr/zephyr/zephyr.hex"], run_cmd)
+    uf2 = next(c.args[0] for c in run_cmd.call_args_list if "-f" in c.args[0])
+    assert uf2[uf2.index("-f") + 1] == "0xADA52840"
+    genpkg = next(c.args[0] for c in run_cmd.call_args_list if "genpkg" in c.args[0])
+    assert genpkg[genpkg.index("--dev-type") + 1] == "0x0052"
+    assert genpkg[genpkg.index("--sd-req") + 1] == "0x00"

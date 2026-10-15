@@ -71,6 +71,7 @@ from esphome.types import ConfigType
 from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
 from .const import (
     BOOTLOADER_ADAFRUIT,
+    BOOTLOADER_ADAFRUIT_NRF52_NOSD,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
@@ -200,6 +201,7 @@ def set_framework(config: ConfigType) -> ConfigType:
 # DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
 SERIAL_DFU_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
+    BOOTLOADER_ADAFRUIT_NRF52_NOSD,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
@@ -1149,12 +1151,14 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA,0x0100,0x0123"),
+        BOOTLOADER_ADAFRUIT_NRF52_NOSD: ("0x0052", "0x00"),  # no SoftDevice to require
     }
     # UF2 family IDs — nRF52832 vs nRF52840 per SoftDevice variant
     _UF2_FAMILY_IDS = {
         BOOTLOADER_ADAFRUIT_NRF52_SD132: "0x7EAED30A",
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: "0xADA52840",
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: "0xADA52840",
+        BOOTLOADER_ADAFRUIT_NRF52_NOSD: "0xADA52840",
     }
 
     # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.

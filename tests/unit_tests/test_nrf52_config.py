@@ -11,7 +11,10 @@ from esphome.components.nrf52 import (
     set_core_data,
 )
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
-from esphome.components.nrf52.const import BOOTLOADER_NRF
+from esphome.components.nrf52.const import (
+    BOOTLOADER_ADAFRUIT_NRF52_NOSD,
+    BOOTLOADER_NRF,
+)
 from esphome.components.zephyr.const import KEY_PM_STATIC, KEY_ZEPHYR
 from esphome.components.zephyr_mcumgr.ota import _validate_bootloader
 from esphome.config import path_context
@@ -37,12 +40,20 @@ def test_dongle_rejects_foreign_bootloader() -> None:
         _detect_bootloader({"board": "nrf52840dongle", "bootloader": "mcuboot"})
 
 
-def _dongle_core_data() -> None:
+def test_mdk_usb_dongle_defaults_to_the_softdevice_free_adafruit_layout() -> None:
+    """Makerdiary's UF2 bootloader is an Adafruit fork that ships without a SoftDevice."""
+    config = _detect_bootloader({"board": "nrf52840_mdk_usb_dongle"})
+    assert config["bootloader"] == BOOTLOADER_ADAFRUIT_NRF52_NOSD
+
+
+def _dongle_core_data(
+    board: str = "nrf52840dongle", bootloader: str = BOOTLOADER_NRF
+) -> None:
     CORE.data[KEY_CORE] = {}
     CORE.testing_mode = (
         False  # the real flash, not the larger one faked for grouped tests
     )
-    set_core_data({"board": "nrf52840dongle", "bootloader": BOOTLOADER_NRF})
+    set_core_data({"board": board, "bootloader": bootloader})
 
 
 @pytest.fixture
@@ -62,6 +73,16 @@ def test_nrf_bootloader_reserves_factory_region() -> None:
     assert "mbr" not in registered
     assert registered["open_bootloader"].address == 0xE0000
     assert registered["open_bootloader"].end_address == 0x100000
+
+
+def test_adafruit_nosd_reserves_only_the_bootloader() -> None:
+    """Without a SoftDevice the app follows the MBR page at 0x1000, as with the Open DFU
+    bootloader; the Adafruit bootloader keeps its usual place at the top of the flash."""
+    _dongle_core_data("nrf52840_mdk_usb_dongle", BOOTLOADER_ADAFRUIT_NRF52_NOSD)
+    registered = {s.name: s for s in CORE.data[KEY_ZEPHYR][KEY_PM_STATIC]}
+    assert set(registered) == {"Adafruit_nRF52_Bootloader"}
+    assert registered["Adafruit_nRF52_Bootloader"].address == 0xF4000
+    assert registered["Adafruit_nRF52_Bootloader"].end_address == 0x100000
 
 
 def test_nrf_bootloader_rejects_mcumgr_ota() -> None:

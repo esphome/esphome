@@ -3,6 +3,7 @@ from esphome.components.zephyr.const import KEY_BOOTLOADER
 
 from .const import (
     BOOTLOADER_ADAFRUIT,
+    BOOTLOADER_ADAFRUIT_NRF52_NOSD,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
@@ -36,6 +37,16 @@ BOARDS_ZEPHYR = {
     },
     # Nordic nRF52840 Dongle (PCA10059): factory Open DFU bootloader at 0xE0000, kept in place
     "nrf52840dongle": {KEY_BOOTLOADER: [BOOTLOADER_NRF]},
+    # Makerdiary nRF52840 MDK USB Dongle: its UF2 bootloader is an Adafruit fork without a
+    # SoftDevice; Adafruit's own builds for the board carry one
+    "nrf52840_mdk_usb_dongle": {
+        KEY_BOOTLOADER: [
+            BOOTLOADER_ADAFRUIT_NRF52_NOSD,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_ADAFRUIT_NRF52_SD132,
+        ]
+    },
 }
 
 # Boards with a GPIO wired to their RESET pin: driving it low is a pin reset, which the factory
@@ -71,5 +82,10 @@ BOOTLOADER_CONFIG = {
     # links at 0x1000, where the bootloader loads it; only the bootloader itself is reserved here
     BOOTLOADER_NRF: [
         Section("open_bootloader", 0xE0000, 0x20000, "flash_primary"),
+    ],
+    # Same MBR page and application start as above; the bootloader, its settings and the MBR
+    # parameters fill the last 48 KB
+    BOOTLOADER_ADAFRUIT_NRF52_NOSD: [
+        Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
     ],
 }
