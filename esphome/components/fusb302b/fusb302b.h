@@ -1,0 +1,74 @@
+#pragma once
+
+#ifdef USE_ESP32
+
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/static_task.h"
+
+#include "pd.h"
+
+namespace esphome::fusb302b {
+
+/// FUSB302B USB Type-C / Power Delivery sink controller.
+///
+/// A dedicated task owns all I2C traffic to the chip so that PD replies meet the protocol timing
+/// even while the main loop is busy.
+class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
+ public:
+  explicit FUSB302B(InternalGPIOPin *interrupt_pin) : interrupt_pin_(interrupt_pin) {}
+
+  void setup() override;
+  void dump_config() override;
+  void on_shutdown() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+ protected:
+  enum class SourceCapStep : uint8_t {
+    SOURCE_CAP_STEP_WAIT,
+    SOURCE_CAP_STEP_GET_SENT,
+    SOURCE_CAP_STEP_SOFT_RESET_SENT,
+  };
+
+  static void gpio_intr(FUSB302B *arg);
+  static void task_func(void *arg);
+
+  bool send_message(const PdMsg &msg) override;
+  void on_state_changed() override {}
+  void on_soft_reset_received() override { this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT); }
+  void on_source_caps_received() override { this->waiting_for_source_caps_ = false; }
+  void on_transition_timeout() override { this->send_soft_reset_(); }
+
+  // PHY task only
+  [[noreturn]] void run_task_();
+  bool init_chip_();
+  bool reset_pd_();
+  bool enable_auto_crc_();
+  void handle_interrupt_();
+  bool read_message_(PdMsg &msg, bool &is_sop);
+  void try_attach_();
+  bool measure_cc_(uint8_t meas_switch, uint8_t &level);
+  void detach_();
+  void handle_hard_reset_();
+  void start_source_cap_wait_(SourceCapStep step);
+  void send_soft_reset_();
+  void check_source_caps_();
+  void enter_error_();
+
+  InternalGPIOPin *interrupt_pin_;
+  StaticTask task_;
+
+  // PHY task only
+  uint32_t source_cap_step_start_{0};
+  SourceCapStep source_cap_step_{SourceCapStep::SOURCE_CAP_STEP_WAIT};
+  bool attached_{false};
+  bool waiting_for_source_caps_{false};
+  bool cc_ambiguous_logged_{false};
+};
+
+}  // namespace esphome::fusb302b
+
+#endif  // USE_ESP32

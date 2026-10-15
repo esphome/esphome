@@ -2071,6 +2071,17 @@ def require_vfs_termios() -> None:
     CORE.data[KEY_VFS_TERMIOS_REQUIRED] = True
 
 
+def allow_insecure_tls() -> None:
+    """Let esp-tls connect without verifying the server certificate.
+
+    The two sdkconfig flags are global, so a component asking for an unverified
+    connection switches them on for the whole build; they are never switched off
+    here because another component may have asked first.
+    """
+    add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
+    add_idf_sdkconfig_option("CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True)
+
+
 def require_certificate_bundle() -> None:
     """Enable the mbedTLS root certificate bundle for this build.
 
@@ -2909,6 +2920,7 @@ async def _finalize_arduino_aware_flags():
     if not arduino_linked:
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
         cg.add_define("USE_ESP32_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
     elif not CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
 

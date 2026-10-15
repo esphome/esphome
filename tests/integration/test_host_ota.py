@@ -37,6 +37,59 @@ DEVICE_NAME = "host-ota-test"
 API_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 
 
+_REAL_COMPRESS = zlib.compress
+
+
+def _corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+    """Reserved block type in the first header: rejected by the decoder on
+    every build, unlike a flipped data bit that may only fail the MD5."""
+    out = bytearray(_REAL_COMPRESS(data, *args, **kwargs))
+    out[0] |= 0x06
+    return bytes(out)
+
+
+@contextmanager
+def _udp_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    force: bool = True,
+    loss: float = 0.0,
+    blocked: bool = False,
+) -> Generator[list[bool]]:
+    """Force the UDP data phase (unless force is False) and drop datagrams both
+    ways; yields one entry per upload, True when it used UDP."""
+    import random
+
+    rng = random.Random(1)
+    used: list[bool] = []
+    real_start = espota2._start_udp
+    real_send = espota2.UdpChannel._send
+    real_ack = espota2.UdpChannel._handle_ack
+
+    def start(*args: object) -> espota2.UdpChannel | None:
+        channel = real_start(*args)
+        used.append(channel is not None)
+        return channel
+
+    def send(self: espota2.UdpChannel, *args: object) -> None:
+        if not blocked and rng.random() >= loss:
+            real_send(self, *args)
+
+    def ack(self: espota2.UdpChannel, data: bytes) -> None:
+        if rng.random() >= loss:
+            real_ack(self, data)
+
+    with monkeypatch.context() as m:
+        if force:
+            m.setattr(espota2, "UDP_SLOW_EXCHANGE", -1.0)
+        if blocked:
+            # Nothing answers, so do not wait the full probe
+            m.setattr(espota2, "UDP_PROBE_TIMEOUT", 1.0)
+        m.setattr(espota2, "_start_udp", start)
+        m.setattr(espota2.UdpChannel, "_send", send)
+        m.setattr(espota2.UdpChannel, "_handle_ack", ack)
+        yield used
+
+
 @contextmanager
 def _reserve_port() -> Generator[tuple[int, socket.socket]]:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -272,18 +325,9 @@ async def test_host_ota_deflate(
             errors.append(line)
         dev.on_log(line)
 
-    real_compress = zlib.compress
-
-    def corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
-        # Reserved block type in the first header: rejected by the decoder on
-        # every build, unlike a flipped data bit that may only fail the MD5
-        out = bytearray(real_compress(data, *args, **kwargs))
-        out[0] |= 0x06
-        return bytes(out)
-
     def overlong_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
         """A stream that inflates past the size the client announced."""
-        return real_compress(data + bytes(8192), *args, **kwargs)
+        return _REAL_COMPRESS(data + bytes(8192), *args, **kwargs)
 
     async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
         dev.proc = proc
@@ -301,7 +345,7 @@ async def test_host_ota_deflate(
 
         # A corrupt stream fails the upload and leaves the device running
         with monkeypatch.context() as m:
-            m.setattr(zlib, "compress", corrupt_compress)
+            m.setattr(zlib, "compress", _corrupt_compress)
             await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
         assert errors, "device did not report the corrupt stream"
 
@@ -318,6 +362,29 @@ async def test_host_ota_deflate(
         await dev.ota(None, None, "upload after a rejected stream failed")
         assert dev.inflates == 2
 
+        # Localhost is clean, so the client stays on TCP
+        with _udp_mode(monkeypatch, force=False) as used:
+            await dev.ota(None, None, "TCP upload failed")
+        assert used == [False], "a clean link asked for UDP"
+
+        # A lossy link moves the data phase to UDP and completes through loss
+        with _udp_mode(monkeypatch, loss=0.2) as used:
+            await dev.ota(None, None, "UDP upload with loss failed")
+        assert used == [True], "the upload did not use UDP"
+        assert dev.inflates == 4
+
+        # Blocked UDP falls back to TCP
+        with _udp_mode(monkeypatch, blocked=True) as used:
+            await dev.ota(None, None, "fallback to TCP failed")
+        assert used == [False], "blocked UDP did not fall back to TCP"
+
+        # A device error mid upload surfaces at once, not as a 160 s timeout
+        with _udp_mode(monkeypatch) as used, monkeypatch.context() as m:
+            m.setattr(zlib, "compress", _corrupt_compress)
+            async with asyncio.timeout(30):
+                await dev.refused_ota(None, None, "corrupt stream over UDP accepted")
+        assert used == [True]
+
 
 @pytest.mark.asyncio
 async def test_host_ota_encrypted(
@@ -325,6 +392,7 @@ async def test_host_ota_encrypted(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A client that leaves right after the handshake, as a key probe does,
     is a clean close, not an OTA error; a plaintext upload is refused; an
@@ -348,6 +416,10 @@ async def test_host_ota_encrypted(
             None, None, "plaintext upload to an encrypted device must fail"
         )
         await dev.ota(None, API_KEY, "encrypted OTA reported failure")
+        # Noise frames ride the UDP stream unchanged, through loss
+        with _udp_mode(monkeypatch, loss=0.2) as used:
+            await dev.ota(None, API_KEY, "encrypted UDP upload failed")
+        assert used == [True]
 
 
 @pytest.mark.asyncio
