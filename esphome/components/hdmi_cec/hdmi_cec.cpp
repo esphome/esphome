@@ -2,10 +2,18 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#ifdef USE_ESP8266
+#include <Arduino.h>
+#endif
 
 namespace esphome::hdmi_cec {
 
 ESPHOME_LOG_TAG(TAG, "hdmi_cec");
+
+#ifdef USE_ESP8266
+// Timer 1 is the only hardware timer and its interrupt takes no argument
+static HDMICEC *ack_timer_owner = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
 // Bit timing from the HDMI 1.4 CEC specification, in microseconds
 static constexpr uint32_t START_BIT_MIN_US = 3500;  // a low period at least this long is a start bit
@@ -34,6 +42,18 @@ void HDMICEC::setup() {
   this->isr_pin_ = this->pin_->to_isr();
   this->set_pin_input_high_();
   this->required_idle_period_ = SIGNAL_FREE_TIME_AFTER_RECEIVE;
+#ifdef USE_ESP32
+  if (!this->setup_ack_timer_()) {
+    ESP_LOGE(TAG, "Failed to set up the acknowledge timer");
+    this->mark_failed();
+    return;
+  }
+#endif
+#ifdef USE_ESP8266
+  ack_timer_owner = this;
+  timer1_isr_init();
+  timer1_attachInterrupt(HDMICEC::ack_timer_isr_s);
+#endif
   this->pin_->attach_interrupt(HDMICEC::gpio_isr_s, this, gpio::INTERRUPT_ANY_EDGE);
   // loop() only has work once the interrupt queues a frame or send() queues one
   this->disable_loop();
@@ -239,12 +259,55 @@ bool HDMICEC::send_bit_(bool bit_value) {
 }
 
 void IRAM_ATTR HDMICEC::send_ack_() {
-  // Holding the line keeps other interrupts waiting for 1.5 ms, but the acknowledge has to start
-  // right at this falling edge
+  // The acknowledge has to start right at this falling edge
   this->set_pin_output_low_();
+#if defined(USE_ESP32) || defined(USE_ESP8266)
+  this->start_ack_timer_();
+#else
+  // Without a one-shot timer the interrupt holds the line itself
   delay_microseconds_safe(LOW_BIT_US);
   this->set_pin_input_high_();
+#endif
 }
+
+#ifdef USE_ESP32
+bool HDMICEC::setup_ack_timer_() {
+  gptimer_config_t config = {
+      .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+      .direction = GPTIMER_COUNT_UP,
+      .resolution_hz = 1000000,  // one tick per microsecond
+  };
+  if (gptimer_new_timer(&config, &this->ack_timer_) != ESP_OK) {
+    return false;
+  }
+  gptimer_event_callbacks_t callbacks = {.on_alarm = HDMICEC::ack_timer_isr_s};
+  return gptimer_register_event_callbacks(this->ack_timer_, &callbacks, this) == ESP_OK &&
+         gptimer_enable(this->ack_timer_) == ESP_OK;
+}
+
+void IRAM_ATTR HDMICEC::start_ack_timer_() {
+  static const gptimer_alarm_config_t ALARM = {.alarm_count = LOW_BIT_US, .reload_count = 0, .flags = {}};
+  gptimer_set_raw_count(this->ack_timer_, 0);
+  gptimer_set_alarm_action(this->ack_timer_, &ALARM);
+  gptimer_start(this->ack_timer_);
+}
+
+bool IRAM_ATTR HDMICEC::ack_timer_isr_s(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *arg) {
+  auto *self = static_cast<HDMICEC *>(arg);
+  self->set_pin_input_high_();
+  gptimer_stop(timer);
+  return false;  // no task to wake
+}
+#endif
+
+#ifdef USE_ESP8266
+void IRAM_ATTR HDMICEC::start_ack_timer_() {
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_SINGLE);  // 5 ticks per microsecond
+  timer1_write(LOW_BIT_US * 5);
+}
+
+void IRAM_ATTR HDMICEC::ack_timer_isr_s() { ack_timer_owner->set_pin_input_high_(); }
+#endif
 
 void IRAM_ATTR HDMICEC::gpio_isr_s(HDMICEC *self) { self->gpio_isr_(); }
 

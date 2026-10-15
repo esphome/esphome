@@ -1,5 +1,6 @@
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -15,6 +16,7 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@JosVanEijndhoven"]
@@ -103,6 +105,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
+    if CORE.is_esp32:
+        # The acknowledge bit is released from a general purpose timer, left out of the build by default
+        include_builtin_idf_component("esp_driver_gptimer")
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_ADDRESS])
     await cg.register_component(var, config)

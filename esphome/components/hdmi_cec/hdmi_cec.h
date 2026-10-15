@@ -10,6 +10,10 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
+#ifdef USE_ESP32
+#include "driver/gptimer.h"
+#endif
+
 namespace esphome::hdmi_cec {
 
 // Release/acquire store and load. The read-modify-write forms of std::atomic are not available on
@@ -128,6 +132,16 @@ class HDMICEC : public Component {
   void reset_receiver_();
   /// Pull the line low for the acknowledge bit of a frame addressed to us
   void send_ack_();
+  // On the ESP32 and ESP8266 a hardware one-shot timer releases the line after the acknowledge
+  // bit, so the interrupt returns at once instead of holding the line for 1.5 ms
+#ifdef USE_ESP32
+  bool setup_ack_timer_();
+  static bool ack_timer_isr_s(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *arg);
+#endif
+#ifdef USE_ESP8266
+  static void ack_timer_isr_s();
+#endif
+  void start_ack_timer_();
 
   // Transmit side, in loop()
   bool is_transmit_idle_() const { return !this->transmitting_ && this->send_queue_.is_empty(); }
@@ -159,6 +173,9 @@ class HDMICEC : public Component {
 #endif
   InternalGPIOPin *pin_;
   ISRInternalGPIOPin isr_pin_;
+#ifdef USE_ESP32
+  gptimer_handle_t ack_timer_{nullptr};
+#endif
 
   // Shared with the interrupt. The tally of our own frame is written by the interrupt while
   // transmitting_ is set and no end of message has passed yet; loop() reads it once eom_received_
