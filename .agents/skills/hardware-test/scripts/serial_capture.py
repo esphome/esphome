@@ -30,9 +30,8 @@ import serial
 from serial.tools import list_ports
 
 ANSI = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
-SECRET = re.compile(
-    rb"\x1b\[8m.*?\x1b\[28m"
-)  # ESPHome's LOG_SECRET span, e.g. a Wi-Fi password
+# ESPHome's LOG_SECRET span (a Wi-Fi password); a span cut off before its end marker is secret to the end
+SECRET = re.compile(rb"\x1b\[8m.*?(?:\x1b\[28m|$)", re.DOTALL)
 PORT_ERRORS = (serial.SerialException, OSError)
 
 
