@@ -40,6 +40,10 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   /// Schedules apply_imported_() once for the attributes of one update
   void schedule_apply_();
   void apply_imported_();
+  /// True when Home Assistant reported exactly what a change would make of it
+  bool is_imported_(const Attributes &outgoing) const;
+  /// Returns the light to the reported state after a change that did not reach Home Assistant
+  void fall_back_();
 
   const char *entity_id_{nullptr};
   light::LightState *state_{nullptr};

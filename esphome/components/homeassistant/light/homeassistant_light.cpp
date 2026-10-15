@@ -1,5 +1,8 @@
 #include "homeassistant_light.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "../homeassistant.h"
@@ -78,7 +81,7 @@ bool parse_rgb(const char *text, std::array<uint8_t, 3> &values) {
 
 void HomeassistantLight::setup() {
   auto *server = api::global_api_server;
-  // Home Assistant repeats these with every update, so a light that comes up late still gets them
+  // Home Assistant sends these on subscribe and when they change, so a light that comes up late gets them
   server->subscribe_home_assistant_state(this->entity_id_, "supported_color_modes", [this](StringRef value) {
     if (is_unset(value)) {
       return;  // the light is unavailable; its traits stay
@@ -262,6 +265,37 @@ void HomeassistantLight::apply_imported_() {
   ESP_LOGV(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
 }
 
+bool HomeassistantLight::is_imported_(const Attributes &outgoing) const {
+  const Attributes &imported = this->imported_;
+  if (!imported.state.has_value() || *imported.state != *outgoing.state) {
+    return false;
+  }
+  if (!*outgoing.state) {
+    return true;
+  }
+  if (imported.color_mode != outgoing.color_mode || imported.brightness != outgoing.brightness) {
+    return false;
+  }
+  // rgb_color stays reported in the other modes, so only the attributes of the mode count
+  switch (outgoing.color_mode) {
+    case ColorMode::COLOR_TEMPERATURE:
+      return imported.color_temp_kelvin == outgoing.color_temp_kelvin;
+    case ColorMode::RGB:
+      return imported.has_rgb && imported.rgb == outgoing.rgb;
+    default:
+      return true;
+  }
+}
+
+void HomeassistantLight::fall_back_() {
+  // Back to the state Home Assistant reported, which the light still has
+  if (!this->imported_.state.has_value()) {
+    ESP_LOGW(TAG, "'%s': Nothing reported yet to fall back to, the light keeps the unsent change", this->entity_id_);
+    return;
+  }
+  this->schedule_apply_();
+}
+
 void HomeassistantLight::write_state(LightState *state) {
   // A reported state is taken over without a write, so every write is a local change, except
   // the very first: the light core writes its initial state, which Home Assistant does not need
@@ -270,18 +304,54 @@ void HomeassistantLight::write_state(LightState *state) {
     return;
   }
   if (state->is_transitioning()) {
-    return;  // Home Assistant gets the target once it is reached
+    return;  // a transition or flash runs here alone; Home Assistant gets the state it ends at
   }
+  // What Home Assistant holds after the change. It has one level, so the channel brightness of the
+  // mode folds into it
   const LightColorValues &values = state->current_values;
+  Attributes outgoing;
+  outgoing.state = values.is_on();
+  if (values.is_on()) {
+    outgoing.color_mode = values.get_color_mode();
+    switch (outgoing.color_mode) {
+      case ColorMode::ON_OFF:
+        break;
+      case ColorMode::WHITE:
+        outgoing.brightness = to_uint8_scale(values.get_brightness() * values.get_white());
+        break;
+      case ColorMode::COLOR_TEMPERATURE:
+        outgoing.brightness = to_uint8_scale(values.get_brightness());
+        if (values.get_color_temperature() > 0.0f) {
+          // A mired value below the reported range could give more than 65535 K
+          outgoing.color_temp_kelvin = lroundf(std::min(values.get_color_temperature_kelvin(), 65535.0f));
+        }
+        break;
+      case ColorMode::RGB:
+        outgoing.brightness = to_uint8_scale(values.get_brightness() * values.get_color_brightness());
+        outgoing.rgb = {to_uint8_scale(values.get_red()), to_uint8_scale(values.get_green()),
+                        to_uint8_scale(values.get_blue())};
+        outgoing.has_rgb = true;
+        break;
+      default:
+        outgoing.brightness = to_uint8_scale(values.get_brightness());
+        break;
+    }
+  }
+  // Home Assistant reports only what changed, so a change that leaves it as it is gets no report:
+  // nothing to send and no echo to wait for. A change still on its way may alter it first, though
+  if (!this->echo_pending_ && this->is_imported_(outgoing)) {
+    ESP_LOGD(TAG, "'%s': Home Assistant already has this state", this->entity_id_);
+    return;
+  }
   if (!api::global_api_server->is_connected()) {
     ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost", this->entity_id_);
-    this->schedule_apply_();  // back to the state Home Assistant reported, which the light still has
+    this->fall_back_();
     return;
   }
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
     ESP_LOGW(TAG, "'%s': No entity ID set yet", state->get_name().c_str());
-    this->schedule_apply_();
+    this->fall_back_();
     return;
   }
 #endif
@@ -303,53 +373,35 @@ void HomeassistantLight::write_state(LightState *state) {
     entry.key = StringRef(strings.get(key));
     entry.value = StringRef(buf, buf_append_printf(buf, sizeof(buf), 0, "%u", number));
   };
-  if (!values.is_on()) {
+  if (!*outgoing.state) {
     resp.service = StringRef(strings.get(ACTION_STRING_TURN_OFF));
   } else {
     resp.service = StringRef(strings.get(ACTION_STRING_TURN_ON));
-    // Home Assistant has one level, so the channel brightness of the mode folds into it
-    switch (values.get_color_mode()) {
-      case ColorMode::ON_OFF:
-        break;
-      case ColorMode::WHITE:
-        // Under "white", which also selects that mode
-        add_number(ACTION_STRING_WHITE, level_buf, to_uint8_scale(values.get_brightness() * values.get_white()));
-        break;
-      case ColorMode::COLOR_TEMPERATURE:
-        add_number(ACTION_STRING_BRIGHTNESS, level_buf, to_uint8_scale(values.get_brightness()));
-        if (values.get_color_temperature() > 0.0f) {
-          add_number(ACTION_STRING_COLOR_TEMP_KELVIN, color_temp_buf,
-                     static_cast<unsigned>(lroundf(values.get_color_temperature_kelvin())));
-        }
-        break;
-      case ColorMode::RGB: {
-        add_number(ACTION_STRING_BRIGHTNESS, level_buf,
-                   to_uint8_scale(values.get_brightness() * values.get_color_brightness()));
-        // A list, which only a template renders as one
-        resp.data_template.init(1);
-        auto &color = resp.data_template.emplace_back();
-        color.key = StringRef(strings.get(ACTION_STRING_RGB_COLOR));
-        color.value =
-            StringRef(color_buf,
-                      buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]", to_uint8_scale(values.get_red()),
-                                        to_uint8_scale(values.get_green()), to_uint8_scale(values.get_blue())));
-        break;
-      }
-      default:
-        add_number(ACTION_STRING_BRIGHTNESS, level_buf, to_uint8_scale(values.get_brightness()));
-        break;
+    if (outgoing.color_mode != ColorMode::ON_OFF) {
+      // The level goes under "white" in that mode, which also selects the mode
+      add_number(outgoing.color_mode == ColorMode::WHITE ? ACTION_STRING_WHITE : ACTION_STRING_BRIGHTNESS, level_buf,
+                 outgoing.brightness);
+    }
+    if (outgoing.color_temp_kelvin != 0) {
+      add_number(ACTION_STRING_COLOR_TEMP_KELVIN, color_temp_buf, outgoing.color_temp_kelvin);
+    }
+    if (outgoing.has_rgb) {
+      // A list, which only a template renders as one
+      resp.data_template.init(1);
+      auto &color = resp.data_template.emplace_back();
+      color.key = StringRef(strings.get(ACTION_STRING_RGB_COLOR));
+      color.value = StringRef(color_buf, buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]",
+                                                           outgoing.rgb[0], outgoing.rgb[1], outgoing.rgb[2]));
     }
   }
   api::global_api_server->send_homeassistant_action(resp);
   // Home Assistant reports the change back in a moment, which cancels this; when it does not, the
-  // change got lost on the way (no subscriber yet, the entity unavailable, the action refused) and
-  // the light goes back to what was reported last
+  // change got lost on the way (no subscriber yet, the entity unavailable, the action refused)
   this->echo_pending_ = true;
   this->set_timeout(ECHO_TIMEOUT_ID, ECHO_TIMEOUT_MS, [this]() {
     this->echo_pending_ = false;
-    ESP_LOGW(TAG, "'%s': Home Assistant did not report the change back, falling back to its last state",
-             this->entity_id_);
-    this->schedule_apply_();
+    ESP_LOGW(TAG, "'%s': Home Assistant did not report the change back", this->entity_id_);
+    this->fall_back_();
   });
 }
 

@@ -178,4 +178,8 @@ async def test_api_homeassistant_light(
         report(None, "off")
         await next_state(lambda s: not s.state)
 
+        # A change that leaves Home Assistant as it is gets no report, so none is sent
+        client.light_command(key, state=False)
+        await waiter.wait_for("already has this state", timeout=5.0)
+
         assert calls.empty()
