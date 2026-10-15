@@ -37,13 +37,13 @@ BOARDS_ZEPHYR = {
     },
     # Nordic nRF52840 Dongle (PCA10059): factory Open DFU bootloader at 0xE0000, kept in place
     "nrf52840dongle": {KEY_BOOTLOADER: [BOOTLOADER_NRF]},
-    # Makerdiary nRF52840 MDK USB Dongle: its UF2 bootloader is an Adafruit fork without a
-    # SoftDevice; Adafruit's own builds for the board carry one
+    # Makerdiary nRF52840 MDK USB Dongle: its UF2 bootloader is an Adafruit fork. Dongles made since
+    # 2023 carry version 0.4.0 or newer without a SoftDevice; older ones carry 0.2.x with S140 6.1.1
     "nrf52840_mdk_usb_dongle": {
         KEY_BOOTLOADER: [
             BOOTLOADER_ADAFRUIT_NRF52_NOSD,
-            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
             BOOTLOADER_ADAFRUIT_NRF52_SD132,
         ]
     },
