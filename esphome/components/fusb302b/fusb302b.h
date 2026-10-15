@@ -2,6 +2,9 @@
 
 #ifdef USE_ESP32
 
+#include <array>
+#include <atomic>
+
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -35,11 +38,16 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   /// Negotiate a new contract with the highest source voltage that does not exceed `voltage`.
-  void request_voltage(uint8_t voltage);
+  /// Values outside 5-20 V are clamped with a warning.
+  void request_voltage(int voltage);
 
-  /// Callbacks receive the new state and the state published before it.
+  /// Callbacks receive each new state in order, with the state before it.
   template<typename F> void add_on_state_callback(F &&callback) {
     this->state_callback_.add(std::forward<F>(callback));
+  }
+  /// Called when a voltage request was rejected or got no answer; a contract already in place stays valid.
+  template<typename F> void add_on_request_failed_callback(F &&callback) {
+    this->request_failed_callback_.add(std::forward<F>(callback));
   }
 
 #ifdef USE_SENSOR
@@ -61,10 +69,11 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   static void task_func(void *arg);
 
   bool send_message(const PdMsg &msg) override;
-  void on_state_changed() override { this->enable_loop_soon_any_context(); }
+  void on_state_changed() override;
   void on_soft_reset_received() override { this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT); }
   void on_source_caps_received() override { this->waiting_for_source_caps_ = false; }
   void on_transition_timeout() override { this->send_soft_reset_(); }
+  void on_request_failed() override;
 
   // PHY task only
   [[noreturn]] void run_task_();
@@ -84,6 +93,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   void enter_error_();
 
   void publish_contract_(PackedContract contract);
+  void publish_state_(PdState state);
 
   InternalGPIOPin *interrupt_pin_;
   StaticTask task_;
@@ -95,12 +105,24 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   bool waiting_for_source_caps_{false};
   bool cc_ambiguous_logged_{false};
   bool request_pending_{false};
+  // Last state put in the queue
+  PdState queued_state_{PdState::PD_STATE_DISCONNECTED};
+
+  // State changes from the PHY task, replayed in order by loop() so no transition is lost while the main loop is
+  // blocked. The PHY task only writes head, the main loop only writes tail.
+  static constexpr uint8_t STATE_QUEUE_SIZE = 8;
+  std::array<PdState, STATE_QUEUE_SIZE> state_queue_{};
+  std::atomic<uint8_t> state_queue_head_{0};
+  std::atomic<uint8_t> state_queue_tail_{0};
+  std::atomic<bool> state_queue_overflow_{false};
+  std::atomic<bool> request_failed_pending_{false};
 
   // Main loop only
   PdState published_state_{PdState::PD_STATE_DISCONNECTED};
   uint32_t published_contract_{UINT32_MAX};
 
   LazyCallbackManager<void(PdState, PdState)> state_callback_;
+  LazyCallbackManager<void()> request_failed_callback_;
 #ifdef USE_SENSOR
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};

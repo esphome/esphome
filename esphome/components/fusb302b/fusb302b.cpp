@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <cstdio>
 
 #include "esphome/core/log.h"
@@ -74,20 +75,56 @@ void FUSB302B::setup() {
   this->interrupt_pin_->attach_interrupt(&FUSB302B::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
 }
 
-void FUSB302B::loop() {
+void FUSB302B::on_state_changed() {
   const PdState state = this->state_;
-  const uint32_t contract = this->contract_;
-  if (state != this->published_state_ || contract != this->published_contract_) {
-    const PdState previous = this->published_state_;
-    this->published_state_ = state;
-    if (contract != this->published_contract_) {
-      this->published_contract_ = contract;
-      this->publish_contract_(PackedContract{contract});
+  if (state != this->queued_state_) {
+    this->queued_state_ = state;
+    const uint8_t head = this->state_queue_head_.load(std::memory_order_relaxed);
+    if (static_cast<uint8_t>(head - this->state_queue_tail_.load(std::memory_order_acquire)) < STATE_QUEUE_SIZE) {
+      this->state_queue_[head % STATE_QUEUE_SIZE] = state;
+      this->state_queue_head_.store(head + 1, std::memory_order_release);
+    } else {
+      this->state_queue_overflow_ = true;
     }
-    this->state_callback_.call(state, previous);
   }
-  // Re-enabled by on_state_changed() from the PHY task
+  this->enable_loop_soon_any_context();
+}
+
+void FUSB302B::on_request_failed() {
+  this->request_failed_pending_ = true;
+  this->enable_loop_soon_any_context();
+}
+
+void FUSB302B::loop() {
+  const uint32_t contract = this->contract_;
+  if (contract != this->published_contract_) {
+    this->published_contract_ = contract;
+    this->publish_contract_(PackedContract{contract});
+  }
+
+  uint8_t tail = this->state_queue_tail_.load(std::memory_order_relaxed);
+  const uint8_t head = this->state_queue_head_.load(std::memory_order_acquire);
+  while (tail != head) {
+    const PdState state = this->state_queue_[tail % STATE_QUEUE_SIZE];
+    this->state_queue_tail_.store(++tail, std::memory_order_release);
+    this->publish_state_(state);
+  }
+  if (this->state_queue_overflow_.exchange(false)) {
+    ESP_LOGD(TAG, "State changes arrived faster than the main loop handled them; some were skipped");
+    this->publish_state_(this->state_);
+  }
+  if (this->request_failed_pending_.exchange(false))
+    this->request_failed_callback_.call();
+  // Re-enabled by on_state_changed() or on_request_failed() from the PHY task
   this->disable_loop();
+}
+
+void FUSB302B::publish_state_(PdState state) {
+  if (state == this->published_state_)
+    return;
+  const PdState previous = this->published_state_;
+  this->published_state_ = state;
+  this->state_callback_.call(state, previous);
 }
 
 void FUSB302B::publish_contract_(PackedContract contract) {
@@ -103,7 +140,7 @@ void FUSB302B::publish_contract_(PackedContract contract) {
       this->contract_text_sensor_->publish_state("Detached");
     } else {
       char buf[24];
-      snprintf(buf, sizeof(buf), "%.1fA @ %.0fV", contract.current(), contract.voltage());
+      snprintf(buf, sizeof(buf), "%.2fA @ %.0fV", contract.current(), contract.voltage());
       this->contract_text_sensor_->publish_state(buf);
     }
   }
@@ -133,8 +170,11 @@ void FUSB302B::on_shutdown() {
     xTaskNotify(this->task_.get_handle(), NOTIFY_STOP, eSetBits);
 }
 
-void FUSB302B::request_voltage(uint8_t voltage) {
-  this->set_request_voltage(voltage);
+void FUSB302B::request_voltage(int voltage) {
+  if (voltage < MIN_REQUEST_VOLTAGE || voltage > MAX_REQUEST_VOLTAGE) {
+    ESP_LOGW(TAG, "Requested %d V is outside %u-%u V, clamping", voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE);
+  }
+  this->set_request_voltage(static_cast<uint8_t>(std::clamp<int>(voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE)));
   if (this->task_.is_created())
     xTaskNotify(this->task_.get_handle(), NOTIFY_REQUEST, eSetBits);
 }
@@ -472,9 +512,15 @@ void FUSB302B::check_source_caps_() {
     case SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT:
       if (elapsed < SOURCE_CAP_RETRY_MS)
         return;
-      ESP_LOGW(TAG, "PD negotiation failed, staying at 5 V");
       this->waiting_for_source_caps_ = false;
-      this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
+      if (this->state_ == PdState::PD_STATE_DEFAULT_CONTRACT) {
+        ESP_LOGW(TAG, "PD negotiation failed, staying at 5 V");
+        this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
+        return;
+      }
+      // A request made at runtime got no answer. A soft reset keeps the power level, so the contract in place stays.
+      ESP_LOGW(TAG, "Renegotiation failed, keeping the current contract");
+      this->on_request_failed();
       return;
   }
   this->source_cap_step_start_ = millis();

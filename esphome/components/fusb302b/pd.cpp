@@ -148,6 +148,7 @@ void PowerDelivery::request_failed_() {
   // A contract already in place stays valid. Without one, report that negotiation is over at default power.
   if (this->state_ == PdState::PD_STATE_DEFAULT_CONTRACT)
     this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
+  this->on_request_failed();
 }
 
 void PowerDelivery::check_transition_timeout_() {

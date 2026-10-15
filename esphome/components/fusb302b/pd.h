@@ -125,6 +125,9 @@ class PowerDelivery {
   /// Called after an accepted request was not followed by PS_RDY in time and the state fell back to default power;
   /// the PHY sends a soft reset so the source offers its capabilities again.
   virtual void on_transition_timeout() = 0;
+  /// Called when a request ended without a new contract: it was rejected, the source kept answering Wait, or it
+  /// could not be sent. A contract already in place stays valid.
+  virtual void on_request_failed() = 0;
 
   void handle_message_(const PdMsg &msg);
   /// Called by the PHY when the chip gave up on a message after its retries without receiving a GoodCRC.

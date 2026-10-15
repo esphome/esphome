@@ -18,6 +18,8 @@ fusb302b:
           fusb302b.is_connected: pd
         then:
           - logger.log: "Power ready"
+  on_request_failed:
+    - logger.log: "Voltage request failed"
   on_error:
     - fusb302b.request_voltage: 5
     - fusb302b.request_voltage:

@@ -31,6 +31,7 @@ class FakePhy : public PowerDelivery {
   int soft_resets{0};
   int source_caps{0};
   int transition_timeouts{0};
+  int request_failures{0};
 
   void receive(uint8_t type, uint8_t id, std::vector<uint32_t> objects = {}) {
     PdMsg msg;
@@ -70,6 +71,7 @@ class FakePhy : public PowerDelivery {
     this->source_caps++;
   }
   void on_transition_timeout() override { this->transition_timeouts++; }
+  void on_request_failed() override { this->request_failures++; }
 };
 
 TEST(FUSB302BPd, HeaderRoundTrip) {
@@ -255,9 +257,11 @@ TEST(FUSB302BPd, WaitRetriesStopAtLimit) {
     pd.check_request_retry_();
   }
   EXPECT_EQ(pd.sent.size(), 11u);
+  EXPECT_EQ(pd.request_failures, 0);
   pd.receive(PD_CNTRL_WAIT, 3);
   EXPECT_FALSE(pd.retry_request_pending_);
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
+  EXPECT_EQ(pd.request_failures, 1);
   pd.advance_ms(101);
   pd.check_request_retry_();
   EXPECT_EQ(pd.sent.size(), 11u);
@@ -273,6 +277,7 @@ TEST(FUSB302BPd, FailedRequestEndsNegotiation) {
   EXPECT_FALSE(pd.check_ams_());
   EXPECT_FALSE(pd.retry_request_pending_);
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
+  EXPECT_EQ(pd.request_failures, 1);
   pd.receive(PD_CNTRL_ACCEPT, 1);
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
   EXPECT_FLOAT_EQ(pd.contract().voltage(), 5.0f);
@@ -312,6 +317,7 @@ TEST(FUSB302BPd, FailedRetriesStopAtLimit) {
   // The first request, then one attempt for each of the 10 allowed repeats
   EXPECT_EQ(pd.send_attempts, 11);
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
+  EXPECT_EQ(pd.request_failures, 1);
 }
 
 TEST(FUSB302BPd, RejectedFirstRequestEndsNegotiation) {
@@ -322,6 +328,7 @@ TEST(FUSB302BPd, RejectedFirstRequestEndsNegotiation) {
   pd.receive(PD_CNTRL_REJECT, 1);
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_PD_TIMEOUT);
   EXPECT_FLOAT_EQ(pd.contract().voltage(), 5.0f);
+  EXPECT_EQ(pd.request_failures, 1);
 }
 
 TEST(FUSB302BPd, RejectedRenegotiationKeepsContract) {
@@ -333,9 +340,11 @@ TEST(FUSB302BPd, RejectedRenegotiationKeepsContract) {
   pd.receive(PD_CNTRL_PS_RDY, 2);
   pd.set_request_voltage(9);
   pd.receive_source_caps(3);
+  EXPECT_EQ(pd.request_failures, 0);
   pd.receive(PD_CNTRL_REJECT, 4);
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_EXPLICIT_CONTRACT);
   EXPECT_FLOAT_EQ(pd.contract().voltage(), 20.0f);
+  EXPECT_EQ(pd.request_failures, 1);
 }
 
 TEST(FUSB302BPd, RejectAndWaitOutsideRequestAreIgnored) {
@@ -345,6 +354,7 @@ TEST(FUSB302BPd, RejectAndWaitOutsideRequestAreIgnored) {
   pd.receive(PD_CNTRL_WAIT, 1);
   EXPECT_EQ(pd.get_state(), PdState::PD_STATE_DEFAULT_CONTRACT);
   EXPECT_FALSE(pd.retry_request_pending_);
+  EXPECT_EQ(pd.request_failures, 0);
 }
 
 TEST(FUSB302BPd, UnsupportedDataMessageIsIgnored) {

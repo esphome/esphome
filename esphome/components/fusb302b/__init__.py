@@ -27,6 +27,7 @@ DOMAIN = "fusb302b"
 
 CONF_CONTRACT = "contract"
 CONF_ON_POWER_READY = "on_power_ready"
+CONF_ON_REQUEST_FAILED = "on_request_failed"
 CONF_REQUEST_VOLTAGE = "request_voltage"
 
 fusb302b_ns = cg.esphome_ns.namespace("fusb302b")
@@ -69,6 +70,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation({}),
             cv.Optional(CONF_ON_POWER_READY): automation.validate_automation({}),
             cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
+            cv.Optional(CONF_ON_REQUEST_FAILED): automation.validate_automation({}),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -88,6 +90,9 @@ _CALLBACK_AUTOMATIONS = (
     ),
     automation.CallbackAutomation(
         CONF_ON_ERROR, "add_on_state_callback", forwarder=ErrorForwarder
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_REQUEST_FAILED, "add_on_request_failed_callback"
     ),
 )
 
@@ -117,7 +122,7 @@ automation.register_apply_action(
         },
         key=CONF_VOLTAGE,
     ),
-    automation.ApplyField(CONF_VOLTAGE, "request_voltage", cg.uint8),
+    automation.ApplyField(CONF_VOLTAGE, "request_voltage", cg.int_),
 )
 
 automation.register_apply_condition(
