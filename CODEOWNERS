@@ -40,6 +40,7 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/apc1/* @ademuri
+esphome/components/apc_proteous/* @clydebarrow
 esphome/components/apds9306/* @aodrenah
 esphome/components/apds9930/* @iyesin
 esphome/components/api/* @esphome/core
@@ -257,6 +258,7 @@ esphome/components/hc8/* @omartijn
 esphome/components/hdc2010/* @optimusprimespace @ssieb
 esphome/components/hdc2080/* @G-Pereira @jesserockz
 esphome/components/hdc302x/* @joshuasing
+esphome/components/hdmi_cec/* @JosVanEijndhoven
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
