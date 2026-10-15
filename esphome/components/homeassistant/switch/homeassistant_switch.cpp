@@ -1,11 +1,20 @@
 #include "homeassistant_switch.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.switch");
+
+// In flash on the ESP8266; copied to the stack only while a request is built
+PROGMEM_STRING_TABLE(SwitchActionStrings, "homeassistant.turn_on", "homeassistant.turn_off", "entity_id");
+enum SwitchActionString : uint8_t {
+  SWITCH_ACTION_STRING_TURN_ON,
+  SWITCH_ACTION_STRING_TURN_OFF,
+  SWITCH_ACTION_STRING_ENTITY_ID,
+};
 
 using namespace esphome::switch_;
 
@@ -47,20 +56,13 @@ void HomeassistantSwitch::write_state(bool state) {
   }
 #endif
 
-  static constexpr auto SERVICE_ON = StringRef::from_lit("homeassistant.turn_on");
-  static constexpr auto SERVICE_OFF = StringRef::from_lit("homeassistant.turn_off");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-
+  ProgmemStringTableCopy<SwitchActionStrings> strings;
   api::HomeassistantActionRequest resp;
-  if (state) {
-    resp.service = SERVICE_ON;
-  } else {
-    resp.service = SERVICE_OFF;
-  }
+  resp.service = StringRef(strings.get(state ? SWITCH_ACTION_STRING_TURN_ON : SWITCH_ACTION_STRING_TURN_OFF));
 
   resp.data.init(1);
   auto &entity_id_kv = resp.data.emplace_back();
-  entity_id_kv.key = ENTITY_ID_KEY;
+  entity_id_kv.key = StringRef(strings.get(SWITCH_ACTION_STRING_ENTITY_ID));
   entity_id_kv.value = StringRef(this->entity_id_);
 
   api::global_api_server->send_homeassistant_action(resp);

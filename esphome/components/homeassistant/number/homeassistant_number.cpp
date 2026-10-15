@@ -5,11 +5,21 @@
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.number");
+
+// In flash on the ESP8266; copied to the stack only while a request is built
+PROGMEM_STRING_TABLE(NumberActionStrings, "number.set_value", "input_number.set_value", "entity_id", "value");
+enum NumberActionString : uint8_t {
+  NUMBER_ACTION_STRING_SERVICE,
+  NUMBER_ACTION_STRING_INPUT_SERVICE,
+  NUMBER_ACTION_STRING_ENTITY_ID,
+  NUMBER_ACTION_STRING_VALUE,
+};
 
 void HomeassistantNumber::state_changed_(StringRef state) {
   auto number_value = parse_number<float>(state.c_str());
@@ -89,27 +99,22 @@ void HomeassistantNumber::control(float value) {
 
   this->publish_state(value);
 
-  static constexpr auto NUMBER_SERVICE_NAME = StringRef::from_lit("number.set_value");
-  static constexpr auto INPUT_NUMBER_SERVICE_NAME = StringRef::from_lit("input_number.set_value");
-  static constexpr char INPUT_PREFIX[] = "input_";
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto VALUE_KEY = StringRef::from_lit("value");
-
+  ProgmemStringTableCopy<NumberActionStrings> strings;
+  // An input helper entity id starts with the "input_" its action name starts with
+  const bool input_helper =
+      strncmp(this->entity_id_, strings.get(NUMBER_ACTION_STRING_INPUT_SERVICE), sizeof("input_") - 1) == 0;
   api::HomeassistantActionRequest resp;
   // input_number entities have their own set_value action
-  if (strncmp(this->entity_id_, INPUT_PREFIX, sizeof(INPUT_PREFIX) - 1) == 0) {
-    resp.service = INPUT_NUMBER_SERVICE_NAME;
-  } else {
-    resp.service = NUMBER_SERVICE_NAME;
-  }
+  resp.service =
+      StringRef(strings.get(input_helper ? NUMBER_ACTION_STRING_INPUT_SERVICE : NUMBER_ACTION_STRING_SERVICE));
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ENTITY_ID_KEY;
+  entity_id.key = StringRef(strings.get(NUMBER_ACTION_STRING_ENTITY_ID));
   entity_id.value = StringRef(this->entity_id_);
 
   auto &entity_value = resp.data.emplace_back();
-  entity_value.key = VALUE_KEY;
+  entity_value.key = StringRef(strings.get(NUMBER_ACTION_STRING_VALUE));
   // Stack buffer - no heap allocation; %g produces shortest representation
   char value_buf[16];
   buf_append_printf(value_buf, sizeof(value_buf), 0, "%g", value);

@@ -6,11 +6,21 @@
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.select");
+
+// In flash on the ESP8266; copied to the stack only while a request is built
+PROGMEM_STRING_TABLE(SelectActionStrings, "select.select_option", "input_select.select_option", "entity_id", "option");
+enum SelectActionString : uint8_t {
+  SELECT_ACTION_STRING_SERVICE,
+  SELECT_ACTION_STRING_INPUT_SERVICE,
+  SELECT_ACTION_STRING_ENTITY_ID,
+  SELECT_ACTION_STRING_OPTION,
+};
 
 namespace {
 
@@ -237,26 +247,21 @@ void HomeassistantSelect::control(size_t index) {
   }
 #endif
 
-  static constexpr auto SERVICE_SELECT = StringRef::from_lit("select.select_option");
-  static constexpr auto SERVICE_INPUT_SELECT = StringRef::from_lit("input_select.select_option");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto OPTION_KEY = StringRef::from_lit("option");
-  static constexpr char INPUT_PREFIX[] = "input_";
-
+  ProgmemStringTableCopy<SelectActionStrings> strings;
+  // An input helper entity id starts with the "input_" its action name starts with
+  const bool input_helper =
+      strncmp(this->entity_id_, strings.get(SELECT_ACTION_STRING_INPUT_SERVICE), sizeof("input_") - 1) == 0;
   api::HomeassistantActionRequest resp;
-  if (strncmp(this->entity_id_, INPUT_PREFIX, sizeof(INPUT_PREFIX) - 1) == 0) {
-    resp.service = SERVICE_INPUT_SELECT;
-  } else {
-    resp.service = SERVICE_SELECT;
-  }
+  resp.service =
+      StringRef(strings.get(input_helper ? SELECT_ACTION_STRING_INPUT_SERVICE : SELECT_ACTION_STRING_SERVICE));
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ENTITY_ID_KEY;
+  entity_id.key = StringRef(strings.get(SELECT_ACTION_STRING_ENTITY_ID));
   entity_id.value = StringRef(this->entity_id_);
 
   auto &option = resp.data.emplace_back();
-  option.key = OPTION_KEY;
+  option.key = StringRef(strings.get(SELECT_ACTION_STRING_OPTION));
   option.value = StringRef(this->option_at(index));
 
   api::global_api_server->send_homeassistant_action(resp);

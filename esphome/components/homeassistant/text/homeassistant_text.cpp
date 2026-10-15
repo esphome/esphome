@@ -6,11 +6,21 @@
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.text");
+
+// In flash on the ESP8266; copied to the stack only while a request is built
+PROGMEM_STRING_TABLE(TextActionStrings, "text.set_value", "input_text.set_value", "entity_id", "value");
+enum TextActionString : uint8_t {
+  TEXT_ACTION_STRING_SERVICE,
+  TEXT_ACTION_STRING_INPUT_SERVICE,
+  TEXT_ACTION_STRING_ENTITY_ID,
+  TEXT_ACTION_STRING_VALUE,
+};
 
 void HomeassistantText::state_changed_(StringRef state) {
   if (state == this->state) {
@@ -86,26 +96,20 @@ void HomeassistantText::control(const std::string &value) {
   }
 #endif
 
-  static constexpr auto SERVICE_TEXT = StringRef::from_lit("text.set_value");
-  static constexpr auto SERVICE_INPUT_TEXT = StringRef::from_lit("input_text.set_value");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto VALUE_KEY = StringRef::from_lit("value");
-  static constexpr char INPUT_PREFIX[] = "input_";
-
+  ProgmemStringTableCopy<TextActionStrings> strings;
+  // An input helper entity id starts with the "input_" its action name starts with
+  const bool input_helper =
+      strncmp(this->entity_id_, strings.get(TEXT_ACTION_STRING_INPUT_SERVICE), sizeof("input_") - 1) == 0;
   api::HomeassistantActionRequest resp;
-  if (strncmp(this->entity_id_, INPUT_PREFIX, sizeof(INPUT_PREFIX) - 1) == 0) {
-    resp.service = SERVICE_INPUT_TEXT;
-  } else {
-    resp.service = SERVICE_TEXT;
-  }
+  resp.service = StringRef(strings.get(input_helper ? TEXT_ACTION_STRING_INPUT_SERVICE : TEXT_ACTION_STRING_SERVICE));
 
   resp.data.init(2);
   auto &entity_id_kv = resp.data.emplace_back();
-  entity_id_kv.key = ENTITY_ID_KEY;
+  entity_id_kv.key = StringRef(strings.get(TEXT_ACTION_STRING_ENTITY_ID));
   entity_id_kv.value = StringRef(this->entity_id_);
 
   auto &value_kv = resp.data.emplace_back();
-  value_kv.key = VALUE_KEY;
+  value_kv.key = StringRef(strings.get(TEXT_ACTION_STRING_VALUE));
   value_kv.value = StringRef(value.data(), value.size());
 
   api::global_api_server->send_homeassistant_action(resp);
