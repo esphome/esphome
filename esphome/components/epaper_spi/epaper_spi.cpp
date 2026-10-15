@@ -468,7 +468,7 @@ void HOT EPaperBase::draw_pixels_at(int x_start, int y_start, int w, int h, cons
                                     ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   size_t contiguous_length;
   uint8_t *contiguous = this->buffer_.get_span(0, contiguous_length);
-  if (this->buffer_bits_per_pixel() != 1 || this->get_clipping().is_set() || bitness != COLOR_BITNESS_565 ||
+  if (!this->buffer_is_mono_() || this->get_clipping().is_set() || bitness != COLOR_BITNESS_565 ||
       contiguous_length != this->buffer_length_) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
