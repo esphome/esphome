@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"  // for ESPDEPRECATED
 
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
@@ -152,13 +153,20 @@ class AudioReadableBuffer {
 
   /// @brief Refills the buffer from its source. No-op by default for read-only buffers.
   /// @param ticks_to_wait FreeRTOS ticks to block while waiting for data
-  /// @param pre_shift If true, shifts existing data to the start of the buffer before reading
   /// @return Number of bytes read
-  virtual size_t fill(TickType_t ticks_to_wait, bool pre_shift) { return 0; }
-  size_t fill(TickType_t ticks_to_wait) { return this->fill(ticks_to_wait, true); }
+  virtual size_t fill(TickType_t ticks_to_wait) { return 0; }
+
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use fill(ticks_to_wait) instead. Removed in 2027.5.0.", "2026.11.0")
+  virtual size_t fill(TickType_t ticks_to_wait, bool pre_shift) { return this->fill(ticks_to_wait); }
 };
 
-class AudioSourceTransferBuffer : public AudioTransferBuffer, public AudioReadableBuffer {
+// Remove before 2027.5.0
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+class ESPDEPRECATED("Use RingBufferAudioSource instead. Removed in 2027.5.0.", "2026.11.0") AudioSourceTransferBuffer
+    : public AudioTransferBuffer,
+      public AudioReadableBuffer {
   /*
    * @brief A class that implements a transfer buffer for audio sources.
    * Supports reading audio data from a ring buffer into the transfer buffer for processing.
@@ -189,10 +197,12 @@ class AudioSourceTransferBuffer : public AudioTransferBuffer, public AudioReadab
   size_t free() const override;
   void consume(size_t bytes) override { this->decrease_buffer_length(bytes); }
   bool has_buffered_data() const override;
+  size_t fill(TickType_t ticks_to_wait) override { return this->transfer_data_from_source(ticks_to_wait); }
   size_t fill(TickType_t ticks_to_wait, bool pre_shift) override {
     return this->transfer_data_from_source(ticks_to_wait, pre_shift);
   }
 };
+#pragma GCC diagnostic pop
 
 /// @brief A lightweight read-only audio buffer for const data sources (e.g., flash memory).
 /// Does not allocate memory or transfer data from external sources.
@@ -246,9 +256,10 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   size_t available() const override { return this->current_available_; }
   void consume(size_t bytes) override;
   bool has_buffered_data() const override;
-  /// pre_shift is ignored: there is no intermediate transfer buffer to compact, so an unconsumed
-  /// exposure stays in place and fill() returns 0 until it is fully consumed.
-  size_t fill(TickType_t ticks_to_wait, bool pre_shift) override;
+  /// An unconsumed exposure stays in place and fill() returns 0 until it is fully consumed.
+  size_t fill(TickType_t ticks_to_wait) override;
+  // Keeps the deprecated fill(ticks_to_wait, pre_shift) overload visible. Remove before 2027.5.0.
+  using AudioReadableBuffer::fill;
 
   /// @brief Discards all buffered audio: releases any held ring buffer item, clears the source's in-flight
   /// state, and resets the underlying ring buffer. Must be invoked from the ring buffer's consumer thread.
