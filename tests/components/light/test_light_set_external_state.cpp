@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "esphome/components/light/light_effect.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/light_state.h"
 
@@ -17,6 +18,12 @@ class CountingOutput : public LightOutput {
   }
   void write_state(LightState *state) override { this->writes++; }
   int writes{0};
+};
+
+class NoopEffect : public LightEffect {
+ public:
+  using LightEffect::LightEffect;
+  void apply() override {}
 };
 
 class ReachedListener : public LightTargetStateReachedListener {
@@ -71,6 +78,20 @@ TEST(LightStateExternal, RefusesDuringATransition) {
   state.make_call().set_state(true).set_brightness(1.0f).set_transition_length(1000).perform();
   state.loop();
   EXPECT_TRUE(state.is_transitioning());
+  EXPECT_FALSE(state.set_external_state(on_at(0.5f)));
+}
+
+TEST(LightStateExternal, RefusesWhileAnEffectRuns) {
+  CountingOutput output;
+  LightState state(&output);
+  NoopEffect effect("Noop");
+  LightEffect *effects[] = {&effect};
+  state.add_effects(effects, 1);
+  state.loop();
+
+  state.make_call().set_state(true).set_effect("Noop").perform();
+  state.loop();
+  ASSERT_EQ(state.get_current_effect_index(), 1u);
   EXPECT_FALSE(state.set_external_state(on_at(0.5f)));
 }
 
