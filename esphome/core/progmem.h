@@ -154,13 +154,15 @@ struct LogString;
   }
 
 /// The index of the string value (len bytes, in RAM) in a PROGMEM_STRING_TABLE, or -1 when it is
-/// not one of its strings
-template<typename Table> int8_t progmem_string_table_find(const char *value, size_t len) {
+/// not one of its strings. One pass over the blob, so a table without offsets costs the same.
+template<typename Table> int16_t progmem_string_table_find(const char *value, size_t len) {
+  const char *entry = Table::BLOB.data();
   for (uint8_t i = 0; i < Table::COUNT; i++) {
-    const char *entry = Table::get_(i, i);
-    if (ESPHOME_strlen_P(entry) == len && ESPHOME_strncmp_P(value, entry, len) == 0) {
+    const size_t entry_len = ESPHOME_strlen_P(entry);
+    if (entry_len == len && ESPHOME_strncmp_P(value, entry, len) == 0) {
       return i;
     }
+    entry += entry_len + 1;
   }
   return -1;
 }

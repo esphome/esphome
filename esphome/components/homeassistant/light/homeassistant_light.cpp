@@ -45,7 +45,7 @@ enum ActionString : uint8_t {
 };
 
 optional<ColorMode> parse_color_mode(StringRef name) {
-  const int8_t i = progmem_string_table_find<ColorModeNames>(name.c_str(), name.size());
+  const int16_t i = progmem_string_table_find<ColorModeNames>(name.c_str(), name.size());
   if (i < 0) {
     return nullopt;
   }
