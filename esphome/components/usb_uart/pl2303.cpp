@@ -66,7 +66,7 @@ static const char *pl2303_type_name(Pl2303ChipType type) {
   }
 }
 
-// The flow control register bits for the mode, as Linux pl2303_set_termios() picks them
+// The flow control register bits for the mode on each chip type
 static uint8_t pl2303_flow_control_bits(Pl2303ChipType type, uart::UARTFlowControl flow_control) {
   if (type == PL2303_TYPE_HXN) {
     switch (flow_control) {
@@ -321,8 +321,8 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 1:
-      // Read the flow control register, re-applied on every settings change as set_termios does.
-      // A short reply fails the step, so no write follows, as in Linux pl2303_update_reg().
+      // Read the flow control register, re-applied on every settings change. A short reply fails
+      // the step, so no write follows.
       this->config_read_(VENDOR_READ_REQUEST_TYPE, is_hxn ? VENDOR_READ_NREQUEST : VENDOR_READ_REQUEST,
                          is_hxn ? HXN_FLOWCTRL_REG : (FLOWCTRL_REG | VENDOR_READ_REG_FLAG), 0, this->cfg_response_, 1);
       return true;

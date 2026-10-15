@@ -22,7 +22,7 @@ static constexpr uint8_t CH341_REQ_WRITE_REG = 0x9A;
 static constexpr uint8_t CH341_REG_FLOW_CTL = 0x27;
 static constexpr uint8_t CH341_FLOW_CTL_NONE = 0x00;
 static constexpr uint8_t CH341_FLOW_CTL_RTSCTS = 0x01;
-// The single-port chips Linux ch341 drives, which have the flow control register
+// The single-port chips, which have the flow control register
 static constexpr uint16_t CH341_PIDS[] = {0x5523, 0x7522, 0x7523};
 
 struct CH34xEntry {
@@ -112,8 +112,7 @@ void USBUartTypeCH34X::dump_config() {
 
 bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                    const uint8_t *response) {
-  // TODO: the multi-port chips (PIDs 0x55Dx) use cdc_acm in Linux, which has no flow control.
-  // Only the WCH ch343ser driver sets it on them.
+  // TODO: flow control on the multi-port chips (PIDs 0x55Dx)
   const bool has_flow_ctl_reg =
       std::find(std::begin(CH341_PIDS), std::end(CH341_PIDS), this->pid_) != std::end(CH341_PIDS);
   if (!has_flow_ctl_reg && step >= 1)
@@ -167,7 +166,7 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
       return true;
     }
     case 1: {
-      // Re-applied on every settings change, as set_termios does. The chip has no XON/XOFF.
+      // Re-applied on every settings change. The chip has no XON/XOFF.
       const bool rts_cts = channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS;
       const uint8_t flow_ctl = rts_cts ? CH341_FLOW_CTL_RTSCTS : CH341_FLOW_CTL_NONE;
       ESP_LOGD(TAG, "FLOW_CTL: RTS/CTS=%s", ONOFF(rts_cts));

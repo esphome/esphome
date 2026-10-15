@@ -182,7 +182,6 @@ bool USBUartTypeCP210X::config_device_step(uint8_t step, bool ok, const uint8_t 
 
 bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
-  // As Linux does, apply none where the firmware cannot do flow control
   const uart::UARTFlowControl flow_control =
       this->no_flow_control_ ? uart::UART_FLOW_CONTROL_NONE : channel->flow_control_;
 
@@ -221,8 +220,8 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 5: {
-      // Set flow control, re-applied on every settings change as set_termios does. The block
-      // also carries DTR and RTS, so this puts them on the wire too.
+      // Set flow control, re-applied on every settings change. The block also carries DTR and RTS,
+      // so this puts them on the wire too.
       if (flow_control != channel->flow_control_) {
         ESP_LOGW(TAG, "CP2102N firmware 1.0.4 and older cannot do flow control (erratum E104), using none");
       }
@@ -243,8 +242,8 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 6:
-      // Linux raises the lines once more on open (cp210x_dtr_rts). On firmware with erratum E104
-      // this SET_MHS is what puts RTS on the wire, as SET_FLOW misreads its RTS bits. Init only.
+      // Raise the lines once more on open. On firmware with erratum E104 this SET_MHS is what puts
+      // RTS on the wire, as SET_FLOW misreads its RTS bits. Init only.
       if (reload)
         return false;
       this->modem_control_transfer(channel);
@@ -255,7 +254,7 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
 }
 
 void USBUartTypeCP210X::modem_control_transfer(USBUartChannelBase *channel) {
-  // Under RTS/CTS the chip drives RTS, so the lines go through SET_FLOW as in Linux
+  // Under RTS/CTS the chip drives RTS, so the lines go through SET_FLOW
   auto &block = this->flow_blocks_[channel->index_];
   if (block.control_handshake & SERIAL_CTS_HANDSHAKE) {
     set_block_modem_lines(block, channel->dtr_, channel->rts_);

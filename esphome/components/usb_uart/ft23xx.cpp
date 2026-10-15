@@ -384,7 +384,7 @@ bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, b
                              channel->cdc_dev_.bulk_interface_number + 1);
       return true;
     }
-    case 3: {  // set flow control, re-applied on every settings change as set_termios does
+    case 3: {  // set flow control, re-applied on every settings change
       uint16_t mode = SIO_DISABLE_FLOW_CTRL;
       uint16_t value = 0;
       if (channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS) {
