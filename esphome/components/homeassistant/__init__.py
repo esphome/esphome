@@ -77,4 +77,4 @@ def setup_home_assistant_entity(var: MockObj, config: ConfigType) -> None:
 
 
 async def to_code(config: ConfigType) -> None:
-    pass
+    """Nothing to generate; the component only carries the shared C++ helpers."""

@@ -106,16 +106,20 @@ void HomeassistantLight::setup() {
     }
     ESP_LOGD(TAG, "'%s': Supported color modes retrieved: %s", this->entity_id_, value.c_str());
     this->traits_.set_supported_color_modes(modes);
+    // Attributes that arrived before the traits were validated against empty ones; apply them again
+    this->schedule_apply_();
   });
   // Home Assistant reports the temperature range in Kelvin, the light core works in mireds
   server->subscribe_home_assistant_state(this->entity_id_, "min_color_temp_kelvin", [this](StringRef value) {
-    if (auto kelvin = this->parse_kelvin_("min_color_temp_kelvin", value)) {
+    if (auto kelvin = this->parse_integer_("min_color_temp_kelvin", value, UINT16_MAX)) {
       this->traits_.set_max_mireds(1e6f / *kelvin);
+      this->schedule_apply_();
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "max_color_temp_kelvin", [this](StringRef value) {
-    if (auto kelvin = this->parse_kelvin_("max_color_temp_kelvin", value)) {
+    if (auto kelvin = this->parse_integer_("max_color_temp_kelvin", value, UINT16_MAX)) {
       this->traits_.set_min_mireds(1e6f / *kelvin);
+      this->schedule_apply_();
     }
   });
 
@@ -145,13 +149,13 @@ void HomeassistantLight::setup() {
     this->schedule_apply_();
   });
   server->subscribe_home_assistant_state(this->entity_id_, "brightness", [this](StringRef value) {
-    if (auto brightness = this->parse_attribute_("brightness", value)) {
-      this->imported_.brightness = static_cast<uint8_t>(clamp(*brightness, 1.0f, 255.0f));
+    if (auto brightness = this->parse_integer_("brightness", value, 255)) {
+      this->imported_.brightness = *brightness;
       this->schedule_apply_();
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_temp_kelvin", [this](StringRef value) {
-    if (auto kelvin = this->parse_kelvin_("color_temp_kelvin", value)) {
+    if (auto kelvin = this->parse_integer_("color_temp_kelvin", value, UINT16_MAX)) {
       this->imported_.color_temp_kelvin = *kelvin;
       this->schedule_apply_();
     }
@@ -189,16 +193,17 @@ optional<float> HomeassistantLight::parse_attribute_(const char *name, StringRef
   return number;
 }
 
-optional<uint16_t> HomeassistantLight::parse_kelvin_(const char *name, StringRef value) {
-  auto kelvin = this->parse_attribute_(name, value);
-  if (!kelvin.has_value()) {
+optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRef value, uint16_t max) {
+  auto number = this->parse_attribute_(name, value);
+  if (!number.has_value()) {
     return nullopt;
   }
-  if (*kelvin < 1.0f || *kelvin > UINT16_MAX) {
-    ESP_LOGW(TAG, "'%s': '%s' value %.0f is out of range!", this->entity_id_, name, *kelvin);
+  // Written so that NaN fails too
+  if (!(*number >= 1.0f && *number <= max)) {
+    ESP_LOGW(TAG, "'%s': '%s' value %.0f is out of range!", this->entity_id_, name, *number);
     return nullopt;
   }
-  return static_cast<uint16_t>(*kelvin);
+  return static_cast<uint16_t>(*number);
 }
 
 void HomeassistantLight::schedule_apply_() {
@@ -210,8 +215,13 @@ void HomeassistantLight::schedule_apply_() {
 }
 
 void HomeassistantLight::apply_imported_() {
-  if (this->remote_values_version_ != this->written_version_) {
-    // A local change still waits for LightState::loop() to send it; write_state() picks the report up after it
+  if (!this->imported_.state.has_value()) {
+    this->apply_scheduled_ = false;
+    return;  // the traits came in before any state
+  }
+  if (this->remote_values_version_ != this->written_version_ || this->state_->is_transformer_active()) {
+    // A local change still waits for LightState::loop() to send it, or a local transition or flash
+    // runs; write_state() picks the report up once that is over
     this->import_waiting_ = true;
     return;
   }
@@ -253,6 +263,9 @@ void HomeassistantLight::write_state(LightState *state) {
   const LightColorValues &values = state->current_values;
   if (values != state->remote_values) {
     return;  // a transition runs here; Home Assistant gets the target once it is reached
+  }
+  if (this->remote_values_version_ == this->written_version_) {
+    return;  // a transition that ends where it started writes the same values on every pass
   }
   this->written_version_ = this->remote_values_version_;
   if (this->import_waiting_) {

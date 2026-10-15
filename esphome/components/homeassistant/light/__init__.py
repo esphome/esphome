@@ -24,6 +24,8 @@ CODEOWNERS = ["@egormanga"]
 DEPENDENCIES = ["api"]
 AUTO_LOAD = ["homeassistant"]
 
+SUPPORTED_DOMAINS = ["light"]
+
 HomeassistantLight = homeassistant_ns.class_(
     "HomeassistantLight", light.LightOutput, cg.Component
 )
@@ -56,7 +58,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    validate_entity_domain("light", ("light",)),
+    validate_entity_domain("light", SUPPORTED_DOMAINS),
 )
 
 FINAL_VALIDATE_SCHEMA = final_validate_entity_id
