@@ -11,9 +11,9 @@ from esphome.core import CORE
 def configuration(tmp_path: Path, actions: list | None = None) -> dict:
     return {
         "esphome": {"name": "rx8111-clock-test", "build_path": str(tmp_path / "build")},
-        "host": {},
+        "esp32": {"board": "esp32dev", "framework": {"type": "esp-idf"}},
         "logger": {},
-        "i2c": {"device": "/dev/i2c-0", "scan": False},
+        "i2c": {"sda": 21, "scl": 22, "scan": False},
         "time": [{"platform": "rx8111", "id": "rtc"}],
         "script": [
             {
