@@ -854,19 +854,11 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
-        // New credentials arrived (set_sta()): retry now, whatever the driver reports, from the main loop
+        // Credentials not tried yet: retry whatever the driver reports. The flag outlives an adapter restart,
+        // which only lands back here, and start_connecting() clears it once they are tried
         if (this->skip_cooldown_next_cycle_) {
-          this->skip_cooldown_next_cycle_ = false;
-          ESP_LOGD(TAG, "Leaving the cooldown early for new WiFi credentials");
-          const WiFiRetryPhase phase_before = this->retry_phase_;
+          ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
           this->retry_connect();
-          // Entering the adapter restart lands straight back here with the credentials untried: skip that cooldown
-          // too. A cooldown after an attempt that failed on the spot keeps its full length
-          if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN &&
-              this->retry_phase_ == WiFiRetryPhase::RESTARTING_ADAPTER &&
-              phase_before != WiFiRetryPhase::RESTARTING_ADAPTER) {
-            this->skip_cooldown_next_cycle_ = true;
-          }
           break;
         }
         // Use longer cooldown when a portal/improv is active to avoid disrupting a user on the AP
@@ -1192,7 +1184,7 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
-  // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
+  // New credentials end the next cooldown early; start_connecting() clears this once they are tried
   this->skip_cooldown_next_cycle_ = true;
 #ifdef USE_WIFI_LEASE_CACHE
   // Index 0 is a different network now, so its cached lease must not be re-applied
@@ -1261,9 +1253,8 @@ void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
   WiFiAP sta{};
   sta.set_ssid(ssid);
   sta.set_password(password);
-  // Arms skip_cooldown_next_cycle_: a cooldown ends on the loop's next pass. No retry from here, a save from the
-  // captive portal arrives in the web server's context, lwIP's on the ESP8266, where retry_connect() yields and
-  // panics. Already connecting or connected: nothing to do
+  // No retry here: a captive portal save runs in lwIP's context on the ESP8266, where retry_connect() yields and
+  // panics. set_sta() flags the credentials and loop() tries them
   this->set_sta(sta);
 #ifdef USE_WIFI_AP_EXCLUSIVE
   // The AP pauses for the new credentials once its answer is out, and the STA state machine picks them up
@@ -1365,6 +1356,8 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // enters COOLDOWN without calling start_connecting(), and ESP8266 clears it again
   // after wifi_station_connect(), whose callbacks fire synchronously.
   this->error_from_callback_ = false;
+  // Every attempt passes through here, so the credentials set_sta() flagged are tried now
+  this->skip_cooldown_next_cycle_ = false;
 
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
