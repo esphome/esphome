@@ -41,7 +41,7 @@ class TestableHeater : public HonWaterHeater {
  public:
   using HonWaterHeater::poll_status_;
   void set_network_pending(bool value) { this->network_pending_ = value; }
-  bool waiting_poll() const { return this->waiting_poll_; }
+  bool waiting_poll() const { return this->awaiting_ == Awaiting::AWAITING_POLL; }
   bool pending_off() const { return this->pending_off_; }
   uint8_t command_count() const { return this->command_count_; }
   void cancel_test_intervals() {
