@@ -186,8 +186,9 @@ bool LightState::set_external_state(const LightColorValues &values) {
   if (this->next_write_ || this->transformer_ != nullptr) {
     return false;
   }
+  const bool had_effect = this->active_effect_index_ != 0;
   this->stop_effect_();  // schedules no write, unlike a call that sets effect 0
-  if (values == this->remote_values && values == this->current_values) {
+  if (!had_effect && values == this->remote_values && values == this->current_values) {
     return true;  // nothing new to tell
   }
   this->current_values = values;
