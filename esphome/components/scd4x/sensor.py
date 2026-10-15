@@ -45,7 +45,7 @@ MEASUREMENT_MODE_OPTIONS = {
 }
 
 
-def pressure_hpa(value):
+def pressure_hpa(value: str | float) -> float:
     """Pressure in hPa. A bare number is hPa, matching what the C++ sends to the sensor."""
     try:
         return cv.float_(value)
