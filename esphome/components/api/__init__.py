@@ -4,7 +4,6 @@ import re
 from typing import Any
 
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
@@ -99,7 +98,6 @@ ActionResponse = api_ns.class_("ActionResponse")
 HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
-APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 APIUnregisterServiceCallAction = api_ns.class_(
     "APIUnregisterServiceCallAction", automation.Action
@@ -1057,19 +1055,13 @@ API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_condition(
-    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "api.connected",
+    API_CONNECTED_CONDITION_SCHEMA,
+    automation.ApplyCall(
+        "is_connected({})", ((CONF_STATE_SUBSCRIPTION_ONLY, cg.bool_),)
+    ),
 )
-async def api_connected_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
-    cg.add(var.set_state_subscription_only(templ))
-    return var
 
 
 # user_services.cpp is only needed when user defined actions exist; the
