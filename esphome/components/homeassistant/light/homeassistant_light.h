@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "esphome/components/light/light_output.h"
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
@@ -43,8 +45,9 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   light::LightState *state_{nullptr};
   light::LightTraits traits_{};
   Attributes imported_{};
-  bool apply_scheduled_{false};
-  bool initial_write_{true};  // the light core's own first write is not a local change
+  bool apply_scheduled_ : 1 {false};
+  bool initial_write_ : 1 {true};  // the light core's own first write is not a local change
+  bool echo_pending_ : 1 {false};  // a sent change waits for Home Assistant to report it back
 };
 
 }  // namespace esphome::homeassistant

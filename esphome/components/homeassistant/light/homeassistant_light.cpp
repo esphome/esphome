@@ -1,7 +1,5 @@
 #include "homeassistant_light.h"
 
-#include <cstring>
-
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "../homeassistant.h"
@@ -210,8 +208,11 @@ optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRe
 }
 
 void HomeassistantLight::schedule_apply_() {
-  // A fresh report makes the one that waited for a local change moot
-  this->cancel_timeout(ECHO_TIMEOUT_ID);
+  // A report answers the change that armed the echo timeout
+  if (this->echo_pending_) {
+    this->echo_pending_ = false;
+    this->cancel_timeout(ECHO_TIMEOUT_ID);
+  }
   // One update changes several attributes, each arriving as its own message; apply them as one call
   if (!this->apply_scheduled_) {
     this->apply_scheduled_ = true;
@@ -220,8 +221,8 @@ void HomeassistantLight::schedule_apply_() {
 }
 
 void HomeassistantLight::apply_imported_() {
+  this->apply_scheduled_ = false;
   if (!this->imported_.state.has_value()) {
-    this->apply_scheduled_ = false;
     return;  // the traits came in before any state
   }
   // Attributes Home Assistant has not reported keep what the light has
@@ -251,7 +252,6 @@ void HomeassistantLight::apply_imported_() {
       values.set_white(1.0f);
     }
   }
-  this->apply_scheduled_ = false;
   if (!this->state_->set_external_state(values)) {
     // A local change still waits for LightState::loop() to send it, or a local transition or flash
     // runs. Home Assistant reports again once that change reaches it; when it does not, the echo
@@ -259,7 +259,7 @@ void HomeassistantLight::apply_imported_() {
     ESP_LOGD(TAG, "'%s': Report dropped, a local change is on its way", this->entity_id_);
     return;
   }
-  ESP_LOGD(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
+  ESP_LOGV(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
 }
 
 void HomeassistantLight::write_state(LightState *state) {
@@ -274,9 +274,7 @@ void HomeassistantLight::write_state(LightState *state) {
   }
   const LightColorValues &values = state->current_values;
   if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost%s", this->entity_id_,
-             this->imported_.state.has_value() ? LOG_STR_LITERAL("")
-                                               : LOG_STR_LITERAL(" and no reported state to fall back to"));
+    ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost", this->entity_id_);
     this->schedule_apply_();  // back to the state Home Assistant reported, which the light still has
     return;
   }
@@ -309,39 +307,46 @@ void HomeassistantLight::write_state(LightState *state) {
     resp.service = StringRef(strings.get(ACTION_STRING_TURN_OFF));
   } else {
     resp.service = StringRef(strings.get(ACTION_STRING_TURN_ON));
-    const ColorMode color_mode = values.get_color_mode();
-    if (color_mode != ColorMode::ON_OFF) {
-      // Home Assistant has one level, so the channel brightness of the mode folds into it. In
-      // white mode it goes under "white", which also selects that mode
-      float level = values.get_brightness();
-      uint8_t key = ACTION_STRING_BRIGHTNESS;
-      if (color_mode == ColorMode::RGB) {
-        level *= values.get_color_brightness();
-      } else if (color_mode == ColorMode::WHITE) {
-        level *= values.get_white();
-        key = ACTION_STRING_WHITE;
+    // Home Assistant has one level, so the channel brightness of the mode folds into it
+    switch (values.get_color_mode()) {
+      case ColorMode::ON_OFF:
+        break;
+      case ColorMode::WHITE:
+        // Under "white", which also selects that mode
+        add_number(ACTION_STRING_WHITE, level_buf, to_uint8_scale(values.get_brightness() * values.get_white()));
+        break;
+      case ColorMode::COLOR_TEMPERATURE:
+        add_number(ACTION_STRING_BRIGHTNESS, level_buf, to_uint8_scale(values.get_brightness()));
+        if (values.get_color_temperature() > 0.0f) {
+          add_number(ACTION_STRING_COLOR_TEMP_KELVIN, color_temp_buf,
+                     static_cast<unsigned>(lroundf(values.get_color_temperature_kelvin())));
+        }
+        break;
+      case ColorMode::RGB: {
+        add_number(ACTION_STRING_BRIGHTNESS, level_buf,
+                   to_uint8_scale(values.get_brightness() * values.get_color_brightness()));
+        // A list, which only a template renders as one
+        resp.data_template.init(1);
+        auto &color = resp.data_template.emplace_back();
+        color.key = StringRef(strings.get(ACTION_STRING_RGB_COLOR));
+        color.value =
+            StringRef(color_buf,
+                      buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]", to_uint8_scale(values.get_red()),
+                                        to_uint8_scale(values.get_green()), to_uint8_scale(values.get_blue())));
+        break;
       }
-      add_number(key, level_buf, to_uint8_scale(level));
-    }
-    if (color_mode == ColorMode::COLOR_TEMPERATURE && values.get_color_temperature() > 0.0f) {
-      add_number(ACTION_STRING_COLOR_TEMP_KELVIN, color_temp_buf,
-                 static_cast<unsigned>(lroundf(values.get_color_temperature_kelvin())));
-    }
-    if (color_mode == ColorMode::RGB) {
-      // A list, which only a template renders as one
-      resp.data_template.init(1);
-      auto &color = resp.data_template.emplace_back();
-      color.key = StringRef(strings.get(ACTION_STRING_RGB_COLOR));
-      color.value = StringRef(
-          color_buf, buf_append_printf(color_buf, sizeof(color_buf), 0, "[%u,%u,%u]", to_uint8_scale(values.get_red()),
-                                       to_uint8_scale(values.get_green()), to_uint8_scale(values.get_blue())));
+      default:
+        add_number(ACTION_STRING_BRIGHTNESS, level_buf, to_uint8_scale(values.get_brightness()));
+        break;
     }
   }
   api::global_api_server->send_homeassistant_action(resp);
   // Home Assistant reports the change back in a moment, which cancels this; when it does not, the
   // change got lost on the way (no subscriber yet, the entity unavailable, the action refused) and
   // the light goes back to what was reported last
+  this->echo_pending_ = true;
   this->set_timeout(ECHO_TIMEOUT_ID, ECHO_TIMEOUT_MS, [this]() {
+    this->echo_pending_ = false;
     ESP_LOGW(TAG, "'%s': Home Assistant did not report the change back, falling back to its last state",
              this->entity_id_);
     this->schedule_apply_();
