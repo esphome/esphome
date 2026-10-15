@@ -170,9 +170,7 @@ void MitsubishiCN105::did_transition_(State to) {
           break;
         }
       }
-      {
-        this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
-      }
+      { this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE); }
       break;
     }
 

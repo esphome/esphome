@@ -176,7 +176,6 @@ void MitsubishiCN105Climate::apply_values_() {
   }
   this->action = action;
 
-
   this->publish_state();
 }
 
