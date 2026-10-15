@@ -279,7 +279,13 @@ def _enter_serial_dfu_patches(
     )
     stack.enter_context(patch("time.sleep"))
     stack.enter_context(
-        patch("esphome.components.nrf52._nordic_nrfutil", return_value=nrfutil)
+        patch(
+            "esphome.components.nrf52.ensure_nordic_nrfutil",
+            return_value=nrfutil,
+            side_effect=None
+            if nrfutil
+            else EsphomeError("Failed to download Nordic's nrfutil"),
+        )
     )
     # Patch directly on the real pyserial module so the deferred imports inside
     # upload_program see our mocks regardless of how sys.modules is cached.
@@ -401,7 +407,7 @@ class TestUploadProgramSerialDfu:
     def test_open_dfu_bootloader_needs_nordic_nrfutil(
         self, setup_core: Path, tmp_path: Path
     ) -> None:
-        """Without Nordic's nrfutil the upload says how to install it instead of trying adafruit-nrfutil."""
+        """When Nordic's nrfutil cannot be fetched the upload fails before trying adafruit-nrfutil."""
         from esphome.components.nrf52 import OPEN_DFU_USB_ID, upload_program
 
         paths, _ = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
@@ -410,7 +416,7 @@ class TestUploadProgramSerialDfu:
             mock_run = _enter_serial_dfu_patches(
                 stack, host, tmp_path, paths, usb_id=OPEN_DFU_USB_ID, nrfutil=None
             )
-            with pytest.raises(EsphomeError, match="nrfutil install nrf5sdk-tools"):
+            with pytest.raises(EsphomeError, match="download Nordic's nrfutil"):
                 upload_program(config={}, args=None, host=host)
         mock_run.assert_not_called()
 

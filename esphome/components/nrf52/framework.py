@@ -19,6 +19,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     create_venv,
     download_and_extract,
+    download_from_mirrors,
     get_python_env_executable_path,
     rmdir,
     run_command_ok,
@@ -678,6 +679,62 @@ def _check_and_install(version: str) -> None:
     if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
         with _install_lock(f"toolchain-{toolchain_version}"):
             _install_toolchain()
+
+
+# Nordic's nrfutil launcher, one static binary per host; its commands are installed from Nordic's
+# package index by the launcher itself
+NORDIC_NRFUTIL_MIRRORS = [
+    "https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/{triple}/{name}",
+]
+
+
+def _nrfutil_target_triple() -> str:
+    system = platform.system()
+    machine = platform.machine()
+    if system == "Darwin":
+        return "aarch64-apple-darwin" if machine == "arm64" else "x86_64-apple-darwin"
+    if system == "Windows":
+        return "x86_64-pc-windows-msvc"
+    return (
+        "aarch64-unknown-linux-gnu"
+        if machine in ("aarch64", "arm64")
+        else "x86_64-unknown-linux-gnu"
+    )
+
+
+def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
+    """Nordic's nrfutil with its nrf5sdk-tools command, downloaded into the tools cache on first use.
+
+    The launcher keeps its installed commands under NRFUTIL_HOME, which is set in ``env`` so that
+    the copy here never touches a user's own ~/.nrfutil. Raises EsphomeError when the download or
+    the command install fails, for instance without network.
+    """
+    # The downloaded file is a bootstrap launcher: on its first run it installs the real core into
+    # NRFUTIL_HOME/bin and runs that, so it must not sit there itself or it runs itself forever
+    root = get_sdk_nrf_tools_path() / "nrfutil"
+    home = root / "home"
+    name = "nrfutil.exe" if platform.system() == "Windows" else "nrfutil"
+    exe = root / "launcher" / name
+    env["NRFUTIL_HOME"] = str(home)
+    sentinel = root / ".ready"
+    if sentinel.exists():
+        return str(exe)
+    with _install_lock("nrfutil"):
+        if not sentinel.exists():
+            exe.parent.mkdir(parents=True, exist_ok=True)
+            _LOGGER.info("Downloading Nordic's nrfutil ...")
+            download_from_mirrors(
+                NORDIC_NRFUTIL_MIRRORS,
+                {"triple": _nrfutil_target_triple(), "name": name},
+                exe,
+            )
+            if name == "nrfutil":
+                exe.chmod(0o755)
+            _LOGGER.info("Installing nrfutil's nrf5sdk-tools command ...")
+            if not run_command_ok([str(exe), "install", "nrf5sdk-tools"], env=env):
+                raise EsphomeError("Failed to install nrfutil's nrf5sdk-tools command")
+            sentinel.touch()
+    return str(exe)
 
 
 def _install_toolchain() -> None:

@@ -76,6 +76,7 @@ from .const import (
 )
 from .framework import (
     check_and_install,
+    ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
     setup_platformio_python_env,
@@ -622,29 +623,6 @@ def _upload_using_platformio(
 
 # USB vendor and product id the nRF52840 Dongle enumerates with while its Open DFU bootloader runs
 OPEN_DFU_USB_ID = (0x1915, 0x521F)
-NORDIC_NRFUTIL_HINT = "Install Nordic's nrfutil from nordicsemi.com and run 'nrfutil install nrf5sdk-tools'"
-
-
-def _nordic_nrfutil() -> str | None:
-    """Nordic's nrfutil; its nrf5sdk-tools command speaks the Secure DFU protocol of the Open DFU bootloader."""
-    return shutil.which("nrfutil")
-
-
-def _open_dfu_upload_command(dfu_package: Path, host: str) -> list[str]:
-    if (nrfutil := _nordic_nrfutil()) is None:
-        raise EsphomeError(
-            f"Nordic's nrfutil is needed to flash the Open DFU bootloader. {NORDIC_NRFUTIL_HINT}"
-        )
-    return [
-        nrfutil,
-        "nrf5sdk-tools",
-        "dfu",
-        "usb-serial",
-        "-pkg",
-        str(dfu_package),
-        "-p",
-        host,
-    ]
 
 
 def _reset_into_bootloader(host: str) -> None:
@@ -745,15 +723,20 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 build_dir = CORE.relative_pioenvs_path(CORE.name)
                 dfu_package = build_dir / "firmware.zip"
                 if not dfu_package.is_file():
-                    if bootloader == BOOTLOADER_NRF:
-                        raise EsphomeError(
-                            "DFU package not found; it is built when Nordic's nrfutil is installed. "
-                            f"{NORDIC_NRFUTIL_HINT}, then compile again."
-                        )
                     raise EsphomeError("Firmware not found. Please compile first.")
                 if bootloader == BOOTLOADER_NRF:
                     _require_open_dfu_port(host)
-                    dfu_cmd = _open_dfu_upload_command(dfu_package, host)
+                    # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol
+                    dfu_cmd = [
+                        ensure_nordic_nrfutil(env),
+                        "nrf5sdk-tools",
+                        "dfu",
+                        "usb-serial",
+                        "-pkg",
+                        str(dfu_package),
+                        "-p",
+                        host,
+                    ]
                 else:
                     _reset_into_bootloader(host)
                     _wait_for_port_permissions(host)
@@ -1178,17 +1161,11 @@ def run_compile(args, config: ConfigType) -> bool:
 
     if bootloader == BOOTLOADER_NRF:
         # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol, which only Nordic's own
-        # tool packages; without it the build still succeeds, only the upload path is missing
+        # tool packages
         dfu_package = build_dir / "firmware.zip"
-        if (nrfutil := _nordic_nrfutil()) is None:
-            dfu_package.unlink(missing_ok=True)
-            _LOGGER.warning(
-                "Nordic's nrfutil is not installed, so no DFU package is built for the Open DFU bootloader. %s",
-                NORDIC_NRFUTIL_HINT,
-            )
-        elif not run_command_ok(
+        if not run_command_ok(
             [
-                nrfutil,
+                ensure_nordic_nrfutil(env),
                 "nrf5sdk-tools",
                 "pkg",
                 "generate",
@@ -1202,6 +1179,7 @@ def run_compile(args, config: ConfigType) -> bool:
                 str(zephyr_dir / "zephyr.hex"),
                 str(dfu_package),
             ],
+            env=env,
             stream_output=True,
         ):
             raise EsphomeError("Failed to create the DFU package")
