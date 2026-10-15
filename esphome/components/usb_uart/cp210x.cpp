@@ -153,7 +153,9 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
 bool USBUartTypeCP210X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
   switch (step) {
     case 0:
+      // A fresh device: the previous one's cached blocks must not steer modem_control_transfer()
       this->no_flow_control_ = false;
+      this->flow_blocks_.fill({});
       this->config_read_(USB_VENDOR_DEV | usb_host::USB_DIR_IN, VENDOR_SPECIFIC, GET_PARTNUM, 0, this->cfg_response_,
                          1);
       return true;
@@ -173,6 +175,9 @@ bool USBUartTypeCP210X::config_device_step(uint8_t step, bool ok, const uint8_t 
       const uint32_t version = (response[0] << 16) | (response[1] << 8) | response[2];
       ESP_LOGD(TAG, "CP2102N firmware %u.%u.%u", response[0], response[1], response[2]);
       this->no_flow_control_ = version <= CP2102N_LAST_FW_WITHOUT_FLOW_CONTROL;
+      if (this->no_flow_control_) {
+        ESP_LOGW(TAG, "CP2102N firmware 1.0.4 and older cannot do flow control (erratum E104), using none");
+      }
       return false;
     }
     default:
@@ -182,16 +187,20 @@ bool USBUartTypeCP210X::config_device_step(uint8_t step, bool ok, const uint8_t 
 
 bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
-  const uart::UARTFlowControl flow_control =
-      this->no_flow_control_ ? uart::UART_FLOW_CONTROL_NONE : channel->flow_control_;
-
   // On reload, skip the one-time IFC_ENABLE step (the interface is already enabled).
   if (reload)
     step++;
-  // SET_CHARS is only needed for XON/XOFF
-  const bool xon_xoff = flow_control == uart::UART_FLOW_CONTROL_XON_XOFF;
-  if (!xon_xoff && step >= 3)
-    step++;
+  const bool xon_xoff = channel->flow_control_ == uart::UART_FLOW_CONTROL_XON_XOFF;
+  if (step >= 3) {
+    if (this->no_flow_control_) {
+      // Firmware with erratum E104 takes flow_replace from xon_limit, so a SET_FLOW can drop RTS.
+      // Skip the flow control steps; the lines then stay on SET_MHS as the cached block has no CTS.
+      step += 3;
+    } else if (!xon_xoff) {
+      // SET_CHARS is only needed for XON/XOFF
+      step++;
+    }
+  }
   switch (step) {
     case 0:
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, IFC_ENABLE, 1, channel->index_);
@@ -222,13 +231,10 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
     case 5: {
       // Set flow control, re-applied on every settings change. The block also carries DTR and RTS,
       // so this puts them on the wire too.
-      if (flow_control != channel->flow_control_) {
-        ESP_LOGW(TAG, "CP2102N firmware 1.0.4 and older cannot do flow control (erratum E104), using none");
-      }
       auto &block = this->flow_blocks_[channel->index_];
       block.control_handshake &=
           ~(SERIAL_DSR_HANDSHAKE | SERIAL_DCD_HANDSHAKE | SERIAL_DSR_SENSITIVITY | SERIAL_CTS_HANDSHAKE);
-      if (flow_control == uart::UART_FLOW_CONTROL_RTS_CTS)
+      if (channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS)
         block.control_handshake |= SERIAL_CTS_HANDSHAKE;
       if (xon_xoff) {
         block.flow_replace |= SERIAL_AUTO_TRANSMIT | SERIAL_AUTO_RECEIVE;
@@ -242,8 +248,7 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 6:
-      // Raise the lines once more on open. On firmware with erratum E104 this SET_MHS is what puts
-      // RTS on the wire, as SET_FLOW misreads its RTS bits. Init only.
+      // Raise the lines on open (init only)
       if (reload)
         return false;
       this->modem_control_transfer(channel);
