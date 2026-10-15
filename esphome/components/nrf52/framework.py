@@ -19,7 +19,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     create_venv,
     download_and_extract,
-    download_from_mirrors,
+    download_with_resume,
     get_python_env_executable_path,
     rmdir,
     run_command_ok,
@@ -682,22 +682,46 @@ def _check_and_install(version: str) -> None:
 
 
 # Nordic's nrfutil launcher, one static binary per host; its commands are installed from Nordic's
-# package index by the launcher itself
-NORDIC_NRFUTIL_MIRRORS = [
-    "https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/{triple}/{name}",
-]
-
-
+# package index by the launcher itself. The path carries no version, so the file is pinned by the
+# size and digest Nordic's file store reported for launcher 8.2.1 (2026-09-09)
+NORDIC_NRFUTIL_URL = "https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/{triple}/{name}"
+_NRFUTIL_LAUNCHERS: dict[str, tuple[int, str]] = {
+    "x86_64-unknown-linux-gnu": (
+        6725408,
+        "1cf4bd1d3d64f43a6b9602d8d8e8d647bec0d26d517ba72fd154f95546b50260",
+    ),
+    "aarch64-unknown-linux-gnu": (
+        5506040,
+        "e7310f072132766e69b43c833c6a87a53367ea68d5b8a5f7c6fa1a45993ecde4",
+    ),
+    "aarch64-apple-darwin": (
+        5263376,
+        "1b993eece5a6e3e079ce25fa31a134ce4c12fb51735d10114a2ea4a1df048591",
+    ),
+    "x86_64-apple-darwin": (
+        6389488,
+        "a5ffea65325e5d38eae00f612472e18ffe2c036f800240873d9f702c1b53d945",
+    ),
+    "x86_64-pc-windows-msvc": (
+        5939032,
+        "22cb1bd03fc29016670c1fc8408a78bd213286ecc1156c70712485d77b097c75",
+    ),
+}
 _NRFUTIL_OS_SUFFIX = {
     "linux": "unknown-linux-gnu",
     "macos": "apple-darwin",
     "windows": "pc-windows-msvc",
 }
+# The nrf5sdk-tools command gives the launcher the pkg and dfu subcommands; a new version reinstalls
+NRF5SDK_TOOLS_VERSION = "1.1.0"
 
 
 def _nrfutil_target_triple() -> str:
     sysname, machine, _ = _get_toolchain_platform_info()
-    return f"{machine}-{_NRFUTIL_OS_SUFFIX[sysname]}"
+    triple = f"{machine}-{_NRFUTIL_OS_SUFFIX.get(sysname, sysname)}"
+    if triple not in _NRFUTIL_LAUNCHERS:
+        raise EsphomeError(f"Nordic's nrfutil is not available for {sysname} {machine}")
+    return triple
 
 
 def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
@@ -711,24 +735,35 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
     # NRFUTIL_HOME/bin and runs that, so it must not sit there itself or it runs itself forever
     root = get_sdk_nrf_tools_path() / "nrfutil"
     home = root / "home"
-    name = "nrfutil.exe" if os.name == "nt" else "nrfutil"
-    exe = root / "launcher" / name
+    suffix = ".exe" if os.name == "nt" else ""
+    exe = root / "launcher" / f"nrfutil{suffix}"
+    command = home / "bin" / f"nrfutil-nrf5sdk-tools{suffix}"
     env["NRFUTIL_HOME"] = str(home)
-    sentinel = root / ".ready"
-    if sentinel.exists():
+    sentinel = root / f".ready-{NRF5SDK_TOOLS_VERSION}"
+
+    # A cache that lost its launcher or command (a partial clean-up) is installed again
+    def installed() -> bool:
+        return sentinel.exists() and exe.is_file() and command.is_file()
+
+    if installed():
         return str(exe)
     with _install_lock("nrfutil"):
-        if not sentinel.exists():
+        if not installed():
             exe.parent.mkdir(parents=True, exist_ok=True)
             _LOGGER.info("Downloading Nordic's nrfutil ...")
-            download_from_mirrors(
-                NORDIC_NRFUTIL_MIRRORS,
-                {"triple": _nrfutil_target_triple(), "name": name},
+            triple = _nrfutil_target_triple()
+            size, sha256 = _NRFUTIL_LAUNCHERS[triple]
+            download_with_resume(
+                NORDIC_NRFUTIL_URL.format(triple=triple, name=exe.name),
                 exe,
+                sha256=sha256,
+                size=size,
             )
             exe.chmod(0o755)
             _LOGGER.info("Installing nrfutil's nrf5sdk-tools command ...")
-            if not run_command_ok([str(exe), "install", "nrf5sdk-tools"], env=env):
+            if not run_command_ok(
+                [str(exe), "install", f"nrf5sdk-tools={NRF5SDK_TOOLS_VERSION}"], env=env
+            ):
                 raise EsphomeError("Failed to install nrfutil's nrf5sdk-tools command")
             sentinel.touch()
     return str(exe)
