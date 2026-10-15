@@ -115,6 +115,11 @@ async def test_api_homeassistant_light(
         assert state.color_mode == RGB
         assert state.brightness == pytest.approx(128 / 255)
         assert (state.red, state.green, state.blue) == (1.0, 0.0, 0.0)
+        # A rejected color leaves the reported one untouched
+        report("rgb_color", "(0, 256, 0)")
+        report("brightness", "255")
+        state = await next_state(lambda s: s.brightness == 1.0)
+        assert (state.red, state.green, state.blue) == (1.0, 0.0, 0.0)
 
         # The attributes of other modes stay with their mode, whatever order they arrive in
         report("color_mode", "color_temp")

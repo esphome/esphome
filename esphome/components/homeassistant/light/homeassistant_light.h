@@ -55,6 +55,7 @@ class HomeassistantLight final : public light::LightOutput, public light::LightR
   // initial state of LightState::setup() is version 1 and is not sent either.
   uint32_t remote_values_version_{0};
   uint32_t import_version_{1};
+  uint32_t written_version_{0};  // the last one write_state() handled
   bool apply_scheduled_{false};
 };
 

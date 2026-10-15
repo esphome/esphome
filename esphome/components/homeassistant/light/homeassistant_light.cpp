@@ -156,10 +156,12 @@ void HomeassistantLight::setup() {
     if (is_unset(value)) {
       return;
     }
-    if (!parse_rgb(value.c_str(), this->imported_.rgb)) {
+    std::array<uint8_t, 3> rgb;
+    if (!parse_rgb(value.c_str(), rgb)) {
       ESP_LOGE(TAG, "'%s': Can't parse 'rgb_color' value '%s'!", this->entity_id_, value.c_str());
       return;
     }
+    this->imported_.rgb = rgb;
     this->imported_.has_rgb = true;
     this->schedule_apply_();
   });
@@ -204,6 +206,11 @@ void HomeassistantLight::schedule_apply_() {
 }
 
 void HomeassistantLight::apply_imported_() {
+  if (this->remote_values_version_ != this->written_version_) {
+    // A local change still waits for LightState::loop() to send it; the report goes after it
+    this->defer([this]() { this->apply_imported_(); });
+    return;
+  }
   this->apply_scheduled_ = false;
   const Attributes &imported = this->imported_;
   auto call = this->state_->make_call().set_save(false);
@@ -243,6 +250,7 @@ void HomeassistantLight::write_state(LightState *state) {
   if (values != state->remote_values) {
     return;  // a transition runs here; Home Assistant gets the target once it is reached
   }
+  this->written_version_ = this->remote_values_version_;
   if (this->remote_values_version_ == this->import_version_) {
     return;  // this change came from Home Assistant
   }
