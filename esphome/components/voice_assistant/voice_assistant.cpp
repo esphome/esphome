@@ -224,11 +224,11 @@ void VoiceAssistant::stream_api_audio_() {
   while (true) {
     // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
     // reports the currently exposed bytes either way.
-    this->audio_source_->fill(0, false);
+    this->audio_source_->fill(0);
     size_t available = this->audio_source_->available();
     size_t available2 = 0;
     if (this->audio_source2_ != nullptr) {
-      this->audio_source2_->fill(0, false);
+      this->audio_source2_->fill(0);
       available2 = this->audio_source2_->available();
     }
 
@@ -383,14 +383,13 @@ void VoiceAssistant::loop() {
       break;  // State changed when udp server port received
     }
     case State::STREAMING_MICROPHONE: {
-      // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
       if (this->audio_mode_ == AUDIO_MODE_API) {
         this->stream_api_audio_();
       } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
         while (true) {
-          this->audio_source_->fill(0, false);
+          this->audio_source_->fill(0);
           size_t available = this->audio_source_->available();
           if (available == 0) {
             break;

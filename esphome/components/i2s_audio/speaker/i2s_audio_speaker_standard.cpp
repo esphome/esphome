@@ -286,7 +286,7 @@ void I2SAudioSpeaker::run_speaker_task() {
 
       if (!this->pause_state_) {
         while (bytes_written_total < dma_buffer_bytes) {
-          size_t bytes_read = audio_source->fill(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS) / 2, false);
+          size_t bytes_read = audio_source->fill(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS) / 2);
           if (bytes_read > 0) {
             // Apply volume at the input bit depth, before any narrowing, so the full precision is scaled.
             uint8_t *new_data = audio_source->mutable_data() + audio_source->available() - bytes_read;
