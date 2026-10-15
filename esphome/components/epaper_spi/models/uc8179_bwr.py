@@ -1,7 +1,7 @@
 """UC8179-based Black/White/Red e-paper displays.
 
 Supported models:
-- 7.5in-bv3-bwr-xsrupb: 800x480 pixels (7.5" V3 BWR XSRUPB 2025 panel)
+- XSRUPB-DEPG0750RWF86BF30-7.5in-BWR: 800x480 pixels (7.5" V3 BWR XSRUPB 2025 panel)
 
 These displays use the UC8179 controller with separate B/W and Red data planes.
 Commands 0x10 (B/W) and 0x13 (Red) are used for data transmission.
@@ -51,7 +51,7 @@ uc8179bwr = UC8179BWR("uc8179bwr", minimum_update_interval="30s")
 
 # Model: 7.5" V3 BWR XSRUPB 2025 - 800x480 pixels, UC8179 controller
 uc8179bwr.extend(
-    "7.5IN-BV3-BWR-XSRUPB",
+    "XSRUPB-DEPG0750RWF86BF30-7.5in-BWR",
     width=800,
     height=480,
     reset_duration="200ms",
