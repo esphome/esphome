@@ -298,7 +298,7 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
       type_(type),
       data_start_(data_start),
       transparency_(transparency),
-      big_endian_(big_endian && type == IMAGE_TYPE_RGB565) {
+      big_endian_(big_endian) {
   switch (this->type_) {
     case IMAGE_TYPE_BINARY:
       this->bpp_ = 1;

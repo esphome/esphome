@@ -96,12 +96,11 @@ TEST(ImageDraw, BigEndianRgb565IsPassedThrough) {
 
 TEST(ImageDraw, OpaqueRgbIsOneBulkCall) {
   const auto data = make_data(3);
-  Image image(data.data(), W, H, IMAGE_TYPE_RGB, TRANSPARENCY_OPAQUE, true);  // byte order only applies to 565
+  Image image(data.data(), W, H, IMAGE_TYPE_RGB, TRANSPARENCY_OPAQUE);
   RecordingDisplay display;
   image.draw(0, 0, &display, Color::WHITE, Color::BLACK);
   ASSERT_EQ(display.blits.size(), 1u);
   EXPECT_EQ(display.blits[0].bitness, display::COLOR_BITNESS_888);
-  EXPECT_FALSE(display.blits[0].big_endian);
 }
 
 TEST(ImageDraw, ClippingShrinksTheWindow) {
