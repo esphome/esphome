@@ -109,7 +109,7 @@ TEST(GreeFeatureSwitch, EnablingYB1FATurboSetsEffectiveFanHigh) {
   EXPECT_EQ(device.fan_mode.value_or(climate::CLIMATE_FAN_ON), climate::CLIMATE_FAN_HIGH);
   const auto transmitted = decode_transmission(transmitter.last_raw);
   EXPECT_EQ(transmitted.fan_mode, climate::CLIMATE_FAN_HIGH);
-  EXPECT_TRUE(transmitted.feature_bits & GREE_FAN_TURBO_BIT);
+  EXPECT_TRUE(transmitted.feature_bits & GREE_MODE_BIT_TURBO);
 }
 
 TEST(GreeFeatureSwitch, ReceivingYB1FATurboSetsSwitchAndEffectiveFanHigh) {
@@ -145,7 +145,7 @@ TEST(GreeFeatureSwitch, FanChangeAfterEnablingYB1FATurboClearsTurbo) {
   EXPECT_FALSE(device.get_feature_state(GREE_FEATURE_TURBO));
   const auto transmitted = decode_transmission(transmitter.last_raw);
   EXPECT_EQ(transmitted.fan_mode, climate::CLIMATE_FAN_LOW);
-  EXPECT_FALSE(transmitted.feature_bits & GREE_FAN_TURBO_BIT);
+  EXPECT_FALSE(transmitted.feature_bits & GREE_MODE_BIT_TURBO);
 }
 
 TEST(GreeFeatureSwitch, FanChangeAfterReceivingYB1FATurboClearsTurbo) {
@@ -165,7 +165,7 @@ TEST(GreeFeatureSwitch, FanChangeAfterReceivingYB1FATurboClearsTurbo) {
   EXPECT_FALSE(device.get_feature_state(GREE_FEATURE_TURBO));
   const auto transmitted = decode_transmission(transmitter.last_raw);
   EXPECT_EQ(transmitted.fan_mode, climate::CLIMATE_FAN_MEDIUM);
-  EXPECT_FALSE(transmitted.feature_bits & GREE_FAN_TURBO_BIT);
+  EXPECT_FALSE(transmitted.feature_bits & GREE_MODE_BIT_TURBO);
 }
 
 }  // namespace esphome::gree

@@ -75,11 +75,15 @@ static constexpr uint8_t GREE_HDIR_MIDDLE = 0x04;
 static constexpr uint8_t GREE_HDIR_MRIGHT = 0x05;
 static constexpr uint8_t GREE_HDIR_RIGHT = 0x06;
 
-// Byte 2 feature bits
+// Feature bits in byte 2, matching the upstream Gree switch API.
+static constexpr uint8_t GREE_MODE_BIT_TURBO = 0x10;
+static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
+static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
+static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
+
+// Model-specific meanings for the same bit positions on YB1FA/YX1FF.
 static constexpr uint8_t GREE_FAN_TURBO_BIT = 0x10;
-static constexpr uint8_t GREE_LIGHT_BIT = 0x20;
 static constexpr uint8_t GREE_MODEL_A_BIT = 0x40;
-static constexpr uint8_t GREE_XFAN_BIT = 0x80;
 
 // Only available on YX1FF
 // Sleep preset mode
@@ -97,7 +101,7 @@ enum GreeFeature : uint8_t {
   GREE_FEATURE_XFAN = 3,
 };
 
-static constexpr uint8_t gree_feature_bit(GreeFeature feature) { return GREE_FAN_TURBO_BIT << feature; }
+static constexpr uint8_t gree_feature_bit(GreeFeature feature) { return GREE_MODE_BIT_TURBO << feature; }
 
 using GreeState = std::array<uint8_t, GREE_STATE_FRAME_SIZE>;
 

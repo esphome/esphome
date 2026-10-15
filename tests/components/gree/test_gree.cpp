@@ -119,10 +119,10 @@ TEST(GreeYX1FF, DecodeOffAndRememberedFields) {
 TEST(GreeYX1FF, ExactTransmitStatesMatchCaptures) {
   const GreeClimateData cool_auto{climate::CLIMATE_MODE_COOL,   22,
                                   climate::CLIMATE_FAN_AUTO,    climate::CLIMATE_SWING_OFF,
-                                  climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+                                  climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
   const GreeClimateData cool_turbo_swing{climate::CLIMATE_MODE_COOL,   22,
                                          climate::CLIMATE_FAN_HIGH,    climate::CLIMATE_SWING_VERTICAL,
-                                         climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+                                         climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
 
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YX1FF, cool_auto),
             (GreeState{0x09, 0x06, 0x60, 0x50, 0x00, 0x20, 0x00, 0xB0}));
@@ -221,14 +221,15 @@ TEST(GreeYB1FA, DecodeCapturedFanTurboAndFeatureFields) {
     uint8_t feature_bits;
   };
   const std::array<Capture, 7> captures{{
-      {{0x59, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_LOW, GREE_LIGHT_BIT},
-      {{0x69, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_MEDIUM, GREE_LIGHT_BIT},
-      {{0x79, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_HIGH, GREE_LIGHT_BIT},
-      {{0x49, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_AUTO, GREE_LIGHT_BIT},
+      {{0x59, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_LOW, GREE_MODE_BIT_LIGHT},
+      {{0x69, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_MEDIUM, GREE_MODE_BIT_LIGHT},
+      {{0x79, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_HIGH, GREE_MODE_BIT_LIGHT},
+      {{0x49, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_AUTO, GREE_MODE_BIT_LIGHT},
       {{0x49, 0x04, 0x70, 0x50, 0x01, 0x21, 0x00, 0x90},
        climate::CLIMATE_FAN_HIGH,
-       GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT},
-      {{0x49, 0x04, 0xE0, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_AUTO, GREE_LIGHT_BIT | GREE_XFAN_BIT},
+       GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT},
+      {{0x49, 0x04, 0xE0, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_AUTO,
+       GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN},
       {{0x79, 0x04, 0x40, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_HIGH, 0},
   }};
 
@@ -266,7 +267,7 @@ TEST(GreeYB1FA, DecodeCapturedTimerFramesAndRejectAuxiliaryFrames) {
 TEST(GreeYB1FA, ExactTransmitStateUsesYB1FAFanAndSwingEncoding) {
   const GreeClimateData data{climate::CLIMATE_MODE_COOL,   20,
                              climate::CLIMATE_FAN_HIGH,    climate::CLIMATE_SWING_VERTICAL,
-                             climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+                             climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
 
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YB1FA, data), (GreeState{0x79, 0x04, 0x60, 0x50, 0x01, 0x20, 0x00, 0x90}));
 }
@@ -275,9 +276,9 @@ TEST(GreeYB1FA, FeatureSwitchBitsPreserveModelA) {
   GreeClimateData data{climate::CLIMATE_MODE_COOL, 20, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_VERTICAL,
                        climate::CLIMATE_PRESET_NONE};
 
-  data.feature_bits = GREE_LIGHT_BIT;
+  data.feature_bits = GREE_MODE_BIT_LIGHT;
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YB1FA, data), (GreeState{0x79, 0x04, 0x60, 0x50, 0x01, 0x20, 0x00, 0x90}));
-  data.feature_bits = GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT;
+  data.feature_bits = GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN;
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YB1FA, data), (GreeState{0x79, 0x04, 0xF0, 0x50, 0x01, 0x20, 0x00, 0x90}));
   data.feature_bits = 0;
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YB1FA, data), (GreeState{0x79, 0x04, 0x40, 0x50, 0x01, 0x20, 0x00, 0x90}));
@@ -287,13 +288,14 @@ TEST(GreeClimateCodec, FeatureCapabilitiesAreModelSpecific) {
   GreeClimateData data{
       climate::CLIMATE_MODE_COOL,   20,
       climate::CLIMATE_FAN_AUTO,    climate::CLIMATE_SWING_OFF,
-      climate::CLIMATE_PRESET_NONE, GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_MODEL_A_BIT | GREE_XFAN_BIT};
+      climate::CLIMATE_PRESET_NONE,
+      GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH | GREE_MODE_BIT_XFAN};
 
-  EXPECT_EQ(GreeClimateCodec::encode(GREE_YX1FF, data)[2], GREE_MODEL_A_BIT | GREE_LIGHT_BIT);
+  EXPECT_EQ(GreeClimateCodec::encode(GREE_YX1FF, data)[2], GREE_MODEL_A_BIT | GREE_MODE_BIT_LIGHT);
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YB1FA, data)[2],
-            GREE_MODEL_A_BIT | GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT);
+            GREE_MODEL_A_BIT | GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN);
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAN, data)[2],
-            GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_MODEL_A_BIT | GREE_XFAN_BIT);
+            GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH | GREE_MODE_BIT_XFAN);
 }
 
 TEST(GreeClimateCodec, OtherModelsTransmitStateRegression) {
@@ -324,19 +326,19 @@ TEST(GreeClimateCodec, LegacyModelsClimateStateRoundTrip) {
         climate::CLIMATE_PRESET_NONE}},
       {GREE_YAN,
        {climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_VERTICAL,
-        climate::CLIMATE_PRESET_NONE, GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT}},
+        climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN}},
       {GREE_YAA,
        {climate::CLIMATE_MODE_COOL, 21, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_VERTICAL,
-        climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT | GREE_XFAN_BIT}},
+        climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN}},
       {GREE_YAC,
        {climate::CLIMATE_MODE_COOL, 23, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_SWING_HORIZONTAL,
-        climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT}},
+        climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT}},
       {GREE_YAC,
        {climate::CLIMATE_MODE_HEAT, 25, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_BOTH,
-        climate::CLIMATE_PRESET_NONE, GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT}},
+        climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT}},
       {GREE_YAC1FB9,
        {climate::CLIMATE_MODE_DRY, 20, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_VERTICAL,
-        climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT}},
+        climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT}},
       {GREE_YAG,
        {climate::CLIMATE_MODE_FAN_ONLY, 22, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_HORIZONTAL,
         climate::CLIMATE_PRESET_NONE}},
@@ -360,7 +362,7 @@ TEST(GreeClimateCodec, LegacyModelsClimateStateRoundTrip) {
 TEST(GreeYAA, DecodeAcceptsOemTimerAndAuxiliaryFields) {
   GreeClimateData source{climate::CLIMATE_MODE_COOL,   22,
                          climate::CLIMATE_FAN_HIGH,    climate::CLIMATE_SWING_VERTICAL,
-                         climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT | GREE_XFAN_BIT};
+                         climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN};
   GreeState state = GreeClimateCodec::encode(GREE_YAA, source);
 
   // Keep the standard mode/fan/temp/feature fields but populate fields that vary between OEM remotes.
@@ -383,7 +385,7 @@ TEST(GreeYAA, DecodeAcceptsOemTimerAndAuxiliaryFields) {
 TEST(GreeProtocol, YAC1FB9SignalRoundTrip) {
   const GreeClimateData source{climate::CLIMATE_MODE_COOL,   22,
                                climate::CLIMATE_FAN_MEDIUM,  climate::CLIMATE_SWING_VERTICAL,
-                               climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+                               climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
   const GreeState expected = GreeClimateCodec::encode(GREE_YAC1FB9, source);
   auto decoded = decode_signal(GREE_YAC1FB9, encode_signal(GREE_YAC1FB9, expected));
 
@@ -415,7 +417,7 @@ TEST(GreeYX1FF, ClimateStateRoundTrip) {
       for (const auto fan : fans) {
         for (const auto swing : swings) {
           for (const auto preset : presets) {
-            const GreeClimateData source{mode, temperature, fan, swing, preset, GREE_LIGHT_BIT};
+            const GreeClimateData source{mode, temperature, fan, swing, preset, GREE_MODE_BIT_LIGHT};
             const GreeState state = GreeClimateCodec::encode(GREE_YX1FF, source);
             const auto decoded = decode_climate_state(state);
 
@@ -457,7 +459,7 @@ TEST(GreeYB1FA, ClimateStateRoundTrip) {
       for (const auto fan : fans) {
         for (const auto swing : swings) {
           for (const auto preset : presets) {
-            const GreeClimateData source{mode, temperature, fan, swing, preset, GREE_LIGHT_BIT};
+            const GreeClimateData source{mode, temperature, fan, swing, preset, GREE_MODE_BIT_LIGHT};
             const GreeState state = GreeClimateCodec::encode(GREE_YB1FA, source);
             const auto decoded = decode_climate_state(GREE_YB1FA, state);
 
@@ -538,9 +540,9 @@ TEST(GreeYX1FF, RejectsInvalidStateFields) {
 TEST(GreeYX1FF, DecodeIgnoresLightAndXFan) {
   constexpr std::array<uint8_t, 4> byte2_values{
       GREE_MODEL_A_BIT,
-      GREE_MODEL_A_BIT | GREE_LIGHT_BIT,
-      GREE_MODEL_A_BIT | GREE_XFAN_BIT,
-      GREE_MODEL_A_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT,
+      GREE_MODEL_A_BIT | GREE_MODE_BIT_LIGHT,
+      GREE_MODEL_A_BIT | GREE_MODE_BIT_XFAN,
+      GREE_MODEL_A_BIT | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN,
   };
 
   for (const uint8_t byte2 : byte2_values) {
@@ -594,7 +596,7 @@ class TestFeatureSwitch : public switch_::Switch {
 TEST(GreeYAA, ReceivePublishesStateAndFeatureBitsWithoutRetransmitting) {
   const GreeClimateData source{climate::CLIMATE_MODE_COOL,   22,
                                climate::CLIMATE_FAN_HIGH,    climate::CLIMATE_SWING_VERTICAL,
-                               climate::CLIMATE_PRESET_NONE, GREE_LIGHT_BIT};
+                               climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
   const GreeState state = GreeClimateCodec::encode(GREE_YAA, source);
   CountingRemoteTransmitter transmitter;
   GreeClimate device;
@@ -654,7 +656,7 @@ TEST(GreeYX1FF, ReceiveSynchronizesLightSwitchWithoutRetransmitting) {
   EXPECT_EQ(transmitter.send_count, 0U);
 
   GreeState light_off = light_on;
-  light_off[2] &= ~GREE_LIGHT_BIT;
+  light_off[2] &= ~GREE_MODE_BIT_LIGHT;
   light_off[7] = GreeProtocol::calculate_checksum(light_off);
   ASSERT_TRUE(
       listener->on_receive(RemoteReceiveData(encode_signal(light_off), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
@@ -689,7 +691,7 @@ TEST(GreeYX1FF, ClimateChangePreservesReceivedLightState) {
   ASSERT_TRUE(transmitted.has_value());
   const GreeState transmitted_state = transmitted.value_or(GreeState{});
   EXPECT_EQ(transmitted_state[1], 3);
-  EXPECT_EQ(transmitted_state[2] & GREE_LIGHT_BIT, 0);
+  EXPECT_EQ(transmitted_state[2] & GREE_MODE_BIT_LIGHT, 0);
 }
 
 TEST(GreeYAC, EncodeSwingAxesInVaneFields) {

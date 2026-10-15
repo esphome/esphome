@@ -20,15 +20,17 @@ static constexpr uint8_t GREE_BYTE5_FIXED_VALUE = 0x20;
 // The mode, fan and feature mappings use if-else: a switch becomes a lookup table in RAM on ESP8266.
 static constexpr uint8_t supported_feature_mask(Model model) {
   if (model == GREE_YB1FA)
-    return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT;
+    return GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN;
   if (model == GREE_YX1FF)
-    return GREE_LIGHT_BIT;
+    return GREE_MODE_BIT_LIGHT;
   if (model == GREE_GENERIC || model == GREE_YAG)
     return 0;
-  return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_MODEL_A_BIT | GREE_XFAN_BIT;
+  return GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH | GREE_MODE_BIT_XFAN;
 }
 
-static constexpr uint8_t default_feature_bits(Model model) { return supported_feature_mask(model) & GREE_LIGHT_BIT; }
+static constexpr uint8_t default_feature_bits(Model model) {
+  return supported_feature_mask(model) & GREE_MODE_BIT_LIGHT;
+}
 
 static bool is_valid_timer(const GreeState &state) {
   const uint8_t timer_hours = state[2] & GREE_TIMER_HOURS_MASK;
@@ -510,7 +512,7 @@ void GreeClimate::control(const climate::ClimateCall &call) {
   const bool clear_turbo =
       this->model_ == GREE_YB1FA && call.get_fan_mode().has_value() && this->get_feature_state(GREE_FEATURE_TURBO);
   if (clear_turbo) {
-    this->feature_bits_ &= ~GREE_FAN_TURBO_BIT;
+    this->feature_bits_ &= ~GREE_MODE_BIT_TURBO;
 #ifdef USE_SWITCH
     this->publish_feature_state_(GREE_FEATURE_TURBO);
 #endif
