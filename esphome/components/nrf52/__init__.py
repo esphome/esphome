@@ -262,7 +262,7 @@ def _default_self_reset_pin(config: ConfigType) -> ConfigType:
     # wired to RESET resets itself through that pin
     dfu = config.get(CONF_DFU)
     number = SELF_RESET_PINS.get(config[CONF_BOARD])
-    if dfu and number and CONF_RESET_PIN not in dfu:
+    if dfu is not None and number and CONF_RESET_PIN not in dfu:
         dfu[CONF_RESET_PIN] = pins.gpio_output_pin_schema(
             {CONF_NUMBER: number, CONF_INVERTED: True}
         )
@@ -694,24 +694,27 @@ def _wait_for_port_permissions(host: str) -> None:
     check_permissions(host)  # raises with helpful message
 
 
-def _find_open_dfu_port() -> str | None:
+def _open_dfu_ports() -> set[str]:
     import serial.tools.list_ports as _list_ports
 
-    for port in _list_ports.comports(include_links=True):
-        if (port.vid, port.pid) == OPEN_DFU_USB_ID:
-            return port.device
-    return None
+    return {
+        port.device
+        for port in _list_ports.comports(include_links=True)
+        if (port.vid, port.pid) == OPEN_DFU_USB_ID
+    }
 
 
 def _enter_open_dfu(host: str) -> str:
     """The port of the Open DFU bootloader: ``host`` when it is one already, otherwise the one that
     appears after the 1200 bps touch reboots an application built with ``dfu:`` into it. The
-    bootloader is its own USB device, so it never comes back under the application's path."""
+    bootloader is its own USB device, so it never comes back under the application's path, and
+    only a port that was not there before the touch counts, not another dongle's bootloader."""
     import time as _time
 
     import serial as _serial
 
-    if (port := _find_open_dfu_port()) == host:
+    before = _open_dfu_ports()
+    if host in before:
         return host
     try:
         _serial.Serial(host, baudrate=1200, timeout=1).close()
@@ -720,7 +723,8 @@ def _enter_open_dfu(host: str) -> str:
     deadline = _time.monotonic() + 10
     while _time.monotonic() < deadline:
         _time.sleep(0.1)
-        if (port := _find_open_dfu_port()) is not None:
+        if appeared := _open_dfu_ports() - before:
+            port = min(appeared)
             _wait_for_port_permissions(port)
             return port
     raise EsphomeError(

@@ -132,6 +132,19 @@ def test_a_cache_that_lost_its_command_is_installed_again(tmp_path: Path) -> Non
     install.assert_called_once()
 
 
+def test_install_without_the_command_file_is_a_failure(tmp_path: Path) -> None:
+    """The launcher's exit code alone does not prove the command is in place."""
+    with (
+        patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
+        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "download_with_resume", side_effect=_fake_download),
+        patch.object(framework, "run_command_ok", return_value=True),
+        pytest.raises(EsphomeError, match="nrf5sdk-tools"),
+    ):
+        ensure_nordic_nrfutil({})
+    assert not list((tmp_path / "nrfutil").glob(".ready-*"))
+
+
 def test_failed_install_leaves_no_ready_marker(tmp_path: Path) -> None:
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),

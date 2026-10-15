@@ -405,6 +405,48 @@ class TestUploadProgramSerialDfu:
         assert cmd[cmd.index("-p") + 1] == bootloader_port
         assert str(dfu_package) in cmd
 
+    def test_open_dfu_leaves_another_dongle_in_its_bootloader_alone(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """Only a bootloader port that appears after the touch is the touched dongle's."""
+        import serial
+
+        from esphome.components.nrf52 import OPEN_DFU_USB_ID, upload_program
+
+        paths, _ = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
+        host = "/dev/ttyACM0"
+        other = MagicMock(
+            device="/dev/ttyACM2", vid=OPEN_DFU_USB_ID[0], pid=OPEN_DFU_USB_ID[1]
+        )
+        calls = [0]
+
+        def _comports(**_kwargs):
+            calls[0] += 1
+            if calls[0] == 1:
+                return [MagicMock(device=host, vid=0x2FE3, pid=0x0100), other]
+            if calls[0] == 2:
+                return [other]  # the touched dongle is rebooting
+            return [
+                other,
+                MagicMock(
+                    device="/dev/ttyACM1",
+                    vid=OPEN_DFU_USB_ID[0],
+                    pid=OPEN_DFU_USB_ID[1],
+                ),
+            ]
+
+        with ExitStack() as stack:
+            mock_run = _enter_serial_dfu_patches(
+                stack, host, tmp_path, paths, usb_id=(0x2FE3, 0x0100)
+            )
+            stack.enter_context(
+                patch.object(serial.tools.list_ports, "comports", side_effect=_comports)
+            )
+            assert upload_program(config={}, args=None, host=host) is True
+
+        cmd = mock_run.call_args[0][0]
+        assert cmd[cmd.index("-p") + 1] == "/dev/ttyACM1"
+
     def test_open_dfu_bootloader_that_never_appears_gets_the_reset_hint(
         self, setup_core: Path, tmp_path: Path
     ) -> None:

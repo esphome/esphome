@@ -1,8 +1,11 @@
 """Tests for the nRF52 configuration validation."""
 
+from collections.abc import Generator
+
 import pytest
 
 from esphome.components.nrf52 import (
+    _default_self_reset_pin,
     _detect_bootloader,
     _validate_open_dfu_toolchain,
     set_core_data,
@@ -11,8 +14,9 @@ from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
 from esphome.components.nrf52.const import BOOTLOADER_NRF
 from esphome.components.zephyr.const import KEY_PM_STATIC, KEY_ZEPHYR
 from esphome.components.zephyr_mcumgr.ota import _validate_bootloader
+from esphome.config import path_context
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, Toolchain
+from esphome.const import CONF_INVERTED, CONF_NUMBER, KEY_CORE, Toolchain
 from esphome.core import CORE
 
 
@@ -36,6 +40,14 @@ def test_dongle_rejects_foreign_bootloader() -> None:
 def _dongle_core_data() -> None:
     CORE.data[KEY_CORE] = {}
     set_core_data({"board": "nrf52840dongle", "bootloader": BOOTLOADER_NRF})
+
+
+@pytest.fixture
+def _path_ctx() -> Generator[None]:
+    """A pin schema reports its errors against the config path, so one has to be set."""
+    token = path_context.set(["nrf52"])
+    yield
+    path_context.reset(token)
 
 
 def test_nrf_bootloader_reserves_factory_region() -> None:
@@ -66,3 +78,31 @@ def test_nrf_bootloader_rejects_the_platformio_toolchain() -> None:
     CORE.toolchain = Toolchain.PLATFORMIO
     with pytest.raises(cv.Invalid, match="sdk-nrf"):
         _validate_open_dfu_toolchain({"bootloader": BOOTLOADER_NRF})
+
+
+@pytest.mark.usefixtures("_path_ctx")
+def test_dongle_dfu_resets_itself_through_the_pin_wired_to_reset() -> None:
+    """The factory bootloader ignores the touch's register, so P0.19 pulls RESET for it."""
+    _dongle_core_data()
+    config = _default_self_reset_pin({"board": "nrf52840dongle", "dfu": {}})
+    pin = config["dfu"]["reset_pin"]
+    assert pin[CONF_NUMBER] == 19
+    assert pin[CONF_INVERTED] is True
+
+
+@pytest.mark.usefixtures("_path_ctx")
+def test_dfu_reset_pin_given_by_the_user_is_kept() -> None:
+    _dongle_core_data()
+    config = _default_self_reset_pin(
+        {"board": "nrf52840dongle", "dfu": {"reset_pin": {"number": 5}}}
+    )
+    assert config["dfu"]["reset_pin"] == {"number": 5}
+
+
+@pytest.mark.usefixtures("_path_ctx")
+def test_other_boards_get_no_reset_pin() -> None:
+    _dongle_core_data()
+    config = _default_self_reset_pin(
+        {"board": "adafruit_itsybitsy_nrf52840", "dfu": {}}
+    )
+    assert "reset_pin" not in config["dfu"]

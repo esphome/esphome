@@ -761,8 +761,12 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
             )
             exe.chmod(0o755)
             _LOGGER.info("Installing nrfutil's nrf5sdk-tools command ...")
-            if not run_command_ok(
-                [str(exe), "install", f"nrf5sdk-tools={NRF5SDK_TOOLS_VERSION}"], env=env
+            if (
+                not run_command_ok(
+                    [str(exe), "install", f"nrf5sdk-tools={NRF5SDK_TOOLS_VERSION}"],
+                    env=env,
+                )
+                or not command.is_file()
             ):
                 raise EsphomeError("Failed to install nrfutil's nrf5sdk-tools command")
             sentinel.touch()
