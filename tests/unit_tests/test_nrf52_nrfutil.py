@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -47,13 +48,17 @@ def test_unknown_host_is_a_clear_error() -> None:
         _nrfutil_target_triple()
 
 
+# The launcher and its command carry the host's executable suffix
+SUFFIX = ".exe" if os.name == "nt" else ""
+
+
 def _fake_download(url: str, dest: Path, **kwargs: object) -> None:
     dest.write_bytes(b"launcher")
 
 
 def _fake_install(cmd: list[str], env: dict[str, str]) -> bool:
     """The launcher installs its command under NRFUTIL_HOME."""
-    command = Path(env["NRFUTIL_HOME"]) / "bin" / "nrfutil-nrf5sdk-tools"
+    command = Path(env["NRFUTIL_HOME"]) / "bin" / f"nrfutil-nrf5sdk-tools{SUFFIX}"
     command.parent.mkdir(parents=True, exist_ok=True)
     command.write_bytes(b"command")
     return True
@@ -72,11 +77,13 @@ def test_first_use_downloads_and_installs_into_the_cache(tmp_path: Path) -> None
         exe = ensure_nordic_nrfutil(env)
 
     # The launcher sits outside the home it installs into, and the command version is pinned
-    assert exe == str(tmp_path / "nrfutil" / "launcher" / "nrfutil")
+    assert exe == str(tmp_path / "nrfutil" / "launcher" / f"nrfutil{SUFFIX}")
     assert env["NRFUTIL_HOME"] == str(tmp_path / "nrfutil" / "home")
     # The launcher comes from the host's URL and is checked against the pinned digest
     size, sha256 = _NRFUTIL_LAUNCHERS["x86_64-unknown-linux-gnu"]
-    assert download.call_args[0][0].endswith("/x86_64-unknown-linux-gnu/nrfutil")
+    assert download.call_args[0][0].endswith(
+        f"/x86_64-unknown-linux-gnu/nrfutil{SUFFIX}"
+    )
     assert download.call_args[1] == {"sha256": sha256, "size": size}
     assert install.call_args[0][0] == [
         exe,
@@ -89,10 +96,12 @@ def test_first_use_downloads_and_installs_into_the_cache(tmp_path: Path) -> None
 def _installed_cache(tmp_path: Path, with_command: bool = True) -> Path:
     root = tmp_path / "nrfutil"
     (root / "launcher").mkdir(parents=True)
-    (root / "launcher" / "nrfutil").write_bytes(b"launcher")
+    (root / "launcher" / f"nrfutil{SUFFIX}").write_bytes(b"launcher")
     if with_command:
         (root / "home" / "bin").mkdir(parents=True)
-        (root / "home" / "bin" / "nrfutil-nrf5sdk-tools").write_bytes(b"command")
+        (root / "home" / "bin" / f"nrfutil-nrf5sdk-tools{SUFFIX}").write_bytes(
+            b"command"
+        )
     (root / f".ready-{NRF5SDK_TOOLS_VERSION}").touch()
     return root
 
@@ -105,7 +114,7 @@ def test_installed_cache_is_used_without_network(tmp_path: Path) -> None:
         patch.object(framework, "download_with_resume") as download,
         patch.object(framework, "run_command_ok") as install,
     ):
-        assert ensure_nordic_nrfutil(env) == str(root / "launcher" / "nrfutil")
+        assert ensure_nordic_nrfutil(env) == str(root / "launcher" / f"nrfutil{SUFFIX}")
     download.assert_not_called()
     install.assert_not_called()
     assert env["NRFUTIL_HOME"] == str(root / "home")
