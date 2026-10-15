@@ -32,7 +32,7 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
   this->transmit_state();
 }
 
-void GreeClimate::fahrenheit_fields_(float target_celsius, uint8_t &temp_field, bool &extra_degree) {
+void GreeClimate::fahrenheit_fields_(float target_celsius, uint8_t &temp_field, bool &extra_degree) const {
   temp_field = 0;
   extra_degree = false;
   if (!std::isfinite(target_celsius)) {
@@ -116,12 +116,12 @@ void GreeClimate::transmit_state() {
   // Fahrenheit display. byte 3 bit 3 selects Fahrenheit on the unit's own panel and bit 2 is
   // TempExtraDegreeF, a half-degree Celsius step. Verified against frames captured from a real YX1FF
   // remote on a Blueridge mini-split, and confirmed on the unit's display at 65, 71, 77 and 78 F.
-  // Note this relies on the checksum covering byte 3, which the generic formula above does.
+  // The checksum below covers byte 3, so it picks up these bits.
   if (this->use_fahrenheit_) {
     remote_state[3] |= 0x08;
     uint8_t temp_field;
     bool extra_degree;
-    fahrenheit_fields_(this->target_temperature, temp_field, extra_degree);
+    this->fahrenheit_fields_(this->target_temperature, temp_field, extra_degree);
     remote_state[1] = temp_field;
     if (extra_degree) {
       remote_state[3] |= 0x04;

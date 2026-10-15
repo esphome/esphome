@@ -114,7 +114,7 @@ class GreeClimate final : public climate_ir::ClimateIR {
   /// TempExtraDegreeF is a half-degree *Celsius* step, not an extra Fahrenheit degree as its name
   /// suggests. Every whole degree from 61 to 86 F is reachable that way, so search for the pair whose
   /// displayed value matches rather than converting with a rounding fudge factor.
-  static void fahrenheit_fields_(float target_celsius, uint8_t &temp_field, bool &extra_degree);
+  void fahrenheit_fields_(float target_celsius, uint8_t &temp_field, bool &extra_degree) const;
   uint8_t preset_();
 
   Model model_{};
