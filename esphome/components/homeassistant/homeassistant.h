@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cctype>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
@@ -59,8 +61,13 @@ template<typename C, typename O> bool parse_python_list(StringRef src, C &&on_ch
       // An enum member is shown as <Name.MEMBER: 'value'>; the quoted value is the item
       const bool enum_member = pos < end && *pos == '<';
       if (enum_member) {
-        while (pos < end && *pos != '\'' && *pos != '"')
+        pos++;
+        while (pos < end && (std::isalnum(static_cast<unsigned char>(*pos)) || *pos == '_' || *pos == '.'))
           pos++;
+        if (pos == end || *pos != ':')
+          return false;
+        pos++;
+        skip_spaces();
       }
       if (pos == end || (*pos != '\'' && *pos != '"'))
         return false;
@@ -110,9 +117,8 @@ template<typename C, typename O> bool parse_python_list(StringRef src, C &&on_ch
         }
       }
       if (enum_member) {
-        while (pos < end && *pos != '>')
-          pos++;
-        if (pos == end)
+        skip_spaces();
+        if (pos == end || *pos != '>')
           return false;
         pos++;
       }
