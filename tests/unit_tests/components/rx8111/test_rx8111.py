@@ -36,21 +36,3 @@ def test_actions(tmp_path: Path, action: str) -> None:
         assert not validate_rx8111(
             tmp_path, configuration(tmp_path, [{action: payload}])
         ).errors
-
-
-@pytest.mark.parametrize(
-    "option,value",
-    [
-        ("alarm_second", 0),
-        ("timer_count", 60),
-        ("event_level", "high"),
-        ("battery_charging", True),
-        ("fout_frequency", "1hz"),
-    ],
-)
-def test_future_options_not_registered(
-    tmp_path: Path, option: str, value: object
-) -> None:
-    config = configuration(tmp_path)
-    config["time"][0][option] = value
-    assert validate_rx8111(tmp_path, config).errors

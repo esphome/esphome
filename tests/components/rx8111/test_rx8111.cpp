@@ -92,10 +92,12 @@ TEST_F(RX8111Test, RejectsInvalidFlagsBCDWeekdayAndCalendar) {
   this->bus_.writes.clear();
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 0);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
   EXPECT_TRUE(this->bus_.writes.empty());
   this->bus_.regs[FLAG] = 0;
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 1);
+  EXPECT_FALSE(this->rtc_.status_has_warning());
   const uint8_t valid_weekday = this->bus_.regs[WEEK];
   const uint8_t valid_day = this->bus_.regs[DAY];
   const uint8_t valid_month = this->bus_.regs[MONTH];
@@ -104,26 +106,39 @@ TEST_F(RX8111Test, RejectsInvalidFlagsBCDWeekdayAndCalendar) {
     this->bus_.regs[WEEK] = weekday;
     this->rtc_.read_time();
     EXPECT_EQ(this->syncs_, 1) << "weekday " << unsigned(weekday);
+    EXPECT_TRUE(this->rtc_.status_has_warning());
   }
   this->bus_.regs[WEEK] = valid_weekday;
   this->bus_.regs[DAY] = 0x32;
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 1);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
   this->bus_.regs[DAY] = 0x31;
   this->bus_.regs[MONTH] = 0x04;  // April 31 is always invalid.
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 1);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
   this->bus_.regs[DAY] = valid_day;
   this->bus_.regs[MONTH] = valid_month;
   this->bus_.regs[SEC] = 0x6A;
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 1);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.regs[SEC] = 0x60;  // ESPTime permits leap seconds, but RX8111 only counts 00..59.
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 1);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.regs[SEC] = 0x00;
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 2);
+  EXPECT_FALSE(this->rtc_.status_has_warning());
 }
 
 TEST_F(RX8111Test, I2CFailuresDoNotSyncOrLeaveTheCounterStopped) {
   this->bus_.fail_read = FLAG;
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 0);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
   this->bus_.fail_read = SEC;
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 0);

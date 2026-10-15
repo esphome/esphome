@@ -1,5 +1,4 @@
 esphome:
-  name: rx8111-basic-test
   on_boot:
     then:
       - rx8111.read_time: rtc

@@ -25,9 +25,6 @@ void RX8111Component::update() { this->read_time(); }
 void RX8111Component::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8111:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   RealTimeClock::dump_config();
 }
 
@@ -39,6 +36,7 @@ void RX8111Component::read_time() {
   }
   if (flags & (RX8111_FLAG_VLF | RX8111_FLAG_XST | RX8111_FLAG_POR)) {
     ESP_LOGW(TAG, "RTC time invalidated by power loss or oscillator stop; write trusted time");
+    this->status_set_warning(LOG_STR("RTC time invalidated; write trusted time"));
     return;
   }
 
@@ -48,46 +46,51 @@ void RX8111Component::read_time() {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  this->status_clear_warning();
-
   static constexpr uint8_t CALENDAR_MASKS[7] = {0x7F, 0x7F, 0x3F, 0x00, 0x3F, 0x1F, 0xFF};
   for (size_t i = 0; i < sizeof(buf); i++) {
-    const uint8_t value = buf[i] & CALENDAR_MASKS[i];
-    if (i != 3 && ((value & 0x0F) > 9 || (value >> 4) > 9)) {
+    if (i == 3)
+      continue;  // Weekday uses one-hot encoding, not BCD.
+    buf[i] &= CALENDAR_MASKS[i];
+    if ((buf[i] & 0x0F) > 9 || (buf[i] >> 4) > 9) {
       ESP_LOGW(TAG, "Invalid BCD in RTC time");
+      this->status_set_warning(LOG_STR("Invalid RTC time"));
       return;
     }
   }
   const uint8_t onehot = buf[3];
   if (onehot == 0 || onehot > 0x40 || (onehot & (onehot - 1)) != 0) {
     ESP_LOGW(TAG, "Invalid RTC weekday");
+    this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
   const uint8_t weekday = static_cast<uint8_t>(__builtin_ctz(onehot) + 1);
   ESPTime rtc_time{
-      .second = bcd_to_uint8(buf[0] & 0x7F),
-      .minute = bcd_to_uint8(buf[1] & 0x7F),
-      .hour = bcd_to_uint8(buf[2] & 0x3F),
+      .second = bcd_to_uint8(buf[0]),
+      .minute = bcd_to_uint8(buf[1]),
+      .hour = bcd_to_uint8(buf[2]),
       .day_of_week = weekday,
-      .day_of_month = bcd_to_uint8(buf[4] & 0x3F),
+      .day_of_month = bcd_to_uint8(buf[4]),
       .day_of_year = 1,
-      .month = bcd_to_uint8(buf[5] & 0x1F),
+      .month = bcd_to_uint8(buf[5]),
       .year = static_cast<uint16_t>(bcd_to_uint8(buf[6]) + 2000),
       .is_dst = false,
       .timestamp = 0,
   };
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid()) {
+  if (!rtc_time.is_valid() || rtc_time.second >= 60) {
     ESP_LOGW(TAG, "Invalid RTC time, not syncing to system clock");
+    this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
   const auto calendar = ESPTime::from_epoch_utc(rtc_time.timestamp);
   if (calendar.year != rtc_time.year || calendar.month != rtc_time.month ||
       calendar.day_of_month != rtc_time.day_of_month || calendar.day_of_week != weekday) {
     ESP_LOGW(TAG, "Invalid RTC calendar date or weekday");
+    this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
 
+  this->status_clear_warning();
   ESP_LOGD(TAG, "Read UTC time: %04d-%02d-%02d %02d:%02d:%02d", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
            rtc_time.hour, rtc_time.minute, rtc_time.second);
   time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
@@ -95,7 +98,7 @@ void RX8111Component::read_time() {
 
 void RX8111Component::write_time() {
   auto now = time::RealTimeClock::utcnow();
-  if (!now.is_valid() || now.year < 2000 || now.year > 2099) {
+  if (!now.is_valid() || now.year > 2099) {
     ESP_LOGE(TAG, "Invalid system time, not syncing to RTC");
     return;
   }
