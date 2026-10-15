@@ -226,14 +226,14 @@ MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(mu
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-// ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
-bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count) {
-  int8_t accuracy = parent->get_accuracy_decimals();
+// ValueListFilter
+bool ValueListFilter::value_matches_any_(float sensor_value) {
+  int8_t accuracy = this->parent_->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
-  for (size_t i = 0; i < count; i++) {
-    float fv = values[i].value();
+  for (const TemplatableFn<float> *v = this->values_; v->has_value(); v++) {
+    float fv = v->value();
 
     // Handle NaN comparison
     if (std::isnan(fv)) {
@@ -261,13 +261,12 @@ optional<float> ThrottleFilter::new_value(float value) {
   return {};
 }
 
-// ThrottleWithPriorityFilter helper (non-template, keeps App access in .cpp)
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
-                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
+// ThrottleWithPriorityFilter
+optional<float> ThrottleWithPriorityFilter::new_value(float value) {
   const uint32_t now = App.get_loop_component_start_time();
-  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
-      value_list_matches_any(parent, value, values, count)) {
-    last_input = now;
+  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ ||
+      this->value_matches_any_(value)) {
+    this->last_input_ = now;
     return value;
   }
   return {};
@@ -415,19 +414,21 @@ void HeartbeatFilter::initialize(Sensor *parent, Filter *next) {
   });
 }
 
-optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value) {
-  for (size_t i = 0; i < count; i++) {
-    if (!std::isfinite(functions[i][2]) || value < functions[i][2])
-      return (value * functions[i][0]) + functions[i][1];
+// The calibration tables hold only floats, so aligned 32-bit loads from PROGMEM are safe on ESP8266.
+optional<float> CalibrateLinearFilter::new_value(float value) {
+  // Always returns: codegen ends the table with a segment whose boundary is NaN.
+  for (const auto *function = this->functions_;; function++) {
+    if (!std::isfinite((*function)[2]) || value < (*function)[2])
+      return (value * (*function)[0]) + (*function)[1];
   }
-  return NAN;
 }
 
-optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value) {
+optional<float> CalibratePolynomialFilter::new_value(float value) {
   float res = 0.0f;
   float x = 1.0f;
-  for (size_t i = 0; i < count; i++) {
-    res += x * coefficients[i];
+  const auto count = static_cast<size_t>(this->coefficients_[0]);
+  for (size_t i = 1; i <= count; i++) {
+    res += x * this->coefficients_[i];
     x *= value;
   }
   return res;
