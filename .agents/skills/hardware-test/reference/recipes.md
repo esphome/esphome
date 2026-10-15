@@ -90,19 +90,26 @@ logs the elapsed time and loop count delta. Drive with an aioesphomeapi script (
 
 ## Noise handshake and OTA encryption on the ESP8266 (#19062, #19233)
 
-Host side timing is useless on a weak link; bench on the device, minimum of five runs over two boots.
-Provision a key with `noise_encryption_set_key` (aioesphomeapi); `espota2.run_ota(..., noise_psk=key)`.
+Host side timing is useless on a weak link; use an on-device bench with the minimum of five runs over
+two boots. Provision a key with `noise_encryption_set_key` through aioesphomeapi and upload with
+`espota2.run_ota(host, 8266, None, bin, noise_psk=key)` when the key is not in the yaml.
 
 ## ESP-NOW on the ESP8266 (#14407)
 
 The NONOS SDK only delivers broadcast ESP-NOW frames while the station is associated or a soft-AP is
-up; a hidden, open, client-less soft-AP makes them arrive. In AP-only mode it sends from the soft-AP MAC.
+up; a hidden, open, client-less soft-AP (60 s beacon, DHCP stopped) makes broadcasts arrive. In AP-only
+mode the device transmits from the soft-AP MAC.
 
 ## Wi-Fi Easy Connect (DPP) enrollee (#17934)
 
 Only an Android phone configures: Settings, network details, Add device, Share Wi-Fi (the Wi-Fi list's
-QR scanner makes the phone an enrollee). Render the URI with the `qrcode` module. `esp32: framework:
-log_level: DEBUG` plus `sdkconfig_options: CONFIG_WPA_DEBUG_PRINT: y` prints the supplicant state machine.
+QR scanner makes the phone an enrollee). Render the URI with the `qrcode` module and open the PNG.
+`esp32: framework: log_level: DEBUG` plus `sdkconfig_options: CONFIG_WPA_DEBUG_PRINT: y` prints the
+supplicant state machine.
+
+## Thread border router (#18104)
+
+See boards.md for the ESP Thread BR board. Check that the H2 answers Spinel before blaming a PR.
 
 ## nRF52840 dongle boards (#19009, #20814)
 

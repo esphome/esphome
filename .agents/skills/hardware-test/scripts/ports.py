@@ -18,15 +18,27 @@ import time
 from serial.tools import list_ports
 
 GUESS = [
-    ((0x1A86, 0x7523), "CH340: D1 mini, BW15, BK7238 or LN882H; see boot banner"),
+    (
+        (0x1A86, 0x7523),
+        "CH340: D1 mini, BW15 kit, BK7238/CB3S or LN882H adapter; identify by the boot banner",
+    ),
     ((0x1A86, 0x55D3), "CH343: ESP32-P4 devkit console"),
     ((0x1A86, 0x55D4), "CH343: ESP32 devkit"),
     ((0x1A86, None), "WCH CH34x USB serial bridge"),
     ((0x10C4, 0xEA60), "CP2102: classic ESP32 devkit (esp32dev)"),
-    ((0x303A, 0x1001), "Espressif USB JTAG serial: S3/C3/C6/H2 native USB"),
-    ((0x2E8A, None), "Pico W / Pico 2 W CDC; the port changes on every reboot"),
+    (
+        (0x303A, 0x1001),
+        "Espressif USB JTAG serial: S3/C3/C6/H2 native USB (logger hardware_uart USB_SERIAL_JTAG)",
+    ),
+    (
+        (0x2E8A, None),
+        "Raspberry Pi Pico W / Pico 2 W CDC; the port vanishes and comes back on every reboot",
+    ),
     ((0x1915, 0x521F), "nRF52840 Dongle (PCA10059) in the Open DFU bootloader"),
-    ((0x2FE3, 0x0100), "nRF52840 Dongle Zephyr app; ESPHome log on the second port"),
+    (
+        (0x2FE3, 0x0100),
+        "nRF52840 Dongle running a Zephyr app; two CDC ports, ESPHome log on the second",
+    ),
     ((0x1915, 0xCAFE), "Makerdiary nRF52840 MDK dongle running a Zephyr app"),
     ((0x239A, None), "Adafruit style nRF52 board (UF2 bootloader family)"),
 ]
