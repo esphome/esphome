@@ -5,6 +5,12 @@
 
 namespace esphome::gree::testing {
 
+// Re-expose the protected frame helper for testing, as tests/components/fusb302b/pd_test.cpp does.
+class TestableGreeClimate : public GreeClimate {
+ public:
+  using GreeClimate::fahrenheit_fields_;
+};
+
 TEST(GreeClimateTest, HeatCoolHiddenWithoutHeatByDefault) {
   GreeClimate climate;
   climate.set_supports_heat(false);
@@ -44,7 +50,7 @@ TEST(GreeClimateTest, FahrenheitFieldsMatchCapturedRemoteFrames) {
   for (const auto &expectation : expectations) {
     uint8_t temp_field = 0xFF;
     bool extra_degree = false;
-    GreeClimate::fahrenheit_fields(expectation.celsius, temp_field, extra_degree);
+    TestableGreeClimate::fahrenheit_fields_(expectation.celsius, temp_field, extra_degree);
     EXPECT_EQ(expectation.temp_field, temp_field) << "celsius " << expectation.celsius;
     EXPECT_EQ(expectation.extra_degree, extra_degree) << "celsius " << expectation.celsius;
   }
@@ -56,7 +62,7 @@ TEST(GreeClimateTest, FahrenheitFieldsCoverEveryWholeDegreeInRange) {
     const float celsius = (static_cast<float>(fahrenheit) - 32.0f) * 5.0f / 9.0f;
     uint8_t temp_field = 0xFF;
     bool extra_degree = false;
-    GreeClimate::fahrenheit_fields(celsius, temp_field, extra_degree);
+    TestableGreeClimate::fahrenheit_fields_(celsius, temp_field, extra_degree);
     const float encoded = static_cast<float>(GREE_TEMP_MIN + temp_field) + (extra_degree ? 0.5f : 0.0f);
     EXPECT_EQ(fahrenheit, static_cast<int>(encoded * 9.0f / 5.0f + 32.0f)) << "fahrenheit " << fahrenheit;
   }
@@ -66,7 +72,7 @@ TEST(GreeClimateTest, FahrenheitFieldsHandleNonFiniteTarget) {
   // transmit_state() can run from setup() via restore_state_(), when the target may still be NaN.
   uint8_t temp_field = 0xFF;
   bool extra_degree = true;
-  GreeClimate::fahrenheit_fields(NAN, temp_field, extra_degree);
+  TestableGreeClimate::fahrenheit_fields_(NAN, temp_field, extra_degree);
   EXPECT_EQ(0, temp_field);
   EXPECT_FALSE(extra_degree);
 }
