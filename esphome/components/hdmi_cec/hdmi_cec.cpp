@@ -131,7 +131,9 @@ void HDMICEC::loop() {
 #ifdef HDMI_CEC_MESSAGE_CALLBACK_COUNT
     this->message_callbacks_.call(frame->initiator_addr(), frame->destination_addr(), frame->payload());
 #endif
-    if (!this->monitor_mode_ && frame->destination_addr() == this->address_ &&
+    // Only a frame directed at us gets a reply; a broadcast is never answered, and a device that only
+    // listens (address 0xF) has nothing to say
+    if (!this->monitor_mode_ && !frame->is_broadcast() && frame->destination_addr() == this->address_ &&
         !this->is_claimed_(frame->payload()[0])) {
       this->reply_builtin_(frame);
     }

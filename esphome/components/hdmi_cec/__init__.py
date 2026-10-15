@@ -7,9 +7,11 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_DATA,
     CONF_ID,
+    CONF_NUMBER,
     CONF_ON_MESSAGE,
     CONF_PIN,
     CONF_SOURCE,
+    CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -19,6 +21,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@JosVanEijndhoven"]
@@ -119,6 +122,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+# The ESP8266 drives these from a hardware UART; any other pin gets a software UART that sends with
+# interrupts off, which holds the main loop and hides our own frame from the receive interrupt
+ESP8266_HARDWARE_TX_PINS = (1, 2, 15)
+
+
+def _hardware_tx_pin(hub_config: ConfigType) -> ConfigType:
+    if hub_config[CONF_TX_PIN][CONF_NUMBER] not in ESP8266_HARDWARE_TX_PINS:
+        raise cv.Invalid(
+            f"{DOMAIN} needs a hardware UART tx_pin on the ESP8266: GPIO1, GPIO2 or GPIO15"
+        )
+    return hub_config
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     if CONF_UART_ID in config:
         # The UART only drives the line, through a diode; its settings make one CEC bit of five UART bits
@@ -130,6 +146,15 @@ def _final_validate(config: ConfigType) -> ConfigType:
             parity="NONE",
             stop_bits=1,
         )(config)
+        if CORE.is_esp8266:
+            cv.Schema(
+                {
+                    cv.Required(CONF_UART_ID): fv.id_declaration_match_schema(
+                        _hardware_tx_pin
+                    )
+                },
+                extra=cv.ALLOW_EXTRA,
+            )(config)
     return config
 
 
@@ -156,17 +181,24 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_uart(await cg.get_variable(uart_id)))
 
     on_message = config.get(CONF_ON_MESSAGE, [])
-    # An automation with a data prefix claims its opcode: the built-in replies leave it alone. One
-    # without a prefix sees every frame, so nothing is unhandled and no Feature Abort is sent
+    # An automation that runs for every frame addressed to us (no source filter, no other
+    # destination) and has a data prefix claims its opcode: the built-in replies leave it alone.
+    # One without a prefix sees every such frame, so nothing is unhandled and no Feature Abort is sent
+    address = config[CONF_ADDRESS]
+    for_every_initiator = [
+        conf
+        for conf in on_message
+        if CONF_SOURCE not in conf and conf.get(CONF_DESTINATION, address) == address
+    ]
     claimed_opcodes = sorted(
-        {conf[CONF_DATA][0] for conf in on_message if CONF_DATA in conf}
+        {conf[CONF_DATA][0] for conf in for_every_initiator if CONF_DATA in conf}
     )
     if claimed_opcodes:
         table = cg.shared_progmem_array(
             "hdmi_cec_claimed_opcodes", cg.uint8, claimed_opcodes
         )
         cg.add(var.set_claimed_opcodes(table, len(claimed_opcodes)))
-    if all(CONF_DATA in conf for conf in on_message):
+    if all(CONF_DATA in conf for conf in for_every_initiator):
         cg.add_define("USE_HDMI_CEC_FEATURE_ABORT")
 
     for conf in on_message:
