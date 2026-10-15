@@ -55,10 +55,12 @@ _LOADED_SECRET_NAMES: set[str] = set()
 # every emitted `!secret` name into it.
 _EMITTED_SECRET_NAMES: set[str] | None = None
 # Called with every file the YAML loader opens; ``track_yaml_loads`` builds on it.
-# Not thread-safe — config processing is single-threaded today.
-# Used by device-builder (esphome/device-builder), which registers a listener
+# ``append`` / ``remove`` are atomic under the GIL and the loader iterates over a
+# snapshot, so a listener does its own thread filtering.
+# Public for device-builder (esphome/device-builder), which registers a listener
 # filtered to the loading thread because several of its executor threads load
-# YAML at once; keep the name and the per-file ``Path`` call signature.
+# YAML at once; keep the name and the per-file ``Path`` call signature. Not an
+# otherwise supported API: other users rely on it at their own risk.
 load_listeners: list[Callable[[Path], None]] = []
 
 DocumentPath = list[str | int]
@@ -1124,7 +1126,7 @@ def load_yaml(
 
 def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
-    for listener in load_listeners:
+    for listener in tuple(load_listeners):
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
