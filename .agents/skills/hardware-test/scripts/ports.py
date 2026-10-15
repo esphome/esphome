@@ -4,6 +4,8 @@
   ports.py --wait 2e8a              print the first port with VID 0x2e8a once it appears (default 60 s)
   ports.py --wait 1a86:7523 --timeout 30
   ports.py --product "USB Serial"   first port whose USB product string matches (case-insensitive)
+  ports.py --wait 2e8a --serial SN  the port of one specific board, whatever name it comes back under
+  ports.py --serial-of PORT         print the USB serial number behind a port name
 
 Run with a Python that has pyserial (any ESPHome venv). Port names follow the hub port on macOS, so
 re-run this after every replug instead of trusting a name from an earlier session.
@@ -54,10 +56,14 @@ def parse_id(text: str) -> tuple[int, int | None]:
     return int(vid, 16), (int(pid, 16) if pid else None)
 
 
-def matches(port, vid: int | None, pid: int | None, product: str | None) -> bool:
+def matches(
+    port, vid: int | None, pid: int | None, product: str | None, serial: str | None
+) -> bool:
     if vid is not None and (port.vid != vid or (pid is not None and port.pid != pid)):
         return False
-    return not product or (port.product or "").lower() == product.lower()
+    if product and (port.product or "").lower() != product.lower():
+        return False
+    return not serial or (port.serial_number or "") == serial
 
 
 def main() -> int:
@@ -70,18 +76,30 @@ def main() -> int:
         help="block until a matching port appears, print it",
     )
     ap.add_argument("--product", help="USB product string to match")
+    ap.add_argument("--serial", help="USB serial number to match")
+    ap.add_argument(
+        "--serial-of", metavar="PORT", help="print the USB serial number of PORT"
+    )
     ap.add_argument("--timeout", type=float, default=60)
     args = ap.parse_args()
+
+    if args.serial_of:
+        for p in list_ports.comports():
+            if p.device == args.serial_of and p.serial_number:
+                print(p.serial_number)
+                return 0
+        print(f"no USB serial number for {args.serial_of}", file=sys.stderr)
+        return 1
 
     vid = pid = None
     if args.wait:
         vid, pid = parse_id(args.wait)
 
-    if args.wait or args.product:
+    if args.wait or args.product or args.serial:
         deadline = time.time() + args.timeout
         while True:
             for p in sorted(list_ports.comports(), key=lambda p: p.device):
-                if p.vid and matches(p, vid, pid, args.product):
+                if p.vid and matches(p, vid, pid, args.product, args.serial):
                     print(p.device)
                     return 0
             if time.time() >= deadline:

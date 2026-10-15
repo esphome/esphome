@@ -8,6 +8,7 @@
   --reset      after opening, pulse reset (DTR low, RTS high 100 ms, RTS low) to capture from a fresh boot.
   --baud       115200 by default; 74880 shows the ESP8266 ROM boot messages.
 
+Exit status 1 when nothing was received (wrong port name, or a port another capture still holds).
 Lines are written as [HH:MM:SS]text with ANSI colour stripped and flushed one by one, so a shell
 loop can grep the file while the capture runs. If the port is missing or disappears (USB CDC boards
 re-enumerate on reboot) the script retries the open until the deadline instead of dying.
@@ -37,11 +38,15 @@ def open_port(args: argparse.Namespace) -> serial.Serial:
         s.rts = False
     s.open()
     if args.reset:
-        s.dtr = False
-        s.rts = True
-        time.sleep(0.1)
-        s.rts = False
-        s.reset_input_buffer()
+        try:
+            s.dtr = False
+            s.rts = True
+            time.sleep(0.1)
+            s.rts = False
+            s.reset_input_buffer()
+        except PORT_ERRORS:
+            s.close()
+            raise
     return s
 
 
@@ -50,10 +55,12 @@ def note(out, text: str) -> None:
     out.flush()
 
 
-def capture(args: argparse.Namespace, out) -> None:
+def capture(args: argparse.Namespace, out) -> int:
+    """Returns the number of bytes received."""
     deadline = time.time() + args.seconds
     buf = b""
     s = None
+    received = 0
     while time.time() < deadline:
         if s is None:
             try:
@@ -74,6 +81,7 @@ def capture(args: argparse.Namespace, out) -> None:
             continue
         if not data:
             continue
+        received += len(data)
         buf += data
         while b"\n" in buf:
             line, buf = buf.split(b"\n", 1)
@@ -82,6 +90,7 @@ def capture(args: argparse.Namespace, out) -> None:
             out.flush()
     if s is not None:
         s.close()
+    return received
 
 
 def main() -> int:
@@ -96,7 +105,10 @@ def main() -> int:
     ap.add_argument("--reset", action="store_true")
     args = ap.parse_args()
     with pathlib.Path(args.outfile).open("ab") as out:
-        capture(args, out)
+        received = capture(args, out)
+    if received == 0:
+        print(f"[capture] nothing received from {args.port}", file=sys.stderr)
+        return 1
     return 0
 
 
