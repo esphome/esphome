@@ -750,6 +750,7 @@ class WizardCapabilities final : public ProtoMessage {
 class SendspinCapabilities final : public ProtoMessage {
  public:
   uint32_t feature_flags{0};
+  StringRef client_id{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
