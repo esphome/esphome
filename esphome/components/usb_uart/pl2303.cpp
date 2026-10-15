@@ -22,6 +22,25 @@ static constexpr uint8_t VENDOR_WRITE_REQUEST = 0x01;
 static constexpr uint8_t VENDOR_READ_REQUEST_TYPE = 0xc0;
 static constexpr uint8_t VENDOR_READ_REQUEST = 0x01;
 
+// HXN takes its own vendor requests and reads a register at its plain address. The other
+// chips read it at the address with bit 7 set.
+static constexpr uint8_t VENDOR_WRITE_NREQUEST = 0x80;
+static constexpr uint8_t VENDOR_READ_NREQUEST = 0x81;
+static constexpr uint16_t VENDOR_READ_REG_FLAG = 0x80;
+
+static constexpr uint8_t FLOWCTRL_REG = 0x00;
+static constexpr uint8_t FLOWCTRL_MASK = 0xf0;
+static constexpr uint8_t FLOWCTRL_NONE = 0x00;
+static constexpr uint8_t FLOWCTRL_RTS_CTS_LEGACY = 0x40;
+static constexpr uint8_t FLOWCTRL_RTS_CTS = 0x60;
+static constexpr uint8_t FLOWCTRL_XON_XOFF = 0xc0;
+
+static constexpr uint8_t HXN_FLOWCTRL_REG = 0x0a;
+static constexpr uint8_t HXN_FLOWCTRL_MASK = 0x1c;
+static constexpr uint8_t HXN_FLOWCTRL_NONE = 0x1c;
+static constexpr uint8_t HXN_FLOWCTRL_RTS_CTS = 0x18;
+static constexpr uint8_t HXN_FLOWCTRL_XON_XOFF = 0x0c;
+
 // Supported standard baud rates for direct encoding (TYPE_H, TYPE_HX, TYPE_HXD, TYPE_HXN)
 static const uint32_t SUPPORTED_BAUD_RATES[] = {
     75,    150,   300,   600,    1200,   1800,   2400,   3600,   4800,    7200,    9600,    14400,   19200,
@@ -44,6 +63,29 @@ static const char *pl2303_type_name(Pl2303ChipType type) {
       return "G/HXN (newer)";
     default:
       return "unknown";
+  }
+}
+
+// The flow control register bits for the mode, as Linux pl2303_set_termios() picks them
+static uint8_t pl2303_flow_control_bits(Pl2303ChipType type, uart::UARTFlowControl flow_control) {
+  if (type == PL2303_TYPE_HXN) {
+    switch (flow_control) {
+      case uart::UART_FLOW_CONTROL_RTS_CTS:
+        return HXN_FLOWCTRL_RTS_CTS;
+      case uart::UART_FLOW_CONTROL_XON_XOFF:
+        return HXN_FLOWCTRL_XON_XOFF;
+      default:
+        return HXN_FLOWCTRL_NONE;
+    }
+  }
+  switch (flow_control) {
+    case uart::UART_FLOW_CONTROL_RTS_CTS:
+      return type == PL2303_TYPE_H ? FLOWCTRL_RTS_CTS_LEGACY : FLOWCTRL_RTS_CTS;
+    case uart::UART_FLOW_CONTROL_XON_XOFF:
+      // The legacy chip has no automatic XON/XOFF
+      return type == PL2303_TYPE_H ? FLOWCTRL_NONE : FLOWCTRL_XON_XOFF;
+    default:
+      return FLOWCTRL_NONE;
   }
 }
 
@@ -232,8 +274,6 @@ static constexpr uint8_t PL2303_INIT_COUNT = sizeof(PL2303_INIT) / sizeof(PL2303
 
 bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
-  // TODO: flow_control_ is accepted but not applied. Linux does a vendor read, mask, vendor
-  // write of the flow control register, whose address, mask and value depend on the chip type.
   bool is_legacy = (this->chip_type_ == PL2303_TYPE_H);
   bool is_hxn = (this->chip_type_ == PL2303_TYPE_HXN);
 
@@ -281,6 +321,22 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 1:
+      // Read the flow control register, re-applied on every settings change as set_termios does
+      this->config_transfer_(VENDOR_READ_REQUEST_TYPE, is_hxn ? VENDOR_READ_NREQUEST : VENDOR_READ_REQUEST,
+                             is_hxn ? HXN_FLOWCTRL_REG : (FLOWCTRL_REG | VENDOR_READ_REG_FLAG), 0,
+                             std::vector<uint8_t>{0});
+      return true;
+    case 2: {
+      // Write it back with only the flow control bits changed
+      const uint8_t reg = is_hxn ? HXN_FLOWCTRL_REG : FLOWCTRL_REG;
+      const uint8_t mask = is_hxn ? HXN_FLOWCTRL_MASK : FLOWCTRL_MASK;
+      const uint8_t value = (response[0] & ~mask) | pl2303_flow_control_bits(this->chip_type_, channel->flow_control_);
+      ESP_LOGD(TAG, "PL2303: flow control register 0x%02X: 0x%02X -> 0x%02X", reg, response[0], value);
+      this->config_transfer_(VENDOR_WRITE_REQUEST_TYPE, is_hxn ? VENDOR_WRITE_NREQUEST : VENDOR_WRITE_REQUEST, reg,
+                             value);
+      return true;
+    }
+    case 3:
       // Assert DTR + RTS (init only)
       if (reload)
         return false;
