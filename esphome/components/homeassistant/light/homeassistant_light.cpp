@@ -13,6 +13,9 @@ namespace esphome::homeassistant {
 
 ESPHOME_LOG_TAG(TAG, "homeassistant.light");
 
+static constexpr uint32_t ECHO_TIMEOUT_ID = 0;
+static constexpr uint32_t ECHO_TIMEOUT_MS = 2000;  // Home Assistant answers an action well within this
+
 using namespace esphome::light;
 
 namespace {
@@ -82,21 +85,30 @@ void HomeassistantLight::setup() {
     if (is_unset(value)) {
       return;  // the light is unavailable; its traits stay
     }
-    // A Python list, "['hs', 'color_temp']" or "[<ColorMode.HS: 'hs'>, ...]": the names are the quoted parts
+    // A Python list of the mode names, as strings or as the enum members
     ColorModeMask modes;
-    const char *text = value.c_str();
-    while ((text = strchr(text, '\'')) != nullptr) {
-      const char *name = ++text;
-      text = strchr(name, '\'');
-      if (text == nullptr) {
-        break;
-      }
-      if (auto mode = parse_color_mode(StringRef(name, text - name))) {
-        modes.insert(*mode);
-      } else {
-        ESP_LOGW(TAG, "'%s': Can't parse '%.*s' as color mode!", this->entity_id_, static_cast<int>(text - name), name);
-      }
-      text++;
+    char name[ColorModeNames::MAX_LENGTH + 1];
+    size_t length = 0;
+    const bool valid = parse_python_list(
+        value,
+        [&](char c) {
+          if (length < sizeof(name)) {
+            name[length] = c;
+          }
+          length++;
+        },
+        [&]() {
+          auto mode = length <= ColorModeNames::MAX_LENGTH ? parse_color_mode(StringRef(name, length)) : nullopt;
+          if (mode.has_value()) {
+            modes.insert(*mode);
+          } else {
+            ESP_LOGW(TAG, "'%s': Unknown color mode in '%s'", this->entity_id_, value.c_str());
+          }
+          length = 0;
+        });
+    if (!valid) {
+      ESP_LOGW(TAG, "'%s': Can't parse 'supported_color_modes' value '%s'", this->entity_id_, value.c_str());
+      return;
     }
     if (modes.empty()) {
       ESP_LOGW(TAG, "'%s': No color mode found in '%s', keeping the current ones", this->entity_id_, value.c_str());
@@ -198,6 +210,8 @@ optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRe
 }
 
 void HomeassistantLight::schedule_apply_() {
+  // A fresh report makes the one that waited for a local change moot
+  this->cancel_timeout(ECHO_TIMEOUT_ID);
   // One update changes several attributes, each arriving as its own message; apply them as one call
   if (!this->apply_scheduled_) {
     this->apply_scheduled_ = true;
@@ -260,14 +274,16 @@ void HomeassistantLight::write_state(LightState *state) {
     return;  // Home Assistant gets the target once it is reached
   }
   if (this->report_waiting_) {
-    // The report that had to wait goes after this change; Home Assistant's echo of the change
-    // follows and overrides it, unless the change got lost on the way
+    // Home Assistant echoes this change in a moment, which makes the report that had to wait moot;
+    // when no echo comes, the change got lost on the way and the report is applied after all
     this->report_waiting_ = false;
-    this->schedule_apply_();
+    this->set_timeout(ECHO_TIMEOUT_ID, ECHO_TIMEOUT_MS, [this]() { this->schedule_apply_(); });
   }
   const LightColorValues &values = state->current_values;
   if (!api::global_api_server->is_connected()) {
-    ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost", this->entity_id_);
+    ESP_LOGE(TAG, "'%s': No clients connected to API server, change lost%s", this->entity_id_,
+             this->imported_.state.has_value() ? LOG_STR_LITERAL("")
+                                               : LOG_STR_LITERAL(" and no reported state to fall back to"));
     this->schedule_apply_();  // back to the state Home Assistant reported, which the light still has
     return;
   }
