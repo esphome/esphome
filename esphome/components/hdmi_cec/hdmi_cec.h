@@ -178,7 +178,7 @@ class HDMICEC : public Component {
 
   /// The built-in replies to a frame directed at us that no automation claims
   void reply_builtin_(const Frame *frame);
-  static bool is_claimed_(uint8_t opcode);
+  static bool is_claimed(uint8_t opcode);
 
   // Transmit side, in loop()
   void transmit_message_();

@@ -15,7 +15,7 @@ hdmi_cec:
       then:
         - lambda: |-
             id(cec).send(0xf, {0x87, 0x00, 0x09, 0xb0});
-    - opcode: 0x9F  # Get CEC Version, asked of the playback device we also stand in for
+    - opcode: 0x9F  # Get CEC Version, asked of a playback device we send for (frames to it are not acknowledged)
       destination: 0x4
       then:
         - hdmi_cec.send_as:
