@@ -37,7 +37,7 @@ class TestCard : public ::testing::Test {
     (void) APP_CONSTRUCTED;
   }
   int writer_calls_{0};
-  display_writer_t count_writer() {
+  display_writer_t count_writer_() {
     return [this](Display &) { this->writer_calls_++; };
   }
 };
@@ -45,7 +45,7 @@ class TestCard : public ::testing::Test {
 
 TEST_F(TestCard, DrawnOnEveryUpdateInsteadOfLambda) {
   TestCardDisplay display;
-  display.set_writer(this->count_writer());
+  display.set_writer(this->count_writer_());
   display.show_test_card();
   for (int i = 0; i != 3; i++) {
     display.reset();
@@ -57,7 +57,7 @@ TEST_F(TestCard, DrawnOnEveryUpdateInsteadOfLambda) {
 
 TEST_F(TestCard, DrawnOnEveryUpdateInsteadOfPages) {
   TestCardDisplay display;
-  DisplayPage page(this->count_writer());
+  DisplayPage page(this->count_writer_());
   display.set_pages({&page});
   display.show_test_card();
   for (int i = 0; i != 3; i++) {
@@ -70,7 +70,7 @@ TEST_F(TestCard, DrawnOnEveryUpdateInsteadOfPages) {
 
 TEST_F(TestCard, LambdaRunsWithoutTestCard) {
   TestCardDisplay display;
-  display.set_writer(this->count_writer());
+  display.set_writer(this->count_writer_());
   display.update();
   display.update();
   EXPECT_FALSE(display.drew_test_card());
