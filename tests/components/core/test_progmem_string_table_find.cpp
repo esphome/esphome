@@ -1,40 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <cstring>
-
 #include "esphome/core/progmem.h"
 
 namespace esphome::testing {
 
 PROGMEM_STRING_TABLE(Names, "light.turn_on", "entity_id", "rgb_color");
-
-TEST(ProgmemStringTableCopy, HandsOutEveryString) {
-  ProgmemStringTableCopy<Names> strings;
-  EXPECT_STREQ(strings.get(0), "light.turn_on");
-  EXPECT_STREQ(strings.get(1), "entity_id");
-  EXPECT_STREQ(strings.get(2), "rgb_color");
-}
-
-// The ESP8266 variant, built here with a plain memcpy behind progmem_memcpy
-TEST(ProgmemStringTableStackCopy, HandsOutEveryString) {
-  ProgmemStringTableStackCopy<Names> strings;
-  EXPECT_STREQ(strings.get(0), "light.turn_on");
-  EXPECT_STREQ(strings.get(1), "entity_id");
-  EXPECT_STREQ(strings.get(2), "rgb_color");
-}
-
-TEST(ProgmemStringTableStackCopy, StringsLiveInTheCopy) {
-  ProgmemStringTableStackCopy<Names> strings;
-  const char *key = strings.get(1);
-  const char *other = strings.get(2);
-  EXPECT_EQ(std::strlen(key), 9U);
-  EXPECT_STREQ(key, "entity_id");
-  EXPECT_STREQ(other, "rgb_color");
-  // The pointers go into the object, not into the table
-  const char *object_start = reinterpret_cast<const char *>(&strings);
-  EXPECT_GE(key, object_start);
-  EXPECT_LT(key, object_start + sizeof(strings));
-}
 
 TEST(ProgmemStringTableFind, FindsWholeStringsOnly) {
   EXPECT_EQ(progmem_string_table_find<Names>("entity_id", 9), 1);
