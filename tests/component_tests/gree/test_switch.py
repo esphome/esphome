@@ -18,6 +18,7 @@ from esphome.core import ID
 from esphome.types import ConfigType
 
 CONF_CLIMATE = "climate"
+RESTORE_MODE_VALIDATOR = cv.enum(switch.RESTORE_MODES, upper=True, space="_")
 
 
 def _validate_switch_config(
@@ -34,7 +35,7 @@ def _validate_switch_config(
             CONF_GREE_ID: ID("gree_climate", is_declaration=False),
             **{
                 feature: (
-                    {CONF_RESTORE_MODE: switch.RESTORE_MODES[restore_modes[feature]]}
+                    {CONF_RESTORE_MODE: RESTORE_MODE_VALIDATOR(restore_modes[feature])}
                     if restore_modes and feature in restore_modes
                     else {}
                 )
@@ -111,7 +112,7 @@ def test_rx_capable_switches_accept_schema_defaults_or_disabled(
     model: str, feature: str, restore_mode: str
 ) -> None:
     config = _validate_switch_config(model, {feature}, {feature: restore_mode})
-    assert config[feature][CONF_RESTORE_MODE] == switch.RESTORE_MODES[restore_mode]
+    assert str(config[feature][CONF_RESTORE_MODE]) == restore_mode
 
 
 @pytest.mark.parametrize(
@@ -132,4 +133,4 @@ def test_rx_capable_switches_reject_custom_restore_modes(
 
 def test_legacy_switches_keep_custom_restore_modes() -> None:
     config = _validate_switch_config("yan", {CONF_LIGHT}, {CONF_LIGHT: "ALWAYS_OFF"})
-    assert config[CONF_LIGHT][CONF_RESTORE_MODE] == switch.RESTORE_MODES["ALWAYS_OFF"]
+    assert str(config[CONF_LIGHT][CONF_RESTORE_MODE]) == "ALWAYS_OFF"

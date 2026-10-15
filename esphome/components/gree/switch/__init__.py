@@ -60,7 +60,7 @@ MODEL_FEATURES = {
     "yx1ff": frozenset({CONF_LIGHT}),
 }
 RX_FEATURE_MODELS = frozenset({"yb1fa", "yx1ff"})
-RX_RESTORE_MODE = cv.enum(switch.RESTORE_MODES, upper=True, space="_")("DISABLED")
+RX_RESTORE_MODE = "DISABLED"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -112,11 +112,13 @@ def _validate_model(config: ConfigType) -> None:
                 continue
             # switch_schema inserts RESTORE_DEFAULT_ON/OFF before final validation.
             # C++ disables restoration at setup; do not mutate validated config.
-            schema_default = switch.RESTORE_MODES[
+            schema_default = (
                 "RESTORE_DEFAULT_ON" if feature == CONF_LIGHT else "RESTORE_DEFAULT_OFF"
-            ]
+            )
             restore_mode = config[feature].get(CONF_RESTORE_MODE, schema_default)
-            if restore_mode not in (schema_default, RX_RESTORE_MODE):
+            # cv.enum returns string-like EnumValue; never compare its C++ MockObj
+            # enum_value with ==, which builds an expression instead of a bool.
+            if str(restore_mode) not in (schema_default, RX_RESTORE_MODE):
                 raise cv.Invalid(
                     f"Gree model {model} receives {feature} state from IR; "
                     "restore_mode must be DISABLED or omitted",
