@@ -55,12 +55,9 @@ _LOADED_SECRET_NAMES: set[str] = set()
 # every emitted `!secret` name into it.
 _EMITTED_SECRET_NAMES: set[str] | None = None
 # Called with every file the YAML loader opens; ``track_yaml_loads`` builds on it.
-# ``append`` / ``remove`` are atomic under the GIL and the loader iterates over a
-# snapshot, so a listener does its own thread filtering.
-# Public for device-builder (esphome/device-builder), which registers a listener
-# filtered to the loading thread because several of its executor threads load
-# YAML at once; keep the name and the per-file ``Path`` call signature. Not an
-# otherwise supported API: other users rely on it at their own risk.
+# Used by device-builder (esphome/device-builder), whose listener filters by
+# thread because the hook is process-global; keep the name and the per-file
+# ``Path`` signature. Not otherwise a supported API: use at your own risk.
 load_listeners: list[Callable[[Path], None]] = []
 
 DocumentPath = list[str | int]
