@@ -891,12 +891,10 @@ static uint8_t color_to_nibble(const Color &color) {
   if (color.raw_32 == 0xFFFFFFFF)
     return 0x0F;  // white
 
-  // Derive luma from RGB using Rec.601 weights (0.299/0.587/0.114, scaled by
-  // 256). Rec.601 is the standard for converting SDR images to grayscale and
-  // spreads saturated colours across the mid-range; Rec.709 instead crams them
-  // against white/black where the 16 panel levels are hard to tell apart.
-  auto luma = static_cast<uint8_t>((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
-  return quantize_8bit_to_nibble(luma);
+  // Rec.601 luma is the standard for converting SDR images to grayscale and spreads saturated colours
+  // across the mid-range; Rec.709 instead crams them against white/black where the 16 panel levels are
+  // hard to tell apart.
+  return quantize_8bit_to_nibble(display::rec601_luma(color));
 }
 
 // 4x4 ordered (Bayer) dither threshold over the weighted-luma range (0..65535).

@@ -1,16 +1,19 @@
 from collections.abc import Iterator
+import io
 import math
+from pathlib import Path
 
 import pytest
 
-from esphome import cpp_generator as cg, cpp_types as ct
+from esphome import config_validation as cv, cpp_generator as cg, cpp_types as ct
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
-from esphome.core import CORE, ID, EsphomeError
+from esphome.core import CORE, ID, LINE_DIRECTIVE_RESET, DocumentLocation, EsphomeError
+from esphome.yaml_util import parse_yaml
 
 
 class TestExpressions:
@@ -242,6 +245,22 @@ class TestLambdaExpression:
 
         assert actual == (
             "[captured_var](int32_t x) -> int32_t {\n  return captured_var + x;\n}"
+        )
+
+    def test_str__with_source_marks_end_of_body(self) -> None:
+        """A lambda from the YAML marks the end of its body for the line reset."""
+        target = cg.LambdaExpression(
+            ("return 42;",), (), "", int, source=DocumentLocation("test.yaml", 4, 0)
+        )
+
+        actual = str(target)
+
+        assert actual == (
+            "[]() -> int32_t {\n"
+            '  #line 5 "test.yaml"\n'
+            "  return 42;\n"
+            f"  {LINE_DIRECTIVE_RESET}\n"
+            "}"
         )
 
 
@@ -734,6 +753,28 @@ class TestProcessLambda:
         # Test invalid tuple format (single element)
         with pytest.raises(AssertionError):
             await cg.process_lambda(lambda_obj, [(int,)])
+
+    def test_str__with_line_mark_in_body_marks_end_of_body(self) -> None:
+        """A #line written into the body, as lvgl does, gets the reset too."""
+        target = cg.LambdaExpression(('#line 3 "test.yaml"\nfoo();',), (), "", None)
+
+        actual = str(target)
+
+        assert actual == (
+            f'[]() {{\n  #line 3 "test.yaml"\n  foo();\n  {LINE_DIRECTIVE_RESET}\n}}'
+        )
+
+    async def test_process_lambda__twice_keeps_line(self) -> None:
+        """Processing one lambda twice, as a YAML alias does, keeps its line."""
+        config = parse_yaml(Path("test.yaml"), io.StringIO("x: |-\n  return 42;\n"))
+        lambda_obj = cv.lambda_(config["x"])
+
+        first = await cg.process_lambda(lambda_obj, [])
+        second = await cg.process_lambda(lambda_obj, [])
+
+        # The body of the block scalar is the second line, 1 counted from 0
+        assert first.source.line == 1
+        assert second.source.line == 1
 
 
 @pytest.mark.asyncio
