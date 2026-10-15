@@ -436,10 +436,15 @@ void HomeassistantLight::write_state(LightState *state) {
                                                          : ProgmemStringRef::from_lit(BRIGHTNESS_KEY),
                  level_buf, outgoing.brightness);
     }
-    if (outgoing.color_temp_kelvin != 0) {
+    // Home Assistant converts the color to the light's own channels, which loses the white balance
+    // of a cold/warm white light, so the color goes only when it or the mode changed (or may have,
+    // while a change still waits for its report)
+    const Attributes &imported = this->imported_;
+    const bool new_color = this->echo_pending_ || outgoing.color_mode != imported.color_mode;
+    if (outgoing.color_temp_kelvin != 0 && (new_color || outgoing.color_temp_kelvin != imported.color_temp_kelvin)) {
       add_number(ProgmemStringRef::from_lit(COLOR_TEMP_KELVIN_KEY), color_temp_buf, outgoing.color_temp_kelvin);
     }
-    if (outgoing.has_rgb) {
+    if (outgoing.has_rgb && (new_color || !imported.has_rgb || outgoing.rgb != imported.rgb)) {
       // A list, which only a template renders as one
       resp.data_template.init(1);
       auto &color = resp.data_template.emplace_back();
