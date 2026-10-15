@@ -552,6 +552,8 @@ async def to_code(config):
             # uart_irq_rx_enable() for RX -- without this, those become no-ops and RX
             # silently never arrives.
             zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
+            # Required for uart_configure()
+            zephyr_add_prj_conf("UART_USE_RUNTIME_CONFIGURE", True)
 
             port_value = config[CONF_PORT]
             node_known = True
