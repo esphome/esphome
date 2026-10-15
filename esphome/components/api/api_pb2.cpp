@@ -1140,8 +1140,8 @@ uint32_t NoiseEncryptionSetKeyResponse::calc_size_msg(const void *self) {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 uint8_t *HomeassistantServiceMap::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const HomeassistantServiceMap *>(self);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.key);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.value);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.key);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.value);
   return pos;
 }
 uint32_t HomeassistantServiceMap::calc_size_msg(const void *self) {
@@ -1153,7 +1153,7 @@ uint32_t HomeassistantServiceMap::calc_size_msg(const void *self) {
 }
 uint8_t *HomeassistantActionRequest::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const HomeassistantActionRequest *>(self);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.service);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.service);
   for (auto &it : msg.data) {
     pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 2, it);
   }
@@ -1324,13 +1324,13 @@ void GetTimeResponse::decode_field(void *self, uint32_t tag, const uint8_t *data
 uint8_t *ListEntitiesServicesArgument::encode_msg(const void *self,
                                                   uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const ListEntitiesServicesArgument *>(self);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.type));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.description);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.description);
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.example);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.example);
 #endif
   return pos;
 }
@@ -1350,14 +1350,14 @@ uint32_t ListEntitiesServicesArgument::calc_size_msg(const void *self) {
 uint8_t *ListEntitiesServicesResponse::encode_msg(const void *self,
                                                   uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const ListEntitiesServicesResponse *>(self);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
   for (auto &it : msg.args) {
     pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 3, it);
   }
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(msg.supports_response));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.description);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.description);
 #endif
   return pos;
 }

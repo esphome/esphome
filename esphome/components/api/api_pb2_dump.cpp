@@ -1519,13 +1519,13 @@ const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 const char *HomeassistantServiceMap::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantServiceMap"));
-  dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("value"), this->value);
+  dump_progmem_string_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("value"), this->value);
   return out.c_str();
 }
 const char *HomeassistantActionRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantActionRequest"));
-  dump_field(out, ESPHOME_PSTR("service"), this->service);
+  dump_progmem_string_field(out, ESPHOME_PSTR("service"), this->service);
   for (const auto &it : this->data) {
     out.append(4, ' ').append_p(ESPHOME_PSTR("data")).append(": ");
     it.dump_to(out);
@@ -1620,19 +1620,19 @@ const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_USER_DEFINED_ACTIONS
 const char *ListEntitiesServicesArgument::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesArgument"));
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ServiceArgType>(this->type));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("description"), this->description);
+  dump_progmem_string_field(out, ESPHOME_PSTR("description"), this->description);
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("example"), this->example);
+  dump_progmem_string_field(out, ESPHOME_PSTR("example"), this->example);
 #endif
   return out.c_str();
 }
 const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesResponse"));
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
   for (const auto &it : this->args) {
     out.append(4, ' ').append_p(ESPHOME_PSTR("args")).append(": ");
@@ -1641,7 +1641,7 @@ const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
   }
   dump_field(out, ESPHOME_PSTR("supports_response"), static_cast<enums::SupportsResponseType>(this->supports_response));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("description"), this->description);
+  dump_progmem_string_field(out, ESPHOME_PSTR("description"), this->description);
 #endif
   return out.c_str();
 }
