@@ -94,7 +94,7 @@ NO_WIFI_VARIANTS = [
 
 
 def variant_has_wifi(variant: str) -> bool:
-    """Return True if *variant* has a native WiFi PHY.
+    """Return True if *variant* has a native WiFi PHY. 
 
     Variants without a native PHY (see ``NO_WIFI_VARIANTS`` — currently
     ESP32-H2, ESP32-H4, ESP32-H21, ESP32-P4) need the ``esp32_hosted``
