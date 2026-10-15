@@ -9,15 +9,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-// Compatibility with ESPHome revisions predating the flash-resident log-tag macro.
-#ifndef ESPHOME_LOG_TAG
-#ifdef USE_ESP8266
-#define ESPHOME_LOG_TAG(tag, name) static const char tag[] PROGMEM = name
-#else
-#define ESPHOME_LOG_TAG(tag, name) static const char tag[] = name
-#endif
-#endif
-
 namespace esphome::haier {
 
 ESPHOME_LOG_TAG(TAG, "haier.water_heater");
