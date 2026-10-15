@@ -142,7 +142,8 @@ void ImprovBLEComponent::loop() {
       this->set_status_indicator_state_(false);
 
       if (this->should_start_ && this->setup_complete_) {
-        if (this->service_->is_created()) {
+        // A service that an earlier session stopped stays STOPPED and can be started again
+        if (this->service_->is_created() || this->service_->is_stopped()) {
           this->service_->start();
         } else if (this->service_->is_running()) {
           // Start by advertising the device name first BEFORE setting any state

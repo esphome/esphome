@@ -13,6 +13,7 @@ from .. import (
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["api"]
+AUTO_LOAD = ["homeassistant"]
 
 CONF_MAX_OPTIONS = "max_options"
 CONF_OPTIONS_BUFFER_SIZE = "options_buffer_size"
