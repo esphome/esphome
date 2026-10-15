@@ -152,6 +152,7 @@ async def test_api_homeassistant_light(
         report(None, "off")
         report("brightness", "None")
         await next_state(lambda s: not s.state)
+        await waiter.wait_for("turned off", timeout=5.0)  # a reported state runs the triggers too
         client.light_command(key, state=True)
         assert (await next_call()).service == "light.turn_on"
         client.light_command(key, state=False)

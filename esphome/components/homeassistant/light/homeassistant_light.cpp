@@ -240,24 +240,23 @@ void HomeassistantLight::apply_imported_() {
   this->apply_scheduled_ = false;
   if (!this->state_->set_external_state(values)) {
     // A local change still waits for LightState::loop() to send it, or a local transition or flash
-    // runs; write_state() schedules the report again once that is over
-    this->import_waiting_ = true;
+    // runs. The report is older than that change, and Home Assistant reports again once the change
+    // has reached it, so it is dropped
+    ESP_LOGV(TAG, "'%s': Report dropped, a local change is on its way", this->entity_id_);
     return;
   }
   ESP_LOGD(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
 }
 
 void HomeassistantLight::write_state(LightState *state) {
-  // A reported state is taken over without a write, so every write is a local change
+  // A reported state is taken over without a write, so every write is a local change, except
+  // the very first: the light core writes its initial state, which Home Assistant does not need
+  if (this->initial_write_) {
+    this->initial_write_ = false;
+    return;
+  }
   if (state->is_transitioning()) {
     return;  // Home Assistant gets the target once it is reached
-  }
-  if (this->import_waiting_) {
-    this->import_waiting_ = false;
-    this->schedule_apply_();
-  }
-  if (!this->imported_.state.has_value()) {
-    return;  // nothing reported yet, so this is the light core's initial state, which Home Assistant does not need
   }
   const LightColorValues &values = state->current_values;
   if (!api::global_api_server->is_connected()) {

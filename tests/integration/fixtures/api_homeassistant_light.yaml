@@ -27,6 +27,8 @@ light:
     id: ha_light
     entity_id: light.kitchen
     internal: false
+    on_turn_off:
+      - logger.log: "turned off"
     on_turn_on:
       # An automation reacting to a state reported by Home Assistant with a local change
       - if:
