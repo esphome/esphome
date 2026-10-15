@@ -257,7 +257,7 @@ void HomeassistantLight::apply_imported_() {
     // place of the values it ends at; a trait or a repeated report has nothing newer to say
     if (this->state_->is_transitioning() && this->report_changed_) {
       this->report_held_ = true;
-      this->held_target_ = target_key_(this->state_->remote_values);
+      this->held_hash_ = state_hash_(this->state_->remote_values);
       return;
     }
     // A local change still waits for LightState::loop() to send it. Home Assistant reports again
@@ -267,14 +267,25 @@ void HomeassistantLight::apply_imported_() {
     return;
   }
   this->report_changed_ = false;
-  this->settled_key_ = target_key_(values);
+  this->settled_hash_ = state_hash_(values);
   ESP_LOGV(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
 }
 
-uint16_t HomeassistantLight::target_key_(const LightColorValues &values) {
-  // On, the color mode (fits in seven bits) and the level: enough to tell one call from the next
-  return (values.is_on() << 15) | (static_cast<uint8_t>(values.get_color_mode()) << 8) |
-         to_uint8_scale(values.get_brightness());
+uint32_t HomeassistantLight::state_hash_(const LightColorValues &values) {
+  uint32_t hash = fnv1a_hash_extend(FNV1_OFFSET_BASIS, static_cast<uint8_t>(values.get_color_mode()));
+  for (const float channel :
+       {values.get_state(), values.get_brightness(), values.get_color_brightness(), values.get_red(),
+        values.get_green(), values.get_blue(), values.get_white(), values.get_cold_white(), values.get_warm_white()}) {
+    hash = fnv1a_hash_extend(hash, to_uint8_scale(channel));
+  }
+  return fnv1a_hash_extend(hash, static_cast<uint16_t>(values.get_color_temperature()));  // mireds exceed a byte
+}
+
+void HomeassistantLight::update_state(LightState *state) {
+  // A call without a transition replaces whatever ran, so a report held for it is older than the call
+  if (!state->is_transitioning()) {
+    this->report_held_ = false;
+  }
 }
 
 bool HomeassistantLight::is_imported_(const Attributes &outgoing) const {
@@ -318,18 +329,18 @@ void HomeassistantLight::write_state(LightState *state) {
   if (state->is_transitioning()) {
     return;  // a transition or flash runs here alone; Home Assistant gets the state it ends at
   }
-  const uint16_t key = target_key_(state->remote_values);
-  if (this->report_held_) {
-    this->report_held_ = false;
-    // Home Assistant changed meanwhile; its report is newer than what the transition ends at or
-    // what the flash goes back to, but older than a local call that replaced them, which is sent
-    if (key == this->held_target_ || key == this->settled_key_) {
-      ESP_LOGD(TAG, "'%s': Applying the report that arrived during the transition", this->entity_id_);
-      this->schedule_apply_();
-      return;
-    }
+  const bool held = this->report_held_;
+  this->report_held_ = false;
+  this->report_changed_ = false;  // this change is newer than any report so far, held or dropped
+  const uint32_t hash = state_hash_(state->remote_values);
+  // Home Assistant changed meanwhile; its report is newer than what the transition ends at or
+  // what the flash goes back to, but older than a transition that replaced them, which is sent
+  if (held && (hash == this->held_hash_ || hash == this->settled_hash_)) {
+    ESP_LOGD(TAG, "'%s': Applying the report that arrived during the transition", this->entity_id_);
+    this->schedule_apply_();
+    return;
   }
-  this->settled_key_ = key;
+  this->settled_hash_ = hash;
   // What Home Assistant holds after the change. It has one level, so the channel brightness of the
   // mode folds into it
   const LightColorValues &values = state->current_values;

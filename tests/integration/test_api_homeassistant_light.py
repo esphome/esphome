@@ -213,11 +213,59 @@ async def test_api_homeassistant_light(
         # A newer local command wins over a report held during a transition
         client.light_command(key, state=True, transition_length=1.0)
         report("brightness", "50")
+        await asyncio.sleep(0.1)  # held before the command arrives
         client.light_command(key, state=True, brightness=1.0)
         call = await next_call()
         assert call.service == "light.turn_on"
         assert call.data["brightness"] == "255"
+        report(None, "on")
         report("brightness", "255")
-        await next_state(lambda s: s.brightness == 1.0)
+        await next_state(lambda s: s.state and s.brightness == 1.0)
+
+        # Also when it changes only the color, at the level the transition was heading for
+        client.light_command(key, brightness=0.5, transition_length=1.0)
+        report("brightness", "50")
+        await asyncio.sleep(0.1)
+        client.light_command(key, color_temperature=400.0)
+        call = await next_call()
+        assert call.service == "light.turn_on"
+        assert call.data == {
+            "entity_id": ENTITY,
+            "brightness": "128",
+            "color_temp_kelvin": "2500",
+        }
+        report("brightness", "128")
+        report("color_temp_kelvin", "2500")
+        await next_state(lambda s: s.color_temperature == 400.0)
+
+        # Or when it is a transition itself, replacing the one the report was held for
+        client.light_command(key, brightness=1.0, transition_length=1.0)
+        report("brightness", "50")
+        await asyncio.sleep(0.1)
+        client.light_command(key, color_temperature=250.0, transition_length=1.0)
+        call = await next_call()
+        assert call.service == "light.turn_on"
+        assert call.data == {
+            "entity_id": ENTITY,
+            "brightness": "255",
+            "color_temp_kelvin": "4000",
+        }
+        report("brightness", "255")
+        report("color_temp_kelvin", "4000")
+        await next_state(lambda s: s.color_temperature == 250.0)
+
+        # And when it goes back to the state the transition started from
+        client.light_command(key, state=False)
+        assert (await next_call()).service == "light.turn_off"
+        report(None, "off")
+        await next_state(lambda s: not s.state)
+        client.light_command(key, state=True, transition_length=1.0)
+        report(None, "on")
+        report("brightness", "60")
+        await asyncio.sleep(0.1)
+        client.light_command(key, state=False)
+        assert (await next_call()).service == "light.turn_off"
+        report(None, "off")
+        await next_state(lambda s: not s.state)
 
         assert calls.empty()

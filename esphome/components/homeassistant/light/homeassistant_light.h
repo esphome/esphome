@@ -20,6 +20,7 @@ class HomeassistantLight final : public light::LightOutput, public Component {
 
   light::LightTraits get_traits() override { return this->traits_; }
   void setup_state(light::LightState *state) override { this->state_ = state; }
+  void update_state(light::LightState *state) override;
   void write_state(light::LightState *state) override;
 
  protected:
@@ -39,8 +40,9 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   optional<uint16_t> parse_integer_(const char *name, StringRef value, uint16_t max);
   /// A state or attribute report: answers a pending echo and schedules the apply
   void on_report_(bool changed);
-  /// The state a transition or flash ends at, packed, to tell its end from a newer local call
-  static uint16_t target_key_(const light::LightColorValues &values);
+  /// A state at the resolution Home Assistant gets, to tell the end of a transition or flash
+  /// from a newer transition that replaced it
+  static uint32_t state_hash_(const light::LightColorValues &values);
   /// Schedules apply_imported_() once for the attributes of one update
   void schedule_apply_();
   void apply_imported_();
@@ -53,8 +55,8 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   light::LightState *state_{nullptr};
   light::LightTraits traits_{};
   Attributes imported_{};
-  uint16_t held_target_{0};  // target_key_() of the transition a report was held for
-  uint16_t settled_key_{0};  // target_key_() of the last state written outside a transition
+  uint32_t held_hash_{0};     // state_hash_() of what the transition a report was held for ends at
+  uint32_t settled_hash_{0};  // state_hash_() of the last state written outside a transition
   bool apply_scheduled_ : 1 {false};
   bool initial_write_ : 1 {true};    // the light core's own first write is not a local change
   bool echo_pending_ : 1 {false};    // a sent change waits for Home Assistant to report it back
