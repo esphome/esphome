@@ -314,6 +314,11 @@ void OpenThreadComponent::reset_rcp_(bool recovery_attempt) {
     if (attempt > MAX_RESET_ATTEMPTS) {
       return;  // Gave up earlier; the driver keeps reporting the failure
     }
+    // An RCP that ran long enough since its last reset gets its attempts back; one that keeps failing does not
+    const uint32_t now = millis();
+    if (attempt != 0 && now - this->last_rcp_reset_ms_ > RCP_RESET_FORGET_MS) {
+      attempt = 0;
+    }
     this->rcp_reset_attempts_ = ++attempt;
     if (attempt > MAX_RESET_ATTEMPTS) {
       ESP_LOGE(TAG, "RCP failed to recover after %u reset attempts", MAX_RESET_ATTEMPTS);
@@ -321,7 +326,7 @@ void OpenThreadComponent::reset_rcp_(bool recovery_attempt) {
       return;
     }
     ESP_LOGW(TAG, "RCP failure detected, reset attempt %u of %u", attempt, MAX_RESET_ATTEMPTS);
-    this->last_rcp_reset_ms_ = millis();
+    this->last_rcp_reset_ms_ = now;
   }
   this->rcp_reset_pin_->digital_write(true);
   vTaskDelay(pdMS_TO_TICKS(10));
@@ -370,6 +375,11 @@ void OpenThreadComponent::loop() {
   if (!lock) {
     return;
   }
+  auto retry_later = [this](const LogString *reason) {
+    this->status_set_error(reason);
+    this->disable_loop();
+    this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
+  };
   if (!backbone_up) {
     if (this->border_router_started_) {
       ESP_LOGI(TAG, "Wi-Fi backbone lost, border routing pauses");
@@ -386,16 +396,17 @@ void OpenThreadComponent::loop() {
   }
   if (this->border_router_started_) {
     ESP_LOGI(TAG, "Wi-Fi backbone back, border routing restarts");
+    // The old router stays marked as started until it is gone, so a retry tears it down first
     if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
+      retry_later(LOG_STR("Border router deinit failed"));
+      return;
     }
     this->border_router_started_ = false;
   }
   if (const esp_err_t err = esp_openthread_border_router_init(); err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to initialize OpenThread Border Router: %s", esp_err_to_name(err));
-    this->status_set_error(LOG_STR("Border router init failed"));
-    this->disable_loop();
-    this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
+    retry_later(LOG_STR("Border router init failed"));
     return;
   }
   this->status_clear_error();

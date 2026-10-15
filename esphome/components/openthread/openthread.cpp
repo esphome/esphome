@@ -84,12 +84,6 @@ void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) 
     otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
-#ifdef USE_OPENTHREAD_RCP_UART
-    // An RCP that keeps failing and recovering must not get its attempts back on every recovery
-    if (self->connected_ && millis() - self->last_rcp_reset_ms_ > RCP_RESET_FORGET_MS) {
-      self->rcp_reset_attempts_ = 0;
-    }
-#endif
   }
 }
 
