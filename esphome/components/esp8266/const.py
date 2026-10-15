@@ -17,7 +17,6 @@ CONF_EARLY_PIN_INIT = "early_pin_init"
 CONF_ENABLE_SERIAL = "enable_serial"
 CONF_ENABLE_SERIAL1 = "enable_serial1"
 KEY_WAVEFORM_REQUIRED = "waveform_required"
-KEY_TIMER1_USERS = "timer1_users"
 KEY_SERIAL_REQUIRED = "serial_required"
 KEY_SERIAL1_REQUIRED = "serial1_required"
 # Set for the native (non-PlatformIO) toolchain's build generator
@@ -130,28 +129,6 @@ def require_waveform() -> None:
             require_waveform()
     """
     CORE.data.setdefault(KEY_ESP8266, {})[KEY_WAVEFORM_REQUIRED] = True
-    use_timer1("the Arduino waveform generator (esp8266_pwm, ac_dimmer)")
-
-
-def use_timer1(owner: str) -> None:
-    """Record that a component drives hardware timer 1; check_timer1_users() rejects a second one.
-
-    The ESP8266 has one general purpose timer with one interrupt. Two components that program it
-    take it from each other, so the configuration is refused instead. Components that go through
-    the Arduino waveform generator share it and register through require_waveform().
-    """
-    users = CORE.data.setdefault(KEY_ESP8266, {}).setdefault(KEY_TIMER1_USERS, set())
-    users.add(owner)
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def check_timer1_users() -> None:
-    """Fail the build when more than one component drives hardware timer 1."""
-    users = sorted(CORE.data[KEY_ESP8266].get(KEY_TIMER1_USERS, ()))
-    if len(users) > 1:
-        raise EsphomeError(
-            f"{' and '.join(users)} each need hardware timer 1 of the ESP8266, which only one of them can drive"
-        )
 
 
 def enable_serial() -> None:

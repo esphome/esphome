@@ -135,10 +135,12 @@ class HDMICEC : public Component {
   void reset_receiver_();
   /// Pull the line low for the acknowledge bit of a frame addressed to us
   void send_ack_();
-  // On the ESP32, ESP8266 and RP2040 a hardware one-shot timer releases the line after the
-  // acknowledge bit, so the interrupt returns at once instead of holding the line for 1.5 ms
-#ifdef USE_ESP32
+  // A hardware one-shot timer releases the line after the acknowledge bit (gptimer on the ESP32,
+  // timer 1 on the ESP8266, a hardware alarm on the RP2040), so the interrupt returns at once;
+  // without one the interrupt holds the line for the 1.5 ms itself
   bool setup_ack_timer_();
+  void start_ack_timer_();
+#ifdef USE_ESP32
   static bool ack_timer_isr_s(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *arg);
 #endif
 #ifdef USE_ESP8266
@@ -146,9 +148,6 @@ class HDMICEC : public Component {
 #endif
 #ifdef USE_RP2040
   static void ack_timer_isr_s(uint alarm_num);
-#endif
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
-  void start_ack_timer_();
 #endif
 
   // Transmit side, in loop()

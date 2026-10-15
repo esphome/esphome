@@ -57,7 +57,6 @@ from .const import (
     PREFERENCES_RTC_NORMAL_WORDS,
     THROW_STUBS_HEADER,
     check_preferences_fit,
-    check_timer1_users,
     enable_serial,
     enable_serial1,
     esp8266_ns,
@@ -541,7 +540,6 @@ async def to_code(config: ConfigType) -> None:
     CORE.add_job(finalize_waveform_config)
     CORE.add_job(finalize_serial_config)
     CORE.add_job(check_preferences_fit)
-    CORE.add_job(check_timer1_users)
 
 
 @coroutine_with_priority(CoroPriority.WORKAROUNDS)
