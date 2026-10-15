@@ -380,7 +380,8 @@ void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
   auto append = [this](Parameter parameter, uint8_t value) {
     this->commands_[this->command_count_++] = {parameter, value};
   };
-  if ((on.has_value() && *on) || (mode.has_value() && !this->is_on()))
+  // A write is only queued when it changes something, so a repeated state costs no round trip.
+  if (!this->is_on() && ((on.has_value() && *on) || mode.has_value()))
     append(Parameter::PARAMETER_POWER, 1);
   if (mode.has_value() && hon_mode(*mode) != this->reported_mode_) {
     // Captures show the appliance moves between ECO and BPS through Normal, never directly.

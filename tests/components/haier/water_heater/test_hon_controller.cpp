@@ -145,6 +145,15 @@ TEST_F(HonControllerTest, ActiveModeIsNotRequestedAgain) {
   EXPECT_EQ(this->heater_.command_count(), 2);  // through Normal, then ECO
 }
 
+TEST_F(HonControllerTest, PowerOnIsNotRequestedAgain) {
+  this->status_(true);
+  auto call = this->heater_.make_call();
+  call.set_on(true);
+  call.set_target_temperature(40);
+  call.perform();
+  EXPECT_EQ(this->heater_.command_count(), 1);  // the temperature only
+}
+
 TEST_F(HonControllerTest, OffFollowsConfirmedInFlightCommand) {
   this->status_(false);
   this->request_bps_();
