@@ -24,6 +24,7 @@ from esphome.const import (
     Framework,
 )
 from esphome.core import CORE
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from ._methods import (
@@ -150,7 +151,15 @@ def _warn_esp32_deprecated(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_method(value):
+_METHOD_SCHEMA = cv.typed_schema(
+    {k: v.method_schema for k, v in METHODS.items()}, lower=True
+)
+
+
+@schema_extractor("schema")
+def _validate_method(value: ConfigType | str | None) -> ConfigType | None:
+    if value is SCHEMA_EXTRACT:
+        return _METHOD_SCHEMA
     if value is None:
         # default method is determined afterwards because it depends on the chip type chosen
         return None
@@ -177,9 +186,7 @@ def _validate_method(value):
         if value.upper() in compat_methods:
             return _validate_method(compat_methods[value.upper()])
         return _validate_method({CONF_TYPE: value})
-    return cv.typed_schema(
-        {k: v.method_schema for k, v in METHODS.items()}, lower=True
-    )(value)
+    return _METHOD_SCHEMA(value)
 
 
 CONFIG_SCHEMA = cv.All(
