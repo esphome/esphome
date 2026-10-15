@@ -759,11 +759,11 @@ void USBUartChannelBase::load_settings(bool /*dump_config*/) {
 }
 
 bool USBUartChannelBase::set_modem_control(bool dtr, bool rts) {
+  if (!this->initialised_.load())
+    return false;
   const bool changed = dtr != this->dtr_ || rts != this->rts_;
   this->dtr_ = dtr;
   this->rts_ = rts;
-  if (!this->initialised_.load())
-    return false;
   // The device already has this state; a transfer would only hold up the config machine
   if (changed)
     this->parent_->apply_modem_control(this);

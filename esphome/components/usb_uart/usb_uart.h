@@ -207,7 +207,7 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   /// port per interface; a multiplexed driver would index its channels.
   uint8_t get_port_number() const { return 0; }
 
-  /// Store DTR/RTS and send them to the device. False when not connected; sent on connect instead.
+  /// Store DTR/RTS and send them to the device. False when not connected.
   bool set_modem_control(bool dtr, bool rts);
   bool get_dtr() const { return this->dtr_; }
   bool get_rts() const { return this->rts_; }
@@ -237,7 +237,7 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
-  // Asserted on init, as a host driver does when it opens the port
+  // Asserted on init and reset on disconnect, as a host driver does when it opens the port
   bool dtr_{true};
   bool rts_{true};
   // Line settings or DTR/RTS changed while the config machine was busy; sent once it is idle
