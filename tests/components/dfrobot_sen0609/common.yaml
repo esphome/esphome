@@ -1,0 +1,17 @@
+dfrobot_sen0609:
+  id: sen0609_presence
+  mode: presence
+
+binary_sensor:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_presence
+    has_target:
+      name: Presence
+
+text_sensor:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_presence
+    version:
+      name: Software Version
+    hardware_version:
+      name: Hardware Version
