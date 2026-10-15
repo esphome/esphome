@@ -9,7 +9,7 @@
 #   *_YAML      absolute path; the file name without .yaml must equal the config's `name`
 #   *_TREE      checkout or worktree whose esphome code must build that yaml (cwd for python -m esphome)
 #   SETTLE_S    seconds to keep capturing after the client reports the real save (default 40; BW15 wants 90)
-# Env: PY (python with esphome; default DUT_TREE/venv/bin/python, else python3 on PATH), LTPY
+# Env: PY (python with esphome; default DUT_TREE/venv/bin/python, else python3 on PATH; an explicit PY must exist), LTPY
 #      (LibreTiny penv python with ltchiptool; default ~/.platformio/penv/.libretiny/bin/python)
 # Output next to each yaml: NAME-compile.log, NAME-upload.log, NAME-serial.log, NAME-capture.err, and DUT NAME-events.txt
 # (addresses redacted so the extract can go on a PR; the serial logs themselves stay local).
@@ -20,7 +20,8 @@
 set -u
 SKILL=$(cd "$(dirname "$0")/.." && pwd)
 KIND=$1; DPORT=$2; DYAML=$3; DTREE=$4; CPORT=$5; CYAML=$6; CTREE=$7; SETTLE=${8:-40}
-PY=${PY:-$DTREE/venv/bin/python}; [ -x "$PY" ] || PY=$(command -v python3)
+if [ -n "${PY:-}" ]; then [ -x "$PY" ] || { echo "[hammer] FAILED: PY=$PY is not executable"; exit 1; }
+else PY=$DTREE/venv/bin/python; [ -x "$PY" ] || PY=$(command -v python3) || { echo "[hammer] FAILED: no python found, set PY"; exit 1; }; fi
 LTPY=${LTPY:-$HOME/.platformio/penv/.libretiny/bin/python}
 DDIR=$(dirname "$DYAML"); DNAME=$(basename "$DYAML" .yaml)
 CDIR=$(dirname "$CYAML"); CNAME=$(basename "$CYAML" .yaml)
@@ -94,7 +95,8 @@ STA=$(LC_ALL=C grep -a 'IP Address:' "$DLOG" | grep -v -c '192\.168\.4\.'); REAL
 SAVES=$(count 'Requested WiFi Settings Change' "$DLOG"); EXITS=$(count 'cooldown early' "$DLOG"); ANSWERED=$(count 'bogus save status 200' "$CLOG")
 REBOOTS=$((BOOTS - BOOT_BASE))
 echo "[hammer] $DNAME: saves requested $SAVES, cooldown exits $EXITS, crash markers $CRASHES, reboots after the AP came up $REBOOTS, STA addresses $STA"
-echo "[hammer] $CNAME: bogus saves answered $ANSWERED, failed $(count 'status -1' "$CLOG"), real save status ${REAL:-none}"
+FAILED=$(count 'bogus save status -1' "$CLOG")
+echo "[hammer] $CNAME: bogus saves answered $ANSWERED, failed $FAILED, real save status ${REAL:-none}"
 # Only whole messages, matched where the message starts, so a credential line or an odd SSID never gets in
 LC_ALL=C grep -a -E '^\[[0-9:]+\](\[[A-Z]\]\[[a-z_]+:[0-9]+\]: *(Exiting cooldown early|Starting fallback AP|Captive portal|Requested WiFi Settings Change|Retry phase|Connected$|IP Address: )|(Panic|Fatal exception|Exception|HardFault|Bus Fault|Guru Meditation))' "$DLOG" | LC_ALL=C tr -cd '\11\12\15\40-\176' | sed -E 's/(IP Address: )[^ ]+/\1<redacted>/' | cut -c1-110 | head -80 > "$DDIR/$DNAME-events.txt"
 echo "[hammer] events: $DDIR/$DNAME-events.txt"
@@ -105,8 +107,10 @@ stop_tails
 if [ "$CRASHES" -gt 0 ] || [ "$REBOOTS" -gt 0 ] || [ "$STA" -lt 1 ]; then
   echo "[hammer] RESULT FAIL: crash markers $CRASHES, reboots $REBOOTS, STA addresses $STA, real save status ${REAL:-none}"; exit 3
 fi
-# A pass needs the stimulus the flow is about: saves answered and at least one that landed in a cooldown
-if [ "$ANSWERED" -lt 1 ] || [ "$EXITS" -lt 1 ]; then
-  echo "[hammer] RESULT INVALID: insufficient stimulus (bogus saves answered $ANSWERED, cooldown exits $EXITS)"; exit 2
+# A pass needs the stimulus the flow is about: at least half the configured bogus saves answered and one cooldown exit
+CONFIGURED=$(LC_ALL=C grep -a -E '^[[:space:]]*bogus_saves:' "$CYAML" | head -1 | tr -dc '0-9'); CONFIGURED=${CONFIGURED:-15}
+if [ "$EXITS" -lt 1 ] || [ $((ANSWERED * 2)) -lt "$CONFIGURED" ]; then
+  echo "[hammer] RESULT INVALID: insufficient stimulus (bogus saves answered $ANSWERED of $CONFIGURED, cooldown exits $EXITS)"; exit 2
 fi
+[ "$FAILED" -eq 0 ] || echo "[hammer] WARNING: $FAILED of $CONFIGURED bogus saves got no answer"
 echo "[hammer] RESULT PASS"; exit 0
