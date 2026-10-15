@@ -228,7 +228,8 @@ TEST(GreeYB1FA, DecodeCapturedFanTurboAndFeatureFields) {
       {{0x49, 0x04, 0x70, 0x50, 0x01, 0x21, 0x00, 0x90},
        climate::CLIMATE_FAN_HIGH,
        GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT},
-      {{0x49, 0x04, 0xE0, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_AUTO,
+      {{0x49, 0x04, 0xE0, 0x50, 0x01, 0x21, 0x00, 0x90},
+       climate::CLIMATE_FAN_AUTO,
        GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN},
       {{0x79, 0x04, 0x40, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_HIGH, 0},
   }};
@@ -285,11 +286,12 @@ TEST(GreeYB1FA, FeatureSwitchBitsPreserveModelA) {
 }
 
 TEST(GreeClimateCodec, FeatureCapabilitiesAreModelSpecific) {
-  GreeClimateData data{
-      climate::CLIMATE_MODE_COOL,   20,
-      climate::CLIMATE_FAN_AUTO,    climate::CLIMATE_SWING_OFF,
-      climate::CLIMATE_PRESET_NONE,
-      GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH | GREE_MODE_BIT_XFAN};
+  GreeClimateData data{climate::CLIMATE_MODE_COOL,
+                       20,
+                       climate::CLIMATE_FAN_AUTO,
+                       climate::CLIMATE_SWING_OFF,
+                       climate::CLIMATE_PRESET_NONE,
+                       GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH | GREE_MODE_BIT_XFAN};
 
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YX1FF, data)[2], GREE_MODEL_A_BIT | GREE_MODE_BIT_LIGHT);
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YB1FA, data)[2],
