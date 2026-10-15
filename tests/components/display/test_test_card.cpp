@@ -16,8 +16,6 @@ class TestCardDisplay : public Display {
   void draw_pixel_at(int x, int y, Color color) override { this->colors_.push_back(color.raw_32); }
   void update() override { this->do_update_(); }
   DisplayType get_display_type() override { return DisplayType::DISPLAY_TYPE_COLOR; }
-  int get_width_internal() override { return 64; }
-  int get_height_internal() override { return 64; }
 
   bool drew_test_card() const {
     return std::any_of(this->colors_.begin(), this->colors_.end(), [](uint32_t c) { return c != 0; });
@@ -25,21 +23,25 @@ class TestCardDisplay : public Display {
   void reset() { this->colors_.clear(); }
 
  protected:
+  int get_width_internal() override { return 64; }
+  int get_height_internal() override { return 64; }
   std::vector<uint32_t> colors_;
 };
 
 static int writer_calls = 0;
 static void count_writer(Display &) { writer_calls++; }
 
+namespace {
 class TestCard : public ::testing::Test {
  protected:
   void SetUp() override {
     // test_card() stops the poller, which needs the scheduler; the test main does not construct App.
-    static const bool app_constructed = (new (&App) Application(), true);
-    (void) app_constructed;
+    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
+    (void) APP_CONSTRUCTED;
     writer_calls = 0;
   }
 };
+}  // namespace
 
 TEST_F(TestCard, DrawnOnEveryUpdateInsteadOfLambda) {
   TestCardDisplay display;
