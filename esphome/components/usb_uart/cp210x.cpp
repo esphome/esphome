@@ -105,6 +105,10 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
 
 bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
+  // TODO: flow_control_ is accepted but not applied. Linux reads the 16 byte flow block with
+  // GET_FLOW, sets CTS_HANDSHAKE and RTS_FLOW_CTL (or AUTO_TRANSMIT and AUTO_RECEIVE plus
+  // SET_CHARS for XON/XOFF), and writes it back with SET_FLOW; RTS then has to go through
+  // SET_FLOW too, not SET_MHS. CP2102N firmware <= 1.0.4 (erratum E104) cannot do it at all.
   // On reload, skip the one-time IFC_ENABLE step (the interface is already enabled).
   if (reload)
     step++;

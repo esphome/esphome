@@ -232,6 +232,8 @@ static constexpr uint8_t PL2303_INIT_COUNT = sizeof(PL2303_INIT) / sizeof(PL2303
 
 bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
+  // TODO: flow_control_ is accepted but not applied. Linux does a vendor read, mask, vendor
+  // write of the flow control register, whose address, mask and value depend on the chip type.
   bool is_legacy = (this->chip_type_ == PL2303_TYPE_H);
   bool is_hxn = (this->chip_type_ == PL2303_TYPE_HXN);
 
