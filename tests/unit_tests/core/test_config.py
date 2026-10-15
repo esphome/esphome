@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_BUILD_PATH,
     CONF_DEVICES,
     CONF_ESPHOME,
+    CONF_INCLUDES,
+    CONF_INCLUDES_C,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
     KEY_CORE,
@@ -40,7 +42,7 @@ from esphome.core.config import (
 )
 import esphome.final_validate as fv
 
-from .common import load_config_from_fixture
+from .common import load_config_from_fixture, load_config_from_yaml
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "config"
 
@@ -707,6 +709,32 @@ def test_valid_include_invalid_extension(tmp_path: Path) -> None:
 
     with pytest.raises(cv.Invalid, match="Include has invalid file extension"):
         valid_include(str(invalid_file))
+
+
+def test_includes_in_a_package_resolve_next_to_the_package(
+    tmp_path: Path, yaml_file: Callable[[str], Path]
+) -> None:
+    """A package's includes resolve next to the package file (issue #14583)."""
+    package_dir = tmp_path / "packages" / "helper"
+    package_dir.mkdir(parents=True)
+    (package_dir / "my_helper.h").write_text("#pragma once\n")
+    (package_dir / "my_c_helper.h").write_text("#pragma once\n")
+    (package_dir / "helper.yaml").write_text(
+        "esphome:\n  includes:\n    - my_helper.h\n  includes_c:\n    - my_c_helper.h\n"
+    )
+
+    result = load_config_from_yaml(
+        yaml_file,
+        "esphome:\n"
+        "  name: test\n"
+        "host:\n"
+        "packages:\n"
+        "  - !include packages/helper/helper.yaml\n",
+    )
+
+    assert result is not None
+    assert result[CONF_ESPHOME][CONF_INCLUDES] == [str(package_dir / "my_helper.h")]
+    assert result[CONF_ESPHOME][CONF_INCLUDES_C] == [str(package_dir / "my_c_helper.h")]
 
 
 def test_valid_project_name_valid() -> None:

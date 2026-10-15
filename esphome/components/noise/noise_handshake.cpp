@@ -34,6 +34,7 @@ int NoiseResponderHandshake::init_(const NoiseContext &ctx, const uint8_t *prolo
       .cipher_id = NOISE_CIPHER_CHACHAPOLY,
       .hash_id = NOISE_HASH_SHA256,
       .hybrid_id = NOISE_DH_NONE,
+      .reserved = {},
   };
 
   int err = noise_handshakestate_new_by_id(&this->handshake_, &nid, Role);
