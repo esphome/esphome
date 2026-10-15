@@ -181,8 +181,8 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
       handled_by_trigger = true;
     }
   }
-
-  bool is_directly_addressed = (dest_addr != 0xF && dest_addr == address_);
+// TODO(jos) claimed vs triggered???
+  bool is_directly_addressed = (dest_addr == address_) && !frame->is_broadcast();
   if (!this->monitor_mode_ && is_directly_addressed &&
       !this->is_claimed_(frame->opcode()) && !handled_by_trigger) {
     this->reply_builtin_(frame);

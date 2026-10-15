@@ -1,11 +1,9 @@
-# Common UART configuration for ESP8266 Arduino tests - 2083 baud
+# Common UART configuration for ESP8266 Arduino tests - 2083 baud on the hardware UART1 (transmit only)
 
 substitutions:
-  tx_pin: GPIO4
-  rx_pin: GPIO5
+  tx_pin: GPIO2
 
 uart:
   - id: uart_bus
     tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
     baud_rate: 2083
