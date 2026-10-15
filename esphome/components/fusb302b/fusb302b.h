@@ -45,7 +45,8 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   template<typename F> void add_on_state_callback(F &&callback) {
     this->state_callback_.add(std::forward<F>(callback));
   }
-  /// Called when a voltage request was rejected or got no answer; a contract already in place stays valid.
+  /// Called when a voltage request was rejected, got no answer, or was dropped because the component failed.
+  /// A contract already in place stays valid.
   template<typename F> void add_on_request_failed_callback(F &&callback) {
     this->request_failed_callback_.add(std::forward<F>(callback));
   }
@@ -118,6 +119,8 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   std::atomic<uint8_t> event_queue_head_{0};
   std::atomic<uint8_t> event_queue_tail_{0};
   std::atomic<bool> event_queue_overflow_{false};
+  // Request failures that did not fit in the queue
+  std::atomic<uint8_t> dropped_request_failures_{0};
 
   // Main loop only
   PdState published_state_{PdState::PD_STATE_DISCONNECTED};

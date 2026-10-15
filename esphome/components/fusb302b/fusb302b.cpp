@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdio>
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include "fusb302b_registers.h"
@@ -81,6 +82,8 @@ void FUSB302B::queue_event_(uint8_t event) {
     this->event_queue_[head % EVENT_QUEUE_SIZE] = event;
     this->event_queue_head_.store(head + 1, std::memory_order_release);
   } else {
+    if (event == EVENT_REQUEST_FAILED)
+      this->dropped_request_failures_.fetch_add(1, std::memory_order_relaxed);
     this->event_queue_overflow_ = true;
   }
   this->enable_loop_soon_any_context();
@@ -118,10 +121,19 @@ void FUSB302B::loop() {
     }
   }
   if (this->event_queue_overflow_.exchange(false)) {
-    ESP_LOGW(TAG, "Events arrived faster than the main loop handled them; some triggers were skipped");
-    // Drop what is queued before reading the state, so no older state is replayed after it
-    this->event_queue_tail_.store(this->event_queue_head_.load(std::memory_order_acquire), std::memory_order_release);
+    ESP_LOGW(TAG, "Events arrived faster than the main loop handled them; some state triggers were skipped");
+    // Drop the queued states before reading the state, so no older state is replayed after it. Request failures
+    // are only counted, so every one of them still fires.
+    uint8_t failures = this->dropped_request_failures_.exchange(0, std::memory_order_relaxed);
+    const uint8_t end = this->event_queue_head_.load(std::memory_order_acquire);
+    for (; tail != end; tail++) {
+      if (this->event_queue_[tail % EVENT_QUEUE_SIZE] == EVENT_REQUEST_FAILED)
+        failures++;
+    }
+    this->event_queue_tail_.store(end, std::memory_order_release);
     this->publish_state_(this->state_);
+    for (; failures > 0; failures--)
+      this->request_failed_callback_.call();
   }
   // Re-enabled by on_state_changed() or on_request_failed() from the PHY task
   this->disable_loop();
@@ -185,6 +197,9 @@ void FUSB302B::request_voltage(int voltage) {
   this->set_request_voltage(static_cast<uint8_t>(std::clamp<int>(voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE)));
   if (this->is_failed()) {
     ESP_LOGW(TAG, "Cannot request %u V, the component failed", this->get_request_voltage());
+    // loop() no longer runs, so fire the trigger from the scheduler. Calling it here directly would recurse if the
+    // automation requests a voltage again.
+    App.scheduler.set_timeout(this, 0, [this]() { this->request_failed_callback_.call(); });
     return;
   }
   // Before setup() the voltage is simply used at the first attach
@@ -482,6 +497,8 @@ void FUSB302B::enter_error_() {
   this->attached_ = false;
   this->waiting_for_source_caps_ = false;
   this->request_pending_ = false;
+  // Also stops a pending Wait retry, which would otherwise send its request to the failed chip
+  this->reset_protocol_();
   this->clear_contract_();
   this->set_state_(PdState::PD_STATE_ERROR);
 }
@@ -497,7 +514,10 @@ void FUSB302B::start_negotiation_() {
 }
 
 void FUSB302B::send_soft_reset_() {
-  this->reset_pd_();
+  if (!this->reset_pd_()) {
+    this->enter_error_();
+    return;
+  }
   this->send_message(this->make_control_msg_(PD_CNTRL_SOFT_RESET));
   // The source answers a soft reset with new source capabilities
   this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT);
