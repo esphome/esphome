@@ -321,10 +321,10 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 1:
-      // Read the flow control register, re-applied on every settings change as set_termios does
-      this->config_transfer_(VENDOR_READ_REQUEST_TYPE, is_hxn ? VENDOR_READ_NREQUEST : VENDOR_READ_REQUEST,
-                             is_hxn ? HXN_FLOWCTRL_REG : (FLOWCTRL_REG | VENDOR_READ_REG_FLAG), 0,
-                             std::vector<uint8_t>{0});
+      // Read the flow control register, re-applied on every settings change as set_termios does.
+      // A short reply fails the step, so no write follows, as in Linux pl2303_update_reg().
+      this->config_read_(VENDOR_READ_REQUEST_TYPE, is_hxn ? VENDOR_READ_NREQUEST : VENDOR_READ_REQUEST,
+                         is_hxn ? HXN_FLOWCTRL_REG : (FLOWCTRL_REG | VENDOR_READ_REG_FLAG), 0, this->cfg_response_, 1);
       return true;
     case 2: {
       // Write it back with only the flow control bits changed

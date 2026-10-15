@@ -618,6 +618,24 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
       data);
 }
 
+void USBUartComponent::config_read_(uint8_t type, uint8_t request, uint16_t value, uint16_t index, uint8_t *dest,
+                                    size_t length) {
+  this->submit_config_transfer_(
+      type, request, value, index,
+      [this, dest, length](const usb_host::TransferStatus &status) {
+        // The buffer and its length both start with the setup packet
+        const size_t received = status.success ? status.data_len - usb_host::SETUP_PACKET_SIZE : 0;
+        const bool read_ok = status.success && received == length;
+        if (read_ok) {
+          memcpy(dest, status.data + usb_host::SETUP_PACKET_SIZE, length);
+        } else if (status.success) {
+          ESP_LOGW(TAG, "Config read returned %zu of %zu bytes", received, length);
+        }
+        this->complete_config_transfer_(status, read_ok);
+      },
+      std::vector<uint8_t>(length));
+}
+
 void USBUartComponent::submit_config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
                                                const usb_host::transfer_cb_t &callback,
                                                const std::vector<uint8_t> &data) {

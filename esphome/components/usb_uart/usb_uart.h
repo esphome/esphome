@@ -292,6 +292,8 @@ class USBUartComponent : public usb_host::USBClient {
   // once from config_step_()/config_device_step_() when issuing a step.
   void config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
                         const std::vector<uint8_t> &data = {});
+  // Issue an IN step that succeeds only when exactly `length` bytes come back, copied to `dest`
+  void config_read_(uint8_t type, uint8_t request, uint16_t value, uint16_t index, uint8_t *dest, size_t length);
   // Submit a config transfer whose callback stores the reply itself and then calls
   // complete_config_transfer_(). A failed submission completes the step as failed.
   void submit_config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
