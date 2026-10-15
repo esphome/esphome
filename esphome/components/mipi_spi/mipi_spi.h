@@ -572,14 +572,12 @@ class MipiSpiBuffer
       if (this->auto_clear_enabled_) {
         this->clear();
       }
-      if (draw_test_card) {
+      if (draw_test_card || (this->page_ == nullptr && !this->writer_.has_value())) {
         this->test_card();
       } else if (this->page_ != nullptr) {
         this->page_->get_writer()(*this);
-      } else if (this->writer_.has_value()) {
-        (*this->writer_)(*this);
       } else {
-        this->test_card();
+        (*this->writer_)(*this);
       }
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
       esph_log_v(TAG, "Drawing from line %d took %dms", this->start_line_, millis() - lap);
