@@ -92,3 +92,31 @@ def test_exposure_bound(
         return
     with pytest.raises(cv.Invalid, match=error):
         HUB_SCHEMA(config)
+
+
+def test_as7343_basic_counts_keep_their_index(generate_main) -> None:
+    main_cpp = generate_main(CONFIG)
+
+    for band in ("f1", "fz", "clear"):
+        assert (
+            f"hub43->set_basic_counts_sensor(b43_{band}, {BAND_INDEX[band]});"
+            in main_cpp
+        )
+
+
+def test_as7341_calibration_spreads_over_the_band_slots(generate_main) -> None:
+    """The AS7341 has ten bands, but the C++ side indexes all thirteen slots.
+
+    The three bands it does not have keep the neutral value, so a correction or dark
+    current given for F3 reaches slot 3 rather than slot 2.
+    """
+    main_cpp = generate_main(CONFIG)
+
+    assert (
+        "hub41->set_channel_correction({1.1f, 1.2f, 1.0f, 1.3f, 1.4f, 1.0f, 1.5f, "
+        "1.0f, 1.6f, 1.7f, 1.8f, 1.9f, 2.0f});" in main_cpp
+    )
+    assert (
+        "hub41->set_dark_current({0.1f, 0.2f, 0.0f, 0.3f, 0.4f, 0.0f, 0.5f, "
+        "0.0f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f});" in main_cpp
+    )

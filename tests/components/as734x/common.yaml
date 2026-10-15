@@ -6,15 +6,24 @@ as734x:
     gain: X8
     atime: 120
     astep: 99
+    normalize_basic_counts: BANDS
+    calibration:
+      channel_correction: [1.0, 1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08, 1.09]
+      dark_current: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+      glass_attenuation_factor: 1.2
   - id: as7343_hub
     type: AS7343
     i2c_id: i2c_bus
     address: 0x3A
     gain: X512
+    normalize_basic_counts: CLEAR
   - id: tcs3448_hub
     type: TCS3448
     i2c_id: i2c_bus
     gain: X2048
+    calibration:
+      dark_current:
+        [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
 
 sensor:
   - platform: as734x
@@ -26,6 +35,13 @@ sensor:
         name: AS7341 NIR
       clear:
         name: AS7341 Clear
+    basic_counts:
+      f1:
+        name: AS7341 F1 basic
+      clear:
+        name: AS7341 Clear basic
+    saturation_level:
+      name: AS7341 Saturation
   - platform: as734x
     as734x_id: as7343_hub
     counts:
@@ -35,6 +51,13 @@ sensor:
         name: AS7343 FXL
       clear:
         name: AS7343 Clear
+    basic_counts:
+      fz:
+        name: AS7343 FZ basic
+      fy:
+        name: AS7343 FY basic
+    saturation_level:
+      name: AS7343 Saturation
   - platform: as734x
     as734x_id: tcs3448_hub
     counts:
