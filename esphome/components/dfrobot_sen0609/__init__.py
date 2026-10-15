@@ -3,7 +3,7 @@ from collections.abc import Callable
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MODE
+from esphome.const import CONF_ID, CONF_MODE, CONF_MODEL
 from esphome.core import ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -28,10 +28,18 @@ RUN_MODES = {
     MODE_SPEED_AND_DISTANCE: RunMode.RUN_MODE_SPEED_AND_DISTANCE,
 }
 
+MODEL_SEN0609 = "SEN0609"
+MODEL_SEN0610 = "SEN0610"
+# Longest detection range in metres
+MAX_RANGES = {MODEL_SEN0609: 25.0, MODEL_SEN0610: 12.0}
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DFRobotSEN0609Component),
+            cv.Optional(CONF_MODEL, default=MODEL_SEN0609): cv.one_of(
+                *MAX_RANGES, upper=True
+            ),
             cv.Optional(CONF_MODE, default=MODE_PRESENCE): cv.one_of(
                 *RUN_MODES, lower=True
             ),

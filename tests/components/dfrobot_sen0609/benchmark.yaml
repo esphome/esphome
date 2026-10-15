@@ -3,3 +3,6 @@
 binary_sensor:
 sensor:
 text_sensor:
+number:
+switch:
+select:
