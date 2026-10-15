@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 
@@ -20,6 +21,8 @@ static constexpr uint8_t CFG0_REG_BANK = 0x10;
 static constexpr uint8_t BANK_SPLIT = 0x80;  // registers below this need REG_BANK set
 static constexpr uint8_t STATUS2_AVALID = 0x40;
 static constexpr uint8_t ASTATUS_ASAT = 0x80;
+static constexpr uint8_t LED_ACT = 0x80;  // LED driver on, in the chip's LED register
+static constexpr uint8_t CONFIG_LED_SEL = 0x08;
 
 static constexpr uint8_t AS7341_CFG6 = 0xAF;
 static constexpr uint8_t AS7341_SMUX_CMD_WRITE = 0x10;  // copy the SMUX image from RAM to the chain
@@ -40,6 +43,9 @@ static constexpr uint8_t CLEAR_BAND = NUM_BANDS - 1;
 static constexpr uint8_t MAX_SMUX_LEN = 20;
 static constexpr uint8_t MAX_ADC_SLOTS = 18;
 static constexpr uint32_t MIN_COLLECTION_TIMEOUT_MS = 30 * 1000;
+static constexpr uint32_t MAX_ADC_COUNT = 65535;
+
+PROGMEM_STRING_TABLE(BandNames, "F1", "F2", "FZ", "F3", "F4", "FY", "F5", "FXL", "F6", "F7", "F8", "NIR", "Clear");
 
 #ifdef USE_AS7341
 static const char AS7341_NAME[] PROGMEM = "AS7341";
@@ -60,11 +66,25 @@ static const uint8_t AS7341_READOUT[] PROGMEM = {
     N, N, N, N, N, N, 0, N, 1, 2, 3, 5, 4,  // step 1: SMUX routes clear to ADC4 and NIR to ADC5
 };
 static_assert(sizeof(AS7341_READOUT) == AS7341_SMUX_STEPS * NUM_BANDS && AS7341_ADC_SLOTS <= MAX_ADC_SLOTS);
+// This chip has no FZ, FY or FXL band, so those slots are marked absent.
+// clang-format off
+static const uint16_t AS7341_WAVELENGTHS[] PROGMEM = {
+    415, 445, ABSENT_NM, 480, 515, ABSENT_NM, 555, ABSENT_NM, 590, 630, 680, 910, WIDEBAND_NM,
+};
+// clang-format on
+static_assert(sizeof(AS7341_WAVELENGTHS) == NUM_BANDS * sizeof(uint16_t));
+// Datasheet values for the golden device: gain correction per gain step, the same for every band.
+// The last two entries stay at zero because this chip has no 1024x or 2048x gain.
+static const float AS7341_GAIN_CORRECTION[] PROGMEM = {1.0577f, 1.0491f, 1.0479f, 1.0491f, 1.0207f, 1.0158f, 1.0109f,
+                                                       1.0000f, 1.0003f, 0.9873f, 0.9593f, 0.0f,    0.0f};
+static_assert(sizeof(AS7341_GAIN_CORRECTION) == GAIN_COUNT * sizeof(float));
 const ChipInfo AS7341_CHIP PROGMEM = {
     .name = AS7341_NAME,
     .init = AS7341_INIT,
     .smux = AS7341_SMUX,
     .readout = AS7341_READOUT,
+    .wavelengths = AS7341_WAVELENGTHS,
+    .gain_correction = AS7341_GAIN_CORRECTION,
     .init_count = 1,
     .astep_reg = 0xCA,
     .cfg0_reg = 0xA9,
@@ -73,11 +93,14 @@ const ChipInfo AS7341_CHIP PROGMEM = {
     .id_reg = 0x92,
     .id_mask = 0xFC,
     .id_value = 0x09 << 2,
+    .led_reg = 0x74,
+    .led_sel_reg = 0x70,  // CONFIG, whose LED_SEL bit connects the pin to the driver
     .adc_slots = AS7341_ADC_SLOTS,
     .smux_steps = AS7341_SMUX_STEPS,
     .integration_cycles = 1,
     .smux_len = AS7341_SMUX_LEN,
     .auto_smux = false,
+    .gain_correction_per_band = false,
     .extra_clear_slot = NO_SLOT,
 };
 #endif
@@ -97,12 +120,41 @@ static const uint8_t AS7343_SMUX[] PROGMEM = {0x00, 0x04, 0x65, 0x02, 0x00, 0x05
 static const uint8_t AS7343_READOUT[] PROGMEM = {12, 6, 0, 7, 8, 1, 15, 2, 9, 13, 14, 3, 10};
 static_assert(sizeof(AS7343_SMUX) == AS7343_CHAINS * AS7343_SMUX_LEN && AS7343_SMUX_LEN <= MAX_SMUX_LEN);
 static_assert(sizeof(AS7343_READOUT) == NUM_BANDS && AS7343_ADC_SLOTS <= MAX_ADC_SLOTS);
+// clang-format off
+static const uint16_t AS7343_WAVELENGTHS[] PROGMEM = {
+    405, 425, 450, 475, 515, 555, 550, 600, 640, 690, 745, 855, WIDEBAND_NM,
+};
+// clang-format on
+static_assert(sizeof(AS7343_WAVELENGTHS) == NUM_BANDS * sizeof(uint16_t));
+// Datasheet values for the golden device: gain correction per gain step, per band.
+// clang-format off
+static const float AS7343_GAIN_CORRECTION[] PROGMEM = {
+    1.149f, 1.100f, 1.060f, 1.070f, 1.063f, 1.051f, 1.062f, 1.056f, 1.049f, 1.040f, 1.080f, 1.038f, 1.065f,  // 0.5x
+    1.090f, 1.128f, 1.064f, 1.071f, 1.063f, 1.050f, 1.068f, 1.055f, 1.047f, 1.039f, 1.075f, 1.038f, 1.085f,  // 1x
+    1.083f, 1.086f, 1.062f, 1.070f, 1.062f, 1.049f, 1.057f, 1.053f, 1.045f, 1.038f, 1.063f, 1.037f, 1.069f,  // 2x
+    1.059f, 1.068f, 1.056f, 1.066f, 1.058f, 1.046f, 1.051f, 1.051f, 1.044f, 1.036f, 1.059f, 1.035f, 1.053f,  // 4x
+    1.100f, 1.109f, 1.096f, 1.108f, 1.099f, 1.089f, 1.091f, 1.092f, 1.082f, 1.078f, 1.100f, 1.076f, 1.088f,  // 8x
+    1.099f, 1.109f, 1.096f, 1.108f, 1.099f, 1.089f, 1.091f, 1.092f, 1.082f, 1.078f, 1.100f, 1.075f, 1.087f,  // 16x
+    1.088f, 1.096f, 1.085f, 1.097f, 1.087f, 1.078f, 1.079f, 1.080f, 1.071f, 1.067f, 1.087f, 1.064f, 1.076f,  // 32x
+    1.083f, 1.091f, 1.078f, 1.090f, 1.079f, 1.072f, 1.072f, 1.073f, 1.064f, 1.062f, 1.080f, 1.057f, 1.069f,  // 64x
+    1.076f, 1.084f, 1.072f, 1.085f, 1.074f, 1.066f, 1.062f, 1.067f, 1.055f, 1.056f, 1.074f, 1.051f, 1.061f,  // 128x
+    1.067f, 1.074f, 1.063f, 1.075f, 1.064f, 1.059f, 1.055f, 1.058f, 1.049f, 1.051f, 1.064f, 1.044f, 1.053f,  // 256x
+    1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f, 1.000f,  // 512x
+    1.033303857f, 1.034763813f, 1.029855013f, 1.036911249f, 0.988150537f, 1.029003501f, 1.021363258f,
+    0.98762089f, 1.021713376f, 1.040108204f, 0.987417698f, 1.019481421f, 0.987270057f,  // 1024x
+    0.986859143f, 0.980877221f, 0.9469769f, 0.985535324f, 0.926243961f, 0.959814787f, 1.007963896f,
+    0.942685187f, 1.007630587f, 1.025460005f, 0.928696275f, 1.001296639f, 1.041275263f,  // 2048x
+};
+// clang-format on
+static_assert(sizeof(AS7343_GAIN_CORRECTION) == GAIN_COUNT * NUM_BANDS * sizeof(float));
 static constexpr ChipInfo as7343_chip(const char *name) {
   return {
       .name = name,
       .init = AS7343_INIT,
       .smux = AS7343_SMUX,
       .readout = AS7343_READOUT,
+      .wavelengths = AS7343_WAVELENGTHS,
+      .gain_correction = AS7343_GAIN_CORRECTION,
       .init_count = sizeof(AS7343_INIT) / sizeof(RegValue),
       .astep_reg = 0xD4,
       .cfg0_reg = 0xBF,
@@ -111,11 +163,14 @@ static constexpr ChipInfo as7343_chip(const char *name) {
       .id_reg = 0x5A,
       .id_mask = 0xFF,
       .id_value = 0x81,
+      .led_reg = 0xCD,
+      .led_sel_reg = 0,  // the LED register drives the pin on its own
       .adc_slots = AS7343_ADC_SLOTS,
       .smux_steps = 1,
       .integration_cycles = 3,
       .smux_len = AS7343_SMUX_LEN,
       .auto_smux = true,
+      .gain_correction_per_band = true,
       .extra_clear_slot = 4,
   };
 }
@@ -131,6 +186,34 @@ bool AS734XComponent::select_bank_(uint8_t reg) {
   }
   this->bank_low_ = low;
   return this->write_byte(pgm(this->chip_->cfg0_reg), low ? CFG0_REG_BANK : 0);
+}
+
+bool AS734XComponent::update_bits_(uint8_t reg, uint8_t mask, bool value) {
+  uint8_t data = 0;
+  if (!this->select_bank_(reg) || !this->read_byte(reg, &data)) {
+    return false;
+  }
+  data = value ? (data | mask) : (data & ~mask);
+  return this->write_byte(reg, data);
+}
+
+// The exposure is applied before every measurement, so a gain, ATIME or ASTEP changed at runtime
+// takes effect on the next reading rather than only after a restart.
+bool AS734XComponent::write_exposure_() {
+  const ChipInfo *chip = this->chip_;
+  if (!this->select_bank_(REG_ATIME) || !this->write_byte(REG_ATIME, this->atime_) ||
+      !this->write_byte_16(pgm(chip->astep_reg), byteswap(this->astep_)) ||
+      !this->write_byte(pgm(chip->cfg1_reg), this->gain_)) {
+    return false;
+  }
+  this->reading_gain_ = this->gain_;
+  this->reading_atime_ = this->atime_;
+  this->reading_astep_ = this->astep_;
+  // One integration cycle lasts (ATIME + 1) * (ASTEP + 1) * 2.78 us.
+  const uint32_t cycle_ms = (this->atime_ + 1UL) * (this->astep_ + 1UL) * 139 / 50000;
+  this->integration_ms_ = cycle_ms * pgm(chip->integration_cycles);
+  this->timeout_ms_ = std::max(MIN_COLLECTION_TIMEOUT_MS, 2 * this->integration_ms_);
+  return true;
 }
 
 void AS734XComponent::setup() {
@@ -152,9 +235,7 @@ void AS734XComponent::setup() {
     ok = this->select_bank_(rv.reg) && this->write_byte(rv.reg, rv.value);
   }
   // Everything from here on, including the measurement registers, is in the high bank.
-  ok = ok && this->select_bank_(REG_ATIME) && this->write_byte(REG_ATIME, this->atime_) &&
-       this->write_byte_16(pgm(chip->astep_reg), byteswap(this->astep_)) &&
-       this->write_byte(pgm(chip->cfg1_reg), this->gain_);
+  ok = ok && this->write_exposure_();
   if (pgm(chip->auto_smux)) {
     const uint8_t *smux = pgm(chip->smux);
     const uint8_t len = pgm(chip->smux_len);
@@ -167,10 +248,6 @@ void AS734XComponent::setup() {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  // One integration cycle lasts (ATIME + 1) * (ASTEP + 1) * 2.78 us.
-  const uint32_t cycle_ms = (this->atime_ + 1UL) * (this->astep_ + 1UL) * 139 / 50000;
-  this->integration_ms_ = cycle_ms * pgm(chip->integration_cycles);
-  this->timeout_ms_ = std::max(MIN_COLLECTION_TIMEOUT_MS, 2 * this->integration_ms_);
   this->disable_loop();
 }
 
@@ -181,15 +258,41 @@ void AS734XComponent::dump_config() {
                 "  Chip: %s\n"
                 "  Gain: %gx\n"
                 "  ATIME: %u\n"
-                "  ASTEP: %u",
-                LOG_STR_ARG(pgm(this->chip_->name)), gain, this->atime_, this->astep_);
+                "  ASTEP: %u\n"
+                "  Glass attenuation factor: %.3f",
+                LOG_STR_ARG(pgm(this->chip_->name)), gain, this->atime_, this->astep_, this->glass_attenuation_factor_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  for (auto *sens : this->sensors_) {
-    LOG_SENSOR("  ", "Counts", sens);
+  for (uint8_t band = 0; band < NUM_BANDS; band++) {
+    const char *name = LOG_STR_ARG(BandNames::get_log_str(band, BandNames::LAST_INDEX));
+    sensor::log_sensor(TAG, "  Counts ", name, this->sensors_[band]);
+    sensor::log_sensor(TAG, "  Basic counts ", name, this->basic_counts_sensors_[band]);
   }
+  LOG_SENSOR("  ", "Saturation level", this->saturation_level_sensor_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  }
+}
+
+void AS734XComponent::enable_led(bool enable) {
+  const uint8_t led_reg = pgm(this->chip_->led_reg);
+  if (led_reg == 0) {
+    return;
+  }
+  // The LED register only drives the LED while LED_SEL is set, so the pin is handed over before
+  // switching on and released only after switching off. The other order would leave the LED lit
+  // with nothing able to turn it off.
+  const uint8_t led_sel_reg = pgm(this->chip_->led_sel_reg);
+  bool ok = true;
+  if (enable && led_sel_reg != 0) {
+    ok = this->update_bits_(led_sel_reg, CONFIG_LED_SEL, true);
+  }
+  ok = this->update_bits_(led_reg, LED_ACT, enable) && ok;
+  if (!enable && led_sel_reg != 0) {
+    ok = this->update_bits_(led_sel_reg, CONFIG_LED_SEL, false) && ok;
+  }
+  if (!ok) {
+    ESP_LOGW(TAG, "Failed to switch the LED");
   }
 }
 
@@ -198,7 +301,13 @@ void AS734XComponent::update() {
     ESP_LOGW(TAG, "Skipping update, previous measurement still running");
     return;
   }
+  if (!this->write_exposure_()) {
+    this->abort_measurement_(LOG_STR("Failed to apply measurement settings"));
+    return;
+  }
   this->step_ = 0;
+  this->peak_raw_count_ = 0;
+  this->raw_counts_.fill(0);
   this->enable_loop();
   if (!this->start_step_()) {
     this->abort_measurement_(LOG_STR("Failed to start measurement"));
@@ -270,14 +379,18 @@ void AS734XComponent::read_step_() {
   const uint8_t extra_clear = pgm(this->chip_->extra_clear_slot);
   for (uint8_t band = 0; band < NUM_BANDS; band++) {
     const uint8_t slot = progmem_read_byte(&readout[band]);
-    if (slot == NO_SLOT || this->sensors_[band] == nullptr) {
+    if (slot == NO_SLOT) {
       continue;
     }
-    uint32_t counts = slot_value(slot);
+    const uint16_t raw = slot_value(slot);
+    this->peak_raw_count_ = std::max(this->peak_raw_count_, raw);
+    uint16_t counts = raw;
     if (band == CLEAR_BAND && extra_clear != NO_SLOT) {
-      counts = (counts + slot_value(extra_clear)) / 2;
+      const uint16_t extra = slot_value(extra_clear);
+      this->peak_raw_count_ = std::max(this->peak_raw_count_, extra);
+      counts = (static_cast<uint32_t>(raw) + extra) / 2;
     }
-    this->sensors_[band]->publish_state(counts);
+    this->raw_counts_[band] = counts;
   }
   if (++this->step_ < pgm(this->chip_->smux_steps)) {
     if (!this->start_step_()) {
@@ -285,9 +398,102 @@ void AS734XComponent::read_step_() {
     }
     return;
   }
+  this->publish_measurement_();
   this->status_clear_warning();
   this->state_ = State::STATE_IDLE;
   this->disable_loop();
+}
+
+// A basic count is the raw count scaled to one unit of gain and one millisecond of integration
+// time, which makes readings taken with different settings comparable. The manufacturer's
+// conversion factors are calibrated against that definition.
+void AS734XComponent::calculate_basic_counts_() {
+  this->basic_counts_.fill(0.0f);
+  this->max_basic_count_ = 0.0f;
+  this->max_band_basic_count_ = 0.0f;
+  this->clear_basic_count_ = 0.0f;
+
+  // The gain enum counts in powers of two starting at 0.5x, so the multiplier is 2^gain / 2.
+  const float gain_x = static_cast<float>(1 << this->reading_gain_) / 2.0f;
+  const float integration_ms = (1.0f + this->reading_atime_) * (1.0f + this->reading_astep_) * 2.78e-3f;
+  if (gain_x <= 0.0f || integration_ms <= 0.0f) {
+    return;
+  }
+  const float inv_exposure = 1.0f / (gain_x * integration_ms);
+  const ChipInfo *chip = this->chip_;
+  const uint16_t *wavelengths = pgm(chip->wavelengths);
+  const float *gain_correction = pgm(chip->gain_correction);
+  const bool per_band = pgm(chip->gain_correction_per_band);
+  const uint8_t correction_base = per_band ? this->reading_gain_ * NUM_BANDS : this->reading_gain_;
+
+  for (uint8_t band = 0; band < NUM_BANDS; band++) {
+    const uint16_t wavelength = pgm(wavelengths[band]);
+    if (wavelength == ABSENT_NM) {
+      continue;
+    }
+    float basic_count = this->raw_counts_[band] * inv_exposure;
+    basic_count -= this->dark_current_[band];
+    basic_count = std::max(basic_count, 0.0f);
+    basic_count *= pgm(gain_correction[per_band ? correction_base + band : correction_base]);
+    basic_count *= this->channel_correction_[band];
+    basic_count *= this->glass_attenuation_factor_;
+
+    this->basic_counts_[band] = basic_count;
+    this->max_basic_count_ = std::max(this->max_basic_count_, basic_count);
+    if (wavelength == WIDEBAND_NM) {
+      this->clear_basic_count_ = basic_count;
+    } else if (wavelength >= VISIBLE_MIN_NM && wavelength <= VISIBLE_MAX_NM) {
+      this->max_band_basic_count_ = std::max(this->max_band_basic_count_, basic_count);
+    }
+  }
+}
+
+float AS734XComponent::normalization_divisor_() const {
+  float divisor = 1.0f;
+  switch (this->normalization_) {
+    case Normalization::NORMALIZATION_ALL:
+      divisor = this->max_basic_count_;
+      break;
+    case Normalization::NORMALIZATION_BANDS:
+      divisor = this->max_band_basic_count_;
+      break;
+    case Normalization::NORMALIZATION_CLEAR:
+      divisor = this->clear_basic_count_;
+      break;
+    case Normalization::NORMALIZATION_NONE:
+      return 1.0f;
+  }
+  // In the dark the reference can be zero, and dividing by that would publish infinities.
+  return divisor > 0.0f ? divisor : 1.0f;
+}
+
+void AS734XComponent::publish_basic_counts_() {
+  // Normalization describes the shape of the spectrum rather than its absolute level. Channels
+  // outside the chosen reference can exceed 1.0 and are left that way rather than clipped: with
+  // BANDS the near infrared channel legitimately sits well above the visible bands.
+  const float scale = 1.0f / this->normalization_divisor_();
+  for (uint8_t band = 0; band < NUM_BANDS; band++) {
+    if (this->basic_counts_sensors_[band] != nullptr) {
+      this->basic_counts_sensors_[band]->publish_state(this->basic_counts_[band] * scale);
+    }
+  }
+}
+
+void AS734XComponent::publish_measurement_() {
+  this->calculate_basic_counts_();
+  for (uint8_t band = 0; band < NUM_BANDS; band++) {
+    if (this->sensors_[band] != nullptr) {
+      this->sensors_[band]->publish_state(this->raw_counts_[band]);
+    }
+  }
+  this->publish_basic_counts_();
+  if (this->saturation_level_sensor_ != nullptr) {
+    const uint32_t max_adc =
+        std::min<uint32_t>((this->reading_atime_ + 1UL) * (this->reading_astep_ + 1UL), MAX_ADC_COUNT);
+    const float level = max_adc == 0 ? 0.0f : 100.0f * this->peak_raw_count_ / max_adc;
+    ESP_LOGV(TAG, "Highest ADC count %u of %u (%.1f%%)", this->peak_raw_count_, static_cast<unsigned>(max_adc), level);
+    this->saturation_level_sensor_->publish_state(level);
+  }
 }
 
 void AS734XComponent::abort_measurement_(const LogString *reason) {
