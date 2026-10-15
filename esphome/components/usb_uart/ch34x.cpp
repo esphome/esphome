@@ -167,14 +167,6 @@ void USBUartTypeCH34X::modem_control_transfer(USBUartChannelBase *channel) {
   this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, request, static_cast<uint16_t>(~control), 0);
 }
 
-std::vector<CdcEps> USBUartTypeCH34X::parse_descriptors(usb_device_handle_t dev_hdl) {
-  auto result = USBUartTypeCdcAcm::parse_descriptors(dev_hdl);
-  // ch34x doesn't use the interrupt endpoint, and we don't have endpoints to spare
-  for (auto &cdc_dev : result) {
-    cdc_dev.interrupt_interface_number = 0xFF;
-  }
-  return result;
-}
 }  // namespace esphome::usb_uart
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||

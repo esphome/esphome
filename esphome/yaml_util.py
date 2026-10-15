@@ -12,7 +12,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, NamedTuple
 import uuid
 
 import yaml
@@ -29,6 +29,7 @@ from esphome.config_helpers import Extend, Remove
 from esphome.const import CONF_DEFAULTS
 from esphome.core import (
     CORE,
+    DocumentLocation,
     DocumentRange,
     EsphomeError,
     Lambda,
@@ -142,14 +143,20 @@ class ESPHomeDataBase:
     def content_offset(self):
         return getattr(self, "_content_offset", 0)
 
+    @property
+    def content_start(self) -> DocumentLocation:
+        """Where the value's own text starts: the line after the marker for a block scalar."""
+        start = self._esp_range.start_mark
+        return DocumentLocation(
+            start.document, start.line + self.content_offset, start.column
+        )
+
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
-        if (
-            isinstance(node, yaml.ScalarNode)
-            and node.style is not None
-            and node.style in "|>"
-        ):
+        # Only block scalars (| and >) start their content on the next line. A plain
+        # scalar's style is "", which `in "|>"` would also match.
+        if isinstance(node, yaml.ScalarNode) and node.style in ("|", ">"):
             self._content_offset = 1
 
     def from_database(self, database):
@@ -191,10 +198,23 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     If the value is already tagged, the new context vars are merged with existing ones,
     with new vars taking precedence. Returns the value tagged with ConfigContext. Returns
     the original value if value is not a list/string/dict.
+
+    Raises EsphomeError if a `defaults:` key is present but is not a mapping.
     """
     if isinstance(value, dict) and CONF_DEFAULTS in value:
+        defaults = value.pop(CONF_DEFAULTS)
+        if defaults is None:
+            raise EsphomeError(
+                f"'{CONF_DEFAULTS}' is empty; "
+                f"remove the key or give it at least one value"
+            )
+        if not isinstance(defaults, dict):
+            raise EsphomeError(
+                f"'{CONF_DEFAULTS}' must be a key to value mapping, "
+                f"got {type(defaults)}"
+            )
         context_vars = {
-            **value.pop(CONF_DEFAULTS),
+            **defaults,
             **(context_vars or {}),
         }
 
@@ -410,9 +430,11 @@ def _load_include_candidates(
     include: IncludeFile,
     *,
     warn_on_unresolved: bool,
+    warn_on_load_error: bool,
     seen: set[int],
     expanded_paths: set[Path],
     keepalive: list[Any],
+    result: ForceLoadResult,
 ) -> None:
     """Load every filesystem candidate for an unresolved ``IncludeFile``."""
     from voluptuous import Invalid
@@ -425,6 +447,7 @@ def _load_include_candidates(
             include.file,
             include.parent_file,
         )
+        result.unresolved.append(str(include.file))
         return
     _LOGGER.debug(
         "Expanding !include %s (referenced from %s) to %d candidate file(s)",
@@ -439,27 +462,27 @@ def _load_include_candidates(
         try:
             loaded = include.with_file(candidate.as_posix()).load()
         except (EsphomeError, Invalid) as err:
-            # Unlike an unresolved pattern (expected during the discovery
-            # re-parse), a matched on-disk candidate that fails to load is a
-            # genuine user error; warn in every mode. The file itself is
-            # still tracked (the load listener fires before parsing), only
-            # its nested includes go undiscovered.
-            _LOGGER.warning(
+            # A real user error. The file stays tracked (the listener fires
+            # before parsing); only its nested includes are missed.
+            (_LOGGER.warning if warn_on_load_error else _LOGGER.debug)(
                 "Failed to load candidate %s for !include %s: %s",
                 candidate,
                 include.file,
                 err,
             )
+            result.errors.append(f"{candidate}: {err}")
             continue
         # The throwaway IncludeFile is this tree's only owner; keep the tree
         # alive so ids recorded in ``seen`` stay unique for the traversal.
         keepalive.append(loaded)
-        force_load_include_files(
+        _force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
+            warn_on_load_error=warn_on_load_error,
             _seen=seen,
             _expanded_paths=expanded_paths,
             _keepalive=keepalive,
+            _result=result,
         )
 
 
@@ -473,14 +496,19 @@ def find_secret_references(text: str) -> set[str]:
     return {match.group(1) for match in _SECRET_REFERENCE_RE.finditer(text)}
 
 
+class ForceLoadResult(NamedTuple):
+    """Templated includes that matched no file, and includes that failed to load.
+
+    Either being non-empty means the walk was incomplete.
+    """
+
+    unresolved: list[str]
+    errors: list[str]
+
+
 def force_load_include_files(
-    obj: Any,
-    *,
-    warn_on_unresolved: bool = True,
-    _seen: set[int] | None = None,
-    _expanded_paths: set[Path] | None = None,
-    _keepalive: list[Any] | None = None,
-) -> None:
+    obj: Any, *, warn_on_unresolved: bool = True, warn_on_load_error: bool = True
+) -> ForceLoadResult:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
     Nested ``!include`` returns a deferred ``IncludeFile`` that is only resolved
@@ -495,8 +523,30 @@ def force_load_include_files(
     expression could select. By default a warning is logged when no candidate
     exists; pass ``warn_on_unresolved=False`` (used by discovery paths that
     run on a fresh re-parse where substitutions haven't been applied yet) to
-    demote it to a debug log.
+    demote it to a debug log. Callers that report ``errors`` themselves pass
+    ``warn_on_load_error=False`` so load failures are not logged twice.
     """
+    result = ForceLoadResult([], [])
+    _force_load_include_files(
+        obj,
+        warn_on_unresolved=warn_on_unresolved,
+        warn_on_load_error=warn_on_load_error,
+        _result=result,
+    )
+    return result
+
+
+def _force_load_include_files(
+    obj: Any,
+    *,
+    warn_on_unresolved: bool = True,
+    warn_on_load_error: bool = True,
+    _seen: set[int] | None = None,
+    _expanded_paths: set[Path] | None = None,
+    _keepalive: list[Any] | None = None,
+    _result: ForceLoadResult,
+) -> None:
+    """Walk for :func:`force_load_include_files`, adding to ``result``."""
     from voluptuous import Invalid
 
     if _seen is None:
@@ -519,51 +569,60 @@ def force_load_include_files(
             _load_include_candidates(
                 obj,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 seen=_seen,
                 expanded_paths=_expanded_paths,
                 keepalive=_keepalive,
+                result=_result,
             )
             return
         try:
             loaded = obj.load()
         except (EsphomeError, Invalid) as err:
-            _LOGGER.warning(
+            (_LOGGER.warning if warn_on_load_error else _LOGGER.debug)(
                 "Failed to load !include %s (referenced from %s): %s",
                 obj.file,
                 obj.parent_file,
                 err,
             )
+            _result.errors.append(f"{obj.file}: {err}")
             return
-        force_load_include_files(
+        _force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
+            warn_on_load_error=warn_on_load_error,
             _seen=_seen,
             _expanded_paths=_expanded_paths,
             _keepalive=_keepalive,
+            _result=_result,
         )
     elif isinstance(obj, dict):
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
         for value in obj.values():
-            force_load_include_files(
+            _force_load_include_files(
                 value,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 _seen=_seen,
                 _expanded_paths=_expanded_paths,
                 _keepalive=_keepalive,
+                _result=_result,
             )
     elif isinstance(obj, (list, tuple)):
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
         for item in obj:
-            force_load_include_files(
+            _force_load_include_files(
                 item,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 _seen=_seen,
                 _expanded_paths=_expanded_paths,
                 _keepalive=_keepalive,
+                _result=_result,
             )
 
 
@@ -575,11 +634,14 @@ class DiscoveredYamlFiles:
     were re-parsing the user's config; ``secrets`` is the subset whose
     *un-resolved* filename matched :data:`esphome.const.SECRETS_FILES` (so
     a ``secrets.yaml`` symlinked to a differently-named target is still
-    flagged as secrets).
+    flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
+    include paths) or ``load_errors`` is non-empty.
     """
 
     files: list[Path] = field(default_factory=list)
     secrets: set[Path] = field(default_factory=set)
+    unresolved: list[str] = field(default_factory=list)
+    load_errors: list[str] = field(default_factory=list)
 
 
 def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
@@ -609,9 +671,13 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         try:
             try:
                 data = load_yaml(config_path)
-            except EsphomeError:
-                return DiscoveredYamlFiles(list(loaded), secrets)
-            force_load_include_files(data, warn_on_unresolved=False)
+            except EsphomeError as err:
+                return DiscoveredYamlFiles(
+                    list(loaded), secrets, load_errors=[f"{config_path}: {err}"]
+                )
+            unresolved, load_errors = force_load_include_files(
+                data, warn_on_unresolved=False, warn_on_load_error=False
+            )
         finally:
             _load_listeners.remove(_capture_secret)
 
@@ -622,7 +688,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         if path not in seen:
             seen.add(path)
             unique.append(path)
-    return DiscoveredYamlFiles(unique, secrets)
+    return DiscoveredYamlFiles(unique, secrets, unresolved, load_errors)
 
 
 def _add_data_ref(fn):
@@ -1061,8 +1127,12 @@ def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> An
             res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
-    # Top-level !include returns a deferred IncludeFile; resolve it so
-    # callers always receive the final content.
+    return res
+
+
+def _resolve_include(res: Any) -> Any:
+    # A document that is just `!include` parses to a deferred IncludeFile; resolve it so
+    # every parse_yaml caller, including the VS Code and ACE loaders, gets the final content.
     if isinstance(res, IncludeFile):
         res = res.load() if res.should_load() else {}
     return res
@@ -1088,7 +1158,7 @@ def parse_yaml(
         # tracked mode; reject the combination instead of half-applying it.
         raise ValueError("track_document_range=False requires the default yaml_loader")
     try:
-        return _load_yaml_internal_with_type(
+        res = _load_yaml_internal_with_type(
             ESPHomeLoader,
             file_name,
             file_handle,
@@ -1100,13 +1170,15 @@ def parse_yaml(
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
-        return _load_yaml_internal_with_type(
+        res = _load_yaml_internal_with_type(
             ESPHomePurePythonLoader,
             file_name,
             file_handle,
             yaml_loader,
             track_document_range=track_document_range,
         )
+    # Resolved after the fallback so a failed first parse never loads the include twice
+    return _resolve_include(res)
 
 
 def _load_yaml_internal_with_type(

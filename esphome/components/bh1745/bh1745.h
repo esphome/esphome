@@ -22,6 +22,13 @@ enum class AdcGain : uint8_t {
 };
 
 class BH1745Component : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(red_counts)
+  SUB_SENSOR(green_counts)
+  SUB_SENSOR(blue_counts)
+  SUB_SENSOR(clear_counts)
+  SUB_SENSOR(illuminance)
+  SUB_SENSOR(color_temperature)
+
  public:
   void setup() override;
   void dump_config() override;
@@ -31,25 +38,11 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   void set_adc_gain(AdcGain adc_gain) { this->adc_gain_ = adc_gain; }
   void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
 
-  void set_red_counts_sensor(sensor::Sensor *red) { this->red_counts_sensor_ = red; }
-  void set_green_counts_sensor(sensor::Sensor *green) { this->green_counts_sensor_ = green; }
-  void set_blue_counts_sensor(sensor::Sensor *blue) { this->blue_counts_sensor_ = blue; }
-  void set_clear_counts_sensor(sensor::Sensor *clear) { this->clear_counts_sensor_ = clear; }
-  void set_illuminance_sensor(sensor::Sensor *illuminance) { this->illuminance_sensor_ = illuminance; }
-  void set_color_temperature_sensor(sensor::Sensor *cct) { this->color_temperature_sensor_ = cct; }
-
   /// Called when an output platform uses the INT pin, so setup() pins the interrupt thresholds.
   void enable_interrupt_output() { this->interrupt_output_ = true; }
   void set_interrupt_state(bool on);
 
  protected:
-  sensor::Sensor *red_counts_sensor_{nullptr};
-  sensor::Sensor *green_counts_sensor_{nullptr};
-  sensor::Sensor *blue_counts_sensor_{nullptr};
-  sensor::Sensor *clear_counts_sensor_{nullptr};
-  sensor::Sensor *illuminance_sensor_{nullptr};
-  sensor::Sensor *color_temperature_sensor_{nullptr};
-
   float glass_attenuation_factor_{1.0f};
   float lux_scale_{1.0f};  // 160 / (gain * integration time * glass attenuation), set in setup()
   MeasurementTime measurement_time_{MeasurementTime::MEASUREMENT_TIME_160MS};

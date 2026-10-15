@@ -224,6 +224,7 @@ static optional<CdcEps> get_uart(const usb_config_desc_t *config_desc, uint8_t i
   }
 
   eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+  eps.bulk_interface_class = intf_desc->bInterfaceClass;
   return eps;
 }
 

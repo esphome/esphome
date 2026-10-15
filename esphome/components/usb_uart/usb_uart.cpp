@@ -41,14 +41,17 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
       if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_INT) {
         eps.notify_ep = ep;
         eps.interrupt_interface_number = intf_desc->bInterfaceNumber;
+        eps.interrupt_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && ep->bEndpointAddress & usb_host::USB_DIR_IN &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.in_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+        eps.bulk_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && !(ep->bEndpointAddress & usb_host::USB_DIR_IN) &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.out_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+        eps.bulk_interface_class = intf_desc->bInterfaceClass;
       } else {
         ESP_LOGE(TAG, "Unexpected endpoint attributes: %02X", ep->bmAttributes);
         continue;
@@ -431,8 +434,7 @@ void USBUartTypeCdcAcm::on_connected() {
     if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
         channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
       if (!this->claim_comm_interface_) {
-        ESP_LOGD(TAG, "Skipping comm interface %d (claim_comm_interface: false)",
-                 channel->cdc_dev_.interrupt_interface_number);
+        ESP_LOGD(TAG, "Comm interface %d left unclaimed", channel->cdc_dev_.interrupt_interface_number);
       } else {
         auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
                                                  channel->cdc_dev_.interrupt_interface_number, 0);

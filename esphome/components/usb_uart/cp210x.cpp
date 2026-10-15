@@ -94,11 +94,11 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
       ESP_LOGE(TAG, "in_ep: usb_parse_endpoint_descriptor_by_index failed");
       continue;
     }
-    if (in_ep->bEndpointAddress & usb_host::USB_DIR_IN) {
-      cdc_devs.push_back({CdcEps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber}});
-    } else {
-      cdc_devs.push_back({CdcEps{nullptr, out_ep, in_ep, data_desc->bInterfaceNumber}});
-    }
+    CdcEps eps = in_ep->bEndpointAddress & usb_host::USB_DIR_IN
+                     ? CdcEps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber}
+                     : CdcEps{nullptr, out_ep, in_ep, data_desc->bInterfaceNumber};
+    eps.bulk_interface_class = data_desc->bInterfaceClass;
+    cdc_devs.push_back(eps);
   }
   return cdc_devs;
 }

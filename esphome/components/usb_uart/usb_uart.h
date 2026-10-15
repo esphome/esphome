@@ -9,6 +9,7 @@
 #include "esphome/components/usb_host/usb_host.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
+#include "esphome/core/log.h"
 #include <atomic>
 #include <functional>
 
@@ -19,7 +20,7 @@ class USBUartComponent;
 class USBUartChannelBase;
 class USBUartTypePL2303;
 
-static const char *const TAG = "usb_uart";
+ESPHOME_LOG_TAG(TAG, "usb_uart");
 
 static constexpr uint8_t USB_CDC_SUBCLASS_ACM = 0x02;
 static constexpr uint8_t USB_SUBCLASS_COMMON = 0x02;
@@ -39,6 +40,9 @@ struct CdcEps {
   // must remain valid even when the interface itself is not claimed.
   uint8_t interrupt_interface_number{0xFF};
   bool interrupt_interface_claimed{false};
+  // bInterfaceClass of each interface above, which decides how a host binds the port
+  uint8_t bulk_interface_class{0};
+  uint8_t interrupt_interface_class{0};
 };
 
 enum CH34xChipType : uint8_t {
@@ -193,6 +197,16 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
+  /// bInterfaceClass of the interface `get_interface_number()` names
+  uint8_t get_interface_class() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_class
+                                                             : this->cdc_dev_.bulk_interface_class;
+  }
+
+  /// Index of this port among the ports on its interface. Every driver here exposes one
+  /// port per interface; a multiplexed driver would index its channels.
+  uint8_t get_port_number() const { return 0; }
+
   /// Store DTR/RTS and send them to the device. False when not connected; sent on connect instead.
   bool set_modem_control(bool dtr, bool rts);
   bool get_dtr() const { return this->dtr_; }
@@ -341,14 +355,18 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
-  USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+  USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {
+    // ch34x doesn't use the interrupt endpoint, and we don't have endpoints to spare. The
+    // comm interface is left in place unclaimed: on the CDC-style chips it is still the
+    // interface a host binds, and so the one the port is identified by.
+    this->claim_comm_interface_ = false;
+  }
   void dump_config() override;
 
  protected:
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   void modem_control_transfer(USBUartChannelBase *channel) override;
   bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
-  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
 
  private:
   CH34xChipType chiptype_{CHIP_UNKNOWN};

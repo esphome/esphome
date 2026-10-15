@@ -2,6 +2,7 @@ substitutions:
   esp32_power_management_max_frequency: 160MHZ
   esp32_power_management_min_frequency: 40MHZ
   esp32_power_management_power_down_peripherals: "false"
+  esp32_power_management_power_down_flash: "false"
 
 packages:
   esp32_power_management: !include common.yaml
