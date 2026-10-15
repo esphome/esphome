@@ -81,7 +81,7 @@ TEST(LightStateExternal, RefusesDuringATransition) {
   EXPECT_FALSE(state.set_external_state(on_at(0.5f)));
 }
 
-TEST(LightStateExternal, RefusesWhileAnEffectRuns) {
+TEST(LightStateExternal, StopsARunningEffect) {
   CountingOutput output;
   LightState state(&output);
   NoopEffect effect("Noop");
@@ -92,7 +92,12 @@ TEST(LightStateExternal, RefusesWhileAnEffectRuns) {
   state.make_call().set_state(true).set_effect("Noop").perform();
   state.loop();
   ASSERT_EQ(state.get_current_effect_index(), 1u);
-  EXPECT_FALSE(state.set_external_state(on_at(0.5f)));
+  const auto writes = output.writes;
+  EXPECT_TRUE(state.set_external_state(on_at(0.5f)));
+  EXPECT_EQ(state.get_current_effect_index(), 0u);
+  EXPECT_EQ(state.remote_values, on_at(0.5f));
+  state.loop();
+  EXPECT_EQ(output.writes, writes);  // the stopped effect schedules no write either
 }
 
 TEST(LightStateExternal, SaysNothingWhenNothingChanges) {
