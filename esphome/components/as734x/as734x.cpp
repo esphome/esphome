@@ -1,10 +1,13 @@
 #include "as734x.h"
+#include "color_helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 
 namespace esphome::as734x {
 
@@ -78,6 +81,41 @@ static_assert(sizeof(AS7341_WAVELENGTHS) == NUM_BANDS * sizeof(uint16_t));
 static const float AS7341_GAIN_CORRECTION[] PROGMEM = {1.0577f, 1.0491f, 1.0479f, 1.0491f, 1.0207f, 1.0158f, 1.0109f,
                                                        1.0000f, 1.0003f, 0.9873f, 0.9593f, 0.0f,    0.0f};
 static_assert(sizeof(AS7341_GAIN_CORRECTION) == GAIN_COUNT * sizeof(float));
+// clang-format off
+// The three bands this chip does not have contribute nothing to the weighted sums.
+static const ChannelContribution AS7341_CONTRIBUTIONS[] PROGMEM = {
+    {0.005261294f, 5.936230324f, 0.020518273f},     // F1
+    {0.242615252f, 3.572528495f, 0.013525490f},     // F2
+    {0.0f, 0.0f, 0.0f},                             // FZ, absent
+    {0.174482552f, 2.914113437f, 0.011585145f},     // F3
+    {1.479499075f, 2.452851227f, 0.010604986f},     // F4
+    {0.0f, 0.0f, 0.0f},                             // FY, absent
+    {1.906818555f, 1.940656433f, 0.008890531f},     // F5
+    {0.0f, 0.0f, 0.0f},                             // FXL, absent
+    {1.162058142f, 1.533976606f, 0.007441544f},     // F6
+    {0.462374845f, 1.819838250f, 0.009393590f},     // F7
+    {-0.017794572f, 1.232942274f, 0.006890812f},    // F8
+    {-0.260730901f, -1.102368000f, -0.004647911f},  // NIR
+    {-0.022604075f, -0.033304813f, -0.000129106f},  // Clear
+};
+static const ChannelTristimulus AS7341_TRISTIMULUS[] PROGMEM = {
+    {0.39814f, 0.01396f, 1.95010f},     // F1
+    {1.29540f, 0.16748f, 6.45490f},     // F2
+    {0.0f, 0.0f, 0.0f},                 // FZ, absent
+    {0.36956f, 0.23538f, 2.78010f},     // F3
+    {0.10902f, 1.42750f, 0.18501f},     // F4
+    {0.0f, 0.0f, 0.0f},                 // FY, absent
+    {0.71942f, 1.88670f, 0.15325f},     // F5
+    {0.0f, 0.0f, 0.0f},                 // FXL, absent
+    {1.78180f, 1.14200f, 0.09539f},     // F6
+    {1.10110f, 0.46497f, 0.10563f},     // F7
+    {-0.03991f, -0.02702f, 0.08866f},   // F8
+    {-0.27597f, -0.24468f, -0.61140f},  // NIR
+    {-0.02347f, -0.01993f, -0.00938f},  // Clear
+};
+// clang-format on
+static_assert(sizeof(AS7341_CONTRIBUTIONS) == NUM_BANDS * sizeof(ChannelContribution));
+static_assert(sizeof(AS7341_TRISTIMULUS) == NUM_BANDS * sizeof(ChannelTristimulus));
 const ChipInfo AS7341_CHIP PROGMEM = {
     .name = AS7341_NAME,
     .init = AS7341_INIT,
@@ -85,6 +123,8 @@ const ChipInfo AS7341_CHIP PROGMEM = {
     .readout = AS7341_READOUT,
     .wavelengths = AS7341_WAVELENGTHS,
     .gain_correction = AS7341_GAIN_CORRECTION,
+    .contributions = AS7341_CONTRIBUTIONS,
+    .tristimulus = AS7341_TRISTIMULUS,
     .init_count = 1,
     .astep_reg = 0xCA,
     .cfg0_reg = 0xA9,
@@ -147,6 +187,40 @@ static const float AS7343_GAIN_CORRECTION[] PROGMEM = {
 };
 // clang-format on
 static_assert(sizeof(AS7343_GAIN_CORRECTION) == GAIN_COUNT * NUM_BANDS * sizeof(float));
+// clang-format off
+static const ChannelContribution AS7343_CONTRIBUTIONS[] PROGMEM = {
+    {-0.028559089f, 0.450293995f, 0.001266925f},    // F1
+    {-0.042150948f, 3.566379984f, 0.012515925f},    // F2
+    {0.000661721f, 2.877424672f, 0.010243005f},     // FZ
+    {-0.108791278f, 2.273837581f, 0.009376157f},    // F3
+    {-0.167172180f, 1.519298503f, 0.006017556f},    // F4
+    {5.726660294f, 4.199345859f, 0.019357905f},     // FY
+    {0.0f, 0.0f, 0.0f},                             // F5
+    {-0.241492014f, 1.185259160f, 0.006516325f},    // FXL
+    {-0.047665296f, 1.759469826f, 0.009780714f},    // F6
+    {-0.012516990f, 1.702006611f, 0.009950228f},    // F7
+    {-0.026424974f, -1.059196137f, -0.005425656f},  // F8
+    {-0.007565221f, -0.064827881f, -0.000232267f},  // NIR
+    {0.0f, 0.0f, 0.0f},                             // Clear
+};
+static const ChannelTristimulus AS7343_TRISTIMULUS[] PROGMEM = {
+    {-0.07879f, -0.03269f, -0.31295f},  // F1
+    {-0.12235f, -0.01297f, -0.57885f},  // F2
+    {1.99879f, -0.04011f, 10.00197f},   // FZ
+    {-0.33364f, -0.06889f, -0.31281f},  // F3
+    {-0.06795f, -0.17453f, -0.19657f},  // F4
+    {-0.45419f, 5.69083f, -0.11077f},   // FY
+    {0.0f, 0.0f, 0.0f},                 // F5
+    {5.27242f, -0.22956f, -0.06132f},   // FXL
+    {-0.05072f, -0.04762f, -0.03536f},  // F6
+    {-0.04666f, -0.01295f, -0.06025f},  // F7
+    {-0.03931f, -0.02797f, -0.12174f},  // F8
+    {0.0f, 0.0f, 0.0f},                 // NIR
+    {0.0f, 0.0f, 0.0f},                 // Clear
+};
+// clang-format on
+static_assert(sizeof(AS7343_CONTRIBUTIONS) == NUM_BANDS * sizeof(ChannelContribution));
+static_assert(sizeof(AS7343_TRISTIMULUS) == NUM_BANDS * sizeof(ChannelTristimulus));
 static constexpr ChipInfo as7343_chip(const char *name) {
   return {
       .name = name,
@@ -155,6 +229,8 @@ static constexpr ChipInfo as7343_chip(const char *name) {
       .readout = AS7343_READOUT,
       .wavelengths = AS7343_WAVELENGTHS,
       .gain_correction = AS7343_GAIN_CORRECTION,
+      .contributions = AS7343_CONTRIBUTIONS,
+      .tristimulus = AS7343_TRISTIMULUS,
       .init_count = sizeof(AS7343_INIT) / sizeof(RegValue),
       .astep_reg = 0xD4,
       .cfg0_reg = 0xBF,
@@ -272,6 +348,14 @@ void AS734XComponent::dump_config() {
     sensor::log_sensor(TAG, "  ", label, this->basic_counts_sensors_[band]);
   }
   LOG_SENSOR("  ", "Saturation level", this->saturation_level_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
+  LOG_SENSOR("  ", "Irradiance photopic", this->irradiance_photopic_sensor_);
+  LOG_SENSOR("  ", "Irradiance PAR", this->irradiance_par_sensor_);
+  LOG_SENSOR("  ", "PPFD", this->ppfd_sensor_);
+  LOG_SENSOR("  ", "Color temperature", this->color_temperature_sensor_);
+#ifdef USE_AS734X_RGB
+  LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_sensor_);
+#endif
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
@@ -484,14 +568,100 @@ void AS734XComponent::publish_basic_counts_() {
   }
 }
 
+// Each band contributes a fixed amount per basic count to every integrated quantity, so the
+// totals are a weighted sum over the bands.
+void AS734XComponent::calculate_light_metrics_() {
+  float irradiance_photopic = 0.0f;
+  float irradiance_par = 0.0f;
+  float ppfd = 0.0f;
+
+  const ChannelContribution *contributions = pgm(this->chip_->contributions);
+  for (uint8_t band = 0; band < NUM_BANDS; band++) {
+    const float basic_count = this->basic_counts_[band];
+    const ChannelContribution contribution = pgm(contributions[band]);
+
+    irradiance_photopic += contribution.irradiance_photopic * basic_count;
+    irradiance_par += contribution.irradiance_par * basic_count;
+    ppfd += contribution.ppfd * basic_count;
+  }
+
+  this->irradiance_photopic_ = irradiance_photopic;
+  this->irradiance_par_ = irradiance_par;
+  this->ppfd_ = ppfd * 1e3f;
+  this->illuminance_ = irradiance_photopic * LUMENS_PER_WATT;
+
+  ESP_LOGV(TAG, "Photopic irradiance %.4f, PAR %.4f, PPFD %.4f, illuminance %.2f lx", this->irradiance_photopic_,
+           this->irradiance_par_, this->ppfd_, this->illuminance_);
+}
+
+void AS734XComponent::calculate_color_() {
+  float tri_x = 0.0f;
+  float tri_y = 0.0f;
+  float tri_z = 0.0f;
+
+  const ChannelTristimulus *table = pgm(this->chip_->tristimulus);
+  for (uint8_t band = 0; band < NUM_BANDS; band++) {
+    const float basic_count = this->basic_counts_[band];
+    const ChannelTristimulus tristimulus = pgm(table[band]);
+
+    tri_x += tristimulus.x * basic_count;
+    tri_y += tristimulus.y * basic_count;
+    tri_z += tristimulus.z * basic_count;
+  }
+
+  this->color_temperature_ = tristimulus_to_cct(tri_x, tri_y, tri_z);
+  ESP_LOGV(TAG, "XYZ %.4f, %.4f, %.4f -> CCT %.0f K", tri_x, tri_y, tri_z, this->color_temperature_);
+
+#ifdef USE_AS734X_RGB
+  // Convert to chromaticity first, so the colour describes the hue rather than the brightness.
+  // Absolute tristimulus values clamp to white under anything but dim light.
+  const float sum = tri_x + tri_y + tri_z;
+  if (sum > MIN_TRISTIMULUS_SUM) {
+    uint8_t r, g, b;
+    tristimulus_to_rgb(tri_x / sum, tri_y / sum, tri_z / sum, r, g, b);
+    snprintf(this->rgb_hex_, sizeof(this->rgb_hex_), "%02x%02x%02x", r, g, b);
+  } else {
+    // No usable chromaticity, so report black rather than leaving the previous colour in place or
+    // publishing an empty string.
+    strncpy(this->rgb_hex_, "000000", sizeof(this->rgb_hex_));
+  }
+#endif
+}
+
+void AS734XComponent::publish_light_metrics_() {
+  if (this->illuminance_sensor_ != nullptr) {
+    this->illuminance_sensor_->publish_state(this->illuminance_);
+  }
+  if (this->irradiance_photopic_sensor_ != nullptr) {
+    this->irradiance_photopic_sensor_->publish_state(this->irradiance_photopic_);
+  }
+  if (this->irradiance_par_sensor_ != nullptr) {
+    this->irradiance_par_sensor_->publish_state(this->irradiance_par_);
+  }
+  if (this->ppfd_sensor_ != nullptr) {
+    this->ppfd_sensor_->publish_state(this->ppfd_);
+  }
+  if (this->color_temperature_sensor_ != nullptr) {
+    this->color_temperature_sensor_->publish_state(this->color_temperature_);
+  }
+#ifdef USE_AS734X_RGB
+  if (this->rgb_hex_sensor_ != nullptr) {
+    this->rgb_hex_sensor_->publish_state(this->rgb_hex_);
+  }
+#endif
+}
+
 void AS734XComponent::publish_measurement_() {
   this->calculate_basic_counts_();
+  this->calculate_light_metrics_();
+  this->calculate_color_();
   for (uint8_t band = 0; band < NUM_BANDS; band++) {
     if (this->sensors_[band] != nullptr) {
       this->sensors_[band]->publish_state(this->raw_counts_[band]);
     }
   }
   this->publish_basic_counts_();
+  this->publish_light_metrics_();
   if (this->saturation_level_sensor_ != nullptr) {
     const uint32_t max_adc =
         std::min<uint32_t>((this->reading_atime_ + 1UL) * (this->reading_astep_ + 1UL), MAX_ADC_COUNT);
