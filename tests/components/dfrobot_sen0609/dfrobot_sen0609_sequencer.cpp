@@ -48,6 +48,21 @@ TEST_F(SEN0609SequencerTest, ErrorAnswerIsRetriedThenSkipped) {
   EXPECT_FALSE(this->version_.has_state());
 }
 
+TEST_F(SEN0609SequencerTest, LateAnswerIsNotTakenForNextCommand) {
+  this->hub_.setup();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  for (int i = 0; i < 3; i++)
+    ASSERT_EQ(this->next_command_(), "getSWV");
+  ASSERT_EQ(this->next_command_(), "getHWV");
+  // The answer to the last getSWV arrives after it timed out
+  this->feed_("getSWV\r\nSoftwareVersion:V1.0.4\r\nDone\r\nDFRobot:/>");
+  this->answer_("getHWV", "HardwareVersion:V2.0\r\n");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_EQ(this->hardware_version_.state, "V2.0");
+}
+
 TEST_F(SEN0609SequencerTest, SilentModuleBacksOffAndKeepsWork) {
   this->hub_.setup();
   for (int i = 0; i < 3; i++)

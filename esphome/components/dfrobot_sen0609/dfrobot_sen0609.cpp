@@ -167,7 +167,14 @@ void DFRobotSEN0609Component::handle_line_(char *line) {
     this->handle_frame_(line);
     return;
   }
-  if (this->operation_ == Operation::OPERATION_NONE || strcmp(line, this->command_) == 0)
+  if (this->operation_ == Operation::OPERATION_NONE)
+    return;
+  if (strcmp(line, this->command_) == 0) {
+    this->echo_seen_ = true;
+    return;
+  }
+  // The module echoes every command first; lines before the echo belong to an earlier command
+  if (!this->echo_seen_)
     return;
 
   if (starts_with(line, ESPHOME_PSTR("Done")) || answer_means_done(this->operation_, line)) {
@@ -320,6 +327,7 @@ void DFRobotSEN0609Component::run_sequencer_() {
     this->pending_writes_ &= ~param_bit(param);
   this->operation_ = operation;
   this->param_ = param;
+  this->echo_seen_ = false;
   this->sent_ms_ = now;
   ESP_LOGV(TAG, "TX: %s", this->command_);
   this->write_str(this->command_);

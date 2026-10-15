@@ -1,6 +1,5 @@
 dfrobot_sen0609:
   id: sen0609_speed
-  model: SEN0610
   mode: speed_and_distance
 
 binary_sensor:
