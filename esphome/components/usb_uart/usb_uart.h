@@ -291,6 +291,12 @@ class USBUartComponent : public usb_host::USBClient {
   // once from config_step_()/config_device_step_() when issuing a step.
   void config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
                         const std::vector<uint8_t> &data = {});
+  // Submit a config transfer whose callback stores the reply itself and then calls
+  // complete_config_transfer_(). A failed submission completes the step as failed.
+  void submit_config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
+                               const usb_host::transfer_cb_t &callback, const std::vector<uint8_t> &data);
+  // End the step in flight with the given result and wake the loop. Called from the USB task.
+  void complete_config_transfer_(const usb_host::TransferStatus &status, bool ok);
   // (Re)start the config state machine. INIT runs over all channels; the other modes act
   // on cfg_single_ only.
   void start_config_(ConfigMode mode);
