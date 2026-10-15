@@ -1,0 +1,13 @@
+hdmi_cec:
+  id: cec
+  pin: ${cec_pin}  # HDMI pin 13, with HDMI pin 17 as ground
+  address: 0x5
+  physical_address: 0x4000
+  osd_name: ESPHome
+  uart_id: uart_bus  # its tx_pin drives the same line through a diode
+  on_message:
+    - opcode: 0x8F  # Give Device Power Status
+      then:
+        - hdmi_cec.send:
+            destination: !lambda return source;
+            data: [0x90, 0x01]  # Report Power Status: standby
