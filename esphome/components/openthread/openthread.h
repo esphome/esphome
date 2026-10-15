@@ -129,6 +129,7 @@ class OpenThreadComponent final : public Component {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   std::atomic<bool> mainloop_running_{false};
   bool border_router_started_{false};
+  bool backbone_up_{false};  // what the stack was told about the infra interface last
 #endif
 
  private:

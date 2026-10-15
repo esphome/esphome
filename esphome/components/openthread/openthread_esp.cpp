@@ -2,6 +2,9 @@
 #if defined(USE_OPENTHREAD) && defined(USE_ESP32)
 #include <openthread/dataset.h>
 #include <openthread/ip6.h>
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+#include <openthread/platform/infra_if.h>
+#endif
 #include "openthread.h"
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
@@ -254,7 +257,7 @@ void OpenThreadComponent::ot_main_() {
   }
 
   // Clean up. Taking the lock once more lets every guard finish; the stack is stopped and the
-  // lock withdrawn while it is held, before deinit destroys the semaphore.
+  // lock withdrawn while it is held.
   esp_openthread_lock_acquire(portMAX_DELAY);
   // Best effort: after a normal teardown all of this is done already
   otIp6SetAddressCallback(instance, nullptr, nullptr);
@@ -272,6 +275,9 @@ void OpenThreadComponent::ot_main_() {
   esp_openthread_lock_release();
   esp_openthread_netif_glue_deinit();
   esp_netif_destroy(netif);
+  // Finalizing the instance closes the sockets the stack still holds, which hands the task
+  // switching lock back and forth, so it has to be held here; deinit destroys it at the end
+  esp_openthread_lock_acquire(portMAX_DELAY);
   esp_openthread_deinit();
   esp_vfs_eventfd_unregister();
   this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
@@ -337,14 +343,14 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 static constexpr uint32_t BORDER_ROUTER_RETRY_MS = 10000;
 
 void OpenThreadComponent::loop() {
-  // Thread starts on its own. Border routing follows the Wi-Fi backbone: it starts once the backbone
-  // has an address and is torn down while the backbone is gone, so a reconnect starts it afresh with
-  // the interface the way it is then. The Wi-Fi listener enables the loop on every link change
+  // Thread starts on its own. Border routing starts once the Wi-Fi backbone has an address; after
+  // that the stack is told whenever the backbone goes away or comes back, which makes it stop and
+  // restart routing on that interface. The Wi-Fi listener enables the loop on every link change
   if (!this->mainloop_running_) {
     return;
   }
   const bool backbone_up = wifi::global_wifi_component->is_connected();
-  if (backbone_up == this->border_router_started_) {
+  if (this->border_router_started_ && backbone_up == this->backbone_up_) {
     this->disable_loop();
     return;
   }
@@ -353,25 +359,31 @@ void OpenThreadComponent::loop() {
   if (!lock) {
     return;
   }
-  if (!backbone_up) {
-    ESP_LOGW(TAG, "Wi-Fi backbone lost, border routing stops until it is back");
-    if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
-      ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
+  if (!this->border_router_started_) {
+    if (!backbone_up) {
+      this->disable_loop();
+      return;
     }
-    this->border_router_started_ = false;
+    if (const esp_err_t err = esp_openthread_border_router_init(); err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to initialize OpenThread Border Router: %s", esp_err_to_name(err));
+      this->status_set_error(LOG_STR("Border router init failed"));
+      this->disable_loop();
+      this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
+      return;
+    }
+    this->status_clear_error();
+    this->border_router_started_ = true;
+    this->backbone_up_ = true;
+    ESP_LOGI(TAG, "Border routing started");
     this->disable_loop();
     return;
   }
-  if (const esp_err_t err = esp_openthread_border_router_init(); err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to initialize OpenThread Border Router: %s", esp_err_to_name(err));
-    this->status_set_error(LOG_STR("Border router init failed"));
-    this->disable_loop();
-    this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
-    return;
-  }
-  this->status_clear_error();
-  this->border_router_started_ = true;
-  ESP_LOGI(TAG, "Border routing started");
+  ESP_LOGI(
+      TAG, "Wi-Fi backbone %s",
+      backbone_up ? LOG_STR_LITERAL("back, border routing resumes") : LOG_STR_LITERAL("lost, border routing pauses"));
+  esp_netif_t *backbone = esp_openthread_get_backbone_netif();
+  otPlatInfraIfStateChanged(lock.get_instance(), esp_netif_get_netif_impl_index(backbone), backbone_up);
+  this->backbone_up_ = backbone_up;
   this->disable_loop();
 }
 #endif
