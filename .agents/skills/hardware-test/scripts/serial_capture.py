@@ -9,6 +9,7 @@
   --baud       115200 by default; 74880 shows the ESP8266 ROM boot messages.
 
 Exit status 1 when nothing was received (wrong port name, or a port another capture still holds).
+Text ESPHome marks as secret (LOG_SECRET, the Wi-Fi password) is written as <secret>.
 Lines are written as [HH:MM:SS]text with ANSI colour stripped and flushed one by one, so a shell
 loop can grep the file while the capture runs. If the port is missing or disappears (USB CDC boards
 re-enumerate on reboot) the script retries until the deadline, and follows the board by its USB serial
@@ -29,22 +30,29 @@ import serial
 from serial.tools import list_ports
 
 ANSI = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
+SECRET = re.compile(
+    rb"\x1b\[8m.*?\x1b\[28m"
+)  # ESPHome's LOG_SECRET span, e.g. a Wi-Fi password
 PORT_ERRORS = (serial.SerialException, OSError)
 
 
-def serial_number_of(port: str) -> str | None:
-    for p in list_ports.comports():
-        if p.device == port:
-            return p.serial_number
-    return None
+def identify(port: str) -> tuple[str | None, int]:
+    """USB serial number of the port and its position among that device's ports (a dongle has two)."""
+    ports = sorted(list_ports.comports(), key=lambda p: p.device)
+    serial_number = next((p.serial_number for p in ports if p.device == port), None)
+    siblings = [
+        p.device for p in ports if serial_number and p.serial_number == serial_number
+    ]
+    return serial_number, siblings.index(port) if port in siblings else 0
 
 
-def current_path(port: str, serial_number: str | None) -> str:
+def current_path(port: str, serial_number: str | None, index: int) -> str:
     """The port's current device path: a USB CDC board can come back under a new name after a reboot."""
     if serial_number:
-        for p in sorted(list_ports.comports(), key=lambda p: p.device):
-            if p.serial_number == serial_number:
-                return p.device
+        ports = sorted(list_ports.comports(), key=lambda p: p.device)
+        siblings = [p.device for p in ports if p.serial_number == serial_number]
+        if index < len(siblings):
+            return siblings[index]
     return port
 
 
@@ -70,7 +78,7 @@ def open_port(args: argparse.Namespace, path: str) -> serial.Serial:
 
 def write_line(out, tag: bytes, data: bytes) -> None:
     stamp = time.strftime("[%H:%M:%S]").encode()
-    out.write(stamp + tag + ANSI.sub(b"", data) + b"\n")
+    out.write(stamp + tag + ANSI.sub(b"", SECRET.sub(b"<secret>", data)) + b"\n")
     out.flush()
 
 
@@ -84,15 +92,15 @@ def capture(args: argparse.Namespace, out) -> int:
     buf = b""
     s = None
     received = 0
-    serial_number = None
+    serial_number, index = None, 0
     while time.time() < deadline:
         if s is None:
-            path = current_path(args.port, serial_number)
+            path = current_path(args.port, serial_number, index)
             try:
                 s = open_port(args, path)
                 args.reset = False  # only reset on the first open
                 if serial_number is None:
-                    serial_number = serial_number_of(path)
+                    serial_number, index = identify(path)
                 if path != args.port:
                     note(out, f"reopened as {path}")
             except PORT_ERRORS as err:
