@@ -118,6 +118,15 @@ void IDFOTABackend::set_update_md5(const char *expected_md5) {
   this->md5_set_ = true;
 }
 
+void IDFOTABackend::set_update_sha256(const char *sha256) {
+#ifdef USE_SHA256
+  if (parse_hex(sha256, this->expected_sha256_, 32)) {
+    this->sha256_.init();
+    this->sha256_set_ = true;
+  }
+#endif
+}
+
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
@@ -127,7 +136,7 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     }
     memcpy(this->buf_ + this->buf_written_, data, len);
     this->buf_written_ += len;
-    this->md5_.add(data, len);
+    this->checksum_add_(data, len);
     return OTA_RESPONSE_OK;
   }
   if (!this->is_app_or_bootloader_update_()) {
@@ -146,7 +155,7 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
   }
 #endif
   esp_err_t err = esp_ota_write(this->update_handle_, data, len);
-  this->md5_.add(data, len);
+  this->checksum_add_(data, len);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
@@ -193,6 +202,16 @@ OTAResponseTypes IDFOTABackend::end() {
       return OTA_RESPONSE_ERROR_MD5_MISMATCH;
     }
   }
+#ifdef USE_SHA256
+  else if (this->sha256_set_) {
+    this->sha256_.calculate();
+    if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
+      ESP_LOGE(TAG, "SHA256 mismatch");
+      this->abort();
+      return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
+    }
+  }
+#endif
 #ifdef USE_OTA_PARTITIONS
   // A partition-table update carries an MD5 (checked by IDF), not a Secure Boot
   // signature, and only re-points boot at an already-installed app -- so it is

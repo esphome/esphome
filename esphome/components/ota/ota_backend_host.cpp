@@ -230,6 +230,9 @@ OTAResponseTypes HostOTABackend::begin(size_t image_size, OTAType ota_type) {
   this->expected_size_ = image_size;
   this->bytes_written_ = 0;
   this->md5_set_ = false;
+#ifdef USE_SHA256
+  this->sha256_set_ = false;
+#endif
   this->md5_.init();
 
   ESP_LOGD(TAG, "OTA begin: staging=%s, size=%zu", this->staging_path_.c_str(), image_size);
@@ -239,6 +242,15 @@ OTAResponseTypes HostOTABackend::begin(size_t image_size, OTAType ota_type) {
 void HostOTABackend::set_update_md5(const char *md5) {
   if (parse_hex(md5, this->expected_md5_, 16))
     this->md5_set_ = true;
+}
+
+void HostOTABackend::set_update_sha256(const char *sha256) {
+#ifdef USE_SHA256
+  if (parse_hex(sha256, this->expected_sha256_, 32)) {
+    this->sha256_.init();
+    this->sha256_set_ = true;
+  }
+#endif
 }
 
 OTAResponseTypes HostOTABackend::write(uint8_t *data, size_t len) {
@@ -263,7 +275,7 @@ OTAResponseTypes HostOTABackend::write(uint8_t *data, size_t len) {
     p += n;
     remaining -= n;
   }
-  this->md5_.add(data, len);
+  this->checksum_add_(data, len);
   this->bytes_written_ += len;
   return OTA_RESPONSE_OK;
 }
@@ -291,6 +303,16 @@ OTAResponseTypes HostOTABackend::end() {
       return OTA_RESPONSE_ERROR_MD5_MISMATCH;
     }
   }
+#ifdef USE_SHA256
+  else if (this->sha256_set_) {
+    this->sha256_.calculate();
+    if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
+      ESP_LOGE(TAG, "SHA256 mismatch");
+      this->abort();
+      return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
+    }
+  }
+#endif
 
   if (::fsync(this->fd_) != 0) {
     ESP_LOGW(TAG, "fsync failed: %s", std::strerror(errno));
@@ -338,6 +360,9 @@ void HostOTABackend::abort() {
   this->expected_size_ = 0;
   this->bytes_written_ = 0;
   this->md5_set_ = false;
+#ifdef USE_SHA256
+  this->sha256_set_ = false;
+#endif
 }
 
 }  // namespace esphome::ota

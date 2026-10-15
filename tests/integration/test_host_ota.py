@@ -13,6 +13,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import functools
+import hashlib
 from pathlib import Path
 import socket
 import zlib
@@ -296,6 +297,71 @@ async def test_host_ota_self_update(
 
         # Second OTA: catches FD_CLOEXEC regressions (EADDRINUSE on rebind).
         await dev.ota(None, None, "second OTA failed -- listener leaked across execv")
+
+
+class _ChecksumSpy:
+    """Stands in for hashlib in espota2: records the file checksum used, and can
+    send a wrong SHA256."""
+
+    def __init__(self, corrupt_sha256: bool = False) -> None:
+        self.used: list[str] = []
+        self._corrupt_sha256 = corrupt_sha256
+
+    def md5(self, data: bytes) -> object:
+        self.used.append("md5")
+        return hashlib.md5(data)
+
+    def sha256(self, data: bytes) -> object:
+        self.used.append("sha256")
+        return hashlib.sha256(data + b"x" if self._corrupt_sha256 else data)
+
+
+@pytest.mark.asyncio
+async def test_host_ota_checksum(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The host backend takes a SHA256 file checksum, an old client still gets
+    MD5, and a wrong SHA256 is rejected."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    mismatches: list[str] = []
+
+    def on_log(line: str) -> None:
+        if "SHA256 mismatch" in line:
+            mismatches.append(line)
+        dev.on_log(line)
+
+    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+
+        spy = _ChecksumSpy()
+        with monkeypatch.context() as m:
+            m.setattr(espota2, "hashlib", spy)
+            await dev.ota(None, None, "SHA256 upload failed")
+        assert spy.used == ["sha256"]
+
+        # A client that does not offer SHA256 falls back to MD5
+        spy = _ChecksumSpy()
+        with monkeypatch.context() as m:
+            m.setattr(espota2, "hashlib", spy)
+            m.setattr(espota2, "CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM", 0)
+            await dev.ota(None, None, "MD5 upload failed")
+        assert spy.used == ["md5"]
+
+        with monkeypatch.context() as m:
+            m.setattr(espota2, "hashlib", _ChecksumSpy(corrupt_sha256=True))
+            await dev.refused_ota(None, None, "wrong SHA256 was accepted")
+        assert mismatches, "device did not report the SHA256 mismatch"
+
+        await dev.ota(None, None, "upload after a SHA256 mismatch failed")
 
 
 @pytest.mark.asyncio

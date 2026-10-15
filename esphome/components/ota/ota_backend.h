@@ -29,6 +29,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_SUPPORTS_COMPRESSION = 0x46,
   OTA_RESPONSE_CHUNK_OK = 0x47,
   OTA_RESPONSE_FEATURE_FLAGS = 0x48,
+  OTA_RESPONSE_BIN_SHA256_OK = 0x49,
 
   OTA_RESPONSE_ERROR_MAGIC = 0x80,
   OTA_RESPONSE_ERROR_UPDATE_PREPARE = 0x81,
@@ -52,6 +53,8 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93,
   OTA_RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94,
   OTA_RESPONSE_ERROR_UPDATE_BUSY = 0x95,
+  OTA_RESPONSE_ERROR_SHA256_MISMATCH = 0x96,
+  OTA_RESPONSE_ERROR_SHA256_REQUIRED = 0x97,
   OTA_RESPONSE_ERROR_UNKNOWN = 0xFF,
 };
 
@@ -129,17 +132,27 @@ class UpdateLock {
 // - abort: safe to call in any state, including after end().
 // - supports_compression: constexpr, whether a gzip image is stored as is and
 //   inflated at reboot.
+// - set_update_sha256: expected SHA256 of the incoming image, hex string; only
+//   called when supports_sha256_checksum() is true. Replaces the MD5 check.
+// - supports_sha256_checksum / requires_sha256_checksum: constexpr, whether the
+//   backend can verify (or only verifies) the image with SHA256 instead of MD5.
 template<typename T>
-concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *data, size_t len, const char *md5) {
+concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *data, size_t len, const char *md5,
+                                      const char *sha256) {
   { backend.begin(image_size, OTA_TYPE_UPDATE_APP) } -> std::same_as<OTAResponseTypes>;
   { backend.begin(image_size) } -> std::same_as<OTAResponseTypes>;
   backend.set_update_md5(md5);
+  backend.set_update_sha256(sha256);
   { backend.write(data, len) } -> std::same_as<OTAResponseTypes>;
   { backend.end() } -> std::same_as<OTAResponseTypes>;
   backend.abort();
   { T::supports_compression() } -> std::same_as<bool>;
+  { T::supports_sha256_checksum() } -> std::same_as<bool>;
+  { T::requires_sha256_checksum() } -> std::same_as<bool>;
   // The value must be a constant expression
   typename std::bool_constant<T::supports_compression()>;
+  typename std::bool_constant<T::supports_sha256_checksum()>;
+  typename std::bool_constant<T::requires_sha256_checksum()>;
 };
 
 /** Listener interface for OTA state changes.

@@ -5,6 +5,10 @@
 #include "esphome/components/md5/md5.h"
 #include "esphome/core/defines.h"
 
+#ifdef USE_SHA256
+#include "esphome/components/sha256/sha256.h"
+#endif
+
 #include <esp_idf_version.h>
 #include <esp_ota_ops.h>
 
@@ -30,10 +34,17 @@ class IDFOTABackend final {
  public:
   OTAResponseTypes begin(size_t image_size, ota::OTAType ota_type = ota::OTA_TYPE_UPDATE_APP);
   void set_update_md5(const char *md5);
+  void set_update_sha256(const char *sha256);
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
   void abort();
   static constexpr bool supports_compression() { return false; }
+#ifdef USE_SHA256
+  static constexpr bool supports_sha256_checksum() { return true; }
+#else
+  static constexpr bool supports_sha256_checksum() { return false; }
+#endif
+  static constexpr bool requires_sha256_checksum() { return false; }
 
  protected:
   UpdateLock lock_;
@@ -73,6 +84,17 @@ class IDFOTABackend final {
 #ifdef USE_OTA_BLOCK_ERASE_AHEAD
   OTAResponseTypes erase_ahead_(size_t len);
 #endif
+#ifdef USE_SHA256
+  void checksum_add_(const uint8_t *data, size_t len) {
+    if (this->sha256_set_) {
+      this->sha256_.add(data, len);
+    } else {
+      this->md5_.add(data, len);
+    }
+  }
+#else
+  void checksum_add_(const uint8_t *data, size_t len) { this->md5_.add(data, len); }
+#endif
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
   // Accept an image signed by any key the running app trusts (up to 3 blocks),
   // so rotation and backup keys work. Fails closed. Covers app and bootloader.
@@ -80,6 +102,11 @@ class IDFOTABackend final {
 #endif
   // Keep md5_ first since its digest_ is alignas(32) on DMA-SHA variants; md5_set_ stays last so buf_ packs tightly.
   md5::MD5Digest md5_{};
+#ifdef USE_SHA256
+  sha256::SHA256 sha256_{};
+  uint8_t expected_sha256_[32];
+  bool sha256_set_{false};
+#endif
   esp_ota_handle_t update_handle_{0};
   const esp_partition_t *partition_{nullptr};
   size_t written_{0};  // Bytes handed to esp_ota_write()

@@ -205,6 +205,7 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10;
 #ifdef ESPHOME_OTA_UDP
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_UDP = 0x20;
 #endif
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x40;
 // Noise needs the extended protocol: the prologue binds the 2-byte feature ack
 static constexpr uint8_t CLIENT_NOISE_FEATURES =
     CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
@@ -218,6 +219,7 @@ static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_UDP = 0x10;
 static constexpr uint8_t UDP_REQUEST_V1 = 0x01;  // espota2.UDP_REQUEST
 #endif
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x20;
 
 #ifdef USE_OTA_ENCRYPTION
 inline bool ESPHomeOTAComponent::noise_offered_() const {
@@ -337,6 +339,15 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
       const bool supports_compression =
           (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && ota::OTABackend::supports_compression();
+      // Only the extended protocol carries the server's choice back, so other clients always use MD5
+      this->use_sha256_checksum_ = this->extended_proto_() &&
+                                   (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM) != 0 &&
+                                   ota::OTABackend::supports_sha256_checksum();
+      if (ota::OTABackend::requires_sha256_checksum() && !this->use_sha256_checksum_) {
+        ESP_LOGW(TAG, "Client does not support the required SHA256 checksum");
+        this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_SHA256_REQUIRED);
+        return;
+      }
 
       // Compose the feature-ack response. When the client negotiates the extended protocol we emit
       // a 2-byte response (marker + server feature flags); otherwise we emit the single-byte
@@ -345,6 +356,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
         static_assert(HANDSHAKE_BUF_SIZE >= 2, "handshake_buf_ must hold the 2-byte extended-protocol feature ack");
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
+        this->handshake_buf_[1] |= (this->use_sha256_checksum_ ? SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM : 0);
 #ifdef ESPHOME_OTA_UDP
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_UDP;
 #endif
@@ -606,18 +618,26 @@ void ESPHomeOTAComponent::handle_data_() {
   // Acknowledge prepare OK - 1 byte
   this->data_write_byte_(ota::OTA_RESPONSE_UPDATE_PREPARE_OK);
 
-  // Read binary MD5, 32 bytes
-  if (!this->data_readall_(buf, 32)) {
-    this->log_read_error_(LOG_STR("MD5 checksum"));
-    error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
-  sbuf[32] = '\0';
-  ESP_LOGV(TAG, "Update: Binary MD5 is %s", sbuf);
-  this->backend_->set_update_md5(sbuf);
+  {
+    // Read binary checksum as hex: SHA256 (64 bytes) when negotiated, else MD5 (32 bytes)
+    const size_t checksum_len = this->use_sha256_checksum_ ? 64 : 32;
+    if (!this->data_readall_(buf, checksum_len)) {
+      this->log_read_error_(LOG_STR("checksum"));
+      error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    sbuf[checksum_len] = '\0';
+    ESP_LOGV(TAG, "Update: Binary %s is %s",
+             this->use_sha256_checksum_ ? LOG_STR_LITERAL("SHA256") : LOG_STR_LITERAL("MD5"), sbuf);
+    if (this->use_sha256_checksum_) {
+      this->backend_->set_update_sha256(sbuf);
+    } else {
+      this->backend_->set_update_md5(sbuf);
+    }
 
-  // Acknowledge MD5 OK - 1 byte
-  this->data_write_byte_(ota::OTA_RESPONSE_BIN_MD5_OK);
+    // Acknowledge checksum OK - 1 byte
+    this->data_write_byte_(this->use_sha256_checksum_ ? ota::OTA_RESPONSE_BIN_SHA256_OK : ota::OTA_RESPONSE_BIN_MD5_OK);
+  }
 
   xfer.last_data_ms = millis();
 #ifdef USE_OTA_DEFLATE

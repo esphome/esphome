@@ -22,10 +22,13 @@ struct StubOTABackend {
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
   void set_update_md5(const char *md5) {}
+  void set_update_sha256(const char *sha256) {}
   OTAResponseTypes write(uint8_t *data, size_t len) { return OTA_RESPONSE_ERROR_UNKNOWN; }
   OTAResponseTypes end() { return OTA_RESPONSE_ERROR_UNKNOWN; }
   void abort() {}
   static constexpr bool supports_compression() { return false; }
+  static constexpr bool supports_sha256_checksum() { return false; }
+  static constexpr bool requires_sha256_checksum() { return false; }
 };
 std::unique_ptr<StubOTABackend> make_ota_backend();
 }  // namespace esphome::ota
