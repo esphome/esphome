@@ -153,6 +153,18 @@ struct LogString;
     } \
   }
 
+/// The index of the string value (len bytes, in RAM) in a PROGMEM_STRING_TABLE, or -1 when it is
+/// not one of its strings
+template<typename Table> int8_t progmem_string_table_find(const char *value, size_t len) {
+  for (uint8_t i = 0; i < Table::COUNT; i++) {
+    const char *entry = Table::get_(i, i);
+    if (ESPHOME_strlen_P(entry) == len && ESPHOME_strncmp_P(value, entry, len) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /// The strings of a PROGMEM_STRING_TABLE addressable as plain pointers, for code that hands them on
 /// without reading them itself, such as an API request. On the ESP8266 this is a copy of the table on
 /// the stack that lives as long as the object; elsewhere the table is read in place.

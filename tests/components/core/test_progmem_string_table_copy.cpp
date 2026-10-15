@@ -24,4 +24,12 @@ TEST(ProgmemStringTableCopy, StringsStayValidWhileTheCopyLives) {
   EXPECT_STREQ(other, "rgb_color");
 }
 
+TEST(ProgmemStringTableFind, FindsWholeStringsOnly) {
+  EXPECT_EQ(progmem_string_table_find<Names>("entity_id", 9), 1);
+  EXPECT_EQ(progmem_string_table_find<Names>("rgb_color", 9), 2);
+  EXPECT_EQ(progmem_string_table_find<Names>("entity", 6), -1);
+  EXPECT_EQ(progmem_string_table_find<Names>("entity_id_x", 11), -1);
+  EXPECT_EQ(progmem_string_table_find<Names>("", 0), -1);
+}
+
 }  // namespace esphome::testing
