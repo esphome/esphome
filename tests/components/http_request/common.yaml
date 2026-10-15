@@ -42,6 +42,13 @@ button:
             md5: 0123456789abcdef0123456789abcdef
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
+        - ota.http_request.flash:
+            id: http_request_ota
+            md5_url: !lambda 'return std::string("http://my.ha.net:8123/local/esphome/firmware.md5");'
+            username: user
+            password: !lambda 'return std::string("pass");'
+            url: http://my.ha.net:8123/local/esphome/firmware.bin
+
         - logger.log: "This message should be not displayed (reboot)"
 
 update:
