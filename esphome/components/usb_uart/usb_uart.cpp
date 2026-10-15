@@ -620,16 +620,20 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
 
 void USBUartComponent::config_read_(uint8_t type, uint8_t request, uint16_t value, uint16_t index, uint8_t *dest,
                                     size_t length) {
+  // Members rather than captures: a lambda holding more than `this` outgrows the inline storage
+  // of std::function and would allocate on every read
+  this->cfg_read_dest_ = dest;
+  this->cfg_read_len_ = length;
   this->submit_config_transfer_(
       type, request, value, index,
-      [this, dest, length](const usb_host::TransferStatus &status) {
+      [this](const usb_host::TransferStatus &status) {
         // The buffer and its length both start with the setup packet
         const size_t received = status.success ? status.data_len - usb_host::SETUP_PACKET_SIZE : 0;
-        const bool read_ok = status.success && received == length;
+        const bool read_ok = status.success && received == this->cfg_read_len_;
         if (read_ok) {
-          memcpy(dest, status.data + usb_host::SETUP_PACKET_SIZE, length);
+          memcpy(this->cfg_read_dest_, status.data + usb_host::SETUP_PACKET_SIZE, this->cfg_read_len_);
         } else if (status.success) {
-          ESP_LOGW(TAG, "Config read returned %zu of %zu bytes", received, length);
+          ESP_LOGW(TAG, "Config read returned %zu of %zu bytes", received, this->cfg_read_len_);
         }
         this->complete_config_transfer_(status, read_ok);
       },
