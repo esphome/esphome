@@ -121,7 +121,7 @@ struct Rig {
   DaikinClimate climate;
 
   Rig() {
-    // All instances share one preference key; clear it so setup starts from defaults
+    // A second fixture in the same test would otherwise restore what the first saved
     if (global_preferences != nullptr)
       global_preferences->reset();
     static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
