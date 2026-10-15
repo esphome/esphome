@@ -124,8 +124,10 @@ class HDMICEC : public Component {
 
   void set_promiscuous_mode(bool promiscuous) { this->promiscuous_mode_ = promiscuous; }
   void set_monitor_mode(bool monitor_mode) { this->monitor_mode_ = monitor_mode; }
-  /// Answer "Give Physical Address" with this address and the device type of the logical address
+  /// Answer "Give Physical Address" with this address and the device type of the logical address.
+  /// A lambda may change it at run time, for instance after reading it from the HDMI sink's EDID
   void set_physical_address(uint16_t physical_address) { this->physical_address_ = physical_address; }
+  uint16_t get_physical_address() const { return this->physical_address_; }
   /// Answer "Give OSD Name" with this name; it lives in flash
   void set_osd_name(const char *name, uint8_t length) {
     this->osd_name_ = name;
