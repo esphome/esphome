@@ -2,8 +2,8 @@
 
 A plain open asserts both lines and holds the chip in reset. Here every open keeps DTR high and RTS
 released; the first open pulses RTS so the ROM comes up; after the command DTR low plus an RTS pulse
-boots the app. The exit status is ltchiptool's; 2 means the flash succeeded but the boot pulse
-failed, so the board is still in the ROM and needs a reset.
+boots the app. The exit status is ltchiptool's; 2 means the flash succeeded but the app was not
+booted (boot pulse failed, or no -d PORT to send it to), so the board sits in the ROM until reset.
 
 Usage: python flash_rtl87xx_kit.py flash write -d <port> firmware.uf2
 """
@@ -41,6 +41,8 @@ def port_argument(argv: list[str]) -> str | None:
             return argv[i + 1]
         if a.startswith(("-d=", "--device=")):
             return a.split("=", 1)[1]
+        if a.startswith("-d") and len(a) > 2:
+            return a[2:]
     return None
 
 
@@ -63,7 +65,14 @@ def main() -> int:
         rc = int(result) if isinstance(result, int) else 0
     finally:
         port = port_argument(sys.argv)
-        if port:
+        if not port:
+            print(
+                "[flash_rtl87xx_kit] no -d PORT given, the application was not booted",
+                file=sys.stderr,
+            )
+            if rc == 0:
+                rc = 2
+        else:
             try:
                 boot_app(port)
                 print("[flash_rtl87xx_kit] application booted")

@@ -11,7 +11,7 @@
 #   SETTLE_S    seconds to keep capturing after the client reports the real save (default 40; BW15 wants 90)
 # Env: PY (python with esphome; default DUT_TREE/venv/bin/python, else python3 on PATH), LTPY
 #      (LibreTiny penv python with ltchiptool; default ~/.platformio/penv/.libretiny/bin/python)
-# Output next to each yaml: NAME-compile.log, NAME-upload.log, NAME-serial.log, and DUT NAME-events.txt
+# Output next to each yaml: NAME-compile.log, NAME-upload.log, NAME-serial.log, NAME-capture.err, and DUT NAME-events.txt
 # (addresses redacted so the extract can go on a PR; the serial logs themselves stay local).
 # Exit status: 0 RESULT PASS (no crash marker or reboot after the AP came up, real save answered 200, a
 # station address, and real stimulus: saves answered and a cooldown exit); 3 RESULT FAIL (the counts show
@@ -70,8 +70,9 @@ case $KIND in
   *) echo "unknown DUT_KIND $KIND"; exit 1 ;;
 esac
 
-: > "$DLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$DPORT" $DUT_CAPTURE "$DLOG" $TAILOPT &)
+: > "$DLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$DPORT" $DUT_CAPTURE "$DLOG" $TAILOPT 2> "${DLOG%-serial.log}-capture.err" &)
 if ! n=$(wait_for "$DLOG" "Captive portal\|Starting fallback AP" $AP_WAIT); then
+  [ -s "$DLOG" ] || fail "the DUT capture produced nothing (the capture itself failed), see ${DLOG%-serial.log}-capture.err"
   port_never_opened "$DLOG" && fail "could not open $DPORT (held by another process, or the wrong port), see $DLOG"
   fail "DUT never raised its AP within ${n}s, see $DLOG"
 fi
@@ -79,10 +80,11 @@ echo "[hammer] DUT fallback AP after ${n}s"; sleep 2
 BOOT_BASE=$(count 'Log initialized' "$DLOG")  # reboots are counted from here; the first banner may predate the capture
 
 esp_upload "$CYAML" "$CPORT" "$CTREE" || fail "client upload failed"
-: > "$CLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$CPORT" $CLIENT_CAPTURE "$CLOG" &)
+: > "$CLOG"; ("$PY" "$SKILL/scripts/serial_capture.py" "$CPORT" $CLIENT_CAPTURE "$CLOG" 2> "${CLOG%-serial.log}-capture.err" &)
 if n=$(wait_for "$CLOG" "real save status\|posting the real" $SAVE_WAIT); then
   echo "[hammer] client posted the real credentials after ${n}s; settling ${SETTLE}s"; sleep "$SETTLE"
 else
+  [ -s "$CLOG" ] || fail "the client capture produced nothing (the capture itself failed), see ${CLOG%-serial.log}-capture.err"
   port_never_opened "$CLOG" && fail "could not open $CPORT (held by another process, or the wrong port), see $CLOG"
   INVALID="client never reached the real save within ${n}s"; echo "[hammer] WARNING: $INVALID"
 fi
