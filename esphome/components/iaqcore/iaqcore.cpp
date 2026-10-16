@@ -27,7 +27,6 @@ struct SensorData {
 
 void IAQCore::setup() {
   if (this->write(nullptr, 0) != i2c::ERROR_OK) {
-    ESP_LOGD(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
