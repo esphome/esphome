@@ -40,6 +40,7 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/apc1/* @ademuri
+esphome/components/apc_proteous/* @clydebarrow
 esphome/components/apds9306/* @aodrenah
 esphome/components/apds9930/* @iyesin
 esphome/components/api/* @esphome/core
@@ -48,6 +49,7 @@ esphome/components/aranet/* @patrickod
 esphome/components/as5600/* @ammmze
 esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
+esphome/components/as734x/* @latonita @mrgnr
 esphome/components/async_tcp/* @esphome/core
 esphome/components/at581x/* @X-Ryl669
 esphome/components/atc_mithermometer/* @ahpohl
@@ -155,6 +157,7 @@ esphome/components/delonghi/* @grob6000
 esphome/components/dew_point/* @CFlix
 esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
+esphome/components/dfrobot_sen0609/* @remcom
 esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
 esphome/components/dlms_meter/* @latonita @PolarGoose @SimonFischer04 @Tomer27cz
@@ -183,6 +186,7 @@ esphome/components/es7243e/* @kbx81
 esphome/components/es8156/* @kbx81
 esphome/components/es8311/* @kahrendt @kroimon
 esphome/components/es8388/* @P4uLT
+esphome/components/es9038q2m_katana/* @GioMez
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @bdraco @jesserockz @Rapsssito
 esphome/components/esp32_ble_client/* @bdraco @jesserockz
@@ -257,6 +261,7 @@ esphome/components/hc8/* @omartijn
 esphome/components/hdc2010/* @optimusprimespace @ssieb
 esphome/components/hdc2080/* @G-Pereira @jesserockz
 esphome/components/hdc302x/* @joshuasing
+esphome/components/hdmi_cec/* @JosVanEijndhoven
 esphome/components/he60r/* @clydebarrow
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
@@ -507,6 +512,7 @@ esphome/components/rtttl/* @glmnet @ximex
 esphome/components/runtime_image/* @clydebarrow @guillempages @kahrendt
 esphome/components/runtime_stats/* @bdraco
 esphome/components/rx8025t/* @remcom
+esphome/components/rx8111/* @techdregs
 esphome/components/rx8130/* @beormund
 esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/samsung/* @jorofi
