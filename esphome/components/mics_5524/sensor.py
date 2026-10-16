@@ -1,15 +1,4 @@
-"""``mics_5524`` - ESPHome sensor platform for the MiCS-5524.
-
-One entry configures one physical sensor: the analog output is read and converted once
-per ``update_interval``, and every gas listed under it is published as its own
-sub-sensor.  The MiCS-5524 responds to several gases at once, so the readings report the
-same mixture of CO, H2, C2H5OH, NH3 and CH4 with different calibrations, and none of
-them can say which of the gases is present.
-
-The signal comes from an existing voltage sampler (``voltage:``, e.g. an ``adc`` sensor
-configured next to this one) or from a pin this component owns (``pin:``, which creates
-an internal ``adc`` sensor for you).
-"""
+"""MiCS-5524 sensor platform: one entry per module, one sub-sensor per configured gas."""
 
 import logging
 
@@ -85,14 +74,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _auto_load(config: ConfigType | None) -> list[str]:
-    """Components this platform needs: ``adc`` only for a ``pin:`` source.
-
-    A ``pin:`` configuration creates its own internal ``adc`` sensor, so the
-    ``adc`` component has to be part of the build.  A ``voltage:``
-    configuration reads an existing sampler and must not pull ``adc`` in: it
-    has no host implementation, so it breaks the C++ unit-test link, and it
-    bloats firmware that never uses it.
-    """
+    """Load adc only for a pin: source; it has no host build, so the unit tests cannot link it."""
     if config is not None and CONF_PIN in config:
         return ["sensor", "voltage_sampler", "adc"]
     return ["sensor", "voltage_sampler"]
@@ -100,21 +82,17 @@ def _auto_load(config: ConfigType | None) -> list[str]:
 
 AUTO_LOAD = _auto_load
 
-#: The main loop runs every ~16 ms, so a shorter spacing cannot sample more often
-#: than that and only makes a calibration overrun a tick of everything else.
+# The main loop runs every ~16 ms, so a shorter spacing cannot sample more often.
 MIN_SAMPLE_INTERVAL_MS = 16
 
-#: At most this many conversions of the analog output per reading: they run back to
-#: back inside one loop pass, so a longer burst delays everything else.
+# Conversions per reading run back to back inside one loop pass.
 MAX_SAMPLE_COUNT = 16
 
 ADC_ATTENUATIONS = ("0db", "2.5db", "6db", "11db", "12db", "auto")
 
-#: One slot per configured gas, sizing the gas list of each sensor.
 _request_gas_slot = cg.slot_counter("MICS_5524_GAS_COUNT")
 
-#: Private key holding the generated, internal ``adc`` sensor configuration; the entry
-#: lives inside the validated config so ESPHome's ID pass sees its ID.
+# The generated adc entry lives in the validated config so the ID pass sees its ID.
 _KEY_GENERATED_ADC = "_generated_adc"
 
 DIVIDER_SCHEMA = cv.Schema(
@@ -143,33 +121,21 @@ def _build_internal_adc(config: ConfigType) -> ConfigType:
     if (attenuation := config.get(CONF_ADC_ATTENUATION)) is not None:
         adc_config[CONF_ATTENUATION] = attenuation
     elif CORE.is_esp32:
-        # The ESP32 ADC defaults to 0 dB (~1 V full scale), while the divider
-        # guard allows up to 3.3 V: without an explicit attenuation the pin would
-        # clip and the calibrated reference would be wrong without a log.
+        # The 0 dB default (~1 V) would clip the 3.3 V the divider guard allows.
         adc_config[CONF_ATTENUATION] = "12db"
 
     return adc_sensor.CONFIG_SCHEMA(adc_config)
 
 
 def _voltage_multiplier(config: ConfigType) -> float:
-    """Volts of the analog output per volt at the sampler input.
-
-    ``voltage_divider:`` is the wiring in front of the sampler (r1 from the sensor to the
-    pin, r2 from the pin to ground); ``voltage_multiplier:`` is the low-level equivalent,
-    1.0 for a directly connected sensor and more for a sampler with a wider input range
-    (e.g. an ADS1115).
-    """
+    """Output volts per sampler volt: from voltage_divider: when set, else voltage_multiplier:."""
     if (divider := config.get(CONF_VOLTAGE_DIVIDER)) is not None:
         return (divider[CONF_R1] + divider[CONF_R2]) / divider[CONF_R2]
     return float(config.get(CONF_VOLTAGE_MULTIPLIER, 1.0))
 
 
 def _reject_divider_and_multiplier(config: ConfigType) -> ConfigType:
-    """Reject a `voltage_divider:` together with an explicit `voltage_multiplier:`.
-
-    Runs before the schema, so the schema default of `voltage_multiplier:` is not
-    mistaken for a configured value.
-    """
+    """Runs before the schema so the voltage_multiplier default is not taken for a configured value."""
     if CONF_VOLTAGE_DIVIDER in config and CONF_VOLTAGE_MULTIPLIER in config:
         raise cv.Invalid(
             "use either 'voltage_divider:' or 'voltage_multiplier:', not both - "
@@ -179,12 +145,7 @@ def _reject_divider_and_multiplier(config: ConfigType) -> ConfigType:
 
 
 def _validate_divider(config: ConfigType) -> ConfigType:
-    """Reject a divider that can push the pin past what the sampler survives.
-
-    The pin sees the supply across r1/r2, which is the largest voltage the sensor can
-    ever produce, so the check holds for every reading.  The limits are the classic
-    ESP32 ADC ones unless the configuration declares the ones of its own sampler.
-    """
+    """Reject a divider that puts the supply, the largest possible reading, past the sampler limits."""
     if (divider := config.get(CONF_VOLTAGE_DIVIDER)) is None:
         return config
 
@@ -206,7 +167,7 @@ def _validate_divider(config: ConfigType) -> ConfigType:
 
 
 def _gas_schema(gas_key: str) -> cv.Schema:
-    """Sub-sensor schema of one gas: a PPM sensor with its own range and coefficients."""
+    """Schema of one gas sub-sensor."""
     return sensor.sensor_schema(
         MiCS5524GasSensor,
         unit_of_measurement=UNIT_PARTS_PER_MILLION,
@@ -215,9 +176,7 @@ def _gas_schema(gas_key: str) -> cv.Schema:
         icon="mdi:molecule",
     ).extend(
         {
-            # No default here: the vendor range and the datasheet fit have different
-            # ceilings, so the default is resolved per conversion model in
-            # `resolve_gas` instead of leaking one model's range into the other.
+            # No default: each conversion model has its own ceiling, resolved in resolve_gas.
             cv.Optional(CONF_MAX_PPM): cv.positive_not_null_float,
             cv.Optional(CONF_MIN_PPM): cv.positive_not_null_float,
             cv.Inclusive(
@@ -257,13 +216,7 @@ def _resolve_gas(gas_key: str, config: ConfigType) -> ResolvedGas:
 
 
 def _validate_config(config: ConfigType) -> ConfigType:
-    """Check the reference, the conversion and every gas against each other.
-
-    Everything here is a compile-time error rather than a runtime surprise: the
-    reference keys belong to one model, `max_ppm:` cannot ask for a value the active
-    model can never reach, and the datasheet model needs coefficients for every gas it
-    is used with.
-    """
+    """Check the reference keys, the conversion and every gas against each other."""
     conversion = config[CONF_CONVERSION]
     vendor_model = conversion == CONVERSION_DFROBOT
 
@@ -273,18 +226,14 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 f"'air_reference:' belongs to 'conversion: {CONVERSION_DFROBOT}', use "
                 f"'r0:' with 'conversion: {CONVERSION_DATASHEET}'"
             )
-        # The reference is `x_air = vcc - V_AO` as read in clean air, so it is always
-        # below the supply: a larger one would report every gas as 0 ppm forever.
+        # The reference is vcc - V_AO in clean air, so a larger one reads 0 ppm forever.
         if air_reference >= config[CONF_VCC]:
             raise cv.Invalid(
                 f"air_reference ({air_reference:g} V) must be below vcc "
-                f"({config[CONF_VCC]:g} V): the reference is how far the analog "
-                "output sits below the supply in clean air, so a larger value cannot "
-                "come from a reading"
+                f"({config[CONF_VCC]:g} V): it is how far the analog output sits "
+                "below the supply in clean air"
             )
     elif CONF_CALIBRATION not in config and CONF_R0 not in config:
-        # The datasheet model takes its reference as `r0:`, so the vendor key is only one
-        # of the two ways to configure one.
         _LOGGER.warning(
             "no clean-air reference configured - set '%s' or 'calibration:', or every "
             "PPM value stays unknown until the sensor has been calibrated in clean air",
@@ -320,8 +269,7 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 f"max_ppm ({resolved.max_ppm:g}) must be greater than min_ppm "
                 f"({resolved.min_ppm:g})"
             )
-        # The vendor model has a documented measuring range; the datasheet fit has none,
-        # so only the vendor model can be checked.
+        # Only the vendor model has a documented range to check against.
         if vendor_model and resolved.max_ppm > resolved.vendor_max_ppm:
             raise cv.Invalid(
                 f"max_ppm ({resolved.max_ppm:g}) is above the {resolved.label} measuring "
@@ -332,12 +280,7 @@ def _validate_config(config: ConfigType) -> ConfigType:
 
 
 def _validate_enable_pin(config: ConfigType) -> ConfigType:
-    """Warn when the EN pin is left active high, which keeps the module asleep.
-
-    The component powers the module by driving the pin active, and the EN input of the
-    DFRobot breakout is active low, so a pin without ``inverted: true`` is driven high
-    and the analog output stays at 0 V.
-    """
+    """Warn about an EN pin without inverted: true, which keeps the active-low module asleep."""
     if (enable := config.get(CONF_ENABLE_PIN)) is not None and not enable.get(
         CONF_INVERTED, False
     ):
@@ -350,12 +293,7 @@ def _validate_enable_pin(config: ConfigType) -> ConfigType:
 
 
 def _build_pin_source(config: ConfigType) -> ConfigType:
-    """Validate the hidden ``adc`` entry of a ``pin:`` configuration.
-
-    The entry is built here, inside the validated config, so ESPHome's ID pass sees the
-    ID of the generated sensor and a wrong ADC configuration fails the build instead of
-    the compiler.
-    """
+    """Build the hidden adc entry inside the validated config so the ID pass sees its ID."""
     if CONF_PIN in config:
         config[_KEY_GENERATED_ADC] = _build_internal_adc(config)
     return config
@@ -367,8 +305,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(MiCS5524Component),
             cv.Optional(CONF_VOLTAGE): cv.use_id(voltage_sampler.VoltageSampler),
-            # The pin of a `pin:` configuration is validated with the hidden `adc` entry
-            # built below, which owns the rules for a pin the ADC can read.
+            # Validated by the hidden adc entry built below.
             cv.Optional(CONF_PIN): cv.valid,
             cv.Optional(CONF_VOLTAGE_DIVIDER): DIVIDER_SCHEMA,
             cv.Optional(
@@ -399,8 +336,6 @@ CONFIG_SCHEMA = cv.All(
                 CONF_WARMUP_TIME, default="3min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
-            # Readings the conversion is built from: declared here like the gases, so the
-            # component owns them instead of pointing at sensors declared elsewhere.
             cv.Optional(CONF_VOLTAGE_SENSOR): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=3,
@@ -430,9 +365,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    # The sampler is a constructor argument: no reading is possible without it, so the
-    # component has no valid state in which it is missing.  A `pin:` configuration
-    # creates its own internal `adc` sensor here and hands that one over instead.
     source = (
         await cg.get_variable(config[CONF_VOLTAGE])
         if CONF_VOLTAGE in config
@@ -464,8 +396,6 @@ async def to_code(config: ConfigType) -> None:
             )
         )
 
-    # The diagnostics report the values every gas is converted from, so they are declared
-    # here like the gases and not pointed at from outside.
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE_SENSOR, var.set_voltage_sensor)
     await sensors(CONF_RATIO_SENSOR, var.set_ratio_sensor)

@@ -36,11 +36,8 @@ sensor:
       id: mics_5524_h2
       name: MiCS-5524 H2
 
-  # The datasheet model, with the ADC this component owns: `pin:` creates the hidden
-  # `adc` sensor, and the 10k/20k divider brings the 5 V of the breakout down to the
-  # 3.33 V the ESP32 ADC measures, which `adc_input_max:` has to allow.
-  # `adc_attenuation:` matches that range: the ESP32 default of 0 dB only measures
-  # about 1 V and would clip the pin.
+  # The datasheet model on the ADC this component owns: the 10k/20k divider needs
+  # adc_input_max: 3.33 and 12 dB attenuation, since the 0 dB default clips at ~1 V.
   - platform: mics_5524
     id: mics_5524_pin
     pin: GPIO32
@@ -51,8 +48,7 @@ sensor:
     adc_attenuation: 12db
     conversion: datasheet
     r0: 10.0
-    # Diagnostics of this reading: the ratio and RS of the active model, and the voltage
-    # they were computed from.  They belong to this hub, which declares them itself.
+    # Diagnostics of this reading, declared by the hub itself.
     ratio_sensor:
       id: mics_5524_ratio
       name: MiCS-5524 ratio

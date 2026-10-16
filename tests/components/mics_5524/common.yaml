@@ -15,8 +15,7 @@ sensor:
       delay: 5s
       sample_count: 3
       sample_interval: 20ms
-    # Two of the three diagnostics are declared, so the build covers a configured and an
-    # unconfigured (`rs_sensor`) one.
+    # One diagnostic (rs_sensor) stays unconfigured on purpose.
     voltage_sensor:
       name: MiCS-5524 volts
     ratio_sensor:

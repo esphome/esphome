@@ -1,6 +1,4 @@
-# Config-only test: the datasheet conversion model and the wiring this component can
-# own itself (`pin:` creates the internal `adc` sensor, `voltage_divider:` brings the
-# 5 V of the breakout down to what the ADC input tolerates).
+# Config-only test: the datasheet model with the wiring the component owns (pin:, voltage_divider:).
 sensor:
   - platform: mics_5524
     id: mics_5524_dat
@@ -13,8 +11,7 @@ sensor:
     conversion: datasheet
     r0: 10.0
     rl: 10.0
-    # The EN input of the breakout is active low, so the pin is inverted: that is what
-    # makes the component's "power the module" write switch it on.
+    # The EN input of the breakout is active low, so the pin is inverted.
     enable_pin:
       number: GPIO25
       inverted: true
