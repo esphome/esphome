@@ -22,6 +22,7 @@ from esphome.const import (
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.schema_extractors import schema_extractor
+from esphome.types import ConfigType, SafeExpType
 
 
 class PinRegistry(dict):
@@ -349,14 +350,14 @@ def gpio_validate_modes(value):
     return value
 
 
-def gpio_validate_input_xor_output(value):
+def gpio_validate_input_xor_output(value: dict[str, bool]) -> dict[str, bool]:
     """Mode validator for pins that are either an input or an output, never both."""
     if value[CONF_INPUT] == value[CONF_OUTPUT]:
         raise cv.Invalid("Mode must be either input or output")
     return value
 
 
-def gpio_validate_input_xor_output_pullup(value):
+def gpio_validate_input_xor_output_pullup(value: dict[str, bool]) -> dict[str, bool]:
     """``gpio_validate_input_xor_output`` for chips whose pull-up only works on inputs."""
     gpio_validate_input_xor_output(value)
     if value[CONF_PULLUP] and not value[CONF_INPUT]:
@@ -364,7 +365,9 @@ def gpio_validate_input_xor_output_pullup(value):
     return value
 
 
-async def new_parented_pin(config, parent_key: str, *args) -> MockObj:
+async def new_parented_pin(
+    config: ConfigType, parent_key: str, *args: SafeExpType
+) -> MockObj:
     """Create a pin parented to ``config[parent_key]`` and set its number, inversion and mode flags.
 
     ``args`` go to ``cg.new_Pvariable``, e.g. ``cg.TemplateArguments`` for a templated pin class.
