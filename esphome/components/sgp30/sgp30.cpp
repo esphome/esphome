@@ -65,7 +65,7 @@ void SGP30Component::setup() {
 
   // Sensor initialization
   if (!this->write_command(SGP30_CMD_IAQ_INIT)) {
-    this->mark_failed(LOG_STR("Measurement Initialization failed"));
+    this->mark_failed(LOG_STR("Measurement initialization failed"));
     return;
   }
 

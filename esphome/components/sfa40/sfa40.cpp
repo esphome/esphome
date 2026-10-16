@@ -41,13 +41,11 @@ void SFA40Component::setup() {
   this->write_command(SFA40_CMD_STOP_MEASUREMENT);
   this->set_timeout(25, [this]() {
     if (!this->detect_protocol_()) {
-      ESP_LOGE(TAG, "Failed to detect SFA40 protocol");
       this->mark_failed(LOG_STR("Protocol detection failed"));
       return;
     }
     if (!this->write_command(SFA40_CMD_START_MEASUREMENT)) {
-      ESP_LOGE(TAG, "Failed to start measurements");
-      this->mark_failed(LOG_STR("Measurement initialization failed"));
+      this->mark_failed(LOG_STR("Failed to start measurements"));
       return;
     }
     this->initialized_ = true;

@@ -48,8 +48,7 @@ void SCD30Component::setup() {
   }
 
   if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, temp_offset)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
-    this->mark_failed(LOG_STR("Measurement Initialization failed"));
+    this->mark_failed(LOG_STR("Error setting temperature offset"));
     return;
   }
 #ifdef USE_ESP32
@@ -66,8 +65,7 @@ void SCD30Component::setup() {
 #endif
 
   if (!this->write_command(SCD30_CMD_MEASUREMENT_INTERVAL, update_interval_)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error setting update interval.");
-    this->mark_failed(LOG_STR("Measurement Initialization failed"));
+    this->mark_failed(LOG_STR("Error setting update interval"));
     return;
   }
 #ifdef USE_ESP32
@@ -77,8 +75,7 @@ void SCD30Component::setup() {
   // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
   if (this->altitude_compensation_ != 0xFFFF) {
     if (!this->write_command(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
-      ESP_LOGE(TAG, "Sensor SCD30 error setting altitude compensation.");
-      this->mark_failed(LOG_STR("Measurement Initialization failed"));
+      this->mark_failed(LOG_STR("Error setting altitude compensation"));
       return;
     }
   }
@@ -87,8 +84,7 @@ void SCD30Component::setup() {
 #endif
 
   if (!this->write_command(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
-    this->mark_failed(LOG_STR("Measurement Initialization failed"));
+    this->mark_failed(LOG_STR("Error setting automatic self calibration"));
     return;
   }
 #ifdef USE_ESP32
@@ -97,8 +93,7 @@ void SCD30Component::setup() {
 
   /// Sensor initialization
   if (!this->write_command(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
-    this->mark_failed(LOG_STR("Measurement Initialization failed"));
+    this->mark_failed(LOG_STR("Error starting continuous measurements"));
     return;
   }
 

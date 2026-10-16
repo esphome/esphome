@@ -88,7 +88,6 @@ void SEN5XComponent::setup() {
       // this appears to be all that Sensirion uses for serial numbers, this could change
       uint16_t raw_serial_number[8];
       if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 20)) {
-        ESP_LOGE(TAG, "Failed to read serial number");
         this->mark_failed(LOG_STR("Unable to read serial ID"));
         return;
       }
@@ -142,7 +141,6 @@ void SEN5XComponent::setup() {
       }
 
       if (!this->get_register(SEN5X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
-        ESP_LOGE(TAG, "Failed to read firmware version");
         this->mark_failed(LOG_STR("Unable to read firmware version"));
         return;
       }
@@ -183,8 +181,7 @@ void SEN5XComponent::setup() {
         result = this->write_command(SEN5X_CMD_RHT_ACCELERATION_MODE);
       }
       if (!result) {
-        ESP_LOGE(TAG, "Failed to set rh/t acceleration mode");
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        this->mark_failed(LOG_STR("Failed to set rh/t acceleration mode"));
         return;
       }
       delay(20);
@@ -218,8 +215,7 @@ void SEN5XComponent::setup() {
       }
 
       if (!this->write_command(cmd)) {
-        ESP_LOGE(TAG, "Error starting continuous measurements");
-        this->mark_failed(LOG_STR("Measurement initialization failed"));
+        this->mark_failed(LOG_STR("Error starting continuous measurements"));
         return;
       }
       this->initialized_ = true;

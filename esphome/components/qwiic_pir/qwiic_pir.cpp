@@ -9,8 +9,7 @@ void QwiicPIRComponent::setup() {
   // Verify I2C communcation by reading and verifying the chip ID
   uint8_t chip_id;
   if (!this->read_byte(QWIIC_PIR_CHIP_ID, &chip_id)) {
-    ESP_LOGE(TAG, "Failed to read chip ID");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Failed to read chip ID"));
     return;
   }
 
@@ -20,8 +19,7 @@ void QwiicPIRComponent::setup() {
   }
 
   if (!this->write_byte_16(QWIIC_PIR_DEBOUNCE_TIME, this->debounce_time_)) {
-    ESP_LOGE(TAG, "Failed to configure debounce time");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Failed to configure debounce time"));
     return;
   }
 
@@ -29,8 +27,7 @@ void QwiicPIRComponent::setup() {
     // Publish the starting raw state of the PIR sensor
     // If NATIVE mode, the binary_sensor state would be unknown until a motion event
     if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
-      ESP_LOGE(TAG, "Failed to read initial state");
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      this->mark_failed(LOG_STR("Failed to read initial state"));
       return;
     }
 

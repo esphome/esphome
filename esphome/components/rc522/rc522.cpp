@@ -286,7 +286,6 @@ void RC522::pcd_reset_() {
   }
 
   if (--reset_count_ == 0) {
-    ESP_LOGE(TAG, "Unable to reset");
     this->mark_failed(LOG_STR("Reset command failed"));
   }
 }

@@ -46,29 +46,25 @@ void SCD4XComponent::setup() {
 
       if (!this->write_command(SCD4X_CMD_TEMPERATURE_OFFSET,
                                (uint16_t) (temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
-        ESP_LOGE(TAG, "Error setting temperature offset");
-        this->mark_failed(LOG_STR("Measurement Initialization failed"));
+        this->mark_failed(LOG_STR("Error setting temperature offset"));
         return;
       }
 
       // If pressure compensation available use it, else use altitude
       if (this->ambient_pressure_) {
         if (!this->update_ambient_pressure_compensation_(this->ambient_pressure_)) {
-          ESP_LOGE(TAG, "Error setting ambient pressure compensation");
-          this->mark_failed(LOG_STR("Measurement Initialization failed"));
+          this->mark_failed(LOG_STR("Error setting ambient pressure compensation"));
           return;
         }
       } else {
         if (!this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, this->altitude_compensation_)) {
-          ESP_LOGE(TAG, "Error setting altitude compensation");
-          this->mark_failed(LOG_STR("Measurement Initialization failed"));
+          this->mark_failed(LOG_STR("Error setting altitude compensation"));
           return;
         }
       }
 
       if (!this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0)) {
-        ESP_LOGE(TAG, "Error setting automatic self calibration");
-        this->mark_failed(LOG_STR("Measurement Initialization failed"));
+        this->mark_failed(LOG_STR("Error setting automatic self calibration"));
         return;
       }
 
