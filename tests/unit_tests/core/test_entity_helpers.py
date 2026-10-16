@@ -1373,11 +1373,10 @@ async def test_sub_entities_apply_generates_function(
 
     monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
     calls: list[tuple[Any, ...]] = []
-    hub = MockObj("hub", "->")
     sub = _apply_sub(calls, {"bt": _apply_conf("bt_sw")})
 
     var = await sub(
-        "bt", hub.set_bt_switch, apply="set_bluetooth(state)", publish=publish
+        "bt", _HUB.set_bt_switch, apply="set_bluetooth(state)", publish=publish
     )
     assert str(var) == "bt_sw"
     assert calls == [("bt_sw", "<esphome__bt_sw__fn>")]
@@ -1393,16 +1392,15 @@ async def test_sub_entities_apply_shares_equal_functions(
 ) -> None:
     """Entities with the same statement share one function, so one class instantiation."""
     calls: list[tuple[Any, ...]] = []
-    hub = MockObj("hub", "->")
     config = {
         "a": _apply_conf("a_sw"),
         "b": _apply_conf("b_sw"),
         "c": _apply_conf("c_sw"),
     }
     sub = _apply_sub(calls, config)
-    await sub("a", hub.set_a, apply="refresh()", publish="before")
-    await sub("b", hub.set_b, apply="refresh()", publish="before")
-    await sub("c", hub.set_c, apply="refresh()")
+    await sub("a", _HUB.set_a, apply="refresh()", publish="before")
+    await sub("b", _HUB.set_b, apply="refresh()", publish="before")
+    await sub("c", _HUB.set_c, apply="refresh()")
     assert calls == [
         ("a_sw", "<esphome__a_sw__fn>"),
         ("b_sw", "<esphome__a_sw__fn>"),
@@ -1549,10 +1547,9 @@ async def test_sub_entities_create_from_whole_config(
     """create() builds the entity from a config that is the entity itself."""
     calls: list[tuple[Any, ...]] = []
     sub = _apply_sub(calls, {})
-    hub = MockObj("hub", "->")
     var = await sub.create(
         _apply_conf("rf_sw"),
-        hub.set_rf_switch,
+        _HUB.set_rf_switch,
         apply="set_rf_mode(state)",
         publish="before",
     )

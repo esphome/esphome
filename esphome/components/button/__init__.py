@@ -118,14 +118,14 @@ async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     return var
 
 
-_APPLY_ENTITY = ApplyEntity(ApplyButton, ((ButtonPtr, "entity"),))
+APPLY_ENTITY = ApplyEntity(ApplyButton, ((ButtonPtr, "entity"),))
 
 
 def sub_buttons(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
     """Return a SubEntities bound to new_button; ``apply`` statements can use ``entity``."""
-    return SubEntities(new_button, config, parent, _APPLY_ENTITY)
+    return SubEntities(new_button, config, parent, APPLY_ENTITY)
 
 
 BUTTON_PRESS_SCHEMA = maybe_simple_id(
