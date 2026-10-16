@@ -19,7 +19,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.usb_uart import is_usb_uart_channel
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_UART_ID
+from esphome.const import CONF_NAME, CONF_UART_ID
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
@@ -97,9 +97,7 @@ async def _add_serial_proxy_count_define() -> None:
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     cg.add(cg.App.register_serial_proxy(var))
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_port_type(config[CONF_PORT_TYPE]))
