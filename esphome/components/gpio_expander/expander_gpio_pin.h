@@ -17,7 +17,8 @@ template<typename Parent> class ExpanderGPIOPin final : public GPIOPin, public P
   void pin_mode(gpio::Flags flags) override { this->parent_->pin_mode(this->pin_, flags); }
   bool digital_read() override { return this->parent_->digital_read(this->pin_) != this->inverted_; }
   void digital_write(bool value) override { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-  size_t dump_summary(char *buffer, size_t len) const override { return Parent::pin_summary(buffer, len, this->pin_); }
+  // Defined per expander with ESPHOME_EXPANDER_PIN_SUMMARY; a missing one is an undefined reference here.
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
