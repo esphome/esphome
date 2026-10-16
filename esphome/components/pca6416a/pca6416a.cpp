@@ -27,7 +27,7 @@ void PCA6416AComponent::setup() {
   uint8_t value;
   if (!this->read_register_(PCA6416A_INPUT0, &value)) {
     ESP_LOGE(TAG, "PCA6416A not available under 0x%02X", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -77,9 +77,6 @@ void PCA6416AComponent::dump_config() {
   }
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 bool PCA6416AComponent::digital_read_hw(uint8_t pin) {

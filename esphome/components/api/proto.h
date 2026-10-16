@@ -418,6 +418,18 @@ class ProtoEncode {
     std::memcpy(pos + 2, ref.c_str(), ref.size());
     return pos + 2 + ref.size();
   }
+  /// encode_short_string_force for a string that may be in flash (PROGMEM).
+  [[nodiscard]] static inline uint8_t *encode_short_progmem_string_force(
+      uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint8_t tag, const ProgmemStringRef &ref) {
+#ifdef ESPHOME_DEBUG_API
+    assert(ref.size() < 128 && "encode_short_progmem_string_force: string exceeds max_data_length < 128");
+#endif
+    PROTO_ENCODE_CHECK_BOUNDS(pos, 2 + ref.size());
+    pos[0] = tag;
+    pos[1] = static_cast<uint8_t>(ref.size());
+    progmem_memcpy(pos + 2, ref.progmem_ptr(), ref.size());
+    return pos + 2 + ref.size();
+  }
   /// Write a precomputed tag byte + 32-bit value. Outlined on embedded: one copy beats inline stores per field.
   [[nodiscard]] static PROTO_OUTLINE_FOR_SIZE uint8_t *write_tag_and_fixed32(
       uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint8_t tag, uint32_t value) {
@@ -480,6 +492,17 @@ class ProtoEncode {
     PROTO_ENCODE_CHECK_BOUNDS(pos, len);
     progmem_memcpy(pos, data, len);
     return pos + len;
+  }
+  /// encode_progmem_bytes for a string field that may be in flash.
+  [[nodiscard]] static inline uint8_t *encode_progmem_string(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                             uint32_t field_id, const ProgmemStringRef &ref) {
+    return encode_progmem_bytes(pos PROTO_ENCODE_DEBUG_ARG, field_id,
+                                reinterpret_cast<const uint8_t *>(ref.progmem_ptr()), ref.size());
+  }
+  [[nodiscard]] static inline uint8_t *encode_progmem_string_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                                   uint32_t field_id, const ProgmemStringRef &ref) {
+    return encode_progmem_bytes_force(pos PROTO_ENCODE_DEBUG_ARG, field_id,
+                                      reinterpret_cast<const uint8_t *>(ref.progmem_ptr()), ref.size());
   }
   [[nodiscard]] static inline uint8_t *encode_uint32_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                            uint32_t field_id, uint32_t value) {
@@ -680,9 +703,20 @@ class DumpBuffer {
     return *this;
   }
 
+  /// Append len bytes of a PROGMEM string
+  DumpBuffer &append_p(const char *str, size_t len) {
+#ifdef USE_ESP8266
+    append_p_esp8266(str, len);
+#else
+    append_impl_(str, len);
+#endif
+    return *this;
+  }
+
 #ifdef USE_ESP8266
   /// Out-of-line ESP8266 PROGMEM append to avoid inlining strlen_P/memcpy_P at every call site
   void append_p_esp8266(const char *str);
+  void append_p_esp8266(const char *str, size_t len);
 #endif
 
   const char *c_str() const { return buf_; }

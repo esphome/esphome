@@ -29,6 +29,7 @@ from esphome.config_helpers import Extend, Remove
 from esphome.const import CONF_DEFAULTS
 from esphome.core import (
     CORE,
+    DocumentLocation,
     DocumentRange,
     EsphomeError,
     Lambda,
@@ -53,8 +54,11 @@ _LOADED_SECRET_NAMES: set[str] = set()
 # Set while a secret_values_registered context is active; the dumper records
 # every emitted `!secret` name into it.
 _EMITTED_SECRET_NAMES: set[str] | None = None
-# Not thread-safe — config processing is single-threaded today.
-_load_listeners: list[Callable[[Path], None]] = []
+# Called with every file the YAML loader opens; ``track_yaml_loads`` builds on it.
+# Used by device-builder (esphome/device-builder), whose listener filters by
+# thread because the hook is process-global; keep the name and the per-file
+# ``Path`` signature. Not otherwise a supported API: use at your own risk.
+load_listeners: list[Callable[[Path], None]] = []
 
 DocumentPath = list[str | int]
 
@@ -126,11 +130,11 @@ def track_yaml_loads() -> Generator[list[Path]]:
     def _on_load(fname: Path) -> None:
         loaded.append(Path(fname).resolve())
 
-    _load_listeners.append(_on_load)
+    load_listeners.append(_on_load)
     try:
         yield loaded
     finally:
-        _load_listeners.remove(_on_load)
+        load_listeners.remove(_on_load)
 
 
 class ESPHomeDataBase:
@@ -142,14 +146,20 @@ class ESPHomeDataBase:
     def content_offset(self):
         return getattr(self, "_content_offset", 0)
 
+    @property
+    def content_start(self) -> DocumentLocation:
+        """Where the value's own text starts: the line after the marker for a block scalar."""
+        start = self._esp_range.start_mark
+        return DocumentLocation(
+            start.document, start.line + self.content_offset, start.column
+        )
+
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
-        if (
-            isinstance(node, yaml.ScalarNode)
-            and node.style is not None
-            and node.style in "|>"
-        ):
+        # Only block scalars (| and >) start their content on the next line. A plain
+        # scalar's style is "", which `in "|>"` would also match.
+        if isinstance(node, yaml.ScalarNode) and node.style in ("|", ">"):
             self._content_offset = 1
 
     def from_database(self, database):
@@ -660,7 +670,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
             secrets.add(Path(fname).resolve())
 
     with track_yaml_loads() as loaded:
-        _load_listeners.append(_capture_secret)
+        load_listeners.append(_capture_secret)
         try:
             try:
                 data = load_yaml(config_path)
@@ -672,7 +682,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
                 data, warn_on_unresolved=False, warn_on_load_error=False
             )
         finally:
-            _load_listeners.remove(_capture_secret)
+            load_listeners.remove(_capture_secret)
 
     # Deduplicate while preserving first-seen order.
     seen: set[Path] = set()
@@ -1113,7 +1123,7 @@ def load_yaml(
 
 def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
-    for listener in _load_listeners:
+    for listener in tuple(load_listeners):
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
