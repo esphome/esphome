@@ -264,7 +264,7 @@ void OnlineImage::finish_download_() {
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
     this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
   } else {
-    ESP_LOGD(TAG, "Decoder could not confirm the image is complete; not caching it");
+    ESP_LOGW(TAG, "Decoder could not confirm the image is complete; not caching it");
     this->etag_.clear();
     this->last_modified_.clear();
   }
