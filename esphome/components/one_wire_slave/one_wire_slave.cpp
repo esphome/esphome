@@ -89,8 +89,8 @@ void OneWireSlaveComponent::setup() {
     this->isr_state_ = IsrState::RX_ROM_COMMAND;
     return;
   }
-  BaseType_t task_result = xTaskCreatePinnedToCore(
-      &OneWireSlaveComponent::task_entry_, "one_wire_slave", 4096, this, 22, &this->task_handle_, 1);
+  BaseType_t task_result = xTaskCreatePinnedToCore(&OneWireSlaveComponent::task_entry_, "one_wire_slave", 4096, this,
+                                                   22, &this->task_handle_, 1);
   if (task_result != pdPASS || this->task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create 1-Wire slave timing task");
     gpio_isr_handler_remove(this->gpio_num_);
@@ -104,12 +104,13 @@ void OneWireSlaveComponent::loop() {
   if (now - this->last_stats_ms_ < 1000)
     return;
   this->last_stats_ms_ = now;
-  ESP_LOGI(TAG, "stats scale=%u resets=%lu transactions=%lu rom=%lu function=%lu send0=%lu send1=%lu errors=%lu last=%u",
+  ESP_LOGI(TAG,
+           "stats scale=%u resets=%lu transactions=%lu rom=%lu function=%lu send0=%lu send1=%lu errors=%lu last=%u",
            this->timing_scale_, static_cast<unsigned long>(this->reset_count_),
            static_cast<unsigned long>(this->transaction_count_), static_cast<unsigned long>(this->rom_command_count_),
-           static_cast<unsigned long>(this->function_command_count_), static_cast<unsigned long>(this->send_zero_count_),
-           static_cast<unsigned long>(this->send_one_count_), static_cast<unsigned long>(this->slot_error_count_),
-           this->last_error_status_);
+           static_cast<unsigned long>(this->function_command_count_),
+           static_cast<unsigned long>(this->send_zero_count_), static_cast<unsigned long>(this->send_one_count_),
+           static_cast<unsigned long>(this->slot_error_count_), this->last_error_status_);
 }
 
 void OneWireSlaveComponent::dump_config() {
@@ -445,9 +446,7 @@ void OneWireSlaveComponent::configure_scratchpad_() {
   this->update_scratchpad_crc_();
 }
 
-void OneWireSlaveComponent::update_scratchpad_crc_() {
-  this->scratchpad_[8] = crc8_(this->scratchpad_, 8);
-}
+void OneWireSlaveComponent::update_scratchpad_crc_() { this->scratchpad_[8] = crc8_(this->scratchpad_, 8); }
 
 uint8_t IRAM_ATTR OneWireSlaveComponent::crc8_(const uint8_t *data, uint8_t length) {
   uint8_t crc = 0;
