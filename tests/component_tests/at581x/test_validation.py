@@ -1,5 +1,6 @@
 """Tests for at581x power_consumption validation."""
 
+from collections.abc import Callable
 from decimal import Decimal
 
 import pytest
@@ -35,7 +36,9 @@ UNIT_SPELLINGS = [
 
 @pytest.mark.parametrize("spell", UNIT_SPELLINGS)
 @pytest.mark.parametrize("microamps", ALLOWED_UA)
-def test_every_listed_value_in_every_unit(spell, microamps: int) -> None:
+def test_every_listed_value_in_every_unit(
+    spell: Callable[[int], str], microamps: int
+) -> None:
     result = _power(spell(microamps))
     assert result == microamps
     assert type(result) is int
