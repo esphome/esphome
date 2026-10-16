@@ -27,9 +27,7 @@ void MiCS5524Component::setup() {
   }
 
   if (this->calibration_enabled_) {
-    // Nothing is stored across reboots, so every boot calibrates when it is
-    // configured to; 'air_reference:' is the way to skip that.
-    // The warm-up window starts here, so all of it still lies ahead of the calibration.
+    // Nothing is stored across reboots; the warm-up window starts here, so the delay covers it.
     const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
     this->calibration_pending_ = true;
     this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
@@ -44,29 +42,29 @@ void MiCS5524Component::setup() {
 }
 
 void MiCS5524Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MiCS-5524:");
+  ESP_LOGCONFIG(TAG,
+                "MiCS-5524:\n"
+                "  VCC: %.2f V, AO multiplier: x%.3f, AO samples per reading: %u\n"
+                "  Warm-up: %" PRIu32 " s, calibration: %s, sample spacing: %" PRIu32 " ms",
+                this->vcc_, this->voltage_multiplier_, static_cast<unsigned>(this->samples_), this->warmup_time_ / 1000,
+                this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->sample_interval_);
   LOG_UPDATE_INTERVAL(this);
+  if (this->has_reference_()) {
+    ESP_LOGCONFIG(TAG, "  Air reference (vcc - V_AO): %.4f V", this->reference_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Air reference: not available yet");
+  }
 #ifdef MICS_5524_GAS_COUNT
   for (auto *gas : this->gases_) {
     LOG_SENSOR("  ", "Gas", gas);
     ESP_LOGCONFIG(TAG, "    Range: %.1f - %.1f ppm", gas->get_min_ppm(), gas->get_max_ppm());
   }
 #endif
-  ESP_LOGCONFIG(TAG, "  VCC: %.2f V, AO multiplier: x%.3f", this->vcc_, this->voltage_multiplier_);
-  ESP_LOGCONFIG(TAG, "  AO samples per reading: %u", static_cast<unsigned>(this->samples_));
-  if (this->has_reference_()) {
-    ESP_LOGCONFIG(TAG, "  Air reference (vcc - V_AO): %.4f V", this->reference_);
-  } else {
-    ESP_LOGCONFIG(TAG, "  Air reference: not available yet");
-  }
-  ESP_LOGCONFIG(
-      TAG, "  Warm-up: %" PRIu32 " s, calibration: %s, sample spacing: %" PRIu32 " ms", this->warmup_time_ / 1000,
-      this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"), this->sample_interval_);
 }
 
 float MiCS5524Component::sample_voltage_() {
-  // Taken back to back: the sampler averages internally as configured (`samples` /
-  // `sampling_mode`), and waiting between the two would block the main loop.
+  // Taken back to back; waiting between them would block the main loop.
   float sum = 0.0f;
   for (uint8_t i = 0; i < this->samples_; i++)
     sum += this->source_->sample();
@@ -86,16 +84,14 @@ bool MiCS5524Component::in_warmup_() {
     return false;
   if (App.get_loop_component_start_time() - this->warmup_start_ < this->warmup_time_)
     return true;
-  // A window that has passed is over: latching it keeps the subtraction above from
-  // reopening it once it overflows, ~49.7 days after the start.
+  // Latched: the subtraction above wraps after ~49.7 days.
   this->warmup_ended_ = true;
   return false;
 }
 
 void MiCS5524Component::update() {
   if (this->calibrating_) {
-    // The reference is about to change: never keep a value that was computed with
-    // the previous one.
+    // The reference is about to change: never keep a value computed with the previous one.
     this->publish_ratio_(NAN);
     ESP_LOGD(TAG, "update skipped, a calibration is running - the sensor must be in clean air");
     return;
@@ -107,8 +103,7 @@ void MiCS5524Component::update() {
   }
 
   if (this->in_warmup_()) {
-    // Published on every pass, so a value computed before a restart never survives the
-    // warm-up window.  `setup()` logged the window, so there is nothing to repeat here.
+    // Published on every pass, so a value from before a restart never survives the warm-up.
     this->publish_ratio_(NAN);
     return;
   }
@@ -129,17 +124,13 @@ void MiCS5524Component::update() {
       ESP_LOGW(TAG, "analog output reads %.4f V - open circuit, missing supply or bad divider? check the AO wiring",
                voltage);
     }
-    // Nothing usable was read, so leave the gases unknown instead of publishing a
-    // value that looks like a measurement.
     this->publish_ratio_(NAN);
     return;
   }
 
   const float air_value = micsmath::air_value_from_voltage(voltage, this->vcc_);
   if (!std::isfinite(air_value)) {
-    // Only a `vcc:` below what the sampler reports can do this, and reading it as the
-    // saturated end of the range would turn a configuration error into what looks like
-    // a real measurement.
+    // Only a vcc below what the sampler reports does this: a configuration error, not a reading.
     if (!this->warned_voltage_) {
       this->warned_voltage_ = true;
       ESP_LOGW(TAG,
@@ -223,8 +214,7 @@ void MiCS5524Component::finish_calibration_() {
 
   const uint32_t attempts = this->calibration_attempts_;
   const uint32_t valid = this->calibration_count_;
-  // Every reading uses this reference, so a lucky minority of samples must not define
-  // it: a majority of the attempts has to have produced one, two samples at least.
+  // A majority of the attempts has to have produced a sample, two at least.
   const uint32_t required = std::max<uint32_t>((attempts + 1) / 2, 2);
 
   if (valid < required) {
@@ -233,12 +223,9 @@ void MiCS5524Component::finish_calibration_() {
     return;
   }
 
-  // Every counted sample is finite and positive (`process_calibration_()`), so their
-  // average is usable without another check.
   const float reference = this->calibration_sum_ / static_cast<float>(valid);
 
-  // A sensor that is still settling, or one that is not in clean air, varies too much
-  // for its average to be the reference of every later reading.
+  // A sensor still settling, or not in clean air, varies too much to be the reference.
   if (!micsmath::calibration_is_stable(this->calibration_min_, this->calibration_max_, reference)) {
     ESP_LOGW(
         TAG, "clean-air samples spread %.4f V around %.4f V (%.4f - %.4f V) - the sensor was not settled in clean air",
@@ -250,15 +237,16 @@ void MiCS5524Component::finish_calibration_() {
   this->reference_ = reference;
   this->status_clear_warning();
 
-  ESP_LOGI(TAG, "air reference = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)", this->reference_, valid, attempts);
-  ESP_LOGI(TAG, "hard-code 'air_reference: %.4f' in the YAML to skip the calibration at boot", this->reference_);
+  ESP_LOGI(TAG,
+           "air reference = %.4f (%" PRIu32 "/%" PRIu32
+           " samples valid); hard-code 'air_reference: %.4f' to skip the calibration at boot",
+           this->reference_, valid, attempts, this->reference_);
 }
 
 void MiCS5524Component::schedule_calibration_retry_() {
   this->status_set_warning();
   this->calibration_pending_ = true;
-  // A delay of zero restarts the run straight away and logs the same failure again about
-  // five times per second, so anything below the floor is raised to it.
+  // A zero delay would log the same failure about five times per second.
   const uint32_t delay = std::max(this->calibration_delay_, CALIBRATION_RETRY_MIN_MS);
   this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
   ESP_LOGW(TAG, "retrying the calibration in %" PRIu32 " s", delay / 1000);

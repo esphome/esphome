@@ -10,8 +10,7 @@ sensor:
     name: MiCS-5524 AO
     pin: GPIO34
 
-  # Calibrated at boot: the reference is averaged from clean air, then every gas
-  # below it is published with the same ratio.
+  # Calibrated at boot; every gas below it is published from the same ratio.
   - platform: mics_5524
     id: mics_5524_boot
     voltage: mics_5524_adc

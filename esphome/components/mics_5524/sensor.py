@@ -1,14 +1,4 @@
-"""``mics_5524`` - ESPHome sensor platform for the MiCS-5524.
-
-One entry configures one physical sensor: the analog output is read and converted
-once per ``update_interval``, and every gas listed under it is published as its
-own sub-sensor.  The MiCS-5524 responds to several gases at once, so the readings
-report the same mixture of CO, H2, C2H5OH, NH3 and CH4 with different
-calibrations, and none of them can say which of the gases is present.
-
-The signal comes from an existing voltage sampler (``voltage:``, e.g. an ``adc``
-sensor configured next to this one).
-"""
+"""MiCS-5524 sensor platform: one entry per module, one sub-sensor per configured gas."""
 
 from collections.abc import Callable
 import logging
@@ -43,20 +33,17 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["sensor", "voltage_sampler"]
 
-#: The main loop runs every ~16 ms, so a shorter spacing cannot sample more often
-#: than that and only makes a calibration overrun a tick of everything else.
+# The main loop runs every ~16 ms, so a shorter spacing cannot sample more often.
 MIN_SAMPLE_INTERVAL_MS = 16
 
-#: At most this many conversions of the analog output per reading: they run back to
-#: back inside one loop pass, so a longer burst delays everything else.
+# Conversions per reading run back to back inside one loop pass.
 MAX_SAMPLE_COUNT = 16
 
-#: One slot per configured gas, sizing the gas list of each sensor.
 _request_gas_slot = cg.slot_counter("MICS_5524_GAS_COUNT")
 
 
 def _validate_max_ppm(gas_key: str) -> Callable[..., float]:
-    """Reject a `max_ppm:` the vendor conversion can never reach."""
+    """Reject a max_ppm above the vendor range of the gas."""
     curve = GASES[gas_key]
 
     def validate(value: float) -> float:
@@ -71,7 +58,7 @@ def _validate_max_ppm(gas_key: str) -> Callable[..., float]:
 
 
 def _gas_schema(gas_key: str) -> cv.Schema:
-    """Sub-sensor schema of one gas: a PPM sensor with its own range."""
+    """Schema of one gas sub-sensor."""
     curve = GASES[gas_key]
     return sensor.sensor_schema(
         MiCS5524GasSensor,
@@ -99,22 +86,19 @@ CALIBRATION_SCHEMA = cv.Schema(
 
 
 def _validate_config(config: ConfigType) -> ConfigType:
-    """Reject an unusable air reference, and warn about a sensor that has none."""
+    """Reject an air reference at or above the supply; warn when there is none."""
     if (air_reference := config.get(CONF_AIR_REFERENCE)) is not None:
-        # The reference is `x_air = vcc - V_AO` as read in clean air, so it is always
-        # below the supply: a larger one would report every gas as 0 ppm forever.
+        # The reference is vcc - V_AO in clean air, so a larger one reads 0 ppm forever.
         if air_reference >= config[CONF_VCC]:
             raise cv.Invalid(
                 f"air_reference ({air_reference:g} V) must be below vcc "
-                f"({config[CONF_VCC]:g} V): the reference is how far the analog "
-                "output sits below the supply in clean air, so a larger value cannot "
-                "come from a reading"
+                f"({config[CONF_VCC]:g} V): it is how far the analog output sits "
+                "below the supply in clean air"
             )
     elif CONF_CALIBRATION not in config:
         _LOGGER.warning(
             "no air reference configured - set 'air_reference:' or 'calibration:', "
-            "or every PPM value stays unknown until the sensor has been calibrated "
-            "in clean air"
+            "the PPM values stay unknown until then"
         )
     return config
 
@@ -146,8 +130,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    # The sampler is a constructor argument: no reading is possible without it, so
-    # the component has no valid state in which it is missing.
     var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_VOLTAGE]))
     await cg.register_component(var, config)
 

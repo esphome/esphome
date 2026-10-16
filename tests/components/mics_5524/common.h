@@ -13,8 +13,7 @@ using micsmath::calibration_is_stable;
 using micsmath::ppm_from_vendor_curve;
 using micsmath::ratio_from_air_value;
 
-// A fixture of the DFRobot table: an independent copy, so a change in `coefficients.py`
-// cannot quietly change what these tests mean (the Python tests pin that table itself).
+// Independent copy of the DFRobot table; the Python tests pin coefficients.py itself.
 constexpr micsmath::VendorCurve CO{0.425f, 0.000405f, 1.0f, 1000.0f};
 constexpr micsmath::VendorCurve H2{0.279f, 0.00026f, 1.0f, 1000.0f};
 constexpr micsmath::VendorCurve NH3{0.8f, 0.0015f, 10.0f, 500.0f};
