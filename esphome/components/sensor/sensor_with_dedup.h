@@ -8,14 +8,12 @@
 namespace esphome::sensor {
 
 /// Declare an optional child sensor that skips publishing a value equal to the last one.
-#ifndef SUB_SENSOR_WITH_DEDUP
 #define SUB_SENSOR_WITH_DEDUP(name, dedup_type) \
  protected: \
   sensor::SensorWithDedup<dedup_type> name##_sensor_{}; \
 \
  public: \
   void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_.set_sensor(sensor); }
-#endif
 
 #define LOG_SENSOR_WITH_DEDUP(prefix, type, s) LOG_SENSOR(prefix, type, (s).get_sensor())
 
