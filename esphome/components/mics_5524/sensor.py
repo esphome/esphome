@@ -364,6 +364,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_conversion(config[CONF_CONVERSION]))
+    if config[CONF_CONVERSION] == CONVERSION_DATASHEET:
+        # Only a build with a datasheet model links the power law and its libm
+        cg.add_define("USE_MICS_5524_DATASHEET")
     cg.add(var.set_vcc(config[CONF_VCC]))
     if (rl := config.get(CONF_RL)) is not None:
         cg.add(var.set_rl(rl))

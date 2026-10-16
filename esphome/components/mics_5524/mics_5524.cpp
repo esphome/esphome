@@ -27,10 +27,14 @@ static ModelStrings model_strings(micsmath::ConversionModel model) {
 }
 
 void MiCS5524GasSensor::publish_ratio(float ratio, micsmath::ConversionModel model) {
-  const float ppm = model == micsmath::CONVERSION_MODEL_DFROBOT
-                        ? micsmath::ppm_from_vendor_curve(ratio, {this->p0_, this->p1_, this->min_ppm_, this->max_ppm_})
-                        : micsmath::clamp_ppm(micsmath::ppm_from_power_law(this->p0_, this->p1_, ratio), this->min_ppm_,
-                                              this->max_ppm_);
+  float ppm = micsmath::ppm_from_vendor_curve(ratio, {this->p0_, this->p1_, this->min_ppm_, this->max_ppm_});
+#ifdef USE_MICS_5524_DATASHEET
+  // One firmware can hold a hub of each model, so the check stays inside the guard
+  if (model == micsmath::CONVERSION_MODEL_DATASHEET) {
+    ppm =
+        micsmath::clamp_ppm(micsmath::ppm_from_power_law(this->p0_, this->p1_, ratio), this->min_ppm_, this->max_ppm_);
+  }
+#endif
   ESP_LOGD(TAG, "'%s': ratio=%.4f -> %.1f ppm", this->get_name().c_str(), ratio, ppm);
   this->publish_state(ppm);
 }
@@ -138,8 +142,11 @@ float MiCS5524Component::model_value_(float voltage) {
   // of which would pass for clean air, so neither model gets to see it.
   float value = NAN;
   if (voltage > 0.05f * this->vcc_) {
-    value = this->is_vendor_model_() ? micsmath::air_value_from_voltage(voltage, this->vcc_)
-                                     : micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
+    value = micsmath::air_value_from_voltage(voltage, this->vcc_);
+#ifdef USE_MICS_5524_DATASHEET
+    if (!this->is_vendor_model_())
+      value = micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
+#endif
   }
   if (!std::isnan(value))
     return value;
