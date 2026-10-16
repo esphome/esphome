@@ -12,7 +12,7 @@ void Mcp4461Component::setup() {
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->error_code_ = MCP4461_STATUS_I2C_ERROR;
-    this->mark_failed();
+    this->mark_failed(this->get_message_string(this->error_code_));
     return;
   }
   // save WP/WL status
@@ -96,9 +96,6 @@ void Mcp4461Component::update_write_protection_status_() {
 void Mcp4461Component::dump_config() {
   ESP_LOGCONFIG(TAG, "mcp4461:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "%s", LOG_STR_ARG(this->get_message_string(this->error_code_)));
-  }
   // log wiper status
   for (uint8_t i = 0; i < 8; ++i) {
     // terminals only valid for volatile wipers 0-3 - enable/disable is terminal hw
@@ -218,7 +215,7 @@ uint8_t Mcp4461Component::get_status_register_() {
   uint16_t buf;
   if (!this->read_16_(reg, &buf)) {
     this->error_code_ = MCP4461_STATUS_REGISTER_ERROR;
-    this->mark_failed();
+    this->mark_failed(this->get_message_string(this->error_code_));
     return 0;
   }
   uint8_t msb = buf >> 8;
@@ -227,7 +224,7 @@ uint8_t Mcp4461Component::get_status_register_() {
     // D8, D7 and R1 bits are hardlocked to 1 -> a status msb bit 0 (bit 9 of status register) of 0 or lsb bit 1/7 = 0
     // indicate device/communication issues, therefore mark component failed
     this->error_code_ = MCP4461_STATUS_REGISTER_INVALID;
-    this->mark_failed();
+    this->mark_failed(this->get_message_string(this->error_code_));
     return 0;
   }
   this->status_clear_warning();

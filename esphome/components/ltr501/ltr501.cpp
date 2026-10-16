@@ -115,10 +115,6 @@ void LTRAlsPs501Component::dump_config() {
   LOG_SENSOR("  ", "CH1 Infrared counts", this->infrared_counts_sensor_);
   LOG_SENSOR("  ", "CH0 Visible+IR counts", this->full_spectrum_counts_sensor_);
   LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void LTRAlsPs501Component::update() {
@@ -151,7 +147,7 @@ void LTRAlsPs501Component::loop() {
       err = this->write(nullptr, 0);
       if (err != i2c::ERROR_OK) {
         ESP_LOGW(TAG, "i2c connection failed");
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       }
       this->configure_reset_();
       if (this->is_als_()) {
@@ -254,7 +250,7 @@ bool LTRAlsPs501Component::check_part_number_() {
   uint8_t manuf_id = this->reg((uint8_t) CommandRegisters::MANUFAC_ID).get();
   if (manuf_id != 0x05) {  // 0x05 is Lite-On Semiconductor Corp. ID
     ESP_LOGW(TAG, "Unknown manufacturer ID: 0x%02X", manuf_id);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unknown manufacturer ID"));
     return false;
   }
 

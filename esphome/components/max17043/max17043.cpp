@@ -56,15 +56,13 @@ void MAX17043Component::setup() {
 
   if (config_reg != MAX17043_CONFIG_POWER_UP_DEFAULT) {
     ESP_LOGE(TAG, "Device does not appear to be a MAX17043");
-    this->status_set_error(LOG_STR("unrecognised"));
-    this->mark_failed();
+    this->mark_failed(LOG_STR("unrecognised"));
     return;
   }
 
   // need to write back to config register to reset the sleep bit
   if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT)) {
-    this->status_set_error(LOG_STR("sleep reset failed"));
-    this->mark_failed();
+    this->mark_failed(LOG_STR("sleep reset failed"));
     return;
   }
 }
@@ -72,9 +70,6 @@ void MAX17043Component::setup() {
 void MAX17043Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX17043:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Battery Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Battery Level", this->battery_remaining_sensor_);
