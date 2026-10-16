@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import ble_client, climate, esp32_ble
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Petapton"]
 DEPENDENCIES = ["ble_client"]
@@ -18,27 +18,27 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("10s"))
 )
 
+# IO capabilities that can confirm a numeric comparison pairing
+_NUMERIC_COMPARISON_CAPABILITIES = ("display_yes_no", "keyboard_display")
 
-def _final_validate(config) -> None:
-    # Pairing uses numeric comparison (NC_REQ), which requires the controller to
-    # expose a display. The esp32_ble default ("none") cannot satisfy the MITM
-    # encryption request and fails silently at runtime, so enforce the capability
-    # at config time.
-    full_config = fv.full_config.get()
-    ble_config = full_config.get("esp32_ble", {})
-    io_capability = ble_config.get(esp32_ble.CONF_IO_CAPABILITY, "none")
-    if io_capability != "display_yes_no":
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Pairing uses numeric comparison (NC_REQ). The esp32_ble default ("none")
+    # cannot satisfy the MITM encryption request and fails silently at runtime.
+    io_capability = fv.full_config.get()[esp32_ble.DOMAIN][esp32_ble.CONF_IO_CAPABILITY]
+    if io_capability not in _NUMERIC_COMPARISON_CAPABILITIES:
         raise cv.Invalid(
             "daikin_madoka requires MITM-capable BLE pairing (numeric comparison), "
-            f"set 'esp32_ble' 'io_capability: display_yes_no' (found '{io_capability}')"
+            "set 'esp32_ble' 'io_capability' to 'display_yes_no' or 'keyboard_display' "
+            f"(found '{io_capability}')"
         )
+    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def to_code(config: ConfigType) -> None:
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
-    await climate.register_climate(var, config)
     await ble_client.register_ble_node(var, config)

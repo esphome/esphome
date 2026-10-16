@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cinttypes>
-#include <utility>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -24,15 +23,14 @@ static const uint16_t CMD_GET_FAN_SPEED = 0x0050;
 static const uint16_t CMD_SET_FAN_SPEED = 0x4050;
 static const uint16_t CMD_GET_SENSOR_INFORMATION = 0x0110;
 
+// Indexed by the device's operation mode byte
+static constexpr std::array<ClimateMode, 5> DEVICE_MODES{CLIMATE_MODE_FAN_ONLY, CLIMATE_MODE_DRY,
+                                                         CLIMATE_MODE_HEAT_COOL, CLIMATE_MODE_COOL, CLIMATE_MODE_HEAT};
+static constexpr uint8_t DEVICE_MODE_HEAT = 4;
+
 void DaikinMadoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
-void DaikinMadoka::setup() {
-  // As a ble_client node, loop() is already driven every tick by BLEClient::loop();
-  // drop the redundant Application dispatch so it is not called twice per tick.
-  this->disable_loop();
-}
-
-inline static uint32_t get_command_cooldown(uint16_t cmd) {
+static uint32_t get_command_cooldown(uint16_t cmd) {
   switch (cmd) {
     case CMD_GET_SETTING_STATUS:
     case CMD_GET_OPERATION_MODE:
@@ -53,29 +51,6 @@ inline static uint32_t get_command_cooldown(uint16_t cmd) {
   }
 }
 
-void DaikinMadoka::loop() {
-  while (!this->received_chunks_.empty()) {
-    Chunk &chk = this->received_chunks_.front();
-
-    if (chk.length != 0) {
-      this->process_incoming_chunk_(chk);
-    }
-    this->received_chunks_.pop();
-  }
-
-  if (!this->query_queue_.empty() && !this->pending_message_) {
-    Query query = this->query_queue_.front();
-    this->query_queue_.pop();
-    this->query_(query.cmd, query.args);
-    this->pending_message_ = true;
-    this->set_timeout("query", get_command_cooldown(query.cmd), [this]() { this->pending_message_ = false; });
-  }
-  if (this->should_update_) {
-    this->should_update_ = false;
-    this->update();
-  }
-}
-
 void DaikinMadoka::control(const ClimateCall &call) {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     this->publish_state();  // Update state to reflect that the device is disconnected
@@ -84,61 +59,29 @@ void DaikinMadoka::control(const ClimateCall &call) {
 
   auto mode_opt = call.get_mode();
   if (mode_opt.has_value()) {
-    ClimateMode mode = mode_opt.value();
-    uint8_t mode_out = 255, status_out = 0;
-    switch (mode) {
-      case climate::CLIMATE_MODE_OFF:
-        status_out = 0;
-        break;
-      case climate::CLIMATE_MODE_HEAT_COOL:
-        status_out = 1;
-        mode_out = 2;
-        break;
-      case climate::CLIMATE_MODE_COOL:
-        status_out = 1;
-        mode_out = 3;
-        break;
-      case climate::CLIMATE_MODE_HEAT:
-        status_out = 1;
-        mode_out = 4;
-        break;
-      case climate::CLIMATE_MODE_FAN_ONLY:
-        status_out = 1;
-        mode_out = 0;
-        break;
-      case climate::CLIMATE_MODE_DRY:
-        status_out = 1;
-        mode_out = 1;
-        break;
-      default:
+    const ClimateMode mode = mode_opt.value();
+    if (mode == CLIMATE_MODE_OFF) {
+      this->enqueue_query_(CMD_SET_SETTING_STATUS, std::array<uint8_t, 3>{0x20, 0x01, 0});
+    } else {
+      auto it = std::find(DEVICE_MODES.begin(), DEVICE_MODES.end(), mode);
+      if (it == DEVICE_MODES.end()) {
         ESP_LOGW(TAG, "Unsupported mode: %d", mode);
-        break;
+      } else {
+        const auto device_mode = static_cast<uint8_t>(it - DEVICE_MODES.begin());
+        this->enqueue_query_(CMD_SET_OPERATION_MODE, std::array<uint8_t, 3>{0x20, 0x01, device_mode});
+        this->enqueue_query_(CMD_SET_SETTING_STATUS, std::array<uint8_t, 3>{0x20, 0x01, 1});
+      }
     }
-    ESP_LOGD(TAG, "status: %d, mode: %d", status_out, mode_out);
-    if (mode_out != 255) {
-      this->enqueue_query_(CMD_SET_OPERATION_MODE, {0x20, 0x01, (uint8_t) mode_out});
-    }
-    this->enqueue_query_(CMD_SET_SETTING_STATUS, {0x20, 0x01, (uint8_t) status_out});
   }
-  StaticVector<uint8_t, MAX_QUERY_ARGS> temp_setpoint_args;
-  auto target_temperature_high_opt = call.get_target_temperature_high();
-  if (target_temperature_high_opt.has_value()) {
-    uint16_t target_high = std::clamp(target_temperature_high_opt.value(), MIN_TEMP, MAX_TEMP) * 128;
-    temp_setpoint_args.push_back(0x20);
-    temp_setpoint_args.push_back(0x02);
-    temp_setpoint_args.push_back((uint8_t) ((target_high >> 8) & 0xFF));
-    temp_setpoint_args.push_back((uint8_t) (target_high & 0xFF));
+  StaticVector<uint8_t, MAX_QUERY_ARGS> setpoint_args;
+  if (auto high = call.get_target_temperature_high(); high.has_value()) {
+    append_setpoint(setpoint_args, 0x20, *high);
   }
-  auto target_temperature_low_opt = call.get_target_temperature_low();
-  if (target_temperature_low_opt.has_value()) {
-    uint16_t target_low = std::clamp(target_temperature_low_opt.value(), MIN_TEMP, MAX_TEMP) * 128;
-    temp_setpoint_args.push_back(0x21);
-    temp_setpoint_args.push_back(0x02);
-    temp_setpoint_args.push_back((uint8_t) ((target_low >> 8) & 0xFF));
-    temp_setpoint_args.push_back((uint8_t) (target_low & 0xFF));
+  if (auto low = call.get_target_temperature_low(); low.has_value()) {
+    append_setpoint(setpoint_args, 0x21, *low);
   }
-  if (!temp_setpoint_args.empty()) {
-    this->enqueue_query_(CMD_SET_SETPOINT, temp_setpoint_args);
+  if (!setpoint_args.empty()) {
+    this->enqueue_query_(CMD_SET_SETPOINT, setpoint_args);
   }
   auto fan_mode_opt = call.get_fan_mode();
   if (fan_mode_opt.has_value()) {
@@ -162,10 +105,18 @@ void DaikinMadoka::control(const ClimateCall &call) {
         break;
     }
     if (fan_mode_out != 255) {
-      this->enqueue_query_(CMD_SET_FAN_SPEED, {0x20, 0x01, (uint8_t) fan_mode_out, 0x21, 0x01, (uint8_t) fan_mode_out});
+      // Sets the cooling (0x20) and heating (0x21) fan speeds together
+      this->enqueue_query_(CMD_SET_FAN_SPEED,
+                           std::array<uint8_t, 6>{0x20, 0x01, fan_mode_out, 0x21, 0x01, fan_mode_out});
     }
   }
-  this->should_update_ = true;
+  this->update();
+}
+
+void DaikinMadoka::fail_connection_(const LogString *reason) {
+  ESP_LOGW(TAG, "[%s] %s, disconnecting", this->parent_->address_str(), LOG_STR_ARG(reason));
+  this->status_set_warning(reason);
+  this->parent_->disconnect();
 }
 
 void DaikinMadoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -181,13 +132,14 @@ void DaikinMadoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_c
       if (!this->parent()->check_addr(param->ble_security.auth_cmpl.bd_addr))
         return;
       if (!param->ble_security.auth_cmpl.success) {
-        ESP_LOGE(TAG, "Authentication failed, status: 0x%x", param->ble_security.auth_cmpl.fail_reason);
+        ESP_LOGW(TAG, "Authentication failed, reason: 0x%x", param->ble_security.auth_cmpl.fail_reason);
+        this->fail_connection_(LOG_STR("Pairing failed"));
         break;
       }
       auto *nfy = this->parent_->get_characteristic(MADOKA_SERVICE_UUID, NOTIFY_CHARACTERISTIC_UUID);
       auto *wwr = this->parent_->get_characteristic(MADOKA_SERVICE_UUID, WWR_CHARACTERISTIC_UUID);
       if (nfy == nullptr || wwr == nullptr) {
-        ESP_LOGW(TAG, "[%s] No control service found at device, not a Daikin Madoka..?", this->get_name().c_str());
+        this->fail_connection_(LOG_STR("Madoka control service not found"));
         break;
       }
       this->notify_handle_ = nfy->handle;
@@ -211,7 +163,6 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->notify_handle_ = 0;
       this->wwr_handle_ = 0;
 
-      this->node_state = espbt::ClientState::IDLE;
       this->current_temperature = NAN;
       this->target_temperature_high = NAN;
       this->target_temperature_low = NAN;
@@ -219,12 +170,11 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->fan_mode.reset();
       this->publish_state();
 
-      this->received_chunks_.clear();
-      this->partial_incoming_message_.data.clear();
-      this->partial_incoming_message_.expected_chunk_id = 0;
-      this->should_update_ = false;
+      this->assembler_.reset();
+      this->cancel_timeout("query");
+      this->query_cooldown_ = false;
       this->query_queue_.clear();
-      this->pending_message_ = false;
+      this->pending_responses_ = 0;
       break;
     }
     case ESP_GATTC_WRITE_DESCR_EVT:
@@ -249,7 +199,8 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
-      this->should_update_ = true;
+      this->status_clear_warning();
+      this->update();
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -257,17 +208,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         ESP_LOGW(TAG, "Different notify handle");
         break;
       }
-      if (param->notify.value_len > MAX_CHUNK_SIZE) {
-        ESP_LOGW(TAG, "Received chunk too large: %d bytes", param->notify.value_len);
-        break;
-      }
-      Chunk chk{};
-      chk.length = param->notify.value_len;
-      std::copy(param->notify.value, param->notify.value + param->notify.value_len, chk.data.begin());
-      if (!this->received_chunks_.push(chk)) {
-        ESP_LOGW(TAG, "Received chunks queue full, dropping chunk");
-        break;
-      }
+      this->process_incoming_chunk_(std::span<const uint8_t>{param->notify.value, param->notify.value_len});
       break;
     }
     default:
@@ -278,215 +219,136 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
 void DaikinMadoka::update() {
   static constexpr std::array<uint16_t, 5> ALL_CMDS{CMD_GET_SETTING_STATUS, CMD_GET_OPERATION_MODE, CMD_GET_SETPOINT,
                                                     CMD_GET_FAN_SPEED, CMD_GET_SENSOR_INFORMATION};
+  static constexpr std::array<uint8_t, 2> NO_ARGS{0x00, 0x00};
 
   ESP_LOGD(TAG, "Got update request...");
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGD(TAG, "...but device is disconnected");
     return;
   }
+  // Nothing is in flight, so responses still counted from the last batch were lost
+  if (!this->query_cooldown_) {
+    this->pending_responses_ = 0;
+  }
   for (auto cmd : ALL_CMDS) {
-    this->enqueue_query_(cmd, {0x00, 0x00});
+    this->enqueue_query_(cmd, NO_ARGS);
   }
 }
 
-void DaikinMadoka::process_incoming_chunk_(const Chunk &chk) {
-  if (chk.length < 2) {
-    ESP_LOGI(TAG, "Chunk discarded: invalid length.");
-    return;
-  }
-  uint8_t chunk_id = chk.data[0];
-  std::span<const uint8_t> stripped{chk.data.begin() + 1, chk.data.begin() + chk.length};
-  if (chunk_id == 0 && stripped.size() == stripped[0]) {
-    this->parse_cb_(stripped);
-    return;
-  }
-
-  if (chunk_id != this->partial_incoming_message_.expected_chunk_id) {
-    ESP_LOGW(TAG, "Chunk discarded: invalid chunk id.");
-    ESP_LOGD(TAG, "Expected chunk id: %u, got: %u", this->partial_incoming_message_.expected_chunk_id, chunk_id);
-    this->partial_incoming_message_.data.clear();
-    this->partial_incoming_message_.expected_chunk_id = 0;
-    if (chunk_id != 0)
-      return;
-  }
-
-  for (uint8_t byte : stripped) {
-    this->partial_incoming_message_.data.push_back(byte);
-  }
-  this->partial_incoming_message_.expected_chunk_id++;
-
-  if (this->partial_incoming_message_.data.size() > this->partial_incoming_message_.data[0]) {
-    ESP_LOGW(TAG, "Chunk discarded: message too long.");
-    this->partial_incoming_message_.data.clear();
-    this->partial_incoming_message_.expected_chunk_id = 0;
-    return;
-  }
-  if (this->partial_incoming_message_.data.size() == this->partial_incoming_message_.data[0]) {
-    this->parse_cb_(this->partial_incoming_message_.data);
-    this->partial_incoming_message_.data.clear();
-    this->partial_incoming_message_.expected_chunk_id = 0;
-  }
-}
-
-esp_err_t DaikinMadoka::send_message_(std::span<uint8_t> chk) {
-  esp_err_t status = ESP_OK;
-  const char *addr = this->parent_->address_str();
-
-  for (int j = 0; j < BLE_SEND_MAX_RETRIES; j++) {
-    status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
-                                      chk.size(), chk.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (!status) {
+void DaikinMadoka::process_incoming_chunk_(std::span<const uint8_t> chunk) {
+  switch (this->assembler_.feed(chunk)) {
+    case ChunkResult::CHUNK_RESULT_COMPLETE:
+      this->parse_cb_(this->assembler_.message());
       break;
-    }
-    ESP_LOGD(TAG, "[%s] esp_ble_gattc_write_char failed (%d of %d), status=%d", addr, j + 1, BLE_SEND_MAX_RETRIES,
-             status);
+    case ChunkResult::CHUNK_RESULT_INVALID_LENGTH:
+      ESP_LOGW(TAG, "Chunk discarded: invalid length");
+      break;
+    case ChunkResult::CHUNK_RESULT_OUT_OF_ORDER:
+      ESP_LOGW(TAG, "Chunk discarded: unexpected chunk id %u", chunk[0]);
+      break;
+    case ChunkResult::CHUNK_RESULT_TOO_LONG:
+      ESP_LOGW(TAG, "Message discarded: too long");
+      break;
+    case ChunkResult::CHUNK_RESULT_PARTIAL:
+      break;
   }
-  return status;
 }
 
-void DaikinMadoka::enqueue_query_(uint16_t cmd, StaticVector<uint8_t, MAX_QUERY_ARGS> args) {
-  if (!this->query_queue_.push(Query{cmd, args})) {
+void DaikinMadoka::enqueue_query_(uint16_t cmd, std::span<const uint8_t> args) {
+  Query query{.cmd = cmd, .len = static_cast<uint8_t>(args.size()), .args = {}};
+  std::copy(args.begin(), args.end(), query.args.begin());
+  if (!this->query_queue_.push(query)) {
     ESP_LOGW(TAG, "Query queue full, dropping command 0x%04X", cmd);
-  }
-}
-
-void DaikinMadoka::query_(uint16_t cmd, std::span<const uint8_t> args) {
-  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     return;
   }
-
-  const char *addr = this->parent_->address_str();
-
-  // Leave first byte for length, then a reserved byte and 2 command bytes, then the args
-  StaticVector<uint8_t, MAX_QUERY_ARGS + 4> payload{0x00, 0x00, (uint8_t) ((cmd >> 8) & 0xFF), (uint8_t) (cmd & 0xFF)};
-  for (uint8_t arg : args) {
-    payload.push_back(arg);
-  }
-  size_t len = payload.size();
-
-  // Populate leading length byte
-  payload[0] = (uint8_t) len;
-
-  Chunk chunk{};
-  for (size_t i = 0; i * (MAX_CHUNK_SIZE - 1) < len; i++) {
-    auto *chunk_start = payload.begin() + (i * (MAX_CHUNK_SIZE - 1));
-    auto *chunk_end = payload.begin() + std::min(payload.size(), (i + 1) * (MAX_CHUNK_SIZE - 1));
-    chunk.data[0] = (uint8_t) i;
-    std::copy(chunk_start, chunk_end, chunk.data.begin() + 1);
-    chunk.length = chunk_end - chunk_start + 1;
-
-    esp_err_t status = this->send_message_(std::span<uint8_t>(chunk.data.data(), chunk.length));
-    if (status) {
-      ESP_LOGE(TAG, "[%s] Command could not be sent, last status=%d", addr, status);
-      return;
-    }
+  if (!this->query_cooldown_) {
+    this->send_next_query_();
   }
 }
 
-using ArgPair = std::pair<uint16_t, std::span<const uint8_t>>;
-
-// Practical cap on the number of arguments in a response; messages carrying more are discarded
-static constexpr size_t MAX_MESSAGE_ARGS = 32;
-
-static const ArgPair *find_arg(std::span<const ArgPair> args, uint16_t arg_id) {
-  for (const ArgPair &arg : args) {
-    if (arg.first == arg_id) {
-      return &arg;
-    }
+void DaikinMadoka::send_next_query_() {
+  if (this->query_queue_.empty()) {
+    this->query_cooldown_ = false;
+    return;
   }
-  return nullptr;
+  const Query &query = this->query_queue_.front();
+  const uint16_t cmd = query.cmd;
+  // On a failed write the query stays queued for the next pass
+  if (this->write_query_(query)) {
+    this->query_queue_.pop();
+    this->pending_responses_++;
+  }
+  this->query_cooldown_ = true;
+  this->set_timeout("query", get_command_cooldown(cmd), [this]() { this->send_next_query_(); });
+}
+
+bool DaikinMadoka::write_query_(const Query &query) {
+  static_assert(MAX_QUERY_ARGS + MESSAGE_HEADER_SIZE <= MAX_CHUNK_SIZE - 1, "A query must fit in one chunk");
+  // Chunk id 0, then the message: length, reserved byte, command, args
+  std::array<uint8_t, MAX_CHUNK_SIZE> frame;
+  const uint8_t msg_len = MESSAGE_HEADER_SIZE + query.len;
+  const auto cmd = decode_value<uint16_t>(query.cmd);
+  frame[0] = 0;
+  frame[1] = msg_len;
+  frame[2] = 0;
+  frame[3] = cmd[0];
+  frame[4] = cmd[1];
+  std::copy_n(query.args.begin(), query.len, frame.begin() + 1 + MESSAGE_HEADER_SIZE);
+  esp_err_t err =
+      esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
+                               msg_len + 1, frame.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "[%s] Writing command 0x%04X failed, status=%d", this->parent_->address_str(), query.cmd, err);
+    return false;
+  }
+  return true;
+}
+
+void DaikinMadoka::update_mode_from_status_() {
+  if (!this->power_on_) {
+    this->mode = CLIMATE_MODE_OFF;
+  } else if (this->device_mode_ < DEVICE_MODES.size()) {
+    this->mode = DEVICE_MODES[this->device_mode_];
+  }
 }
 
 void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
-  if (msg.size() < 4) {
-    ESP_LOGE(TAG, "Discarding message: invalid length.");
+  if (!is_valid_message(msg)) {
+    ESP_LOGW(TAG, "Discarding message: invalid length");
     return;
   }
-  const uint16_t function_id = msg[2] << 8 | msg[3];
-  size_t i = 4;
-  const size_t message_size = msg.size();
 
-  StaticVector<ArgPair, MAX_MESSAGE_ARGS> parsed_args;
-  while (i <= message_size - 2) {  // `-2` accounts for arg_id and len bytes
-    uint8_t argument_id = msg[i++];
-    uint8_t len = msg[i++];
-    if (i + len > message_size) {
-      ESP_LOGE(TAG, "Discarding message: invalid argument length.");
-      return;
+  switch (message_function_id(msg)) {
+    case CMD_GET_SETTING_STATUS: {
+      if (auto value = find_arg(msg, 0x20); value.size() == 1) {
+        this->power_on_ = value[0] == 1;
+        this->update_mode_from_status_();
+      }
+      break;
     }
-    if (parsed_args.size() == MAX_MESSAGE_ARGS) {
-      ESP_LOGE(TAG, "Discarding message: too many arguments.");
-      return;
-    }
-    parsed_args.push_back(ArgPair{argument_id, std::span<const uint8_t>{msg.begin() + i, len}});
-    i += len;
-  }
-
-  switch (function_id) {
-    case CMD_GET_SETTING_STATUS:
     case CMD_GET_OPERATION_MODE: {
-      const ArgPair *arg = find_arg(parsed_args, 0x20);
-      if (arg == nullptr || arg->second.size() != 1) {
-        break;
-      }
-      if (function_id == CMD_GET_SETTING_STATUS) {
-        this->cur_status_.status = arg->second[0] == 1;
-      } else if (function_id == CMD_GET_OPERATION_MODE) {
-        this->cur_status_.mode = arg->second[0];
-      }
-      if (this->cur_status_.status) {
-        switch (this->cur_status_.mode) {
-          case 0:
-            this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-            break;
-          case 1:
-            this->mode = climate::CLIMATE_MODE_DRY;
-            break;
-          case 2:
-            this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-            break;
-          case 3:
-            this->mode = climate::CLIMATE_MODE_COOL;
-            break;
-          case 4:
-            this->mode = climate::CLIMATE_MODE_HEAT;
-            break;
-        }
-      } else {
-        this->mode = climate::CLIMATE_MODE_OFF;
+      if (auto value = find_arg(msg, 0x20); value.size() == 1) {
+        this->device_mode_ = value[0];
+        this->update_mode_from_status_();
       }
       break;
     }
     case CMD_GET_SETPOINT: {
-      const ArgPair *arg_high = find_arg(parsed_args, 0x20);
-      if (arg_high != nullptr && arg_high->second.size() == 2) {
-        this->target_temperature_high = (float) (arg_high->second[0] << 8 | arg_high->second[1]) / 128;
+      if (auto high = find_arg(msg, 0x20); high.size() == 2) {
+        this->target_temperature_high = decode_setpoint(high);
       }
-
-      const ArgPair *arg_low = find_arg(parsed_args, 0x21);
-      if (arg_low != nullptr && arg_low->second.size() == 2) {
-        this->target_temperature_low = (float) (arg_low->second[0] << 8 | arg_low->second[1]) / 128;
+      if (auto low = find_arg(msg, 0x21); low.size() == 2) {
+        this->target_temperature_low = decode_setpoint(low);
       }
       break;
     }
     case CMD_GET_FAN_SPEED: {
-      const ArgPair *arg_fan = nullptr;
-      switch (this->cur_status_.mode) {
-        case 0:
-        case 2:
-        case 3:
-          arg_fan = find_arg(parsed_args, 0x20);
-          break;
-        case 4:
-          arg_fan = find_arg(parsed_args, 0x21);
-          break;
-        default:
-          break;
-      }
-      if (arg_fan == nullptr || arg_fan->second.size() != 1) {
+      // Heat mode uses the heating fan speed (0x21); the other modes use the cooling one (0x20)
+      auto value = find_arg(msg, this->device_mode_ == DEVICE_MODE_HEAT ? 0x21 : 0x20);
+      if (value.size() != 1) {
         break;
       }
-      switch (arg_fan->second[0]) {
+      switch (value[0]) {
         case 0:
           this->fan_mode = climate::CLIMATE_FAN_AUTO;
           break;
@@ -507,9 +369,8 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
       break;
     }
     case CMD_GET_SENSOR_INFORMATION: {
-      const ArgPair *arg_temp = find_arg(parsed_args, 0x40);
-      if (arg_temp != nullptr && arg_temp->second.size() == 1) {
-        this->current_temperature = (float) arg_temp->second[0];
+      if (auto value = find_arg(msg, 0x40); value.size() == 1) {
+        this->current_temperature = static_cast<float>(value[0]);
       }
       break;
     }
@@ -517,7 +378,9 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
       break;
   }
 
-  this->set_timeout("publish_state", 800, [this]() { this->publish_state(); });
+  if (this->pending_responses_ > 0 && --this->pending_responses_ == 0) {
+    this->publish_state();
+  }
 }
 
 }  // namespace esphome::daikin_madoka
