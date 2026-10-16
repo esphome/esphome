@@ -6,9 +6,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT_PIN,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
     CONF_OUTPUT,
     CONF_PULLUP,
 )
@@ -48,20 +45,14 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
 
-PCA6416A_PIN_SCHEMA = cv.All(
+PCA6416A_PIN_SCHEMA = pins.gpio_base_schema(
+    PCA6416AGPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_PULLUP, CONF_OUTPUT],
+    mode_validator=pins.gpio_validate_input_xor_output_pullup,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(PCA6416AGPIOPin),
         cv.Required(CONF_PCA6416A): pins.use_id_or_address(PCA6416AComponent),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            pins.gpio_validate_input_xor_output_pullup,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
 
