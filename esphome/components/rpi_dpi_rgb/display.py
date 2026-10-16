@@ -49,7 +49,10 @@ rpi_dpi_rgb_ns = cg.esphome_ns.namespace("rpi_dpi_rgb")
 RPI_DPI_RGB = rpi_dpi_rgb_ns.class_("RpiDpiRgb", display.Display, cg.Component)
 ColorOrder = display.display_ns.enum("ColorMode")
 
-COLOR_ORDERS = ColorOrder.options("RGB", "BGR", prefix="COLOR_ORDER_")
+COLOR_ORDERS = {
+    "RGB": ColorOrder.COLOR_ORDER_RGB,
+    "BGR": ColorOrder.COLOR_ORDER_BGR,
+}
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 
