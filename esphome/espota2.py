@@ -35,7 +35,6 @@ RESPONSE_UPDATE_END_OK = 0x45
 RESPONSE_SUPPORTS_COMPRESSION = 0x46
 RESPONSE_CHUNK_OK = 0x47
 RESPONSE_FEATURE_FLAGS = 0x48
-RESPONSE_BIN_SHA256_OK = 0x49
 
 RESPONSE_ERROR_MAGIC = 0x80
 RESPONSE_ERROR_UPDATE_PREPARE = 0x81
@@ -59,8 +58,6 @@ RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
 RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94
 RESPONSE_ERROR_UPDATE_BUSY = 0x95
-RESPONSE_ERROR_SHA256_MISMATCH = 0x96
-RESPONSE_ERROR_SHA256_REQUIRED = 0x97
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -73,8 +70,6 @@ CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
 CLIENT_FEATURE_SUPPORTS_NOISE = 0x08
 CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
-# platform-zephyr bits are added after upstream's; move them if upstream claims these.
-CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x20
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
@@ -85,8 +80,7 @@ SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
 # (the common case, running slot 0) means the write goes to slot 1 and needs
 # alt_filename (the slot-1-linked build); set means it goes to slot 0 and needs the
 # primary. Never set by non-Zephyr/non-direct-xip devices.
-SERVER_FEATURE_ACTIVE_SLOT_1 = 0x10
-SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x20
+SERVER_FEATURE_ACTIVE_SLOT_1 = 0x20
 
 # Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
 DEFLATE_WINDOW_BITS = 12
@@ -180,14 +174,6 @@ _ERROR_MESSAGES: dict[int, str] = {
     RESPONSE_ERROR_MD5_MISMATCH: (
         "Application MD5 code mismatch. Please try again "
         "or flash over USB with a good quality cable."
-    ),
-    RESPONSE_ERROR_SHA256_MISMATCH: (
-        "Application SHA256 code mismatch. Please try again "
-        "or flash over USB with a good quality cable."
-    ),
-    RESPONSE_ERROR_SHA256_REQUIRED: (
-        "The device requires the SHA256 file checksum extension. This "
-        "ESPHome is too old to support it; please update esphome and retry."
     ),
     RESPONSE_ERROR_SIGNATURE_INVALID: (
         "Firmware signature verification failed. The firmware was not signed "
@@ -653,13 +639,12 @@ def _negotiate_session(
             f"Device uses unsupported OTA version {version}, this ESPHome supports {supported_versions}"
         )
 
-    # Features - send compression, SHA256 auth, deflate, and SHA256 checksum support
+    # Features - send both compression and SHA256 auth support
     features_to_send = (
         CLIENT_FEATURE_SUPPORTS_COMPRESSION
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
         | CLIENT_FEATURE_SUPPORTS_DEFLATE
-        | CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
     )
     if noise_psk:
         features_to_send |= CLIENT_FEATURE_SUPPORTS_NOISE
@@ -881,17 +866,11 @@ def perform_ota(
     _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
     # The device hashes what it writes: the inflated image, else the received bytes
-    hashed_contents = file_contents if deflate else upload_contents
-    if features & SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM:
-        upload_checksum = hashlib.sha256(hashed_contents).hexdigest()
-        _LOGGER.debug("SHA256 of upload is %s", upload_checksum)
-        send_check(sock, upload_checksum, "file checksum")
-        receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_SHA256_OK)
-    else:
-        upload_checksum = hashlib.md5(hashed_contents).hexdigest()
-        _LOGGER.debug("MD5 of upload is %s", upload_checksum)
-        send_check(sock, upload_checksum, "file checksum")
-        receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
+    upload_md5 = hashlib.md5(file_contents if deflate else upload_contents).hexdigest()
+    _LOGGER.debug("MD5 of upload is %s", upload_md5)
+
+    send_check(sock, upload_md5, "file checksum")
+    receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
 
     # Disable nodelay for transfer
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)

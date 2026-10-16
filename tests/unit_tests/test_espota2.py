@@ -357,7 +357,6 @@ def test_perform_ota_successful_md5_auth(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
-                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
             ]
         )
     )
@@ -1080,7 +1079,6 @@ def test_perform_ota_successful_sha256_auth(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
-                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
             ]
         )
     )
@@ -1138,7 +1136,6 @@ def test_perform_ota_sha256_fallback_to_md5(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
-                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
             ]
         )
     )
@@ -1249,7 +1246,6 @@ def test_perform_ota_extended_protocol_app(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
-                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
             ]
         )
     )
@@ -1311,7 +1307,6 @@ def test_perform_ota_successful_partition_table(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
-                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
             ]
         )
     )
@@ -1577,51 +1572,6 @@ def test_perform_ota_with_deflate(mock_socket: Mock, server_features: int) -> No
     assert len(payload) == sent_size < len(original_content)
     assert zlib.decompress(payload, -espota2.DEFLATE_WINDOW_BITS) == original_content
     assert sent[5] == hashlib.md5(original_content).hexdigest().encode()
-
-
-def _sha256_handshake(server_features: int) -> list[bytes]:
-    """Like _no_auth_handshake, but the device acks a SHA256 file checksum."""
-    return _no_auth_handshake(espota2.OTA_VERSION_2_0, server_features)[:-1] + [
-        bytes([espota2.RESPONSE_BIN_SHA256_OK])
-    ]
-
-
-@pytest.mark.usefixtures("mock_time")
-def test_perform_ota_sha256_checksum(mock_socket: Mock) -> None:
-    """A device offering the SHA256 checksum gets the image SHA256 instead of MD5."""
-    content = b"firmware" * 100
-    mock_socket.recv.side_effect = (
-        _sha256_handshake(espota2.SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM)
-        + _UPLOAD_TAIL
-    )
-
-    espota2.perform_ota(mock_socket, None, io.BytesIO(content), "test.bin")
-
-    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
-    # magic, features, ota type, size, sha256, data, end ack
-    assert sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
-    assert sent[4] == hashlib.sha256(content).hexdigest().encode()
-    assert sent[5] == content
-
-
-@pytest.mark.usefixtures("mock_time")
-def test_perform_ota_sha256_checksum_with_deflate(mock_socket: Mock) -> None:
-    """With deflate, the SHA256 covers the inflated image, not the stream."""
-    content = b"firmware" * 100
-    mock_socket.recv.side_effect = (
-        _sha256_handshake(
-            espota2.SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM
-            | espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
-        )
-        + _UPLOAD_TAIL
-    )
-
-    espota2.perform_ota(mock_socket, None, io.BytesIO(content), "test.bin")
-
-    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
-    # magic, features, ota type, size, image size, sha256, data, end ack
-    assert sent[5] == hashlib.sha256(content).hexdigest().encode()
-    assert zlib.decompress(sent[6], -espota2.DEFLATE_WINDOW_BITS) == content
 
 
 @pytest.mark.usefixtures("mock_time")

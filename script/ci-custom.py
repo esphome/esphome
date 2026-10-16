@@ -941,6 +941,8 @@ def lint_relative_py_import(fname: Path, line, col, content):
         "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
         # C header shared with the vendored decoder
         "esphome/components/esphome/ota/ota_esphome_inflate.h",
+        # C header of the vendored Openwall MD5
+        "esphome/components/md5/md5_openwall.h",
     ],
 )
 def lint_namespace(fname: Path, content: str) -> str | None:

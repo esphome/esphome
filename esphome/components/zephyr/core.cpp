@@ -13,7 +13,7 @@
 #include <zephyr/drivers/hwinfo.h>
 #endif
 
-// Probe rather than require: this header only exists once another component (sha256, md5,
+// Probe rather than require: this header only exists once another component (sha256,
 // api encryption) has turned on the MBEDTLS Kconfig.
 #if __has_include(<mbedtls/build_info.h>)
 #include <mbedtls/build_info.h>
