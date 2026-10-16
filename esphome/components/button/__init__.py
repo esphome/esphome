@@ -118,7 +118,7 @@ async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     return var
 
 
-_APPLY_ENTITY = ApplyEntity(((ButtonPtr, "entity"),))
+_APPLY_ENTITY = ApplyEntity(ApplyButton, ((ButtonPtr, "entity"),))
 
 
 def sub_buttons(
