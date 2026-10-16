@@ -149,8 +149,8 @@ def _validate_esp32_variant(config: ConfigType) -> ConfigType:
         if variant not in INTERNAL_DAC_VARIANTS:
             raise cv.Invalid(f"{variant} does not have an internal DAC")
     elif variant == esp32.VARIANT_ESP32 and config[CONF_BITS_PER_SAMPLE] == 8:
-        # The original ESP32 I2S peripheral stores each sample in a whole number of 16-bit words, so an 8-bit slot
-        # cannot work. A 24-bit slot can, since the speaker hands it 32-bit samples (see start_i2s_driver).
+        # An 8-bit slot is rejected on the original ESP32: no known DAC needs one, and it is untested there.
+        # 8-bit streams still work; they are widened to the 16- or 32-bit slot (see start_i2s_driver).
         raise cv.Invalid(
             f"{CONF_BITS_PER_SAMPLE} cannot be 8bit on the original ESP32",
             path=[CONF_BITS_PER_SAMPLE],
