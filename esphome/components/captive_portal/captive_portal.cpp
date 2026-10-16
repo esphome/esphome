@@ -80,6 +80,9 @@ void CaptivePortal::setup() {
   this->disable_loop();
 }
 void CaptivePortal::start() {
+  // Each start takes a web server reference that end() returns once
+  if (this->active_)
+    return;
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler_without_auth(this);

@@ -2240,9 +2240,10 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
-    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    """The Border Router needs TLS/DTLS server support and OpenThread crypto extras."""
+    generate_main(component_config_path("mbedtls_tls_openthread_border_router.yaml"))
     mbedtls = CORE.data[KEY_ESP32][KEY_MBEDTLS_SDKCONFIG]
+    assert mbedtls.tls_required is True
     assert mbedtls.tls_server_required is True
     assert mbedtls.tls_extras_required == _CCM_ECDSA_EXTRAS
 

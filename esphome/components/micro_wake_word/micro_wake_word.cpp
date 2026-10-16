@@ -17,6 +17,10 @@
 
 namespace esphome::micro_wake_word {
 
+// Config validation checks the YAML, this checks the build: a unicore sdkconfig reached any other way
+static_assert(MICRO_WAKE_WORD_TASK_CORE == tskNO_AFFINITY || MICRO_WAKE_WORD_TASK_CORE < portNUM_PROCESSORS,
+              "micro_wake_word task_core is not a core of this build");
+
 ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
 static const ssize_t DETECTION_QUEUE_LENGTH = 5;
@@ -84,6 +88,12 @@ static const LogString *micro_wake_word_state_to_string(State state) {
 
 void MicroWakeWord::dump_config() {
   ESP_LOGCONFIG(TAG, "microWakeWord:");
+  // tskNO_AFFINITY is a cast expression, so this cannot be a preprocessor test; the compiler folds it
+  if (MICRO_WAKE_WORD_TASK_CORE == tskNO_AFFINITY) {
+    ESP_LOGCONFIG(TAG, "  Inference task core: any");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Inference task core: %d", MICRO_WAKE_WORD_TASK_CORE);
+  }
   ESP_LOGCONFIG(TAG, "  models:");
   for (auto &model : this->wake_word_models_) {
     model->log_model_config();
@@ -211,7 +221,7 @@ void MicroWakeWord::inference_task(void *params) {
           xEventGroupClearBits(this_mww->event_group_, EventGroupBits::COMMAND_RESET_RING_BUFFER);
         }
 
-        audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS), false);
+        audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS));
 
         // The frontend buffers samples internally and only emits a feature once it has a full window, so we can
         // hand it whatever the source exposes. The frontend consumes at least one sample per call, so available()
@@ -477,7 +487,8 @@ void MicroWakeWord::loop() {
         }
 
         if (!this->inference_task_.create(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE,
-                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_)) {
+                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_,
+                                          MICRO_WAKE_WORD_TASK_CORE)) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
           this->status_momentary_error(1000);
         }

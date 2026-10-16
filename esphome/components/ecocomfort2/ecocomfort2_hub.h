@@ -32,7 +32,8 @@ static constexpr uint8_t OPER_OUT = 0x02;
 static constexpr uint8_t OPER_IN_OUT = 0x03;
 static constexpr uint8_t OPER_SENSOR_OR_AUTO = 0x04;
 
-// C_OPER byte 1: speed in the low nibble, flags in the high nibble
+// Speed byte: speed in the low nibble, flags in the high nibble.
+// C_OPER carries FLAG_AUTO; the unit reports FLAG_BOOST in byte 1 of C_STATE.
 static constexpr uint8_t SPEED_OFF = 0x00;
 static constexpr uint8_t SPEED_SLEEP = 0x01;
 static constexpr uint8_t SPEED_VEL1 = 0x02;
@@ -41,7 +42,6 @@ static constexpr uint8_t SPEED_VEL3 = 0x04;
 static constexpr uint8_t SPEED_MASK = 0x0F;
 static constexpr uint8_t FLAG_AUTO = 0x10;
 static constexpr uint8_t FLAG_BOOST = 0x40;
-static constexpr uint8_t FLAG_NIGHT = 0x80;
 
 /** Hub component for Ecocomfort 2.0 VMC via BLE. */
 class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public PollingComponent {
