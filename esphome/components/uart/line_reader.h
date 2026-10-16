@@ -10,9 +10,8 @@ namespace esphome::uart {
 /// component pays only for the call.
 void log_line_dropped(const char *tag, size_t max_len);
 
-/// Collects bytes into NUL terminated lines in a fixed buffer of N bytes, so lines hold up to N - 1 characters.
-/// The terminator ends a line and is not stored; the ignore character is dropped wherever it appears
-/// (IGNORE = '\0' only drops NUL bytes). A line longer than N - 1 characters is dropped up to its terminator.
+/// Collects bytes into NUL terminated lines of up to N - 1 characters; IGNORE bytes are skipped and an
+/// overlong line is dropped up to its terminator.
 template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader {
   // pos_ is the length so far; N means "overflowed on this byte", N + 1 "dropping up to the terminator"
   using pos_t = std::conditional_t<(N < 0xFE), uint8_t, uint16_t>;
