@@ -55,10 +55,10 @@ from esphome.cpp_generator import (  # noqa: F401
 from esphome.cpp_helpers import (  # noqa: F401
     build_registry_entry,
     build_registry_list,
-    component_source_passthrough,
     extract_registry_entry_config,
     get_slot_count,
     gpio_pin_expression,
+    new_bus_component,
     past_safe_mode,
     register_component,
     register_parented,

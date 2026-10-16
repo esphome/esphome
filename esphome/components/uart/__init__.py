@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from logging import getLogger
 import math
@@ -55,7 +56,6 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
@@ -603,16 +603,14 @@ async def register_uart_device(var, config):
     cg.add(var.set_uart_parent(parent))
 
 
-@cg.component_source_passthrough
-async def new_uart_component(config: ConfigType, *args: Any) -> MockObj:
+def new_uart_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
     """Create a component on a UART bus: construct, register, attach to the bus.
 
     Extra args go to the constructor.
     """
-    var = cg.new_Pvariable(config[CONF_ID], *args)
-    await cg.register_component(var, config)
-    await register_uart_device(var, config)
-    return var
+    return cg.new_bus_component(register_uart_device, config, *args)
 
 
 @automation.register_action(
