@@ -208,9 +208,6 @@ static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
 // Raw deflate, window <= OTA_INFLATE_WINDOW_SIZE. Binding once offered: the
 // client must then send the image size frame and a deflate stream.
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
-// Zephyr direct-xip only: set when the device is currently executing from slot 1
-// (never set by non-Zephyr/non-direct-xip devices).
-static constexpr uint8_t SERVER_FEATURE_ACTIVE_SLOT_1 = 0x20;
 
 #ifdef USE_OTA_ENCRYPTION
 inline bool ESPHomeOTAComponent::noise_offered_() const {
@@ -334,9 +331,6 @@ void ESPHomeOTAComponent::handle_handshake_() {
         this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
 #ifdef USE_OTA_PARTITIONS
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
-#endif
-#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
-        this->handshake_buf_[1] |= (this->backend_->active_slot_is_secondary() ? SERVER_FEATURE_ACTIVE_SLOT_1 : 0);
 #endif
 #ifdef USE_OTA_ENCRYPTION_PROVISIONED
         // A runtime provisioned key may not exist yet

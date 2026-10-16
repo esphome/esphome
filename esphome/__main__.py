@@ -1485,13 +1485,6 @@ def _upload_via_native_api(
     if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
         _validate_bootloader_binary(binary)
 
-    # direct-xip only, and only for the plain app binary -- --file/--partition-table/
-    # --bootloader overrides bypass CORE.firmware_bin entirely, so there's no matching
-    # slot-1 variant to offer.
-    alt_binary = None
-    if ota_type == espota2.OTA_TYPE_UPDATE_APP and binary == CORE.firmware_bin:
-        alt_binary = CORE.firmware_alt_bin
-
     return espota2.run_ota(
         network_devices,
         remote_port,
@@ -1500,7 +1493,6 @@ def _upload_via_native_api(
         ota_type,
         noise_psk,
         plaintext_fallback=plaintext_fallback,
-        alt_filename=alt_binary,
         allow_plaintext_upload=allow_plaintext_upload,
         old_noise_psk=old_noise_psk,
     )
