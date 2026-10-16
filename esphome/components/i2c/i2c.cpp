@@ -54,7 +54,8 @@ bool I2CDevice::write_registers(const I2CRegValue *table, size_t count) const {
   for (size_t i = 0; i < count; i++) {
     I2CRegValue entry;
     progmem_memcpy(&entry, &table[i], sizeof(entry));
-    if (this->write_register(entry.reg, &entry.value, 1) != ERROR_OK)
+    if (this->bus_->write_readv(this->address_, reinterpret_cast<const uint8_t *>(&entry), sizeof(entry), nullptr, 0) !=
+        ERROR_OK)
       return false;
   }
   return true;

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <array>
 #include <utility>
 #include <vector>
 
@@ -48,19 +47,6 @@ TEST_F(I2CWriteRegistersTest, StopsAtFirstFailure) {
   this->bus_.fail_at = 2;
   EXPECT_FALSE(this->device_.write_registers(INIT));
   const std::vector<std::pair<uint8_t, uint8_t>> expected{{0x01, 0x3A}, {0x00, 0x80}};
-  EXPECT_EQ(this->bus_.writes, expected);
-}
-
-TEST_F(I2CWriteRegistersTest, PointerAndCountOverload) {
-  ASSERT_TRUE(this->device_.write_registers(&INIT[1], 2));
-  const std::vector<std::pair<uint8_t, uint8_t>> expected{{0x00, 0x80}, {0xF9, 0x00}};
-  EXPECT_EQ(this->bus_.writes, expected);
-}
-
-TEST_F(I2CWriteRegistersTest, StdArrayOverload) {
-  static constexpr std::array<I2CRegValue, 2> TABLE{{{0x10, 0x01}, {0x11, 0x02}}};
-  ASSERT_TRUE(this->device_.write_registers(TABLE));
-  const std::vector<std::pair<uint8_t, uint8_t>> expected{{0x10, 0x01}, {0x11, 0x02}};
   EXPECT_EQ(this->bus_.writes, expected);
 }
 

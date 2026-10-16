@@ -17,6 +17,7 @@ struct I2CRegValue {
   uint8_t reg;
   uint8_t value;
 };
+static_assert(sizeof(I2CRegValue) == 2, "each entry is sent to the bus as is");
 
 /// @brief This class is used to create I2CRegister objects that act as proxies to read/write internal registers on an
 /// I2C device.
@@ -219,9 +220,6 @@ class I2CDevice {
   bool write_registers(const I2CRegValue *table, size_t count) const;
   template<size_t N> bool write_registers(const I2CRegValue (&table)[N]) const {
     return this->write_registers(table, N);
-  }
-  template<size_t N> bool write_registers(const std::array<I2CRegValue, N> &table) const {
-    return this->write_registers(table.data(), N);
   }
 
   ///
