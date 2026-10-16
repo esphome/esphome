@@ -51,9 +51,8 @@ class UARTDevice {
 
   size_t available() { return this->parent_->available(); }
 
-  /// Read the bytes available now through an N byte stack buffer and pass each chunk to
-  /// on_chunk(const uint8_t *data, size_t len). A callback returning false stops the read.
-  /// Returns false only when a read from the UART failed.
+  /// Pass the bytes available now to on_chunk(data, len) in N byte chunks; returning false stops.
+  /// Returns false only on a read error.
   template<size_t N = 64, typename F> bool read_available_chunks(F &&on_chunk) {
     return this->read_available_chunks<N>(on_chunk, this->available());
   }
