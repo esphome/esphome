@@ -87,4 +87,58 @@ TEST(MicsMath, SaturatedSensorEndToEnd) {
   EXPECT_FLOAT_EQ(CO.max_ppm, ppm_from_vendor_curve(ratio, CO));
 }
 
+TEST(MicsMath, DatasheetResistanceComesFromTheDivider) {
+  // RS = (VCC * RL) / V_AO - RL: half of the supply across a 10k load resistor.
+  EXPECT_FLOAT_EQ(10.0f, rs_from_voltage(2.5f, 5.0f, 10.0f));
+  EXPECT_FLOAT_EQ(90.0f, rs_from_voltage(0.5f, 5.0f, 10.0f));
+  // A pin at or above the supply would be a negative resistance, and a pin at ground an
+  // infinite one: both are unusable rather than a real (and wrong) reading.
+  EXPECT_TRUE(std::isnan(rs_from_voltage(0.0f, 5.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(rs_from_voltage(5.0f, 5.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(rs_from_voltage(5.5f, 5.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(rs_from_voltage(NAN, 5.0f, 10.0f)));
+}
+
+TEST(MicsMath, DatasheetRatioNeedsAReference) {
+  EXPECT_FLOAT_EQ(1.0f, ratio_from_rs(10.0f, 10.0f));
+  EXPECT_FLOAT_EQ(0.5f, ratio_from_rs(5.0f, 10.0f));
+  // Without a calibrated R0 there is no ratio to report.
+  EXPECT_TRUE(std::isnan(ratio_from_rs(10.0f, 0.0f)));
+  EXPECT_TRUE(std::isnan(ratio_from_rs(0.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(ratio_from_rs(NAN, 10.0f)));
+}
+
+TEST(MicsMath, DatasheetCurveFollowsTheShippedCoefficients) {
+  // The CO fit shipped in `coefficients.py`: a = 6.3, b = -1.1, from 10 ppm at
+  // RS/R0 = 0.5 to 1000 ppm at RS/R0 = 0.01.
+  EXPECT_NEAR(13.5f, ppm_from_power_law(6.3f, -1.1f, 0.5f), 0.05f);
+  EXPECT_NEAR(998.5f, ppm_from_power_law(6.3f, -1.1f, 0.01f), 0.5f);
+  // Clean air (RS == R0) reads the coefficient itself.
+  EXPECT_NEAR(6.3f, ppm_from_power_law(6.3f, -1.1f, 1.0f), 0.001f);
+  // A ratio outside what the fit can express is unusable, not a huge number.
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, 0.0f)));
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, NAN)));
+}
+
+TEST(MicsMath, ClampingKeepsZeroAndCapsTheRange) {
+  // 0 ppm means "no gas detected" in both models and is never lifted to `min_ppm`.
+  EXPECT_FLOAT_EQ(0.0f, clamp_ppm(0.0f, 5.0f, 100.0f));
+  EXPECT_FLOAT_EQ(5.0f, clamp_ppm(2.0f, 5.0f, 100.0f));
+  EXPECT_FLOAT_EQ(100.0f, clamp_ppm(200.0f, 5.0f, 100.0f));
+  EXPECT_FLOAT_EQ(6.3f, clamp_ppm(6.3f, 5.0f, 100.0f));
+  EXPECT_TRUE(std::isnan(clamp_ppm(NAN, 5.0f, 100.0f)));
+}
+
+TEST(MicsMath, DatasheetModelEndToEnd) {
+  // 2.5 V across a 10k load resistor is RS = 10 kOhm, which is also R0 when the sensor
+  // is in clean air: the reading is then the coefficient `a` of the gas.
+  const float rs = rs_from_voltage(2.5f, 5.0f, 10.0f);
+  const float ratio = ratio_from_rs(rs, 10.0f);
+
+  EXPECT_FLOAT_EQ(1.0f, ratio);
+  EXPECT_NEAR(6.3f, ppm_from_power_law(6.3f, -1.1f, ratio), 0.001f);
+  // Twice the resistance is ratio 2, below clean air, so the fit reads less gas.
+  EXPECT_NEAR(2.94f, ppm_from_power_law(6.3f, -1.1f, ratio_from_rs(20.0f, 10.0f)), 0.05f);
+}
+
 }  // namespace esphome::mics_5524_gas_sensor::testing

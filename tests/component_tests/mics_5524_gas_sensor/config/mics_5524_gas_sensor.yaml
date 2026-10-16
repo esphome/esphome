@@ -36,3 +36,35 @@ sensor:
     hydrogen:
       id: mics_5524_h2
       name: MiCS-5524 H2
+
+  # The datasheet model, with the ADC this component owns: `pin:` creates the hidden
+  # `adc` sensor, and the 10k/20k divider brings the 5 V of the breakout down to the
+  # 3.33 V the ESP32 ADC measures, which `adc_input_max:` has to allow.
+  - platform: mics_5524_gas_sensor
+    id: mics_5524_pin
+    pin: GPIO32
+    voltage_divider:
+      r1: 10000
+      r2: 20000
+    adc_input_max: 3.34
+    conversion: datasheet
+    r0: 10.0
+    ratio_sensor: mics_5524_ratio
+    rs_sensor: mics_5524_rs
+    voltage_sensor: mics_5524_volts
+    carbon_monoxide:
+      id: mics_5524_co_ds
+      name: MiCS-5524 CO (datasheet)
+      max_ppm: 2000.0
+
+  # Diagnostics of the sensor above: the ratio and RS of the active model, and the
+  # voltage they were computed from.
+  - platform: template
+    id: mics_5524_ratio
+    name: MiCS-5524 ratio
+  - platform: template
+    id: mics_5524_rs
+    name: MiCS-5524 RS
+  - platform: template
+    id: mics_5524_volts
+    name: MiCS-5524 volts

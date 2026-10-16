@@ -10,8 +10,12 @@ namespace esphome::mics_5524_gas_sensor::testing {
 
 using micsmath::air_value_from_voltage;
 using micsmath::calibration_is_stable;
+using micsmath::clamp_ppm;
+using micsmath::ppm_from_power_law;
 using micsmath::ppm_from_vendor_curve;
 using micsmath::ratio_from_air_value;
+using micsmath::ratio_from_rs;
+using micsmath::rs_from_voltage;
 
 // A fixture of the DFRobot table: an independent copy, so a change in `coefficients.py`
 // cannot quietly change what these tests mean (the Python tests pin that table itself).
