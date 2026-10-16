@@ -269,23 +269,28 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
   height = std::min(height, crop.height - offset_y);
 
   // set_res_raw() of this sensor takes the crop in offsetX/offsetY plus totalX/totalY and the
-  // frame it fills in outputX/outputY; start and end are left unused. The crop is read out 1:1,
-  // so the published frame takes the size of the window: the driver's DSP path is only ever used
-  // without scaling, and asking it to upscale a small crop to the full frame yields no valid
-  // frames ("Got invalid frame from camera!").
+  // frame it fills in outputX/outputY; start and end are left unused. The image pipeline scales
+  // the crop to the size in outputX/outputY, which is how the driver itself reads out every frame
+  // size below the readout, so ask it for the window back in the pixels of the frame. The crop is
+  // in the pixels of the readout, which is larger than the frame below UXGA: read out 1:1 the
+  // published frame would take the size of the crop instead of the window, and a crop larger than
+  // the frame overruns the buffers the driver sized for it. The size the pipeline is asked for is
+  // in steps of four pixels as well, so it is rounded down to one.
+  const int output_x = std::max(frame_window.width - frame_window.width % OV2640_CROP_STEP, OV2640_CROP_STEP);
+  const int output_y = std::max(frame_window.height - frame_window.height % OV2640_CROP_STEP, OV2640_CROP_STEP);
   const int ret =
       sensor->set_res_raw(sensor, ov2640_mode_for(sensor->status.framesize), 0, 0, 0, crop.offset_x + offset_x,
-                          crop.offset_y + offset_y, width, height, width, height, false, false);
+                          crop.offset_y + offset_y, width, height, output_x, output_y, false, false);
   if (ret != 0) {
     ESP_LOGE(TAG, "Cropping to offset %d,%d size %dx%d failed with %d", crop.offset_x + offset_x,
              crop.offset_y + offset_y, width, height, ret);
     return false;
   }
 
-  ESP_LOGI(TAG,
-           "Window at %d,%d of %dx%d crops to offset %d,%d size %dx%d of the %dx%d readout and is read out as %dx%d",
+  ESP_LOGI(TAG, "Window at %d,%d of %dx%d crops to offset %d,%d size %dx%d of the %dx%d readout and is scaled to %dx%d",
            frame_window.offset_x, frame_window.offset_y, frame_window.width, frame_window.height,
-           crop.offset_x + offset_x, crop.offset_y + offset_y, width, height, crop.width, crop.height, width, height);
+           crop.offset_x + offset_x, crop.offset_y + offset_y, width, height, crop.width, crop.height, output_x,
+           output_y);
   return true;
 }
 

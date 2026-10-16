@@ -21,15 +21,15 @@ namespace esphome::esp32_camera_window {
 ///
 /// The OV3660 and OV5640 scale the part of the picture a window covers back up to the frame, so a
 /// window on them also zooms and the camera keeps publishing frames of the size it is configured
-/// with. The OV2640 reads a window out as it is and cannot scale it, so the published frame takes
-/// the size of the window instead. The SC101IOT and SC030IOT read a window out as it is and cannot
-/// scale it either, so a window on them has to be the size of the frame and only moves which part
-/// of the sensor the frame shows. Every other sensor the driver knows, such as the OV7725, is read
-/// out through registers of its own that do not take a window, so a window is reported as
-/// unsupported and every call to set_window() fails on it.
+/// with. The OV2640 crops a window out of its readout and scales that to the size the window has in
+/// the frame, so the published frame takes the size of the window instead. The SC101IOT and
+/// SC030IOT read a window out as it is and cannot scale it, so a window on them has to be the size
+/// of the frame and only moves which part of the sensor the frame shows. Every other sensor the
+/// driver knows, such as the OV7725, is read out through registers of its own that do not take a
+/// window, so a window is reported as unsupported and every call to set_window() fails on it.
 ///
 /// The OV2640 can only be told to crop in whole four-pixel steps of its readout, so a window on it
-/// is rounded down to one.
+/// is rounded down to one; the frame it publishes is the size of the window in the same steps.
 ///
 /// Repeated set_window() calls replace the previous window; they never nest inside it. Changing
 /// the frame size clears any window back to the whole sensor, so re-apply the window afterwards.
@@ -60,9 +60,9 @@ class Esp32CameraWindow : public Component {
   ///
   /// A window that reaches past the frame is clamped to it, and so is its size. On the OV3660
   /// and OV5640 the frame size the camera publishes is left as it is; on the OV2640 the published
-  /// frame takes the size of the window instead. Returns false when no sensor is available, when
-  /// the sensor cannot take a window, or when it rejects the settings. Calling it again replaces
-  /// the previous window.
+  /// frame takes the size of the window instead, rounded down to whole four-pixel steps. Returns
+  /// false when no sensor is available, when the sensor cannot take a window, or when it rejects
+  /// the settings. Calling it again replaces the previous window.
   ///
   /// The SC101IOT and SC030IOT read a window out as it is and cannot scale it, so the size of a
   /// window on them has to be the frame size and the offsets are counted from the corner of the
