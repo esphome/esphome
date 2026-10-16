@@ -26,7 +26,7 @@ class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented
   TEMPLATABLE_VALUE(float, det_min4)
   TEMPLATABLE_VALUE(float, det_max4)
 
-  void play(const Ts &...x) {
+  void play(const Ts &...x) override {
     this->parent_->enqueue(make_unique<PowerCommand>(0));
     if (this->factory_reset_.has_value() && this->factory_reset_.value(x...) == true) {
       this->parent_->enqueue(make_unique<FactoryResetCommand>());
