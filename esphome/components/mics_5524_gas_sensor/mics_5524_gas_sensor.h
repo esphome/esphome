@@ -88,9 +88,10 @@ class MiCS5524Component : public PollingComponent {
   void set_air_reference(float air_reference);
   /// Fixed clean-air reference of the datasheet model: `R0` in kOhm.
   void set_r0(float r0);
-  void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
-  void set_ratio_sensor(sensor::Sensor *sensor) { this->ratio_sensor_ = sensor; }
-  void set_rs_sensor(sensor::Sensor *sensor) { this->rs_sensor_ = sensor; }
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(ratio)
+  // RS only exists in the datasheet model, so its sensor stays silent in the vendor one.
+  SUB_SENSOR(rs)
 
  protected:
   // ---------------------------------------------------------------- pipeline
@@ -174,10 +175,7 @@ class MiCS5524Component : public PollingComponent {
   /// Clean-air reference: `x_air` in volts (vendor) or `R0` in kOhm (datasheet).
   float reference_{0.0f};
 
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *ratio_sensor_{nullptr};
-  /// Only the datasheet model defines RS, so its sensor stays silent in the vendor one.
-  sensor::Sensor *rs_sensor_{nullptr};
+  // Diagnostic sub-sensors are declared by the SUB_SENSOR setters above.
 
   // Sized by code generation, one slot per configured gas; a build that runs no code
   // generation (the C++ unit tests) has no count, so this list and the loops over it

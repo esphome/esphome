@@ -137,7 +137,7 @@ inline float ratio_from_rs(float rs, float r0) {
 /// NaN for a ratio or a coefficient that cannot produce a reading, so the caller
 /// publishes `unknown` instead of the largest float there is.
 inline float ppm_from_power_law(float a, float b, float ratio) {
-  if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(ratio) || ratio <= 0.0f)
+  if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(ratio) || ratio <= 0.0f || a <= 0.0f)
     return NAN;
 
   const double log_ppm =
@@ -152,15 +152,16 @@ inline float ppm_from_power_law(float a, float b, float ratio) {
 
 /// Clamp a reading to the configured range (NaN stays NaN).
 ///
-/// 0 ppm is both models' way of saying "no gas detected" and is never lifted to
-/// `min_ppm`; only a reading counted as detected can be.
+/// `min_ppm` is the noise floor of both models: a reading below it counts as not
+/// detected and reports 0 ppm, the same way the vendor model reports 0 below its
+/// own range. 0 ppm itself is never changed.
 inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
   if (!std::isfinite(ppm))
     return NAN;
   if (ppm <= 0.0f)
     return 0.0f;
   if (std::isfinite(min_ppm) && ppm < min_ppm)
-    return min_ppm;
+    return 0.0f;
   if (std::isfinite(max_ppm) && ppm > max_ppm)
     return max_ppm;
   return ppm;

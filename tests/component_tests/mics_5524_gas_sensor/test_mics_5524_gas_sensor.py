@@ -232,10 +232,20 @@ def test_max_ppm_at_the_vendor_range_is_accepted() -> None:
     assert config["carbon_monoxide"]["max_ppm"] == 1000.0
 
 
-def test_max_ppm_defaults_to_the_vendor_range_of_the_gas() -> None:
-    config = CONFIG_SCHEMA(_hub(carbon_monoxide={"name": "MiCS-5524 CO (default)"}))
+def test_max_ppm_defaults_to_the_vendor_range_of_the_gas(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """An omitted ceiling still reports the vendor range: it is resolved per model."""
+    from esphome.components.mics_5524_gas_sensor.coefficients import resolve_gas
 
-    assert config["carbon_monoxide"]["max_ppm"] == 1000.0
+    resolved = resolve_gas("carbon_monoxide", "dfrobot", max_ppm=None)
+    assert resolved.max_ppm == 1000.0
+
+    # End to end: the default CO of the boot sensor keeps 1000 ppm in the firmware.
+    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    ch4 = _gas_arguments(main_cpp, "mics_5524_ch4")
+    assert _gas_constants(ch4)[-1] == 25000.0
 
 
 def test_max_ppm_must_stay_above_min_ppm() -> None:
@@ -352,10 +362,61 @@ def test_datasheet_accepts_explicit_coefficients() -> None:
 
 
 def test_coefficients_are_rejected_by_the_vendor_model() -> None:
+    # A pair under the vendor model is rejected by the model check ...
     with pytest.raises(cv.Invalid, match="remove them or switch the conversion"):
         CONFIG_SCHEMA(
-            _hub(hydrogen={"name": "MiCS-5524 H2 (stray)", "coefficient_a": 12.0})
+            _hub(
+                hydrogen={
+                    "name": "MiCS-5524 H2 (stray)",
+                    "coefficient_a": 12.0,
+                    "coefficient_b": -0.8,
+                }
+            )
         )
+    # ... while half a pair is already rejected by the schema itself.
+    with pytest.raises(cv.Invalid, match="coefficients"):
+        CONFIG_SCHEMA(
+            _hub(hydrogen={"name": "MiCS-5524 H2 (half)", "coefficient_a": 12.0})
+        )
+
+
+def test_datasheet_rejects_half_a_fit() -> None:
+    """One coefficient with the shipped value of the other mixes two fits."""
+    with pytest.raises(cv.Invalid, match="coefficients"):
+        CONFIG_SCHEMA(
+            _hub(
+                air_reference=None,
+                conversion="datasheet",
+                r0=10.0,
+                hydrogen=None,
+                carbon_monoxide={
+                    "name": "MiCS-5524 CO (half)",
+                    "coefficient_a": 12.0,
+                },
+            )
+        )
+
+
+def test_datasheet_rejects_a_non_positive_coefficient() -> None:
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA(
+            _hub(
+                air_reference=None,
+                conversion="datasheet",
+                r0=10.0,
+                hydrogen={
+                    "name": "MiCS-5524 H2 (bad fit)",
+                    "coefficient_a": 0.0,
+                    "coefficient_b": -0.8,
+                },
+            )
+        )
+
+
+def test_rs_sensor_is_rejected_by_the_vendor_model() -> None:
+    """RS only exists in the datasheet model, so the vendor one cannot publish it."""
+    with pytest.raises(cv.Invalid, match="'rs_sensor:' belongs to"):
+        CONFIG_SCHEMA(_hub(rs_sensor={"name": "MiCS-5524 RS"}))
 
 
 def test_reference_keys_belong_to_one_model() -> None:

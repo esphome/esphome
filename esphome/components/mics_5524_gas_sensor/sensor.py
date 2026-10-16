@@ -38,6 +38,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_VOLT,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 from . import (
@@ -125,6 +126,11 @@ def _build_internal_adc(config: ConfigType) -> ConfigType:
     }
     if (attenuation := config.get(CONF_ADC_ATTENUATION)) is not None:
         adc_config[CONF_ATTENUATION] = attenuation
+    elif CORE.is_esp32:
+        # The ESP32 ADC defaults to 0 dB (~1 V full scale), while the divider
+        # guard allows up to 3.3 V: without an explicit attenuation the pin would
+        # clip and the calibrated reference would be wrong without a log.
+        adc_config[CONF_ATTENUATION] = "12db"
 
     return adc_sensor.CONFIG_SCHEMA(adc_config)
 
@@ -185,7 +191,6 @@ def _validate_divider(config: ConfigType) -> ConfigType:
 
 def _gas_schema(gas_key: str) -> cv.Schema:
     """Sub-sensor schema of one gas: a PPM sensor with its own range and coefficients."""
-    curve = GASES[gas_key].vendor
     return sensor.sensor_schema(
         MiCS5524GasSensor,
         unit_of_measurement=UNIT_PARTS_PER_MILLION,
@@ -194,12 +199,15 @@ def _gas_schema(gas_key: str) -> cv.Schema:
         icon="mdi:molecule",
     ).extend(
         {
-            cv.Optional(
-                CONF_MAX_PPM, default=curve.max_ppm
-            ): cv.positive_not_null_float,
+            # No default here: the vendor range and the datasheet fit have different
+            # ceilings, so the default is resolved per conversion model in
+            # `resolve_gas` instead of leaking one model's range into the other.
+            cv.Optional(CONF_MAX_PPM): cv.positive_not_null_float,
             cv.Optional(CONF_MIN_PPM): cv.positive_not_null_float,
-            cv.Optional(CONF_COEFFICIENT_A): cv.float_,
-            cv.Optional(CONF_COEFFICIENT_B): cv.float_,
+            cv.Inclusive(
+                CONF_COEFFICIENT_A, "coefficients"
+            ): cv.positive_not_null_float,
+            cv.Inclusive(CONF_COEFFICIENT_B, "coefficients"): cv.float_,
         }
     )
 
@@ -276,6 +284,11 @@ def _validate_config(config: ConfigType) -> ConfigType:
             f"'rl:' belongs to 'conversion: {CONVERSION_DATASHEET}' - "
             f"'conversion: {CONVERSION_DFROBOT}' derives everything from the clean-air "
             "reference"
+        )
+    if CONF_RS_SENSOR in config and vendor_model:
+        raise cv.Invalid(
+            f"'rs_sensor:' belongs to 'conversion: {CONVERSION_DATASHEET}' - "
+            "the vendor model never computes RS, so the sensor would stay unknown"
         )
 
     for gas_key in GASES:

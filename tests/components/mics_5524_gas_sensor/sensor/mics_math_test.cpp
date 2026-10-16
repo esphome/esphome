@@ -118,12 +118,16 @@ TEST(MicsMath, DatasheetCurveFollowsTheShippedCoefficients) {
   // A ratio outside what the fit can express is unusable, not a huge number.
   EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, 0.0f)));
   EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, NAN)));
+  // A non-positive fit cannot produce a reading either.
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(0.0f, -1.1f, 0.5f)));
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(-6.3f, -1.1f, 0.5f)));
 }
 
 TEST(MicsMath, ClampingKeepsZeroAndCapsTheRange) {
-  // 0 ppm means "no gas detected" in both models and is never lifted to `min_ppm`.
+  // 0 ppm means "no gas detected" in both models and is never changed. A reading
+  // below `min_ppm` counts as not detected and reports 0, the vendor behaviour.
   EXPECT_FLOAT_EQ(0.0f, clamp_ppm(0.0f, 5.0f, 100.0f));
-  EXPECT_FLOAT_EQ(5.0f, clamp_ppm(2.0f, 5.0f, 100.0f));
+  EXPECT_FLOAT_EQ(0.0f, clamp_ppm(2.0f, 5.0f, 100.0f));
   EXPECT_FLOAT_EQ(100.0f, clamp_ppm(200.0f, 5.0f, 100.0f));
   EXPECT_FLOAT_EQ(6.3f, clamp_ppm(6.3f, 5.0f, 100.0f));
   EXPECT_TRUE(std::isnan(clamp_ppm(NAN, 5.0f, 100.0f)));

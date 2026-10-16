@@ -40,6 +40,8 @@ sensor:
   # The datasheet model, with the ADC this component owns: `pin:` creates the hidden
   # `adc` sensor, and the 10k/20k divider brings the 5 V of the breakout down to the
   # 3.33 V the ESP32 ADC measures, which `adc_input_max:` has to allow.
+  # `adc_attenuation:` matches that range: the ESP32 default of 0 dB only measures
+  # about 1 V and would clip the pin.
   - platform: mics_5524_gas_sensor
     id: mics_5524_pin
     pin: GPIO32
@@ -47,6 +49,7 @@ sensor:
       r1: 10000
       r2: 20000
     adc_input_max: 3.34
+    adc_attenuation: 12db
     conversion: datasheet
     r0: 10.0
     # Diagnostics of this reading: the ratio and RS of the active model, and the voltage

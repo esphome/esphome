@@ -178,6 +178,15 @@ def resolve_gas(
         )
 
     fitted = definition.datasheet
+    # An explicit fit is all or nothing: pairing one coefficient with the shipped
+    # value of the other mixes two different curve fits into a plausible but wrong
+    # reading.
+    if (a is None) != (b is None):
+        raise ValueError(
+            "set both 'coefficient_a:' and 'coefficient_b:' together, or neither "
+            f"(only {', '.join(datasheet_gases())} ship with built-in "
+            f"'conversion: {CONVERSION_DATASHEET}' coefficients)"
+        )
     resolved_a = (
         float(a) if a is not None else (fitted.a if fitted is not None else None)
     )
@@ -190,6 +199,11 @@ def resolve_gas(
             f"{curve.label} has no built-in 'conversion: {CONVERSION_DATASHEET}' "
             f"coefficients (only {shipped}) - set both 'coefficient_a:' and "
             "'coefficient_b:' in the configuration"
+        )
+    if resolved_a <= 0.0:
+        raise ValueError(
+            f"'coefficient_a:' must be positive, got {resolved_a:g} - "
+            "a non-positive fit cannot produce a reading"
         )
     return ResolvedGas(
         label=curve.label,

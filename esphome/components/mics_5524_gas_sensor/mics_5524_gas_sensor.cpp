@@ -11,13 +11,13 @@ namespace esphome::mics_5524_gas_sensor {
 ESPHOME_LOG_TAG(TAG, "mics_5524_gas_sensor");
 
 /// Name of the clean-air reference, which differs per conversion model.
-static const char *reference_name(uint8_t conversion) {
-  return conversion == micsmath::CONVERSION_MODEL_DFROBOT ? LOG_STR_LITERAL("air reference") : LOG_STR_LITERAL("R0");
+static const LogString *reference_name(uint8_t conversion) {
+  return conversion == micsmath::CONVERSION_MODEL_DFROBOT ? LOG_STR("air reference") : LOG_STR("R0");
 }
 
 /// Name of a conversion model for the log lines.
-static const char *conversion_name(uint8_t conversion) {
-  return conversion == micsmath::CONVERSION_MODEL_DFROBOT ? LOG_STR_LITERAL("dfrobot") : LOG_STR_LITERAL("datasheet");
+static const LogString *conversion_name(uint8_t conversion) {
+  return conversion == micsmath::CONVERSION_MODEL_DFROBOT ? LOG_STR("dfrobot") : LOG_STR("datasheet");
 }
 
 void MiCS5524GasSensor::publish_ratio(float ratio) {
@@ -42,7 +42,7 @@ void MiCS5524Component::setup() {
 
   if (this->has_reference_()) {
     ESP_LOGI(TAG, "using the %s from the configuration (%.4f) - the sensor is not calibrated at boot",
-             reference_name(this->conversion_), this->reference_);
+             LOG_STR_ARG(reference_name(this->conversion_)), this->reference_);
   }
 
   if (this->warmup_time_ > 0) {
@@ -58,12 +58,12 @@ void MiCS5524Component::setup() {
     this->calibration_pending_ = true;
     this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
     ESP_LOGI(TAG, "clean-air calibration of the %s in %" PRIu32 " s - the sensor must be in clean air",
-             reference_name(this->conversion_), delay / 1000);
+             LOG_STR_ARG(reference_name(this->conversion_)), delay / 1000);
   } else if (!this->has_reference_()) {
     ESP_LOGW(TAG,
              "no %s available, set it in the configuration or enable 'calibration:' - the PPM values stay "
              "unknown until then",
-             reference_name(this->conversion_));
+             LOG_STR_ARG(reference_name(this->conversion_)));
   }
 
   // The loop only samples while a clean-air calibration runs; `update()` publishes.
@@ -73,7 +73,7 @@ void MiCS5524Component::setup() {
 void MiCS5524Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MiCS-5524:");
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Conversion: %s", conversion_name(this->conversion_));
+  ESP_LOGCONFIG(TAG, "  Conversion: %s", LOG_STR_ARG(conversion_name(this->conversion_)));
 #ifdef MICS_5524_GAS_COUNT
   for (auto *gas : this->gases_) {
     LOG_SENSOR("  ", "Gas", gas);
@@ -86,9 +86,9 @@ void MiCS5524Component::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  AO samples per reading: %u", static_cast<unsigned>(this->samples_));
   if (this->has_reference_()) {
-    ESP_LOGCONFIG(TAG, "  %s: %.4f", reference_name(this->conversion_), this->reference_);
+    ESP_LOGCONFIG(TAG, "  %s: %.4f", LOG_STR_ARG(reference_name(this->conversion_)), this->reference_);
   } else {
-    ESP_LOGCONFIG(TAG, "  %s: not available yet", reference_name(this->conversion_));
+    ESP_LOGCONFIG(TAG, "  %s: not available yet", LOG_STR_ARG(reference_name(this->conversion_)));
   }
   ESP_LOGCONFIG(
       TAG, "  Warm-up: %" PRIu32 " s, calibration: %s, sample spacing: %" PRIu32 " ms", this->warmup_time_ / 1000,
@@ -120,8 +120,13 @@ float MiCS5524Component::ratio_for_voltage_(float voltage) {
   // report until the calibration has run.
   if (!this->has_reference_())
     return NAN;
-  if (this->is_vendor_model_())
+  if (this->is_vendor_model_()) {
+    // A disconnected input reads near 0 V, which would otherwise convert to a ratio
+    // near 1.0 and report 0 ppm like clean air: treat it as unusable instead.
+    if (!(voltage > 0.05f * this->vcc_))
+      return NAN;
     return micsmath::ratio_from_air_value(micsmath::air_value_from_voltage(voltage, this->vcc_), this->reference_);
+  }
   return micsmath::ratio_from_rs(micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_), this->reference_);
 }
 
@@ -171,17 +176,21 @@ void MiCS5524Component::update() {
   } else if (!this->warned_no_reference_) {
     this->warned_no_reference_ = true;
     ESP_LOGW(TAG, "no clean-air reference yet - every gas stays 'unknown' until the %s is known",
-             reference_name(this->conversion_));
+             LOG_STR_ARG(reference_name(this->conversion_)));
   }
 
   if (std::isfinite(ratio)) {
     this->warned_voltage_ = false;
-  } else if (!this->warned_voltage_ && this->has_reference_()) {
-    this->warned_voltage_ = true;
-    ESP_LOGW(TAG,
-             "analog output reads %.4f V, which cannot be converted - check 'vcc:', 'voltage_multiplier:' and "
-             "the wiring",
-             voltage);
+    this->status_clear_warning();
+  } else if (this->has_reference_()) {
+    this->status_set_warning();
+    if (!this->warned_voltage_) {
+      this->warned_voltage_ = true;
+      ESP_LOGW(TAG,
+               "analog output reads %.4f V, which cannot be converted - check 'vcc:', 'voltage_multiplier:' and "
+               "the wiring",
+               voltage);
+    }
   }
 
   this->publish_ratio_(ratio);
@@ -221,7 +230,7 @@ void MiCS5524Component::begin_calibration_() {
   this->enable_loop();
 
   ESP_LOGI(TAG, "calibrating the %s, %" PRIu32 " samples - keep the sensor in clean air",
-           reference_name(this->conversion_), this->calibration_samples_);
+           LOG_STR_ARG(reference_name(this->conversion_)), this->calibration_samples_);
 }
 
 void MiCS5524Component::process_calibration_() {
@@ -277,10 +286,21 @@ void MiCS5524Component::finish_calibration_() {
     return;
   }
 
+  // A dead input reads near 0 V, so the vendor reference sits near the supply: the
+  // same rule the YAML validator applies. Accepting it would report every gas as
+  // 0 ppm forever, like clean air.
+  if (this->is_vendor_model_() && reference >= 0.95f * this->vcc_) {
+    ESP_LOGW(TAG,
+             "calibration failed, clean-air reference %.4f V is at the supply - check the wiring and 'enable_pin:'",
+             reference);
+    this->schedule_calibration_retry_();
+    return;
+  }
+
   this->reference_ = reference;
   this->status_clear_warning();
 
-  ESP_LOGI(TAG, "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)", reference_name(this->conversion_),
+  ESP_LOGI(TAG, "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)", LOG_STR_ARG(reference_name(this->conversion_)),
            this->reference_, valid, attempts);
   if (this->is_vendor_model_()) {
     ESP_LOGI(TAG, "hard-code 'air_reference: %.4f' in the YAML to skip the calibration at boot", this->reference_);
