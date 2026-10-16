@@ -40,6 +40,8 @@ class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
 
 #ifdef USE_ESP32_VARIANT_ESP32
   /// @brief Widens frames to the output bit depth through a small stack buffer and writes them to the peripheral.
+  /// @param input Frames in the incoming stream format
+  /// @param frames Number of frames to widen and write
   /// @return Bytes written, which is short of the widened size if a write timed out
   size_t write_widened_(const uint8_t *input, uint32_t frames);
 #endif

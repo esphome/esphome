@@ -109,12 +109,13 @@ def _set_stream_limits(config: ConfigType) -> ConfigType:
     # The configured bits per sample sets the I2S slot width, but the speaker converts streams of other widths
     # before clocking them out (see start_i2s_driver), widening them on the original ESP32. Advertise 8- to 32-bit
     # so those streams are accepted rather than forcing an upstream conversion.
+    min_bits_per_sample = 8
     max_bits_per_sample = 32
 
     if config[CONF_I2S_MODE] == CONF_PRIMARY:
         # Primary mode can reconfigure the bus to the incoming sample rate and channel count.
         audio.set_stream_limits(
-            min_bits_per_sample=8,
+            min_bits_per_sample=min_bits_per_sample,
             max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
@@ -124,7 +125,7 @@ def _set_stream_limits(config: ConfigType) -> ConfigType:
     else:
         # Secondary mode has unmodifiable min/max sample rates
         audio.set_stream_limits(
-            min_bits_per_sample=8,
+            min_bits_per_sample=min_bits_per_sample,
             max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
@@ -151,7 +152,10 @@ def _validate_esp32_variant(config: ConfigType) -> ConfigType:
         # The original ESP32 I2S peripheral packs each sample into a whole number of 16-bit words, so an 8- or
         # 24-bit slot does not line up with ESPHome's tightly packed audio (see start_i2s_driver). Reject it at
         # config time rather than failing at runtime; streams of other widths are converted to the slot.
-        raise cv.Invalid("bits_per_sample must be 16bit or 32bit on the original ESP32")
+        raise cv.Invalid(
+            f"{CONF_BITS_PER_SAMPLE} must be 16bit or 32bit on the original ESP32",
+            path=[CONF_BITS_PER_SAMPLE],
+        )
     return config
 
 
