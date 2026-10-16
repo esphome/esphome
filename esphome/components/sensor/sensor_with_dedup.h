@@ -15,10 +15,7 @@ namespace esphome::sensor {
  public: \
   void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_.set_sensor(sensor); }
 
-#define LOG_SENSOR_WITH_DEDUP_SAFE(tag, name, sensor) \
-  if ((sensor).has_sensor()) { \
-    LOG_SENSOR(tag, name, (sensor).get_sensor()); \
-  }
+#define LOG_SENSOR_WITH_DEDUP(prefix, type, s) LOG_SENSOR(prefix, type, (s).get_sensor())
 
 /// A sensor pointer that may be null plus the last value it published, stored inline.
 /// Publishing does nothing when no sensor is set, and skips a value equal to the last one.
