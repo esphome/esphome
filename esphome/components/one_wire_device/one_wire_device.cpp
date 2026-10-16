@@ -1,4 +1,4 @@
-#include "one_wire_slave.h"
+#include "one_wire_device.h"
 
 #ifdef USE_ESP32
 
@@ -16,9 +16,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome::one_wire_slave {
+namespace esphome::one_wire_device {
 
-static const char *const TAG = "one_wire_slave";
+ESPHOME_LOG_TAG(TAG, "one_wire_device");
 static const gpio_hal_context_t GPIO_HAL = {.dev = GPIO_HAL_GET_HW(GPIO_PORT_0)};
 
 static constexpr uint8_t ROM_FAMILY_DS18B20 = 0x28;
@@ -40,7 +40,7 @@ static constexpr uint32_t SEND_ASSERT_US = 2;
 static constexpr uint32_t SLOT_US = 60;
 static constexpr uint32_t TX_RELEASE_US = 55;
 
-void OneWireSlaveComponent::setup() {
+void OneWireDeviceComponent::setup() {
   if (this->pin_ == nullptr) {
     ESP_LOGE(TAG, "No data pin configured");
     this->mark_failed();
@@ -77,7 +77,7 @@ void OneWireSlaveComponent::setup() {
     this->mark_failed();
     return;
   }
-  err = gpio_isr_handler_add(this->gpio_num_, &OneWireSlaveComponent::gpio_isr_, this);
+  err = gpio_isr_handler_add(this->gpio_num_, &OneWireDeviceComponent::gpio_isr, this);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to attach GPIO ISR: %s", esp_err_to_name(err));
     this->mark_failed();
@@ -89,17 +89,17 @@ void OneWireSlaveComponent::setup() {
     this->isr_state_ = IsrState::RX_ROM_COMMAND;
     return;
   }
-  BaseType_t task_result = xTaskCreatePinnedToCore(&OneWireSlaveComponent::task_entry_, "one_wire_slave", 4096, this,
+  BaseType_t task_result = xTaskCreatePinnedToCore(&OneWireDeviceComponent::task_entry, "one_wire_device", 4096, this,
                                                    22, &this->task_handle_, 1);
   if (task_result != pdPASS || this->task_handle_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create 1-Wire slave timing task");
+    ESP_LOGE(TAG, "Failed to create 1-Wire device timing task");
     gpio_isr_handler_remove(this->gpio_num_);
     this->mark_failed();
     return;
   }
 }
 
-void OneWireSlaveComponent::loop() {
+void OneWireDeviceComponent::loop() {
   const uint32_t now = millis();
   if (now - this->last_stats_ms_ < 1000)
     return;
@@ -113,18 +113,19 @@ void OneWireSlaveComponent::loop() {
            static_cast<unsigned long>(this->slot_error_count_), this->last_error_status_);
 }
 
-void OneWireSlaveComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "1-Wire slave:");
+void OneWireDeviceComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "1-Wire device:");
   LOG_PIN("  Pin: ", this->pin_);
   char rom_buffer[17];
   ESP_LOGCONFIG(TAG, "  ROM: 0x%s", format_hex_to(rom_buffer, this->address_));
   ESP_LOGCONFIG(TAG, "  Family: DS18B20 (0x28)");
   ESP_LOGCONFIG(TAG, "  Temperature: %.3f °C", this->temperature_);
   ESP_LOGCONFIG(TAG, "  Power mode: external");
-  ESP_LOGCONFIG(TAG, "  Backend: %s", this->interrupt_mode_ ? "GPIO ISR" : "timing task");
+  ESP_LOGCONFIG(TAG, "  Backend: %s",
+                this->interrupt_mode_ ? LOG_STR_LITERAL("GPIO ISR") : LOG_STR_LITERAL("timing task"));
 }
 
-void OneWireSlaveComponent::on_shutdown() {
+void OneWireDeviceComponent::on_shutdown() {
   this->stopping_ = true;
   if (this->task_handle_ != nullptr) {
     xTaskNotifyGive(this->task_handle_);
@@ -136,8 +137,8 @@ void OneWireSlaveComponent::on_shutdown() {
   }
 }
 
-void IRAM_ATTR OneWireSlaveComponent::gpio_isr_(void *arg) {
-  auto *self = static_cast<OneWireSlaveComponent *>(arg);
+void IRAM_ATTR OneWireDeviceComponent::gpio_isr(void *arg) {
+  auto *self = static_cast<OneWireDeviceComponent *>(arg);
   if (self->interrupt_mode_) {
     self->handle_isr_edge_();
     return;
@@ -152,7 +153,7 @@ void IRAM_ATTR OneWireSlaveComponent::gpio_isr_(void *arg) {
   }
 }
 
-void IRAM_ATTR OneWireSlaveComponent::handle_isr_edge_() {
+void IRAM_ATTR OneWireDeviceComponent::handle_isr_edge_() {
   if (this->stopping_ || this->isr_drive_active_)
     return;
   if (this->isr_ignore_edge_) {
@@ -190,9 +191,9 @@ void IRAM_ATTR OneWireSlaveComponent::handle_isr_edge_() {
   }
 }
 
-void IRAM_ATTR OneWireSlaveComponent::isr_reset_() {
-  this->reset_count_++;
-  this->transaction_count_++;
+void IRAM_ATTR OneWireDeviceComponent::isr_reset_() {
+  this->reset_count_ = this->reset_count_ + 1;
+  this->transaction_count_ = this->transaction_count_ + 1;
   this->isr_state_ = IsrState::RX_ROM_COMMAND;
   this->isr_bit_index_ = 0;
   this->isr_byte_index_ = 0;
@@ -211,14 +212,14 @@ void IRAM_ATTR OneWireSlaveComponent::isr_reset_() {
   this->isr_drive_active_ = false;
 }
 
-void IRAM_ATTR OneWireSlaveComponent::isr_receive_bit_(bool bit) {
+void IRAM_ATTR OneWireDeviceComponent::isr_receive_bit_(bool bit) {
   if (this->isr_state_ == IsrState::SEARCH_BRANCH) {
     const bool expected = (this->rom_[this->isr_search_bit_ / 8] & (1U << (this->isr_search_bit_ % 8))) != 0;
     if (bit != expected) {
       this->isr_state_ = IsrState::IGNORE;
       return;
     }
-    this->isr_search_bit_++;
+    this->isr_search_bit_ = this->isr_search_bit_ + 1;
     if (this->isr_search_bit_ >= 64) {
       this->isr_state_ = IsrState::RX_ROM_COMMAND;
     } else {
@@ -228,8 +229,8 @@ void IRAM_ATTR OneWireSlaveComponent::isr_receive_bit_(bool bit) {
   }
 
   if (bit)
-    this->isr_rx_byte_ |= static_cast<uint8_t>(1U << this->isr_bit_index_);
-  this->isr_bit_index_++;
+    this->isr_rx_byte_ = this->isr_rx_byte_ | static_cast<uint8_t>(1U << this->isr_bit_index_);
+  this->isr_bit_index_ = this->isr_bit_index_ + 1;
   if (this->isr_bit_index_ == 8) {
     const uint8_t value = this->isr_rx_byte_;
     this->isr_rx_byte_ = 0;
@@ -238,10 +239,10 @@ void IRAM_ATTR OneWireSlaveComponent::isr_receive_bit_(bool bit) {
   }
 }
 
-void IRAM_ATTR OneWireSlaveComponent::isr_complete_byte_(uint8_t value) {
+void IRAM_ATTR OneWireDeviceComponent::isr_complete_byte_(uint8_t value) {
   switch (this->isr_state_) {
     case IsrState::RX_ROM_COMMAND:
-      this->rom_command_count_++;
+      this->rom_command_count_ = this->rom_command_count_ + 1;
       switch (value) {
         case ROM_SEARCH:
           this->isr_search_bit_ = 0;
@@ -270,7 +271,8 @@ void IRAM_ATTR OneWireSlaveComponent::isr_complete_byte_(uint8_t value) {
       break;
 
     case IsrState::RX_MATCH_ROM:
-      this->isr_rx_buffer_[this->isr_byte_index_++] = value;
+      this->isr_rx_buffer_[this->isr_byte_index_] = value;
+      this->isr_byte_index_ = this->isr_byte_index_ + 1;
       if (this->isr_byte_index_ == 8) {
         bool match = true;
         for (uint8_t i = 0; i < 8; i++)
@@ -281,12 +283,12 @@ void IRAM_ATTR OneWireSlaveComponent::isr_complete_byte_(uint8_t value) {
       break;
 
     case IsrState::RX_FUNCTION:
-      this->function_command_count_++;
+      this->function_command_count_ = this->function_command_count_ + 1;
       switch (value) {
         case CMD_CONVERT_T:
           this->scratchpad_[0] = static_cast<uint8_t>(this->temperature_raw_ & 0xFF);
           this->scratchpad_[1] = static_cast<uint8_t>((this->temperature_raw_ >> 8) & 0xFF);
-          this->scratchpad_[8] = crc8_(this->scratchpad_, 8);
+          this->scratchpad_[8] = crc8(this->scratchpad_, 8);
           this->isr_state_ = IsrState::RX_ROM_COMMAND;
           break;
         case CMD_READ_SCRATCHPAD:
@@ -317,12 +319,13 @@ void IRAM_ATTR OneWireSlaveComponent::isr_complete_byte_(uint8_t value) {
       break;
 
     case IsrState::RX_WRITE_SCRATCHPAD:
-      this->isr_rx_buffer_[this->isr_byte_index_++] = value;
+      this->isr_rx_buffer_[this->isr_byte_index_] = value;
+      this->isr_byte_index_ = this->isr_byte_index_ + 1;
       if (this->isr_byte_index_ == 3) {
         this->scratchpad_[2] = this->isr_rx_buffer_[0];
         this->scratchpad_[3] = this->isr_rx_buffer_[1];
         this->scratchpad_[4] = this->isr_rx_buffer_[2];
-        this->scratchpad_[8] = crc8_(this->scratchpad_, 8);
+        this->scratchpad_[8] = crc8(this->scratchpad_, 8);
         this->isr_byte_index_ = 0;
         this->isr_state_ = IsrState::RX_FUNCTION;
       }
@@ -333,7 +336,7 @@ void IRAM_ATTR OneWireSlaveComponent::isr_complete_byte_(uint8_t value) {
   }
 }
 
-void IRAM_ATTR OneWireSlaveComponent::isr_transmit_bit_() {
+void IRAM_ATTR OneWireDeviceComponent::isr_transmit_bit_() {
   bool bit = true;
   if (this->isr_state_ == IsrState::SEARCH_ID || this->isr_state_ == IsrState::SEARCH_COMPLEMENT) {
     const bool value = (this->rom_[this->isr_search_bit_ / 8] & (1U << (this->isr_search_bit_ % 8))) != 0;
@@ -342,10 +345,11 @@ void IRAM_ATTR OneWireSlaveComponent::isr_transmit_bit_() {
     bit = (this->isr_tx_buffer_[this->isr_byte_index_] & (1U << this->isr_bit_index_)) != 0;
   }
 
-  if (bit)
-    this->send_one_count_++;
-  else
-    this->send_zero_count_++;
+  if (bit) {
+    this->send_one_count_ = this->send_one_count_ + 1;
+  } else {
+    this->send_zero_count_ = this->send_zero_count_ + 1;
+  }
   esp_rom_delay_us(this->scale_(SEND_ASSERT_US));
   if (!bit) {
     this->isr_ignore_edge_ = true;
@@ -363,10 +367,10 @@ void IRAM_ATTR OneWireSlaveComponent::isr_transmit_bit_() {
   } else if (this->isr_state_ == IsrState::SEARCH_COMPLEMENT) {
     this->isr_state_ = IsrState::SEARCH_BRANCH;
   } else {
-    this->isr_bit_index_++;
+    this->isr_bit_index_ = this->isr_bit_index_ + 1;
     if (this->isr_bit_index_ == 8) {
       this->isr_bit_index_ = 0;
-      this->isr_byte_index_++;
+      this->isr_byte_index_ = this->isr_byte_index_ + 1;
       if (this->isr_byte_index_ == this->isr_tx_length_) {
         this->isr_state_ = this->isr_after_tx_state_;
         this->isr_byte_index_ = 0;
@@ -375,14 +379,14 @@ void IRAM_ATTR OneWireSlaveComponent::isr_transmit_bit_() {
   }
 }
 
-void OneWireSlaveComponent::task_entry_(void *arg) {
-  auto *self = static_cast<OneWireSlaveComponent *>(arg);
+void OneWireDeviceComponent::task_entry(void *arg) {
+  auto *self = static_cast<OneWireDeviceComponent *>(arg);
   self->task_loop_();
   self->task_handle_ = nullptr;
   vTaskDelete(nullptr);
 }
 
-void OneWireSlaveComponent::task_loop_() {
+void OneWireDeviceComponent::task_loop_() {
   while (!this->stopping_) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (this->stopping_) {
@@ -391,19 +395,19 @@ void OneWireSlaveComponent::task_loop_() {
     if (!this->handle_reset_()) {
       continue;
     }
-    this->reset_count_++;
-    this->transaction_count_++;
+    this->reset_count_ = this->reset_count_ + 1;
+    this->transaction_count_ = this->transaction_count_ + 1;
     this->serve_transaction_();
     this->drain_notifications_();
   }
 }
 
-void OneWireSlaveComponent::drain_notifications_() {
+void OneWireDeviceComponent::drain_notifications_() {
   while (ulTaskNotifyTake(pdTRUE, 0) != 0) {
   }
 }
 
-void OneWireSlaveComponent::configure_rom_() {
+void OneWireDeviceComponent::configure_rom_() {
   if (this->address_ == 0) {
     uint8_t mac[6] = {0};
     if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK) {
@@ -413,26 +417,26 @@ void OneWireSlaveComponent::configure_rom_() {
     }
     this->rom_[0] = ROM_FAMILY_DS18B20;
     std::memcpy(&this->rom_[1], mac, sizeof(mac));
-    this->rom_[7] = crc8_(this->rom_, 7);
+    this->rom_[7] = crc8(this->rom_, 7);
   } else {
-    for (uint8_t i = 0; i < sizeof(this->rom_); i++) {
+    for (size_t i = 0; i < sizeof(this->rom_); i++) {
       this->rom_[i] = static_cast<uint8_t>((this->address_ >> (i * 8)) & 0xFF);
     }
   }
 
-  if (this->rom_[0] != ROM_FAMILY_DS18B20 || crc8_(this->rom_, 7) != this->rom_[7]) {
+  if (this->rom_[0] != ROM_FAMILY_DS18B20 || crc8(this->rom_, 7) != this->rom_[7]) {
     ESP_LOGE(TAG, "Invalid DS18B20 ROM address");
     this->mark_failed();
     return;
   }
 
   this->address_ = 0;
-  for (uint8_t i = 0; i < sizeof(this->rom_); i++) {
+  for (size_t i = 0; i < sizeof(this->rom_); i++) {
     this->address_ |= static_cast<uint64_t>(this->rom_[i]) << (i * 8);
   }
 }
 
-void OneWireSlaveComponent::configure_scratchpad_() {
+void OneWireDeviceComponent::configure_scratchpad_() {
   this->temperature_raw_ = static_cast<int16_t>(std::lroundf(std::clamp(this->temperature_, -55.0f, 125.0f) * 16.0f));
   this->scratchpad_[0] = static_cast<uint8_t>(this->temperature_raw_ & 0xFF);
   this->scratchpad_[1] = static_cast<uint8_t>((this->temperature_raw_ >> 8) & 0xFF);
@@ -446,9 +450,9 @@ void OneWireSlaveComponent::configure_scratchpad_() {
   this->update_scratchpad_crc_();
 }
 
-void OneWireSlaveComponent::update_scratchpad_crc_() { this->scratchpad_[8] = crc8_(this->scratchpad_, 8); }
+void OneWireDeviceComponent::update_scratchpad_crc_() { this->scratchpad_[8] = crc8(this->scratchpad_, 8); }
 
-uint8_t IRAM_ATTR OneWireSlaveComponent::crc8_(const uint8_t *data, uint8_t length) {
+uint8_t IRAM_ATTR OneWireDeviceComponent::crc8(const uint8_t *data, uint8_t length) {
   uint8_t crc = 0;
   while (length-- != 0) {
     uint8_t value = *data++;
@@ -464,11 +468,11 @@ uint8_t IRAM_ATTR OneWireSlaveComponent::crc8_(const uint8_t *data, uint8_t leng
   return crc;
 }
 
-void OneWireSlaveComponent::release_bus_() { gpio_set_level(this->gpio_num_, 1); }
+void OneWireDeviceComponent::release_bus_() { gpio_set_level(this->gpio_num_, 1); }
 
-void OneWireSlaveComponent::drive_bus_low_() { gpio_set_level(this->gpio_num_, 0); }
+void OneWireDeviceComponent::drive_bus_low_() { gpio_set_level(this->gpio_num_, 0); }
 
-bool OneWireSlaveComponent::wait_for_low_(uint32_t timeout_us) {
+bool OneWireDeviceComponent::wait_for_low_(uint32_t timeout_us) {
   const int64_t deadline = esp_timer_get_time() + timeout_us;
   while (gpio_get_level(this->gpio_num_) != 0) {
     if (esp_timer_get_time() >= deadline) {
@@ -478,7 +482,7 @@ bool OneWireSlaveComponent::wait_for_low_(uint32_t timeout_us) {
   return true;
 }
 
-bool OneWireSlaveComponent::wait_for_high_(uint32_t timeout_us) {
+bool OneWireDeviceComponent::wait_for_high_(uint32_t timeout_us) {
   const int64_t deadline = esp_timer_get_time() + timeout_us;
   while (gpio_get_level(this->gpio_num_) == 0) {
     if (esp_timer_get_time() >= deadline) {
@@ -488,7 +492,7 @@ bool OneWireSlaveComponent::wait_for_high_(uint32_t timeout_us) {
   return true;
 }
 
-bool OneWireSlaveComponent::handle_reset_() {
+bool OneWireDeviceComponent::handle_reset_() {
   if (!this->wait_for_low_(this->scale_(RESET_TIMEOUT_US))) {
     return false;
   }
@@ -509,9 +513,9 @@ bool OneWireSlaveComponent::handle_reset_() {
   return true;
 }
 
-OneWireSlaveComponent::SlotResult OneWireSlaveComponent::receive_bit_(bool *value) {
+OneWireDeviceComponent::SlotResult OneWireDeviceComponent::receive_bit_(bool *value) {
   if (!this->wait_for_low_(this->scale_(SLOT_TIMEOUT_US))) {
-    this->slot_error_count_++;
+    this->slot_error_count_ = this->slot_error_count_ + 1;
     this->last_error_status_ = 1;
     return SlotResult::TIMEOUT;
   }
@@ -520,7 +524,7 @@ OneWireSlaveComponent::SlotResult OneWireSlaveComponent::receive_bit_(bool *valu
   *value = gpio_get_level(this->gpio_num_) != 0;
   if (!this->wait_for_high_(this->scale_(SLOT_TIMEOUT_US))) {
     this->release_bus_();
-    this->slot_error_count_++;
+    this->slot_error_count_ = this->slot_error_count_ + 1;
     this->last_error_status_ = 2;
     return SlotResult::RESET;
   }
@@ -531,17 +535,17 @@ OneWireSlaveComponent::SlotResult OneWireSlaveComponent::receive_bit_(bool *valu
   return SlotResult::OK;
 }
 
-OneWireSlaveComponent::SlotResult OneWireSlaveComponent::send_bit_(bool value) {
+OneWireDeviceComponent::SlotResult OneWireDeviceComponent::send_bit_(bool value) {
   if (!this->wait_for_low_(this->scale_(SLOT_TIMEOUT_US))) {
-    this->slot_error_count_++;
+    this->slot_error_count_ = this->slot_error_count_ + 1;
     this->last_error_status_ = 1;
     return SlotResult::TIMEOUT;
   }
   const int64_t slot_start = esp_timer_get_time();
   if (value) {
-    this->send_one_count_++;
+    this->send_one_count_ = this->send_one_count_ + 1;
   } else {
-    this->send_zero_count_++;
+    this->send_zero_count_ = this->send_zero_count_ + 1;
   }
   esp_rom_delay_us(this->scale_(SEND_ASSERT_US));
   if (!value) {
@@ -553,7 +557,7 @@ OneWireSlaveComponent::SlotResult OneWireSlaveComponent::send_bit_(bool value) {
   return SlotResult::OK;
 }
 
-OneWireSlaveComponent::SlotResult OneWireSlaveComponent::receive_byte_(uint8_t *value) {
+OneWireDeviceComponent::SlotResult OneWireDeviceComponent::receive_byte_(uint8_t *value) {
   uint8_t result = 0;
   for (uint8_t bit = 0; bit < 8; bit++) {
     bool bit_value = false;
@@ -569,7 +573,7 @@ OneWireSlaveComponent::SlotResult OneWireSlaveComponent::receive_byte_(uint8_t *
   return SlotResult::OK;
 }
 
-OneWireSlaveComponent::SlotResult OneWireSlaveComponent::send_byte_(uint8_t value) {
+OneWireDeviceComponent::SlotResult OneWireDeviceComponent::send_byte_(uint8_t value) {
   for (uint8_t bit = 0; bit < 8; bit++) {
     const SlotResult status = this->send_bit_((value & (1U << bit)) != 0);
     if (status != SlotResult::OK) {
@@ -579,7 +583,7 @@ OneWireSlaveComponent::SlotResult OneWireSlaveComponent::send_byte_(uint8_t valu
   return SlotResult::OK;
 }
 
-OneWireSlaveComponent::SlotResult OneWireSlaveComponent::receive_bytes_(uint8_t *data, uint8_t length) {
+OneWireDeviceComponent::SlotResult OneWireDeviceComponent::receive_bytes_(uint8_t *data, uint8_t length) {
   for (uint8_t i = 0; i < length; i++) {
     const SlotResult status = this->receive_byte_(&data[i]);
     if (status != SlotResult::OK) {
@@ -589,7 +593,7 @@ OneWireSlaveComponent::SlotResult OneWireSlaveComponent::receive_bytes_(uint8_t 
   return SlotResult::OK;
 }
 
-OneWireSlaveComponent::SlotResult OneWireSlaveComponent::send_bytes_(const uint8_t *data, uint8_t length) {
+OneWireDeviceComponent::SlotResult OneWireDeviceComponent::send_bytes_(const uint8_t *data, uint8_t length) {
   for (uint8_t i = 0; i < length; i++) {
     const SlotResult status = this->send_byte_(data[i]);
     if (status != SlotResult::OK) {
@@ -599,12 +603,12 @@ OneWireSlaveComponent::SlotResult OneWireSlaveComponent::send_bytes_(const uint8
   return SlotResult::OK;
 }
 
-void OneWireSlaveComponent::serve_transaction_() {
+void OneWireDeviceComponent::serve_transaction_() {
   uint8_t rom_command = 0;
   if (this->receive_byte_(&rom_command) != SlotResult::OK) {
     return;
   }
-  this->rom_command_count_++;
+  this->rom_command_count_ = this->rom_command_count_ + 1;
 
   switch (rom_command) {
     case ROM_SEARCH: {
@@ -641,7 +645,7 @@ void OneWireSlaveComponent::serve_transaction_() {
   if (this->receive_byte_(&command) != SlotResult::OK) {
     return;
   }
-  this->function_command_count_++;
+  this->function_command_count_ = this->function_command_count_ + 1;
 
   switch (command) {
     case CMD_CONVERT_T: {
@@ -691,6 +695,6 @@ void OneWireSlaveComponent::serve_transaction_() {
   }
 }
 
-}  // namespace esphome::one_wire_slave
+}  // namespace esphome::one_wire_device
 
 #endif  // USE_ESP32
