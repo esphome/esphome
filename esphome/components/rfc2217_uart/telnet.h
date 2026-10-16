@@ -41,7 +41,11 @@ static constexpr uint8_t PARITY_EVEN = 3;
 // [RFC 2217] SET-CONTROL values.
 static constexpr uint8_t CONTROL_NO_FLOW = 1;
 static constexpr uint8_t CONTROL_BREAK_OFF = 6;
+static constexpr uint8_t CONTROL_DTR_REQUEST = 7;
+static constexpr uint8_t CONTROL_DTR_ON = 8;
 static constexpr uint8_t CONTROL_DTR_OFF = 9;
+static constexpr uint8_t CONTROL_RTS_REQUEST = 10;
+static constexpr uint8_t CONTROL_RTS_ON = 11;
 static constexpr uint8_t CONTROL_RTS_OFF = 12;
 static constexpr uint8_t CONTROL_NO_FLOW_IN = 14;
 
