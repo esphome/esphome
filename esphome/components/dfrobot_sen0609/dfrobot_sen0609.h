@@ -21,6 +21,9 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 #include "esphome/components/uart/uart.h"
 
 #include <array>
@@ -58,6 +61,12 @@ enum SwitchSetting : uint8_t {
   SWITCH_COUNT,
 };
 
+enum ButtonAction : uint8_t {
+  BUTTON_RESTART,
+  BUTTON_FACTORY_RESET,
+  BUTTON_QUERY_PARAMS,
+};
+
 /// Module parameters; a write or read of each is one command. Pending work runs in this order.
 enum Param : uint8_t {
   PARAM_RUN_APP,
@@ -81,6 +90,8 @@ enum class Operation : uint8_t {
   OPERATION_NONE,
   OPERATION_STOP,
   OPERATION_START,
+  OPERATION_RESTART,
+  OPERATION_FACTORY_RESET,
   OPERATION_WRITE,
   OPERATION_SAVE,
   OPERATION_READ,
@@ -102,6 +113,11 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #ifdef USE_SELECT
   SUB_SELECT(out_pin_level)
 #endif
+#ifdef USE_BUTTON
+  SUB_BUTTON(factory_reset)
+  SUB_BUTTON(query)
+  SUB_BUTTON(restart)
+#endif
 
  public:
   explicit DFRobotSEN0609Component(RunMode mode);
@@ -121,6 +137,12 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #ifdef USE_SELECT
   void control_out_pin_level(size_t index);
 #endif
+  /// Reboot the module, then apply the configuration and read the settings again.
+  void restart();
+  /// Restore the module's factory settings, then apply the configuration and read the settings again.
+  void factory_reset();
+  /// Read all settings shown by entities from the module.
+  void query_params();
 
  protected:
   void readline_(uint8_t c);
@@ -207,6 +229,8 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   bool stopped_{false};
   bool save_pending_{false};
   bool deferred_save_{false};
+  bool restart_pending_{false};
+  bool factory_reset_pending_{false};
   bool sequence_failed_{false};
 };
 
