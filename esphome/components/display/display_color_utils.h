@@ -9,6 +9,25 @@ enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDE
 enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
 inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
+/// esp_scale(value, (1 << bits) - 1) for a field of 2, 3, 5, 6 or 8 bits, as a multiply and shift that gives the
+/// same result for every field value. With bits a constant this avoids a division.
+constexpr uint8_t expand_field(uint32_t value, uint8_t bits) {
+  switch (bits) {
+    case 2:
+      return (value * 170) >> 1;
+    case 3:
+      return (value * 583) >> 4;
+    case 5:
+      return (value * 1053) >> 7;
+    case 6:
+      return (value * 4145) >> 10;
+    case 8:
+      return value;
+    default:
+      return esp_scale(value, (1 << bits) - 1);
+  }
+}
+
 class ColorUtil {
  public:
   /// Reads one packed pixel of the given bitness from a source buffer into the
@@ -58,16 +77,15 @@ class ColorUtil {
 
     const uint8_t red =
         right_bit_aligned
-            ? esp_scale(((colorcode >> (second_bits + third_bits)) & ((1 << first_bits) - 1)), ((1 << first_bits) - 1))
+            ? expand_field((colorcode >> (second_bits + third_bits)) & ((1 << first_bits) - 1), first_bits)
             : esp_scale(((colorcode >> 16) & 0xFF), (1 << first_bits) - 1);
 
-    const uint8_t green =
-        right_bit_aligned ? esp_scale(((colorcode >> third_bits) & ((1 << second_bits) - 1)), ((1 << second_bits) - 1))
-                          : esp_scale(((colorcode >> 8) & 0xFF), ((1 << second_bits) - 1));
+    const uint8_t green = right_bit_aligned
+                              ? expand_field((colorcode >> third_bits) & ((1 << second_bits) - 1), second_bits)
+                              : esp_scale(((colorcode >> 8) & 0xFF), ((1 << second_bits) - 1));
 
-    const uint8_t blue = right_bit_aligned
-                             ? esp_scale(((colorcode >> 0) & ((1 << third_bits) - 1)), ((1 << third_bits) - 1))
-                             : esp_scale(((colorcode >> 0) & 0xFF), (1 << third_bits) - 1);
+    const uint8_t blue = right_bit_aligned ? expand_field(colorcode & ((1 << third_bits) - 1), third_bits)
+                                           : esp_scale(((colorcode >> 0) & 0xFF), (1 << third_bits) - 1);
 
     return Color(red, green, blue);
   }

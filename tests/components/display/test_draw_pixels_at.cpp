@@ -105,6 +105,35 @@ TEST(DrawPixelsAt, ColumnWalkChangesOrder) {
   EXPECT_EQ(std::get<1>(columns.pixels()[1]), 1);  // the column walk steps y first
 }
 
+// The multiply and shift field expansion gives exactly what dividing with esp_scale() does.
+TEST(ColorUtil, ExpandFieldMatchesEspScale) {
+  // 2, 3, 5, 6 and 8 have a multiply and shift; the others fall back to esp_scale()
+  for (const uint8_t bits : {1, 2, 3, 4, 5, 6, 7, 8}) {
+    const uint8_t max = (1 << bits) - 1;
+    for (uint32_t value = 0; value <= max; value++)
+      EXPECT_EQ(expand_field(value, bits), esp_scale(value, max)) << "bits " << int(bits) << " value " << value;
+  }
+}
+
+// to_color() decodes every 565 and 332 value as the per channel esp_scale() arithmetic does.
+TEST(ColorUtil, ToColorMatchesEspScale) {
+  for (uint32_t value = 0; value != 0x10000; value++) {
+    const Color expected(esp_scale((value >> 11) & 0x1F, 31), esp_scale((value >> 5) & 0x3F, 63),
+                         esp_scale(value & 0x1F, 31));
+    ASSERT_EQ(ColorUtil::to_color(value, COLOR_BITNESS_565).raw_32, expected.raw_32) << "565 value " << value;
+  }
+  for (uint32_t value = 0; value != 0x100; value++) {
+    const Color expected(esp_scale((value >> 5) & 0x07, 7), esp_scale((value >> 2) & 0x07, 7),
+                         esp_scale(value & 0x03, 3));
+    ASSERT_EQ(ColorUtil::to_color(value, COLOR_BITNESS_332).raw_32, expected.raw_32) << "332 value " << value;
+  }
+}
+
+// Without right_bit_aligned each channel is read from its own byte; at 8 bits it comes back unchanged.
+TEST(ColorUtil, ToColorByteAligned) {
+  EXPECT_EQ(ColorUtil::to_color(0x563412, COLOR_BITNESS_888, false).raw_32, Color(0x56, 0x34, 0x12).raw_32);
+}
+
 // Remove before 2027.5.0, with the draw_pixels_at() overloads that take a color order.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -181,12 +210,18 @@ TEST(DrawPixelsAt, DeprecatedOrderGrb332) {
   expect_ordered(COLOR_BITNESS_332, {0xE0}, 0xE0, COLOR_ORDER_GRB, Color(0, 255, 0));
 }
 
-// The deprecated packing functions still honour the order; with RGB they match the new ones.
-TEST(DrawPixelsAt, DeprecatedPackingMatchesForRgb) {
+// The deprecated packing functions still honour every order; with RGB they match the new ones.
+// 0xC0, 0x60, 0x30 is red 24, green 24, blue 6 in 565 and red 6, green 3, blue 0 in 332.
+TEST(DrawPixelsAt, DeprecatedPackingHonoursTheOrder) {
   const Color color(0xC0, 0x60, 0x30);
-  EXPECT_EQ(ColorUtil::color_to_565(color, COLOR_ORDER_RGB), ColorUtil::color_to_565(color));
-  EXPECT_EQ(ColorUtil::color_to_332(color, COLOR_ORDER_RGB), ColorUtil::color_to_332(color));
-  EXPECT_EQ(ColorUtil::color_to_565(color, COLOR_ORDER_BGR), ColorUtil::color_to_565(Color(0x30, 0x60, 0xC0)));
+  EXPECT_EQ(ColorUtil::color_to_565(color), 0xC306);
+  EXPECT_EQ(ColorUtil::color_to_565(color, COLOR_ORDER_RGB), 0xC306);
+  EXPECT_EQ(ColorUtil::color_to_565(color, COLOR_ORDER_BGR), 0x3318);
+  EXPECT_EQ(ColorUtil::color_to_565(color, COLOR_ORDER_GRB), 0x6306);
+  EXPECT_EQ(ColorUtil::color_to_332(color), 0xCC);
+  EXPECT_EQ(ColorUtil::color_to_332(color, COLOR_ORDER_RGB), 0xCC);
+  EXPECT_EQ(ColorUtil::color_to_332(color, COLOR_ORDER_BGR), 0x1E);
+  EXPECT_EQ(ColorUtil::color_to_332(color, COLOR_ORDER_GRB), 0x78);
 }
 
 #pragma GCC diagnostic pop

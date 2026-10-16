@@ -57,16 +57,17 @@ void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_
 // -Os stops inlining it once there are two call sites, which costs a call and
 // spills per pixel. Without PSRAM there is one call site and it changes
 // nothing, and draw_pixel_at() stays a virtual call either way.
-template<ColorBitness BITNESS>
-static void __attribute__((flatten))
-draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h, const uint8_t *ptr, bool big_endian,
-                   int x_offset, int y_offset, int x_pad) {
+// HIGH_BYTE_FIRST (big endian) only matters for 565; as a template argument its test leaves the pixel loop.
+template<ColorBitness BITNESS, bool HIGH_BYTE_FIRST = false>
+static void __attribute__((flatten)) draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h,
+                                                        const uint8_t *ptr, int x_offset, int y_offset, int x_pad) {
   const size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
   // BITNESS is a constant here, so to_color()'s three per pixel divisions
   // become a multiply and shift and its bitness switch folds.
   const auto draw_source_pixel = [&](int x, int y, size_t source_idx) ESPHOME_ALWAYS_INLINE {
-    display->draw_pixel_at(x + x_start, y + y_start,
-                           ColorUtil::to_color(ColorUtil::read_packed<BITNESS>(ptr, source_idx, big_endian), BITNESS));
+    display->draw_pixel_at(
+        x + x_start, y + y_start,
+        ColorUtil::to_color(ColorUtil::read_packed<BITNESS>(ptr, source_idx, HIGH_BYTE_FIRST), BITNESS));
   };
   // The source and frame buffers are row-major, so walking rows keeps the read
   // and the write sequential. When the display swaps the axes before writing,
@@ -137,13 +138,17 @@ void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   }
   switch (bitness) {
     case COLOR_BITNESS_565:
-      draw_packed_pixels<COLOR_BITNESS_565>(this, x_start, y_start, w, h, ptr, big_endian, x_offset, y_offset, x_pad);
+      if (big_endian) {
+        draw_packed_pixels<COLOR_BITNESS_565, true>(this, x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+      } else {
+        draw_packed_pixels<COLOR_BITNESS_565, false>(this, x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+      }
       break;
     case COLOR_BITNESS_888:
-      draw_packed_pixels<COLOR_BITNESS_888>(this, x_start, y_start, w, h, ptr, big_endian, x_offset, y_offset, x_pad);
+      draw_packed_pixels<COLOR_BITNESS_888>(this, x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
       break;
     default:
-      draw_packed_pixels<COLOR_BITNESS_332>(this, x_start, y_start, w, h, ptr, big_endian, x_offset, y_offset, x_pad);
+      draw_packed_pixels<COLOR_BITNESS_332>(this, x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
       break;
   }
 }
