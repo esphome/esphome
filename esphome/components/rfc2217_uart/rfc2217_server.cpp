@@ -25,8 +25,16 @@ static constexpr uint32_t MAX_BAUD_RATE = 5000000;
 void Rfc2217Server::setup() { this->configured_ = this->line_(); }
 
 void Rfc2217Server::dump_config() {
-  ESP_LOGCONFIG(TAG, "RFC 2217 UART:\n"
-                     "  Role: server");
+#ifdef USE_ESP32
+  const bool settable = this->idf_uart_;
+#else
+  const bool settable = false;
+#endif
+  ESP_LOGCONFIG(TAG,
+                "RFC 2217 UART:\n"
+                "  Role: server\n"
+                "  Line Settable: %s",
+                YESNO(settable));
 }
 
 void Rfc2217Server::on_link(bool up) {
@@ -39,9 +47,12 @@ void Rfc2217Server::on_link(bool up) {
   this->to_serial_len_ = 0;
   this->fence_ = 0;
   std::memset(this->answers_due_, 0, sizeof(this->answers_due_));
+  this->dtr_on_ = false;
+  this->rts_on_ = false;
+  this->refusal_logged_ = false;
   if (this->ending_) {
     this->ending_ = false;
-    this->set_line_(this->configured_);
+    this->restore_line_();
   }
   // The driver kept whatever arrived while the link was down.
   this->discard_serial_();
@@ -106,28 +117,27 @@ bool Rfc2217Server::reload_serial() {
     // Keeps the driver; a rate it cannot reach leaves the previous line in place.
     return static_cast<uart::IDFUARTComponent *>(this->parent_)->apply_settings_live() == ESP_OK;
   }
-  this->parent_->load_settings(false);
-  return true;
-#else
-  // Off ESP32 the line stays as configured; ESP8266's reload does not wait for the bytes in flight.
-  return false;
 #endif
+  // Any other UART stays as configured: ESP8266's reload does not wait for the bytes in flight, and a UART that is not
+  // the hardware one, such as usb_cdc_acm, may ignore load_settings().
+  return false;
 }
 
 bool Rfc2217Server::tx_idle_() {
 #ifdef USE_ESP32
   if (this->idf_uart_) {
     auto *serial = static_cast<uart::IDFUARTComponent *>(this->parent_);
-    return uart_wait_tx_done(static_cast<uart_port_t>(serial->get_hw_serial_number()), 0) == ESP_OK;
+    // Only a timeout means bytes are still in flight; after any other error nothing drains.
+    return uart_wait_tx_done(static_cast<uart_port_t>(serial->get_hw_serial_number()), 0) != ESP_ERR_TIMEOUT;
   }
 #endif
   return true;
 }
 
-void Rfc2217Server::set_line_(const Line &line) {
+bool Rfc2217Server::set_line_(const Line &line) {
   const Line old = this->line_();
   if (line == old) {
-    return;
+    return true;
   }
   uart::UARTComponent *serial = this->parent_;
   serial->set_baud_rate(line.baud_rate);
@@ -137,13 +147,20 @@ void Rfc2217Server::set_line_(const Line &line) {
   if (this->reload_serial()) {
     ESP_LOGD(TAG, "Line set to %" PRIu32 " baud, %u data bits, parity %s, %u stop bits", serial->get_baud_rate(),
              serial->get_data_bits(), LOG_STR_ARG(uart::parity_to_str(serial->get_parity())), serial->get_stop_bits());
-    return;
+    return true;
   }
   // The answers then report the line that stays in use.
   serial->set_baud_rate(old.baud_rate);
   serial->set_data_bits(old.data_bits);
   serial->set_parity(old.parity);
   serial->set_stop_bits(old.stop_bits);
+  return false;
+}
+
+void Rfc2217Server::restore_line_() {
+  if (!this->set_line_(this->configured_)) {
+    ESP_LOGW(TAG, "Could not restore the configured line");
+  }
 }
 
 Rfc2217Server::Line &Rfc2217Server::pending_() {
@@ -159,7 +176,10 @@ void Rfc2217Server::apply_line_() {
   if (this->fence_ != 0 || !this->tx_idle_()) {
     return;
   }
-  this->set_line_(this->pending_line_);
+  if (!this->set_line_(this->pending_line_) && !this->refusal_logged_) {
+    this->refusal_logged_ = true;
+    ESP_LOGW(TAG, "The UART cannot take the line the client asked for, it keeps the line in use");
+  }
   this->pending_line_ = this->line_();
   if (!this->link_was_up_) {
     std::memset(this->answers_due_, 0, sizeof(this->answers_due_));
@@ -179,6 +199,10 @@ void Rfc2217Server::apply_line_() {
 }
 
 void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
+  // pySerial sends no WILL COM-PORT when the server's DO arrives first: its first command stands for it.
+  if (this->him_[COM_PORT] == OptionState::OPTION_STATE_WANT_YES) {
+    this->him_[COM_PORT] = OptionState::OPTION_STATE_YES;
+  }
   // [RFC 2217] Every command is answered with the value in use, which may differ from the one asked for.
   switch (code) {
     case COM_FLOWCONTROL_SUSPEND:
@@ -241,15 +265,22 @@ void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
       break;
     }
     case COM_SET_CONTROL:
-      // The UART has no flow control, BREAK, DTR or RTS: each is answered off.
+      // The UART has no flow control or BREAK: both are answered off. It has no DTR or RTS line either, but those are
+      // answered as asked: pySerial sets both on when it opens the port and fails on any other answer.
       if (v <= 3 || v == 17 || v == 19) {
         this->answer_(COM_SET_CONTROL, CONTROL_NO_FLOW);
       } else if (v <= 6) {
         this->answer_(COM_SET_CONTROL, CONTROL_BREAK_OFF);
       } else if (v <= 9) {
-        this->answer_(COM_SET_CONTROL, CONTROL_DTR_OFF);
+        if (v != CONTROL_DTR_REQUEST) {
+          this->dtr_on_ = v == CONTROL_DTR_ON;
+        }
+        this->answer_(COM_SET_CONTROL, this->dtr_on_ ? CONTROL_DTR_ON : CONTROL_DTR_OFF);
       } else if (v <= 12) {
-        this->answer_(COM_SET_CONTROL, CONTROL_RTS_OFF);
+        if (v != CONTROL_RTS_REQUEST) {
+          this->rts_on_ = v == CONTROL_RTS_ON;
+        }
+        this->answer_(COM_SET_CONTROL, this->rts_on_ ? CONTROL_RTS_ON : CONTROL_RTS_OFF);
       } else if (v <= 16 || v == 18) {
         this->answer_(COM_SET_CONTROL, CONTROL_NO_FLOW_IN);
       }

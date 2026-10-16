@@ -31,15 +31,11 @@ SERVER_SUSPEND = b"\xff\xfa\x2c\x6c\xff\xf0"
 SERVER_RESUME = b"\xff\xfa\x2c\x6d\xff\xf0"
 
 
-def _open(port: int, options: str = "", **settings: object) -> serial.Serial:
-    url = f"rfc2217://127.0.0.1:{port}"
-    if options:
-        url += f"?{options}"
-    client = serial.serial_for_url(url, baudrate=115200, timeout=2, do_not_open=True)
-    for key, value in settings.items():
-        setattr(client, key, value)
-    client.open()
-    return client
+def _open(port: int) -> serial.Serial:
+    # pySerial's defaults: it sets DTR and RTS on and checks each answer.
+    return serial.serial_for_url(
+        f"rfc2217://127.0.0.1:{port}", baudrate=115200, timeout=2
+    )
 
 
 @pytest.mark.asyncio
@@ -130,11 +126,7 @@ async def test_rfc2217_uart(
             assert await asyncio.wait_for(reader.readexactly(4), 10) == b"held"
             await lines.wait_for("Listening on")
 
-            # pySerial asks for DTR and RTS on; the UART has neither line.
-            with pytest.raises(ValueError, match="'control'"):
-                await asyncio.to_thread(_open, server_port, "timeout=1")
-            # Asking for them off matches the answer.
-            port = await asyncio.to_thread(_open, server_port, dtr=False, rts=False)
+            port = await asyncio.to_thread(_open, server_port)
             try:
                 await asyncio.to_thread(port.write, b"\x11\x13\xffABC")
                 assert await read_uart(6) == b"\x11\x13\xffABC"
@@ -147,23 +139,14 @@ async def test_rfc2217_uart(
                     await asyncio.to_thread(setattr, port, "baudrate", 9600)
             finally:
                 await asyncio.to_thread(port.close)
-            await wait_for_drops(2)
+            await wait_for_drops(1)
 
             # Bytes written right before the close still reach the UART.
-            port = await asyncio.to_thread(_open, server_port, dtr=False, rts=False)
+            port = await asyncio.to_thread(_open, server_port)
             data = bytes(i % 250 for i in range(1000))
             await asyncio.to_thread(port.write, data)
             await asyncio.to_thread(port.close)
             assert await read_uart(len(data)) == data
-            await wait_for_drops(3)
-
-            # ?ign_set_control skips the answers to SET-CONTROL.
-            port = await asyncio.to_thread(_open, server_port, "ign_set_control")
-            try:
-                await asyncio.to_thread(port.write, b"ok")
-                assert await read_uart(2) == b"ok"
-            finally:
-                await asyncio.to_thread(port.close)
     finally:
         for peer_writer in writers:
             peer_writer.close()

@@ -255,14 +255,34 @@ TEST(Rfc2217Server, ControlCommandsAreAnsweredOff) {
   FakeSerial serial;
   Server server(&pipe, &serial);
   accept(pipe, server);
-  // Each SET-CONTROL value and the answer: flow control none, BREAK off, DTR off, RTS off, inbound flow control none.
-  const uint8_t asked[] = {0, 2, 4, 5, 7, 8, 9, 10, 11, 12, 13, 15, 17, 18, 19, 20};
-  const uint8_t answer[] = {1, 1, 6, 6, 9, 9, 9, 12, 12, 12, 14, 14, 1, 14, 1};
+  // Each SET-CONTROL value and the answer: flow control none, BREAK off, inbound flow control none.
+  const uint8_t asked[] = {0, 2, 4, 5, 13, 15, 17, 18, 19, 20};
+  const uint8_t answer[] = {1, 1, 6, 6, 14, 14, 1, 14, 1};
   for (uint8_t v : asked) {
     command(pipe, 0x05, v);
   }
   server.loop();
   // 20 is no SET-CONTROL value and gets no answer.
+  ASSERT_EQ(pipe.n_, sizeof(answer) * 7);
+  for (size_t i = 0; i < sizeof(answer); i++) {
+    const uint8_t want[] = {0xFF, 0xFA, 0x2C, 105, answer[i], 0xFF, 0xF0};
+    EXPECT_EQ(std::memcmp(pipe.buf_ + i * 7, want, sizeof(want)), 0) << "value " << unsigned(asked[i]);
+  }
+}
+
+TEST(Rfc2217Server, DtrAndRtsAreAnsweredAsAsked) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  // Ask for DTR (7) and RTS (10), set both on (8, 11) as pySerial does on open, ask again, set both off (9, 12).
+  // A question gets the state set last, off before the first set.
+  const uint8_t asked[] = {7, 10, 8, 11, 7, 10, 9, 12};
+  const uint8_t answer[] = {9, 12, 8, 11, 8, 11, 9, 12};
+  for (uint8_t v : asked) {
+    command(pipe, 0x05, v);
+  }
+  server.loop();
   ASSERT_EQ(pipe.n_, sizeof(answer) * 7);
   for (size_t i = 0; i < sizeof(answer); i++) {
     const uint8_t want[] = {0xFF, 0xFA, 0x2C, 105, answer[i], 0xFF, 0xF0};
@@ -462,6 +482,25 @@ TEST(Rfc2217Server, FullBufferSuspendsTheClient) {
   server.loop();
   const uint8_t resume[] = {0xFF, 0xFA, 0x2C, 109, 0xFF, 0xF0};
   expect_only(pipe, resume);
+}
+
+TEST(Rfc2217Server, CommandWithoutWillTurnsOnFlowControl) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  server.loop();
+  // pySerial takes the server's DO as its own WILL and starts with a command.
+  command(pipe, 0x05, 0x09);
+  server.loop();
+  pipe.clear();
+  serial.room_ = 0;
+  uint8_t data[200];
+  std::memset(data, 0x30, sizeof(data));
+  pipe.feed(data, sizeof(data));
+  server.loop();
+  server.loop();
+  const uint8_t suspend[] = {0xFF, 0xFA, 0x2C, 108, 0xFF, 0xF0};
+  expect_only(pipe, suspend);
 }
 
 TEST(Rfc2217Server, NoFlowControlWithoutComPort) {
