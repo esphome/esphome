@@ -135,6 +135,11 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
             src.peek(7), src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
             src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
 
+  // Some transmitters send a longer carrier burst first. Skip it; the full preamble still has to follow.
+  if (src.peek_mark_at_least(2 * BIT_TIME_US) && src.peek_space(BIT_TIME_US, 1)) {
+    src.advance(2);
+  }
+
   // Check preamble bits
   int8_t bit = NBITS_PREAMBLE - 1;
   while (--bit >= 0) {
