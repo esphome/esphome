@@ -45,16 +45,6 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
-def validate_mode(value: ConfigType) -> ConfigType:
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_PULLUP] and not value[CONF_INPUT]:
-        raise cv.Invalid("Pullup only available with input")
-    return value
-
-
 PCA6416A_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(PCA6416AGPIOPin),
@@ -66,7 +56,7 @@ PCA6416A_PIN_SCHEMA = cv.All(
                 cv.Optional(CONF_PULLUP, default=False): cv.boolean,
                 cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
             },
-            validate_mode,
+            gpio_expander.validate_input_xor_output_pullup,
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
@@ -75,13 +65,4 @@ PCA6416A_PIN_SCHEMA = cv.All(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PCA6416A, PCA6416A_PIN_SCHEMA)
 async def pca6416a_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_PCA6416A])
-
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+    return await gpio_expander.new_expander_pin(config, CONF_PCA6416A)

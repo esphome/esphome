@@ -51,23 +51,13 @@ async def register_mcp23xxx(config: ConfigType, num_pins: int) -> MockObj:
     return var
 
 
-def validate_mode(value: ConfigType) -> ConfigType:
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_PULLUP] and not value[CONF_INPUT]:
-        raise cv.Invalid("Pullup only available with input")
-    return value
-
-
 CONF_MCP23XXX = "mcp23xxx"
 
 MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
     MCP23XXXGPIOPin,
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
-    mode_validator=validate_mode,
+    mode_validator=gpio_expander.validate_input_xor_output_pullup,
     invertible=True,
 ).extend(
     {

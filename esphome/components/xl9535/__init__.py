@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import gpio_expander, i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -15,6 +15,7 @@ from esphome.types import ConfigType
 
 CONF_XL9535 = "xl9535"
 
+AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@mreditor97"]
 DOMAIN = "xl9535"
@@ -36,14 +37,6 @@ async def to_code(config: ConfigType) -> None:
     await i2c.new_i2c_component(config)
 
 
-def validate_mode(mode: ConfigType) -> ConfigType:
-    if not (mode[CONF_INPUT] or mode[CONF_OUTPUT]) or (
-        mode[CONF_INPUT] and mode[CONF_OUTPUT]
-    ):
-        raise cv.Invalid("Mode must be either a input or a output")
-    return mode
-
-
 def validate_pin(pin: int) -> int:
     if pin in (8, 9):
         raise cv.Invalid(f"pin {pin} doesn't exist")
@@ -60,7 +53,7 @@ XL9535_PIN_SCHEMA = cv.All(
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
                 cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
             },
-            validate_mode,
+            gpio_expander.validate_input_xor_output,
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
@@ -69,12 +62,4 @@ XL9535_PIN_SCHEMA = cv.All(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_XL9535, XL9535_PIN_SCHEMA)
 async def xl9535_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_XL9535])
-
-    cg.add(var.set_parent(parent))
-    cg.add(var.set_pin(config[CONF_NUMBER]))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-
-    return var
+    return await gpio_expander.new_expander_pin(config, CONF_XL9535)

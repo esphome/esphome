@@ -98,3 +98,5 @@ class SX1509Component final : public Component,
 };
 
 }  // namespace esphome::sx1509
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::sx1509::SX1509Component);
