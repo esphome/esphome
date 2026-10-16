@@ -22,6 +22,8 @@ from esphome.components.esp32 import (
     request_bluetooth,
 )
 from esphome.components.esp32.const import VARIANT_ESP32C2
+from esphome.components.esp32_hosted import DOMAIN as ESP32_HOSTED_DOMAIN
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -32,8 +34,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, ID, TimePeriod
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE, TimePeriod
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -278,7 +279,7 @@ DEFAULT_MAX_CONNECTIONS = 3
 IDF_MAX_CONNECTIONS = 9
 
 # Connection slot tracking keys
-KEY_ESP32_BLE = "esp32_ble"
+KEY_ESP32_BLE = DOMAIN
 KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
 
 # Export for use by other components (bluetooth_proxy, etc.)
@@ -362,7 +363,7 @@ CONFIG_SCHEMA = cv.Schema(
             cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
         ),
         cv.Optional(CONF_USE_PSRAM): cv.All(
-            cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
+            cv.only_on_esp32, cv.requires_component(PSRAM_DOMAIN), cv.boolean
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -405,7 +406,7 @@ def consume_connection_slots(
     """
 
     def _consume_connection_slots(config: MutableMapping) -> MutableMapping:
-        data: dict[str, Any] = CORE.data.setdefault(KEY_ESP32_BLE, {})
+        data: dict[str, Any] = CORE.data.setdefault(DOMAIN, {})
         slots: list[str] = data.setdefault(KEY_USED_CONNECTION_SLOTS, [])
         slots.extend([consumer] * value)
         return config
@@ -419,7 +420,7 @@ def validate_connection_slots(max_connections: int) -> None:
     if CORE.testing_mode:
         return
 
-    ble_data = CORE.data.get(KEY_ESP32_BLE, {})
+    ble_data = CORE.data.get(DOMAIN, {})
     used_slots = ble_data.get(KEY_USED_CONNECTION_SLOTS, [])
     num_used = len(used_slots)
 
@@ -474,13 +475,18 @@ def final_validation(config: ConfigType) -> None:
     validate_connection_slots(max_connections)
 
     # Check if hosted bluetooth is being used
-    if "esp32_hosted" in full_config:
+    if ESP32_HOSTED_DOMAIN in full_config:
+        from esphome.components.esp32_hosted import uses_esp_hosted_3x
+
         add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
+        if uses_esp_hosted_3x():
+            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
+        else:
+            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
 
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
@@ -606,38 +612,27 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_UUID")
 
 
-@automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
-async def ble_enabled_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_action(
-    "ble.enable", BLEEnableAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "ble.enabled",
+    BLEEnabledCondition,
+    cv.Schema({}),
 )
-async def ble_enable_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action(
-    "ble.disable", BLEDisableAction, cv.Schema({}), synchronous=True
+automation.register_bare_action(
+    "ble.enable",
+    BLEEnableAction,
+    cv.Schema({}),
+    synchronous=True,
 )
-async def ble_disable_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return cg.new_Pvariable(action_id, template_arg)
+
+
+automation.register_bare_action(
+    "ble.disable",
+    BLEDisableAction,
+    cv.Schema({}),
+    synchronous=True,
+)
 
 
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set

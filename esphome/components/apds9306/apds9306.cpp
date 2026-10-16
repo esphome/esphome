@@ -7,7 +7,7 @@
 
 namespace esphome::apds9306 {
 
-static const char *const TAG = "apds9306";
+ESPHOME_LOG_TAG(TAG, "apds9306");
 
 enum {  // APDS9306 registers
   APDS9306_MAIN_CTRL = 0x00,

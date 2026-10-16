@@ -21,7 +21,7 @@
 
 namespace esphome::xiaomi_ble {
 
-static const char *const TAG = "xiaomi_ble";
+ESPHOME_LOG_TAG(TAG, "xiaomi_ble");
 
 // Maximum bytes to log in very verbose hex output (covers largest packet of ~24 bytes)
 static constexpr size_t XIAOMI_MAX_LOG_BYTES = 32;

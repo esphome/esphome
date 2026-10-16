@@ -14,7 +14,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.spdif";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.spdif");
 
 // SPDIF mode adds overhead as each sample is encapsulated in a subframe;
 // each DMA buffer can hold only 192 samples (~4ms each vs. ~15ms for standard I2S).
@@ -334,7 +334,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       if (!this->pause_state_) {
         while (real_frames_in_block < SPDIF_BLOCK_SAMPLES) {
           if (audio_source->available() == 0) {
-            size_t bytes_read = audio_source->fill(read_timeout_ticks, false);
+            size_t bytes_read = audio_source->fill(read_timeout_ticks);
             if (bytes_read == 0) {
               break;  // No upstream data within the read budget; silence-pad the remainder.
             }

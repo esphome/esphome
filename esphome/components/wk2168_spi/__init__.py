@@ -9,6 +9,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["weikai", "weikai_spi"]
+DOMAIN = "wk2168_spi"
 MULTI_CONF = True
 CONF_WK2168_SPI = "wk2168_spi"
 

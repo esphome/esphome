@@ -12,6 +12,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
+DOMAIN = "fastled_base"
 fastled_base_ns = cg.esphome_ns.namespace("fastled_base")
 FastLEDLightOutput = fastled_base_ns.class_(
     "FastLEDLightOutput", light.AddressableLight

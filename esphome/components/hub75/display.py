@@ -18,8 +18,7 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID, EnumValue
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import EnumValue
 import esphome.final_validate as fv
 from esphome.helpers import add_class_to_obj
 from esphome.types import ConfigType
@@ -167,7 +166,6 @@ ROTATIONS = {
 HUB75Display = hub75_ns.class_("HUB75Display", cg.PollingComponent, display.Display)
 Hub75Config = cg.global_ns.struct("Hub75Config")
 Hub75Pins = cg.global_ns.struct("Hub75Pins")
-SetBrightnessAction = hub75_ns.class_("SetBrightnessAction", automation.Action)
 
 
 def _merge_board_pins(config: ConfigType) -> ConfigType:
@@ -603,10 +601,8 @@ async def to_code(config: ConfigType) -> None:
     pins_struct = _build_pins_struct(pin_expressions, e_pin_num)
     hub75_config = _build_config_struct(config, pins_struct, min_refresh)
 
-    # Rotation is handled by the hub75 driver (config_.rotation already set above).
-    # Force rotation to 0 for ESPHome's Display base class to avoid double-rotation.
-    if CONF_ROTATION in config:
-        config[CONF_ROTATION] = 0
+    # The driver rotates the panel itself (config_.rotation above), so the base class must not rotate too
+    config.pop(CONF_ROTATION, None)
 
     # Create display and register
     var = cg.new_Pvariable(config[CONF_ID], hub75_config)
@@ -619,9 +615,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_writer(lambda_))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hub75.set_brightness",
-    SetBrightnessAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HUB75Display),
@@ -629,16 +624,5 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_BRIGHTNESS,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_BRIGHTNESS, "set_brightness", cg.uint8),
 )
-async def hub75_set_brightness_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
-    cg.add(var.set_brightness(template_))
-    return var

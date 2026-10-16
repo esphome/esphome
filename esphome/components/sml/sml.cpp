@@ -5,7 +5,7 @@
 
 namespace esphome::sml {
 
-static const char *const TAG = "sml";
+ESPHOME_LOG_TAG(TAG, "sml");
 
 const char START_BYTES_DETECTED = 1;
 const char END_BYTES_DETECTED = 2;

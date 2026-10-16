@@ -3,7 +3,7 @@
 
 namespace esphome::sfa30 {
 
-static const char *const TAG = "sfa30";
+ESPHOME_LOG_TAG(TAG, "sfa30");
 
 static const uint16_t SFA30_CMD_GET_DEVICE_MARKING = 0xD060;
 static const uint16_t SFA30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0006;

@@ -6,7 +6,6 @@
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -151,6 +150,7 @@ class IT8951Display : public Display,
   void loop() override;
   void dump_config() override;
   void on_safe_shutdown() override;
+  void on_powerdown() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   // --- Config setters (called from generated code) ---
@@ -204,6 +204,7 @@ class IT8951Display : public Display,
                       ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
   int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
+  bool pixel_axes_swapped() const override { return this->effective_transform_ & TRANSFORM_SWAP_XY; }
 
  protected:
   int get_height_internal() override { return this->height_; }
@@ -348,26 +349,6 @@ class IT8951Display : public Display,
   // read after reset; the original driver retried up to 3 times with 100ms
   // between attempts).
   uint8_t dev_info_attempts_{0};
-};
-
-// --- Automation action ---
-template<typename... Ts> class IT8951UpdateAction : public Action<Ts...> {
- public:
-  explicit IT8951UpdateAction(IT8951Display *display) : display_(display) {}
-  TEMPLATABLE_VALUE(UpdateMode, mode)
-
- protected:
-  void play(const Ts &...x) override {
-    if (!this->display_->is_ready())
-      return;
-    if (this->mode_.has_value()) {
-      this->display_->update_mode(this->mode_.value(x...));
-    } else {
-      this->display_->update();
-    }
-  }
-
-  IT8951Display *display_;
 };
 
 }  // namespace esphome::it8951

@@ -11,11 +11,11 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLUP,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@looping40"]
+DOMAIN = "max6956"
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
@@ -28,10 +28,6 @@ max6956_ns = cg.esphome_ns.namespace("max6956")
 
 MAX6956 = max6956_ns.class_("MAX6956", cg.Component, i2c.I2CDevice)
 MAX6956GPIOPin = max6956_ns.class_("MAX6956GPIOPin", cg.GPIOPin)
-
-# Actions
-SetCurrentGlobalAction = max6956_ns.class_("SetCurrentGlobalAction", automation.Action)
-SetCurrentModeAction = max6956_ns.class_("SetCurrentModeAction", automation.Action)
 
 MAX6956_CURRENTMODE = max6956_ns.enum("MAX6956CURRENTMODE")
 CURRENT_MODES = {
@@ -84,7 +80,7 @@ MAX6956_PIN_SCHEMA = pins.gpio_base_schema(
     mode_validator=validate_mode,
 ).extend(
     {
-        cv.Required(CONF_MAX6956): cv.use_id(MAX6956),
+        cv.Required(CONF_MAX6956): pins.use_id_or_address(MAX6956),
     }
 )
 
@@ -103,9 +99,8 @@ async def max6956_pin_to_code(config: ConfigType) -> MockObj:
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "max6956.set_brightness_global",
-    SetCurrentGlobalAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(CONF_ID): cv.use_id(MAX6956),
@@ -115,24 +110,12 @@ async def max6956_pin_to_code(config: ConfigType) -> MockObj:
         },
         key=CONF_BRIGHTNESS_GLOBAL,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_BRIGHTNESS_GLOBAL, "set_brightness_global", cg.uint8),
+    automation.ApplyCall("write_brightness_global()"),
 )
-async def max6956_set_brightness_global_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS_GLOBAL], args, cg.uint8)
-    cg.add(var.set_brightness_global(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "max6956.set_brightness_mode",
-    SetCurrentModeAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(MAX6956),
@@ -142,18 +125,8 @@ async def max6956_set_brightness_global_to_code(
         },
         key=CONF_BRIGHTNESS_MODE,
     ),
-    synchronous=True,
+    automation.ApplyField(
+        CONF_BRIGHTNESS_MODE, "set_brightness_mode", MAX6956_CURRENTMODE
+    ),
+    automation.ApplyCall("write_brightness_mode()"),
 )
-async def max6956_set_brightness_mode_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(
-        config[CONF_BRIGHTNESS_MODE], args, MAX6956_CURRENTMODE
-    )
-    cg.add(var.set_brightness_mode(template_))
-    return var

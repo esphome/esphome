@@ -11,12 +11,16 @@
 
 namespace esphome {
 
+inline void wake_scheduler_threadsafe() {
+  g_main_loop_woke = true;
+  __sev();
+}
+
 inline void wake_loop_any_context() {
   // Set the wake-requested flag BEFORE the SEV so the consumer is guaranteed
   // to see it on its next gate check.
   wake_request_set();
-  g_main_loop_woke = true;
-  __sev();
+  wake_scheduler_threadsafe();
 }
 
 inline void wake_loop_threadsafe() { wake_loop_any_context(); }

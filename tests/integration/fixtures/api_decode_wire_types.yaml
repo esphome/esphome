@@ -1,0 +1,43 @@
+esphome:
+  name: api-decode-wire-types-test
+host:
+api:
+logger:
+  level: DEBUG
+
+switch:
+  - platform: template
+    name: "Wire Switch"
+    optimistic: true
+
+output:
+  - platform: template
+    id: wire_dim
+    type: float
+    write_action:
+      - lambda: ""
+
+light:
+  - platform: monochromatic
+    name: "Wire Light"
+    output: wire_dim
+    default_transition_length: 0s
+    effects:
+      - pulse:
+          name: Pulse
+
+text:
+  - platform: template
+    name: "Wire Text"
+    optimistic: true
+    mode: text
+    min_length: 0
+    max_length: 255
+
+number:
+  - platform: template
+    name: "Wire Number"
+    optimistic: true
+    min_value: -1000
+    max_value: 1000
+    step: 0.5

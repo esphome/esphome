@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstdio>
 
-static const char *const TAG = "online_image";
+ESPHOME_LOG_TAG(TAG, "online_image");
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 static const char *const ETAG_HEADER_NAME = "etag";
 static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
@@ -122,11 +122,11 @@ void OnlineImage::update() {
       return;
     }
   }
-  ESP_LOGD(TAG, "Using image format: %d", format);
+  ESP_LOGD(TAG, "Using image format: %s", LOG_STR_ARG(runtime_image::get_format_name(format)));
 
   // Initialize decoder with the known format
   if (!this->begin_decode(total_size, format)) {
-    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", format);
+    ESP_LOGE(TAG, "Failed to initialize decoder for format %s", LOG_STR_ARG(runtime_image::get_format_name(format)));
     this->end_connection_();
     this->download_error_callback_.call();
     return;

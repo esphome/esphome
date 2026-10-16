@@ -42,10 +42,18 @@ script:
           label:
             text: row
 
+esphome:
+  on_boot:
+    then:
+      - lvgl.theme.update:
+          obj:
+            border_width: 2
+
 lvgl:
   id: lvgl_id
   rotation: 90
   log_level: debug
+  check_args: true
   resume_on_input: true
   paused: true
   update_when_display_idle: true
@@ -560,6 +568,8 @@ lvgl:
               #endif
               return std::string(buf);
             align: top_left
+            text_letter_space: -4
+            text_line_space: -4
         - container:
             align: center
             anim_duration: 1s
@@ -967,6 +977,16 @@ lvgl:
         - spinner:
             align: right_mid
             send_draw_task_events: true
+            event_trickle: true
+            state_trickle: true
+            radio_button: true
+            flex_in_new_track: !lambda return true;
+        - spinner:
+            align: top_mid
+            layout_1: true
+            layout_2: true
+            widget_1: !lambda return false;
+            widget_2: false
         - image:
             id: lv_image
             src: cat_image
@@ -1349,6 +1369,17 @@ lvgl:
             id: checkbox_id
             text: Checkbox
             align: bottom_right
+        - list:
+            id: list_a
+            on_add:
+              - lvgl.list.add:
+                  id: list_b          # fires list_b's on_add
+                  label: {text: x}
+        - list:
+            id: list_b
+            on_add:
+              - logger.log: added
+
         - list:
             id: test_list_id
             align: top_right
@@ -1745,6 +1776,108 @@ lvgl:
                   text: "2,1"
               - label:
                   text: "2,2"
+
+        - menu:
+            id: settings_menu
+            header_mode: top_fixed
+            root_back_btn: enabled
+            root_page: settings_main_page
+            sidebar_page: settings_nav_page
+            header_style:
+              bg_color: 0x202020
+            sidebar_header_style:
+              bg_color: 0x101010
+            on_root_back_button_click:
+              - logger.log: "settings menu closed at root"
+            on_value:
+              - lambda: |-
+                  ESP_LOGD("lvgl", "Menu page %p", page);
+            pages:
+              - id: settings_main_page
+                title: "Settings"
+                sections:
+                  - id: wifi_section
+                    widgets:
+                      - label:
+                          text: "Wifi"
+                      - switch:
+                          id: wifi_switch
+                widgets:
+                  - button:
+                      id: open_advanced_button
+                      text: "Advanced"
+                      on_click:
+                        - lvgl.menu.set_page:
+                            id: settings_menu
+                            page: settings_advanced_page
+              - id: settings_advanced_page
+                title: "Advanced"
+                widgets:
+                  - label:
+                      text: "Debug options"
+              - id: settings_nav_page
+                title: "Navigate"
+                widgets:
+                  - button:
+                      id: nav_to_main_button
+                      text: "Go to Settings"
+                      on_click:
+                        - lvgl.menu.set_page:
+                            id: settings_menu
+                            page: settings_main_page
+                            sidebar: true
+
+        # Sized from its text font, with a colour given as an id
+        - color_picker:
+            id: lv_color_picker_1
+            width: SIZE_CONTENT
+            text_font: space16
+            color: light_blue
+            on_value:
+              - logger.log:
+                  format: "color picker is now %d,%d,%d"
+                  args: [x.r, x.g, x.b]
+            on_release:
+              - lvgl.color_picker.update:
+                  id: lv_color_picker_2
+                  color: !lambda return x;
+
+        # Fixed size, with a colour given as a hex literal
+        - color_picker:
+            id: lv_color_picker_2
+            width: 200
+            color: 0x3366CC
+            # Styles for the sliders the widget is built from
+            items:
+              border_color: 0x808080
+              pressed:
+                border_width: 2
+            knob:
+              radius: 4
+              # A named style, added for both a part on its own and a part with a state
+              styles: [style_test]
+              pressed:
+                styles: [style_test]
+            on_update:
+              - logger.log: color picker updated
+
+        # Only the red, green and blue sliders
+        - color_picker:
+            id: lv_color_picker_3
+            width: 150
+            sliders: rgb
+
+        # A hue and saturation pair, as used where brightness is set elsewhere
+        - color_picker:
+            id: lv_color_picker_4
+            width: 150
+            sliders: [hue, saturation]
+            # Widens the area each slider can be pressed on, so the knobs are easier to move
+            ext_click_area: 10
+            # Applies to the widget as a whole, unlike the setting above
+            scrollbar_mode: "OFF"
+            knob:
+              bg_color: 0xFFFFFF
 
 font:
   - file: "gfonts://Roboto"

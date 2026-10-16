@@ -10,7 +10,7 @@
 
 namespace esphome::runtime_image {
 
-static const char *const TAG = "image_decoder.bmp";
+ESPHOME_LOG_TAG(TAG, "image_decoder.bmp");
 
 void BmpDecoder::reset() {
   ImageDecoder::reset();
