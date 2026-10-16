@@ -945,9 +945,14 @@ bool ModbusServerHub::rejected_(uint8_t address, uint8_t function_code, Response
 
 #ifdef USE_MODBUS_SEND_RESPONSE
 void ModbusServerHub::send_response(uint8_t address, std::span<const uint8_t> pdu) {
-  if (pdu.empty() || address == BROADCAST_ADDRESS || this->expecting_peer_response_ != address ||
-      (pdu[0] & FUNCTION_CODE_MASK) != this->peer_function_code_) {
-    ESP_LOGD(TAG, "Dropped response to %" PRIu8 ": no open request matches", address);
+  // A late reply finds the request already given up on, which the client then sees as a timeout.
+  if (pdu.empty() || address == BROADCAST_ADDRESS || this->expecting_peer_response_ != address) {
+    ESP_LOGW(TAG, "Dropped response to %" PRIu8 ": no open request for this address", address);
+    return;
+  }
+  if ((pdu[0] & FUNCTION_CODE_MASK) != this->peer_function_code_) {
+    ESP_LOGW(TAG, "Dropped response to %" PRIu8 ": function code 0x%02X, the open request has 0x%02X", address, pdu[0],
+             this->peer_function_code_);
     return;
   }
   this->expecting_peer_response_ = 0;

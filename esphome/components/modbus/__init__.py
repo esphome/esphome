@@ -402,6 +402,16 @@ def _validate_server_address(value: Any) -> int:
     return address
 
 
+def _validate_response_address(value: Any) -> int:
+    address = cv.hex_uint8_t(value)
+    reject_broadcast_address(
+        address,
+        "the address of a response",
+        "A broadcast is never answered.",
+    )
+    return address
+
+
 def modbus_device_schema(
     default_address: int | None, role: Literal["client", "server"] = "client"
 ) -> cv.Schema:
@@ -475,7 +485,7 @@ automation.register_apply_action(
     cv.Schema(
         {
             cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusServer),
-            cv.Required(CONF_ADDRESS): cv.templatable(_validate_server_address),
+            cv.Required(CONF_ADDRESS): cv.templatable(_validate_response_address),
             cv.Required(CONF_PDU): cv.templatable(
                 cv.All(
                     cv.ensure_list(cv.hex_uint8_t),
