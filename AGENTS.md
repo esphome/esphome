@@ -395,7 +395,7 @@ file does, and it is the authority when they disagree. The most useful starting 
 
     *   **Triggers -- Callback method (preferred):**
 
-        Use `build_callback_automation()` for simple triggers. This eliminates the need for a C++ Trigger class by using a lightweight pointer-sized forwarder struct registered directly as a callback. No `CONF_TRIGGER_ID` in the schema.
+        Use `build_callback_automation()` for simple triggers. The automation is registered directly as a callback on the parent, so there is no C++ Trigger class and nothing is allocated. No `CONF_TRIGGER_ID` in the schema.
 
         **Python:**
         ```python
@@ -448,6 +448,22 @@ file does, and it is the authority when they disagree. The most useful starting 
             forward=[cg.StringRef(parent.option_at(index)), index],
         )
         ```
+
+        **Never write a component-specific forwarder struct in C++.** A trigger that fires only for some values
+        (entering one state, a change from the previous value) takes the callback's parameters with `params`
+        and the test with `when`; codegen writes the filter, so the component needs no `automation.h`:
+        ```python
+        automation.CallbackAutomation(
+            CONF_ON_LOCK,
+            "add_on_state_callback",
+            params=[(LockState, "state")],
+            forward=[],
+            when="state == lock::LOCK_STATE_LOCKED",
+        )
+        ```
+        `when` may also name the parent as `{parent}`, e.g. `when="{parent}->is_fully_open()"` (valve). Only a
+        trigger that must remember something between calls (the last position, a click count) keeps a C++ class.
+
         `build_parent_callback_automation`, `build_trigger_callback`, `build_callback_automations` and
         `build_trigger_automations` cover the other shapes; see their docstrings in `esphome/automation.py`.
 
