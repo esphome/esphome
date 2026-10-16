@@ -372,10 +372,18 @@ void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_rea
                            this->current_stream_info_.bytes_to_samples(bytes_read));
 }
 
+bool I2SAudioSpeakerBase::esp32_mono_swap_needed_() const {
+#ifdef USE_ESP32_VARIANT_ESP32
+  return this->output_stream_info_.get_channels() == 1 && this->output_stream_info_.get_bits_per_sample() == 16;
+#else
+  return false;
+#endif  // USE_ESP32_VARIANT_ESP32
+}
+
 void I2SAudioSpeakerBase::swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read) {
 #ifdef USE_ESP32_VARIANT_ESP32
   // For ESP32 16-bit mono mode, adjacent samples need to be swapped.
-  if (this->output_stream_info_.get_channels() == 1 && this->output_stream_info_.get_bits_per_sample() == 16) {
+  if (this->esp32_mono_swap_needed_()) {
     int16_t *samples = reinterpret_cast<int16_t *>(data);
     size_t sample_count = bytes_read / sizeof(int16_t);
     for (size_t i = 0; i + 1 < sample_count; i += 2) {
