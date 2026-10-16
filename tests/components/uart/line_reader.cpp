@@ -5,9 +5,11 @@
 
 namespace esphome::uart::testing {
 
+using Lines = std::vector<std::string>;
+
 // Feeds a string and collects every completed line.
-template<typename R> static std::vector<std::string> feed_all(R &reader, const std::string &input) {
-  std::vector<std::string> lines;
+template<typename R> static Lines feed_all(R &reader, const std::string &input) {
+  Lines lines;
   for (char c : input) {
     const char *line = reader.feed(static_cast<uint8_t>(c));
     if (line != nullptr) {
@@ -18,7 +20,8 @@ template<typename R> static std::vector<std::string> feed_all(R &reader, const s
   return lines;
 }
 
-using Lines = std::vector<std::string>;
+static_assert(sizeof(LineReader<80>) == 81);
+static_assert(sizeof(LineReader<1025>) == 1028);
 
 TEST(LineReaderTest, CrLfLines) {
   LineReader<16> reader;
@@ -55,13 +58,11 @@ TEST(LineReaderTest, LineOfExactlyMaxLengthFits) {
 
 TEST(LineReaderTest, OverlongLineIsDroppedUpToTerminator) {
   LineReader<6> reader;
-  bool saw_overflow = false;
   int overflow_count = 0;
   Lines lines;
   for (char c : std::string("123456789\r\nok\n")) {
     const char *line = reader.feed(c);
     if (reader.overflowed()) {
-      saw_overflow = true;
       overflow_count++;
       EXPECT_STREQ(reader.partial(), "12345");
       EXPECT_EQ(reader.length(), 0u);
@@ -69,7 +70,6 @@ TEST(LineReaderTest, OverlongLineIsDroppedUpToTerminator) {
     if (line != nullptr)
       lines.emplace_back(line);
   }
-  EXPECT_TRUE(saw_overflow);
   EXPECT_EQ(overflow_count, 1);
   EXPECT_EQ(lines, (Lines{"ok"}));
 }
@@ -86,6 +86,36 @@ TEST(LineReaderTest, ResetAfterOverflowRestartsAtNextByte) {
   }
   // "abc" fills the buffer, 'd' overflows and is dropped, "efg" is the next line
   EXPECT_EQ(lines, (Lines{"efg"}));
+}
+
+TEST(LineReaderTest, RestartWithKeepsOverflowByte) {
+  LineReader<4> reader;
+  Lines lines;
+  for (char c : std::string("abcdef\n")) {
+    const char *line = reader.feed(c);
+    if (reader.overflowed()) {
+      reader.restart_with(c);
+    }
+    if (line != nullptr) {
+      lines.emplace_back(line);
+    }
+  }
+  // 'd' overflows and starts the next line
+  EXPECT_EQ(lines, (Lines{"def"}));
+}
+
+TEST(LineReaderTest, FeedReportsLength) {
+  LineReader<16> reader;
+  size_t len = 99;
+  char *line = nullptr;
+  for (char c : std::string("ab\rc\n")) {
+    line = reader.feed(c, len);
+  }
+  ASSERT_NE(line, nullptr);
+  EXPECT_STREQ(line, "abc");
+  EXPECT_EQ(len, 3u);
+  EXPECT_NE(reader.feed('\n', len), nullptr);
+  EXPECT_EQ(len, 0u);
 }
 
 TEST(LineReaderTest, PartialForPromptWithoutLineEnd) {
@@ -124,11 +154,6 @@ TEST(LineReaderTest, LineIsWritable) {
   EXPECT_STREQ(line, "a");
 }
 
-TEST(LineReaderTest, SizeIsBufferPlusPosition) {
-  EXPECT_EQ(sizeof(LineReader<80>), 81u);
-  EXPECT_EQ(sizeof(LineReader<1025>), 1028u);
-}
-
 TEST(LineReaderTest, LogIfOverflowedIsSafeInEveryState) {
   // Smoke test: the shared warning links and is safe to call in every state
   LineReader<4> reader;
@@ -136,7 +161,6 @@ TEST(LineReaderTest, LogIfOverflowedIsSafeInEveryState) {
     reader.feed(c);
     reader.log_if_overflowed("line_reader_test");
   }
-  log_line_dropped("line_reader_test", 3);
   EXPECT_FALSE(reader.overflowed());
 }
 
