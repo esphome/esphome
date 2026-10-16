@@ -61,7 +61,7 @@ void ICM20689Component::setup() {
 
   if (who_am_i != ICM20689_WHO_AM_I_VALUE) {
     ESP_LOGE(TAG, "Unexpected WHO_AM_I 0x%02X (expected 0x%02X) -- check wiring/CS", who_am_i, ICM20689_WHO_AM_I_VALUE);
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 

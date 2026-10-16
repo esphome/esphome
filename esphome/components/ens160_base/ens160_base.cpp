@@ -278,7 +278,9 @@ void ENS160Component::send_env_data_() {
 
 void ENS160Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ENS160:");
-
+  if (!this->is_failed()) {
+    ESP_LOGD(TAG, "Setup successful");
+  }
   ESP_LOGI(TAG, "Firmware Version: %d.%d.%d", this->firmware_ver_major_, this->firmware_ver_minor_,
            this->firmware_ver_build_);
 
