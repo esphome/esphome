@@ -1,0 +1,33 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    id: mq8_adc
+    name: MQ-8 AO voltage
+    pin: GPIO34
+
+  # Calibrated at boot: R0 is averaged from clean air, then every reading is
+  # converted with the built-in MQ-8 H2 curve.
+  - platform: mq_gas_sensors
+    id: mq8_boot
+    name: MQ-8 H2
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq8_adc
+    voltage_multiplier: 1.5
+    sample_count: 4
+    calibration:
+      delay: 5s
+      sample_count: 5
+
+  # The reference is hard-coded, so nothing is calibrated at boot.
+  - platform: mq_gas_sensors
+    id: mq4_fixed
+    name: MQ-4 CH4
+    sensor_type: MQ-4
+    voltage: mq8_adc
+    r0: 10.0

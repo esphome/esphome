@@ -1,30 +1,9 @@
 #pragma once
 //
-// Pure math of the MQ sensor PPM model.
+// Pure math of the MQ sensor PPM model (port of MQUnifiedsensor.cpp):
+// RS = (VCC * RL) / V - RL, ratio = RS / R0, PPM = a * ratio^b.
 //
-// Ported one-to-one from MQUnifiedsensor.cpp (MQSensorsLib, MIT / esp-iot-solution
-// "MQSensorLIB" component by Carlos Delfino, Miguel A. Califa U., Yersson R.
-// Carrillo A. and Ghiordy F. Contreras C.).
-//
-//     V      = adc * VOLT_RESOLUTION / (2^bits - 1)
-//     RS     = (VCC * RL) / V - RL
-//     ratio  = R0 / RS            (library) or RS / R0 (datasheet, default here)
-//     PPM    = a * ratio^b        (exponential regression, method 1)
-//     log10(PPM) = (log10(ratio) - b) / a   (linear regression, method 2)
-//     PPM    = (ratio / a)^(1/b)            (inverse regression, method 3,
-//                                            MQDataScience inverseYaxb())
-//
-// On top of that the optional temperature/humidity correction of MQDataScience
-// (Correction.cpp) is available: it divides the ratio by a coefficient that
-// depends on the relative humidity and the ambient temperature
-//
-//     correction = a + c * exp(b * T)     with a, b, c interpolated over RH
-//     ratio_eff  = ratio / correction
-//
-// which is algebraically the same as their `(ratio / (a * correction))^(1 / b)`.
-//
-// This header is intentionally free of ESPHome / ESP-IDF dependencies so the very
-// same code can be unit tested on the host (see tests/components/mq_gas_sensors/mq_math_test.cpp).
+// Free of ESPHome / ESP-IDF dependencies so the same code runs on the host.
 //
 
 #include <cfloat>
@@ -37,7 +16,7 @@ namespace esphome::mq_gas_sensors::mqmath {
 enum RegressionMethod : uint8_t {
   REGRESSION_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
   REGRESSION_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
-  REGRESSION_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b), MQDataScience inverseYaxb()
+  REGRESSION_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b)
 };
 
 /// Ratio convention used to evaluate the regression curve.
@@ -90,14 +69,6 @@ inline float clamp_b(float b) {
   return b;
 }
 
-/// ADC counts -> volt, MQUnifiedsensor::setADC() / getVoltage().
-inline float voltage_from_adc(uint32_t raw, uint8_t bits, float volt_resolution) {
-  const double full_scale = safe_pow(2.0, static_cast<double>(bits)) - 1.0;
-  if (full_scale <= 0.0)
-    return 0.0f;
-  return static_cast<float>(static_cast<double>(raw) * static_cast<double>(volt_resolution) / full_scale);
-}
-
 /// Sensor resistance in kOhm, MQUnifiedsensor::getRS() / calibrate().
 /// Returns 0 for a non-positive / non-finite input voltage instead of +inf.
 inline float rs_from_voltage(float voltage, float vcc, float rl) {
@@ -139,16 +110,23 @@ inline float r0_from_clean_air(float rs_air, float ratio_in_clean_air, float cor
 }
 
 /// ratio (+ a, b) -> PPM, MQUnifiedsensor::readSensorR0Rs().
-/// FLT_MAX signals "out of range / not evaluable" so the caller can clamp it.
+/// FLT_MAX signals "out of range / not evaluable" so the caller can clamp it:
+/// a ratio of exactly 0 is RS at 0 (V_AO at VCC), the output of a saturated
+/// sensor, and must never be read as clean air. NaN stays NaN, so the caller
+/// publishes `unknown`.
 inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod method) {
-  if (!std::isfinite(ratio) || ratio <= 0.0f || a == 0.0f)
+  if (!std::isfinite(ratio))
+    return NAN;
+  if (a == 0.0f)
     return 0.0f;
+  if (ratio <= 0.0f)
+    return FLT_MAX;
 
   double log_ppm;
   if (method == REGRESSION_EXPONENTIAL) {
     log_ppm = std::log10(static_cast<double>(a)) + static_cast<double>(b) * std::log10(static_cast<double>(ratio));
   } else if (method == REGRESSION_INVERSE) {
-    // PPM = (ratio / a)^(1/b), MQDataScience inverseYaxb().
+    // PPM = (ratio / a)^(1/b).
     log_ppm = (std::log10(static_cast<double>(ratio)) - std::log10(static_cast<double>(a))) / static_cast<double>(b);
   } else {
     log_ppm = (std::log10(static_cast<double>(ratio)) - static_cast<double>(b)) / static_cast<double>(a);
@@ -168,113 +146,21 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
   return static_cast<float>(ppm);
 }
 
-/// Clamp a PPM reading to the datasheet range of the sensor (NaN stays NaN).
+/// Clamp a PPM reading to the measuring range (NaN stays NaN).
+///
+/// `min_ppm` is the noise floor: a reading below it counts as not detected and
+/// reports 0 ppm. 0 ppm itself is never lifted to `min_ppm`, so clean air is
+/// published as 0 instead of hiding behind the alarm floor.
 inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
   if (!std::isfinite(ppm))
     return NAN;
+  if (ppm <= 0.0f)
+    return 0.0f;
   if (ppm < min_ppm)
-    return min_ppm;
+    return 0.0f;
   if (ppm > max_ppm)
     return max_ppm;
   return ppm;
-}
-
-// ---------------------------------------------------------------------------
-// Temperature / humidity correction (MQDataScience, "Correction.cpp")
-// ---------------------------------------------------------------------------
-
-/// Domain of the correction model: its coefficients are tabulated at RH 33 %
-/// and RH 85 %, the temperature range is the datasheet range of the sensors.
-static constexpr float MQ_TC_RH_MIN = 33.0f;
-static constexpr float MQ_TC_RH_MAX = 85.0f;
-static constexpr float MQ_TC_TEMP_MIN = -10.0f;
-static constexpr float MQ_TC_TEMP_MAX = 50.0f;
-
-/// Coefficients of `a + c * exp(b * T)` at RH 33 % and RH 85 % (per sensor type).
-struct TcCorrectionCoefficients {
-  float a33;
-  float b33;
-  float c33;
-  float a85;
-  float b85;
-  float c85;
-};
-
-/// MQDataScience's `fmap()` - linear interpolation, `x0`/`x1` are never equal here.
-inline float linear_interpolate(float x, float x0, float x1, float y0, float y1) {
-  if (x1 == x0)
-    return y0;
-  return static_cast<float>((static_cast<double>(x) - static_cast<double>(x0)) *
-                                (static_cast<double>(y1) - static_cast<double>(y0)) /
-                                (static_cast<double>(x1) - static_cast<double>(x0)) +
-                            static_cast<double>(y0));
-}
-
-/// Relative humidity (in %) and ambient temperature (in degC) -> correction
-/// coefficient, MQDataScience `calculateCorrection()` for the MQ-8:
-///
-///     a = interp(RH, 33, 85, a33, a85)  (same for b and c)
-///     correction = a + c * exp(b * T)
-///
-/// Relative humidity is clamped to [33, 85] % and the temperature to
-/// [-10, 50] degC. Returns 1.0 (i.e. "no correction") when an input is not a
-/// finite number or the model degenerates, so a missing/failed temperature or
-/// humidity reading can never invalidate the PPM measurement.
-inline float correction_coefficient(float rh, float temperature, const TcCorrectionCoefficients &coeffs) {
-  if (!std::isfinite(rh) || !std::isfinite(temperature))
-    return 1.0f;
-
-  float rh_clamped = rh;
-  if (rh_clamped < MQ_TC_RH_MIN)
-    rh_clamped = MQ_TC_RH_MIN;
-  if (rh_clamped > MQ_TC_RH_MAX)
-    rh_clamped = MQ_TC_RH_MAX;
-
-  float t_clamped = temperature;
-  if (t_clamped < MQ_TC_TEMP_MIN)
-    t_clamped = MQ_TC_TEMP_MIN;
-  if (t_clamped > MQ_TC_TEMP_MAX)
-    t_clamped = MQ_TC_TEMP_MAX;
-
-  const float a = linear_interpolate(rh_clamped, MQ_TC_RH_MIN, MQ_TC_RH_MAX, coeffs.a33, coeffs.a85);
-  const float b = linear_interpolate(rh_clamped, MQ_TC_RH_MIN, MQ_TC_RH_MAX, coeffs.b33, coeffs.b85);
-  const float c = linear_interpolate(rh_clamped, MQ_TC_RH_MIN, MQ_TC_RH_MAX, coeffs.c33, coeffs.c85);
-
-  const double correction = static_cast<double>(a) +
-                            static_cast<double>(c) * std::exp(static_cast<double>(b) * static_cast<double>(t_clamped));
-  if (!std::isfinite(correction) || correction <= 0.0)
-    return 1.0f;
-  return static_cast<float>(correction);
-}
-
-/// Apply the correction the MQDataScience way: `ratio_eff = ratio / correction`.
-/// A missing (1.0), non-finite or non-positive correction leaves the ratio alone.
-inline float apply_correction(float ratio, float correction) {
-  if (!std::isfinite(ratio) || !std::isfinite(correction) || correction <= 0.0f)
-    return ratio;
-  return static_cast<float>(static_cast<double>(ratio) / static_cast<double>(correction));
-}
-
-/// Where the correction comes from (mirrors `CORRECTION_MODES` in `__init__.py`).
-enum CorrectionMode : uint8_t {
-  CORRECTION_NONE = 0,           ///< no compensation (default)
-  CORRECTION_MQDATASCIENCE = 1,  ///< `a + c * exp(b * T)`
-};
-
-/// How the corrected value is clipped to the configured range.
-enum CorrectionClamp : uint8_t {
-  CLAMP_ABSOLUTE = 0,  ///< clip to `max_ppm` - the alarm ceiling never moves
-  CLAMP_SCALED = 1,    ///< clip to `max_ppm * correction` (MQDataScience behaviour)
-};
-
-/// Clamp a (possibly corrected) PPM value to the configured range.
-inline float clamp_ppm_corrected(float ppm, float min_ppm, float max_ppm, float correction, CorrectionClamp mode) {
-  float upper = max_ppm;
-  if (mode == CLAMP_SCALED)
-    upper = static_cast<float>(static_cast<double>(max_ppm) * static_cast<double>(correction));
-  if (!std::isfinite(upper) || upper < min_ppm)
-    upper = max_ppm;
-  return clamp_ppm(ppm, min_ppm, upper);
 }
 
 }  // namespace esphome::mq_gas_sensors::mqmath
