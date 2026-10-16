@@ -313,8 +313,10 @@ void WeikaiChannel::set_baudrate_() {
   uint32_t val_int = static_cast<uint32_t>(div10 / 10) - 1;
   uint8_t baud_dec = static_cast<uint8_t>(div10 % 10);
   if (val_int > 0xFFFF) {  // requested baudrate too low for this crystal: use the slowest possible one
+    ESP_LOGE(TAG, " Requested baudrate too low for crystal=%" PRIu32 " Hz. Using the lowest possible baudrate",
+             this->parent_->crystal_);
     val_int = 0xFFFF;
-    baud_dec = 0;
+    baud_dec = 9;
   }
   uint8_t const baud_high = (uint8_t) (val_int >> 8);
   uint8_t const baud_low = (uint8_t) (val_int & 0xFF);
@@ -352,6 +354,16 @@ size_t WeikaiChannel::tx_in_fifo_() {
   }
   ESP_LOGVV(TAG, "tx FIFO contains %d bytes", tfcnt);
   return tfcnt;
+}
+
+size_t WeikaiChannel::tx_room_() {
+  // FSR first: an empty transmit FIFO then costs a single bus access
+  uint8_t const fsr = this->read_fsr_();
+  if (!(fsr & FSR_TFDAT))
+    return FIFO_SIZE;
+  if (fsr & FSR_TFFULL)
+    return 0;
+  return FIFO_SIZE - this->reg(WKREG_TFCNT);
 }
 
 size_t WeikaiChannel::rx_in_fifo_() {
@@ -438,25 +450,22 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
 }
 
 void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
-  // Split large writes in chunks of at most XFER_MAX_SIZE bytes
-  bool first = true;
+  // Split large writes in chunks of at most XFER_MAX_SIZE bytes. Before each chunk, wait for room in the transmit FIFO.
   while (length > 0) {
     size_t const chunk = std::min(length, XFER_MAX_SIZE);
-    if (!first) {
-      // wait for room in the transmit FIFO before the next chunk
-      uint32_t const start_time = millis();
-      while (FIFO_SIZE - this->tx_in_fifo_() < chunk) {
-        if (millis() - start_time > 200) {
-          ESP_LOGE(TAG, "write_array: timeout waiting for room in the transmit FIFO - %d bytes dropped", (int) length);
-          return;
-        }
-        yield();
+    // time needed to send 'chunk' bytes (up to 12 bits per byte), plus a margin
+    uint32_t const timeout_ms = static_cast<uint32_t>(chunk * 12000ULL / std::max<uint32_t>(this->baud_rate_, 1)) + 50;
+    uint32_t const start_time = millis();
+    while (this->tx_room_() < chunk) {
+      if (millis() - start_time > timeout_ms) {
+        ESP_LOGE(TAG, "write_array: timeout waiting for room in the transmit FIFO - %d bytes dropped", (int) length);
+        return;
       }
+      yield();
     }
     this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), chunk);
     buffer += chunk;
     length -= chunk;
-    first = false;
   }
 }
 

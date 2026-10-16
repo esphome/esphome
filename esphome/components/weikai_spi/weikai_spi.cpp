@@ -53,21 +53,14 @@ uint8_t WeikaiRegisterSPI::read_reg() const {
 void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
   uint8_t cmd = cmd_byte(FIFO, READ_CMD, this->channel_, this->register_);
-  if (length <= XFER_MAX_SIZE) {
-    // one single driver call: the command goes out in the first byte, the FIFO data comes back in the following ones
-    uint8_t buf[XFER_MAX_SIZE + 1];
-    buf[0] = cmd;
-    memset(buf + 1, 0, length);
-    spi_comp->enable();
-    spi_comp->transfer_array(buf, length + 1);
-    spi_comp->disable();
-    memcpy(data, buf + 1, length);
-  } else {  // never happens with the weikai code (chunks are limited to XFER_MAX_SIZE): safe fallback
-    spi_comp->enable();
-    spi_comp->write_byte(cmd);
-    spi_comp->read_array(data, length);
-    spi_comp->disable();
-  }
+  // one single driver call: the command goes out in the first byte, the FIFO data comes back in the following ones
+  uint8_t buf[XFER_MAX_SIZE + 1];
+  buf[0] = cmd;
+  memset(buf + 1, 0, length);
+  spi_comp->enable();
+  spi_comp->transfer_array(buf, length + 1);
+  spi_comp->disable();
+  memcpy(data, buf + 1, length);
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
@@ -90,20 +83,13 @@ void WeikaiRegisterSPI::write_reg(uint8_t value) {
 void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
   auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
   uint8_t cmd = cmd_byte(FIFO, WRITE_CMD, this->channel_, this->register_);
-  if (length <= XFER_MAX_SIZE) {
-    // one single driver call: command byte followed by the data
-    uint8_t buf[XFER_MAX_SIZE + 1];
-    buf[0] = cmd;
-    memcpy(buf + 1, data, length);
-    spi_comp->enable();
-    spi_comp->write_array(buf, length + 1);
-    spi_comp->disable();
-  } else {  // never happens with the weikai code (chunks are limited to XFER_MAX_SIZE): safe fallback
-    spi_comp->enable();
-    spi_comp->write_byte(cmd);
-    spi_comp->write_array(data, length);
-    spi_comp->disable();
-  }
+  // one single driver call: command byte followed by the data
+  uint8_t buf[XFER_MAX_SIZE + 1];
+  buf[0] = cmd;
+  memcpy(buf + 1, data, length);
+  spi_comp->enable();
+  spi_comp->write_array(buf, length + 1);
+  spi_comp->disable();
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   char bin_buf[9];
