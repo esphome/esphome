@@ -1,12 +1,9 @@
-from collections.abc import Awaitable, Callable
-
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_WAKEUP_PIN
-from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, Expression
+from esphome.types import ConfigType
 
 from .const import CONF_AUTO_WAKE, CONF_WAKEUP_PULSE
 
@@ -76,47 +73,3 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_wakeup_pulse_ms(config[CONF_WAKEUP_PULSE].total_milliseconds))
 
     cg.add(var.set_auto_wake(config[CONF_AUTO_WAKE]))
-
-
-# (type, entity config, creates the entity from its template arguments, hub setter or None)
-DispatchEntity = tuple[
-    MockObj,
-    ConfigType,
-    Callable[[cg.TemplateArguments], Awaitable[MockObj]],
-    Callable[[MockObj], Expression] | None,
-]
-
-
-async def build_type_dispatch(
-    hub: MockObj,
-    params: str,
-    call: str,
-    entities: list[DispatchEntity],
-    publish_before: str | None = None,
-    publish_after: str | None = None,
-) -> None:
-    """Give all of a platform's entities one generated function that finds the type by pointer.
-
-    One class per domain instead of one per entity; ``call`` names the type as ``type``.
-    """
-    if not entities:
-        return
-    fn = f"esphome__{entities[0][1][CONF_ID].id}__fn"
-    # Declared first: the entities' types name it and its body names the entities.
-    cg.add_global(cg.RawStatement(f"static void {fn}({params});"))
-    template = cg.TemplateArguments(cg.RawExpression(fn))
-    created: list[tuple[MockObj, MockObj]] = []
-    for type_, _, create, setter in entities:
-        var = await create(template)
-        if setter is not None:
-            cg.add(setter(var))
-        created.append((type_, var))
-    *head, (last_type, _) = created
-    chain = "".join(f"entity == ::{var} ? {type_} : " for type_, var in head)
-    body = [f"const auto type = {chain}{last_type};", f"::{hub}->{call};"]
-    if publish_before:
-        body.insert(0, publish_before)
-    if publish_after:
-        body.append(publish_after)
-    lines = "\n  ".join(body)
-    cg.add_global(cg.RawStatement(f"static void {fn}({params}) {{\n  {lines}\n}}"))

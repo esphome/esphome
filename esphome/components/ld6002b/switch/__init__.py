@@ -1,12 +1,10 @@
-from functools import partial
-
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import DispatchEntity, LD6002BComponent, build_type_dispatch, ld6002b_ns
+from .. import LD6002BComponent
 from ..const import (
     CONF_LD6002B_ID,
     CONF_LOW_POWER,
@@ -15,8 +13,6 @@ from ..const import (
 )
 
 DEPENDENCIES = ["ld6002b"]
-
-SwitchType = ld6002b_ns.enum("SwitchType", is_class=True)
 
 # None of these three carry an inversion. They name what the module is doing, not
 # how something is wired to it, so an inverted one would only report the opposite
@@ -50,19 +46,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
-    entities: list[DispatchEntity] = []
-    for key, switch_type, setter in (
-        (CONF_LOW_POWER, SwitchType.LOW_POWER, "set_low_power_switch"),
-        (CONF_POINT_CLOUD, SwitchType.POINT_CLOUD, "set_point_cloud_switch"),
-        (CONF_TARGET_DISPLAY, SwitchType.TARGET_DISPLAY, "set_target_display_switch"),
-    ):
-        if (conf := config.get(key)) is not None:
-            create = partial(switch.new_switch, conf)
-            entities.append((switch_type, conf, create, getattr(hub, setter)))
-    await build_type_dispatch(
-        hub,
-        "switch_::Switch *entity, bool state",
-        "set_switch_state(type, state)",
-        entities,
-        publish_after="entity->publish_state(state);",
-    )
+    control = {"apply": "set_switch_state(entity, state)", "publish": "after"}
+    switches = switch.sub_switches(config, parent=hub)
+    await switches(CONF_LOW_POWER, hub.set_low_power_switch, **control)
+    await switches(CONF_POINT_CLOUD, hub.set_point_cloud_switch, **control)
+    await switches(CONF_TARGET_DISPLAY, hub.set_target_display_switch, **control)

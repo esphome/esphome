@@ -1368,7 +1368,30 @@ void LD6002BComponent::wake_() {
                     [this]() { this->wakeup_pin_->digital_write(true); });
 }
 
-void LD6002BComponent::set_number_value(NumberType type, float value) {
+#ifdef USE_NUMBER
+void LD6002BComponent::set_number_value(number::Number *entity, float value) {
+  // Found by pointer, so the entities share one generated class instead of storing a type each
+  NumberType type;
+  if (entity == this->hold_delay_number_)
+    type = NumberType::HOLD_DELAY;
+  else if (entity == this->z_min_number_)
+    type = NumberType::Z_MIN;
+  else if (entity == this->z_max_number_)
+    type = NumberType::Z_MAX;
+  else if (entity == this->low_power_sleep_number_)
+    type = NumberType::LOW_POWER_SLEEP;
+  else if (entity == this->area_x_min_number_)
+    type = NumberType::AREA_X_MIN;
+  else if (entity == this->area_x_max_number_)
+    type = NumberType::AREA_X_MAX;
+  else if (entity == this->area_y_min_number_)
+    type = NumberType::AREA_Y_MIN;
+  else if (entity == this->area_y_max_number_)
+    type = NumberType::AREA_Y_MAX;
+  else if (entity == this->area_z_min_number_)
+    type = NumberType::AREA_Z_MIN;
+  else
+    type = NumberType::AREA_Z_MAX;
   switch (type) {
     case NumberType::HOLD_DELAY: {
       uint32_t delay = static_cast<uint32_t>(value);
@@ -1418,8 +1441,20 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
       break;
   }
 }
+#endif
 
-void LD6002BComponent::set_select_value(SelectType type, size_t index) {
+#ifdef USE_SELECT
+void LD6002BComponent::set_select_value(select::Select *entity, size_t index) {
+  // Found by pointer, so the entities share one generated class instead of storing a type each
+  SelectType type;
+  if (entity == this->sensitivity_select_)
+    type = SelectType::SENSITIVITY;
+  else if (entity == this->trigger_speed_select_)
+    type = SelectType::TRIGGER_SPEED;
+  else if (entity == this->installation_select_)
+    type = SelectType::INSTALLATION_MODE;
+  else
+    type = SelectType::AREA_ID;
   switch (type) {
     case SelectType::SENSITIVITY:
       if (index == 0) {
@@ -1454,6 +1489,7 @@ void LD6002BComponent::set_select_value(SelectType type, size_t index) {
       break;
   }
 }
+#endif
 
 void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
   // A report refreshes every axis the user is not in the middle of changing.  An
@@ -1781,7 +1817,16 @@ void LD6002BComponent::clear_target_state_() {
   }
 }
 
-void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
+#ifdef USE_SWITCH
+void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
+  // Found by pointer, so the entities share one generated class instead of storing a type each
+  SwitchType type;
+  if (entity == this->low_power_switch_)
+    type = SwitchType::LOW_POWER;
+  else if (entity == this->point_cloud_switch_)
+    type = SwitchType::POINT_CLOUD;
+  else
+    type = SwitchType::TARGET_DISPLAY;
   switch (type) {
     case SwitchType::LOW_POWER:
       this->low_power_enabled_ = state;
@@ -1812,6 +1857,7 @@ void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
       break;
   }
 }
+#endif
 
 void LD6002BComponent::press_button(ButtonType type) {
   switch (type) {

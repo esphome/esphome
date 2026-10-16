@@ -1,5 +1,4 @@
-from functools import partial
-
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import button
 from esphome.components.select import DOMAIN as SELECT_DOMAIN
@@ -10,10 +9,11 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.cpp_generator import ParameterListExpression
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import LD6002BComponent, build_type_dispatch, ld6002b_ns
+from .. import LD6002BComponent, ld6002b_ns
 from ..const import (
     CONF_APPLY_AREA,
     CONF_AUTO_INTERFERENCE,
@@ -131,12 +131,33 @@ BUTTON_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_LD6002B_ID])
-    entities = [
-        (button_type, conf, partial(button.new_button, conf), None)
+    confs = [
+        (button_type, conf)
         for key, button_type in BUTTON_MAP.items()
         if (conf := config.get(key)) is not None
     ]
-    await build_type_dispatch(
-        hub, "button::Button *entity", "press_button(type)", entities
+    if not confs:
+        return
+    hub = await cg.get_variable(config[CONF_LD6002B_ID])
+    params = button.sub_buttons(config).apply_entity.params
+    # One function for all buttons, picking the type by pointer: one class instead of one per button.
+    fn = f"esphome__{hub}__button_fn"
+    cg.add_global(
+        cg.RawStatement(f"static void {fn}({ParameterListExpression(*params)});")
+    )
+    template = cg.TemplateArguments(cg.RawExpression(fn))
+    created = [
+        (button_type, await button.new_button(conf, template))
+        for button_type, conf in confs
+    ]
+    *head, (last_type, _) = created
+    chain = "".join(f"entity == {parent_ref(var)} ? {t} : " for t, var in head)
+    cg.static_function(
+        fn,
+        cg.void,
+        list(params),
+        [
+            f"const auto type = {chain}{last_type};",
+            f"{parent_ref(hub)}->press_button(type);",
+        ],
     )
