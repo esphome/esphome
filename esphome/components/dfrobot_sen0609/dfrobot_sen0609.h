@@ -148,12 +148,14 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   void readline_(uint8_t c);
   void handle_line_(char *line);
   void handle_frame_(char *line);
+  void log_bad_frame_(const LogString *problem, const char *line);
   void parse_response_(const char *args);
 
   void queue_configuration_();
   uint16_t wanted_reads_() const;
   void request_write_(Param param);
   void run_sequencer_();
+  void check_frames_(uint32_t now);
   bool build_command_(Operation operation, Param param);
   bool apply_read_(Param param);
   void finish_operation_();
@@ -165,6 +167,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 
 #ifdef USE_NUMBER
   void publish_number_(NumberSetting setting, float value);
+  void forget_number_changes_(Param param, bool unknown);
 #endif
 #ifdef USE_SWITCH
   void publish_switch_(SwitchSetting setting, bool state);
@@ -191,8 +194,19 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint32_t sent_ms_{0};
   uint32_t hold_start_ms_{0};
   uint32_t hold_ms_{0};
+  uint32_t last_frame_ms_{0};
+  uint32_t last_change_ms_{0};
+  uint32_t deferred_ms_{0};
   uint16_t pending_writes_{0};
   uint16_t pending_reads_{0};
+  // Reads made for a write whose paired value is unknown; the write is dropped when the read fails
+  uint16_t paired_reads_{0};
+  // Writes given up on that are tried again in a later sequence
+  uint16_t deferred_writes_{0};
+#ifdef USE_NUMBER
+  // Numbers changed since their last write was sent, one bit per NumberSetting
+  uint16_t changed_numbers_{0};
+#endif
   RunMode mode_;
   Operation operation_{Operation::OPERATION_NONE};
   Param param_{PARAM_COUNT};
@@ -201,10 +215,20 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t out_pin_level_{0};
   uint8_t attempts_{0};
   uint8_t aux_attempts_{0};
+#ifdef USE_SWITCH
+  // The module cannot be asked for its LED states: the ones it last accepted, one bit per SwitchSetting
+  uint8_t led_known_{0};
+  uint8_t led_on_{0};
+  bool sent_led_on_{false};
+#endif
   bool line_overflow_{false};
+  bool read_failed_{false};
+  bool bad_frame_logged_{false};
   bool echo_seen_{false};
+  bool version_received_{false};
   bool stopped_{false};
   bool save_pending_{false};
+  bool deferred_save_{false};
   bool restart_pending_{false};
   bool factory_reset_pending_{false};
   bool sequence_failed_{false};

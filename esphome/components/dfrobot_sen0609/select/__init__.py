@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import select
+from esphome.components.const import CONF_OUT_PIN_LEVEL
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG, ICON_SCALE
 from esphome.types import ConfigType
@@ -7,8 +8,6 @@ from esphome.types import ConfigType
 from .. import CONF_DFROBOT_SEN0609_ID, DFRobotSEN0609Component, dfrobot_sen0609_ns
 
 OutPinLevelSelect = dfrobot_sen0609_ns.class_("OutPinLevelSelect", select.Select)
-
-CONF_OUT_PIN_LEVEL = "out_pin_level"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),

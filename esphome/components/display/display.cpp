@@ -843,7 +843,6 @@ constexpr uint8_t TESTCARD_FONT[3][8] PROGMEM = {{0x41, 0x7F, 0x7F, 0x09, 0x19, 
 void Display::test_card() {
   int w = get_width(), h = get_height(), image_w, image_h;
   this->clear();
-  this->show_test_card_ = false;
   image_w = std::min(w - 20, 310);
   image_h = std::min(h - 20, 255);
   int shift_x = (w - image_w) / 2;
