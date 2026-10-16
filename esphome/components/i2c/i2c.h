@@ -250,7 +250,7 @@ class I2CDevice {
 
   /// Read len 16-bit values stored least significant byte first; no conversion is compiled on little-endian hosts.
   bool read_bytes_16_le(uint8_t a_register, uint16_t *data, uint8_t len) {
-    if (!this->read_bytes(a_register, reinterpret_cast<uint8_t *>(data), len * 2))
+    if (this->read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
       return false;
     for (size_t i = 0; i < len; i++)
       data[i] = convert_little_endian(data[i]);
