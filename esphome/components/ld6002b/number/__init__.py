@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import number
 from esphome.components.button import DOMAIN as BUTTON_DOMAIN
-from esphome.components.number import DOMAIN as NUMBER_DOMAIN
 from esphome.components.select import DOMAIN as SELECT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -105,7 +104,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def final_validate(config: ConfigType) -> None:
-    validate_unique_settings(NUMBER_DOMAIN, config)
+    validate_unique_settings(number.DOMAIN, config)
     if config.get(CONF_AREA_CONFIG) is None:
         return
 

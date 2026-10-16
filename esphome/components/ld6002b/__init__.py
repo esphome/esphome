@@ -77,7 +77,7 @@ async def to_code(config: ConfigType) -> None:
 
 
 def validate_unique_settings(domain: str, config: ConfigType) -> None:
-    """Reject a setting configured in two platform blocks of the same hub; the hub keeps one entity per setting."""
+    """Reject a setting set in two platform blocks of one hub, which keeps one entity per setting."""
     hub_id = config[CONF_LD6002B_ID]
     entries = [
         entry

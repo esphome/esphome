@@ -140,7 +140,7 @@ async def to_code(config: ConfigType) -> None:
     if not confs:
         return
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
-    params = button.sub_buttons(config).apply_entity.params
+    params = button.APPLY_ENTITY.params
     # One function for all buttons, picking the type by pointer: one class instead of one per button.
     # Named after the first button so two button blocks on one hub do not clash.
     fn = f"esphome__{confs[0][1][CONF_ID].id}__button_fn"

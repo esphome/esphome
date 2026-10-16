@@ -1,3 +1,5 @@
+from functools import partial
+
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
@@ -39,11 +41,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def final_validate(config: ConfigType) -> None:
-    validate_unique_settings(select.DOMAIN, config)
-
-
-FINAL_VALIDATE_SCHEMA = final_validate
+FINAL_VALIDATE_SCHEMA = partial(validate_unique_settings, select.DOMAIN)
 
 
 async def to_code(config: ConfigType) -> None:
