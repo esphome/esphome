@@ -21,7 +21,6 @@ sensor:
     r0: 9.5
     ratio_in_clean_air: 70.0
     sample_count: 4
-    sample_interval: 50ms
 
   # The linear regression of the MQ-135, calibrated at boot.
   - platform: mq_gas_sensors
@@ -34,3 +33,4 @@ sensor:
     calibration:
       delay: 5s
       sample_count: 10
+      sample_interval: 50ms

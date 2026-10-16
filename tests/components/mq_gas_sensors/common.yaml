@@ -18,7 +18,7 @@ sensor:
     rl: 10.0
     vcc: 5.0
     sample_count: 4
-    sample_interval: 20ms
     calibration:
       delay: 10s
       sample_count: 5
+      sample_interval: 20ms
