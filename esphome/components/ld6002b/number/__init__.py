@@ -1,3 +1,5 @@
+from functools import partial
+
 import esphome.codegen as cg
 from esphome.components import number
 from esphome.components.button import DOMAIN as BUTTON_DOMAIN
@@ -15,7 +17,7 @@ from esphome.const import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import LD6002BComponent, ld6002b_ns
+from .. import DispatchEntity, LD6002BComponent, build_type_dispatch, ld6002b_ns
 from ..const import (
     CONF_APPLY_AREA,
     CONF_AREA_CONFIG,
@@ -138,7 +140,7 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
-    numbers = number.sub_numbers(config, parent=hub)
+    entities: list[DispatchEntity] = []
 
     for key, number_type, setter, min_value, max_value, step in (
         (CONF_HOLD_DELAY, NumberType.HOLD_DELAY, "set_hold_delay_number", 0, 65535, 1),
@@ -156,18 +158,17 @@ async def to_code(config: ConfigType) -> None:
             100,
         ),
     ):
-        await numbers(
-            key,
-            getattr(hub, setter),
-            min_value=min_value,
-            max_value=max_value,
-            step=step,
-            apply=f"set_number_value({number_type}, value)",
-            publish="before",
-        )
+        if (conf := config.get(key)) is not None:
+            create = partial(
+                number.new_number,
+                conf,
+                min_value=min_value,
+                max_value=max_value,
+                step=step,
+            )
+            entities.append((number_type, conf, create, getattr(hub, setter)))
 
     if area_config := config.get(CONF_AREA_CONFIG):
-        area_numbers = number.sub_numbers(area_config, parent=hub)
         for key, number_type, setter in (
             (KEY_X_MIN, NumberType.AREA_X_MIN, "set_area_x_min_number"),
             (KEY_X_MAX, NumberType.AREA_X_MAX, "set_area_x_max_number"),
@@ -176,12 +177,15 @@ async def to_code(config: ConfigType) -> None:
             (CONF_Z_MIN, NumberType.AREA_Z_MIN, "set_area_z_min_number"),
             (CONF_Z_MAX, NumberType.AREA_Z_MAX, "set_area_z_max_number"),
         ):
-            await area_numbers(
-                key,
-                getattr(hub, setter),
-                min_value=-10,
-                max_value=10,
-                step=0.1,
-                apply=f"set_number_value({number_type}, value)",
-                publish="before",
-            )
+            if (conf := area_config.get(key)) is not None:
+                create = partial(
+                    number.new_number, conf, min_value=-10, max_value=10, step=0.1
+                )
+                entities.append((number_type, conf, create, getattr(hub, setter)))
+    await build_type_dispatch(
+        hub,
+        "number::Number *entity, float value",
+        "set_number_value(type, value)",
+        entities,
+        publish_before="entity->publish_state(value);",
+    )

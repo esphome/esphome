@@ -1,10 +1,12 @@
+from functools import partial
+
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import CONF_AREA_ID, CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import LD6002BComponent, ld6002b_ns
+from .. import DispatchEntity, LD6002BComponent, build_type_dispatch, ld6002b_ns
 from ..const import CONF_INSTALLATION_MODE, CONF_LD6002B_ID, CONF_TRIGGER_SPEED
 
 DEPENDENCIES = ["ld6002b"]
@@ -66,13 +68,15 @@ SELECT_MAP = (
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
-    selects = select.sub_selects(config, parent=hub)
-
+    entities: list[DispatchEntity] = []
     for key, select_type, setter, options in SELECT_MAP:
-        await selects(
-            key,
-            getattr(hub, setter),
-            options=options,
-            apply=f"set_select_value({select_type}, index)",
-            publish="before",
-        )
+        if (conf := config.get(key)) is not None:
+            create = partial(select.new_select, conf, options=options)
+            entities.append((select_type, conf, create, getattr(hub, setter)))
+    await build_type_dispatch(
+        hub,
+        "select::Select *entity, size_t index",
+        "set_select_value(type, index)",
+        entities,
+        publish_before="entity->publish_state(index);",
+    )

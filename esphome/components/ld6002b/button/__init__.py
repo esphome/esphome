@@ -1,3 +1,6 @@
+from functools import partial
+
+import esphome.codegen as cg
 from esphome.components import button
 from esphome.components.select import DOMAIN as SELECT_DOMAIN
 import esphome.config_validation as cv
@@ -10,7 +13,7 @@ from esphome.const import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import LD6002BComponent, ld6002b_ns
+from .. import LD6002BComponent, build_type_dispatch, ld6002b_ns
 from ..const import (
     CONF_APPLY_AREA,
     CONF_AUTO_INTERFERENCE,
@@ -128,6 +131,12 @@ BUTTON_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    buttons = button.sub_buttons(config, parent=config[CONF_LD6002B_ID])
-    for key, button_type in BUTTON_MAP.items():
-        await buttons(key, None, apply=f"press_button({button_type})")
+    hub = await cg.get_variable(config[CONF_LD6002B_ID])
+    entities = [
+        (button_type, conf, partial(button.new_button, conf), None)
+        for key, button_type in BUTTON_MAP.items()
+        if (conf := config.get(key)) is not None
+    ]
+    await build_type_dispatch(
+        hub, "button::Button *entity", "press_button(type)", entities
+    )
