@@ -22,22 +22,13 @@ Everything here is resolved at code generation time, so a wrong ``sensor_type`` 
 ``gas`` combination fails the build instead of silently producing garbage at
 runtime.
 
-Alternative curves (``CURVE_VARIANTS``)
----------------------------------------
-``curve: mqdatascience`` selects the ``a`` / ``b`` / regression method published
-by https://github.com/abcdaaaaaaaaa/MQDataScience instead of the
-SolderedElectronics/MQUnifiedsensor values, for a side-by-side comparison in
-Home Assistant. Both datasets are fits of the same datasheet curve; the
-MQDataScience MQ-8 H2 fit reports ~11 % lower ppm at every concentration (see
-``docs/mqdatascience_comparison.md``), so ``standard`` stays the default.
+Alternative curves: ``curve: mqdatascience`` selects the ``a`` / ``b`` /
+regression method published by https://github.com/abcdaaaaaaaaa/MQDataScience
+instead of the SolderedElectronics/MQUnifiedsensor values.
 
-Temperature/humidity correction (``CORRECTION_COEFFICIENTS``)
-------------------------------------------------------------
-``correction_mode: mqdatascience`` needs the ``a`` / ``b`` / ``c`` constants of
-MQDataScience's ``Correction.cpp`` (``correction = a + c * exp(b * T)``, with
-``a``/``b``/``c`` interpolated over the relative humidity). Only the sensor
-types that use the one-segment 33 %/85 % variant are listed; MQ-9 and MQ-131 use
-two segments (30/60/85 %) and are therefore rejected at compile time.
+Temperature/humidity correction: ``correction_mode: mqdatascience`` needs the
+``a`` / ``b`` / ``c`` constants of MQDataScience's ``Correction.cpp``. Only the
+sensor types using the one-segment 33 %/85 % variant are listed.
 """
 
 from dataclasses import dataclass
@@ -167,11 +158,6 @@ def normalize_gas(value: str) -> str:
 def sensor_types() -> list[str]:
     """Canonical type keys, e.g. ``["MQ2", ..., "MQ309A", "CUSTOM"]``."""
     return list(SENSOR_TYPES)
-
-
-def gases_for(type_key: str) -> list[str]:
-    """Gas keys available for `type_key` (empty for types without coefficients)."""
-    return sorted(SENSOR_TYPES[type_key]["gases"])
 
 
 def label_for(type_key: str) -> str:

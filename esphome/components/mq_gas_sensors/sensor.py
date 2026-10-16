@@ -212,21 +212,18 @@ def _validate_config(config: ConfigType) -> ConfigType:
             f"min_ppm ({resolved.min_ppm})"
         )
 
-    # Temperature/humidity compensation: `temperature:`/`humidity:` are the
-    # switch, `correction_mode` only makes the choice explicit.  A partial link
-    # is always a mistake (`cv.Invalid`), so `missing_sources` below is either
-    # empty (both linked) or holds both keys.
+    # `temperature:`/`humidity:` select the compensation together; linking only
+    # one of them is always a mistake.
     source_keys = (CONF_TEMPERATURE, CONF_HUMIDITY)
     linked = [config.get(key) is not None for key in source_keys]
-    if any(linked) and not all(linked):
-        missing = [key for key, ok in zip(source_keys, linked, strict=True) if not ok]
-        raise cv.Invalid(
-            f"'temperature:' and 'humidity:' must be linked together, "
-            f"missing: {', '.join(missing)}"
-        )
     missing_sources = [
         key for key, ok in zip(source_keys, linked, strict=True) if not ok
     ]
+    if missing_sources and len(missing_sources) < len(source_keys):
+        raise cv.Invalid(
+            f"'temperature:' and 'humidity:' must be linked together, "
+            f"missing: {', '.join(missing_sources)}"
+        )
 
     correction_mode = config.get(CONF_CORRECTION_MODE)
     # `None` = the key was not written, i.e. the mode is derived from the links.
@@ -241,19 +238,16 @@ def _validate_config(config: ConfigType) -> ConfigType:
             correction_mode = "none"
             config[CONF_CORRECTION_MODE] = correction_mode
             _LOGGER.warning(
-                "%s has no temperature/humidity correction model (supported types: "
-                "%s) - the linked 'temperature:'/'humidity:' are ignored and the PPM "
-                "value is published uncorrected",
+                "%s has no temperature/humidity correction model - the linked "
+                "'temperature:'/'humidity:' are ignored",
                 label,
-                ", ".join(corrected_types()),
             )
         else:
             correction_mode = "mqdatascience"
             config[CONF_CORRECTION_MODE] = correction_mode
             _LOGGER.info(
                 "%s: 'temperature:'/'humidity:' are linked - enabling the '%s' "
-                "compensation (write 'correction_mode: none' to publish "
-                "uncorrected values)",
+                "compensation (write 'correction_mode: none' to opt out)",
                 label,
                 correction_mode,
             )
@@ -271,23 +265,19 @@ def _validate_config(config: ConfigType) -> ConfigType:
             )
     elif not missing_sources and explicit_mode is not None:
         _LOGGER.info(
-            "%s: temperature/humidity compensation disabled on request "
-            "('correction_mode: none') - the PPM value is published uncorrected",
+            "%s: temperature/humidity compensation disabled on request",
             label,
         )
 
     if resolved.curve != CURVE_STANDARD:
         _LOGGER.info(
-            "%s %s: coefficient dataset '%s' selected (coefficient_a=%s, "
-            "coefficient_b=%s, method=%s) - "
-            "the published PPM values differ from the '%s' dataset",
+            "%s %s: coefficient dataset '%s' selected (a=%s, b=%s, method=%s)",
             label,
             resolved.gas,
             resolved.curve,
             resolved.a,
             resolved.b,
             resolved.method,
-            CURVE_STANDARD,
         )
 
     if CONF_R0 in config and CONF_CALIBRATION in config:
@@ -465,7 +455,13 @@ async def to_code(config: ConfigType) -> None:
     if calibration is not None and CONF_RATIO_IN_CLEAN_AIR in calibration:
         ratio_in_clean_air = calibration[CONF_RATIO_IN_CLEAN_AIR]
 
-    var = await sensor.new_sensor(config)
+    # The sampler is a constructor argument: no reading is possible without it, so
+    # the component has no valid state in which it is missing.
+    if (source_id := config.get(CONF_VOLTAGE)) is not None:
+        source = await cg.get_variable(source_id)
+    else:
+        source = await _create_internal_adc(config)
+    var = await sensor.new_sensor(config, source)
     await cg.register_component(var, config)
 
     cg.add(var.set_type(resolved.label))
@@ -514,11 +510,6 @@ async def to_code(config: ConfigType) -> None:
                 calibration[CONF_PERSIST],
             )
         )
-
-    if source_id := config.get(CONF_VOLTAGE):
-        cg.add(var.set_source(await cg.get_variable(source_id)))
-    else:
-        cg.add(var.set_source(await _create_internal_adc(config)))
 
     cg.add(var.set_log_ppm(config[CONF_LOG_PPM]))
 

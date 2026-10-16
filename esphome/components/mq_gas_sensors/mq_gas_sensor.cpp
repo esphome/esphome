@@ -82,12 +82,6 @@ void MQGasSensor::log_reading_(float ppm) {
 void MQGasSensor::setup() {
   this->r0_pref_ = this->make_entity_preference<float>(R0_PREFERENCE_VERSION);
 
-  if (this->source_ == nullptr) {
-    this->log_message_(LOG_SEVERITY_ERROR, "no voltage source configured");
-    this->mark_failed();
-    return;
-  }
-
   if (this->r0_configured_) {
     this->log_message_(LOG_SEVERITY_INFO, "using the R0 from the configuration (%.4f kOhm)", this->r0_);
   } else if (this->persist_ && this->load_r0_()) {
@@ -95,7 +89,7 @@ void MQGasSensor::setup() {
   }
 
   if (this->warmup_time_ > 0) {
-    this->warmup_end_ = App.get_loop_component_start_time() + this->warmup_time_;
+    this->warmup_start_ = App.get_loop_component_start_time();
     this->log_message_(LOG_SEVERITY_INFO, "warm-up/burn-in of %" PRIu32 " s - no readings published before that",
                        this->warmup_time_ / 1000);
   }
@@ -103,13 +97,14 @@ void MQGasSensor::setup() {
   if (this->calibration_enabled_) {
     if (this->has_r0()) {
       this->log_message_(LOG_SEVERITY_INFO,
-                         "R0 already known (%.4f kOhm) - automatic calibration skipped, call "
-                         "request_calibration() (or clear the stored R0) to recalibrate",
+                         "R0 already known (%.4f kOhm) - automatic calibration skipped (clear the stored R0 to "
+                         "recalibrate)",
                          this->r0_);
     } else {
+      // The warm-up window starts here, so all of it still lies ahead of the calibration.
       const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
-      this->calibration_due_ = App.get_loop_component_start_time() + delay;
       this->calibration_pending_ = true;
+      this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
       this->log_message_(LOG_SEVERITY_INFO,
                          "R0 calibration scheduled in %" PRIu32 " s - the sensor must be in clean air", delay / 1000);
     }
@@ -117,6 +112,9 @@ void MQGasSensor::setup() {
     this->log_message_(LOG_SEVERITY_WARN, "no R0 available, set 'r0:' or 'calibration:' - the PPM value stays "
                                           "unknown until then");
   }
+
+  // The loop only samples while a clean-air calibration runs; `update()` publishes.
+  this->disable_loop();
 }
 
 void MQGasSensor::log_config_() {
@@ -162,12 +160,8 @@ void MQGasSensor::dump_config() {
 }
 
 float MQGasSensor::sample_voltage_() {
-  if (this->source_ == nullptr)
-    return NAN;
-
   // The conversions are taken back to back: the sampler averages internally as
-  // configured (`sample_count` / `sampling_mode`), and waiting between them would
-  // block the main loop for the whole `sample_count x sample_interval` window.
+  // configured, and waiting between them would block the main loop.
   float sum = 0.0f;
   for (uint8_t i = 0; i < this->samples_; i++)
     sum += this->source_->sample();
@@ -235,7 +229,6 @@ void MQGasSensor::publish_diagnostics_() {
 }
 
 void MQGasSensor::update() {
-  const uint32_t now = App.get_loop_component_start_time();
   if (this->is_failed())
     return;
 
@@ -253,12 +246,10 @@ void MQGasSensor::update() {
     return;
   }
 
-  if (this->warmup_time_ > 0 && now < this->warmup_end_) {
-    if (!this->warmup_notified_) {
-      this->warmup_notified_ = true;
-      this->publish_state(NAN);
-      this->log_message_(LOG_SEVERITY_INFO, "warming up, %" PRIu32 " s to go", (this->warmup_end_ - now) / 1000);
-    }
+  if (this->in_warmup_()) {
+    // Published on every pass, so a value computed before a restart never survives
+    // the warm-up window. `setup()` logged the window, so nothing repeats here.
+    this->publish_state(NAN);
     return;
   }
 
@@ -279,6 +270,23 @@ void MQGasSensor::update() {
                          "analog output reads %.4f V - open circuit, missing supply or bad "
                          "divider? check the AO wiring (RS would be invalid)",
                          this->sensor_voltage_);
+    }
+    this->rs_ = 0.0f;
+    this->ratio_ = 0.0f;
+    this->publish_diagnostics_();
+    this->publish_state(NAN);
+    return;
+  }
+  if (this->sensor_voltage_ >= this->vcc_) {
+    // Only a wrong `vcc:` / divider reads at or above the supply, and reading it
+    // as the saturated end of the range would turn a configuration error into what
+    // looks like a real measurement.
+    if (!this->warned_voltage_) {
+      this->warned_voltage_ = true;
+      this->log_message_(LOG_SEVERITY_WARN,
+                         "analog output reads %.4f V, at or above the configured vcc (%.2f V) - check 'vcc:' and the "
+                         "divider",
+                         this->sensor_voltage_, this->vcc_);
     }
     this->rs_ = 0.0f;
     this->ratio_ = 0.0f;
@@ -311,51 +319,12 @@ void MQGasSensor::set_calibration(bool enabled, float ratio_in_clean_air, uint32
   this->persist_ = persist;
 }
 
-void MQGasSensor::request_calibration() {
-  if (this->calibrating_) {
-    this->log_message_(LOG_SEVERITY_WARN, "calibration already running");
-    return;
-  }
-  if (this->calibration_pending_) {
-    const uint32_t now = App.get_loop_component_start_time();
-    this->log_message_(LOG_SEVERITY_WARN, "calibration already requested - starting in %" PRIu32 " s",
-                       (this->calibration_due_ > now ? this->calibration_due_ - now : 0) / 1000);
-    return;
-  }
-  if (!(this->ratio_in_clean_air_ > 0.0f)) {
-    this->log_message_(LOG_SEVERITY_ERROR, "cannot calibrate without a valid 'ratio_in_clean_air'");
-    return;
-  }
-
-  const uint32_t now = App.get_loop_component_start_time();
-  this->calibration_due_ = now;
-  this->calibration_pending_ = true;
-  // A request (button, on_boot lambda) must never capture an unstable RS, so it
-  // is deferred until the warm-up/burn-in window of this sensor has ended.
-  if (this->warmup_time_ > 0 && now < this->warmup_end_) {
-    this->calibration_due_ = this->warmup_end_;
-    this->log_message_(LOG_SEVERITY_INFO,
-                       "calibration requested - waiting for the warm-up window to end (%" PRIu32 " s)",
-                       (this->warmup_end_ - now) / 1000);
-  } else {
-    this->log_message_(LOG_SEVERITY_INFO, "calibration requested - keep the sensor in clean air");
-  }
-}
-
 void MQGasSensor::loop() {
+  // The loop runs only while a calibration samples; the deferred start is a timer.
+  if (this->is_failed() || !this->calibrating_)
+    return;
+
   const uint32_t now = App.get_loop_component_start_time();
-  if (this->is_failed())
-    return;
-
-  if (this->calibration_pending_) {
-    if (now >= this->calibration_due_)
-      this->begin_calibration_();
-    return;
-  }
-
-  if (!this->calibrating_)
-    return;
-
   if (now - this->calibration_last_sample_ < this->sample_interval_)
     return;
 
@@ -371,6 +340,9 @@ void MQGasSensor::begin_calibration_() {
   this->calibration_count_ = 0;
   this->calibration_attempts_ = 0;
   this->calibration_sum_ = 0.0f;
+  this->calibration_min_ = 0.0f;
+  this->calibration_max_ = 0.0f;
+  this->enable_loop();
 
   this->log_message_(LOG_SEVERITY_INFO,
                      "calibrating R0 (RS/R0 in clean air = %.2f), %" PRIu32 " samples - keep the sensor in clean air",
@@ -381,11 +353,18 @@ void MQGasSensor::process_calibration_() {
   this->calibration_attempts_++;
 
   const float voltage = this->sample_voltage_();
-  if (std::isfinite(voltage) && voltage > 0.01f) {
+  if (std::isfinite(voltage) && voltage > 0.01f && voltage < this->vcc_) {
     this->sensor_voltage_ = voltage;
     this->rs_ = this->current_rs_();
     const float r0 = mqmath::r0_from_clean_air(this->rs_, this->ratio_in_clean_air_, this->correction_factor_);
     if (r0 > 0.0f) {
+      if (this->calibration_count_ == 0) {
+        this->calibration_min_ = r0;
+        this->calibration_max_ = r0;
+      } else {
+        this->calibration_min_ = std::min(this->calibration_min_, r0);
+        this->calibration_max_ = std::max(this->calibration_max_, r0);
+      }
       this->calibration_sum_ += r0;
       this->calibration_count_++;
     }
@@ -400,24 +379,39 @@ void MQGasSensor::process_calibration_() {
 
 void MQGasSensor::finish_calibration_() {
   this->calibrating_ = false;
+  this->disable_loop();
+
   const uint32_t attempts = this->calibration_attempts_;
   const uint32_t valid = this->calibration_count_;
+  // Every reading uses this R0, so a lucky minority of samples must not define it:
+  // a majority of the attempts has to have produced one, two samples at least.
+  const uint32_t required = std::max<uint32_t>((attempts + 1) / 2, 2);
 
-  if (valid == 0) {
+  if (valid < required) {
     this->log_message_(LOG_SEVERITY_ERROR,
-                       "calibration failed, none of the %" PRIu32
+                       "calibration failed, %" PRIu32 " of %" PRIu32
                        " samples produced a valid RS - check the AO wiring and the supply",
-                       attempts);
+                       valid, attempts);
+    this->schedule_calibration_retry_();
     return;
   }
 
+  // Every counted sample is finite and positive (`process_calibration_()`), so their
+  // average is usable without another check.
   const float r0 = this->calibration_sum_ / static_cast<float>(valid);
-  if (!std::isfinite(r0) || r0 <= 0.0f) {
-    this->log_message_(LOG_SEVERITY_ERROR, "calibration produced an invalid R0 (%.6f)", r0);
+
+  // A sensor that is still settling, or one that is not in clean air, varies too
+  // much for its average to be the R0 of every later reading.
+  if (!mqmath::calibration_is_stable(this->calibration_min_, this->calibration_max_, r0)) {
+    this->log_message_(LOG_SEVERITY_WARN,
+                       "clean-air samples spread %.4f kOhm around %.4f kOhm - the sensor was not settled in clean air",
+                       this->calibration_max_ - this->calibration_min_, r0);
+    this->schedule_calibration_retry_();
     return;
   }
 
   this->r0_ = r0;
+  this->status_clear_warning();
   if (this->persist_)
     this->save_r0_();
 
@@ -427,6 +421,27 @@ void MQGasSensor::finish_calibration_() {
     this->log_message_(LOG_SEVERITY_INFO, "hard-code 'r0: %.4f' in the YAML to skip the calibration at boot",
                        this->r0_);
   }
+}
+
+void MQGasSensor::schedule_calibration_retry_() {
+  this->status_set_warning();
+  this->calibration_pending_ = true;
+  // A delay of zero restarts the run straight away and logs the same failure again
+  // about five times per second, so anything below the floor is raised to it.
+  const uint32_t delay = std::max(this->calibration_delay_, CALIBRATION_RETRY_MIN_MS);
+  this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
+  this->log_message_(LOG_SEVERITY_WARN, "retrying the calibration in %" PRIu32 " s", delay / 1000);
+}
+
+bool MQGasSensor::in_warmup_() {
+  if (this->warmup_ended_)
+    return false;
+  if (App.get_loop_component_start_time() - this->warmup_start_ < this->warmup_time_)
+    return true;
+  // A window that has passed is over: latching it keeps the subtraction above from
+  // reopening it once it overflows, ~49.7 days after the start.
+  this->warmup_ended_ = true;
+  return false;
 }
 
 void MQGasSensor::save_r0_() {

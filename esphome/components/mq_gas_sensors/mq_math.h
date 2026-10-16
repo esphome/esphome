@@ -50,6 +50,9 @@ enum RatioMode : uint8_t {
 static constexpr double MQ_MAX_A = 1e30;
 static constexpr double MQ_MAX_B = 100.0;
 
+/// Largest relative spread `(max - min) / mean` a clean-air calibration accepts.
+inline constexpr float MAX_CALIBRATION_SPREAD = 0.25f;
+
 /// pow() with the fast paths of the reference implementation.
 inline double safe_pow(double base, double exponent) {
   if (exponent == 0.0)
@@ -88,14 +91,6 @@ inline float clamp_b(float b) {
   if (b < -MQ_MAX_B)
     return static_cast<float>(-MQ_MAX_B);
   return b;
-}
-
-/// ADC counts -> volt, MQUnifiedsensor::setADC() / getVoltage().
-inline float voltage_from_adc(uint32_t raw, uint8_t bits, float volt_resolution) {
-  const double full_scale = safe_pow(2.0, static_cast<double>(bits)) - 1.0;
-  if (full_scale <= 0.0)
-    return 0.0f;
-  return static_cast<float>(static_cast<double>(raw) * static_cast<double>(volt_resolution) / full_scale);
 }
 
 /// Sensor resistance in kOhm, MQUnifiedsensor::getRS() / calibrate().
@@ -138,11 +133,31 @@ inline float r0_from_clean_air(float rs_air, float ratio_in_clean_air, float cor
   return static_cast<float>(r0);
 }
 
+/// True when the clean-air samples describe a settled input.
+///
+/// A calibration turns the mean of the samples into the R0 every later reading is
+/// divided by, so samples that disagree by more than `MAX_CALIBRATION_SPREAD` of
+/// their mean show that the sensor was not in clean, still air: the average is
+/// worthless and must not become the reference. Unusable values are never settled.
+inline bool calibration_is_stable(float min_value, float max_value, float mean) {
+  if (!std::isfinite(min_value) || !std::isfinite(max_value) || !std::isfinite(mean) || mean <= 0.0f)
+    return false;
+  const double spread = static_cast<double>(max_value) - static_cast<double>(min_value);
+  return spread <= static_cast<double>(MAX_CALIBRATION_SPREAD) * static_cast<double>(mean);
+}
+
 /// ratio (+ a, b) -> PPM, MQUnifiedsensor::readSensorR0Rs().
-/// FLT_MAX signals "out of range / not evaluable" so the caller can clamp it.
+/// FLT_MAX signals "out of range / not evaluable" so the caller can clamp it:
+/// a ratio of exactly 0 is RS at 0 (V_AO at VCC), the output of a saturated
+/// sensor, and must never be read as clean air. NaN stays NaN, so the caller
+/// publishes `unknown`.
 inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod method) {
-  if (!std::isfinite(ratio) || ratio <= 0.0f || a == 0.0f)
+  if (!std::isfinite(ratio))
+    return NAN;
+  if (a == 0.0f)
     return 0.0f;
+  if (ratio <= 0.0f)
+    return FLT_MAX;
 
   double log_ppm;
   if (method == REGRESSION_EXPONENTIAL) {
@@ -168,12 +183,18 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
   return static_cast<float>(ppm);
 }
 
-/// Clamp a PPM reading to the datasheet range of the sensor (NaN stays NaN).
+/// Clamp a PPM reading to the measuring range (NaN stays NaN).
+///
+/// `min_ppm` is the noise floor: a reading below it counts as not detected and
+/// reports 0 ppm. 0 ppm itself is never lifted to `min_ppm`, so clean air is
+/// published as 0 instead of hiding behind the alarm floor.
 inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
   if (!std::isfinite(ppm))
     return NAN;
+  if (ppm <= 0.0f)
+    return 0.0f;
   if (ppm < min_ppm)
-    return min_ppm;
+    return 0.0f;
   if (ppm > max_ppm)
     return max_ppm;
   return ppm;
@@ -210,16 +231,10 @@ inline float linear_interpolate(float x, float x0, float x1, float y0, float y1)
                             static_cast<double>(y0));
 }
 
-/// Relative humidity (in %) and ambient temperature (in degC) -> correction
-/// coefficient, MQDataScience `calculateCorrection()` for the MQ-8:
-///
-///     a = interp(RH, 33, 85, a33, a85)  (same for b and c)
-///     correction = a + c * exp(b * T)
-///
-/// Relative humidity is clamped to [33, 85] % and the temperature to
-/// [-10, 50] degC. Returns 1.0 (i.e. "no correction") when an input is not a
-/// finite number or the model degenerates, so a missing/failed temperature or
-/// humidity reading can never invalidate the PPM measurement.
+/// Relative humidity (%) and ambient temperature (degC) -> correction
+/// coefficient `a + c * exp(b * T)` (MQDataScience `calculateCorrection()`).
+/// The inputs are clamped to the fitted domain; unusable inputs report 1.0
+/// ("no correction"), so a missing source never invalidates the measurement.
 inline float correction_coefficient(float rh, float temperature, const TcCorrectionCoefficients &coeffs) {
   if (!std::isfinite(rh) || !std::isfinite(temperature))
     return 1.0f;

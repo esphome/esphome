@@ -29,6 +29,10 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   SUB_SENSOR(correction)
 
  public:
+  /// `source` is the voltage sampler the analog output is read from. It must
+  /// outlive this sensor, which code generation guarantees.
+  explicit MQGasSensor(voltage_sampler::VoltageSampler *source) : source_(source) {}
+
   void setup() override;
   void loop() override;
   void update() override;
@@ -37,7 +41,6 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   // ------------------------------------------------------------------ config
   void set_type(const char *type) { this->type_ = StringRef(type); }
   void set_gas(const char *gas) { this->gas_ = StringRef(gas); }
-  void set_source(voltage_sampler::VoltageSampler *source) { this->source_ = source; }
   void set_a(float a) { this->a_ = mqmath::clamp_a(a); }
   void set_b(float b) { this->b_ = mqmath::clamp_b(b); }
   void set_regression_method(uint8_t method) { this->regression_method_ = method; }
@@ -92,9 +95,6 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   static constexpr uint32_t LOG_SENSOR_DEBUG_INTERVAL_MS = 30000;
 
   // ----------------------------------------------------------------- runtime
-  /// (Re)start an R0 calibration in clean air (deferred until `warmup_time` ended).
-  void request_calibration();
-  bool is_calibrating() const { return this->calibrating_; }
   bool has_r0() const { return this->r0_ > 0.0f; }
 
   float get_r0() const { return this->r0_; }
@@ -119,6 +119,15 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void begin_calibration_();
   void process_calibration_();
   void finish_calibration_();
+  /// Raise the status warning and schedule the next calibration attempt.
+  void schedule_calibration_retry_();
+  /// True while the warm-up window of `warmup_time_` is still running; ends the
+  /// window for good once it has passed.
+  ///
+  /// The end has to be latched: subtracting two loop timestamps overflows after
+  /// about 49.7 days, which would report the window as running again and silence
+  /// the readings.
+  bool in_warmup_();
   void publish_diagnostics_();
   void save_r0_();
   bool load_r0_();
@@ -172,16 +181,30 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_samples_{10};
 
   // ------------------------------------------------------------------ runtime
+  /// Scheduler id of the deferred calibration start: it waits for the warm-up
+  /// window to end and is re-armed for another attempt when a calibration fails.
+  static constexpr uint32_t CALIBRATION_START_ID = 0;
+  /// Floor of the delay between two calibration attempts (ms): a failed attempt
+  /// runs the whole sample run again, so a shorter delay only repeats the failure.
+  static constexpr uint32_t CALIBRATION_RETRY_MIN_MS = 10000;
+
   bool calibrating_{false};
+  /// A calibration waits for its start time; `calibrating_` takes over from there.
   bool calibration_pending_{false};
-  uint32_t calibration_due_{0};    ///< when the pending calibration starts
-  uint32_t calibration_start_{0};  ///< when the running calibration started
   uint32_t calibration_last_sample_{0};
+  uint32_t calibration_start_{0};  ///< when the running calibration started
   uint32_t calibration_count_{0};
   uint32_t calibration_attempts_{0};
   float calibration_sum_{0.0f};
-  uint32_t warmup_end_{0};
-  bool warmup_notified_{false};
+  /// Smallest and largest clean-air sample of the run; a wide spread means the
+  /// sensor was not settled, see `calibration_is_stable()`.
+  float calibration_min_{0.0f};
+  float calibration_max_{0.0f};
+  /// Loop time the warm-up window started at; only read while `in_warmup_()`
+  /// holds it open.
+  uint32_t warmup_start_{0};
+  /// The warm-up window ended; latched, so `in_warmup_()` never reports it again.
+  bool warmup_ended_{false};
   bool warned_no_r0_{false};
   bool warned_voltage_{false};
   bool warned_correction_{false};
