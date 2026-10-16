@@ -6,6 +6,8 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT_PIN,
+    CONF_MODE,
+    CONF_NUMBER,
     CONF_OUTPUT,
     CONF_RESET,
 )
@@ -20,7 +22,9 @@ MULTI_CONF = True
 pcf8574_ns = cg.esphome_ns.namespace("pcf8574")
 
 PCF8574Component = pcf8574_ns.class_("PCF8574Component", cg.Component, i2c.I2CDevice)
-PCF8574GPIOPin = pcf8574_ns.class_("PCF8574GPIOPin", cg.GPIOPin)
+PCF8574GPIOPin = pcf8574_ns.class_(
+    "PCF8574GPIOPin", cg.GPIOPin, cg.Parented.template(PCF8574Component)
+)
 
 CONF_PCF8574 = "pcf8574"
 CONF_PCF8575 = "pcf8575"
@@ -66,4 +70,8 @@ PCF8574_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PCF8574, PCF8574_PIN_SCHEMA)
 async def pcf8574_pin_to_code(config: ConfigType) -> MockObj:
-    return await pins.new_parented_pin(config, CONF_PCF8574)
+    var = await pins.new_parented_pin(config, CONF_PCF8574)
+    if config[CONF_MODE][CONF_INPUT]:
+        parent = await cg.get_variable(config[CONF_PCF8574])
+        cg.add(parent.register_input_pin(config[CONF_NUMBER]))
+    return var
