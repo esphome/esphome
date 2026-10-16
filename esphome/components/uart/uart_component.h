@@ -201,12 +201,6 @@ class UARTComponent {
   // @return Flow control option.
   UARTFlowControl get_flow_control() const { return this->flow_control_; }
 
-  // Set whether this backend acts on set_flow_control(). Left false by a backend without the lines.
-  void set_flow_control_supported(bool supported) { this->flow_control_supported_ = supported; }
-
-  // Get whether this backend acts on set_flow_control().
-  bool is_flow_control_supported() const { return this->flow_control_supported_; }
-
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -254,7 +248,6 @@ class UARTComponent {
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
   UARTFlowControl flow_control_{UART_FLOW_CONTROL_NONE};
-  bool flow_control_supported_{false};
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};

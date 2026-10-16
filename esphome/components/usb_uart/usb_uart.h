@@ -374,6 +374,8 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
 
   // The block last read for each channel, so a DTR/RTS change under RTS/CTS is a single SET_FLOW
   std::array<CP210xFlowBlock, MAX_CHANNELS> flow_blocks_{};
+  // A CP2102N whose firmware has erratum E104
+  bool no_flow_control_{false};
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:

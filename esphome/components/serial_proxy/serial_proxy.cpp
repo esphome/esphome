@@ -220,10 +220,6 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
     ESP_LOGW(TAG, "Invalid parity: %u (must be 0-2)", parity);
     return SerialProxyResult::SERIAL_PROXY_RESULT_INVALID_ARGUMENT;
   }
-  if (flow_control && !uart_comp->is_flow_control_supported()) {
-    ESP_LOGW(TAG, "Hardware flow control requested but this UART cannot do it");
-    return SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED;
-  }
   // The API carries only RTS/CTS, as CRTSCTS does
   const uart::UARTFlowControl uart_flow_control =
       flow_control ? uart::UART_FLOW_CONTROL_RTS_CTS : uart::UART_FLOW_CONTROL_NONE;
