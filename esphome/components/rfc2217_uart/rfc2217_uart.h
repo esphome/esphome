@@ -260,6 +260,8 @@ class Rfc2217Client : public uart::VirtualUARTComponent, public Rfc2217Base {
   // While the settings are due: the bytes in tx_ written before them.
   uint16_t settings_fence_{0};
   bool settings_pending_{false};
+  // The unanswered COM-PORT offer was logged in this connection.
+  bool silence_logged_{false};
   uint8_t tx_[TX_SIZE]{};
 };
 #endif  // USE_RFC2217_UART_CLIENT

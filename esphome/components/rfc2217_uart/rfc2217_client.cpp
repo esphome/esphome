@@ -50,6 +50,7 @@ void Rfc2217Client::on_link(bool up) {
   if (up) {
     this->rx_.clear();
     this->settings_pending_ = true;
+    this->silence_logged_ = false;
     this->link_up_ms_ = App.get_loop_component_start_time();
   }
 }
@@ -68,9 +69,19 @@ void Rfc2217Client::request_settings_() {
 }
 
 void Rfc2217Client::send_settings_() {
+  if (!this->is_connected()) {
+    return;
+  }
+  if (!this->com_port_()) {
+    // on_option_() logs a refusal; a server that never answers is logged here, once per connection.
+    if (this->us_[COM_PORT] == OptionState::OPTION_STATE_WANT_YES && !this->tx_held_() && !this->silence_logged_) {
+      this->silence_logged_ = true;
+      ESP_LOGW(TAG, "Server did not answer the COM-PORT offer, the line settings were not sent");
+    }
+    return;
+  }
   // [RFC 2217] A suspend holds commands too.
-  if (!this->is_connected() || !this->com_port_() || this->peer_suspended_ || this->settings_fence_ != 0 ||
-      this->tcp_->available_for_write() < SETTINGS_SIZE) {
+  if (this->peer_suspended_ || this->settings_fence_ != 0 || this->tcp_->available_for_write() < SETTINGS_SIZE) {
     return;
   }
   this->settings_pending_ = false;
