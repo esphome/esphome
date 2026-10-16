@@ -3,7 +3,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <memory>
 
 namespace esphome::i2c {
 
@@ -59,11 +58,16 @@ bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
 }
 
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {
-  // we have to copy in order to be able to change byte order
-  std::unique_ptr<uint16_t[]> temp{new uint16_t[len]};
-  for (size_t i = 0; i < len; i++)
-    temp[i] = htoi2cs(data[i]);
-  return write_register(a_register, reinterpret_cast<const uint8_t *>(temp.get()), len * 2) == ERROR_OK;
+  const size_t size = 1 + len * 2;
+  SmallBufferWithHeapFallback<17> buffer_alloc(size);  // Register plus up to 8 words
+  uint8_t *buffer = buffer_alloc.get();
+
+  buffer[0] = a_register;
+  for (size_t i = 0; i < len; i++) {
+    buffer[1 + i * 2] = data[i] >> 8;
+    buffer[2 + i * 2] = data[i];
+  }
+  return this->bus_->write_readv(this->address_, buffer, size, nullptr, 0) == ERROR_OK;
 }
 
 I2CRegister &I2CRegister::operator=(uint8_t value) {
