@@ -81,9 +81,9 @@ void MiCS5524Component::publish_ratio_(float ratio) {
 
 float MiCS5524Component::read_air_value_() {
   const float voltage = this->sample_voltage_();
-  // At vcc the sensor is saturated and reads the top of the range; only above it is the wiring wrong.
-  if (std::isfinite(voltage) && voltage > 0.0f && voltage <= this->vcc_)
-    return this->vcc_ - voltage;
+  const float x = micsmath::air_value_from_voltage(voltage, this->vcc_);
+  if (std::isfinite(x))
+    return x;
   // The status flag makes this log once per fault, not once per update.
   if (!this->status_has_warning()) {
     ESP_LOGW(TAG, "analog output reads %.4f V with vcc %.2f V\n  check the AO wiring, 'vcc:' and 'voltage_multiplier:'",

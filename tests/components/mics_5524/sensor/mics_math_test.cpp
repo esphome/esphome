@@ -48,6 +48,9 @@ TEST(MicsMath, AirValueIsTheVoltageBelowVcc) {
   // ... but a voltage above VCC cannot come from the sensor, so it is unusable rather
   // than saturated: a wrong `vcc:` is not reported as a real reading.
   EXPECT_TRUE(std::isnan(air_value_from_voltage(5.2f, 5.0f)));
+  // A pin at or below 0 V is disconnected, not a reading of VCC.
+  EXPECT_TRUE(std::isnan(air_value_from_voltage(0.0f, 5.0f)));
+  EXPECT_TRUE(std::isnan(air_value_from_voltage(-0.1f, 5.0f)));
   // The two ends of the vendor range, and the unusable case, one by one.
   EXPECT_FLOAT_EQ(1.0f, ratio_from_air_value(air_value_from_voltage(4.0f, 5.0f), 1.0f));
   EXPECT_FLOAT_EQ(0.0f, ratio_from_air_value(air_value_from_voltage(5.0f, 5.0f), 1.0f));
