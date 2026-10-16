@@ -47,7 +47,6 @@ class TCA9555Component final : public Component,
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-/// Helper class to expose a TCA9555 pin as an internal input GPIO pin.
 using TCA9555GPIOPin = gpio_expander::ExpanderGPIOPin<TCA9555Component>;
 
 }  // namespace esphome::tca9555

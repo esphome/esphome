@@ -40,7 +40,6 @@ class WaveshareIOCH32V003Component : public Component,
   bool write_gpio_outputs_();
 };
 
-/// Helper class to expose a WaveshareIO pin as a GPIO pin.
 using WaveshareIOCH32V003GPIOPin = gpio_expander::ExpanderGPIOPin<WaveshareIOCH32V003Component>;
 
 }  // namespace esphome::waveshare_io_ch32v003
