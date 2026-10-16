@@ -33,10 +33,7 @@ CONF_REQUEST_VOLTAGE = "request_voltage"
 fusb302b_ns = cg.esphome_ns.namespace("fusb302b")
 FUSB302B = fusb302b_ns.class_("FUSB302B", cg.Component, i2c.I2CDevice)
 
-ConnectForwarder = fusb302b_ns.class_("ConnectForwarder")
-DisconnectForwarder = fusb302b_ns.class_("DisconnectForwarder")
-PowerReadyForwarder = fusb302b_ns.class_("PowerReadyForwarder")
-ErrorForwarder = fusb302b_ns.class_("ErrorForwarder")
+PdState = fusb302b_ns.enum("PdState", is_class=True)
 
 # USB PD fixed supply voltages are 5, 9, 12, 15 and 20 V; the highest one that does not exceed the
 # requested voltage is chosen.
@@ -78,18 +75,39 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
 )
 
+_STATE_PARAMS = [(PdState, "state"), (PdState, "previous")]
+_CONNECTED = "fusb302b::is_connected_state"
+
+# Each state trigger fires on the change described by its filter.
+_STATE_TRIGGERS = (
+    # A source is attached, including after recovering from a communication error.
+    (CONF_ON_CONNECT, f"{_CONNECTED}(state) && !{_CONNECTED}(previous)"),
+    # The source is removed, or is no longer known to be attached because communication failed.
+    (CONF_ON_DISCONNECT, f"!{_CONNECTED}(state) && {_CONNECTED}(previous)"),
+    # Negotiation is finished: a new PD contract is in place, or the source does not speak PD.
+    (
+        CONF_ON_POWER_READY,
+        "state == fusb302b::PdState::PD_STATE_EXPLICIT_CONTRACT"
+        " || state == fusb302b::PdState::PD_STATE_PD_TIMEOUT",
+    ),
+    # Communication with the chip fails.
+    (
+        CONF_ON_ERROR,
+        "state == fusb302b::PdState::PD_STATE_ERROR"
+        " && previous != fusb302b::PdState::PD_STATE_ERROR",
+    ),
+)
+
 _CALLBACK_AUTOMATIONS = (
-    automation.CallbackAutomation(
-        CONF_ON_CONNECT, "add_on_state_callback", forwarder=ConnectForwarder
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_DISCONNECT, "add_on_state_callback", forwarder=DisconnectForwarder
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_POWER_READY, "add_on_state_callback", forwarder=PowerReadyForwarder
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ERROR, "add_on_state_callback", forwarder=ErrorForwarder
+    *(
+        automation.CallbackAutomation(
+            key,
+            "add_on_state_callback",
+            params=_STATE_PARAMS,
+            forward=[],
+            when=when,
+        )
+        for key, when in _STATE_TRIGGERS
     ),
     automation.CallbackAutomation(
         CONF_ON_REQUEST_FAILED, "add_on_request_failed_callback"
