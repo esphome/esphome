@@ -213,11 +213,11 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     // Optimization: For no-argument delays (most common case), use direct lambda
     // to avoid overhead from capturing arguments by value
     if constexpr (sizeof...(Ts) == 0) {
+      auto f = [this]() { this->play_next_(); };
       App.scheduler.set_timer_common_(
-          /* component= */
-          nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
-          [this]() { this->play_next_(); },
+          std::move(f),
           /* skip_cancel= */ this->num_running_ > 1,
           // Record the owning script (if any) so the blocking warning can name it; propagates across
           // chained delays via the scheduler.
