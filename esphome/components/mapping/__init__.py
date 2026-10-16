@@ -127,18 +127,19 @@ def add_metadata(
     get_all_mapping_metadata()[mapping_id.id] = MappingMetaData(from_, to_)
 
 
-_EXTRACT_SCHEMA = BASE_SCHEMA.extend(
-    {
-        cv.Required(CONF_ENTRIES): cv.Schema({cv.string: cv.valid}),
-        cv.Optional(CONF_DEFAULT_VALUE): cv.valid,
-    }
-)
+def _extract_schema() -> cv.Schema:
+    return BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_ENTRIES): cv.Schema({cv.string: cv.valid}),
+            cv.Optional(CONF_DEFAULT_VALUE): cv.valid,
+        }
+    )
 
 
 @schema_extractor("schema")
 def map_schema(config: ConfigType) -> ConfigType:
     if config is SCHEMA_EXTRACT:
-        return _EXTRACT_SCHEMA
+        return _extract_schema()
     config = BASE_SCHEMA(config)
     if CONF_ENTRIES not in config or not isinstance(config[CONF_ENTRIES], dict):
         raise cv.Invalid("an entries dictionary is required for a mapping")
