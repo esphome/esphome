@@ -55,7 +55,7 @@ class ResamplerMicrophone final : public Component, public microphone::Microphon
   uint16_t taps_;
   uint16_t filters_;
   bool fast_decimation_{false};
-#ifdef USE_DSP_DECIMATOR
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
   DspDecimator3 dsp_decimator_;
 #endif
 

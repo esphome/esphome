@@ -172,6 +172,7 @@ inline void dsps_fird_f32_ae32(fir_f32_t *fir, const float *input, float *output
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 #include <vector>
 
 #include "esphome/components/resampler/microphone/decimator_3.h"
@@ -181,7 +182,7 @@ using esphome::resampler::DspDecimator3;
 std::vector<uint8_t> sine(double frequency) {
   std::vector<uint8_t> bytes;
   for (int i = 0; i < 48000; ++i) {
-    int16_t sample = static_cast<int16_t>(12000 * sin(2 * M_PI * frequency * i / 48000));
+    int16_t sample = static_cast<int16_t>(12000 * std::sin(2 * std::numbers::pi * frequency * i / 48000));
     bytes.push_back(static_cast<uint8_t>(sample));
     bytes.push_back(static_cast<uint8_t>(sample >> 8));
   }
@@ -195,7 +196,7 @@ double rms(const std::vector<uint8_t> &bytes) {
                                              (static_cast<uint16_t>(bytes[2 * i + 1]) << 8));
     sum += static_cast<double>(sample) * sample;
   }
-  return sqrt(sum / (bytes.size() / 2 - 1000));
+  return std::sqrt(sum / (bytes.size() / 2 - 1000));
 }
 
 int main() {
@@ -254,6 +255,7 @@ int main() {
             "-std=c++20",
             "-O2",
             "-DUSE_DSP_DECIMATOR",
+            "-DUSE_ESP_IDF",
             "-I",
             str(tmp_path),
             "-I",

@@ -6,14 +6,14 @@
 #include <cstdint>
 #include <vector>
 
-#ifdef USE_DSP_DECIMATOR
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
 #include <cmath>
 #include <dsps_fir.h>
 #endif
 
 namespace esphome::resampler {
 
-#ifdef USE_DSP_DECIMATOR
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
 // ESP-DSP's Xtensa FPU FIR is faster than the scalar Q14 loop. Its floating
 // result is saturated here; the library's s16 FIR wraps on full-scale input.
 class DspDecimator3 {
@@ -33,7 +33,7 @@ class DspDecimator3 {
     const size_t output_samples = complete_samples / 3;
     if (output_samples == 0) {
       for (size_t i = 0; i < input_samples; ++i)
-        this->pending_[this->pending_count_++] = static_cast<float>(decode_(input, i));
+        this->pending_[this->pending_count_++] = static_cast<float>(decode(input, i));
       output.clear();
       return;
     }
@@ -42,10 +42,10 @@ class DspDecimator3 {
       this->input_[i] = this->pending_[i];
     const size_t consumed = complete_samples - old_pending;
     for (size_t i = 0; i < consumed; ++i)
-      this->input_[old_pending + i] = static_cast<float>(decode_(input, i));
+      this->input_[old_pending + i] = static_cast<float>(decode(input, i));
     this->pending_count_ = input_samples - consumed;
     for (size_t i = 0; i < this->pending_count_; ++i)
-      this->pending_[i] = static_cast<float>(decode_(input, consumed + i));
+      this->pending_[i] = static_cast<float>(decode(input, consumed + i));
 
     output.resize(output_samples * sizeof(int16_t));
     this->output_.resize(output_samples);
@@ -66,7 +66,7 @@ class DspDecimator3 {
       137,  47,   -46,  -85,  -61,  -8,   33,   41,  22,   -4,   -19,  -18,  -7,   5,    13,
   };
 
-  static int16_t decode_(const std::vector<uint8_t> &input, size_t i) {
+  static int16_t decode(const std::vector<uint8_t> &input, size_t i) {
     return static_cast<int16_t>(static_cast<uint16_t>(input[2 * i]) | (static_cast<uint16_t>(input[2 * i + 1]) << 8));
   }
 

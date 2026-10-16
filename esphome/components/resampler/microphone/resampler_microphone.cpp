@@ -67,7 +67,7 @@ void ResamplerMicrophone::loop() {
   switch (this->state_) {
     case microphone::STATE_STOPPED:
       if (this->fast_decimation_) {
-#ifdef USE_DSP_DECIMATOR
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
         if (!this->dsp_decimator_.reset()) {
           this->mark_failed();
           return;
@@ -110,7 +110,7 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
       ESP_LOGE(TAG, "Fast decimation requires 48 kHz mono 16-bit input and 16 kHz output");
       return false;
     }
-#ifdef USE_DSP_DECIMATOR
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
     if (!this->dsp_decimator_.reset()) {
       ESP_LOGE(TAG, "ESP-DSP decimator initialization failed");
       return false;
@@ -167,7 +167,7 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
   }
 
   if (this->fast_decimation_ && input_stream_info.get_sample_rate() != this->target_sample_rate_) {
-#ifdef USE_DSP_DECIMATOR
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
     this->dsp_decimator_.process(data, this->output_buffer_);
 #endif
     if (!this->output_buffer_.empty())
