@@ -179,7 +179,9 @@ async def new_switch(config, *args):
 
 
 _APPLY_ENTITY = ApplyEntity(
-    ((SwitchPtr, "entity"), (cg.bool_, "state")), "entity->publish_state(state);"
+    ApplySwitch,
+    ((SwitchPtr, "entity"), (cg.bool_, "state")),
+    "entity->publish_state(state);",
 )
 
 

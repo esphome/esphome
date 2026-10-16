@@ -127,7 +127,9 @@ async def new_select(config, *args, options: list[str]):
 
 
 _APPLY_ENTITY = ApplyEntity(
-    ((SelectPtr, "entity"), (cg.size_t, "index")), "entity->publish_state(index);"
+    ApplySelect,
+    ((SelectPtr, "entity"), (cg.size_t, "index")),
+    "entity->publish_state(index);",
 )
 
 
