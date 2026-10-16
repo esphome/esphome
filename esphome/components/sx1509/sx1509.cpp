@@ -20,7 +20,7 @@ void SX1509Component::setup() {
     return;
   }
   if (data != 0xFF00) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Unexpected reset value"));
     return;
   }
   clock_(INTERNAL_CLOCK_2MHZ);

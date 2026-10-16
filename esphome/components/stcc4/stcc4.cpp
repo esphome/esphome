@@ -77,8 +77,7 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
                                (uint64_t(raw_product_id[4]) << 16) | raw_product_id[5];
       ESP_LOGD(TAG, "Product ID: 0x%08" PRIX32 ", Serial: 0x%016" PRIX64, product_id, serial_number);
       if (product_id != STCC4_PRODUCT_ID) {
-        ESP_LOGE(TAG, "Unsupported product ID");
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        this->mark_failed(LOG_STR("Unsupported product ID"));
         return;
       }
 
