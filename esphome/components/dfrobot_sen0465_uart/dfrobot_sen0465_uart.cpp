@@ -4,6 +4,7 @@
 
 namespace esphome::dfrobot_sen0465_uart {
 
+using dfrobot_sen0465_base::FRAME_HEAD;
 using dfrobot_sen0465_base::FRAME_SIZE;
 using dfrobot_sen0465_base::RESPONSE_TIMEOUT_ID;
 
@@ -17,6 +18,10 @@ void DFRobotSEN0465UARTComponent::setup() {
 }
 
 void DFRobotSEN0465UARTComponent::loop() {
+  // The tail of a reading the probe sent on its own may precede the answer; start at the next frame head.
+  uint8_t byte;
+  while (this->rx_count_ == 0 && this->peek_byte(&byte) && byte != FRAME_HEAD)
+    this->read_byte(&byte);
   const size_t available = this->available();
   if (available == 0)
     return;

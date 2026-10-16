@@ -8,6 +8,7 @@
 namespace esphome::dfrobot_sen0465_base {
 
 static constexpr uint8_t FRAME_SIZE = 9;
+static constexpr uint8_t FRAME_HEAD = 0xFF;
 
 // Scheduler ids, shared with the bus variants
 static constexpr uint32_t STEP_TIMEOUT_ID = 0;

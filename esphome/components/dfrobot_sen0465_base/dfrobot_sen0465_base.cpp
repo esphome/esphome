@@ -10,7 +10,6 @@ ESPHOME_LOG_TAG(TAG, "dfrobot_sen0465");
 // Protocol from https://github.com/DFRobot/DFRobot_MultiGasSensor
 // Request:  FF 01 command argument 00 00 00 00 checksum
 // Response: FF command conc_high conc_low gas_type decimals temp_high temp_low checksum
-static constexpr uint8_t FRAME_HEAD = 0xFF;
 static constexpr uint8_t FRAME_ADDRESS = 0x01;
 
 static constexpr uint8_t NO_COMMAND = 0x00;
@@ -75,7 +74,10 @@ void DFRobotSEN0465Component::dump_config() {
   if (this->alarm_type_ == AlarmType::ALARM_TYPE_OFF) {
     ESP_LOGCONFIG(TAG, "  Alarm: off");
   } else {
-    const float threshold = this->alarm_decimals_ == 0 ? this->alarm_threshold_ : this->alarm_threshold_ * 0.1f;
+    float scale = 1.0f;
+    for (uint8_t i = 0; i < this->alarm_decimals_; i++)
+      scale *= 10.0f;
+    const float threshold = this->alarm_threshold_ / scale;
     ESP_LOGCONFIG(TAG, "  Alarm: %s %.*f",
                   this->alarm_type_ == AlarmType::ALARM_TYPE_HIGH ? LOG_STR_LITERAL("above") : LOG_STR_LITERAL("below"),
                   this->alarm_decimals_, threshold);
