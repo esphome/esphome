@@ -1,3 +1,5 @@
+import math
+
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -61,6 +63,14 @@ RADAR_ALLOWED_CUR_CONSUMPTION = [
     78e-6,
 ]
 
+# Every float cv.current returns for an exact listed value, under any metric
+# prefix, mapped to its µA integer. Exact keys absorb parse rounding and nothing else.
+_POWER_CONSUMPTION_MICROAMPS = {
+    float(f"{microamps}e{-6 - round(math.log10(multiplier))}") * multiplier: microamps
+    for microamps in (round(value * 1000000) for value in RADAR_ALLOWED_CUR_CONSUMPTION)
+    for multiplier in cv.METRIC_SUFFIXES.values()
+}
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(AT581XComponent),
@@ -93,7 +103,14 @@ def _megahertz(value: float) -> int:
 
 
 def _microamps(value: float) -> int:
-    return int(value * 1000000)
+    if (microamps := _POWER_CONSUMPTION_MICROAMPS.get(value)) is None:
+        options = ", ".join(
+            f"{x}µA" for x in dict.fromkeys(_POWER_CONSUMPTION_MICROAMPS.values())
+        )
+        raise cv.Invalid(
+            f"Unsupported power consumption {value * 1000000}µA, valid options are {options}"
+        )
+    return microamps
 
 
 RADAR_SETTINGS_SCHEMA = cv.Schema(
@@ -113,7 +130,7 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
             )
         ),
         cv.Optional(CONF_POWER_CONSUMPTION, default="70uA"): cv.templatable(
-            cv.All(cv.current, cv.one_of(*RADAR_ALLOWED_CUR_CONSUMPTION), _microamps)
+            cv.All(cv.current, _microamps)
         ),
         cv.Optional(CONF_PROTECT_TIME, default="1000ms"): cv.templatable(
             cv.All(
