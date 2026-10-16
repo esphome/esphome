@@ -53,13 +53,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if voltage_config := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_remaining_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_remaining_sensor)
 
 
 MAX17043_ACTION_SCHEMA = maybe_simple_id(

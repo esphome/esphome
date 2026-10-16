@@ -87,21 +87,11 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if eco2_config := config.get(CONF_ECO2):
-        sens = await sensor.new_sensor(eco2_config)
-        cg.add(var.set_eco2_sensor(sens))
-
-    if tvoc_config := config.get(CONF_TVOC):
-        sens = await sensor.new_sensor(tvoc_config)
-        cg.add(var.set_tvoc_sensor(sens))
-
-    if eco2_baseline_config := config.get(CONF_ECO2_BASELINE):
-        sens = await sensor.new_sensor(eco2_baseline_config)
-        cg.add(var.set_eco2_baseline_sensor(sens))
-
-    if tvoc_baseline_config := config.get(CONF_TVOC_BASELINE):
-        sens = await sensor.new_sensor(tvoc_baseline_config)
-        cg.add(var.set_tvoc_baseline_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ECO2, var.set_eco2_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
+    await sensors(CONF_ECO2_BASELINE, var.set_eco2_baseline_sensor)
+    await sensors(CONF_TVOC_BASELINE, var.set_tvoc_baseline_sensor)
 
     if (store_baseline := config.get(CONF_STORE_BASELINE)) is not None:
         cg.add(var.set_store_baseline(store_baseline))

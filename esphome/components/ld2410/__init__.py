@@ -9,6 +9,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@sebcaps", "@regevbr"]
+DOMAIN = "ld2410"
 MULTI_CONF = True
 
 ld2410_ns = cg.esphome_ns.namespace("ld2410")
@@ -87,7 +88,7 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(LD2410Component),
-        cv.Required(CONF_PASSWORD): cv.templatable(cv.string_strict),
+        cv.Required(CONF_PASSWORD): cv.sensitive(cv.templatable(cv.string_strict)),
     }
 )
 

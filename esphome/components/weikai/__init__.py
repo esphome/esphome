@@ -17,6 +17,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
 AUTO_LOAD = ["uart"]
+DOMAIN = "weikai"
 
 MULTI_CONF = True
 CONF_CRYSTAL = "crystal"

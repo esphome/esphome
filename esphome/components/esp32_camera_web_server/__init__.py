@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@ayufan"]
 AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["network"]
+DOMAIN = "esp32_camera_web_server"
 MULTI_CONF = True
 
 esp32_camera_web_server_ns = cg.esphome_ns.namespace("esp32_camera_web_server")

@@ -4,6 +4,7 @@ import esphome.codegen as cg
 # Base
 light_ns = cg.esphome_ns.namespace("light")
 LightState = light_ns.class_("LightState", cg.EntityBase, cg.Component)
+GammaTable = light_ns.struct("GammaTable")
 LightStateRef = LightState.operator("ref")
 AddressableLightState = light_ns.class_("AddressableLightState", LightState)
 LightOutput = light_ns.class_("LightOutput")

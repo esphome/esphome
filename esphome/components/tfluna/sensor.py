@@ -60,16 +60,9 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    tfluna_component = await cg.get_variable(config[CONF_TFLUNA_ID])
-    if distance_config := config.get(CONF_DISTANCE):
-        sens = await sensor.new_sensor(distance_config)
-        cg.add(tfluna_component.set_distance_sensor(sens))
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(tfluna_component.set_temperature_sensor(sens))
-    if signal_strength_config := config.get(CONF_SIGNAL_STRENGTH):
-        sens = await sensor.new_sensor(signal_strength_config)
-        cg.add(tfluna_component.set_signal_strength_sensor(sens))
-    if timestamp_config := config.get(CONF_TIMESTAMP):
-        sens = await sensor.new_sensor(timestamp_config)
-        cg.add(tfluna_component.set_timestamp_sensor(sens))
+    hub = await cg.get_variable(config[CONF_TFLUNA_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_DISTANCE, hub.set_distance_sensor)
+    await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)
+    await sensors(CONF_SIGNAL_STRENGTH, hub.set_signal_strength_sensor)
+    await sensors(CONF_TIMESTAMP, hub.set_timestamp_sensor)

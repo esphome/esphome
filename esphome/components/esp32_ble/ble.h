@@ -185,7 +185,6 @@ class ESP32BLE final : public Component {
     }
     this->ble_events_.get_and_reset_dropped_count();
   }
-  bool ble_pre_setup_();
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
 #endif
@@ -235,14 +234,14 @@ class ESP32BLE final : public Component {
 #ifdef USE_ESP32_BLE_ADVERTISING
   BLEAdvertising *advertising_{};  // 4 bytes (pointer)
 #endif
-  const char *name_{nullptr};                 // 4 bytes (pointer to string literal in flash)
-  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
-  uint32_t advertising_cycle_time_{};         // 4 bytes
+  const char *name_{nullptr};          // 4 bytes (pointer to string literal in flash)
+  uint32_t advertising_cycle_time_{};  // 4 bytes
 
   // 2-byte aligned members
   uint16_t appearance_{0};  // 2 bytes
 
   // 1-byte aligned members (grouped together to minimize padding)
+  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};          // 1 byte (uint8_t typedef)
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
   bool enable_on_boot_{};                             // 1 byte
 #ifdef USE_ESP32_BLE_ADVERTISING

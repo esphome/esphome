@@ -64,13 +64,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_temperature_compensation(config[CONF_TEMPERATURE_COMPENSATION]))
     cg.add(var.set_temperature_coefficient(config[CONF_TEMPERATURE_COEFFICIENT]))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-
-    if CONF_EC in config:
-        sens = await sensor.new_sensor(config[CONF_EC])
-        cg.add(var.set_ec_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_EC, var.set_ec_sensor)
 
     if CONF_TEMPERATURE_SENSOR in config:
         sens = await cg.get_variable(config[CONF_TEMPERATURE_SENSOR])

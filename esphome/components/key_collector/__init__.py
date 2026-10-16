@@ -19,6 +19,7 @@ from esphome.cpp_generator import MockObj, literal
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "key_collector"
 
 MULTI_CONF = True
 

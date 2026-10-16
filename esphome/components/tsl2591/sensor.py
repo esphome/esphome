@@ -140,30 +140,12 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_FULL_SPECTRUM in config:
-        conf = config[CONF_FULL_SPECTRUM]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_full_spectrum_sensor(sens))
-
-    if CONF_INFRARED in config:
-        conf = config[CONF_INFRARED]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_infrared_sensor(sens))
-
-    if CONF_VISIBLE in config:
-        conf = config[CONF_VISIBLE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_visible_sensor(sens))
-
-    if CONF_CALCULATED_LUX in config:
-        conf = config[CONF_CALCULATED_LUX]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_calculated_lux_sensor(sens))
-
-    if CONF_ACTUAL_GAIN in config:
-        conf = config[CONF_ACTUAL_GAIN]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_actual_gain_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FULL_SPECTRUM, var.set_full_spectrum_sensor)
+    await sensors(CONF_INFRARED, var.set_infrared_sensor)
+    await sensors(CONF_VISIBLE, var.set_visible_sensor)
+    await sensors(CONF_CALCULATED_LUX, var.set_calculated_lux_sensor)
+    await sensors(CONF_ACTUAL_GAIN, var.set_actual_gain_sensor)
 
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))

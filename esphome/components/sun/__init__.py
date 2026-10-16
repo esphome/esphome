@@ -16,6 +16,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
+DOMAIN = "sun"
 sun_ns = cg.esphome_ns.namespace("sun")
 
 Sun = sun_ns.class_("Sun")
