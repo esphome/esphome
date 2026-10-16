@@ -106,9 +106,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     cg.add(var.set_samples(config[CONF_SAMPLES]))
     cg.add(var.set_phase_offset(config[CONF_PHASE_OFFSET]))
