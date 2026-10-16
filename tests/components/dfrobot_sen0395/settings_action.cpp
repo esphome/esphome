@@ -142,4 +142,16 @@ TEST_F(SettingsActionTest, FloatTriggerUnpairedSegmentIsNotEvaluated) {
   EXPECT_EQ(call_record().segment_calls[0], 0);
 }
 
+TEST_F(SettingsActionTest, QueuesNothingWithoutRoomForWholeSequence) {
+  for (int i = 0; i < 11; i++)
+    ASSERT_TRUE(this->radar_.enqueue(CommandType::COMMAND_TYPE_SAVE_CFG));
+  DfrobotSen0395SettingsAction<> action;
+  action.set_parent(&this->radar_);
+  action.play();
+  EXPECT_TRUE(this->radar_.has_queue_room(9));
+  this->radar_.enqueue_saved_setting(CommandType::COMMAND_TYPE_LED_MODE, true);
+  EXPECT_TRUE(this->radar_.has_queue_room(7));
+  EXPECT_FALSE(this->radar_.has_queue_room(8));
+}
+
 }  // namespace esphome::dfrobot_sen0395::testing

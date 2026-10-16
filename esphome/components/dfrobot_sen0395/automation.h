@@ -29,6 +29,9 @@ class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented
   TEMPLATABLE_VALUE(float, det_max4)
 
   void play(const Ts &...x) override {
+    // Worst case: stop, factory reset, six settings, save, start
+    if (!this->parent_->has_queue_room(10))
+      return;
     this->parent_->enqueue(CommandType::COMMAND_TYPE_POWER, false);
     if (this->factory_reset_.has_value() && this->factory_reset_.value(x...) == true) {
       this->parent_->enqueue(CommandType::COMMAND_TYPE_FACTORY_RESET);

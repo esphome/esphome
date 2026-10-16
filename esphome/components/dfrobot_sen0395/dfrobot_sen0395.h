@@ -97,6 +97,8 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
 
   // Commands run one at a time from a queue, at least 1 s apart, so loop() never blocks
   bool enqueue(CommandType type, uint8_t arg = 0);
+  /// True when count more commands fit; logs when they do not, so a stop/start sequence is never queued in part
+  bool has_queue_room(size_t count) const;
   /// Queue a detection range config; segments are used up to the first one with a negative bound
   void enqueue_det_range_cfg(float min1, float max1, float min2, float max2, float min3, float max3, float min4,
                              float max4);

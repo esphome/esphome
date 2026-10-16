@@ -57,6 +57,13 @@ bool DfrobotSen0395Component::enqueue(CommandType type, uint8_t arg) {
   return true;
 }
 
+bool DfrobotSen0395Component::has_queue_room(size_t count) const {
+  if (COMMAND_QUEUE_SIZE - this->cmd_queue_.size() >= count)
+    return true;
+  ESP_LOGE(TAG, "Command queue is full");
+  return false;
+}
+
 void DfrobotSen0395Component::enqueue_det_range_cfg(float min1, float max1, float min2, float max2, float min3,
                                                     float max3, float min4, float max4) {
   // TODO: Print warning when values are rounded
@@ -89,6 +96,8 @@ void DfrobotSen0395Component::enqueue_set_latency(float delay_after_detection, f
 
 void DfrobotSen0395Component::enqueue_saved_setting(CommandType type, bool value) {
   const bool was_active = this->active_;
+  if (!this->has_queue_room(was_active ? 4 : 2))
+    return;
   if (was_active)
     this->enqueue(CommandType::COMMAND_TYPE_POWER, false);
   this->enqueue(type, value);
