@@ -54,11 +54,10 @@ class Number : public EntityBase {
   LazyCallbackManager<void(float)> state_callback_;
 };
 
-/// Runs one codegen-generated function on a new value, with the hub and any publish baked in.
-/// Fn takes the entity first, so the function can publish or read options without a stored pointer.
+/// Calls the codegen-generated Fn(this, value) on a new value; the hub and any publish are baked into Fn.
 template<auto Fn> class ApplyNumber final : public Number {
  public:
-  // User provided, not "= default": `new(p) ApplyNumber()` would zero-fill .bss that is already zero.
+  // Not "= default": placement new would zero-fill .bss that is already zero.
   ApplyNumber() {}
 
  protected:

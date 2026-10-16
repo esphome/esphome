@@ -178,7 +178,7 @@ async def new_switch(config, *args):
     return var
 
 
-_APPLY_ENTITY = ApplyEntity(
+APPLY_ENTITY = ApplyEntity(
     ApplySwitch,
     ((SwitchPtr, "entity"), (cg.bool_, "state")),
     "entity->publish_state(state);",
@@ -189,7 +189,7 @@ def sub_switches(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
     """Return a SubEntities bound to new_switch; ``apply`` statements can use ``entity`` and ``state``."""
-    return SubEntities(new_switch, config, parent, _APPLY_ENTITY)
+    return SubEntities(new_switch, config, parent, APPLY_ENTITY)
 
 
 SWITCH_ACTION_SCHEMA = maybe_simple_id(

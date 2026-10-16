@@ -46,11 +46,10 @@ class Button : public EntityBase {
   LazyCallbackManager<void()> press_callback_{};
 };
 
-/// Runs one codegen-generated function on a press, with the hub and any publish baked in.
-/// Fn takes the entity first, so the function can publish or read options without a stored pointer.
+/// Calls the codegen-generated Fn(this) on a press; the hub and any publish are baked into Fn.
 template<auto Fn> class ApplyButton final : public Button {
  public:
-  // User provided, not "= default": `new(p) ApplyButton()` would zero-fill .bss that is already zero.
+  // Not "= default": placement new would zero-fill .bss that is already zero.
   ApplyButton() {}
 
  protected:

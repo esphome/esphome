@@ -330,7 +330,7 @@ async def new_number(config, *args, min_value: float, max_value: float, step: fl
     return var
 
 
-_APPLY_ENTITY = ApplyEntity(
+APPLY_ENTITY = ApplyEntity(
     ApplyNumber,
     ((NumberPtr, "entity"), (cg.float_, "value")),
     "entity->publish_state(value);",
@@ -341,7 +341,7 @@ def sub_numbers(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
     """Return a SubEntities bound to new_number; ``apply`` statements can use ``entity`` and ``value``."""
-    return SubEntities(new_number, config, parent, _APPLY_ENTITY)
+    return SubEntities(new_number, config, parent, APPLY_ENTITY)
 
 
 NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(

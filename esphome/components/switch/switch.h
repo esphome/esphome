@@ -147,11 +147,10 @@ class Switch : public EntityBase {
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
 
-/// Runs one codegen-generated function on a state write, with the hub and any publish baked in.
-/// Fn takes the entity first, so the function can publish or read options without a stored pointer.
+/// Calls the codegen-generated Fn(this, state) on a state write; the hub and any publish are baked into Fn.
 template<auto Fn> class ApplySwitch final : public Switch {
  public:
-  // User provided, not "= default": `new(p) ApplySwitch()` would zero-fill .bss that is already zero.
+  // Not "= default": placement new would zero-fill .bss that is already zero.
   ApplySwitch() {}
 
  protected:
