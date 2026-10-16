@@ -9,10 +9,7 @@ class EPaperInkplate2 final : public EPaperBase {
  public:
   EPaperInkplate2(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                   size_t init_sequence_length)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR) {
-    // Dual-plane buffer: black/white plane followed by red plane, 1 bit per pixel each.
-    this->buffer_length_ = this->row_width_ * this->height_ * 2;
-  }
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR, 1, 2) {}
 
   void draw_pixel_at(int x, int y, Color color) override;
 

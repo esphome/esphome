@@ -29,16 +29,12 @@ class EPaperSSD1677Gray4 : public EPaperSSD1677 {
  public:
   EPaperSSD1677Gray4(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                      size_t init_sequence_length)
-      : EPaperSSD1677(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_GRAYSCALE) {
-    this->row_width_ = (width + 3) / 4;  // 4 pixels per byte
-    this->buffer_length_ = (size_t) this->row_width_ * height;
-  }
+      : EPaperSSD1677(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_GRAYSCALE, 2) {}
 
   void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
   void fill_buffer(Color color) override;
-  bool buffer_is_mono() const override { return false; }
   // A partial update if partial updates are enabled and this is not a full one.
   bool is_partial_push_() const { return this->update_count_ != 0 && this->sent_.is_valid(); }
   void plane_row(size_t y, uint8_t *out) override;

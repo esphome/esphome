@@ -18,9 +18,7 @@ class EPaperWeAct3C : public EPaperBase {
  public:
   EPaperWeAct3C(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                 size_t init_sequence_length)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY) {
-    this->buffer_length_ = this->row_width_ * height * 2;
-  }
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY, 1, 2) {}
 
  protected:
   void fill_buffer(Color color) override;

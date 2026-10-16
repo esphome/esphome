@@ -297,15 +297,10 @@ void MipiDsi::draw_pixel_at(int x, int y, Color color) {
       break;
     }
     case display::COLOR_BITNESS_888:
-      if (this->color_mode_ == display::COLOR_ORDER_BGR) {
-        this->buffer_[pos * 3] = color.b;
-        this->buffer_[pos * 3 + 1] = color.g;
-        this->buffer_[pos * 3 + 2] = color.r;
-      } else {
-        this->buffer_[pos * 3] = color.r;
-        this->buffer_[pos * 3 + 1] = color.g;
-        this->buffer_[pos * 3 + 2] = color.b;
-      }
+      // The panel applies the colour order, so the buffer keeps the standard b,g,r layout
+      this->buffer_[pos * 3] = color.b;
+      this->buffer_[pos * 3 + 1] = color.g;
+      this->buffer_[pos * 3 + 2] = color.r;
       break;
     case display::COLOR_BITNESS_332:
       break;
@@ -341,19 +336,12 @@ void MipiDsi::fill(Color color) {
     }
 
     case display::COLOR_BITNESS_888:
-      if (this->color_mode_ == display::COLOR_ORDER_BGR) {
-        for (size_t i = 0; i != this->width_ * this->height_; i++) {
-          this->buffer_[i * 3 + 0] = color.b;
-          this->buffer_[i * 3 + 1] = color.g;
-          this->buffer_[i * 3 + 2] = color.r;
-        }
-      } else {
-        for (size_t i = 0; i != this->width_ * this->height_; i++) {
-          this->buffer_[i * 3 + 0] = color.r;
-          this->buffer_[i * 3 + 1] = color.g;
-          this->buffer_[i * 3 + 2] = color.b;
-        }
+      for (size_t i = 0; i != this->width_ * this->height_; i++) {
+        this->buffer_[i * 3 + 0] = color.b;
+        this->buffer_[i * 3 + 1] = color.g;
+        this->buffer_[i * 3 + 2] = color.r;
       }
+      break;
 
     default:
       break;
