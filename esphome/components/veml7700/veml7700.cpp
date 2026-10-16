@@ -81,7 +81,7 @@ void VEML7700Component::setup() {
   auto err = this->configure_();
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Sensor configuration failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   } else {
     this->state_ = State::INITIAL_SETUP_COMPLETED;
   }
@@ -109,10 +109,6 @@ void VEML7700Component::dump_config() {
   LOG_SENSOR("  ", "FAKE_IR channel lux", this->fake_infrared_sensor_);
   LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
   LOG_SENSOR("  ", "Actual integration time", this->actual_integration_time_sensor_);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void VEML7700Component::update() {

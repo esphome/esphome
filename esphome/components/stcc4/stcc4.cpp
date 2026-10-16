@@ -143,9 +143,6 @@ void STCC4Component::finish_setup_() {
 void STCC4Component::dump_config() {
   ESP_LOGCONFIG(TAG, "STCC4:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG, "  Measurement mode: %s",
                 this->measurement_mode_ == MeasurementMode::CONTINUOUS ? LOG_STR_LITERAL("Continuous (1s)")
                                                                        : LOG_STR_LITERAL("Single shot"));

@@ -81,7 +81,7 @@ void SX127x::configure() {
 
   // check silicon version to make sure hw is ok
   if (this->read_register_(REG_VERSION) != 0x12) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -367,8 +367,7 @@ void SX127x::run_image_cal() {
   uint32_t start = millis();
   while (this->read_register_(REG_IMAGE_CAL) & IMAGE_CAL_RUNNING) {
     if (millis() - start > 20) {
-      ESP_LOGE(TAG, "Image cal failure");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Image cal failure"));
       break;
     }
   }
@@ -390,8 +389,7 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
       break;
     }
     if (millis() - start > 20) {
-      ESP_LOGE(TAG, "Set mode failure");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Set mode failure"));
       return;
     }
   }
@@ -507,9 +505,6 @@ void SX127x::dump_config() {
                     "  Preamble Errors: %" PRIu8,
                     this->preamble_polarity_, this->preamble_size_, this->preamble_detect_, this->preamble_errors_);
     }
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Configuring SX127x failed");
   }
 }
 

@@ -15,21 +15,18 @@ void TCA8418Component::setup() {
   //  The configuration register reads back, so use it to check the device is there.
   uint8_t config;
   if (!this->read_byte(TCA8418_REG_CFG, &config)) {
-    ESP_LOGE(TAG, "Failed to read from device - check wiring / address");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to read from device - check wiring / address"));
     return;
   }
 
   if (!this->configure_pins_()) {
-    ESP_LOGE(TAG, "Failed to configure pins");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to configure pins"));
     return;
   }
 
   //  Report key events, and keep the interrupt asserted while events remain queued.
   if (!this->write_byte(TCA8418_REG_CFG, TCA8418_CFG_KEY_INT_EN | TCA8418_CFG_INT_CFG)) {
-    ESP_LOGE(TAG, "Failed to write the configuration register");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to write the configuration register"));
     return;
   }
 
@@ -43,8 +40,7 @@ void TCA8418Component::setup() {
   //  Discard anything the device queued before it was configured, and clear
   //  every interrupt flag: leaving one set holds the interrupt output asserted.
   if (!this->drain_events_(false)) {
-    ESP_LOGE(TAG, "Failed to clear the event queue");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to clear the event queue"));
     return;
   }
 
@@ -162,9 +158,6 @@ void TCA8418Component::dump_config() {
   }
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 }  // namespace esphome::tca8418
