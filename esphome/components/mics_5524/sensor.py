@@ -28,6 +28,7 @@ from esphome.const import (
     UNIT_VOLT,
 )
 from esphome.core import CORE
+from esphome.helpers import fnv1_hash
 from esphome.types import ConfigType
 
 from . import (
@@ -379,6 +380,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
+    cg.add(var.set_preference_key(fnv1_hash(config[CONF_ID].id)))
 
     if (enable := config.get(CONF_ENABLE_PIN)) is not None:
         cg.add(var.set_enable_pin(await cg.gpio_pin_expression(enable)))

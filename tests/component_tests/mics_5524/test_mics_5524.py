@@ -22,8 +22,7 @@ from esphome.const import (
     CONF_HYDROGEN,
     CONF_METHANE,
 )
-
-GENERATED_ADC = "_generated_adc"
+from esphome.helpers import fnv1_hash
 
 
 def _gas_arguments(main_cpp: str, variable: str) -> list[str]:
@@ -97,6 +96,11 @@ def test_shared_options_reach_the_hub(
     assert "mics_5524_boot->set_voltage_multiplier(1.5f);" in main_cpp
     assert "mics_5524_boot->set_samples(3);" in main_cpp
     assert "mics_5524_boot->set_warmup_time(180000);" in main_cpp
+    # The stored reference is keyed by the component ID.
+    assert (
+        f"mics_5524_boot->set_preference_key({fnv1_hash('mics_5524_boot')}UL);"
+        in main_cpp
+    )
     assert "mics_5524_boot->set_calibration(5000, 3, 20, true);" in main_cpp
     assert "mics_5524_fixed->set_air_reference(3.6f);" in main_cpp
     # `air_reference:` and `calibration:` exclude each other, so the sensor with the
@@ -233,7 +237,7 @@ def test_max_ppm_defaults_to_the_vendor_range_of_the_gas(
     resolved = resolve_gas("carbon_monoxide", "dfrobot", max_ppm=None)
     assert resolved.max_ppm == 1000.0
 
-    # End to end: the default CO of the boot sensor keeps 1000 ppm in the firmware.
+    # End to end: CH4 of the boot sensor has no max_ppm: and keeps 25000 ppm.
     main_cpp = generate_main(component_config_path("mics_5524.yaml"))
     ch4 = _gas_arguments(main_cpp, "mics_5524_ch4")
     assert _gas_constants(ch4)[-1] == 25000.0

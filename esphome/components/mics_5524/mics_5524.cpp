@@ -34,7 +34,8 @@ void MiCS5524GasSensor::publish_ratio(float ratio) {
 }
 
 void MiCS5524Component::setup() {
-  this->reference_pref_ = this->make_entity_preference<float>(REFERENCE_PREFERENCE_VERSION + this->conversion_);
+  this->reference_pref_ = global_preferences->make_preference<float>(
+      this->preference_key_ ^ (REFERENCE_PREFERENCE_VERSION + this->conversion_));
 
   if (this->enable_pin_ != nullptr) {
     // EN of the breakout is active low; `inverted: true` makes this write switch the module on.

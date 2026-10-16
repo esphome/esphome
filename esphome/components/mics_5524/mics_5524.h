@@ -61,6 +61,8 @@ class MiCS5524Component : public PollingComponent {
   void set_voltage_multiplier(float multiplier) { this->voltage_multiplier_ = multiplier; }
   void set_samples(uint8_t samples) { this->samples_ = samples; }
   void set_warmup_time(uint32_t warmup) { this->warmup_time_ = warmup; }
+  /// Base of the flash key of the stored reference, a hash of the component ID.
+  void set_preference_key(uint32_t key) { this->preference_key_ = key; }
   /// Driven active in setup(); EN of the breakout is active low, so `inverted: true` turns that on.
   void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
   /// Calibrate at boot: start after `delay` ms, average `samples` readings `sample_interval` ms
@@ -125,6 +127,7 @@ class MiCS5524Component : public PollingComponent {
   /// Clean-air reference, x_air in volts or R0 in kOhm, 0 while there is none.
   float reference_{0.0f};
 
+  uint32_t preference_key_{0};
   ESPPreferenceObject reference_pref_;
 
   // Sized by code generation; the host unit tests run none, so the list compiles out there.
