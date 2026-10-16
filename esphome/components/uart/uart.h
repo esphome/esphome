@@ -65,7 +65,7 @@ class UARTDevice {
       if (!this->read_array(buf, len))
         return false;
       count -= len;
-      if (!continue_after_(on_chunk, static_cast<const uint8_t *>(buf), len))
+      if (!continue_after(on_chunk, static_cast<const uint8_t *>(buf), len))
         break;
     }
     return true;
@@ -79,7 +79,7 @@ class UARTDevice {
     return this->read_available_chunks<N>(
         [&on_byte](const uint8_t *data, size_t len) {
           for (const uint8_t *p = data; p != data + len; p++) {
-            if (!continue_after_(on_byte, *p))
+            if (!continue_after(on_byte, *p))
               return false;
           }
           return true;
@@ -114,7 +114,7 @@ class UARTDevice {
 
  protected:
   /// Call f(args...) and return its result when it returns bool, otherwise true.
-  template<typename F, typename... A> static bool continue_after_(F &f, A... args) {
+  template<typename F, typename... A> static bool continue_after(F &f, A... args) {
     if constexpr (std::is_same_v<std::invoke_result_t<F &, A...>, bool>) {
       return f(args...);
     } else {
