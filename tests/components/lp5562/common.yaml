@@ -1,6 +1,7 @@
 lp5562:
   - address: 0x30
     id: lp5562_1
+    i2c_id: i2c_bus
 
 output:
   - platform: lp5562
