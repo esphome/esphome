@@ -17,25 +17,21 @@ namespace esphome::mics_5524 {
 /// One gas of a MiCS-5524: converts the measured ratio with the curve of that gas.
 class MiCS5524GasSensor : public sensor::Sensor {
  public:
-  /// `conversion` is a micsmath::ConversionModel; the floats are the constants of both
-  /// models from coefficients.py.
-  MiCS5524GasSensor(uint8_t conversion, float threshold, float gain, float a, float b, float min_ppm, float max_ppm)
-      : curve_{threshold, gain, min_ppm, max_ppm}, a_(a), b_(b), conversion_(conversion) {}
+  /// `p0`/`p1` are threshold and gain (dfrobot) or a and b (datasheet), from coefficients.py.
+  MiCS5524GasSensor(float p0, float p1, float min_ppm, float max_ppm)
+      : p0_(p0), p1_(p1), min_ppm_(min_ppm), max_ppm_(max_ppm) {}
 
-  /// Publish the concentration for `ratio`; NAN publishes `unknown`.
-  void publish_ratio(float ratio);
+  /// Publish the concentration for `ratio` with the formula of `model`; NAN publishes `unknown`.
+  void publish_ratio(float ratio, micsmath::ConversionModel model);
 
-  float get_min_ppm() const { return this->curve_.min_ppm; }
-  float get_max_ppm() const { return this->curve_.max_ppm; }
-  /// The RS diagnostics of the hub only mean something in the datasheet model.
-  bool is_vendor_model() const { return this->conversion_ == micsmath::CONVERSION_MODEL_DFROBOT; }
+  float get_min_ppm() const { return this->min_ppm_; }
+  float get_max_ppm() const { return this->max_ppm_; }
 
  protected:
-  /// Vendor constants and the range both models are clamped to.
-  micsmath::VendorCurve curve_;
-  float a_{0.0f};  ///< datasheet model
-  float b_{0.0f};
-  uint8_t conversion_;
+  float p0_;
+  float p1_;
+  float min_ppm_;
+  float max_ppm_;
 };
 
 /// The MiCS-5524 breakout: one analog output, converted for every configured gas against the
@@ -55,7 +51,7 @@ class MiCS5524Component : public PollingComponent {
   void register_gas_sensor(MiCS5524GasSensor *gas) { this->gases_.push_back(gas); }
 #endif
 
-  void set_conversion(uint8_t conversion) { this->conversion_ = conversion; }
+  void set_conversion(micsmath::ConversionModel conversion) { this->conversion_ = conversion; }
   void set_vcc(float vcc) { this->vcc_ = vcc; }
   void set_rl(float rl) { this->rl_ = rl; }
   void set_voltage_multiplier(float multiplier) { this->voltage_multiplier_ = multiplier; }
@@ -65,16 +61,13 @@ class MiCS5524Component : public PollingComponent {
   void set_preference_key(uint32_t key) { this->preference_key_ = key; }
   /// Driven active in setup(); EN of the breakout is active low, so `inverted: true` turns that on.
   void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
-  /// Calibrate at boot: start after `delay` ms, average `samples` readings `sample_interval` ms
-  /// apart; `persist` keeps the result in flash across reboots.
-  void set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval, bool persist);
-  void set_air_reference(float air_reference);
-  void set_r0(float r0);
+  /// Calibration parameters: start after `delay` ms, average `samples` readings `sample_interval` ms
+  /// apart; `persist` keeps the result in flash, `at_boot` runs one at boot.
+  void set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval, bool persist, bool at_boot);
+  /// Clean-air reference from the configuration, x_air (dfrobot) or R0 (datasheet).
+  void set_reference(float reference) { this->reference_ = reference; }
   /// Deferred until the warm-up window ends.
   void request_calibration();
-  bool is_calibrating() const { return this->calibrating_; }
-  bool has_reference() const { return this->reference_ > 0.0f; }
-  float get_reference() const { return this->reference_; }
   SUB_SENSOR(voltage)
   SUB_SENSOR(ratio)
   // RS only exists in the datasheet model.
@@ -87,9 +80,10 @@ class MiCS5524Component : public PollingComponent {
   /// RS (datasheet), or NAN (and a status warning) when the voltage is unusable.
   float model_value_(float voltage);
   void publish_ratio_(float ratio);
-  /// RS is published for the datasheet model only.
   void publish_diagnostics_(float voltage, float ratio, float rs);
 
+  /// Start a calibration after `delay` ms; every start goes through here.
+  void schedule_calibration_(uint32_t delay);
   void begin_calibration_();
   void process_calibration_();
   void finish_calibration_();
@@ -107,7 +101,6 @@ class MiCS5524Component : public PollingComponent {
   GPIOPin *enable_pin_{nullptr};
 
   uint32_t calibration_delay_{0};
-  /// 0 when calibration is disabled.
   uint32_t calibration_samples_{0};
   /// Spacing of the clean-air calibration samples (ms); the ~16 ms loop tick is the floor.
   uint32_t sample_interval_{20};
@@ -135,9 +128,10 @@ class MiCS5524Component : public PollingComponent {
   StaticVector<MiCS5524GasSensor *, MICS_5524_GAS_COUNT> gases_;
 #endif
 
-  uint8_t conversion_{micsmath::CONVERSION_MODEL_DFROBOT};
+  micsmath::ConversionModel conversion_{micsmath::CONVERSION_MODEL_DFROBOT};
   uint8_t samples_{4};
   bool persist_{false};
+  bool calibrate_at_boot_{false};
   /// Set from setup() until the warm-up timeout fires.
   bool warming_up_{false};
   bool calibrating_{false};

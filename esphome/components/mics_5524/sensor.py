@@ -5,6 +5,7 @@ import logging
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
+from esphome.components.adc import ATTENUATION_MODES
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ATTENUATION,
@@ -34,10 +35,10 @@ from esphome.types import ConfigType
 
 from . import (
     ADC_LIMIT_MARGIN_V,
+    ADC_LIMITS_V,
     CONF_ADC_ATTENUATION,
     CONF_ADC_INPUT_MAX,
     CONF_ADC_PIN_MAX,
-    CONF_ADC_SAMPLES,
     CONF_AIR_REFERENCE,
     CONF_COEFFICIENT_A,
     CONF_COEFFICIENT_B,
@@ -57,18 +58,12 @@ from . import (
     CONF_VOLTAGE_MULTIPLIER,
     CONF_VOLTAGE_SENSOR,
     CONVERSION_MODELS,
-    ESP32_ADC_INPUT_MAX_V,
-    ESP32_ADC_PIN_MAX_V,
-    ESP8266_ADC_INPUT_MAX_V,
-    ESP8266_ADC_PIN_MAX_V,
     MiCS5524Component,
     MiCS5524GasSensor,
 )
 from .coefficients import (
     CONVERSION_DATASHEET,
     CONVERSION_DFROBOT,
-    CONVERSIONS,
-    DEFAULT_RL_KOHM,
     GASES,
     ResolvedGas,
     resolve_gas,
@@ -91,8 +86,6 @@ MIN_SAMPLE_INTERVAL_MS = 16
 
 # Conversions per reading run back to back inside one loop pass.
 MAX_SAMPLE_COUNT = 16
-
-ADC_ATTENUATIONS = ("0db", "2.5db", "6db", "11db", "12db", "auto")
 
 _request_gas_slot = cg.slot_counter("MICS_5524_GAS_COUNT")
 
@@ -118,7 +111,8 @@ def _build_internal_adc(config: ConfigType) -> ConfigType:
         CONF_NAME: f"{adc_id} voltage",
         CONF_INTERNAL: True,
         CONF_RAW: False,
-        adc_sensor.CONF_SAMPLES: config[CONF_ADC_SAMPLES],
+        # sample_count of the component is the only averaging layer.
+        adc_sensor.CONF_SAMPLES: 1,
         adc_sensor.CONF_SAMPLING_MODE: "avg",
         CONF_UPDATE_INTERVAL: "never",
     }
@@ -138,16 +132,6 @@ def _voltage_multiplier(config: ConfigType) -> float:
     return float(config.get(CONF_VOLTAGE_MULTIPLIER, 1.0))
 
 
-def _reject_divider_and_multiplier(config: ConfigType) -> ConfigType:
-    """Runs before the schema so the voltage_multiplier default is not taken for a configured value."""
-    if CONF_VOLTAGE_DIVIDER in config and CONF_VOLTAGE_MULTIPLIER in config:
-        raise cv.Invalid(
-            "use either 'voltage_divider:' or 'voltage_multiplier:', not both - "
-            "'voltage_divider:' already derives the multiplier from r1/r2"
-        )
-    return config
-
-
 def _validate_divider(config: ConfigType) -> ConfigType:
     """Reject a divider that puts the supply, the largest possible reading, past the sampler limits."""
     if (divider := config.get(CONF_VOLTAGE_DIVIDER)) is None:
@@ -155,14 +139,11 @@ def _validate_divider(config: ConfigType) -> ConfigType:
 
     supply = config[CONF_VCC]
     pin_voltage = supply * divider[CONF_R2] / (divider[CONF_R1] + divider[CONF_R2])
-    esp8266 = KEY_CORE in CORE.data and CORE.is_esp8266
-    pin_max = config.get(
-        CONF_ADC_PIN_MAX, ESP8266_ADC_PIN_MAX_V if esp8266 else ESP32_ADC_PIN_MAX_V
-    )
-    input_max = config.get(
-        CONF_ADC_INPUT_MAX,
-        ESP8266_ADC_INPUT_MAX_V if esp8266 else ESP32_ADC_INPUT_MAX_V,
-    )
+    default_input_max, default_pin_max = ADC_LIMITS_V[
+        "esp8266" if KEY_CORE in CORE.data and CORE.is_esp8266 else "esp32"
+    ]
+    pin_max = config.get(CONF_ADC_PIN_MAX, default_pin_max)
+    input_max = config.get(CONF_ADC_INPUT_MAX, default_input_max)
     if pin_voltage > pin_max + ADC_LIMIT_MARGIN_V:
         raise cv.Invalid(
             f"the divider brings {supply:g} V down to {pin_voltage:.4g} V on the pin, "
@@ -252,24 +233,27 @@ def _validate_config(config: ConfigType) -> ConfigType:
             CONF_AIR_REFERENCE if vendor_model else CONF_R0,
         )
 
-    if CONF_R0 in config and vendor_model:
-        raise cv.Invalid(
-            f"'r0:' belongs to 'conversion: {CONVERSION_DATASHEET}', use "
-            f"'air_reference:' with 'conversion: {CONVERSION_DFROBOT}'"
-        )
-    if CONF_RL in config and vendor_model:
-        raise cv.Invalid(
-            f"'rl:' belongs to 'conversion: {CONVERSION_DATASHEET}' - "
-            f"'conversion: {CONVERSION_DFROBOT}' derives everything from the clean-air "
-            "reference"
-        )
-    if CONF_RS_SENSOR in config and vendor_model:
-        raise cv.Invalid(
-            f"'rs_sensor:' belongs to 'conversion: {CONVERSION_DATASHEET}' - "
-            "the vendor model never computes RS, so the sensor would stay unknown"
-        )
+    if vendor_model:
+        for key, reason in (
+            (CONF_R0, f"use 'air_reference:' with 'conversion: {CONVERSION_DFROBOT}'"),
+            (
+                CONF_RL,
+                (
+                    f"'conversion: {CONVERSION_DFROBOT}' derives everything from the "
+                    "clean-air reference"
+                ),
+            ),
+            (
+                CONF_RS_SENSOR,
+                "the vendor model never computes RS, so the sensor would stay unknown",
+            ),
+        ):
+            if key in config:
+                raise cv.Invalid(
+                    f"'{key}:' belongs to 'conversion: {CONVERSION_DATASHEET}' - {reason}"
+                )
 
-    for gas_key in GASES:
+    for gas_key, definition in GASES.items():
         if gas_key not in config:
             continue
         try:
@@ -282,11 +266,12 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 f"({resolved.min_ppm:g})"
             )
         # Only the vendor model has a documented range to check against.
-        if vendor_model and resolved.max_ppm > resolved.vendor_max_ppm:
+        if vendor_model and resolved.max_ppm > (
+            vendor_max_ppm := definition.vendor.max_ppm
+        ):
             raise cv.Invalid(
                 f"max_ppm ({resolved.max_ppm:g}) is above the {resolved.label} measuring "
-                f"range of {resolved.vendor_max_ppm:g} ppm, so the conversion can never "
-                "reach it"
+                f"range of {vendor_max_ppm:g} ppm, so the conversion can never reach it"
             )
     return config
 
@@ -312,7 +297,6 @@ def _build_pin_source(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
-    _reject_divider_and_multiplier,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MiCS5524Component),
@@ -322,16 +306,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VOLTAGE_DIVIDER): DIVIDER_SCHEMA,
             cv.Optional(CONF_ADC_INPUT_MAX): cv.positive_not_null_float,
             cv.Optional(CONF_ADC_PIN_MAX): cv.positive_not_null_float,
-            cv.Optional(CONF_ADC_ATTENUATION): cv.one_of(*ADC_ATTENUATIONS, lower=True),
-            cv.Optional(CONF_ADC_SAMPLES, default=2): cv.int_range(
-                min=1, max=MAX_SAMPLE_COUNT
+            cv.Optional(CONF_ADC_ATTENUATION): cv.one_of(
+                *ATTENUATION_MODES, lower=True
             ),
-            cv.Optional(CONF_CONVERSION, default=CONVERSION_DFROBOT): cv.one_of(
-                *CONVERSIONS, lower=True
+            cv.Optional(CONF_CONVERSION, default=CONVERSION_DFROBOT): cv.enum(
+                CONVERSION_MODELS, lower=True
             ),
-            cv.Optional(
-                CONF_VOLTAGE_MULTIPLIER, default=1.0
-            ): cv.positive_not_null_float,
+            cv.Optional(CONF_VOLTAGE_MULTIPLIER): cv.positive_not_null_float,
             cv.Optional(CONF_VCC, default=5.0): cv.positive_not_null_float,
             cv.Optional(CONF_RL): cv.positive_not_null_float,
             cv.Optional(CONF_AIR_REFERENCE): cv.positive_not_null_float,
@@ -363,6 +344,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.polling_component_schema("30s")),
     cv.has_exactly_one_key(CONF_VOLTAGE, CONF_PIN),
+    cv.has_at_most_one_key(CONF_VOLTAGE_DIVIDER, CONF_VOLTAGE_MULTIPLIER),
     cv.has_at_least_one_key(*GASES),
     cv.has_at_most_one_key(CONF_AIR_REFERENCE, CONF_R0, CONF_CALIBRATION),
     _validate_divider,
@@ -381,9 +363,10 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], source)
     await cg.register_component(var, config)
 
-    cg.add(var.set_conversion(CONVERSION_MODELS[config[CONF_CONVERSION]]))
+    cg.add(var.set_conversion(config[CONF_CONVERSION]))
     cg.add(var.set_vcc(config[CONF_VCC]))
-    cg.add(var.set_rl(float(config.get(CONF_RL, DEFAULT_RL_KOHM))))
+    if (rl := config.get(CONF_RL)) is not None:
+        cg.add(var.set_rl(rl))
     cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
@@ -391,19 +374,22 @@ async def to_code(config: ConfigType) -> None:
 
     if (enable := config.get(CONF_ENABLE_PIN)) is not None:
         cg.add(var.set_enable_pin(await cg.gpio_pin_expression(enable)))
-    if (air_reference := config.get(CONF_AIR_REFERENCE)) is not None:
-        cg.add(var.set_air_reference(air_reference))
-    elif (r0 := config.get(CONF_R0)) is not None:
-        cg.add(var.set_r0(r0))
-    elif (calibration := config.get(CONF_CALIBRATION)) is not None:
-        cg.add(
-            var.set_calibration(
-                calibration[CONF_DELAY],
-                calibration[CONF_SAMPLE_COUNT],
-                calibration[CONF_SAMPLE_INTERVAL],
-                calibration[CONF_PERSIST],
-            )
+    if (reference := config.get(CONF_AIR_REFERENCE, config.get(CONF_R0))) is not None:
+        cg.add(var.set_reference(reference))
+    # A request on a hub without `calibration:` uses the schema defaults, never persisted.
+    calibration = config.get(CONF_CALIBRATION)
+    at_boot = calibration is not None
+    if calibration is None:
+        calibration = CALIBRATION_SCHEMA({})
+    cg.add(
+        var.set_calibration(
+            calibration[CONF_DELAY],
+            calibration[CONF_SAMPLE_COUNT],
+            calibration[CONF_SAMPLE_INTERVAL],
+            at_boot and calibration[CONF_PERSIST],
+            at_boot,
         )
+    )
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE_SENSOR, var.set_voltage_sensor)
@@ -418,22 +404,8 @@ async def to_code(config: ConfigType) -> None:
         await sensors(
             gas_key,
             var.register_gas_sensor,
-            CONVERSION_MODELS[resolved.conversion],
-            resolved.threshold,
-            resolved.gain,
-            resolved.a,
-            resolved.b,
-            resolved.min_ppm,
-            resolved.max_ppm,
-        )
-        _LOGGER.debug(
-            "%s: conversion=%s threshold=%s gain=%s a=%s b=%s range=%s..%s ppm",
-            resolved.label,
-            resolved.conversion,
-            resolved.threshold,
-            resolved.gain,
-            resolved.a,
-            resolved.b,
+            resolved.p0,
+            resolved.p1,
             resolved.min_ppm,
             resolved.max_ppm,
         )
@@ -443,21 +415,13 @@ async def _create_internal_adc(config: ConfigType) -> cg.MockObj:
     """Create the ``adc`` sensor of a ``pin:`` configuration and return it."""
     from esphome.components.adc import sensor as adc_sensor
 
-    adc_config = config.get(_KEY_GENERATED_ADC)
-    if adc_config is None:
-        raise ValueError(
-            f"internal adc sensor for '{config[CONF_ID].id}' was not generated, "
-            "the 'pin:' configuration could not be validated"
-        )
-
+    adc_config = config[_KEY_GENERATED_ADC]
     await adc_sensor.to_code(adc_config)
     return await cg.get_variable(adc_config[CONF_ID])
 
 
-CALIBRATION_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(MiCS5524Component),
-    }
+CALIBRATION_ACTION_SCHEMA = automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(MiCS5524Component)}
 )
 
 automation.register_apply_action(

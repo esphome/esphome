@@ -69,15 +69,14 @@ def test_every_gas_becomes_a_sub_sensor_of_its_hub(
     """The constants are passed to the constructor and the sub-sensor to its own hub."""
     main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
-    # The conversion model (0 = dfrobot), the vendor threshold and gain, the datasheet
-    # coefficients (unused here) and the measuring range.
+    # The vendor threshold and gain and the measuring range; the model lives on the hub.
     co = _gas_arguments(main_cpp, "mics_5524_co")
-    assert _gas_constants(co) == [0, 0.425, 0.000405, 0.0, 0.0, 1.0, 500.0]
+    assert _gas_constants(co) == [0.425, 0.000405, 1.0, 500.0]
     assert "mics_5524_boot->register_gas_sensor(mics_5524_co);" in main_cpp
 
     # A gas without `max_ppm:` keeps the measuring range of the vendor.
     ch4 = _gas_arguments(main_cpp, "mics_5524_ch4")
-    assert _gas_constants(ch4) == [0, 0.786, 0.000023, 0.0, 0.0, 1000.0, 25000.0]
+    assert _gas_constants(ch4) == [0.786, 0.000023, 1000.0, 25000.0]
     assert "mics_5524_boot->register_gas_sensor(mics_5524_ch4);" in main_cpp
 
     # The gas belongs to the sensor it is configured under, not to the first one.
@@ -92,9 +91,13 @@ def test_shared_options_reach_the_hub(
     """The analog front end is configured once per physical sensor."""
     main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
-    assert "mics_5524_boot->set_conversion(0);" in main_cpp
+    assert (
+        "mics_5524_boot->set_conversion(mics_5524::micsmath::CONVERSION_MODEL_DFROBOT);"
+        in main_cpp
+    )
     assert "mics_5524_boot->set_vcc(5.0f);" in main_cpp
-    assert "mics_5524_boot->set_rl(10.0f);" in main_cpp
+    # `rl:` is not configured, so the C++ default stands.
+    assert "mics_5524_boot->set_rl(" not in main_cpp
     assert "mics_5524_boot->set_voltage_multiplier(1.5f);" in main_cpp
     assert "mics_5524_boot->set_samples(3);" in main_cpp
     assert "mics_5524_boot->set_warmup_time(180000);" in main_cpp
@@ -103,11 +106,11 @@ def test_shared_options_reach_the_hub(
         f"mics_5524_boot->set_preference_key({fnv1_hash('mics_5524_boot')}UL);"
         in main_cpp
     )
-    assert "mics_5524_boot->set_calibration(5000, 3, 20, true);" in main_cpp
-    assert "mics_5524_fixed->set_air_reference(3.6f);" in main_cpp
+    assert "mics_5524_boot->set_calibration(5000, 3, 20, true, true);" in main_cpp
+    assert "mics_5524_fixed->set_reference(3.6f);" in main_cpp
     # `air_reference:` and `calibration:` exclude each other, so the sensor with the
-    # hard-coded reference is never calibrated at boot.
-    assert "mics_5524_fixed->set_calibration(" not in main_cpp
+    # hard-coded reference only gets the defaults for a requested calibration.
+    assert "mics_5524_fixed->set_calibration(60000, 10, 20, false, false);" in main_cpp
 
 
 def test_datasheet_conversion_uses_the_shipped_coefficients(
@@ -117,14 +120,15 @@ def test_datasheet_conversion_uses_the_shipped_coefficients(
     """One conversion model per sensor, and the coefficients of CO are the shipped ones."""
     main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
-    # 1 = datasheet, a = 6.3, b = -1.1, range 0 .. 2000 ppm.
+    # a = 6.3, b = -1.1, range 0 .. 2000 ppm.
     co = _gas_arguments(main_cpp, "mics_5524_co_ds")
-    assert _gas_constants(co) == [1, 0.0, 0.0, 6.3, -1.1, 0.0, 2000.0]
+    assert _gas_constants(co) == [6.3, -1.1, 0.0, 2000.0]
     assert "mics_5524_pin->register_gas_sensor(mics_5524_co_ds);" in main_cpp
-    assert "mics_5524_pin->set_conversion(1);" in main_cpp
-    assert "mics_5524_pin->set_r0(10.0f);" in main_cpp
-    # The datasheet model divides by the load resistor, the vendor model does not know it.
-    assert "mics_5524_pin->set_rl(10.0f);" in main_cpp
+    assert (
+        "mics_5524_pin->set_conversion(mics_5524::micsmath::CONVERSION_MODEL_DATASHEET);"
+        in main_cpp
+    )
+    assert "mics_5524_pin->set_reference(10.0f);" in main_cpp
 
 
 def test_diagnostics_reach_the_hub(
@@ -275,7 +279,6 @@ def test_calibration_cannot_sample_faster_than_the_loop() -> None:
 def test_voltage_multiplier_defaults_to_one() -> None:
     config = CONFIG_SCHEMA(_hub())
 
-    assert config["voltage_multiplier"] == 1.0
     assert _voltage_multiplier(config) == 1.0
 
 
@@ -290,7 +293,7 @@ def test_voltage_divider_derives_the_multiplier() -> None:
 
 def test_voltage_divider_rejects_an_explicit_multiplier() -> None:
     """The divider already says what the multiplier is, so the two would contradict."""
-    with pytest.raises(cv.Invalid, match="not both"):
+    with pytest.raises(cv.Invalid, match="Cannot specify more than one of"):
         CONFIG_SCHEMA(
             _hub(
                 voltage_divider={"r1": 10000.0, "r2": 20000.0},

@@ -13,11 +13,6 @@ from esphome.const import (
 CONVERSION_DFROBOT = "dfrobot"
 CONVERSION_DATASHEET = "datasheet"
 
-CONVERSIONS = (CONVERSION_DFROBOT, CONVERSION_DATASHEET)
-
-# Load resistor of the breakout (kOhm), the default of the datasheet model.
-DEFAULT_RL_KOHM = 10.0
-
 
 @dataclass(frozen=True)
 class VendorCurve:
@@ -88,12 +83,8 @@ class ResolvedGas:
 
     label: str
     conversion: str
-    threshold: float  # vendor model
-    gain: float  # vendor model
-    vendor_min_ppm: float  # vendor model
-    vendor_max_ppm: float  # vendor model
-    a: float  # datasheet model
-    b: float  # datasheet model
+    p0: float  # threshold (vendor model) or a (datasheet model)
+    p1: float  # gain (vendor model) or b (datasheet model)
     min_ppm: float
     max_ppm: float
 
@@ -108,10 +99,8 @@ def resolve_gas(
     max_ppm: float | None = None,
 ) -> ResolvedGas:
     """Merge the built-in curve with the YAML overrides; ValueError on a bad combination."""
-    if conversion not in CONVERSIONS:
-        raise ValueError(
-            f"unknown conversion '{conversion}', expected one of: {', '.join(CONVERSIONS)}"
-        )
+    if conversion not in (CONVERSION_DFROBOT, CONVERSION_DATASHEET):
+        raise ValueError(f"unknown conversion '{conversion}'")
     if gas_key not in GASES:
         raise ValueError(
             f"unknown gas '{gas_key}', expected one of: {', '.join(GASES)}"
@@ -130,12 +119,8 @@ def resolve_gas(
         return ResolvedGas(
             label=curve.label,
             conversion=conversion,
-            threshold=curve.threshold,
-            gain=curve.gain,
-            vendor_min_ppm=curve.min_ppm,
-            vendor_max_ppm=curve.max_ppm,
-            a=0.0,
-            b=0.0,
+            p0=curve.threshold,
+            p1=curve.gain,
             # The vendor floor is where it stops reporting gas, so it is the default min_ppm.
             min_ppm=float(curve.min_ppm if min_ppm is None else min_ppm),
             max_ppm=float(curve.max_ppm if max_ppm is None else max_ppm),
@@ -170,12 +155,8 @@ def resolve_gas(
     return ResolvedGas(
         label=curve.label,
         conversion=conversion,
-        threshold=0.0,
-        gain=0.0,
-        vendor_min_ppm=0.0,
-        vendor_max_ppm=0.0,
-        a=resolved_a,
-        b=resolved_b,
+        p0=resolved_a,
+        p1=resolved_b,
         min_ppm=float(0.0 if min_ppm is None else min_ppm),
         # A user fit without a published range falls back to the vendor range of the gas.
         max_ppm=float(

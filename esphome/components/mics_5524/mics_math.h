@@ -5,13 +5,12 @@
 // Every helper returns NaN for input that cannot produce a reading. No ESPHome dependencies, so the
 // host tests cover it.
 
-#include <cfloat>
 #include <cmath>
 #include <cstdint>
 
 namespace esphome::mics_5524::micsmath {
 
-/// Mirrors CONVERSION_MODELS in __init__.py.
+/// Generated through CONVERSION_MODELS in __init__.py.
 enum ConversionModel : uint8_t {
   CONVERSION_MODEL_DFROBOT = 0,
   CONVERSION_MODEL_DATASHEET = 1,
@@ -60,24 +59,6 @@ inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
 
 // --------------------------------------------------------------- datasheet model
 
-/// pow() with the fast paths of the reference implementations.
-inline double safe_pow(double base, double exponent) {
-  if (exponent == 0.0)
-    return 1.0;
-  if (exponent == 1.0)
-    return base;
-  if (exponent == 2.0)
-    return base * base;
-  return std::pow(base, exponent);
-}
-
-/// True when `log_ppm` cannot be turned into a finite float again.
-inline bool will_overflow(double log_ppm) {
-  const double max_log = std::log10(static_cast<double>(FLT_MAX));
-  const double min_log = std::log10(static_cast<double>(FLT_MIN));
-  return (log_ppm > max_log || log_ppm < min_log);
-}
-
 /// RS = (VCC * RL) / V - RL in kOhm; NaN at or below 0 V and at or above VCC, so a mis-wired
 /// input reads unknown rather than 0 kOhm.
 inline float rs_from_voltage(float voltage, float vcc, float rl) {
@@ -100,14 +81,8 @@ inline float ppm_from_power_law(float a, float b, float ratio) {
   if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(ratio) || ratio <= 0.0f || a <= 0.0f)
     return NAN;
 
-  const double log_ppm =
-      std::log10(static_cast<double>(a)) + static_cast<double>(b) * std::log10(static_cast<double>(ratio));
-  if (!std::isfinite(log_ppm) || will_overflow(log_ppm))
-    return NAN;
-  const double ppm = safe_pow(10.0, log_ppm);
-  if (!std::isfinite(ppm) || ppm < 0.0)
-    return NAN;
-  return static_cast<float>(ppm);
+  const float ppm = a * powf(ratio, b);
+  return std::isfinite(ppm) ? ppm : NAN;
 }
 
 /// Clamp to the configured range: below min_ppm counts as not detected and reads 0, and 0
