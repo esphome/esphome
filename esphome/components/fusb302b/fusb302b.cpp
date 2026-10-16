@@ -25,19 +25,6 @@ static constexpr UBaseType_t TASK_PRIORITY = 18;
 static constexpr uint32_t STARTUP_DELAY_MS = 2000;
 static constexpr uint32_t CC_SETTLE_MS = 5;
 static constexpr uint32_t CC_POLL_INTERVAL_MS = 500;
-
-// Unmask the interrupts used for PD messaging and VBUS changes
-static constexpr i2c::I2CRegValue UNMASK_INTERRUPTS[] PROGMEM = {
-    {FUSB_MASK1, FUSB_MASK1_DEFAULT},
-    {FUSB_MASKA, 0},
-    {FUSB_MASKB, 0},
-};
-// Writing CONTROL0 as a whole byte also clears INT_MASK, which is what enables the INT_N pin
-static constexpr i2c::I2CRegValue PD_RESET[] PROGMEM = {
-    {FUSB_CONTROL0, FUSB_CONTROL0_TX_FLUSH},
-    {FUSB_CONTROL1, FUSB_CONTROL1_RX_FLUSH},
-    {FUSB_RESET, FUSB_RESET_PD_RESET},
-};
 static constexpr uint32_t PD_POLL_INTERVAL_MS = 100;
 // Safety net in case an interrupt edge is missed while attached and idle
 static constexpr uint32_t IDLE_POLL_INTERVAL_MS = 1000;
@@ -272,7 +259,9 @@ bool FUSB302B::init_chip_() {
   if (!this->reset_pd_())
     return false;
 
-  if (!this->write_registers(UNMASK_INTERRUPTS))
+  // Unmask the interrupts used for PD messaging and VBUS changes
+  if (!this->write_byte(FUSB_MASK1, FUSB_MASK1_DEFAULT) || !this->write_byte(FUSB_MASKA, 0) ||
+      !this->write_byte(FUSB_MASKB, 0))
     return false;
 
   // Let the chip retransmit unacknowledged messages up to 3 times
@@ -291,7 +280,9 @@ bool FUSB302B::init_chip_() {
 
 bool FUSB302B::reset_pd_() {
   this->reset_protocol_();
-  return this->write_registers(PD_RESET);
+  // Writing CONTROL0 as a whole byte also clears INT_MASK, which is what enables the INT_N pin
+  return this->write_byte(FUSB_CONTROL0, FUSB_CONTROL0_TX_FLUSH) &&
+         this->write_byte(FUSB_CONTROL1, FUSB_CONTROL1_RX_FLUSH) && this->write_byte(FUSB_RESET, FUSB_RESET_PD_RESET);
 }
 
 bool FUSB302B::enable_auto_crc_() {
