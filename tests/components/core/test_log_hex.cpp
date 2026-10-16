@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cstdio>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -44,6 +46,22 @@ TEST(LogHexTest, IsASingleStatement) {
   else
     other_branch = true;
   EXPECT_FALSE(other_branch);
+}
+
+// Stands in for a log macro so the expansion can be checked without the logger backend
+static char captured[64];
+#define CAPTURE_LOG(tag, ...) snprintf(captured, sizeof(captured), __VA_ARGS__)
+
+TEST(LogHexTest, HexTextIsTheLastArgument) {
+  static constexpr uint8_t DATA[] = {0x01, 0xAB, 0xFF};
+  ESPHOME_LOG_HEX_(CAPTURE_LOG, TAG, DATA, sizeof(DATA), sizeof(DATA), "Data: %s");
+  EXPECT_STREQ(captured, "Data: 01:AB:FF");
+}
+
+TEST(LogHexTest, ExtraArgumentsComeFirstAndLongDataIsCut) {
+  static constexpr uint8_t DATA[] = {0x01, 0xAB, 0xFF};
+  ESPHOME_LOG_HEX_(CAPTURE_LOG, TAG, DATA, sizeof(DATA), 2, "Type %02X %s: %s", 0x10, "truncated");
+  EXPECT_STREQ(captured, "Type 10 truncated: 01:AB");
 }
 
 }  // namespace esphome::testing
