@@ -6,8 +6,17 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.mq_gas_sensors.coefficients import SENSOR_TYPES, resolve_sensor
+from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.mq_gas_sensors.coefficients import (
+    SENSOR_TYPES,
+    requires_coefficients,
+    resolve_sensor,
+)
 from esphome.components.mq_gas_sensors.sensor import CONFIG_SCHEMA
+from esphome.const import PlatformFramework
+from tests.component_tests.types import SetCoreConfigCallable
+
+ESP32_PLATFORM_DATA = {KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32}
 
 
 def test_voltage_source_is_a_constructor_argument(
@@ -48,7 +57,10 @@ def test_built_in_curve_reaches_the_sensor(
 def test_every_built_in_type_resolves() -> None:
     """Every table entry resolves to the coefficients the datasheet fit needs."""
     for type_key in SENSOR_TYPES:
-        resolved = resolve_sensor(type_key)
+        if requires_coefficients(type_key):
+            resolved = resolve_sensor(type_key, a=36.0, b=-2.0)
+        else:
+            resolved = resolve_sensor(type_key)
         assert resolved.a != 0.0
         assert resolved.min_ppm < resolved.max_ppm
 
@@ -64,7 +76,10 @@ def test_mq8_h2_matches_the_reference_curve() -> None:
     assert resolved.max_ppm == pytest.approx(10000.0)
 
 
-def test_unknown_sensor_type_is_rejected() -> None:
+def test_unknown_sensor_type_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     with pytest.raises(cv.Invalid, match="not a supported MQ sensor type"):
         CONFIG_SCHEMA(
             {
@@ -76,7 +91,10 @@ def test_unknown_sensor_type_is_rejected() -> None:
         )
 
 
-def test_unknown_gas_for_type_is_rejected() -> None:
+def test_unknown_gas_for_type_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     with pytest.raises(cv.Invalid, match="has no curve for gas"):
         CONFIG_SCHEMA(
             {
@@ -89,8 +107,11 @@ def test_unknown_gas_for_type_is_rejected() -> None:
         )
 
 
-def test_r0_and_calibration_warn_but_resolve() -> None:
+def test_r0_and_calibration_warn_but_resolve(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """A fixed R0 wins over the calibration; the configuration stays valid."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     config = CONFIG_SCHEMA(
         {
             "id": "mq8",
@@ -103,3 +124,43 @@ def test_r0_and_calibration_warn_but_resolve() -> None:
     )
 
     assert config["r0"] == pytest.approx(9.5)
+
+
+def test_pin_creates_an_internal_adc(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """`pin:` owns its sampler: the hidden ADC feeds the sensor constructor."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "new(mq8_pin) mq_gas_sensors::MQGasSensor(mq8_pin_adc);" in main_cpp
+    # The 10k/20k divider derives the multiplier from the wiring.
+    assert "mq8_pin->set_voltage_multiplier(1.5f);" in main_cpp
+
+
+def test_diagnostics_and_log_are_wired(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "mq8_pin->set_ratio_sensor(mq8_ratio);" in main_cpp
+    assert "mq8_pin->set_rs_sensor(mq8_rs);" in main_cpp
+    assert "mq8_pin->set_voltage_sensor(mq8_voltage);" in main_cpp
+    assert "mq8_pin->set_log_sensor(mq8_logs);" in main_cpp
+    assert "mq8_pin->set_log_ppm(true);" in main_cpp
+
+
+def test_custom_coefficients_reach_the_sensor(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Types without built-in curves take `coefficient_a/b` from the YAML."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "mq136_custom->set_a(36.0f);" in main_cpp
+    assert "mq136_custom->set_b(-2.0f);" in main_cpp
+    assert "mq136_custom->set_regression_method(2);" in main_cpp
+    assert "mq136_custom->set_ratio_mode(1);" in main_cpp
+    assert "mq136_custom->set_min_ppm(1.0f);" in main_cpp
+    assert "mq136_custom->set_max_ppm(200.0f);" in main_cpp

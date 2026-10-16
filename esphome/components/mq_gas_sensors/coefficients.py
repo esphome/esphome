@@ -5,12 +5,21 @@ The values are the published `a` / `b` pairs of the MQUnifiedsensor PPM model
 the SolderedElectronics MQ library, cross-checked against the per-sensor tables
 in the ``examples/`` of miguel5612/MQSensorsLib.
 
+MQ-136, MQ-214, MQ-303A, MQ-309A and CUSTOM have no published coefficients, so
+``coefficient_a`` and ``coefficient_b`` must be given explicitly in the YAML
+configuration.
+
 Everything here is resolved at code generation time, so a wrong ``sensor_type`` /
 ``gas`` combination fails the build instead of silently producing garbage at
 runtime.
 """
 
 from dataclasses import dataclass
+
+CUSTOM_TYPE = "CUSTOM"
+
+#: Sensors that need user supplied coefficients.
+TYPES_REQUIRING_COEFFICIENTS = ("MQ136", "MQ214", "MQ303A", "MQ309A")
 
 
 @dataclass(frozen=True)
@@ -47,6 +56,10 @@ def sensor_types() -> list[str]:
 
 def label_for(type_key: str) -> str:
     return SENSOR_TYPES[type_key]["label"]
+
+
+def requires_coefficients(type_key: str) -> bool:
+    return type_key == CUSTOM_TYPE or type_key in TYPES_REQUIRING_COEFFICIENTS
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +224,46 @@ SENSOR_TYPES: dict[str, dict] = {
             "ACETONE": (-0.52356, 0.49225),
         },
     },
+    "MQ136": {
+        "label": "MQ-136",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 200.0,  # datasheet: 1 - 200 ppm H2S
+        "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
+    },
+    "MQ214": {
+        "label": "MQ-214",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 10000.0,  # natural gas / methane
+        "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
+    },
+    "MQ303A": {
+        "label": "MQ-303A",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm alcohol
+        "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
+    },
+    "MQ309A": {
+        "label": "MQ-309A",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm CO
+        "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
+    },
+    CUSTOM_TYPE: {
+        "label": "CUSTOM",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 10000.0,
+        "gases": {},  # set coefficient_a:/coefficient_b: in the YAML
+    },
 }
 
 
@@ -218,13 +271,18 @@ def resolve_sensor(
     type_key: str,
     gas: str | None = None,
     *,
+    a: float | None = None,
+    b: float | None = None,
+    method: str | None = None,
     ratio_in_clean_air: float | None = None,
     rl: float | None = None,
     vcc: float | None = None,
+    min_ppm: float | None = None,
+    max_ppm: float | None = None,
 ) -> ResolvedSensor:
-    """Merge the built-in curve of `type_key` / `gas` with the hardware facts.
+    """Merge the built-in curve of `type_key` / `gas` with explicit YAML overrides.
 
-    Raises :class:`ValueError` for an unknown type/gas combination.
+    Raises :class:`ValueError` for an unknown type/gas or a missing coefficient.
     """
     if type_key not in SENSOR_TYPES:
         raise ValueError(
@@ -235,19 +293,33 @@ def resolve_sensor(
     gases: dict = definition["gases"]
 
     gas_key = normalize_gas(gas) if gas else definition["primary_gas"]
-    if gas_key not in gases:
-        raise ValueError(
-            f"{definition['label']} has no curve for gas '{gas_key}', "
-            f"available gases: {', '.join(sorted(gases))}"
-        )
+
+    if gases:
+        if gas_key not in gases:
+            raise ValueError(
+                f"{definition['label']} has no curve for gas '{gas_key}', "
+                f"available gases: {', '.join(sorted(gases))}"
+            )
+        curve_a, curve_b = gases[gas_key]
+        if a is None:
+            a = curve_a
+        if b is None:
+            b = curve_b
+    else:
+        gas_key = gas_key or "CUSTOM"
+        if a is None or b is None:
+            raise ValueError(
+                f"{definition['label']} has no built-in coefficients, "
+                f"set both 'a:' and 'b:' in the configuration"
+            )
 
     return ResolvedSensor(
         type_key=type_key,
         label=definition["label"],
         gas=gas_key,
-        method=definition["method"],
-        a=float(gases[gas_key][0]),
-        b=float(gases[gas_key][1]),
+        method=method or definition["method"],
+        a=float(a),
+        b=float(b),
         ratio_in_clean_air=float(
             definition["ratio_in_clean_air"]
             if ratio_in_clean_air is None
@@ -255,6 +327,6 @@ def resolve_sensor(
         ),
         rl=float(10.0 if rl is None else rl),
         vcc=float(5.0 if vcc is None else vcc),
-        min_ppm=0.0,
-        max_ppm=float(definition["max_ppm"]),
+        min_ppm=float(0.0 if min_ppm is None else min_ppm),
+        max_ppm=float(definition["max_ppm"] if max_ppm is None else max_ppm),
     )
