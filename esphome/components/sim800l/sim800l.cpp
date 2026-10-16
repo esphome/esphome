@@ -431,7 +431,6 @@ void Sim800LComponent::loop() {
     if (byte >= 0x7F)
       byte = '?';  // need to be valid utf8 string for log functions.
     const char *line = this->line_reader_.feed(byte);
-    this->line_reader_.log_if_overflowed(TAG);
     if (this->state_ == STATE_SENDING_SMS_2 && byte == '>' && this->line_reader_.length() == 1) {
       // The send prompt has no line end
       line = this->line_reader_.partial();
@@ -439,6 +438,8 @@ void Sim800LComponent::loop() {
     }
     if (line != nullptr) {
       this->parse_cmd_(line);
+    } else {
+      this->line_reader_.log_if_overflowed(TAG);
     }
   }
   if (state_ == STATE_INIT && this->registered_ &&
