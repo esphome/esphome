@@ -9,7 +9,7 @@ namespace esphome::select::testing {
 
 static constexpr const char *const APPLY_OPTIONS[] = {"low", "medium", "high"};
 
-static std::vector<std::string> chosen;
+static std::vector<std::string> chosen;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static void on_control(Select *entity, size_t index) { chosen.emplace_back(entity->option_at(index)); }
 

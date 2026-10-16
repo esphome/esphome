@@ -4,8 +4,8 @@
 
 namespace esphome::button::testing {
 
-static Button *last_entity = nullptr;
-static int presses = 0;
+static Button *last_entity = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static int presses = 0;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static void on_press(Button *entity) {
   last_entity = entity;
