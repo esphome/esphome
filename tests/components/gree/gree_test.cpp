@@ -1,6 +1,6 @@
-#include <array>
-
 #include <gtest/gtest.h>
+
+#include <array>
 #include "esphome/components/gree/gree.h"
 
 namespace esphome::gree::testing {
