@@ -1,10 +1,10 @@
-#include "esphome/components/haier/water_heater/hon_parser.h"
+#include "esphome/components/haier_water_heater/hon_parser.h"
 #include <gtest/gtest.h>
 #include <sstream>
 #include <string>
 #include <vector>
-using namespace esphome::haier::water_heater_protocol;
-namespace esphome::haier::testing {
+using namespace esphome::haier_water_heater::water_heater_protocol;
+namespace esphome::haier_water_heater::testing {
 std::vector<uint8_t> bytes(const char *hex) {
   std::istringstream stream(hex);
   unsigned byte;
@@ -224,4 +224,4 @@ TEST(HonProtocolTest, RejectsCorruptionAndResynchronizes) {
   ASSERT_TRUE((feed(parser, bytes("FF FF 08 00 00 00 00 00 00 05 0D")) == 1));
   ASSERT_TRUE((!decode_status(parser.data(), 0, status)));
 }
-}  // namespace esphome::haier::testing
+}  // namespace esphome::haier_water_heater::testing

@@ -4,7 +4,10 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import uart
-from esphome.components.haier.water_heater import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+from esphome.components.haier_water_heater.water_heater import (
+    CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA,
+)
 from esphome.config import Config
 from esphome.const import PlatformFramework
 from esphome.core import ID

@@ -17,7 +17,7 @@ Configuration
      tx_pin: GPIO43
      baud_rate: 9600
    water_heater:
-     - platform: haier
+     - platform: haier_water_heater
        name: Water Heater
        primary_temperature:
          name: Primary temperature zone
@@ -103,20 +103,20 @@ Offsets are zero-based within the decoded payload, including 6D 01.
 Validation
 ----------
 
-Schema tests are under tests/component_tests/haier. Run them with:
+Schema tests are under tests/component_tests/haier_water_heater. Run them with:
 
 .. code-block:: console
 
-   python -m pytest tests/component_tests/haier
+   python -m pytest tests/component_tests/haier_water_heater
 
-Native GoogleTest tests are under tests/components/haier and use ESPHome's
+Native GoogleTest tests are under tests/components/haier_water_heater and use ESPHome's
 standard unit test runner. They cover captured frames, encoding, parsing and
 controller behavior using real ESPHome entities, a simulated UART and a
 controlled clock. Run them on Linux with:
 
 .. code-block:: console
 
-   python script/cpp_unit_test.py haier
+   python script/cpp_unit_test.py haier_water_heater
 
 The existing Linux unit-test CI job runs these tests with AddressSanitizer and
 UndefinedBehaviorSanitizer. The native runner does not support Windows.

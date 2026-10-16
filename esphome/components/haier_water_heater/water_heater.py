@@ -11,8 +11,8 @@ CODEOWNERS = ["@TheLexus"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "binary_sensor", "text_sensor"]
 
-haier_ns = cg.esphome_ns.namespace("haier")
-HonWaterHeater = haier_ns.class_(
+haier_water_heater_ns = cg.esphome_ns.namespace("haier_water_heater")
+HonWaterHeater = haier_water_heater_ns.class_(
     "HonWaterHeater", water_heater.WaterHeater, cg.Component, uart.UARTDevice
 )
 
@@ -67,7 +67,7 @@ CONFIG_SCHEMA = (
 
 def FINAL_VALIDATE_SCHEMA(config):
     return uart.final_validate_device_schema(
-        "haier.water_heater",
+        "haier_water_heater",
         require_rx=True,
         require_tx=True,
     )(config)

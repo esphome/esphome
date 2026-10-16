@@ -18,9 +18,9 @@
 #endif
 #endif
 
-namespace esphome::haier {
+namespace esphome::haier_water_heater {
 
-ESPHOME_LOG_TAG(TAG, "haier.water_heater");
+ESPHOME_LOG_TAG(TAG, "haier_water_heater");
 using water_heater_protocol::HonMode;
 
 // Indexed by HonMode, with Unknown as the fallback for out-of-range values.
@@ -341,4 +341,4 @@ water_heater::WaterHeaterTraits HonWaterHeater::traits() {
   return traits;
 }
 
-}  // namespace esphome::haier
+}  // namespace esphome::haier_water_heater

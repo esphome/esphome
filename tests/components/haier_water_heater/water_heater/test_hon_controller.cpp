@@ -4,10 +4,10 @@
 #include <new>
 #include <vector>
 
-#include "esphome/components/haier/water_heater/hon_water_heater.h"
+#include "esphome/components/haier_water_heater/hon_water_heater.h"
 #include "esphome/core/application.h"
 
-namespace esphome::haier::testing {
+namespace esphome::haier_water_heater::testing {
 
 class RecordingUART : public uart::UARTComponent {
  public:
@@ -228,4 +228,4 @@ TEST_F(HonControllerTest, CustomCommunicationTimeout) {
   EXPECT_TRUE(health.state);
 }
 
-}  // namespace esphome::haier::testing
+}  // namespace esphome::haier_water_heater::testing

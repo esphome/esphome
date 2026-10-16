@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome::haier::water_heater_protocol {
+namespace esphome::haier_water_heater::water_heater_protocol {
 
 // Bounded receive parser for water-heater frames.
 class FrameParser {
@@ -142,4 +142,4 @@ inline bool decode_status(const uint8_t *frame, size_t size, Status &status) {
   return payload[2] <= 100 && payload[3] <= 70;
 }
 
-}  // namespace esphome::haier::water_heater_protocol
+}  // namespace esphome::haier_water_heater::water_heater_protocol

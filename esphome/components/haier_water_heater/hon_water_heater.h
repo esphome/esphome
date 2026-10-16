@@ -8,7 +8,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome::haier {
+namespace esphome::haier_water_heater {
 
 class HonWaterHeater : public Component, public water_heater::WaterHeater, public uart::UARTDevice {
  public:
@@ -71,4 +71,4 @@ class HonWaterHeater : public Component, public water_heater::WaterHeater, publi
   text_sensor::TextSensor *mode_sensor_{nullptr};
 };
 
-}  // namespace esphome::haier
+}  // namespace esphome::haier_water_heater

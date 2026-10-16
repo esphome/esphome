@@ -1,5 +1,5 @@
 water_heater:
-  - platform: haier
+  - platform: haier_water_heater
     id: haier_water_heater
     name: Haier Water Heater
     communication_timeout: 25s
