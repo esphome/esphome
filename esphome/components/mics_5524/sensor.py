@@ -1,6 +1,5 @@
 """MiCS-5524 sensor platform: one entry per module, one sub-sensor per configured gas."""
 
-from collections.abc import Callable
 import logging
 
 import esphome.codegen as cg
@@ -42,21 +41,6 @@ MAX_SAMPLE_COUNT = 16
 _request_gas_slot = cg.slot_counter("MICS_5524_GAS_COUNT")
 
 
-def _validate_max_ppm(gas_key: str) -> Callable[..., float]:
-    """Reject a max_ppm above the vendor range of the gas."""
-    curve = GASES[gas_key]
-
-    def validate(value: float) -> float:
-        if value > curve.max_ppm:
-            raise cv.Invalid(
-                f"max_ppm ({value:g}) is above the {curve.label} measuring range of "
-                f"{curve.max_ppm:g} ppm, so the conversion can never reach it"
-            )
-        return value
-
-    return cv.All(cv.positive_not_null_float, validate)
-
-
 def _gas_schema(gas_key: str) -> cv.Schema:
     """Schema of one gas sub-sensor."""
     curve = GASES[gas_key]
@@ -67,7 +51,12 @@ def _gas_schema(gas_key: str) -> cv.Schema:
         state_class=STATE_CLASS_MEASUREMENT,
         icon="mdi:molecule",
     ).extend(
-        {cv.Optional(CONF_MAX_PPM, default=curve.max_ppm): _validate_max_ppm(gas_key)}
+        {
+            # A ceiling above the vendor range could never be reached.
+            cv.Optional(CONF_MAX_PPM, default=curve.max_ppm): cv.float_range(
+                min=0, min_included=False, max=curve.max_ppm
+            )
+        }
     )
 
 
@@ -157,7 +146,6 @@ async def to_code(config: ConfigType) -> None:
         await sensors(
             gas_key,
             var.register_gas_sensor,
-            curve.label,
             curve.threshold,
             curve.gain,
             curve.min_ppm,

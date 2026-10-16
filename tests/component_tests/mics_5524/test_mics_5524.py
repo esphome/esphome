@@ -40,15 +40,15 @@ def test_every_gas_becomes_a_sub_sensor_of_its_hub(
     """The curve is passed to the constructor and the sub-sensor to its own hub."""
     main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
-    # The vendor label, then threshold, gain, minimum and maximum ppm of the gas.
+    # Threshold, gain, minimum and maximum ppm of the gas.
     assert (
-        'new(mics_5524_co) mics_5524::MiCS5524GasSensor("CO", 0.425f, '
+        "new(mics_5524_co) mics_5524::MiCS5524GasSensor(0.425f, "
         "0.000405f, 1.0f, 500.0f);" in main_cpp
     )
     assert "mics_5524_boot->register_gas_sensor(mics_5524_co);" in main_cpp
     # A gas without `max_ppm:` keeps the measuring range of the vendor.
     assert (
-        'new(mics_5524_ch4) mics_5524::MiCS5524GasSensor("CH4", 0.786f, '
+        "new(mics_5524_ch4) mics_5524::MiCS5524GasSensor(0.786f, "
         "2.3e-05f, 1000.0f, 25000.0f);" in main_cpp
     )
     assert "mics_5524_boot->register_gas_sensor(mics_5524_ch4);" in main_cpp
@@ -126,7 +126,7 @@ def test_at_least_one_gas_is_required() -> None:
 
 def test_max_ppm_above_the_vendor_range_is_rejected() -> None:
     """A ceiling the conversion can never reach is a configuration error."""
-    with pytest.raises(cv.Invalid, match="above the CO measuring range"):
+    with pytest.raises(cv.Invalid, match="value must be at most 1000.0"):
         CONFIG_SCHEMA(
             {
                 "id": "mics_5524",

@@ -12,7 +12,7 @@ ESPHOME_LOG_TAG(TAG, "mics_5524");
 
 void MiCS5524GasSensor::publish_ratio(float ratio) {
   const float ppm = micsmath::ppm_from_vendor_curve(ratio, this->curve_);
-  ESP_LOGD(TAG, "'%s': ratio=%.4f -> %.1f ppm", this->gas_, ratio, ppm);
+  ESP_LOGD(TAG, "'%s': ratio=%.4f -> %.1f ppm", this->get_name().c_str(), ratio, ppm);
   this->publish_state(ppm);
 }
 
@@ -22,14 +22,14 @@ void MiCS5524Component::setup() {
   }
 
   if (this->warmup_time_ > 0) {
-    this->warmup_start_ = App.get_loop_component_start_time();
+    this->stop_poller();
+    this->set_timeout(this->warmup_time_, [this]() { this->start_poller(); });
     ESP_LOGI(TAG, "warm-up of %" PRIu32 " s - no readings published before that", this->warmup_time_ / 1000);
   }
 
-  if (this->calibration_enabled_) {
+  if (this->calibration_samples_ > 0) {
     // Nothing is stored across reboots; the warm-up window starts here, so the delay covers it.
     const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
-    this->calibration_pending_ = true;
     this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
     ESP_LOGI(TAG, "air reference calibration in %" PRIu32 " s - the sensor must be in clean air", delay / 1000);
   } else if (!this->has_reference_()) {
@@ -47,7 +47,7 @@ void MiCS5524Component::dump_config() {
                 "  VCC: %.2f V, AO multiplier: x%.3f, AO samples per reading: %u\n"
                 "  Warm-up: %" PRIu32 " s, calibration: %s, sample spacing: %" PRIu32 " ms",
                 this->vcc_, this->voltage_multiplier_, static_cast<unsigned>(this->samples_), this->warmup_time_ / 1000,
-                this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->calibration_samples_ > 0 ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
                 this->sample_interval_);
   LOG_UPDATE_INTERVAL(this);
   if (this->has_reference_()) {
@@ -79,76 +79,37 @@ void MiCS5524Component::publish_ratio_(float ratio) {
 #endif
 }
 
-bool MiCS5524Component::in_warmup_() {
-  if (this->warmup_ended_)
-    return false;
-  if (App.get_loop_component_start_time() - this->warmup_start_ < this->warmup_time_)
-    return true;
-  // Latched: the subtraction above wraps after ~49.7 days.
-  this->warmup_ended_ = true;
-  return false;
+float MiCS5524Component::read_air_value_() {
+  const float voltage = this->sample_voltage_();
+  if (std::isfinite(voltage) && voltage > 0.0f && voltage < this->vcc_)
+    return this->vcc_ - voltage;
+  // The status flag makes this log once per fault, not once per update.
+  if (!this->status_has_warning()) {
+    ESP_LOGW(TAG, "analog output reads %.4f V with vcc %.2f V\n  check the AO wiring, 'vcc:' and 'voltage_multiplier:'",
+             voltage, this->vcc_);
+  }
+  this->status_set_warning(LOG_STR("analog output out of range"));
+  return NAN;
 }
 
 void MiCS5524Component::update() {
-  if (this->calibrating_) {
-    // The reference is about to change: never keep a value computed with the previous one.
-    this->publish_ratio_(NAN);
-    ESP_LOGD(TAG, "update skipped, a calibration is running - the sensor must be in clean air");
+  // Every gas starts unknown and the reference is never cleared, so there is nothing to republish.
+  if (!this->has_reference_())
     return;
-  }
 
-  if (this->calibration_pending_) {
+  const float air_value = this->read_air_value_();
+  if (std::isnan(air_value)) {
     this->publish_ratio_(NAN);
     return;
   }
-
-  if (this->in_warmup_()) {
-    // Published on every pass, so a value from before a restart never survives the warm-up.
-    this->publish_ratio_(NAN);
-    return;
-  }
-
-  if (!this->has_reference_()) {
-    // setup() already warned that neither air_reference: nor calibration: is set.
-    this->publish_ratio_(NAN);
-    return;
-  }
-
-  const float voltage = this->sample_voltage_();
-  if (!std::isfinite(voltage) || voltage <= 0.0f) {
-    if (!this->warned_voltage_) {
-      this->warned_voltage_ = true;
-      ESP_LOGW(TAG, "analog output reads %.4f V\n  open circuit, missing supply or bad divider? check the AO wiring",
-               voltage);
-    }
-    this->publish_ratio_(NAN);
-    return;
-  }
-
-  const float air_value = micsmath::air_value_from_voltage(voltage, this->vcc_);
-  if (!std::isfinite(air_value)) {
-    // Only a vcc below what the sampler reports does this: a configuration error, not a reading.
-    if (!this->warned_voltage_) {
-      this->warned_voltage_ = true;
-      ESP_LOGW(TAG,
-               "analog output reads %.4f V, at or above the configured vcc (%.2f V)\n  check 'vcc:' and "
-               "'voltage_multiplier:'",
-               voltage, this->vcc_);
-    }
-    this->publish_ratio_(NAN);
-    return;
-  }
-  this->warned_voltage_ = false;
+  this->status_clear_warning();
 
   const float ratio = micsmath::ratio_from_air_value(air_value, this->reference_);
-
-  ESP_LOGD(TAG, "V_AO=%.4f V, x=%.4f, ratio=%.4f", voltage, air_value, ratio);
-
+  ESP_LOGD(TAG, "V_AO=%.4f V, x=%.4f, ratio=%.4f", this->vcc_ - air_value, air_value, ratio);
   this->publish_ratio_(ratio);
 }
 
 void MiCS5524Component::set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval) {
-  this->calibration_enabled_ = true;
   this->calibration_delay_ = delay;
   this->calibration_samples_ = samples;
   this->sample_interval_ = sample_interval;
@@ -170,14 +131,13 @@ void MiCS5524Component::loop() {
 }
 
 void MiCS5524Component::begin_calibration_() {
-  this->calibration_pending_ = false;
   this->calibrating_ = true;
   this->calibration_last_sample_ = App.get_loop_component_start_time();
   this->calibration_count_ = 0;
   this->calibration_attempts_ = 0;
   this->calibration_sum_ = 0.0f;
-  this->calibration_min_ = 0.0f;
-  this->calibration_max_ = 0.0f;
+  this->calibration_min_ = INFINITY;
+  this->calibration_max_ = -INFINITY;
   this->enable_loop();
 
   ESP_LOGI(TAG, "calibrating the air reference, %" PRIu32 " samples - keep the sensor in clean air",
@@ -187,20 +147,12 @@ void MiCS5524Component::begin_calibration_() {
 void MiCS5524Component::process_calibration_() {
   this->calibration_attempts_++;
 
-  const float voltage = this->sample_voltage_();
-  if (std::isfinite(voltage) && voltage > 0.0f) {
-    const float reference = micsmath::air_value_from_voltage(voltage, this->vcc_);
-    if (std::isfinite(reference) && reference > 0.0f) {
-      if (this->calibration_count_ == 0) {
-        this->calibration_min_ = reference;
-        this->calibration_max_ = reference;
-      } else {
-        this->calibration_min_ = std::min(this->calibration_min_, reference);
-        this->calibration_max_ = std::max(this->calibration_max_, reference);
-      }
-      this->calibration_sum_ += reference;
-      this->calibration_count_++;
-    }
+  const float reference = this->read_air_value_();
+  if (!std::isnan(reference)) {
+    this->calibration_min_ = std::min(this->calibration_min_, reference);
+    this->calibration_max_ = std::max(this->calibration_max_, reference);
+    this->calibration_sum_ += reference;
+    this->calibration_count_++;
   }
 
   if (this->calibration_attempts_ >= this->calibration_samples_)
@@ -244,7 +196,6 @@ void MiCS5524Component::finish_calibration_() {
 
 void MiCS5524Component::schedule_calibration_retry_() {
   this->status_set_warning();
-  this->calibration_pending_ = true;
   // A zero delay would log the same failure about five times per second.
   const uint32_t delay = std::max(this->calibration_delay_, CALIBRATION_RETRY_MIN_MS);
   this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
