@@ -2101,6 +2101,18 @@ def test_float_with_unit_with_suffix() -> None:
     assert cv.frequency("10kHz") == 10000.0
 
 
+def test_float_with_unit_matches_the_literal() -> None:
+    """The scaled decimal is parsed once, so it equals the same value written as a literal."""
+    assert cv.current("91uA") == 91e-6
+    assert cv.current("0.091mA") == 91e-6
+    assert cv.frequency("5.8GHz") == 5.8e9
+
+
+def test_float_with_unit_empty_mantissa() -> None:
+    with pytest.raises(cv.Invalid):
+        cv.current("uA")
+
+
 def test_float_with_unit_no_match() -> None:
     with pytest.raises(Invalid, match="Expected frequency with unit"):
         cv.frequency("!!")

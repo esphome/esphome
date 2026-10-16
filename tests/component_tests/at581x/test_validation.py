@@ -70,7 +70,7 @@ def test_lambda_is_passed_through() -> None:
 @pytest.mark.parametrize(
     "value",
     [
-        # Accepted by the rel_tol=1e-12 proposal, rejected by the original.
+        # Near-miss values must not be rounded onto a supported setting.
         "91.00000000001uA",
         "90.99999999999uA",
         "91.00000000009uA",
