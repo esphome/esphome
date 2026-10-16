@@ -1,0 +1,31 @@
+number:
+  - platform: toptronic
+    name: Val cons acc chauff (offset) Smart-Grid
+    device_type: PS
+    function_group: 21
+    function_number: 0
+    datapoint: 6050
+    id: PS_21_0_6050_set
+    type: S16
+    min_value: 0
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+  - platform: toptronic
+    name: Val cons acc refroid (offset) Smart-Grid
+    device_type: PS
+    function_group: 21
+    function_number: 0
+    datapoint: 6051
+    id: PS_21_0_6051_set
+    type: S16
+    min_value: -300
+    max_value: 0
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
