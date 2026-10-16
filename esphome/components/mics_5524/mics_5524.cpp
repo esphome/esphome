@@ -13,6 +13,9 @@ ESPHOME_LOG_TAG(TAG, "mics_5524");
 /// Added to the conversion model, so a value stored for one model is never loaded by the other.
 static constexpr uint32_t REFERENCE_PREFERENCE_VERSION = 0x00000010;
 
+/// Calibration samples of a request on a sensor without `calibration:`, the schema default.
+static constexpr uint32_t DEFAULT_CALIBRATION_SAMPLES = 10;
+
 static const LogString *reference_name(uint8_t conversion) {
   return conversion == micsmath::CONVERSION_MODEL_DFROBOT ? LOG_STR("air reference") : LOG_STR("R0");
 }
@@ -26,7 +29,7 @@ void MiCS5524GasSensor::publish_ratio(float ratio) {
                         ? micsmath::ppm_from_vendor_curve(ratio, this->curve_)
                         : micsmath::clamp_ppm(micsmath::ppm_from_power_law(this->a_, this->b_, ratio),
                                               this->curve_.min_ppm, this->curve_.max_ppm);
-  ESP_LOGD(TAG, "'%s': ratio=%.4f -> %.1f ppm", this->gas_, ratio, ppm);
+  ESP_LOGD(TAG, "'%s': ratio=%.4f -> %.1f ppm", this->get_name().c_str(), ratio, ppm);
   this->publish_state(ppm);
 }
 
@@ -48,26 +51,38 @@ void MiCS5524Component::setup() {
   }
 
   if (this->warmup_time_ > 0) {
-    this->warmup_start_ = App.get_loop_component_start_time();
+    this->warming_up_ = true;
+    this->stop_poller();
+    this->set_timeout(this->warmup_time_, [this]() {
+      this->warming_up_ = false;
+      ESP_LOGI(TAG, "warm-up finished, readings are published from now on");
+      this->start_poller();
+      // A calibration waiting for the warm-up starts when one at boot would have.
+      if (this->calibration_pending_) {
+        const uint32_t delay =
+            this->calibration_delay_ > this->warmup_time_ ? this->calibration_delay_ - this->warmup_time_ : 0;
+        this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
+      }
+    });
     ESP_LOGI(TAG, "warm-up of %" PRIu32 " s - no readings published before that", this->warmup_time_ / 1000);
   }
 
-  if (this->calibration_enabled_) {
-    // A fixed or restored reference wins; the warm-up window starts here, so the delay covers it.
+  if (this->calibration_samples_ > 0) {
+    // A fixed or restored reference wins.
     if (this->has_reference_()) {
       ESP_LOGI(TAG, "%s already known (%.4f) - automatic calibration skipped",
                LOG_STR_ARG(reference_name(this->conversion_)), this->reference_);
     } else {
-      const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
       this->calibration_pending_ = true;
-      this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
+      if (!this->warming_up_)
+        this->set_timeout(CALIBRATION_START_ID, this->calibration_delay_, [this]() { this->begin_calibration_(); });
       ESP_LOGI(TAG, "clean-air calibration of the %s in %" PRIu32 " s - the sensor must be in clean air",
-               LOG_STR_ARG(reference_name(this->conversion_)), delay / 1000);
+               LOG_STR_ARG(reference_name(this->conversion_)),
+               std::max(this->calibration_delay_, this->warmup_time_) / 1000);
     }
   } else if (!this->has_reference_()) {
     ESP_LOGW(TAG,
-             "no %s available, set it in the configuration or enable 'calibration:' - the PPM values stay "
-             "unknown until then",
+             "no %s available, the PPM values stay unknown\n  set it in the configuration or enable 'calibration:'",
              LOG_STR_ARG(reference_name(this->conversion_)));
   }
 
@@ -82,7 +97,7 @@ void MiCS5524Component::dump_config() {
                 "  Warm-up: %" PRIu32 " s, calibration: %s, sample spacing: %" PRIu32 " ms",
                 LOG_STR_ARG(conversion_name(this->conversion_)), this->vcc_, this->voltage_multiplier_,
                 static_cast<unsigned>(this->samples_), this->warmup_time_ / 1000,
-                this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->calibration_samples_ > 0 ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
                 this->sample_interval_);
   LOG_UPDATE_INTERVAL(this);
   LOG_PIN("  Enable pin: ", this->enable_pin_);
@@ -113,21 +128,23 @@ float MiCS5524Component::sample_voltage_() {
   return (sum / static_cast<float>(this->samples_)) * this->voltage_multiplier_;
 }
 
-float MiCS5524Component::reference_for_voltage_(float voltage) const {
-  return this->is_vendor_model_() ? micsmath::air_value_from_voltage(voltage, this->vcc_)
-                                  : micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
-}
-
-float MiCS5524Component::ratio_for_voltage_(float voltage) {
-  if (!this->has_reference_())
-    return NAN;
+float MiCS5524Component::model_value_(float voltage) {
+  float value;
   if (this->is_vendor_model_()) {
     // A disconnected input reads near 0 V, which would convert to a ratio near 1.0 and read as clean air.
-    if (!(voltage > 0.05f * this->vcc_))
-      return NAN;
-    return micsmath::ratio_from_air_value(micsmath::air_value_from_voltage(voltage, this->vcc_), this->reference_);
+    value = voltage > 0.05f * this->vcc_ ? micsmath::air_value_from_voltage(voltage, this->vcc_) : NAN;
+  } else {
+    value = micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
   }
-  return micsmath::ratio_from_rs(micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_), this->reference_);
+  if (!std::isnan(value))
+    return value;
+  // The status flag makes this log once per fault, not once per update.
+  if (!this->status_has_warning()) {
+    ESP_LOGW(TAG, "analog output reads %.4f V with vcc %.2f V\n  check the AO wiring, 'vcc:' and 'voltage_multiplier:'",
+             voltage, this->vcc_);
+  }
+  this->status_set_warning(LOG_STR("analog output out of range"));
+  return NAN;
 }
 
 void MiCS5524Component::publish_ratio_(float ratio) {
@@ -147,62 +164,29 @@ void MiCS5524Component::publish_diagnostics_(float voltage, float ratio, float r
     this->rs_sensor_->publish_state(rs);
 }
 
-bool MiCS5524Component::in_warmup_() {
-  if (this->warmup_ended_)
-    return false;
-  if (App.get_loop_component_start_time() - this->warmup_start_ < this->warmup_time_)
-    return true;
-  this->warmup_ended_ = true;
-  ESP_LOGI(TAG, "warm-up finished, readings are published from now on");
-  return false;
-}
-
 void MiCS5524Component::update() {
   const float voltage = this->sample_voltage_();
+  const float value = this->model_value_(voltage);
+  float ratio = NAN;
+  if (this->has_reference_()) {
+    ratio = this->is_vendor_model_() ? micsmath::ratio_from_air_value(value, this->reference_)
+                                     : micsmath::ratio_from_rs(value, this->reference_);
+  }
+  this->publish_diagnostics_(voltage, ratio, this->is_vendor_model_() ? NAN : value);
 
-  if (this->in_warmup_())
+  // A failed calibration keeps its warning until the retry succeeds.
+  if (!std::isnan(value) && !this->calibrating_ && !this->calibration_pending_)
+    this->status_clear_warning();
+
+  // Every gas starts unknown and the reference is never cleared, so there is nothing to republish.
+  if (!this->has_reference_())
     return;
 
-  const float rs = this->is_vendor_model_() ? NAN : micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
-  const float ratio = this->ratio_for_voltage_(voltage);
-  this->publish_diagnostics_(voltage, ratio, rs);
-
-  if (this->has_reference_()) {
-    this->warned_no_reference_ = false;
-  } else if (!this->warned_no_reference_) {
-    this->warned_no_reference_ = true;
-    ESP_LOGW(TAG, "no clean-air reference yet - every gas stays 'unknown' until the %s is known",
-             LOG_STR_ARG(reference_name(this->conversion_)));
-  }
-
-  if (std::isfinite(ratio)) {
-    this->warned_voltage_ = false;
-    this->status_clear_warning();
-  } else if (this->has_reference_()) {
-    this->status_set_warning();
-    if (!this->warned_voltage_) {
-      this->warned_voltage_ = true;
-      ESP_LOGW(TAG,
-               "analog output reads %.4f V, which cannot be converted - check 'vcc:', 'voltage_multiplier:' and "
-               "the wiring",
-               voltage);
-    }
-  }
-
+  ESP_LOGD(TAG, "V_AO=%.4f V, ratio=%.4f", voltage, ratio);
   this->publish_ratio_(ratio);
 }
 
-void MiCS5524Component::loop() {
-  if (!this->calibrating_)
-    return;
-  if (App.get_loop_component_start_time() - this->calibration_last_sample_ < this->sample_interval_)
-    return;
-  this->calibration_last_sample_ = App.get_loop_component_start_time();
-  this->process_calibration_();
-}
-
 void MiCS5524Component::set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval, bool persist) {
-  this->calibration_enabled_ = true;
   this->calibration_delay_ = delay;
   this->calibration_samples_ = samples;
   this->sample_interval_ = sample_interval;
@@ -222,18 +206,31 @@ void MiCS5524Component::request_calibration() {
     ESP_LOGW(TAG, "calibration already requested");
     return;
   }
-  const uint32_t now = App.get_loop_component_start_time();
-  if (!this->in_warmup_()) {
-    this->calibration_pending_ = true;
-    this->set_timeout(CALIBRATION_START_ID, 0, [this]() { this->begin_calibration_(); });
-    ESP_LOGI(TAG, "calibration requested - keep the sensor in clean air");
-  } else {
-    // A request must never capture an unstable reading, so it waits for the warm-up window.
-    const uint32_t remaining = this->warmup_time_ - (now - this->warmup_start_);
-    this->calibration_pending_ = true;
-    this->set_timeout(CALIBRATION_START_ID, remaining, [this]() { this->begin_calibration_(); });
-    ESP_LOGI(TAG, "calibration requested - waiting for the warm-up window to end (%" PRIu32 " s)", remaining / 1000);
+  if (this->calibration_samples_ == 0)
+    this->calibration_samples_ = DEFAULT_CALIBRATION_SAMPLES;
+  this->calibration_pending_ = true;
+  if (this->warming_up_) {
+    // A request must never capture an unstable reading; the warm-up timeout starts it.
+    ESP_LOGI(TAG, "calibration requested - waiting for the warm-up window to end");
+    return;
   }
+  this->set_timeout(CALIBRATION_START_ID, 0, [this]() { this->begin_calibration_(); });
+  ESP_LOGI(TAG, "calibration requested - keep the sensor in clean air");
+}
+
+void MiCS5524Component::loop() {
+  if (!this->calibrating_) {
+    // Only a calibration samples here; the deferred start is a timer.
+    this->disable_loop();
+    return;
+  }
+
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->calibration_last_sample_ < this->sample_interval_)
+    return;
+
+  this->calibration_last_sample_ = now;
+  this->process_calibration_();
 }
 
 void MiCS5524Component::begin_calibration_() {
@@ -243,8 +240,8 @@ void MiCS5524Component::begin_calibration_() {
   this->calibration_count_ = 0;
   this->calibration_attempts_ = 0;
   this->calibration_sum_ = 0.0f;
-  this->calibration_min_ = 0.0f;
-  this->calibration_max_ = 0.0f;
+  this->calibration_min_ = INFINITY;
+  this->calibration_max_ = -INFINITY;
   this->enable_loop();
 
   ESP_LOGI(TAG, "calibrating the %s, %" PRIu32 " samples - keep the sensor in clean air",
@@ -254,17 +251,11 @@ void MiCS5524Component::begin_calibration_() {
 void MiCS5524Component::process_calibration_() {
   this->calibration_attempts_++;
 
-  const float voltage = this->sample_voltage_();
   // The samples are averaged in the units of the active model.
-  const float reference = this->reference_for_voltage_(voltage);
-  if (std::isfinite(reference) && reference > 0.0f) {
-    if (this->calibration_count_ == 0) {
-      this->calibration_min_ = reference;
-      this->calibration_max_ = reference;
-    } else {
-      this->calibration_min_ = std::min(this->calibration_min_, reference);
-      this->calibration_max_ = std::max(this->calibration_max_, reference);
-    }
+  const float reference = this->model_value_(this->sample_voltage_());
+  if (!std::isnan(reference)) {
+    this->calibration_min_ = std::min(this->calibration_min_, reference);
+    this->calibration_max_ = std::max(this->calibration_max_, reference);
     this->calibration_sum_ += reference;
     this->calibration_count_++;
   }
@@ -292,18 +283,9 @@ void MiCS5524Component::finish_calibration_() {
 
   // A sensor still settling, or not in clean air, varies too much to be the reference.
   if (!micsmath::calibration_is_stable(this->calibration_min_, this->calibration_max_, reference)) {
-    ESP_LOGW(TAG, "clean-air samples spread %.4f around %.4f (%.4f - %.4f) - the sensor was not settled in clean air",
+    ESP_LOGW(TAG, "clean-air samples spread %.4f around %.4f (%.4f - %.4f)\n  the sensor was not settled in clean air",
              this->calibration_max_ - this->calibration_min_, reference, this->calibration_min_,
              this->calibration_max_);
-    this->schedule_calibration_retry_();
-    return;
-  }
-
-  // A dead input reads near 0 V, so the vendor reference sits at the supply and would read 0 ppm forever.
-  if (this->is_vendor_model_() && reference >= 0.95f * this->vcc_) {
-    ESP_LOGW(TAG,
-             "calibration failed, clean-air reference %.4f V is at the supply - check the wiring and 'enable_pin:'",
-             reference);
     this->schedule_calibration_retry_();
     return;
   }
@@ -314,7 +296,8 @@ void MiCS5524Component::finish_calibration_() {
     this->save_reference_();
 
   ESP_LOGI(TAG,
-           "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)%s; hard-code '%s: %.4f' to skip the calibration at boot",
+           "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)%s\n"
+           "  hard-code '%s: %.4f' to skip the calibration at boot",
            LOG_STR_ARG(reference_name(this->conversion_)), this->reference_, valid, attempts,
            this->persist_ ? LOG_STR_LITERAL(", stored in flash") : LOG_STR_LITERAL(""),
            this->is_vendor_model_() ? LOG_STR_LITERAL("air_reference") : LOG_STR_LITERAL("r0"), this->reference_);

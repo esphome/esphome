@@ -409,7 +409,6 @@ async def to_code(config: ConfigType) -> None:
         await sensors(
             gas_key,
             var.register_gas_sensor,
-            resolved.label,
             CONVERSION_MODELS[resolved.conversion],
             resolved.threshold,
             resolved.gain,

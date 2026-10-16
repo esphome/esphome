@@ -42,8 +42,7 @@ def _gas_constants(arguments: list[str]) -> list[float]:
     Comparing numbers rather than their text keeps the test about the values and not
     about how code generation happens to format them.
     """
-    assert arguments[0].startswith('"')
-    return [float(argument.removesuffix("f")) for argument in arguments[1:]]
+    return [float(argument.removesuffix("f")) for argument in arguments]
 
 
 def test_voltage_source_is_a_constructor_argument(
@@ -69,16 +68,14 @@ def test_every_gas_becomes_a_sub_sensor_of_its_hub(
     """The constants are passed to the constructor and the sub-sensor to its own hub."""
     main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
-    # The gas label, the conversion model (0 = dfrobot), the vendor threshold and gain,
-    # the datasheet coefficients (unused here) and the measuring range.
+    # The conversion model (0 = dfrobot), the vendor threshold and gain, the datasheet
+    # coefficients (unused here) and the measuring range.
     co = _gas_arguments(main_cpp, "mics_5524_co")
-    assert co[0] == '"CO"'
     assert _gas_constants(co) == [0, 0.425, 0.000405, 0.0, 0.0, 1.0, 500.0]
     assert "mics_5524_boot->register_gas_sensor(mics_5524_co);" in main_cpp
 
     # A gas without `max_ppm:` keeps the measuring range of the vendor.
     ch4 = _gas_arguments(main_cpp, "mics_5524_ch4")
-    assert ch4[0] == '"CH4"'
     assert _gas_constants(ch4) == [0, 0.786, 0.000023, 0.0, 0.0, 1000.0, 25000.0]
     assert "mics_5524_boot->register_gas_sensor(mics_5524_ch4);" in main_cpp
 
@@ -116,7 +113,6 @@ def test_datasheet_conversion_uses_the_shipped_coefficients(
 
     # 1 = datasheet, a = 6.3, b = -1.1, range 0 .. 2000 ppm.
     co = _gas_arguments(main_cpp, "mics_5524_co_ds")
-    assert co[0] == '"CO"'
     assert _gas_constants(co) == [1, 0.0, 0.0, 6.3, -1.1, 0.0, 2000.0]
     assert "mics_5524_pin->register_gas_sensor(mics_5524_co_ds);" in main_cpp
     assert "mics_5524_pin->set_conversion(1);" in main_cpp

@@ -32,20 +32,15 @@ struct VendorCurve {
 inline float air_value_from_voltage(float voltage, float vcc) {
   if (!std::isfinite(voltage) || !std::isfinite(vcc))
     return NAN;
-  const double x = static_cast<double>(vcc) - static_cast<double>(voltage);
-  if (!std::isfinite(x) || x < 0.0)
-    return NAN;
-  return static_cast<float>(x);
+  const float x = vcc - voltage;
+  return x < 0.0f ? NAN : x;
 }
 
 /// ratio = x / x_air (NaN when either value is unusable).
 inline float ratio_from_air_value(float x, float x_air) {
-  if (!std::isfinite(x) || !std::isfinite(x_air) || x_air <= 0.0f)
+  if (!std::isfinite(x) || x < 0.0f || !std::isfinite(x_air) || x_air <= 0.0f)
     return NAN;
-  const double ratio = static_cast<double>(x) / static_cast<double>(x_air);
-  if (!std::isfinite(ratio) || ratio < 0.0)
-    return NAN;
-  return static_cast<float>(ratio);
+  return x / x_air;
 }
 
 /// ratio -> ppm as DFRobot_MICS getGasData(): 0 above the threshold or below the vendor
@@ -56,15 +51,12 @@ inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
   if (ratio > curve.threshold)
     return 0.0f;
 
-  const double ppm =
-      (static_cast<double>(curve.threshold) - static_cast<double>(ratio)) / static_cast<double>(curve.gain);
-  if (!std::isfinite(ppm))
-    return NAN;
-  if (ppm < static_cast<double>(curve.min_ppm))
+  const float ppm = (curve.threshold - ratio) / curve.gain;
+  if (ppm < curve.min_ppm)
     return 0.0f;
-  if (ppm > static_cast<double>(curve.max_ppm))
+  if (ppm > curve.max_ppm)
     return curve.max_ppm;
-  return static_cast<float>(ppm);
+  return ppm;
 }
 
 // --------------------------------------------------------------- datasheet model
@@ -92,21 +84,16 @@ inline bool will_overflow(double log_ppm) {
 inline float rs_from_voltage(float voltage, float vcc, float rl) {
   if (!std::isfinite(voltage) || !std::isfinite(vcc) || !std::isfinite(rl) || voltage <= 0.0f)
     return NAN;
-  const double rs =
-      static_cast<double>(vcc) * static_cast<double>(rl) / static_cast<double>(voltage) - static_cast<double>(rl);
-  if (!std::isfinite(rs) || rs <= 0.0)
-    return NAN;
-  return static_cast<float>(rs);
+  // A voltage close to 0 V overflows the division.
+  const float rs = vcc * rl / voltage - rl;
+  return std::isfinite(rs) && rs > 0.0f ? rs : NAN;
 }
 
 /// ratio = RS / R0 (NaN when either value is unusable).
 inline float ratio_from_rs(float rs, float r0) {
   if (!std::isfinite(rs) || rs <= 0.0f || !std::isfinite(r0) || r0 <= 0.0f)
     return NAN;
-  const double ratio = static_cast<double>(rs) / static_cast<double>(r0);
-  if (!std::isfinite(ratio))
-    return NAN;
-  return static_cast<float>(ratio);
+  return rs / r0;
 }
 
 /// ppm = a * ratio^b; NaN for a ratio or coefficient that cannot produce a reading.
@@ -147,8 +134,7 @@ inline constexpr float MAX_CALIBRATION_SPREAD = 0.25f;
 inline bool calibration_is_stable(float min_value, float max_value, float mean) {
   if (!std::isfinite(min_value) || !std::isfinite(max_value) || !std::isfinite(mean) || mean <= 0.0f)
     return false;
-  const double spread = static_cast<double>(max_value) - static_cast<double>(min_value);
-  return spread <= static_cast<double>(MAX_CALIBRATION_SPREAD) * static_cast<double>(mean);
+  return max_value - min_value <= MAX_CALIBRATION_SPREAD * mean;
 }
 
 }  // namespace esphome::mics_5524::micsmath

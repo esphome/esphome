@@ -23,7 +23,7 @@ DEFAULT_RL_KOHM = 10.0
 class VendorCurve:
     """Constants of the vendor model for one gas."""
 
-    label: str  # gas name in the log lines
+    label: str  # vendor name of the gas
     threshold: float  # ratio at or below which the gas counts as detected
     gain: float  # ppm per unit ratio
     min_ppm: float  # the vendor reports 0 ppm below this
