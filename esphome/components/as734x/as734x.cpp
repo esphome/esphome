@@ -54,7 +54,8 @@ static const char AS7341_NAME[] PROGMEM = "AS7341";
 static constexpr uint8_t AS7341_ADC_SLOTS = 6;
 static constexpr uint8_t AS7341_SMUX_LEN = 20;
 static constexpr uint8_t AS7341_SMUX_STEPS = 2;
-static const i2c::I2CRegValue AS7341_INIT[] PROGMEM = {{0x70, 0x00}};  // CONFIG: SPM mode, INT_SEL and LED_SEL cleared
+static constexpr i2c::I2CRegValue AS7341_INIT[] PROGMEM = {
+    {0x70, 0x00}};  // CONFIG: SPM mode, INT_SEL and LED_SEL cleared
 static const uint8_t AS7341_SMUX[] PROGMEM = {
     0x30, 0x01, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x50, 0x00,  // step 0: F1 to F4, NIR, Clear
     0x00, 0x00, 0x20, 0x04, 0x00, 0x30, 0x01, 0x50, 0x00, 0x06,  // step 0, continued
@@ -150,8 +151,8 @@ static constexpr uint8_t AS7343_ADC_SLOTS = 18;
 static constexpr uint8_t AS7343_SMUX_LEN = 10;
 static const char TCS3448_NAME[] PROGMEM = "TCS3448";
 // CFG6, FD_CFG0, CFG10, CFG8, CFG20 (auto_smux, 18 channels in 3 cycles), AGC_GAIN_MAX, FD_TIME_1, FD_TIME_2
-static const i2c::I2CRegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC9, 0xC8},
-                                                       {0xD6, 0x62}, {0xD7, 0x99}, {0xE0, 0x64}, {0xE2, 0x21}};
+static constexpr i2c::I2CRegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC9, 0xC8},
+                                                           {0xD6, 0x62}, {0xD7, 0x99}, {0xE0, 0x64}, {0xE2, 0x21}};
 static const uint8_t AS7343_SMUX[] PROGMEM = {0x00, 0x04, 0x65, 0x02, 0x00, 0x05, 0x00, 0x01, 0x00, 0x30,
                                               0x00, 0x00, 0x60, 0x20, 0x04, 0x50, 0x03, 0x00, 0x01, 0x05,
                                               0x05, 0x00, 0x60, 0x00, 0x30, 0x00, 0x40, 0x10, 0x20, 0x00};
