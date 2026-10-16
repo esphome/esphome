@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/uart/line_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/cover/cover.h"
 
@@ -17,7 +18,7 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
 
  protected:
   void control(const cover::CoverCall &call) override;
-  void parse_response_();
+  void parse_response_(const char *line);
   void send_command_(const char *cmd);
   void write_command_(const char *cmd, uint32_t now);
   void stop_cmd_(uint32_t now);
@@ -43,8 +44,7 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   const char *pending_command_{nullptr};
   uint32_t pending_command_time_{0};
   uint32_t last_command_tx_{0};
-  char rx_buffer_[MAX_RESPONSE_LEN + 1];
-  uint8_t rx_len_{0};
+  uart::LineReader<MAX_RESPONSE_LEN + 1, '\r', '\n'> line_reader_;
   uint8_t command_retries_{0};
   bool query_s_next_{true};
 };
