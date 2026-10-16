@@ -1292,26 +1292,14 @@ class MockObjEnum(MockObj):
     def __repr__(self):
         return f"MockObj<{str(self.base)}>"
 
-    def options(
-        self,
-        *names: str,
-        prefix: str = "",
-        overrides: dict[str, str] | None = None,
-    ) -> dict[str, "MockObj"]:
+    def options(self, *names: str, prefix: str = "") -> dict[str, "MockObj"]:
         """Map option names to enumerators, for cv.enum.
 
         Each name maps to prefix + the name upper-cased, with characters that
-        are not letters or digits turned into "_". overrides gives exact
-        enumerator names (without prefix) for names that do not follow this.
+        are not letters or digits turned into "_".
         """
-        overrides = overrides or {}
-        if unknown := set(overrides) - set(names):
-            raise ValueError(f"Overrides for unknown options: {sorted(unknown)}")
         return {
-            name: getattr(
-                self,
-                prefix + overrides.get(name, _ENUM_NON_ALNUM.sub("_", name).upper()),
-            )
+            name: getattr(self, prefix + _ENUM_NON_ALNUM.sub("_", name).upper())
             for name in names
         }
 
