@@ -990,3 +990,14 @@ class TestEnumOptions:
         validator = cv.enum(options, lower=True)
         assert str(validator("ON").enum_value) == "esphome::foo::Mode::MODE_ON"
         assert validator(cv.SCHEMA_EXTRACT) is options
+
+    @pytest.mark.parametrize(
+        "names",
+        [("OFF", "OFF"), ("slow-ish", "slow_ish"), ("2.5x", "2_5X")],
+    )
+    def test_names_must_map_to_distinct_enumerators(
+        self, names: tuple[str, ...]
+    ) -> None:
+        mode = cg.MockObj("esphome::foo", "::").enum("Mode")
+        with pytest.raises(ValueError, match="distinct enumerators"):
+            mode.options(*names)
