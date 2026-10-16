@@ -172,9 +172,9 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @param bytes_read Number of bytes of audio data
   void apply_software_volume_(uint8_t *data, size_t bytes_read);
 
-  /// @brief Whether the output is 16-bit mono on the original ESP32, which sends each pair of samples swapped.
   /// @brief Whether 16-bit mono samples in this format need the ESP32 (non-variant) pair swap.
   static bool esp32_mono_swap_needed(const audio::AudioStreamInfo &stream_info);
+  /// @brief Whether the output is 16-bit mono on the original ESP32, which sends each pair of samples swapped.
   bool esp32_mono_swap_needed_() const { return esp32_mono_swap_needed(this->output_stream_info_); }
 
   /// @brief Swap adjacent 16-bit mono samples for ESP32 (non-variant) hardware quirk.
