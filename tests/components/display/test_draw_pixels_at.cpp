@@ -52,8 +52,8 @@ static void expect_walks_match(ColorBitness bitness, int bytes_per_pixel, bool b
   RecordingDisplay rows;
   RecordingDisplay columns;
   columns.set_axes_swapped(true);
-  rows.draw_pixels_at(10, 20, W, H, source.data(), COLOR_ORDER_RGB, bitness, big_endian, X_OFFSET, Y_OFFSET, X_PAD);
-  columns.draw_pixels_at(10, 20, W, H, source.data(), COLOR_ORDER_RGB, bitness, big_endian, X_OFFSET, Y_OFFSET, X_PAD);
+  rows.draw_pixels_at(10, 20, W, H, source.data(), bitness, big_endian, X_OFFSET, Y_OFFSET, X_PAD);
+  columns.draw_pixels_at(10, 20, W, H, source.data(), bitness, big_endian, X_OFFSET, Y_OFFSET, X_PAD);
   EXPECT_EQ(rows.count(), static_cast<size_t>(W * H));
   EXPECT_EQ(columns.count(), static_cast<size_t>(W * H));
   EXPECT_EQ(rows.sorted_pixels(), columns.sorted_pixels());
@@ -69,7 +69,7 @@ TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk888) { expect_walks_match(COLOR_BITNE
 static void expect_golden(ColorBitness bitness, std::initializer_list<uint8_t> bytes, bool big_endian, Color expected) {
   const std::vector<uint8_t> source(bytes);
   RecordingDisplay display;
-  display.draw_pixels_at(3, 4, 1, 1, source.data(), COLOR_ORDER_RGB, bitness, big_endian, 0, 0, 0);
+  display.draw_pixels_at(3, 4, 1, 1, source.data(), bitness, big_endian, 0, 0, 0);
   ASSERT_EQ(display.count(), 1u);
   EXPECT_EQ(display.pixels()[0], std::make_tuple(3, 4, expected.raw_32));
 }
@@ -97,13 +97,76 @@ TEST(DrawPixelsAt, ColumnWalkChangesOrder) {
   RecordingDisplay rows;
   RecordingDisplay columns;
   columns.set_axes_swapped(true);
-  rows.draw_pixels_at(0, 0, W, H, source.data(), COLOR_ORDER_RGB, COLOR_BITNESS_332, true, X_OFFSET, Y_OFFSET, X_PAD);
-  columns.draw_pixels_at(0, 0, W, H, source.data(), COLOR_ORDER_RGB, COLOR_BITNESS_332, true, X_OFFSET, Y_OFFSET,
-                         X_PAD);
+  rows.draw_pixels_at(0, 0, W, H, source.data(), COLOR_BITNESS_332, true, X_OFFSET, Y_OFFSET, X_PAD);
+  columns.draw_pixels_at(0, 0, W, H, source.data(), COLOR_BITNESS_332, true, X_OFFSET, Y_OFFSET, X_PAD);
   ASSERT_GT(rows.count(), 1u);
   ASSERT_GT(columns.count(), 1u);
   EXPECT_EQ(std::get<0>(rows.pixels()[1]), 1);     // the row walk steps x first
   EXPECT_EQ(std::get<1>(columns.pixels()[1]), 1);  // the column walk steps y first
 }
+
+// Remove before 2027.5.0, with the draw_pixels_at() overloads that take a color order.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
+// An out of tree driver that still overrides only the form with a color order.
+class LegacyDisplay : public RecordingDisplay {
+ public:
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    this->calls_.push_back({x_start, y_start, w, h, x_offset, y_offset, x_pad});
+    this->order_ = order;
+    this->ptr_ = ptr;
+    this->bitness_ = bitness;
+    this->big_endian_ = big_endian;
+  }
+
+  std::vector<std::vector<int>> calls_;
+  ColorOrder order_{COLOR_ORDER_GRB};
+  const uint8_t *ptr_{};
+  ColorBitness bitness_{COLOR_BITNESS_888};
+  bool big_endian_{};
+};
+
+// Callers use the form without a color order; a legacy override still receives every block, as RGB.
+TEST(DrawPixelsAt, LegacyOverrideStillReceivesBlocks) {
+  const auto source = make_source(2);
+  LegacyDisplay legacy;
+  Display &display = legacy;
+  display.draw_pixels_at(10, 20, W, H, source.data(), COLOR_BITNESS_565, true, X_OFFSET, Y_OFFSET, X_PAD);
+  display.draw_pixels_at(1, 2, 3, 4, source.data(), COLOR_BITNESS_565, true);
+  ASSERT_EQ(legacy.calls_.size(), 2u);
+  EXPECT_EQ(legacy.calls_[0], (std::vector<int>{10, 20, W, H, X_OFFSET, Y_OFFSET, X_PAD}));
+  EXPECT_EQ(legacy.calls_[1], (std::vector<int>{1, 2, 3, 4, 0, 0, 0}));
+  EXPECT_EQ(legacy.order_, COLOR_ORDER_RGB);
+  EXPECT_EQ(legacy.ptr_, source.data());
+  EXPECT_EQ(legacy.bitness_, COLOR_BITNESS_565);
+  EXPECT_TRUE(legacy.big_endian_);
+  EXPECT_EQ(legacy.count(), 0u);
+}
+
+// The deprecated form still honours a color order other than RGB when it draws per pixel.
+static void expect_ordered(ColorOrder order, Color expected) {
+  const std::vector<uint8_t> source{0x12, 0x34, 0x56};  // b, g, r in memory: 0x563412
+  RecordingDisplay display;
+  display.draw_pixels_at(3, 4, 1, 1, source.data(), order, COLOR_BITNESS_888, false);
+  ASSERT_EQ(display.count(), 1u);
+  EXPECT_EQ(display.pixels()[0], std::make_tuple(3, 4, expected.raw_32));
+  EXPECT_EQ(expected.raw_32, ColorUtil::to_color(0x563412, order, COLOR_BITNESS_888).raw_32);
+}
+
+TEST(DrawPixelsAt, DeprecatedOrderRgb) { expect_ordered(COLOR_ORDER_RGB, Color(0x56, 0x34, 0x12)); }
+TEST(DrawPixelsAt, DeprecatedOrderBgr) { expect_ordered(COLOR_ORDER_BGR, Color(0x12, 0x34, 0x56)); }
+TEST(DrawPixelsAt, DeprecatedOrderGrb) { expect_ordered(COLOR_ORDER_GRB, Color(0x34, 0x56, 0x12)); }
+
+// The deprecated packing functions still honour the order; with RGB they match the new ones.
+TEST(DrawPixelsAt, DeprecatedPackingMatchesForRgb) {
+  const Color color(0xC0, 0x60, 0x30);
+  EXPECT_EQ(ColorUtil::color_to_565(color, COLOR_ORDER_RGB), ColorUtil::color_to_565(color));
+  EXPECT_EQ(ColorUtil::color_to_332(color, COLOR_ORDER_RGB), ColorUtil::color_to_332(color));
+  EXPECT_EQ(ColorUtil::color_to_565(color, COLOR_ORDER_BGR), ColorUtil::color_to_565(Color(0x30, 0x60, 0xC0)));
+}
+
+#pragma GCC diagnostic pop
 
 }  // namespace esphome::display::testing

@@ -53,6 +53,18 @@ void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_
   this->line(x1, y1, x2, y2, color);
 }
 
+// Applies a color order other than RGB, for the deprecated draw_pixels_at() that still takes one.
+static ESPHOME_ALWAYS_INLINE inline Color apply_color_order(Color color, ColorOrder order) {
+  switch (order) {
+    case COLOR_ORDER_BGR:
+      return Color(color.b, color.g, color.r);
+    case COLOR_ORDER_GRB:
+      return Color(color.g, color.r, color.b);
+    default:
+      return color;
+  }
+}
+
 // flatten keeps to_color() inlined in the pixel loop; in PSRAM builds GCC at
 // -Os stops inlining it once there are two call sites, which costs a call and
 // spills per pixel. Without PSRAM there is one call site and it changes
@@ -67,7 +79,8 @@ draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h, con
   const auto draw_source_pixel = [&](int x, int y, size_t source_idx) ESPHOME_ALWAYS_INLINE {
     display->draw_pixel_at(
         x + x_start, y + y_start,
-        ColorUtil::to_color(ColorUtil::read_packed<BITNESS>(ptr, source_idx, big_endian), order, BITNESS));
+        apply_color_order(ColorUtil::to_color(ColorUtil::read_packed<BITNESS>(ptr, source_idx, big_endian), BITNESS),
+                          order));
   };
   // The source and frame buffers are row-major, so walking rows keeps the read
   // and the write sequential. When the display swaps the axes before writing,
@@ -94,6 +107,17 @@ draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h, con
   }
 }
 
+void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                             bool big_endian, int x_offset, int y_offset, int x_pad) {
+  // Through the deprecated form, so a driver that still overrides only that one keeps its fast path.
+  // Remove before 2027.5.0, when the per pixel drawing below moves here.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  this->draw_pixels_at(x_start, y_start, w, h, ptr, COLOR_ORDER_RGB, bitness, big_endian, x_offset, y_offset, x_pad);
+#pragma GCC diagnostic pop
+}
+
+// Must not call the form without a color order: that one calls this, and an override's fallback ends up here.
 void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                              ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   switch (bitness) {

@@ -34,12 +34,12 @@ void SnapshotDisplay::dump_config() { LOG_DISPLAY("", "Snapshot", this); }
 void SnapshotDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (this->buffer_ == nullptr || x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return;
-  this->pixels_()[y * this->width_ + x] = display::ColorUtil::color_to_565(color, display::COLOR_ORDER_RGB);
+  this->pixels_()[y * this->width_ + x] = display::ColorUtil::color_to_565(color);
 }
 
 void SnapshotDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
-                                     display::ColorOrder order, display::ColorBitness bitness, bool big_endian,
-                                     int x_offset, int y_offset, int x_pad) {
+                                     display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                     int x_pad) {
   if (this->buffer_ == nullptr)
     return;
   // Anything that is not already laid out the way the buffer is, or that would reach outside it,
@@ -48,7 +48,7 @@ void SnapshotDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, con
                         bitness == display::COLOR_BITNESS_565 && !big_endian && x_start >= 0 && y_start >= 0 &&
                         x_start + w <= this->width_ && y_start + h <= this->height_;
   if (!copyable) {
-    DisplayBuffer::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    DisplayBuffer::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   const size_t stride = static_cast<size_t>(x_offset) + w + x_pad;

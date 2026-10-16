@@ -355,10 +355,10 @@ class Display : public PollingComponent {
    * \param w the width of the pixel block
    * \param h the height of the pixel block
    * \param ptr A pointer to the start of the data to be copied
-   * \param order The ordering of the colors
-   * \param bitness Defines the number of bits and their format for each pixel
+   * \param bitness Defines the number of bits and their format for each pixel. Red is always in the
+   *                most significant bits.
    * \param big_endian True if 16 bit values are stored big-endian. Ignored for 888, which is always b,g,r
-   *                   in memory for RGB order, as LVGL and ESPHome images store it.
+   *                   in memory, as LVGL and ESPHome images store it.
    * \param x_offset The initial x-offset into the source buffer.
    * \param y_offset The initial y-offset into the source buffer.
    * \param x_pad How many pixels are in each line after the end of the pixels to be copied.
@@ -369,13 +369,32 @@ class Display : public PollingComponent {
    * rotation or an active clipping rectangle through this base version, which draws per pixel.
    * The block must lie on the screen.
    */
+  virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                              bool big_endian, int x_offset, int y_offset, int x_pad);
+
+  /// Convenience overload for base case where the pixels are packed into the buffer with no gaps (e.g. suits LVGL.)
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                      bool big_endian) {
+    this->draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, 0, 0, 0);
+  }
+
+  // Remove before 2027.5.0
+  /// The block form above with a color order. The base version draws per pixel and honours the order;
+  /// a driver that still overrides this one keeps receiving every block, since the form above calls it.
+  ESPDEPRECATED("Pixels are always RGB, drop the ColorOrder argument and override the form without it. Removed "
+                "in 2027.5.0",
+                "2026.11.0")
   virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                               ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
 
-  /// Convenience overload for base case where the pixels are packed into the buffer with no gaps (e.g. suits LVGL.)
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Pixels are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                       ColorBitness bitness, bool big_endian) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     this->draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, 0, 0, 0);
+#pragma GCC diagnostic pop
   }
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.

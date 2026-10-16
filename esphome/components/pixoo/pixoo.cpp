@@ -144,17 +144,16 @@ void HOT Pixoo::draw_pixel_at(int x, int y, Color color) {
   this->set_pixel_(static_cast<uint32_t>(y) * side + x, color);
 }
 
-void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                           display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-  // Fast path for the common LVGL/image blit: RGB565, RGB order, no rotation, no active clipping.
+void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                           bool big_endian, int x_offset, int y_offset, int x_pad) {
+  // Fast path for the common LVGL/image blit: RGB565, no rotation, no active clipping.
   // Anything else defers to the base implementation, which decodes per pixel and routes through
   // draw_pixel_at() so rotation, clipping and other color formats stay correct.
   // NOTE: the stride/index math and 565->888 expansion below mirror Display::draw_pixels_at (the
   // source of truth) -- keep them in sync if the base ever changes its source layout or decoding.
-  if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB ||
-      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                     x_pad);
+  if (bitness != display::COLOR_BITNESS_565 || this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES ||
+      this->is_clipping()) {
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   const int side = static_cast<int>(this->model_);
