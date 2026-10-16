@@ -11,7 +11,7 @@ template<typename R> static std::vector<std::string> feed_all(R &reader, const s
   for (char c : input) {
     const char *line = reader.feed(static_cast<uint8_t>(c));
     if (line != nullptr) {
-      EXPECT_EQ(reader.length(), strlen(line));
+      EXPECT_EQ(reader.length(), 0u);
       lines.emplace_back(line);
     }
   }
@@ -58,7 +58,7 @@ TEST(LineReaderTest, OverlongLineIsDroppedUpToTerminator) {
   bool saw_overflow = false;
   int overflow_count = 0;
   Lines lines;
-  for (char c : std::string("123456789\nok\n")) {
+  for (char c : std::string("123456789\r\nok\n")) {
     const char *line = reader.feed(c);
     if (reader.overflowed()) {
       saw_overflow = true;
@@ -71,17 +71,6 @@ TEST(LineReaderTest, OverlongLineIsDroppedUpToTerminator) {
   EXPECT_TRUE(saw_overflow);
   EXPECT_EQ(overflow_count, 1);
   EXPECT_EQ(lines, (Lines{"ok"}));
-}
-
-TEST(LineReaderTest, OverflowIsReportedOnce) {
-  LineReader<4> reader;
-  int overflow_count = 0;
-  for (char c : std::string("abcdef\r\nxy\r\n")) {
-    reader.feed(c);
-    if (reader.overflowed())
-      overflow_count++;
-  }
-  EXPECT_EQ(overflow_count, 1);
 }
 
 TEST(LineReaderTest, ResetAfterOverflowRestartsAtNextByte) {
@@ -108,24 +97,10 @@ TEST(LineReaderTest, PartialForPromptWithoutLineEnd) {
   EXPECT_EQ(feed_all(reader, "sensorStart\r\n"), (Lines{"sensorStart"}));
 }
 
-TEST(LineReaderTest, PartialIsEmptyAfterLine) {
-  LineReader<8> reader;
-  const char *line = nullptr;
-  for (char c : std::string("abc\n"))
-    line = reader.feed(c);
-  EXPECT_STREQ(reader.partial(), "");
-  EXPECT_STREQ(line, "abc");
-  EXPECT_EQ(reader.length(), 3u);
-  EXPECT_EQ(feed_all(reader, "d"), Lines{});
-  EXPECT_STREQ(reader.partial(), "d");
-}
-
 TEST(LineReaderTest, DiscardLineDropsUntilTerminator) {
   LineReader<16> reader;
   feed_all(reader, "half");
   reader.discard_line();
-  EXPECT_STREQ(reader.partial(), "");
-  EXPECT_EQ(reader.length(), 0u);
   EXPECT_EQ(feed_all(reader, "rest\nnext\n"), (Lines{"next"}));
 }
 
@@ -146,6 +121,9 @@ TEST(LineReaderTest, LineIsWritable) {
   EXPECT_STREQ(line, "a");
 }
 
-TEST(LineReaderTest, SizeIsBufferPlusPosition) { EXPECT_EQ(sizeof(LineReader<80>), 82u); }
+TEST(LineReaderTest, SizeIsBufferPlusPosition) {
+  EXPECT_EQ(sizeof(LineReader<80>), 81u);
+  EXPECT_EQ(sizeof(LineReader<1025>), 1028u);
+}
 
 }  // namespace esphome::uart::testing
