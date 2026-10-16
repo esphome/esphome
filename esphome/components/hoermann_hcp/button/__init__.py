@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import ICON_AIR_FILTER
@@ -33,7 +32,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
-    buttons = button.sub_buttons(config, parent=hub)
+    buttons = button.sub_buttons(config, parent=config[CONF_HOERMANN_HCP_ID])
     await buttons(CONF_VENT, None, apply="vent_door()")
     await buttons(CONF_HALF_OPEN, None, apply="half_open_door()")

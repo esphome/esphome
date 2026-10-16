@@ -697,35 +697,28 @@ TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorNeverStarts) {
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
-// The intermediate positions are named in the second register, next to 0x0100 in the first.
-TEST(HoermannHcpDoorCommands, VentDoorSendsTheVentCommand) {
-  TestableHoermannHcp door;
-  connect_controller(door);
-
-  door.vent_door();
-
+// The intermediate positions are named in the second register, next to 0x0100 in the first, and sent once.
+static void expect_one_shot_command(HoermannHcp &door, uint16_t expected_2) {
   auto [value, value_2] = poll_command(door);
   EXPECT_EQ(value, 0x0100);
-  EXPECT_EQ(value_2, 0x4000);
-  // Sent once, in the first register as well as in the second.
+  EXPECT_EQ(value_2, expected_2);
   auto [after, after_2] = poll_command(door);
   EXPECT_EQ(after, 0x0000);
   EXPECT_EQ(after_2, 0x0000);
 }
 
+TEST(HoermannHcpDoorCommands, VentDoorSendsTheVentCommand) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.vent_door();
+  expect_one_shot_command(door, 0x4000);
+}
+
 TEST(HoermannHcpDoorCommands, HalfOpenDoorSendsTheHalfOpenCommand) {
   TestableHoermannHcp door;
   connect_controller(door);
-
   door.half_open_door();
-
-  auto [value, value_2] = poll_command(door);
-  EXPECT_EQ(value, 0x0100);
-  EXPECT_EQ(value_2, 0x0400);
-  // Sent once, in the first register as well as in the second.
-  auto [after, after_2] = poll_command(door);
-  EXPECT_EQ(after, 0x0000);
-  EXPECT_EQ(after_2, 0x0000);
+  expect_one_shot_command(door, 0x0400);
 }
 
 // The door drives to the vent position on its own, so a position the cover was still travelling to must not

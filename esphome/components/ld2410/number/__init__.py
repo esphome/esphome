@@ -130,14 +130,13 @@ async def to_code(config: ConfigType) -> None:
     }
     for x in range(9):
         if gate_conf := config.get(f"g{x}"):
-            gate = number.sub_numbers(gate_conf, parent=hub)
-            await gate(
-                CONF_MOVE_THRESHOLD,
+            await numbers.create(
+                gate_conf[CONF_MOVE_THRESHOLD],
                 partial(hub.set_gate_move_threshold_number, x),
                 **threshold,
             )
-            await gate(
-                CONF_STILL_THRESHOLD,
+            await numbers.create(
+                gate_conf[CONF_STILL_THRESHOLD],
                 partial(hub.set_gate_still_threshold_number, x),
                 **threshold,
             )
