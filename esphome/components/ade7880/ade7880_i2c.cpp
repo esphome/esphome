@@ -43,9 +43,9 @@ uint16_t ADE7880::read_u16_register16_(uint16_t a_register) {
 
 int32_t ADE7880::read_s24zp_register16_(uint16_t a_register) {
   // s24zp means 24 bit signed value in the lower 24 bits of a 32-bit register
-  int32_t in;
+  uint32_t in;
   this->read_register16(a_register, reinterpret_cast<uint8_t *>(&in), sizeof(in));
-  return sign_extend<24>(static_cast<uint32_t>(convert_big_endian(in)));
+  return sign_extend<24>(convert_big_endian(in));
 }
 
 int32_t ADE7880::read_s32_register16_(uint16_t a_register) {
