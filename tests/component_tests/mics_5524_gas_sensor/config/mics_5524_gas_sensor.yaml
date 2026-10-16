@@ -64,4 +64,3 @@ sensor:
       id: mics_5524_co_ds
       name: MiCS-5524 CO (datasheet)
       max_ppm: 2000.0
-
