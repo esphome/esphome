@@ -87,14 +87,18 @@ _STATE_TRIGGERS = (
     # Negotiation is finished: a new PD contract is in place, or the source does not speak PD.
     (
         CONF_ON_POWER_READY,
-        "state == fusb302b::PdState::PD_STATE_EXPLICIT_CONTRACT"
-        " || state == fusb302b::PdState::PD_STATE_PD_TIMEOUT",
+        (
+            "state == fusb302b::PdState::PD_STATE_EXPLICIT_CONTRACT"
+            " || state == fusb302b::PdState::PD_STATE_PD_TIMEOUT"
+        ),
     ),
     # Communication with the chip fails.
     (
         CONF_ON_ERROR,
-        "state == fusb302b::PdState::PD_STATE_ERROR"
-        " && previous != fusb302b::PdState::PD_STATE_ERROR",
+        (
+            "state == fusb302b::PdState::PD_STATE_ERROR"
+            " && previous != fusb302b::PdState::PD_STATE_ERROR"
+        ),
     ),
 )
 
