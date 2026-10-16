@@ -84,7 +84,7 @@ bool BQ76972Component::read_words_(uint8_t start_register, uint16_t *data, size_
   if (num_words * 2 > bytes.size() || !this->read_block_(start_register, bytes.data(), num_words * 2))
     return false;
   for (size_t i = 0; i < num_words; i++)
-    data[i] = encode_uint16(bytes[2 * i + 1], bytes[2 * i]);
+    data[i] = encode_value_le<uint16_t>(&bytes[2 * i]);
   return true;
 }
 

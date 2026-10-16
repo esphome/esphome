@@ -277,7 +277,7 @@ bool AS734XComponent::update_bits_(uint8_t reg, uint8_t mask, bool value) {
 bool AS734XComponent::write_exposure_() {
   const ChipInfo *chip = this->chip_;
   if (!this->select_bank_(REG_ATIME) || !this->write_byte(REG_ATIME, this->atime_) ||
-      !this->write_byte_16(pgm(chip->astep_reg), byteswap(this->astep_)) ||
+      !this->write_byte_16_le(pgm(chip->astep_reg), this->astep_) ||
       !this->write_byte(pgm(chip->cfg1_reg), this->gain_)) {
     return false;
   }
@@ -459,7 +459,7 @@ void AS734XComponent::read_step_() {
   if (frame[0] & ASTATUS_ASAT) {
     ESP_LOGV(TAG, "Step %u saturated", this->step_);
   }
-  auto slot_value = [&frame](uint8_t slot) { return encode_uint16(frame[2 + 2 * slot], frame[1 + 2 * slot]); };
+  auto slot_value = [&frame](uint8_t slot) { return encode_value_le<uint16_t>(&frame[1 + 2 * slot]); };
   const uint8_t *readout = pgm(this->chip_->readout) + this->step_ * NUM_BANDS;
   const uint8_t extra_clear = pgm(this->chip_->extra_clear_slot);
   for (uint8_t band = 0; band < NUM_BANDS; band++) {
