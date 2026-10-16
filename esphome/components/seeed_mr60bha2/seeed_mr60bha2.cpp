@@ -48,31 +48,9 @@ void MR60BHA2Component::loop() {
   }
 }
 
-/**
- * @brief Calculate the checksum for a byte array.
- *
- * This function calculates the checksum for the provided byte array using an
- * XOR-based checksum algorithm.
- *
- * @param data The byte array to calculate the checksum for.
- * @param len The length of the byte array.
- * @return The calculated checksum.
- */
-static uint8_t calculate_checksum(const uint8_t *data, size_t len) { return ~xor_bytes(data, len); }
-
-/**
- * @brief Validate the checksum of a byte array.
- *
- * This function validates the checksum of the provided byte array by comparing
- * it to the expected checksum.
- *
- * @param data The byte array to validate.
- * @param len The length of the byte array.
- * @param expected_checksum The expected checksum.
- * @return True if the checksum is valid, false otherwise.
- */
+// The checksum is the inverted XOR of the bytes
 static bool validate_checksum(const uint8_t *data, size_t len, uint8_t expected_checksum) {
-  return calculate_checksum(data, len) == expected_checksum;
+  return static_cast<uint8_t>(~xor_bytes(data, len)) == expected_checksum;
 }
 
 bool MR60BHA2Component::validate_message_() {

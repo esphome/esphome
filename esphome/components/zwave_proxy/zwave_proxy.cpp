@@ -35,8 +35,6 @@ static constexpr bool is_bootloader_menu_byte(uint8_t byte) {
 }
 
 static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
-  // Calculate Z-Wave frame checksum
-  // XOR all bytes between SOF and checksum position (exclusive)
   // Initial value is 0xFF per Z-Wave protocol specification
   return xor_bytes(data + 1, length - 2, 0xFF);
 }

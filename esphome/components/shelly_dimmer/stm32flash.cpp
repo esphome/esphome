@@ -729,13 +729,9 @@ stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address, co
   uint8_t buf[256 + 2];
 
   buf[0] = aligned_len - 1;
-  for (unsigned int i = 0; i < len; i++) {
-    buf[i + 1] = data[i];
-  }
+  memcpy(&buf[1], data, len);
   /* padding data */
-  for (auto i = len; i < aligned_len; i++) {
-    buf[i + 1] = 0xFF;
-  }
+  memset(&buf[1 + len], 0xFF, aligned_len - len);
   buf[aligned_len + 1] = xor_bytes(buf, aligned_len + 1);
   stream->write_array(buf, aligned_len + 2);
   stream->flush();

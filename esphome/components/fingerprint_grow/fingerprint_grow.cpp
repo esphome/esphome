@@ -377,8 +377,8 @@ uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> &data_buffer) {
   this->write((uint8_t) (wire_length >> 8));
   this->write((uint8_t) (wire_length & 0xFF));
 
-  for (auto data : data_buffer)
-    this->write(data);
+  if (!data_buffer.empty())
+    this->write_array(data_buffer);
   const uint16_t sum =
       sum16_bytes(data_buffer.data(), data_buffer.size(), (wire_length >> 8) + (wire_length & 0xFF) + COMMAND);
 

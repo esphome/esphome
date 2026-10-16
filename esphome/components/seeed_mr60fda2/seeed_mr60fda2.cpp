@@ -62,16 +62,7 @@ void MR60FDA2Component::loop() {
   }
 }
 
-/**
- * @brief Calculate the checksum for a byte array.
- *
- * This function calculates the checksum for the provided byte array using an
- * XOR-based checksum algorithm.
- *
- * @param data The byte array to calculate the checksum for.
- * @param len The length of the byte array.
- * @return The calculated checksum.
- */
+// The checksum is the inverted XOR of the bytes
 static uint8_t calculate_checksum(const uint8_t *data, size_t len) { return ~xor_bytes(data, len); }
 
 /**

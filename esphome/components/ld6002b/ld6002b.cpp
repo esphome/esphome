@@ -1,5 +1,4 @@
 #include "ld6002b.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cinttypes>

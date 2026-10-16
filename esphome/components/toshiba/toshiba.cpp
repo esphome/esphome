@@ -544,7 +544,7 @@ void ToshibaClimate::transmit_generic_() {
   }
 
   // The last byte is the xor of all bytes from [4]
-  message[message_length - 1] = xor_bytes(message + 4, message_length - 5, message[message_length - 1]);
+  message[message_length - 1] = xor_bytes(message + 4, message_length - 5);
 
   // Transmit
   auto transmit = this->transmitter_->transmit();

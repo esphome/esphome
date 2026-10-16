@@ -95,8 +95,8 @@ void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const uint8_t *da
   this->write((uint8_t) (data_size & 0xFF));
 
   const uint8_t header = (uint8_t) command ^ (data_size >> 8) ^ (data_size & 0xFF);
-  for (size_t i = 0; i < size; i++)
-    this->write(data[i]);
+  if (size > 0)
+    this->write_array(data, size);
   this->write(xor_bytes(data, size, header));
   this->active_command_ = command;
   this->wait_cycles_ = 0;
