@@ -1,7 +1,8 @@
 """Integration test for the DFRobot SEN0465 series over UART against a model of a SEN0466 probe.
 
-Checks the boot sequence (passive mode with one retry, the wait after it, the alarm setting) and that
-a reading is decoded and temperature compensated.
+Checks the boot sequence (passive mode with one retry, the wait after it, the alarm setting with a
+late answer to the mode change that must be rejected), that no new request is sent while one is
+unanswered, and that a reading is decoded and temperature compensated.
 """
 
 from __future__ import annotations
@@ -62,7 +63,7 @@ async def test_uart_mock_dfrobot_sen0465(
             return None if state is None or state.missing_state else state.state
 
         try:
-            async with asyncio.timeout(10.0):
+            async with asyncio.timeout(15.0):
                 while state_of(concentration) is None:
                     await asyncio.sleep(0.05)
         except TimeoutError:
@@ -79,8 +80,21 @@ async def test_uart_mock_dfrobot_sen0465(
             "Passive mode failed: not confirmed (attempt 1 of 3)" in x for x in lines
         )
         assert any("Passive mode confirmed" in x for x in lines)
+        assert any(
+            "Alarm setting failed: unexpected response (attempt 1 of 3)" in x
+            for x in lines
+        )
         assert any("Alarm setting confirmed" in x for x in lines)
         assert not any("Data requested before the setup was done" in x for x in lines)
+
+        # The unanswered request blocks new ones until its timeout, which is longer than the interval
+        unanswered = next(
+            i for i, x in enumerate(lines) if "Data request left unanswered" in x
+        )
+        answered = next(i for i, x in enumerate(lines) if "Data request answered" in x)
+        between = lines[unanswered:answered]
+        assert any("Previous request still waiting for an answer" in x for x in between)
+        assert any("No response from the sensor" in x for x in between)
 
         # NTC ADC 511 converted like the DFRobot library, then compensated with the CO formula
         voltage = 3 * 511 / 1024

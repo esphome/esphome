@@ -59,19 +59,20 @@ class DFRobotSEN0465Component : public PollingComponent {
  protected:
   /// Sends one complete request frame.
   virtual bool write_frame(const uint8_t *frame) = 0;
-  /// Waits for the answer to a request, then calls handle_response_() or handle_no_response_().
+  /// Waits for the answer to a request, then calls either handle_response_() or handle_no_response_(), once.
   virtual void read_response() = 0;
 
   void handle_response_(const uint8_t *frame);
   void handle_no_response_();
 
-  /// Sends the request of the current step and waits for its answer.
+  /// Sends the request of the current step.
   bool send_step_request_();
   /// Sends the request again from a scheduled callback; a failed write counts as a failed attempt.
   void retry_step_request_();
   void step_failed_(const LogString *reason);
   void next_step_();
   void handle_data_(const uint8_t *frame);
+  /// Sends a request and waits for its answer; returns false when the request could not be sent.
   bool send_command_(uint8_t command, uint8_t arg0 = 0, uint8_t arg1 = 0, uint8_t arg2 = 0, uint8_t arg3 = 0);
 
   const char *gas_name_;
@@ -81,6 +82,8 @@ class DFRobotSEN0465Component : public PollingComponent {
   uint8_t alarm_decimals_{0};
   SetupStep step_{SetupStep::SETUP_STEP_ACQUIRE_MODE};
   uint8_t attempts_{0};
+  /// Command whose answer is awaited, 0 when no request is outstanding
+  uint8_t pending_command_{0};
 
 #ifdef USE_DFROBOT_SEN0465_TEMPERATURE_COMPENSATION
   struct CompensationRange {

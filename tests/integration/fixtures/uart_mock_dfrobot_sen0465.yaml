@@ -17,7 +17,9 @@ uart:
   baud_rate: 9600
   port: /dev/null
 
-# A model of a SEN0466 (CO) probe. The first mode change is refused, so the component has to retry it
+# A model of a SEN0466 (CO) probe. The first mode change is refused, the first alarm request gets a late
+# answer to the mode change instead, and the first data request gets no answer, so the component has to
+# retry, reject the wrong answer and wait out the timeout without sending a new request
 uart_mock:
   id: mock_uart
   baud_rate: 9600
@@ -27,6 +29,8 @@ uart_mock:
             if (data.size() != 9 || data[0] != 0xFF || data[1] != 0x01)
               return;
             static int mode_requests = 0;
+            static int alarm_requests = 0;
+            static int data_requests = 0;
             static uint32_t mode_confirmed_ms = 0;
             static bool alarm_set = false;
             std::vector<uint8_t> reply(9, 0);
@@ -42,12 +46,22 @@ uart_mock:
               case 0x89:
                 ESP_LOGI("sim", "Alarm switch %u threshold %u type %u, %u ms after the mode change", data[3],
                          (data[4] << 8) | data[5], data[6], millis() - mode_confirmed_ms);
-                alarm_set = true;
                 reply[2] = 0x01;
+                if (++alarm_requests == 1) {
+                  reply[1] = 0x78;  // FF 78 01 00 00 00 00 00 87: valid checksum and result, wrong command
+                  break;
+                }
+                alarm_set = true;
                 break;
               case 0x88:
                 if (!alarm_set)
                   ESP_LOGE("sim", "Data requested before the setup was done");
+                if (++data_requests == 1) {
+                  ESP_LOGI("sim", "Data request left unanswered");
+                  return;
+                }
+                if (data_requests == 2)
+                  ESP_LOGI("sim", "Data request answered");
                 reply[2] = 0x00;  // 20 ppm
                 reply[3] = 0x14;
                 reply[4] = 0x04;  // CO

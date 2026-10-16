@@ -13,6 +13,7 @@ ESPHOME_LOG_TAG(TAG, "dfrobot_sen0465");
 static constexpr uint8_t FRAME_HEAD = 0xFF;
 static constexpr uint8_t FRAME_ADDRESS = 0x01;
 
+static constexpr uint8_t NO_COMMAND = 0x00;
 static constexpr uint8_t CMD_CHANGE_ACQUIRE_MODE = 0x78;
 static constexpr uint8_t CMD_GET_ALL_DATA = 0x88;
 static constexpr uint8_t CMD_SET_THRESHOLD_ALARM = 0x89;
@@ -52,12 +53,15 @@ void DFRobotSEN0465Component::update() {
   // The first reading is requested when the setup steps are done
   if (this->step_ != SetupStep::SETUP_STEP_DONE)
     return;
+  // A new request would replace the wait for the answer to the previous one
+  if (this->pending_command_ != NO_COMMAND) {
+    ESP_LOGV(TAG, "Previous request still waiting for an answer, skipping update");
+    return;
+  }
   if (!this->send_command_(CMD_GET_ALL_DATA)) {
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
-    return;
   }
-  this->read_response();
 }
 
 void DFRobotSEN0465Component::dump_config() {
@@ -87,25 +91,24 @@ void DFRobotSEN0465Component::dump_config() {
 bool DFRobotSEN0465Component::send_command_(uint8_t command, uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t arg3) {
   uint8_t frame[FRAME_SIZE] = {FRAME_HEAD, FRAME_ADDRESS, command, arg0, arg1, arg2, arg3};
   frame[FRAME_SIZE - 1] = frame_checksum(frame);
-  return this->write_frame(frame);
+  if (!this->write_frame(frame))
+    return false;
+  this->pending_command_ = command;
+  this->read_response();
+  return true;
 }
 
 bool DFRobotSEN0465Component::send_step_request_() {
-  bool sent;
-  if (this->step_ == SetupStep::SETUP_STEP_ACQUIRE_MODE) {
-    sent = this->send_command_(CMD_CHANGE_ACQUIRE_MODE, ACQUIRE_MODE_PASSIVE);
-  } else if (this->alarm_type_ == AlarmType::ALARM_TYPE_OFF) {
+  if (this->step_ == SetupStep::SETUP_STEP_ACQUIRE_MODE)
+    return this->send_command_(CMD_CHANGE_ACQUIRE_MODE, ACQUIRE_MODE_PASSIVE);
+  if (this->alarm_type_ == AlarmType::ALARM_TYPE_OFF) {
     // Switch the alarm off explicitly, the sensor may still have one from an earlier configuration
-    sent = this->send_command_(CMD_SET_THRESHOLD_ALARM, ALARM_SWITCH_OFF);
-  } else {
-    sent = this->send_command_(
-        CMD_SET_THRESHOLD_ALARM, ALARM_SWITCH_ON, static_cast<uint8_t>(this->alarm_threshold_ >> 8),
-        static_cast<uint8_t>(this->alarm_threshold_),
-        this->alarm_type_ == AlarmType::ALARM_TYPE_HIGH ? ALARM_HIGH_THRESHOLD : ALARM_LOW_THRESHOLD);
+    return this->send_command_(CMD_SET_THRESHOLD_ALARM, ALARM_SWITCH_OFF);
   }
-  if (sent)
-    this->read_response();
-  return sent;
+  return this->send_command_(
+      CMD_SET_THRESHOLD_ALARM, ALARM_SWITCH_ON, static_cast<uint8_t>(this->alarm_threshold_ >> 8),
+      static_cast<uint8_t>(this->alarm_threshold_),
+      this->alarm_type_ == AlarmType::ALARM_TYPE_HIGH ? ALARM_HIGH_THRESHOLD : ALARM_LOW_THRESHOLD);
 }
 
 void DFRobotSEN0465Component::retry_step_request_() {
@@ -138,6 +141,7 @@ void DFRobotSEN0465Component::next_step_() {
 }
 
 void DFRobotSEN0465Component::handle_no_response_() {
+  this->pending_command_ = NO_COMMAND;
   if (this->step_ != SetupStep::SETUP_STEP_DONE) {
     this->step_failed_(LOG_STR("no response"));
     return;
@@ -147,13 +151,26 @@ void DFRobotSEN0465Component::handle_no_response_() {
 }
 
 void DFRobotSEN0465Component::handle_response_(const uint8_t *frame) {
+  // Reject a late answer to an earlier request or a reading sent before passive mode was set
+  const bool expected = frame[0] == FRAME_HEAD && frame[1] == this->pending_command_;
+  this->pending_command_ = NO_COMMAND;
+  char hex[format_hex_pretty_size(FRAME_SIZE)];
+
   if (this->step_ == SetupStep::SETUP_STEP_DONE) {
+    if (!expected) {
+      ESP_LOGW(TAG, "Unexpected response: %s", format_hex_pretty_to(hex, frame, FRAME_SIZE));
+      this->status_set_warning();
+      return;
+    }
     this->handle_data_(frame);
     return;
   }
 
-  char hex[format_hex_pretty_size(FRAME_SIZE)];
   ESP_LOGD(TAG, "%s response: %s", LOG_STR_ARG(step_name(this->step_)), format_hex_pretty_to(hex, frame, FRAME_SIZE));
+  if (!expected) {
+    this->step_failed_(LOG_STR("unexpected response"));
+    return;
+  }
   // Like the DFRobot library, the answer to the mode change is accepted without a checksum check
   if (this->step_ == SetupStep::SETUP_STEP_ALARM && frame[FRAME_SIZE - 1] != frame_checksum(frame)) {
     this->step_failed_(LOG_STR("invalid checksum"));
