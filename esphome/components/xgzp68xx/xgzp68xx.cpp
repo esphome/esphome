@@ -76,8 +76,7 @@ void XGZP68XXComponent::update() {
     ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u, K value=%u", pressure_raw, temperature_raw,
              this->k_value_);
 
-    // Sign extend the pressure
-    float pressure_in_pa = (float) (((int32_t) pressure_raw << 8) >> 8);
+    float pressure_in_pa = (float) sign_extend<24>(pressure_raw);
     pressure_in_pa /= (float) (this->k_value_);
 
     float temperature = ((float) (int16_t) temperature_raw) / 256.0f;

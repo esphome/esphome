@@ -1,5 +1,6 @@
 #include "max31856.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
 
@@ -53,10 +54,7 @@ void MAX31856Sensor::read_thermocouple_temperature_() {
     // Faults have been logged, clear it for next loop
     this->clear_fault_();
   } else {
-    int32_t temp24 = this->read_register24_(MAX31856_LTCBH_REG);
-    if (temp24 & 0x800000) {
-      temp24 |= 0xFF000000;  // fix sign
-    }
+    int32_t temp24 = sign_extend<24>(this->read_register24_(MAX31856_LTCBH_REG));
 
     temp24 >>= 5;  // bottom 5 bits are unused
 
