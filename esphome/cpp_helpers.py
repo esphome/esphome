@@ -1,9 +1,10 @@
-from collections.abc import Callable, Hashable
+from collections.abc import Awaitable, Callable, Hashable
 from dataclasses import dataclass, field
 import logging
-from types import CodeType
+from typing import Any
 
 from esphome.const import (
+    CONF_ID,
     CONF_SAFE_MODE,
     CONF_SETUP_PRIORITY,
     CONF_TYPE_ID,
@@ -13,11 +14,13 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import (
+    MockObj,
     RawStatement,
     add,
     add_define,
     add_global,
     get_variable,
+    new_Pvariable,
 )
 from esphome.cpp_types import App
 from esphome.helpers import cpp_string_escape
@@ -30,17 +33,6 @@ _COMPONENT_SOURCE_DOMAIN = "component_source_pool"
 
 # Maximum unique component source names (8-bit index, 0 = not set)
 _MAX_COMPONENT_SOURCES = 0xFF  # 255
-
-_SOURCE_PASSTHROUGH_CODE: set[CodeType] = set()
-
-
-def component_source_passthrough[F: Callable](func: F) -> F:
-    """Mark a helper that calls register_component on behalf of its caller.
-
-    Its frame is skipped when register_component names the component source.
-    """
-    _SOURCE_PASSTHROUGH_CODE.add(func.__code__)
-    return func
 
 
 @dataclass
@@ -276,8 +268,6 @@ async def register_component(var, config):
     name = None
     try:
         for frm in inspect.stack()[1:]:
-            if frm.frame.f_code in _SOURCE_PASSTHROUGH_CODE:
-                continue
             mod = inspect.getmodule(frm[0])
             if mod is None:
                 continue
@@ -305,6 +295,22 @@ async def register_component(var, config):
     comp_entries = CORE.data.setdefault("looping_component_entries", [])
     comp_entries.append(str(var.base.type))
 
+    return var
+
+
+async def new_bus_component(
+    register_device: Callable[[MockObj, ConfigType], Awaitable[None]],
+    config: ConfigType,
+    *args: Any,
+) -> MockObj:
+    """Create a component, register it and attach it to its bus.
+
+    Extra args go to the constructor. Bus wrappers must be plain functions
+    returning this coroutine, so the component source stays their caller.
+    """
+    var = new_Pvariable(config[CONF_ID], *args)
+    await register_component(var, config)
+    await register_device(var, config)
     return var
 
 

@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 import re
 from typing import Any
 
@@ -504,18 +505,14 @@ async def register_spi_device(
         cg.add(var.set_psram_dma(psram_dma))
 
 
-@cg.component_source_passthrough
-async def new_spi_component(
-    config: ConfigType, *args: Any, write_only: bool = False
-) -> cg.MockObj:
+def new_spi_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
     """Create a component on an SPI bus: construct, register, attach to the bus.
 
     Extra args go to the constructor.
     """
-    var = cg.new_Pvariable(config[CONF_ID], *args)
-    await cg.register_component(var, config)
-    await register_spi_device(var, config, write_only=write_only)
-    return var
+    return cg.new_bus_component(register_spi_device, config, *args)
 
 
 def final_validate_device_schema(
