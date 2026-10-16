@@ -9,7 +9,7 @@ namespace esphome::smt100 {
 
 class SMT100Component final : public PollingComponent, public uart::UARTDevice {
   // "15000,80.00,100.00,-20.00,12.00" is 31 characters; 34 bytes keep the old RAM
-  static const uint16_t MAX_LINE_LENGTH = 34;
+  static constexpr uint16_t MAX_LINE_LENGTH = 34;
 
  public:
   SMT100Component() = default;
