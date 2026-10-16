@@ -7,7 +7,7 @@
 // WORKAROUND, because CAN_IO_UNUSED is just defined as (-1) in this version
 // of the framework which does not work with -fpermissive
 #undef CAN_IO_UNUSED
-#define CAN_IO_UNUSED ((gpio_num_t) - 1)
+#define CAN_IO_UNUSED (static_cast<gpio_num_t>(-1))
 
 namespace esphome::esp32_can {
 
