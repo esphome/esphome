@@ -2,13 +2,28 @@
 
 from __future__ import annotations
 
+import logging
+import os
+
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
 import aioesphomeapi.host_resolver as hr
 
-from esphome.async_thread import AsyncThreadRunner
+from esphome.async_thread import AsyncDispatchTimeout, run_async
 from esphome.core import EsphomeError
 
-RESOLVE_TIMEOUT = 10.0  # seconds
+_LOGGER = logging.getLogger(__name__)
+
+_DEFAULT_RESOLVE_TIMEOUT = 20.0
+_env_timeout = os.environ.get("ESPHOME_RESOLVE_TIMEOUT", _DEFAULT_RESOLVE_TIMEOUT)
+try:
+    RESOLVE_TIMEOUT = float(_env_timeout)
+except ValueError:
+    _LOGGER.warning(
+        "ESPHOME_RESOLVE_TIMEOUT=%r is not a valid number; using default %.1fs",
+        _env_timeout,
+        _DEFAULT_RESOLVE_TIMEOUT,
+    )
+    RESOLVE_TIMEOUT = _DEFAULT_RESOLVE_TIMEOUT
 
 
 class AsyncResolver:
@@ -16,9 +31,9 @@ class AsyncResolver:
 
     This resolver uses aioesphomeapi's async_resolve_host to handle DNS
     resolution, including proper .local domain fallback. Running in a thread
-    (via :class:`AsyncThreadRunner`) allows us to get the result immediately
-    without waiting for ``asyncio.run()`` to complete its cleanup cycle, which
-    can take significant time.
+    (via :func:`run_async`) allows us to get the result immediately without
+    waiting for ``asyncio.run()`` to complete its cleanup cycle, which can
+    take significant time.
     """
 
     def __init__(self, hosts: list[str], port: int) -> None:
@@ -33,21 +48,13 @@ class AsyncResolver:
         )
 
     def resolve(self) -> list[hr.AddrInfo]:
-        """Start the thread and wait for the result."""
-        runner: AsyncThreadRunner[list[hr.AddrInfo]] = AsyncThreadRunner(self._resolve)
-        runner.start()
-
-        if not runner.event.wait(
-            timeout=RESOLVE_TIMEOUT + 1.0
-        ):  # Give it 1 second more than the resolver timeout
-            raise EsphomeError("Timeout resolving IP address")
-
-        if exc := runner.exception:
-            if isinstance(exc, ResolveTimeoutAPIError):
-                raise EsphomeError(f"Timeout resolving IP address: {exc}") from exc
-            if isinstance(exc, ResolveAPIError):
-                raise EsphomeError(f"Error resolving IP address: {exc}") from exc
-            raise exc
-
-        assert runner.result is not None  # guaranteed when event set and no exception
-        return runner.result
+        """Resolve and wait for the result."""
+        try:
+            # Give it 1 second more than the resolver timeout
+            return run_async(self._resolve, timeout=RESOLVE_TIMEOUT + 1.0)
+        except ResolveTimeoutAPIError as exc:
+            raise EsphomeError(f"Timeout resolving IP address: {exc}") from exc
+        except ResolveAPIError as exc:
+            raise EsphomeError(f"Error resolving IP address: {exc}") from exc
+        except AsyncDispatchTimeout as exc:
+            raise EsphomeError("Timeout resolving IP address") from exc

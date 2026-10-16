@@ -13,14 +13,13 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 class BLEServer;
 
 using namespace esp32_ble;
 
-class BLEService {
+class BLEService final {
  public:
   BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise);
   ~BLEService();
@@ -49,6 +48,7 @@ class BLEService {
   bool is_created() { return this->state_ == CREATED; }
   bool is_running() { return this->state_ == RUNNING; }
   bool is_starting() { return this->state_ == STARTING; }
+  bool is_stopped() { return this->state_ == STOPPED; }
   bool is_deleted() { return this->state_ == DELETED; }
 
  protected:
@@ -80,7 +80,6 @@ class BLEService {
   } state_{INIT};
 };
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

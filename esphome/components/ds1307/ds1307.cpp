@@ -4,14 +4,13 @@
 // Datasheet:
 // - https://datasheets.maximintegrated.com/en/ds/DS1307.pdf
 
-namespace esphome {
-namespace ds1307 {
+namespace esphome::ds1307 {
 
-static const char *const TAG = "ds1307";
+ESPHOME_LOG_TAG(TAG, "ds1307");
 
 void DS1307Component::setup() {
   if (!this->read_rtc_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
@@ -20,9 +19,6 @@ void DS1307Component::update() { this->read_time(); }
 void DS1307Component::dump_config() {
   ESP_LOGCONFIG(TAG, "DS1307:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   RealTimeClock::dump_config();
 }
 
@@ -99,5 +95,4 @@ bool DS1307Component::write_rtc_() {
            ds1307_.reg.day, ONOFF(ds1307_.reg.ch), ds1307_.reg.rs, ONOFF(ds1307_.reg.sqwe), ONOFF(ds1307_.reg.out));
   return true;
 }
-}  // namespace ds1307
-}  // namespace esphome
+}  // namespace esphome::ds1307

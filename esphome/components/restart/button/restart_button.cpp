@@ -3,10 +3,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace restart {
+namespace esphome::restart {
 
-static const char *const TAG = "restart.button";
+ESPHOME_LOG_TAG(TAG, "restart.button");
 
 void RestartButton::press_action() {
   ESP_LOGI(TAG, "Restarting device");
@@ -16,5 +15,4 @@ void RestartButton::press_action() {
 }
 void RestartButton::dump_config() { LOG_BUTTON("", "Restart Button", this); }
 
-}  // namespace restart
-}  // namespace esphome
+}  // namespace esphome::restart

@@ -1,0 +1,7 @@
+{
+  "name": "auto-label-pr",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

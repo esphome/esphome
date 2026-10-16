@@ -10,13 +10,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cmath>
 #include <numbers>
 
 namespace esphome::ld2450 {
 
-static const char *const TAG = "ld2450";
+ESPHOME_LOG_TAG(TAG, "ld2450");
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -131,6 +132,9 @@ static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x0
 // Data Header & Footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xAA, 0xFF, 0x03, 0x00};
 static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
+// Successful zone query ACK: header (4) + length (2) + command/status (2) + result (2) + zone type (2) +
+// 3 zones * 8 + footer (4). Zone coordinates may contain the command footer bytes.
+static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
@@ -173,6 +177,20 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
+// Drop the frame at the start of the buffer, keeping bytes from the next frame header (or a partial
+// header at the end). Returns the new buffer length.
+static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
+  for (uint8_t start = 1; start < len; start++) {
+    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, len - start);
+    if (std::memcmp(&buffer[start], CMD_FRAME_HEADER, n) == 0 ||
+        std::memcmp(&buffer[start], DATA_FRAME_HEADER, n) == 0) {
+      std::memmove(buffer, &buffer[start], len - start);
+      return len - start;
+    }
+  }
+  return 0;
+}
+
 void LD2450Component::setup() {
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
@@ -180,11 +198,16 @@ void LD2450Component::setup() {
     this->set_presence_timeout();
   }
 #endif
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  for (PolygonZone *zone : this->polygon_zones_) {
+    zone->setup();
+  }
+#endif
   this->restart_and_read_all_info();
 }
 
 void LD2450Component::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
   const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
   ld24xx::format_version_str(this->version_, version_s);
@@ -264,6 +287,12 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Buttons:");
   LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
   LOG_BUTTON("  ", "Restart", this->restart_button_);
+#endif
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  ESP_LOGCONFIG(TAG, "Polygon Zones:");
+  for (PolygonZone *zone : this->polygon_zones_) {
+    zone->dump_config();
+  }
 #endif
 }
 
@@ -465,15 +494,15 @@ void LD2450Component::handle_periodic_data_() {
 #if defined(USE_BINARY_SENSOR) || defined(USE_SENSOR) || defined(USE_TEXT_SENSOR)
   // Loop thru targets
   for (index = 0; index < MAX_TARGETS; index++) {
-#ifdef USE_SENSOR
     // X
     start = TARGET_X + index * 8;
     is_moving = false;
-    // tx is used for further calculations, so always needs to be populated
+    // tx and ty are used for further calculations, so always need to be populated
     tx = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
     // Y
     start = TARGET_Y + index * 8;
     ty = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
+#ifdef USE_SENSOR
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
     res = (this->buffer_data_[start + 1] << 8) | this->buffer_data_[start];
@@ -542,6 +571,23 @@ void LD2450Component::handle_periodic_data_() {
   still_target_count = target_count - moving_target_count;
 #endif
 
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  const uint32_t now = App.get_loop_component_start_time();
+  for (PolygonZone *zone : this->polygon_zones_) {
+    if (!zone->has_polygon())
+      continue;
+    bool target_inside = false;
+    for (const Target &target : this->target_info_) {
+      // Untracked targets are stored as (0, 0)
+      if ((target.x != 0 || target.y != 0) && zone->contains(target.x, target.y)) {
+        target_inside = true;
+        break;
+      }
+    }
+    zone->update(target_inside, now, this->get_timeout_status_(zone->get_last_inside_ms()));
+  }
+#endif
+
 #ifdef USE_SENSOR
   // Loop thru zones
   uint8_t zone_still_targets = 0;
@@ -602,7 +648,7 @@ void LD2450Component::handle_periodic_data_() {
     }
   }
 #endif
-#ifdef USE_SENSOR
+#ifdef USE_BINARY_SENSOR
   // For presence timeout check
   if (target_count > 0) {
     this->presence_millis_ = App.get_loop_component_start_time();
@@ -680,7 +726,7 @@ bool LD2450Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      char mac_s[18];
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
@@ -728,6 +774,9 @@ bool LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_ZONE:
+      if (this->buffer_pos_ < ZONE_ACK_FRAME_SIZE) {
+        return false;  // command footer bytes inside the coordinates; keep reading
+      }
       ESP_LOGV(TAG, "Query zone conf");
       this->zone_type_ = this->buffer_data_[10];
       this->publish_zone_type();
@@ -795,6 +844,20 @@ void LD2450Component::readline_(int readch) {
       this->buffer_pos_ = 0;  // Reset position index for next message
     } else {
       ESP_LOGV(TAG, "Ack Data incomplete");
+    }
+  } else if (this->buffer_pos_ == ZONE_ACK_FRAME_SIZE && this->buffer_data_[COMMAND] == CMD_QUERY_ZONE &&
+             ld2450::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
+    ESP_LOGW(TAG, "Truncated zone ACK");
+    // Replay the retained bytes so frames already complete inside them are dispatched.
+    // At most ZONE_ACK_FRAME_SIZE - 1 bytes are replayed from position 0, so neither this
+    // branch nor the overflow path can be re-entered during the replay.
+    uint8_t pending[ZONE_ACK_FRAME_SIZE];
+    const uint8_t pending_len = ld2450::drop_to_next_header(this->buffer_data_, this->buffer_pos_);
+    std::memcpy(pending, this->buffer_data_, pending_len);
+    this->buffer_pos_ = 0;
+    this->buffer_data_[0] = 0;
+    for (uint8_t i = 0; i < pending_len; i++) {
+      this->readline_(pending[i]);  // NOLINT(misc-no-recursion)
     }
   }
 }

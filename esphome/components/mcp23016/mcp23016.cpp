@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include <cstdio>
 
-namespace esphome {
-namespace mcp23016 {
+namespace esphome::mcp23016 {
 
-static const char *const TAG = "mcp23016";
+ESPHOME_LOG_TAG(TAG, "mcp23016");
 
 void MCP23016::setup() {
   uint16_t iocon;
@@ -101,5 +100,4 @@ size_t MCP23016GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via MCP23016", this->pin_);
 }
 
-}  // namespace mcp23016
-}  // namespace esphome
+}  // namespace esphome::mcp23016

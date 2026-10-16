@@ -1,14 +1,20 @@
 #include "power_supply.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace power_supply {
+namespace esphome::power_supply {
 
-static const char *const TAG = "power_supply";
+ESPHOME_LOG_TAG(TAG, "power_supply");
+
+static constexpr uint32_t POWER_OFF_TIMEOUT_ID = 0;
 
 void PowerSupply::setup() {
   this->pin_->setup();
-  this->pin_->digital_write(false);
+  if (this->pin_->is_held()) {
+    // Rail stayed on across the reset; drop it unless something asks for it
+    this->schedule_off_if_idle_();
+  } else {
+    this->pin_->digital_write(false);
+  }
   if (this->enable_on_boot_)
     this->request_high_power();
 }
@@ -22,13 +28,17 @@ void PowerSupply::dump_config() {
   LOG_PIN("  Pin: ", this->pin_);
 }
 
-float PowerSupply::get_setup_priority() const { return setup_priority::IO; }
+float PowerSupply::get_setup_priority() const {
+  if (this->pin_->is_internal() && this->enable_on_boot_)
+    return setup_priority::POWER;
+  return setup_priority::IO;
+}
 
 bool PowerSupply::is_enabled() const { return this->active_requests_ != 0; }
 
 void PowerSupply::request_high_power() {
   if (this->active_requests_ == 0) {
-    this->cancel_timeout("power-supply-off");
+    this->cancel_timeout(POWER_OFF_TIMEOUT_ID);
     ESP_LOGV(TAG, "Enabling");
     this->pin_->digital_write(true);
     delay(this->enable_time_);
@@ -42,17 +52,23 @@ void PowerSupply::unrequest_high_power() {
     return;
   }
   this->active_requests_--;
+  this->schedule_off_if_idle_();
+}
+
+void PowerSupply::schedule_off_if_idle_() {
   if (this->active_requests_ == 0) {
-    this->set_timeout("power-supply-off", this->keep_on_time_, [this]() {
+    this->set_timeout(POWER_OFF_TIMEOUT_ID, this->keep_on_time_, [this]() {
       ESP_LOGV(TAG, "Disabling");
       this->pin_->digital_write(false);
     });
   }
 }
+
 void PowerSupply::on_powerdown() {
+  if (this->pin_->get_hold())
+    return;
   this->active_requests_ = 0;
   this->pin_->digital_write(false);
 }
 
-}  // namespace power_supply
-}  // namespace esphome
+}  // namespace esphome::power_supply

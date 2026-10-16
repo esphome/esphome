@@ -1,0 +1,9 @@
+output:
+  - platform: zephyr_pwm
+    id: pwm_output_1
+    pin: P0.02
+  - platform: zephyr_pwm
+    id: pwm_output_2
+    pin:
+      number: 10
+      inverted: true

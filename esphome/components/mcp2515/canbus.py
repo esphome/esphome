@@ -3,6 +3,7 @@ from esphome.components import canbus, spi
 from esphome.components.canbus import CanbusComponent
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
 DEPENDENCIES = ["spi"]
@@ -36,10 +37,10 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
 ).extend(spi.spi_device_schema(True))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     rhs = mcp2515.new()
     var = cg.Pvariable(config[CONF_ID], rhs)
-    await canbus.register_canbus(var, config)
+    await canbus.register_canbus(var, config, reports_status=True)
     if CONF_CLOCK in config:
         canclock = CAN_CLOCK[config[CONF_CLOCK]]
         cg.add(var.set_mcp_clock(canclock))

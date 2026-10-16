@@ -4,10 +4,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
-static const char *const TAG = "esp32_ble_server.service";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_server.service");
 
 BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise)
     : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id), advertise_(advertise) {}
@@ -173,7 +172,6 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
   }
 }
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

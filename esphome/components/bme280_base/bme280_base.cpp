@@ -7,12 +7,11 @@
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
 
-#define BME280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
+namespace esphome::bme280_base {
 
-namespace esphome {
-namespace bme280_base {
+ESPHOME_LOG_TAG(TAG, "bme280.sensor");
 
-static const char *const TAG = "bme280.sensor";
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 static const uint8_t BME280_REGISTER_DIG_T1 = 0x88;
 static const uint8_t BME280_REGISTER_DIG_T2 = 0x8A;
@@ -99,13 +98,11 @@ void BME280Component::setup() {
   }
 
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x60) {
-    this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(LOG_STR(BME280_ERROR_WRONG_CHIP_ID));
+    this->mark_failed(LOG_STR("Wrong chip ID or no response"));
     return;
   }
 
@@ -181,17 +178,6 @@ void BME280Component::setup() {
 }
 void BME280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME280:");
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, BME280_ERROR_WRONG_CHIP_ID);
-      break;
-    case NONE:
-    default:
-      break;
-  }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
 
@@ -222,7 +208,7 @@ void BME280Component::update() {
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
   meas_time += 2.3f * oversampling_to_time(this->humidity_oversampling_) + 0.575f;
 
-  this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ceilf(meas_time)), [this]() {
     uint8_t data[8];
     if (!this->read_bytes(BME280_REGISTER_MEASUREMENTS, data, 8)) {
       ESP_LOGW(TAG, "Error reading registers");
@@ -342,7 +328,6 @@ void BME280Component::set_pressure_oversampling(BME280Oversampling pressure_over
 void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
   this->humidity_oversampling_ = humidity_over_sampling;
 }
-void BME280Component::set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BME280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->read_byte(a_register, &data);
@@ -355,5 +340,4 @@ uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bme280_base
-}  // namespace esphome
+}  // namespace esphome::bme280_base

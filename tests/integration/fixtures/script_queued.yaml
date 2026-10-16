@@ -1,5 +1,17 @@
 esphome:
   name: test-script-queued
+  on_boot:
+    # Default priority (600.0) runs before the script component is set up
+    # This tests that an instance queued during boot still gets dequeued
+    # once the main loop starts (the idle-loop disabling must not eat it)
+    then:
+      - logger.log: "=== BOOT: Executing queued script twice ==="
+      - script.execute:
+          id: boot_script
+          tag: 1
+      - script.execute:
+          id: boot_script
+          tag: 2
 
 host:
 api:
@@ -98,6 +110,15 @@ api:
         - script.execute: no_params_script
         - script.execute: no_params_script
 
+    # Test 6: Re-execute after stop() cleared the queue
+    # (the idle loop must re-enable on demand)
+    - action: test_after_stop
+      then:
+        - logger.log: "=== TEST 6: Re-execute after stop ==="
+        - script.execute:
+            id: stop_script
+            num: 9
+
 logger:
   level: DEBUG
 
@@ -168,3 +189,18 @@ script:
       - logger.log: "No params: START"
       - delay: 50ms
       - logger.log: "No params: END"
+
+  # Boot script: executed twice from on_boot before setup()
+  - id: boot_script
+    mode: queued
+    max_runs: 3
+    parameters:
+      tag: int
+    then:
+      - logger.log:
+          format: "Boot queued: START %d"
+          args: ['tag']
+      - delay: 50ms
+      - logger.log:
+          format: "Boot queued: END %d"
+          args: ['tag']

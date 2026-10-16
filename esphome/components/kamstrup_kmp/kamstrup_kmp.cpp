@@ -1,17 +1,14 @@
 #include "kamstrup_kmp.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace kamstrup_kmp {
+namespace esphome::kamstrup_kmp {
 
-static const char *const TAG = "kamstrup_kmp";
+ESPHOME_LOG_TAG(TAG, "kamstrup_kmp");
 
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Heat Energy", this->heat_energy_sensor_);
@@ -26,8 +23,6 @@ void KamstrupKMPComponent::dump_config() {
     LOG_SENSOR("  ", "Custom Sensor", this->custom_sensors_[i]);
     ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom_commands_[i]);
   }
-
-  this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
 void KamstrupKMPComponent::update() {
@@ -96,10 +91,7 @@ void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
     buffer[i] = msg[i];
   }
 
-  buffer[buffer_len - 2] = 0;
-  buffer[buffer_len - 1] = 0;
-
-  uint16_t crc = crc16_ccitt(buffer, buffer_len);
+  uint16_t crc = crc16be(buffer, buffer_len - 2);
   buffer[buffer_len - 2] = crc >> 8;
   buffer[buffer_len - 1] = crc & 0xFF;
 
@@ -193,7 +185,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   }
 
   // Validate CRC
-  if (crc16_ccitt(msg, msg_len)) {
+  if (crc16be(msg, msg_len - 2) != encode_uint16(msg[msg_len - 2], msg[msg_len - 1])) {
     ESP_LOGE(TAG, "Received invalid message (CRC mismatch)");
     return;
   }
@@ -283,25 +275,4 @@ void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint
   ESP_LOGD(TAG, "Received value for command 0x%04X: %.3f [%s]", command, value, unit);
 }
 
-uint16_t crc16_ccitt(const uint8_t *buffer, int len) {
-  uint32_t poly = 0x1021;
-  uint32_t reg = 0x00;
-  for (int i = 0; i < len; i++) {
-    int mask = 0x80;
-    while (mask > 0) {
-      reg <<= 1;
-      if (buffer[i] & mask) {
-        reg |= 1;
-      }
-      mask >>= 1;
-      if (reg & 0x10000) {
-        reg &= 0xffff;
-        reg ^= poly;
-      }
-    }
-  }
-  return (uint16_t) reg;
-}
-
-}  // namespace kamstrup_kmp
-}  // namespace esphome
+}  // namespace esphome::kamstrup_kmp

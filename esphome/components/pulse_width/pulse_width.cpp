@@ -1,10 +1,9 @@
 #include "pulse_width.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pulse_width {
+namespace esphome::pulse_width {
 
-static const char *const TAG = "pulse_width";
+ESPHOME_LOG_TAG(TAG, "pulse_width");
 
 void IRAM_ATTR PulseWidthSensorStore::gpio_intr(PulseWidthSensorStore *arg) {
   const bool new_level = arg->pin_.digital_read();
@@ -27,5 +26,4 @@ void PulseWidthSensor::update() {
   this->publish_state(width);
 }
 
-}  // namespace pulse_width
-}  // namespace esphome
+}  // namespace esphome::pulse_width

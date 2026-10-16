@@ -1,10 +1,9 @@
 #include "mcp23s08.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23s08 {
+namespace esphome::mcp23s08 {
 
-static const char *const TAG = "mcp23s08";
+ESPHOME_LOG_TAG(TAG, "mcp23s08");
 
 // IOCON register bits
 static constexpr uint8_t IOCON_SEQOP = 0x20;  // Sequential operation mode
@@ -62,5 +61,4 @@ bool MCP23S08::write_reg(uint8_t reg, uint8_t value) {
   return true;
 }
 
-}  // namespace mcp23s08
-}  // namespace esphome
+}  // namespace esphome::mcp23s08

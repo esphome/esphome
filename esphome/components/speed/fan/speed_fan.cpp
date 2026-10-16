@@ -1,10 +1,9 @@
 #include "speed_fan.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace speed {
+namespace esphome::speed {
 
-static const char *const TAG = "speed.fan";
+ESPHOME_LOG_TAG(TAG, "speed.fan");
 
 void SpeedFan::setup() {
   // Construct traits before restore so preset modes can be looked up by index
@@ -47,5 +46,4 @@ void SpeedFan::write_state_() {
     this->direction_->set_state(this->direction == fan::FanDirection::REVERSE);
 }
 
-}  // namespace speed
-}  // namespace esphome
+}  // namespace esphome::speed

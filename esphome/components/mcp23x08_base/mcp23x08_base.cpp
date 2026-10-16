@@ -1,10 +1,9 @@
 #include "mcp23x08_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23x08_base {
+namespace esphome::mcp23x08_base {
 
-static const char *const TAG = "mcp23x08_base";
+ESPHOME_LOG_TAG(TAG, "mcp23x08_base");
 
 bool MCP23X08Base::digital_read_hw(uint8_t pin) {
   if (!this->read_reg(mcp23x08_base::MCP23X08_GPIO, &this->input_mask_)) {
@@ -92,5 +91,4 @@ void MCP23X08Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
-}  // namespace mcp23x08_base
-}  // namespace esphome
+}  // namespace esphome::mcp23x08_base

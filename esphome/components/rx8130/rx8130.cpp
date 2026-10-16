@@ -3,8 +3,7 @@
 
 // https://download.epsondevice.com/td/pdf/app/RX8130CE_en.pdf
 
-namespace esphome {
-namespace rx8130 {
+namespace esphome::rx8130 {
 
 static const uint8_t RX8130_REG_SEC = 0x10;
 static const uint8_t RX8130_REG_MIN = 0x11;
@@ -22,7 +21,7 @@ static const uint8_t RX8130_BIT_CTRL_STOP = 0x40;
 static const uint8_t RX8130_BAT_FLAGS = 0x30;
 static const uint8_t RX8130_CLEAR_FLAGS = 0x00;
 
-static const char *const TAG = "rx8130";
+ESPHOME_LOG_TAG(TAG, "rx8130");
 
 constexpr uint8_t bcd2dec(uint8_t val) { return (val >> 4) * 10 + (val & 0x0f); }
 constexpr uint8_t dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); }
@@ -121,5 +120,4 @@ void RX8130Component::stop_(bool stop) {
   }
 }
 
-}  // namespace rx8130
-}  // namespace esphome
+}  // namespace esphome::rx8130

@@ -4,6 +4,7 @@
 
 #include <c_types.h>
 #include <core_esp8266_features.h>
+#include <coredecls.h>
 #include <cstdint>
 #include <pgmspace.h>
 
@@ -40,6 +41,9 @@ void delay_microseconds_safe(uint32_t us);
 /// which is ISR-safe) so this helper is unused on this platform.
 __attribute__((always_inline)) inline bool in_isr_context() { return false; }
 
+/// SDK SYS callbacks and interrupt handlers cannot yield, so they are not the loop context.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return can_yield(); }
+
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
 void delay(uint32_t ms);
@@ -57,6 +61,12 @@ __attribute__((always_inline)) inline const char *progmem_read_ptr(const char *c
 }
 __attribute__((always_inline)) inline uint16_t progmem_read_uint16(const uint16_t *addr) {
   return pgm_read_word(addr);  // NOLINT
+}
+// Bulk PROGMEM copy: routes to the SDK's aligned-flash `memcpy_P` so callers
+// don't have to drop to a byte-by-byte `progmem_read_byte` loop, which on
+// ESP8266 is ~4x as many flash accesses as the bulk path.
+__attribute__((always_inline)) inline void progmem_memcpy(void *dst, const void *src, size_t len) {
+  memcpy_P(dst, src, len);  // NOLINT
 }
 
 // NOLINTNEXTLINE(readability-identifier-naming)

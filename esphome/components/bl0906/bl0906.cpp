@@ -3,10 +3,9 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bl0906 {
+namespace esphome::bl0906 {
 
-static const char *const TAG = "bl0906";
+ESPHOME_LOG_TAG(TAG, "bl0906");
 
 constexpr uint32_t to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
 
@@ -206,7 +205,7 @@ void BL0906::read_data_(const uint8_t address, const float reference, sensor::Se
   // Chip temperature
   if (reference == BL0906_TREF) {
     value = (float) to_int32_t(data_s24);
-    value = (value - 64) * 12.5 / 59 - 40;
+    value = (value - 64) * 12.5f / 59 - 40;
   }
   sensor->publish_state(value);
 }
@@ -262,5 +261,4 @@ void BL0906::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-}  // namespace bl0906
-}  // namespace esphome
+}  // namespace esphome::bl0906

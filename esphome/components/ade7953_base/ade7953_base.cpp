@@ -3,10 +3,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ade7953_base {
+namespace esphome::ade7953_base {
 
-static const char *const TAG = "ade7953";
+ESPHOME_LOG_TAG(TAG, "ade7953");
 
 constexpr uint16_t CONFIG_DEFAULT = 0x8004u;
 constexpr uint16_t CONFIG_LOCK_BIT = 0x8000u;
@@ -160,5 +159,4 @@ void ADE7953::update() {
   ADE_PUBLISH(frequency, 223750.0f, 1 + val_16);
 }
 
-}  // namespace ade7953_base
-}  // namespace esphome
+}  // namespace esphome::ade7953_base

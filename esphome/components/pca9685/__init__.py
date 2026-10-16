@@ -7,8 +7,10 @@ from esphome.const import (
     CONF_ID,
     CONF_PHASE_BALANCER,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pca9685"
 MULTI_CONF = True
 
 pca9685_ns = cg.esphome_ns.namespace("pca9685")
@@ -21,7 +23,7 @@ PHASE_BALANCERS = {
 }
 
 
-def validate_frequency(config):
+def validate_frequency(config: ConfigType) -> ConfigType:
     if config[CONF_EXTERNAL_CLOCK_INPUT]:
         if CONF_FREQUENCY in config:
             raise cv.Invalid(
@@ -52,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     if CONF_FREQUENCY in config:
         cg.add(var.set_frequency(config[CONF_FREQUENCY]))

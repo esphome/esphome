@@ -1,0 +1,22 @@
+display:
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    id: cst328_ssd1306_i2c_display
+    model: SSD1306_128X64
+    reset_pin: ${display_reset_pin}
+    pages:
+      - id: cst328_page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: cst328
+    i2c_id: i2c_bus
+    id: cst328_touchscreen
+    display: cst328_ssd1306_i2c_display
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}
+
+binary_sensor:
+  - platform: cst328
+    id: touch_key_cst328

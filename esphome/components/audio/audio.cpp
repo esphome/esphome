@@ -4,8 +4,7 @@
 
 #include <cstring>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 // Euclidean's algorithm for finding the greatest common divisor
 static uint32_t gcd(uint32_t a, uint32_t b) {
@@ -87,7 +86,7 @@ AudioFileType detect_audio_file_type(const char *content_type, const char *url) 
     // Match "audio/ogg" with a codecs parameter containing "opus"
     // Valid forms: audio/ogg;codecs=opus, audio/ogg; codecs="opus", etc.
     // Plain "audio/ogg" without opus is not matched (almost always Ogg Vorbis)
-    if (strncasecmp(content_type, "audio/ogg", 9) == 0 && strcasestr(content_type + 9, "opus") != nullptr) {
+    if (strncasecmp(content_type, "audio/ogg", 9) == 0 && str_contains_ignore_case(content_type + 9, "opus")) {
       return AudioFileType::OPUS;
     }
 #endif
@@ -129,5 +128,4 @@ void scale_audio_samples(const int16_t *audio_samples, int16_t *output_buffer, i
   }
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio

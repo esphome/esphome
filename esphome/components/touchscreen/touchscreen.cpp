@@ -2,10 +2,10 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace touchscreen {
+namespace esphome::touchscreen {
 
-static const char *const TAG = "touchscreen";
+ESPHOME_LOG_TAG(TAG, "touchscreen");
+static constexpr uint32_t TOUCH_TIMEOUT_ID = 0;
 
 void TouchscreenInterrupt::gpio_intr(TouchscreenInterrupt *store) { store->touched = true; }
 
@@ -64,9 +64,9 @@ void Touchscreen::loop() {
         // Simulate a touch after <this->touch_timeout_> ms. This will reset any existing timeout operation.
         // This is to detect touch release.
         if (this->is_touched_) {
-          this->set_timeout(TAG, this->touch_timeout_, [this]() { this->store_.touched = true; });
+          this->set_timeout(TOUCH_TIMEOUT_ID, this->touch_timeout_, [this]() { this->store_.touched = true; });
         } else {
-          this->cancel_timeout(TAG);
+          this->cancel_timeout(TOUCH_TIMEOUT_ID);
         }
       }
     }
@@ -79,7 +79,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   if (this->swap_x_y_) {
     std::swap(x_raw, y_raw);
   }
-  if (this->touches_.count(id) == 0) {
+  if (!this->touches_.contains(id)) {
     tp.state = STATE_PRESSED;
     tp.id = id;
   } else {
@@ -162,5 +162,4 @@ int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, b
   return ret;
 }
 
-}  // namespace touchscreen
-}  // namespace esphome
+}  // namespace esphome::touchscreen

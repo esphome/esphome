@@ -3,10 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "homeassistant.binary_sensor");
 
 void HomeassistantBinarySensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {
@@ -43,5 +42,4 @@ void HomeassistantBinarySensor::dump_config() {
 }
 float HomeassistantBinarySensor::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

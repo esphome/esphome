@@ -3,10 +3,9 @@
 #include "tc74.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tc74 {
+namespace esphome::tc74 {
 
-static const char *const TAG = "tc74";
+ESPHOME_LOG_TAG(TAG, "tc74");
 
 static const uint8_t TC74_REGISTER_TEMPERATURE = 0x00;
 static const uint8_t TC74_REGISTER_CONFIGURATION = 0x01;
@@ -62,5 +61,4 @@ void TC74Component::read_temperature_() {
   this->status_clear_warning();
 }
 
-}  // namespace tc74
-}  // namespace esphome
+}  // namespace esphome::tc74

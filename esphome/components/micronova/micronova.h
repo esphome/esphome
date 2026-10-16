@@ -58,7 +58,7 @@ class MicroNovaListener : public MicroNovaBaseListener, public PollingComponent 
 
 /////////////////////////////////////////////////////////////////////
 // Main component class
-class MicroNova : public Component, public uart::UARTDevice {
+class MicroNova final : public Component, public uart::UARTDevice {
  public:
   MicroNova(GPIOPin *enable_rx_pin) : enable_rx_pin_(enable_rx_pin) {}
 

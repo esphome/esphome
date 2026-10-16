@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace status_led {
+namespace esphome::status_led {
 
-static const char *const TAG = "status_led";
+ESPHOME_LOG_TAG(TAG, "status_led");
 
 static constexpr uint32_t ERROR_PERIOD_MS = 250;
 static constexpr uint32_t ERROR_ON_MS = 150;
@@ -40,5 +39,4 @@ void StatusLED::loop() {
 }
 float StatusLED::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace status_led
-}  // namespace esphome
+}  // namespace esphome::status_led

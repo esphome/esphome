@@ -1,10 +1,9 @@
 #include "as5600_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as5600 {
+namespace esphome::as5600 {
 
-static const char *const TAG = "as5600.sensor";
+ESPHOME_LOG_TAG(TAG, "as5600.sensor");
 
 // Configuration registers
 static const uint8_t REGISTER_ZMCO = 0x00;  // 8 bytes  / R
@@ -75,5 +74,4 @@ void AS5600Sensor::update() {
   this->status_clear_warning();
 }
 
-}  // namespace as5600
-}  // namespace esphome
+}  // namespace esphome::as5600

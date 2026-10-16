@@ -1,10 +1,9 @@
 #include "binary_fan.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace binary {
+namespace esphome::binary {
 
-static const char *const TAG = "binary.fan";
+ESPHOME_LOG_TAG(TAG, "binary.fan");
 
 void BinaryFan::setup() {
   auto restore = this->restore_state_();
@@ -39,5 +38,4 @@ void BinaryFan::write_state_() {
     this->direction_->set_state(this->direction == fan::FanDirection::REVERSE);
 }
 
-}  // namespace binary
-}  // namespace esphome
+}  // namespace esphome::binary

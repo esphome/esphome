@@ -1,4 +1,4 @@
-ARG BUILD_BASE_VERSION=2025.04.0
+ARG BUILD_BASE_VERSION=2026.06.1
 
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base
@@ -30,8 +30,5 @@ RUN uv pip install -r requirements_dev.txt -r requirements_test.txt
 RUN \
     platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000
-
-COPY script/platformio_install_deps.py platformio.ini ./
-RUN ./platformio_install_deps.py platformio.ini --libraries --platforms --tools
 
 WORKDIR /workspaces

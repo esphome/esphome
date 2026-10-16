@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ade7953_spi {
+namespace esphome::ade7953_spi {
 
 class AdE7953Spi : public ade7953_base::ADE7953,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
@@ -28,5 +27,4 @@ class AdE7953Spi : public ade7953_base::ADE7953,
   bool ade_read_32(uint16_t reg, uint32_t *value) override;
 };
 
-}  // namespace ade7953_spi
-}  // namespace esphome
+}  // namespace esphome::ade7953_spi

@@ -40,7 +40,7 @@ class LD2420Listener {
   virtual void on_fw_version(std::string &fw){};
 };
 
-class LD2420Component : public Component, public uart::UARTDevice {
+class LD2420Component final : public Component, public uart::UARTDevice {
  public:
   struct CmdFrameT {
     uint32_t header{0};
@@ -105,10 +105,9 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void apply_config_action();
   void factory_reset_action();
   void revert_config_action();
-  float get_setup_priority() const override;
   int send_cmd_from_array(CmdFrameT cmd_frame);
   void report_gate_data();
-  void handle_cmd_error(uint8_t error);
+  void handle_cmd_error(uint16_t error);
   void set_operating_mode(const char *state);
   void auto_calibrate_sensitivity();
   void update_radar_data(uint16_t const *gate_energy, uint8_t sample_number);

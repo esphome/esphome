@@ -1,10 +1,11 @@
 #include "mmc5603.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mmc5603 {
+#include <numbers>
 
-static const char *const TAG = "mmc5603";
+namespace esphome::mmc5603 {
+
+ESPHOME_LOG_TAG(TAG, "mmc5603");
 static const uint8_t MMC5603_ADDRESS = 0x30;
 static const uint8_t MMC56X3_PRODUCT_ID = 0x39;
 
@@ -33,35 +34,27 @@ static const uint8_t MMC5603_ODR_REG = 0x1A;
 void MMC5603Component::setup() {
   uint8_t id = 0;
   if (!this->read_byte(MMC56X3_PRODUCT_ID, &id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   if (id != 0 && id != MMC56X3_CHIP_ID) {  // ID is not reported correctly by all chips, 0 on some chips
-    ESP_LOGCONFIG(TAG, "Chip Wrong");
-    this->error_code_ = ID_REGISTERS;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("The ID registers don't match - Is this really an MMC5603?"));
     return;
   }
 
   if (!this->write_byte(MMC56X3_CTRL1_REG, 0x80)) {  // turn on set bit
-    ESP_LOGCONFIG(TAG, "Control 1 Failed for set bit");
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Control 1 failed for set bit"));
     return;
   }
 
   if (!this->write_byte(MMC56X3_CTRL0_REG, 0x08)) {  // turn on set bit
-    ESP_LOGCONFIG(TAG, "Control 0 Failed for set bit");
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Control 0 failed for set bit"));
     return;
   }
 
   if (!this->write_byte(MMC56X3_CTRL0_REG, 0x10)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -69,19 +62,13 @@ void MMC5603Component::setup() {
 
   ctrl_2 &= ~0x10;  // turn off cmm_en bit
   if (!this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
 void MMC5603Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MMC5603:");
   LOG_I2C_DEVICE(this);
-  if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  } else if (this->error_code_ == ID_REGISTERS) {
-    ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Auto set/reset: %s", ONOFF(this->auto_set_reset_));
 
@@ -144,7 +131,7 @@ void MMC5603Component::update() {
 
   const float z = 0.00625 * (raw_z - 524288);
 
-  const float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
+  const float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f°", x, y, z, heading);
 
   if (this->x_sensor_ != nullptr)
@@ -157,5 +144,4 @@ void MMC5603Component::update() {
     this->heading_sensor_->publish_state(heading);
 }
 
-}  // namespace mmc5603
-}  // namespace esphome
+}  // namespace esphome::mmc5603

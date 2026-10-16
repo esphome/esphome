@@ -1,10 +1,9 @@
 #include "output_lock.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
-static const char *const TAG = "output.lock";
+ESPHOME_LOG_TAG(TAG, "output.lock");
 
 void OutputLock::dump_config() { LOG_LOCK("", "Output Lock", this); }
 
@@ -21,5 +20,4 @@ void OutputLock::control(const lock::LockCall &call) {
   this->publish_state(state);
 }
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

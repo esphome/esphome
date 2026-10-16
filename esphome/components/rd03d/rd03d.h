@@ -37,7 +37,7 @@ struct TargetSensor {
 };
 #endif
 
-class RD03DComponent : public Component, public uart::UARTDevice {
+class RD03DComponent final : public Component, public uart::UARTDevice {
  public:
   void setup() override;
   void loop() override;

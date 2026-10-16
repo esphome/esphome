@@ -6,10 +6,9 @@
 
 #include "../tlc5971.h"
 
-namespace esphome {
-namespace tlc5971 {
+namespace esphome::tlc5971 {
 
-class TLC5971Channel : public output::FloatOutput, public Parented<TLC5971> {
+class TLC5971Channel final : public output::FloatOutput, public Parented<TLC5971> {
  public:
   void set_channel(uint16_t channel) { this->channel_ = channel; }
 
@@ -18,5 +17,4 @@ class TLC5971Channel : public output::FloatOutput, public Parented<TLC5971> {
   uint16_t channel_;
 };
 
-}  // namespace tlc5971
-}  // namespace esphome
+}  // namespace esphome::tlc5971
