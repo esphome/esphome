@@ -993,14 +993,16 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
 /// A signed T takes the two's complement of the assembled bits.
 template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
-  if constexpr (sizeof(T) == 1)
+  if constexpr (sizeof(T) == 1) {
     return static_cast<T>(bytes[0]);
-  std::make_unsigned_t<T> val = 0;
-  for (size_t i = 0; i < sizeof(T); i++) {
-    val <<= 8;
-    val |= bytes[i];
+  } else {
+    std::make_unsigned_t<T> val = 0;
+    for (size_t i = 0; i < sizeof(T); i++) {
+      val <<= 8;
+      val |= bytes[i];
+    }
+    return static_cast<T>(val);
   }
-  return static_cast<T>(val);
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
 template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
@@ -1012,16 +1014,18 @@ constexpr T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
 template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
 constexpr T encode_value_le(const uint8_t *bytes) {
   // Loops here grow 16-bit callers by up to 48 bytes on ESP8266 through different inlining
-  if constexpr (sizeof(T) == 1)
+  if constexpr (sizeof(T) == 1) {
     return static_cast<T>(bytes[0]);
-  if constexpr (sizeof(T) == 2)
+  } else if constexpr (sizeof(T) == 2) {
     return static_cast<T>(encode_uint16(bytes[1], bytes[0]));
-  std::make_unsigned_t<T> val = 0;
-  for (size_t i = sizeof(T); i > 0; i--) {
-    val <<= 8;
-    val |= bytes[i - 1];
+  } else {
+    std::make_unsigned_t<T> val = 0;
+    for (size_t i = sizeof(T); i > 0; i--) {
+      val <<= 8;
+      val |= bytes[i - 1];
+    }
+    return static_cast<T>(val);
   }
-  return static_cast<T>(val);
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
