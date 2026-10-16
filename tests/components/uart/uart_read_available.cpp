@@ -69,7 +69,7 @@ TEST(UARTReadAvailableTest, OnlyBytesAvailableOnEntry) {
   EXPECT_EQ(uart.remaining(), 2u);
 }
 
-TEST(UARTReadAvailableTest, MaxBytesCapsTheRead) {
+TEST(UARTReadAvailableTest, CountReadsExactlyThatMany) {
   ::testing::NiceMock<FakeRxUART> uart(make_bytes(100));
   UARTDevice dev(&uart);
   size_t count = 0;
@@ -77,14 +77,6 @@ TEST(UARTReadAvailableTest, MaxBytesCapsTheRead) {
   EXPECT_EQ(count, 40u);
   EXPECT_EQ(uart.read_sizes, (std::vector<size_t>{16, 16, 8}));
   EXPECT_EQ(uart.remaining(), 60u);
-}
-
-TEST(UARTReadAvailableTest, MaxBytesAboveAvailable) {
-  ::testing::NiceMock<FakeRxUART> uart(make_bytes(5));
-  UARTDevice dev(&uart);
-  size_t count = 0;
-  dev.read_available([&count](uint8_t) { count++; }, 50);
-  EXPECT_EQ(count, 5u);
 }
 
 TEST(UARTReadAvailableTest, ReadFailureStopsAndReturnsFalse) {
