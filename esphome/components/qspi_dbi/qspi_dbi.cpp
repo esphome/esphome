@@ -212,11 +212,7 @@ void QspiDbi::write_to_display_(int x_start, int y_start, int w, int h, const ui
   this->disable();
 }
 void QspiDbi::write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(QSPI_DBI_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGV(TAG, "Command %02X, length %d, bytes %s", cmd, len,
-           format_hex_pretty_to(hex_buf, sizeof(hex_buf), bytes, len));
+  ESP_LOGV_HEX(TAG, bytes, len, QSPI_DBI_MAX_LOG_BYTES, "Command %02X, length %d, bytes %s", cmd, len);
   this->enable();
   this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
   this->disable();
