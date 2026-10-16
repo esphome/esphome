@@ -107,4 +107,32 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   this->time_sync_callback_.call();
 }
 
+ESPTime decode_bcd_calendar(const uint8_t *raw) {
+  const uint8_t weekday = raw[3] & 0x7F;
+  ESPTime time{
+      .second = bcd_to_uint8(raw[0] & 0x7F),
+      .minute = bcd_to_uint8(raw[1] & 0x7F),
+      .hour = bcd_to_uint8(raw[2] & 0x3F),
+      .day_of_week = static_cast<uint8_t>(weekday ? __builtin_ctz(weekday) + 1 : 1),
+      .day_of_month = bcd_to_uint8(raw[4] & 0x3F),
+      .day_of_year = 1,
+      .month = bcd_to_uint8(raw[5] & 0x1F),
+      .year = static_cast<uint16_t>(bcd_to_uint8(raw[6]) + 2000),
+      .is_dst = false,
+      .timestamp = 0,
+  };
+  time.recalc_timestamp_utc(false);
+  return time;
+}
+
+void encode_bcd_calendar(const ESPTime &time, uint8_t *raw) {
+  raw[0] = uint8_to_bcd(time.second);
+  raw[1] = uint8_to_bcd(time.minute);
+  raw[2] = uint8_to_bcd(time.hour);
+  raw[3] = 1 << (time.day_of_week - 1);
+  raw[4] = uint8_to_bcd(time.day_of_month);
+  raw[5] = uint8_to_bcd(time.month);
+  raw[6] = uint8_to_bcd(time.year % 100);
+}
+
 }  // namespace esphome::time
