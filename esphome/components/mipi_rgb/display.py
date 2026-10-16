@@ -242,7 +242,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
         config[CONF_ID],
         width,
         height,
-        model.rotation_as_transform(config),
+        has_hardware_rotation=True,
         byte_order=config[CONF_BYTE_ORDER],
         has_writer=requires_buffer(config)
         or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
