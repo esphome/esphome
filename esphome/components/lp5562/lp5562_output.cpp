@@ -33,7 +33,7 @@ void LP5562Output::setup() {
   // power up the chip and enable the internal 32 kHz oscillator, see
   // https://github.com/m5stack/M5GFX/blob/b2422cdb4735159209c2097d425c0756505b9a81/src/M5GFX.cpp#L566
   if (!this->write_byte(LP5562_REG_ENABLE, LP5562_ENABLE_CHIP_EN)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(1);
@@ -41,16 +41,13 @@ void LP5562Output::setup() {
   // internal blink/fade engines
   if (!this->write_byte(LP5562_REG_CONFIG, LP5562_CONFIG_INT_CLK_EN) ||
       !this->write_byte(LP5562_REG_LED_MAP, LP5562_LED_MAP_ALL_PWM_REGISTERS)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
 void LP5562Output::dump_config() {
   ESP_LOGCONFIG(TAG, "LP5562:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up LP5562 failed!");
-  }
 }
 
 void LP5562Output::set_channel_value_(uint8_t channel, uint8_t value) {
