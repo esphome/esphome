@@ -9,12 +9,14 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 
+#ifndef SUB_SENSOR_WITH_DEDUP
 #define SUB_SENSOR_WITH_DEDUP(name, dedup_type) \
  protected: \
   ld24xx::SensorWithDedup<dedup_type> name##_sensor_{}; \
 \
  public: \
   void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_.set_sensor(sensor); }
+#endif
 #endif
 
 #define LOG_SENSOR_WITH_DEDUP_SAFE(tag, name, sensor) \
