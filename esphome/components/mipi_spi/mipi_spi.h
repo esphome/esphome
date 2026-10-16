@@ -584,12 +584,12 @@ class MipiSpiBuffer
         this->clear();
       }
       this->updating_ = true;
-      if (this->page_ != nullptr) {
+      if (this->show_test_card_) {
+        this->test_card();
+      } else if (this->page_ != nullptr) {
         this->page_->get_writer()(*this);
       } else if (this->writer_.has_value()) {
         (*this->writer_)(*this);
-      } else {
-        this->test_card();
       }
       this->updating_ = false;
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
