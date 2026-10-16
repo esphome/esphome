@@ -4,16 +4,24 @@ import pathlib
 import yaml
 
 import esphome.codegen as cg
+from esphome.components import button as button_platform
 from esphome.components.canbus import CanbusComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPTIONS
+from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
+    CONF_ID,
+    CONF_NAME,
+    CONF_OPTIONS,
+    CONF_SUBSTITUTIONS,
+)
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
 
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
 DOMAIN = "toptronic"
-AUTO_LOAD = ["sensor", "number", "select", "text_sensor"]
+AUTO_LOAD = ["sensor", "number", "select", "text_sensor", "button", "switch"]
 MULTI_CONF = True
 
 CONF_TOPTRONIC_ID = "toptronic_id"
@@ -24,6 +32,7 @@ CONF_FUNCTION_NUMBER = "function_number"
 CONF_DATAPOINT = "datapoint"
 CONF_DECIMAL = "decimal"
 CONF_VALUES = "values"
+CONF_LANGUAGE = "language"
 CONF_BOOT_REFRESH_DELAY = "boot_refresh_delay"
 CONF_MAX_PENDING_MESSAGES = "max_pending_messages"
 CONF_MAX_PENDING_AGE = "max_pending_age"
@@ -36,9 +45,18 @@ CONF_REFRESH_RETRY_INTERVAL_MS = "refresh_retry_interval_ms"
 CONF_WRITE_MIN_INTERVAL = "write_min_interval"
 CONF_REJECT_WRITES_BEFORE_READ = "reject_writes_before_read"
 
+LANGS = ("de", "en", "fr", "it")
+
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
+
 TopTronicBase = toptronic.class_("TopTronicBase", cg.PollingComponent)
+
+# Auto-generated "Refresh all" button (one per build). press_action() calls the
+# parent hub's refresh_all(), which fans out to every registered hub.
+TopTronicRefreshButton = toptronic.class_(
+    "TopTronicRefreshButton", button_platform.Button, cg.Component
+)
 
 TT_TYPE = toptronic.enum("TypeName")
 TT_TYPE_OPTIONS = {
@@ -150,6 +168,7 @@ CONFIG_SCHEMA = cv.All(
                 *[t.name for t in DeviceType], upper=True
             ),
             cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
+            cv.Optional(CONF_LANGUAGE, default="en"): cv.one_of(*LANGS, lower=True),
             cv.Optional(
                 CONF_BOOT_REFRESH_DELAY, default="30s"
             ): cv.positive_time_period_milliseconds,
@@ -187,10 +206,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _load_entities(device_type: str):
+def _load_entities(device_type: str, language: str):
     entities = []
     for kind in ("sensors", "inputs", "buttons"):
-        path = PRESETS_DIR / device_type / f"{kind}_en.yaml"
+        path = PRESETS_DIR / device_type / f"{kind}_{language}.yaml"
         if not path.exists():
             continue
         with pathlib.Path(path).open(encoding="utf-8") as f:
@@ -230,16 +249,20 @@ def _resolve_ids(obj, used=None):
 
 
 async def _generate_entities(hub, config):
-    from . import number, select, sensor, text_sensor
+    from . import button, number, select, sensor, text_sensor
 
     platforms = {
         "sensor": (sensor.CONFIG_SCHEMA, sensor.to_code),
         "text_sensor": (text_sensor.CONFIG_SCHEMA, text_sensor.to_code),
         "number": (number.CONFIG_SCHEMA, number.to_code),
         "select": (select.CONFIG_SCHEMA, select.to_code),
+        "button": (button.CONFIG_SCHEMA, button.to_code),
     }
+
     used_ids = _shared_used_ids()
-    for platform_name, entity_conf in _load_entities(config["device_type"]):
+    for platform_name, entity_conf in _load_entities(
+        config["device_type"], config[CONF_LANGUAGE]
+    ):
         if platform_name not in platforms:
             raise cv.Invalid(
                 f"Unsupported platform '{platform_name}' in toptronic preset"
@@ -255,6 +278,39 @@ async def _generate_entities(hub, config):
         validated = schema(entity_conf)
         _resolve_ids(validated, used_ids)
         await codegen(validated)
+
+
+_REFRESH_BUTTON_KEY = "toptronic_refresh_button_generated"
+
+
+async def _generate_refresh_button(hub_var):
+    """Emit a single build-wide 'Refresh all' button (once, on the first hub).
+
+    The on-press action is handled in C++ (TopTronicRefreshButton::press_action()
+    -> refresh_all()), so no lambda or hardcoded hub id is needed in YAML. The
+    button id is auto-generated from the component namespace.
+    """
+    if CORE.data.setdefault(_REFRESH_BUTTON_KEY, False):
+        return
+    CORE.data[_REFRESH_BUTTON_KEY] = True
+
+    friendly = (CORE.config.get(CONF_SUBSTITUTIONS, {}) or {}).get(
+        "friendly_name", ""
+    ) or ""
+    name = f"{friendly} Refresh all" if friendly else "Refresh all"
+
+    cfg = button_platform.button_schema(TopTronicRefreshButton)(
+        {
+            CONF_NAME: name,
+            CONF_ICON: "mdi:refresh",
+            CONF_ENTITY_CATEGORY: "config",
+        }
+    )
+    _resolve_ids(cfg, _shared_used_ids())
+    var = cg.new_Pvariable(cfg[CONF_ID])
+    cg.add(var.set_parent(hub_var))
+    await button_platform.register_button(var, cfg)
+    await cg.register_component(var, cfg)
 
 
 async def to_code(config):
@@ -278,6 +334,8 @@ async def to_code(config):
     cg.add(var.set_reject_writes_before_read(config[CONF_REJECT_WRITES_BEFORE_READ]))
 
     await _generate_entities(var, config)
+
+    await _generate_refresh_button(var)
 
     # Critical wiring (update callbacks, command queue, pump, boot-refresh gate)
     # must not depend on ESPHome invoking setup(): ESPHOME_COMPONENT_COUNT is

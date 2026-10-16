@@ -18,6 +18,12 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include <deque>
 #include <map>
@@ -49,6 +55,7 @@ enum TypeName {
 enum SensorType {
   SENSOR,      // read-only numeric (TopTronicSensor)
   TEXTSENSOR,  // read-only string  (TopTronicTextSensor) or read-write (TopTronicSelect)
+  BUTTON,      // fire-and-forget action (TopTronicButton)
 };
 
 // Build a 29-bit extended CAN ID from sender and receiver addresses.
@@ -201,6 +208,80 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
 };
 #endif
 
+#ifdef USE_BUTTON
+// Fire-and-forget button: sends a fixed SET request on the CAN bus when pressed.
+// The value is configured in YAML (e.g. an acknowledgment or reset command).
+class TopTronicButton : public button::Button, public TopTronicBase {
+ public:
+  // Fire-and-forget: never polls (no update callback registered). See
+  // TopTronicNumber for the SCHEDULER_DONT_RUN rationale.
+  TopTronicButton() { this->set_update_interval(SCHEDULER_DONT_RUN); }
+  void set_type(TypeName type) { this->type_ = type; }
+  void set_value(float value) { this->value_ = value; }
+  SensorType type() override { return BUTTON; }
+  const StringRef &get_name() const override { return this->button::Button::get_name(); }
+
+ protected:
+  TypeName type_;
+  float value_{0.0f};
+
+  // Called by ESPHome when the user presses the button from Home Assistant.
+  void press_action() override;
+};
+
+// Build-wide "Refresh all" button, generated once by the component codegen
+// (__init__.py). press_action() calls the parent hub's refresh_all(), which
+// fans out to EVERY registered hub (HV, BM, WEZ …) and staggers each hub's
+// batch by REFRESH_STAGGER_MS so the 50 kbps bus is not spammed.
+class TopTronicRefreshButton : public button::Button, public Component {
+ public:
+  void set_parent(TopTronic *parent) { this->parent_ = parent; }
+
+ protected:
+  // Called by ESPHome when the user presses the button from Home Assistant.
+  void press_action() override;
+
+  TopTronic *parent_{nullptr};
+};
+#endif
+
+#ifdef USE_SWITCH
+// Debug switches, one per independent debug feature. Each switch controls its
+// own build-wide boolean flag (s_candump_enabled / s_find_can_id_enabled) and
+// registers on its own per-feature callback manager, so the two switches are
+// fully independent — turning one ON never affects the other, and both can be
+// active simultaneously. The switches are assumed-state (optimistic): HA applies
+// the user's toggle immediately, and the component mirrors the real flag via
+// publish_state on every change, so the UI can never get stuck ON.
+class TopTronicDebugSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(TopTronic *parent) { this->parent_ = parent; }
+  // The debug feature this switch controls (1 = candump, 2 = find can_id).
+  // This is only a discriminator — the actual enable/disable path uses the
+  // dedicated set_candump_enabled() / set_find_can_id_enabled() setters.
+  void set_debug_mode(uint8_t mode) { this->mode_ = mode; }
+
+  void setup() override;
+  void dump_config() override;
+
+  // Debug switches are "soft" momentary controls: the real logging state is a
+  // build-wide flag that can also be turned OFF by the runtime auto-off timer,
+  // so the front-end must not assume it can predict the device state. Marking
+  // the switch as assumed-state puts Home Assistant in optimistic mode — the
+  // toggle responds immediately and never fights the state pushed back from
+  // the device.
+  bool assumed_state() override { return true; }
+
+ protected:
+  // Switch base class hook: state=true → enable this switch's debug feature,
+  // state=false → disable it. Only the feature selected by mode_ is touched.
+  void write_state(bool state) override;
+
+  TopTronic *parent_{nullptr};
+  uint8_t mode_{0};
+};
+#endif
+
 // Groups all sensors and writable inputs that belong to a single CAN device (device_type | device_addr).
 // Lifetime of sensors/inputs is managed by the ESPHome component registry — these are non-owning pointers.
 class TopTronicDevice {
@@ -327,6 +408,24 @@ class TopTronic : public Component {
   // blind. Datapoints without a registered read sensor (e.g. the HV
   // filter-maintenance button) are never blocked. Default true.
   void set_reject_writes_before_read(bool reject) { this->reject_writes_before_read_ = reject; }
+
+  // Debug frame logging (candump / find-can_id). Each feature is an independent
+  // build-wide boolean flag, so the two debug switches never interfere with each
+  // other and can even both be active at the same time. Both flags reset to OFF
+  // on every boot. Logging callbacks are deduplicated across hubs (see setup()).
+  void set_candump_enabled(bool enabled);
+  void set_find_can_id_enabled(bool enabled);
+  bool get_candump_enabled();
+  bool get_find_can_id_enabled();
+
+  // Register a callback fired whenever a specific debug flag changes, so the
+  // matching TopTronicDebugSwitch stays in sync with the real logging state.
+  // (Instantiated by the debug switches themselves — no user-facing API.)
+  void add_candump_update_callback(std::function<void(bool)> &&callback);
+  void add_find_can_id_update_callback(std::function<void(bool)> &&callback);
+  // Build-wide fan-out for each debug flag (see s_candump_enabled semantics).
+  static CallbackManager<void(bool)> candump_update_callbacks;
+  static CallbackManager<void(bool)> find_can_id_update_callbacks;
 
   // Pause/resume CAN frame processing. Used during OTA to free the main loop
   // and logging path so the update connection is not starved.

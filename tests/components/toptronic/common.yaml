@@ -11,6 +11,7 @@ toptronic:
     canbus_id: canbus_toptronic
     device_type: HV
     device_addr: 8
+    language: en
     max_pending_messages: 24
     max_pending_age: 6s
     cleanup_interval: 9s
@@ -22,3 +23,19 @@ toptronic:
     refresh_retry_interval_ms: 250ms
     write_min_interval: 3s
     reject_writes_before_read: false
+
+switch:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    debug_mode: candump
+    name: CAN dump
+
+button:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    function_group: 20
+    function_number: 0
+    datapoint: 1
+    type: U8
+    value: 1
+    name: Setpoint reset
