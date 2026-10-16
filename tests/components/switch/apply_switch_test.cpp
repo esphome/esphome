@@ -6,8 +6,8 @@
 
 namespace esphome::switch_::testing {
 
-static Switch *last_entity = nullptr;
-static std::vector<bool> writes;
+static Switch *last_entity = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static std::vector<bool> writes;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static void on_write(Switch *entity, bool state) {
   last_entity = entity;
