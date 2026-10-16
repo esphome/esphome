@@ -26,6 +26,9 @@ class VirtualUART final : public uart::VirtualUARTComponent, public Component {
 
  protected:
   LazyCallbackManager<void(std::span<const uint8_t>)> tx_callback_;
+  // write_array() is running the on_tx callbacks.
+  bool in_tx_{false};
+  bool loop_logged_{false};
 };
 
 template<typename... Ts> class InjectRXAction final : public Action<Ts...>, public Parented<VirtualUART> {

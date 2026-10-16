@@ -22,6 +22,21 @@ TEST(VirtualUART, WrittenBytesGoToOnTx) {
   EXPECT_EQ(sent[1], std::vector<uint8_t>{0x55});
 }
 
+TEST(VirtualUART, OnTxThatWritesToItsOwnUartIsDropped) {
+  VirtualUART uart(16);
+  int calls = 0;
+  // An echo to the same UART would call on_tx again without end
+  uart.add_on_tx_callback([&uart, &calls](std::span<const uint8_t> data) {
+    calls++;
+    uart.write_array(data.data(), data.size());
+  });
+  uart.write_byte(0x55);
+  EXPECT_EQ(calls, 1);
+  // The next write is passed on again
+  uart.write_byte(0x56);
+  EXPECT_EQ(calls, 2);
+}
+
 TEST(VirtualUART, InjectedBytesAreRead) {
   VirtualUART uart(16);
   uart.inject(FRAME, sizeof(FRAME));

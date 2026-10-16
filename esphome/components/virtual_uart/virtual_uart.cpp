@@ -6,8 +6,18 @@ namespace esphome::virtual_uart {
 ESPHOME_LOG_TAG(TAG, "virtual_uart");
 
 void VirtualUART::write_array(const uint8_t *data, size_t len) {
+  // An on_tx that writes to this UART again would recurse until the stack runs out
+  if (this->in_tx_) {
+    if (!this->loop_logged_) {
+      this->loop_logged_ = true;
+      ESP_LOGW(TAG, "on_tx wrote to its own UART, dropped");
+    }
+    return;
+  }
   this->debug_tx_(data, len);
+  this->in_tx_ = true;
   this->tx_callback_.call(std::span<const uint8_t>(data, len));
+  this->in_tx_ = false;
 }
 
 void VirtualUART::inject(const uint8_t *data, size_t len) {
