@@ -5,6 +5,7 @@ from esphome.components.select import DOMAIN as SELECT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA_ID,
+    CONF_ID,
     CONF_WAKEUP_PIN,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -141,7 +142,8 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
     params = button.sub_buttons(config).apply_entity.params
     # One function for all buttons, picking the type by pointer: one class instead of one per button.
-    fn = f"esphome__{hub}__button_fn"
+    # Named after the first button so two button blocks on one hub do not clash.
+    fn = f"esphome__{confs[0][1][CONF_ID].id}__button_fn"
     cg.add_global(
         cg.RawStatement(f"static void {fn}({ParameterListExpression(*params)});")
     )

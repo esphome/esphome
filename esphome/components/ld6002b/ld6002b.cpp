@@ -1390,7 +1390,7 @@ void LD6002BComponent::set_number_value(number::Number *entity, float value) {
     type = NumberType::AREA_Y_MAX;
   else if (entity == this->area_z_min_number_)
     type = NumberType::AREA_Z_MIN;
-  else
+  else  // Only registered entities call this, so the last one needs no compare
     type = NumberType::AREA_Z_MAX;
   switch (type) {
     case NumberType::HOLD_DELAY: {
@@ -1453,7 +1453,7 @@ void LD6002BComponent::set_select_value(select::Select *entity, size_t index) {
     type = SelectType::TRIGGER_SPEED;
   else if (entity == this->installation_select_)
     type = SelectType::INSTALLATION_MODE;
-  else
+  else  // Only registered entities call this, so the last one needs no compare
     type = SelectType::AREA_ID;
   switch (type) {
     case SelectType::SENSITIVITY:
@@ -1825,7 +1825,7 @@ void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
     type = SwitchType::LOW_POWER;
   else if (entity == this->point_cloud_switch_)
     type = SwitchType::POINT_CLOUD;
-  else
+  else  // Only registered entities call this, so the last one needs no compare
     type = SwitchType::TARGET_DISPLAY;
   switch (type) {
     case SwitchType::LOW_POWER:
