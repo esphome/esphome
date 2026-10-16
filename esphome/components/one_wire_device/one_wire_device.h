@@ -11,9 +11,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-namespace esphome::one_wire_slave {
+namespace esphome::one_wire_device {
 
-class OneWireSlaveComponent final : public Component {
+class OneWireDeviceComponent final : public Component {
  public:
   void setup() override;
   void loop() override;
@@ -81,8 +81,8 @@ class OneWireSlaveComponent final : public Component {
   int16_t temperature_raw_{0};
 
   // The ISR path must stay bounded, allocation-free, log-free, and IRAM-safe.
-  static void task_entry_(void *arg);
-  static void IRAM_ATTR gpio_isr_(void *arg);
+  static void task_entry(void *arg);
+  static void IRAM_ATTR gpio_isr(void *arg);
   void handle_isr_edge_();
   void isr_reset_();
   void isr_receive_bit_(bool bit);
@@ -93,7 +93,7 @@ class OneWireSlaveComponent final : public Component {
   void configure_rom_();
   void configure_scratchpad_();
   void update_scratchpad_crc_();
-  static uint8_t IRAM_ATTR crc8_(const uint8_t *data, uint8_t length);
+  static uint8_t IRAM_ATTR crc8(const uint8_t *data, uint8_t length);
 
   void release_bus_();
   void drive_bus_low_();
@@ -111,6 +111,6 @@ class OneWireSlaveComponent final : public Component {
   uint32_t scale_(uint32_t value) const { return value * this->timing_scale_; }
 };
 
-}  // namespace esphome::one_wire_slave
+}  // namespace esphome::one_wire_device
 
 #endif  // USE_ESP32

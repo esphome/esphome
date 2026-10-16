@@ -1,4 +1,4 @@
-# Experimental ESP32 1-Wire slave
+# Experimental ESP32 1-Wire device
 
 This component lets an externally powered ESP32 emulate one DS18B20-family
 1-Wire device with a configured fixed temperature. It is a prototype, not a
@@ -12,7 +12,7 @@ esp32:
   framework:
     type: esp-idf
 
-one_wire_slave:
+one_wire_device:
   pin: GPIO4
   temperature: 23.5
 ```
@@ -29,7 +29,7 @@ task backend. Neither backend uses a dedicated hardware 1-Wire peripheral.
 
 Connect the emulating ESP32's DQ pin to the master's DQ pin, share ground, and
 use an external 4.7 kOhm pull-up from DQ to 3.3 V. Power the boards independently;
-do not join their 5 V rails. The slave configures DQ as open-drain and releases
+do not join their 5 V rails. The emulated device configures DQ as open-drain and releases
 the line rather than driving it high. Parasite power is not supported.
 
 ## Compatibility and limitations

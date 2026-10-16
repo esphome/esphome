@@ -1,6 +1,6 @@
 import pytest
 
-from esphome.components.one_wire_slave import (
+from esphome.components.one_wire_device import (
     encode_scratchpad,
     validate_rom_address,
     validate_timing_scale,

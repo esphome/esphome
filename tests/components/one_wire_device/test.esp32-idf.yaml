@@ -1,16 +1,15 @@
 esphome:
-  name: one-wire-slave-task-test
+  name: one-wire-device-test
 
 esp32:
   board: esp32dev
   framework:
-    type: arduino
+    type: esp-idf
 
 logger:
 
-one_wire_slave:
+one_wire_device:
   pin: GPIO4
   address: 0x6EB807A434E3EC28
   temperature: 23.5
-  timing_scale: 2
-  interrupt_mode: false
+  timing_scale: 1

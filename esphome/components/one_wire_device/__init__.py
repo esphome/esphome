@@ -1,18 +1,20 @@
 from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_PIN
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_PIN, CONF_TEMPERATURE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@tomtom13"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "one_wire_device"
 
-CONF_TEMPERATURE = "temperature"
 CONF_TIMING_SCALE = "timing_scale"
 CONF_INTERRUPT_MODE = "interrupt_mode"
 
-one_wire_slave_ns = cg.esphome_ns.namespace("one_wire_slave")
-OneWireSlaveComponent = one_wire_slave_ns.class_("OneWireSlaveComponent", cg.Component)
+one_wire_device_ns = cg.esphome_ns.namespace("one_wire_device")
+OneWireDeviceComponent = one_wire_device_ns.class_(
+    "OneWireDeviceComponent", cg.Component
+)
 
 
 def _crc8(data: bytes) -> int:
@@ -38,9 +40,9 @@ def validate_rom_address(value: int) -> int:
         return value
     raw = value.to_bytes(8, "little")
     if raw[0] != 0x28:
-        raise ValueError("1-Wire slave ROM must use DS18B20 family code 0x28")
+        raise ValueError("1-Wire device ROM must use DS18B20 family code 0x28")
     if _crc8(raw[:7]) != raw[7]:
-        raise ValueError("1-Wire slave ROM CRC is invalid")
+        raise ValueError("1-Wire device ROM CRC is invalid")
     return value
 
 
@@ -83,7 +85,7 @@ def encode_scratchpad(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(OneWireSlaveComponent),
+            cv.GenerateID(): cv.declare_id(OneWireDeviceComponent),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_ADDRESS, default=0): cv.All(
                 cv.hex_uint64_t, _validate_rom_for_schema
