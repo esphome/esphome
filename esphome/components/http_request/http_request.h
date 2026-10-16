@@ -252,6 +252,8 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   virtual void end() = 0;
 
   void set_secure(bool secure) { this->secure_ = secure; }
+  void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
+  uint32_t get_watchdog_timeout() const { return this->watchdog_timeout_; }
   void set_chunked(bool chunked) { this->is_chunked_ = chunked; }
 
   size_t get_bytes_read() const { return this->bytes_read_; }
@@ -283,6 +285,7 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 
  protected:
   size_t bytes_read_{0};
+  uint32_t watchdog_timeout_{0};
   bool secure_{false};
   bool is_chunked_{false};  ///< True if response uses chunked transfer encoding
   std::vector<Header> response_headers_{};
@@ -339,6 +342,11 @@ class HttpRequestComponent : public Component {
   uint32_t get_timeout() const { return this->timeout_; }
   void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
   uint32_t get_watchdog_timeout() const { return this->watchdog_timeout_; }
+  uint32_t get_watchdog_timeout(uint32_t timeout_ms) const {
+    if (this->watchdog_timeout_ == 0 || timeout_ms <= this->timeout_)
+      return this->watchdog_timeout_;
+    return this->watchdog_timeout_ + 3 * (timeout_ms - this->timeout_);
+  }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
 
@@ -412,7 +420,7 @@ class HttpRequestComponent : public Component {
   std::shared_ptr<HttpContainer> start(const char *url, const char *method, const std::string &body,
                                        const std::vector<Header> &request_headers) {
     // Call perform() directly to avoid ambiguity with the deprecated overloads
-    return this->perform(url, method, body, request_headers, {});
+    return this->perform(url, method, body, request_headers, {}, this->timeout_);
   }
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::vector<Header> &request_headers) {
@@ -437,7 +445,7 @@ class HttpRequestComponent : public Component {
     for (const auto &h : collect_headers) {
       lower.push_back(str_lower_case(h));  // NOLINT
     }
-    return this->perform(url.c_str(), method.c_str(), body, request_headers, lower);
+    return this->perform(url.c_str(), method.c_str(), body, request_headers, lower, this->timeout_);
   }
 
   // Remove before 2027.1.0
@@ -453,7 +461,7 @@ class HttpRequestComponent : public Component {
       lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url.c_str(), method.c_str(), body,
-                         std::vector<Header>(request_headers.begin(), request_headers.end()), lower);
+                         std::vector<Header>(request_headers.begin(), request_headers.end()), lower, this->timeout_);
   }
 
   // Remove before 2027.1.0
@@ -463,13 +471,19 @@ class HttpRequestComponent : public Component {
                                        const std::vector<std::string> &lower_case_collect_headers) {
     return this->perform(url.c_str(), method.c_str(), body,
                          std::vector<Header>(request_headers.begin(), request_headers.end()),
-                         lower_case_collect_headers);
+                         lower_case_collect_headers, this->timeout_);
   }
 
   std::shared_ptr<HttpContainer> start(const char *url, const char *method, const std::string &body,
                                        const std::vector<Header> &request_headers,
                                        const std::vector<std::string> &lower_case_collect_headers) {
-    return this->perform(url, method, body, request_headers, lower_case_collect_headers);
+    return this->perform(url, method, body, request_headers, lower_case_collect_headers, this->timeout_);
+  }
+  std::shared_ptr<HttpContainer> start(const char *url, const char *method, const std::string &body,
+                                       const std::vector<Header> &request_headers,
+                                       const std::vector<std::string> &lower_case_collect_headers,
+                                       uint32_t timeout_ms) {
+    return this->perform(url, method, body, request_headers, lower_case_collect_headers, timeout_ms);
   }
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::vector<Header> &request_headers,
@@ -480,7 +494,8 @@ class HttpRequestComponent : public Component {
  protected:
   virtual std::shared_ptr<HttpContainer> perform(const char *url, const char *method, const std::string &body,
                                                  const std::vector<Header> &request_headers,
-                                                 const std::vector<std::string> &lower_case_collect_headers) = 0;
+                                                 const std::vector<std::string> &lower_case_collect_headers,
+                                                 uint32_t timeout_ms) = 0;
   const char *useragent_{nullptr};
   bool follow_redirects_{};
   uint16_t redirect_limit_{};
@@ -494,6 +509,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
   TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(const char *, method)
   TEMPLATABLE_VALUE(std::string, body)
+  TEMPLATABLE_VALUE(uint32_t, timeout)
 #ifdef USE_HTTP_REQUEST_RESPONSE
   TEMPLATABLE_VALUE(bool, capture_response)
 #endif
@@ -543,8 +559,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       request_headers.push_back({header.name, header.value(x...)});
     }
 
+    const uint32_t timeout = this->timeout_.has_value() ? this->timeout_.value(x...) : this->parent_->get_timeout();
     auto container = this->parent_->start(this->url_.value(x...).c_str(), this->method_.value(x...), body,
-                                          request_headers, this->lower_case_collect_headers_);
+                                          request_headers, this->lower_case_collect_headers_, timeout);
 
     auto captured_args = std::make_tuple(x...);
 
@@ -565,7 +582,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
         // Use http_read_loop_result() helper instead of checking return values directly
         size_t read_index = 0;
         uint32_t last_data_time = millis();
-        const uint32_t read_timeout = this->parent_->get_timeout();
+        const uint32_t read_timeout = timeout;
         while (container->get_bytes_read() < max_length) {
           int read_or_error = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
           App.feed_wdt();
