@@ -376,7 +376,7 @@ class Display : public PollingComponent {
   }
 
   // Remove before 2027.5.0
-  /// The block form above with a color order. The base version draws per pixel and honours the order;
+  /// The block form above with a color order. The base version draws per pixel and honors the order;
   /// a driver that still overrides this one keeps receiving every block, since draw_pixels_() calls it.
   ESPDEPRECATED("Pixels are always RGB: call draw_pixels_at() without the ColorOrder, and override draw_pixels_() "
                 "to copy blocks. Removed in 2027.5.0",

@@ -201,7 +201,7 @@ TEST(DrawPixelsAt, LegacyOverrideStillReceivesBlocks) {
   EXPECT_EQ(legacy.count(), 0u);
 }
 
-// The deprecated form still honours a color order other than RGB when it draws per pixel.
+// The deprecated form still honors a color order other than RGB when it draws per pixel.
 static void expect_ordered(ColorBitness bitness, std::initializer_list<uint8_t> bytes, uint32_t code, ColorOrder order,
                            Color expected) {
   const std::vector<uint8_t> source(bytes);
@@ -237,9 +237,9 @@ TEST(DrawPixelsAt, DeprecatedOrderGrb332) {
   expect_ordered(COLOR_BITNESS_332, {0xE0}, 0xE0, COLOR_ORDER_GRB, Color(0, 255, 0));
 }
 
-// The deprecated packing functions still honour every order; with RGB they match the new ones.
+// The deprecated packing functions still honor every order; with RGB they match the new ones.
 // 0xC0, 0x60, 0x30 is red 24, green 24, blue 6 in 565 and red 6, green 3, blue 0 in 332.
-TEST(DrawPixelsAt, DeprecatedPackingHonoursTheOrder) {
+TEST(DrawPixelsAt, DeprecatedPackingHonorsTheOrder) {
   const Color color(0xC0, 0x60, 0x30);
   EXPECT_EQ(ColorUtil::color_to_565(color), 0xC306);
   EXPECT_EQ(ColorUtil::color_to_565(color, COLOR_ORDER_RGB), 0xC306);
