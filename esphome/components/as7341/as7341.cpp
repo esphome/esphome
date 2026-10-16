@@ -20,7 +20,7 @@ void AS7341Component::setup() {
 
   // Power on (enter IDLE state)
   if (!this->enable_power(true)) {
-    this->mark_failed(LOG_STR("  Power on failed!"));
+    this->mark_failed(LOG_STR("Power on failed"));
     return;
   }
 

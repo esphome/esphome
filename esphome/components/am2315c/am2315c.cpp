@@ -42,18 +42,18 @@ bool AM2315C::reset_register_(uint8_t reg) {
   data[2] = 0;
   ESP_LOGD(TAG, "Reset register: 0x%02x", reg);
   if (this->write(data, 3) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Write failed!"));
+    this->mark_failed(LOG_STR("Write failed"));
     return false;
   }
   delay(5);
   if (this->read(data, 3) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Read failed!"));
+    this->mark_failed(LOG_STR("Read failed"));
     return false;
   }
   delay(10);
   data[0] = 0xB0 | reg;
   if (this->write(data, 3) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Write failed!"));
+    this->mark_failed(LOG_STR("Write failed"));
     return false;
   }
   delay(5);
@@ -73,7 +73,7 @@ void AM2315C::setup() {
   // get status
   uint8_t status = 0;
   if (this->read(&status, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Read failed!"));
+    this->mark_failed(LOG_STR("Read failed"));
     return;
   }
 

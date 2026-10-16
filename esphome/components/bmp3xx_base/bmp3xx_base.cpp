@@ -45,7 +45,6 @@ static const LogString *iir_filter_to_str(IIRFilter filter) {
 void BMP3XXComponent::setup() {
   // Call the Device base class "initialise" function
   if (!reset()) {
-    ESP_LOGE(TAG, "Failed to reset");
     this->mark_failed(LOG_STR("Failed to reset"));
   }
 

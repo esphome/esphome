@@ -79,8 +79,6 @@ void BMP581Component::setup() {
 
   // Power-On-Reboot bit is asserted if sensor successfully reset
   if (!this->reset_()) {
-    ESP_LOGE(TAG, "Reset failed");
-
     this->mark_failed(LOG_STR("Reset failed"));
 
     return;
@@ -103,8 +101,6 @@ void BMP581Component::setup() {
 
   // verify id
   if (chip_id != BMP581_ASIC_ID && chip_id != BMP585_ASIC_ID) {
-    ESP_LOGE(TAG, "Unknown chip ID");
-
     this->mark_failed(LOG_STR("Unknown chip ID"));
 
     return;
