@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_AREA_ID, CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import LD6002BComponent
+from .. import LD6002BComponent, validate_unique_settings
 from ..const import CONF_INSTALLATION_MODE, CONF_LD6002B_ID, CONF_TRIGGER_SPEED
 
 DEPENDENCIES = ["ld6002b"]
@@ -37,6 +37,13 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 )
+
+
+def final_validate(config: ConfigType) -> None:
+    validate_unique_settings(select.DOMAIN, config)
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:

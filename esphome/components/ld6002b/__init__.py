@@ -2,10 +2,11 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WAKEUP_PIN
+from esphome.const import CONF_ID, CONF_PLATFORM, CONF_WAKEUP_PIN
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .const import CONF_AUTO_WAKE, CONF_WAKEUP_PULSE
+from .const import CONF_AUTO_WAKE, CONF_LD6002B_ID, CONF_WAKEUP_PULSE
 
 CODEOWNERS = ["@hepter"]
 DEPENDENCIES = ["uart"]
@@ -73,3 +74,21 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_wakeup_pulse_ms(config[CONF_WAKEUP_PULSE].total_milliseconds))
 
     cg.add(var.set_auto_wake(config[CONF_AUTO_WAKE]))
+
+
+def validate_unique_settings(domain: str, config: ConfigType) -> None:
+    """Reject a setting configured in two platform blocks of the same hub; the hub keeps one entity per setting."""
+    hub_id = config[CONF_LD6002B_ID]
+    entries = [
+        entry
+        for entry in fv.full_config.get().get(domain, [])
+        if entry.get(CONF_PLATFORM) == DOMAIN and entry.get(CONF_LD6002B_ID) == hub_id
+    ]
+    for key in config:
+        if key in (CONF_PLATFORM, CONF_LD6002B_ID):
+            continue
+        if sum(key in entry for entry in entries) > 1:
+            raise cv.Invalid(
+                f"{key} is already set for this ld6002b in another {domain} block",
+                path=[key],
+            )
