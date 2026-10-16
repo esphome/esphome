@@ -395,8 +395,7 @@ jobs:
       - common
       - determine-jobs
     if: needs.determine-jobs.outputs.integration-tests == 'true'
-    # A hung test is failed by its own timeout (tests/integration/conftest.py);
-    # this bounds whatever that does not catch.
+    # A hung test is failed by pytest's --timeout below; this bounds the rest
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -474,7 +473,8 @@ jobs:
             exit 1
           fi
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
-          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
+          # A hung test fails after 30 min: the 15 min shared build lock wait plus a cold compile
+          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal --timeout=1800 \
             --junitxml=junit-integration.xml "${test_files[@]}"
       - name: Upload test artifacts
         # Tests that compare rendered output write the image they actually got here, so a
