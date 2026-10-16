@@ -1,0 +1,1375 @@
+#pragma once
+
+#include <array>
+#include <memory>
+#include <utility>
+#include <vector>
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/number/number.h"
+#include "esphome/components/select/select.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/switch/switch.h"
+#include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/time/real_time_clock.h"
+#include "datalink.h"
+#include "flag_bits.h"
+
+namespace esphome::opentherm42 {
+
+// §5.2/§5.3: which conversation is currently in flight, so handle_response_() knows how to interpret
+// the reply. Every kind maps to exactly one data-id; see build_next_request_()/handle_response_().
+enum class RequestKind : uint8_t {
+  // §5.3.2 Class 2, ID 3: boiler configuration flags + boiler MemberID code. Read once at startup
+  // (§5.2.1: "Must sent message with READ_DATA (at least at start up)").
+  BOILER_CONFIG,
+  // §5.3.1 Class 1, ID 0: the master/boiler status exchange -- the protocol's mandatory heartbeat.
+  STATUS,
+  // §5.3.1 Class 1, ID 1: control setpoint.
+  CONTROL_SETPOINT,
+  // §5.3.1 Class 1, ID 8: control setpoint 2 (TsetCH2).
+  CONTROL_SETPOINT_2,
+  // §5.3.1 Class 1, ID 70: master status for ventilation/heat-recovery <-> its status reply, the same
+  // one-conversation write+read pattern as STATUS.
+  VENTILATION_STATUS,
+  // §5.3.1 Class 1, ID 71: control setpoint ventilation/heat-recovery.
+  CONTROL_SETPOINT_VENTILATION,
+  // §5.3.1 Class 1, ID 5: application-specific fault flags + OEM fault code.
+  FAULT_FLAGS,
+  // §5.3.1 Class 1, ID 72: application-specific fault flags + OEM fault code, ventilation/heat-recovery.
+  VENTILATION_FAULT_FLAGS,
+  // §5.3.1 Class 1, ID 101: master/boiler solar storage status.
+  SOLAR_STORAGE_STATUS,
+  // §5.3.1 Class 1, ID 102: solar storage specific fault flags (HB reserved) + OEM fault code.
+  SOLAR_STORAGE_FAULT_FLAGS,
+  // §5.3.1 Class 1, ID 115: OEM diagnostic code.
+  OEM_DIAGNOSTIC_CODE,
+  // §5.3.1 Class 1, ID 73: OEM diagnostic code, ventilation/heat-recovery.
+  OEM_DIAGNOSTIC_CODE_VENTILATION,
+  // §5.3.2 Class 2, ID 2: this master's own configuration flags + MemberID code. Written once at
+  // startup (recommended by §5.3.2 before control/status information is transmitted).
+  MASTER_CONFIG,
+  // §5.3.2 Class 2, ID 124: this master's own OpenTherm protocol version. Written once at startup.
+  MASTER_OPENTHERM_VERSION,
+  // §5.3.2 Class 2, ID 126: this master's own product version number and type. Written once at startup.
+  MASTER_PRODUCT_VERSION,
+  // §5.3.2 Class 2, ID 74: configuration ventilation/heat-recovery.
+  VENTILATION_CONFIGURATION,
+  // §5.3.2 Class 2, ID 103: Solar Storage configuration.
+  SOLAR_STORAGE_CONFIGURATION,
+  // §5.3.2 Class 2, ID 125: OpenTherm version implemented by the boiler.
+  OPENTHERM_VERSION_BOILER,
+  // §5.3.2 Class 2, ID 127: boiler product version number and type.
+  PRODUCT_VERSION_BOILER,
+  // §5.3.2 Class 2, ID 75: OpenTherm version implemented by the ventilation/heat-recovery system.
+  OPENTHERM_VERSION_VENTILATION,
+  // §5.3.2 Class 2, ID 76: ventilation/heat-recovery product version number and type.
+  PRODUCT_VERSION_VENTILATION,
+  // §5.3.2 Class 2, ID 104: Solar Storage product version number and type.
+  PRODUCT_VERSION_SOLAR_STORAGE,
+  // §5.3.2 Class 2, ID 93: brand identification string, read one character at a time. Read once at
+  // startup, only if a text_sensor is configured for it.
+  BRAND,
+  // §5.3.2 Class 2, ID 94: brand version string, same one-character-at-a-time protocol as ID 93.
+  BRAND_VERSION,
+  // §5.3.2 Class 2, ID 95: brand serial number string, same protocol as ID 93.
+  BRAND_SERIAL_NUMBER,
+  // §5.3.3 Class 3, ID 4: a remote request command. Sent on demand (button press), not scheduled.
+  REMOTE_REQUEST,
+
+  // §5.3.4 Class 4: write-only numbers this master provides to the boiler. ROOM_TEMPERATURE (ID 24)
+  // and TRCH2 (ID 37) are special cases: like the sensor-feed ids further below (27/38/78/79), they're
+  // this master's own external sensor readings with nothing for the component to invent a
+  // config-time default for, so they take no initial_value and only join the essential rotation once
+  // OpenTherm42SensorFeedNumber::control() has supplied a real value (see
+  // set_sensor_feed_write_value()) -- but unlike those, they have no READ-DATA counterpart at all, so
+  // control() also publishes .state directly there instead of leaving that to a READ_ACK.
+  ROOM_SETPOINT,      // ID 16
+  ROOM_SETPOINT_CH2,  // ID 23
+  ROOM_TEMPERATURE,   // ID 24 -- see note above; uses OpenTherm42SensorFeedNumber, not OpenTherm42Number
+  TRCH2,              // ID 37 -- see note above; uses OpenTherm42SensorFeedNumber, not OpenTherm42Number
+  // §5.3.4 Class 4, IDs 20/21/22: Day-of-week/Time, Date, Year -- written once per essential rotation
+  // from the configured time_id, so the boiler's clock stays in sync with this master's.
+  DAY_TIME,
+  DATE,
+  YEAR,
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): independently configurable from the write side above
+  // -- unlike every other R/W id in this component (27/38/78/79 below, 56/57/87 in Class 5), the
+  // write here has no config marker of its own (it's driven purely by time_id being set), so
+  // there's no "_set" marker to pair a "_READ" suffix against. These three kinds are simply the
+  // informational-rotation reads, schedulable with or without time_id configured (see
+  // build_schedule_()) -- "what time does the boiler's own clock report" is useful diagnostic
+  // information even for a setup that never writes to it. All three feed a single combined
+  // date_time_text_sensor_ (see handle_response_()/publish_date_time_text_()), so none of them --
+  // including YEAR_READ, despite being a single plain u16 like other SIMPLE_SENSORS entries -- are
+  // dispatched through the generic SIMPLE_SENSORS table.
+  DAY_TIME_READ,
+  DATE_READ,
+  YEAR_READ,
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids, but unlike Class 5's pre-defined remote boiler
+  // parameters (see below), the spec gives the boiler no ownership of these values -- they're this
+  // master's own external sensor readings (outside temperature, relative humidity, ...) pushed to the
+  // boiler, same nature as ROOM_TEMPERATURE/TRCH2 (IDs 24/37) above, just with a READ-DATA counterpart
+  // those don't have. WRITE and READ are independently-scheduled RequestKinds (see build_schedule_()): the
+  // WRITE side only joins the essential rotation once OpenTherm42SensorFeedNumber::control() has
+  // supplied a real value (see set_sensor_feed_write_value()) -- no config-time default is invented,
+  // and the WRITE-ACK's echoed value is NOT trusted for display (real hardware has been observed
+  // acking a write while echoing an unrelated/stale value, despite genuinely accepting the write).
+  // Only a successful READ_DATA, on its own independent informational-rotation schedule, ever updates
+  // the number's displayed .state (see handle_response_()).
+  OUTSIDE_TEMPERATURE,                 // ID 27 (write)
+  OUTSIDE_TEMPERATURE_READ,            // ID 27 (read)
+  RELATIVE_HUMIDITY,                   // ID 38 (write)
+  RELATIVE_HUMIDITY_READ,              // ID 38 (read)
+  RELATIVE_HUMIDITY_EXHAUST_AIR,       // ID 78 (write)
+  RELATIVE_HUMIDITY_EXHAUST_AIR_READ,  // ID 78 (read)
+  CO2_LEVEL,                           // ID 79 (write)
+  CO2_LEVEL_READ,                      // ID 79 (read)
+  // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint + LB Boiler fan speed -- two sensors from one
+  // conversation, so it doesn't fit the single-sensor SimpleSensorInfo table below.
+  BOILER_FAN_SPEED,
+
+  // §5.3.4 Class 4: read-only sensors dispatched generically through the SimpleSensorInfo table in
+  // hub.cpp (single value per conversation, no bit decomposition) -- see find_simple_sensor_().
+  RELATIVE_MODULATION_LEVEL,             // ID 17
+  CH_WATER_PRESSURE,                     // ID 18
+  DHW_FLOW_RATE,                         // ID 19
+  BOILER_WATER_TEMPERATURE,              // ID 25
+  DHW_TEMPERATURE,                       // ID 26
+  RETURN_WATER_TEMPERATURE,              // ID 28
+  SOLAR_STORAGE_TEMPERATURE,             // ID 29
+  SOLAR_COLLECTOR_TEMPERATURE,           // ID 30
+  FLOW_TEMPERATURE_CH2,                  // ID 31
+  DHW2_TEMPERATURE,                      // ID 32
+  EXHAUST_TEMPERATURE,                   // ID 33
+  BOILER_HEAT_EXCHANGER_TEMPERATURE,     // ID 34
+  FLAME_CURRENT,                         // ID 36
+  RELATIVE_VENTILATION,                  // ID 77
+  SUPPLY_INLET_TEMPERATURE,              // ID 80
+  SUPPLY_OUTLET_TEMPERATURE,             // ID 81
+  EXHAUST_INLET_TEMPERATURE,             // ID 82
+  EXHAUST_OUTLET_TEMPERATURE,            // ID 83
+  ACTUAL_EXHAUST_FAN_SPEED,              // ID 84
+  ACTUAL_INLET_FAN_SPEED,                // ID 85
+  COOLING_OPERATION_HOURS,               // ID 96
+  POWER_CYCLES,                          // ID 97
+  ELECTRICITY_PRODUCER_STARTS,           // ID 109
+  ELECTRICITY_PRODUCER_HOURS,            // ID 110
+  ELECTRICITY_PRODUCTION,                // ID 111
+  CUMULATIVE_ELECTRICITY_PRODUCTION,     // ID 112
+  NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS,  // ID 113
+  NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW,  // ID 114
+  SUCCESSFUL_BURNER_STARTS,              // ID 116
+  CH_PUMP_STARTS,                        // ID 117
+  DHW_PUMP_VALVE_STARTS,                 // ID 118
+  DHW_BURNER_STARTS,                     // ID 119
+  BURNER_OPERATION_HOURS,                // ID 120
+  CH_PUMP_OPERATION_HOURS,               // ID 121
+  DHW_PUMP_VALVE_OPERATION_HOURS,        // ID 122
+  DHW_BURNER_OPERATION_HOURS,            // ID 123
+  // ID 98 (RF sensor status information -- pairing a wireless room sensor's type/battery/signal to the
+  // boiler) is intentionally not implemented: skipped by decision, not an oversight.
+
+  // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable + read/write flags for DHW Setpoint / max
+  // CHsetpoint (HB and LB read in one conversation).
+  REMOTE_PARAMETER_FLAGS,
+  // §5.3.5 Class 5, ID 86: same, for ventilation/heat-recovery's Nominal ventilation value.
+  REMOTE_PARAMETER_FLAGS_VENTILATION,
+  // §5.3.5 Class 5, ID 48: HB DHWsetp upp-bound, LB DHWsetp low-bound (two signed 8-bit values).
+  DHWSETP_BOUNDS,
+  // §5.3.5 Class 5, ID 49: HB max CHsetp upp-bound, LB max CHsetp low-bnd.
+  MAX_CHSETP_BOUNDS,
+  // §5.3.5 Class 5, IDs 56/57/87: R/W ids -- same single-number-entity, READ-is-authoritative
+  // pattern as Class 4's IDs 27/38/78/79 above.
+  DHW_SETPOINT,                    // ID 56 (write)
+  DHW_SETPOINT_READ,               // ID 56 (read)
+  MAX_CH_WATER_SETPOINT,           // ID 57 (write)
+  MAX_CH_WATER_SETPOINT_READ,      // ID 57 (read)
+  NOMINAL_VENTILATION_VALUE,       // ID 87 (write)
+  NOMINAL_VENTILATION_VALUE_READ,  // ID 87 (read)
+
+  // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+  NUMBER_OF_TSPS,
+  NUMBER_OF_TSPS_VENTILATION,
+  NUMBER_OF_TSPS_SOLAR_STORAGE,
+  // §5.3.6 Class 6, IDs 11/89/106: a transparent-boiler-parameter read or write, at whichever
+  // configured slot (see TspSlot) is due next -- see build_next_request_()'s tsp_write_pending_ check
+  // for on-demand writes and the informational-rotation case for the periodic read cycle.
+  TSP,
+
+  // §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+  FAULT_HISTORY_BUFFER_SIZE,
+  FAULT_HISTORY_BUFFER_SIZE_VENTILATION,
+  FAULT_HISTORY_BUFFER_SIZE_SOLAR_STORAGE,
+  // §5.3.7 Class 7, IDs 13/91/108: a fault-history-buffer entry read, at whichever configured slot
+  // (see FhbSlot) is due next -- purely read-only, so unlike TSP there's no write-pending priority
+  // check, just the informational-rotation case.
+  FHB,
+
+  // §5.3.8.1/§5.3.8.2 Class 8, IDs 7/14: write-only numbers.
+  COOLING_CONTROL_SIGNAL,
+  MAX_REL_MOD_LEVEL_SETTING,
+  // §5.3.8.2 Class 8, ID 15: HB Maximum boiler capacity, LB Minimum modulation level -- two sensors
+  // from one conversation, like Class 4's BOILER_FAN_SPEED.
+  MAX_CAPACITY_MIN_MOD_LEVEL,
+  // §5.3.8.3 Class 8, IDs 9/39: Remote Override Room Setpoint (1 and 2). Dispatched through the
+  // SIMPLE_SENSORS table (plain f8.8 reads).
+  REMOTE_OVERRIDE_ROOM_SETPOINT,
+  REMOTE_OVERRIDE_ROOM_SETPOINT_2,
+  // §5.3.8.3 Class 8, ID 99: Operating Mode HC1/HC2/DHW and Manual DHW push2, packed into one byte
+  // pair -- same essential-write/informational-read split as Class 5's DHW_SETPOINT/DHW_SETPOINT_READ
+  // above, generalized to 4 sub-fields sharing one frame instead of 1.
+  REMOTE_OVERRIDE_OPERATING_MODES,       // ID 99 (write)
+  REMOTE_OVERRIDE_OPERATING_MODES_READ,  // ID 99 (read)
+  // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function flags.
+  REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION,
+};
+
+class OpenTherm42Hub;
+
+// How a SimpleSensorInfo's raw frame bytes convert to the value passed to sensor::Sensor::publish_state().
+enum class SimpleValueKind : uint8_t {
+  F88,    // frame.value_f88()
+  S16,    // frame.value_s16() -- a plain signed integer, not fixed-point, despite also being 16 bits
+  U16,    // frame.value_u16()
+  U8_LB,  // frame.value_lb -- only the low byte carries data
+  U8_HB,  // frame.value_hb -- only the high byte carries data
+};
+
+// Describes one single-value, non-bit-decomposed read-only data-id: which id to READ_DATA, how to
+// convert the response into a float, which member holds its sensor pointer, and what to name it in log
+// messages. OpenTherm42Hub::SIMPLE_SENSORS is the table every class after Class 1 registers its "plain"
+// reads into; find_simple_sensor_() is the generic fallback build_next_request_()/handle_response_()/
+// invalidate_response_() dispatch to for every RequestKind not given bespoke handling.
+struct SimpleSensorInfo {
+  RequestKind kind;
+  uint8_t id;
+  SimpleValueKind value_kind;
+  sensor::Sensor *OpenTherm42Hub::*member;
+  const char *log_name;
+};
+
+// Every schedulable id -- including STATUS/CONTROL_SETPOINT and the startup-only ids -- is one
+// Entry, scanned by pull_next_due_entry_(). There is no more separate startup-gate/reserved-heartbeat
+// tier at the C++ level: `update_every` means "due once every N passes" (an entry is due on pass P
+// iff `pass_counter_ % update_every == 0` -- see entries_'s declaration comment), and every id
+// differs from every other one only in which cadence it's configured with. Since 0 % N == 0 for
+// any N, every entry is due on pass 0, which is what makes the sweep-duration sensor's math work
+// with no extra bookkeeping (see sweep_length_passes_'s declaration comment). `dirty` is set by
+// control()-driven write ids (via set_write_value()/set_sensor_feed_write_value()) to jump the
+// queue immediately (ASAP) rather than waiting for the entry's next due pass -- see
+// build_next_request_()'s ASAP scan. `consecutive_data_invalid` is only meaningful for kinds
+// should_invalidate_now_() gates (not TSP/FHB, whose slots share one RequestKind across many
+// independent data-ids, so a single per-kind counter can't distinguish which slot last succeeded).
+struct Entry {
+  RequestKind kind;
+  uint32_t update_every{1};
+  bool dirty{false};
+  uint8_t consecutive_data_invalid{0};
+};
+
+// §5.3.2 Class 2, IDs 93/94/95: a brand-identification string, assembled one ASCII character per
+// conversation (index in the request's HB, character count in the response's HB, character itself in
+// the response's LB). 51 = the largest legal index (49, per the ID 93/94/95 table's HB range) plus one
+// content byte plus a null terminator.
+struct BrandRead {
+  text_sensor::TextSensor *sensor{nullptr};
+  uint8_t next_index{0};
+  std::array<char, 51> buffer{};
+};
+
+// §5.3.6 Class 6: one user-configured transparent-boiler-parameter slot. TSP values are opaque and
+// manufacturer-specific (the protocol has no idea what they mean), so unlike every other class there's
+// no fixed set of ids to expose -- the user names and indexes whichever slots their boiler documents.
+struct TspSlot {
+  uint8_t data_id;  // 11 (main), 89 (ventilation/heat-recovery), or 106 (Solar Storage)
+  uint8_t index;    // TSP-index, 0..255
+  number::Number *number{nullptr};
+};
+
+// §5.3.7 Class 7: one user-configured fault-history-buffer slot. Like TSP, purely read-only here.
+struct FhbSlot {
+  uint8_t data_id;  // 13 (main), 91 (ventilation/heat-recovery), or 108 (Solar Storage)
+  uint8_t index;    // FHB-index, 0..255
+  sensor::Sensor *sensor{nullptr};
+};
+
+// Declares set_<name>_switch()/set_<name>_binary_sensor(), storing the pointer at a fixed bit position
+// within one of the hub's FlagWriteBits/FlagReadBits members. Used for every flag8 byte's individual
+// bits across every class -- see flag_bits.h.
+#define OT42_FLAG_WRITE_BIT(name, byte, bit) \
+  void set_##name##_switch(switch_::Switch *s) { this->byte.bits[bit] = s; }
+#define OT42_FLAG_READ_BIT(name, byte, bit) \
+  void set_##name##_binary_sensor(binary_sensor::BinarySensor *s) { this->byte.bits[bit] = s; }
+// Declares set_<name>_number()/set_<name>_sensor()/set_<name>_binary_sensor()/set_<name>_select()
+// for a standalone (non-flag-byte) entity backed by a single named member pointer. Number entities are
+// always OpenTherm42Number or OpenTherm42SensorFeedNumber in practice, but the member only ever needs
+// the generic number::Number interface (publish_state()/invalidate_entity()), so this deliberately takes
+// the base pointer type rather than either concrete one -- hub.h must stay buildable for configs that
+// don't use any opentherm42 number at all, so it can never include either subclass's header (both
+// include hub.h themselves, for their hub-callback constructor -- same reasoning as TspSlot::number
+// below). See set_write_value()/set_sensor_feed_write_value() for how the hub instead receives values
+// pushed from those constructors, without needing to read anything back off the entity.
+#define OT42_SET_NUMBER(name, member) \
+  void set_##name##_number(number::Number *n) { this->member = n; }
+#define OT42_SET_SENSOR(name, member) \
+  void set_##name##_sensor(sensor::Sensor *s) { this->member = s; }
+#define OT42_SET_BINARY_SENSOR(name, member) \
+  void set_##name##_binary_sensor(binary_sensor::BinarySensor *s) { this->member = s; }
+#define OT42_SET_SELECT(name, member) \
+  void set_##name##_select(select::Select *s) { this->member = s; }
+// For a standalone (non-flag-byte) switch, e.g. one packed into the same byte as other non-flag
+// fields (Class 8, ID 99's Manual DHW push2 bit) where OT42_FLAG_WRITE_BIT's whole-byte FlagWriteBits
+// doesn't apply.
+#define OT42_SET_SWITCH(name, member) \
+  void set_##name##_switch(switch_::Switch *s) { this->member = s; }
+// For the indexed-character-read accumulator struct (see IndexedStringRead below) used by the
+// Class 2 brand-identification strings.
+#define OT42_SET_TEXT_SENSOR(name, member) \
+  void set_##name##_text_sensor(text_sensor::TextSensor *s) { this->member.sensor = s; }
+// For a plain, standalone text_sensor pointer -- e.g. a small named-enum code shown as its spec
+// name instead of a raw integer.
+#define OT42_SET_PLAIN_TEXT_SENSOR(name, member) \
+  void set_##name##_text_sensor(text_sensor::TextSensor *s) { this->member = s; }
+
+// OpenTherm 4.2 master, implementing the OT/+ (OpenTherm/plus) digital protocol only -- §1.2: the
+// two-microprocessor variant, as opposed to OT/- (OpenTherm/Lite), the PWM-signal variant for
+// analogue-only products. §6 notes OT/- has been demoted to legacy/reference-only status since v4.1
+// and should not be used in new designs -- this component never implements it. Talks directly to a
+// single boiler -- see the OpenTherm Protocol Specification v4.2, §4.3.2: this component implements
+// the master role only, not the optional gateway (chained intermediate device) role.
+class OpenTherm42Hub : public Component {
+ public:
+  void set_in_pin(InternalGPIOPin *in_pin) { this->in_pin_ = in_pin; }
+  void set_out_pin(InternalGPIOPin *out_pin) { this->out_pin_ = out_pin; }
+
+  // How many consecutive DATA_INVALID responses (§4.4.1: "the data ID is recognised... but the data
+  // requested is not available or invalid") a given id may accumulate before its entity is actually
+  // invalidated. Real hardware has been observed answering DATA_INVALID for a data-id a handful of
+  // times before reverting to a normal READ_ACK/WRITE_ACK, with no apparent cause -- invalidating on
+  // every single DATA_INVALID made affected entities flap to Unknown and back constantly. 0 (the
+  // default) means invalidate immediately, matching the behavior before this option existed.
+  // Deliberately does NOT apply to UNKNOWN_DATA_ID (§4.4.1: the boiler doesn't recognise the data
+  // identifier at all) or any datalink-level failure (timeout, frame error) -- those mean the boiler
+  // has either never heard of this id or the bus itself is unreliable, neither of which this grace
+  // period is meant to paper over. See should_invalidate_now_().
+  void set_max_data_invalid(uint32_t max_data_invalid) { this->max_data_invalid_ = max_data_invalid; }
+  // Synthetic diagnostic entity -- see sweep_length_passes_'s declaration comment. Not tied to any
+  // real OpenTherm data-id, unconditionally available regardless of what else is configured.
+  // Deliberately not named with the sensor_and_informational_data_* prefix used elsewhere in this
+  // file, since that prefix names a real spec chapter (§5.3.4 Class 4) this entity has nothing to
+  // do with.
+  OT42_SET_SENSOR(sweep_duration, sweep_duration_sensor_)
+  // Same nature as the sweep duration sensor above, but for a single pass (one full scan of
+  // entries_, however many of them happened to be due on it) rather than a whole sweep -- see
+  // pass_start_ms_'s declaration comment.
+  OT42_SET_SENSOR(pass_duration, pass_duration_sensor_)
+  // Synthetic diagnostic entity: true if any conversation during the most recently completed sweep
+  // was rejected or failed at the datalink level (timeout, Manchester/parity/stop-bit error,
+  // DATA_INVALID, UNKNOWN_DATA_ID, or an unexpected message type) and actually invalidated an entity --
+  // a DATA_INVALID masked by max_data_invalid's grace period does not count, since it's tolerated by
+  // definition. See sweep_had_error_'s declaration comment for how this is tracked.
+  OT42_SET_BINARY_SENSOR(sweep_had_errors, sweep_had_errors_binary_sensor_)
+
+  // §5.2's mandatory heartbeat (id=0) -- unconditionally required in config (see
+  // opentherm42/__init__.py), since STATUS is unconditionally scheduled regardless of which, if
+  // any, of its 15 switch/binary_sensor bits are configured. Called at Python wiring time, before
+  // any component's setup() (including this hub's own) -- entries_ doesn't exist yet at that point
+  // (it's populated by build_schedule_(), which only runs from this hub's own setup()), so stage
+  // the value in pending_group_update_every_ like every other group option below, rather than
+  // looking up an Entry immediately.
+  void set_control_and_status_information_boiler_status_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::STATUS, update_every);
+  }
+  // §5.3.2 Class 2, ID 3: boiler configuration flags + boiler MemberID code (see BOILER_CONFIG) --
+  // a group spanning more than one entity (9: 8 text_sensors + 1 sensor), like every other id
+  // below, required only if any of them is configured -- unlike STATUS above, nothing in the spec
+  // requires continuously re-reading id 3 regardless of which entities are configured.
+  void set_configuration_information_boiler_configuration_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::BOILER_CONFIG, update_every);
+  }
+  // §5.3.2 Class 2, IDs 2/124/126: this master's own identity, announced to the boiler -- no entity
+  // of its own (Smart Power capability flag / this component's own OpenTherm version / this
+  // component's own product identity, none of which are ever configured per-entity), so each gets
+  // its own unconditionally-required hub-level option instead, same reasoning as STATUS above.
+  void set_configuration_information_master_configuration_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MASTER_CONFIG, update_every);
+  }
+  void set_configuration_information_master_opentherm_version_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MASTER_OPENTHERM_VERSION, update_every);
+  }
+  void set_configuration_information_master_product_version_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MASTER_PRODUCT_VERSION, update_every);
+  }
+  // Every id below spans more than one entity (see hub.h's scheduling-redesign notes and the
+  // catalog in the PR this introduced them) -- each hub option is only present in config, and thus
+  // only ever set here, when at least one of that group's entities is configured (enforced by
+  // validate_requires_hub_option() in opentherm42/__init__.py). Same staging reasoning as STATUS's
+  // own setter above -- entries_ doesn't exist yet at wiring time.
+  void set_control_and_status_information_status_ventilation_heat_recovery_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::VENTILATION_STATUS, update_every);
+  }
+  void set_control_and_status_information_application_specific_fault_flags_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::FAULT_FLAGS, update_every);
+  }
+  void set_control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_every(
+      uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::VENTILATION_FAULT_FLAGS, update_every);
+  }
+  void set_control_and_status_information_solar_storage_mode_and_status_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::SOLAR_STORAGE_STATUS, update_every);
+  }
+  void set_configuration_information_configuration_ventilation_heat_recovery_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::VENTILATION_CONFIGURATION, update_every);
+  }
+  void set_configuration_information_solar_storage_configuration_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::SOLAR_STORAGE_CONFIGURATION, update_every);
+  }
+  void set_configuration_information_boiler_product_version_number_and_type_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::PRODUCT_VERSION_BOILER, update_every);
+  }
+  void set_configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_every(
+      uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::PRODUCT_VERSION_VENTILATION, update_every);
+  }
+  void set_configuration_information_solar_storage_product_version_number_and_type_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE, update_every);
+  }
+  void set_sensor_and_informational_data_boiler_fan_speed_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::BOILER_FAN_SPEED, update_every);
+  }
+  void set_pre_defined_remote_boiler_parameters_flags_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::REMOTE_PARAMETER_FLAGS, update_every);
+  }
+  void set_pre_defined_remote_boiler_parameters_ventilation_heat_recovery_flags_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION, update_every);
+  }
+  void set_pre_defined_remote_boiler_parameters_dhwsetp_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::DHWSETP_BOUNDS, update_every);
+  }
+  void set_pre_defined_remote_boiler_parameters_max_chsetp_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MAX_CHSETP_BOUNDS, update_every);
+  }
+  void set_control_of_special_applications_max_capacity_min_mod_level_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL, update_every);
+  }
+  // Covers both halves of the write/read pair -- one cadence for the whole logical group, same as
+  // every other entry here.
+  void set_control_of_special_applications_remote_override_operating_mode_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES, update_every);
+    this->pending_group_update_every_.emplace_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ, update_every);
+  }
+  void set_control_of_special_applications_remote_override_room_setpoint_function_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION, update_every);
+  }
+  // §5.3.6 Class 6, IDs 11/89/106: TSP slots from all three families (see tsp_slots_) round-robin
+  // through one shared RequestKind::TSP conversation -- one cadence governs how fast that rotation
+  // advances as a whole, not any individual slot's own refresh rate. On-demand writes (see
+  // write_tsp()) already jump the queue ahead of this rotation regardless.
+  void set_transparent_boiler_parameters_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::TSP, update_every);
+  }
+  // §5.3.7 Class 7, IDs 13/91/108: same shared-rotation reasoning as TSP above, for the (purely
+  // read-only) fault-history-buffer entries.
+  void set_fault_history_data_fault_buffer_update_every(uint32_t update_every) {
+    this->pending_group_update_every_.emplace_back(RequestKind::FHB, update_every);
+  }
+
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+
+  // §5.3.2 Class 2: this master's own identity, written to the boiler once at startup. Static config,
+  // not entities -- see opentherm42/__init__.py's CONF_CONTROLLER_* options.
+  void set_controller_member_id_code(uint8_t member_id_code) { this->controller_member_id_code_ = member_id_code; }
+  void set_controller_product_type(uint8_t product_type) { this->controller_product_type_ = product_type; }
+  void set_controller_product_version(uint8_t product_version) { this->controller_product_version_ = product_version; }
+
+  // §5.3.1 Class 1, ID 0 HB: Master status.
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_ch_enable, master_status_write_, 0)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_dhw_enable, master_status_write_, 1)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_cooling_enable, master_status_write_, 2)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_otc_active, master_status_write_, 3)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_ch2_enable, master_status_write_, 4)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_summer_winter_mode, master_status_write_, 5)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_dhw_blocking, master_status_write_, 6)
+
+  // §5.3.1 Class 1, ID 70 HB: Master status for ventilation/heat-recovery.
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_for_ventilation_heat_recovery_ventilation_enable,
+                      ventilation_status_write_, 0)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_position,
+                      ventilation_status_write_, 1)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_mode,
+                      ventilation_status_write_, 2)
+  OT42_FLAG_WRITE_BIT(control_and_status_information_master_status_for_ventilation_heat_recovery_free_ventilation_mode,
+                      ventilation_status_write_, 3)
+
+  // §5.3.1 Class 1, IDs 1/8/71: numeric setpoints.
+  OT42_SET_NUMBER(control_and_status_information_control_setpoint, control_setpoint_number_)
+  OT42_SET_NUMBER(control_and_status_information_control_setpoint_2_tsetch2, control_setpoint_2_number_)
+  OT42_SET_NUMBER(control_and_status_information_control_setpoint_ventilation_heat_recovery,
+                  control_setpoint_ventilation_number_)
+  // Called by every OpenTherm42Number's control()/setup() (every write-capable number except ids
+  // 24/27/37/38/78/79 -- see set_sensor_feed_write_value() for those) to push the value that
+  // build_next_request_() should send next for that data-id, and mark its Entry dirty so it's sent
+  // immediately (ASAP) rather than waiting for its next due pass. Every id handled here is already
+  // unconditionally scheduled from build_schedule_() (each one always has a real value by the time
+  // build_next_request_() can run, thanks to initial_value/flash restore -- see OpenTherm42Number's
+  // class comment), so there's no dynamic scheduling to do here, just dirtying.
+  void set_write_value(uint8_t id, float value);
+  // Called from OpenTherm42Number::setup() (every id set_write_value() handles) once hub_ is
+  // guaranteed to have already run build_schedule_() -- see set_sensor_feed_update_every()'s
+  // declaration comment for why this can't happen at wiring time instead. The three R/W pairs
+  // (56/57/87) update their READ side's Entry, not the write side's -- update_every is
+  // conceptually about how often the boiler's own answer gets refreshed, and the write side is
+  // otherwise driven by the ASAP dirty bit on every control() plus its own steady-state cadence as
+  // a fallback, same as everything else.
+  void set_number_update_every(uint8_t id, uint32_t update_every);
+
+  // §5.3.1 Class 1, ID 0 LB: Boiler status.
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_fault_indication, boiler_status_read_, 0)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_ch_mode, boiler_status_read_, 1)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_dhw_mode, boiler_status_read_, 2)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_flame_status, boiler_status_read_, 3)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_cooling_status, boiler_status_read_, 4)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_ch2_mode, boiler_status_read_, 5)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_diagnostic_service_indication, boiler_status_read_, 6)
+  OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_electricity_production, boiler_status_read_, 7)
+
+  // §5.3.1 Class 1, ID 70 LB: Status ventilation/heat-recovery (bits 5 and 7 are reserved).
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_fault_indication,
+                     ventilation_status_read_, 0)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_ventilation_mode,
+                     ventilation_status_read_, 1)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_bypass_status,
+                     ventilation_status_read_, 2)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_bypass_automatic_status,
+                     ventilation_status_read_, 3)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_free_ventilation_status,
+                     ventilation_status_read_, 4)
+  OT42_FLAG_READ_BIT(control_and_status_information_status_ventilation_heat_recovery_diagnostic_indication,
+                     ventilation_status_read_, 6)
+
+  // §5.3.1 Class 1, ID 5 HB: Application-specific fault flags (bits 6,7 reserved); LB: OEM fault code.
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_service_request, fault_flags_read_,
+                     0)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_lockout_reset, fault_flags_read_,
+                     1)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_low_water_press, fault_flags_read_,
+                     2)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_gas_flame_fault, fault_flags_read_,
+                     3)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_air_press_fault, fault_flags_read_,
+                     4)
+  OT42_FLAG_READ_BIT(control_and_status_information_application_specific_fault_flags_water_over_temp, fault_flags_read_,
+                     5)
+  OT42_SET_SENSOR(control_and_status_information_oem_fault_code, oem_fault_code_sensor_)
+
+  // §5.3.1 Class 1, ID 72 HB: Application-specific fault flags, ventilation/heat-recovery (bits 4-7
+  // reserved); LB: OEM fault code ventilation/heat-recovery.
+  OT42_FLAG_READ_BIT(
+      control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_service_request,
+      ventilation_fault_flags_read_, 0)
+  OT42_FLAG_READ_BIT(
+      control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_exhaust_fan_fault,
+      ventilation_fault_flags_read_, 1)
+  OT42_FLAG_READ_BIT(
+      control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_inlet_fan_fault,
+      ventilation_fault_flags_read_, 2)
+  OT42_FLAG_READ_BIT(
+      control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_frost_protection,
+      ventilation_fault_flags_read_, 3)
+  OT42_SET_SENSOR(control_and_status_information_oem_fault_code_ventilation_heat_recovery,
+                  oem_fault_code_ventilation_sensor_)
+
+  // §5.3.1 Class 1, ID 101: Master/boiler solar storage status (HB and LB each carry their own Solar
+  // mode sub-field, at different bit offsets -- see handle_response_()). HB is master-authored
+  // (same "R -" idiom as ID 0/70's master status) with no readback, so it's a select, not a
+  // sensor; LB's own Solar mode/status sub-fields are small named enums, shown as text_sensors.
+  OT42_SET_BINARY_SENSOR(control_and_status_information_solar_storage_mode_and_status_fault_indication,
+                         solar_storage_fault_indication_binary_sensor_)
+  OT42_SET_SELECT(control_and_status_information_master_solar_storage_status_solar_mode,
+                  master_solar_storage_status_solar_mode_select_)
+  // Called by OpenTherm42Select's control()/setup() to push the commanded solar-mode index somewhere
+  // that survives has_state()==false -- build_next_request_() reads this instead of
+  // ->active_index(), and handle_response_()'s SOLAR_STORAGE_STATUS success path republishes the
+  // select from it, so a later successful conversation recovers a previously-invalidated select
+  // instead of leaving it stuck at Unknown (and silently sending index 0 on the wire in the
+  // meantime, since active_index() itself returns nullopt once invalidated).
+  void set_solar_storage_solar_mode_write_value(uint8_t value) { this->solar_storage_solar_mode_write_value_ = value; }
+  OT42_SET_PLAIN_TEXT_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_mode,
+                             solar_storage_mode_and_status_solar_mode_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_status,
+                             solar_storage_mode_and_status_solar_status_text_sensor_)
+
+  // §5.3.1 Class 1, ID 102 LB: OEM fault code Solar Storage (HB is entirely reserved -- no entity).
+  OT42_SET_SENSOR(control_and_status_information_oem_fault_code_solar_storage, oem_fault_code_solar_storage_sensor_)
+  // 1:1 but bespoke (not dispatched through SIMPLE_SENSORS -- see build_next_request_()/
+  // handle_response_()'s SOLAR_STORAGE_FAULT_FLAGS/OEM_DIAGNOSTIC_CODE(_VENTILATION) cases), so
+  // these can't reuse set_simple_sensor_update_every()'s generic id-keyed dispatch. Called at
+  // wiring time (sensor.new_sensor() doesn't go through cg.register_component()) -- stored here and
+  // consumed once by build_schedule_(), same reasoning as
+  // set_sensor_and_informational_data_date_time_update_every()'s declaration comment.
+  void set_control_and_status_information_oem_fault_code_solar_storage_update_every(uint32_t update_every) {
+    this->oem_fault_code_solar_storage_update_every_ = update_every;
+  }
+
+  // §5.3.1 Class 1, IDs 115/73: OEM diagnostic codes.
+  OT42_SET_SENSOR(control_and_status_information_oem_diagnostic_code, oem_diagnostic_code_sensor_)
+  OT42_SET_SENSOR(control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery,
+                  oem_diagnostic_code_ventilation_sensor_)
+  // See set_control_and_status_information_oem_fault_code_solar_storage_update_every() above.
+  void set_control_and_status_information_oem_diagnostic_code_update_every(uint32_t update_every) {
+    this->oem_diagnostic_code_update_every_ = update_every;
+  }
+  void set_control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery_update_every(
+      uint32_t update_every) {
+    this->oem_diagnostic_code_ventilation_update_every_ = update_every;
+  }
+  // Generic counterpart for every id dispatched through the SIMPLE_SENSORS table (see
+  // find_simple_sensor_by_id_()) -- one shared setter instead of ~44 individually-named ones, since
+  // they all funnel into the exact same id-keyed lookup mechanism already. Called at wiring time
+  // (sensor.new_sensor() doesn't go through cg.register_component()) -- staged here and consumed
+  // once by build_schedule_()'s SIMPLE_SENSORS loop, same reasoning as the bespoke setters above.
+  void set_simple_sensor_update_every(uint8_t id, uint32_t update_every) {
+    this->pending_simple_sensor_update_every_.emplace_back(id, update_every);
+  }
+
+  // §5.3.2 Class 2, ID 3 HB: Boiler configuration; LB: Boiler MemberID code. Each HB bit is a small
+  // 2-state named enum, so a text_sensor showing the spec's own wording rather than a bare on/off --
+  // see hub.cpp's handle_response_() BOILER_CONFIG case.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_dhw_present,
+                             configuration_information_boiler_configuration_dhw_present_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_control_type,
+                             configuration_information_boiler_configuration_control_type_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_cooling_config,
+                             configuration_information_boiler_configuration_cooling_config_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_dhw_config,
+                             configuration_information_boiler_configuration_dhw_config_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      configuration_information_boiler_configuration_master_low_off_and_pump_control_function,
+      configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_ch2_present,
+                             configuration_information_boiler_configuration_ch2_present_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_remote_water_filling_function,
+                             configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_heat_cool_mode_control,
+                             configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_)
+  OT42_SET_SENSOR(configuration_information_boiler_member_id_code, boiler_member_id_code_sensor_)
+
+  // §5.3.2 Class 2, ID 74 HB: Configuration ventilation/heat-recovery (bits 3-7 reserved); LB: MemberID
+  // code ventilation/heat-recovery. Same named-enum-per-bit treatment as ID 3 HB above.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_configuration_ventilation_heat_recovery_system_type,
+                             configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_configuration_ventilation_heat_recovery_bypass,
+                             configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      configuration_information_configuration_ventilation_heat_recovery_speed_control,
+      configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_)
+  OT42_SET_SENSOR(configuration_information_member_id_code_ventilation_heat_recovery,
+                  member_id_code_ventilation_sensor_)
+
+  // §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type; LB: Solar Storage member ID.
+  // Same named-enum-per-bit treatment as ID 3 HB above.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_solar_storage_configuration_system_type,
+                             configuration_information_solar_storage_configuration_system_type_text_sensor_)
+  OT42_SET_SENSOR(configuration_information_solar_storage_member_id, solar_storage_member_id_sensor_)
+
+  // §5.3.2 Class 2, IDs 125/127: OpenTherm version + product version/type implemented by the boiler.
+  OT42_SET_SENSOR(configuration_information_opentherm_version_boiler, opentherm_version_boiler_sensor_)
+  OT42_SET_SENSOR(configuration_information_boiler_product_version_number_and_type_product_type,
+                  boiler_product_type_sensor_)
+  OT42_SET_SENSOR(configuration_information_boiler_product_version_number_and_type_product_version,
+                  boiler_product_version_sensor_)
+
+  // §5.3.2 Class 2, IDs 75/76: OpenTherm version + product version/type of the ventilation/heat-recovery system.
+  OT42_SET_SENSOR(configuration_information_opentherm_version_ventilation_heat_recovery,
+                  opentherm_version_ventilation_sensor_)
+  OT42_SET_SENSOR(configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_type,
+                  ventilation_product_type_sensor_)
+  OT42_SET_SENSOR(configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_version,
+                  ventilation_product_version_sensor_)
+
+  // §5.3.2 Class 2, ID 104: Solar Storage product version number and type.
+  OT42_SET_SENSOR(configuration_information_solar_storage_product_version_number_and_type_product_type,
+                  solar_storage_product_type_sensor_)
+  OT42_SET_SENSOR(configuration_information_solar_storage_product_version_number_and_type_product_version,
+                  solar_storage_product_version_sensor_)
+
+  // §5.3.2 Class 2, IDs 93/94/95: brand identification strings. 1:1 (one text_sensor per id), so
+  // each gets its own per-entity update_every, same as any other 1:1 id -- but since
+  // text_sensor.new_text_sensor() doesn't go through cg.register_component(), there's no auto-wired
+  // set_update_every() on the entity itself to defer this call to its own setup() (unlike
+  // OpenTherm42Number/OpenTherm42SensorFeedNumber), so it's called at wiring time and staged here
+  // instead, same reasoning as every other bespoke set_..._update_every() in this file.
+  OT42_SET_TEXT_SENSOR(configuration_information_brand, brand_)
+  void set_configuration_information_brand_update_every(uint32_t update_every) {
+    this->brand_update_every_ = update_every;
+  }
+  OT42_SET_TEXT_SENSOR(configuration_information_brand_version, brand_version_)
+  void set_configuration_information_brand_version_update_every(uint32_t update_every) {
+    this->brand_version_update_every_ = update_every;
+  }
+  OT42_SET_TEXT_SENSOR(configuration_information_brand_serial_number, brand_serial_number_)
+  void set_configuration_information_brand_serial_number_update_every(uint32_t update_every) {
+    this->brand_serial_number_update_every_ = update_every;
+  }
+
+  // §5.3.3 Class 3, ID 4: queues a remote request to be sent from the next available conversation
+  // slot. Called by OpenTherm42RemoteRequestButton::press_action(); code is one of the values listed
+  // under the ID 4 HB table (0 = back to normal operation, 1 = boiler lock-out reset, ...).
+  void send_remote_request(uint8_t code) {
+    this->remote_request_pending_ = true;
+    this->remote_request_code_ = code;
+  }
+  OT42_SET_SENSOR(remote_request_last_response_code, remote_request_last_response_code_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(remote_request_last_response, remote_request_last_response_text_sensor_)
+
+  // §5.3.4 Class 4, IDs 20/21/22: the clock this master's Day-of-week/Time, Date and Year writes are
+  // sourced from. Left unset (nullptr), those three ids are simply never sent.
+  void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+  // Synthetic diagnostic entities for the time-sync writes above -- see const.py's comment on
+  // CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED/_SYNC_TIME for why these aren't real
+  // spec-defined data-ids. True only once the most recent attempt at all three writes succeeded.
+  OT42_SET_BINARY_SENSOR(sensor_and_informational_data_time_synchronized, time_synchronized_binary_sensor_)
+  // Queues an immediate Day-of-week/Time/Date/Year resync, ahead of everything else -- same
+  // priority tier as Class 3's remote requests. Called by OpenTherm42SyncTimeButton::press_action().
+  void push_time_sync() {
+    this->time_sync_pending_ = true;
+    this->time_sync_step_ = 0;
+  }
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): independent of time_id -- see
+  // RequestKind::DAY_TIME_READ's comment above.
+  OT42_SET_PLAIN_TEXT_SENSOR(sensor_and_informational_data_date_time, date_time_text_sensor_)
+  // Governs the 3-step DAY_TIME_READ/DATE_READ/YEAR_READ burst's cadence -- DAY_TIME_READ is
+  // entries_'s sole representative for the group, see build_schedule_(). Called explicitly from
+  // Python at wiring time (text_sensor.new_text_sensor() doesn't go through cg.register_component(),
+  // so there's no auto-wired set_update_every() on the entity itself to defer this call to its own
+  // setup(), unlike OpenTherm42Number/OpenTherm42SensorFeedNumber -- see those classes' own
+  // set_update_every()). Wiring happens before ANY component's setup(), including this hub's own,
+  // so build_schedule_() hasn't populated entries_ yet when this runs -- stored here and consumed
+  // by build_schedule_() itself when it creates the DAY_TIME_READ entry, rather than looked up
+  // immediately.
+  void set_sensor_and_informational_data_date_time_update_every(uint32_t update_every) {
+    this->date_time_read_update_every_ = update_every;
+  }
+
+  // §5.3.4 Class 4: write-only numbers.
+  OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint, room_setpoint_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint_ch2, room_setpoint_ch2_number_)
+
+  // §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79: this master's own external sensor readings -- a
+  // single OpenTherm42SensorFeedNumber entity per id. control() routes through
+  // set_sensor_feed_write_value() to join the schedule once a real value exists -- see the
+  // RequestKind comments and that class's own comment for why (IDs 24/37 have no READ-DATA
+  // counterpart, so control() also publishes .state directly there; 27/38/78/79 do, and only a
+  // successful READ_DATA ever updates theirs).
+  OT42_SET_NUMBER(sensor_and_informational_data_room_temperature, room_temperature_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_trch2, trch2_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_outside_temperature, outside_temperature_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity, relative_humidity_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air, relative_humidity_exhaust_air_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_co2_level, co2_level_number_)
+  // Called by OpenTherm42SensorFeedNumber::control() (ids 24/27/37/38/78/79 only) every time the user
+  // commands a new value. The first call for a given id adds its WRITE RequestKind to the schedule,
+  // since before that there's nothing legitimate to send -- see that class's comment for why these
+  // ids get no config-time default. Later calls just update the value.
+  void set_sensor_feed_write_value(uint8_t id, float value);
+  // Called from OpenTherm42SensorFeedNumber::setup() (ids 27/38/78/79 only -- 24/37 have no
+  // READ-DATA counterpart, so update_every isn't exposed in their config at all, see that class's
+  // set_update_every()) once hub_ is guaranteed to have already run build_schedule_()
+  // (setup_priority::HARDWARE above beats every entity's default setup_priority::DATA). Updates the
+  // READ side's Entry -- that's the conversation a cadence actually governs here, per the same
+  // reasoning as set_number_update_every() above.
+  void set_sensor_feed_update_every(uint8_t id, uint32_t update_every);
+
+  // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint, LB Boiler fan speed.
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed_setpoint, boiler_fan_speed_setpoint_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed, boiler_fan_speed_sensor_)
+
+  // §5.3.4 Class 4: read-only sensors (see the SimpleSensorInfo table in hub.cpp).
+  OT42_SET_SENSOR(sensor_and_informational_data_relative_modulation_level, relative_modulation_level_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_water_pressure, ch_water_pressure_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_flow_rate, dhw_flow_rate_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_water_temperature, boiler_water_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_temperature, dhw_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_return_water_temperature, return_water_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_solar_storage_temperature, solar_storage_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_solar_collector_temperature, solar_collector_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_flow_temperature_ch2, flow_temperature_ch2_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw2_temperature, dhw2_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_temperature, exhaust_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_heat_exchanger_temperature,
+                  boiler_heat_exchanger_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_flame_current, flame_current_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_relative_ventilation, relative_ventilation_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_supply_inlet_temperature, supply_inlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_supply_outlet_temperature, supply_outlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_inlet_temperature, exhaust_inlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_outlet_temperature, exhaust_outlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_actual_exhaust_fan_speed, actual_exhaust_fan_speed_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_actual_inlet_fan_speed, actual_inlet_fan_speed_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_cooling_operation_hours, cooling_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_power_cycles, power_cycles_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_producer_starts, electricity_producer_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_producer_hours, electricity_producer_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_production, electricity_production_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_cumulative_electricity_production,
+                  cumulative_electricity_production_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_number_of_unsuccessful_burner_starts,
+                  number_of_unsuccessful_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_number_of_times_flame_signal_too_low,
+                  number_of_times_flame_signal_too_low_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_successful_burner_starts, successful_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_pump_starts, ch_pump_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_starts, dhw_pump_valve_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_starts, dhw_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_burner_operation_hours, burner_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_pump_operation_hours, ch_pump_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_operation_hours, dhw_pump_valve_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_operation_hours, dhw_burner_operation_hours_sensor_)
+
+  // §5.3.4 Class 4: the 15 counter/hour ids above are all "R W" with reset-by-writing-zero optional for
+  // the boiler. Called by OpenTherm42ResetCounterButton::press_action() with the data-id its config
+  // maps to; queued on demand, same priority tier as Class 3's remote requests and Class 6's TSP
+  // writes. ID 98 (RF sensor status information) and ID 111 (Electricity production, read-only, can't
+  // be reset) are intentionally not part of this list.
+  void reset_counter(uint8_t data_id) {
+    this->reset_counter_pending_ = true;
+    this->reset_counter_data_id_ = data_id;
+  }
+
+  // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags. Each bit is a small
+  // 2-state named enum, so a text_sensor showing the spec's own wording rather than a bare on/off
+  // -- see hub.cpp's handle_response_() REMOTE_PARAMETER_FLAGS case.
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint,
+                             pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint,
+                             pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint,
+                             pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint,
+                             pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_)
+
+  // §5.3.5 Class 5, ID 86: same flags, for ventilation/heat-recovery's Nominal ventilation value.
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value,
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value,
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_)
+
+  // §5.3.5 Class 5, IDs 48/49: adjustment bounds.
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhwsetp_upper_bound, dhwsetp_upper_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhwsetp_lower_bound, dhwsetp_lower_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_chsetp_upper_bound, max_chsetp_upper_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_chsetp_lower_bound, max_chsetp_lower_bound_sensor_)
+
+  // §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves -- a single number entity
+  // per id, same pattern as IDs 27/38/78/79 above.
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_dhw_setpoint, dhw_setpoint_number_)
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_max_ch_water_setpoint, max_ch_water_setpoint_number_)
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_nominal_ventilation_value, nominal_ventilation_value_number_)
+
+  // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps, number_of_tsps_sensor_)
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery,
+                  number_of_tsps_ventilation_sensor_)
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps_solar_storage, number_of_tsps_solar_storage_sensor_)
+
+  // §5.3.6 Class 6, IDs 11/89/106: registers one user-configured TSP slot (data_id identifies which
+  // family), returning its index into tsp_slots_ so the owning OpenTherm42TspNumber can identify
+  // itself in write_tsp() calls.
+  size_t add_tsp_slot(uint8_t data_id, uint8_t index, number::Number *number) {
+    this->tsp_slots_.push_back(TspSlot{data_id, index, number});
+    return this->tsp_slots_.size() - 1;
+  }
+  // Called by OpenTherm42TspNumber::control(); queues an on-demand write, serviced ahead of the next
+  // essential/informational conversation (same priority tier as Class 3's remote requests).
+  void write_tsp(size_t slot_index, uint8_t value) {
+    this->tsp_write_pending_ = true;
+    this->tsp_write_slot_index_ = slot_index;
+    this->tsp_write_value_ = value;
+  }
+
+  // §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer, fault_history_buffer_size_sensor_)
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer_ventilation_heat_recovery,
+                  fault_history_buffer_size_ventilation_sensor_)
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer_solar_storage,
+                  fault_history_buffer_size_solar_storage_sensor_)
+
+  // §5.3.7 Class 7, IDs 13/91/108: registers one user-configured fault-history-buffer slot.
+  void add_fhb_slot(uint8_t data_id, uint8_t index, sensor::Sensor *sensor) {
+    this->fhb_slots_.push_back(FhbSlot{data_id, index, sensor});
+  }
+
+  // §5.3.8.1/§5.3.8.2 Class 8, IDs 7/14: write-only numbers.
+  OT42_SET_NUMBER(control_of_special_applications_cooling_control_signal, cooling_control_signal_number_)
+  OT42_SET_NUMBER(control_of_special_applications_maximum_relative_modulation_level_setting,
+                  max_rel_mod_level_setting_number_)
+  // §5.3.8.2 Class 8, ID 15: HB Maximum boiler capacity, LB Minimum modulation level.
+  OT42_SET_SENSOR(control_of_special_applications_maximum_boiler_capacity, maximum_boiler_capacity_sensor_)
+  OT42_SET_SENSOR(control_of_special_applications_minimum_modulation_level, minimum_modulation_level_sensor_)
+  // §5.3.8.3 Class 8, IDs 9/39: Remote Override Room Setpoint (1 and 2).
+  OT42_SET_SENSOR(control_of_special_applications_remote_override_room_setpoint, remote_override_room_setpoint_sensor_)
+  OT42_SET_SENSOR(control_of_special_applications_remote_override_room_setpoint_2,
+                  remote_override_room_setpoint_2_sensor_)
+  // §5.3.8.3 Class 8, ID 99: Operating Mode HC1/HC2/DHW -- small named enums, read/write, packed as
+  // nibbles into one byte pair. Sent every essential rotation (see the REMOTE_OVERRIDE_OPERATING_MODES
+  // case in build_next_request_()); displayed state comes only from the periodic read (see
+  // REMOTE_OVERRIDE_OPERATING_MODES_READ in handle_response_()), never from a write-ack echo.
+  OT42_SET_SELECT(control_of_special_applications_remote_override_operating_mode_dhw,
+                  remote_override_operating_mode_dhw_select_)
+  OT42_SET_SELECT(control_of_special_applications_remote_override_operating_mode_heating_hc1,
+                  remote_override_operating_mode_heating_hc1_select_)
+  OT42_SET_SELECT(control_of_special_applications_remote_override_operating_mode_heating_hc2,
+                  remote_override_operating_mode_heating_hc2_select_)
+  // §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- same packed-into-id-99 read/write pattern as
+  // the three Operating Mode selects above, not a momentary command: repeated every essential
+  // rotation for as long as the switch is on.
+  OT42_SET_SWITCH(control_of_special_applications_manual_dhw_push2, manual_dhw_push2_switch_)
+  // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function -- each bit is a small 2-state
+  // named enum, so a text_sensor showing the spec's own wording rather than a bare on/off, same as
+  // id=6/86's remote-parameter flags (see hub.cpp's handle_response_() REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION
+  // case).
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      control_of_special_applications_remote_override_room_setpoint_function_manual_change_priority,
+      remote_override_room_setpoint_function_manual_change_priority_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      control_of_special_applications_remote_override_room_setpoint_function_program_change_priority,
+      remote_override_room_setpoint_function_program_change_priority_text_sensor_)
+
+ protected:
+  // §4.3.1: minimum time between the end of one conversation and the start of the next.
+  static constexpr uint32_t MASTER_WAIT_TIME_MS = 100;
+  // §4.3.1: the legal boiler answering-time window is 20-400 ms from the end of the master's
+  // transmission; 400 ms is the longest a compliant boiler is allowed to take.
+  static constexpr uint32_t RESPONSE_TIMEOUT_MS = 400;
+  // §5.3.2 Class 2, ID 124: this master's own OpenTherm protocol version, written to the boiler once
+  // at startup. Fixed, not user-configurable: it states which version of the spec this component
+  // itself implements, not a fact about the user's installation -- unlike controller_product_type_/
+  // controller_product_version_ below, there's no legitimate reason for it to differ from the
+  // version this component actually speaks.
+  static constexpr float CONTROLLER_OPENTHERM_VERSION = 4.2f;
+
+  // Populates entries_ from whichever entities got configured -- called once from setup(). Also
+  // computes sweep_length_passes_ (the max update_every across every entry) once entries_ is
+  // final -- see that field's declaration comment.
+  void build_schedule_();
+  // Builds the next request to send: the one-off pending_ intercepts first (unchanged from before
+  // this redesign), then an ASAP scan over every entry for a dirty write, then
+  // pull_next_due_entry_()'s pass-based pull. loop() sends whatever this returns every single time
+  // it's called (gated only by MASTER_WAIT_TIME_MS), so there is always something to send -- if
+  // pull_next_due_entry_() finds nothing due, STATUS is resent as a filler (always a safe,
+  // spec-legitimate thing to send, and immediate, so §4.3.1's 1.15 s MCI ceiling is never at risk).
+  Frame build_next_request_();
+  // Builds the frame for a given entry's RequestKind -- the per-kind switch every caller (the ASAP
+  // scan, the MCI filler, and the ordinary pass-pull) shares, since the frame is identical either
+  // way; only the reason for sending it differs.
+  Frame build_entry_request_(RequestKind kind);
+  // Appends a new entry with the given cadence (default 1, i.e. due every pass -- used for kinds
+  // seeded unconditionally in build_schedule_() before their real cadence is staged/applied) -- see
+  // Entry's declaration comment.
+  void add_entry_(RequestKind kind, uint32_t update_every = 1);
+  // Linear scan over entries_ for the given kind -- small enough (a few dozen entries at most) that
+  // a linear scan is simpler and cheaper than any indexed lookup. Returns nullptr if not (yet)
+  // scheduled (only possible for the sensor-feed write ids before their first real value arrives).
+  Entry *find_entry_(RequestKind kind);
+  // Scans forward from cursor_ for the next entry due on pass_counter_, advancing cursor_ past
+  // every entry it checks. When cursor_ reaches entries_.size() with the current pass's due-list
+  // fully drained, resets cursor_ to 0, increments pass_counter_, and checks the sweep boundary
+  // (see sweep_length_passes_/sweep_start_ms_) before continuing to scan the new pass's due-list in
+  // the same call -- bounded to one extra lap, so pass_counter_ never advances more than once per
+  // call. Returns an empty optional if a full lap finds nothing due at all (only possible if no
+  // active entry has update_every == 1) -- build_next_request_() falls back to a STATUS filler in
+  // that case; the very next call resumes from the new pass_counter_, so a sparse schedule like
+  // this self-corrects within a few calls rather than needing to search further ahead here.
+  optional<Frame> pull_next_due_entry_();
+  // Builds the DAY_TIME_READ (0)/DATE_READ (1)/YEAR_READ (2) READ_DATA frame for the given burst
+  // step -- shared by the pass-pull (which kicks off the burst) and the date_time_read_pending_
+  // intercept (which continues it).
+  Frame build_date_time_read_step_(uint8_t step);
+  // Fills in a Day-of-week/Time (step 0), Date (step 1), or Year (step 2) WRITE_DATA frame's id and
+  // value from time_id_ -- shared by the regular schedule and push_time_sync()'s on-demand burst.
+  void build_time_sync_frame_(uint8_t step, Frame &frame);
+  // Recomputes and publishes time_synchronized_binary_sensor_ from day_time_write_ok_/
+  // date_write_ok_/year_write_ok_ -- called after each of the three writes' response.
+  void publish_time_synchronized_();
+  // Rebuilds date_time_text_sensor_'s displayed string from whichever of read_day_of_week_/
+  // read_hour_/read_minute_/read_month_/read_day_of_month_/read_year_ are currently known,
+  // substituting a placeholder token for any that aren't -- called after each of the three reads'
+  // response (DAY_TIME_READ/DATE_READ/YEAR_READ), success or failure. No-op if the sensor isn't
+  // configured.
+  void publish_date_time_text_();
+  // Interprets a received frame according to which request it answers; logs and discards it if the
+  // boiler replied with a message type that isn't legal for that data-id. Dispatches to the three
+  // handlers below (split out of this function to stay under clang-tidy's statement-count limit),
+  // then falls back to the generic SIMPLE_SENSORS handling for every kind none of them claimed.
+  void handle_response_(const Frame &frame);
+  // §5.3.1/§5.3.2 Class 1/2: boiler status/fault/ventilation/solar-storage flags and this
+  // component's own announced identity (MASTER_CONFIG/MASTER_OPENTHERM_VERSION/
+  // MASTER_PRODUCT_VERSION) and the boiler's reported product/version identification. Returns
+  // false (handling nothing) for any other kind, so handle_response_() can try the next handler.
+  bool handle_response_status_and_identity_(const Frame &frame, MessageType type);
+  // Brand strings, Class 3 remote-request feedback, the master-provided sensor-feed numbers
+  // (room/outside temperature, humidity, CO2), and the Day-of-week/Time/Date/Year read & write
+  // pairs. Same false-for-unclaimed-kinds contract as the handler above.
+  bool handle_response_feeds_and_time_(const Frame &frame, MessageType type);
+  // Boiler fan speed, Class 5 remote-parameter flags/bounds and DHW/CH/ventilation setpoints,
+  // TSP/FHB slot round-robins, cooling control, and the Class 8 remote-override entities. Same
+  // false-for-unclaimed-kinds contract as the handlers above.
+  bool handle_response_setpoints_and_parameters_(const Frame &frame, MessageType type);
+  // Shared by the BRAND/BRAND_VERSION/BRAND_SERIAL_NUMBER cases in handle_response_feeds_and_time_().
+  void handle_brand_response_(const Frame &frame, BrandRead &brand, RequestKind kind, const char *log_name);
+  // On a failed conversation, every read-only entity that conversation would have updated must show
+  // unknown rather than keep stale data.
+  void invalidate_response_(RequestKind kind);
+  // Whether a rejected conversation should actually invalidate its entity/entities right now -- see
+  // set_max_data_invalid()'s declaration comment for the reasoning. Mutates the matching entry's
+  // consecutive_data_invalid counter (incrementing on DATA_INVALID, which is why this isn't const).
+  // Every handle_response_() rejection branch (except TSP/FHB, whose slots share one RequestKind
+  // across many independent data-ids, so a single per-kind counter can't distinguish which slot
+  // last succeeded) gates its invalidate_*() call(s) on this. Also logs an ERROR naming the kind and
+  // id, once, on the exact call where the grace period runs out.
+  bool should_invalidate_now_(RequestKind kind, MessageType type);
+  // Formats a short "Name (id=N)"-style description of the given request kind into buf, for the raw
+  // datalink error log in loop() -- that log fires before any frame is parsed, so unlike
+  // handle_response_()/invalidate_response_() it has no message-type context of its own to name the
+  // failed conversation by.
+  void describe_request_kind_(RequestKind kind, char *buf, size_t buf_len) const;
+  // Debug instrumentation: logs every outgoing frame build_next_request_() produces (one call site
+  // per early-return branch plus the main switch's tail) and every incoming frame
+  // handle_response_() receives, in each case naming the RequestKind (via describe_request_kind_()
+  // above), the message type (via message_type_to_string()), and the raw id/HB/LB bytes -- lets the
+  // wire communication be cross-checked against what the spec requires without a logic analyzer.
+  void log_outgoing_frame_(const Frame &frame) const;
+  // Looks up a single-value, non-bit-decomposed read-only sensor's data-id/sensor pointer/log name --
+  // the fallback every class after Class 1 dispatches "plain" reads through. Returns nullptr for kinds
+  // with bespoke handling (bit-decomposed, write-only, dual-mode, ...).
+  const SimpleSensorInfo *find_simple_sensor_(RequestKind kind) const;
+  // Same lookup, keyed by data-id instead of RequestKind -- reset_counter() only knows the id its
+  // button config maps to, not the RequestKind, so it needs this to find the matching table entry.
+  const SimpleSensorInfo *find_simple_sensor_by_id_(uint8_t id) const;
+  // Defined (sized) in hub.cpp: its pointer-to-member entries need this class complete, and an
+  // out-of-class member definition has the same access to protected members as a member function does.
+  static const SimpleSensorInfo SIMPLE_SENSORS[];
+
+  InternalGPIOPin *in_pin_{nullptr};
+  InternalGPIOPin *out_pin_{nullptr};
+
+  std::unique_ptr<OpenThermDataLink> datalink_;
+
+  uint32_t last_conversation_end_ms_{0};
+  RequestKind pending_request_kind_{RequestKind::BOILER_CONFIG};
+
+  // See set_max_data_invalid()'s declaration comment. 0 disables the grace period (default).
+  uint32_t max_data_invalid_{0};
+
+  // Every schedulable id -- see Entry's declaration comment. Populated once at setup() (plus the
+  // rare sensor-feed write ids' one-time dynamic append), so std::vector's growth never touches the
+  // heap again afterward in the common case.
+  std::vector<Entry> entries_;
+  // Which pass the scheduler is currently on, and where within entries_ the current pass's due-list
+  // scan has reached -- see pull_next_due_entry_(). Both start at 0, meaning pass 0 (every entry is
+  // due, since P % N == 0 whenever P == 0) begins at the very first scheduling decision.
+  uint32_t pass_counter_{0};
+  size_t cursor_{0};
+  // One sweep = enough passes for every currently-configured entry to be attempted at least once.
+  // Since every entry is due on pass 0 and an entry with update_every=N is next due at pass N, the
+  // slowest entry (the one with the largest update_every) defines how long a sweep is -- computed
+  // once in build_schedule_(), since update_every values are fixed at config time. A sweep boundary
+  // (pass_counter_ a multiple of this) is therefore also exactly when the slowest entry becomes due
+  // again -- nothing extra to detect. "Sweep complete" means every entry was attempted at least
+  // once, not necessarily answered successfully -- a DATA_INVALID/timeout just waits for its own
+  // next due pass, same as any other outcome (see should_invalidate_now_()).
+  uint32_t sweep_length_passes_{1};
+  uint32_t sweep_start_ms_{0};
+  sensor::Sensor *sweep_duration_sensor_{nullptr};
+  // Start time of the pass currently in progress -- reset every time pull_next_due_entry_() wraps
+  // cursor_ back to 0 (i.e. every pass_counter_ increment), regardless of whether that pass also
+  // happened to cross a sweep boundary. Unlike sweep_start_ms_, this always advances once per pass.
+  uint32_t pass_start_ms_{0};
+  sensor::Sensor *pass_duration_sensor_{nullptr};
+  // Set by OT42_LOG_REJECTION() when it's actually invalidating an entity (not for a DATA_INVALID
+  // masked by max_data_invalid's grace period), by OT42_LOG_REJECTION_ALWAYS() (every rejected
+  // conversation of a kind with no grace period), and by loop()'s DataLinkState::ERROR case (every
+  // datalink-level failure) -- accumulating across the sweep currently in progress. Published to
+  // sweep_had_errors_binary_sensor_ and reset to false at every sweep boundary (see
+  // pull_next_due_entry_()), so it always reflects only the most recently *completed* sweep, same
+  // lifecycle as sweep_duration_sensor_.
+  bool sweep_had_error_{false};
+  binary_sensor::BinarySensor *sweep_had_errors_binary_sensor_{nullptr};
+
+  // Set when the pass-pull picks the DAY_TIME_READ representative entry -- steps through
+  // DAY_TIME_READ (0)/DATE_READ (1)/YEAR_READ (2) one at a time via build_date_time_read_step_(),
+  // ahead of the ASAP scan and the ordinary pass-pull, so the shared date_time_text_sensor_
+  // refreshes as one coherent unit rather than field-by-field -- see build_next_request_().
+  bool date_time_read_pending_{false};
+  uint8_t date_time_read_step_{0};
+  // Set at wiring time by set_sensor_and_informational_data_date_time_update_every(), consumed
+  // once by build_schedule_() when it creates the DAY_TIME_READ entry -- see that setter's
+  // declaration comment for why this can't just update entries_ directly.
+  uint32_t date_time_read_update_every_{1};
+  // Same wiring-time-staged-then-consumed pattern as date_time_read_update_every_ above, for the
+  // three bespoke (non-SIMPLE_SENSORS) 1:1 sensors -- see their set_..._update_every() comments.
+  uint32_t oem_fault_code_solar_storage_update_every_{1};
+  uint32_t oem_diagnostic_code_update_every_{1};
+  uint32_t oem_diagnostic_code_ventilation_update_every_{1};
+  // Same pattern, for the three brand identification strings -- see their
+  // set_configuration_information_brand*_update_every() comments.
+  uint32_t brand_update_every_{1};
+  uint32_t brand_version_update_every_{1};
+  uint32_t brand_serial_number_update_every_{1};
+  // Staged by set_simple_sensor_update_every() at wiring time, consumed once by build_schedule_()'s
+  // SIMPLE_SENSORS loop, then cleared -- only needed transiently during setup(), so shrink_to_fit()
+  // afterward gives the memory back rather than holding it forever.
+  std::vector<std::pair<uint8_t, uint32_t>> pending_simple_sensor_update_every_;
+  // Staged by every hub-level group's set_..._update_every() at wiring time (entries_ doesn't exist
+  // yet when those run -- see their declaration comments above), consumed once by build_schedule_()
+  // after entries_ is built, then cleared the same way as pending_simple_sensor_update_every_ above.
+  std::vector<std::pair<RequestKind, uint32_t>> pending_group_update_every_;
+
+  // Raw values from the §5.2 mandatory conversations -- exposed as real entities once Class 2
+  // (Commit 5) lands.
+  uint8_t boiler_status_{0};
+  uint8_t boiler_config_flags_{0};
+  uint8_t boiler_member_id_code_{0};
+
+  // §5.3.1 Class 1 entities.
+  FlagWriteBits master_status_write_;
+  FlagWriteBits ventilation_status_write_;
+  FlagReadBits boiler_status_read_;
+  FlagReadBits ventilation_status_read_;
+  FlagReadBits fault_flags_read_;
+  FlagReadBits ventilation_fault_flags_read_;
+
+  number::Number *control_setpoint_number_{nullptr};
+  number::Number *control_setpoint_2_number_{nullptr};
+  number::Number *control_setpoint_ventilation_number_{nullptr};
+  // §5.3.1 Class 1, IDs 1/8/71 (write side): see set_write_value()'s declaration comment.
+  float control_setpoint_write_value_{0};
+  float control_setpoint_2_write_value_{0};
+  float control_setpoint_ventilation_write_value_{0};
+
+  sensor::Sensor *oem_fault_code_sensor_{nullptr};
+  sensor::Sensor *oem_fault_code_ventilation_sensor_{nullptr};
+  sensor::Sensor *oem_fault_code_solar_storage_sensor_{nullptr};
+  sensor::Sensor *oem_diagnostic_code_sensor_{nullptr};
+  sensor::Sensor *oem_diagnostic_code_ventilation_sensor_{nullptr};
+  select::Select *master_solar_storage_status_solar_mode_select_{nullptr};
+  // §5.3.1 Class 1, ID 101 HB (write side): see set_solar_storage_solar_mode_write_value()'s
+  // declaration comment.
+  uint8_t solar_storage_solar_mode_write_value_{0};
+  text_sensor::TextSensor *solar_storage_mode_and_status_solar_mode_text_sensor_{nullptr};
+  text_sensor::TextSensor *solar_storage_mode_and_status_solar_status_text_sensor_{nullptr};
+  binary_sensor::BinarySensor *solar_storage_fault_indication_binary_sensor_{nullptr};
+
+  // §5.3.2 Class 2 entities.
+  uint8_t controller_member_id_code_{0};
+  uint8_t controller_product_type_{0};
+  uint8_t controller_product_version_{0};
+
+  text_sensor::TextSensor *configuration_information_boiler_configuration_dhw_present_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_control_type_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_cooling_config_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_dhw_config_text_sensor_{nullptr};
+  text_sensor::TextSensor
+      *configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_ch2_present_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_{nullptr};
+
+  sensor::Sensor *boiler_member_id_code_sensor_{nullptr};
+  sensor::Sensor *member_id_code_ventilation_sensor_{nullptr};
+  sensor::Sensor *solar_storage_member_id_sensor_{nullptr};
+  sensor::Sensor *opentherm_version_boiler_sensor_{nullptr};
+  sensor::Sensor *boiler_product_type_sensor_{nullptr};
+  sensor::Sensor *boiler_product_version_sensor_{nullptr};
+  sensor::Sensor *opentherm_version_ventilation_sensor_{nullptr};
+  sensor::Sensor *ventilation_product_type_sensor_{nullptr};
+  sensor::Sensor *ventilation_product_version_sensor_{nullptr};
+  sensor::Sensor *solar_storage_product_type_sensor_{nullptr};
+  sensor::Sensor *solar_storage_product_version_sensor_{nullptr};
+
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_{
+      nullptr};
+
+  text_sensor::TextSensor *configuration_information_solar_storage_configuration_system_type_text_sensor_{nullptr};
+
+  BrandRead brand_;
+  BrandRead brand_version_;
+  BrandRead brand_serial_number_;
+
+  // §5.3.3 Class 3 entities.
+  bool remote_request_pending_{false};
+  uint8_t remote_request_code_{0};
+  sensor::Sensor *remote_request_last_response_code_sensor_{nullptr};
+  text_sensor::TextSensor *remote_request_last_response_text_sensor_{nullptr};
+
+  // §5.3.4 Class 4 entities.
+  time::RealTimeClock *time_id_{nullptr};
+  // Synthetic time-sync status/action entities -- see set_time_id()'s neighboring setters.
+  binary_sensor::BinarySensor *time_synchronized_binary_sensor_{nullptr};
+  bool day_time_write_ok_{false};
+  bool date_write_ok_{false};
+  bool year_write_ok_{false};
+  bool time_sync_pending_{false};
+  uint8_t time_sync_step_{0};
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): the boiler's own reported clock, tracked per
+  // wire-subfield since DAY_TIME_READ/DATE_READ/YEAR_READ are three independent conversations
+  // that can each succeed or fail on their own -- see publish_date_time_text_().
+  text_sensor::TextSensor *date_time_text_sensor_{nullptr};
+  optional<uint8_t> read_day_of_week_{};
+  optional<uint8_t> read_hour_{};
+  optional<uint8_t> read_minute_{};
+  optional<uint8_t> read_month_{};
+  optional<uint8_t> read_day_of_month_{};
+  optional<uint16_t> read_year_{};
+
+  number::Number *room_setpoint_number_{nullptr};
+  number::Number *room_setpoint_ch2_number_{nullptr};
+  // §5.3.4 Class 4, IDs 16/23 (write side): see set_write_value()'s declaration comment.
+  float room_setpoint_write_value_{0};
+  float room_setpoint_ch2_write_value_{0};
+
+  number::Number *room_temperature_number_{nullptr};
+  number::Number *trch2_number_{nullptr};
+  number::Number *outside_temperature_number_{nullptr};
+  number::Number *relative_humidity_number_{nullptr};
+  number::Number *relative_humidity_exhaust_air_number_{nullptr};
+  number::Number *co2_level_number_{nullptr};
+  // §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79 (write side): the value most recently commanded via
+  // OpenTherm42SensorFeedNumber::control(), routed through set_sensor_feed_write_value(). NAN means
+  // "never commanded" -- which also means the id's WRITE RequestKind isn't in entries_ yet (see
+  // that method). Kept on the hub rather than the entity so hub.h doesn't need to know
+  // OpenTherm42SensorFeedNumber's concrete type -- same reasoning as tsp_write_value_ below.
+  float room_temperature_write_value_{NAN};
+  float trch2_write_value_{NAN};
+  float outside_temperature_write_value_{NAN};
+  float relative_humidity_write_value_{NAN};
+  float relative_humidity_exhaust_air_write_value_{NAN};
+  float co2_level_write_value_{NAN};
+
+  sensor::Sensor *boiler_fan_speed_setpoint_sensor_{nullptr};
+  sensor::Sensor *boiler_fan_speed_sensor_{nullptr};
+
+  sensor::Sensor *relative_modulation_level_sensor_{nullptr};
+  sensor::Sensor *ch_water_pressure_sensor_{nullptr};
+  sensor::Sensor *dhw_flow_rate_sensor_{nullptr};
+  sensor::Sensor *boiler_water_temperature_sensor_{nullptr};
+  sensor::Sensor *dhw_temperature_sensor_{nullptr};
+  sensor::Sensor *return_water_temperature_sensor_{nullptr};
+  sensor::Sensor *solar_storage_temperature_sensor_{nullptr};
+  sensor::Sensor *solar_collector_temperature_sensor_{nullptr};
+  sensor::Sensor *flow_temperature_ch2_sensor_{nullptr};
+  sensor::Sensor *dhw2_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_temperature_sensor_{nullptr};
+  sensor::Sensor *boiler_heat_exchanger_temperature_sensor_{nullptr};
+  sensor::Sensor *flame_current_sensor_{nullptr};
+  sensor::Sensor *relative_ventilation_sensor_{nullptr};
+  sensor::Sensor *supply_inlet_temperature_sensor_{nullptr};
+  sensor::Sensor *supply_outlet_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_inlet_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_outlet_temperature_sensor_{nullptr};
+  sensor::Sensor *actual_exhaust_fan_speed_sensor_{nullptr};
+  sensor::Sensor *actual_inlet_fan_speed_sensor_{nullptr};
+  sensor::Sensor *cooling_operation_hours_sensor_{nullptr};
+  sensor::Sensor *power_cycles_sensor_{nullptr};
+  sensor::Sensor *electricity_producer_starts_sensor_{nullptr};
+  sensor::Sensor *electricity_producer_hours_sensor_{nullptr};
+  sensor::Sensor *electricity_production_sensor_{nullptr};
+  sensor::Sensor *cumulative_electricity_production_sensor_{nullptr};
+  sensor::Sensor *number_of_unsuccessful_burner_starts_sensor_{nullptr};
+  sensor::Sensor *number_of_times_flame_signal_too_low_sensor_{nullptr};
+  sensor::Sensor *successful_burner_starts_sensor_{nullptr};
+  sensor::Sensor *ch_pump_starts_sensor_{nullptr};
+  sensor::Sensor *dhw_pump_valve_starts_sensor_{nullptr};
+  sensor::Sensor *dhw_burner_starts_sensor_{nullptr};
+  sensor::Sensor *burner_operation_hours_sensor_{nullptr};
+  sensor::Sensor *ch_pump_operation_hours_sensor_{nullptr};
+  sensor::Sensor *dhw_pump_valve_operation_hours_sensor_{nullptr};
+  sensor::Sensor *dhw_burner_operation_hours_sensor_{nullptr};
+  bool reset_counter_pending_{false};
+  uint8_t reset_counter_data_id_{0};
+
+  // §5.3.5 Class 5 entities.
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_{nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_{nullptr};
+  text_sensor::TextSensor *
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_{
+          nullptr};
+  text_sensor::TextSensor *
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_{
+          nullptr};
+
+  sensor::Sensor *dhwsetp_upper_bound_sensor_{nullptr};
+  sensor::Sensor *dhwsetp_lower_bound_sensor_{nullptr};
+  sensor::Sensor *max_chsetp_upper_bound_sensor_{nullptr};
+  sensor::Sensor *max_chsetp_lower_bound_sensor_{nullptr};
+
+  number::Number *dhw_setpoint_number_{nullptr};
+  number::Number *max_ch_water_setpoint_number_{nullptr};
+  number::Number *nominal_ventilation_value_number_{nullptr};
+  // §5.3.5 Class 5, IDs 56/57/87 (write side): see set_write_value()'s declaration comment.
+  float dhw_setpoint_write_value_{0};
+  float max_ch_water_setpoint_write_value_{0};
+  float nominal_ventilation_value_write_value_{0};
+
+  // §5.3.6 Class 6 entities.
+  sensor::Sensor *number_of_tsps_sensor_{nullptr};
+  sensor::Sensor *number_of_tsps_ventilation_sensor_{nullptr};
+  sensor::Sensor *number_of_tsps_solar_storage_sensor_{nullptr};
+
+  std::vector<TspSlot> tsp_slots_;
+  size_t tsp_read_index_{0};
+  bool tsp_write_pending_{false};
+  size_t tsp_write_slot_index_{0};
+  uint8_t tsp_write_value_{0};
+  // Set immediately before build_next_request_() returns a TSP frame; tells handle_response_()/
+  // invalidate_response_() which slot and direction that conversation was for.
+  size_t pending_tsp_slot_index_{0};
+  bool pending_tsp_is_write_{false};
+
+  // §5.3.7 Class 7 entities.
+  sensor::Sensor *fault_history_buffer_size_sensor_{nullptr};
+  sensor::Sensor *fault_history_buffer_size_ventilation_sensor_{nullptr};
+  sensor::Sensor *fault_history_buffer_size_solar_storage_sensor_{nullptr};
+
+  std::vector<FhbSlot> fhb_slots_;
+  size_t fhb_read_index_{0};
+  // Set immediately before build_next_request_() returns an FHB frame; tells handle_response_()/
+  // invalidate_response_() which slot that conversation was for.
+  size_t pending_fhb_slot_index_{0};
+
+  // §5.3.8 Class 8 entities.
+  number::Number *cooling_control_signal_number_{nullptr};
+  number::Number *max_rel_mod_level_setting_number_{nullptr};
+  // §5.3.8.1/§5.3.8.2 Class 8, IDs 7/14 (write side): see set_write_value()'s declaration comment.
+  float cooling_control_signal_write_value_{0};
+  float max_rel_mod_level_setting_write_value_{0};
+  sensor::Sensor *maximum_boiler_capacity_sensor_{nullptr};
+  sensor::Sensor *minimum_modulation_level_sensor_{nullptr};
+  sensor::Sensor *remote_override_room_setpoint_sensor_{nullptr};
+  sensor::Sensor *remote_override_room_setpoint_2_sensor_{nullptr};
+  select::Select *remote_override_operating_mode_dhw_select_{nullptr};
+  select::Select *remote_override_operating_mode_heating_hc1_select_{nullptr};
+  select::Select *remote_override_operating_mode_heating_hc2_select_{nullptr};
+  switch_::Switch *manual_dhw_push2_switch_{nullptr};
+  text_sensor::TextSensor *remote_override_room_setpoint_function_manual_change_priority_text_sensor_{nullptr};
+  text_sensor::TextSensor *remote_override_room_setpoint_function_program_change_priority_text_sensor_{nullptr};
+};
+
+}  // namespace esphome::opentherm42
