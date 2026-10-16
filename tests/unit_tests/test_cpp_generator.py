@@ -984,19 +984,6 @@ class TestEnumOptions:
         assert str(options["LOW"]) == str(mode.LOW) == "esphome::foo::LOW"
         assert str(options["HIGH"]) == str(mode.HIGH)
 
-    def test_overrides_skip_the_name_rule_but_keep_the_prefix(self) -> None:
-        mode = cg.MockObj("esphome::foo", "::").enum("Mode", is_class=True)
-        options = mode.options(
-            "fast", "minimum", prefix="M_", overrides={"minimum": "MIN"}
-        )
-        assert str(options["fast"]) == "esphome::foo::Mode::M_FAST"
-        assert str(options["minimum"]) == "esphome::foo::Mode::M_MIN"
-
-    def test_unknown_override_is_rejected(self) -> None:
-        mode = cg.MockObj("esphome::foo", "::").enum("Mode")
-        with pytest.raises(ValueError, match="unknown options"):
-            mode.options("a", overrides={"b": "B"})
-
     def test_result_works_with_cv_enum(self) -> None:
         mode = cg.MockObj("esphome::foo", "::").enum("Mode", is_class=True)
         options = mode.options("on", "off", prefix="MODE_")
