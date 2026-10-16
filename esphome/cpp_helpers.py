@@ -1,6 +1,7 @@
 from collections.abc import Callable, Hashable
 from dataclasses import dataclass, field
 import logging
+from types import CodeType
 
 from esphome.const import (
     CONF_SAFE_MODE,
@@ -29,6 +30,17 @@ _COMPONENT_SOURCE_DOMAIN = "component_source_pool"
 
 # Maximum unique component source names (8-bit index, 0 = not set)
 _MAX_COMPONENT_SOURCES = 0xFF  # 255
+
+_SOURCE_PASSTHROUGH_CODE: set[CodeType] = set()
+
+
+def component_source_passthrough[F: Callable](func: F) -> F:
+    """Mark a helper that calls register_component on behalf of its caller.
+
+    Its frame is skipped when register_component names the component source.
+    """
+    _SOURCE_PASSTHROUGH_CODE.add(func.__code__)
+    return func
 
 
 @dataclass
@@ -264,6 +276,8 @@ async def register_component(var, config):
     name = None
     try:
         for frm in inspect.stack()[1:]:
+            if frm.frame.f_code in _SOURCE_PASSTHROUGH_CODE:
+                continue
             mod = inspect.getmodule(frm[0])
             if mod is None:
                 continue

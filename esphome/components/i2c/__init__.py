@@ -394,6 +394,18 @@ async def register_i2c_device(var: MockObj, config: ConfigType) -> None:
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
 
 
+@cg.component_source_passthrough
+async def new_i2c_component(config: ConfigType, *args: Any) -> MockObj:
+    """Create a component on an i2c bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await cg.register_component(var, config)
+    await register_i2c_device(var, config)
+    return var
+
+
 def final_validate_device_schema(
     name: str,
     *,

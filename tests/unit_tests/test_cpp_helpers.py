@@ -1,4 +1,8 @@
+import importlib.util
 import logging
+from pathlib import Path
+import sys
+from types import ModuleType
 from unittest.mock import Mock
 
 import pytest
@@ -243,3 +247,47 @@ def test_slot_counter_request_after_emit_raises() -> None:
     assert _define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
     with pytest.raises(ValueError, match="TEST_SLOT_COUNT_TOO_LATE"):
         request()
+
+
+def _load_module(name: str, path: Path, source: str) -> ModuleType:
+    path.write_text(source, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(
+    ("decorate", "expected"), [(True, "fake_dev"), (False, "fake_bus")]
+)
+@pytest.mark.asyncio
+async def test_component_source_passthrough_names_the_caller(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, decorate: bool, expected: str
+) -> None:
+    bus = _load_module(
+        "esphome.components.fake_bus",
+        tmp_path / "fake_bus.py",
+        "from esphome import cpp_helpers as ch\n"
+        f"{'@ch.component_source_passthrough' if decorate else ''}\n"
+        "async def new_component(var):\n"
+        "    return await ch.register_component(var, {})\n",
+    )
+    dev = _load_module(
+        "esphome.components.fake_dev",
+        tmp_path / "fake_dev.py",
+        "async def to_code(new_component, var):\n    return await new_component(var)\n",
+    )
+    monkeypatch.setattr(ch, "CORE", Mock(component_ids=["foo.bar"], data={}))
+    monkeypatch.setattr(ch, "add", Mock())
+    monkeypatch.setattr(ch, "App", Mock())
+    source = Mock(return_value=1)
+    monkeypatch.setattr(ch, "register_component_source", source)
+    try:
+        base = Mock()
+        base.__str__ = lambda self: "foo.bar"
+        await dev.to_code(bus.new_component, Mock(base=base))
+    finally:
+        del sys.modules["esphome.components.fake_bus"]
+        del sys.modules["esphome.components.fake_dev"]
+    source.assert_called_once_with(expected)

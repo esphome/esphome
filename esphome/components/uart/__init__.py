@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
+from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -54,6 +55,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
@@ -599,6 +601,18 @@ async def register_uart_device(var, config):
     """
     parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))
+
+
+@cg.component_source_passthrough
+async def new_uart_component(config: ConfigType, *args: Any) -> MockObj:
+    """Create a component on a UART bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await cg.register_component(var, config)
+    await register_uart_device(var, config)
+    return var
 
 
 @automation.register_action(
