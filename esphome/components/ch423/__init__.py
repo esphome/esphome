@@ -96,5 +96,7 @@ async def ch423_pin_to_code(config: ConfigType) -> MockObj:
     var = await pins.new_parented_pin(config, CONF_CH423)
     # The parent collects every pin's mode before its setup() writes the mode register
     parent = await cg.get_variable(config[CONF_CH423])
-    cg.add(parent.pin_mode(config[CONF_NUMBER], pins.gpio_flags_expr(config[CONF_MODE])))
+    cg.add(
+        parent.pin_mode(config[CONF_NUMBER], pins.gpio_flags_expr(config[CONF_MODE]))
+    )
     return var
