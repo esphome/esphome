@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cstdint>
+#include <type_traits>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -48,6 +51,40 @@ class UARTDevice {
 
   size_t available() { return this->parent_->available(); }
 
+  /// Read the bytes available on entry, at most max_bytes, through an N byte stack buffer and pass each
+  /// chunk to on_chunk(const uint8_t *data, size_t len). A callback returning false stops the read.
+  /// Returns false only when a read from the UART failed.
+  template<size_t N = 64, typename F> bool read_available_chunks(F &&on_chunk, size_t max_bytes = SIZE_MAX) {
+    size_t avail = std::min(this->available(), max_bytes);
+    uint8_t buf[N];
+    while (avail > 0) {
+      const size_t len = std::min(avail, N);
+      if (!this->read_array(buf, len))
+        return false;
+      avail -= len;
+      if (!continue_after_(on_chunk, static_cast<const uint8_t *>(buf), len))
+        break;
+    }
+    return true;
+  }
+
+  /// Same as read_available_chunks(), calling on_byte(uint8_t) once per byte.
+  template<size_t N = 64, typename F> bool read_available(F &&on_byte, size_t max_bytes = SIZE_MAX) {
+    size_t avail = std::min(this->available(), max_bytes);
+    uint8_t buf[N];
+    while (avail > 0) {
+      const size_t len = std::min(avail, N);
+      if (!this->read_array(buf, len))
+        return false;
+      avail -= len;
+      for (const uint8_t *p = buf; p != buf + len; p++) {
+        if (!continue_after_(on_byte, *p))
+          return true;
+      }
+    }
+    return true;
+  }
+
   UARTFlushResult flush() { return this->parent_->flush(); }
 
   // Compat APIs
@@ -74,6 +111,16 @@ class UARTDevice {
                            UARTParityOptions parity = UART_CONFIG_PARITY_NONE, uint8_t data_bits = 8);
 
  protected:
+  /// Call f(args...) and return its result when it returns bool, otherwise true.
+  template<typename F, typename... A> static bool continue_after_(F &f, A... args) {
+    if constexpr (std::is_same_v<std::invoke_result_t<F &, A...>, bool>) {
+      return f(args...);
+    } else {
+      f(args...);
+      return true;
+    }
+  }
+
   UARTComponent *parent_{nullptr};
 };
 
