@@ -432,6 +432,8 @@ class WaveshareEPaper2P9InV2R2 : public WaveshareEPaper {
 
   int get_width_controller() override;
 
+  uint32_t idle_timeout_() override;
+
   uint32_t full_update_every_{30};
   uint32_t at_update_{0};
 

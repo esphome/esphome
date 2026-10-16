@@ -139,7 +139,8 @@ MODELS = {
     "2.13in-ttgo-b73": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
     "2.13in-ttgo-b74": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B74),
     "2.90in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
-    "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
+    # 2.90inv2 uses WaveshareEPaper2P9InV2R2 (same as 2.90inv2-r2) for correct partial refresh on Rev2.1
+    "2.90inv2": ("c", WaveshareEPaper2P9InV2R2),
     "gdew029t5": ("c", GDEW029T5),
     "2.70in": ("b", WaveshareEPaper2P7In),
     "2.70in-b": ("b", WaveshareEPaper2P7InB),
@@ -260,3 +261,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
+    elif config[CONF_MODEL] == "2.90inv2":
+        # WaveshareEPaper2P9InV2R2 sets reset_duration_=10 ms in its constructor; when the user
+        # omits reset_duration, restore the 200 ms default used by WaveshareEPaperBase/other models.
+        cg.add(var.set_reset_duration(200))
