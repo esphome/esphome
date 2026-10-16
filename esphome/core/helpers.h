@@ -894,7 +894,7 @@ constexpr uint16_t sum16_bytes(const uint8_t *data, size_t len, uint16_t sum = 0
 
 /// XOR the bytes of \p data with size \p len, starting from \p init.
 constexpr uint8_t xor_bytes(const uint8_t *data, size_t len, uint8_t init = 0) {
-  return std::accumulate(data, data + len, init, std::bit_xor<uint8_t>());
+  return std::accumulate(data, data + len, init, std::bit_xor<>());
 }
 
 /// Calculate a CRC-8 checksum of \p data with size \p len.
