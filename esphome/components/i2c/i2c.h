@@ -221,7 +221,7 @@ class I2CDevice {
     if (err == ERROR_OK && (id & mask) == (expected & mask))
       return true;
     if (err == ERROR_OK)
-      log_wrong_chip_id(id & mask, expected & mask);
+      log_wrong_chip_id(id, expected & mask);
     component->mark_failed(err == ERROR_OK ? LOG_STR("Wrong chip ID") : LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
