@@ -331,7 +331,9 @@ async def new_number(config, *args, min_value: float, max_value: float, step: fl
 
 
 _APPLY_ENTITY = ApplyEntity(
-    ((NumberPtr, "entity"), (cg.float_, "value")), "entity->publish_state(value);"
+    ApplyNumber,
+    ((NumberPtr, "entity"), (cg.float_, "value")),
+    "entity->publish_state(value);",
 )
 
 
