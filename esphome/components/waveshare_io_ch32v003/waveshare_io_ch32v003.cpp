@@ -56,13 +56,10 @@ uint16_t WaveshareIOCH32V003Component::get_adc_value() {
     return 0;
 
   uint8_t data[2];
-  if (!this->read_bytes(IO_EXTENSION_ADC_ADDR, data, 2)) {
-    this->status_set_warning(LOG_STR("Failed to read ADC register"));
+  if (!this->status_comm_result(this->read_bytes(IO_EXTENSION_ADC_ADDR, data, 2),
+                                LOG_STR("Failed to read ADC register")))
     return 0;
-  }
-  uint16_t adc_value = (data[1] << 8) | data[0];
-  this->status_clear_warning();
-  return adc_value;
+  return (data[1] << 8) | data[0];
 }
 
 uint8_t WaveshareIOCH32V003Component::get_rtc_interrupt_status() {
@@ -106,13 +103,10 @@ bool WaveshareIOCH32V003Component::digital_read_hw(uint8_t pin) {
     return false;
 
   uint8_t data = 0;
-  if (!this->read_bytes(IO_EXTENSION_IO_INPUT_ADDR, &data, 1)) {
-    this->status_set_warning(LOG_STR("Failed to read input register"));
+  if (!this->status_comm_result(this->read_bytes(IO_EXTENSION_IO_INPUT_ADDR, &data, 1),
+                                LOG_STR("Failed to read input register")))
     return false;
-  }
   this->input_mask_ = data;
-
-  this->status_clear_warning();
   return true;
 }
 

@@ -68,12 +68,10 @@ bool TCA9555Component::read_gpio_outputs_() {
   if (this->is_failed())
     return false;
   uint8_t data[2];
-  if (!this->read_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2)) {
-    this->status_set_warning(LOG_STR("Failed to read output register"));
+  if (!this->status_comm_result(this->read_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2),
+                                LOG_STR("Failed to read output register")))
     return false;
-  }
   this->output_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
-  this->status_clear_warning();
   return true;
 }
 
@@ -81,14 +79,10 @@ bool TCA9555Component::read_gpio_modes_() {
   if (this->is_failed())
     return false;
   uint8_t data[2];
-  bool success = this->read_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2);
-  if (!success) {
-    this->status_set_warning(LOG_STR("Failed to read mode register"));
+  if (!this->status_comm_result(this->read_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2),
+                                LOG_STR("Failed to read mode register")))
     return false;
-  }
   this->mode_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
-
-  this->status_clear_warning();
   return true;
 }
 bool TCA9555Component::digital_read_hw(uint8_t pin) {
