@@ -69,6 +69,8 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23XXX, MCP23XXX_PIN_SCHEMA)
 async def mcp23xxx_pin_to_code(config: ConfigType) -> MockObj:
     parent_id: ID = config[CONF_MCP23XXX]
+    # Wait for the hub so its to_code has recorded the pin count
+    await cg.get_variable(parent_id)
     num_pins = cg.TemplateArguments(CORE.data[CONF_MCP23XXX][parent_id.id])
     var = await pins.new_parented_pin(config, CONF_MCP23XXX, num_pins)
     cg.add(var.set_interrupt_mode(config[CONF_INTERRUPT]))
