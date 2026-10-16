@@ -1,7 +1,6 @@
 #include "apc_proteous_cover.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include <cstring>
 
 namespace esphome::apc_proteous {
 
@@ -33,37 +32,40 @@ void APCProteousCover::loop() {
     if (!this->read_byte(&data)) {
       continue;
     }
-    const char *line = this->rx_.feed(data);
-    if (line != nullptr) {
-      if (line[0] != '\0') {
-        ESP_LOGVV(TAG, "rx: '%s'", line);
-        this->parse_response_(line, strlen(line));
+    if (data == '\r') {
+      if (this->rx_len_ != 0) {
+        this->rx_buffer_[this->rx_len_] = '\0';
+        ESP_LOGVV(TAG, "rx: '%s'", this->rx_buffer_);
+        this->parse_response_();
+        this->rx_len_ = 0;
       }
-    } else if (this->rx_.overflowed()) {
-      // Start a new response with the next byte
-      ESP_LOGVV(TAG, "rx overflow, discarding");
-      this->rx_.reset();
+    } else if (data != '\n') {
+      if (this->rx_len_ >= MAX_RESPONSE_LEN) {
+        ESP_LOGVV(TAG, "rx overflow, discarding");
+        this->rx_len_ = 0;
+      }
+      this->rx_buffer_[this->rx_len_++] = static_cast<char>(data);
     }
   }
 }
 
-void APCProteousCover::parse_response_(const char *line, size_t len) {
+void APCProteousCover::parse_response_() {
   // Expected format: "?s=XX" or "?x=XX" where XX is a hex value
-  if (len < 4 || line[0] != '?' || line[2] != '=') {
-    ESP_LOGV(TAG, "Invalid response: %s", line);
+  if (this->rx_len_ < 4 || this->rx_buffer_[0] != '?' || this->rx_buffer_[2] != '=') {
+    ESP_LOGV(TAG, "Invalid response: %s", this->rx_buffer_);
     return;
   }
 
-  const char *hex_str = line + 3;
+  const char *hex_str = this->rx_buffer_ + 3;
   char *end_ptr;
   uint8_t value = static_cast<uint8_t>(strtol(hex_str, &end_ptr, 16));
   if (end_ptr == hex_str) {
-    ESP_LOGW(TAG, "Failed to parse hex value: %s", line);
+    ESP_LOGW(TAG, "Failed to parse hex value: %s", this->rx_buffer_);
     return;
   }
 
   bool state_changed = false;
-  char type = line[1];
+  char type = this->rx_buffer_[1];
   if (type == 's') {
     // bit 0 = operating, bit 1 = direction (0 = opening, 1 = closing)
     CoverOperation new_operation = COVER_OPERATION_IDLE;
@@ -152,9 +154,10 @@ void APCProteousCover::update() {
     return;
   }
   // The line is idle, so anything left in the buffer is an unterminated echo
-  if (this->rx_.length() != 0) {
-    ESP_LOGVV(TAG, "discarding stale rx '%s' before query", this->rx_.partial());
-    this->rx_.reset();
+  if (this->rx_len_ != 0) {
+    this->rx_buffer_[this->rx_len_] = '\0';
+    ESP_LOGVV(TAG, "discarding stale rx '%s' before query", this->rx_buffer_);
+    this->rx_len_ = 0;
   }
 
   const char *query = this->query_s_next_ ? QUERY_S : QUERY_X;

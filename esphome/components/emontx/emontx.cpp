@@ -2,7 +2,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include "esphome/components/json/json_util.h"
-#include <cstring>
 
 namespace esphome::emontx {
 
@@ -56,6 +55,7 @@ static bool supports_lock(const char *version, const char *end) {
 #endif
 
 void EmonTx::setup() {
+  this->buffer_pos_ = 0;
   if (this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_ALWAYS) {
     // The line feed ends any boot noise
     this->write_byte('\n');
@@ -111,15 +111,11 @@ void EmonTx::loop() {
   if (this->was_paused_) {
     // Drop what arrived during the pause and resync at the next line start
     this->was_paused_ = false;
-    bool discard = true;
+    this->buffer_pos_ = 0;
+    this->discarding_line_ = true;
     uint8_t dropped;
     while (this->available() > 0 && this->read_byte(&dropped))
-      discard = dropped != '\n';
-    if (discard) {
-      this->line_reader_.discard_line();
-    } else {
-      this->line_reader_.reset();
-    }
+      this->discarding_line_ = dropped != '\n';
 #ifdef USE_EMONTX_VERSION
     // The emonTx may have been flashed, or a request dropped, during the pause
     if (this->wants_version_())
@@ -133,28 +129,42 @@ void EmonTx::loop() {
     if (!this->read_byte(&received))
       break;
 
-    const char *data = this->line_reader_.feed(received);
-    if (this->line_reader_.overflowed()) {
-      ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding line", MAX_LINE_LENGTH);
-    } else if (data != nullptr && data[0] != '\0') {
-      size_t len = strlen(data);
-      StringRef line(data, len);
-      ESP_LOGD(TAG, "Received line: %s", line.c_str());
+    if (received == '\n') {
+      // End of line - process the buffer
+      if (this->discarding_line_) {
+        this->discarding_line_ = false;
+      } else if (this->buffer_pos_ > 0) {
+        // Null-terminate for safe logging and c_str() use
+        size_t len = this->buffer_pos_;
+        this->buffer_[len] = '\0';
+        this->buffer_pos_ = 0;
 
-      // Fire data callbacks for all received lines
-      this->data_callbacks_.call(line);
+        StringRef line(this->buffer_.data(), len);
+        ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
-      // Check if this line is JSON (starts with '{')
-      if (data[0] == '{') {
-        ESP_LOGV(TAG, "Line is JSON, parsing...");
-        this->parse_json_(data, len);
-      }
+        // Fire data callbacks for all received lines
+        this->data_callbacks_.call(line);
+
+        // Check if this line is JSON (starts with '{')
+        if (this->buffer_[0] == '{') {
+          ESP_LOGV(TAG, "Line is JSON, parsing...");
+          this->parse_json_(this->buffer_.data(), len);
+        }
 #ifdef USE_EMONTX_VERSION
-      if (this->wants_version_()) {
-        this->parse_msg_number_(data, len);
-        this->parse_version_line_(data, len);
-      }
+        if (this->wants_version_()) {
+          this->parse_msg_number_(this->buffer_.data(), len);
+          this->parse_version_line_(this->buffer_.data(), len);
+        }
 #endif
+      }
+    } else if (received == '\r' || this->discarding_line_) {
+      // Ignore CR, and the rest of a line that overflowed or was interrupted by a pause
+    } else if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
+      ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding line", MAX_LINE_LENGTH);
+      this->buffer_pos_ = 0;
+      this->discarding_line_ = true;
+    } else {
+      this->buffer_[this->buffer_pos_++] = static_cast<char>(received);
     }
   }
 }
