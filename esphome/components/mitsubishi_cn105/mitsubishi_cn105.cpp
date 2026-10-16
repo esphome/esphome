@@ -157,13 +157,15 @@ void MitsubishiCN105::did_transition_(State to) {
       // deferring transmission to a later loop iteration; some units might not respond if a request is sent
       // immediately after a response, causing the request to time out.
       const bool should_apply_pending_settings = this->pending_updates_.any() && this->is_status_initialized();
-      if (!should_apply_pending_settings && this->current_status_msg_type_ == STATUS_MSG_SETTINGS) {
-        if (this->should_request_telemetry_()) {
+      if (!should_apply_pending_settings) {
+        if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_()) {
           this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
           this->set_state_(State::DEFERRED_STATUS_REQUEST);
           break;
         }
-        if (this->should_request_heatpump_()) {
+        if ((this->current_status_msg_type_ == STATUS_MSG_SETTINGS ||
+             this->current_status_msg_type_ == STATUS_MSG_TELEMETRY) &&
+            this->should_request_heatpump_()) {
           this->current_status_msg_type_ = STATUS_MSG_HEATPUMP;
           this->set_state_(State::DEFERRED_STATUS_REQUEST);
           break;
