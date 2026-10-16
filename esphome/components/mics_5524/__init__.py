@@ -2,6 +2,7 @@
 
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.const import PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2
 
 CODEOWNERS = ["@nliaudat"]
 DOMAIN = "mics_5524"
@@ -40,9 +41,14 @@ CONVERSION_MODELS = {
     "datasheet": ConversionModel.CONVERSION_MODEL_DATASHEET,
 }
 
-# Divider guard limits (input max, pin max) in volts. ESP32: VDD and the absolute maximum
-# VDD + 0.3 V; a bare ESP8266 A0 measures 0 - 1 V, boards with an onboard divider declare more.
-ADC_LIMITS_V = {"esp32": (3.3, 3.6), "esp8266": (1.0, 1.0)}
+# Divider guard limits (input max, pin max) in volts by target platform. ESP32 and RP2: VDD and
+# the absolute maximum VDD + 0.3 V; a bare ESP8266 A0 measures 0 - 1 V, boards with an onboard
+# divider declare more. Any other platform declares both limits.
+ADC_LIMITS_V = {
+    PLATFORM_ESP32: (3.3, 3.6),
+    PLATFORM_ESP8266: (1.0, 1.0),
+    PLATFORM_RP2: (3.3, 3.6),
+}
 
 # Guard margin (V): the 3.3333 V of a 10k/20k divider still passes adc_input_max: 3.33.
 ADC_LIMIT_MARGIN_V = 0.01

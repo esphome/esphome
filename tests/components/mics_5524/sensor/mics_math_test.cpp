@@ -51,6 +51,9 @@ TEST(MicsMath, AirValueIsTheVoltageBelowVcc) {
   // A pin at or below 0 V is disconnected, not a reading of VCC.
   EXPECT_TRUE(std::isnan(air_value_from_voltage(0.0f, 5.0f)));
   EXPECT_TRUE(std::isnan(air_value_from_voltage(-0.1f, 5.0f)));
+  // So is one at or below 5 % of VCC: clean air sits volts above that.
+  EXPECT_TRUE(std::isnan(air_value_from_voltage(0.25f, 5.0f)));
+  EXPECT_FLOAT_EQ(4.74f, air_value_from_voltage(0.26f, 5.0f));
   // The two ends of the vendor range, and the unusable case, one by one.
   EXPECT_FLOAT_EQ(1.0f, ratio_from_air_value(air_value_from_voltage(4.0f, 5.0f), 1.0f));
   EXPECT_FLOAT_EQ(0.0f, ratio_from_air_value(air_value_from_voltage(5.0f, 5.0f), 1.0f));
@@ -94,12 +97,36 @@ TEST(MicsMath, DatasheetResistanceComesFromTheDivider) {
   // RS = (VCC * RL) / V_AO - RL: half of the supply across a 10k load resistor.
   EXPECT_FLOAT_EQ(10.0f, rs_from_voltage(2.5f, 5.0f, 10.0f));
   EXPECT_FLOAT_EQ(90.0f, rs_from_voltage(0.5f, 5.0f, 10.0f));
-  // A pin at or above the supply would be a negative resistance, and a pin at ground an
-  // infinite one: both are unusable rather than a real (and wrong) reading.
-  EXPECT_TRUE(std::isnan(rs_from_voltage(0.0f, 5.0f, 10.0f)));
-  EXPECT_TRUE(std::isnan(rs_from_voltage(5.0f, 5.0f, 10.0f)));
+  // A pin at the supply is RS = 0, the saturated end; above it would be a negative
+  // resistance, which only a wrong `vcc:` produces.
+  EXPECT_FLOAT_EQ(0.0f, rs_from_voltage(5.0f, 5.0f, 10.0f));
   EXPECT_TRUE(std::isnan(rs_from_voltage(5.5f, 5.0f, 10.0f)));
   EXPECT_TRUE(std::isnan(rs_from_voltage(NAN, 5.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(rs_from_voltage(2.5f, 5.0f, 0.0f)));
+}
+
+TEST(MicsMath, DatasheetDeadInputReadsUnknown) {
+  // The floor is the output of RS = 200 x RL, 5 V / 201 = 24.9 mV: a pin at or below it is
+  // disconnected, not a module with a huge clean-air resistance.
+  EXPECT_NEAR(0.02488f, micsmath::datasheet_dead_input_voltage(5.0f), 0.00001f);
+  EXPECT_TRUE(std::isnan(rs_from_voltage(0.0f, 5.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(rs_from_voltage(0.02f, 5.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(rs_from_voltage(0.0248f, 5.0f, 10.0f)));
+  // Just above the floor a 1.5 MOhm module, the top of the datasheet range, still reads.
+  EXPECT_NEAR(1656.7f, rs_from_voltage(0.03f, 5.0f, 10.0f), 0.1f);
+  // The floor scales with RL, so a 1k load resistor reads up to 200 kOhm.
+  EXPECT_NEAR(199.0f, rs_from_voltage(0.025f, 5.0f, 1.0f), 0.1f);
+}
+
+TEST(MicsMath, SaturatedDatasheetSensorReadsTheTopOfTheRange) {
+  // V_AO at VCC -> RS = 0 -> ratio 0 -> infinity on the falling curve -> max_ppm, like the
+  // vendor model, rather than unknown with a wiring warning.
+  const float ratio = ratio_from_rs(rs_from_voltage(5.0f, 5.0f, 10.0f), 10.0f);
+  EXPECT_FLOAT_EQ(0.0f, ratio);
+  EXPECT_TRUE(std::isinf(ppm_from_power_law(6.3f, -1.1f, ratio)));
+  EXPECT_FLOAT_EQ(1000.0f, clamp_ppm(ppm_from_power_law(6.3f, -1.1f, ratio), 0.0f, 1000.0f));
+  // Without a ceiling there is nothing to report.
+  EXPECT_TRUE(std::isnan(clamp_ppm(INFINITY, 0.0f, INFINITY)));
 }
 
 TEST(MicsMath, DatasheetRatioNeedsAReference) {
@@ -107,19 +134,20 @@ TEST(MicsMath, DatasheetRatioNeedsAReference) {
   EXPECT_FLOAT_EQ(0.5f, ratio_from_rs(5.0f, 10.0f));
   // Without a calibrated R0 there is no ratio to report.
   EXPECT_TRUE(std::isnan(ratio_from_rs(10.0f, 0.0f)));
-  EXPECT_TRUE(std::isnan(ratio_from_rs(0.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(ratio_from_rs(-1.0f, 10.0f)));
   EXPECT_TRUE(std::isnan(ratio_from_rs(NAN, 10.0f)));
 }
 
 TEST(MicsMath, DatasheetCurveFollowsTheShippedCoefficients) {
-  // The CO fit shipped in `coefficients.py`: a = 6.3, b = -1.1, from 10 ppm at
-  // RS/R0 = 0.5 to 1000 ppm at RS/R0 = 0.01.
+  // The CO fit shipped in `coefficients.py`: a = 6.3, b = -1.1, 1000 ppm at RS/R0 = 0.01 and
+  // about 10 ppm at RS/R0 = 0.65.
+  EXPECT_NEAR(10.1f, ppm_from_power_law(6.3f, -1.1f, 0.65f), 0.05f);
   EXPECT_NEAR(13.5f, ppm_from_power_law(6.3f, -1.1f, 0.5f), 0.05f);
   EXPECT_NEAR(998.5f, ppm_from_power_law(6.3f, -1.1f, 0.01f), 0.5f);
   // Clean air (RS == R0) reads the coefficient itself.
   EXPECT_NEAR(6.3f, ppm_from_power_law(6.3f, -1.1f, 1.0f), 0.001f);
   // A ratio outside what the fit can express is unusable, not a huge number.
-  EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, 0.0f)));
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, -0.1f)));
   EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, NAN)));
   // A non-positive fit cannot produce a reading either.
   EXPECT_TRUE(std::isnan(ppm_from_power_law(0.0f, -1.1f, 0.5f)));

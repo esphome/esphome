@@ -138,20 +138,18 @@ float MiCS5524Component::sample_voltage_() {
 }
 
 float MiCS5524Component::model_value_(float voltage) {
-  // A disconnected input reads near 0 V: a vendor ratio near 1.0 or a huge datasheet RS, both
-  // of which would pass for clean air, so neither model gets to see it.
-  float value = NAN;
-  if (voltage > 0.05f * this->vcc_) {
-    value = micsmath::air_value_from_voltage(voltage, this->vcc_);
+  float value = micsmath::air_value_from_voltage(voltage, this->vcc_);
 #ifdef USE_MICS_5524_DATASHEET
-    if (!this->is_vendor_model_())
-      value = micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
+  if (!this->is_vendor_model_())
+    value = micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
 #endif
-  }
-  if (!std::isnan(value))
+  if (!std::isnan(value)) {
+    this->input_fault_ = false;
     return value;
-  // The status flag makes this log once per fault, not once per update.
-  if (!this->status_has_warning()) {
+  }
+  // Logged once per fault; the status flag cannot tell it from a failed calibration.
+  if (!this->input_fault_) {
+    this->input_fault_ = true;
     ESP_LOGW(TAG, "analog output reads %.4f V with vcc %.2f V\n  check the AO wiring, 'vcc:' and 'voltage_multiplier:'",
              voltage, this->vcc_);
   }

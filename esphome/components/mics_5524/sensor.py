@@ -24,7 +24,6 @@ from esphome.const import (
     CONF_WARMUP_TIME,
     DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    KEY_CORE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_VOLT,
@@ -132,6 +131,36 @@ def _voltage_multiplier(config: ConfigType) -> float:
     return float(config.get(CONF_VOLTAGE_MULTIPLIER, 1.0))
 
 
+def _preference_key(config: ConfigType) -> int:
+    """Flash key of the stored reference; a new vcc, scaling or rl must not load an old value."""
+    parts = [
+        config[CONF_ID].id,
+        f"{config[CONF_VCC]:g}",
+        f"{_voltage_multiplier(config):g}",
+    ]
+    if (rl := config.get(CONF_RL)) is not None:
+        parts.append(f"{rl:g}")
+    return fnv1_hash(":".join(parts))
+
+
+def _validate_adc_keys(config: ConfigType) -> ConfigType:
+    """Reject the ADC keys where they would be accepted and ignored."""
+    if CONF_VOLTAGE_DIVIDER not in config:
+        for key in (CONF_ADC_INPUT_MAX, CONF_ADC_PIN_MAX):
+            if key in config:
+                raise cv.Invalid(
+                    f"'{key}:' only checks a 'voltage_divider:', so it has no effect here",
+                    path=[key],
+                )
+    if CONF_ADC_ATTENUATION in config and CONF_PIN not in config:
+        raise cv.Invalid(
+            "'adc_attenuation:' only applies to the ADC of a 'pin:' source - set "
+            "'attenuation:' on the adc sensor behind 'voltage:' instead",
+            path=[CONF_ADC_ATTENUATION],
+        )
+    return config
+
+
 def _validate_divider(config: ConfigType) -> ConfigType:
     """Reject a divider that puts the supply, the largest possible reading, past the sampler limits."""
     if (divider := config.get(CONF_VOLTAGE_DIVIDER)) is None:
@@ -139,9 +168,14 @@ def _validate_divider(config: ConfigType) -> ConfigType:
 
     supply = config[CONF_VCC]
     pin_voltage = supply * divider[CONF_R2] / (divider[CONF_R1] + divider[CONF_R2])
-    default_input_max, default_pin_max = ADC_LIMITS_V[
-        "esp8266" if KEY_CORE in CORE.data and CORE.is_esp8266 else "esp32"
-    ]
+    if (limits := ADC_LIMITS_V.get(CORE.target_platform)) is None:
+        if CONF_ADC_INPUT_MAX not in config or CONF_ADC_PIN_MAX not in config:
+            raise cv.Invalid(
+                f"no built-in ADC limits for {CORE.target_platform}: declare "
+                "'adc_input_max:' and 'adc_pin_max:' so the divider can be checked"
+            )
+        limits = (config[CONF_ADC_INPUT_MAX], config[CONF_ADC_PIN_MAX])
+    default_input_max, default_pin_max = limits
     pin_max = config.get(CONF_ADC_PIN_MAX, default_pin_max)
     input_max = config.get(CONF_ADC_INPUT_MAX, default_input_max)
     if pin_voltage > pin_max + ADC_LIMIT_MARGIN_V:
@@ -347,6 +381,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_most_one_key(CONF_VOLTAGE_DIVIDER, CONF_VOLTAGE_MULTIPLIER),
     cv.has_at_least_one_key(*GASES),
     cv.has_at_most_one_key(CONF_AIR_REFERENCE, CONF_R0, CONF_CALIBRATION),
+    _validate_adc_keys,
     _validate_divider,
     _validate_config,
     _validate_enable_pin,
@@ -373,7 +408,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
-    cg.add(var.set_preference_key(fnv1_hash(config[CONF_ID].id)))
+    cg.add(var.set_preference_key(_preference_key(config)))
 
     if (enable := config.get(CONF_ENABLE_PIN)) is not None:
         cg.add(var.set_enable_pin(await cg.gpio_pin_expression(enable)))

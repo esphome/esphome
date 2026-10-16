@@ -36,8 +36,8 @@ sensor:
       id: mics_5524_h2
       name: MiCS-5524 H2
 
-  # The datasheet model on the ADC this component owns: the 10k/20k divider needs
-  # adc_input_max: 3.33 and 12 dB attenuation, since the 0 dB default clips at ~1 V.
+  # The datasheet model on the ADC this component owns: the 10k/20k divider puts 3.33 V on
+  # the pin, so it needs adc_input_max: 3.34 and the 12 dB attenuation it gets by default.
   - platform: mics_5524
     id: mics_5524_pin
     pin: GPIO32

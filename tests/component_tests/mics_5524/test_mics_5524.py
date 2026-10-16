@@ -101,9 +101,14 @@ def test_shared_options_reach_the_hub(
     assert "mics_5524_boot->set_voltage_multiplier(1.5f);" in main_cpp
     assert "mics_5524_boot->set_samples(3);" in main_cpp
     assert "mics_5524_boot->set_warmup_time(180000);" in main_cpp
-    # The stored reference is keyed by the component ID.
+    # The stored reference is keyed by the component ID and the analog front end, so a
+    # new vcc, scaling or rl never loads a value captured with the old one.
     assert (
-        f"mics_5524_boot->set_preference_key({fnv1_hash('mics_5524_boot')}UL);"
+        f"mics_5524_boot->set_preference_key({fnv1_hash('mics_5524_boot:5:1.5')}UL);"
+        in main_cpp
+    )
+    assert (
+        f"mics_5524_pin->set_preference_key({fnv1_hash('mics_5524_pin:5:1.5')}UL);"
         in main_cpp
     )
     assert "mics_5524_boot->set_calibration(5000, 3, 20, true, true);" in main_cpp
@@ -282,8 +287,11 @@ def test_voltage_multiplier_defaults_to_one() -> None:
     assert _voltage_multiplier(config) == 1.0
 
 
-def test_voltage_divider_derives_the_multiplier() -> None:
+def test_voltage_divider_derives_the_multiplier(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """The divider the user wired is turned into the multiplier of every reading."""
+    set_core_config(PlatformFramework.ESP32_IDF)
     config = CONFIG_SCHEMA(
         _hub(voltage_divider={"r1": 10000.0, "r2": 20000.0}, adc_input_max=3.34)
     )
@@ -291,8 +299,11 @@ def test_voltage_divider_derives_the_multiplier() -> None:
     assert _voltage_multiplier(config) == 1.5
 
 
-def test_voltage_divider_rejects_an_explicit_multiplier() -> None:
+def test_voltage_divider_rejects_an_explicit_multiplier(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """The divider already says what the multiplier is, so the two would contradict."""
+    set_core_config(PlatformFramework.ESP32_IDF)
     with pytest.raises(cv.Invalid, match="Cannot specify more than one of"):
         CONFIG_SCHEMA(
             _hub(
@@ -303,8 +314,11 @@ def test_voltage_divider_rejects_an_explicit_multiplier() -> None:
         )
 
 
-def test_voltage_divider_above_the_adc_limit_is_rejected() -> None:
+def test_voltage_divider_above_the_adc_limit_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """A 10k/20k divider on a 5 V sensor puts 3.33 V on a classic ESP32 ADC."""
+    set_core_config(PlatformFramework.ESP32_IDF)
     with pytest.raises(cv.Invalid, match="above the 3.3 V measuring range"):
         CONFIG_SCHEMA(_hub(voltage_divider={"r1": 10000.0, "r2": 20000.0}))
 
@@ -327,8 +341,11 @@ def test_voltage_divider_limits_follow_the_esp8266_adc(
     assert config["voltage_divider"]["r1"] == 10000.0
 
 
-def test_voltage_divider_below_the_declared_limit_is_accepted() -> None:
+def test_voltage_divider_below_the_declared_limit_is_accepted(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """A sampler with a wider range declares it, and the same divider then passes."""
+    set_core_config(PlatformFramework.ESP32_IDF)
     config = CONFIG_SCHEMA(
         _hub(
             voltage_divider={"r1": 10000.0, "r2": 20000.0},
@@ -338,6 +355,39 @@ def test_voltage_divider_below_the_declared_limit_is_accepted() -> None:
     )
 
     assert config["voltage_divider"]["r1"] == 10000.0
+
+
+def test_voltage_divider_on_an_unknown_platform_needs_declared_limits(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """No built-in ADC limits exist for LibreTiny, so the guard cannot run without them."""
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    with pytest.raises(cv.Invalid, match="no built-in ADC limits for bk72xx"):
+        CONFIG_SCHEMA(_hub(voltage_divider={"r1": 10000.0, "r2": 20000.0}))
+    config = CONFIG_SCHEMA(
+        _hub(
+            voltage_divider={"r1": 10000.0, "r2": 20000.0},
+            adc_input_max=3.34,
+            adc_pin_max=3.6,
+            hydrogen={"name": "MiCS-5524 H2 (libretiny)"},
+        )
+    )
+    assert config["voltage_divider"]["r1"] == 10000.0
+
+
+@pytest.mark.parametrize("key", ["adc_input_max", "adc_pin_max"])
+def test_adc_limits_without_a_divider_are_rejected(key: str) -> None:
+    """The limits only check a divider, so without one they would be silently ignored."""
+    with pytest.raises(cv.Invalid, match=f"'{key}:' only checks a 'voltage_divider:'"):
+        CONFIG_SCHEMA(_hub(**{key: 3.34}))
+
+
+def test_adc_attenuation_needs_an_owned_pin() -> None:
+    """The attenuation configures the hidden ADC of pin:, not an external sampler."""
+    with pytest.raises(
+        cv.Invalid, match="'adc_attenuation:' only applies to the ADC of"
+    ):
+        CONFIG_SCHEMA(_hub(adc_attenuation="12db"))
 
 
 def test_datasheet_conversion_is_not_capped_by_the_vendor_range() -> None:

@@ -57,7 +57,7 @@ class MiCS5524Component : public PollingComponent {
   void set_voltage_multiplier(float multiplier) { this->voltage_multiplier_ = multiplier; }
   void set_samples(uint8_t samples) { this->samples_ = samples; }
   void set_warmup_time(uint32_t warmup) { this->warmup_time_ = warmup; }
-  /// Base of the flash key of the stored reference, a hash of the component ID.
+  /// Base of the flash key of the stored reference, a hash of the component ID and the front end.
   void set_preference_key(uint32_t key) { this->preference_key_ = key; }
   /// Driven active in setup(); EN of the breakout is active low, so `inverted: true` turns that on.
   void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
@@ -137,6 +137,8 @@ class MiCS5524Component : public PollingComponent {
   bool calibrating_{false};
   /// A calibration waits for its start time; `calibrating_` takes over from there.
   bool calibration_pending_{false};
+  /// The out-of-range warning has been logged; the next usable reading clears it.
+  bool input_fault_{false};
 };
 
 }  // namespace esphome::mics_5524

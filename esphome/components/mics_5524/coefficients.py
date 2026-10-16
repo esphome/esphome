@@ -43,7 +43,8 @@ class GasDefinition:
 
 
 # DFRobot_MICS getGasData() thresholds and gains with the vendor measuring ranges; the CO
-# datasheet fit is the community one (10 ppm at RS/R0 = 0.5, 1000 ppm at RS/R0 = 0.01).
+# datasheet fit is the community one (1000 ppm at RS/R0 = 0.01, about 10 ppm at RS/R0 = 0.65;
+# clean air, RS/R0 = 1, reads the 6.3 ppm of `a`).
 GASES: dict[str, GasDefinition] = {
     CONF_CARBON_MONOXIDE: GasDefinition(
         vendor=VendorCurve("CO", 0.425, 0.000405, 1.0, 1000.0),

@@ -26,10 +26,15 @@ struct VendorCurve {
 
 // ------------------------------------------------------------------ vendor model
 
-/// x = VCC - V_ao: 0 at VCC (a saturated sensor, never clean air). NaN at or below 0 V (a
-/// disconnected pin) and above VCC, which only a wrong vcc or voltage_multiplier produces.
+/// Share of VCC at or below which the vendor model reads the output as disconnected: clean air
+/// sits a volt or two below VCC, so a reading near 0 V is a wiring fault, not gas-free air.
+inline constexpr float VENDOR_DEAD_INPUT_FRACTION = 0.05f;
+
+/// x = VCC - V_ao: 0 at VCC (a saturated sensor, never clean air). NaN at or below
+/// VENDOR_DEAD_INPUT_FRACTION of VCC (a disconnected pin) and above VCC, which only a wrong vcc or
+/// voltage_multiplier produces.
 inline float air_value_from_voltage(float voltage, float vcc) {
-  if (!std::isfinite(voltage) || !std::isfinite(vcc) || voltage <= 0.0f || voltage > vcc)
+  if (!std::isfinite(voltage) || !std::isfinite(vcc) || voltage <= VENDOR_DEAD_INPUT_FRACTION * vcc || voltage > vcc)
     return NAN;
   return vcc - voltage;
 }
@@ -59,36 +64,45 @@ inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
 
 // --------------------------------------------------------------- datasheet model
 
-/// RS = (VCC * RL) / V - RL in kOhm; NaN at or below 0 V and at or above VCC, so a mis-wired
-/// input reads unknown rather than 0 kOhm.
+/// Largest RS the datasheet model reads, as a multiple of RL. The datasheet puts the clean-air
+/// resistance of a module below about 1.5 MOhm, 150 x the usual 10k RL, so an output voltage
+/// below that of this resistance is a disconnected input.
+inline constexpr float MAX_RS_OVER_RL = 200.0f;
+
+/// Smallest V_ao the datasheet model reads: the output of RS = MAX_RS_OVER_RL * RL.
+inline float datasheet_dead_input_voltage(float vcc) { return vcc / (MAX_RS_OVER_RL + 1.0f); }
+
+/// RS = (VCC * RL) / V - RL in kOhm: 0 at VCC (a saturated sensor). NaN above VCC, which only a
+/// wrong vcc or voltage_multiplier produces, and at or below datasheet_dead_input_voltage().
 inline float rs_from_voltage(float voltage, float vcc, float rl) {
-  if (!std::isfinite(voltage) || !std::isfinite(vcc) || !std::isfinite(rl) || voltage <= 0.0f)
+  if (!std::isfinite(voltage) || !std::isfinite(vcc) || !std::isfinite(rl) || rl <= 0.0f || voltage > vcc ||
+      voltage <= datasheet_dead_input_voltage(vcc))
     return NAN;
-  // A voltage close to 0 V overflows the division.
-  const float rs = vcc * rl / voltage - rl;
-  return std::isfinite(rs) && rs > 0.0f ? rs : NAN;
+  return vcc * rl / voltage - rl;
 }
 
-/// ratio = RS / R0 (NaN when either value is unusable).
+/// ratio = RS / R0 (NaN when either value is unusable); 0 is the saturated end.
 inline float ratio_from_rs(float rs, float r0) {
-  if (!std::isfinite(rs) || rs <= 0.0f || !std::isfinite(r0) || r0 <= 0.0f)
+  if (!std::isfinite(rs) || rs < 0.0f || !std::isfinite(r0) || r0 <= 0.0f)
     return NAN;
   return rs / r0;
 }
 
-/// ppm = a * ratio^b; NaN for a ratio or coefficient that cannot produce a reading.
+/// ppm = a * ratio^b; NaN for a ratio or coefficient that cannot produce a reading. Ratio 0, the
+/// saturated end, gives infinity on a falling curve, which clamp_ppm turns into max_ppm.
 inline float ppm_from_power_law(float a, float b, float ratio) {
-  if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(ratio) || ratio <= 0.0f || a <= 0.0f)
+  if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(ratio) || ratio < 0.0f || a <= 0.0f)
     return NAN;
 
   const float ppm = a * powf(ratio, b);
-  return std::isfinite(ppm) ? ppm : NAN;
+  return std::isnan(ppm) ? NAN : ppm;
 }
 
-/// Clamp to the configured range: below min_ppm counts as not detected and reads 0, and 0
-/// itself never changes (NaN stays NaN).
+/// Clamp to the configured range: below min_ppm counts as not detected and reads 0, 0 itself
+/// never changes, and a reading past a finite max_ppm (infinity included) is max_ppm. NaN stays
+/// NaN.
 inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
-  if (!std::isfinite(ppm))
+  if (std::isnan(ppm))
     return NAN;
   if (ppm <= 0.0f)
     return 0.0f;
@@ -96,7 +110,7 @@ inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
     return 0.0f;
   if (std::isfinite(max_ppm) && ppm > max_ppm)
     return max_ppm;
-  return ppm;
+  return std::isfinite(ppm) ? ppm : NAN;
 }
 
 // ----------------------------------------------------------------- calibration
