@@ -46,7 +46,7 @@ def test_built_in_curve_reaches_the_sensor(
     assert "mq8_boot->set_ratio_in_clean_air(70.0f);" in main_cpp
     assert "mq8_boot->set_voltage_multiplier(1.5f);" in main_cpp
     assert "mq8_boot->set_samples(4);" in main_cpp
-    assert "mq8_boot->set_calibration(true, 70.0f, 5000, 5);" in main_cpp
+    assert "mq8_boot->set_calibration(5000, 5, 20);" in main_cpp
     # A fixed R0 skips the boot calibration.
     assert "mq4_fixed->set_r0(10.0f);" in main_cpp
     assert "mq4_fixed->set_calibration(" not in main_cpp
@@ -107,23 +107,34 @@ def test_unknown_gas_for_type_is_rejected(
         )
 
 
-def test_r0_and_calibration_warn_but_resolve(
+def test_r0_and_calibration_are_exclusive(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """A fixed R0 wins over the calibration; the configuration stays valid."""
+    """A fixed R0 and a boot calibration cannot both define the reference."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    config = CONFIG_SCHEMA(
-        {
-            "id": "mq8",
-            "name": "MQ-8",
-            "sensor_type": "MQ-8",
-            "voltage": "mq8_adc",
-            "r0": 9.5,
-            "calibration": {"delay": "5s"},
-        }
-    )
+    with pytest.raises(cv.Invalid, match="Cannot specify more than one of"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "voltage": "mq8_adc",
+                "r0": 9.5,
+                "calibration": {"delay": "5s"},
+            }
+        )
 
-    assert config["r0"] == pytest.approx(9.5)
+
+def test_sample_limits_follow_the_main_loop(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A burst longer than 16 conversions and a spacing under the loop tick are rejected."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {"id": "mq8", "name": "MQ-8", "sensor_type": "MQ-8", "voltage": "mq8_adc"}
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({**base, "sample_count": 17})
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({**base, "calibration": {"sample_interval": "10ms"}})
 
 
 def test_pin_creates_an_internal_adc(

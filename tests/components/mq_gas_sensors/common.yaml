@@ -16,13 +16,13 @@ sensor:
     rl: 10.0
     vcc: 5.0
     sample_count: 4
-    sample_interval: 20ms
     min_ppm: 0.0
     max_ppm: 10000.0
     log_ppm: true
     calibration:
       delay: 10s
       sample_count: 5
+      sample_interval: 20ms
     ratio_sensor: mq8_ratio
     rs_sensor: mq8_rs
     voltage_sensor: mq8_voltage

@@ -80,6 +80,14 @@ AUTO_LOAD = ["sensor", "voltage_sampler", "adc", "text_sensor"]
 
 ADC_ATTENUATIONS = ("0db", "2.5db", "6db", "11db", "12db", "auto")
 
+#: The main loop runs every ~16 ms, so a shorter spacing cannot sample more often
+#: than that and only makes a calibration overrun a tick of everything else.
+MIN_SAMPLE_INTERVAL_MS = 16
+
+#: At most this many conversions of the analog output per reading: they run back to
+#: back inside one loop pass, so a longer burst delays everything else.
+MAX_SAMPLE_COUNT = 16
+
 
 def validate_sensor_type(value: str) -> str:
     """Accept ``mq-8`` / ``MQ_8`` / ``MQ8`` and return the canonical type key."""
@@ -158,6 +166,10 @@ CALIBRATION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_SAMPLE_COUNT, default=50): cv.int_range(min=1, max=1000),
+        cv.Optional(CONF_SAMPLE_INTERVAL, default="20ms"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=cv.TimePeriod(milliseconds=MIN_SAMPLE_INTERVAL_MS)),
+        ),
     }
 )
 
@@ -187,13 +199,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"max_ppm ({resolved.max_ppm}) must be greater than "
             f"min_ppm ({resolved.min_ppm})"
-        )
-
-    if CONF_R0 in config and CONF_CALIBRATION in config:
-        _LOGGER.warning(
-            "%s: both 'r0:' and 'calibration:' are set - the fixed R0 value wins and "
-            "automatic calibration is disabled",
-            label,
         )
 
     if CONF_R0 not in config and CONF_CALIBRATION not in config:
@@ -282,10 +287,9 @@ CONFIG_SCHEMA = cv.All(
                 *RATIO_MODES, lower=True
             ),
             cv.Optional(CONF_RATIO_IN_CLEAN_AIR): cv.positive_not_null_float,
-            cv.Optional(CONF_SAMPLE_COUNT, default=2): cv.int_range(min=1, max=255),
-            cv.Optional(
-                CONF_SAMPLE_INTERVAL, default="20ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_SAMPLE_COUNT, default=2): cv.int_range(
+                min=1, max=MAX_SAMPLE_COUNT
+            ),
             cv.Optional(CONF_MIN_PPM): cv.float_,
             cv.Optional(CONF_MAX_PPM): cv.positive_not_null_float,
             cv.Optional(CONF_CORRECTION_FACTOR, default=0.0): cv.float_,
@@ -299,6 +303,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s")),
     cv.has_exactly_one_key(CONF_VOLTAGE, CONF_PIN),
+    cv.has_at_most_one_key(CONF_R0, CONF_CALIBRATION),
     _validate_config,
 )
 
@@ -338,8 +343,6 @@ async def to_code(config: ConfigType) -> None:
         max_ppm=config.get(CONF_MAX_PPM),
     )
 
-    calibration = config.get(CONF_CALIBRATION)
-
     # The sampler is a constructor argument: no reading is possible without it, so
     # the component has no valid state in which it is missing.
     if (source_id := config.get(CONF_VOLTAGE)) is not None:
@@ -362,19 +365,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_max_ppm(resolved.max_ppm))
     cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
-    cg.add(var.set_sample_interval(config[CONF_SAMPLE_INTERVAL]))
     cg.add(var.set_correction_factor(config[CONF_CORRECTION_FACTOR]))
 
     if (r0 := config.get(CONF_R0)) is not None:
         cg.add(var.set_r0(r0))
-
-    if calibration is not None and CONF_R0 not in config:
+    elif (calibration := config.get(CONF_CALIBRATION)) is not None:
         cg.add(
             var.set_calibration(
-                True,
-                resolved.ratio_in_clean_air,
                 calibration[CONF_DELAY],
                 calibration[CONF_SAMPLE_COUNT],
+                calibration[CONF_SAMPLE_INTERVAL],
             )
         )
 

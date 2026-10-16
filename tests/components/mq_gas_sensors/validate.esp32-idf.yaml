@@ -22,7 +22,6 @@ sensor:
     r0: 9.5
     ratio_in_clean_air: 70.0
     sample_count: 4
-    sample_interval: 50ms
     log_ppm: true
 
   # The linear regression of the MQ-135, calibrated at boot.
@@ -36,6 +35,7 @@ sensor:
     calibration:
       delay: 5s
       sample_count: 10
+      sample_interval: 50ms
 
   # No built-in coefficients: coefficient_a/coefficient_b come from the YAML,
   # with the R0/RS convention, a custom range and the ADC limits of an

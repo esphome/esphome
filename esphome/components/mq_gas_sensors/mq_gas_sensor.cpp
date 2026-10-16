@@ -111,9 +111,10 @@ void MQGasSensor::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  R0: not available yet");
   }
-  ESP_LOGCONFIG(TAG, "  Auto calibration: %s, AO samples per reading: %u",
+  ESP_LOGCONFIG(TAG, "  AO samples per reading: %u, calibration: %s, sample spacing: %" PRIu32 " ms",
+                static_cast<unsigned>(this->samples_),
                 this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
-                static_cast<unsigned>(this->samples_));
+                this->sample_interval_);
 }
 
 float MQGasSensor::sample_voltage_() {
@@ -222,11 +223,11 @@ void MQGasSensor::update() {
   this->publish_state(ppm);
 }
 
-void MQGasSensor::set_calibration(bool enabled, float ratio_in_clean_air, uint32_t delay, uint32_t samples) {
-  this->calibration_enabled_ = enabled;
-  this->ratio_in_clean_air_ = ratio_in_clean_air;
+void MQGasSensor::set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval) {
+  this->calibration_enabled_ = true;
   this->calibration_delay_ = delay;
   this->calibration_samples_ = samples;
+  this->sample_interval_ = sample_interval;
 }
 
 void MQGasSensor::loop() {

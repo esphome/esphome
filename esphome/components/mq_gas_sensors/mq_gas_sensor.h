@@ -51,8 +51,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void set_max_ppm(float ppm) { this->max_ppm_ = ppm; }
   void set_correction_factor(float factor) { this->correction_factor_ = factor; }
   void set_samples(uint8_t samples) { this->samples_ = samples; }
-  void set_sample_interval(uint32_t interval) { this->sample_interval_ = interval; }
-  void set_calibration(bool enabled, float ratio_in_clean_air, uint32_t delay, uint32_t samples);
+  /// Enable the clean-air calibration at boot: it starts `delay` ms from now and
+  /// averages `samples` readings spaced `sample_interval` ms apart.
+  void set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval);
   void set_log_sensor(text_sensor::TextSensor *sensor) { this->log_sensor_ = sensor; }
   /// Log the value that is about to be published at `INFO` on every update. It
   /// is the "normal mode" line: the detailed chain (V / RS / ratio) stays at
@@ -134,7 +135,6 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   float max_ppm_{10000.0f};
   float correction_factor_{0.0f};
   uint8_t samples_{2};
-  uint32_t sample_interval_{20};
   bool r0_configured_{false};
   bool log_ppm_{false};  ///< log the published value at INFO on every update (`log_ppm: true`)
 
@@ -142,6 +142,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   bool calibration_enabled_{false};
   uint32_t calibration_delay_{0};
   uint32_t calibration_samples_{10};
+  /// Minimum spacing between two clean-air calibration samples (ms); a normal reading
+  /// never waits for it.  The ~16 ms main loop tick is the practical floor.
+  uint32_t sample_interval_{20};
 
   // ------------------------------------------------------------------ runtime
   /// Scheduler id of the deferred calibration start.
