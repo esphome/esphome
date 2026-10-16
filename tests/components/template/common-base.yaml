@@ -373,6 +373,10 @@ cover:
           id: template_cover_actions
           position: 0.0
           tilt: 0.0
+    toggle_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
     stop_action:
       - cover.template.publish:
           id: template_cover_actions
