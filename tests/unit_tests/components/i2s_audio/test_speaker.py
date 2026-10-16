@@ -25,19 +25,19 @@ def _config(bits: int) -> ConfigType:
     return {CONF_DAC_TYPE: "external", CONF_BITS_PER_SAMPLE: bits}
 
 
-@pytest.mark.parametrize("bits", [16, 32])
-def test_esp32_accepts_16_and_32_bit(bits: int) -> None:
-    """The original ESP32 accepts slots that are a whole number of 16-bit words."""
+@pytest.mark.parametrize("bits", [16, 24, 32])
+def test_esp32_accepts_16_24_and_32_bit(bits: int) -> None:
+    """The original ESP32 accepts 16-, 24- and 32-bit slots."""
     CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
     _validate_esp32_variant(_config(bits))
 
 
-@pytest.mark.parametrize("bits", [8, 24])
-def test_esp32_rejects_8_and_24_bit(bits: int) -> None:
-    """The original ESP32 rejects slots that do not fill whole 16-bit words."""
+def test_esp32_rejects_8_bit() -> None:
+    """The original ESP32 rejects an 8-bit slot, which cannot fill a whole 16-bit word."""
     CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
-    with pytest.raises(cv.Invalid, match="must be 16bit or 32bit"):
-        _validate_esp32_variant(_config(bits))
+    with pytest.raises(cv.Invalid, match="cannot be 8bit") as error:
+        _validate_esp32_variant(_config(8))
+    assert error.value.path == [CONF_BITS_PER_SAMPLE]
 
 
 @pytest.mark.parametrize("bits", [8, 16, 24, 32])

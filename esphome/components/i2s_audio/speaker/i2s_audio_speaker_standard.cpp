@@ -430,15 +430,16 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     return ESP_ERR_NOT_SUPPORTED;
   }
 
-  // Compute the clocked-out width so the driver, DMA buffers, and the task's conversion all agree. A stream wider
-  // than the configured slot is narrowed to it. A narrower stream keeps its width and the peripheral pads it into
-  // the slot, except on the original ESP32, which cannot clock a slot wider than its data and so widens it.
+  // Compute the output width so the driver, DMA buffers, and the task's conversion all agree. A stream wider than
+  // the configured slot is narrowed to it, and a narrower stream keeps its width for the peripheral to pad into the
+  // slot. The original ESP32 cannot clock a slot wider than its data, so there every stream is converted to the
+  // slot's memory width instead.
   uint8_t output_bits_per_sample = audio_stream_info.get_bits_per_sample();
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
-    const uint8_t configured_bits = static_cast<uint8_t>(this->slot_bit_width_);
 #ifdef USE_ESP32_VARIANT_ESP32
-    output_bits_per_sample = configured_bits;
+    output_bits_per_sample = this->slot_memory_bits_();
 #else
+    const uint8_t configured_bits = static_cast<uint8_t>(this->slot_bit_width_);
     if (output_bits_per_sample > configured_bits) {
       output_bits_per_sample = configured_bits;
     }
@@ -452,7 +453,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   // occupies 4 bytes in the DMA buffer, an 8-bit sample 2 bytes), but ESPHome's audio pipeline packs samples
   // tightly (3 bytes for 24-bit, 1 for 8-bit). The two layouts only line up when the bit depth is a multiple
   // of 16. The check is on the output width since that is what reaches the peripheral; any input is converted
-  // to a 16- or 32-bit slot.
+  // to 16- or 32-bit samples, and a 24-bit slot takes 32-bit samples.
   if (output_bits_per_sample % 16 != 0) {
     ESP_LOGE(TAG, "ESP32 supports only 16- or 32-bit output, got %u-bit", (unsigned) output_bits_per_sample);
     return ESP_ERR_NOT_SUPPORTED;
@@ -503,8 +504,8 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
 
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
 audio::AudioStreamInfo I2SAudioSpeaker::full_duplex_stream_info_() const {
-  return audio::AudioStreamInfo(static_cast<uint8_t>(this->slot_bit_width_),
-                                this->slot_mode_ == I2S_SLOT_MODE_STEREO ? 2 : 1, this->sample_rate_);
+  return audio::AudioStreamInfo(this->slot_memory_bits_(), this->slot_mode_ == I2S_SLOT_MODE_STEREO ? 2 : 1,
+                                this->sample_rate_);
 }
 
 void I2SAudioSpeaker::build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) {
@@ -546,8 +547,14 @@ void I2SAudioSpeaker::build_i2s_config_(const audio::AudioStreamInfo &output_str
     slot_mask = I2S_STD_SLOT_BOTH;
   }
 
-  // Configure the data bit width from the output (post-narrowing) format, which is what is clocked out.
-  const i2s_data_bit_width_t data_bit_width = (i2s_data_bit_width_t) output_stream_info.get_bits_per_sample();
+  // Configure the data bit width from the output (post-conversion) format, which is what is clocked out.
+  i2s_data_bit_width_t data_bit_width = (i2s_data_bit_width_t) output_stream_info.get_bits_per_sample();
+#ifdef USE_ESP32_VARIANT_ESP32
+  // The original ESP32 clocks data at the slot width; a 24-bit slot sends the top 24 bits of each 32-bit sample
+  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+    data_bit_width = (i2s_data_bit_width_t) this->slot_bit_width_;
+  }
+#endif
   i2s_std_slot_config_t slot_cfg;
   switch (this->i2s_comm_fmt_) {
     case I2SCommFmt::PCM:
@@ -575,6 +582,16 @@ void I2SAudioSpeaker::build_i2s_config_(const audio::AudioStreamInfo &output_str
       .slot_cfg = slot_cfg,
       .gpio_cfg = gpio_cfg,
   };
+}
+
+uint8_t I2SAudioSpeaker::slot_memory_bits_() const {
+#ifdef USE_ESP32_VARIANT_ESP32
+  // The original ESP32 stores a 24-bit slot's samples in 32-bit words
+  if (this->slot_bit_width_ == I2S_SLOT_BIT_WIDTH_24BIT) {
+    return 32;
+  }
+#endif
+  return static_cast<uint8_t>(this->slot_bit_width_);
 }
 
 #ifdef USE_ESP32_VARIANT_ESP32

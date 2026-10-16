@@ -148,12 +148,11 @@ def _validate_esp32_variant(config: ConfigType) -> ConfigType:
     if config[CONF_DAC_TYPE] == "internal":
         if variant not in INTERNAL_DAC_VARIANTS:
             raise cv.Invalid(f"{variant} does not have an internal DAC")
-    elif variant == esp32.VARIANT_ESP32 and config[CONF_BITS_PER_SAMPLE] % 16 != 0:
-        # The original ESP32 I2S peripheral packs each sample into a whole number of 16-bit words, so an 8- or
-        # 24-bit slot does not line up with ESPHome's tightly packed audio (see start_i2s_driver). Reject it at
-        # config time rather than failing at runtime; streams of other widths are converted to the slot.
+    elif variant == esp32.VARIANT_ESP32 and config[CONF_BITS_PER_SAMPLE] == 8:
+        # The original ESP32 I2S peripheral stores each sample in a whole number of 16-bit words, so an 8-bit slot
+        # cannot work. A 24-bit slot can, since the speaker hands it 32-bit samples (see start_i2s_driver).
         raise cv.Invalid(
-            f"{CONF_BITS_PER_SAMPLE} must be 16bit or 32bit on the original ESP32",
+            f"{CONF_BITS_PER_SAMPLE} cannot be 8bit on the original ESP32",
             path=[CONF_BITS_PER_SAMPLE],
         )
     return config

@@ -38,6 +38,9 @@ class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
   audio::AudioStreamInfo full_duplex_stream_info_() const;
 #endif
 
+  /// @brief Bits per sample that the configured slot takes in DMA memory.
+  uint8_t slot_memory_bits_() const;
+
 #ifdef USE_ESP32_VARIANT_ESP32
   /// @brief Widens frames to the output bit depth through a small stack buffer and writes them to the peripheral.
   /// @param input Frames in the incoming stream format
