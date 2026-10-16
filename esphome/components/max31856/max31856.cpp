@@ -54,9 +54,8 @@ void MAX31856Sensor::read_thermocouple_temperature_() {
     // Faults have been logged, clear it for next loop
     this->clear_fault_();
   } else {
-    int32_t temp24 = sign_extend<24>(this->read_register24_(MAX31856_LTCBH_REG));
-
-    temp24 >>= 5;  // bottom 5 bits are unused
+    // bottom 5 bits are unused
+    const int32_t temp24 = sign_extend<24>(this->read_register24_(MAX31856_LTCBH_REG)) >> 5;
 
     float temp_c = temp24;
     temp_c *= 0.0078125;

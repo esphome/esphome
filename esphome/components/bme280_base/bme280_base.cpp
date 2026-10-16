@@ -145,11 +145,10 @@ void BME280Component::setup() {
   this->calibration_.h1 = read_u8_(BME280_REGISTER_DIG_H1);
   this->calibration_.h2 = read_s16_le_(BME280_REGISTER_DIG_H2);
   this->calibration_.h3 = read_u8_(BME280_REGISTER_DIG_H3);
-  // h4 and h5 are signed 12-bit values
-  uint16_t h4_raw = read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F);
-  this->calibration_.h4 = sign_extend<12>(h4_raw);
-  uint16_t h5_raw = read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4);
-  this->calibration_.h5 = sign_extend<12>(h5_raw);
+  this->calibration_.h4 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F));
+  this->calibration_.h5 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4));
   this->calibration_.h6 = read_u8_(BME280_REGISTER_DIG_H6);
 
   uint8_t humid_control_val = 0;

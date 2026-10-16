@@ -165,7 +165,12 @@ static inline int16_t decode_speed(uint8_t low_byte, uint8_t high_byte) {
 }
 
 static inline int16_t hex_to_signed_int(const uint8_t *buffer, uint8_t offset) {
-  return sign_extend<16>(encode_uint16(buffer[offset + 1], buffer[offset]));
+  uint16_t hex_val = (buffer[offset + 1] << 8) | buffer[offset];
+  int16_t dec_val = static_cast<int16_t>(hex_val);
+  if (dec_val & 0x8000) {
+    dec_val -= 65536;
+  }
+  return dec_val;
 }
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
