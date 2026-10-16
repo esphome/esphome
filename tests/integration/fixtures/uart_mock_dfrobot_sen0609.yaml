@@ -1,0 +1,74 @@
+esphome:
+  name: uart-mock-dfrobot-sen0609
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 9600
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+  # A small model of the module's command line: echo, answer, Done and the prompt
+  on_tx:
+    - then:
+        - lambda: |-
+            std::string cmd(data.begin(), data.end());
+            if (cmd == "\r\n")
+              return;
+            static float min_range = 0.6f;
+            static float max_range = 12.0f;
+            std::string reply = cmd + "\r\n";
+            if (cmd == "getRange") {
+              char buf[48];
+              snprintf(buf, sizeof(buf), "Response %.1f %.1f\r\n", min_range, max_range);
+              reply += buf;
+            } else if (cmd.rfind("setRange ", 0) == 0) {
+              sscanf(cmd.c_str() + 9, "%f %f", &min_range, &max_range);
+            } else if (cmd == "saveConfig") {
+              ESP_LOGI("sim", "Saved range %.2f %.2f", min_range, max_range);
+            } else if (cmd == "getSWV") {
+              reply += "SoftwareVersion:V1.0.4\r\n";
+            }
+            reply += "Done\r\nDFRobot:/>";
+            id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>(reply.begin(), reply.end()));
+
+interval:
+  - interval: 200ms
+    then:
+      - lambda: |-
+          // '$' is kept apart so it is not read as a substitution
+          static const std::string FRAME = std::string(1, '$') + "DFHPD,1, , , *\r\n";
+          id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>(FRAME.begin(), FRAME.end()));
+
+dfrobot_sen0609:
+  id: sen0609
+  uart_id: mock_uart
+
+binary_sensor:
+  - platform: dfrobot_sen0609
+    has_target:
+      name: Has Target
+
+number:
+  - platform: dfrobot_sen0609
+    min_range:
+      name: Min Range
+    max_range:
+      name: Max Range
+
+text_sensor:
+  - platform: dfrobot_sen0609
+    version:
+      name: Version

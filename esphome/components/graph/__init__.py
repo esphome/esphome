@@ -32,6 +32,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@synco"]
+DOMAIN = "graph"
 
 DEPENDENCIES = ["display", "sensor"]
 MULTI_CONF = True

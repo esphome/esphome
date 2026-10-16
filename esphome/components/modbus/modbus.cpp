@@ -9,7 +9,9 @@
 
 namespace esphome::modbus {
 
-static const char *const TAG = "modbus";
+ESPHOME_LOG_TAG(TAG, "modbus");
+
+static constexpr uint32_t DEFERRED_SEND_TIMEOUT_ID = 0;
 
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
@@ -203,8 +205,14 @@ void ModbusClientHub::parse_modbus_frames() {
 
 void ModbusServerHub::parse_modbus_frames() {
   while (!this->rx_buffer_.empty()) {
+    if (this->deferred_payload_len_ != 0) {
+      // Another frame arrived before the deferred reply went out, so the client has moved on.
+      this->cancel_timeout(DEFERRED_SEND_TIMEOUT_ID);
+      ESP_LOGD(TAG, "Dropped deferred reply to %" PRIu8 ": a new frame arrived first", this->deferred_payload_[0]);
+      this->deferred_payload_len_ = 0;
+    }
     size_t size = this->rx_buffer_.size();
-    ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
+    ESP_LOGVV(TAG, "Parsing frames buffer size = %zu", size);
     bool retry_as_client = false;
     // A broadcast is a client request, never a peer response; clear any stale expectation (RTU is half-duplex).
     const bool is_broadcast = this->rx_buffer_[0] == BROADCAST_ADDRESS;
@@ -942,7 +950,7 @@ bool ModbusDeviceCommand::sent() {
   // on_sent() is not a terminal, so nothing is consumed.
   if (this->device == nullptr)
     return false;
-  this->device->on_sent(this->frame.pdu());
+  this->device->on_sent(this->frame.address(), this->frame.pdu());
   return true;
 }
 
@@ -950,7 +958,7 @@ bool ModbusDeviceCommand::notify_retired() {
   if (!this->decrement_pending())
     return false;  // nothing owed - stop the sweep draining this entry
   if (this->device != nullptr)
-    this->device->on_not_sent(this->frame.pdu());
+    this->device->on_not_sent(this->frame.address(), this->frame.pdu());
   return true;  // consumed one debt (delivered, or silent when device-less) - keep draining to zero
 }
 
@@ -961,7 +969,7 @@ bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
     this->decrement_pending();
   if (this->device == nullptr)
     return false;
-  this->device->on_response(this->frame.pdu(), response_pdu);
+  this->device->on_response(this->frame.address(), this->frame.pdu(), response_pdu);
   return true;
 }
 
@@ -971,7 +979,7 @@ bool ModbusDeviceCommand::error(ExceptionCode exception_code) {
   this->decrement_pending();
   if (this->device == nullptr)
     return false;
-  this->device->on_error(this->frame.pdu(), exception_code);
+  this->device->on_error(this->frame.address(), this->frame.pdu(), exception_code);
   return true;
 }
 
@@ -996,7 +1004,7 @@ bool ModbusDeviceCommand::timed_out() {
     return false;  // resolved, no one to tell
   // A cleared frame that timed out still honors a retry: the clear is address-scoped (any device may
   // call it) while the retry is the owning device's call via on_no_response - the bus obeys the owner.
-  if (this->device->on_no_response(this->frame.pdu()))
+  if (this->device->on_no_response(this->frame.address(), this->frame.pdu()))
     this->increment_pending();  // granted retry = re-request (capped)
   return true;
 }
@@ -1210,9 +1218,10 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     std::memcpy(this->deferred_payload_.data(), payload, len);
     this->deferred_payload_len_ = len;
     // set_timeout() takes milliseconds; round the microsecond delay up so we never fire early.
-    this->set_timeout("deferred_send", (this->tx_delay_remaining() + US_PER_MS - 1) / US_PER_MS, [this]() {
+    this->set_timeout(DEFERRED_SEND_TIMEOUT_ID, (this->tx_delay_remaining() + US_PER_MS - 1) / US_PER_MS, [this]() {
       ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
                         this->deferred_payload_len_ - 1);
+      this->deferred_payload_len_ = 0;
       if (!this->send_frame_(frame)) {
         ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
       }
@@ -1234,6 +1243,11 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
     if (warn) {
       ESP_LOGW(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "us after last send", bytes, LOG_STR_ARG(reason),
                micros() - this->last_send_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+      ESP_LOGV(TAG, "  discarded: %s%s", format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), bytes),
+               bytes > MODBUS_MAX_LOG_BYTES ? LOG_STR_LITERAL(" ...") : LOG_STR_LITERAL(""));
+#endif
     } else {
       ESP_LOGV(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "us after last send", bytes, LOG_STR_ARG(reason),
                micros() - this->last_send_);

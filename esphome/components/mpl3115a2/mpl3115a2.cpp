@@ -5,18 +5,16 @@
 
 namespace esphome::mpl3115a2 {
 
-static const char *const TAG = "mpl3115a2";
+ESPHOME_LOG_TAG(TAG, "mpl3115a2");
 
 void MPL3115A2Component::setup() {
   uint8_t whoami = 0xFF;
   if (!this->read_byte(MPL3115A2_WHOAMI, &whoami)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (whoami != 0xC4) {
-    this->error_code_ = WRONG_ID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("MPL3115A2 has invalid id"));
     return;
   }
 
@@ -32,19 +30,6 @@ void MPL3115A2Component::setup() {
 void MPL3115A2Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPL3115A2:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case WRONG_ID:
-        ESP_LOGE(TAG, "MPL3115A2 has invalid id");
-        break;
-      default:
-        ESP_LOGE(TAG, "Setting up MPL3115A2 registers failed!");
-        break;
-    }
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Pressure", this->pressure_);

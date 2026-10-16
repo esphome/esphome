@@ -4,11 +4,11 @@
 
 namespace esphome::lcd_menu {
 
-static const char *const TAG = "lcd_menu";
+ESPHOME_LOG_TAG(TAG, "lcd_menu");
 
 void LCDCharacterMenuComponent::setup() {
   if (this->display_->is_failed()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("The connected display failed, the menu is disabled"));
     return;
   }
 
@@ -24,9 +24,6 @@ void LCDCharacterMenuComponent::dump_config() {
                 "  Mark characters: %02x, %02x, %02x, %02x",
                 this->columns_, this->rows_, this->mark_selected_, this->mark_editing_, this->mark_submenu_,
                 this->mark_back_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "The connected display failed, the menu is disabled!");
-  }
 }
 
 void LCDCharacterMenuComponent::draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) {

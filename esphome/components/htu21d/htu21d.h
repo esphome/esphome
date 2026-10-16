@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/automation.h"
 
 namespace esphome::htu21d {
 
@@ -32,28 +31,6 @@ class HTU21DComponent final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *heater_{nullptr};
   HTU21DSensorModels sensor_model_{HTU21D_SENSOR_MODEL_HTU21D};
-};
-
-template<typename... Ts> class SetHeaterLevelAction final : public Action<Ts...>, public Parented<HTU21DComponent> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, level)
-
-  void play(const Ts &...x) override {
-    auto level = this->level_.value(x...);
-
-    this->parent_->set_heater_level(level);
-  }
-};
-
-template<typename... Ts> class SetHeaterAction final : public Action<Ts...>, public Parented<HTU21DComponent> {
- public:
-  TEMPLATABLE_VALUE(bool, status)
-
-  void play(const Ts &...x) override {
-    auto status = this->status_.value(x...);
-
-    this->parent_->set_heater(status);
-  }
 };
 
 }  // namespace esphome::htu21d

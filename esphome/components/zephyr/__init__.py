@@ -26,6 +26,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@tomaszduda23"]
+DOMAIN = "zephyr"
 
 
 class HexValue:
@@ -176,7 +177,10 @@ def zephyr_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
-    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF][""]:
+    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
+        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
+    )[0]
+    if need_cdc_cb:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
 
@@ -207,6 +211,7 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
+    zephyr_add_prj_conf("SERIAL", True)
     # prevent device to go to susspend, without this communication stop working in python
     # there should be a way to solve it
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
