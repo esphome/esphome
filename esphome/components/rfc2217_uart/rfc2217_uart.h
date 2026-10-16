@@ -114,7 +114,7 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
       // [RFC 2217] A new session starts on the configured line, not on the last client's.
       if (this->tcp_->available() == 0 && this->to_serial_len_ == 0 && !this->answering_() && this->tx_idle_()) {
         this->ending_ = false;
-        this->set_line_(this->configured_);
+        this->restore_line_();
       }
       return;
     }
@@ -142,8 +142,9 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
   /// Loads the line the setters hold into the UART; false where it cannot change at runtime.
   virtual bool reload_serial();
   Line line_() const;
-  /// Sets the line and reloads the UART; on failure the setters get the old line back.
-  void set_line_(const Line &line);
+  /// Sets the line and reloads the UART; on failure the setters get the old line back and it returns false.
+  bool set_line_(const Line &line);
+  void restore_line_();
   /// The line the SET-* commands of the current batch build on.
   Line &pending_();
   bool answering_() const {
@@ -180,6 +181,8 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
   // The DTR and RTS states the client set; the UART has neither line.
   bool dtr_on_{false};
   bool rts_on_{false};
+  // A refused line change was logged in this session.
+  bool refusal_logged_{false};
 #ifdef USE_ESP32
   bool idf_uart_{false};
 #endif

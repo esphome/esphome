@@ -25,8 +25,16 @@ static constexpr uint32_t MAX_BAUD_RATE = 5000000;
 void Rfc2217Server::setup() { this->configured_ = this->line_(); }
 
 void Rfc2217Server::dump_config() {
-  ESP_LOGCONFIG(TAG, "RFC 2217 UART:\n"
-                     "  Role: server");
+#ifdef USE_ESP32
+  const bool settable = this->idf_uart_;
+#else
+  const bool settable = false;
+#endif
+  ESP_LOGCONFIG(TAG,
+                "RFC 2217 UART:\n"
+                "  Role: server\n"
+                "  Line Settable: %s",
+                YESNO(settable));
 }
 
 void Rfc2217Server::on_link(bool up) {
@@ -41,9 +49,10 @@ void Rfc2217Server::on_link(bool up) {
   std::memset(this->answers_due_, 0, sizeof(this->answers_due_));
   this->dtr_on_ = false;
   this->rts_on_ = false;
+  this->refusal_logged_ = false;
   if (this->ending_) {
     this->ending_ = false;
-    this->set_line_(this->configured_);
+    this->restore_line_();
   }
   // The driver kept whatever arrived while the link was down.
   this->discard_serial_();
@@ -118,16 +127,17 @@ bool Rfc2217Server::tx_idle_() {
 #ifdef USE_ESP32
   if (this->idf_uart_) {
     auto *serial = static_cast<uart::IDFUARTComponent *>(this->parent_);
-    return uart_wait_tx_done(static_cast<uart_port_t>(serial->get_hw_serial_number()), 0) == ESP_OK;
+    // Only a timeout means bytes are still in flight; after any other error nothing drains.
+    return uart_wait_tx_done(static_cast<uart_port_t>(serial->get_hw_serial_number()), 0) != ESP_ERR_TIMEOUT;
   }
 #endif
   return true;
 }
 
-void Rfc2217Server::set_line_(const Line &line) {
+bool Rfc2217Server::set_line_(const Line &line) {
   const Line old = this->line_();
   if (line == old) {
-    return;
+    return true;
   }
   uart::UARTComponent *serial = this->parent_;
   serial->set_baud_rate(line.baud_rate);
@@ -137,13 +147,20 @@ void Rfc2217Server::set_line_(const Line &line) {
   if (this->reload_serial()) {
     ESP_LOGD(TAG, "Line set to %" PRIu32 " baud, %u data bits, parity %s, %u stop bits", serial->get_baud_rate(),
              serial->get_data_bits(), LOG_STR_ARG(uart::parity_to_str(serial->get_parity())), serial->get_stop_bits());
-    return;
+    return true;
   }
   // The answers then report the line that stays in use.
   serial->set_baud_rate(old.baud_rate);
   serial->set_data_bits(old.data_bits);
   serial->set_parity(old.parity);
   serial->set_stop_bits(old.stop_bits);
+  return false;
+}
+
+void Rfc2217Server::restore_line_() {
+  if (!this->set_line_(this->configured_)) {
+    ESP_LOGW(TAG, "Could not restore the configured line");
+  }
 }
 
 Rfc2217Server::Line &Rfc2217Server::pending_() {
@@ -159,7 +176,10 @@ void Rfc2217Server::apply_line_() {
   if (this->fence_ != 0 || !this->tx_idle_()) {
     return;
   }
-  this->set_line_(this->pending_line_);
+  if (!this->set_line_(this->pending_line_) && !this->refusal_logged_) {
+    this->refusal_logged_ = true;
+    ESP_LOGW(TAG, "The UART cannot take the line the client asked for, it keeps the line in use");
+  }
   this->pending_line_ = this->line_();
   if (!this->link_was_up_) {
     std::memset(this->answers_due_, 0, sizeof(this->answers_due_));
