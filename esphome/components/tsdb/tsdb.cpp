@@ -23,11 +23,17 @@ ESPHOME_LOG_TAG(TAG, "tsdb");
 
 // ESP_PARTITION_SUBTYPE_DATA_LITTLEFS (0x83), missing from some IDF 5.x headers.
 static constexpr uint8_t LITTLEFS_SUBTYPE = 0x83;
+// Diagnostics refresh period.
+static constexpr uint32_t STATS_INTERVAL_MS = 60000;
 // Every Nth dropped record logs at WARN, the rest at DEBUG.
 static constexpr uint32_t DROP_LOG_EVERY = 10;
 // Rate limit for the free-space and out-of-range warnings.
 static constexpr uint32_t PROBE_LOG_EVERY = 100;
 static constexpr uint32_t SATURATION_LOG_EVERY = 100;
+// One CSV dump line.
+static constexpr size_t CSV_LINE_SIZE = 256;
+// Dump window margin for jitter and single gaps.
+static constexpr uint32_t DUMP_WINDOW_MARGIN = 2;
 
 // esp_tsdb free-space callback takes no context; the mounted label lives here.
 static const char *g_free_space_label = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -41,6 +47,18 @@ static_assert(tsdbmath::records_per_block(4) == (TSDB_BLOCK_SIZE - TSDB_BLOCK_HE
 static_assert(tsdbmath::max_records_for_bytes(3072, 4) == TSDB_CALC_MAX_RECORDS(3072, 4),
               "esp_tsdb changed TSDB_CALC_MAX_RECORDS()");
 static_assert(sizeof(tsdb_header_t) == tsdbmath::HEADER_BYTES, "esp_tsdb changed sizeof(tsdb_header_t)");
+static_assert(tsdbmath::FILE_MAGIC == static_cast<uint32_t>(TSDB_MAGIC), "esp_tsdb changed TSDB_MAGIC");
+static_assert(tsdbmath::MAX_COLUMNS == static_cast<uint32_t>(TSDB_MAX_PARAMS), "esp_tsdb changed TSDB_MAX_PARAMS");
+static_assert(offsetof(tsdb_header_t, magic) == tsdbmath::HEADER_MAGIC_OFFSET, "esp_tsdb moved magic");
+static_assert(offsetof(tsdb_header_t, num_params) == tsdbmath::HEADER_COLUMNS_OFFSET, "esp_tsdb moved num_params");
+static_assert(tsdbmath::capacity_for_bytes(384 * 1024, 4) <= TSDB_CALC_MAX_RECORDS(384 * 1024, 4),
+              "capacity solver may never exceed the engine formula");
+static_assert(static_cast<int>(tsdbmath::MEMORY_INTERNAL) == static_cast<int>(TSDB_ALLOC_INTERNAL_RAM),
+              "esp_tsdb changed tsdb_alloc_strategy_t");
+static_assert(static_cast<int>(tsdbmath::MEMORY_PSRAM) == static_cast<int>(TSDB_ALLOC_PSRAM),
+              "esp_tsdb changed tsdb_alloc_strategy_t");
+static_assert(static_cast<int>(tsdbmath::MEMORY_AUTO) == static_cast<int>(TSDB_ALLOC_AUTO),
+              "esp_tsdb changed tsdb_alloc_strategy_t");
 
 // True when every byte of the partition is 0xFF (scanned in 256-byte chunks).
 static bool partition_is_blank(const esp_partition_t *partition) {
@@ -69,6 +87,18 @@ void TsdbComponent::add_column(const char *name, double scale, double offset) {
 
 void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { this->columns_[index].source = source; }
 
+void TsdbComponent::set_column_average_sensor(size_t index, sensor::Sensor *sensor) {
+  this->columns_[index].average_sensor = sensor;
+}
+
+void TsdbComponent::set_column_min_sensor(size_t index, sensor::Sensor *sensor) {
+  this->columns_[index].min_sensor = sensor;
+}
+
+void TsdbComponent::set_column_max_sensor(size_t index, sensor::Sensor *sensor) {
+  this->columns_[index].max_sensor = sensor;
+}
+
 void TsdbComponent::setup() {
   if (this->columns_.empty()) {
     ESP_LOGE(TAG, "tsdb: no columns configured");
@@ -89,7 +119,7 @@ void TsdbComponent::setup() {
     this->fail_setup_(LOG_STR("opening the database"));
     return;
   }
-  ESP_LOGI(TAG, "%s: history opened", this->file_.c_str());
+  this->publish_log_("history opened");
   this->publish_errors_();  // report 0 back to the diagnostics sensor
 }
 
@@ -171,6 +201,36 @@ bool TsdbComponent::mount_filesystem_() {
   return true;
 }
 
+static bool database_file_exists(const std::string &path) {
+  FILE *file = fopen(path.c_str(), "rb");
+  if (file == nullptr)
+    return false;
+  fclose(file);
+  return true;
+}
+
+// Deletes the database and its .h0/.h1 header sidecars.
+static void remove_database_files(const std::string &path) {
+  static const char *const SUFFIXES[] = {"", ".h0", ".h1"};
+  for (const char *suffix : SUFFIXES) {
+    const std::string file = path + suffix;
+    if (remove(file.c_str()) != 0) {
+      ESP_LOGW(TAG, "%s: could not be deleted", file.c_str());
+    }
+  }
+}
+
+// Stored column count, or 0 when absent/unreadable (never a delete reason).
+static uint32_t read_stored_columns(const std::string &path) {
+  FILE *file = fopen(path.c_str(), "rb");
+  if (file == nullptr)
+    return 0;
+  uint8_t header[tsdbmath::HEADER_BYTES] = {};
+  const size_t read = fread(header, 1, sizeof(header), file);
+  fclose(file);
+  return tsdbmath::stored_columns(header, read);
+}
+
 // One stat() covers both the presence and the size of the database file.
 void TsdbComponent::log_init_failure_() {
   const std::string path = this->mount_point_ + "/" + this->file_;
@@ -229,21 +289,39 @@ bool TsdbComponent::open_database_() {
   config.max_records = max_records;
   config.index_stride = this->index_stride_;
   config.buffer_pool_size = this->buffer_pool_size_;
-  config.alloc_strategy = TSDB_ALLOC_AUTO;
-  config.use_paged_allocation = false;
-  config.page_size = 2048;
+  config.alloc_strategy = static_cast<tsdb_alloc_strategy_t>(this->memory_mode_);
+  config.use_paged_allocation = this->paged_allocation_;
+  config.page_size = this->page_size_;
   config.min_free_bytes = this->min_free_bytes_;
   config.free_space_cb = this->min_free_bytes_ > 0 ? free_space_probe : nullptr;
 
   this->db_ = tsdb_open(&config);
+  if (this->db_ == nullptr && this->recreate_on_schema_change_) {
+    // A column-count change makes the engine refuse the file; only the file's
+    // own header may authorize deleting it (other failures keep the file).
+    const uint32_t stored = read_stored_columns(path);
+    const uint32_t configured = static_cast<uint32_t>(names.size());
+    if (stored != 0 && stored != configured) {
+      ESP_LOGW(TAG, "%s: schema changed (stored %" PRIu32 ", configured %" PRIu32 ") - recreating", this->file_.c_str(),
+               stored, configured);
+      remove_database_files(path);
+      this->db_ = tsdb_open(&config);
+      if (this->db_ != nullptr)
+        this->publish_log_("history recreated (the column set changed)");
+    } else if (database_file_exists(path)) {
+      ESP_LOGW(TAG, "%s: opening failed but the stored schema is not a mismatch - keeping the file",
+               this->file_.c_str());
+    }
+  }
   if (this->db_ == nullptr) {
     ESP_LOGE(TAG, "%s: esp_tsdb refused to open %s (%" PRIu32 " columns, up to %" PRIu32 " records)",
              this->file_.c_str(), path.c_str(), static_cast<uint32_t>(names.size()), max_records);
     return false;
   }
 
-  ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records at %s", this->file_.c_str(),
-           static_cast<uint32_t>(names.size()), max_records, path.c_str());
+  const uint64_t bytes = tsdbmath::file_bytes_for(max_records, names.size(), this->index_stride_);
+  ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records (up to %" PRIu32 " KB) at %s", this->file_.c_str(),
+           static_cast<uint32_t>(names.size()), max_records, static_cast<uint32_t>(bytes / 1024), path.c_str());
   return true;
 }
 
@@ -275,8 +353,52 @@ uint64_t TsdbComponent::free_space_probe() {
 void TsdbComponent::update() {
   if (this->db_ == nullptr)
     return;
+  this->handle_requests_();
   this->write_record_();
   this->flush_(false);
+
+  const uint32_t now = millis();
+  if (this->aggregate_interval_ > 0 &&
+      (this->last_aggregate_ == 0 || now - this->last_aggregate_ >= this->aggregate_interval_)) {
+    this->last_aggregate_ = now;
+    this->publish_aggregates_();
+  }
+  if (this->last_stats_ == 0 || now - this->last_stats_ >= STATS_INTERVAL_MS) {
+    this->last_stats_ = now;
+    this->publish_stats_();
+  }
+}
+
+void TsdbComponent::handle_requests_() {
+  auto *db = static_cast<tsdb_t *>(this->db_);
+
+  if (this->clear_requested_) {
+    this->clear_requested_ = false;
+    const esp_err_t err = tsdb_clear_h(db);
+    if (err != ESP_OK) {
+      this->write_errors_++;
+      ESP_LOGE(TAG, "%s: clearing the history failed: %s", this->file_.c_str(), esp_err_to_name(err));
+    } else {
+      this->records_ = 0;
+      this->writes_ = 0;
+      this->dirty_ = false;
+      ESP_LOGW(TAG, "%s: history cleared on request", this->file_.c_str());
+      this->publish_log_("history cleared");
+    }
+  }
+
+  if (this->flush_requested_) {
+    this->flush_requested_ = false;
+    this->flush_(true);
+    ESP_LOGI(TAG, "%s: flushed on request", this->file_.c_str());
+    this->publish_log_("history flushed");
+  }
+
+  if (this->dump_requested_ > 0) {
+    const uint32_t rows = this->dump_requested_;
+    this->dump_requested_ = 0;
+    this->dump_csv_(rows);
+  }
 }
 
 bool TsdbComponent::write_record_() {
@@ -393,8 +515,148 @@ void TsdbComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  write interval: %" PRIu32 " ms, sync interval: %" PRIu32 " ms", this->get_update_interval(),
                 this->sync_interval_);
+  ESP_LOGCONFIG(TAG, "  buffer pool: %" PRIu32 " bytes (paged: %u), memory mode: %u", this->buffer_pool_size_,
+                static_cast<unsigned>(this->paged_allocation_), static_cast<unsigned>(this->memory_mode_));
   ESP_LOGCONFIG(TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32,
                 this->writes_, this->write_errors_, this->dropped_, this->saturated_);
+}
+
+void TsdbComponent::publish_aggregates_() {
+  if (this->time_ == nullptr || this->aggregate_window_ == 0)
+    return;
+  const ESPTime now = this->time_->now();
+  if (!now.is_valid())
+    return;
+  const uint32_t end = static_cast<uint32_t>(now.timestamp);
+  const uint32_t start = end > this->aggregate_window_ ? end - this->aggregate_window_ : 1;
+
+  auto *db = static_cast<tsdb_t *>(this->db_);
+  uint32_t count = 0;
+  const bool has_records = tsdb_query_count_h(db, start, end, &count) == ESP_OK && count > 0;
+
+  auto publish = [&](sensor::Sensor *target, uint8_t param, tsdb_agg_type_t aggregation, const TsdbColumn &column) {
+    if (!has_records) {
+      target->publish_state(NAN);
+      return;
+    }
+    int32_t result = 0;
+    if (tsdb_aggregate_h(db, start, end, param, aggregation, &result) != ESP_OK) {
+      target->publish_state(NAN);
+      return;
+    }
+    target->publish_state(static_cast<float>(tsdbmath::decode_aggregate(result, column.scale, column.offset)));
+  };
+
+  for (size_t index = 0; index < this->columns_.size(); index++) {
+    const TsdbColumn &column = this->columns_[index];
+    const auto param = static_cast<uint8_t>(index);
+    if (column.average_sensor != nullptr)
+      publish(column.average_sensor, param, TSDB_AGG_AVG, column);
+    if (column.min_sensor != nullptr)
+      publish(column.min_sensor, param, TSDB_AGG_MIN, column);
+    if (column.max_sensor != nullptr)
+      publish(column.max_sensor, param, TSDB_AGG_MAX, column);
+  }
+}
+
+void TsdbComponent::publish_stats_() {
+  auto *db = static_cast<tsdb_t *>(this->db_);
+  tsdb_stats_t stats = {};
+  if (tsdb_get_stats_h(db, &stats) != ESP_OK) {
+    ESP_LOGW(TAG, "%s: reading the database statistics failed", this->file_.c_str());
+    return;
+  }
+  this->records_ = stats.total_records;
+  if (this->records_sensor_ != nullptr)
+    this->records_sensor_->publish_state(stats.total_records);
+  if (this->oldest_sensor_ != nullptr)
+    this->oldest_sensor_->publish_state(stats.total_records > 0 ? static_cast<float>(stats.oldest_timestamp) : NAN);
+  if (this->newest_sensor_ != nullptr)
+    this->newest_sensor_->publish_state(stats.total_records > 0 ? static_cast<float>(stats.newest_timestamp) : NAN);
+  this->publish_errors_();
+
+  size_t total = 0;
+  size_t used = 0;
+  if (esp_littlefs_info(this->partition_label_.c_str(), &total, &used) == ESP_OK) {
+    if (this->used_sensor_ != nullptr)
+      this->used_sensor_->publish_state(static_cast<float>(used));
+    if (this->free_sensor_ != nullptr)
+      this->free_sensor_->publish_state(static_cast<float>(total - used));
+  }
+  ESP_LOGD(TAG, "%s: %" PRIu32 " records, %" PRIu32 " writes, %" PRIu32 " dropped, %" PRIu32 " errors",
+           this->file_.c_str(), this->records_, this->writes_, this->dropped_, this->write_errors_);
+}
+
+void TsdbComponent::dump_csv_(uint32_t rows) {
+  auto *db = static_cast<tsdb_t *>(this->db_);
+  tsdb_stats_t stats = {};
+  if (tsdb_get_stats_h(db, &stats) != ESP_OK || stats.total_records == 0) {
+    ESP_LOGW(TAG, "%s: nothing to dump - the database is empty", this->file_.c_str());
+    return;
+  }
+
+  const uint32_t end = stats.newest_timestamp;
+  const uint32_t oldest = stats.oldest_timestamp != 0 ? stats.oldest_timestamp : 1;
+  const uint32_t interval_ms = this->get_update_interval();
+  const uint32_t interval_s = interval_ms >= 1000 ? interval_ms / 1000 : 1;
+  const uint32_t start = tsdbmath::dump_window_start(end, oldest, rows, interval_s, DUMP_WINDOW_MARGIN);
+
+  uint32_t window_records = 0;
+  if (tsdb_query_count_h(db, start, end, &window_records) != ESP_OK) {
+    ESP_LOGE(TAG, "%s: csv-dump count failed - not dumping", this->file_.c_str());
+    return;
+  }
+  uint32_t window_start = start;
+  uint32_t skip = tsdbmath::dump_skip(window_records, rows);
+  if (tsdbmath::dump_needs_widening(window_records, rows, window_start, oldest)) {
+    ESP_LOGW(TAG, "%s: csv-dump window holds %" PRIu32 " of %" PRIu32 " rows - widening to the whole history",
+             this->file_.c_str(), window_records, rows);
+    window_start = oldest;
+    skip = tsdbmath::dump_skip(stats.total_records, rows);
+  }
+
+  std::string header = "timestamp";
+  for (const TsdbColumn &column : this->columns_) {
+    header += ',';
+    header += column.name;
+  }
+  ESP_LOGI(TAG, "%s: csv-dump begin (newest %" PRIu32 " records)", this->file_.c_str(), rows);
+
+  static tsdb_query_t query = {};
+  if (tsdb_query_init_h(db, &query, window_start, end, nullptr, 0) != ESP_OK) {
+    ESP_LOGE(TAG, "%s: csv-dump query failed", this->file_.c_str());
+    return;
+  }
+
+  uint32_t timestamp = 0;
+  // Reuse the write buffer so a dump does not allocate.
+  this->values_.assign(this->columns_.size(), 0);
+  uint32_t seen = 0;
+  uint32_t count = 0;
+  while (count < rows && tsdb_query_next(&query, &timestamp, this->values_.data()) == ESP_OK) {
+    if (seen++ < skip)
+      continue;
+    char line[CSV_LINE_SIZE];
+    int length = snprintf(line, sizeof(line), "%" PRIu32, timestamp);
+    for (size_t index = 0; index < this->values_.size() && length > 0 && length < static_cast<int>(sizeof(line));
+         index++) {
+      const double value =
+          tsdbmath::decode(this->values_[index], this->columns_[index].scale, this->columns_[index].offset);
+      length += snprintf(line + length, sizeof(line) - static_cast<size_t>(length), ",%.4f", value);
+    }
+    if (length > 0) {
+      ESP_LOGI(TAG, "%s: %s", this->file_.c_str(), line);
+    }
+    count++;
+  }
+  tsdb_query_close(&query);
+  ESP_LOGI(TAG, "%s: csv-dump end (%" PRIu32 " rows)", this->file_.c_str(), count);
+}
+
+void TsdbComponent::publish_log_(const char *message) {
+  if (this->log_sensor_ == nullptr)
+    return;
+  this->log_sensor_->publish_state(message);
 }
 
 }  // namespace esphome::tsdb

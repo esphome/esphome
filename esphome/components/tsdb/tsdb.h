@@ -10,6 +10,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/time/real_time_clock.h"
 
 #include "esp_err.h"
@@ -23,10 +24,18 @@ struct TsdbColumn {
   sensor::Sensor *source{nullptr};
   double scale{1.0};
   double offset{0.0};
+  sensor::Sensor *average_sensor{nullptr};
+  sensor::Sensor *min_sensor{nullptr};
+  sensor::Sensor *max_sensor{nullptr};
   int16_t held{tsdbmath::RAW_UNKNOWN};
 };
 
 class TsdbComponent : public PollingComponent {
+  SUB_SENSOR(records)
+  SUB_SENSOR(used)
+  SUB_SENSOR(free)
+  SUB_SENSOR(oldest)
+  SUB_SENSOR(newest)
   SUB_SENSOR(errors)
 
  public:
@@ -40,18 +49,34 @@ class TsdbComponent : public PollingComponent {
   void set_partition_label(const char *label) { this->partition_label_ = StringRef(label); }
   void set_partition_size(uint32_t bytes) { this->partition_size_ = bytes; }
   void set_format_on_first_boot(bool format) { this->format_on_first_boot_ = format; }
+  void set_recreate_on_schema_change(bool recreate) { this->recreate_on_schema_change_ = recreate; }
   void set_max_file_size(uint32_t bytes) { this->max_file_size_ = bytes; }
   void set_index_stride(uint32_t stride) { this->index_stride_ = stride; }
   void set_buffer_pool_size(uint32_t bytes) { this->buffer_pool_size_ = bytes; }
+  void set_memory_mode(uint8_t mode) { this->memory_mode_ = mode; }
+  void set_paged_allocation(bool paged) { this->paged_allocation_ = paged; }
+  void set_page_size(uint32_t bytes) { this->page_size_ = bytes; }
   void set_sync_interval(uint32_t ms) { this->sync_interval_ = ms; }
   void set_min_free_bytes(uint32_t bytes) { this->min_free_bytes_ = bytes; }
   void set_require_time(bool require) { this->require_time_ = require; }
   void set_missing_policy(tsdbmath::MissingPolicy policy) { this->missing_policy_ = policy; }
+  void set_aggregate_window(uint32_t seconds) { this->aggregate_window_ = seconds; }
+  void set_aggregate_interval(uint32_t ms) { this->aggregate_interval_ = ms; }
+  void set_dump_rows(uint32_t rows) { this->dump_rows_ = rows; }
   void set_time_source(time::RealTimeClock *clock) { this->time_ = clock; }
 
   void add_column(const char *name, double scale, double offset);
   void set_column_source(size_t index, sensor::Sensor *source);
+  void set_column_average_sensor(size_t index, sensor::Sensor *sensor);
+  void set_column_min_sensor(size_t index, sensor::Sensor *sensor);
+  void set_column_max_sensor(size_t index, sensor::Sensor *sensor);
 
+  void set_log_sensor(text_sensor::TextSensor *sensor) { this->log_sensor_ = sensor; }
+
+  void request_flush() { this->flush_requested_ = true; }
+  void request_dump(uint32_t rows = 0) { this->dump_requested_ = rows == 0 ? this->dump_rows_ : rows; }
+  void request_clear() { this->clear_requested_ = true; }
+  uint32_t get_records() const { return this->records_; }
   bool is_ready() const { return this->db_ != nullptr; }
 
  protected:
@@ -61,9 +86,14 @@ class TsdbComponent : public PollingComponent {
   void log_init_failure_();
   void fail_setup_(const LogString *reason);
   void close_database_();
+  void handle_requests_();
   bool write_record_();
   void publish_errors_();
   void flush_(bool force);
+  void publish_aggregates_();
+  void publish_stats_();
+  void dump_csv_(uint32_t rows);
+  void publish_log_(const char *message);
   static uint64_t free_space_probe();
 
   StringRef file_{"history.tsdb"};
@@ -71,16 +101,25 @@ class TsdbComponent : public PollingComponent {
   StringRef partition_label_{"littlefs"};
   uint32_t partition_size_{512 * 1024};
   bool format_on_first_boot_{true};
+  bool recreate_on_schema_change_{false};
   uint32_t max_file_size_{384 * 1024};
   uint32_t index_stride_{tsdbmath::INDEX_DEFAULT_STRIDE};
   uint32_t buffer_pool_size_{4096};
+  uint8_t memory_mode_{tsdbmath::MEMORY_AUTO};
+  bool paged_allocation_{false};
+  uint32_t page_size_{2048};
   uint32_t sync_interval_{60000};
   uint32_t min_free_bytes_{32768};
   bool require_time_{true};
   tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
+  uint32_t aggregate_window_{3600};
+  uint32_t aggregate_interval_{300000};
+  uint32_t dump_rows_{60};
   std::vector<TsdbColumn> columns_{};
   std::vector<int16_t> values_{};
   time::RealTimeClock *time_{nullptr};
+
+  text_sensor::TextSensor *log_sensor_{nullptr};
 
   void *db_{nullptr};
   bool mounted_{false};
@@ -90,6 +129,12 @@ class TsdbComponent : public PollingComponent {
   uint32_t saturated_{0};
   uint32_t last_sync_{0};
   bool dirty_{false};
+  uint32_t last_aggregate_{0};
+  uint32_t last_stats_{0};
+  uint32_t records_{0};
+  bool flush_requested_{false};
+  uint32_t dump_requested_{0};
+  bool clear_requested_{false};
   bool warned_time_{false};
   esp_err_t mount_error_{ESP_OK};
   bool format_attempted_{false};

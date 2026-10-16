@@ -3,7 +3,7 @@
 import re
 
 import esphome.codegen as cg
-from esphome.components import sensor
+from esphome.components import sensor, text_sensor
 from esphome.components.const import CONF_COLUMNS
 from esphome.components.esp32 import (
     add_idf_component,
@@ -23,7 +23,10 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_UPDATE_INTERVAL,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
+    UNIT_BYTES,
+    UNIT_SECOND,
     Framework,
     PlatformFramework,
 )
@@ -32,7 +35,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "tsdb"
-AUTO_LOAD = ["sensor"]
+AUTO_LOAD = ["sensor", "text_sensor"]
 
 tsdb_ns = cg.esphome_ns.namespace("tsdb")
 TsdbComponent = tsdb_ns.class_("TsdbComponent", cg.PollingComponent)
@@ -53,15 +56,37 @@ CONF_MOUNT_POINT = "mount_point"
 CONF_PARTITION = "partition"
 CONF_PARTITION_SIZE = "partition_size"
 CONF_FORMAT_ON_FIRST_BOOT = "format_on_first_boot"
+CONF_RECREATE_ON_SCHEMA_CHANGE = "recreate_on_schema_change"
 CONF_MAX_FILE_SIZE = "max_file_size"
 CONF_INDEX_STRIDE = "index_stride"
 CONF_BUFFER_POOL_SIZE = "buffer_pool_size"
+CONF_MEMORY = "memory"
+CONF_PAGED_ALLOCATION = "paged_allocation"
+CONF_PAGE_SIZE = "page_size"
 CONF_SYNC_INTERVAL = "sync_interval"
 CONF_MIN_FREE_BYTES = "min_free_bytes"
 CONF_REQUIRE_TIME = "require_time"
 CONF_ON_MISSING = "on_missing"
 CONF_SCALE_FACTOR = "scale_factor"
+CONF_AVERAGE_SENSOR = "average_sensor"
+CONF_MIN_SENSOR = "min_sensor"
+CONF_MAX_SENSOR = "max_sensor"
+CONF_AGGREGATE_WINDOW = "aggregate_window"
+CONF_AGGREGATE_INTERVAL = "aggregate_interval"
+CONF_DUMP_ROWS = "dump_rows"
+CONF_RECORDS_SENSOR = "records_sensor"
+CONF_USED_SENSOR = "used_sensor"
+CONF_FREE_SENSOR = "free_sensor"
+CONF_OLDEST_SENSOR = "oldest_sensor"
+CONF_NEWEST_SENSOR = "newest_sensor"
 CONF_ERRORS_SENSOR = "errors_sensor"
+CONF_LOG_SENSOR = "log_sensor"
+
+MEMORY_MODES = {
+    "internal": 0,
+    "psram": 1,
+    "auto": 2,
+}
 
 MISSING_POLICIES = {
     "skip": MissingPolicy.MISSING_SKIP,
@@ -144,6 +169,13 @@ def _validate_min_free_bytes(value: object) -> int:
     return _validate_size(value, allow_zero=True)
 
 
+def _validate_memory(value: str) -> str:
+    mode = cv.one_of(*MEMORY_MODES, lower=True)(value)
+    if mode == "psram":
+        return cv.requires_component("psram")(mode)
+    return mode
+
+
 def _validate_config(config: ConfigType) -> ConfigType:
     columns = config[CONF_COLUMNS]
     names = [column[CONF_NAME] for column in columns]
@@ -174,6 +206,9 @@ COLUMN_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_,
         cv.Optional(CONF_OFFSET, default=0.0): cv.float_,
+        cv.Optional(CONF_AVERAGE_SENSOR): sensor.sensor_schema(),
+        cv.Optional(CONF_MIN_SENSOR): sensor.sensor_schema(),
+        cv.Optional(CONF_MAX_SENSOR): sensor.sensor_schema(),
     }
 )
 
@@ -194,12 +229,18 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PARTITION_SIZE, default="512KB"): _validate_partition_size,
             cv.Optional(CONF_FORMAT_ON_FIRST_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_RECREATE_ON_SCHEMA_CHANGE, default=False): cv.boolean,
             cv.Optional(CONF_MAX_FILE_SIZE, default="384KB"): _validate_size,
             cv.Optional(CONF_INDEX_STRIDE, default=380): cv.int_range(
                 min=1, max=100000
             ),
             cv.Optional(CONF_BUFFER_POOL_SIZE, default="4KB"): cv.All(
                 _validate_size, cv.Range(min=1024, max=256 * 1024)
+            ),
+            cv.Optional(CONF_MEMORY, default="auto"): _validate_memory,
+            cv.Optional(CONF_PAGED_ALLOCATION, default=False): cv.boolean,
+            cv.Optional(CONF_PAGE_SIZE, default="2KB"): cv.All(
+                _validate_size, cv.Range(min=1024, max=64 * 1024)
             ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.update_interval,
             cv.Optional(
@@ -211,14 +252,49 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_MISSING, default="skip"): cv.one_of(
                 *MISSING_POLICIES, lower=True
             ),
+            cv.Optional(
+                CONF_AGGREGATE_WINDOW, default="1h"
+            ): cv.positive_time_period_seconds,
+            cv.Optional(
+                CONF_AGGREGATE_INTERVAL, default="5min"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_DUMP_ROWS, default=60): cv.int_range(min=1, max=1000),
             cv.Required(CONF_COLUMNS): cv.All(
                 cv.ensure_list(COLUMN_SCHEMA),
                 cv.Length(min=1, max=TSDB_MAX_BASE_PARAMS),
+            ),
+            cv.Optional(CONF_RECORDS_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_USED_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=0,
+                unit_of_measurement=UNIT_BYTES,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_FREE_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=0,
+                unit_of_measurement=UNIT_BYTES,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_OLDEST_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=0,
+                unit_of_measurement=UNIT_SECOND,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_NEWEST_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=0,
+                unit_of_measurement=UNIT_SECOND,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_ERRORS_SENSOR): sensor.sensor_schema(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_LOG_SENSOR): text_sensor.text_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     ),
@@ -243,13 +319,20 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_partition_label(config[CONF_PARTITION]))
     cg.add(var.set_partition_size(config[CONF_PARTITION_SIZE]))
     cg.add(var.set_format_on_first_boot(config[CONF_FORMAT_ON_FIRST_BOOT]))
+    cg.add(var.set_recreate_on_schema_change(config[CONF_RECREATE_ON_SCHEMA_CHANGE]))
     cg.add(var.set_max_file_size(config[CONF_MAX_FILE_SIZE]))
     cg.add(var.set_index_stride(config[CONF_INDEX_STRIDE]))
     cg.add(var.set_buffer_pool_size(config[CONF_BUFFER_POOL_SIZE]))
+    cg.add(var.set_memory_mode(MEMORY_MODES[config[CONF_MEMORY]]))
+    cg.add(var.set_paged_allocation(config[CONF_PAGED_ALLOCATION]))
+    cg.add(var.set_page_size(config[CONF_PAGE_SIZE]))
     cg.add(var.set_sync_interval(config[CONF_SYNC_INTERVAL]))
     cg.add(var.set_min_free_bytes(config[CONF_MIN_FREE_BYTES]))
     cg.add(var.set_require_time(config[CONF_REQUIRE_TIME]))
     cg.add(var.set_missing_policy(MISSING_POLICIES[config[CONF_ON_MISSING]]))
+    cg.add(var.set_aggregate_window(config[CONF_AGGREGATE_WINDOW]))
+    cg.add(var.set_aggregate_interval(config[CONF_AGGREGATE_INTERVAL]))
+    cg.add(var.set_dump_rows(config[CONF_DUMP_ROWS]))
     if CONF_TIME_ID in config:
         cg.add(var.set_time_source(await cg.get_variable(config[CONF_TIME_ID])))
 
@@ -260,9 +343,24 @@ async def to_code(config: ConfigType) -> None:
             )
         )
         cg.add(var.set_column_source(index, await cg.get_variable(column[CONF_SENSOR])))
+        if (average := column.get(CONF_AVERAGE_SENSOR)) is not None:
+            cg.add(
+                var.set_column_average_sensor(index, await sensor.new_sensor(average))
+            )
+        if (low := column.get(CONF_MIN_SENSOR)) is not None:
+            cg.add(var.set_column_min_sensor(index, await sensor.new_sensor(low)))
+        if (high := column.get(CONF_MAX_SENSOR)) is not None:
+            cg.add(var.set_column_max_sensor(index, await sensor.new_sensor(high)))
 
     sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RECORDS_SENSOR, var.set_records_sensor)
+    await sensors(CONF_USED_SENSOR, var.set_used_sensor)
+    await sensors(CONF_FREE_SENSOR, var.set_free_sensor)
+    await sensors(CONF_OLDEST_SENSOR, var.set_oldest_sensor)
+    await sensors(CONF_NEWEST_SENSOR, var.set_newest_sensor)
     await sensors(CONF_ERRORS_SENSOR, var.set_errors_sensor)
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_LOG_SENSOR, var.set_log_sensor)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

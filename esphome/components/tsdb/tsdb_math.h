@@ -18,6 +18,13 @@ enum MissingPolicy : uint8_t {
   MISSING_SENTINEL = 2,
 };
 
+// Buffer pool location (mirrors tsdb_alloc_strategy_t).
+enum MemoryMode : uint8_t {
+  MEMORY_INTERNAL = 0,
+  MEMORY_PSRAM = 1,
+  MEMORY_AUTO = 2,
+};
+
 static constexpr uint32_t BLOCK_SIZE = 1024;
 static constexpr uint32_t BLOCK_HEADER_SIZE = 8;
 static constexpr uint32_t HEADER_BYTES = 584;
@@ -26,6 +33,24 @@ static constexpr uint32_t COLUMN_BYTES = 2;
 static constexpr uint32_t INDEX_ENTRY_BYTES = 8;
 static constexpr uint32_t INDEX_DEFAULT_STRIDE = 380;
 static constexpr uint32_t MAX_RECORDS_RESERVE = 2048;
+
+// Header probe for schema changes (offsets mirror tsdb_header_t).
+static constexpr uint32_t FILE_MAGIC = 0x45545344u;
+static constexpr uint32_t HEADER_MAGIC_OFFSET = 0;
+static constexpr uint32_t HEADER_COLUMNS_OFFSET = 8;
+static constexpr uint32_t MAX_COLUMNS = 64;
+
+// Stored column count, or 0 when not a readable header (never a reason to delete).
+constexpr uint32_t stored_columns(const uint8_t *buffer, size_t length) {
+  if (buffer == nullptr || length < HEADER_COLUMNS_OFFSET + 1)
+    return 0;
+  const uint32_t magic = static_cast<uint32_t>(buffer[0]) | (static_cast<uint32_t>(buffer[1]) << 8) |
+                         (static_cast<uint32_t>(buffer[2]) << 16) | (static_cast<uint32_t>(buffer[3]) << 24);
+  if (magic != FILE_MAGIC)
+    return 0;
+  const uint32_t columns = buffer[HEADER_COLUMNS_OFFSET];
+  return columns >= 1 && columns <= MAX_COLUMNS ? columns : 0;
+}
 
 // Timestamps below this are a boot counter, not a clock.
 static constexpr uint32_t MIN_VALID_TIMESTAMP = 1000000000;
@@ -98,6 +123,32 @@ inline double decode(int16_t raw, double scale, double offset = 0.0) {
   if (raw == RAW_UNKNOWN || scale == 0.0)
     return std::numeric_limits<double>::quiet_NaN();
   return (static_cast<double>(raw) - offset) / scale;
+}
+
+// Aggregation decode (AVG/MIN/MAX stay in int16 domain).
+inline double decode_aggregate(int32_t raw, double scale, double offset = 0.0) {
+  if (raw == RAW_UNKNOWN || scale == 0.0)
+    return std::numeric_limits<double>::quiet_NaN();
+  return (static_cast<double>(raw) - offset) / scale;
+}
+
+// Start of a "newest rows" CSV window: rows intervals back from newest with margin.
+constexpr uint32_t dump_window_start(uint32_t newest, uint32_t oldest, uint32_t rows, uint32_t interval_seconds,
+                                     uint32_t margin = 2) {
+  const uint64_t span = static_cast<uint64_t>(rows) * interval_seconds * margin;
+  const uint64_t start = span < newest ? static_cast<uint64_t>(newest) - span : 1;
+  const uint32_t floor = oldest != 0 ? oldest : 1;
+  return start > floor ? static_cast<uint32_t>(start) : floor;
+}
+
+// Rows to skip in an over-provisioned window to keep the newest rows.
+constexpr uint32_t dump_skip(uint32_t window_records, uint32_t rows) {
+  return window_records > rows ? window_records - rows : 0;
+}
+
+// True when a short window must widen to the whole history (gap case).
+constexpr bool dump_needs_widening(uint32_t window_records, uint32_t rows, uint32_t start, uint32_t oldest) {
+  return window_records < rows && start > (oldest != 0 ? oldest : 1);
 }
 
 }  // namespace esphome::tsdb::tsdbmath

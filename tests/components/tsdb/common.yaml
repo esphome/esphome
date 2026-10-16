@@ -19,6 +19,8 @@ tsdb:
       offset: 0.0
   errors_sensor:
     name: TSDB errors
+  log_sensor:
+    name: TSDB log
 
 sensor:
   - platform: template
