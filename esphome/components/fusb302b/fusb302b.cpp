@@ -265,12 +265,8 @@ bool FUSB302B::init_chip_() {
     return false;
 
   // Let the chip retransmit unacknowledged messages up to 3 times
-  uint8_t control3 = 0;
-  if (!this->read_byte(FUSB_CONTROL3, &control3))
-    return false;
-  control3 =
-      (control3 & ~FUSB_CONTROL3_N_RETRIES_MASK) | (3 << FUSB_CONTROL3_N_RETRIES_SHIFT) | FUSB_CONTROL3_AUTO_RETRY;
-  if (!this->write_byte(FUSB_CONTROL3, control3))
+  if (!this->update_register(FUSB_CONTROL3, FUSB_CONTROL3_N_RETRIES_MASK | FUSB_CONTROL3_AUTO_RETRY,
+                             (3 << FUSB_CONTROL3_N_RETRIES_SHIFT) | FUSB_CONTROL3_AUTO_RETRY))
     return false;
 
   if (!this->write_byte(FUSB_POWER, FUSB_POWER_ALL))

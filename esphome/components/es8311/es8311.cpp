@@ -138,12 +138,9 @@ bool ES8311::configure_clock_() {
   }
 
   // Register 0x02
-  uint8_t reg02;
-  ES8311_ERROR_CHECK(this->read_byte(ES8311_REG02_CLK_MANAGER, &reg02));
-  reg02 &= 0x07;
-  reg02 |= (coefficient->pre_div - 1) << 5;
-  reg02 |= encode_pre_mult(coefficient->pre_mult) << 3;
-  ES8311_ERROR_CHECK(this->write_byte(ES8311_REG02_CLK_MANAGER, reg02));
+  ES8311_ERROR_CHECK(
+      this->update_register(ES8311_REG02_CLK_MANAGER, 0xF8,
+                            ((coefficient->pre_div - 1) << 5) | (encode_pre_mult(coefficient->pre_mult) << 3)));
 
   // Register 0x03
   const uint8_t reg03 = (coefficient->fs_mode << 6) | coefficient->adc_osr;
@@ -157,27 +154,13 @@ bool ES8311::configure_clock_() {
   ES8311_ERROR_CHECK(this->write_byte(ES8311_REG05_CLK_MANAGER, reg05));
 
   // Register 0x06
-  uint8_t reg06;
-  ES8311_ERROR_CHECK(this->read_byte(ES8311_REG06_CLK_MANAGER, &reg06));
-  if (this->sclk_inverted_) {
+  uint8_t reg06 = coefficient->bclk_div < 19 ? coefficient->bclk_div - 1 : coefficient->bclk_div;
+  if (this->sclk_inverted_)
     reg06 |= BIT(5);
-  } else {
-    reg06 &= ~BIT(5);
-  }
-  reg06 &= 0xE0;
-  if (coefficient->bclk_div < 19) {
-    reg06 |= (coefficient->bclk_div - 1) << 0;
-  } else {
-    reg06 |= (coefficient->bclk_div) << 0;
-  }
-  ES8311_ERROR_CHECK(this->write_byte(ES8311_REG06_CLK_MANAGER, reg06));
+  ES8311_ERROR_CHECK(this->update_register(ES8311_REG06_CLK_MANAGER, BIT(5) | 0x1F, reg06));
 
   // Register 0x07
-  uint8_t reg07;
-  ES8311_ERROR_CHECK(this->read_byte(ES8311_REG07_CLK_MANAGER, &reg07));
-  reg07 &= 0xC0;
-  reg07 |= coefficient->lrck_h << 0;
-  ES8311_ERROR_CHECK(this->write_byte(ES8311_REG07_CLK_MANAGER, reg07));
+  ES8311_ERROR_CHECK(this->update_register(ES8311_REG07_CLK_MANAGER, 0x3F, coefficient->lrck_h));
 
   // Register 0x08
   ES8311_ERROR_CHECK(this->write_byte(ES8311_REG08_CLK_MANAGER, coefficient->lrck_l));
@@ -188,10 +171,7 @@ bool ES8311::configure_clock_() {
 
 bool ES8311::configure_format_() {
   // Configure I2S mode and format
-  uint8_t reg00;
-  ES8311_ERROR_CHECK(this->read_byte(ES8311_REG00_RESET, &reg00));
-  reg00 &= 0xBF;
-  ES8311_ERROR_CHECK(this->write_byte(ES8311_REG00_RESET, reg00));
+  ES8311_ERROR_CHECK(this->update_register(ES8311_REG00_RESET, BIT(6), 0));
 
   // Configure SDP in resolution
   uint8_t reg09 = calculate_resolution_value(this->resolution_in_);
@@ -220,21 +200,9 @@ bool ES8311::configure_mic_() {
 }
 
 bool ES8311::set_mute_state_(bool mute_state) {
-  uint8_t reg31;
-
   this->is_muted_ = mute_state;
-
-  if (!this->read_byte(ES8311_REG31_DAC, &reg31)) {
-    return false;
-  }
-
-  if (mute_state) {
-    reg31 |= BIT(6) | BIT(5);
-  } else {
-    reg31 &= ~(BIT(6) | BIT(5));
-  }
-
-  return this->write_byte(ES8311_REG31_DAC, reg31);
+  const uint8_t mask = BIT(6) | BIT(5);
+  return this->update_register(ES8311_REG31_DAC, mask, mute_state ? mask : 0);
 }
 
 }  // namespace esphome::es8311
