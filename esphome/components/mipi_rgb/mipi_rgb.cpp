@@ -353,7 +353,7 @@ void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const ui
 bool MipiRgb::check_buffer_() {
   if (this->is_failed())
     return false;
-  if (this->fb_ != nullptr || this->buffer_ != nullptr)
+  if (this->buffer_ != nullptr)
     return true;
   // this is dependent on the enum values.
   RAMAllocator<uint16_t> allocator;
@@ -399,10 +399,6 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
-  if (this->fb_ != nullptr) {
-    this->fb_[y * this->width_ + x] = this->to_panel_565_(color);
-    return;
-  }
   if (!this->check_buffer_())
     return;
   size_t pos = (y * this->width_) + x;
@@ -421,20 +417,14 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
     this->y_high_ = y;
 }
 void MipiRgb::fill(Color color) {
+  if (!this->check_buffer_())
+    return;
+
   // If clipping is active, fall back to base implementation
   if (this->get_clipping().is_set()) {
     Display::fill(color);
     return;
   }
-
-  if (this->fb_ != nullptr) {
-    uint16_t new_color = this->to_panel_565_(color);
-    std::fill_n(this->fb_, this->width_ * this->height_, new_color);
-    return;
-  }
-
-  if (!this->check_buffer_())
-    return;
 
   auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
   uint16_t new_color = this->to_panel_565_(color);
