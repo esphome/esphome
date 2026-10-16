@@ -64,10 +64,16 @@ bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t
 
   buffer[0] = a_register;
   for (size_t i = 0; i < len; i++) {
-    buffer[1 + i * 2] = data[i] >> 8;
-    buffer[2 + i * 2] = data[i];
+    const uint16_t word = data[i];
+    buffer[1 + i * 2] = word >> 8;
+    buffer[2 + i * 2] = word;
   }
   return this->bus_->write_readv(this->address_, buffer, size, nullptr, 0) == ERROR_OK;
+}
+
+bool I2CDevice::write_byte_16(uint8_t a_register, uint16_t data) const {
+  const uint8_t buffer[3] = {a_register, static_cast<uint8_t>(data >> 8), static_cast<uint8_t>(data)};
+  return this->bus_->write_readv(this->address_, buffer, sizeof(buffer), nullptr, 0) == ERROR_OK;
 }
 
 I2CRegister &I2CRegister::operator=(uint8_t value) {

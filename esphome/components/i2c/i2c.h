@@ -264,7 +264,7 @@ class I2CDevice {
 
   bool write_byte(uint8_t a_register, uint8_t data) const { return write_bytes(a_register, &data, 1); }
 
-  bool write_byte_16(uint8_t a_register, uint16_t data) const { return write_bytes_16(a_register, &data, 1); }
+  bool write_byte_16(uint8_t a_register, uint16_t data) const;
 
  protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus
