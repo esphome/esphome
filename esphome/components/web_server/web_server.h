@@ -66,7 +66,8 @@ struct UrlMatch {
 #ifdef USE_DEVICES
   StringRef device_name;  ///< Device name within URL, empty for main device
 #endif
-  bool valid{false};  ///< Whether this match is valid
+  bool valid{false};             ///< Whether this match is valid
+  bool include_internal{false};  ///< Whether internal entities may match, the web server's include_internal
 
   // Helper methods for string comparisons
   bool domain_equals(const char *str) const { return this->domain == str; }
@@ -80,7 +81,7 @@ struct UrlMatch {
 
   /// Match entity by name; internal entities match only if include_internal is set
   /// Returns EntityMatchResult with match status and whether action segment is empty
-  EntityMatchResult match_entity(EntityBase *entity, bool include_internal) const;
+  EntityMatchResult match_entity(EntityBase *entity) const;
 };
 
 #ifdef USE_WEBSERVER_SORTING
