@@ -20,6 +20,8 @@ static constexpr float LATENCY_STEP_S = 0.025f;
 PROGMEM_STRING_TABLE(BusyActions, "", "configure range config", "configure output latency",
                      "configure sensor startup behavior", "factory reset", "", "", "set led mode",
                      "set uart output mode", "set sensitivity");
+static_assert(BusyActions::COUNT == static_cast<size_t>(CommandType::COMMAND_TYPE_SENSITIVITY) + 1,
+              "BusyActions needs one entry per CommandType");
 
 void DfrobotSen0395Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Dfrobot Mmwave Radar:");
@@ -64,9 +66,12 @@ void DfrobotSen0395Component::enqueue_det_range_cfg(float min1, float max1, floa
   for (size_t i = 0; i < 8; i += 2) {
     in_use = in_use && values[i] >= 0 && values[i + 1] >= 0;
     for (size_t j = i; j < i + 2; j++) {
-      // rintf rounds halves to even, like the "%.0f" the sensor command was formatted with before
-      steps[j] = in_use ? static_cast<int16_t>(clamp(rintf(values[j] / DET_RANGE_STEP_M), 0.0f, 32767.0f)) : -1;
+      steps[j] = in_use ? static_cast<int16_t>(clamp(roundf(values[j] / DET_RANGE_STEP_M), 0.0f, 32767.0f)) : -1;
     }
+  }
+  if (steps[0] < 0) {
+    ESP_LOGW(TAG, "Invalid detection range, using 0 0");
+    steps[0] = steps[1] = 0;
   }
   if (this->enqueue(CommandType::COMMAND_TYPE_DET_RANGE_CFG))
     memcpy(this->det_range_steps_, steps, sizeof(steps));
@@ -98,7 +103,7 @@ bool DfrobotSen0395Component::run_command_(const Command &cmd, uint32_t now) {
   if (!this->cmd_sent_) {
     if (now - this->ts_last_cmd_sent_ > duration) {
       char buf[64];  // "detRangeCfg -1" + 8 * " 32767" + null
-      this->format_command_(cmd, buf, sizeof(buf));
+      this->format_command(cmd, buf, sizeof(buf));
       ESP_LOGD(TAG, "Sending command: %s", buf);
       this->write_str(buf);
       this->ts_last_cmd_sent_ = now;
@@ -147,7 +152,7 @@ static size_t append_cfg_key(char *buf, size_t size, size_t pos) {
   return buf_append_str(buf, size, pos, " 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89");
 }
 
-void DfrobotSen0395Component::format_command_(const Command &cmd, char *buf, size_t size) {
+void DfrobotSen0395Component::format_command(const Command &cmd, char *buf, size_t size) const {
   buf[0] = '\0';
   switch (cmd.type) {
     case CommandType::COMMAND_TYPE_POWER:

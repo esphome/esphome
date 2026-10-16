@@ -17,7 +17,7 @@ namespace esphome::dfrobot_sen0395 {
 static constexpr uint8_t MMWAVE_READ_BUFFER_LENGTH = 255;
 static constexpr uint8_t COMMAND_QUEUE_SIZE = 20;
 
-// Keep in sync with the BUSY_ACTIONS table in dfrobot_sen0395.cpp
+// Keep in sync with the BusyActions table in dfrobot_sen0395.cpp
 enum class CommandType : uint8_t {
   COMMAND_TYPE_POWER,
   COMMAND_TYPE_DET_RANGE_CFG,
@@ -106,6 +106,8 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   void enqueue_saved_setting(CommandType type, bool value);
   /// Queue a sensor reset
   void reset_system() { this->enqueue(CommandType::COMMAND_TYPE_RESET_SYSTEM); }
+  /// Write the text sent to the sensor for cmd into buf
+  void format_command(const Command &cmd, char *buf, size_t size) const;
 
  protected:
 #ifdef USE_BINARY_SENSOR
@@ -124,7 +126,8 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   StaticRingBuffer<Command, COMMAND_QUEUE_SIZE> cmd_queue_;
   uint32_t ts_last_cmd_sent_{0};
   // Values of the queued range and latency commands, in the sensor's steps of 0.15 m and 0.025 s.
-  // A later command replaces them, which leaves the sensor in the same final state.
+  // A later command replaces them, which leaves the sensor in the same final state. One replaced while its
+  // command waits for a reply makes that command's log and any retry use the newer values.
   int16_t det_range_steps_[8]{};
   uint16_t latency_steps_[2]{};
 
@@ -134,7 +137,6 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   bool run_command_(const Command &cmd, uint32_t now);
   /// Handle a reply to a sent command; true when the command is done
   bool handle_reply_(const Command &cmd);
-  void format_command_(const Command &cmd, char *buf, size_t size);
 
   void set_detected_(bool detected);
 };
