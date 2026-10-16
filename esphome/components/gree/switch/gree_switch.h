@@ -15,6 +15,8 @@ class GreeModeBitSwitch final : public switch_::Switch, public Component, public
   void write_state(bool state) override;
 
  protected:
+  static void publish_mode_bit_state(void *arg, bool state);
+
   const char *name_;
   uint8_t bit_mask_;
 };
