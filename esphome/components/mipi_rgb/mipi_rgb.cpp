@@ -239,37 +239,25 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
     return;
   }
 
+  const int log_w = this->get_width();
+  const int log_h = this->get_height();
+
+  if (x_start < 0 || y_start < 0 || x_start + w > log_w || y_start + h > log_h) {
+    return;
+  }
+
   uint16_t *dst = this->buffer_ != nullptr ? this->buffer_ : this->fb_;
-  if (dst != nullptr) {
-    const int log_w = this->get_width();
-    const int log_h = this->get_height();
+  const size_t stride = static_cast<size_t>(x_offset) + w + x_pad;
+  const auto *src_origin =
+      reinterpret_cast<const uint16_t *>(ptr) + (static_cast<size_t>(y_offset) * stride + x_offset);
 
-    if (x_start < 0 || y_start < 0 || x_start + w > log_w || y_start + h > log_h) {
-      return;
-    }
-
-    const size_t stride = static_cast<size_t>(x_offset) + w + x_pad;
-    const auto *src_origin =
-        reinterpret_cast<const uint16_t *>(ptr) + (static_cast<size_t>(y_offset) * stride + x_offset);
-
-    blit_rotated_565(dst, this->width_, this->height_, this->rotation_, src_origin, x_start, y_start, w, h, stride);
-    if (dst == this->buffer_) {
-      this->mark_dirty_(x_start, y_start, w, h);
-      if (!this->updating_) {
-        this->flush_dirty_();
-      }
-    }
-    return;
-  }
-
-  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
-    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+  blit_rotated_565(dst, this->width_, this->height_, this->rotation_, src_origin, x_start, y_start, w, h, stride);
+  if (dst == this->buffer_) {
     this->mark_dirty_(x_start, y_start, w, h);
-    this->flush_dirty_();
-    return;
+    if (!this->updating_) {
+      this->flush_dirty_();
+    }
   }
-
-  this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
 }
 
 void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
