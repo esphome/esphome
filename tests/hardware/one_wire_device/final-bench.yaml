@@ -16,4 +16,4 @@ one_wire_device:
   type: DS18B20
   # Preserve the address expected by the installed bridge-backed controller.
   address: 0x6EB807A434E3EC28
-  temperature: 23.5
+  value: 23.5

@@ -2,41 +2,33 @@
 #include "esphome/core/defines.h"
 #ifdef USE_ESP32
 #include <atomic>
+#include <cmath>
+#include <functional>
+#include <utility>
 #include <esp_intr_alloc.h>
 #include "device_model.h"
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/gpio.h"
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
 
 namespace esphome::one_wire_device {
-class OneWireDeviceComponent final : public Component {
+class OneWireDeviceComponent final : public PollingComponent {
  public:
   void setup() override;
+  void update() override;
   void dump_config() override;
   void on_shutdown() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   void set_address(uint64_t address) { this->address_ = address; }
   void set_family(uint8_t family) { this->family_ = family; }
-  bool set_temperature(float value);
-#ifdef USE_SENSOR
-  void set_source_sensor(sensor::Sensor *source) {
-    this->source_ = source;
-    this->temperature_.store(INT32_MIN);
+  bool set_value(uint8_t channel, float value);
+  void set_value_function(uint8_t channel, std::function<float()> function) {
+    if (channel >= 3)
+      return;
+    this->value_functions_[channel] = std::move(function);
+    this->set_value(channel, NAN);
   }
-#endif
-#ifdef USE_BINARY_SENSOR
-  void set_pio_source(uint8_t channel, binary_sensor::BinarySensor *source) {
-    this->pio_sources_[channel] = source;
-    this->pio_.store(this->pio_.load() & ~(1U << (channel + 8)));
-  }
-#endif
 
  protected:
   static void IRAM_ATTR gpio_isr(void *arg);
@@ -63,21 +55,18 @@ class OneWireDeviceComponent final : public Component {
   DeviceModel model_;
   bool awaiting_release_{false}, active_session_{false};
   uint32_t falling_us_{0};
-#ifdef USE_SENSOR
-  sensor::Sensor *source_{nullptr};
-#endif
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *pio_sources_[2]{};
-#endif
+  std::function<float()> value_functions_[3];
 };
-template<typename... Ts> class SetTemperatureAction final : public Action<Ts...> {
+template<typename... Ts> class SetValueAction final : public Action<Ts...> {
  public:
-  explicit SetTemperatureAction(OneWireDeviceComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, temperature)
-  void play(Ts... x) override { this->parent_->set_temperature(this->temperature_.value(x...)); }
+  explicit SetValueAction(OneWireDeviceComponent *parent) : parent_(parent) {}
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
+  TEMPLATABLE_VALUE(float, value)
+  void play(Ts... x) override { this->parent_->set_value(this->channel_, this->value_.value(x...)); }
 
  protected:
   OneWireDeviceComponent *parent_;
+  uint8_t channel_{0};
 };
 }  // namespace esphome::one_wire_device
 #endif

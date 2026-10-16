@@ -17,19 +17,34 @@ ESPHOME_LOG_TAG(TAG, "one_wire_device");
 static_assert(std::atomic<int32_t>::is_always_lock_free);
 static_assert(std::atomic<uint32_t>::is_always_lock_free);
 
-bool OneWireDeviceComponent::set_temperature(float value) {
-  if (this->family_ == 0x01 || this->family_ == 0x3a) {
-    ESP_LOGW(TAG, "Temperature control requires a thermometer model");
+bool OneWireDeviceComponent::set_value(uint8_t channel, float value) {
+  if (this->family_ == 0x3a && (channel == 1 || channel == 2)) {
+    if (!std::isfinite(value) || (value != 0 && value != 1)) {
+      this->pio_.store(this->pio_.load() & ~(1U << (channel + 7)), std::memory_order_relaxed);
+      this->status_set_warning("Digital value must be 0 or 1");
+      return false;
+    }
+    this->set_pio_(channel - 1, value == 1);
+  } else if (this->family_ != 0x01 && this->family_ != 0x3a && channel == 0) {
+    if (!std::isfinite(value) || value < -55 || value > 125) {
+      this->temperature_.store(INT32_MIN, std::memory_order_relaxed);
+      this->status_set_warning("Value unavailable or outside -55..125 C");
+      return false;
+    }
+    this->temperature_.store(static_cast<int32_t>(std::lroundf(value * 16)), std::memory_order_relaxed);
+  } else {
+    ESP_LOGW(TAG, "Value channel is not supported by this model");
     return false;
   }
-  if (!std::isfinite(value) || value < -55 || value > 125) {
-    this->temperature_.store(INT32_MIN, std::memory_order_relaxed);
-    this->status_set_warning("Temperature source unavailable or outside -55..125 C");
-    return false;
-  }
-  this->temperature_.store(static_cast<int32_t>(std::lroundf(value * 16)), std::memory_order_relaxed);
-  this->status_clear_warning();
+  if (this->available_())
+    this->status_clear_warning();
   return true;
+}
+void OneWireDeviceComponent::update() {
+  for (uint8_t channel = 0; channel < 3; channel++) {
+    if (this->value_functions_[channel])
+      this->set_value(channel, this->value_functions_[channel]());
+  }
 }
 void OneWireDeviceComponent::set_pio_(uint8_t channel, bool value) {
   uint32_t state = this->pio_.load(std::memory_order_relaxed);
@@ -68,22 +83,7 @@ void OneWireDeviceComponent::setup() {
   this->model_.set_rom(this->address_);
   gpio_set_level(static_cast<gpio_num_t>(this->pin_number_), 1);
   this->pin_->setup();
-#ifdef USE_SENSOR
-  if (this->source_ != nullptr) {
-    this->source_->add_on_state_callback([this](float value) { this->set_temperature(value); });
-    if (this->source_->has_state())
-      this->set_temperature(this->source_->state);
-  }
-#endif
-#ifdef USE_BINARY_SENSOR
-  for (uint8_t i = 0; i < 2; i++) {
-    if (this->pio_sources_[i] == nullptr)
-      continue;
-    this->pio_sources_[i]->add_on_state_callback([this, i](bool state) { this->set_pio_(i, state); });
-    if (this->pio_sources_[i]->has_state())
-      this->set_pio_(i, this->pio_sources_[i]->state);
-  }
-#endif
+  this->update();  // Evaluate bindings in foreground, never from the wire interrupt.
   // Keep ESPHome's shared GPIO service untouched. The opposite core owns this interrupt.
   this->interrupt_core_ = 1 - xPortGetCoreID();
   esp_err_t error = esp_ipc_call_blocking(this->interrupt_core_, &OneWireDeviceComponent::install_interrupt, this);
