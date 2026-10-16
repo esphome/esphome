@@ -114,6 +114,8 @@ void ENS210Component::setup() {
   part_id = data[1] * 256U + data[0] * 1U;
   // Check expected part id of the ENS210
   if (part_id != ENS210_PART_ID) {
+    // Try to go back to default mode (low power enabled)
+    set_low_power_(true);
     this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
