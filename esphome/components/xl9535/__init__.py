@@ -2,14 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_INPUT,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
-    CONF_OUTPUT,
-)
+from esphome.const import CONF_ID, CONF_INPUT, CONF_OUTPUT
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -43,19 +36,14 @@ def validate_pin(pin: int) -> int:
     return pin
 
 
-XL9535_PIN_SCHEMA = cv.All(
+XL9535_PIN_SCHEMA = pins.gpio_base_schema(
+    XL9535GPIOPin,
+    cv.All(cv.int_range(min=0, max=17), validate_pin),
+    modes=[CONF_INPUT, CONF_OUTPUT],
+    mode_validator=pins.gpio_validate_input_xor_output,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(XL9535GPIOPin),
         cv.Required(CONF_XL9535): pins.use_id_or_address(XL9535Component),
-        cv.Required(CONF_NUMBER): cv.All(cv.int_range(min=0, max=17), validate_pin),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            pins.gpio_validate_input_xor_output,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
 
