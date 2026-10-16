@@ -24,7 +24,10 @@ bool OneWireDeviceComponent::set_value(uint8_t channel, float value) {
       this->status_set_warning("Digital value must be 0 or 1");
       return false;
     }
-    this->set_pio_(channel - 1, value == 1);
+    const uint8_t bit = channel - 1;
+    uint32_t state = this->pio_.load(std::memory_order_relaxed);
+    state = (state & ~(1U << bit)) | (static_cast<uint32_t>(value == 1) << bit) | (1U << (bit + 8));
+    this->pio_.store(state, std::memory_order_relaxed);
   } else if (this->family_ != 0x01 && this->family_ != 0x3a && channel == 0) {
     if (!std::isfinite(value) || value < -55 || value > 125) {
       this->temperature_.store(INT32_MIN, std::memory_order_relaxed);
@@ -45,11 +48,6 @@ void OneWireDeviceComponent::update() {
     if (this->value_functions_[channel])
       this->set_value(channel, this->value_functions_[channel]());
   }
-}
-void OneWireDeviceComponent::set_pio_(uint8_t channel, bool value) {
-  uint32_t state = this->pio_.load(std::memory_order_relaxed);
-  state = (state & ~(1U << channel)) | (static_cast<uint32_t>(value) << channel) | (1U << (channel + 8));
-  this->pio_.store(state, std::memory_order_relaxed);
 }
 bool IRAM_ATTR OneWireDeviceComponent::available_() const {
   return this->family_ == 0x3a
