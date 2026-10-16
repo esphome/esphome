@@ -129,4 +129,15 @@ TEST(LineReaderTest, SizeIsBufferPlusPosition) {
   EXPECT_EQ(sizeof(LineReader<1025>), 1028u);
 }
 
+TEST(LineReaderTest, LogIfOverflowedIsSafeInEveryState) {
+  // Smoke test: the shared warning links and is safe to call in every state
+  LineReader<4> reader;
+  for (char c : std::string("abcdef\n")) {
+    reader.feed(c);
+    reader.log_if_overflowed("line_reader_test");
+  }
+  log_line_dropped("line_reader_test", 3);
+  EXPECT_FALSE(reader.overflowed());
+}
+
 }  // namespace esphome::uart::testing
