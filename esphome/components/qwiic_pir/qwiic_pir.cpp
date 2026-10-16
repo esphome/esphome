@@ -6,7 +6,6 @@ namespace esphome::qwiic_pir {
 ESPHOME_LOG_TAG(TAG, "qwiic_pir");
 
 void QwiicPIRComponent::setup() {
-  // Verify I2C communcation by reading and verifying the chip ID
   if (!this->check_chip_id(this, QWIIC_PIR_CHIP_ID, QWIIC_PIR_DEVICE_ID))
     return;
 

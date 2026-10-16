@@ -14,6 +14,7 @@ constexpr uint8_t IC1_ADDR = 0x0a;
 constexpr uint8_t IC2_ADDR = 0x0b;
 constexpr uint8_t IC3_ADDR = 0x0c;
 constexpr uint8_t PRODUCT_ID_ADDR = 0x2f;
+constexpr uint8_t MMC5983_PRODUCT_ID = 0x30;
 
 float convert_data_to_millitesla(uint8_t data_17_10, uint8_t data_9_2, uint8_t data_1_0) {
   int32_t counts = (data_17_10 << 10) | (data_9_2 << 2) | data_1_0;
@@ -66,7 +67,6 @@ void MMC5983Component::update() {
 }
 
 void MMC5983Component::setup() {
-  static constexpr uint8_t MMC5983_PRODUCT_ID = 0x30;
   if (!this->check_chip_id(this, PRODUCT_ID_ADDR, MMC5983_PRODUCT_ID))
     return;
 

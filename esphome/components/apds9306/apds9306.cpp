@@ -52,8 +52,8 @@ enum {  // APDS9306 registers
   }
 
 void APDS9306::setup() {
-  // 0xB1 for APDS9306 0xB3 for APDS9306-065
-  if (!this->check_chip_id(this, APDS9306_PART_ID, 0xB1, 0xB3))
+  // 0xB1 for APDS9306, 0xB3 for APDS9306-065; they differ only in bit 1
+  if (!this->check_chip_id(this, APDS9306_PART_ID, 0xB1, 0xFD))
     return;
 
   // ALS resolution and measurement, see datasheet or init.py for options

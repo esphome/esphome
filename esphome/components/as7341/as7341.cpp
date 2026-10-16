@@ -9,7 +9,7 @@ ESPHOME_LOG_TAG(TAG, "as7341");
 void AS7341Component::setup() {
   LOG_I2C_DEVICE(this);
 
-  if (!this->check_chip_id(this, AS7341_ID, AS7341_CHIP_ID << 2, AS7341_CHIP_ID << 2, 0xFC))
+  if (!this->check_chip_id(this, AS7341_ID, AS7341_CHIP_ID << 2, 0xFC))
     return;
 
   // Power on (enter IDLE state)

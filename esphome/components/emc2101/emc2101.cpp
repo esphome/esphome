@@ -56,8 +56,13 @@ static const uint8_t EMC2101_POLARITY_BIT = 1 << 4;
 float Emc2101Component::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void Emc2101Component::setup() {
-  if (!this->check_chip_id(this, EMC2101_REGISTER_WHOAMI, EMC2101_CHIP_ID, EMC2101_ALT_CHIP_ID))
+  // make sure we're talking to the right chip
+  uint8_t chip_id = reg(EMC2101_REGISTER_WHOAMI).get();
+  if ((chip_id != EMC2101_CHIP_ID) && (chip_id != EMC2101_ALT_CHIP_ID)) {
+    ESP_LOGE(TAG, "Wrong chip ID %02X", chip_id);
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
+  }
 
   // Configure EMC2101
   i2c::I2CRegister config = reg(EMC2101_REGISTER_CONFIG);

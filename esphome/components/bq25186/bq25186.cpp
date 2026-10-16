@@ -80,7 +80,7 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
 
 void BQ25186Component::setup() {
   // Another charger at this address could lay its registers out differently, so do not write into it
-  if (!this->check_chip_id(this, BQ25186_REG_MASK_ID, 0x01, 0x01, 0x0F))
+  if (!this->check_chip_id(this, BQ25186_REG_MASK_ID, 0x01, 0x0F))
     return;
 
   // A failed write only sets the warning status: the chip has identified itself, so a later

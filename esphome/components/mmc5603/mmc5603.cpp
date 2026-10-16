@@ -32,8 +32,8 @@ static const uint8_t MMC56X3_CTRL2_REG = 0x1D;
 static const uint8_t MMC5603_ODR_REG = 0x1A;
 
 void MMC5603Component::setup() {
-  // ID is not reported correctly by all chips, 0 on some chips
-  if (!this->check_chip_id(this, MMC56X3_PRODUCT_ID, MMC56X3_CHIP_ID, 0))
+  // Some chips report 0 instead of MMC56X3_CHIP_ID (0x10), so bit 4 is ignored
+  if (!this->check_chip_id(this, MMC56X3_PRODUCT_ID, 0x00, static_cast<uint8_t>(~MMC56X3_CHIP_ID)))
     return;
 
   if (!this->write_byte(MMC56X3_CTRL1_REG, 0x80)) {  // turn on set bit
