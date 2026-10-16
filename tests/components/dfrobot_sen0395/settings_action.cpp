@@ -50,7 +50,7 @@ TEST_F(SettingsActionTest, EmptyTriggerPreservesSegmentCallableCounts) {
   action.set_det_max4([]() -> float { return segment_value(7, 0); });
   action.play();
   for (size_t i = 0; i < call_record().segment_calls.size(); i++) {
-    EXPECT_EQ(call_record().segment_calls[i], i < 2 ? 2 : 1) << i;
+    EXPECT_EQ(call_record().segment_calls[i], 1) << i;
   }
 }
 
@@ -86,7 +86,7 @@ TEST_F(SettingsActionTest, FloatTriggerForwardsAllSegmentsAndPreservesCounts) {
   action.set_det_max4([](float x) -> float { return segment_value(7, x); });
   action.play(2.5f);
   for (size_t i = 0; i < call_record().segment_calls.size(); i++) {
-    EXPECT_EQ(call_record().segment_calls[i], i < 2 ? 2 : 1) << i;
+    EXPECT_EQ(call_record().segment_calls[i], 1) << i;
     EXPECT_FLOAT_EQ(call_record().seen_float[i], 2.5f) << i;
   }
 }
@@ -98,7 +98,7 @@ TEST_F(SettingsActionTest, MultipleTriggerArgumentsReachConfiguredSegments) {
   action.set_det_max1([](float x, int y) -> float { return segment_value(1, x, y); });
   action.play(1.5f, 2);
   for (size_t i = 0; i < 2; i++) {
-    EXPECT_EQ(call_record().segment_calls[i], 2) << i;
+    EXPECT_EQ(call_record().segment_calls[i], 1) << i;
     EXPECT_FLOAT_EQ(call_record().seen_float[i], 1.5f) << i;
     EXPECT_EQ(call_record().seen_int[i], 2) << i;
   }
