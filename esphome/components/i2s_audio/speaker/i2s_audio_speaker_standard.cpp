@@ -103,8 +103,6 @@ void I2SAudioSpeaker::run_speaker_task() {
   const bool narrowing = input_bytes_per_sample > output_bytes_per_sample;
 #ifdef USE_ESP32_VARIANT_ESP32
   const bool widening = input_bytes_per_sample < output_bytes_per_sample;
-#else
-  constexpr bool widening = false;
 #endif
 
   // ESP-IDF may allocate smaller (or cache-line-rounded) DMA buffers than dma_buffer_frames() requested: it
@@ -333,11 +331,12 @@ void I2SAudioSpeaker::run_speaker_task() {
 
           uint8_t *chunk = audio_source->mutable_data();
           size_t bw = 0;
-          if (widening) {
 #ifdef USE_ESP32_VARIANT_ESP32
+          if (widening) {
             bw = this->write_widened_(chunk, frames_to_write);
+          } else
 #endif
-          } else {
+          {
             if (narrowing) {
               // Narrow the bit depth in place: output exactly aliases input with the same channel count and a
               // smaller width, which copy_frames handles as a single forward pass. Only the frames about to be
@@ -449,11 +448,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
                                                      audio_stream_info.get_sample_rate());
 
 #ifdef USE_ESP32_VARIANT_ESP32
-  // The original ESP32 I2S peripheral stores each sample in a whole number of 16-bit words (a 24-bit sample
-  // occupies 4 bytes in the DMA buffer, an 8-bit sample 2 bytes), but ESPHome's audio pipeline packs samples
-  // tightly (3 bytes for 24-bit, 1 for 8-bit). The two layouts only line up when the bit depth is a multiple
-  // of 16. The check is on the output width since that is what reaches the peripheral; any input is converted
-  // to 16- or 32-bit samples, and a 24-bit slot takes 32-bit samples.
+  // Only a slot left at AUTO can reach this; every configured slot is converted to 16- or 32-bit samples above
   if (output_bits_per_sample % 16 != 0) {
     ESP_LOGE(TAG, "ESP32 supports only 16- or 32-bit output, got %u-bit", (unsigned) output_bits_per_sample);
     return ESP_ERR_NOT_SUPPORTED;
