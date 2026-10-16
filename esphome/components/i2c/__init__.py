@@ -144,10 +144,15 @@ def validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def _host_is_linux() -> bool:
+    """The host I2C bus needs Linux i2c-dev."""
+    return sys.platform.lower().startswith("linux")
+
+
 def validate_host_config(config: ConfigType) -> ConfigType:
     if CORE.is_host:
         # Host I2C is currently only supported on Linux
-        if not sys.platform.lower().startswith("linux"):
+        if not _host_is_linux():
             raise cv.Invalid(
                 "I2C is only supported on Linux for the host platform. "
                 f"Current platform: {sys.platform}"
@@ -446,7 +451,7 @@ def final_validate_device_schema(
     )
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "i2c_bus_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
@@ -463,3 +468,15 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "i2c_bus_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    excluded = _platform_filter()
+    # An empty list means the target isn't known yet. Otherwise the host bus is
+    # only kept for the host platform, and it needs Linux i2c-dev
+    # (validate_host_config rejects host I2C elsewhere). Leaving it out lets host
+    # builds without a bus, like the C++ unit tests with their fake bus, build on
+    # macOS too.
+    if excluded and "i2c_bus_host.cpp" not in excluded and not _host_is_linux():
+        excluded.append("i2c_bus_host.cpp")
+    return excluded
