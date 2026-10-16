@@ -18,15 +18,23 @@ ESPHOME_LOG_TAG(TAG, "mcp9808");
 
 void MCP9808Sensor::setup() {
   uint16_t manu = 0;
-  if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu) || manu != MCP9808_MANUF_ID) {
+  if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  if (manu != MCP9808_MANUF_ID) {
     ESP_LOGE(TAG, "Incorrect manufacturer ID (%X) for '%s'", manu, this->name_.c_str());
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
   uint16_t dev_id = 0;
-  if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id) || dev_id != MCP9808_DEV_ID) {
+  if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  if (dev_id != MCP9808_DEV_ID) {
     ESP_LOGE(TAG, "Incorrect device ID (%X) for '%s'", dev_id, this->name_.c_str());
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 }

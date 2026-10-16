@@ -118,9 +118,13 @@ const char *orientation_z_to_string(bool orientation) { return orientation ? "Do
 
 void MSA3xxComponent::setup() {
   uint8_t part_id{0xff};
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id) || (part_id != MSA_3XX_PART_ID)) {
-    ESP_LOGE(TAG, "Part ID is wrong or missing. Got 0x%02X", part_id);
+  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  if (part_id != MSA_3XX_PART_ID) {
+    ESP_LOGE(TAG, "Part ID is wrong. Got 0x%02X", part_id);
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 

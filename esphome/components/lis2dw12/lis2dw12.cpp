@@ -83,9 +83,13 @@ static const LogString *filter_bandwidth_to_string(FilterBandwidth bw) {
 
 void LIS2DW12Component::setup() {
   uint8_t who_am_i{0};
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::WHO_AM_I), &who_am_i) || who_am_i != LIS2DW12_WHO_AM_I_VALUE) {
-    ESP_LOGE(TAG, "WHO_AM_I check failed. Got 0x%02X, expected 0x%02X", who_am_i, LIS2DW12_WHO_AM_I_VALUE);
+  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::WHO_AM_I), &who_am_i)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  if (who_am_i != LIS2DW12_WHO_AM_I_VALUE) {
+    ESP_LOGE(TAG, "WHO_AM_I check failed. Got 0x%02X, expected 0x%02X", who_am_i, LIS2DW12_WHO_AM_I_VALUE);
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
