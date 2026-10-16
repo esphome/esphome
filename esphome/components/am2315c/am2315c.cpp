@@ -82,18 +82,9 @@ void AM2315C::setup() {
   // never required during testing
   if ((status & 0x18) != 0x18) {
     ESP_LOGD(TAG, "Resetting AM2315C registers");
-    if (!this->reset_register_(0x1B)) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    // reset_register_() marks the component failed with its own reason
+    if (!this->reset_register_(0x1B) || !this->reset_register_(0x1C) || !this->reset_register_(0x1E))
       return;
-    }
-    if (!this->reset_register_(0x1C)) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      return;
-    }
-    if (!this->reset_register_(0x1E)) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      return;
-    }
   }
 }
 
