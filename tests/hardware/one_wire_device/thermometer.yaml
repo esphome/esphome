@@ -41,4 +41,4 @@ one_wire_device:
   id: emulated
   pin: GPIO4
   type: ${device_type}
-  sensor_id: stimulus
+  value: !lambda return id(stimulus).state;

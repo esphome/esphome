@@ -1,11 +1,12 @@
 import math
 
-from esphome import automation, pins
+from esphome import automation, final_validate as fv, pins
 import esphome.codegen as cg
-from esphome.components import binary_sensor, esp32, sensor
+from esphome.components import esp32
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_CHANNEL,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -14,19 +15,18 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PIN,
     CONF_PULLDOWN,
-    CONF_SENSOR_ID,
-    CONF_TEMPERATURE,
     CONF_TYPE,
+    CONF_VALUE,
 )
+from esphome.core import CORE, Lambda
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@tomtom13"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "one_wire_device"
 CONF_INTERRUPT_MODE = "interrupt_mode"
-CONF_PIO_A = "pio_a"
-CONF_PIO_B = "pio_b"
 CONF_TIMING_SCALE = "timing_scale"
+CONF_VALUES = "values"
 FAMILIES = {
     "DS18B20": 0x28,
     "DS1822": 0x22,
@@ -34,9 +34,12 @@ FAMILIES = {
     "DS2401": 0x01,
     "DS2413": 0x3A,
 }
+# Names are quantities/channels, not virtual endpoints. The model owns their meaning and units.
+CHANNELS = {kind: {"temperature": 0} for kind in ("DS18B20", "DS1822", "DS18S20")}
+CHANNELS.update({"DS2401": {}, "DS2413": {"pio_a": 1, "pio_b": 2}})
 ns = cg.esphome_ns.namespace(DOMAIN)
-OneWireDeviceComponent = ns.class_("OneWireDeviceComponent", cg.Component)
-SetTemperatureAction = ns.class_("SetTemperatureAction", automation.Action)
+OneWireDeviceComponent = ns.class_("OneWireDeviceComponent", cg.PollingComponent)
+SetValueAction = ns.class_("SetValueAction", automation.Action)
 
 
 def _crc8(data: bytes) -> int:
@@ -63,13 +66,6 @@ def validate_rom_address(value: int, family: int = 0x28) -> int:
     return value
 
 
-def validate_temperature(value):
-    value = cv.float_(value)
-    if not math.isfinite(value):
-        raise cv.Invalid("temperature must be finite")
-    return cv.float_range(min=-55.0, max=125.0)(value)
-
-
 def validate_pin(config):
     mode = config[CONF_MODE]
     if config[CONF_INVERTED] or mode[CONF_PULLDOWN]:
@@ -79,20 +75,76 @@ def validate_pin(config):
     return config
 
 
+def channel_name(kind, supplied=None):
+    channels = CHANNELS[kind]
+    if not channels:
+        raise cv.Invalid(f"{kind} has no value channels")
+    if supplied is None:
+        if len(channels) != 1:
+            raise cv.Invalid(
+                f"channel is required for {kind}: choose {', '.join(channels)}"
+            )
+        return next(iter(channels))
+    if supplied not in channels:
+        raise cv.Invalid(
+            f"{kind} does not support value channel '{supplied}'; choose {', '.join(channels)}"
+        )
+    return supplied
+
+
+def validate_value(kind, channel, value):
+    channel_name(kind, channel)
+    if isinstance(value, Lambda):
+        return value
+    if not math.isfinite(value):
+        raise cv.Invalid("value must be finite")
+    if kind == "DS2413":
+        if value not in (0, 1):
+            raise cv.Invalid("digital value must be 0 or 1")
+    elif not -55 <= value <= 125:
+        raise cv.Invalid("temperature value must be between -55 and 125 C")
+    return value
+
+
 def validate_config(config):
+    kind = config[CONF_TYPE]
     try:
-        validate_rom_address(config[CONF_ADDRESS], FAMILIES[config[CONF_TYPE]])
+        validate_rom_address(config[CONF_ADDRESS], FAMILIES[kind])
     except ValueError as error:
         raise cv.Invalid(str(error), [CONF_ADDRESS]) from error
-    thermometer = config[CONF_TYPE] in ("DS18B20", "DS1822", "DS18S20")
-    if not thermometer and any(
-        key in config for key in (CONF_TEMPERATURE, CONF_SENSOR_ID)
-    ):
-        raise cv.Invalid("temperature and sensor_id require a thermometer type")
-    if config[CONF_TYPE] != "DS2413" and any(
-        key in config for key in (CONF_PIO_A, CONF_PIO_B)
-    ):
-        raise cv.Invalid("pio_a and pio_b require type: DS2413")
+    if CONF_VALUE in config:
+        name = channel_name(kind)
+        config[CONF_VALUES] = {name: config.pop(CONF_VALUE)}
+    values = config.get(CONF_VALUES, {})
+    for name, value in values.items():
+        validate_value(kind, name, value)
+    # Explicit model defaults are applied once. A configured lambda instead starts unavailable.
+    defaults = dict.fromkeys(CHANNELS[kind], 1.0 if kind == "DS2413" else 23.5)
+    config[CONF_VALUES] = {**defaults, **values}
+    return config
+
+
+def validate_action(config, kind):
+    name = channel_name(kind, config.get(CONF_CHANNEL))
+    validate_value(kind, name, config[CONF_VALUE])
+    return CHANNELS[kind][name]
+
+
+def validate_all_actions(config):
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "one_wire_device.set_value" and str(value[CONF_ID]) == str(
+                    config[CONF_ID]
+                ):
+                    validate_action(value, config[CONF_TYPE])
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(fv.full_config.get())
     return config
 
 
@@ -109,18 +161,19 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TYPE, default="DS18B20"): cv.one_of(*FAMILIES, upper=True),
             cv.Optional(CONF_ADDRESS, default=0): cv.hex_uint64_t,
-            cv.Optional(CONF_TEMPERATURE): validate_temperature,
-            cv.Optional(CONF_SENSOR_ID): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_PIO_A): cv.use_id(binary_sensor.BinarySensor),
-            cv.Optional(CONF_PIO_B): cv.use_id(binary_sensor.BinarySensor),
+            cv.Optional(CONF_VALUE): cv.templatable(cv.float_),
+            cv.Optional(CONF_VALUES): cv.Schema(
+                {cv.string_strict: cv.templatable(cv.float_)}
+            ),
             cv.Optional(CONF_TIMING_SCALE): cv.All(cv.int_, cv.Range(min=1, max=1)),
             cv.Optional(CONF_INTERRUPT_MODE): cv.All(cv.boolean, cv.one_of(True)),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    ).extend(cv.polling_component_schema("1s")),
     esp32.only_on_variant(supported=[esp32.VARIANT_ESP32]),
-    cv.has_at_most_one_key(CONF_TEMPERATURE, CONF_SENSOR_ID),
+    cv.has_at_most_one_key(CONF_VALUE, CONF_VALUES),
     validate_config,
 )
+FINAL_VALIDATE_SCHEMA = validate_all_actions
 
 
 async def to_code(config: ConfigType) -> None:
@@ -129,32 +182,31 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pin(await cg.gpio_pin_expression(config[CONF_PIN])))
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(var.set_family(FAMILIES[config[CONF_TYPE]]))
-    if CONF_SENSOR_ID in config:
-        cg.add(var.set_source_sensor(await cg.get_variable(config[CONF_SENSOR_ID])))
-    elif config[CONF_TYPE] in ("DS18B20", "DS1822", "DS18S20"):
-        cg.add(var.set_temperature(config.get(CONF_TEMPERATURE, 23.5)))
-    for index, key in enumerate((CONF_PIO_A, CONF_PIO_B)):
-        if key in config:
-            cg.add(var.set_pio_source(index, await cg.get_variable(config[key])))
+    for name, value in config[CONF_VALUES].items():
+        channel = CHANNELS[config[CONF_TYPE]][name]
+        if isinstance(value, Lambda):
+            function = await cg.process_lambda(value, [], return_type=cg.float_)
+            cg.add(var.set_value_function(channel, function))
+        else:
+            cg.add(var.set_value(channel, value))
 
 
 @automation.register_action(
-    "one_wire_device.set_temperature",
-    SetTemperatureAction,
+    "one_wire_device.set_value",
+    SetValueAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(OneWireDeviceComponent),
-            cv.Required(CONF_TEMPERATURE): cv.templatable(validate_temperature),
+            cv.Optional(CONF_CHANNEL): cv.string_strict,
+            cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
     synchronous=True,
 )
-async def set_temperature_to_code(config, action_id, template_arg, args):
+async def set_value_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
+    channel = validate_action(config, CORE.config[DOMAIN][CONF_TYPE])
     var = cg.new_Pvariable(action_id, template_arg, parent)
-    cg.add(
-        var.set_temperature(
-            await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
-        )
-    )
+    cg.add(var.set_channel(channel))
+    cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, cg.float_)))
     return var

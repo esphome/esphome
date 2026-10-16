@@ -31,7 +31,7 @@ serial ordinals are not identity. Back up the installed images first.
 - `thermometer.yaml`: use `device_type` substitutions DS18B20, DS1822 or DS18S20.
   Give each compiled variant a distinct `node_name`. The ordinary template
   sensor is an explicitly synthetic input: 23.5, -10.125, 85, NaN, and 9.5 C,
-  each lasting 15 seconds. It follows the real sensor callback/quantization path.
+  each lasting 15 seconds. It follows the foreground value-evaluation and quantization path.
 - `controller-temperature.yaml`: unchanged stock Dallas reader behind the bridge.
   Capture both endpoints for 100 seconds. Require all four valid values, correct
   CRCs, no unexpected resets, no fabricated reads during the NaN interval, and
@@ -47,6 +47,25 @@ serial ordinals are not identity. Back up the installed images first.
   fixture for 40 seconds, including the negative input stage.
 - `final-bench.yaml`: fixed **test** temperature and historical bench ROM for
   restoring ordinary operation with the rig's original controller firmware.
+
+## Generic value interface
+
+`computed-values.yaml` feeds two ordinary template sensors and a mutable global
+into the configured `value` lambda. With the stock Dallas controller, capture
+65 seconds: compare each decoded reading against an independent sum of the
+logged X, Y and offset inputs, require all five valid results, reject unexpected
+CRC/reset errors, and verify the NaN interval suppresses data until recovery.
+
+`named-values.yaml` and `controller-values.yaml` exercise DS2413 channels
+independently. Alternate explicit recomputation of named bindings with generic
+`set_value` actions; require all four A/B combinations and correlate each wire
+status to the separately logged source fields. Merely seeing two changing bits
+is not sufficient: swapping the channel assignments must fail the check.
+
+The configuration CLI tests in `tests/component_tests/one_wire_device/test_values.py`
+reject unsupported channel names, ambiguous multi-value actions, identity-only
+value assignments and invalid digital literals. The protocol model itself is
+unchanged by this interface extension.
 
 Use the ESPHome checkout containing the candidate for compile, upload and logs.
 Require a verified flash hash, the `one-wire-models-v3` startup marker and the

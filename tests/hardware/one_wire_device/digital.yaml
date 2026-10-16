@@ -16,4 +16,5 @@ binary_sensor:
 one_wire_device:
   pin: GPIO4
   type: DS2413
-  pio_a: stimulus_a
+  values:
+    pio_a: !lambda return id(stimulus_a).state;

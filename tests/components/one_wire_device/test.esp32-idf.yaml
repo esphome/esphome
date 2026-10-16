@@ -2,12 +2,12 @@ esphome:
   name: one-wire-device-test
   on_boot:
     then:
-      - one_wire_device.set_temperature:
+      - one_wire_device.set_value:
           id: emulated_temperature
-          temperature: 23.5
-      - one_wire_device.set_temperature:
+          value: 23.5
+      - one_wire_device.set_value:
           id: emulated_temperature
-          temperature: !lambda return -10.125;
+          value: !lambda return -10.125;
 
 esp32:
   board: esp32dev
@@ -24,4 +24,4 @@ sensor:
 one_wire_device:
   id: emulated_temperature
   pin: GPIO4
-  sensor_id: one_wire_device_source
+  value: !lambda return id(one_wire_device_source).state;
