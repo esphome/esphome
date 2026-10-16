@@ -21,8 +21,6 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   void update() override;
   void loop() override;
   void setup() override;
-  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void draw_pixel_at(int x, int y, Color color) override;
   void process_key(uint32_t keycode, bool down);
   void set_dimensions(uint16_t width, uint16_t height) {
@@ -53,6 +51,9 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   bool mouse_down{};
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   void redraw_(SDL_Rect &rect);

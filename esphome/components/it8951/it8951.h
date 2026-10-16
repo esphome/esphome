@@ -197,16 +197,17 @@ class IT8951Display : public Display,
   void fill(Color color) override;
   void clear() override { this->fill(Color::WHITE); }
   void draw_pixel_at(int x, int y, Color color) override;
-  // Bulk pixel blit (used by LVGL and image rendering). Overridden to write
-  // straight into the framebuffer, avoiding the base class's per-pixel
-  // draw_pixel_at overhead (watchdog feed, clipping test, dirty-box clamps).
-  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
-                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
   int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
   int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
   bool pixel_axes_swapped() const override { return this->effective_transform_ & TRANSFORM_SWAP_XY; }
 
  protected:
+  // Bulk pixel blit (used by LVGL and image rendering). Overridden to write
+  // straight into the framebuffer, avoiding the base class's per-pixel
+  // draw_pixel_at overhead (watchdog feed, clipping test, dirty-box clamps).
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   int get_height_internal() override { return this->height_; }
   int get_width_internal() override { return this->width_; }
 

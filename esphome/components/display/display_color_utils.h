@@ -11,7 +11,7 @@ inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 25
 
 /// esp_scale(value, (1 << bits) - 1) for a field of 2, 3, 5, 6 or 8 bits, as a multiply and shift that gives the
 /// same result for every field value. With bits a constant this avoids a division.
-constexpr uint8_t expand_field(uint32_t value, uint8_t bits) {
+constexpr uint8_t expand_field(uint8_t value, uint8_t bits) {
   switch (bits) {
     case 2:
       return (value * 170) >> 1;

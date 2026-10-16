@@ -30,8 +30,6 @@ class HUB75Display final : public display::Display {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
-  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
   // Brightness control (runtime mutable)
   void set_brightness(uint8_t brightness);
@@ -40,6 +38,9 @@ class HUB75Display final : public display::Display {
   display::DisplayRotation get_rotation() const override;
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   // Display internal methods
   int get_width_internal() override { return this->driver_ != nullptr ? this->driver_->get_width() : 0; }
   int get_height_internal() override { return this->driver_ != nullptr ? this->driver_->get_height() : 0; }

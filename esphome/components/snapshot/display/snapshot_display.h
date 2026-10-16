@@ -23,10 +23,10 @@ class SnapshotDisplay final : public display::DisplayBuffer, public Snapshot {
     this->height_ = height;
   }
 
+ protected:
   void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                             bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
- protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }

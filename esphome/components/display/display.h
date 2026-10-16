@@ -378,6 +378,9 @@ class Display : public PollingComponent {
   // Remove before 2027.5.0
   /// The block form above with a color order. The base version draws per pixel and honors the order;
   /// a driver that still overrides this one keeps receiving every block, since draw_pixels_internal() calls it.
+  /// Such a driver needs `using display::Display::draw_pixels_at;` so the forms above stay visible through it,
+  /// and its fallback must call Display::draw_pixels_at() with the order: Display::draw_pixels_internal() would
+  /// call the override again.
   ESPDEPRECATED(
       "Pixels are always RGB: call draw_pixels_at() without the ColorOrder, and override draw_pixels_internal() "
       "to copy blocks. Removed in 2027.5.0",
@@ -818,7 +821,8 @@ class Display : public PollingComponent {
    *
    * A driver can override it to copy blocks that are already laid out the way its own draw_pixel_at()
    * writes, and must send any other format, byte order, a software rotation or an active clipping
-   * rectangle through Display::draw_pixels_internal(), which draws per pixel.
+   * rectangle through Display::draw_pixels_internal(), which draws per pixel. Do not also override the
+   * deprecated draw_pixels_at() with a color order: Display::draw_pixels_internal() calls it.
    */
   virtual void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
                                     bool big_endian, int x_offset, int y_offset, int x_pad);
