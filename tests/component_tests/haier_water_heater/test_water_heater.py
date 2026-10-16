@@ -42,27 +42,45 @@ def test_rejects_climate_control_options(
 
 
 @pytest.mark.parametrize("missing", [None, "rx_pin", "tx_pin"])
-def test_both_uart_pins_required(
-    set_core_config: SetCoreConfigCallable, missing: str | None
+@pytest.mark.parametrize(
+    ("setting", "value"),
+    [
+        (None, None),
+        ("baud_rate", 115200),
+        ("data_bits", 7),
+        ("parity", "EVEN"),
+        ("stop_bits", 2),
+    ],
+)
+def test_uart_requirements(
+    set_core_config: SetCoreConfigCallable,
+    missing: str | None,
+    setting: str | None,
+    value: int | str | None,
 ) -> None:
     bus_id = ID("heater_uart", is_declaration=True, type=uart.IDFUARTComponent)
     bus = {
         "id": bus_id,
         "baud_rate": 9600,
+        "data_bits": 8,
+        "parity": "NONE",
+        "stop_bits": 1,
         "rx_pin": {"number": 16},
         "tx_pin": {"number": 17},
     }
     if missing is not None:
         del bus[missing]
+    if setting is not None:
+        bus[setting] = value
     full = Config()
     full["uart"] = [bus]
     full.declare_ids.append((bus_id, ["uart", 0, "id"]))
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
     config = {"uart_id": ID("heater_uart", type=uart.IDFUARTComponent)}
-    if missing is None:
+    if missing is None and setting is None:
         FINAL_VALIDATE_SCHEMA(config)
     else:
-        with pytest.raises(cv.Invalid, match=missing):
+        with pytest.raises(cv.Invalid):
             FINAL_VALIDATE_SCHEMA(config)
 
 

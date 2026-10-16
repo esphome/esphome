@@ -9,22 +9,23 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-// Compatibility with ESPHome revisions predating the flash-resident log-tag macro.
-#ifndef ESPHOME_LOG_TAG
-#ifdef USE_ESP8266
-#define ESPHOME_LOG_TAG(tag, name) static const char tag[] PROGMEM = name
-#else
-#define ESPHOME_LOG_TAG(tag, name) static const char tag[] = name
-#endif
-#endif
-
 namespace esphome::haier_water_heater {
 
 ESPHOME_LOG_TAG(TAG, "haier_water_heater");
-using water_heater_protocol::HonMode;
+using namespace water_heater_protocol;
 
 // Indexed by HonMode, with Unknown as the fallback for out-of-range values.
 PROGMEM_STRING_TABLE(HonModeLabels, "Unknown", "Normal", "ECO", "BPS");
+
+void HonWaterHeater::setup() {
+  this->status_set_warning(LOG_STR("Waiting for a valid appliance status frame"));
+  if (this->communication_sensor_ != nullptr)
+    this->communication_sensor_->publish_state(false);
+  this->update_network_status_();
+  this->set_interval(NETWORK_STATUS_INTERVAL_ID, NETWORK_STATUS_INTERVAL_MS,
+                     [this]() { this->update_network_status_(); });
+  this->set_interval(STATUS_POLL_INTERVAL_ID, POLL_INTERVAL_MS, [this]() { this->poll_status_(); });
+}
 
 void HonWaterHeater::update_network_status_() {
 #ifdef USE_NETWORK
@@ -32,7 +33,7 @@ void HonWaterHeater::update_network_status_() {
 #else
   const bool ready = false;
 #endif
-  const uint8_t status = ready ? 0x07 : 0x05;
+  const uint8_t status = ready ? NETWORK_READY : NETWORK_NOT_READY;
   if (status != this->network_status_) {
     this->network_status_ = status;
     this->network_pending_ = true;
@@ -40,65 +41,50 @@ void HonWaterHeater::update_network_status_() {
   }
 }
 
-void HonWaterHeater::setup() {
-  this->status_set_warning(LOG_STR("Waiting for a valid appliance status frame"));
-  if (this->communication_sensor_ != nullptr)
-    this->communication_sensor_->publish_state(false);
-  this->update_network_status_();
-  this->set_interval(NETWORK_STATUS_INTERVAL_ID, 500, [this]() { this->update_network_status_(); });
-  this->set_interval(STATUS_POLL_INTERVAL_ID, 5000, [this]() { this->poll_status_(); });
-}
-
-void HonWaterHeater::send_frame_(uint8_t type, const uint8_t *payload, size_t size) {
-  uint8_t wire[28];
-  const size_t length = water_heater_protocol::encode_frame(type, payload, size, wire);
+void HonWaterHeater::send_frame_(FrameType type, const uint8_t *payload, size_t size) {
+  uint8_t wire[MAX_WIRE_FRAME];
+  const size_t length = encode_frame(type, payload, size, wire);
   if (length == 0)
     return;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex[format_hex_pretty_size(sizeof(wire))];
-  ESP_LOGV(TAG, "TX type=%02X flags=00: %s", type, format_hex_pretty_to(hex, wire, length));
+  ESP_LOGV(TAG, "TX type=%02X: %s", static_cast<uint8_t>(type), format_hex_pretty_to(hex, wire, length));
 #endif
   this->write_array(wire, length);
 }
 
+void HonWaterHeater::send_request_(uint32_t now, Awaiting kind, FrameType type, const uint8_t *payload, size_t size,
+                                   FrameType expected) {
+  this->send_frame_(type, payload, size);
+  this->awaiting_ = kind;
+  this->expected_type_ = expected;
+  this->request_sent_ = now;
+}
+
 void HonWaterHeater::poll_status_() {
   const uint32_t now = App.get_loop_component_start_time();
-  this->expire_poll_(now);
-  if (this->waiting_network_ || this->waiting_poll_)
+  this->check_timeouts_(now);
+  if (this->awaiting_ != Awaiting::AWAITING_NONE || this->command_count_ != 0 || this->pending_off_)
     return;
-  if (this->command_count_ != 0 || this->pending_off_) {
-    return;
-  }
-  if (this->network_pending_ || now - this->network_sent_ >= 30000)
-    return;
-  // Try each read-only request even if initialization is unanswered. Revisit version/ID every minute.
-  const uint8_t version[] = {0x00, 0x07};
-  const uint8_t status[] = {0x4D, 0x01};
+  if (this->network_pending_ || now - this->network_sent_ >= NETWORK_REFRESH_MS)
+    return;  // the network status goes out first, from loop()
+  // The version and device id are read once per cycle, the status on every other pass.
+  static constexpr uint8_t VERSION_REQUEST[] = {0x00, 0x07};
+  static constexpr uint8_t STATUS_REQUEST[] = {0x4D, 0x01};
   if (this->poll_stage_ == 0) {
-    this->expected_type_ = 0x62;
-    this->send_frame_(0x61, version, sizeof(version));
+    this->send_request_(now, Awaiting::AWAITING_POLL, FrameType::FRAME_TYPE_GET_VERSION, VERSION_REQUEST,
+                        sizeof(VERSION_REQUEST), FrameType::FRAME_TYPE_VERSION);
   } else if (this->poll_stage_ == 1) {
-    this->expected_type_ = 0x71;
-    this->send_frame_(0x70);
+    this->send_request_(now, Awaiting::AWAITING_POLL, FrameType::FRAME_TYPE_GET_DEVICE_ID, nullptr, 0,
+                        FrameType::FRAME_TYPE_DEVICE_ID);
   } else {
-    this->expected_type_ = 0x02;
-    this->send_frame_(0x01, status, sizeof(status));
+    this->send_request_(now, Awaiting::AWAITING_POLL, FrameType::FRAME_TYPE_CONTROL, STATUS_REQUEST,
+                        sizeof(STATUS_REQUEST), FrameType::FRAME_TYPE_STATUS);
   }
-  this->poll_sent_ = now;
-  this->waiting_poll_ = true;
-  this->poll_stage_ = (this->poll_stage_ + 1) % 12;
+  this->poll_stage_ = (this->poll_stage_ + 1) % POLL_CYCLE;
 }
 
-void HonWaterHeater::expire_poll_(uint32_t now) {
-  if (this->waiting_poll_ && now - this->poll_sent_ >= 5000) {
-    ESP_LOGW(TAG, "No matching response type=%02X in 5 seconds", this->expected_type_);
-    this->waiting_poll_ = false;
-  }
-}
-
-void HonWaterHeater::loop() {
-  const uint32_t now = App.get_loop_component_start_time();
-  this->expire_poll_(now);
+void HonWaterHeater::check_timeouts_(uint32_t now) {
   if (this->have_status_ && now - this->last_status_ >= this->communication_timeout_) {
     this->have_status_ = false;
     this->status_set_warning(LOG_STR("Heater communication timed out"));
@@ -107,35 +93,67 @@ void HonWaterHeater::loop() {
     if (this->communication_sensor_ != nullptr)
       this->communication_sensor_->publish_state(false);
   }
-  if (this->waiting_control_ && now - this->control_sent_ > 5000) {
-    ESP_LOGW(TAG, "Control response timed out; discarding remaining commands");
-    this->waiting_control_ = false;
-    this->command_count_ = 0;
+  const uint32_t waited = now - this->request_sent_;
+  switch (this->awaiting_) {
+    case Awaiting::AWAITING_NONE:
+      break;
+    case Awaiting::AWAITING_POLL:
+      if (waited >= RESPONSE_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "No matching response type=%02X in %u ms", static_cast<uint8_t>(this->expected_type_),
+                 static_cast<unsigned>(RESPONSE_TIMEOUT_MS));
+        this->awaiting_ = Awaiting::AWAITING_NONE;
+      }
+      break;
+    case Awaiting::AWAITING_CONTROL:
+      if (waited >= RESPONSE_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "Control response timed out; discarding remaining commands");
+        this->awaiting_ = Awaiting::AWAITING_NONE;
+        this->command_count_ = 0;
+      }
+      break;
+    case Awaiting::AWAITING_NETWORK:
+      if (waited >= NETWORK_ACK_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "Network status: no CONFIRM within %u ms", static_cast<unsigned>(NETWORK_ACK_TIMEOUT_MS));
+        this->awaiting_ = Awaiting::AWAITING_NONE;
+      }
+      break;
   }
-  if (this->waiting_network_ && now - this->network_sent_ > 2000) {
-    ESP_LOGW(TAG, "Network status: no CONFIRM within 2 seconds");
-    this->waiting_network_ = false;
-  }
-  if (this->pending_off_ && !this->waiting_control_ && !this->waiting_poll_ && !this->waiting_network_) {
-    this->commands_[0] = {0x5D, 0x01, 0x00, 0x00};
+}
+
+void HonWaterHeater::send_pending_(uint32_t now) {
+  if (this->awaiting_ != Awaiting::AWAITING_NONE)
+    return;
+  if (this->pending_off_) {
+    this->commands_[0] = {Parameter::PARAMETER_POWER, 0};
     this->command_index_ = 0;
     this->command_count_ = 1;
     this->pending_off_ = false;
   }
-  if (!this->pending_off_ && !this->waiting_network_ && !this->waiting_poll_ && this->command_count_ == 0 &&
-      (this->network_pending_ || now - this->network_sent_ >= 30000)) {
+  if (this->command_count_ == 0 && (this->network_pending_ || now - this->network_sent_ >= NETWORK_REFRESH_MS)) {
     // Signal remains a placeholder; status represents local IP readiness, not cloud access.
     const uint8_t payload[] = {0x00, this->network_status_, 0x00, 100};
-    this->send_frame_(0xF7, payload, sizeof(payload));
+    this->send_request_(now, Awaiting::AWAITING_NETWORK, FrameType::FRAME_TYPE_NETWORK_STATUS, payload, sizeof(payload),
+                        FrameType::FRAME_TYPE_CONFIRM);
     this->network_sent_ = now;
     this->network_pending_ = false;
-    this->waiting_network_ = true;
+    return;
   }
-  if (this->command_count_ != 0 && !this->waiting_control_ && !this->waiting_poll_ && !this->waiting_network_)
-    this->send_next_control_();
-  if (now - this->last_byte_ > 300)
+  if (this->command_count_ != 0)
+    this->send_next_control_(now);
+}
+
+void HonWaterHeater::send_next_control_(uint32_t now) {
+  uint8_t payload[4];
+  encode_control(this->commands_[this->command_index_], payload);
+  this->send_request_(now, Awaiting::AWAITING_CONTROL, FrameType::FRAME_TYPE_CONTROL, payload, sizeof(payload),
+                      FrameType::FRAME_TYPE_STATUS);
+}
+
+void HonWaterHeater::read_frames_(uint32_t now) {
+  if (now - this->last_byte_ > FRAME_GAP_MS)
     this->parser_.reset();
-  for (size_t i = 0; i < 256 && this->available() > 0; i++) {
+  uint8_t budget = MAX_BYTES_PER_LOOP;
+  while (budget-- > 0 && this->available() > 0) {
     uint8_t value;
     if (!this->read_byte(&value))
       break;
@@ -143,8 +161,8 @@ void HonWaterHeater::loop() {
     if (this->parser_.feed(value)) {
       this->process_frame_();
     } else if (this->parser_.complete()) {
-      if ((this->parser_.data()[1] & 0x80) != 0) {
-        ESP_LOGW(TAG, "RX: XOR-encrypted frames (flag 0x80) are not supported and will be dropped");
+      if ((this->parser_.data()[FRAME_FLAGS_OFFSET] & FRAME_FLAG_ENCRYPTED) != 0) {
+        ESP_LOGW(TAG, "RX: XOR-encrypted frames are not supported and will be dropped");
       } else {
         ESP_LOGW(TAG, "RX: unsupported flags or invalid checksum/CRC");
       }
@@ -152,34 +170,64 @@ void HonWaterHeater::loop() {
   }
 }
 
+void HonWaterHeater::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+  this->check_timeouts_(now);
+  this->send_pending_(now);
+  this->read_frames_(now);
+}
+
+void HonWaterHeater::handle_frame_type_(FrameType type) {
+  if (this->awaiting_ == Awaiting::AWAITING_POLL && type == this->expected_type_) {
+    ESP_LOGV(TAG, "Response matched type=%02X", static_cast<uint8_t>(type));
+    this->awaiting_ = Awaiting::AWAITING_NONE;
+  }
+  switch (type) {
+    case FrameType::FRAME_TYPE_GET_NETWORK_STATUS:
+      this->network_pending_ = true;
+      break;
+    case FrameType::FRAME_TYPE_CONFIRM:
+      if (this->awaiting_ == Awaiting::AWAITING_NETWORK) {
+        ESP_LOGD(TAG, "Network status acknowledged");
+        this->awaiting_ = Awaiting::AWAITING_NONE;
+      }
+      break;
+    case FrameType::FRAME_TYPE_INVALID:
+      ESP_LOGW(TAG, "Appliance rejected request; discarding pending controls");
+      if (this->awaiting_ != Awaiting::AWAITING_POLL)
+        this->awaiting_ = Awaiting::AWAITING_NONE;
+      this->command_count_ = 0;
+      break;
+    case FrameType::FRAME_TYPE_REPORT:
+      this->send_frame_(FrameType::FRAME_TYPE_CONFIRM);
+      break;
+    default:
+      break;
+  }
+}
+
+void HonWaterHeater::confirm_control_(const Status &status) {
+  const Command &command = this->commands_[this->command_index_];
+  if (!command_confirmed(command, status))
+    return;
+  ESP_LOGD(TAG, "Control confirmed: parameter=%02X value=%02X", static_cast<uint8_t>(command.parameter), command.value);
+  this->awaiting_ = Awaiting::AWAITING_NONE;
+  if (++this->command_index_ == this->command_count_)
+    this->command_count_ = 0;
+}
+
 void HonWaterHeater::process_frame_() {
   const uint8_t *frame = this->parser_.data();
+  const auto type = static_cast<FrameType>(frame[FRAME_TYPE_OFFSET]);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex[format_hex_pretty_size(244)];
-  ESP_LOGV(TAG, "RX decoded type=%02X flags=%02X: %s", frame[7], frame[1],
-           format_hex_pretty_to(hex, frame, this->parser_.size()));
+  char hex[format_hex_pretty_size(MAX_STORED_FRAME)];
+  ESP_LOGV(TAG, "RX decoded type=%02X flags=%02X: %s", static_cast<uint8_t>(type), frame[FRAME_FLAGS_OFFSET],
+           format_hex_pretty_to(hex, frame, this->parser_.stored_size()));
 #endif
-  if (this->waiting_poll_ && frame[7] == this->expected_type_) {
-    ESP_LOGV(TAG, "Response matched type=%02X", frame[7]);
-    this->waiting_poll_ = false;
-  }
-  if (frame[7] == 0xF0)
-    this->network_pending_ = true;
-  if (frame[7] == 0x05 && this->waiting_network_) {
-    ESP_LOGD(TAG, "Network status acknowledged");
-    this->waiting_network_ = false;
-  }
-  if (frame[7] == 0x03) {
-    this->waiting_network_ = false;
-    ESP_LOGW(TAG, "Appliance rejected request; discarding pending controls");
-    this->waiting_control_ = false;
-    this->command_count_ = 0;
-  }
-  if (frame[7] == 0x06)
-    this->send_frame_(0x05);
+  this->handle_frame_type_(type);
 
-  water_heater_protocol::Status status{};
-  if (!water_heater_protocol::decode_status(this->parser_.data(), this->parser_.size(), status))
+  Status status{};
+  if (!decode_status(frame, this->parser_.size(), status))
     return;
   if (!this->have_status_) {
     ESP_LOGI(TAG, "Heater communication established");
@@ -188,7 +236,7 @@ void HonWaterHeater::process_frame_() {
   }
   if (status.mode == HonMode::HON_MODE_UNKNOWN &&
       (!this->have_status_ || this->reported_mode_ != HonMode::HON_MODE_UNKNOWN)) {
-    const uint8_t *payload = frame + 8;
+    const uint8_t *payload = frame + FRAME_PAYLOAD_OFFSET;
     ESP_LOGW(TAG,
              "Unknown heater mode: payload[38..41]=%02X %02X %02X %02X; using last recognized active mode, or Electric "
              "if none is known",
@@ -197,21 +245,13 @@ void HonWaterHeater::process_frame_() {
   this->have_status_ = true;
   this->last_status_ = App.get_loop_component_start_time();
   this->reported_mode_ = status.mode;
-  if (this->waiting_control_ && frame[7] == 0x02) {
-    const auto &command = this->commands_[this->command_index_];
-    const bool matched =
-        (command[1] == 0x01 && status.powered == (command[3] != 0)) ||
-        (command[1] == 0x02 && status.target_temperature == command[3] + 30) ||
-        (command[1] == 0x05 && status.mode == (command[3] ? HonMode::HON_MODE_ECO : HonMode::HON_MODE_NORMAL)) ||
-        (command[1] == 0x17 && status.mode == HonMode::HON_MODE_BPS);
-    if (matched) {
-      ESP_LOGD(TAG, "Control confirmed: parameter=%02X value=%02X", command[1], command[3]);
-      this->waiting_control_ = false;
-      if (++this->command_index_ == this->command_count_)
-        this->command_count_ = 0;
-    }
-  }
+  if (this->awaiting_ == Awaiting::AWAITING_CONTROL && type == FrameType::FRAME_TYPE_STATUS)
+    this->confirm_control_(status);
   this->status_clear_warning();
+  this->publish_status_(status);
+}
+
+void HonWaterHeater::publish_status_(const Status &status) {
   this->current_temperature_ = status.current_temperature;
   this->target_temperature_ = status.target_temperature;
   this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, status.powered);
@@ -232,15 +272,18 @@ void HonWaterHeater::process_frame_() {
   this->mode_ = status.powered ? this->last_active_mode_ : water_heater::WATER_HEATER_MODE_OFF;
   if (this->primary_sensor_ != nullptr)
     this->primary_sensor_->publish_state(status.current_temperature);
-  if (this->secondary_sensor_ != nullptr)
-    this->secondary_sensor_->publish_state(status.secondary_temperature <= 100 ? status.secondary_temperature : NAN);
+  if (this->secondary_sensor_ != nullptr) {
+    this->secondary_sensor_->publish_state(
+        status.secondary_temperature <= MAX_REPORTED_TEMPERATURE ? status.secondary_temperature : NAN);
+  }
   if (this->target_sensor_ != nullptr)
     this->target_sensor_->publish_state(status.target_temperature);
   if (this->heating_time_sensor_ != nullptr)
     this->heating_time_sensor_->publish_state(status.estimated_heating_time);
   if (this->water_sensor_ != nullptr) {
-    static constexpr uint8_t PERCENTAGES[] = {0, 33, 66, 100};
-    this->water_sensor_->publish_state(status.available_water <= 3 ? PERCENTAGES[status.available_water] : NAN);
+    // Three segments of available hot water, published as 0, 33, 66 or 100 percent.
+    const uint8_t percent = status.available_water * 100 / 3;
+    this->water_sensor_->publish_state(status.available_water <= 3 ? percent : NAN);
   }
   if (this->power_sensor_ != nullptr)
     this->power_sensor_->publish_state(status.powered);
@@ -259,11 +302,37 @@ void HonWaterHeater::process_frame_() {
 
 void HonWaterHeater::dump_config() {
   LOG_WATER_HEATER("", "Haier hOn", this);
-  ESP_LOGCONFIG(TAG, "  Local hOn controller; polling interval: 5s");
+  ESP_LOGCONFIG(TAG,
+                "  Polling interval: %u ms\n"
+                "  Communication timeout: %u ms",
+                static_cast<unsigned>(POLL_INTERVAL_MS), static_cast<unsigned>(this->communication_timeout_));
+  LOG_SENSOR("  ", "Primary temperature", this->primary_sensor_);
+  LOG_SENSOR("  ", "Secondary temperature", this->secondary_sensor_);
+  LOG_SENSOR("  ", "Target temperature", this->target_sensor_);
+  LOG_SENSOR("  ", "Estimated heating time", this->heating_time_sensor_);
+  LOG_SENSOR("  ", "Available water", this->water_sensor_);
+  LOG_BINARY_SENSOR("  ", "Communication", this->communication_sensor_);
+  LOG_BINARY_SENSOR("  ", "Power", this->power_sensor_);
+  LOG_BINARY_SENSOR("  ", "Heating", this->heating_sensor_);
+  LOG_TEXT_SENSOR("  ", "Mode", this->mode_sensor_);
 }
 
 water_heater::WaterHeaterCallInternal HonWaterHeater::make_call() {
   return water_heater::WaterHeaterCallInternal(this);
+}
+
+// The appliance mode a water heater mode maps to; Unknown for modes the appliance does not have.
+static HonMode hon_mode(water_heater::WaterHeaterMode mode) {
+  switch (mode) {
+    case water_heater::WATER_HEATER_MODE_ELECTRIC:
+      return HonMode::HON_MODE_NORMAL;
+    case water_heater::WATER_HEATER_MODE_ECO:
+      return HonMode::HON_MODE_ECO;
+    case water_heater::WATER_HEATER_MODE_PERFORMANCE:
+      return HonMode::HON_MODE_BPS;
+    default:
+      return HonMode::HON_MODE_UNKNOWN;
+  }
 }
 
 void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
@@ -272,8 +341,8 @@ void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
   const auto on = call.get_on();
   const bool off = (on.has_value() && !*on) || (mode.has_value() && *mode == WATER_HEATER_MODE_OFF);
   if (off) {
-    // Preserve only the in-flight command until its reply/timeout; discard unsent writes.
-    if (this->waiting_control_) {
+    // Keep only the command in flight until its reply or timeout; unsent writes are dropped.
+    if (this->awaiting_ == Awaiting::AWAITING_CONTROL) {
       this->commands_[0] = this->commands_[this->command_index_];
       this->command_index_ = 0;
       this->command_count_ = 1;
@@ -283,7 +352,7 @@ void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
     this->pending_off_ = true;
     return;
   }
-  if (!this->have_status_ || App.get_loop_component_start_time() - this->last_status_ > 15000) {
+  if (!this->have_status_ || App.get_loop_component_start_time() - this->last_status_ > CONTROL_STATUS_MAX_AGE_MS) {
     ESP_LOGW(TAG, "Control rejected: no recent appliance status");
     return;
   }
@@ -292,52 +361,60 @@ void HonWaterHeater::control(const water_heater::WaterHeaterCall &call) {
     return;
   }
   const float temperature = call.get_target_temperature();
-  if (!std::isnan(temperature) &&
-      (!std::isfinite(temperature) || temperature < 35 || temperature > 75 || std::round(temperature) != temperature ||
-       (mode.has_value() ? *mode != WATER_HEATER_MODE_ELECTRIC : this->reported_mode_ != HonMode::HON_MODE_NORMAL))) {
-    ESP_LOGW(TAG, "Target requires Normal mode and a whole temperature from 35 to 75 C");
-    return;
+  if (!std::isnan(temperature)) {
+    if (!std::isfinite(temperature) || temperature < MIN_TARGET_TEMPERATURE || temperature > MAX_TARGET_TEMPERATURE ||
+        std::round(temperature) != temperature) {
+      ESP_LOGW(TAG, "Target must be a whole temperature from %u to %u C", MIN_TARGET_TEMPERATURE,
+               MAX_TARGET_TEMPERATURE);
+      return;
+    }
+    const bool normal =
+        mode.has_value() ? *mode == WATER_HEATER_MODE_ELECTRIC : this->reported_mode_ == HonMode::HON_MODE_NORMAL;
+    if (!normal) {
+      ESP_LOGW(TAG, "Target can only be set in Normal mode");
+      return;
+    }
   }
   this->command_index_ = 0;
-  auto append = [this](uint8_t parameter, uint8_t value) {
-    this->commands_[this->command_count_++] = {0x5D, parameter, 0x00, value};
+  auto append = [this](Parameter parameter, uint8_t value) {
+    this->commands_[this->command_count_++] = {parameter, value};
   };
-  if ((on.has_value() && *on) || (mode.has_value() && !this->is_on()))
-    append(0x01, 0x01);
-  if (mode.has_value()) {
-    // Captures establish transitions through Normal, not direct ECO/BPS transitions.
-    if (this->reported_mode_ != HonMode::HON_MODE_NORMAL && *mode != WATER_HEATER_MODE_ELECTRIC)
-      append(0x05, 0x00);
-    if (*mode == WATER_HEATER_MODE_ELECTRIC) {
-      append(0x05, 0x00);
-    } else if (*mode == WATER_HEATER_MODE_ECO) {
-      append(0x05, 0x01);
-    } else if (*mode == WATER_HEATER_MODE_PERFORMANCE) {
-      append(0x17, 0x01);
+  // A write is only queued when it changes something, so a repeated state costs no round trip.
+  if (!this->is_on() && ((on.has_value() && *on) || mode.has_value()))
+    append(Parameter::PARAMETER_POWER, 1);
+  if (mode.has_value() && hon_mode(*mode) != this->reported_mode_) {
+    // Captures show the appliance moves between ECO and BPS through Normal, never directly.
+    if (*mode != WATER_HEATER_MODE_ELECTRIC && this->reported_mode_ != HonMode::HON_MODE_NORMAL)
+      append(Parameter::PARAMETER_ECO, 0);
+    switch (*mode) {
+      case WATER_HEATER_MODE_ELECTRIC:
+        append(Parameter::PARAMETER_ECO, 0);
+        break;
+      case WATER_HEATER_MODE_ECO:
+        append(Parameter::PARAMETER_ECO, 1);
+        break;
+      case WATER_HEATER_MODE_PERFORMANCE:
+        append(Parameter::PARAMETER_BPS, 1);
+        break;
+      default:
+        break;
     }
   }
   if (!std::isnan(temperature))
-    append(0x02, static_cast<uint8_t>(temperature - 30));
-}
-
-void HonWaterHeater::send_next_control_() {
-  this->send_frame_(0x01, this->commands_[this->command_index_].data(), 4);
-  this->waiting_control_ = true;
-  this->control_sent_ = App.get_loop_component_start_time();
+    append(Parameter::PARAMETER_TARGET_TEMPERATURE, static_cast<uint8_t>(temperature - TARGET_TEMPERATURE_OFFSET));
 }
 
 water_heater::WaterHeaterTraits HonWaterHeater::traits() {
-  water_heater::WaterHeaterTraits traits;
-  traits.set_supports_current_temperature(true);
   using namespace water_heater;
+  WaterHeaterTraits traits;
+  traits.set_supports_current_temperature(true);
   traits.add_feature_flags(WATER_HEATER_SUPPORTS_TARGET_TEMPERATURE | WATER_HEATER_SUPPORTS_OPERATION_MODE |
                            WATER_HEATER_SUPPORTS_ON_OFF);
   traits.set_supported_modes(
       {WATER_HEATER_MODE_OFF, WATER_HEATER_MODE_ELECTRIC, WATER_HEATER_MODE_ECO, WATER_HEATER_MODE_PERFORMANCE});
-  traits.set_min_temperature(35);
-  traits.set_max_temperature(75);
+  traits.set_min_temperature(MIN_TARGET_TEMPERATURE);
+  traits.set_max_temperature(MAX_TARGET_TEMPERATURE);
   traits.set_target_temperature_step(1);
-
   return traits;
 }
 
