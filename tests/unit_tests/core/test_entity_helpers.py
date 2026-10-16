@@ -1458,6 +1458,12 @@ async def test_sub_entities_apply_parent_id(
             {"publish": "before"},
             "publish= needs",
         ),
+        (
+            _SWITCH_APPLY,
+            _apply_conf("k_id"),
+            {"apply": "x()", "publish": "Before"},
+            "must be",
+        ),
     ],
 )
 async def test_sub_entities_apply_errors(
