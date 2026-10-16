@@ -887,6 +887,16 @@ constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
   return std::accumulate(data, data + len, sum);
 }
 
+/// Add up the bytes of \p data with size \p len, truncated to 16 bits.
+constexpr uint16_t sum16_bytes(const uint8_t *data, size_t len, uint16_t sum = 0) {
+  return std::accumulate(data, data + len, sum);
+}
+
+/// XOR the bytes of \p data with size \p len, starting from \p init.
+constexpr uint8_t xor_bytes(const uint8_t *data, size_t len, uint8_t init = 0) {
+  return std::accumulate(data, data + len, init, std::bit_xor<uint8_t>());
+}
+
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
