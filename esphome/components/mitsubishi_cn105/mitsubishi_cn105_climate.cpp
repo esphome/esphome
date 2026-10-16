@@ -173,8 +173,7 @@ void MitsubishiCN105Climate::apply_values_() {
         action = climate::CLIMATE_ACTION_HEATING;
         break;
       case MitsubishiCN105::Mode::AUTO:
-        if (this->parent_->is_telemetry_polling_enabled() && !std::isnan(status.room_temperature) &&
-            !std::isnan(status.target_temperature)) {
+        if (!std::isnan(status.room_temperature) && !std::isnan(status.target_temperature)) {
           action = status.room_temperature > status.target_temperature ? climate::CLIMATE_ACTION_COOLING
                                                                        : climate::CLIMATE_ACTION_HEATING;
         }
