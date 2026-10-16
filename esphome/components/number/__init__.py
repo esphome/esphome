@@ -167,9 +167,6 @@ ValueRangeTrigger = number_ns.class_(
 )
 
 # Conditions
-NumberInRangeCondition = number_ns.class_(
-    "NumberInRangeCondition", automation.Condition
-)
 
 NumberMode = number_ns.enum("NumberMode")
 
@@ -342,22 +339,13 @@ NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
         cv.Optional(CONF_BELOW): cv.float_,
     },
     cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+    automation.fill_in_range_bounds,
 )
 
 
-@automation.register_condition(
-    "number.in_range", NumberInRangeCondition, NUMBER_IN_RANGE_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "number.in_range", NUMBER_IN_RANGE_CONDITION_SCHEMA, automation.IN_RANGE_CHECK
 )
-async def number_in_range_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-
-    if (above := config.get(CONF_ABOVE)) is not None:
-        cg.add(var.set_min(above))
-    if (below := config.get(CONF_BELOW)) is not None:
-        cg.add(var.set_max(below))
-
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)

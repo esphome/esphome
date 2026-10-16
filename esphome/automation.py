@@ -1,15 +1,18 @@
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 import logging
+import math
 import string
 from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ABOVE,
     CONF_ALL,
     CONF_ANY,
     CONF_AUTOMATION_ID,
+    CONF_BELOW,
     CONF_CONDITION,
     CONF_COUNT,
     CONF_ELSE,
@@ -350,6 +353,29 @@ class ApplyField:
     def call(self) -> ApplyCall:
         target = self.target if "{}" in self.target else f"{self.target}({{}})"
         return ApplyCall(target, ((self.conf_key, self.type_, self.const_fn),))
+
+
+def fill_in_range_bounds(config: ConfigType) -> ConfigType:
+    """Give an absent ``above`` or ``below`` the value NaN, which ``IN_RANGE_CHECK`` renders."""
+    return {CONF_ABOVE: math.nan, CONF_BELOW: math.nan, **config}
+
+
+def _in_range_low(config: ConfigType, value: float) -> str:
+    return "-INFINITY" if math.isnan(value) else str(cg.safe_exp(value))
+
+
+def _in_range_high(config: ConfigType, value: float) -> str:
+    # With no lower bound, an unset upper bound stays NaN so the check is false, as before.
+    if math.isnan(value):
+        return "NAN" if math.isnan(config[CONF_ABOVE]) else "INFINITY"
+    return str(cg.safe_exp(value))
+
+
+# ``above <= state <= below`` on the parent's float ``state``, after ``fill_in_range_bounds``.
+IN_RANGE_CHECK = ApplyCall(
+    "state >= {} && {parent}->state <= {}",
+    ((CONF_ABOVE, cg.float_, _in_range_low), (CONF_BELOW, cg.float_, _in_range_high)),
+)
 
 
 def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
