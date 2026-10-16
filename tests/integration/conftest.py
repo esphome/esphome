@@ -74,18 +74,8 @@ def pytest_configure(config: pytest.Config) -> None:
     )
 
 
-# Fails a hung test instead of letting the job run until GitHub stops it; must
-# exceed the shared build lock wait (_SHARED_LOCK_TIMEOUT_S) plus a cold compile
-TEST_TIMEOUT_S = 1800
-
-
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    for item in items:
-        if item.get_closest_marker("timeout") is None:
-            item.add_marker(pytest.mark.timeout(TEST_TIMEOUT_S))
-
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+INTEGRATION_DIR = Path(__file__).parent
+FIXTURES_DIR = INTEGRATION_DIR / "fixtures"
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # CI caches parts of this path; keep in sync with ci.yml integration-tests.
@@ -284,6 +274,21 @@ _REPO_KEY = hashlib.sha256(str(REPO_ROOT).encode()).hexdigest()[:8]
 _SHARED_LOCK_TIMEOUT_S = 900
 _SHARED_LOCK_POLL_S = 0.1
 _SHARED_LOCK_REPORT_S = 30
+
+# Fails a hung test instead of letting the job run until GitHub stops it; leaves
+# a cold compile's worth of time after the longest shared build lock wait
+TEST_TIMEOUT_S = _SHARED_LOCK_TIMEOUT_S + 900
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    # Session-wide hook: limit it to the tests under this directory
+    for item in items:
+        if (
+            item.path.is_relative_to(INTEGRATION_DIR)
+            and item.get_closest_marker("timeout") is None
+        ):
+            item.add_marker(pytest.mark.timeout(TEST_TIMEOUT_S))
+
 
 # Reclaims dirs orphaned by fixture renames or deleted checkouts
 _STALE_BUILD_MAX_AGE_S = 30 * 24 * 3600
