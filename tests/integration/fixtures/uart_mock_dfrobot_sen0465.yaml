@@ -1,0 +1,79 @@
+esphome:
+  name: uart-mock-dfrobot-sen0465
+
+host:
+api:
+  batch_delay: 0ms # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 9600
+  port: /dev/null
+
+# A model of a SEN0466 (CO) probe. The first mode change is refused, so the component has to retry it
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+  on_tx:
+    - then:
+        - lambda: |-
+            if (data.size() != 9 || data[0] != 0xFF || data[1] != 0x01)
+              return;
+            static int mode_requests = 0;
+            static uint32_t mode_confirmed_ms = 0;
+            static bool alarm_set = false;
+            std::vector<uint8_t> reply(9, 0);
+            reply[0] = 0xFF;
+            reply[1] = data[2];
+            switch (data[2]) {
+              case 0x78:
+                if (data[3] == 0x04 && ++mode_requests >= 2) {
+                  reply[2] = 0x01;
+                  mode_confirmed_ms = millis();
+                }
+                break;
+              case 0x89:
+                ESP_LOGI("sim", "Alarm switch %u threshold %u type %u, %u ms after the mode change", data[3],
+                         (data[4] << 8) | data[5], data[6], millis() - mode_confirmed_ms);
+                alarm_set = true;
+                reply[2] = 0x01;
+                break;
+              case 0x88:
+                if (!alarm_set)
+                  ESP_LOGE("sim", "Data requested before the setup was done");
+                reply[2] = 0x00;  // 20 ppm
+                reply[3] = 0x14;
+                reply[4] = 0x04;  // CO
+                reply[5] = 0x00;  // no decimal places
+                reply[6] = 0x02;  // NTC ADC 512: 25 C
+                reply[7] = 0x00;
+                break;
+              default:
+                return;
+            }
+            uint8_t sum = 0;
+            for (int i = 1; i < 8; i++)
+              sum += reply[i];
+            reply[8] = static_cast<uint8_t>(~sum + 1);
+            id(mock_uart).inject_to_rx_buffer(reply);
+
+sensor:
+  - platform: dfrobot_sen0465_uart
+    uart_id: mock_uart
+    model: SEN0466
+    temperature_compensation: true
+    update_interval: 2s
+    alarm:
+      threshold: 35
+      type: high
+    concentration:
+      name: CO
+    temperature:
+      name: Probe Temperature
