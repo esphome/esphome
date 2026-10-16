@@ -2,7 +2,7 @@
 # own itself (`pin:` creates the internal `adc` sensor, `voltage_divider:` brings the
 # 5 V of the breakout down to what the ADC input tolerates).
 sensor:
-  - platform: mics_5524_gas_sensor
+  - platform: mics_5524
     id: mics_5524_dat
     pin: GPIO34
     voltage_divider:

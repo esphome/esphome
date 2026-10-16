@@ -20,7 +20,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace esphome::mics_5524_gas_sensor::micsmath {
+namespace esphome::mics_5524::micsmath {
 
 /// Conversion model of a sensor, mirrors `CONVERSION_MODELS` in `__init__.py`.
 enum ConversionModel : uint8_t {
@@ -185,4 +185,4 @@ inline bool calibration_is_stable(float min_value, float max_value, float mean) 
   return spread <= static_cast<double>(MAX_CALIBRATION_SPREAD) * static_cast<double>(mean);
 }
 
-}  // namespace esphome::mics_5524_gas_sensor::micsmath
+}  // namespace esphome::mics_5524::micsmath

@@ -1,6 +1,6 @@
 #include "../common.h"
 
-namespace esphome::mics_5524_gas_sensor::testing {
+namespace esphome::mics_5524::testing {
 
 TEST(MicsMath, SaturatedSensorReportsTheTopOfTheRange) {
   // ratio 0 is V_AO at VCC.  The vendor helpers return the top of the range there,
@@ -145,4 +145,4 @@ TEST(MicsMath, DatasheetModelEndToEnd) {
   EXPECT_NEAR(2.94f, ppm_from_power_law(6.3f, -1.1f, ratio_from_rs(20.0f, 10.0f)), 0.05f);
 }
 
-}  // namespace esphome::mics_5524_gas_sensor::testing
+}  // namespace esphome::mics_5524::testing

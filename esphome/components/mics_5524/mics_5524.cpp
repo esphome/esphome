@@ -1,4 +1,4 @@
-#include "mics_5524_gas_sensor.h"
+#include "mics_5524.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -6,9 +6,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome::mics_5524_gas_sensor {
+namespace esphome::mics_5524 {
 
-ESPHOME_LOG_TAG(TAG, "mics_5524_gas_sensor");
+ESPHOME_LOG_TAG(TAG, "mics_5524");
 
 /// Preference version mixed into the flash key of the persisted reference. The
 /// conversion model is added to it, so a value stored for one model can never
@@ -342,7 +342,8 @@ void MiCS5524Component::finish_calibration_() {
     this->save_reference_();
 
   ESP_LOGI(TAG, "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)%s", LOG_STR_ARG(reference_name(this->conversion_)),
-           this->reference_, valid, attempts, this->persist_ ? ", stored in flash" : "");
+           this->reference_, valid, attempts,
+           this->persist_ ? LOG_STR_LITERAL(", stored in flash") : LOG_STR_LITERAL(""));
   if (this->is_vendor_model_()) {
     ESP_LOGI(TAG, "hard-code 'air_reference: %.4f' in the YAML to skip the calibration at boot", this->reference_);
   } else {
@@ -378,4 +379,4 @@ bool MiCS5524Component::load_reference_() {
   return true;
 }
 
-}  // namespace esphome::mics_5524_gas_sensor
+}  // namespace esphome::mics_5524

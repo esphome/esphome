@@ -1,4 +1,4 @@
-"""``mics_5524_gas_sensor`` - ESPHome sensor platform for the MiCS-5524.
+"""``mics_5524`` - ESPHome sensor platform for the MiCS-5524.
 
 One entry configures one physical sensor: the analog output is read and converted once
 per ``update_interval``, and every gas listed under it is published as its own
@@ -523,7 +523,7 @@ CALIBRATION_ACTION_SCHEMA = cv.Schema(
 )
 
 automation.register_apply_action(
-    "mics_5524_gas_sensor.request_calibration",
+    "mics_5524.request_calibration",
     CALIBRATION_ACTION_SCHEMA,
     automation.ApplyCall("request_calibration()"),
 )

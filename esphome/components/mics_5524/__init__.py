@@ -1,4 +1,4 @@
-"""``mics_5524_gas_sensor`` - ESPHome platform for the MiCS-5524 gas sensor.
+"""``mics_5524`` - ESPHome platform for the MiCS-5524 gas sensor.
 
 Two conversion models are available (constants and sources in ``coefficients.py``):
 
@@ -19,21 +19,19 @@ import esphome.codegen as cg
 from esphome.components import sensor
 
 CODEOWNERS = ["@nliaudat"]
-DOMAIN = "mics_5524_gas_sensor"
+DOMAIN = "mics_5524"
 
 # No ``AUTO_LOAD``: for a platform component ESPHome loads what ``sensor.py``
 # declares (``sensor``, ``voltage_sampler``, and ``adc`` for the internal ADC sensor
 # of a ``pin:`` configuration).
 
-mics_5524_gas_sensor_ns = cg.esphome_ns.namespace("mics_5524_gas_sensor")
+mics_5524_ns = cg.esphome_ns.namespace("mics_5524")
 
 # C++ classes: ``MiCS5524Component`` reads the analog output and hands its ratio to
 # every gas sub-sensor, ``MiCS5524GasSensor`` converts it with the curve and the
 # coefficients of its own gas.
-MiCS5524Component = mics_5524_gas_sensor_ns.class_(
-    "MiCS5524Component", cg.PollingComponent
-)
-MiCS5524GasSensor = mics_5524_gas_sensor_ns.class_("MiCS5524GasSensor", sensor.Sensor)
+MiCS5524Component = mics_5524_ns.class_("MiCS5524Component", cg.PollingComponent)
+MiCS5524GasSensor = mics_5524_ns.class_("MiCS5524GasSensor", sensor.Sensor)
 
 # Configuration keys local to this component; the keys shared with other components
 # (`warmup_time`, `enable_pin`, `voltage_divider`) are imported from

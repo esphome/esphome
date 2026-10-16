@@ -1,4 +1,4 @@
-"""Data tables for the ``mics_5524_gas_sensor`` platform.
+"""Data tables for the ``mics_5524`` platform.
 
 Two conversion models, which are *not* interchangeable:
 

@@ -7,17 +7,14 @@ import re
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.mics_5524_gas_sensor.coefficients import (
+from esphome.components.mics_5524.coefficients import (
     GASES,
     DatasheetCurve,
     GasDefinition,
     VendorCurve,
     datasheet_gases,
 )
-from esphome.components.mics_5524_gas_sensor.sensor import (
-    CONFIG_SCHEMA,
-    _voltage_multiplier,
-)
+from esphome.components.mics_5524.sensor import CONFIG_SCHEMA, _voltage_multiplier
 from esphome.const import (
     CONF_AMMONIA,
     CONF_CARBON_MONOXIDE,
@@ -32,7 +29,7 @@ GENERATED_ADC = "_generated_adc"
 def _gas_arguments(main_cpp: str, variable: str) -> list[str]:
     """Arguments of the constructor call that creates one gas sub-sensor."""
     match = re.search(
-        rf"new\({variable}\) mics_5524_gas_sensor::MiCS5524GasSensor\((.*?)\);",
+        rf"new\({variable}\) mics_5524::MiCS5524GasSensor\((.*?)\);",
         main_cpp,
     )
     assert match is not None, f"{variable} was not constructed"
@@ -54,15 +51,13 @@ def test_voltage_source_is_a_constructor_argument(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """Every reading needs the sampler, so it is passed at construction."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     assert (
-        "new(mics_5524_boot) mics_5524_gas_sensor::MiCS5524Component(mics_5524_adc);"
-        in main_cpp
+        "new(mics_5524_boot) mics_5524::MiCS5524Component(mics_5524_adc);" in main_cpp
     )
     assert (
-        "new(mics_5524_fixed) mics_5524_gas_sensor::MiCS5524Component(mics_5524_adc);"
-        in main_cpp
+        "new(mics_5524_fixed) mics_5524::MiCS5524Component(mics_5524_adc);" in main_cpp
     )
     assert "set_source(" not in main_cpp
 
@@ -72,7 +67,7 @@ def test_every_gas_becomes_a_sub_sensor_of_its_hub(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """The constants are passed to the constructor and the sub-sensor to its own hub."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     # The gas label, the conversion model (0 = dfrobot), the vendor threshold and gain,
     # the datasheet coefficients (unused here) and the measuring range.
@@ -97,7 +92,7 @@ def test_shared_options_reach_the_hub(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """The analog front end is configured once per physical sensor."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     assert "mics_5524_boot->set_conversion(0);" in main_cpp
     assert "mics_5524_boot->set_vcc(5.0f);" in main_cpp
@@ -117,7 +112,7 @@ def test_datasheet_conversion_uses_the_shipped_coefficients(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """One conversion model per sensor, and the coefficients of CO are the shipped ones."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     # 1 = datasheet, a = 6.3, b = -1.1, range 0 .. 2000 ppm.
     co = _gas_arguments(main_cpp, "mics_5524_co_ds")
@@ -135,7 +130,7 @@ def test_diagnostics_reach_the_hub(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """The ratio, RS and voltage of every reading can be published to their own sensor."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     assert "mics_5524_pin->set_ratio_sensor(mics_5524_ratio);" in main_cpp
     assert "mics_5524_pin->set_rs_sensor(mics_5524_rs);" in main_cpp
@@ -147,11 +142,11 @@ def test_pin_creates_an_internal_adc(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """A `pin:` configuration owns its ADC, and the divider is part of the reading."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     assert "new(mics_5524_pin_adc) adc::ADCSensor();" in main_cpp
     assert (
-        "new(mics_5524_pin) mics_5524_gas_sensor::MiCS5524Component(mics_5524_pin_adc);"
+        "new(mics_5524_pin) mics_5524::MiCS5524Component(mics_5524_pin_adc);"
         in main_cpp
     )
     # 10k/20k under the 5 V of the breakout: 3.33 V on the pin, x1.5 in the reading.
@@ -237,13 +232,13 @@ def test_max_ppm_defaults_to_the_vendor_range_of_the_gas(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """An omitted ceiling still reports the vendor range: it is resolved per model."""
-    from esphome.components.mics_5524_gas_sensor.coefficients import resolve_gas
+    from esphome.components.mics_5524.coefficients import resolve_gas
 
     resolved = resolve_gas("carbon_monoxide", "dfrobot", max_ppm=None)
     assert resolved.max_ppm == 1000.0
 
     # End to end: the default CO of the boot sensor keeps 1000 ppm in the firmware.
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
     ch4 = _gas_arguments(main_cpp, "mics_5524_ch4")
     assert _gas_constants(ch4)[-1] == 25000.0
 
