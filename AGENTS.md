@@ -449,20 +449,22 @@ file does, and it is the authority when they disagree. The most useful starting 
         )
         ```
 
-        **Never write a component-specific forwarder struct in C++.** A trigger that fires only for some values
-        (entering one state, a change from the previous value) takes the callback's parameters with `params`
-        and the test with `when`; codegen writes the filter, so the component needs no `automation.h`:
-        ```python
-        automation.CallbackAutomation(
-            CONF_ON_LOCK,
-            "add_on_state_callback",
-            params=[(LockState, "state")],
-            forward=[],
-            when="state == lock::LOCK_STATE_LOCKED",
-        )
+        **Choosing the filter:** a filter that many automations share, such as entering one value of a state enum,
+        is a small forwarder struct templated on that value. Every automation for that value then shares one
+        function and passes only its `Automation *`. `when` generates a separate lambda per automation, which cost
+        16 to 64 bytes more flash when lock, media_player, alarm_control_panel and fusb302b were tried with it.
+        ```cpp
+        template<LockState State> struct LockStateForwarder {
+          Automation<> *automation;
+          void operator()(LockState state) const {
+            if (state == State)
+              this->automation->trigger();
+          }
+        };
         ```
-        `when` may also name the parent as `{parent}`, e.g. `when="{parent}->is_fully_open()"` (valve). Only a
-        trigger that must remember something between calls (the last position, a click count) keeps a C++ class.
+        Use `when` for a test that is not a fixed value shared across automations, e.g. one that reads the parent:
+        `when="{parent}->is_fully_open()"` (valve). Only a trigger that must remember something between calls
+        (the last position, a click count) keeps a Trigger class.
 
         `build_parent_callback_automation`, `build_trigger_callback`, `build_callback_automations` and
         `build_trigger_automations` cover the other shapes; see their docstrings in `esphome/automation.py`.
