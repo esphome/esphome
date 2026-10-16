@@ -445,7 +445,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRId64 "ms at %" PRIu64 "%s",
                LOG_STR_ARG(item->get_type_str()), LOG_STR_ARG(item->get_source()),
                name_log.format(item->get_name_type(), item->get_name(), item->get_name_hash_or_id()), item->interval,
-               (int64_t) (item->interval, item->get_next_execution() - now_64), item->get_next_execution(),
+               (int64_t) (item->get_next_execution() - now_64), item->get_next_execution(),
                is_cancelled ? LOG_STR_LITERAL(" [CANCELLED]") : LOG_STR_LITERAL(""));
 
       old_items.push_back(item);
