@@ -33,7 +33,7 @@ void MCP9600Component::setup() {
 
   // Allows both MCP9600's and MCP9601's to be connected.
   if (this->device_id_ != (uint8_t) 0x40 && this->device_id_ != (uint8_t) 0x41) {
-    this->mark_failed(LOG_STR("Connected device does not match a known MCP9600 or MCP901 sensor"));
+    this->mark_failed(LOG_STR("Connected device does not match a known MCP9600 or MCP9601 sensor"));
     return;
   }
 
