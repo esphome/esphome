@@ -335,8 +335,8 @@ uint8_t BME280Component::read_u8_(uint8_t a_register) {
 }
 uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
-  this->read_byte_16(a_register, &data);
-  return (data >> 8) | (data << 8);
+  this->read_byte_16_le(a_register, &data);
+  return data;
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
