@@ -1297,10 +1297,17 @@ class MockObjEnum(MockObj):
 
         Each name maps to prefix + the name upper-cased, with characters that
         are not letters or digits turned into "_".
+        Names that repeat, or that map to the same enumerator, raise ValueError.
         """
+        enumerators = {
+            name: prefix + _ENUM_NON_ALNUM.sub("_", name).upper() for name in names
+        }
+        if len(enumerators) != len(names) or len(set(enumerators.values())) != len(
+            names
+        ):
+            raise ValueError(f"Option names must map to distinct enumerators: {names}")
         return {
-            name: getattr(self, prefix + _ENUM_NON_ALNUM.sub("_", name).upper())
-            for name in names
+            name: getattr(self, enumerator) for name, enumerator in enumerators.items()
         }
 
 
