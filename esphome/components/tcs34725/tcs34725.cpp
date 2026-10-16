@@ -190,10 +190,10 @@ void TCS34725Component::update() {
   }
 
   // Extract the data
-  uint16_t raw_c = encode_uint16(data[1], data[0]);  // Clear channel
-  uint16_t raw_r = encode_uint16(data[3], data[2]);  // Red channel
-  uint16_t raw_g = encode_uint16(data[5], data[4]);  // Green channel
-  uint16_t raw_b = encode_uint16(data[7], data[6]);  // Blue channel
+  uint16_t raw_c = encode_value_le<uint16_t>(data);      // Clear channel
+  uint16_t raw_r = encode_value_le<uint16_t>(&data[2]);  // Red channel
+  uint16_t raw_g = encode_value_le<uint16_t>(&data[4]);  // Green channel
+  uint16_t raw_b = encode_value_le<uint16_t>(&data[6]);  // Blue channel
 
   ESP_LOGV(TAG, "Raw values clear=%d red=%d green=%d blue=%d", raw_c, raw_r, raw_g, raw_b);
 

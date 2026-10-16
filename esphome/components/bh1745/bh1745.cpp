@@ -141,10 +141,10 @@ void BH1745Component::update() {
   this->status_clear_warning();
 
   // Each channel is sent low byte first.
-  const uint16_t red = encode_uint16(buffer[1], buffer[0]);
-  const uint16_t green = encode_uint16(buffer[3], buffer[2]);
-  const uint16_t blue = encode_uint16(buffer[5], buffer[4]);
-  const uint16_t clear = encode_uint16(buffer[7], buffer[6]);
+  const uint16_t red = encode_value_le<uint16_t>(buffer);
+  const uint16_t green = encode_value_le<uint16_t>(&buffer[2]);
+  const uint16_t blue = encode_value_le<uint16_t>(&buffer[4]);
+  const uint16_t clear = encode_value_le<uint16_t>(&buffer[6]);
   ESP_LOGV(TAG, "Red: %u, Green: %u, Blue: %u, Clear: %u", red, green, blue, clear);
 
   if (this->red_counts_sensor_ != nullptr)

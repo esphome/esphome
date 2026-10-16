@@ -154,9 +154,9 @@ bool LIS3DHComponent::update_data(motion::MotionData &data) {
   progmem_memcpy(&scale, &SCALE_G[this->range_], sizeof(scale));
 
   // Data is little-endian and left-justified in a signed 16-bit register.
-  int16_t raw_x = (int16_t) encode_uint16(raw[1], raw[0]);
-  int16_t raw_y = (int16_t) encode_uint16(raw[3], raw[2]);
-  int16_t raw_z = (int16_t) encode_uint16(raw[5], raw[4]);
+  int16_t raw_x = encode_value_le<int16_t>(raw);
+  int16_t raw_y = encode_value_le<int16_t>(&raw[2]);
+  int16_t raw_z = encode_value_le<int16_t>(&raw[4]);
   ESP_LOGV(TAG, "Read raw accel data: %d, %d, %d", raw_x, raw_y, raw_z);
   data.acceleration[motion::X_AXIS] = raw_x * scale;
   data.acceleration[motion::Y_AXIS] = raw_y * scale;
@@ -175,7 +175,7 @@ bool LIS3DHComponent::publish_temperature_() {
   }
   // Signed, left-justified, relative value with 1 °C per count of the high byte; the
   // low byte carries the fractional bits in the modes that have them.
-  float temperature = (int16_t) encode_uint16(raw[1], raw[0]) / 256.0f + LIS3DH_TEMP_REFERENCE_C;
+  float temperature = encode_value_le<int16_t>(raw) / 256.0f + LIS3DH_TEMP_REFERENCE_C;
   this->temperature_callback_.call(temperature);
   return true;
 }

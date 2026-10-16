@@ -99,18 +99,18 @@ bool QMI8658Component::update_data(motion::MotionData &data) {
 
   // Data is little-endian (low byte first).
   float scale = ACCEL_SCALE[this->accel_range_ >> 4];
-  int16_t raw_x = encode_uint16(raw_data[ACC_OFFS + 1], raw_data[ACC_OFFS + 0]);
-  int16_t raw_y = encode_uint16(raw_data[ACC_OFFS + 3], raw_data[ACC_OFFS + 2]);
-  int16_t raw_z = encode_uint16(raw_data[ACC_OFFS + 5], raw_data[ACC_OFFS + 4]);
+  int16_t raw_x = encode_value_le<int16_t>(&raw_data[ACC_OFFS]);
+  int16_t raw_y = encode_value_le<int16_t>(&raw_data[ACC_OFFS + 2]);
+  int16_t raw_z = encode_value_le<int16_t>(&raw_data[ACC_OFFS + 4]);
   ESP_LOGV(TAG, "Read raw accel data: %d, %d, %d", raw_x, raw_y, raw_z);
   data.acceleration[motion::X_AXIS] = raw_x * scale;
   data.acceleration[motion::Y_AXIS] = raw_y * scale;
   data.acceleration[motion::Z_AXIS] = raw_z * scale;
 
   scale = GYRO_SCALE[this->gyro_range_ >> 4];
-  raw_x = encode_uint16(raw_data[GYR_OFFS + 1], raw_data[GYR_OFFS + 0]);
-  raw_y = encode_uint16(raw_data[GYR_OFFS + 3], raw_data[GYR_OFFS + 2]);
-  raw_z = encode_uint16(raw_data[GYR_OFFS + 5], raw_data[GYR_OFFS + 4]);
+  raw_x = encode_value_le<int16_t>(&raw_data[GYR_OFFS]);
+  raw_y = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 2]);
+  raw_z = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 4]);
   ESP_LOGV(TAG, "Read raw gyro data: %d, %d, %d", raw_x, raw_y, raw_z);
   data.angular_rate[motion::X_AXIS] = raw_x * scale;
   data.angular_rate[motion::Y_AXIS] = raw_y * scale;

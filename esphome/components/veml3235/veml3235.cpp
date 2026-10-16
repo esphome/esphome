@@ -65,7 +65,7 @@ void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
 
   this->status_clear_warning();
 
-  uint16_t als_counts = encode_uint16(als_regs[1], als_regs[0]);
+  uint16_t als_counts = encode_value_le<uint16_t>(als_regs);
 
   if (this->auto_gain_ && adjustments_left > 0) {
     // A sample integrated with the previous settings may still be in the data register after the

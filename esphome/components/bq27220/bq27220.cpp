@@ -25,14 +25,7 @@ static constexpr uint8_t REG_MAC_DATA = 0x40;
 static constexpr uint16_t DEVICE_NUMBER = 0x0220;
 static constexpr uint16_t TIME_TO_EMPTY_NOT_APPLICABLE = 0xFFFF;
 
-bool BQ27220Component::read_word_(uint8_t reg, uint16_t &value) {
-  uint8_t data[2];
-  if (this->read_register(reg, data, 2) != i2c::ERROR_OK) {
-    return false;
-  }
-  value = encode_uint16(data[1], data[0]);
-  return true;
-}
+bool BQ27220Component::read_word_(uint8_t reg, uint16_t &value) { return this->read_byte_16_le(reg, &value); }
 
 void BQ27220Component::setup() {
   const uint8_t device_number_cmd[2] = {0x01, 0x00};  // DEVICE_NUMBER subcommand, little-endian
