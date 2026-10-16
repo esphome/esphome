@@ -30,19 +30,10 @@ static constexpr uint8_t DEVICE_MODE_HEAT = 4;
 
 void DaikinMadoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
-/// Only the GET commands are answered, so only they count towards the end of a batch
-static bool expects_response(uint16_t cmd) {
-  switch (cmd) {
-    case CMD_GET_SETTING_STATUS:
-    case CMD_GET_OPERATION_MODE:
-    case CMD_GET_SETPOINT:
-    case CMD_GET_FAN_SPEED:
-    case CMD_GET_SENSOR_INFORMATION:
-      return true;
-    default:
-      return false;
-  }
-}
+// Replies arrive in order, so the last one, SENSOR_INFORMATION, ends the poll and publishes
+static constexpr std::array<uint16_t, 5> POLL_CMDS{CMD_GET_SETTING_STATUS, CMD_GET_OPERATION_MODE, CMD_GET_SETPOINT,
+                                                   CMD_GET_FAN_SPEED, CMD_GET_SENSOR_INFORMATION};
+static constexpr std::array<uint8_t, 2> NO_ARGS{0x00, 0x00};
 
 static uint32_t get_command_cooldown(uint16_t cmd) {
   switch (cmd) {
@@ -187,16 +178,14 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->cancel_timeout(QUERY_TIMEOUT_ID);
       this->query_cooldown_ = false;
       this->query_queue_.clear();
-      this->pending_responses_ = 0;
+      this->poll_pending_ = false;
       break;
     }
     case ESP_GATTC_WRITE_DESCR_EVT:
+      // The only descriptor written is the notification one, so polls get no replies without it
       if (param->write.status != ESP_GATT_OK) {
-        if (param->write.status == ESP_GATT_INSUF_AUTHENTICATION) {
-          ESP_LOGE(TAG, "Insufficient authentication");
-        } else {
-          ESP_LOGE(TAG, "Failed writing characteristic descriptor, status = 0x%x", param->write.status);
-        }
+        ESP_LOGE(TAG, "Failed writing the notification descriptor, status = 0x%x", param->write.status);
+        this->fail_connection_(LOG_STR("Notification descriptor write failed"));
       }
       break;
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -232,27 +221,14 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
 }
 
 void DaikinMadoka::update() {
-  static constexpr std::array<uint16_t, 5> ALL_CMDS{CMD_GET_SETTING_STATUS, CMD_GET_OPERATION_MODE, CMD_GET_SETPOINT,
-                                                    CMD_GET_FAN_SPEED, CMD_GET_SENSOR_INFORMATION};
-  static constexpr std::array<uint8_t, 2> NO_ARGS{0x00, 0x00};
-
   ESP_LOGD(TAG, "Got update request...");
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGD(TAG, "...but device is disconnected");
     return;
   }
-  // Nothing is in flight, so responses still counted from the last batch were lost
-  if (!this->query_cooldown_) {
-    this->pending_responses_ = 0;
-  }
-  // A queued poll runs after any SET commands ahead of it, so it already reads back the new state
-  for (const auto &queued : this->query_queue_) {
-    if (expects_response(queued.cmd))
-      return;
-  }
-  for (auto cmd : ALL_CMDS) {
-    this->enqueue_query_(cmd, NO_ARGS);
-  }
+  this->poll_pending_ = true;
+  if (!this->query_cooldown_)
+    this->send_next_query_();
 }
 
 void DaikinMadoka::process_incoming_chunk_(std::span<const uint8_t> chunk) {
@@ -279,25 +255,25 @@ void DaikinMadoka::enqueue_query_(uint16_t cmd, std::span<const uint8_t> args) {
   std::copy(args.begin(), args.end(), query.args.begin());
   if (!this->query_queue_.push(query)) {
     ESP_LOGW(TAG, "Query queue full, dropping command 0x%04X", cmd);
-    return;
-  }
-  if (!this->query_cooldown_) {
-    this->send_next_query_();
   }
 }
 
 void DaikinMadoka::send_next_query_() {
   if (this->query_queue_.empty()) {
-    this->query_cooldown_ = false;
-    return;
+    if (!this->poll_pending_) {
+      this->query_cooldown_ = false;
+      return;
+    }
+    this->poll_pending_ = false;
+    for (auto cmd : POLL_CMDS) {
+      this->enqueue_query_(cmd, NO_ARGS);
+    }
   }
   const Query &query = this->query_queue_.front();
   const uint16_t cmd = query.cmd;
   // On a failed write the query stays queued for the next pass
   if (this->write_query_(query)) {
     this->query_queue_.pop();
-    if (expects_response(cmd))
-      this->pending_responses_++;
   }
   this->query_cooldown_ = true;
   this->set_timeout(QUERY_TIMEOUT_ID, get_command_cooldown(cmd), [this]() { this->send_next_query_(); });
@@ -393,17 +369,12 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
       if (auto value = find_arg(msg, 0x40); value.size() == 1) {
         this->current_temperature = static_cast<float>(value[0]);
       }
+      // The last reply of every batch; a lost one leaves the publish to the next poll
+      this->publish_state();
       break;
     }
     default:
       break;
-  }
-
-  if (this->pending_responses_ == 0)
-    return;
-  this->pending_responses_--;
-  if (this->pending_responses_ == 0) {
-    this->publish_state();
   }
 }
 
