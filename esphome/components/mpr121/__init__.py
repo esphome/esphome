@@ -28,7 +28,9 @@ DOMAIN = "mpr121"
 
 mpr121_ns = cg.esphome_ns.namespace("mpr121")
 MPR121Component = mpr121_ns.class_("MPR121Component", cg.Component, i2c.I2CDevice)
-MPR121GPIOPin = mpr121_ns.class_("MPR121GPIOPin", cg.GPIOPin)
+MPR121GPIOPin = mpr121_ns.class_(
+    "MPR121GPIOPin", cg.GPIOPin, cg.Parented.template(MPR121Component)
+)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = (
