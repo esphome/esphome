@@ -95,7 +95,7 @@ uint8_t AS7341Component::get_atime() {
 }
 
 uint16_t AS7341Component::get_astep() {
-  uint16_t data;
+  uint16_t data = 0;
   this->read_byte_16_le(AS7341_ASTEP, &data);
   return data;
 }
