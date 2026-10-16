@@ -121,16 +121,16 @@ async def to_code(config: ConfigType) -> None:
         apply="set_light_out_control()",
         publish="before",
     )
+    threshold = {
+        "min_value": 0,
+        "max_value": 100,
+        "step": 1,
+        "apply": "set_gate_threshold(entity)",
+        "publish": "before",
+    }
     for x in range(9):
         if gate_conf := config.get(f"g{x}"):
             gate = number.sub_numbers(gate_conf, parent=hub)
-            threshold = {
-                "min_value": 0,
-                "max_value": 100,
-                "step": 1,
-                "apply": f"set_gate_threshold({x})",
-                "publish": "before",
-            }
             await gate(
                 CONF_MOVE_THRESHOLD,
                 partial(hub.set_gate_move_threshold_number, x),
