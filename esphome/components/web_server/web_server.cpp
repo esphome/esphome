@@ -1216,7 +1216,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
     if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
-      this->number_json_(obj, obj->state, detail, builder);
+      this->number_json_(obj, obj->has_state() ? obj->state : NAN, detail, builder);
       send_json(request, builder);
       return;
     }
@@ -1236,10 +1236,12 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 }
 
 void WebServer::number_state_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder) {
-  web_server->number_json_((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_STATE, builder);
+  auto *obj = (number::Number *) (source);
+  web_server->number_json_(obj, obj->has_state() ? obj->state : NAN, DETAIL_STATE, builder);
 }
 void WebServer::number_all_json_generator(WebServer *web_server, void *source, json::JsonBuilder &builder) {
-  web_server->number_json_((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_ALL, builder);
+  auto *obj = (number::Number *) (source);
+  web_server->number_json_(obj, obj->has_state() ? obj->state : NAN, DETAIL_ALL, builder);
 }
 void WebServer::number_json_(number::Number *obj, float value, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
