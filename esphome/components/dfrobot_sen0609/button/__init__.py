@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import button
+from esphome.components.const import CONF_QUERY_PARAMS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FACTORY_RESET,
@@ -18,8 +19,6 @@ from .. import CONF_DFROBOT_SEN0609_ID, DFRobotSEN0609Component, dfrobot_sen0609
 
 DFRobotSEN0609Button = dfrobot_sen0609_ns.class_("DFRobotSEN0609Button", button.Button)
 ButtonAction = dfrobot_sen0609_ns.enum("ButtonAction")
-
-CONF_QUERY_PARAMS = "query_params"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
