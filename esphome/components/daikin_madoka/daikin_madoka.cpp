@@ -30,6 +30,20 @@ static constexpr uint8_t DEVICE_MODE_HEAT = 4;
 
 void DaikinMadoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
+/// Only the GET commands are answered, so only they count towards the end of a batch
+static bool expects_response(uint16_t cmd) {
+  switch (cmd) {
+    case CMD_GET_SETTING_STATUS:
+    case CMD_GET_OPERATION_MODE:
+    case CMD_GET_SETPOINT:
+    case CMD_GET_FAN_SPEED:
+    case CMD_GET_SENSOR_INFORMATION:
+      return true;
+    default:
+      return false;
+  }
+}
+
 static uint32_t get_command_cooldown(uint16_t cmd) {
   switch (cmd) {
     case CMD_GET_SETTING_STATUS:
@@ -276,7 +290,8 @@ void DaikinMadoka::send_next_query_() {
   // On a failed write the query stays queued for the next pass
   if (this->write_query_(query)) {
     this->query_queue_.pop();
-    this->pending_responses_++;
+    if (expects_response(cmd))
+      this->pending_responses_++;
   }
   this->query_cooldown_ = true;
   this->set_timeout("query", get_command_cooldown(cmd), [this]() { this->send_next_query_(); });
