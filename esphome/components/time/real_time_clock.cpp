@@ -115,7 +115,7 @@ ESPTime decode_bcd_calendar(const uint8_t *raw) {
   uint8_t value[7];
   for (size_t i = 0; i < 7; i++)
     value[i] = bcd_to_uint8(raw[i] & static_cast<uint8_t>(BCD_CALENDAR_MASKS >> (8 * i)));
-  const uint8_t weekday = raw[3] & 0x7F;
+  const uint8_t weekday = raw[3] & static_cast<uint8_t>(BCD_CALENDAR_MASKS >> 24);
   ESPTime time{
       .second = value[0],
       .minute = value[1],
