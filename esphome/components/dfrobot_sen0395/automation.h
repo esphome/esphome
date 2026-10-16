@@ -32,11 +32,11 @@ class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented
       this->parent_->enqueue(make_unique<FactoryResetCommand>());
     }
     if (this->det_min1_.has_value() && this->det_max1_.has_value()) {
-      if (this->det_min1_.value() >= 0 && this->det_max1_.value() >= 0) {
+      if (this->det_min1_.value(x...) >= 0 && this->det_max1_.value(x...) >= 0) {
         this->parent_->enqueue(make_unique<DetRangeCfgCommand>(
-            this->det_min1_.value_or(-1), this->det_max1_.value_or(-1), this->det_min2_.value_or(-1),
-            this->det_max2_.value_or(-1), this->det_min3_.value_or(-1), this->det_max3_.value_or(-1),
-            this->det_min4_.value_or(-1), this->det_max4_.value_or(-1)));
+            this->det_min1_.value_or(x..., -1), this->det_max1_.value_or(x..., -1), this->det_min2_.value_or(x..., -1),
+            this->det_max2_.value_or(x..., -1), this->det_min3_.value_or(x..., -1), this->det_max3_.value_or(x..., -1),
+            this->det_min4_.value_or(x..., -1), this->det_max4_.value_or(x..., -1)));
       }
     }
     if (this->delay_after_detect_.has_value() && this->delay_after_disappear_.has_value()) {
