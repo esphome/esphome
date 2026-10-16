@@ -14,8 +14,8 @@ class DFRobotSEN0465UARTComponent final : public dfrobot_sen0465_base::DFRobotSE
   void loop() override;
 
  protected:
-  bool write_frame_(const uint8_t *frame) override;
-  void read_response_() override;
+  bool write_frame(const uint8_t *frame) override;
+  void read_response() override;
 
   uint8_t rx_buffer_[dfrobot_sen0465_base::FRAME_SIZE];
   uint8_t rx_count_{0};

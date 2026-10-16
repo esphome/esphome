@@ -17,11 +17,11 @@ void DFRobotSEN0465I2CComponent::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-bool DFRobotSEN0465I2CComponent::write_frame_(const uint8_t *frame) {
+bool DFRobotSEN0465I2CComponent::write_frame(const uint8_t *frame) {
   return this->write_register(DATA_REGISTER, frame, FRAME_SIZE) == i2c::ERROR_OK;
 }
 
-void DFRobotSEN0465I2CComponent::read_response_() {
+void DFRobotSEN0465I2CComponent::read_response() {
   this->set_timeout(RESPONSE_TIMEOUT_ID, RESPONSE_DELAY_MS, [this]() {
     uint8_t frame[FRAME_SIZE];
     // Like the DFRobot library, end the register write with a STOP before reading

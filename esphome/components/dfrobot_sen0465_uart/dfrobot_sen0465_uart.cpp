@@ -33,7 +33,7 @@ void DFRobotSEN0465UARTComponent::loop() {
   this->handle_response_(this->rx_buffer_);
 }
 
-bool DFRobotSEN0465UARTComponent::write_frame_(const uint8_t *frame) {
+bool DFRobotSEN0465UARTComponent::write_frame(const uint8_t *frame) {
   // Drop anything left over, such as the answer to the mode change or readings sent before passive mode was set
   uint8_t byte;
   while (this->available() > 0) {
@@ -45,7 +45,7 @@ bool DFRobotSEN0465UARTComponent::write_frame_(const uint8_t *frame) {
   return true;
 }
 
-void DFRobotSEN0465UARTComponent::read_response_() {
+void DFRobotSEN0465UARTComponent::read_response() {
   this->enable_loop();
   this->set_timeout(RESPONSE_TIMEOUT_ID, RESPONSE_TIMEOUT_MS, [this]() {
     this->disable_loop();

@@ -12,8 +12,8 @@ class DFRobotSEN0465I2CComponent final : public dfrobot_sen0465_base::DFRobotSEN
   void dump_config() override;
 
  protected:
-  bool write_frame_(const uint8_t *frame) override;
-  void read_response_() override;
+  bool write_frame(const uint8_t *frame) override;
+  void read_response() override;
 };
 
 }  // namespace esphome::dfrobot_sen0465_i2c

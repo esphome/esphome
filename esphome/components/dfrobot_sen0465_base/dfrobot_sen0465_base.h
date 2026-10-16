@@ -58,9 +58,9 @@ class DFRobotSEN0465Component : public PollingComponent {
 
  protected:
   /// Sends one complete request frame.
-  virtual bool write_frame_(const uint8_t *frame) = 0;
+  virtual bool write_frame(const uint8_t *frame) = 0;
   /// Waits for the answer to a request, then calls handle_response_() or handle_no_response_().
-  virtual void read_response_() = 0;
+  virtual void read_response() = 0;
 
   void handle_response_(const uint8_t *frame);
   void handle_no_response_();

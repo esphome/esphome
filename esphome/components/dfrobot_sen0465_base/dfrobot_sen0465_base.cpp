@@ -56,7 +56,7 @@ void DFRobotSEN0465Component::update() {
     this->status_set_warning();
     return;
   }
-  this->read_response_();
+  this->read_response();
 }
 
 void DFRobotSEN0465Component::dump_config() {
@@ -86,7 +86,7 @@ void DFRobotSEN0465Component::dump_config() {
 bool DFRobotSEN0465Component::send_command_(uint8_t command, uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t arg3) {
   uint8_t frame[FRAME_SIZE] = {FRAME_HEAD, FRAME_ADDRESS, command, arg0, arg1, arg2, arg3};
   frame[FRAME_SIZE - 1] = frame_checksum(frame);
-  return this->write_frame_(frame);
+  return this->write_frame(frame);
 }
 
 bool DFRobotSEN0465Component::send_step_request_() {
@@ -103,7 +103,7 @@ bool DFRobotSEN0465Component::send_step_request_() {
         this->alarm_type_ == AlarmType::ALARM_TYPE_HIGH ? ALARM_HIGH_THRESHOLD : ALARM_LOW_THRESHOLD);
   }
   if (sent)
-    this->read_response_();
+    this->read_response();
   return sent;
 }
 
