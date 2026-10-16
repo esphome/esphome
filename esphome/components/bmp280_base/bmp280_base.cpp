@@ -2,8 +2,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
-
 namespace esphome::bmp280_base {
 
 ESPHOME_LOG_TAG(TAG, "bmp280.sensor");
@@ -65,18 +63,15 @@ void BMP280Component::setup() {
   // Read the chip id twice, to work around a bug where the first read is 0.
   // https://community.st.com/t5/stm32-mcus-products/issue-with-reading-bmp280-chip-id-using-spi/td-p/691855
   if (!this->bmp_read_byte(0xD0, &chip_id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->bmp_read_byte(0xD0, &chip_id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x58) {
-    this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(LOG_STR(BMP280_ERROR_WRONG_CHIP_ID));
+    this->mark_failed(LOG_STR("Wrong chip ID or no response"));
     return;
   }
 
@@ -130,17 +125,6 @@ void BMP280Component::setup() {
 }
 void BMP280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP280:");
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, BMP280_ERROR_WRONG_CHIP_ID);
-      break;
-    case NONE:
-    default:
-      break;
-  }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
 

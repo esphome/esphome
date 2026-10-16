@@ -70,7 +70,7 @@ void ILI9XXXDisplay::alloc_buffer_() {
     this->init_internal_(this->get_buffer_length_());
   }
   if (this->buffer_ == nullptr) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to allocate the display buffer"));
   }
 }
 
@@ -122,9 +122,6 @@ void ILI9XXXDisplay::dump_config() {
                 this->color_order_ == display::COLOR_ORDER_BGR ? LOG_STR_LITERAL("BGR") : LOG_STR_LITERAL("RGB"),
                 YESNO(this->swap_xy_), YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->pre_invertcolors_));
 
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 
