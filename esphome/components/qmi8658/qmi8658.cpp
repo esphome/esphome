@@ -119,7 +119,7 @@ bool QMI8658Component::update_data(motion::MotionData &data) {
   if (this->temperature_callback_.empty())
     return true;
   // Temperature: signed 16-bit, °C = raw / 256
-  int16_t raw_t = (int16_t) ((raw_data[TEMP_OFFS + 1] << 8) | raw_data[TEMP_OFFS + 0]);
+  int16_t raw_t = encode_value_le<int16_t>(&raw_data[TEMP_OFFS]);
   this->temperature_callback_.call(raw_t / 256.0f);
   return true;
 }
