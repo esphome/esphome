@@ -1,5 +1,6 @@
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "mipi_rgb.h"
+#include "mipi_rgb_blitter.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -236,7 +237,7 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
     return;
   }
 
-  if (this->fb_ != nullptr) {
+  if (this->fb_ != nullptr && this->buffer_ == nullptr) {
     int log_w = (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
                  this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
                     ? this->height_
@@ -247,7 +248,6 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
                     : this->height_;
 
     if (x_start < 0 || y_start < 0 || x_start + w > log_w || y_start + h > log_h) {
-      Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
       return;
     }
 
@@ -255,49 +255,8 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
     const auto *src_origin =
         reinterpret_cast<const uint16_t *>(ptr) + (static_cast<size_t>(y_offset) * stride + x_offset);
 
-    switch (this->rotation_) {
-      case display::DISPLAY_ROTATION_0_DEGREES: {
-        for (int py = 0; py < h; py++) {
-          memcpy(&this->fb_[(y_start + py) * this->width_ + x_start], src_origin + static_cast<size_t>(py) * stride,
-                 w * sizeof(uint16_t));
-        }
-        break;
-      }
-      case display::DISPLAY_ROTATION_90_DEGREES: {
-        const size_t x_dest_offset = this->width_ - y_start - h;
-        for (int px = 0; px < w; px++) {
-          uint16_t *dest = &this->fb_[(x_start + px) * this->width_ + x_dest_offset];
-          const uint16_t *s = src_origin + (static_cast<size_t>(h - 1) * stride + px);
-          for (int py = 0; py < h; py++) {
-            *dest++ = *s;
-            s -= stride;
-          }
-        }
-        break;
-      }
-      case display::DISPLAY_ROTATION_180_DEGREES: {
-        const size_t x_dest_offset = this->width_ - x_start - w;
-        for (int py = 0; py < h; py++) {
-          uint16_t *dest = &this->fb_[(this->height_ - 1 - (y_start + py)) * this->width_ + x_dest_offset];
-          const uint16_t *src_row = src_origin + (static_cast<size_t>(py) * stride + (w - 1));
-          for (int px = 0; px < w; px++) {
-            *dest++ = *src_row--;
-          }
-        }
-        break;
-      }
-      case display::DISPLAY_ROTATION_270_DEGREES: {
-        for (int px = 0; px < w; px++) {
-          uint16_t *dest = &this->fb_[(this->height_ - 1 - x_start - px) * this->width_ + y_start];
-          const uint16_t *s = src_origin + px;
-          for (int py = 0; py < h; py++) {
-            *dest++ = *s;
-            s += stride;
-          }
-        }
-        break;
-      }
-    }
+    blit_rotated_565(this->fb_, this->width_, this->height_, this->rotation_, src_origin, x_start, y_start, w, h,
+                     stride);
     return;
   }
 
