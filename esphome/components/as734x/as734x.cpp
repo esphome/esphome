@@ -294,15 +294,13 @@ bool AS734XComponent::write_exposure_() {
 void AS734XComponent::setup() {
   const ChipInfo *chip = this->chip_;
   const uint8_t id_reg = pgm(chip->id_reg);
-  uint8_t id = 0;
+  const uint8_t id_value = pgm(chip->id_value);
   // The sensor keeps its bank across an MCU reset, so the first access always writes CFG0
   bool ok = this->select_bank_(REG_ENABLE) && this->write_byte(REG_ENABLE, ENABLE_PON);
   delayMicroseconds(200);  // oscillator start-up
-  ok = ok && this->select_bank_(id_reg) && this->read_byte(id_reg, &id);
-  if (ok && (id & pgm(chip->id_mask)) != pgm(chip->id_value)) {
-    this->mark_failed(LOG_STR("Wrong chip ID"));
+  ok = ok && this->select_bank_(id_reg);
+  if (ok && !this->check_chip_id(this, id_reg, id_value, id_value, pgm(chip->id_mask)))
     return;
-  }
   const RegValue *init = pgm(chip->init);
   for (uint8_t i = 0, n = pgm(chip->init_count); ok && i < n; i++) {
     RegValue rv;

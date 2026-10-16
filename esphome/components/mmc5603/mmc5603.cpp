@@ -32,16 +32,9 @@ static const uint8_t MMC56X3_CTRL2_REG = 0x1D;
 static const uint8_t MMC5603_ODR_REG = 0x1A;
 
 void MMC5603Component::setup() {
-  uint8_t id = 0;
-  if (!this->read_byte(MMC56X3_PRODUCT_ID, &id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // ID is not reported correctly by all chips, 0 on some chips
+  if (!this->check_chip_id(this, MMC56X3_PRODUCT_ID, MMC56X3_CHIP_ID, 0))
     return;
-  }
-
-  if (id != 0 && id != MMC56X3_CHIP_ID) {  // ID is not reported correctly by all chips, 0 on some chips
-    this->mark_failed(LOG_STR("The ID registers don't match - Is this really an MMC5603?"));
-    return;
-  }
 
   if (!this->write_byte(MMC56X3_CTRL1_REG, 0x80)) {  // turn on set bit
     this->mark_failed(LOG_STR("Control 1 failed for set bit"));

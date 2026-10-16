@@ -52,16 +52,9 @@ enum {  // APDS9306 registers
   }
 
 void APDS9306::setup() {
-  uint8_t id;
-  if (!this->read_byte(APDS9306_PART_ID, &id)) {  // Part ID register
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // 0xB1 for APDS9306 0xB3 for APDS9306-065
+  if (!this->check_chip_id(this, APDS9306_PART_ID, 0xB1, 0xB3))
     return;
-  }
-
-  if (id != 0xB1 && id != 0xB3) {  // 0xB1 for APDS9306 0xB3 for APDS9306-065
-    this->mark_failed(LOG_STR("APDS9306 has invalid id"));
-    return;
-  }
 
   // ALS resolution and measurement, see datasheet or init.py for options
   uint8_t als_meas_rate = ((this->bit_width_ & 0x07) << 4) | (this->measurement_rate_ & 0x07);

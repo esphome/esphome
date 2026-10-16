@@ -79,19 +79,9 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
 }
 
 void BQ25186Component::setup() {
-  uint8_t mask_id;
-  if (!this->read_byte(BQ25186_REG_MASK_ID, &mask_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
-
   // Another charger at this address could lay its registers out differently, so do not write into it
-  const uint8_t device_id = mask_id & 0x0F;
-  if (device_id != 0x01) {
-    ESP_LOGE(TAG, "Unexpected device id 0x%X (expected 0x1)", device_id);
-    this->mark_failed(LOG_STR("Not a BQ25186"));
+  if (!this->check_chip_id(this, BQ25186_REG_MASK_ID, 0x01, 0x01, 0x0F))
     return;
-  }
 
   // A failed write only sets the warning status: the chip has identified itself, so a later
   // apply_configuration may retry

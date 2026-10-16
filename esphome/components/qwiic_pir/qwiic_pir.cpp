@@ -7,16 +7,8 @@ ESPHOME_LOG_TAG(TAG, "qwiic_pir");
 
 void QwiicPIRComponent::setup() {
   // Verify I2C communcation by reading and verifying the chip ID
-  uint8_t chip_id;
-  if (!this->read_byte(QWIIC_PIR_CHIP_ID, &chip_id)) {
-    this->mark_failed(LOG_STR("Failed to read chip ID"));
+  if (!this->check_chip_id(this, QWIIC_PIR_CHIP_ID, QWIIC_PIR_DEVICE_ID))
     return;
-  }
-
-  if (chip_id != QWIIC_PIR_DEVICE_ID) {
-    this->mark_failed(LOG_STR("Unknown chip ID"));
-    return;
-  }
 
   if (!this->write_byte_16(QWIIC_PIR_DEBOUNCE_TIME, this->debounce_time_)) {
     this->mark_failed(LOG_STR("Failed to configure debounce time"));
