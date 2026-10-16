@@ -8,8 +8,8 @@
 namespace esphome::smt100 {
 
 class SMT100Component final : public PollingComponent, public uart::UARTDevice {
-  // "15000,80.00,100.00,-20.00,12.00" is 31 characters; 34 bytes keep the old RAM
-  static constexpr uint16_t MAX_LINE_LENGTH = 34;
+  // Holds the longest line, "15000,80.00,100.00,-20.00,12.00" (31 characters), plus the NUL
+  static constexpr uint16_t LINE_BUFFER_SIZE = 34;
 
  public:
   SMT100Component() = default;
@@ -27,7 +27,7 @@ class SMT100Component final : public PollingComponent, public uart::UARTDevice {
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
 
  protected:
-  uart::LineReader<MAX_LINE_LENGTH, '\r', '\n'> line_reader_;
+  uart::LineReader<LINE_BUFFER_SIZE, '\r', '\n'> line_reader_;
 
   sensor::Sensor *counts_sensor_{nullptr};
   sensor::Sensor *permittivity_sensor_{nullptr};

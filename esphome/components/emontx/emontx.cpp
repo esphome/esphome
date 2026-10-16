@@ -110,12 +110,10 @@ void EmonTx::loop() {
   if (this->was_paused_) {
     // Drop what arrived during the pause and resync at the next line start
     this->was_paused_ = false;
-    bool at_line_start = false;
-    uint8_t dropped;
+    uint8_t dropped = 0;
     while (this->available() > 0 && this->read_byte(&dropped)) {
-      at_line_start = dropped == '\n';
     }
-    if (at_line_start) {
+    if (dropped == '\n') {
       this->line_reader_.reset();
     } else {
       this->line_reader_.discard_line();
@@ -133,18 +131,14 @@ void EmonTx::loop() {
     if (!this->read_byte(&received))
       break;
 
-    char *line = this->line_reader_.feed(received);
+    size_t len;
+    char *line = this->line_reader_.feed(received, len);
     this->line_reader_.log_if_overflowed(TAG);
-    if (line == nullptr || line[0] == '\0') {
+    if (line == nullptr || len == 0) {
       continue;
     }
-    const size_t len = strlen(line);
     ESP_LOGD(TAG, "Received line: %s", line);
-
-    // Fire data callbacks for all received lines
     this->data_callbacks_.call(StringRef(line, len));
-
-    // Check if this line is JSON (starts with '{')
     if (line[0] == '{') {
       ESP_LOGV(TAG, "Line is JSON, parsing...");
       this->parse_json_(line, len);

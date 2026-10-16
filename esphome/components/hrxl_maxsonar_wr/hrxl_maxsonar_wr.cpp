@@ -8,7 +8,6 @@
 
 #include "hrxl_maxsonar_wr.h"
 #include "esphome/core/log.h"
-#include <cstring>
 
 namespace esphome::hrxl_maxsonar_wr {
 
@@ -25,10 +24,11 @@ void HrxlMaxsonarWrComponent::loop() {
   while (this->available() > 0) {
     if (!this->read_byte(&data))
       continue;
-    const char *line = this->line_reader_.feed(data);
+    size_t len;
+    const char *line = this->line_reader_.feed(data, len);
     if (line != nullptr) {
       ESP_LOGV(TAG, "Read from serial: %s", line);
-      this->handle_line_(line, strlen(line));
+      this->handle_line_(line, len);
     } else if (this->line_reader_.overflowed()) {
       // No CR in time: report it and start over with the next byte
       ESP_LOGW(TAG, "Invalid data read from sensor: %s", this->line_reader_.partial());
@@ -45,8 +45,8 @@ void HrxlMaxsonarWrComponent::handle_line_(const char *line, size_t len) {
   int millimeters = parse_number<int>(line + 1).value_or(0);
 
   // XL reports in cm instead of mm and reports 3 digits instead of 4
-  if (len - 1 == 3) {
-    millimeters = millimeters * 10;
+  if (len == 4) {
+    millimeters *= 10;
   }
 
   float meters = float(millimeters) / 1000.0f;

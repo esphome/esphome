@@ -57,6 +57,7 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
   void set_disable_led(bool disable_led) { this->disable_led_ = disable_led; }
 
  protected:
+  /// line is NUL terminated
   void process_line_(StringRef line);
   void schedule_reboot_();
   int num_sensors_missing_();
@@ -70,8 +71,6 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
 
   int16_t boot_count_ = 0;
   int16_t no_response_count_ = 0;
-  // Keeps the component's existing 80 byte line limit
-  uart::LineReader<80> line_reader_;
 
   RGModel model_ = RG9;
   RG15Resolution resolution_ = FORCE_HIGH;
@@ -82,6 +81,7 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
   bool em_sat_ = false;
   bool request_temperature_ = false;
   bool disable_led_ = false;
+  uart::LineReader<80> line_reader_;
 
   // bit field showing which sensors we have received data for
   int sensors_received_ = -1;

@@ -110,13 +110,14 @@ void HydreonRGxxComponent::update() {
 void HydreonRGxxComponent::loop() {
   uint8_t data;
   while (this->available() > 0) {
-    if (this->read_byte(&data)) {
-      const char *line = this->line_reader_.feed(data);
-      if (line != nullptr) {
-        this->process_line_(StringRef(line, strlen(line)));
-      } else {
-        this->line_reader_.log_if_overflowed(TAG);
-      }
+    if (!this->read_byte(&data)) {
+      continue;
+    }
+    size_t len;
+    const char *line = this->line_reader_.feed(data, len);
+    this->line_reader_.log_if_overflowed(TAG);
+    if (line != nullptr) {
+      this->process_line_(StringRef(line, len));
     }
   }
 }
@@ -156,7 +157,6 @@ void HydreonRGxxComponent::schedule_reboot_() {
 }
 
 void HydreonRGxxComponent::process_line_(StringRef line) {
-  // line is also NUL terminated, so c_str() can be logged and parsed
   ESP_LOGV(TAG, "Read from serial: %s", line.c_str());
 
   if (line[0] == ';') {
@@ -215,7 +215,7 @@ void HydreonRGxxComponent::process_line_(StringRef line) {
     if (majend == std::string::npos || endversion == std::string::npos || majend > endversion) {
       ESP_LOGW(TAG, "invalid version string: %s", line.c_str());
     }
-    // strtol stops at the '.' and the ' ' that ended the old substrings
+    // strtol stops at the '.' and the ' '
     int major = line.size() > 3 ? strtol(line.c_str() + 3, nullptr, 10) : 0;
     int minor = strtol(line.c_str() + (majend == std::string::npos ? 0 : majend + 1), nullptr, 10);
 

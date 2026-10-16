@@ -36,8 +36,7 @@ void APCProteousCover::loop() {
     if (this->line_reader_.overflowed()) {
       // Start over from this byte, so a frame right after unterminated noise is still read
       ESP_LOGVV(TAG, "rx overflow, discarding");
-      this->line_reader_.reset();
-      this->line_reader_.feed(data);
+      this->line_reader_.restart_with(data);
     } else if (line != nullptr && line[0] != '\0') {
       ESP_LOGVV(TAG, "rx: '%s'", line);
       this->parse_response_(line);
