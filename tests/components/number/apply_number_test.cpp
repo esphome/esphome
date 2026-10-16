@@ -6,8 +6,8 @@
 
 namespace esphome::number::testing {
 
-static Number *last_entity = nullptr;
-static std::vector<float> values;
+static Number *last_entity = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static std::vector<float> values;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static void on_control(Number *entity, float value) {
   last_entity = entity;
