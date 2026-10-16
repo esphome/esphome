@@ -1,5 +1,6 @@
 #include "hydreon_rgxx.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome::hydreon_rgxx {
 
@@ -112,7 +113,7 @@ void HydreonRGxxComponent::loop() {
     if (this->read_byte(&data)) {
       const char *line = this->line_reader_.feed(data);
       if (line != nullptr)
-        this->process_line_(StringRef(line, this->line_reader_.length()));
+        this->process_line_(StringRef(line, strlen(line)));
     }
   }
 }

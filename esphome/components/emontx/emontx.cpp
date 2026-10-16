@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include "esphome/components/json/json_util.h"
+#include <cstring>
 
 namespace esphome::emontx {
 
@@ -136,7 +137,7 @@ void EmonTx::loop() {
     if (this->line_reader_.overflowed()) {
       ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding line", MAX_LINE_LENGTH);
     } else if (data != nullptr && data[0] != '\0') {
-      size_t len = this->line_reader_.length();
+      size_t len = strlen(data);
       StringRef line(data, len);
       ESP_LOGD(TAG, "Received line: %s", line.c_str());
 

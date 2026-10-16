@@ -1,6 +1,7 @@
 #include "apc_proteous_cover.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <cstring>
 
 namespace esphome::apc_proteous {
 
@@ -36,13 +37,12 @@ void APCProteousCover::loop() {
     if (line != nullptr) {
       if (line[0] != '\0') {
         ESP_LOGVV(TAG, "rx: '%s'", line);
-        this->parse_response_(line, this->rx_.length());
+        this->parse_response_(line, strlen(line));
       }
     } else if (this->rx_.overflowed()) {
-      // Keep the overflowing byte as the start of a new response
+      // Start a new response with the next byte
       ESP_LOGVV(TAG, "rx overflow, discarding");
       this->rx_.reset();
-      this->rx_.feed(data);
     }
   }
 }
@@ -152,9 +152,8 @@ void APCProteousCover::update() {
     return;
   }
   // The line is idle, so anything left in the buffer is an unterminated echo
-  const char *stale = this->rx_.partial();
-  if (stale[0] != '\0') {
-    ESP_LOGVV(TAG, "discarding stale rx '%s' before query", stale);
+  if (this->rx_.length() != 0) {
+    ESP_LOGVV(TAG, "discarding stale rx '%s' before query", this->rx_.partial());
     this->rx_.reset();
   }
 

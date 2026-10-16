@@ -2,15 +2,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/components/uart/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::pylontech {
 
 static const uint8_t NUM_BUFFERS = 20;
 static const uint8_t TEXT_SENSOR_MAX_LEN = 14;
-// The longest line, the newer firmware header, is 182 characters
-static constexpr size_t MAX_LINE_SIZE = 200;
 
 class PylontechListener {
  public:
@@ -39,11 +36,10 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   void register_listener(PylontechListener *listener) { this->listeners_.push_back(listener); }
 
  protected:
-  void process_line_(const char *buffer);
+  void process_line_(std::string &buffer);
 
-  uart::LineReader<MAX_LINE_SIZE> line_reader_;
-  // ring buffer of complete lines
-  char lines_[NUM_BUFFERS][MAX_LINE_SIZE];
+  // ring buffer
+  std::string buffer_[NUM_BUFFERS];
   int buffer_index_write_ = 0;
   int buffer_index_read_ = 0;
   bool has_tlow_id_ = false;

@@ -203,7 +203,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint16_t paired_reads_{0};
   // Writes given up on that are tried again in a later sequence
   uint16_t deferred_writes_{0};
-  uart::LineReader<MAX_LINE_LENGTH> line_reader_;
 #ifdef USE_NUMBER
   // Numbers changed since their last write was sent, one bit per NumberSetting
   uint16_t changed_numbers_{0};
@@ -221,6 +220,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t led_on_{0};
   bool sent_led_on_{false};
 #endif
+  uart::LineReader<MAX_LINE_LENGTH> line_reader_;
   bool read_failed_{false};
   bool bad_frame_logged_{false};
   bool echo_seen_{false};

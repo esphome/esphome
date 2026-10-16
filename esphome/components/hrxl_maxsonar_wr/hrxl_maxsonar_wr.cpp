@@ -8,6 +8,7 @@
 
 #include "hrxl_maxsonar_wr.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome::hrxl_maxsonar_wr {
 
@@ -27,7 +28,7 @@ void HrxlMaxsonarWrComponent::loop() {
     const char *line = this->line_reader_.feed(data);
     if (line != nullptr) {
       ESP_LOGV(TAG, "Read from serial: %s", line);
-      this->handle_line_(line, this->line_reader_.length());
+      this->handle_line_(line, strlen(line));
     } else if (this->line_reader_.overflowed()) {
       // No CR in time: report it and start over with the next byte
       ESP_LOGW(TAG, "Invalid data read from sensor: %s", this->line_reader_.partial());
