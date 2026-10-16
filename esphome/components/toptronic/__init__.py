@@ -24,6 +24,9 @@ CONF_FUNCTION_NUMBER = "function_number"
 CONF_DATAPOINT = "datapoint"
 CONF_DECIMAL = "decimal"
 CONF_VALUES = "values"
+CONF_MAX_PENDING_MESSAGES = "max_pending_messages"
+CONF_MAX_PENDING_AGE = "max_pending_age"
+CONF_CLEANUP_INTERVAL = "cleanup_interval"
 
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
@@ -108,6 +111,15 @@ CONFIG_SCHEMA = cv.All(
                 *[t.name for t in DeviceType], upper=True
             ),
             cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
+            cv.Optional(CONF_MAX_PENDING_MESSAGES, default=32): cv.int_range(
+                min=1, max=512
+            ),
+            cv.Optional(
+                CONF_MAX_PENDING_AGE, default="5000ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_CLEANUP_INTERVAL, default="5000ms"
+            ): cv.positive_time_period_milliseconds,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_preset,
@@ -183,5 +195,8 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add(var.set_device_type(get_device_type(config["device_type"])))
     cg.add(var.set_device_addr(config[CONF_DEVICE_ADDR]))
+    cg.add(var.set_max_pending_messages(config[CONF_MAX_PENDING_MESSAGES]))
+    cg.add(var.set_max_pending_age_ms(config[CONF_MAX_PENDING_AGE]))
+    cg.add(var.set_cleanup_interval_ms(config[CONF_CLEANUP_INTERVAL]))
     await _generate_entities(var, config)
     cg.add(var.configure_hub())

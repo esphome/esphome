@@ -4,18 +4,44 @@
 #include <string>
 namespace esphome::toptronic {
 ESPHOME_LOG_TAG(TAG, "toptronic");
+
 static const uint8_t RESPONSE = 0x42;
-static const uint8_t RESPONSE_EXT = 0x56;  // same layout + 2 header bytes before value
+// 0x56 = extended-format RESPONSE (larger value payload, e.g. cleaning /
+// maintenance counters). Same layout as 0x42 but 2 extra bytes (0x80 0x00)
+// between the datapoint and the value.
+static const uint8_t RESPONSE_EXT = 0x56;
 static const uint8_t GET_REQ = 0x40;
 static const uint8_t SET_REQ = 0x46;
+
+// Multi-frame protocol constants: a standard CAN frame holds 8 bytes, the first
+// frame spends 2 on headers (6 payload bytes), continuation frames 1 (7 payload
+// bytes). Continuation CAN IDs clear bits 28-22 (msg_id -> 0).
 static constexpr size_t MAX_FIRST_FRAME_PAYLOAD = 6;
 static constexpr size_t MAX_CONT_FRAME_PAYLOAD = 7;
 static constexpr uint32_t CONTINUATION_ID_MASK = 0x003FFFFF;
 static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
-static constexpr size_t MIN_MESSAGE_LEN = 5;  // cmd | fg | fn | dp_hi | dp_lo
-static constexpr size_t MAX_PENDING_MESSAGES = 32;
-static constexpr uint32_t MAX_PENDING_AGE_MS = 5000;
-static constexpr uint32_t CLEANUP_INTERVAL_MS = 5000;
+
+// Minimum decodable TopTronic message: cmd | function_group | function_number | dp_hi | dp_lo.
+static constexpr size_t MIN_MESSAGE_LEN = 5;
+
+// Format a byte buffer as a zero-padded hex string for log output (e.g. "4001001a").
+// Uses a plain std::string (no std::stringstream) — common short messages fit in the
+// small-string-optimization buffer, so the hot path (every received frame) performs
+// no heap allocation.
+std::string hex_str(const uint8_t *data, size_t len) {
+  static const char *const HEX = "0123456789abcdef";
+  std::string out;
+  out.reserve(len * 2);
+  for (size_t i = 0; i < len; ++i) {
+    out.push_back(HEX[(data[i] >> 4) & 0x0F]);
+    out.push_back(HEX[data[i] & 0x0F]);
+  }
+  return out;
+}
+
+// The ESP32 CAN gateway presents itself on the bus as a TopTronic gateway (GW)
+// device. This constant is the device-type portion of the sender CAN ID for all
+// outgoing requests.
 static constexpr uint16_t GATEWAY_DEVICE_TYPE = 1153;  // GW
 TopTronic::TopTronic(canbus::Canbus *canbus) : canbus_(canbus) {
   this->canbus_->add_callback([this](uint32_t can_id, bool, bool rtr, const std::vector<uint8_t> &data) {
@@ -50,47 +76,41 @@ void TopTronicBase::add_on_update_callback(std::function<void()> &&callback) {
   this->update_callback_.add(std::move(callback));
 }
 void TopTronicBase::update() { this->update_callback_.call(); }
+// Decode a big-endian byte sequence into an integer of type T.
+// Accumulates into uint64_t to avoid signed-shift UB when T is int64_t
+// (left-shifting into the sign bit is undefined for signed types in C++).
+// static_cast<T> of an out-of-range uint64_t is implementation-defined but
+// produces the expected two's-complement result on all ESPHome targets.
 template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
   uint64_t u = 0;
-  for (size_t i = 0; i < len; i++)
+  for (size_t i = 0; i < len; i++) {
     u = (u << 8) | data[i];
+  }
   return static_cast<T>(u);
 }
-static std::vector<uint8_t> float_to_bytes(float value, TypeName type) {
+
+// Byte width of a numeric datapoint value for the given TypeName. A RESPONSE
+// must carry at least this many value bytes before its payload is decoded.
+static size_t type_width(TypeName type) {
   switch (type) {
     case U8:
-      return {(uint8_t) value};
-    case U16: {
-      uint16_t v = (uint16_t) value;
-      return {(uint8_t) (v >> 8), (uint8_t) v};
-    }
-    case U32: {
-      uint32_t v = (uint32_t) value;
-      return {(uint8_t) (v >> 24), (uint8_t) (v >> 16), (uint8_t) (v >> 8), (uint8_t) v};
-    }
     case S8:
-      return {(uint8_t) (int8_t) value};
-    case S16: {
-      int16_t v = (int16_t) value;
-      return {(uint8_t) (v >> 8), (uint8_t) v};
-    }
-    case S32: {
-      int32_t v = (int32_t) value;
-      return {(uint8_t) (v >> 24), (uint8_t) (v >> 16), (uint8_t) (v >> 8), (uint8_t) v};
-    }
-    case S64: {
-      int64_t v = (int64_t) value;
-      std::array<uint8_t, 8> b{};
-      for (size_t i = 0; i < 8; i++)
-        b[i] = (uint8_t) (v >> (8 * (7 - i)));
-      return {b.begin(), b.end()};
-    }
+      return 1;
+    case U16:
+    case S16:
+      return 2;
+    case U32:
+    case S32:
+      return 4;
+    case S64:
+      return 8;
   }
-  return {};
+  return 1;
 }
-#ifdef USE_SENSOR
-float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
-  switch (this->type_) {
+
+// Convert raw CAN bytes to a float, interpreting them as the configured integer type.
+static float bytes_to_float(const uint8_t *data, size_t len, TypeName type) {
+  switch (type) {
     case U8:
       return (float) bytes_to_number<uint8_t>(data, len);
     case U16:
@@ -108,30 +128,49 @@ float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
   }
   return 0.0f;
 }
-size_t TopTronicSensor::value_width() const {
-  switch (this->type_) {
-    case U8:
-    case S8:
-      return 1;
-    case U16:
-    case S16:
-      return 2;
-    case U32:
-    case S32:
-      return 4;
-    case S64:
-      return 8;
+
+// Encode a numeric value as a big-endian byte sequence for a SET request payload.
+template<typename T> static std::vector<uint8_t> number_to_bytes(T value) {
+  std::array<uint8_t, sizeof(T)> bytes{};
+  for (size_t i = 0; i < bytes.size(); i++) {
+    bytes[i] = (uint8_t) (value >> (8 * (bytes.size() - i - 1)));
   }
-  return 1;
+  return {bytes.begin(), bytes.end()};
 }
+
+static std::vector<uint8_t> float_to_bytes(float value, TypeName type) {
+  switch (type) {
+    case U8:
+      return number_to_bytes((uint8_t) value);
+    case U16:
+      return number_to_bytes((uint16_t) value);
+    case U32:
+      return number_to_bytes((uint32_t) value);
+    case S8:
+      return number_to_bytes((int8_t) value);
+    case S16:
+      return number_to_bytes((int16_t) value);
+    case S32:
+      return number_to_bytes((int32_t) value);
+    case S64:
+      return number_to_bytes((int64_t) value);
+  }
+  return {};
+}
+#ifdef USE_SENSOR
+float TopTronicSensor::parse_value(const uint8_t *data, size_t len) { return bytes_to_float(data, len, this->type_); }
+// Minimum value bytes a complete RESPONSE for this sensor must carry.
+size_t TopTronicSensor::value_width() const { return type_width(this->type_); }
 #endif
 #ifdef USE_NUMBER
 void TopTronicNumber::control(float value) {
   float v = this->multiplier_ * value;
-  std::vector<uint8_t> data = build_set_request(this->function_group_, this->function_number_, this->datapoint_,
-                                                float_to_bytes(v, this->type_));
+  std::vector<uint8_t> bytes = float_to_bytes(v, this->type_);
+
+  std::vector<uint8_t> data = build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes);
   this->set_callback_.call(data);
-  ESP_LOGD(TAG, "[SET] %s: %f", this->get_name().c_str(), v);
+
+  ESP_LOGD(TAG, "[SET] %s: %f, Data: 0x%s", this->get_name().c_str(), v, hex_str(data.data(), data.size()).c_str());
 }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -156,28 +195,43 @@ void TopTronicSelect::control(const std::string &text) {
   this->set_callback_.call(data);
 }
 #endif
+// Return the TopTronicDevice for this ID, creating it on first access.
+// operator[] performs a single map lookup rather than count() + operator[] (two lookups).
 TopTronicDevice *TopTronic::get_or_create_device_(uint32_t device_id) {
   auto &device_ptr = this->devices_[device_id];
-  if (!device_ptr)
+  if (!device_ptr) {
     device_ptr = std::make_unique<TopTronicDevice>();
+  }
   return device_ptr.get();
 }
+
 void TopTronic::add_sensor(TopTronicBase *sensor) {
-  this->get_or_create_device_(this->get_device_id())->get_sensors()[sensor->get_id()] = sensor;
+  TopTronicDevice *device = this->get_or_create_device_(this->get_device_id());
+  device->get_sensors()[sensor->get_id()] = sensor;
 }
+
 void TopTronic::add_input(TopTronicBase *input) {
-  this->get_or_create_device_(this->get_device_id())->get_inputs()[input->get_id()] = input;
+  TopTronicDevice *device = this->get_or_create_device_(this->get_device_id());
+  device->get_inputs()[input->get_id()] = input;
 }
+// Wire each read-only sensor's polling callback to a GET request. The GET payload
+// is cached once so the poll path performs no heap allocation.
 void TopTronic::register_sensor_callbacks() {
   for (const auto &d : this->devices_) {
-    for (const auto &s : d.second->get_sensors()) {
+    auto *device = d.second.get();
+    for (const auto &s : device->get_sensors()) {
       auto *sensor = s.second;
-      sensor->cache_request_data();
+      sensor->cache_request_data();  // build once, avoid per-poll heap alloc
       auto *canbus = this->canbus_;
       uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | this->device_addr_, this->get_device_id());
-      sensor->add_on_update_callback([canbus, sensor, can_id]() -> void {
+
+      // Capture the receiver device id (e.g. 0x208 for HV+8, 0x408 for BM+8) so the
+      // [GET] log shows exactly which bus device is being polled.
+      uint16_t receiver_dev = this->get_device_id();
+      sensor->add_on_update_callback([canbus, sensor, can_id, receiver_dev]() -> void {
         const auto &data = sensor->get_request_data();
         canbus->send_data(can_id, true, data);
+        ESP_LOGD(TAG, "[GET] dev 0x%04X Data: 0x%s", receiver_dev, hex_str(data.data(), data.size()).c_str());
       });
     }
   }
@@ -190,15 +244,31 @@ static uint32_t reflect(uint32_t val, uint8_t width) {
   }
   return out;
 }
-// CRC-16/poly 0x1021, init 0xB006, refin/refout, no xorout (from bus captures).
+// CRC-16 used by the TopTronic multi-frame protocol.
+// Parameters identified by brute-force search against captured bus traffic:
+//   poly=0x1021  init=0xB006  refin=true  refout=true  xorout=0x0000
+// This matches the CRC-16/ARC family with a non-standard init value.
+//
+// Lookup-table form: the bit-wise algorithm reflects each input byte, runs an
+// MSB-first (left-shifting) poly 0x1021 loop, then reflects the final CRC. The
+// table is therefore MSB-first over PRE-REFLECTED bytes:
+//   crc = (crc << 8) ^ table[((crc >> 8) ^ reflect(byte)) & 0xFF]
+// Equivalent to the bit-wise loop (validated against captured samples).
+//
+// Thread-safety: the lazy one-time init below is intentionally not atomic.
+// ESPHome routes all component calls ({parse_frame, loop, update}) through the
+// single main-loop task, so no two tasks can race on `initialized` in practice.
+// Keep this function on the main loop task; do not call it from other FreeRTOS
+// tasks without first adding a mutex or moving the init to setup().
 static const uint16_t *crc16_table() {
   static uint16_t table[256];
   static bool initialized = false;
   if (!initialized) {
     for (int i = 0; i < 256; ++i) {
       uint16_t v = static_cast<uint16_t>(i << 8);
-      for (int b = 0; b < 8; ++b)
+      for (int b = 0; b < 8; ++b) {
         v = (v & 0x8000) ? static_cast<uint16_t>((v << 1) ^ 0x1021) : static_cast<uint16_t>(v << 1);
+      }
       table[i] = v;
     }
     initialized = true;
@@ -207,32 +277,54 @@ static const uint16_t *crc16_table() {
 }
 static uint16_t compute_crc16(const uint8_t *data, size_t len) {
   const uint16_t *const table = crc16_table();
-  uint16_t crc = 0xB006;
+  uint16_t crc = 0xB006;  // init
   for (size_t i = 0; i < len; ++i) {
     uint8_t byte = static_cast<uint8_t>(reflect(data[i], 8));
     crc = static_cast<uint16_t>((crc << 8) ^ table[((crc >> 8) ^ byte) & 0xFF]);
   }
-  return static_cast<uint16_t>(reflect(crc, 16));
+  return static_cast<uint16_t>(reflect(crc, 16));  // refout=true, xorout=0x0000
 }
+// Send a SET request over CAN, transparently splitting into multiple frames when needed.
+//
+// A standard CAN frame holds at most 8 bytes. The TopTronic multi-frame protocol works as:
+//   First frame  (msg_id = 0x1F): [frame_count<<3|flags, msg_header, payload[0..5]]
+//   Cont. frames (msg_id != 0x1F): [msg_header, payload[6..12], ...]
+//   Last 2 bytes of the reassembled payload are the CRC-16 checksum (poly=0x1021, init=0xB006).
+//
+// The continuation CAN ID clears bits 28-22 (sets the top-priority field to 0) so that
+// parse_frame() on the receiver treats those frames as continuations, not new messages.
 static void send_can_frames(canbus::Canbus *canbus, uint32_t can_id, const std::vector<uint8_t> &data) {
   if (data.size() <= 8) {
+    // Single-frame: payload fits in one CAN frame — send as-is.
     canbus->send_data(can_id, true, data);
     return;
   }
+
+  // Multi-frame: strip the first byte (0x01 single-frame flag) and reframe.
+  // A static counter provides a unique msg_header key for each outgoing multi-frame message.
   static uint8_t msg_counter = 0;
-  uint8_t msg_header = (++msg_counter == 0) ? ++msg_counter : msg_counter;
+  uint8_t msg_header = (++msg_counter == 0) ? ++msg_counter : msg_counter;  // skip 0
+
+  // Build the full message payload, then append the 2-byte CRC (big-endian).
   std::vector<uint8_t> msg(data.begin() + 1, data.end());
   uint16_t crc = compute_crc16(msg.data(), msg.size());
-  msg.push_back(static_cast<uint8_t>(crc >> 8));
-  msg.push_back(static_cast<uint8_t>(crc & 0xFF));
+  msg.push_back(static_cast<uint8_t>(crc >> 8));    // CRC high byte
+  msg.push_back(static_cast<uint8_t>(crc & 0xFF));  // CRC low byte
+
+  // First frame carries up to 6 message bytes (2 header bytes consume slots 0 and 1).
   size_t first_chunk = std::min<size_t>(MAX_FIRST_FRAME_PAYLOAD, msg.size());
   size_t after_first = msg.size() - first_chunk;
-  auto num_cont = static_cast<uint8_t>((after_first + MAX_CONT_FRAME_PAYLOAD - 1) / MAX_CONT_FRAME_PAYLOAD);
+  auto num_cont = static_cast<uint8_t>((after_first + MAX_CONT_FRAME_PAYLOAD - 1) / MAX_CONT_FRAME_PAYLOAD);  // ceil
+
+  // The first-frame header carries the TOTAL frame count (first frame +
+  // continuations), matching the boiler's receive convention.
   std::vector<uint8_t> first_frame;
   first_frame.push_back(static_cast<uint8_t>(((num_cont + 1) << 3) | 0x01));
-  first_frame.push_back(msg_header);
+  first_frame.push_back(msg_header);  // reassembly key
   first_frame.insert(first_frame.end(), msg.begin(), msg.begin() + first_chunk);
   canbus->send_data(can_id, true, first_frame);
+
+  // Continuation frames use a lower-priority CAN ID (bits 28-22 cleared -> msg_id != 0x1F).
   uint32_t cont_id = can_id & CONTINUATION_ID_MASK;
   std::vector<uint8_t> cont_frame;
   cont_frame.reserve(8);
@@ -244,6 +336,9 @@ static void send_can_frames(canbus::Canbus *canbus, uint32_t can_id, const std::
     offset += chunk;
     canbus->send_data(cont_id, true, cont_frame);
   }
+
+  ESP_LOGD(TAG, "[SET] Sent %u CAN frames (msg_header=0x%02X, payload=%zu bytes)", 1 + num_cont, msg_header,
+           data.size());
 }
 void TopTronic::register_input_callbacks() {
   for (const auto &d : this->devices_) {
@@ -294,10 +389,19 @@ void TopTronic::link_inputs_() {
   }
 }
 void TopTronic::configure_hub() {
+  // All functional wiring runs from the CONFIG phase (emitted by __init__.py
+  // right after the add_sensor/add_input calls) instead of setup(). Reason:
+  // ESPHome sizes components_ (StaticVector) from ESPHOME_COMPONENT_COUNT,
+  // which is computed at CORE codegen priority - BEFORE this component
+  // registers its preset-generated entity IDs in CORE.component_ids. The
+  // under-count silently drops every registration past the StaticVector
+  // capacity, so a hub can be missing from components_ entirely and its
+  // setup() never invoked. Config-phase statements always run for every hub.
   this->link_inputs_();
   this->register_sensor_callbacks();
   this->register_input_callbacks();
 }
+
 void TopTronic::setup() {
   size_t sensors = 0, inputs = 0;
   for (const auto &d : this->devices_) {
@@ -308,11 +412,18 @@ void TopTronic::setup() {
 }
 void TopTronic::loop() {
   const uint32_t now = millis();
-  if (now - this->last_cleanup_ms_ < CLEANUP_INTERVAL_MS)
+
+  // Periodically evict stale multi-frame reassembly buffers so a lost fragment (or a
+  // device going offline mid-message) cannot pin an entry forever. The map is tiny
+  // (capped at max_pending_messages_), so the sweep is throttled to avoid per-loop work.
+  if (now - this->last_cleanup_ms_ < this->cleanup_interval_ms_)
     return;
   this->last_cleanup_ms_ = now;
+
   for (auto it = this->pending_messages_.begin(); it != this->pending_messages_.end();) {
-    if (now - it->second.last_update_ms > MAX_PENDING_AGE_MS) {
+    if (now - it->second.last_update_ms > this->max_pending_age_ms_) {
+      ESP_LOGD(TAG, "Expiring stale pending message 0x%08X (%zu bytes, %u frames remaining)", (unsigned int) it->first,
+               it->second.data.size(), it->second.remaining_frames);
       it = this->pending_messages_.erase(it);
     } else {
       ++it;
@@ -320,6 +431,9 @@ void TopTronic::loop() {
   }
 }
 void TopTronic::dump_config() { ESP_LOGCONFIG(TAG, "TopTronic device 0x%04X", (unsigned) this->get_device_id()); }
+// Called for every CAN frame whose sender node id this hub owns. Reassembles
+// multi-frame messages (CRC-checked) and hands complete messages to
+// interpret_message_(). Frames from other devices return immediately.
 void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, bool remote_transmission_request) {
   (void) remote_transmission_request;
   uint8_t msg_id = can_id >> 24;
@@ -331,13 +445,14 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
     if (data.size() < 2)
       return;
     uint8_t num_remaining = data[0] >> 3;
-    if (num_remaining > MAX_PENDING_MESSAGES || num_remaining == 1)
+    if (num_remaining > this->max_pending_messages_ || num_remaining == 1)
       return;
     if (num_remaining == 0) {
       this->interpret_message_(data.data() + 1, data.size() - 1, can_id);
     } else {
       uint32_t header_key = (device_id << 8) | data[1];
-      if (this->pending_messages_.size() >= MAX_PENDING_MESSAGES && !this->pending_messages_.contains(header_key))
+      if (this->pending_messages_.size() >= this->max_pending_messages_ &&
+          !this->pending_messages_.contains(header_key))
         this->pending_messages_.erase(this->pending_messages_.begin());
       PendingMessage pending;
       pending.data.reserve(static_cast<size_t>(num_remaining) * MAX_CONT_FRAME_PAYLOAD);
