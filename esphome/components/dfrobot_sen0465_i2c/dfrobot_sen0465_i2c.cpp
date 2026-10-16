@@ -9,8 +9,9 @@ using dfrobot_sen0465_base::FRAME_SIZE;
 using dfrobot_sen0465_base::RESPONSE_TIMEOUT_ID;
 
 static constexpr uint8_t DATA_REGISTER = 0x00;
-// The DFRobot library waits this long between a request and reading the answer
-static constexpr uint32_t RESPONSE_DELAY_MS = 10;
+// The DFRobot library waits 10 ms, but on an ESP32-C6 reading the answer to the alarm command
+// 10 ms after sending it timed out
+static constexpr uint32_t RESPONSE_DELAY_MS = 100;
 
 void DFRobotSEN0465I2CComponent::dump_config() {
   DFRobotSEN0465Component::dump_config();
