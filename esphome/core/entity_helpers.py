@@ -469,31 +469,116 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
 
 
 @dataclass(frozen=True, slots=True)
+class ApplyEntity:
+    """A domain's generated control function: its parameters and how it publishes the new value."""
+
+    params: tuple[tuple[SafeExpType, str], ...]
+    publish: str | None = None
+
+
+_APPLY_DOMAIN = "entity_apply"
+
+
+@dataclass
+class _ApplyData:
+    apply_functions: dict[str, SafeExpType] = field(default_factory=dict)
+
+
+def _get_apply_data() -> _ApplyData:
+    if _APPLY_DOMAIN not in CORE.data:
+        CORE.data[_APPLY_DOMAIN] = _ApplyData()
+    return CORE.data[_APPLY_DOMAIN]
+
+
+def _apply_entity_function(
+    entity_id: ID, params: tuple[tuple[SafeExpType, str], ...], body: list[str]
+) -> SafeExpType:
+    """Emit the control function once per distinct body, so equal entities share one class."""
+    functions = _get_apply_data().apply_functions
+    key = "\n".join([*(f"{type_} {name}" for type_, name in params), *body])
+    if (fn := functions.get(key)) is None:
+        fn = functions[key] = cg.static_function(
+            f"esphome__{entity_id.id}__fn", cg.void, list(params), body
+        )
+    return fn
+
+
+@dataclass(frozen=True, slots=True)
 class SubEntities:
     """Create the child entity configured under key, set parent (if bound) and pass it to setter.
 
+    ``setter`` may be None when the hub does not keep the entity.
+
     Extra arguments go to new_entity. Returns None only when key is absent, so the result can be
-    used directly as a condition.
+    used directly as a condition. With ``apply`` the entity is the domain's ``Apply*`` class and
+    its control runs ``parent->apply`` (see ``ApplyEntity.params`` for the names it can use);
+    ``publish`` is ``"before"`` or ``"after"`` that call, or None to not publish.
     """
 
     new_entity: Callable[..., Awaitable[MockObj]]
     config: ConfigType
     parent: MockObj | ID | None = None
+    apply_entity: ApplyEntity | None = None
 
     async def __call__(
         self,
         key: str,
-        setter: Callable[[MockObj], Expression],
+        setter: Callable[[MockObj], Expression] | None,
         *args: SafeExpType,
+        apply: str | None = None,
+        publish: str | None = None,
         **kwargs: Any,
     ) -> MockObj | None:
         if (conf := self.config.get(key)) is None:
             return None
-        var = await self.new_entity(conf, *args, **kwargs)
-        if self.parent is not None:
-            await cg.register_parented(var, self.parent)
-        add(setter(var))
+        return await self.create(
+            conf, setter, *args, apply=apply, publish=publish, **kwargs
+        )
+
+    async def create(
+        self,
+        conf: ConfigType,
+        setter: Callable[[MockObj], Expression] | None,
+        *args: SafeExpType,
+        apply: str | None = None,
+        publish: str | None = None,
+        **kwargs: Any,
+    ) -> MockObj:
+        """Create the entity from ``conf`` itself, for a platform whose config is one entity."""
+        if apply is None:
+            if publish is not None:
+                raise ValueError(f"{conf[CONF_ID]}: publish needs apply")
+            var = await self.new_entity(conf, *args, **kwargs)
+            if self.parent is not None:
+                await cg.register_parented(var, self.parent)
+        else:
+            fn = await self._apply_function(conf[CONF_ID], apply, publish)
+            var = await self.new_entity(conf, cg.TemplateArguments(fn), *args, **kwargs)
+        if setter is not None:
+            add(setter(var))
         return var
+
+    async def _apply_function(
+        self, entity_id: ID, apply: str, publish: str | None
+    ) -> SafeExpType:
+        if self.apply_entity is None or self.parent is None:
+            raise ValueError(
+                f"{entity_id}: apply needs a parent and a domain that supports it"
+            )
+        if publish is not None and (
+            publish not in ("before", "after") or self.apply_entity.publish is None
+        ):
+            raise ValueError(f"{entity_id}: cannot publish {publish!r} for this domain")
+        parent = self.parent
+        if isinstance(parent, ID):
+            parent = await get_variable(parent)
+        # Named from global scope, so a parameter cannot shadow the hub.
+        body = [f"::{parent}->{apply};"]
+        if publish == "before":
+            body.insert(0, self.apply_entity.publish)
+        elif publish == "after":
+            body.append(self.apply_entity.publish)
+        return _apply_entity_function(entity_id, self.apply_entity.params, body)
 
 
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):

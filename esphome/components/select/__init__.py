@@ -19,6 +19,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
@@ -35,6 +36,7 @@ IS_PLATFORM_COMPONENT = True
 select_ns = cg.esphome_ns.namespace("select")
 Select = select_ns.class_("Select", cg.EntityBase)
 SelectPtr = Select.operator("ptr")
+ApplySelect = select_ns.class_("ApplySelect", Select)
 
 # Conditions
 SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
@@ -124,11 +126,16 @@ async def new_select(config, *args, options: list[str]):
     return var
 
 
+_APPLY_ENTITY = ApplyEntity(
+    ((SelectPtr, "entity"), (cg.size_t, "index")), "entity->publish_state(index);"
+)
+
+
 def sub_selects(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_select."""
-    return SubEntities(new_select, config, parent)
+    """Return a SubEntities bound to new_select; ``apply`` statements can use ``entity`` and ``index``."""
+    return SubEntities(new_select, config, parent, _APPLY_ENTITY)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

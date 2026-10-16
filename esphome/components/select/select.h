@@ -112,4 +112,15 @@ class Select : public EntityBase {
   LazyCallbackManager<void(size_t)> state_callback_;
 };
 
+/// Runs one codegen-generated function on a new index, with the hub and any publish baked in.
+/// Fn takes the entity first, so the function can publish or read options without a stored pointer.
+template<auto Fn> class ApplySelect final : public Select {
+ public:
+  // User provided, not "= default": `new(p) ApplySelect()` would zero-fill .bss that is already zero.
+  ApplySelect() {}
+
+ protected:
+  void control(size_t index) override { Fn(this, index); }
+};
+
 }  // namespace esphome::select

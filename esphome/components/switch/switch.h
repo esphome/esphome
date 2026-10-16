@@ -147,4 +147,15 @@ class Switch : public EntityBase {
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
 
+/// Runs one codegen-generated function on a state write, with the hub and any publish baked in.
+/// Fn takes the entity first, so the function can publish or read options without a stored pointer.
+template<auto Fn> class ApplySwitch final : public Switch {
+ public:
+  // User provided, not "= default": `new(p) ApplySwitch()` would zero-fill .bss that is already zero.
+  ApplySwitch() {}
+
+ protected:
+  void write_state(bool state) override { Fn(this, state); }
+};
+
 }  // namespace esphome::switch_

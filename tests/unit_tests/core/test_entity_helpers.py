@@ -1,6 +1,7 @@
 """Test get_base_entity_object_id function matches C++ behavior."""
 
 from collections.abc import Callable, Generator
+import importlib
 from pathlib import Path
 import re
 from typing import Any
@@ -33,7 +34,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, RawExpression
 from esphome.helpers import fnv1_hash, sanitize, snake_case
 
 from .common import load_config_from_fixture
@@ -1294,3 +1295,216 @@ async def test_sub_entities_without_parent(
 
     assert await sub("child", hub.set_child) is not None
     assert setup_test_environment == ["hub->set_child(child)"]
+
+
+@pytest.fixture
+def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str]]:
+    """Record every generated apply function as (name, parameters, body)."""
+    emitted: list[tuple[str, str, str]] = []
+
+    def fake_static_function(
+        name: str, return_type: Any, parameters: list[tuple[Any, str]], body: list[str]
+    ) -> RawExpression:
+        assert str(return_type) == "void"
+        params = ", ".join(f"{type_} {arg}" for type_, arg in parameters)
+        emitted.append((name, params, "\n".join(body)))
+        return RawExpression(name)
+
+    monkeypatch.setattr(entity_helpers.cg, "static_function", fake_static_function)
+    CORE.data.pop(entity_helpers._APPLY_DOMAIN, None)
+    return emitted
+
+
+_SWITCH_APPLY = entity_helpers.ApplyEntity(
+    ((RawExpression("switch_::Switch *"), "entity"), (RawExpression("bool"), "state")),
+    "entity->publish_state(state);",
+)
+
+
+def _apply_sub(
+    calls: list[tuple[Any, ...]],
+    config: dict[str, Any],
+    apply_entity: entity_helpers.ApplyEntity | None = _SWITCH_APPLY,
+    parent: MockObj | ID | None = None,
+) -> entity_helpers.SubEntities:
+    async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
+        calls.append((conf[CONF_ID].id, *(str(a) for a in args)))
+        return MockObj(conf[CONF_ID].id)
+
+    if parent is None:
+        parent = MockObj("hub", "->")
+    return entity_helpers.SubEntities(new_entity, config, parent, apply_entity)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("publish", "body"),
+    [
+        (None, "::hub->set_bluetooth(state);"),
+        (
+            "before",
+            "entity->publish_state(state);\n::hub->set_bluetooth(state);",
+        ),
+        ("after", "::hub->set_bluetooth(state);\nentity->publish_state(state);"),
+    ],
+)
+async def test_sub_entities_apply_generates_function(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    publish: str | None,
+    body: str,
+) -> None:
+    """With apply the entity is templated on a generated function and stores no parent."""
+
+    async def fail_register_parented(var: MockObj, parent: MockObj) -> None:
+        raise AssertionError("must not be called")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
+    calls: list[tuple[Any, ...]] = []
+    hub = MockObj("hub", "->")
+    sub = _apply_sub(calls, {"bt": {CONF_ID: ID("bt_sw")}})
+
+    var = await sub(
+        "bt", hub.set_bt_switch, apply="set_bluetooth(state)", publish=publish
+    )
+    assert str(var) == "bt_sw"
+    assert calls == [("bt_sw", "<esphome__bt_sw__fn>")]
+    assert apply_functions == [
+        ("esphome__bt_sw__fn", "switch_::Switch * entity, bool state", body)
+    ]
+    assert setup_test_environment == ["hub->set_bt_switch(bt_sw)"]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_shares_equal_functions(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """Entities with the same statement share one function, so one class instantiation."""
+    calls: list[tuple[Any, ...]] = []
+    hub = MockObj("hub", "->")
+    config = {
+        "a": {CONF_ID: ID("a_sw")},
+        "b": {CONF_ID: ID("b_sw")},
+        "c": {CONF_ID: ID("c_sw")},
+    }
+    sub = _apply_sub(calls, config)
+    await sub("a", hub.set_a, apply="refresh()", publish="before")
+    await sub("b", hub.set_b, apply="refresh()", publish="before")
+    await sub("c", hub.set_c, apply="refresh()")
+    assert calls == [
+        ("a_sw", "<esphome__a_sw__fn>"),
+        ("b_sw", "<esphome__a_sw__fn>"),
+        ("c_sw", "<esphome__c_sw__fn>"),
+    ]
+    assert [name for name, _, _ in apply_functions] == [
+        "esphome__a_sw__fn",
+        "esphome__c_sw__fn",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_parent_id(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """A parent given as an ID is looked up once and named from global scope."""
+
+    async def fake_get_variable(id_: ID) -> MockObj:
+        assert id_ == ID("my_hub")
+        return MockObj("my_hub", "->")
+
+    monkeypatch.setattr(entity_helpers, "get_variable", fake_get_variable)
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"r": {CONF_ID: ID("r_btn")}}, parent=ID("my_hub"))
+    await sub("r", MockObj("my_hub", "->").set_r, apply="restart()")
+    assert apply_functions[0][2] == "::my_hub->restart();"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("apply_entity", "kwargs", "match"),
+    [
+        (None, {"apply": "restart()"}, "apply needs"),
+        (
+            entity_helpers.ApplyEntity(((RawExpression("button::Button *"), "e"),)),
+            {"apply": "restart()", "publish": "before"},
+            "cannot publish",
+        ),
+        (_SWITCH_APPLY, {"apply": "x()", "publish": "sometimes"}, "cannot publish"),
+        (_SWITCH_APPLY, {"publish": "before"}, "publish needs apply"),
+    ],
+)
+async def test_sub_entities_apply_errors(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    apply_entity: entity_helpers.ApplyEntity | None,
+    kwargs: dict[str, str],
+    match: str,
+) -> None:
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"k": {CONF_ID: ID("k_id")}}, apply_entity)
+    with pytest.raises(ValueError, match=match):
+        await sub("k", MockObj("hub", "->").set_k, **kwargs)
+    assert calls == []
+    assert apply_functions == []
+
+
+@pytest.mark.parametrize(
+    ("sub_fn", "params", "publish"),
+    [
+        ("button.sub_buttons", "button::Button * entity", None),
+        (
+            "switch.sub_switches",
+            "switch_::Switch * entity, bool state",
+            "entity->publish_state(state);",
+        ),
+        (
+            "number.sub_numbers",
+            "number::Number * entity, float value",
+            "entity->publish_state(value);",
+        ),
+        (
+            "select.sub_selects",
+            "select::Select * entity, size_t index",
+            "entity->publish_state(index);",
+        ),
+    ],
+)
+def test_domain_apply_entities(sub_fn: str, params: str, publish: str | None) -> None:
+    """Each domain's sub helper declares the generated function its Apply class calls."""
+    module, name = sub_fn.split(".")
+    imported = importlib.import_module(f"esphome.components.{module}")
+    apply_entity = getattr(imported, name)({}).apply_entity
+    assert ", ".join(f"{type_} {arg}" for type_, arg in apply_entity.params) == params
+    assert apply_entity.publish == publish
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_without_setter(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """A hub that does not keep the entity passes no setter; nothing else is emitted."""
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"vent": {CONF_ID: ID("vent_btn")}})
+    assert await sub("vent", None, apply="vent_door()") is not None
+    assert calls == [("vent_btn", "<esphome__vent_btn__fn>")]
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_create_from_whole_config(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """create() builds the entity from a config that is the entity itself."""
+    calls: list[tuple[Any, ...]] = []
+    conf = {CONF_ID: ID("rf_sw")}
+    sub = _apply_sub(calls, {})
+    hub = MockObj("hub", "->")
+    var = await sub.create(
+        conf, hub.set_rf_switch, apply="set_rf_mode(state)", publish="before"
+    )
+    assert str(var) == "rf_sw"
+    assert calls == [("rf_sw", "<esphome__rf_sw__fn>")]
+    assert setup_test_environment == ["hub->set_rf_switch(rf_sw)"]

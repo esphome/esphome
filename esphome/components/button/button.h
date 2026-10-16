@@ -46,4 +46,15 @@ class Button : public EntityBase {
   LazyCallbackManager<void()> press_callback_{};
 };
 
+/// Runs one codegen-generated function on a press, with the hub and any publish baked in.
+/// Fn takes the entity first, so the function can publish or read options without a stored pointer.
+template<auto Fn> class ApplyButton final : public Button {
+ public:
+  // User provided, not "= default": `new(p) ApplyButton()` would zero-fill .bss that is already zero.
+  ApplyButton() {}
+
+ protected:
+  void press_action() override { Fn(this); }
+};
+
 }  // namespace esphome::button
