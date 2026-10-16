@@ -180,20 +180,20 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
 }
 
 void TCS34725Component::update() {
-  uint8_t data[8];  // Buffer to hold the 8 bytes (2 bytes for each of the 4 channels)
+  uint16_t data[4];  // Clear, red, green and blue channels
 
   // Perform burst
-  if (this->read_register(TCS34725_REGISTER_CRGBDATAL, data, 8) != i2c::ERROR_OK) {
+  if (!this->read_bytes_16_le(TCS34725_REGISTER_CRGBDATAL, data, 4)) {
     this->status_set_warning();
     ESP_LOGW(TAG, "Error reading TCS34725 sensor data");
     return;
   }
 
   // Extract the data
-  uint16_t raw_c = encode_value_le<uint16_t>(data);      // Clear channel
-  uint16_t raw_r = encode_value_le<uint16_t>(&data[2]);  // Red channel
-  uint16_t raw_g = encode_value_le<uint16_t>(&data[4]);  // Green channel
-  uint16_t raw_b = encode_value_le<uint16_t>(&data[6]);  // Blue channel
+  uint16_t raw_c = data[0];  // Clear channel
+  uint16_t raw_r = data[1];  // Red channel
+  uint16_t raw_g = data[2];  // Green channel
+  uint16_t raw_b = data[3];  // Blue channel
 
   ESP_LOGV(TAG, "Raw values clear=%d red=%d green=%d blue=%d", raw_c, raw_r, raw_g, raw_b);
 
