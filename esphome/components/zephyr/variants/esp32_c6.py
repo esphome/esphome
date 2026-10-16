@@ -49,7 +49,7 @@ VARIANT = ZephyrVariant(
     transport_drivers={"wifi": ("WIFI_ESP32", "wifi")},
     soc="esp32c6",
     qualifier="hpcore",
-    swap_methods=frozenset({"scratch", "move", "direct", "offset"}),
+    swap_methods=frozenset({"scratch", "move", "offset"}),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c6/include/soc/adc_channel.h
     adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6},
     uart_node_labels={},

@@ -12,14 +12,12 @@ import pytest
 
 from esphome.build_helpers.tools_cache import SDK_ZEPHYR_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.build_zephyr import (
-    _app_domain_args,
     _ccache_env,
-    _imgtool_sign_commands,
     _runner_supports_dev_id,
     check_bootloader_built,
-    resign_direct_xip_images,
     resolve_dev_id,
     run_west_blobs_fetch,
+    run_west_build,
 )
 from esphome.core import CORE, EsphomeError
 
@@ -202,81 +200,6 @@ def test_blobs_always_fetched_when_revision_unknown(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# direct-xip re-signing
-# ---------------------------------------------------------------------------
-
-_SIGN = (
-    "/penv/bin/python /mcuboot/scripts/imgtool.py sign --version 0.0.0+0 "
-    '--header-size 0x20 --slot-size 1376256 --align 4 --key "/mcuboot/root$ ec.pem" '
-    "{extra}/b/zephyr.bin /b/{out}"
-)
-_NINJA = (
-    "build zephyr/zephyr.elf: LINK\n"
-    "  POST_BUILD = cd /b && /penv/bin/python check.py --elf-file=/b/zephyr.elf && "
-    + _SIGN.format(extra="", out="zephyr.signed.bin")
-    + " && "
-    + _SIGN.format(extra="--pad --confirm ", out="zephyr.signed.confirmed.bin")
-    + "\n"
-)
-
-
-def _write_ninja(build_dir: Path, text: str = _NINJA) -> None:
-    for image_dir in ("zephyr", "zephyr_slot1_variant"):
-        (build_dir / image_dir).mkdir(parents=True)
-        (build_dir / image_dir / "build.ninja").write_text(text)
-
-
-def test_imgtool_sign_commands_finds_every_signed_output() -> None:
-    commands = _imgtool_sign_commands(_NINJA)
-
-    assert [c[-1] for c in commands] == [
-        "/b/zephyr.signed.bin",
-        "/b/zephyr.signed.confirmed.bin",
-    ]
-    assert commands[0][:3] == [
-        "/penv/bin/python",
-        "/mcuboot/scripts/imgtool.py",
-        "sign",
-    ]
-    assert "--confirm" in commands[1]
-    # Ninja's "$ " escape inside the shell quotes is a plain space
-    assert "/mcuboot/root ec.pem" in commands[0]
-
-
-def test_resign_uses_one_new_version_for_every_image(tmp_path: Path) -> None:
-    _write_ninja(tmp_path)
-    with (
-        patch("esphome.components.zephyr.build_zephyr.time.time", return_value=1234),
-        patch("esphome.components.zephyr.build_zephyr.subprocess.run") as run,
-    ):
-        run.return_value.returncode = 0
-        resign_direct_xip_images(tmp_path)
-
-    calls = [c.args[0] for c in run.call_args_list]
-    assert len(calls) == 4
-    assert {c[c.index("--version") + 1] for c in calls} == {"0.0.0+1234"}
-    assert {c.kwargs["cwd"] for c in run.call_args_list} == {
-        tmp_path / "zephyr",
-        tmp_path / "zephyr_slot1_variant",
-    }
-
-
-def test_resign_fails_when_no_sign_command_found(tmp_path: Path) -> None:
-    _write_ninja(tmp_path, "build zephyr/zephyr.elf: LINK\n")
-
-    with pytest.raises(EsphomeError, match="No imgtool sign command"):
-        resign_direct_xip_images(tmp_path)
-
-
-def test_resign_fails_when_signing_fails(tmp_path: Path) -> None:
-    _write_ninja(tmp_path)
-    with patch("esphome.components.zephyr.build_zephyr.subprocess.run") as run:
-        run.return_value.returncode = 1
-        with pytest.raises(EsphomeError, match="Signing"):
-            resign_direct_xip_images(tmp_path)
-
-
-# ---------------------------------------------------------------------------
 # _ccache_env
 # ---------------------------------------------------------------------------
 
@@ -343,23 +266,25 @@ def test_ccache_env_skips_the_map_entry_on_whitespace(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("swap_method", "expected"),
-    [
-        ("offset", ["--domain", "zephyr"]),
-        (
-            "direct",
-            ["--domain", "zephyr", "--domain", "zephyr_slot1_variant"],
-        ),
-    ],
-)
-def test_app_domain_args(swap_method: str, expected: list[str]) -> None:
-    """Only the app images build; direct-xip has two."""
-    with patch(
-        "esphome.components.zephyr.mcuboot.zephyr_swap_method",
-        return_value=swap_method,
+@pytest.mark.parametrize("skip", [True, False])
+def test_run_west_build_skip_bootloader_builds_only_the_app(
+    tmp_path: Path, skip: bool
+) -> None:
+    """--skip-bootloader limits west to the app domain; MCUboot is still configured."""
+    CORE.build_path = tmp_path
+    CORE.skip_bootloader = skip
+    mod = "esphome.components.zephyr.build_zephyr"
+    with (
+        patch(f"{mod}.run_command_ok", return_value=True) as run,
+        patch(f"{mod}._ccache_env", return_value={}),
+        patch(f"{mod}.pch.pch_enabled", return_value=False),
+        patch(f"{mod}.log_available_runners"),
     ):
-        assert _app_domain_args() == expected
+        run_west_build(Path("/py"), tmp_path / "fw", "board", {})
+
+    cmd = run.call_args.args[0]
+    assert (cmd[-2:] == ["--domain", "zephyr"]) is skip
+    assert "--sysbuild" in cmd
 
 
 def _domains(build_dir: Path, *names: str) -> None:

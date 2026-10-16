@@ -38,10 +38,7 @@ from esphome.components.zephyr import (
     zephyr_variant_family,
 )
 from esphome.components.zephyr.const import CONF_BOARD_SOURCE, KEY_ZEPHYR
-from esphome.components.zephyr.mcuboot import (
-    zephyr_skip_bootloader_supported,
-    zephyr_swap_method,
-)
+from esphome.components.zephyr.mcuboot import zephyr_skip_bootloader_supported
 from esphome.components.zephyr.pinctrl import (
     _build_i2c_pinctrl_states_overlay,
     _build_uart_pinctrl_states_overlay,
@@ -86,7 +83,6 @@ from esphome.const import (
     PLATFORM_ZEPHYR,
     TYPE_GIT,
     TYPE_LOCAL,
-    Toolchain,
 )
 from esphome.core import CORE, EsphomeError
 from tests.unit_tests.components.zephyr.zephyr_state import empty_zephyr_data
@@ -2286,7 +2282,7 @@ def test_module_schema_rejects_name_alone() -> None:
 
 
 # ---------------------------------------------------------------------------
-# zephyr_swap_method / firmware_alt_bin
+# zephyr_skip_bootloader_supported
 # ---------------------------------------------------------------------------
 
 
@@ -2294,27 +2290,6 @@ def _set_zephyr_ota(variant: str, ota: list[dict]) -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
     CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant=variant)
     CORE.config = {"ota": ota}
-
-
-def test_zephyr_swap_method_reads_config() -> None:
-    _set_zephyr_ota("ESP32", [{"platform": "esphome", "swap_method": "direct"}])
-    assert zephyr_swap_method() == "direct"
-
-
-def test_zephyr_swap_method_none_without_ota() -> None:
-    _set_zephyr_ota("ESP32", [])
-    assert zephyr_swap_method() is None
-
-
-def test_zephyr_swap_method_none_on_native_sim() -> None:
-    _set_zephyr_ota("NATIVESIM", [{"platform": "esphome", "swap_method": "direct"}])
-    assert zephyr_swap_method() is None
-
-
-def test_zephyr_swap_method_none_on_other_platform() -> None:
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
-    CORE.config = {"ota": [{"platform": "esphome", "swap_method": "direct"}]}
-    assert zephyr_swap_method() is None
 
 
 @pytest.mark.parametrize(
@@ -2336,23 +2311,6 @@ def test_zephyr_skip_bootloader_unsupported_on_other_platform() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     CORE.config = {"ota": [{"platform": "esphome"}]}
     assert zephyr_skip_bootloader_supported() is False
-
-
-def test_firmware_alt_bin_direct_without_to_code(tmp_path: Path) -> None:
-    # Standalone upload never runs to_code(); the slot-1 image must still be found.
-    _set_zephyr_ota("ESP32", [{"platform": "esphome", "swap_method": "direct"}])
-    CORE.toolchain = Toolchain.SDK_ZEPHYR
-    CORE.build_path = tmp_path
-    assert CORE.firmware_alt_bin == tmp_path.joinpath(
-        ".west_build", "zephyr_slot1_variant", "zephyr", "zephyr.signed.bin"
-    )
-
-
-def test_firmware_alt_bin_none_for_swap_modes(tmp_path: Path) -> None:
-    _set_zephyr_ota("ESP32", [{"platform": "esphome", "swap_method": "move"}])
-    CORE.toolchain = Toolchain.SDK_ZEPHYR
-    CORE.build_path = tmp_path
-    assert CORE.firmware_alt_bin is None
 
 
 def test_reject_swap_method_off_zephyr_raises() -> None:

@@ -217,14 +217,6 @@ def test_mcuboot_must_run_from_boot_partition(tmp_path: Path) -> None:
     _fails(_run(tmp_path, images, MCUBOOT), "MCUboot must run from boot_partition")
 
 
-def test_direct_xip_second_image_runs_from_slot1(tmp_path: Path) -> None:
-    images = _mcuboot_images()
-    images["app_slot1_variant"] = Image(partitions=dict(STOCK), code="slot0_partition")
-    _fails(_run(tmp_path, images, MCUBOOT), "Direct-xip")
-    images["app_slot1_variant"].code = "slot1_partition"
-    _ok(_run(tmp_path, images, MCUBOOT))
-
-
 def test_mcuboot_must_start_at_boot_start(tmp_path: Path) -> None:
     _fails(
         _run(tmp_path, _mcuboot_images(), MCUBOOT, BootLayout(0x1000)),

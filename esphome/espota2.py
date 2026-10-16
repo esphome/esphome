@@ -75,12 +75,6 @@ SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
 # Binding once offered: the device then expects the image size and a deflate stream
 SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
-# Zephyr direct-xip only: set when the device is currently executing from slot 1.
-# The OTA write always targets whichever slot ISN'T running, so this flag being unset
-# (the common case, running slot 0) means the write goes to slot 1 and needs
-# alt_filename (the slot-1-linked build); set means it goes to slot 0 and needs the
-# primary. Never set by non-Zephyr/non-direct-xip devices.
-SERVER_FEATURE_ACTIVE_SLOT_1 = 0x20
 
 # Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
 DEFLATE_WINDOW_BITS = 12
@@ -722,7 +716,6 @@ def perform_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
-    alt_filename: Path | None = None,
     allow_plaintext_upload: bool = False,
     on_upload_start: Callable[[], None] | None = None,
 ) -> None:
@@ -744,6 +737,8 @@ def perform_ota(
         )
 
     file_contents = file_handle.read()
+    file_size = len(file_contents)
+    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
     sock, version, features, extended_proto = _negotiate_session(
         sock, noise_psk, plaintext_fallback, allow_plaintext_upload
@@ -751,16 +746,6 @@ def perform_ota(
     _LOGGER.info("Connection established; device supports OTA version %s", version)
     if isinstance(sock, NoiseSocketWrapper):
         _LOGGER.info("Encrypted connection established")
-
-    if alt_filename is not None and not (features & SERVER_FEATURE_ACTIVE_SLOT_1):
-        # Direct-xip writes the slot that isn't running; slot 0 running means the
-        # write goes to slot 1, which needs the slot-1-linked build.
-        with alt_filename.open("rb") as alt_handle:
-            file_contents = alt_handle.read()
-        filename = alt_filename
-
-    file_size = len(file_contents)
-    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -1111,7 +1096,6 @@ def run_ota_impl_(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
-    alt_filename: Path | None = None,
     allow_plaintext_upload: bool = False,
     old_noise_psk: str | None = None,
     on_upload_start: Callable[[], None] | None = None,
@@ -1191,7 +1175,6 @@ def run_ota_impl_(
                     ota_type,
                     encryption.noise_psk,
                     encryption.plaintext_fallback,
-                    alt_filename=alt_filename,
                     allow_plaintext_upload=allow_plaintext_upload,
                     on_upload_start=upload_started,
                 )
@@ -1254,7 +1237,6 @@ def run_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
-    alt_filename: Path | None = None,
     allow_plaintext_upload: bool = False,
     old_noise_psk: str | None = None,
     on_upload_start: Callable[[], None] | None = None,
@@ -1271,10 +1253,9 @@ def run_ota(
             ota_type,
             noise_psk,
             plaintext_fallback,
-            alt_filename=alt_filename,
-            allow_plaintext_upload=allow_plaintext_upload,
-            old_noise_psk=old_noise_psk,
-            on_upload_start=on_upload_start,
+            allow_plaintext_upload,
+            old_noise_psk,
+            on_upload_start,
         )
     except OTAError as err:
         _LOGGER.error(err)
