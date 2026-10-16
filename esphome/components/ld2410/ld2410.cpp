@@ -733,8 +733,10 @@ void LD2410Component::set_gate_threshold(number::Number *n) {
   while (gate < TOTAL_GATES && this->gate_move_threshold_numbers_[gate] != n &&
          this->gate_still_threshold_numbers_[gate] != n)
     gate++;
-  if (gate == TOTAL_GATES)
+  if (gate == TOTAL_GATES) {
+    ESP_LOGW(TAG, "Threshold number is not a known gate");
     return;
+  }
   number::Number *motionsens = this->gate_move_threshold_numbers_[gate];
   number::Number *stillsens = this->gate_still_threshold_numbers_[gate];
 
