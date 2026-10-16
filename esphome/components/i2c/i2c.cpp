@@ -55,8 +55,11 @@ bool I2CDevice::write_registers(const I2CRegValue *table, size_t count) const {
     I2CRegValue entry;
     progmem_memcpy(&entry, &table[i], sizeof(entry));
     if (this->bus_->write_readv(this->address_, reinterpret_cast<const uint8_t *>(&entry), sizeof(entry), nullptr, 0) !=
-        ERROR_OK)
+        ERROR_OK) {
+      ESP_LOGW(TAG, "Writing register 0x%02X (table entry %u) to 0x%02X failed", entry.reg, static_cast<unsigned>(i),
+               this->address_);
       return false;
+    }
   }
   return true;
 }
