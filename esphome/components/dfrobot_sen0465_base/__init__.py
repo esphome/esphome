@@ -170,6 +170,9 @@ MODELS: dict[str, Model] = {
     ),
 }
 
+# Sizes the C++ range list; the largest table entry sets it
+COMPENSATION_RANGES = max(len(model.compensation) for model in MODELS.values())
+
 
 def _model_schema(
     model: Model, component_class: MockObjClass, bus_schema: cv.Schema
@@ -226,6 +229,7 @@ async def to_code_base(config: ConfigType) -> MockObj:
 
     if config.get(CONF_TEMPERATURE_COMPENSATION):
         cg.add_define("USE_DFROBOT_SEN0465_TEMPERATURE_COMPENSATION")
+        cg.add_define("DFROBOT_SEN0465_COMPENSATION_RANGES", COMPENSATION_RANGES)
         for low, high, a, b, c, d in model.compensation:
             cg.add(var.add_compensation_range(low, high, a, b, c, d))
 

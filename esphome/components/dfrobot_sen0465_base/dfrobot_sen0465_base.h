@@ -101,7 +101,7 @@ class DFRobotSEN0465Component : public PollingComponent {
   /// Returns NAN when the temperature is outside every range
   float compensate_(float concentration, float temperature) const;
 
-  StaticVector<CompensationRange, 3> compensation_;
+  StaticVector<CompensationRange, DFROBOT_SEN0465_COMPENSATION_RANGES> compensation_;
 #endif
 };
 

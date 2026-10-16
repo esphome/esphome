@@ -78,10 +78,12 @@ void DFRobotSEN0465Component::dump_config() {
     for (uint8_t i = 0; i < this->alarm_decimals_; i++)
       scale *= 10.0f;
     const float threshold = this->alarm_threshold_ / scale;
-    ESP_LOGCONFIG(TAG, "  Alarm: %s %.*f%s",
+    ESP_LOGCONFIG(TAG, "  Alarm: %s %.*f",
                   this->alarm_type_ == AlarmType::ALARM_TYPE_HIGH ? LOG_STR_LITERAL("above") : LOG_STR_LITERAL("below"),
-                  this->alarm_decimals_, threshold,
-                  this->setup_incomplete_ ? LOG_STR_LITERAL(" (not confirmed by the sensor)") : LOG_STR_LITERAL(""));
+                  this->alarm_decimals_, threshold);
+  }
+  if (this->setup_incomplete_) {
+    ESP_LOGCONFIG(TAG, "  Setup incomplete: yes");
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
