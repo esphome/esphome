@@ -1,6 +1,6 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import gpio_expander, i2c
+from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INPUT, CONF_OUTPUT, CONF_PULLUP
 from esphome.cpp_generator import MockObj
@@ -55,7 +55,7 @@ MAX6956_PIN_SCHEMA = pins.gpio_base_schema(
     MAX6956GPIOPin,
     cv.int_range(min=4, max=31),
     modes=[CONF_INPUT, CONF_PULLUP, CONF_OUTPUT],
-    mode_validator=gpio_expander.validate_input_xor_output_pullup,
+    mode_validator=pins.gpio_validate_input_xor_output_pullup,
 ).extend(
     {
         cv.Required(CONF_MAX6956): pins.use_id_or_address(MAX6956),
@@ -65,7 +65,7 @@ MAX6956_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MAX6956, MAX6956_PIN_SCHEMA)
 async def max6956_pin_to_code(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_MAX6956)
+    return await pins.new_parented_pin(config, CONF_MAX6956)
 
 
 automation.register_apply_action(

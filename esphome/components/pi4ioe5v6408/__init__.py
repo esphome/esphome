@@ -58,7 +58,7 @@ PI4IOE5V6408_PIN_SCHEMA = pins.gpio_base_schema(
         CONF_PULLUP,
         CONF_PULLDOWN,
     ],
-    mode_validator=gpio_expander.validate_input_xor_output,
+    mode_validator=pins.gpio_validate_input_xor_output,
 ).extend(
     {
         cv.Required(CONF_PI4IOE5V6408): pins.use_id_or_address(PI4IOE5V6408Component),
@@ -68,4 +68,4 @@ PI4IOE5V6408_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PI4IOE5V6408, PI4IOE5V6408_PIN_SCHEMA)
 async def pi4ioe5v6408_pin_schema(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_PI4IOE5V6408)
+    return await pins.new_parented_pin(config, CONF_PI4IOE5V6408)

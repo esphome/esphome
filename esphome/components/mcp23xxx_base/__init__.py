@@ -57,7 +57,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
     MCP23XXXGPIOPin,
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
-    mode_validator=gpio_expander.validate_input_xor_output_pullup,
+    mode_validator=pins.gpio_validate_input_xor_output_pullup,
     invertible=True,
 ).extend(
     {

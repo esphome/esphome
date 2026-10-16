@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import gpio_expander, i2c
+from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INPUT, CONF_OUTPUT
 from esphome.cpp_generator import MockObj
@@ -45,7 +45,7 @@ WAVESHARE_IO_PIN_SCHEMA = pins.gpio_base_schema(
     WaveshareIOCH32V003GPIOPin,
     cv.int_range(min=0, max=7),
     modes=[CONF_INPUT, CONF_OUTPUT],
-    mode_validator=gpio_expander.validate_input_xor_output,
+    mode_validator=pins.gpio_validate_input_xor_output,
     invertible=True,
 ).extend(
     {
@@ -58,4 +58,4 @@ WAVESHARE_IO_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_WAVESHARE_IO_CH32V003, WAVESHARE_IO_PIN_SCHEMA)
 async def waveshare_io_pin_to_code(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_WAVESHARE_IO_CH32V003)
+    return await pins.new_parented_pin(config, CONF_WAVESHARE_IO_CH32V003)

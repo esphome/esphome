@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import gpio_expander, i2c
+from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSOR,
@@ -93,7 +93,7 @@ MPR121_GPIO_PIN_SCHEMA = pins.gpio_base_schema(
     MPR121GPIOPin,
     cv.int_range(min=4, max=11),
     modes=[CONF_INPUT, CONF_OUTPUT],
-    mode_validator=gpio_expander.validate_input_xor_output,
+    mode_validator=pins.gpio_validate_input_xor_output,
 ).extend(
     {
         cv.Required(CONF_MPR121): cv.use_id(MPR121Component),
@@ -114,4 +114,4 @@ def mpr121_pin_final_validate(
     CONF_MPR121, MPR121_GPIO_PIN_SCHEMA, mpr121_pin_final_validate
 )
 async def mpr121_gpio_pin_to_code(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_MPR121)
+    return await pins.new_parented_pin(config, CONF_MPR121)

@@ -38,7 +38,7 @@ MCP23016_PIN_SCHEMA = pins.gpio_base_schema(
     MCP23016GPIOPin,
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT],
-    mode_validator=gpio_expander.validate_input_xor_output,
+    mode_validator=pins.gpio_validate_input_xor_output,
     invertible=True,
 ).extend(
     {
@@ -49,4 +49,4 @@ MCP23016_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23016, MCP23016_PIN_SCHEMA)
 async def mcp23016_pin_to_code(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_MCP23016)
+    return await pins.new_parented_pin(config, CONF_MCP23016)

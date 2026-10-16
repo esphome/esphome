@@ -1,6 +1,6 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import gpio_expander, i2c, key_provider
+from esphome.components import i2c, key_provider
 from esphome.components.const import CONF_KEYS
 import esphome.config_validation as cv
 from esphome.const import (
@@ -151,4 +151,4 @@ SX1509_PIN_SCHEMA = cv.All(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_SX1509, SX1509_PIN_SCHEMA)
 async def sx1509_pin_to_code(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_SX1509)
+    return await pins.new_parented_pin(config, CONF_SX1509)

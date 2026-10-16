@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import gpio_expander, i2c
+from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -53,7 +53,7 @@ XL9535_PIN_SCHEMA = cv.All(
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
                 cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
             },
-            gpio_expander.validate_input_xor_output,
+            pins.gpio_validate_input_xor_output,
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
@@ -62,4 +62,4 @@ XL9535_PIN_SCHEMA = cv.All(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_XL9535, XL9535_PIN_SCHEMA)
 async def xl9535_pin_to_code(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_XL9535)
+    return await pins.new_parented_pin(config, CONF_XL9535)

@@ -56,7 +56,7 @@ PCA6416A_PIN_SCHEMA = cv.All(
                 cv.Optional(CONF_PULLUP, default=False): cv.boolean,
                 cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
             },
-            gpio_expander.validate_input_xor_output_pullup,
+            pins.gpio_validate_input_xor_output_pullup,
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
@@ -65,4 +65,4 @@ PCA6416A_PIN_SCHEMA = cv.All(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PCA6416A, PCA6416A_PIN_SCHEMA)
 async def pca6416a_pin_to_code(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_PCA6416A)
+    return await pins.new_parented_pin(config, CONF_PCA6416A)
