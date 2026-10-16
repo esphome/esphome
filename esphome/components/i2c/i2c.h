@@ -14,6 +14,9 @@ namespace esphome::i2c {
 
 class I2CDevice;  // forward declaration
 
+/// Out of line so each check_chip_id() caller only pays for a call.
+void log_wrong_chip_id(uint8_t id, uint8_t expected);
+
 /// @brief This class is used to create I2CRegister objects that act as proxies to read/write internal registers on an
 /// I2C device.
 /// @details
@@ -217,6 +220,8 @@ class I2CDevice {
     const ErrorCode err = this->read_register(a_register, &id, 1);
     if (err == ERROR_OK && (id & mask) == (expected & mask))
       return true;
+    if (err == ERROR_OK)
+      log_wrong_chip_id(id & mask, expected & mask);
     component->mark_failed(err == ERROR_OK ? LOG_STR("Wrong chip ID") : LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }

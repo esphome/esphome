@@ -22,6 +22,10 @@ void I2CBus::i2c_scan_() {
   }
 }
 
+void log_wrong_chip_id(uint8_t id, uint8_t expected) {
+  ESP_LOGE(TAG, "Wrong chip ID 0x%02X, expected 0x%02X", id, expected);
+}
+
 ErrorCode I2CDevice::read_register(uint8_t a_register, uint8_t *data, size_t len) {
   return bus_->write_readv(this->address_, &a_register, 1, data, len);
 }
