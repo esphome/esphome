@@ -147,9 +147,9 @@ void DFRobotSEN0609Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "HasTarget", this->has_target_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "TargetDistance", this->target_distance_sensor_.get_sensor());
-  LOG_SENSOR("  ", "TargetSpeed", this->target_speed_sensor_.get_sensor());
-  LOG_SENSOR("  ", "TargetEnergy", this->target_energy_sensor_.get_sensor());
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", this->target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetSpeed", this->target_speed_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetEnergy", this->target_energy_sensor_);
 #endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);

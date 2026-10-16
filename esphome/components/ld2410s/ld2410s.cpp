@@ -79,7 +79,7 @@ void LD2410SComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Has Target", this->target_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "Distance", this->distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Distance", this->distance_sensor_);
 #endif
 #ifdef USE_LD2410S_VERSION
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);

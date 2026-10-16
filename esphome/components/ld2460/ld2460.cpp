@@ -54,12 +54,12 @@ void LD2460Component::dump_config() {
                 : this->installation_mode_ == InstallationMode::INSTALLATION_MODE_TOP ? LOG_STR_LITERAL("top")
                                                                                       : LOG_STR_LITERAL("side"));
 #ifdef USE_SENSOR
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetCount", this->target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetCount", this->target_count_sensor_);
   for (const auto &t : this->target_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetX", t.x);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetY", t.y);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetDistance", t.distance);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetAngle", t.angle);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetX", t.x);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetY", t.y);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", t.distance);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetAngle", t.angle);
   }
 #endif
 }

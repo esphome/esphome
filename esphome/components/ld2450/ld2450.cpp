@@ -224,35 +224,35 @@ void LD2450Component::dump_config() {
 #endif
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "Sensors:");
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetCount", this->moving_target_count_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetCount", this->still_target_count_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetCount", this->target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "MovingTargetCount", this->moving_target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "StillTargetCount", this->still_target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetCount", this->target_count_sensor_);
   for (auto &s : this->move_x_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetX", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetX", s);
   }
   for (auto &s : this->move_y_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetY", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetY", s);
   }
   for (auto &s : this->move_angle_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetAngle", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetAngle", s);
   }
   for (auto &s : this->move_distance_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetDistance", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", s);
   }
   for (auto &s : this->move_resolution_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetResolution", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetResolution", s);
   }
   for (auto &s : this->move_speed_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetSpeed", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetSpeed", s);
   }
   for (auto &s : this->zone_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneTargetCount", s);
   }
   for (auto &s : this->zone_moving_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneMovingTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneMovingTargetCount", s);
   }
   for (auto &s : this->zone_still_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneStillTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneStillTargetCount", s);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
