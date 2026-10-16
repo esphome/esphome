@@ -33,8 +33,8 @@ void MiCS5524Component::setup() {
     this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
     ESP_LOGI(TAG, "air reference calibration in %" PRIu32 " s - the sensor must be in clean air", delay / 1000);
   } else if (!this->has_reference_()) {
-    ESP_LOGW(TAG, "no air reference available, set it in the configuration or enable 'calibration:' - the PPM values "
-                  "stay unknown until then");
+    ESP_LOGW(TAG, "no air reference available, the PPM values stay unknown\n"
+                  "  set 'air_reference:' or enable 'calibration:'");
   }
 
   // The loop only samples while a clean-air calibration runs; `update()` publishes.
@@ -118,7 +118,7 @@ void MiCS5524Component::update() {
   if (!std::isfinite(voltage) || voltage <= 0.0f) {
     if (!this->warned_voltage_) {
       this->warned_voltage_ = true;
-      ESP_LOGW(TAG, "analog output reads %.4f V - open circuit, missing supply or bad divider? check the AO wiring",
+      ESP_LOGW(TAG, "analog output reads %.4f V\n  open circuit, missing supply or bad divider? check the AO wiring",
                voltage);
     }
     this->publish_ratio_(NAN);
@@ -131,7 +131,7 @@ void MiCS5524Component::update() {
     if (!this->warned_voltage_) {
       this->warned_voltage_ = true;
       ESP_LOGW(TAG,
-               "analog output reads %.4f V, at or above the configured vcc (%.2f V) - check 'vcc:' and "
+               "analog output reads %.4f V, at or above the configured vcc (%.2f V)\n  check 'vcc:' and "
                "'voltage_multiplier:'",
                voltage, this->vcc_);
     }
@@ -155,9 +155,11 @@ void MiCS5524Component::set_calibration(uint32_t delay, uint32_t samples, uint32
 }
 
 void MiCS5524Component::loop() {
-  // The loop runs only while a calibration samples; the deferred start is a timer.
-  if (!this->calibrating_)
+  if (!this->calibrating_) {
+    // Only a calibration samples here; the deferred start is a timer.
+    this->disable_loop();
     return;
+  }
 
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->calibration_last_sample_ < this->sample_interval_)
@@ -225,7 +227,7 @@ void MiCS5524Component::finish_calibration_() {
   // A sensor still settling, or not in clean air, varies too much to be the reference.
   if (!micsmath::calibration_is_stable(this->calibration_min_, this->calibration_max_, reference)) {
     ESP_LOGW(
-        TAG, "clean-air samples spread %.4f V around %.4f V (%.4f - %.4f V) - the sensor was not settled in clean air",
+        TAG, "clean-air samples spread %.4f V around %.4f V (%.4f - %.4f V)\n  the sensor was not settled in clean air",
         this->calibration_max_ - this->calibration_min_, reference, this->calibration_min_, this->calibration_max_);
     this->schedule_calibration_retry_();
     return;
@@ -235,8 +237,8 @@ void MiCS5524Component::finish_calibration_() {
   this->status_clear_warning();
 
   ESP_LOGI(TAG,
-           "air reference = %.4f (%" PRIu32 "/%" PRIu32
-           " samples valid); hard-code 'air_reference: %.4f' to skip the calibration at boot",
+           "air reference = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)\n"
+           "  hard-code 'air_reference: %.4f' to skip the calibration at boot",
            this->reference_, valid, attempts, this->reference_);
 }
 
