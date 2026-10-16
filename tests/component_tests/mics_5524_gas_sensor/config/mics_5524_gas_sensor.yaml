@@ -49,22 +49,19 @@ sensor:
     adc_input_max: 3.34
     conversion: datasheet
     r0: 10.0
-    ratio_sensor: mics_5524_ratio
-    rs_sensor: mics_5524_rs
-    voltage_sensor: mics_5524_volts
+    # Diagnostics of this reading: the ratio and RS of the active model, and the voltage
+    # they were computed from.  They belong to this hub, which declares them itself.
+    ratio_sensor:
+      id: mics_5524_ratio
+      name: MiCS-5524 ratio
+    rs_sensor:
+      id: mics_5524_rs
+      name: MiCS-5524 RS
+    voltage_sensor:
+      id: mics_5524_volts
+      name: MiCS-5524 volts
     carbon_monoxide:
       id: mics_5524_co_ds
       name: MiCS-5524 CO (datasheet)
       max_ppm: 2000.0
 
-  # Diagnostics of the sensor above: the ratio and RS of the active model, and the
-  # voltage they were computed from.
-  - platform: template
-    id: mics_5524_ratio
-    name: MiCS-5524 ratio
-  - platform: template
-    id: mics_5524_rs
-    name: MiCS-5524 RS
-  - platform: template
-    id: mics_5524_volts
-    name: MiCS-5524 volts

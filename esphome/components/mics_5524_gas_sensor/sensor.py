@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_INVERTED,
     CONF_NAME,
     CONF_PIN,
     CONF_RAW,
@@ -31,8 +32,11 @@ from esphome.const import (
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
     CONF_WARMUP_TIME,
+    DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
+    UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
@@ -253,11 +257,13 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 "output sits below the supply in clean air, so a larger value cannot "
                 "come from a reading"
             )
-    elif CONF_CALIBRATION not in config:
+    elif CONF_CALIBRATION not in config and CONF_R0 not in config:
+        # The datasheet model takes its reference as `r0:`, so the vendor key is only one
+        # of the two ways to configure one.
         _LOGGER.warning(
-            "no air reference configured - set 'air_reference:' or 'calibration:', "
-            "or every PPM value stays unknown until the sensor has been calibrated "
-            "in clean air"
+            "no clean-air reference configured - set '%s' or 'calibration:', or every "
+            "PPM value stays unknown until the sensor has been calibrated in clean air",
+            CONF_AIR_REFERENCE if vendor_model else CONF_R0,
         )
 
     if CONF_R0 in config and vendor_model:
@@ -292,6 +298,24 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 f"range of {resolved.vendor_max_ppm:g} ppm, so the conversion can never "
                 "reach it"
             )
+    return config
+
+
+def _validate_enable_pin(config: ConfigType) -> ConfigType:
+    """Warn when the EN pin is left active high, which keeps the module asleep.
+
+    The component powers the module by driving the pin active, and the EN input of the
+    DFRobot breakout is active low, so a pin without ``inverted: true`` is driven high
+    and the analog output stays at 0 V.
+    """
+    if (enable := config.get(CONF_ENABLE_PIN)) is not None and not enable.get(
+        CONF_INVERTED, False
+    ):
+        _LOGGER.warning(
+            "'enable_pin:' is driven active high, but the EN input of the DFRobot "
+            "MiCS-5524 breakout is active low: without 'inverted: true' the module stays "
+            "asleep and every reading stays at 0 V"
+        )
     return config
 
 
@@ -345,9 +369,23 @@ CONFIG_SCHEMA = cv.All(
                 CONF_WARMUP_TIME, default="3min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
-            cv.Optional(CONF_VOLTAGE_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_RATIO_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_RS_SENSOR): cv.use_id(sensor.Sensor),
+            # Readings the conversion is built from: declared here like the gases, so the
+            # component owns them instead of pointing at sensors declared elsewhere.
+            cv.Optional(CONF_VOLTAGE_SENSOR): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_RATIO_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=4,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_RS_SENSOR): sensor.sensor_schema(
+                unit_of_measurement="kΩ",
+                accuracy_decimals=2,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
             **{cv.Optional(gas_key): _gas_schema(gas_key) for gas_key in GASES},
         }
     ).extend(cv.polling_component_schema("30s")),
@@ -356,6 +394,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_most_one_key(CONF_AIR_REFERENCE, CONF_R0, CONF_CALIBRATION),
     _validate_divider,
     _validate_config,
+    _validate_enable_pin,
     _build_pin_source,
 )
 
@@ -394,15 +433,13 @@ async def to_code(config: ConfigType) -> None:
             )
         )
 
-    for key, setter in (
-        (CONF_VOLTAGE_SENSOR, var.set_voltage_sensor),
-        (CONF_RATIO_SENSOR, var.set_ratio_sensor),
-        (CONF_RS_SENSOR, var.set_rs_sensor),
-    ):
-        if (target := config.get(key)) is not None:
-            cg.add(setter(await cg.get_variable(target)))
-
+    # The diagnostics report the values every gas is converted from, so they are declared
+    # here like the gases and not pointed at from outside.
     sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE_SENSOR, var.set_voltage_sensor)
+    await sensors(CONF_RATIO_SENSOR, var.set_ratio_sensor)
+    await sensors(CONF_RS_SENSOR, var.set_rs_sensor)
+
     for gas_key in GASES:
         if gas_key not in config:
             continue

@@ -32,8 +32,10 @@ void MiCS5524GasSensor::publish_ratio(float ratio) {
 
 void MiCS5524Component::setup() {
   if (this->enable_pin_ != nullptr) {
-    // The module's EN pin only switches the analog front end on; the warm-up window
-    // below is what waits for the readings to settle.
+    // The component powers the module by driving the pin active, and EN of the DFRobot
+    // breakout is active low: `inverted: true` in the configuration is what turns this
+    // write into "switch the module on".  The warm-up window below is what waits for the
+    // readings to settle.
     this->enable_pin_->setup();
     this->enable_pin_->digital_write(true);
   }
@@ -91,6 +93,7 @@ void MiCS5524Component::dump_config() {
   ESP_LOGCONFIG(
       TAG, "  Warm-up: %" PRIu32 " s, calibration: %s, sample spacing: %" PRIu32 " ms", this->warmup_time_ / 1000,
       this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"), this->sample_interval_);
+  LOG_PIN("  Enable pin: ", this->enable_pin_);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Ratio", this->ratio_sensor_);
   LOG_SENSOR("  ", "RS", this->rs_sensor_);

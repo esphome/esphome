@@ -16,6 +16,12 @@ sensor:
       delay: 5s
       sample_count: 3
       sample_interval: 20ms
+    # Two of the three diagnostics are declared, so the build covers a configured and an
+    # unconfigured (`rs_sensor`) one.
+    voltage_sensor:
+      name: MiCS-5524 volts
+    ratio_sensor:
+      name: MiCS-5524 ratio
     carbon_monoxide:
       name: MiCS-5524 CO
       max_ppm: 500.0

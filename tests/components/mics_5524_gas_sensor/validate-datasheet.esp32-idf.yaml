@@ -13,10 +13,17 @@ sensor:
     conversion: datasheet
     r0: 10.0
     rl: 10.0
-    enable_pin: GPIO25
-    ratio_sensor: mics_5524_dat_ratio
-    rs_sensor: mics_5524_dat_rs
-    voltage_sensor: mics_5524_dat_volts
+    # The EN input of the breakout is active low, so the pin is inverted: that is what
+    # makes the component's "power the module" write switch it on.
+    enable_pin:
+      number: GPIO25
+      inverted: true
+    ratio_sensor:
+      name: MiCS-5524 ratio
+    rs_sensor:
+      name: MiCS-5524 RS
+    voltage_sensor:
+      name: MiCS-5524 volts
     carbon_monoxide:
       id: mics_5524_dat_co
       name: MiCS-5524 CO (datasheet)
@@ -26,12 +33,3 @@ sensor:
       coefficient_a: 6.3
       coefficient_b: -1.1
 
-  - platform: template
-    id: mics_5524_dat_ratio
-    name: MiCS-5524 ratio
-  - platform: template
-    id: mics_5524_dat_rs
-    name: MiCS-5524 RS
-  - platform: template
-    id: mics_5524_dat_volts
-    name: MiCS-5524 volts
