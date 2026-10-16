@@ -94,6 +94,13 @@ class HonControllerTest : public ::testing::Test {
     call.perform();
     this->heater_.loop();
   }
+  void reject_() {
+    uint8_t wire[water_heater_protocol::MAX_WIRE_FRAME];
+    const size_t count =
+        water_heater_protocol::encode_frame(water_heater_protocol::FrameType::FRAME_TYPE_INVALID, nullptr, 0, wire);
+    this->uart_.rx.insert(this->uart_.rx.end(), wire, wire + count);
+    this->heater_.loop();
+  }
   void request_off_() {
     auto call = this->heater_.make_call();
     call.set_on(false);
@@ -216,6 +223,24 @@ TEST_F(HonControllerTest, OffFollowsPollTimeout) {
   this->set_clock_(5100);
   this->heater_.loop();
   this->expect_off_();
+}
+
+TEST_F(HonControllerTest, RejectionDropsOnlyTheControlInFlight) {
+  this->status_(false);
+  this->heater_.poll_status_();
+  ASSERT_TRUE(this->heater_.waiting_poll());
+  this->request_bps_();
+  ASSERT_EQ(this->heater_.command_count(), 2);
+  this->reject_();
+  EXPECT_TRUE(this->heater_.waiting_poll());
+  EXPECT_EQ(this->heater_.command_count(), 2);
+  this->set_clock_(5100);
+  this->heater_.loop();  // the poll times out and the first queued control goes out
+  ASSERT_EQ(this->uart_.sent.size(), 2);
+  EXPECT_EQ(this->uart_.sent.back()[10], 0x5D);
+  this->reject_();
+  EXPECT_EQ(this->heater_.command_count(), 0);
+  EXPECT_FALSE(this->heater_.waiting_poll());
 }
 
 TEST_F(HonControllerTest, UnknownModeRetainsActiveModeAcrossOff) {

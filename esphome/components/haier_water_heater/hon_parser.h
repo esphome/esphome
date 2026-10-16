@@ -196,6 +196,9 @@ inline HonMode decode_mode(const uint8_t *payload) {
 static constexpr uint8_t STATUS_FRAME_LENGTH = 60;
 
 /// Decodes a status report or a polled status; false for any other frame or an implausible one.
+/// Offsets are into the payload, which starts with 6D 01, as captured from a VH3W. The secondary
+/// temperature's physical location and the heating time's unit (assumed minutes) are unconfirmed.
+/// Available water is 0 to 3 segments of usable hot water, not the tank fill level.
 inline bool decode_status(const uint8_t *frame, size_t size, Status &status) {
   if (size <= STATUS_FRAME_LENGTH || frame[0] != STATUS_FRAME_LENGTH) {
     return false;

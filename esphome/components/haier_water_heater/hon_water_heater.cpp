@@ -193,10 +193,12 @@ void HonWaterHeater::handle_frame_type_(FrameType type) {
       }
       break;
     case FrameType::FRAME_TYPE_INVALID:
-      ESP_LOGW(TAG, "Appliance rejected request; discarding pending controls");
+      ESP_LOGW(TAG, "Appliance rejected request");
+      // Controls queued behind a rejected poll were never sent and keep their turn.
+      if (this->awaiting_ == Awaiting::AWAITING_CONTROL)
+        this->command_count_ = 0;
       if (this->awaiting_ != Awaiting::AWAITING_POLL)
         this->awaiting_ = Awaiting::AWAITING_NONE;
-      this->command_count_ = 0;
       break;
     case FrameType::FRAME_TYPE_REPORT:
       this->send_frame_(FrameType::FRAME_TYPE_CONFIRM);
