@@ -89,7 +89,10 @@ def button_schema(
 
 
 def factory_reset_button_schema(class_: MockObjClass) -> cv.Schema:
-    """Schema for a button that resets a device to its factory settings."""
+    """Schema for a button that resets the connected module to factory settings.
+
+    For a sensor or radio module's own reset, not the ESPHome node.
+    """
     return button_schema(
         class_,
         device_class=DEVICE_CLASS_RESTART,
@@ -99,7 +102,11 @@ def factory_reset_button_schema(class_: MockObjClass) -> cv.Schema:
 
 
 def restart_button_schema(class_: MockObjClass) -> cv.Schema:
-    """Schema for a button that restarts a device."""
+    """Schema for a button that restarts the connected module.
+
+    For a sensor or radio module's own restart, not the ESPHome node; the core
+    restart button uses the config category instead of diagnostic.
+    """
     return button_schema(
         class_,
         device_class=DEVICE_CLASS_RESTART,
@@ -109,7 +116,7 @@ def restart_button_schema(class_: MockObjClass) -> cv.Schema:
 
 
 def query_button_schema(class_: MockObjClass) -> cv.Schema:
-    """Schema for a button that reads the settings back from a device."""
+    """Schema for a button that reads the settings back from the connected module."""
     return button_schema(
         class_, entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_DATABASE
     )
