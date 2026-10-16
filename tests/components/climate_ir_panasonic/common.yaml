@@ -1,0 +1,6 @@
+climate:
+  - platform: climate_ir_panasonic
+    name: Panasonic Climate
+    transmitter_id: xmitr
+    receiver_id: rcvr
+    model: PKE
