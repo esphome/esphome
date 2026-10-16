@@ -12,6 +12,12 @@ namespace esphome::i2c {
 
 class I2CDevice;  // forward declaration
 
+/// One register write for I2CDevice::write_registers(); tables of these may live in PROGMEM.
+struct I2CRegValue {
+  uint8_t reg;
+  uint8_t value;
+};
+
 /// @brief This class is used to create I2CRegister objects that act as proxies to read/write internal registers on an
 /// I2C device.
 /// @details
@@ -207,6 +213,16 @@ class I2CDevice {
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
   ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
+
+  /// Write each register and value of \p table in order, stopping at the first failure.
+  /// The table may be in PROGMEM.
+  bool write_registers(const I2CRegValue *table, size_t count) const;
+  template<size_t N> bool write_registers(const I2CRegValue (&table)[N]) const {
+    return this->write_registers(table, N);
+  }
+  template<size_t N> bool write_registers(const std::array<I2CRegValue, N> &table) const {
+    return this->write_registers(table.data(), N);
+  }
 
   ///
   /// Compat APIs
