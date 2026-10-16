@@ -1,4 +1,5 @@
 #include "ld6002b.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cinttypes>
@@ -1256,12 +1257,8 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
   this->write_byte(static_cast<uint8_t>(~header_xor));
 
   if (len > 0 && data != nullptr) {
-    uint8_t data_xor = 0;
-    for (uint8_t i = 0; i < len; i++) {
-      this->write_byte(data[i]);
-      data_xor ^= data[i];
-    }
-    this->write_byte(static_cast<uint8_t>(~data_xor));
+    this->write_array(data, len);
+    this->write_byte(static_cast<uint8_t>(~xor_bytes(data, len)));
   }
   const uint32_t now = millis();
   if (track) {

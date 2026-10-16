@@ -1,4 +1,5 @@
 #include "pmsx003.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
@@ -159,10 +160,7 @@ optional<bool> PMSX003Component::check_byte_() {
   }
 
   // checksum is without checksum bytes
-  uint16_t checksum = 0;
-  for (uint16_t i = 0; i < total_size - 2; i++) {
-    checksum += this->data_[i];
-  }
+  const uint16_t checksum = sum16_bytes(this->data_, total_size - 2);
 
   const uint16_t check = this->get_16_bit_uint_(total_size - 2);
   if (checksum != check) {
@@ -207,10 +205,7 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
   };
 
   // Calculate checksum
-  uint16_t checksum = 0;
-  for (uint8_t i = 0; i < 5; i++) {
-    checksum += send_data[i];
-  }
+  const uint16_t checksum = sum16_bytes(send_data, 5);
   send_data[5] = (checksum >> 8) & 0xFF;  // Verify Byte 1
   send_data[6] = (checksum >> 0) & 0xFF;  // Verify Byte 2
 

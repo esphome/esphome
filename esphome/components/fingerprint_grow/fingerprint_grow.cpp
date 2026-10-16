@@ -1,5 +1,6 @@
 #include "fingerprint_grow.h"
 #include "esphome/core/gpio.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -376,11 +377,10 @@ uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> &data_buffer) {
   this->write((uint8_t) (wire_length >> 8));
   this->write((uint8_t) (wire_length & 0xFF));
 
-  uint16_t sum = (wire_length >> 8) + (wire_length & 0xFF) + COMMAND;
-  for (auto data : data_buffer) {
+  for (auto data : data_buffer)
     this->write(data);
-    sum += data;
-  }
+  const uint16_t sum =
+      sum16_bytes(data_buffer.data(), data_buffer.size(), (wire_length >> 8) + (wire_length & 0xFF) + COMMAND);
 
   this->write((uint8_t) (sum >> 8));
   this->write((uint8_t) (sum & 0xFF));
