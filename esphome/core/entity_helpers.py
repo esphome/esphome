@@ -484,39 +484,11 @@ class ApplyEntity:
 _APPLY_DOMAIN = "entity_apply"
 
 
-@dataclass
-class _ApplyData:
-    apply_functions: dict[str, SafeExpType] = field(default_factory=dict)
-
-
-def _get_apply_data() -> _ApplyData:
-    if _APPLY_DOMAIN not in CORE.data:
-        CORE.data[_APPLY_DOMAIN] = _ApplyData()
-    return CORE.data[_APPLY_DOMAIN]
-
-
-def _apply_entity_function(
-    entity_id: ID, params: tuple[tuple[SafeExpType, str], ...], body: list[str]
-) -> SafeExpType:
-    """Emit the control function once per distinct body, so equal entities share one class."""
-    functions = _get_apply_data().apply_functions
-    key = "\n".join([*(f"{type_} {name}" for type_, name in params), *body])
-    if (fn := functions.get(key)) is None:
-        fn = functions[key] = apply_static_function(
-            entity_id, cg.void, list(params), body
-        )
-    return fn
-
-
 @dataclass(frozen=True, slots=True)
 class SubEntities:
     """Create the child entity configured under key, set parent (if bound) and pass it to setter.
 
-    ``setter`` may be None when the hub does not keep the entity. Extra arguments go to
-    new_entity. Returns None only when key is absent, so the result can be used directly as a
-    condition. With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
-    ``parent->apply`` (see ``ApplyEntity.params`` for the names it can use); ``publish`` is
-    ``"before"`` or ``"after"`` that call, or None to not publish.
+    Returns None only when key is absent. ``apply``/``publish`` are documented on ``create``.
     """
 
     new_entity: Callable[..., Awaitable[MockObj]]
@@ -528,7 +500,7 @@ class SubEntities:
         self,
         key: str,
         setter: Callable[[MockObj], Expression] | None,
-        *args: Any,
+        *args: SafeExpType,
         **kwargs: Any,
     ) -> MockObj | None:
         if (conf := self.config.get(key)) is None:
@@ -544,7 +516,11 @@ class SubEntities:
         publish: ApplyPublish = None,
         **kwargs: Any,
     ) -> MockObj:
-        """Create the entity from ``conf`` itself, for a platform whose config is one entity."""
+        """Create the entity from ``conf``; ``setter`` may be None when the hub keeps no pointer.
+
+        With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
+        ``parent->apply``, with ``publish`` ("before"/"after") placing the domain's publish.
+        """
         entity_id: ID = conf[CONF_ID]
         is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
             self.apply_entity.cls
@@ -576,15 +552,23 @@ class SubEntities:
     async def _apply_function(
         self, entity_id: ID, apply: str, publish: ApplyPublish
     ) -> SafeExpType:
+        """Emit the control function once per distinct body, so equal entities share one class."""
         parent = self.parent
         if isinstance(parent, ID):
             parent = await get_variable(parent)
+        apply_entity = self.apply_entity
         body = [f"{parent_ref(parent)}->{apply};"]
         if publish == "before":
-            body.insert(0, self.apply_entity.publish)
+            body.insert(0, apply_entity.publish)
         elif publish == "after":
-            body.append(self.apply_entity.publish)
-        return _apply_entity_function(entity_id, self.apply_entity.params, body)
+            body.append(apply_entity.publish)
+        functions: dict[str, SafeExpType] = CORE.data.setdefault(_APPLY_DOMAIN, {})
+        key = "\n".join([*(f"{t} {n}" for t, n in apply_entity.params), *body])
+        if (fn := functions.get(key)) is None:
+            fn = functions[key] = apply_static_function(
+                entity_id, cg.void, list(apply_entity.params), body
+            )
+        return fn
 
 
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):

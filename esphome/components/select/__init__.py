@@ -126,7 +126,7 @@ async def new_select(config, *args, options: list[str]):
     return var
 
 
-_APPLY_ENTITY = ApplyEntity(
+APPLY_ENTITY = ApplyEntity(
     ApplySelect,
     ((SelectPtr, "entity"), (cg.size_t, "index")),
     "entity->publish_state(index);",
@@ -137,7 +137,7 @@ def sub_selects(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
     """Return a SubEntities bound to new_select; ``apply`` statements can use ``entity`` and ``index``."""
-    return SubEntities(new_select, config, parent, _APPLY_ENTITY)
+    return SubEntities(new_select, config, parent, APPLY_ENTITY)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

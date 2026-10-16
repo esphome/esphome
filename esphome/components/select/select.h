@@ -112,11 +112,10 @@ class Select : public EntityBase {
   LazyCallbackManager<void(size_t)> state_callback_;
 };
 
-/// Runs one codegen-generated function on a new index, with the hub and any publish baked in.
-/// Fn takes the entity first, so the function can publish or read options without a stored pointer.
+/// Calls the codegen-generated Fn(this, index) on a new index; the hub and any publish are baked into Fn.
 template<auto Fn> class ApplySelect final : public Select {
  public:
-  // User provided, not "= default": `new(p) ApplySelect()` would zero-fill .bss that is already zero.
+  // Not "= default": placement new would zero-fill .bss that is already zero.
   ApplySelect() {}
 
  protected:
