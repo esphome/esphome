@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cstring>
 #include <utility>
 
 #include "esphome/components/spi/spi.h"
@@ -205,8 +207,7 @@ class MipiSpi : public display::Display,
       return;
     if (w <= 0 || h <= 0)
       return;
-    if (get_pixel_mode(bitness) != BUFFERPIXEL || big_endian != IS_BIG_ENDIAN || order != display::COLOR_ORDER_RGB ||
-        (!HAS_HARDWARE_ROTATION && this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) || this->is_clipping()) {
+    if (!this->is_native_block_(order, bitness, big_endian)) {
       this->draw_pixels_slow(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
       return;
     }
@@ -419,6 +420,12 @@ class MipiSpi : public display::Display,
     }
   }
 
+  // True when the block is already in the buffer pixel format and can be copied without per pixel work
+  bool is_native_block_(display::ColorOrder order, display::ColorBitness bitness, bool big_endian) const {
+    return get_pixel_mode(bitness) == BUFFERPIXEL && big_endian == IS_BIG_ENDIAN && order == display::COLOR_ORDER_RGB &&
+           (HAS_HARDWARE_ROTATION || this->rotation_ == display::DISPLAY_ROTATION_0_DEGREES) && !this->is_clipping();
+  }
+
   // Without a buffer there is nothing to convert a foreign block into, so it is dropped
   virtual void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                                 display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
@@ -576,6 +583,7 @@ class MipiSpiBuffer
       if (this->auto_clear_enabled_) {
         this->clear();
       }
+      this->updating_ = true;
       if (this->page_ != nullptr) {
         this->page_->get_writer()(*this);
       } else if (this->writer_.has_value()) {
@@ -583,6 +591,7 @@ class MipiSpiBuffer
       } else {
         this->test_card();
       }
+      this->updating_ = false;
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
       esph_log_v(TAG, "Drawing from line %d took %dms", this->start_line_, millis() - lap);
       lap = millis();
@@ -614,6 +623,42 @@ class MipiSpiBuffer
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
     esph_log_v(TAG, "Total update took %dms", millis() - now);
 #endif
+  }
+
+  // While update() runs the writer, a block goes into the buffer slice, or the slice flush would paint over it.
+  // Outside update() (e.g. LVGL) it is written straight to the display.
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    if (!this->updating_) {
+      MipiSpiBuffer::MipiSpi::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset,
+                                             y_offset, x_pad);
+      return;
+    }
+    if (this->is_failed() || w <= 0 || h <= 0)
+      return;
+    if (!this->is_native_block_(order, bitness, big_endian)) {
+      display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                       x_pad);
+      return;
+    }
+    // Only the rows inside the current slice are kept
+    const int first_col = std::max(0, -x_start);
+    const int end_col = std::min(w, this->get_width_internal() - x_start);
+    const int first_row = std::max<int>(0, this->start_line_ - y_start);
+    const int end_row = std::min<int>(h, this->end_line_ - y_start);
+    if (first_col >= end_col || first_row >= end_row)
+      return;
+    const size_t stride = x_offset + w + x_pad;
+    const size_t buffer_stride = round_buffer(this->get_width_internal());
+    for (int y = first_row; y != end_row; y++) {
+      memcpy(this->buffer_ + (y_start + y - this->start_line_) * buffer_stride + x_start + first_col,
+             ptr + ((y_offset + y) * stride + x_offset + first_col) * sizeof(BUFFERTYPE),
+             (end_col - first_col) * sizeof(BUFFERTYPE));
+    }
+    this->x_low_ = std::min<int>(this->x_low_, x_start + first_col);
+    this->y_low_ = std::min<int>(this->y_low_, y_start + first_row);
+    this->x_high_ = std::max<int>(this->x_high_, x_start + end_col - 1);
+    this->y_high_ = std::max<int>(this->y_high_, y_start + end_row - 1);
   }
 
   // With hardware rotation the buffer is written in drawn coordinates.
@@ -698,6 +743,7 @@ class MipiSpiBuffer
   uint16_t y_high_{0};
   uint16_t start_line_{0};
   uint16_t end_line_{1};
+  bool updating_{false};
 };
 
 }  // namespace esphome::mipi_spi

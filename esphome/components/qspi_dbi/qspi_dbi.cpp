@@ -3,6 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+#include <cstring>
+
 namespace esphome::qspi_dbi {
 
 // Maximum bytes to log in verbose hex output
@@ -32,7 +35,9 @@ void QspiDbi::update() {
   if (!this->setup_complete_) {
     return;
   }
+  this->updating_ = true;
   this->do_update_();
+  this->updating_ = false;
   if (this->buffer_ == nullptr || this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_)
     return;
   // Some chips require that the drawing window be aligned on certain boundaries
@@ -143,6 +148,10 @@ void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
+  } else if (this->updating_) {
+    // Inside update() the block goes into the buffer, or the flush at its end would paint over it
+    this->copy_to_buffer_(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    return;
   } else if (this->draw_from_origin_) {
     auto stride = x_offset + w + x_pad;
     for (int y = 0; y != h; y++) {
@@ -158,6 +167,31 @@ void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
     y_offset = 0;
   }
   this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+}
+
+void QspiDbi::copy_to_buffer_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  // The buffer holds big endian RGB565
+  if (!big_endian || order != display::COLOR_ORDER_RGB) {
+    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    return;
+  }
+  const int first_col = std::max(0, -x_start), end_col = std::min(w, static_cast<int>(this->width_) - x_start);
+  const int first_row = std::max(0, -y_start), end_row = std::min(h, static_cast<int>(this->height_) - y_start);
+  if (first_col >= end_col || first_row >= end_row)
+    return;
+  this->check_buffer_();
+  if (this->buffer_ == nullptr)
+    return;
+  const size_t stride = x_offset + w + x_pad;
+  for (int y = first_row; y != end_row; y++) {
+    memcpy(this->buffer_ + ((y_start + y) * this->width_ + x_start + first_col) * 2,
+           ptr + ((y_offset + y) * stride + x_offset + first_col) * 2, (end_col - first_col) * 2);
+  }
+  this->x_low_ = std::min<int>(this->x_low_, x_start + first_col);
+  this->y_low_ = std::min<int>(this->y_low_, y_start + first_row);
+  this->x_high_ = std::max<int>(this->x_high_, x_start + end_col - 1);
+  this->y_high_ = std::max<int>(this->y_high_, y_start + end_row - 1);
 }
 
 void QspiDbi::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
