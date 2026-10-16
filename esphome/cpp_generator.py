@@ -1293,12 +1293,7 @@ class MockObjEnum(MockObj):
         return f"MockObj<{str(self.base)}>"
 
     def options(self, *names: str, prefix: str = "") -> dict[str, "MockObj"]:
-        """Map option names to enumerators, for cv.enum.
-
-        Each name maps to prefix + the name upper-cased, with characters that
-        are not letters or digits turned into "_".
-        Names that repeat, or that map to the same enumerator, raise ValueError.
-        """
+        """Map option names to prefix + NAME enumerators (non-alphanumerics become "_"), for cv.enum."""
         enumerators = {
             name: prefix + _ENUM_NON_ALNUM.sub("_", name).upper() for name in names
         }
