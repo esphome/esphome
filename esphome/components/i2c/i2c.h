@@ -248,6 +248,17 @@ class I2CDevice {
 
   bool read_byte_16(uint8_t a_register, uint16_t *data) { return read_bytes_16(a_register, data, 1); }
 
+  /// Read \p len 16-bit values stored least significant byte first, starting at \p a_register.
+  bool read_bytes_16_le(uint8_t a_register, uint16_t *data, uint8_t len) {
+    if (this->read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
+      return false;
+    for (size_t i = 0; i < len; i++)
+      data[i] = convert_little_endian(data[i]);
+    return true;
+  }
+
+  bool read_byte_16_le(uint8_t a_register, uint16_t *data) { return this->read_bytes_16_le(a_register, data, 1); }
+
   bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) const {
     return write_register(a_register, data, len) == ERROR_OK;
   }
@@ -265,6 +276,12 @@ class I2CDevice {
   bool write_byte(uint8_t a_register, uint8_t data) const { return write_bytes(a_register, &data, 1); }
 
   bool write_byte_16(uint8_t a_register, uint16_t data) const { return write_bytes_16(a_register, &data, 1); }
+
+  /// Write a 16-bit value least significant byte first.
+  bool write_byte_16_le(uint8_t a_register, uint16_t data) const {
+    const uint8_t buf[2] = {static_cast<uint8_t>(data), static_cast<uint8_t>(data >> 8)};
+    return this->write_bytes(a_register, buf, 2);
+  }
 
  protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus

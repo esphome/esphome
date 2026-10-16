@@ -990,19 +990,35 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
          (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
 }
 
+namespace encode_detail {
+// One shift per byte as a single expression, so -Os builds do not keep a loop.
+template<typename T, bool LittleEndian, size_t... I>
+constexpr T encode_bytes(const uint8_t *bytes, std::index_sequence<I...> /*unused*/) {
+  using Acc = std::conditional_t<(sizeof(T) > 4), uint64_t, uint32_t>;
+  return static_cast<T>(((static_cast<Acc>(bytes[I]) << (8 * (LittleEndian ? I : sizeof(T) - 1 - I))) | ...));
+}
+}  // namespace encode_detail
+
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
-  T val = 0;
-  for (size_t i = 0; i < sizeof(T); i++) {
-    val <<= 8;
-    val |= bytes[i];
-  }
-  return val;
+/// A signed T takes the two's complement of the assembled bits.
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
+  return encode_detail::encode_bytes<T, false>(bytes, std::make_index_sequence<sizeof(T)>{});
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
 constexpr T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
   return encode_value<T>(bytes.data());
+}
+/// Encode a value from its constituent bytes (from least to most significant) in an array with length sizeof(T).
+/// A signed T takes the two's complement of the assembled bits.
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
+constexpr T encode_value_le(const uint8_t *bytes) {
+  return encode_detail::encode_bytes<T, true>(bytes, std::make_index_sequence<sizeof(T)>{});
+}
+/// Encode a value from its constituent bytes (from least to most significant) in an std::array with length sizeof(T).
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
+constexpr T encode_value_le(const std::array<uint8_t, sizeof(T)> bytes) {
+  return encode_value_le<T>(bytes.data());
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
