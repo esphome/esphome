@@ -58,6 +58,13 @@ bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
   return true;
 }
 
+bool I2CDevice::update_register(uint8_t a_register, uint8_t mask, uint8_t value) {
+  uint8_t data;
+  if (!this->read_byte(a_register, &data))
+    return false;
+  return this->write_byte(a_register, (data & ~mask) | (value & mask));
+}
+
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {
   // we have to copy in order to be able to change byte order
   std::unique_ptr<uint16_t[]> temp{new uint16_t[len]};
