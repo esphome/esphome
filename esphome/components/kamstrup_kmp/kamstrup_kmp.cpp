@@ -142,6 +142,9 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
       if (data > -1) {
         if (data == 0x40) {  // start of message
           buffer_len = 0;
+        } else if (buffer_len == 0) {
+          // Ignore request echoes until the response starts.
+          continue;
         }
         buffer[buffer_len++] = (uint8_t) data;
         if (data == 0x0D) {
