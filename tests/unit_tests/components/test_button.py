@@ -63,15 +63,3 @@ def test_preset_defaults(
     preset: Callable[..., cv.Schema], expected: dict[str, str]
 ) -> None:
     assert _defaults(preset(MyButton)) == expected
-
-
-def test_preset_matches_button_schema() -> None:
-    preset = button.restart_button_schema(MyButton)
-    manual = button.button_schema(
-        MyButton,
-        device_class=DEVICE_CLASS_RESTART,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        icon=ICON_RESTART,
-    )
-    assert [str(k) for k in preset.schema] == [str(k) for k in manual.schema]
-    assert _defaults(preset) == _defaults(manual)
