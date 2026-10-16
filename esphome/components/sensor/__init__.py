@@ -1106,12 +1106,14 @@ SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
         cv.Optional(CONF_BELOW): cv.float_,
     },
     cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-    automation.fill_in_range_bounds,
 )
 
 
 automation.register_apply_condition(
-    "sensor.in_range", SENSOR_IN_RANGE_CONDITION_SCHEMA, automation.IN_RANGE_CHECK
+    "sensor.in_range",
+    SENSOR_IN_RANGE_CONDITION_SCHEMA,
+    automation.IN_RANGE_CHECK,
+    defaults=automation.IN_RANGE_DEFAULTS,
 )
 
 

@@ -9,6 +9,7 @@ import pytest
 
 from esphome.automation import (
     IN_RANGE_CHECK,
+    IN_RANGE_DEFAULTS,
     ApplyAction,
     ApplyCall,
     ApplyCondition,
@@ -26,7 +27,6 @@ from esphome.automation import (
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
-    fill_in_range_bounds,
     has_non_synchronous_actions,
     literal_with_length,
     maybe_simple_id,
@@ -1613,7 +1613,7 @@ async def test_nested_repeat_lambda_parameters_are_distinct() -> None:
 
 
 def _render_in_range(config: dict) -> tuple[str, str]:
-    config = fill_in_range_bounds(config)
+    config = {**IN_RANGE_DEFAULTS, **config}
     (above_key, _, low), (below_key, _, high) = IN_RANGE_CHECK.members
     return low(config, config[above_key]), high(config, config[below_key])
 

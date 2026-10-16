@@ -355,11 +355,6 @@ class ApplyField:
         return ApplyCall(target, ((self.conf_key, self.type_, self.const_fn),))
 
 
-def fill_in_range_bounds(config: ConfigType) -> ConfigType:
-    """Give an absent ``above`` or ``below`` the value NaN, which ``IN_RANGE_CHECK`` renders."""
-    return {CONF_ABOVE: math.nan, CONF_BELOW: math.nan, **config}
-
-
 def _in_range_low(config: ConfigType, value: float) -> str:
     return "-INFINITY" if math.isnan(value) else str(cg.safe_exp(value))
 
@@ -371,11 +366,12 @@ def _in_range_high(config: ConfigType, value: float) -> str:
     return str(cg.safe_exp(value))
 
 
-# ``above <= state <= below`` on the parent's float ``state``, after ``fill_in_range_bounds``.
+# ``above <= state <= below`` on the parent's float ``state``; register with ``IN_RANGE_DEFAULTS``.
 IN_RANGE_CHECK = ApplyCall(
     "state >= {} && {parent}->state <= {}",
     ((CONF_ABOVE, cg.float_, _in_range_low), (CONF_BELOW, cg.float_, _in_range_high)),
 )
+IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
 
 def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
@@ -596,7 +592,11 @@ async def _render_check(
 
 
 def register_apply_condition(
-    name: str, schema: cv.Schema, check: str | ApplyCall, id_key: str = CONF_ID
+    name: str,
+    schema: cv.Schema,
+    check: str | ApplyCall,
+    id_key: str = CONF_ID,
+    defaults: ConfigType | None = None,
 ) -> None:
     """Register a condition that is one expression on its parent, with no C++ class.
 
@@ -605,6 +605,7 @@ def register_apply_condition(
     against config values, all of which must be present. Write ``== false`` to negate.
     A ``cg.std_string`` constant stays in flash on ESP8266 and supports only ``==`` or ``!=``
     against a ``std::string`` or ``StringRef`` member; other string types are plain literals.
+    ``defaults`` fills absent keys at code generation only, so the validated config is unchanged.
     Generates one static predicate and an ``ApplyCondition`` templated on it.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
@@ -619,6 +620,8 @@ def register_apply_condition(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
+        if defaults:
+            config = {**defaults, **config}
         parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         values = _apply_values(config, members)

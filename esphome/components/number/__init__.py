@@ -166,8 +166,6 @@ ValueRangeTrigger = number_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
 
-# Conditions
-
 NumberMode = number_ns.enum("NumberMode")
 
 # Schema default that also matches the C++ initializer in number_traits.h; codegen
@@ -339,12 +337,14 @@ NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
         cv.Optional(CONF_BELOW): cv.float_,
     },
     cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-    automation.fill_in_range_bounds,
 )
 
 
 automation.register_apply_condition(
-    "number.in_range", NUMBER_IN_RANGE_CONDITION_SCHEMA, automation.IN_RANGE_CHECK
+    "number.in_range",
+    NUMBER_IN_RANGE_CONDITION_SCHEMA,
+    automation.IN_RANGE_CHECK,
+    defaults=automation.IN_RANGE_DEFAULTS,
 )
 
 
