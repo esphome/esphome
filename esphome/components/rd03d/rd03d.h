@@ -64,6 +64,7 @@ class RD03DComponent final : public Component, public uart::UARTDevice {
   void set_throttle(uint32_t throttle) { this->throttle_ = throttle; }
 
  protected:
+  void handle_byte_(uint8_t byte);
   void apply_config_();
   void send_command_(uint16_t command, const uint8_t *data = nullptr, uint8_t data_len = 0);
   void process_frame_();

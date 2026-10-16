@@ -95,19 +95,8 @@ void LD2410SComponent::dump_config() {
 }
 
 void LD2410SComponent::loop() {
-  uint8_t chunk[16];
-  // Take the count once so one pass handles a bounded number of bytes
-  size_t avail = this->available();
-  while (avail > 0) {
-    const size_t len = std::min(avail, sizeof(chunk));
-    if (!this->read_array(chunk, len)) {
-      ESP_LOGV(TAG, "UART read of %u bytes failed", static_cast<unsigned>(len));
-      break;
-    }
-    for (size_t i = 0; i < len; i++) {
-      this->receive_byte_(chunk[i]);
-    }
-    avail -= len;
+  if (!this->read_available<16>([this](uint8_t b) { this->receive_byte_(b); })) {
+    ESP_LOGV(TAG, "UART read failed");
   }
   const uint32_t now = App.get_loop_component_start_time();
   if (this->sequence_ == nullptr) {

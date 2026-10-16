@@ -61,6 +61,7 @@ class DFPlayer final : public uart::UARTDevice, public Component {
   }
 
  protected:
+  void handle_byte_(uint8_t byte);
   void send_cmd_(uint8_t cmd, uint16_t argument = 0);
   void send_cmd_(uint8_t cmd, uint16_t high, uint16_t low) {
     this->send_cmd_(cmd, ((high & 0xFF) << 8) | (low & 0xFF));
