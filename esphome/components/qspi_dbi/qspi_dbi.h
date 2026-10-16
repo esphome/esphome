@@ -59,7 +59,6 @@ class QspiDbi final : public display::DisplayBuffer,
                                             spi::DATA_RATE_1MHZ> {
  public:
   void set_model(const char *model) { this->model_ = model; }
-  using display::Display::draw_pixels_at;
   void update() override;
   void setup() override;
   display::ColorOrder get_color_mode() { return this->color_mode_; }
@@ -113,8 +112,8 @@ class QspiDbi final : public display::DisplayBuffer,
   }
   void write_sequence_(const std::vector<uint8_t> &vec);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                      bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                    bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   void copy_to_buffer_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,

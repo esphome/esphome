@@ -28,6 +28,19 @@ constexpr uint8_t expand_field(uint32_t value, uint8_t bits) {
   }
 }
 
+// Remove before 2027.5.0, with the forms that take a color order. Maps a color read in RGB order to the
+// given order, by moving its channels.
+inline Color apply_color_order(Color color, ColorOrder order) {
+  switch (order) {
+    case COLOR_ORDER_BGR:
+      return Color(color.b, color.g, color.r);
+    case COLOR_ORDER_GRB:
+      return Color(color.g, color.r, color.b);
+    default:
+      return color;
+  }
+}
+
 class ColorUtil {
  public:
   /// Reads one packed pixel of the given bitness from a source buffer into the
@@ -93,15 +106,7 @@ class ColorUtil {
   ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
   static Color to_color(uint32_t colorcode, ColorOrder color_order,
                         ColorBitness color_bitness = ColorBitness::COLOR_BITNESS_888, bool right_bit_aligned = true) {
-    const Color color = to_color(colorcode, color_bitness, right_bit_aligned);
-    switch (color_order) {
-      case COLOR_ORDER_BGR:
-        return Color(color.b, color.g, color.r);
-      case COLOR_ORDER_GRB:
-        return Color(color.g, color.r, color.b);
-      default:
-        return color;
-    }
+    return apply_color_order(to_color(colorcode, color_bitness, right_bit_aligned), color_order);
   }
   static inline Color rgb332_to_color(uint8_t rgb332_color) {
     return to_color((uint32_t) rgb332_color, COLOR_BITNESS_332);
@@ -115,21 +120,14 @@ class ColorUtil {
   // Remove before 2027.5.0
   ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
   static uint8_t color_to_332(Color color, ColorOrder color_order) {
-    uint16_t red_color, green_color, blue_color;
-
-    red_color = esp_scale8(color.red, ((1 << 3) - 1));
-    green_color = esp_scale8(color.green, ((1 << 3) - 1));
-    blue_color = esp_scale8(color.blue, (1 << 2) - 1);
-
-    switch (color_order) {
-      case COLOR_ORDER_RGB:
-        return red_color << 5 | green_color << 2 | blue_color;
-      case COLOR_ORDER_BGR:
-        return blue_color << 6 | green_color << 3 | red_color;
-      case COLOR_ORDER_GRB:
-        return green_color << 5 | red_color << 2 | blue_color;
-    }
-    return 0;
+    if (color_order == COLOR_ORDER_RGB)
+      return color_to_332(color);
+    // The other orders move the 2 bit field, so they cannot reuse the RGB packing
+    const uint16_t red_color = esp_scale8(color.red, ((1 << 3) - 1));
+    const uint16_t green_color = esp_scale8(color.green, ((1 << 3) - 1));
+    if (color_order == COLOR_ORDER_BGR)
+      return esp_scale8(color.blue, (1 << 2) - 1) << 6 | green_color << 3 | red_color;
+    return green_color << 5 | red_color << 2 | esp_scale8(color.blue, (1 << 2) - 1);
   }
   static uint16_t color_to_565(Color color) {
     const uint16_t red_color = esp_scale8(color.red, ((1 << 5) - 1));
@@ -140,21 +138,16 @@ class ColorUtil {
   // Remove before 2027.5.0
   ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
   static uint16_t color_to_565(Color color, ColorOrder color_order) {
-    uint16_t red_color, green_color, blue_color;
-
-    red_color = esp_scale8(color.red, ((1 << 5) - 1));
-    green_color = esp_scale8(color.green, ((1 << 6) - 1));
-    blue_color = esp_scale8(color.blue, (1 << 5) - 1);
-
     switch (color_order) {
-      case COLOR_ORDER_RGB:
-        return red_color << 11 | green_color << 5 | blue_color;
       case COLOR_ORDER_BGR:
-        return blue_color << 11 | green_color << 5 | red_color;
+        return color_to_565(Color(color.b, color.g, color.r));
       case COLOR_ORDER_GRB:
-        return green_color << 10 | red_color << 5 | blue_color;
+        // Green moves to the 5 bit field at the top, so it cannot reuse the RGB packing
+        return esp_scale8(color.green, (1 << 6) - 1) << 10 | esp_scale8(color.red, (1 << 5) - 1) << 5 |
+               esp_scale8(color.blue, (1 << 5) - 1);
+      default:
+        return color_to_565(color);
     }
-    return 0;
   }
   static uint32_t color_to_grayscale4(Color color) {
     uint32_t gs4 = esp_scale8(color.white, 15);
@@ -231,16 +224,9 @@ class Rgb565ToMono {
   // Remove before 2027.5.0
   ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
   explicit Rgb565ToMono(ColorOrder order) {
-    // Rec.601 weight of the 5-bit, 6-bit and 5-bit fields, by the channel each one holds in this order
-    uint16_t high = REC601_LUMA_R, middle = REC601_LUMA_G, low = REC601_LUMA_B;
-    if (order == COLOR_ORDER_BGR) {
-      high = REC601_LUMA_B;
-      low = REC601_LUMA_R;
-    } else if (order == COLOR_ORDER_GRB) {
-      high = REC601_LUMA_G;
-      middle = REC601_LUMA_R;
-    }
-    this->fill_tables_(high, middle, low);
+    // The weight of the channel each 5, 6 and 5 bit field holds in this order
+    const Color weights = apply_color_order(Color(REC601_LUMA_R, REC601_LUMA_G, REC601_LUMA_B), order);
+    this->fill_tables_(weights.r, weights.g, weights.b);
   }
 
   uint8_t operator()(uint16_t value) const {

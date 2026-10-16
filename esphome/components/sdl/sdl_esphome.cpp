@@ -148,13 +148,13 @@ void Sdl::redraw_(SDL_Rect &rect) {
   SDL_RenderPresent(this->renderer_);
 }
 
-void Sdl::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                         bool big_endian, int x_offset, int y_offset, int x_pad) {
+void Sdl::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                       bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (this->texture_ == nullptr)
     return;
   SDL_Rect rect{x_start, y_start, w, h};
   if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || big_endian) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
   } else {
     auto stride = x_offset + w + x_pad;
     const auto *data = ptr + (stride * y_offset + x_offset) * 2;

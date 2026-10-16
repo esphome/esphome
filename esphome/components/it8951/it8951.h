@@ -200,9 +200,8 @@ class IT8951Display : public Display,
   // Bulk pixel blit (used by LVGL and image rendering). Overridden to write
   // straight into the framebuffer, avoiding the base class's per-pixel
   // draw_pixel_at overhead (watchdog feed, clipping test, dirty-box clamps).
-  using display::Display::draw_pixels_at;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness, bool big_endian,
-                      int x_offset, int y_offset, int x_pad) override;
+  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness, bool big_endian,
+                    int x_offset, int y_offset, int x_pad) override;
   int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
   int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
   bool pixel_axes_swapped() const override { return this->effective_transform_ & TRANSFORM_SWAP_XY; }

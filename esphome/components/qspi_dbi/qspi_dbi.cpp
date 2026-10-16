@@ -137,15 +137,15 @@ void QspiDbi::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y
   this->write_command_(CASET, buf, sizeof buf);
 }
 
-void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                             bool big_endian, int x_offset, int y_offset, int x_pad) {
+void QspiDbi::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                           bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (!this->setup_complete_ || this->is_failed())
     return;
   if (w <= 0 || h <= 0)
     return;
   if (bitness != display::COLOR_BITNESS_565 || big_endian != (this->bit_order_ == spi::BIT_ORDER_MSB_FIRST) ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   } else if (this->updating_) {
     // Inside update() the block goes into the buffer, or the flush at its end would paint over it
@@ -172,7 +172,7 @@ void QspiDbi::copy_to_buffer_(int x_start, int y_start, int w, int h, const uint
                               bool big_endian, int x_offset, int y_offset, int x_pad) {
   // The buffer holds big endian RGB565
   if (!big_endian) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   const int first_col = std::max(0, -x_start), end_col = std::min(w, static_cast<int>(this->width_) - x_start);

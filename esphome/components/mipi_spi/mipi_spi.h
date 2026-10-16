@@ -201,9 +201,8 @@ class MipiSpi : public display::Display,
 
   // Drawing operations
 
-  using display::Display::draw_pixels_at;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                      bool big_endian, int x_offset, int y_offset, int x_pad) override {
+  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                    bool big_endian, int x_offset, int y_offset, int x_pad) override {
     if (this->is_failed())
       return;
     if (w <= 0 || h <= 0)
@@ -628,18 +627,16 @@ class MipiSpiBuffer
 
   // While update() runs the writer, a block goes into the buffer slice, or the slice flush would paint over it.
   // Outside update() (e.g. LVGL) it is written straight to the display.
-  using display::Display::draw_pixels_at;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                      bool big_endian, int x_offset, int y_offset, int x_pad) override {
+  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                    bool big_endian, int x_offset, int y_offset, int x_pad) override {
     if (!this->updating_) {
-      MipiSpiBuffer::MipiSpi::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset,
-                                             x_pad);
+      MipiSpiBuffer::MipiSpi::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
       return;
     }
     if (this->is_failed() || w <= 0 || h <= 0)
       return;
     if (!this->is_native_block_(bitness, big_endian)) {
-      display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+      display::Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
       return;
     }
     // Only the rows inside the current slice are kept
@@ -719,7 +716,7 @@ class MipiSpiBuffer
  protected:
   void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                         bool big_endian, int x_offset, int y_offset, int x_pad) override {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    display::Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
   }
   // Convert a color to the buffer pixel format.
   static BUFFERTYPE convert_color(const Color &color) {

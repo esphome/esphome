@@ -26,8 +26,8 @@ struct Blit {
 // Records the bulk calls and counts the per pixel calls Image::draw() makes.
 class RecordingDisplay : public TestDisplay {
  public:
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                      bool big_endian, int x_offset, int y_offset, int x_pad) override {
+  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                    bool big_endian, int x_offset, int y_offset, int x_pad) override {
     this->blits.push_back({x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad});
   }
   void draw_pixel_at(int x, int y, Color color) override { this->pixels++; }

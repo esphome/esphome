@@ -111,16 +111,13 @@ draw_ordered_pixels(Display *display, int x_start, int y_start, int w, int h, co
       } else {
         code = ColorUtil::read_packed<COLOR_BITNESS_332>(ptr, source_idx, big_endian);
       }
-      const Color color = ColorUtil::to_color(code, bitness);
-      display->draw_pixel_at(
-          x + x_start, y + y_start,
-          order == COLOR_ORDER_BGR ? Color(color.b, color.g, color.r) : Color(color.g, color.r, color.b));
+      display->draw_pixel_at(x + x_start, y + y_start, apply_color_order(ColorUtil::to_color(code, bitness), order));
     }
   }
 }
 
-void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
-                             bool big_endian, int x_offset, int y_offset, int x_pad) {
+void Display::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                           bool big_endian, int x_offset, int y_offset, int x_pad) {
   // Through the deprecated form, so a driver that still overrides only that one keeps its fast path.
   // Remove before 2027.5.0, when the per pixel drawing below moves here.
 #pragma GCC diagnostic push
@@ -129,7 +126,8 @@ void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
 #pragma GCC diagnostic pop
 }
 
-// Must not call the form without a color order: that one calls this, and an override's fallback ends up here.
+// Must not call draw_pixels_at() without a color order or draw_pixels_(): those call this, and a legacy
+// override's fallback ends up here.
 void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                              ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (order != COLOR_ORDER_RGB) {

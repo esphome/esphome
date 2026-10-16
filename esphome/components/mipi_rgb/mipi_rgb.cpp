@@ -218,13 +218,13 @@ void MipiRgb::flush_dirty_() {
   this->y_high_ = 0;
 }
 
-void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                             bool big_endian, int x_offset, int y_offset, int x_pad) {
+void MipiRgb::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                           bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0 || this->is_failed())
     return;
   if (bitness != display::COLOR_BITNESS_565 || big_endian != this->big_endian_ ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
     this->flush_dirty_();
   } else if (this->buffer_ != nullptr) {

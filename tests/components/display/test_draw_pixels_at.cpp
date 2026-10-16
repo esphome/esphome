@@ -134,6 +134,33 @@ TEST(ColorUtil, ToColorByteAligned) {
   EXPECT_EQ(ColorUtil::to_color(0x563412, COLOR_BITNESS_888, false).raw_32, Color(0x56, 0x34, 0x12).raw_32);
 }
 
+// A driver that copies blocks itself overrides the protected draw_pixels_() hook.
+class HookDisplay : public RecordingDisplay {
+ public:
+  std::vector<std::vector<int>> calls;
+  const uint8_t *ptr{};
+
+ protected:
+  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness, bool big_endian,
+                    int x_offset, int y_offset, int x_pad) override {
+    this->calls.push_back({x_start, y_start, w, h, bitness, big_endian, x_offset, y_offset, x_pad});
+    this->ptr = ptr;
+  }
+};
+
+// Both public forms reach the hook, and nothing is hidden when called through the driver's own type.
+TEST(DrawPixelsAt, BothFormsReachTheHook) {
+  const auto source = make_source(2);
+  HookDisplay display;
+  display.draw_pixels_at(10, 20, W, H, source.data(), COLOR_BITNESS_565, true, X_OFFSET, Y_OFFSET, X_PAD);
+  display.draw_pixels_at(1, 2, 3, 4, source.data(), COLOR_BITNESS_888, false);
+  ASSERT_EQ(display.calls.size(), 2u);
+  EXPECT_EQ(display.calls[0], (std::vector<int>{10, 20, W, H, COLOR_BITNESS_565, true, X_OFFSET, Y_OFFSET, X_PAD}));
+  EXPECT_EQ(display.calls[1], (std::vector<int>{1, 2, 3, 4, COLOR_BITNESS_888, false, 0, 0, 0}));
+  EXPECT_EQ(display.ptr, source.data());
+  EXPECT_EQ(display.count(), 0u);
+}
+
 // Remove before 2027.5.0, with the draw_pixels_at() overloads that take a color order.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"

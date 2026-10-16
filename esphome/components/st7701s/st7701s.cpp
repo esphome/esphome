@@ -50,13 +50,13 @@ void ST7701S::loop() {
     esp_lcd_rgb_panel_restart(this->handle_);
 }
 
-void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                             bool big_endian, int x_offset, int y_offset, int x_pad) {
+void ST7701S::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                           bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
   if (bitness != display::COLOR_BITNESS_565 || !big_endian || this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES ||
       this->is_clipping()) {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    display::Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);

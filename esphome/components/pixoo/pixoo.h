@@ -38,9 +38,8 @@ class Pixoo : public display::Display,
 
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
-  using display::Display::draw_pixels_at;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                      bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                    bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
   int get_width_internal() override { return static_cast<int>(this->model_); }

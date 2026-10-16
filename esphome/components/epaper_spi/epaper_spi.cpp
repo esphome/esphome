@@ -464,13 +464,13 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
 
 // Writes an RGB565 block of pixels, as LVGL sends them, straight into a 1 bit per pixel buffer that is one block (the
 // usual case): the same result as draw_pixel_at() for each pixel. Anything else goes through draw_pixel_at().
-void HOT EPaperBase::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
-                                    bool big_endian, int x_offset, int y_offset, int x_pad) {
+void HOT EPaperBase::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                                  bool big_endian, int x_offset, int y_offset, int x_pad) {
   size_t contiguous_length;
   uint8_t *contiguous = this->buffer_.get_span(0, contiguous_length);
   if (!this->buffer_is_mono_() || this->get_clipping().is_set() || bitness != COLOR_BITNESS_565 ||
       contiguous_length != this->buffer_length_) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   this->draw_rgb565_block_(contiguous, x_start, y_start, w, h, ptr, big_endian, x_offset, y_offset, x_pad);

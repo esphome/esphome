@@ -23,9 +23,8 @@ class SnapshotDisplay final : public display::DisplayBuffer, public Snapshot {
     this->height_ = height;
   }
 
-  using display::Display::draw_pixels_at;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                      bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                    bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
