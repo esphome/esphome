@@ -36,8 +36,9 @@ MiCS5524Component = mics_5524_gas_sensor_ns.class_(
 MiCS5524GasSensor = mics_5524_gas_sensor_ns.class_("MiCS5524GasSensor", sensor.Sensor)
 
 # Configuration keys local to this component; the keys shared with other components
-# (`warmup_time`, `enable_pin`, `voltage_divider`, `r1`, `r2`) are imported from
-# esphome.const by the platform schema.
+# (`warmup_time`, `enable_pin`, `voltage_divider`) are imported from
+# esphome.const by the platform schema, while `r1`/`r2` below are the local keys
+# of the `voltage_divider:` mapping itself.
 CONF_CONVERSION = "conversion"
 CONF_COEFFICIENT_A = "coefficient_a"
 CONF_COEFFICIENT_B = "coefficient_b"
