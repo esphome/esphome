@@ -139,41 +139,19 @@ void BME680Component::setup() {
   this->calibration_.ambient_temperature = 25;  // prime ambient temperature
 
   // Config register
-  uint8_t config_register;
-  if (!this->read_byte(BME680_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed();
-    return;
-  }
-  config_register &= ~0b00011100;
-  config_register |= (this->iir_filter_ & 0b111) << 2;
-  if (!this->write_byte(BME680_REGISTER_CONFIG, config_register)) {
+  if (!this->update_register(BME680_REGISTER_CONFIG, 0b00011100, (this->iir_filter_ & 0b111) << 2)) {
     this->mark_failed();
     return;
   }
 
   // Humidity control register
-  uint8_t hum_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_HUMIDITY, &hum_control)) {
-    this->mark_failed();
-    return;
-  }
-  hum_control &= ~0b00000111;
-  hum_control |= this->humidity_oversampling_ & 0b111;
-  if (!this->write_byte(BME680_REGISTER_CONTROL_HUMIDITY, hum_control)) {
+  if (!this->update_register(BME680_REGISTER_CONTROL_HUMIDITY, 0b00000111, this->humidity_oversampling_ & 0b111)) {
     this->mark_failed();
     return;
   }
 
-  // Gas 1 control register
-  uint8_t gas1_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_GAS1, &gas1_control)) {
-    this->mark_failed();
-    return;
-  }
-  gas1_control &= ~0b00011111;
-  gas1_control |= 1 << 4;
-  gas1_control |= 0;  // profile 0
-  if (!this->write_byte(BME680_REGISTER_CONTROL_GAS1, gas1_control)) {
+  // Gas 1 control register: run gas, heater profile 0
+  if (!this->update_register(BME680_REGISTER_CONTROL_GAS1, 0b00011111, 1 << 4)) {
     this->mark_failed();
     return;
   }
@@ -181,14 +159,7 @@ void BME680Component::setup() {
   const bool heat_off = this->heater_temperature_ == 0 || this->heater_duration_ == 0;
 
   // Gas 0 control register
-  uint8_t gas0_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_GAS0, &gas0_control)) {
-    this->mark_failed();
-    return;
-  }
-  gas0_control &= ~0b00001000;
-  gas0_control |= heat_off << 3;
-  if (!this->write_byte(BME680_REGISTER_CONTROL_GAS0, gas0_control)) {
+  if (!this->update_register(BME680_REGISTER_CONTROL_GAS0, 0b00001000, heat_off << 3)) {
     this->mark_failed();
     return;
   }

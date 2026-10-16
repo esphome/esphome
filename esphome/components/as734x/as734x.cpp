@@ -264,12 +264,7 @@ bool AS734XComponent::select_bank_(uint8_t reg) {
 }
 
 bool AS734XComponent::update_bits_(uint8_t reg, uint8_t mask, bool value) {
-  uint8_t data = 0;
-  if (!this->select_bank_(reg) || !this->read_byte(reg, &data)) {
-    return false;
-  }
-  data = value ? (data | mask) : (data & ~mask);
-  return this->write_byte(reg, data);
+  return this->select_bank_(reg) && this->update_register(reg, mask, value ? mask : 0);
 }
 
 // The exposure is applied before every measurement, so a gain, ATIME or ASTEP changed at runtime
