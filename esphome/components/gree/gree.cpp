@@ -170,11 +170,6 @@ static bool gree_read_byte(remote_base::RemoteReceiveData &data, uint32_t bit_ma
 }
 
 void GreeClimate::set_model(Model model) {
-  if (model == GREE_YAN) {
-    // YAN only has a vertical vane; the horizontal swing IR bytes are not defined for this model.
-    this->swing_modes_.erase(climate::CLIMATE_SWING_HORIZONTAL);
-    this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
-  }
   if (model == GREE_YX1FF) {
     this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);   // YX1FF 4 speed
     this->presets_.insert(climate::CLIMATE_PRESET_NONE);   // YX1FF sleep mode
@@ -204,6 +199,11 @@ void GreeClimate::set_model(Model model) {
   } else {
     this->swing_modes_ = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                           climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH};
+  }
+  if (model == GREE_YAN) {
+    // YAN only has a vertical vane; the horizontal swing IR bytes are not defined for this model.
+    this->swing_modes_.erase(climate::CLIMATE_SWING_HORIZONTAL);
+    this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
   }
 
   this->model_ = model;
