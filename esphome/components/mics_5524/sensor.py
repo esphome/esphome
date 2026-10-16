@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_WARMUP_TIME,
     DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    KEY_CORE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_VOLT,
@@ -58,6 +59,8 @@ from . import (
     CONVERSION_MODELS,
     ESP32_ADC_INPUT_MAX_V,
     ESP32_ADC_PIN_MAX_V,
+    ESP8266_ADC_INPUT_MAX_V,
+    ESP8266_ADC_PIN_MAX_V,
     MiCS5524Component,
     MiCS5524GasSensor,
 )
@@ -152,16 +155,24 @@ def _validate_divider(config: ConfigType) -> ConfigType:
 
     supply = config[CONF_VCC]
     pin_voltage = supply * divider[CONF_R2] / (divider[CONF_R1] + divider[CONF_R2])
-    if pin_voltage > config[CONF_ADC_PIN_MAX] + ADC_LIMIT_MARGIN_V:
+    esp8266 = KEY_CORE in CORE.data and CORE.is_esp8266
+    pin_max = config.get(
+        CONF_ADC_PIN_MAX, ESP8266_ADC_PIN_MAX_V if esp8266 else ESP32_ADC_PIN_MAX_V
+    )
+    input_max = config.get(
+        CONF_ADC_INPUT_MAX,
+        ESP8266_ADC_INPUT_MAX_V if esp8266 else ESP32_ADC_INPUT_MAX_V,
+    )
+    if pin_voltage > pin_max + ADC_LIMIT_MARGIN_V:
         raise cv.Invalid(
             f"the divider brings {supply:g} V down to {pin_voltage:.4g} V on the pin, "
-            f"above the {config[CONF_ADC_PIN_MAX]:g} V the ADC tolerates - raise r1/r2, or "
+            f"above the {pin_max:g} V the ADC tolerates - raise r1/r2, or "
             "declare 'adc_pin_max:' for a sampler that takes more"
         )
-    if pin_voltage > config[CONF_ADC_INPUT_MAX] + ADC_LIMIT_MARGIN_V:
+    if pin_voltage > input_max + ADC_LIMIT_MARGIN_V:
         raise cv.Invalid(
             f"the divider brings {supply:g} V down to {pin_voltage:.4g} V on the pin, "
-            f"above the {config[CONF_ADC_INPUT_MAX]:g} V measuring range of the sampler - "
+            f"above the {input_max:g} V measuring range of the sampler - "
             "raise r1/r2, or declare 'adc_input_max:' for a sampler with a wider range"
         )
     return config
@@ -309,12 +320,8 @@ CONFIG_SCHEMA = cv.All(
             # Validated by the hidden adc entry built below.
             cv.Optional(CONF_PIN): cv.valid,
             cv.Optional(CONF_VOLTAGE_DIVIDER): DIVIDER_SCHEMA,
-            cv.Optional(
-                CONF_ADC_INPUT_MAX, default=ESP32_ADC_INPUT_MAX_V
-            ): cv.positive_not_null_float,
-            cv.Optional(
-                CONF_ADC_PIN_MAX, default=ESP32_ADC_PIN_MAX_V
-            ): cv.positive_not_null_float,
+            cv.Optional(CONF_ADC_INPUT_MAX): cv.positive_not_null_float,
+            cv.Optional(CONF_ADC_PIN_MAX): cv.positive_not_null_float,
             cv.Optional(CONF_ADC_ATTENUATION): cv.one_of(*ADC_ATTENUATIONS, lower=True),
             cv.Optional(CONF_ADC_SAMPLES, default=2): cv.int_range(
                 min=1, max=MAX_SAMPLE_COUNT

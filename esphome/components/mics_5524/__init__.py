@@ -43,6 +43,9 @@ CONVERSION_MODELS = {
 # Divider guard limits of the classic ESP32: VDD and the absolute maximum VDD + 0.3 V.
 ESP32_ADC_INPUT_MAX_V = 3.3
 ESP32_ADC_PIN_MAX_V = 3.6
+# A bare ESP8266 A0 measures 0 - 1 V; boards with an onboard divider declare more.
+ESP8266_ADC_INPUT_MAX_V = 1.0
+ESP8266_ADC_PIN_MAX_V = 1.0
 
 # Guard margin (V): the 3.3333 V of a 10k/20k divider still passes adc_input_max: 3.33.
 ADC_LIMIT_MARGIN_V = 0.01

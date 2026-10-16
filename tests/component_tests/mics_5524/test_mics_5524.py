@@ -21,8 +21,10 @@ from esphome.const import (
     CONF_ETHANOL,
     CONF_HYDROGEN,
     CONF_METHANE,
+    PlatformFramework,
 )
 from esphome.helpers import fnv1_hash
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 def _gas_arguments(main_cpp: str, variable: str) -> list[str]:
@@ -302,6 +304,24 @@ def test_voltage_divider_above_the_adc_limit_is_rejected() -> None:
     """A 10k/20k divider on a 5 V sensor puts 3.33 V on a classic ESP32 ADC."""
     with pytest.raises(cv.Invalid, match="above the 3.3 V measuring range"):
         CONFIG_SCHEMA(_hub(voltage_divider={"r1": 10000.0, "r2": 20000.0}))
+
+
+def test_voltage_divider_limits_follow_the_esp8266_adc(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A bare ESP8266 A0 reads 0 - 1 V, so the ESP32 limits must not apply there."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    with pytest.raises(cv.Invalid, match="above the 1 V"):
+        CONFIG_SCHEMA(_hub(voltage_divider={"r1": 10000.0, "r2": 20000.0}))
+    config = CONFIG_SCHEMA(
+        _hub(
+            voltage_divider={"r1": 10000.0, "r2": 20000.0},
+            adc_input_max=3.34,
+            adc_pin_max=3.6,
+            hydrogen={"name": "MiCS-5524 H2 (declared limits)"},
+        )
+    )
+    assert config["voltage_divider"]["r1"] == 10000.0
 
 
 def test_voltage_divider_below_the_declared_limit_is_accepted() -> None:

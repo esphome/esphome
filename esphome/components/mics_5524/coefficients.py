@@ -177,8 +177,9 @@ def resolve_gas(
         a=resolved_a,
         b=resolved_b,
         min_ppm=float(0.0 if min_ppm is None else min_ppm),
+        # A user fit without a published range falls back to the vendor range of the gas.
         max_ppm=float(
-            (fitted.max_ppm if fitted is not None else 1000.0)
+            (fitted.max_ppm if fitted is not None else curve.max_ppm)
             if max_ppm is None
             else max_ppm
         ),

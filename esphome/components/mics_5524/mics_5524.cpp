@@ -130,12 +130,12 @@ float MiCS5524Component::sample_voltage_() {
 }
 
 float MiCS5524Component::model_value_(float voltage) {
-  float value;
-  if (this->is_vendor_model_()) {
-    // A disconnected input reads near 0 V, which would convert to a ratio near 1.0 and read as clean air.
-    value = voltage > 0.05f * this->vcc_ ? micsmath::air_value_from_voltage(voltage, this->vcc_) : NAN;
-  } else {
-    value = micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
+  // A disconnected input reads near 0 V: a vendor ratio near 1.0 or a huge datasheet RS, both
+  // of which would pass for clean air, so neither model gets to see it.
+  float value = NAN;
+  if (voltage > 0.05f * this->vcc_) {
+    value = this->is_vendor_model_() ? micsmath::air_value_from_voltage(voltage, this->vcc_)
+                                     : micsmath::rs_from_voltage(voltage, this->vcc_, this->rl_);
   }
   if (!std::isnan(value))
     return value;
