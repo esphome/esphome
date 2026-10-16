@@ -79,10 +79,7 @@ MODELS = {
     "CUSTOM": ILI9XXXDisplay,
 }
 
-COLOR_ORDERS = {
-    "RGB": ColorOrder.COLOR_ORDER_RGB,
-    "BGR": ColorOrder.COLOR_ORDER_BGR,
-}
+COLOR_ORDERS = ColorOrder.options("RGB", "BGR", prefix="COLOR_ORDER_")
 
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE", "8BIT", upper=True)
 

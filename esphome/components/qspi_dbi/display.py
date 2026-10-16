@@ -42,10 +42,7 @@ QSPI_DBI = qspi_dbi_ns.class_(
 ColorOrder = display.display_ns.enum("ColorMode")
 Model = qspi_dbi_ns.enum("Model")
 
-COLOR_ORDERS = {
-    "RGB": ColorOrder.COLOR_ORDER_RGB,
-    "BGR": ColorOrder.COLOR_ORDER_BGR,
-}
+COLOR_ORDERS = ColorOrder.options("RGB", "BGR", prefix="COLOR_ORDER_")
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 DELAY_FLAG = 0xFF

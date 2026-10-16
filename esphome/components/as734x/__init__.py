@@ -55,12 +55,9 @@ GAINS_41 = {
 GAINS_43 = {**GAINS_41, "X1024": Gain.GAIN_1024X, "X2048": Gain.GAIN_2048X}
 
 Normalization = as734x_ns.enum("Normalization", True)
-NORMALIZATIONS = {
-    "NONE": Normalization.NORMALIZATION_NONE,
-    "ALL": Normalization.NORMALIZATION_ALL,
-    "BANDS": Normalization.NORMALIZATION_BANDS,
-    "CLEAR": Normalization.NORMALIZATION_CLEAR,
-}
+NORMALIZATIONS = Normalization.options(
+    "NONE", "ALL", "BANDS", "CLEAR", prefix="NORMALIZATION_"
+)
 
 # Per-channel correction for the golden device, measured by the manufacturer.
 DEFAULT_CHANNEL_CORRECTION_43 = [
