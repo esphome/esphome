@@ -58,9 +58,9 @@ bool HOT EPaperSSD1677::transfer_data() {
   // A full update ignores 0x26, and the copy may not hold a real frame yet (first update after
   // boot): send the new frame to both planes.
   const bool send_copy = this->plane_ == 0 && this->update_count_ != 0;
-  // A mono buffer already holds the frame as a RAM plane does, so it can be sent as it is; a deeper
-  // buffer (the four-level model) returns false and packs the plane in plane_row().
-  const bool direct = send_copy || this->buffer_is_mono();
+  // A 1 bit per pixel buffer already holds the frame as a RAM plane does, so it can be sent as it is; a
+  // deeper buffer (the four-level model, 2 bits per pixel) packs the plane in plane_row() instead.
+  const bool direct = send_copy || this->buffer_is_mono_();
   const auto &source = send_copy ? this->sent_ : this->buffer_;
   const size_t row_length = this->plane_row_length_();
   const size_t plane_length = row_length * this->height_;

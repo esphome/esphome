@@ -34,9 +34,6 @@ PylontechComponent::PylontechComponent() {}
 
 void PylontechComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "pylontech:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Connection with pylontech failed!");
-  }
 
   for (PylontechListener *listener : this->listeners_) {
     listener->dump_config();

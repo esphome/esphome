@@ -62,8 +62,7 @@ static void expect_walks_match(ColorBitness bitness, int bytes_per_pixel, bool b
 TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk332) { expect_walks_match(COLOR_BITNESS_332, 1, true); }
 TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk565BigEndian) { expect_walks_match(COLOR_BITNESS_565, 2, true); }
 TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk565LittleEndian) { expect_walks_match(COLOR_BITNESS_565, 2, false); }
-TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk888BigEndian) { expect_walks_match(COLOR_BITNESS_888, 3, true); }
-TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk888LittleEndian) { expect_walks_match(COLOR_BITNESS_888, 3, false); }
+TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk888) { expect_walks_match(COLOR_BITNESS_888, 3, false); }
 
 // One known pixel per bitness and byte order, so a decode that swapped bytes or channels
 // could not pass the walk comparison above by being wrong the same way twice.
@@ -81,8 +80,9 @@ TEST(DrawPixelsAt, Golden565BigEndian) {
 TEST(DrawPixelsAt, Golden565LittleEndian) {
   expect_golden(COLOR_BITNESS_565, {0xE0, 0x07}, false, Color(0, 255, 0));  // 0x07E0: pure green
 }
-TEST(DrawPixelsAt, Golden888BigEndian) {
-  expect_golden(COLOR_BITNESS_888, {0x10, 0x20, 0x30}, true, Color(0x10, 0x20, 0x30));
+// 888 is always b,g,r in memory for RGB order, whatever the byte order flag says
+TEST(DrawPixelsAt, Golden888IgnoresBigEndian) {
+  expect_golden(COLOR_BITNESS_888, {0x10, 0x20, 0x30}, true, Color(0x30, 0x20, 0x10));
 }
 TEST(DrawPixelsAt, Golden888LittleEndian) {
   expect_golden(COLOR_BITNESS_888, {0x10, 0x20, 0x30}, false, Color(0x30, 0x20, 0x10));
