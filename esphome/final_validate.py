@@ -3,7 +3,7 @@ import contextvars
 from typing import Any
 
 import esphome.config_validation as cv
-from esphome.types import ID, ConfigFragmentType, ConfigPathType
+from esphome.types import ID, ConfigFragmentType, ConfigPathType, ConfigType
 
 
 class FinalValidateConfig(ABC):
@@ -37,6 +37,18 @@ FinalValidateConfig.register(dict)
 full_config: contextvars.ContextVar[FinalValidateConfig] = contextvars.ContextVar(
     "full_config"
 )
+
+
+def get_declaring_config(
+    id_: ID, config: FinalValidateConfig | None = None
+) -> ConfigType:
+    """Return the config block that declares id_, such as a hub's own config.
+
+    Uses the full config being validated unless config is given.
+    Raises KeyError if the id was not declared.
+    """
+    fconf = full_config.get() if config is None else config
+    return fconf.get_config_for_path(fconf.get_path_for_id(id_)[:-1])
 
 
 def id_declaration_match_schema(schema):
