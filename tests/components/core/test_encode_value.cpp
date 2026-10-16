@@ -39,4 +39,10 @@ TEST(EncodeValue, LittleEndianSigned) {
   EXPECT_EQ(encode_value_le<int32_t>(MINUS_256), -256);
 }
 
+TEST(EncodeValue, BoolStillCompiles) {
+  static constexpr uint8_t ONE[] = {0x01};
+  static_assert(encode_value<bool>(ONE));
+  static_assert(encode_value_le<bool>(ONE));
+}
+
 }  // namespace esphome::core::testing
