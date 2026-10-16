@@ -92,9 +92,7 @@ void BMP581Component::setup() {
 
   // read chip id from sensor
   if (!this->bmp_read_byte(BMP581_CHIP_ID, &chip_id)) {
-    ESP_LOGE(TAG, "Read chip ID failed");
-
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Read chip ID failed"));
 
     return;
   }
@@ -111,27 +109,21 @@ void BMP581Component::setup() {
   ////////////////////////////////////////////////////
 
   if (!this->bmp_read_byte(BMP581_STATUS, &this->status_.reg)) {
-    ESP_LOGE(TAG, "Failed to read status register");
-
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Failed to read status register"));
 
     return;
   }
 
   // verify status_nvm_rdy bit (it is asserted if boot was successful)
   if (!(this->status_.bit.status_nvm_rdy)) {
-    ESP_LOGE(TAG, "NVM not ready");
-
-    this->mark_failed(LOG_STR("Get status failed"));
+    this->mark_failed(LOG_STR("NVM not ready"));
 
     return;
   }
 
   // verify status_nvm_err bit (it is asserted if an error is detected)
   if (this->status_.bit.status_nvm_err) {
-    ESP_LOGE(TAG, "NVM error detected");
-
-    this->mark_failed(LOG_STR("Get status failed"));
+    this->mark_failed(LOG_STR("NVM error detected"));
 
     return;
   }
@@ -142,9 +134,7 @@ void BMP581Component::setup() {
 
   // enable the data ready interrupt source
   if (!this->write_interrupt_source_settings_(true)) {
-    ESP_LOGE(TAG, "Failed to write interrupt source register");
-
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Failed to write interrupt source register"));
 
     return;
   }
@@ -163,9 +153,7 @@ void BMP581Component::setup() {
 
   // write oversampling settings
   if (!this->write_oversampling_settings_(this->temperature_oversampling_, this->pressure_oversampling_)) {
-    ESP_LOGE(TAG, "Failed to write oversampling register");
-
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Failed to write oversampling register"));
 
     return;
   }
@@ -182,17 +170,13 @@ void BMP581Component::setup() {
 
   if ((this->iir_temperature_level_ != IIR_FILTER_OFF) || (this->iir_pressure_level_ != IIR_FILTER_OFF)) {
     if (!this->write_iir_settings_(this->iir_temperature_level_, this->iir_pressure_level_)) {
-      ESP_LOGE(TAG, "Failed to write IIR configuration registers");
-
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      this->mark_failed(LOG_STR("Failed to write IIR configuration registers"));
 
       return;
     }
 
     if (!this->prime_iir_filter_()) {
-      ESP_LOGE(TAG, "Failed to prime the IIR filter with an initial measurement");
-
-      this->mark_failed(LOG_STR("IIR Filter failed to prime with initial measurement"));
+      this->mark_failed(LOG_STR("Failed to prime the IIR filter with an initial measurement"));
 
       return;
     }

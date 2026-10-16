@@ -80,7 +80,7 @@ void BMI270Component::setup() {
   // 1. Verify chip ID
   uint8_t chip_id = 0;
   if (!this->read_byte(BMI270_REG_CHIP_ID, &chip_id)) {
-    this->mark_failed(LOG_STR("Failed to read chip ID – check wiring / address"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != BMI270_CHIP_ID_VALUE) {

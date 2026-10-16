@@ -63,8 +63,7 @@ void BMP3XXComponent::setup() {
   stop_conversion();
   // Read the calibration parameters into the params structure
   if (!read_bytes(BMP388_TRIM_PARAMS, (uint8_t *) &compensation_params_, sizeof(compensation_params_))) {
-    ESP_LOGE(TAG, "Can't read calibration data");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Can't read calibration data"));
     return;
   }
   compensation_float_params_.param_T1 =
@@ -85,8 +84,7 @@ void BMP3XXComponent::setup() {
 
   // Initialise the BMP388 IIR filter register
   if (!set_iir_filter(this->iir_filter_)) {
-    ESP_LOGE(TAG, "Failed to set IIR filter");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Failed to set IIR filter"));
     return;
   }
 
@@ -105,8 +103,7 @@ void BMP3XXComponent::setup() {
   }
   // Initialise the BMP388 oversampling register
   if (!set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_)) {
-    ESP_LOGE(TAG, "Failed to set oversampling register");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Failed to set oversampling register"));
     return;
   }
 }

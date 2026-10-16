@@ -2,8 +2,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
-
 namespace esphome::bmp280_base {
 
 ESPHOME_LOG_TAG(TAG, "bmp280.sensor");
@@ -73,7 +71,7 @@ void BMP280Component::setup() {
     return;
   }
   if (chip_id != 0x58) {
-    this->mark_failed(LOG_STR(BMP280_ERROR_WRONG_CHIP_ID));
+    this->mark_failed(LOG_STR("Wrong chip ID or no response"));
     return;
   }
 
