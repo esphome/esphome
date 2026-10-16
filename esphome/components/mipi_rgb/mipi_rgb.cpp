@@ -237,7 +237,8 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
     return;
   }
 
-  if (this->fb_ != nullptr && this->buffer_ == nullptr) {
+  uint16_t *dst = this->buffer_ != nullptr ? this->buffer_ : this->fb_;
+  if (dst != nullptr) {
     int log_w = (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
                  this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
                     ? this->height_
@@ -255,36 +256,17 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
     const auto *src_origin =
         reinterpret_cast<const uint16_t *>(ptr) + (static_cast<size_t>(y_offset) * stride + x_offset);
 
-    blit_rotated_565(this->fb_, this->width_, this->height_, this->rotation_, src_origin, x_start, y_start, w, h,
-                     stride);
+    blit_rotated_565(dst, this->width_, this->height_, this->rotation_, src_origin, x_start, y_start, w, h, stride);
+    if (dst == this->buffer_) {
+      this->mark_dirty_(x_start, y_start, w, h);
+      if (!this->updating_) {
+        this->flush_dirty_();
+      }
+    }
     return;
   }
 
-  // Fallback if fb_ is not available
-  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
-    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
-    this->mark_dirty_(x_start, y_start, w, h);
-    this->flush_dirty_();
-  } else if (this->buffer_ != nullptr) {
-    // With a buffer the block goes through it, or a flush of the old contents would paint over it
-    const int first_col = std::max(0, -x_start), end_col = std::min(w, static_cast<int>(this->width_) - x_start);
-    const int first_row = std::max(0, -y_start), end_row = std::min(h, static_cast<int>(this->height_) - y_start);
-    if (first_col >= end_col || first_row >= end_row)
-      return;
-    const size_t stride = x_offset + w + x_pad;
-    for (int y = first_row; y != end_row; y++) {
-      memcpy(this->buffer_ + (y_start + y) * this->width_ + x_start + first_col,
-             ptr + ((y_offset + y) * stride + x_offset + first_col) * 2, (end_col - first_col) * 2);
-    }
-    if (this->updating_) {
-      this->mark_dirty_(x_start + first_col, y_start + first_row, end_col - first_col, end_row - first_row);
-    } else {
-      this->write_to_display_(x_start + first_col, y_start + first_row, end_col - first_col, end_row - first_row, ptr,
-                              x_offset + first_col, y_offset + first_row, x_pad + w - end_col);
-    }
-  } else {
-    this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
-  }
+  this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
 }
 
 void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,

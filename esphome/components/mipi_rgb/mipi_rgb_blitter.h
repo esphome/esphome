@@ -1,11 +1,32 @@
 #pragma once
 
 #include "esphome/components/display/display.h"
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace esphome::mipi_rgb {
+
+inline void rotate_point(int &x, int &y, int width, int height, display::DisplayRotation rotation) {
+  switch (rotation) {
+    case display::DISPLAY_ROTATION_0_DEGREES:
+      break;
+    case display::DISPLAY_ROTATION_90_DEGREES:
+      std::swap(x, y);
+      x = width - x - 1;
+      break;
+    case display::DISPLAY_ROTATION_180_DEGREES:
+      x = width - x - 1;
+      y = height - y - 1;
+      break;
+    case display::DISPLAY_ROTATION_270_DEGREES:
+      std::swap(x, y);
+      y = height - y - 1;
+      break;
+  }
+}
 
 inline void blit_rotated_565(uint16_t *fb, int fb_width, int fb_height, display::DisplayRotation rotation,
                              const uint16_t *src_origin, int x_start, int y_start, int w, int h, size_t stride) {

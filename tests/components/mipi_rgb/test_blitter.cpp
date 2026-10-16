@@ -4,26 +4,6 @@
 
 namespace esphome::mipi_rgb::testing {
 
-// Reference rotation matching MipiRgb::rotate_() logic
-static void reference_rotate(int &x, int &y, int width, int height, display::DisplayRotation rotation) {
-  switch (rotation) {
-    case display::DISPLAY_ROTATION_0_DEGREES:
-      break;
-    case display::DISPLAY_ROTATION_90_DEGREES:
-      std::swap(x, y);
-      x = width - x - 1;
-      break;
-    case display::DISPLAY_ROTATION_180_DEGREES:
-      x = width - x - 1;
-      y = height - y - 1;
-      break;
-    case display::DISPLAY_ROTATION_270_DEGREES:
-      std::swap(x, y);
-      y = height - y - 1;
-      break;
-  }
-}
-
 static void test_rotation(display::DisplayRotation rotation) {
   constexpr int fb_width = 40;
   constexpr int fb_height = 30;
@@ -47,13 +27,13 @@ static void test_rotation(display::DisplayRotation rotation) {
   const uint16_t *src_origin = source.data() + (y_offset * stride + x_offset);
   blit_rotated_565(fb_actual.data(), fb_width, fb_height, rotation, src_origin, x_start, y_start, w, h, stride);
 
-  // Compute reference per-pixel using reference_rotate
+  // Compute reference per-pixel using rotate_point
   std::vector<uint16_t> fb_expected(fb_width * fb_height, 0);
   for (int py = 0; py < h; py++) {
     for (int px = 0; px < w; px++) {
       int rx = x_start + px;
       int ry = y_start + py;
-      reference_rotate(rx, ry, fb_width, fb_height, rotation);
+      rotate_point(rx, ry, fb_width, fb_height, rotation);
       fb_expected[ry * fb_width + rx] = src_origin[py * stride + px];
     }
   }
