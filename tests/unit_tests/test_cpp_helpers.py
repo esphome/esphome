@@ -249,11 +249,13 @@ def test_slot_counter_request_after_emit_raises() -> None:
         request()
 
 
-def _load_module(name: str, path: Path, source: str) -> ModuleType:
+def _load_module(
+    monkeypatch: pytest.MonkeyPatch, name: str, path: Path, source: str
+) -> ModuleType:
     path.write_text(source, encoding="utf-8")
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
+    monkeypatch.setitem(sys.modules, name, module)
     spec.loader.exec_module(module)
     return module
 
@@ -272,6 +274,7 @@ async def test_new_bus_component_source_is_the_caller(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, wrapper: str, expected: str
 ) -> None:
     bus = _load_module(
+        monkeypatch,
         "esphome.components.fake_bus",
         tmp_path / "fake_bus.py",
         "from esphome import cpp_helpers as ch\n"
@@ -280,6 +283,7 @@ async def test_new_bus_component_source_is_the_caller(
         f"{wrapper}ch.new_bus_component(register_device, config)\n",
     )
     dev = _load_module(
+        monkeypatch,
         "esphome.components.fake_dev",
         tmp_path / "fake_dev.py",
         "async def to_code(new_component, config):\n"
@@ -294,10 +298,6 @@ async def test_new_bus_component_source_is_the_caller(
     monkeypatch.setattr(ch, "App", Mock())
     source = Mock(return_value=1)
     monkeypatch.setattr(ch, "register_component_source", source)
-    try:
-        result = await dev.to_code(bus.new_component, {const.CONF_ID: "foo.bar"})
-    finally:
-        del sys.modules["esphome.components.fake_bus"]
-        del sys.modules["esphome.components.fake_dev"]
+    result = await dev.to_code(bus.new_component, {const.CONF_ID: "foo.bar"})
     assert result is var
     source.assert_called_once_with(expected)

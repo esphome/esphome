@@ -510,7 +510,8 @@ def new_spi_component(
 ) -> Coroutine[Any, Any, cg.MockObj]:
     """Create a component on an SPI bus: construct, register, attach to the bus.
 
-    Extra args go to the constructor.
+    Extra args go to the constructor. Write-only devices call register_spi_device
+    themselves with write_only=True.
     """
     return cg.new_bus_component(register_spi_device, config, *args)
 
