@@ -334,7 +334,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       if (!this->pause_state_) {
         while (real_frames_in_block < SPDIF_BLOCK_SAMPLES) {
           if (audio_source->available() == 0) {
-            size_t bytes_read = audio_source->fill(read_timeout_ticks, false);
+            size_t bytes_read = audio_source->fill(read_timeout_ticks);
             if (bytes_read == 0) {
               break;  // No upstream data within the read budget; silence-pad the remainder.
             }
