@@ -6,6 +6,10 @@
 #include "esphome/core/optional.h"
 #include "i2c_bus.h"
 
+namespace esphome {
+class Component;
+}  // namespace esphome
+
 namespace esphome::i2c {
 
 #define LOG_I2C_DEVICE(this) ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
@@ -207,6 +211,14 @@ class I2CDevice {
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
   ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
+
+  /// Read the 8-bit ID at \p a_register and accept it when `(id & mask)` is \p expected or \p alternative.
+  /// Otherwise log it, mark \p component failed and return false.
+  bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected, uint8_t alternative,
+                     uint8_t mask = 0xFF);
+  bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected) {
+    return this->check_chip_id(component, a_register, expected, expected);
+  }
 
   ///
   /// Compat APIs

@@ -1,0 +1,83 @@
+#include <gtest/gtest.h>
+
+#include <new>
+
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/core/application.h"
+#include "esphome/core/component.h"
+
+namespace esphome::i2c::testing {
+
+class IdBus : public I2CBus {
+ public:
+  ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                        size_t read_count) override {
+    ++this->transactions;
+    if (this->fail)
+      return ERROR_NOT_ACKNOWLEDGED;
+    if (write_count != 1 || read_count != 1)
+      return ERROR_INVALID_ARGUMENT;
+    this->last_register = write_buffer[0];
+    read_buffer[0] = this->id;
+    return ERROR_OK;
+  }
+
+  uint8_t id{0};
+  uint8_t last_register{0};
+  unsigned transactions{0};
+  bool fail{false};
+};
+
+class ChipDevice : public Component, public I2CDevice {};
+
+class I2CChipIdTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    new (&App) Application;
+    App.pre_setup("i2c-chip-id-tests", 17, "I2C chip ID tests", 17);
+    this->device_.set_i2c_bus(&this->bus_);
+    this->device_.set_i2c_address(0x40);
+  }
+  IdBus bus_;
+  ChipDevice device_;
+};
+
+TEST_F(I2CChipIdTest, MatchingIdPasses) {
+  this->bus_.id = 0x33;
+  EXPECT_TRUE(this->device_.check_chip_id(&this->device_, 0x0F, 0x33));
+  EXPECT_EQ(this->bus_.last_register, 0x0F);
+  EXPECT_EQ(this->bus_.transactions, 1u);
+  EXPECT_FALSE(this->device_.is_failed());
+}
+
+TEST_F(I2CChipIdTest, WrongIdFails) {
+  this->bus_.id = 0x32;
+  EXPECT_FALSE(this->device_.check_chip_id(&this->device_, 0x0F, 0x33));
+  EXPECT_TRUE(this->device_.is_failed());
+}
+
+TEST_F(I2CChipIdTest, ReadFailureFails) {
+  this->bus_.fail = true;
+  EXPECT_FALSE(this->device_.check_chip_id(&this->device_, 0x0F, 0x00));
+  EXPECT_TRUE(this->device_.is_failed());
+}
+
+TEST_F(I2CChipIdTest, AlternativeIdPasses) {
+  this->bus_.id = 0x81;
+  EXPECT_TRUE(this->device_.check_chip_id(&this->device_, 0x01, 0x80, 0x81));
+  EXPECT_FALSE(this->device_.is_failed());
+  this->bus_.id = 0x82;
+  EXPECT_FALSE(this->device_.check_chip_id(&this->device_, 0x01, 0x80, 0x81));
+  EXPECT_TRUE(this->device_.is_failed());
+}
+
+TEST_F(I2CChipIdTest, MaskIgnoresRevisionBits) {
+  this->bus_.id = 0x27;
+  EXPECT_TRUE(this->device_.check_chip_id(&this->device_, 0x92, 0x24, 0x24, 0xFC));
+  EXPECT_FALSE(this->device_.is_failed());
+  this->bus_.id = 0x2B;
+  EXPECT_FALSE(this->device_.check_chip_id(&this->device_, 0x92, 0x24, 0x24, 0xFC));
+  EXPECT_TRUE(this->device_.is_failed());
+}
+
+}  // namespace esphome::i2c::testing
