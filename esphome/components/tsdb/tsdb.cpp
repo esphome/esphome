@@ -180,8 +180,9 @@ void TsdbComponent::log_init_failure_(const char *stage) {
   }
   ESP_LOGE(TAG, "  mount: %s, %s: %s", esp_err_to_name(this->mount_error_), path.c_str(),
            database_file_exists(path) ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("missing"));
-  if (database_file_exists(path))
+  if (database_file_exists(path)) {
     ESP_LOGE(TAG, "    %" PRIu32 " bytes", static_cast<uint32_t>(file_size_of(path)));
+  }
   ESP_LOGE(TAG, "  heap: %" PRIu32 " bytes internal free",
            static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)));
 }
