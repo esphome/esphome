@@ -145,14 +145,15 @@ void HOT Pixoo::draw_pixel_at(int x, int y, Color color) {
   this->set_pixel_(static_cast<uint32_t>(y) * side + x, color);
 }
 
-void Pixoo::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                         bool big_endian, int x_offset, int y_offset, int x_pad) {
+void Pixoo::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                 display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                 int x_pad) {
   // Fast path for the common LVGL/image blit: RGB565, no rotation, no active clipping.
   // Anything else defers to the base implementation, which decodes per pixel and routes through
   // draw_pixel_at() so rotation, clipping and other color formats stay correct.
   if (bitness != display::COLOR_BITNESS_565 || this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES ||
       this->is_clipping()) {
-    display::Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   const int side = static_cast<int>(this->model_);

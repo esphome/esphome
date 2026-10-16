@@ -130,8 +130,9 @@ void HOT HUB75Display::draw_pixel_at(int x, int y, Color color) {
   this->feed_wdt_per_pixel_();
 }
 
-void HOT HUB75Display::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
-                                    bool big_endian, int x_offset, int y_offset, int x_pad) {
+void HOT HUB75Display::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                            ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                            int x_pad) {
   if (!driver_) [[unlikely]]
     return;
   if (!this->enabled_) [[unlikely]]

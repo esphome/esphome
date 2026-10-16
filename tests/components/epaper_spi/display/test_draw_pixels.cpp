@@ -45,7 +45,7 @@ template<typename Driver> class TestableDisplay : public Driver {
   void draw_one_by_one(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                        bool big_endian, int x_offset, int y_offset, int x_pad) {
     // The per-pixel path the fast one must match
-    display::Display::draw_pixels_(  // NOLINT(bugprone-parent-virtual-call)
+    display::Display::draw_pixels_internal(  // NOLINT(bugprone-parent-virtual-call)
         x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
   }
 };

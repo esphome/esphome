@@ -362,25 +362,26 @@ class Display : public PollingComponent {
    * \param x_pad How many pixels are in each line after the end of the pixels to be copied.
    *
    * The length of each source buffer line (stride) will be x_offset + w + x_pad.
-   * The block must lie on the screen. A driver that can copy blocks itself overrides draw_pixels_().
+   * The block must lie on the screen. A driver that can copy blocks itself overrides draw_pixels_internal().
    */
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness, bool big_endian,
                       int x_offset, int y_offset, int x_pad) {
-    this->draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    this->draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
   }
 
   /// Convenience overload for base case where the pixels are packed into the buffer with no gaps (e.g. suits LVGL.)
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
                       bool big_endian) {
-    this->draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, 0, 0, 0);
+    this->draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, 0, 0, 0);
   }
 
   // Remove before 2027.5.0
   /// The block form above with a color order. The base version draws per pixel and honors the order;
-  /// a driver that still overrides this one keeps receiving every block, since draw_pixels_() calls it.
-  ESPDEPRECATED("Pixels are always RGB: call draw_pixels_at() without the ColorOrder, and override draw_pixels_() "
-                "to copy blocks. Removed in 2027.5.0",
-                "2026.11.0")
+  /// a driver that still overrides this one keeps receiving every block, since draw_pixels_internal() calls it.
+  ESPDEPRECATED(
+      "Pixels are always RGB: call draw_pixels_at() without the ColorOrder, and override draw_pixels_internal() "
+      "to copy blocks. Removed in 2027.5.0",
+      "2026.11.0")
   virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                               ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
 
@@ -817,10 +818,10 @@ class Display : public PollingComponent {
    *
    * A driver can override it to copy blocks that are already laid out the way its own draw_pixel_at()
    * writes, and must send any other format, byte order, a software rotation or an active clipping
-   * rectangle through Display::draw_pixels_(), which draws per pixel.
+   * rectangle through Display::draw_pixels_internal(), which draws per pixel.
    */
-  virtual void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
-                            bool big_endian, int x_offset, int y_offset, int x_pad);
+  virtual void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                                    bool big_endian, int x_offset, int y_offset, int x_pad);
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
   void vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,

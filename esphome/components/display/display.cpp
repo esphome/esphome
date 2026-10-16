@@ -116,8 +116,8 @@ draw_ordered_pixels(Display *display, int x_start, int y_start, int w, int h, co
   }
 }
 
-void Display::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
-                           bool big_endian, int x_offset, int y_offset, int x_pad) {
+void Display::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                                   bool big_endian, int x_offset, int y_offset, int x_pad) {
   // Through the deprecated form, so a driver that still overrides only that one keeps its fast path.
   // Remove before 2027.5.0, when the per pixel drawing below moves here.
 #pragma GCC diagnostic push
@@ -126,7 +126,7 @@ void Display::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t
 #pragma GCC diagnostic pop
 }
 
-// Must not call draw_pixels_at() without a color order or draw_pixels_(): those call this, and a legacy
+// Must not call draw_pixels_at() without a color order or draw_pixels_internal(): those call this, and a legacy
 // override's fallback ends up here.
 void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                              ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {

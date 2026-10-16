@@ -42,10 +42,10 @@ class BenchDisplay : public display::DisplayBuffer {
 class BulkBenchDisplay : public BenchDisplay {
  public:
   BulkBenchDisplay() : frame565_(std::make_unique<uint16_t[]>(kStride * kStride)) {}
-  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                    bool big_endian, int x_offset, int y_offset, int x_pad) override {
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override {
     if (bitness != display::COLOR_BITNESS_565 || big_endian) {
-      BenchDisplay::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+      BenchDisplay::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
       return;
     }
     const size_t stride = x_offset + w + x_pad;

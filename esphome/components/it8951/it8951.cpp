@@ -959,8 +959,9 @@ void HOT IT8951Display::write_pixel_native_(uint16_t x, uint16_t y, const Color 
   }
 }
 
-void HOT IT8951Display::draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
-                                     bool big_endian, int x_offset, int y_offset, int x_pad) {
+void HOT IT8951Display::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                             int x_pad) {
   // A writer (e.g. LVGL) may push pixels before the framebuffer is ready or
   // after an allocation failure; ignore those rather than dereferencing null.
   if (this->buffer_ == nullptr)
@@ -968,7 +969,7 @@ void HOT IT8951Display::draw_pixels_(int x_start, int y_start, int w, int h, con
   // A clipping rectangle would need a per-pixel test; that's rare for the bulk
   // blit callers (LVGL, images), so fall back to the base per-pixel path then.
   if (this->get_clipping().is_set()) {
-    Display::draw_pixels_(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
 

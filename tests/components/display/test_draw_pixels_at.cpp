@@ -134,15 +134,15 @@ TEST(ColorUtil, ToColorByteAligned) {
   EXPECT_EQ(ColorUtil::to_color(0x563412, COLOR_BITNESS_888, false).raw_32, Color(0x56, 0x34, 0x12).raw_32);
 }
 
-// A driver that copies blocks itself overrides the protected draw_pixels_() hook.
+// A driver that copies blocks itself overrides the protected draw_pixels_internal() hook.
 class HookDisplay : public RecordingDisplay {
  public:
   std::vector<std::vector<int>> calls;
   const uint8_t *ptr{};
 
  protected:
-  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness, bool big_endian,
-                    int x_offset, int y_offset, int x_pad) override {
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override {
     this->calls.push_back({x_start, y_start, w, h, bitness, big_endian, x_offset, y_offset, x_pad});
     this->ptr = ptr;
   }

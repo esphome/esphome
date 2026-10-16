@@ -34,8 +34,8 @@ class ST7701S final : public display::Display,
   void update() override { this->do_update_(); }
   void setup() override;
   void loop() override;
-  void draw_pixels_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                    bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
