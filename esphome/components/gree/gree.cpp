@@ -32,6 +32,10 @@ static constexpr uint8_t default_feature_bits(Model model) {
   return supported_feature_mask(model) & GREE_MODE_BIT_LIGHT;
 }
 
+static bool is_auxiliary_frame(Model model, const GreeState &state) {
+  return model == GREE_YAC && (state[3] & 0xF0) == 0x70;
+}
+
 static bool is_valid_timer(const GreeState &state) {
   const uint8_t timer_hours = state[2] & GREE_TIMER_HOURS_MASK;
   const uint8_t timer_tens_hours = (state[1] & GREE_TIMER_TENS_HOUR_MASK) >> 5;
@@ -186,7 +190,6 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   state[1] = target_temperature - GREE_TEMP_MIN;
 
   if (model == GREE_YAN) {
-    state[2] = 0x20;
     state[3] = 0x50;
     state[4] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
   }
@@ -232,7 +235,6 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
     state[4] |= GreeClimateCodec::encode_horizontal_swing(data.swing_mode) << 4;
 
   if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
-    state[2] = 0x20;
     state[3] = 0x50;
     state[6] = 0x20;
 
@@ -316,7 +318,7 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
   if (!GreeProtocol::valid_checksum(state))
     return {};
   // YAC1FB sends an auxiliary follow-up frame with no vane state. Do not publish it as climate state.
-  if (model == GREE_YAC && (state[3] & 0xF0) == 0x70)
+  if (is_auxiliary_frame(model, state))
     return {};
 
   const uint8_t mode = state[0] & GREE_MODE_MASK;
@@ -521,7 +523,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
 
   // Auxiliary 0x70 YAC frames are expected follow-ups and not climate states.
-  if (this->model_ == GREE_YAC && ((*state)[3] & 0xF0) == 0x70)
+  if (is_auxiliary_frame(this->model_, *state))
     return false;
 
   auto decoded = GreeClimateCodec::decode(this->model_, *state);
