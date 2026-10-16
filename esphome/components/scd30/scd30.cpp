@@ -34,8 +34,7 @@ void SCD30Component::setup() {
   /// Firmware version identification
   uint16_t raw_firmware_version[3];
   if (!this->get_register(SCD30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 3)) {
-    this->error_code_ = FIRMWARE_IDENTIFICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unable to read sensor firmware version"));
     return;
   }
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
@@ -50,8 +49,7 @@ void SCD30Component::setup() {
 
   if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, temp_offset)) {
     ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Measurement Initialization failed"));
     return;
   }
 #ifdef USE_ESP32
@@ -69,8 +67,7 @@ void SCD30Component::setup() {
 
   if (!this->write_command(SCD30_CMD_MEASUREMENT_INTERVAL, update_interval_)) {
     ESP_LOGE(TAG, "Sensor SCD30 error setting update interval.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Measurement Initialization failed"));
     return;
   }
 #ifdef USE_ESP32
@@ -81,8 +78,7 @@ void SCD30Component::setup() {
   if (this->altitude_compensation_ != 0xFFFF) {
     if (!this->write_command(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
       ESP_LOGE(TAG, "Sensor SCD30 error setting altitude compensation.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Measurement Initialization failed"));
       return;
     }
   }
@@ -92,8 +88,7 @@ void SCD30Component::setup() {
 
   if (!this->write_command(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
     ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Measurement Initialization failed"));
     return;
   }
 #ifdef USE_ESP32
@@ -103,8 +98,7 @@ void SCD30Component::setup() {
   /// Sensor initialization
   if (!this->write_command(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
     ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Measurement Initialization failed"));
     return;
   }
 
@@ -118,22 +112,6 @@ void SCD30Component::setup() {
 void SCD30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "scd30:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed");
-        break;
-      case FIRMWARE_IDENTIFICATION_FAILED:
-        ESP_LOGW(TAG, "Unable to read sensor firmware version");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error");
-        break;
-    }
-  }
   if (this->altitude_compensation_ == 0xFFFF) {
     ESP_LOGCONFIG(TAG, "  Altitude compensation: OFF");
   } else {
@@ -216,7 +194,6 @@ bool SCD30Component::force_recalibration_with_reference(uint16_t co2_reference) 
     return true;
   } else {
     ESP_LOGE(TAG, "Failed to force recalibration with reference.");
-    this->error_code_ = FORCE_RECALIBRATION_FAILED;
     this->status_set_warning();
     return false;
   }

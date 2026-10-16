@@ -10,22 +10,19 @@ void QwiicPIRComponent::setup() {
   uint8_t chip_id;
   if (!this->read_byte(QWIIC_PIR_CHIP_ID, &chip_id)) {
     ESP_LOGE(TAG, "Failed to read chip ID");
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   if (chip_id != QWIIC_PIR_DEVICE_ID) {
     ESP_LOGE(TAG, "Unknown chip ID");
-    this->error_code_ = ERROR_WRONG_CHIP_ID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unknown chip ID"));
     return;
   }
 
   if (!this->write_byte_16(QWIIC_PIR_DEBOUNCE_TIME, this->debounce_time_)) {
     ESP_LOGE(TAG, "Failed to configure debounce time");
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -34,8 +31,7 @@ void QwiicPIRComponent::setup() {
     // If NATIVE mode, the binary_sensor state would be unknown until a motion event
     if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
       ESP_LOGE(TAG, "Failed to read initial state");
-      this->error_code_ = ERROR_COMMUNICATION_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
 
@@ -102,20 +98,6 @@ void QwiicPIRComponent::dump_config() {
                 debounce_mode_str);
   if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
     ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
-  }
-
-  switch (this->error_code_) {
-    case NONE:
-      break;
-    case ERROR_COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case ERROR_WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "Unknown chip ID");
-      break;
-    default:
-      ESP_LOGE(TAG, "Error %d", (int) this->error_code_);
-      break;
   }
 
   LOG_I2C_DEVICE(this);

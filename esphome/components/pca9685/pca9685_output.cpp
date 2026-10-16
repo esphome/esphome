@@ -23,27 +23,27 @@ static const uint8_t PCA9685_MODE1_SLEEP = 0b00010000;
 void PCA9685Output::setup() {
   ESP_LOGV(TAG, "  Resetting devices");
   if (!this->write_bytes(PCA9685_REGISTER_SOFTWARE_RESET, nullptr, 0)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   if (!this->write_byte(PCA9685_REGISTER_MODE1, PCA9685_MODE1_RESTART | PCA9685_MODE1_AUTOINC)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(PCA9685_REGISTER_MODE2, this->mode_)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   uint8_t mode1;
   if (!this->read_byte(PCA9685_REGISTER_MODE1, &mode1)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   mode1 = (mode1 & ~PCA9685_MODE1_RESTART) | PCA9685_MODE1_SLEEP;
   if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -51,7 +51,7 @@ void PCA9685Output::setup() {
   if (this->extclk_) {
     mode1 = mode1 | PCA9685_MODE1_EXTCLK;
     if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
   } else {
@@ -61,13 +61,13 @@ void PCA9685Output::setup() {
     ESP_LOGV(TAG, "  -> Prescaler: %d", pre_scaler);
   }
   if (!this->write_byte(PCA9685_REGISTER_PRE_SCALE, pre_scaler)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   mode1 = (mode1 & ~PCA9685_MODE1_SLEEP) | PCA9685_MODE1_RESTART;
   if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delayMicroseconds(500);
@@ -87,9 +87,6 @@ void PCA9685Output::dump_config() {
                   "  EXTCLK: disabled\n"
                   "  Frequency: %.0f Hz",
                   this->frequency_);
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up PCA9685 failed!");
   }
 }
 

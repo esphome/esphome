@@ -42,14 +42,12 @@ void SFA40Component::setup() {
   this->set_timeout(25, [this]() {
     if (!this->detect_protocol_()) {
       ESP_LOGE(TAG, "Failed to detect SFA40 protocol");
-      this->error_code_ = PROTOCOL_DETECTION_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Protocol detection failed"));
       return;
     }
     if (!this->write_command(SFA40_CMD_START_MEASUREMENT)) {
       ESP_LOGE(TAG, "Failed to start measurements");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Measurement initialization failed"));
       return;
     }
     this->initialized_ = true;
@@ -77,19 +75,6 @@ bool SFA40Component::detect_protocol_() {
 void SFA40Component::dump_config() {
   ESP_LOGCONFIG(TAG, "sfa40:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case PROTOCOL_DETECTION_FAILED:
-        ESP_LOGW(TAG, "Protocol detection failed!");
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement initialization failed!");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error!");
-        break;
-    }
-  }
   LOG_UPDATE_INTERVAL(this);
   switch (this->protocol_version_) {
     case ProtocolVersion::PRODUCTION:
