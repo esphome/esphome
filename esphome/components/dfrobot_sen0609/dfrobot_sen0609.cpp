@@ -571,7 +571,8 @@ void DFRobotSEN0609Component::run_sequencer_() {
   Operation operation;
   Param param = PARAM_COUNT;
   if (this->restart_pending_) {
-    operation = Operation::OPERATION_RESTART;
+    // The reboot drops a write the module took but did not save; writes not sent yet are kept for after it
+    operation = this->stopped_ && this->save_pending_ ? Operation::OPERATION_SAVE : Operation::OPERATION_RESTART;
   } else if (!work_pending) {
     if (!this->stopped_) {
       this->check_frames_(now);

@@ -502,6 +502,29 @@ TEST_F(SEN0609SequencerTest, RestartReappliesConfiguration) {
   this->expect_and_answer_("setRunApp 0");
 }
 
+TEST_F(SEN0609SequencerTest, RestartDuringSequenceSavesWrittenChange) {
+  this->boot_();
+  this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);
+  this->expect_and_answer_("sensorStop");
+  ASSERT_EQ(this->next_command_(), "setRange 1.00 12.00");
+  this->hub_.control_number(NUMBER_HOLD_SENSITIVITY, 3.0f);
+  this->hub_.restart();
+  this->answer_("setRange 1.00 12.00");
+  this->expect_and_answer_("saveConfig");
+  ASSERT_EQ(this->next_command_(), "resetSystem");
+  EXPECT_EQ(this->next_command_(1000), "");
+  // The change not sent before the reboot is written after it
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("setSensitivity 3 5");
+  this->expect_and_answer_("saveConfig");
+  this->expect_and_answer_("getRange", "Response 1.0 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 3 5\r\n");
+  EXPECT_FLOAT_EQ(this->min_range_.state, 1.0f);
+  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 3.0f);
+}
+
 TEST_F(SEN0609SequencerTest, FactoryResetRereadsSettings) {
   this->boot_();
   this->hub_.factory_reset();
