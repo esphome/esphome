@@ -42,10 +42,8 @@ inline void blit_rotated_565(uint16_t *fb, int fb_width, int fb_height, display:
       const size_t x_dest_offset = fb_width - y_start - h;
       for (int px = 0; px < w; px++) {
         uint16_t *dest = &fb[(x_start + px) * fb_width + x_dest_offset];
-        const uint16_t *s = src_origin + (static_cast<size_t>(h - 1) * stride + px);
         for (int py = 0; py < h; py++) {
-          *dest++ = *s;
-          s -= stride;
+          *dest++ = src_origin[static_cast<size_t>(h - 1 - py) * stride + px];
         }
       }
       break;
@@ -54,9 +52,9 @@ inline void blit_rotated_565(uint16_t *fb, int fb_width, int fb_height, display:
       const size_t x_dest_offset = fb_width - x_start - w;
       for (int py = 0; py < h; py++) {
         uint16_t *dest = &fb[(fb_height - 1 - (y_start + py)) * fb_width + x_dest_offset];
-        const uint16_t *src_row = src_origin + (static_cast<size_t>(py) * stride + (w - 1));
+        const uint16_t *src_row = src_origin + static_cast<size_t>(py) * stride;
         for (int px = 0; px < w; px++) {
-          *dest++ = *src_row--;
+          *dest++ = src_row[w - 1 - px];
         }
       }
       break;

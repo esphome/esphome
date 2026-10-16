@@ -178,8 +178,11 @@ void MipiRgb::common_setup_() {
     err = esp_lcd_panel_init(this->handle_);
   if (err == ESP_OK) {
     void *fb = nullptr;
-    if (esp_lcd_rgb_panel_get_frame_buffer(this->handle_, 1, &fb) == ESP_OK && fb != nullptr) {
+    err = esp_lcd_rgb_panel_get_frame_buffer(this->handle_, 1, &fb);
+    if (err == ESP_OK && fb != nullptr) {
       this->fb_ = reinterpret_cast<uint16_t *>(fb);
+    } else if (err == ESP_OK) {
+      err = ESP_ERR_NO_MEM;
     }
   }
   if (err != ESP_OK) {
@@ -263,6 +266,13 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
         this->flush_dirty_();
       }
     }
+    return;
+  }
+
+  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    this->mark_dirty_(x_start, y_start, w, h);
+    this->flush_dirty_();
     return;
   }
 
