@@ -107,14 +107,15 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   this->time_sync_callback_.call();
 }
 
-// Bits of each calendar byte that hold the value; byte 3 is the one-hot weekday.
-static constexpr uint8_t BCD_CALENDAR_MASKS[7] = {0x7F, 0x7F, 0x3F, 0x7F, 0x3F, 0x1F, 0xFF};
+// Bits of each calendar byte that hold the value, byte 0 lowest; byte 3 is the one-hot weekday.
+// Packed into one constant so it stays in code rather than RAM on ESP8266.
+static constexpr uint64_t BCD_CALENDAR_MASKS = 0xFF1F3F7F3F7F7FULL;
 
 ESPTime decode_bcd_calendar(const uint8_t *raw) {
   uint8_t value[7];
   for (size_t i = 0; i < 7; i++)
-    value[i] = bcd_to_uint8(raw[i] & BCD_CALENDAR_MASKS[i]);
-  const uint8_t weekday = raw[3] & BCD_CALENDAR_MASKS[3];
+    value[i] = bcd_to_uint8(raw[i] & static_cast<uint8_t>(BCD_CALENDAR_MASKS >> (8 * i)));
+  const uint8_t weekday = raw[3] & 0x7F;
   ESPTime time{
       .second = value[0],
       .minute = value[1],
