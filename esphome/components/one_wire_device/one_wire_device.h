@@ -42,7 +42,6 @@ class OneWireDeviceComponent final : public PollingComponent {
   void IRAM_ATTR release_();
   void IRAM_ATTR pull_low_();
   bool IRAM_ATTR available_() const;
-  void set_pio_(uint8_t channel, bool value);
   InternalGPIOPin *pin_{nullptr};
   uint64_t address_{0};
   uint8_t family_{0x28}, pin_number_{0}, interrupt_core_{0};
