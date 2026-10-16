@@ -41,15 +41,15 @@ TEST(LogHexTest, EvaluatesArgumentsOnlyWhenTheLevelIsCompiledIn) {
 TEST(LogHexTest, IsASingleStatement) {
   static constexpr uint8_t DATA[] = {0x12, 0x34};
   bool other_branch = false;
-  if (DATA[0] == 0x12)
+  if (DATA[0] == 0x12)  // NOLINT(readability-braces-around-statements)
     ESP_LOGV_HEX(TAG, DATA, sizeof(DATA), sizeof(DATA), "Data: %s");
-  else
+  else  // NOLINT(readability-braces-around-statements)
     other_branch = true;
   EXPECT_FALSE(other_branch);
 }
 
 // Stands in for a log macro so the expansion can be checked without the logger backend
-static char captured[64];
+static char captured[64];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #define CAPTURE_LOG(tag, ...) snprintf(captured, sizeof(captured), __VA_ARGS__)
 
 TEST(LogHexTest, HexTextIsTheLastArgument) {
