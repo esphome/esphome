@@ -186,8 +186,10 @@ void MLX90614Component::update() {
     this->status_set_warning(LOG_STR("Failed to read some sensors"));
   } else if (this->emissivity_write_failed_) {
     this->status_set_warning(LOG_STR("Failed to write emissivity"));
+  } else if (this->emissivity_write_attempts_ != 0) {
+    this->status_set_warning(LOG_STR("Failed to write emissivity, will retry"));
   } else {
-    this->status_comm_result(this->emissivity_write_attempts_ == 0, LOG_STR("Failed to write emissivity, will retry"));
+    this->status_clear_warning();
   }
 }
 
