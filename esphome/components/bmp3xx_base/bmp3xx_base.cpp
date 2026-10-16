@@ -46,17 +46,16 @@ void BMP3XXComponent::setup() {
   // Call the Device base class "initialise" function
   if (!reset()) {
     this->mark_failed(LOG_STR("Failed to reset"));
+    return;
   }
 
   if (!read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)) {
-    ESP_LOGE(TAG, "Can't read chip id");
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   ESP_LOGCONFIG(TAG, "Chip %s Id 0x%X", LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
 
   if (chip_id_.reg != BMP388_ID && chip_id_.reg != BMP390_ID) {
-    ESP_LOGE(TAG, "Unknown chip id - is this really a BMP388 or BMP390?");
     this->mark_failed(LOG_STR("Wrong chip ID - please check if you are really using a BMP 388 or BMP 390"));
     return;
   }
