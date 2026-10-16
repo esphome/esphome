@@ -196,6 +196,21 @@ TEST_F(HonControllerTest, CommunicationTimeoutAndRecovery) {
   EXPECT_FALSE(this->heater_.status_has_warning());
 }
 
+TEST_F(HonControllerTest, ControlFromCommunicationRecoveryIsAccepted) {
+  binary_sensor::BinarySensor health;
+  this->heater_.set_communication_sensor(&health);
+  health.add_on_state_callback([this](bool state) {
+    if (!state)
+      return;
+    EXPECT_TRUE(this->heater_.is_on());
+    auto call = this->heater_.make_call();
+    call.set_target_temperature(40);
+    call.perform();
+  });
+  this->status_(true);
+  EXPECT_EQ(this->heater_.command_count(), 1);
+}
+
 TEST_F(HonControllerTest, PollTimeoutReleasesNetworkUpdateThenPollingResumes) {
   this->heater_.poll_status_();
   ASSERT_TRUE(this->heater_.waiting_poll());

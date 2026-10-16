@@ -231,13 +231,8 @@ void HonWaterHeater::process_frame_() {
   Status status{};
   if (!decode_status(frame, this->parser_.size(), status))
     return;
-  if (!this->have_status_) {
-    ESP_LOGI(TAG, "Heater communication established");
-    if (this->communication_sensor_ != nullptr)
-      this->communication_sensor_->publish_state(true);
-  }
-  if (status.mode == HonMode::HON_MODE_UNKNOWN &&
-      (!this->have_status_ || this->reported_mode_ != HonMode::HON_MODE_UNKNOWN)) {
+  const bool recovered = !this->have_status_;
+  if (status.mode == HonMode::HON_MODE_UNKNOWN && (recovered || this->reported_mode_ != HonMode::HON_MODE_UNKNOWN)) {
     const uint8_t *payload = frame + FRAME_PAYLOAD_OFFSET;
     ESP_LOGW(TAG,
              "Unknown heater mode: payload[38..41]=%02X %02X %02X %02X; using last recognized active mode, or Electric "
@@ -251,6 +246,12 @@ void HonWaterHeater::process_frame_() {
     this->confirm_control_(status);
   this->status_clear_warning();
   this->publish_status_(status);
+  // Published last so an automation on the sensor sees fresh heater state and can send a control.
+  if (recovered) {
+    ESP_LOGI(TAG, "Heater communication established");
+    if (this->communication_sensor_ != nullptr)
+      this->communication_sensor_->publish_state(true);
+  }
 }
 
 void HonWaterHeater::publish_status_(const Status &status) {
