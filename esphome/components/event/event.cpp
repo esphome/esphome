@@ -28,11 +28,8 @@ void Event::trigger(const char *event_type) {
 #endif
 }
 
-void Event::set_event_types(const FixedVector<const char *> &event_types) {
-  this->types_.init(event_types.size());
-  for (const char *type : event_types) {
-    this->types_.push_back(type);
-  }
+void Event::set_event_types_copy_(const char *const *event_types, size_t count) {
+  this->types_.assign_copy(event_types, count);
   this->last_event_type_ = nullptr;  // Reset when types change
 }
 

@@ -160,7 +160,8 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
     // 24-bit: 3 bytes per pixel, tightly packed
     format = Hub75PixelFormat::RGB888;
     bytes_per_pixel = 3;
-    // Note: 24-bit is always RGB order in LVGL
+    // ESPHome RGB order 888 is b,g,r in memory, which hub75 calls BGR
+    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::BGR : Hub75ColorOrder::RGB;
 #else
     ESP_LOGE(TAG, "Unsupported LV_COLOR_DEPTH: %d", LV_COLOR_DEPTH);
     return;
@@ -169,7 +170,8 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
     // Non-LVGL mode: standard 24-bit RGB888
     format = Hub75PixelFormat::RGB888;
     bytes_per_pixel = 3;
-    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::RGB : Hub75ColorOrder::BGR;
+    // ESPHome RGB order 888 is b,g,r in memory, which hub75 calls BGR
+    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::BGR : Hub75ColorOrder::RGB;
 #endif
   } else {
     ESP_LOGE(TAG, "Unsupported bitness: %d", static_cast<int>(bitness));
@@ -200,6 +202,46 @@ void HUB75Display::set_brightness(uint8_t brightness) {
   if (this->driver_ != nullptr) {
     this->driver_->set_brightness(brightness);
   }
+}
+
+static Hub75Rotation to_hub75_rotation(display::DisplayRotation rotation) {
+  switch (rotation) {
+    case display::DisplayRotation::DISPLAY_ROTATION_90_DEGREES:
+      return Hub75Rotation::ROTATE_90;
+    case display::DisplayRotation::DISPLAY_ROTATION_180_DEGREES:
+      return Hub75Rotation::ROTATE_180;
+    case display::DisplayRotation::DISPLAY_ROTATION_270_DEGREES:
+      return Hub75Rotation::ROTATE_270;
+    default:
+      return Hub75Rotation::ROTATE_0;
+  }
+}
+
+static display::DisplayRotation to_display_rotation(Hub75Rotation rotation) {
+  switch (rotation) {
+    case Hub75Rotation::ROTATE_90:
+      return display::DisplayRotation::DISPLAY_ROTATION_90_DEGREES;
+    case Hub75Rotation::ROTATE_180:
+      return display::DisplayRotation::DISPLAY_ROTATION_180_DEGREES;
+    case Hub75Rotation::ROTATE_270:
+      return display::DisplayRotation::DISPLAY_ROTATION_270_DEGREES;
+    default:
+      return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
+  }
+}
+
+// Before setup() creates the driver the configuration holds the rotation, afterwards the driver does
+void HUB75Display::set_rotation(display::DisplayRotation rotation) {
+  const Hub75Rotation hub75_rotation = to_hub75_rotation(rotation);
+  if (this->driver_ == nullptr) {
+    this->config_.rotation = hub75_rotation;
+    return;
+  }
+  this->driver_->set_rotation(hub75_rotation);
+}
+
+display::DisplayRotation HUB75Display::get_rotation() const {
+  return to_display_rotation(this->driver_ == nullptr ? this->config_.rotation : this->driver_->get_rotation());
 }
 
 }  // namespace esphome::hub75

@@ -6,19 +6,23 @@
 // only applicable on ESP32-P4
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 
 #include "esphome/components/display/display.h"
+#include "esphome/components/display/display_color_utils.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_io.h"
 
 #include "esp_lcd_mipi_dsi.h"
 
+#include <utility>
+
 namespace esphome::mipi_dsi {
 
-constexpr static const char *const TAG = "display.mipi_dsi";
+ESPHOME_LOG_TAG(TAG, "display.mipi_dsi");
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;
 const uint8_t SDIR_CMD = 0xC7;
@@ -39,8 +43,7 @@ class MipiDsi final : public display::Display {
  public:
   MipiDsi(size_t width, size_t height, display::ColorBitness color_depth, uint8_t pixel_mode)
       : width_(width), height_(height), color_depth_(color_depth), pixel_mode_(pixel_mode) {}
-  display::ColorOrder get_color_mode() { return this->color_mode_; }
-  void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
+  void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
   void set_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
@@ -83,6 +86,33 @@ class MipiDsi final : public display::Display {
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   bool check_buffer_();
+  /// Send the region touched since the last flush to the panel.
+  void flush_dirty_();
+  // Maps drawn coordinates to the buffer the way draw_pixel_at() stores them
+  void rotate_(int &x, int &y) const {
+    switch (this->rotation_) {
+      case display::DISPLAY_ROTATION_0_DEGREES:
+        break;
+      case display::DISPLAY_ROTATION_90_DEGREES:
+        std::swap(x, y);
+        x = this->width_ - x - 1;
+        break;
+      case display::DISPLAY_ROTATION_180_DEGREES:
+        x = this->width_ - x - 1;
+        y = this->height_ - y - 1;
+        break;
+      case display::DISPLAY_ROTATION_270_DEGREES:
+        std::swap(x, y);
+        y = this->height_ - y - 1;
+        break;
+    }
+  }
+  void mark_dirty_(int x_start, int y_start, int w, int h);
+  /// Pack a colour as the 565 value the panel's byte order expects in memory.
+  uint16_t to_panel_565_(Color color) const {
+    const uint16_t rgb565 = display::ColorUtil::color_to_565(color);
+    return this->big_endian_ ? convert_big_endian(rgb565) : rgb565;
+  }
   GPIOPin *reset_pin_{nullptr};
   std::vector<GPIOPin *> enable_pins_{};
   size_t width_{};
@@ -102,8 +132,9 @@ class MipiDsi final : public display::Display {
   uint8_t lanes_{2};           // 1, 2, 3 or 4 lanes
 
   bool invert_colors_{};
-  display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
   display::ColorBitness color_depth_;
+  bool big_endian_{false};
+  bool updating_{false};
   uint8_t pixel_mode_{};
 
   esp_lcd_panel_handle_t handle_{};
