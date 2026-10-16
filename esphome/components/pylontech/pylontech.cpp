@@ -62,7 +62,6 @@ void PylontechComponent::loop() {
     avail -= to_read;
     for (size_t i = 0; i < to_read; i++) {
       const char *line = this->line_reader_.feed(buf[i]);
-      this->line_reader_.log_if_overflowed(TAG);
       if (line != nullptr) {
         this->process_line_(line);
       }
