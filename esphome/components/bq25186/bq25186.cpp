@@ -27,6 +27,13 @@ bool BQ25186Component::write_register_(uint8_t reg, uint8_t value) {
   return true;
 }
 
+bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value) {
+  if (this->update_register(reg, mask, value))
+    return true;
+  ESP_LOGW(TAG, "Failed to update register 0x%02X", reg);
+  return false;
+}
+
 uint8_t BQ25186Component::expected_register_(size_t index) const {
   uint8_t value = this->regs_[index];
 #ifdef USE_BQ25186_PG_GPO
@@ -58,7 +65,7 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
     const uint8_t reg = BQ25186_REG_VBAT_CTRL + i;
     const uint8_t mask = progmem_read_byte(&BQ25186_CONFIG_MASKS[i]);
     const uint8_t value = this->expected_register_(i);
-    const bool ok = mask == 0xFF ? this->write_register_(reg, value) : this->update_register(reg, mask, value);
+    const bool ok = mask == 0xFF ? this->write_register_(reg, value) : this->update_register_(reg, mask, value);
     if (!ok) {
       this->status_set_warning(LOG_STR("Configuration partly applied"));
       return false;
@@ -105,7 +112,7 @@ void BQ25186Component::check_pg_gpo_(const BQ25186StatusRegisters &status, bool 
   if (this->pg_gpo_switch_ == nullptr)
     return;
   if ((status[BQ25186_REG_VBAT_CTRL] & BQ25186_VBAT_CTRL_PG_MODE) == 0 &&
-      !this->update_register(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE)) {
+      !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE)) {
     this->status_set_warning(LOG_STR("PG/GPO pin not in output mode"));
     pending = true;
   }

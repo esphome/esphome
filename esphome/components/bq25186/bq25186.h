@@ -62,15 +62,16 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   /// The /PG/GPO pin is put in general purpose output mode when a switch drives it
   void set_pg_gpo_switch(switch_::Switch *pg_gpo_switch) { this->pg_gpo_switch_ = pg_gpo_switch; }
   bool write_pg_gpo_level(bool level) {
-    return this->update_register(BQ25186_REG_SYS_REG, BQ25186_SYS_REG_PG_GPO_LEVEL,
-                                 level ? BQ25186_SYS_REG_PG_GPO_LEVEL : 0);
+    return this->update_register_(BQ25186_REG_SYS_REG, BQ25186_SYS_REG_PG_GPO_LEVEL,
+                                  level ? BQ25186_SYS_REG_PG_GPO_LEVEL : 0);
   }
 #endif
   /// Write the masked bits of SHIP_RST
-  bool write_ship_rst(uint8_t mask, uint8_t value) { return this->update_register(BQ25186_REG_SHIP_RST, mask, value); }
+  bool write_ship_rst(uint8_t mask, uint8_t value) { return this->update_register_(BQ25186_REG_SHIP_RST, mask, value); }
 
  protected:
   bool write_register_(uint8_t reg, uint8_t value);
+  bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
   uint8_t expected_register_(size_t index) const;
   bool config_matches_(const BQ25186StatusRegisters &regs) const;
 #ifdef USE_BQ25186_PG_GPO
