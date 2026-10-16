@@ -18,6 +18,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@dwmw2"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["gpio_expander"]
 DOMAIN = "ch423"
 MULTI_CONF = True
 ch423_ns = cg.esphome_ns.namespace("ch423")
@@ -93,4 +94,8 @@ CH423_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_CH423, CH423_PIN_SCHEMA, pin_mode_check)
 async def ch423_pin_to_code(config: ConfigType) -> MockObj:
-    return await pins.new_parented_pin(config, CONF_CH423)
+    var = await pins.new_parented_pin(config, CONF_CH423)
+    # The parent collects every pin's mode before its setup() writes the mode register
+    parent = await cg.get_variable(config[CONF_CH423])
+    cg.add(parent.pin_mode(config[CONF_NUMBER], pins.gpio_flags_expr(config[CONF_MODE])))
+    return var
