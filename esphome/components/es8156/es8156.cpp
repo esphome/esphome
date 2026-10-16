@@ -8,13 +8,6 @@ namespace esphome::es8156 {
 
 ESPHOME_LOG_TAG(TAG, "es8156");
 
-// Mark the component as failed; use only in setup
-#define ES8156_ERROR_FAILED(func) \
-  if (!(func)) { \
-    this->mark_failed(LOG_STR("Failed to initialize")); \
-    return; \
-  }
-
 static constexpr i2c::I2CRegValue ES8156_INIT[] PROGMEM = {
     // REG02 MODE CONFIG 1: Enable software mode for I2C control of volume/mute
     // Bit 2: SOFT_MODE_SEL=1 (software mode enabled)
@@ -60,7 +53,10 @@ static constexpr i2c::I2CRegValue ES8156_INIT[] PROGMEM = {
     {ES8156_REG25_ANALOG_SYS5, 0x20},
 };
 
-void ES8156::setup() { ES8156_ERROR_FAILED(this->write_registers(ES8156_INIT)); }
+void ES8156::setup() {
+  if (!this->write_registers(ES8156_INIT))
+    this->mark_failed(LOG_STR("Failed to initialize"));
+}
 
 void ES8156::dump_config() { ESP_LOGCONFIG(TAG, "ES8156 Audio Codec:"); }
 
