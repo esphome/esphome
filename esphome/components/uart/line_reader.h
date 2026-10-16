@@ -6,6 +6,10 @@
 
 namespace esphome::uart {
 
+/// Shared warning for a line dropped because it was longer than max_len characters; out of line so each
+/// component pays only for the call.
+void log_line_dropped(const char *tag, size_t max_len);
+
 /// Collects bytes into NUL terminated lines in a fixed buffer of N bytes, so lines hold up to N - 1 characters.
 /// The terminator ends a line and is not stored; the ignore character is dropped wherever it appears
 /// (IGNORE = '\0' only drops NUL bytes). A line longer than N - 1 characters is dropped up to its terminator.
@@ -56,6 +60,13 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
 
   /// True only right after the feed() that found the line too long; the rest of that line is then dropped.
   bool overflowed() const { return this->pos_ == N; }
+
+  /// Log the shared "line dropped" warning when the last feed() overflowed.
+  void log_if_overflowed(const char *tag) const {
+    if (this->overflowed()) {
+      log_line_dropped(tag, N - 1);
+    }
+  }
 
   /// Forget the partial line and start a new one with the next byte.
   void reset() { this->pos_ = 0; }
