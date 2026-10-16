@@ -200,8 +200,12 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain,
   return match;
 }
 
-EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
+EntityMatchResult UrlMatch::match_entity(EntityBase *entity, bool include_internal) const {
   EntityMatchResult result{false, this->method.empty()};
+
+  // Internal entities are unreachable by URL unless include_internal is set, as with the native API and MQTT.
+  if (!include_internal && entity->is_internal())
+    return result;
 
 #ifdef USE_DEVICES
   Device *entity_device = entity->get_device();
@@ -734,7 +738,7 @@ void WebServer::on_sensor_update(sensor::Sensor *obj) {
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
@@ -779,7 +783,7 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj) {
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
@@ -840,7 +844,7 @@ void WebServer::on_switch_update(switch_::Switch *obj) {
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -892,7 +896,7 @@ void WebServer::switch_json_(switch_::Switch *obj, bool value, JsonDetail start_
 #ifdef USE_BUTTON
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (button::Button *obj : App.get_buttons()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
     if (request->method() == HTTP_GET && entity_match.action_is_empty) {
@@ -932,7 +936,7 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
@@ -973,7 +977,7 @@ void WebServer::on_fan_update(fan::Fan *obj) {
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1052,7 +1056,7 @@ void WebServer::on_light_update(light::LightState *obj) {
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1131,7 +1135,7 @@ void WebServer::on_cover_update(cover::Cover *obj) {
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1205,7 +1209,7 @@ void WebServer::on_number_update(number::Number *obj) {
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1276,7 +1280,7 @@ void WebServer::on_date_update(datetime::DateEntity *obj) {
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
     if (request->method() == HTTP_GET && entity_match.action_is_empty) {
@@ -1335,7 +1339,7 @@ void WebServer::on_time_update(datetime::TimeEntity *obj) {
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
     if (request->method() == HTTP_GET && entity_match.action_is_empty) {
@@ -1393,7 +1397,7 @@ void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
     if (request->method() == HTTP_GET && entity_match.action_is_empty) {
@@ -1452,7 +1456,7 @@ void WebServer::on_text_update(text::Text *obj) {
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1515,7 +1519,7 @@ void WebServer::on_select_update(select::Select *obj) {
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1575,7 +1579,7 @@ void WebServer::on_climate_update(climate::Climate *obj) {
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1762,7 +1766,7 @@ void WebServer::on_lock_update(lock::Lock *obj) {
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1819,7 +1823,7 @@ void WebServer::on_valve_update(valve::Valve *obj) {
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1888,7 +1892,7 @@ void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlP
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -1958,7 +1962,7 @@ void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
 }
 void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -2064,7 +2068,7 @@ void WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail st
 #ifdef USE_INFRARED
 void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (infrared::Infrared *obj : App.get_infrareds()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -2153,7 +2157,7 @@ void WebServer::infrared_json_(infrared::Infrared *obj, JsonDetail start_config,
 #ifdef USE_RADIO_FREQUENCY
 void WebServer::handle_radio_frequency_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (radio_frequency::RadioFrequency *obj : App.get_radio_frequencies()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -2255,7 +2259,7 @@ void WebServer::on_event(event::Event *obj) {
 
 void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (event::Event *obj : App.get_events()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 
@@ -2309,7 +2313,7 @@ void WebServer::on_update(update::UpdateEntity *obj) {
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
-    auto entity_match = match.match_entity(obj);
+    auto entity_match = match.match_entity(obj, this->include_internal_);
     if (!entity_match.matched)
       continue;
 

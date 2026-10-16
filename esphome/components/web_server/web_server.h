@@ -78,9 +78,9 @@ struct UrlMatch {
   bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
 #endif
 
-  /// Match entity by name
+  /// Match entity by name; internal entities match only if include_internal is set
   /// Returns EntityMatchResult with match status and whether action segment is empty
-  EntityMatchResult match_entity(EntityBase *entity) const;
+  EntityMatchResult match_entity(EntityBase *entity, bool include_internal) const;
 };
 
 #ifdef USE_WEBSERVER_SORTING
