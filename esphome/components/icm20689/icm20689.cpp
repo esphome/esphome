@@ -77,10 +77,8 @@ void ICM20689Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ICM20689 IMU:");
   LOG_PIN("  CS Pin: ", this->cs_);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  " ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Accel range: ±%dg", 2 << static_cast<uint8_t>(this->accel_range_));
   ESP_LOGCONFIG(TAG, "  Gyro range: ±%d°/s", 250 << static_cast<uint8_t>(this->gyro_range_));

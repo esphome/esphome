@@ -14,7 +14,7 @@ void DPS310Component::setup() {
   uint8_t reg = 0;
   // first, reset the sensor
   if (!this->write_byte(DPS310_REG_RESET, DPS310_CMD_RESET)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(10);
@@ -25,39 +25,39 @@ void DPS310Component::setup() {
   }
 
   if (!(reg & DPS310_BIT_SENSOR_RDY) || !(reg & DPS310_BIT_COEF_RDY)) {  // the flags were not set in time
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Sensor not ready"));
     return;
   }
   // read device ID
   if (!this->read_byte(DPS310_REG_PROD_REV_ID, &this->prod_rev_id_)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // read in coefficients used to calculate the compensated pressure and temperature values
   if (!this->read_bytes(DPS310_REG_COEF, coef_data_raw, DPS310_NUM_COEF_REGS)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // read in coefficients source register, too -- we need this a few lines down
   if (!this->read_byte(DPS310_REG_TMP_COEF_SRC, &reg)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // set up operational stuff
   if (!this->write_byte(DPS310_REG_PRS_CFG, DPS310_VAL_PRS_CFG)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(DPS310_REG_TMP_CFG, DPS310_VAL_TMP_CFG | (reg & DPS310_BIT_TMP_COEF_SRC))) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(DPS310_REG_CFG, DPS310_VAL_REG_CFG)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(DPS310_REG_MEAS_CFG, 0x07)) {  // enable background mode
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -91,9 +91,6 @@ void DPS310Component::dump_config() {
                 "  Revision ID: %u",
                 this->prod_rev_id_ & 0x0F, (this->prod_rev_id_ >> 4) & 0x0F);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);

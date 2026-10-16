@@ -93,8 +93,7 @@ void ENS210Component::setup() {
   // Reset
   if (!this->write_byte(ENS210_REGISTER_SYS_CTRL, 0x80)) {
     this->write_byte(ENS210_REGISTER_SYS_CTRL, 0x80);
-    this->error_code_ = ENS210_STATUS_I2C_ERROR;
-    this->mark_failed();
+    this->mark_failed(ens210_status_to_human(ENS210_STATUS_I2C_ERROR));
     return;
   }
   // Wait to boot after reset
@@ -103,24 +102,21 @@ void ENS210Component::setup() {
   if (!set_low_power_(false)) {
     // Try to go back to default mode (low power enabled)
     set_low_power_(true);
-    this->error_code_ = ENS210_STATUS_I2C_ERROR;
-    this->mark_failed();
+    this->mark_failed(ens210_status_to_human(ENS210_STATUS_I2C_ERROR));
     return;
   }
   // Read the PART_ID
   if (!this->read_bytes(ENS210_REGISTER_PART_ID, data, 2)) {
     // Try to go back to default mode (low power enabled)
     set_low_power_(true);
-    this->error_code_ = ENS210_STATUS_I2C_ERROR;
-    this->mark_failed();
+    this->mark_failed(ens210_status_to_human(ENS210_STATUS_I2C_ERROR));
     return;
   }
   // Pack bytes into partid
   part_id = data[1] * 256U + data[0] * 1U;
   // Check expected part id of the ENS210
   if (part_id != ENS210_PART_ID) {
-    this->error_code_ = ENS210_WRONG_CHIP_ID;
-    this->mark_failed();
+    this->mark_failed(ens210_status_to_human(ENS210_WRONG_CHIP_ID));
   }
   // Set default power mode (low power enabled)
   set_low_power_(true);
@@ -129,9 +125,6 @@ void ENS210Component::setup() {
 void ENS210Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ENS210:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "%s", LOG_STR_ARG(ens210_status_to_human(this->error_code_)));
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
