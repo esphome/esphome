@@ -58,9 +58,9 @@ void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_
 // spills per pixel. Without PSRAM there is one call site and it changes
 // nothing, and draw_pixel_at() stays a virtual call either way.
 template<ColorBitness BITNESS>
-static void __attribute__((flatten))
-draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                   bool big_endian, int x_offset, int y_offset, int x_pad) {
+static void __attribute__((flatten)) draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h,
+                                                        const uint8_t *ptr, ColorOrder order, bool big_endian,
+                                                        int x_offset, int y_offset, int x_pad) {
   const size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
   // BITNESS is a constant here, so to_color()'s three per pixel divisions
   // become a multiply and shift and its bitness switch folds.

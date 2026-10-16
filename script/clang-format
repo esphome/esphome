@@ -88,7 +88,7 @@ def main():
 
     failed_files = []
     try:
-        executable = get_binary("clang-format", 13)
+        executable = get_binary("clang-format", 22)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):

@@ -150,7 +150,9 @@ climate::ClimateTraits PortaSplitClimate::traits() {
       climate::CLIMATE_SWING_VERTICAL,
   });
   traits.set_supported_presets({
-      climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_SLEEP, climate::CLIMATE_PRESET_BOOST,
+      climate::CLIMATE_PRESET_NONE,
+      climate::CLIMATE_PRESET_SLEEP,
+      climate::CLIMATE_PRESET_BOOST,
       climate::CLIMATE_PRESET_ECO,
       climate::CLIMATE_PRESET_AWAY,  // Frost protection (8 degC heating)
   });

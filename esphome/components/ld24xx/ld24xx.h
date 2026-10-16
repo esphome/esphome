@@ -26,8 +26,8 @@
 
 #define SAFE_PUBLISH_SENSOR_UNKNOWN(sensor) (sensor).publish_state_unknown()
 
-#define highbyte(val) (uint8_t)((val) >> 8)
-#define lowbyte(val) (uint8_t)((val) &0xff)
+#define highbyte(val) (uint8_t) ((val) >> 8)
+#define lowbyte(val) (uint8_t) ((val) & 0xff)
 
 namespace esphome::ld24xx {
 

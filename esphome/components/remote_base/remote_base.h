@@ -113,7 +113,7 @@ class RemoteReceiveData {
 
 class RemoteComponentBase {
  public:
-  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin){};
+  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin) {};
 
  protected:
   InternalGPIOPin *pin_;
@@ -159,13 +159,11 @@ concept RemoteProtocolDecoder = requires(T proto, RemoteReceiveData src) {
   { proto.decode(src) } -> std::same_as<optional<typename T::ProtocolData>>;
 };
 template<typename T>
-concept RemoteProtocolDumper = RemoteProtocolDecoder<T> && requires(T proto, const typename T::ProtocolData &data) {
-  proto.dump(data);
-};
+concept RemoteProtocolDumper =
+    RemoteProtocolDecoder<T> && requires(T proto, const typename T::ProtocolData &data) { proto.dump(data); };
 template<typename T>
-concept RemoteProtocolEncoder = requires(T proto, RemoteTransmitData *dst, const typename T::ProtocolData &data) {
-  proto.encode(dst, data);
-};
+concept RemoteProtocolEncoder =
+    requires(T proto, RemoteTransmitData *dst, const typename T::ProtocolData &data) { proto.encode(dst, data); };
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:

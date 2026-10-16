@@ -12,7 +12,10 @@ template<bool HasTransitionLength, typename... Ts> class ToggleAction final : pu
  public:
   explicit ToggleAction(LightState *state) : state_(state) {}
 
-  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
+  template<typename V>
+  void set_transition_length(V value)
+    requires(HasTransitionLength)
+  {
     this->transition_length_ = value;
   }
 
@@ -37,7 +40,10 @@ template<bool HasTransitionLength, typename... Ts> class DimRelativeAction final
 
   TEMPLATABLE_VALUE(float, relative_brightness)
 
-  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
+  template<typename V>
+  void set_transition_length(V value)
+    requires(HasTransitionLength)
+  {
     this->transition_length_ = value;
   }
 

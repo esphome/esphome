@@ -590,7 +590,10 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
                                         std::function<void(StringRef)> &&f, bool once) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = entity_id, .attribute = attribute, .callback = std::move(f), .once = once,
+      .entity_id = entity_id,
+      .attribute = attribute,
+      .callback = std::move(f),
+      .once = once,
       // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
   });
 }

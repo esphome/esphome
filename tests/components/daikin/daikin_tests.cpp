@@ -376,10 +376,14 @@ TEST(Daikin, LostStateFrameKeepsComfortUntilNextTransmission) {
 TEST(Daikin, PendingComfortExpiresAfterOneSecond) {
   Fixture f;
   // LoopBlockingGuard publishes the dispatch time the component reads as the loop clock
-  { LoopBlockingGuard clock(&f.climate, LOG_STR("test"), 1000); }
+  {
+    LoopBlockingGuard clock(&f.climate, LOG_STR("test"), 1000);
+  }
   EXPECT_TRUE(f.receive(comfort_frame(0x10)));
   // The state frame of that transmission is lost; the next one arrives after the window
-  { LoopBlockingGuard clock(&f.climate, LOG_STR("test"), 1000 + DAIKIN_TRANSMISSION_MS + 1); }
+  {
+    LoopBlockingGuard clock(&f.climate, LOG_STR("test"), 1000 + DAIKIN_TRANSMISSION_MS + 1);
+  }
   EXPECT_TRUE(f.receive(state_frame(0x00, 0x00)));
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
 }

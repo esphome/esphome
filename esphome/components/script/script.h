@@ -318,8 +318,7 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
     }
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override {
     this->param_queue_.clear();

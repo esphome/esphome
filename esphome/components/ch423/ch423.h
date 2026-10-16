@@ -43,7 +43,7 @@ class CH423Component final : public Component, public i2c::I2CDevice {
 /// Helper class to expose a CH423 pin as a GPIO pin.
 class CH423GPIOPin final : public GPIOPin {
  public:
-  void setup() override{};
+  void setup() override {};
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
