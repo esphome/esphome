@@ -1,18 +1,16 @@
 #include <gtest/gtest.h>
 
-#include "esphome/components/hoermann_hcp/button/hoermann_hcp_button.h"
-
 #include "../common.h"
 
 namespace esphome::hoermann_hcp::testing {
 
+// The buttons press straight into vent_door() and half_open_door().
 // The intermediate positions are named in the second register, next to 0x0100 in the first.
 TEST(HoermannHcpButtonTest, VentButtonSendsTheVentCommand) {
   TestableHoermannHcp door;
-  HoermannHcpVentButton vent(&door);
   connect_controller(door);
 
-  vent.press();
+  door.vent_door();
 
   auto [value, value_2] = poll_command(door);
   EXPECT_EQ(value, 0x0100);
@@ -25,10 +23,9 @@ TEST(HoermannHcpButtonTest, VentButtonSendsTheVentCommand) {
 
 TEST(HoermannHcpButtonTest, HalfOpenButtonSendsTheHalfOpenCommand) {
   TestableHoermannHcp door;
-  HoermannHcpHalfOpenButton half_open(&door);
   connect_controller(door);
 
-  half_open.press();
+  door.half_open_door();
 
   auto [value, value_2] = poll_command(door);
   EXPECT_EQ(value, 0x0100);
@@ -43,14 +40,13 @@ TEST(HoermannHcpButtonTest, HalfOpenButtonSendsTheHalfOpenCommand) {
 // stop it on the way there.
 TEST(HoermannHcpButtonTest, VentAbandonsAnArmedTarget) {
   TestableHoermannHcp door;  // starts out fully closed
-  HoermannHcpVentButton vent(&door);
   connect_controller(door);
   door.set_position(0.5f);
   consume_command(door);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0014, 0x0100}));
   ASSERT_EQ(door.get_door_state(), DoorState::OPENING);
 
-  vent.press();
+  door.vent_door();
   consume_command(door);
 
   // Position 120/200 = 0.6 is past the abandoned target, which must no longer stop the door.
@@ -62,9 +58,8 @@ TEST(HoermannHcpButtonTest, VentAbandonsAnArmedTarget) {
 // turns up, which could be much later.
 TEST(HoermannHcpButtonTest, PressWithoutABusControllerSendsNothing) {
   HoermannHcp door;  // never contacted by a bus controller
-  HoermannHcpVentButton vent(&door);
 
-  vent.press();
+  door.vent_door();
 
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
