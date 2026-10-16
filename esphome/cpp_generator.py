@@ -1302,9 +1302,7 @@ class MockObjEnum(MockObj):
         enumerators = {
             name: prefix + _ENUM_NON_ALNUM.sub("_", name).upper() for name in names
         }
-        if len(enumerators) != len(names) or len(set(enumerators.values())) != len(
-            names
-        ):
+        if len(set(enumerators.values())) != len(names):
             raise ValueError(f"Option names must map to distinct enumerators: {names}")
         return {
             name: getattr(self, enumerator) for name, enumerator in enumerators.items()
