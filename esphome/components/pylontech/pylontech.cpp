@@ -51,7 +51,7 @@ void PylontechComponent::setup() {
 void PylontechComponent::update() { this->write_str("pwr\n"); }
 
 void PylontechComponent::loop() {
-  // pylontech sends a lot of data very suddenly, so drain the UART and handle each line as it completes
+  // Drain the UART quickly; pylontech sends large bursts
   size_t avail = this->available();
   uint8_t buf[64];
   while (avail > 0) {
@@ -62,8 +62,10 @@ void PylontechComponent::loop() {
     avail -= to_read;
     for (size_t i = 0; i < to_read; i++) {
       const char *line = this->line_reader_.feed(buf[i]);
-      if (line != nullptr)
+      this->line_reader_.log_if_overflowed(TAG);
+      if (line != nullptr) {
         this->process_line_(line);
+      }
     }
   }
 }
@@ -100,7 +102,7 @@ void PylontechComponent::process_line_(const char *buffer) {
     const char *start = cursor;
 
     // Find end of field
-    while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t' && *cursor != '\r') {
+    while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t') {
       cursor++;
     }
 
