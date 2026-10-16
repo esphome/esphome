@@ -30,6 +30,8 @@ extern "C" {
 #include <freertos/task.h>
 #include <nvs_flash.h>
 
+#include <cstring>
+
 #ifdef USE_ARDUINO
 // Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
 // Without this, esp_bt_controller_init() fails with ESP_ERR_INVALID_STATE.
@@ -43,6 +45,7 @@ extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-nam
 // Controller internals, reached through r_ip_funcs_p: a table btdm_controller_init() copies into RAM.
 extern "C" {
 extern void *r_ip_funcs_p;
+const char *btdm_controller_get_compile_version();
 uint8_t r_lld_con_terminate_max_evt_update(uint8_t link_id, uint8_t acked);
 uint8_t *r_lld_con_cntl_pkt_info_get();
 }
@@ -70,11 +73,30 @@ static uint8_t IRAM_ATTR terminate_until_acked(uint8_t link_id, uint8_t acked) {
   return r_lld_con_terminate_max_evt_update(link_id, acked);
 }
 
+// The controller builds whose r_lld_con_terminate_max_evt_update and r_lld_con_cntl_pkt_info_get the wrapper was
+// checked against. The table slot alone does not prove the pkt_info layout, so an unknown build is left alone.
+// btdm_controller_get_compile_version() is what ESP-IDF logs at init as "BT controller compile version [...]".
+static const char *const TERMINATE_PATCH_CONTROLLER_BUILDS[] = {
+    "51d9dfd",  // ESP-IDF 5.5.5, Arduino 3.3.12
+    "b7de11e",  // ESP-IDF 5.5.4, Arduino 3.3.8-3.3.11: both functions identical to 51d9dfd's
+};
+
 static void patch_terminate_until_acked() {
   auto **table = static_cast<void **>(r_ip_funcs_p);
-  if (table == nullptr ||
-      table[TERMINATE_MAX_EVT_SLOT] != reinterpret_cast<void *>(&r_lld_con_terminate_max_evt_update)) {
+  if (table == nullptr) {
     ESP_LOGW(TAG, "Controller layout not recognised; disconnects keep the controller's 6-event limit");
+    return;
+  }
+  if (table[TERMINATE_MAX_EVT_SLOT] == reinterpret_cast<void *>(&terminate_until_acked))
+    return;  // already patched: the controller stayed enabled across a setup
+  const char *build = btdm_controller_get_compile_version();
+  bool known_build = false;
+  for (const char *known : TERMINATE_PATCH_CONTROLLER_BUILDS)
+    known_build = known_build || strcmp(build, known) == 0;
+  if (!known_build || table[TERMINATE_MAX_EVT_SLOT] != reinterpret_cast<void *>(&r_lld_con_terminate_max_evt_update)) {
+    ESP_LOGW(TAG,
+             "Controller build %s not checked for the terminate patch; disconnects keep the controller's 6-event limit",
+             build);
     return;
   }
   table[TERMINATE_MAX_EVT_SLOT] = reinterpret_cast<void *>(&terminate_until_acked);
