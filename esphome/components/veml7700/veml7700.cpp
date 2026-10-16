@@ -80,8 +80,7 @@ static const char *get_gain_str(Gain gain) {
 void VEML7700Component::setup() {
   auto err = this->configure_();
   if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Sensor configuration failed");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Sensor configuration failed"));
   } else {
     this->state_ = State::INITIAL_SETUP_COMPLETED;
   }

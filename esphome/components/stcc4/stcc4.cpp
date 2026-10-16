@@ -105,8 +105,7 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
 
       // Start continuous measurement
       if (!this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT)) {
-        ESP_LOGE(TAG, "Failed to start continuous measurement");
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        this->mark_failed(LOG_STR("Failed to start continuous measurement"));
         return;
       }
       this->schedule_continuous_update_(false);
@@ -122,8 +121,7 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
     return;
   }
 
-  ESP_LOGE(TAG, "Failed to stop continuous measurements and read product ID");
-  this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  this->mark_failed(LOG_STR("Failed to stop continuous measurements and read product ID"));
 }
 
 void STCC4Component::finish_setup_() {

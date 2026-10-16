@@ -64,7 +64,7 @@ void TSL2591Component::setup() {
 
   uint8_t id;
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
-    this->mark_failed(LOG_STR("I2C read failed"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 

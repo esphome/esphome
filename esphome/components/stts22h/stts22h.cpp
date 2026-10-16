@@ -21,7 +21,6 @@ static const float SENSOR_SCALE = 0.01f;  // Sensor resolution in degrees Celsiu
 void STTS22HComponent::setup() {
   // Check if device is a STTS22H
   if (!this->is_stts22h_sensor_()) {
-    this->mark_failed(LOG_STR("Device is not a STTS22H sensor"));
     return;
   }
 

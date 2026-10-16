@@ -60,7 +60,7 @@ void SY6970Component::setup() {
   // Try to read chip ID
   uint8_t reg_value;
   if (!this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)) {
-    this->mark_failed(LOG_STR("Failed to communicate with SY6970"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
