@@ -175,3 +175,33 @@ def test_custom_coefficients_reach_the_sensor(
     assert "mq136_custom->set_ratio_mode(1);" in main_cpp
     assert "mq136_custom->set_min_ppm(1.0f);" in main_cpp
     assert "mq136_custom->set_max_ppm(200.0f);" in main_cpp
+
+
+def test_coefficients_the_method_cannot_use_are_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The MQ-135 linear pair has a negative `a`, which exponential cannot take."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {"id": "mq135", "name": "MQ-135", "sensor_type": "MQ-135", "voltage": "adc"}
+    with pytest.raises(
+        cv.Invalid, match="MQ-135 with 'regression_method: exponential' needs"
+    ):
+        CONFIG_SCHEMA({**base, "regression_method": "exponential"})
+
+
+def test_coefficients_matching_the_overridden_method_are_accepted(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    config = CONFIG_SCHEMA(
+        {
+            "id": "mq135",
+            "name": "MQ-135",
+            "sensor_type": "MQ-135",
+            "voltage": "adc",
+            "regression_method": "exponential",
+            "coefficient_a": 110.47,
+            "coefficient_b": -2.862,
+        }
+    )
+    assert config["regression_method"] == "exponential"

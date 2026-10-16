@@ -174,6 +174,25 @@ CALIBRATION_SCHEMA = cv.Schema(
 )
 
 
+def _validate_coefficients(label: str, method: str, a: float, b: float) -> None:
+    """Reject a coefficient pair the regression cannot evaluate (log10 of a <= 0, 1/b)."""
+    if method == "exponential":
+        usable = a > 0
+        need = "'coefficient_a:' > 0"
+    elif method == "inverse":
+        usable = a > 0 and b != 0
+        need = "'coefficient_a:' > 0 and a non-zero 'coefficient_b:'"
+    else:
+        usable = a != 0
+        need = "a non-zero 'coefficient_a:'"
+    if not usable:
+        raise cv.Invalid(
+            f"{label} with 'regression_method: {method}' needs {need}, got "
+            f"coefficient_a={a:g}, coefficient_b={b:g} - set 'coefficient_a:' and "
+            f"'coefficient_b:' for this method or drop 'regression_method:'"
+        )
+
+
 def _validate_config(config: ConfigType) -> ConfigType:
     """Cross-check the coefficients and the wiring at compile time."""
     type_key = config[CONF_SENSOR_TYPE]
@@ -194,6 +213,8 @@ def _validate_config(config: ConfigType) -> ConfigType:
         )
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
+
+    _validate_coefficients(resolved.label, resolved.method, resolved.a, resolved.b)
 
     if resolved.max_ppm <= resolved.min_ppm:
         raise cv.Invalid(

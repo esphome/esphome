@@ -310,7 +310,7 @@ def resolve_sensor(
         if a is None or b is None:
             raise ValueError(
                 f"{definition['label']} has no built-in coefficients, "
-                f"set both 'a:' and 'b:' in the configuration"
+                f"set both 'coefficient_a:' and 'coefficient_b:' in the configuration"
             )
 
     return ResolvedSensor(
