@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
@@ -72,7 +74,7 @@ class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented
     if (this->sensitivity_.has_value()) {
       int8_t val = this->sensitivity_.value(x...);
       if (val >= 0) {
-        this->parent_->enqueue(CommandType::COMMAND_TYPE_SENSITIVITY, val);
+        this->parent_->enqueue(CommandType::COMMAND_TYPE_SENSITIVITY, std::min<int8_t>(val, 9));
       }
     }
     this->parent_->enqueue(CommandType::COMMAND_TYPE_SAVE_CFG);

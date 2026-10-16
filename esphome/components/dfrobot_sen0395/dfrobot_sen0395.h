@@ -3,6 +3,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -11,29 +12,30 @@
 #include "esphome/components/switch/switch.h"
 #endif
 
-#include "commands.h"
-
 namespace esphome::dfrobot_sen0395 {
 
-const uint8_t MMWAVE_READ_BUFFER_LENGTH = 255;
+static constexpr uint8_t MMWAVE_READ_BUFFER_LENGTH = 255;
+static constexpr uint8_t COMMAND_QUEUE_SIZE = 20;
 
-// forward declaration due to circular dependency
-class DfrobotSen0395Component;
+// Keep in sync with the BUSY_ACTIONS table in dfrobot_sen0395.cpp
+enum class CommandType : uint8_t {
+  COMMAND_TYPE_POWER,
+  COMMAND_TYPE_DET_RANGE_CFG,
+  COMMAND_TYPE_SET_LATENCY,
+  COMMAND_TYPE_SENSOR_CFG_START,
+  COMMAND_TYPE_FACTORY_RESET,
+  COMMAND_TYPE_RESET_SYSTEM,
+  COMMAND_TYPE_SAVE_CFG,
+  COMMAND_TYPE_LED_MODE,
+  COMMAND_TYPE_UART_OUTPUT,
+  COMMAND_TYPE_SENSITIVITY,
+};
 
-static const uint8_t COMMAND_QUEUE_SIZE = 20;
-
-class CircularCommandQueue {
- public:
-  bool enqueue(Command cmd);
-  void dequeue();
-  bool is_empty() const { return this->front_ == -1; }
-  bool is_full() const { return (this->rear_ + 1) % COMMAND_QUEUE_SIZE == this->front_; }
-  const Command &front() const { return this->commands_[this->front_]; }
-
- protected:
-  int8_t front_{-1};
-  int8_t rear_{-1};
-  Command commands_[COMMAND_QUEUE_SIZE];
+/// A queued command. arg is the on/off flag, startup mode or sensitivity; the detection range and
+/// latency values are held by the component.
+struct Command {
+  CommandType type;
+  uint8_t arg;
 };
 
 class DfrobotSen0395Component final : public uart::UARTDevice, public Component {
@@ -93,12 +95,15 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   }
 #endif
 
+  // Commands run one at a time from a queue, at least 1 s apart, so loop() never blocks
   bool enqueue(CommandType type, uint8_t arg = 0);
-  /// Queue a detection range config; a negative value ends the list of segments
+  /// Queue a detection range config; segments are used up to the first one with a negative bound
   void enqueue_det_range_cfg(float min1, float max1, float min2, float max2, float min3, float max3, float min4,
                              float max4);
   /// Queue an output latency config, both delays in seconds
   void enqueue_set_latency(float delay_after_detection, float delay_after_disappear);
+  /// Queue a setting change, stopping the sensor around it and saving it when the sensor is running
+  void enqueue_saved_setting(CommandType type, bool value);
   /// Queue a sensor reset
   void reset_system() { this->enqueue(CommandType::COMMAND_TYPE_RESET_SYSTEM); }
 
@@ -115,19 +120,18 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
   bool cmd_sent_{false};
-  int8_t retries_left_{2};
-  CircularCommandQueue cmd_queue_;
+  uint8_t retries_left_{2};
+  StaticRingBuffer<Command, COMMAND_QUEUE_SIZE> cmd_queue_;
   uint32_t ts_last_cmd_sent_{0};
   // Values of the queued range and latency commands, in the sensor's steps of 0.15 m and 0.025 s.
   // A later command replaces them, which leaves the sensor in the same final state.
   int16_t det_range_steps_[8]{};
   uint16_t latency_steps_[2]{};
 
-  uint8_t read_message_();
-  uint8_t find_prompt_();
+  bool read_message_();
+  void read_state_();
   /// Run the command at the front of the queue; true when it is done
-  bool run_command_(const Command &cmd);
-  bool run_read_state_();
+  bool run_command_(const Command &cmd, uint32_t now);
   /// Handle a reply to a sent command; true when the command is done
   bool handle_reply_(const Command &cmd);
   void format_command_(const Command &cmd, char *buf, size_t size);
