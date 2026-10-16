@@ -7,7 +7,8 @@ namespace esphome::gpio_expander {
 
 /// Pin of a GPIO expander. Parent provides pin_mode(pin, flags), digital_read(pin) and digital_write(pin, value).
 /// dump_summary() is specialized per expander with the macros below, outside the template so that its format
-/// string stays in flash on ESP8266. Built by gpio_expander.new_expander_pin().
+/// string stays in flash on ESP8266; a missing macro is an undefined reference to
+/// ExpanderGPIOPin<X>::dump_summary. Built by pins.new_parented_pin().
 template<typename Parent> class ExpanderGPIOPin final : public GPIOPin, public Parented<Parent> {
  public:
   // User provided, not "= default": `new(p) ExpanderGPIOPin()` would zero-fill .bss that is already zero.
@@ -17,7 +18,6 @@ template<typename Parent> class ExpanderGPIOPin final : public GPIOPin, public P
   void pin_mode(gpio::Flags flags) override { this->parent_->pin_mode(this->pin_, flags); }
   bool digital_read() override { return this->parent_->digital_read(this->pin_) != this->inverted_; }
   void digital_write(bool value) override { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-  // Defined per expander with ESPHOME_EXPANDER_PIN_SUMMARY; a missing one is an undefined reference here.
   size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }

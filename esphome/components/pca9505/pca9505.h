@@ -4,7 +4,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
-#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome::pca9505 {
@@ -50,8 +49,24 @@ class PCA9505Component final : public Component,
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-using PCA9505GPIOPin = gpio_expander::ExpanderGPIOPin<PCA9505Component>;
+class PCA9505GPIOPin final : public GPIOPin, public Parented<PCA9505Component> {
+ public:
+  void setup() override;
+  void pin_mode(gpio::Flags flags) override;
+  bool digital_read() override;
+  void digital_write(bool value) override;
+  size_t dump_summary(char *buffer, size_t len) const override;
+
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
+
+  gpio::Flags get_flags() const override { return this->flags_; }
+
+ protected:
+  uint8_t pin_{0};
+  bool inverted_{false};
+  gpio::Flags flags_{};
+};
 
 }  // namespace esphome::pca9505
-
-ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::pca9505::PCA9505Component);
