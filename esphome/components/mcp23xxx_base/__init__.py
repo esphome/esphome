@@ -7,9 +7,6 @@ from esphome.const import (
     CONF_INPUT,
     CONF_INTERRUPT,
     CONF_INTERRUPT_PIN,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
     CONF_OPEN_DRAIN_INTERRUPT,
     CONF_OUTPUT,
     CONF_PULLUP,
@@ -72,16 +69,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23XXX, MCP23XXX_PIN_SCHEMA)
 async def mcp23xxx_pin_to_code(config: ConfigType) -> MockObj:
     parent_id: ID = config[CONF_MCP23XXX]
-    parent = await cg.get_variable(parent_id)
-
     num_pins = cg.TemplateArguments(CORE.data[CONF_MCP23XXX][parent_id.id])
-
-    var = cg.new_Pvariable(config[CONF_ID], num_pins)
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    var = await pins.new_parented_pin(config, CONF_MCP23XXX, num_pins)
     cg.add(var.set_interrupt_mode(config[CONF_INTERRUPT]))
     return var
