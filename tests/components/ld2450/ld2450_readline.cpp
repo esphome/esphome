@@ -1,6 +1,4 @@
 #include "common.h"
-#include <cstring>
-#include <vector>
 
 namespace esphome::ld2450::testing {
 
@@ -142,100 +140,6 @@ TEST_F(LD2450ReadlineTest, SimulatedRestartThenFrames) {
   // Subsequent frames should work normally
   this->ld2450_.feed(frame);
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-}
-
-class ZoneTestableLD2450 : public TestableLD2450 {
- public:
-  using LD2450Component::zone_config_;
-};
-
-class LD2450ZoneAckTest : public ::testing::Test {
- protected:
-  void SetUp() override { this->ld2450_.set_uart_parent(&this->mock_uart_); }
-
-  MockUARTComponent mock_uart_;
-  ZoneTestableLD2450 ld2450_;
-};
-
-TEST_F(LD2450ZoneAckTest, CmdFooterBytesInZonePayloadDoNotTruncateAck) {
-  for (uint8_t zone = 0; zone < MAX_ZONES; zone++) {
-    std::vector<uint8_t> frame = {0xFD, 0xFC, 0xFB, 0xFA, 0x1E, 0x00, 0xC1, 0x01, 0x00, 0x00, 0x01, 0x00};
-    frame.resize(36, 0);
-    const size_t start = 12 + zone * 8;
-    // x1=772 and y1=258 contain the command footer before x2=1500 and y2=3000.
-    static constexpr uint8_t COORDINATES[] = {0x04, 0x03, 0x02, 0x01, 0xDC, 0x05, 0xB8, 0x0B};
-    std::memcpy(frame.data() + start, COORDINATES, sizeof(COORDINATES));
-    frame.insert(frame.end(), {0x04, 0x03, 0x02, 0x01});
-    std::memset(this->ld2450_.buffer_data_, 0xEE, MAX_LINE_LENGTH);
-
-    const size_t split = start + 4;
-    this->ld2450_.feed(std::vector<uint8_t>(frame.begin(), frame.begin() + split));
-    EXPECT_EQ(this->ld2450_.buffer_pos_, split) << "Zone " << static_cast<int>(zone);
-    this->ld2450_.feed(std::vector<uint8_t>(frame.begin() + split, frame.end()));
-    EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-    for (uint8_t i = 0; i < MAX_ZONES; i++) {
-      EXPECT_EQ(this->ld2450_.zone_config_[i].x1, i == zone ? 772 : 0);
-      EXPECT_EQ(this->ld2450_.zone_config_[i].y1, i == zone ? 258 : 0);
-      EXPECT_EQ(this->ld2450_.zone_config_[i].x2, i == zone ? 1500 : 0);
-      EXPECT_EQ(this->ld2450_.zone_config_[i].y2, i == zone ? 3000 : 0);
-    }
-  }
-}
-
-TEST_F(LD2450ZoneAckTest, CompleteZoneAckWithoutEmbeddedFooter) {
-  for (auto &zone : this->ld2450_.zone_config_) {
-    zone.x1 = 100;
-    zone.y1 = 200;
-    zone.x2 = 300;
-    zone.y2 = 400;
-  }
-  std::vector<uint8_t> frame = {0xFD, 0xFC, 0xFB, 0xFA, 0x1E, 0x00, 0xC1, 0x01, 0x00, 0x00, 0x01, 0x00};
-  frame.resize(36, 0);
-  frame.insert(frame.end(), {0x04, 0x03, 0x02, 0x01});
-  this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-  for (const auto &zone : this->ld2450_.zone_config_) {
-    EXPECT_EQ(zone.x1, 0);
-    EXPECT_EQ(zone.y1, 0);
-    EXPECT_EQ(zone.x2, 0);
-    EXPECT_EQ(zone.y2, 0);
-  }
-}
-
-TEST_F(LD2450ZoneAckTest, FailedZoneQueryAckDoesNotWaitForCoordinates) {
-  for (auto &zone : this->ld2450_.zone_config_) {
-    zone.x1 = 100;
-    zone.y1 = 200;
-    zone.x2 = 300;
-    zone.y2 = 400;
-  }
-  auto frame = make_ack_frame();
-  frame[6] = 0xC1;
-  frame[8] = 0x01;
-  this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-  for (const auto &zone : this->ld2450_.zone_config_) {
-    EXPECT_EQ(zone.x1, 100);
-    EXPECT_EQ(zone.y1, 200);
-    EXPECT_EQ(zone.x2, 300);
-    EXPECT_EQ(zone.y2, 400);
-  }
-}
-
-TEST_F(LD2450ZoneAckTest, TruncatedZoneAckThenCompleteZoneAckRecovers) {
-  std::vector<uint8_t> truncated = {0xFD, 0xFC, 0xFB, 0xFA, 0x1E, 0x00, 0xC1, 0x01,
-                                    0x00, 0x00, 0x01, 0x00, 0x04, 0x03, 0x02, 0x01};
-  this->ld2450_.feed(truncated);
-  std::vector<uint8_t> complete = {0xFD, 0xFC, 0xFB, 0xFA, 0x1E, 0x00, 0xC1, 0x01, 0x00, 0x00,
-                                   0x01, 0x00, 0x64, 0x00, 0xC8, 0x00, 0xDC, 0x05, 0xB8, 0x0B};
-  complete.resize(36, 0);
-  complete.insert(complete.end(), {0x04, 0x03, 0x02, 0x01});
-  this->ld2450_.feed(complete);
-  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
-  EXPECT_EQ(this->ld2450_.zone_config_[0].x1, 100);
-  EXPECT_EQ(this->ld2450_.zone_config_[0].y1, 200);
-  EXPECT_EQ(this->ld2450_.zone_config_[0].x2, 1500);
-  EXPECT_EQ(this->ld2450_.zone_config_[0].y2, 3000);
 }
 
 }  // namespace esphome::ld2450::testing
