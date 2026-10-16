@@ -41,23 +41,28 @@ def test_rejects_climate_control_options(
         )
 
 
-@pytest.mark.parametrize("has_rx", [True, False])
-def test_receive_pin_required(
-    set_core_config: SetCoreConfigCallable, has_rx: bool
+@pytest.mark.parametrize("missing", [None, "rx_pin", "tx_pin"])
+def test_both_uart_pins_required(
+    set_core_config: SetCoreConfigCallable, missing: str | None
 ) -> None:
-    bus_id = ID("capture_uart", is_declaration=True, type=uart.IDFUARTComponent)
-    bus = {"id": bus_id, "baud_rate": 9600, "tx_pin": {"number": 17}}
-    if has_rx:
-        bus["rx_pin"] = {"number": 16}
+    bus_id = ID("heater_uart", is_declaration=True, type=uart.IDFUARTComponent)
+    bus = {
+        "id": bus_id,
+        "baud_rate": 9600,
+        "rx_pin": {"number": 16},
+        "tx_pin": {"number": 17},
+    }
+    if missing is not None:
+        del bus[missing]
     full = Config()
     full["uart"] = [bus]
     full.declare_ids.append((bus_id, ["uart", 0, "id"]))
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
-    config = {"uart_id": ID("capture_uart", type=uart.IDFUARTComponent)}
-    if has_rx:
+    config = {"uart_id": ID("heater_uart", type=uart.IDFUARTComponent)}
+    if missing is None:
         FINAL_VALIDATE_SCHEMA(config)
     else:
-        with pytest.raises(cv.Invalid, match="rx_pin"):
+        with pytest.raises(cv.Invalid, match=missing):
             FINAL_VALIDATE_SCHEMA(config)
 
 
@@ -82,28 +87,6 @@ def test_read_only_entities(set_core_config: SetCoreConfigCallable) -> None:
     assert config["communication"]["device_class"] == "connectivity"
     assert config["heating"]["device_class"] == "heat"
     assert config["internal"] is False
-
-
-@pytest.mark.parametrize("has_tx", [True, False])
-def test_transmit_pin_required(
-    set_core_config: SetCoreConfigCallable, has_tx: bool
-) -> None:
-    bus_id = ID("heater_uart", is_declaration=True, type=uart.IDFUARTComponent)
-    bus = {"id": bus_id, "baud_rate": 9600, "rx_pin": {"number": 16}}
-    if has_tx:
-        bus["tx_pin"] = {"number": 17}
-    full = Config()
-    full["uart"] = [bus]
-    full.declare_ids.append((bus_id, ["uart", 0, "id"]))
-    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
-    config = {
-        "uart_id": ID("heater_uart", type=uart.IDFUARTComponent),
-    }
-    if has_tx:
-        FINAL_VALIDATE_SCHEMA(config)
-    else:
-        with pytest.raises(cv.Invalid, match="tx_pin"):
-            FINAL_VALIDATE_SCHEMA(config)
 
 
 def test_custom_communication_timeout(set_core_config: SetCoreConfigCallable) -> None:

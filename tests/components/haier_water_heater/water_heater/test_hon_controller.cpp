@@ -41,7 +41,7 @@ class TestableHeater : public HonWaterHeater {
  public:
   using HonWaterHeater::poll_status_;
   void set_network_pending(bool value) { this->network_pending_ = value; }
-  bool waiting_poll() const { return this->waiting_poll_; }
+  bool waiting_poll() const { return this->awaiting_ == Awaiting::AWAITING_POLL; }
   bool pending_off() const { return this->pending_off_; }
   uint8_t command_count() const { return this->command_count_; }
   void cancel_test_intervals() {
@@ -62,7 +62,7 @@ class HonControllerTest : public ::testing::Test {
   }
   void TearDown() override { this->heater_.cancel_test_intervals(); }
   void set_clock_(uint32_t ms) { LoopBlockingGuard clock{nullptr, nullptr, ms}; }
-  void status_(bool powered, bool unknown = false, bool eco = false) {
+  void status_(bool powered, bool unknown = false, bool eco = false, bool bps = false) {
     std::array<uint8_t, 61> core{};
     core[0] = 60;
     core[7] = 2;
@@ -71,8 +71,9 @@ class HonControllerTest : public ::testing::Test {
     core[10] = 42;
     core[11] = 5;
     core[23] = 43;
-    core[46] = (unknown || eco) ? 0 : 16;
-    core[47] = ((unknown || eco) ? 0 : 16) | (powered ? 1 : 0);
+    core[46] = (unknown || eco || bps) ? 0 : 16;
+    core[47] = ((unknown || eco || bps) ? 0 : 16) | (powered ? 1 : 0);
+    core[48] = bps ? 4 : 0;
     core[49] = eco ? 4 : 0;
     for (size_t i = 0; i < 60; i++) {
       core[60] += core[i];
@@ -131,6 +132,26 @@ TEST_F(HonControllerTest, OffSurvivesTimeoutAndCancelsQueuedMode) {
   this->expect_off_();
   EXPECT_FALSE(this->heater_.pending_off());
   EXPECT_EQ(this->uart_.sent.size(), 2);
+}
+
+TEST_F(HonControllerTest, ActiveModeIsNotRequestedAgain) {
+  this->status_(true, false, false, true);
+  this->request_bps_();
+  EXPECT_EQ(this->heater_.command_count(), 0);
+  EXPECT_TRUE(this->uart_.sent.empty());
+  auto call = this->heater_.make_call();
+  call.set_mode(water_heater::WATER_HEATER_MODE_ECO);
+  call.perform();
+  EXPECT_EQ(this->heater_.command_count(), 2);  // through Normal, then ECO
+}
+
+TEST_F(HonControllerTest, PowerOnIsNotRequestedAgain) {
+  this->status_(true);
+  auto call = this->heater_.make_call();
+  call.set_on(true);
+  call.set_target_temperature(40);
+  call.perform();
+  EXPECT_EQ(this->heater_.command_count(), 1);  // the temperature only
 }
 
 TEST_F(HonControllerTest, OffFollowsConfirmedInFlightCommand) {
