@@ -1,116 +1,83 @@
 #pragma once
-
+#include "esphome/core/defines.h"
 #ifdef USE_ESP32
-
-#include <cstdint>
-
+#include <atomic>
+#include <esp_intr_alloc.h>
+#include "device_model.h"
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/gpio.h"
-
-#include <driver/gpio.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 namespace esphome::one_wire_device {
-
 class OneWireDeviceComponent final : public Component {
  public:
   void setup() override;
-  void loop() override;
   void dump_config() override;
   void on_shutdown() override;
-
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   void set_address(uint64_t address) { this->address_ = address; }
-  void set_temperature(float temperature) { this->temperature_ = temperature; }
-  void set_timing_scale(uint8_t scale) { this->timing_scale_ = scale; }
-  void set_interrupt_mode(bool enabled) { this->interrupt_mode_ = enabled; }
+  void set_family(uint8_t family) { this->family_ = family; }
+  bool set_temperature(float value);
+#ifdef USE_SENSOR
+  void set_source_sensor(sensor::Sensor *source) {
+    this->source_ = source;
+    this->temperature_.store(INT32_MIN);
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  void set_pio_source(uint8_t channel, binary_sensor::BinarySensor *source) {
+    this->pio_sources_[channel] = source;
+    this->pio_.store(this->pio_.load() & ~(1U << (channel + 8)));
+  }
+#endif
 
  protected:
-  enum class SlotResult : uint8_t {
-    OK,
-    TIMEOUT,
-    RESET,
-  };
-
-  enum class IsrState : uint8_t {
-    RX_ROM_COMMAND,
-    SEARCH_ID,
-    SEARCH_COMPLEMENT,
-    SEARCH_BRANCH,
-    RX_MATCH_ROM,
-    RX_FUNCTION,
-    RX_WRITE_SCRATCHPAD,
-    TX_BYTES,
-    TX_POWER,
-    IGNORE,
-  };
-
-  InternalGPIOPin *pin_{nullptr};
-  ISRInternalGPIOPin isr_pin_;
-  gpio_num_t gpio_num_{GPIO_NUM_NC};
-  uint64_t address_{0};
-  float temperature_{23.5f};
-  uint8_t timing_scale_{1};
-  bool interrupt_mode_{false};
-  uint8_t rom_[8] = {0};
-  uint8_t scratchpad_[9] = {0};
-  uint8_t resolution_{12};
-  TaskHandle_t task_handle_{nullptr};
-  volatile bool stopping_{false};
-  uint32_t last_stats_ms_{0};
-  volatile uint32_t reset_count_{0};
-  volatile uint32_t transaction_count_{0};
-  volatile uint32_t rom_command_count_{0};
-  volatile uint32_t function_command_count_{0};
-  volatile uint32_t send_zero_count_{0};
-  volatile uint32_t send_one_count_{0};
-  volatile uint32_t slot_error_count_{0};
-  volatile uint8_t last_error_status_{0};
-  volatile IsrState isr_state_{IsrState::RX_ROM_COMMAND};
-  volatile uint8_t isr_bit_index_{0};
-  volatile uint8_t isr_byte_index_{0};
-  volatile uint8_t isr_rx_byte_{0};
-  volatile uint8_t isr_rx_buffer_[8] = {0};
-  volatile uint8_t isr_tx_buffer_[9] = {0};
-  volatile uint8_t isr_tx_length_{0};
-  volatile uint8_t isr_search_bit_{0};
-  volatile bool isr_drive_active_{false};
-  volatile bool isr_ignore_edge_{false};
-  IsrState isr_after_tx_state_{IsrState::RX_ROM_COMMAND};
-  int16_t temperature_raw_{0};
-
-  // The ISR path must stay bounded, allocation-free, log-free, and IRAM-safe.
-  static void task_entry(void *arg);
   static void IRAM_ATTR gpio_isr(void *arg);
-  void handle_isr_edge_();
-  void isr_reset_();
-  void isr_receive_bit_(bool bit);
-  void isr_complete_byte_(uint8_t value);
-  void isr_transmit_bit_();
-  void task_loop_();
-
-  void configure_rom_();
-  void configure_scratchpad_();
-  void update_scratchpad_crc_();
-  static uint8_t IRAM_ATTR crc8(const uint8_t *data, uint8_t length);
-
-  void release_bus_();
-  void drive_bus_low_();
-  bool wait_for_low_(uint32_t timeout_us);
-  bool wait_for_high_(uint32_t timeout_us);
-  bool handle_reset_();
-  SlotResult receive_bit_(bool *value);
-  SlotResult send_bit_(bool value);
-  SlotResult receive_byte_(uint8_t *value);
-  SlotResult send_byte_(uint8_t value);
-  SlotResult receive_bytes_(uint8_t *data, uint8_t length);
-  SlotResult send_bytes_(const uint8_t *data, uint8_t length);
-  void serve_transaction_();
-  void drain_notifications_();
-  uint32_t scale_(uint32_t value) const { return value * this->timing_scale_; }
+  static void install_interrupt(void *arg);
+  static void free_interrupt(void *arg);
+  void IRAM_ATTR handle_edge_();
+  void IRAM_ATTR finish_reset_();
+  void IRAM_ATTR clear_interrupt_();
+  void IRAM_ATTR enable_interrupt_();
+  bool IRAM_ATTR read_() const;
+  void IRAM_ATTR release_();
+  void IRAM_ATTR pull_low_();
+  bool IRAM_ATTR available_() const;
+  void set_pio_(uint8_t channel, bool value);
+  InternalGPIOPin *pin_{nullptr};
+  uint64_t address_{0};
+  uint8_t family_{0x28}, pin_number_{0}, interrupt_core_{0};
+  intr_handle_t interrupt_handle_{nullptr};
+  esp_err_t interrupt_error_{ESP_OK};
+  std::atomic<int32_t> temperature_{376};  // One scalar snapshot, in 1/16 C; INT32_MIN means unavailable.
+  std::atomic<uint32_t> pio_{0x303};       // Input levels and independently initialized validity bits.
+  std::atomic<bool> stopping_{false};
+  std::atomic<uint32_t> resets_{0}, slots_{0};
+  DeviceModel model_;
+  bool awaiting_release_{false}, active_session_{false};
+  uint32_t falling_us_{0};
+#ifdef USE_SENSOR
+  sensor::Sensor *source_{nullptr};
+#endif
+#ifdef USE_BINARY_SENSOR
+  binary_sensor::BinarySensor *pio_sources_[2]{};
+#endif
 };
+template<typename... Ts> class SetTemperatureAction final : public Action<Ts...> {
+ public:
+  explicit SetTemperatureAction(OneWireDeviceComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(float, temperature)
+  void play(Ts... x) override { this->parent_->set_temperature(this->temperature_.value(x...)); }
 
+ protected:
+  OneWireDeviceComponent *parent_;
+};
 }  // namespace esphome::one_wire_device
-
-#endif  // USE_ESP32
+#endif
