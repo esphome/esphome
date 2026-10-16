@@ -28,6 +28,8 @@ float segment_value(size_t index, float x, int y = 0) {
 }
 }  // namespace
 
+// The component is final and its command queue protected, so these tests check the segment
+// reads and their arguments; the enqueued DetRangeCfgCommand itself is not inspected.
 class SettingsActionTest : public ::testing::Test {
  protected:
   void SetUp() override { call_record() = CallRecord{}; }
