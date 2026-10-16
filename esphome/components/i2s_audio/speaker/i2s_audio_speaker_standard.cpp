@@ -591,6 +591,8 @@ size_t I2SAudioSpeaker::write_widened_(const uint8_t *input, uint32_t frames) {
     esp_audio_libs::pcm_convert::copy_frames(input, widened, input_bytes_per_sample, channels, output_bytes_per_sample,
                                              channels, pass_frames);
     const size_t pass_bytes = this->output_stream_info_.frames_to_bytes(pass_frames);
+    // 8-bit mono widened to 16-bit mono needs the pair swap; passes hold whole pairs since writes are pair-aligned
+    this->swap_esp32_mono_samples_(widened, pass_bytes);
     size_t bw = 0;
     i2s_channel_write(this->tx_handle_, widened, pass_bytes, &bw, WRITE_TIMEOUT_TICKS);
     bytes_written += bw;

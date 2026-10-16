@@ -106,19 +106,15 @@ def _set_stream_limits(config: ConfigType) -> ConfigType:
         )(config)
         return config
 
-    # The original ESP32 cannot lay out sub-16-bit slots that match ESPHome's packed audio, so the smallest
-    # stream it accepts is 16-bit (see start_i2s_driver); the other variants handle 8-bit.
-    min_bits_per_sample = 16 if esp32.get_esp32_variant() == esp32.VARIANT_ESP32 else 8
-
     # The configured bits per sample sets the I2S slot width, but the speaker converts streams of other widths
-    # before clocking them out (see start_i2s_driver). Advertise up to 32-bit so those streams are accepted
-    # rather than forcing an upstream conversion.
+    # before clocking them out (see start_i2s_driver), widening them on the original ESP32. Advertise 8- to 32-bit
+    # so those streams are accepted rather than forcing an upstream conversion.
     max_bits_per_sample = 32
 
     if config[CONF_I2S_MODE] == CONF_PRIMARY:
         # Primary mode can reconfigure the bus to the incoming sample rate and channel count.
         audio.set_stream_limits(
-            min_bits_per_sample=min_bits_per_sample,
+            min_bits_per_sample=8,
             max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
@@ -128,7 +124,7 @@ def _set_stream_limits(config: ConfigType) -> ConfigType:
     else:
         # Secondary mode has unmodifiable min/max sample rates
         audio.set_stream_limits(
-            min_bits_per_sample=min_bits_per_sample,
+            min_bits_per_sample=8,
             max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
