@@ -38,8 +38,7 @@ void SCD4XComponent::setup() {
     this->set_timeout(500, [this]() {
       uint16_t raw_serial_number[3];
       if (!this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1)) {
-        ESP_LOGE(TAG, "Failed to read serial number");
-        this->mark_failed(LOG_STR("Unable to read firmware version"));
+        this->mark_failed(LOG_STR("Unable to read serial number"));
         return;
       }
       ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),

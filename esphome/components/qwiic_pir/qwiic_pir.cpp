@@ -15,7 +15,6 @@ void QwiicPIRComponent::setup() {
   }
 
   if (chip_id != QWIIC_PIR_DEVICE_ID) {
-    ESP_LOGE(TAG, "Unknown chip ID");
     this->mark_failed(LOG_STR("Unknown chip ID"));
     return;
   }

@@ -223,6 +223,19 @@ void SGP30Component::write_iaq_baseline_(uint16_t eco2_baseline, uint16_t tvoc_b
 void SGP30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SGP30:");
   LOG_I2C_DEVICE(this);
+  if (!this->is_failed()) {
+    ESP_LOGCONFIG(TAG, "  Serial number: %" PRIu64, this->serial_number_);
+    if (this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) {
+      ESP_LOGCONFIG(TAG,
+                    "  Baselines:\n"
+                    "    eCO2: 0x%04X\n"
+                    "    TVOC: 0x%04X",
+                    this->eco2_baseline_, this->tvoc_baseline_);
+    } else {
+      ESP_LOGCONFIG(TAG, "  Baselines not configured");
+    }
+    ESP_LOGCONFIG(TAG, "  Warm up time: %" PRIu32 "s", this->required_warm_up_time_);
+  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "eCO2 sensor", this->eco2_sensor_);
   LOG_SENSOR("  ", "TVOC sensor", this->tvoc_sensor_);

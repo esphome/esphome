@@ -13,7 +13,6 @@ void SGP4xComponent::setup() {
   // Serial Number identification
   uint16_t raw_serial_number[3];
   if (!this->get_register(SGP4X_CMD_GET_SERIAL_ID, raw_serial_number, 3, 1)) {
-    ESP_LOGE(TAG, "Get serial number failed");
     this->mark_failed(LOG_STR("Get serial number failed"));
     return;
   }
@@ -260,6 +259,14 @@ void SGP4xComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Store baseline: %s", YESNO(this->store_baseline_));
 
+  if (!this->is_failed()) {
+    ESP_LOGCONFIG(TAG,
+                  "  Type: %s\n"
+                  "  Serial number: %" PRIu64 "\n"
+                  "  Minimum Samples: %f",
+                  this->sgp_type_ == SGP41 ? LOG_STR_LITERAL("SGP41") : LOG_STR_LITERAL("SGP40"), this->serial_number_,
+                  GasIndexAlgorithm_INITIAL_BLACKOUT);
+  }
   LOG_UPDATE_INTERVAL(this);
 
   ESP_LOGCONFIG(TAG, "  Compensation:");
