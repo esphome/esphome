@@ -502,9 +502,12 @@ class WeikaiChannel final : public uart::UARTComponent {
 
   /// @brief the buffer where we store temporarily the bytes received
   WKRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
-  WeikaiComponent *parent_;   ///< our WK2168component parent
-  uint8_t channel_;           ///< our Channel number
-  const char *name_{""};      ///< name of the entity (string literal, no heap allocation)
+  WeikaiComponent *parent_;  ///< our WK2168component parent
+  uint8_t channel_;          ///< our Channel number
+  const char *name_{""};     ///< name of the entity (string literal, no heap allocation)
+  /// Lower bound of the free room in the transmit FIFO: the chip only empties it, only we fill it.
+  /// Saves reading the room before every write.
+  uint16_t tx_room_estimate_{0};
   bool rfoe_latched_{false};  ///< RFOE seen by an FSR read that was not made by rx_in_fifo_()
 };
 

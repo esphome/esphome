@@ -453,17 +453,22 @@ void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
   // Split large writes in chunks of at most XFER_MAX_SIZE bytes. Before each chunk, wait for room in the transmit FIFO.
   while (length > 0) {
     size_t const chunk = std::min(length, XFER_MAX_SIZE);
-    // time needed to send 'chunk' bytes (up to 12 bits per byte), plus a margin
-    uint32_t const timeout_ms = static_cast<uint32_t>(chunk * 12000ULL / std::max<uint32_t>(this->baud_rate_, 1)) + 50;
-    uint32_t const start_time = millis();
-    while (this->tx_room_() < chunk) {
-      if (millis() - start_time > timeout_ms) {
-        ESP_LOGE(TAG, "write_array: timeout waiting for room in the transmit FIFO - %d bytes dropped", (int) length);
-        return;
+    if (this->tx_room_estimate_ < chunk) {
+      // The estimate is too low: read the real room, and wait for it if needed.
+      // The time needed to send 'chunk' bytes (up to 12 bits per byte) plus a margin gives the timeout.
+      uint32_t const timeout_ms =
+          static_cast<uint32_t>(chunk * 12000ULL / std::max<uint32_t>(this->baud_rate_, 1)) + 50;
+      uint32_t const start_time = millis();
+      while ((this->tx_room_estimate_ = this->tx_room_()) < chunk) {
+        if (millis() - start_time > timeout_ms) {
+          ESP_LOGE(TAG, "write_array: timeout waiting for room in the transmit FIFO - %d bytes dropped", (int) length);
+          return;
+        }
+        yield();
       }
-      yield();
     }
     this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), chunk);
+    this->tx_room_estimate_ -= chunk;
     buffer += chunk;
     length -= chunk;
   }
