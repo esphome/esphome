@@ -66,8 +66,7 @@ def _final_validate(config: ConfigType) -> None:
             "Max touch channel must equal the highest binary sensor channel or be removed for auto calculation",
             path=[CONF_MAX_TOUCH_CHANNEL],
         )
-    path = fconf.get_path_for_id(config[CONF_ID])[:-1]
-    this_config = fconf.get_config_for_path(path)
+    this_config = fv.get_declaring_config(config[CONF_ID], fconf)
     this_config[CONF_MAX_TOUCH_CHANNEL] = max_touch_channel
 
 

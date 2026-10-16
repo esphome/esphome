@@ -49,9 +49,7 @@ def _final_validate(config: ConfigType) -> None:
     if config[CONF_TYPE] != CONF_STATUS:
         # Only run this validation if a status sensor is being configured
         return
-    full_config = fv.full_config.get()
-    transport_path = full_config.get_path_for_id(config[CONF_TRANSPORT_ID])[:-1]
-    transport_config = full_config.get_config_for_path(transport_path)
+    transport_config = fv.get_declaring_config(config[CONF_TRANSPORT_ID])
     if transport_config[CONF_PING_PONG_ENABLE] and any(
         CONF_ENCRYPTION in p
         for p in transport_config[CONF_PROVIDERS]

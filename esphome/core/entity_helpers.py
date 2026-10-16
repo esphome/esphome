@@ -531,14 +531,12 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
             # Get config for the parent entity
             parent_id = _walk_config(config, parent_id_property)
-            parent_path = fconf.get_path_for_id(parent_id)[:-1]
-            parent_config = fconf.get_config_for_path(parent_path)
+            parent_config = fv.get_declaring_config(parent_id, fconf)
 
             # If parent sensor has the property set, inherit it
             if property in parent_config:
-                path = fconf.get_path_for_id(config[CONF_ID])[:-1]
                 this_config = _walk_config(
-                    fconf.get_config_for_path(path), property_path
+                    fv.get_declaring_config(config[CONF_ID], fconf), property_path
                 )
                 value = parent_config[property]
                 if transform:
