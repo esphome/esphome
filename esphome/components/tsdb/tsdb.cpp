@@ -101,8 +101,8 @@ bool TsdbComponent::mount_filesystem_() {
   const esp_partition_t *partition = esp_partition_find_first(
       ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(LITTLEFS_SUBTYPE), this->partition_label_.c_str());
   if (partition == nullptr) {
-    ESP_LOGE(TAG, "%s: no data/littlefs partition '%s' - flash the partition table over USB",
-             this->file_.c_str(), this->partition_label_.c_str());
+    ESP_LOGE(TAG, "%s: no data/littlefs partition '%s' - flash the partition table over USB", this->file_.c_str(),
+             this->partition_label_.c_str());
     return false;
   }
 
@@ -182,8 +182,8 @@ void TsdbComponent::log_init_failure_(const char *stage) {
            database_file_exists(path) ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("missing"));
   if (database_file_exists(path))
     ESP_LOGE(TAG, "    %" PRIu32 " bytes", static_cast<uint32_t>(file_size_of(path)));
-  ESP_LOGE(TAG, "  heap: %" PRIu32 " bytes internal free", static_cast<uint32_t>(
-                 heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)));
+  ESP_LOGE(TAG, "  heap: %" PRIu32 " bytes internal free",
+           static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)));
 }
 
 bool TsdbComponent::open_database_() {

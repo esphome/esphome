@@ -110,9 +110,7 @@ def _validate_size(value: object, *, allow_zero: bool = False) -> int:
 def _validate_partition_size(value: object) -> int:
     bytes_ = _validate_size(value)
     if bytes_ % LITTLEFS_BLOCK_BYTES != 0:
-        raise cv.Invalid(
-            f"partition_size must be a multiple of 4KB, '{value}' is not"
-        )
+        raise cv.Invalid(f"partition_size must be a multiple of 4KB, '{value}' is not")
     if bytes_ < 16 * LITTLEFS_BLOCK_BYTES:
         raise cv.Invalid(f"partition_size must be at least 64KB, got '{value}'")
     return bytes_
@@ -153,7 +151,9 @@ def _validate_config(config: ConfigType) -> ConfigType:
     if min_free >= partition:
         raise cv.Invalid("min_free_bytes must stay below partition_size")
     if max_file + min_free > partition:
-        raise cv.Invalid("max_file_size + min_free_bytes do not fit into partition_size")
+        raise cv.Invalid(
+            "max_file_size + min_free_bytes do not fit into partition_size"
+        )
     return config
 
 
