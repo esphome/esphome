@@ -35,7 +35,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # Another reader of either UART would split the bytes with this one.
     full_config = fv.full_config.get()
     uart_id = str(config[CONF_UART_ID])
@@ -46,7 +46,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
     for key in (CONF_TCP_UART_ID, CONF_UART_ID):
         uart.claim_exclusive(config, DOMAIN, key)
     uart.final_validate_device_schema(DOMAIN, require_tx=True, require_rx=True)(config)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
