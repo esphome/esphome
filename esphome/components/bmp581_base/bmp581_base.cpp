@@ -38,29 +38,6 @@ static const LogString *iir_filter_to_str(IIRFilter filter) {
 void BMP581Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP581:");
 
-  switch (this->error_code_) {
-    case NONE:
-      break;
-    case ERROR_COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case ERROR_WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "Unknown chip ID");
-      break;
-    case ERROR_SENSOR_RESET:
-      ESP_LOGE(TAG, "Reset failed");
-      break;
-    case ERROR_SENSOR_STATUS:
-      ESP_LOGE(TAG, "Get status failed");
-      break;
-    case ERROR_PRIME_IIR_FAILED:
-      ESP_LOGE(TAG, "IIR Filter failed to prime with initial measurement");
-      break;
-    default:
-      ESP_LOGE(TAG, "Error %d", (int) this->error_code_);
-      break;
-  }
-
   LOG_UPDATE_INTERVAL(this);
 
   ESP_LOGCONFIG(TAG, "  Measurement conversion time: %ums", this->conversion_time_);
@@ -96,7 +73,6 @@ void BMP581Component::setup() {
    *  6) Configure and prime IIR Filter(s), if enabled
    */
 
-  this->error_code_ = NONE;
   ////////////////////
   // 1) Soft reboot //
   ////////////////////
@@ -105,8 +81,7 @@ void BMP581Component::setup() {
   if (!this->reset_()) {
     ESP_LOGE(TAG, "Reset failed");
 
-    this->error_code_ = ERROR_SENSOR_RESET;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Reset failed"));
 
     return;
   }
@@ -121,8 +96,7 @@ void BMP581Component::setup() {
   if (!this->bmp_read_byte(BMP581_CHIP_ID, &chip_id)) {
     ESP_LOGE(TAG, "Read chip ID failed");
 
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 
     return;
   }
@@ -131,8 +105,7 @@ void BMP581Component::setup() {
   if (chip_id != BMP581_ASIC_ID && chip_id != BMP585_ASIC_ID) {
     ESP_LOGE(TAG, "Unknown chip ID");
 
-    this->error_code_ = ERROR_WRONG_CHIP_ID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unknown chip ID"));
 
     return;
   }
@@ -144,8 +117,7 @@ void BMP581Component::setup() {
   if (!this->bmp_read_byte(BMP581_STATUS, &this->status_.reg)) {
     ESP_LOGE(TAG, "Failed to read status register");
 
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 
     return;
   }
@@ -154,8 +126,7 @@ void BMP581Component::setup() {
   if (!(this->status_.bit.status_nvm_rdy)) {
     ESP_LOGE(TAG, "NVM not ready");
 
-    this->error_code_ = ERROR_SENSOR_STATUS;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Get status failed"));
 
     return;
   }
@@ -164,8 +135,7 @@ void BMP581Component::setup() {
   if (this->status_.bit.status_nvm_err) {
     ESP_LOGE(TAG, "NVM error detected");
 
-    this->error_code_ = ERROR_SENSOR_STATUS;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Get status failed"));
 
     return;
   }
@@ -178,8 +148,7 @@ void BMP581Component::setup() {
   if (!this->write_interrupt_source_settings_(true)) {
     ESP_LOGE(TAG, "Failed to write interrupt source register");
 
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 
     return;
   }
@@ -200,8 +169,7 @@ void BMP581Component::setup() {
   if (!this->write_oversampling_settings_(this->temperature_oversampling_, this->pressure_oversampling_)) {
     ESP_LOGE(TAG, "Failed to write oversampling register");
 
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 
     return;
   }
@@ -220,8 +188,7 @@ void BMP581Component::setup() {
     if (!this->write_iir_settings_(this->iir_temperature_level_, this->iir_pressure_level_)) {
       ESP_LOGE(TAG, "Failed to write IIR configuration registers");
 
-      this->error_code_ = ERROR_COMMUNICATION_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 
       return;
     }
@@ -229,8 +196,7 @@ void BMP581Component::setup() {
     if (!this->prime_iir_filter_()) {
       ESP_LOGE(TAG, "Failed to prime the IIR filter with an initial measurement");
 
-      this->error_code_ = ERROR_PRIME_IIR_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("IIR Filter failed to prime with initial measurement"));
 
       return;
     }

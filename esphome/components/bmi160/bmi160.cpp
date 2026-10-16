@@ -121,13 +121,13 @@ void BMI160Component::internal_setup_(int stage) {
     case 0:
       uint8_t chipid;
       if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b11010001)) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
 
       ESP_LOGV(TAG, "  Bringing accelerometer out of sleep");
       if (!this->write_byte(BMI160_REGISTER_CMD, (uint8_t) Cmd::ACCL_SET_PMU_MODE | (uint8_t) AcclPmuMode::NORMAL)) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       ESP_LOGV(TAG, "  Waiting for accelerometer to wake up");
@@ -139,7 +139,7 @@ void BMI160Component::internal_setup_(int stage) {
     case 1:
       ESP_LOGV(TAG, "  Bringing gyroscope out of sleep");
       if (!this->write_byte(BMI160_REGISTER_CMD, (uint8_t) Cmd::GYRO_SET_PMU_MODE | (uint8_t) GyroPmuMode::NORMAL)) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       ESP_LOGV(TAG, "  Waiting for gyroscope to wake up");
@@ -152,14 +152,14 @@ void BMI160Component::internal_setup_(int stage) {
       uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOuputDataRate::HZ_25;
       ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
       if (!this->write_byte(BMI160_REGISTER_GYRO_CONFIG, gyro_config)) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       ESP_LOGV(TAG, "  Setting up Gyro Range");
       uint8_t gyro_range = (uint8_t) GyroRange::RANGE_2000_DPS;
       ESP_LOGV(TAG, "  Output gyro_range: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_range));
       if (!this->write_byte(BMI160_REGISTER_GYRO_RANGE, gyro_range)) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
 
@@ -168,14 +168,14 @@ void BMI160Component::internal_setup_(int stage) {
           (uint8_t) AcclFilterMode::PERF | (uint8_t) AcclBandwidth::RES_AVG16 | (uint8_t) AccelOutputDataRate::HZ_25;
       ESP_LOGV(TAG, "  Output accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
       if (!this->write_byte(BMI160_REGISTER_ACCEL_CONFIG, accel_config)) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       ESP_LOGV(TAG, "  Setting up Accel Range");
       uint8_t accel_range = (uint8_t) AccelRange::RANGE_16G;
       ESP_LOGV(TAG, "  Output accel_range: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_range));
       if (!this->write_byte(BMI160_REGISTER_ACCEL_RANGE, accel_range)) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
 
@@ -187,9 +187,6 @@ void BMI160Component::setup() { this->internal_setup_(0); }
 void BMI160Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMI160:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Acceleration X", this->accel_x_sensor_);
   LOG_SENSOR("  ", "Acceleration Y", this->accel_y_sensor_);

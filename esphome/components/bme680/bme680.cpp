@@ -74,19 +74,19 @@ constexpr float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.
 void BME680Component::setup() {
   uint8_t chip_id;
   if (!this->read_byte(BME680_REGISTER_CHIPID, &chip_id) || chip_id != 0x61) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // Read calibration
   uint8_t coeff1[25];
   if (!this->read_bytes(BME680_REGISTER_COEFF1, coeff1, 25)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   uint8_t coeff2[16];
   if (!this->read_bytes(BME680_REGISTER_COEFF2, coeff2, 16)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -119,19 +119,19 @@ void BME680Component::setup() {
 
   uint8_t temp_var = 0;
   if (!this->read_byte(0x02, &temp_var)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->calibration_.res_heat_range = ((temp_var & 0x30) / 16);
 
   if (!this->read_byte(0x00, &temp_var)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->calibration_.res_heat_val = (int8_t) temp_var;
 
   if (!this->read_byte(0x04, &temp_var)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->calibration_.range_sw_err = ((int8_t) temp_var & (int8_t) 0xf0) / 16;
@@ -141,40 +141,40 @@ void BME680Component::setup() {
   // Config register
   uint8_t config_register;
   if (!this->read_byte(BME680_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   config_register &= ~0b00011100;
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->write_byte(BME680_REGISTER_CONFIG, config_register)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // Humidity control register
   uint8_t hum_control;
   if (!this->read_byte(BME680_REGISTER_CONTROL_HUMIDITY, &hum_control)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   hum_control &= ~0b00000111;
   hum_control |= this->humidity_oversampling_ & 0b111;
   if (!this->write_byte(BME680_REGISTER_CONTROL_HUMIDITY, hum_control)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // Gas 1 control register
   uint8_t gas1_control;
   if (!this->read_byte(BME680_REGISTER_CONTROL_GAS1, &gas1_control)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   gas1_control &= ~0b00011111;
   gas1_control |= 1 << 4;
   gas1_control |= 0;  // profile 0
   if (!this->write_byte(BME680_REGISTER_CONTROL_GAS1, gas1_control)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -183,13 +183,13 @@ void BME680Component::setup() {
   // Gas 0 control register
   uint8_t gas0_control;
   if (!this->read_byte(BME680_REGISTER_CONTROL_GAS0, &gas0_control)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   gas0_control &= ~0b00001000;
   gas0_control |= heat_off << 3;
   if (!this->write_byte(BME680_REGISTER_CONTROL_GAS0, gas0_control)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -197,7 +197,7 @@ void BME680Component::setup() {
     // Gas Heater Temperature
     uint8_t temperature = this->calc_heater_resistance_(this->heater_temperature_);
     if (!this->write_byte(BME680_REGISTER_HEATER_HEAT0, temperature)) {
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
 
@@ -205,7 +205,7 @@ void BME680Component::setup() {
     uint8_t duration = this->calc_heater_duration_(this->heater_duration_);
 
     if (!this->write_byte(BME680_REGISTER_HEATER_WAIT0, duration)) {
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
   }
@@ -214,9 +214,6 @@ void BME680Component::setup() {
 void BME680Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME680:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
 
