@@ -49,7 +49,6 @@ class PCA6416AComponent final : public Component,
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-/// Helper class to expose a PCA6416A pin as an internal input GPIO pin.
 using PCA6416AGPIOPin = gpio_expander::ExpanderGPIOPin<PCA6416AComponent>;
 
 }  // namespace esphome::pca6416a

@@ -5,7 +5,7 @@
 #include "esphome/components/gpio_expander/cached_gpio.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "sx1509_gpio_pin.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "sx1509_registers.h"
 
 #include <vector>
@@ -96,6 +96,8 @@ class SX1509Component final : public Component,
   void set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8_t num_cols);
   void clock_(uint8_t osc_source = 2, uint8_t osc_pin_function = 1, uint8_t osc_freq_out = 0, uint8_t osc_divider = 0);
 };
+
+using SX1509GPIOPin = gpio_expander::ExpanderGPIOPin<SX1509Component>;
 
 }  // namespace esphome::sx1509
 

@@ -155,9 +155,6 @@ void MAX6956::dump_config() {
   }
 }
 
-/**************************************
- *    MAX6956GPIOPin                  *
- **************************************/
 }  // namespace esphome::max6956
 
 ESPHOME_EXPANDER_PIN_SUMMARY(esphome::max6956::MAX6956, "%u via Max6956")

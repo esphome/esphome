@@ -53,7 +53,6 @@ class PCA9554Component final : public Component,
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-/// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
 using PCA9554GPIOPin = gpio_expander::ExpanderGPIOPin<PCA9554Component>;
 
 }  // namespace esphome::pca9554
