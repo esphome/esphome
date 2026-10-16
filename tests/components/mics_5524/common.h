@@ -4,9 +4,9 @@
 
 #include <cmath>
 
-#include "esphome/components/mics_5524_gas_sensor/mics_math.h"
+#include "esphome/components/mics_5524/mics_math.h"
 
-namespace esphome::mics_5524_gas_sensor::testing {
+namespace esphome::mics_5524::testing {
 
 using micsmath::air_value_from_voltage;
 using micsmath::calibration_is_stable;
@@ -21,4 +21,4 @@ constexpr micsmath::VendorCurve NH3{0.8f, 0.0015f, 10.0f, 500.0f};
 constexpr micsmath::VendorCurve C2H5OH{0.306f, 0.00057f, 10.0f, 500.0f};
 constexpr micsmath::VendorCurve CH4{0.786f, 0.000023f, 1000.0f, 25000.0f};
 
-}  // namespace esphome::mics_5524_gas_sensor::testing
+}  // namespace esphome::mics_5524::testing

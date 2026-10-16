@@ -5,8 +5,8 @@ sensor:
     name: MiCS-5524 AO
     pin: GPIO35
 
-  - platform: mics_5524_gas_sensor
-    id: mics_5524
+  - platform: mics_5524
+    id: mics_5524_module
     voltage: mics_5524_adc
     voltage_multiplier: 1.5
     air_reference: 3.6

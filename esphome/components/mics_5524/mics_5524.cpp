@@ -1,4 +1,4 @@
-#include "mics_5524_gas_sensor.h"
+#include "mics_5524.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -6,9 +6,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome::mics_5524_gas_sensor {
+namespace esphome::mics_5524 {
 
-ESPHOME_LOG_TAG(TAG, "mics_5524_gas_sensor");
+ESPHOME_LOG_TAG(TAG, "mics_5524");
 
 void MiCS5524GasSensor::publish_ratio(float ratio) {
   const float ppm = micsmath::ppm_from_vendor_curve(ratio, this->curve_);
@@ -264,4 +264,4 @@ void MiCS5524Component::schedule_calibration_retry_() {
   ESP_LOGW(TAG, "retrying the calibration in %" PRIu32 " s", delay / 1000);
 }
 
-}  // namespace esphome::mics_5524_gas_sensor
+}  // namespace esphome::mics_5524

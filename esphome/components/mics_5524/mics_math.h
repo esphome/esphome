@@ -10,7 +10,7 @@
 
 #include <cmath>
 
-namespace esphome::mics_5524_gas_sensor::micsmath {
+namespace esphome::mics_5524::micsmath {
 
 /// Per-gas constants of the vendor model, see `coefficients.py` for the table.
 struct VendorCurve {
@@ -85,4 +85,4 @@ inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
   return static_cast<float>(ppm);
 }
 
-}  // namespace esphome::mics_5524_gas_sensor::micsmath
+}  // namespace esphome::mics_5524::micsmath

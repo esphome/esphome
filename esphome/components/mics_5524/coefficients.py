@@ -1,4 +1,4 @@
-"""Data tables for the ``mics_5524_gas_sensor`` platform.
+"""Data tables for the ``mics_5524`` platform.
 
 The conversion is the vendor model of the `DFRobot_MICS` library (MIT), which is
 what the "Fermion" analog breakout and its clones are sold for:

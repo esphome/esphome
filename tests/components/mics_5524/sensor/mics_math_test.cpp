@@ -1,6 +1,6 @@
 #include "../common.h"
 
-namespace esphome::mics_5524_gas_sensor::testing {
+namespace esphome::mics_5524::testing {
 
 TEST(MicsMath, SaturatedSensorReportsTheTopOfTheRange) {
   // ratio 0 is V_AO at VCC.  The vendor helpers return the top of the range there,
@@ -87,4 +87,4 @@ TEST(MicsMath, SaturatedSensorEndToEnd) {
   EXPECT_FLOAT_EQ(CO.max_ppm, ppm_from_vendor_curve(ratio, CO));
 }
 
-}  // namespace esphome::mics_5524_gas_sensor::testing
+}  // namespace esphome::mics_5524::testing

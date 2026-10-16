@@ -4,8 +4,8 @@ sensor:
     name: MiCS-5524 AO
     pin: ${mics_pin}
 
-  - platform: mics_5524_gas_sensor
-    id: mics_5524
+  - platform: mics_5524
+    id: mics_5524_module
     # The analog breakout runs from 5 V, so the recommended 10k/20k divider keeps
     # the 3.33 V it can put out below the declared limit of the ADC input.
     voltage: mics_5524_adc

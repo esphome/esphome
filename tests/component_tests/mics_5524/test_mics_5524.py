@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.mics_5524_gas_sensor.coefficients import GASES, VendorCurve
-from esphome.components.mics_5524_gas_sensor.sensor import CONFIG_SCHEMA
+from esphome.components.mics_5524.coefficients import GASES, VendorCurve
+from esphome.components.mics_5524.sensor import CONFIG_SCHEMA
 from esphome.const import (
     CONF_AMMONIA,
     CONF_CARBON_MONOXIDE,
@@ -22,15 +22,13 @@ def test_voltage_source_is_a_constructor_argument(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """Every reading needs the sampler, so it is passed at construction."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     assert (
-        "new(mics_5524_boot) mics_5524_gas_sensor::MiCS5524Component(mics_5524_adc);"
-        in main_cpp
+        "new(mics_5524_boot) mics_5524::MiCS5524Component(mics_5524_adc);" in main_cpp
     )
     assert (
-        "new(mics_5524_fixed) mics_5524_gas_sensor::MiCS5524Component(mics_5524_adc);"
-        in main_cpp
+        "new(mics_5524_fixed) mics_5524::MiCS5524Component(mics_5524_adc);" in main_cpp
     )
     assert "set_source(" not in main_cpp
 
@@ -40,17 +38,17 @@ def test_every_gas_becomes_a_sub_sensor_of_its_hub(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """The curve is passed to the constructor and the sub-sensor to its own hub."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     # The vendor label, then threshold, gain, minimum and maximum ppm of the gas.
     assert (
-        'new(mics_5524_co) mics_5524_gas_sensor::MiCS5524GasSensor("CO", 0.425f, '
+        'new(mics_5524_co) mics_5524::MiCS5524GasSensor("CO", 0.425f, '
         "0.000405f, 1.0f, 500.0f);" in main_cpp
     )
     assert "mics_5524_boot->register_gas_sensor(mics_5524_co);" in main_cpp
     # A gas without `max_ppm:` keeps the measuring range of the vendor.
     assert (
-        'new(mics_5524_ch4) mics_5524_gas_sensor::MiCS5524GasSensor("CH4", 0.786f, '
+        'new(mics_5524_ch4) mics_5524::MiCS5524GasSensor("CH4", 0.786f, '
         "2.3e-05f, 1000.0f, 25000.0f);" in main_cpp
     )
     assert "mics_5524_boot->register_gas_sensor(mics_5524_ch4);" in main_cpp
@@ -64,7 +62,7 @@ def test_shared_options_reach_the_hub(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """The analog front end is configured once per physical sensor."""
-    main_cpp = generate_main(component_config_path("mics_5524_gas_sensor.yaml"))
+    main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     assert "mics_5524_boot->set_vcc(5.0f);" in main_cpp
     assert "mics_5524_boot->set_voltage_multiplier(1.5f);" in main_cpp

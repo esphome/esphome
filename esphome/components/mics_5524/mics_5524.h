@@ -10,7 +10,7 @@
 
 #include "mics_math.h"
 
-namespace esphome::mics_5524_gas_sensor {
+namespace esphome::mics_5524 {
 
 /// One gas of a MiCS-5524: converts the ratio the sensor measured with the vendor
 /// curve of that gas and publishes the concentration.
@@ -143,4 +143,4 @@ class MiCS5524Component : public PollingComponent {
 #endif
 };
 
-}  // namespace esphome::mics_5524_gas_sensor
+}  // namespace esphome::mics_5524

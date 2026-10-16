@@ -12,7 +12,7 @@ sensor:
 
   # Calibrated at boot: the reference is averaged from clean air, then every gas
   # below it is published with the same ratio.
-  - platform: mics_5524_gas_sensor
+  - platform: mics_5524
     id: mics_5524_boot
     voltage: mics_5524_adc
     voltage_multiplier: 1.5
@@ -29,7 +29,7 @@ sensor:
       name: MiCS-5524 CH4
 
   # The reference is hard-coded, so nothing is calibrated at boot.
-  - platform: mics_5524_gas_sensor
+  - platform: mics_5524
     id: mics_5524_fixed
     voltage: mics_5524_adc
     air_reference: 3.6
