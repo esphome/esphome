@@ -26,6 +26,7 @@ CONF_SLEEP_TIME = "sleep_time"
 CONF_SCAN_TIME = "scan_time"
 CONF_DEBOUNCE_TIME = "debounce_time"
 CONF_SX1509_ID = "sx1509_id"
+CONF_LED_DRIVER_FREQUENCY = "led_driver_frequency"
 
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 DEPENDENCIES = ["i2c"]
@@ -33,6 +34,18 @@ DOMAIN = "sx1509"
 MULTI_CONF = True
 
 sx1509_ns = cg.esphome_ns.namespace("sx1509")
+LedDriverFrequency = sx1509_ns.enum("LedDriverFrequency")
+
+# The PWM frequency is shared by all output pins; the values are nominal (see sx1509.h).
+LED_DRIVER_FREQUENCIES = {
+    "7840HZ": LedDriverFrequency.LED_DRIVER_FREQ_7840HZ,
+    "3920HZ": LedDriverFrequency.LED_DRIVER_FREQ_3920HZ,
+    "1960HZ": LedDriverFrequency.LED_DRIVER_FREQ_1960HZ,
+    "980HZ": LedDriverFrequency.LED_DRIVER_FREQ_980HZ,
+    "490HZ": LedDriverFrequency.LED_DRIVER_FREQ_490HZ,
+    "245HZ": LedDriverFrequency.LED_DRIVER_FREQ_245HZ,
+    "122HZ": LedDriverFrequency.LED_DRIVER_FREQ_122HZ,
+}
 
 SX1509Component = sx1509_ns.class_(
     "SX1509Component", cg.Component, i2c.I2CDevice, key_provider.KeyProvider
@@ -82,6 +95,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SX1509Component),
             cv.Optional(CONF_KEYPAD): cv.Schema(KEYPAD_SCHEMA),
+            cv.Optional(CONF_LED_DRIVER_FREQUENCY, default="122HZ"): cv.enum(
+                LED_DRIVER_FREQUENCIES, upper=True
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -93,6 +109,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    cg.add(var.set_led_driver_frequency(config[CONF_LED_DRIVER_FREQUENCY]))
     if conf := config.get(CONF_KEYPAD):
         cg.add(var.set_rows_cols(conf[CONF_KEY_ROWS], conf[CONF_KEY_COLUMNS]))
         if (
