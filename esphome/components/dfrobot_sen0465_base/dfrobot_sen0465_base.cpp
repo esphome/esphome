@@ -78,9 +78,10 @@ void DFRobotSEN0465Component::dump_config() {
     for (uint8_t i = 0; i < this->alarm_decimals_; i++)
       scale *= 10.0f;
     const float threshold = this->alarm_threshold_ / scale;
-    ESP_LOGCONFIG(TAG, "  Alarm: %s %.*f",
+    ESP_LOGCONFIG(TAG, "  Alarm: %s %.*f%s",
                   this->alarm_type_ == AlarmType::ALARM_TYPE_HIGH ? LOG_STR_LITERAL("above") : LOG_STR_LITERAL("below"),
-                  this->alarm_decimals_, threshold);
+                  this->alarm_decimals_, threshold,
+                  this->setup_incomplete_ ? LOG_STR_LITERAL(" (not confirmed by the sensor)") : LOG_STR_LITERAL(""));
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -126,7 +127,8 @@ void DFRobotSEN0465Component::step_failed_(const LogString *reason) {
     this->set_timeout(STEP_TIMEOUT_ID, RETRY_DELAY_MS, [this]() { this->retry_step_request_(); });
     return;
   }
-  // Carry on: readings may still work, and the warning stays until one does
+  // Carry on: readings may still work, but the warning stays because the sensor is not set up as configured
+  this->setup_incomplete_ = true;
   this->status_set_warning();
   this->next_step_();
 }
@@ -201,6 +203,9 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
     const float voltage = 3.0f * temperature_raw / 1024.0f;
     const float resistance = voltage * 10000.0f / (3.0f - voltage);
     temperature = 1.0f / (1.0f / 298.15f + std::log(resistance / 10000.0f) / 3380.13f) - 273.15f;
+  } else {
+    // 0 is a disconnected thermistor, 1024 and above a bad frame
+    ESP_LOGW(TAG, "Temperature reading %u is out of range", temperature_raw);
   }
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
@@ -237,7 +242,7 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
 
   if (this->concentration_sensor_ != nullptr)
     this->concentration_sensor_->publish_state(concentration);
-  if (std::isnan(concentration)) {
+  if (std::isnan(concentration) || std::isnan(temperature) || this->setup_incomplete_) {
     this->status_set_warning();
   } else {
     this->status_clear_warning();

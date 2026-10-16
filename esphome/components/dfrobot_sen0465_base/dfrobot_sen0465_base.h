@@ -85,6 +85,8 @@ class DFRobotSEN0465Component : public PollingComponent {
   uint8_t attempts_{0};
   /// Command whose answer is awaited, 0 when no request is outstanding
   uint8_t pending_command_{0};
+  /// A setup step gave up, so the alarm or the mode may not be what was configured
+  bool setup_incomplete_{false};
 
 #ifdef USE_DFROBOT_SEN0465_TEMPERATURE_COMPENSATION
   struct CompensationRange {
