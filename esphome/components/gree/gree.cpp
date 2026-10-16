@@ -195,9 +195,8 @@ uint8_t GreeClimate::fan_speed_() {
       case climate::CLIMATE_FAN_LOW:
         return GREE_FAN_2;
       case climate::CLIMATE_FAN_MEDIUM:
-        return GREE_FAN_3;
       case climate::CLIMATE_FAN_HIGH:
-        // YX1FF high is fan 3 plus a separate Turbo bit in byte 2.
+        // HIGH additionally sets the separate Turbo bit in byte 2.
         return GREE_FAN_3;
       case climate::CLIMATE_FAN_AUTO:
       default:
