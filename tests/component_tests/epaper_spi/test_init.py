@@ -581,3 +581,15 @@ def test_model_with_no_default_init_sequence_generates(
     # sequence array was generated instead of raising during code generation.
     # Allow trailing constructor args (e.g. toggle_dc) after the length.
     assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0[^;]*\);", main_cpp)
+
+
+def test_test_card_overrides_update_interval(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """With nothing else to draw, update_interval is not left at never for the test card."""
+    main_cpp = generate_main(component_config_path("test_card_update_interval.yaml"))
+
+    match = re.search(r"epaper_display->set_update_interval\((\d+)\);", main_cpp)
+    assert match is not None
+    assert int(match.group(1)) != 4294967295
