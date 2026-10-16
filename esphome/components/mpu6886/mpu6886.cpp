@@ -32,54 +32,24 @@ void MPU6886Component::setup() {
   }
 
   ESP_LOGV(TAG, "  Setting up Power Management");
-  // Setup power management
-  uint8_t power_management;
-  if (!this->read_byte(MPU6886_REGISTER_POWER_MANAGEMENT_1, &power_management)) {
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGV(TAG, "  Input power_management: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(power_management));
-  // Set clock source - X-Gyro
-  power_management &= 0b11111000;
-  power_management |= MPU6886_CLOCK_SOURCE_X_GYRO;
-  // Disable sleep
-  power_management &= ~(1 << MPU6886_BIT_SLEEP_ENABLED);
-  // Enable temperature
-  power_management &= ~(1 << MPU6886_BIT_TEMPERATURE_DISABLED);
-  ESP_LOGV(TAG, "  Output power_management: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(power_management));
-  if (!this->write_byte(MPU6886_REGISTER_POWER_MANAGEMENT_1, power_management)) {
+  // Clock source X-Gyro, sleep off, temperature on
+  if (!this->update_register(MPU6886_REGISTER_POWER_MANAGEMENT_1,
+                             0b111 | (1 << MPU6886_BIT_SLEEP_ENABLED) | (1 << MPU6886_BIT_TEMPERATURE_DISABLED),
+                             MPU6886_CLOCK_SOURCE_X_GYRO)) {
     this->mark_failed();
     return;
   }
 
   ESP_LOGV(TAG, "  Setting up Gyroscope Config");
   // Set scale - 2000DPS
-  uint8_t gyro_config;
-  if (!this->read_byte(MPU6886_REGISTER_GYRO_CONFIG, &gyro_config)) {
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGV(TAG, "  Input gyroscope_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
-  gyro_config &= 0b11100111;
-  gyro_config |= MPU6886_SCALE_2000_DPS << 3;
-  ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
-  if (!this->write_byte(MPU6886_REGISTER_GYRO_CONFIG, gyro_config)) {
+  if (!this->update_register(MPU6886_REGISTER_GYRO_CONFIG, 0b00011000, MPU6886_SCALE_2000_DPS << 3)) {
     this->mark_failed();
     return;
   }
 
   ESP_LOGV(TAG, "  Setting up Accelerometer Config");
   // Set range - 2G
-  uint8_t accel_config;
-  if (!this->read_byte(MPU6886_REGISTER_ACCEL_CONFIG, &accel_config)) {
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGV(TAG, "    Input accelerometer_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
-  accel_config &= 0b11100111;
-  accel_config |= (MPU6886_RANGE_2G << 3);
-  ESP_LOGV(TAG, "    Output accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
-  if (!this->write_byte(MPU6886_REGISTER_ACCEL_CONFIG, accel_config)) {
+  if (!this->update_register(MPU6886_REGISTER_ACCEL_CONFIG, 0b00011000, MPU6886_RANGE_2G << 3)) {
     this->mark_failed();
     return;
   }

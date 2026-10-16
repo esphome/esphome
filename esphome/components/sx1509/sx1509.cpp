@@ -175,7 +175,6 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 
 void SX1509Component::setup_led_driver(uint8_t pin) {
   uint16_t temp_word = 0;
-  uint8_t temp_byte = 0;
 
   this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
   temp_word |= (1 << pin);
@@ -184,16 +183,11 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
   this->ddr_mask_ &= ~(1 << pin);  // 0=output
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
-  this->read_byte(REG_CLOCK, &temp_byte);
-  temp_byte |= (1 << 6);   // Internal 2MHz oscillator part 1 (set bit 6)
-  temp_byte &= ~(1 << 5);  // Internal 2MHz oscillator part 2 (clear bit 5)
-  this->write_byte(REG_CLOCK, temp_byte);
+  // Internal 2MHz oscillator: set bit 6, clear bit 5
+  this->update_register(REG_CLOCK, (1 << 6) | (1 << 5), 1 << 6);
 
-  this->read_byte(REG_MISC, &temp_byte);
-  temp_byte &= ~(1 << 7);  // set linear mode bank B
-  temp_byte &= ~(1 << 3);  // set linear mode bank A
-  temp_byte |= 0x70;       // Frequency of the LED Driver clock ClkX of all IOs:
-  this->write_byte(REG_MISC, temp_byte);
+  // Linear mode for banks A (bit 3) and B (bit 7); LED driver clock ClkX of all IOs (bits 6:4)
+  this->update_register(REG_MISC, (1 << 7) | (1 << 3) | 0x70, 0x70);
 
   this->read_byte_16(REG_LED_DRIVER_ENABLE_B, &temp_word);
   temp_word |= (1 << pin);
@@ -216,11 +210,7 @@ void SX1509Component::clock_(uint8_t osc_source, uint8_t osc_pin_function, uint8
   this->clk_x_ = 2000000;
   osc_divider = (osc_divider & 0b111) << 4;  // 3-bit value, bits 6:4
 
-  uint8_t reg_misc = 0;
-  this->read_byte(REG_MISC, &reg_misc);
-  reg_misc &= ~(0b111 << 4);
-  reg_misc |= osc_divider;
-  this->write_byte(REG_MISC, reg_misc);
+  this->update_register(REG_MISC, 0b111 << 4, osc_divider);
 }
 
 void SX1509Component::setup_keypad_() {
@@ -234,15 +224,11 @@ void SX1509Component::setup_keypad_() {
     this->ddr_mask_ |= (1 << i);
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
-  this->read_byte(REG_OPEN_DRAIN_A, &temp_byte);
-  for (int i = 0; i < this->rows_; i++)
-    temp_byte |= (1 << i);
-  this->write_byte(REG_OPEN_DRAIN_A, temp_byte);
+  const uint8_t row_bits = (1 << this->rows_) - 1;
+  this->update_register(REG_OPEN_DRAIN_A, row_bits, row_bits);
 
-  this->read_byte(REG_PULL_UP_B, &temp_byte);
-  for (int i = 0; i < this->cols_; i++)
-    temp_byte |= (1 << i);
-  this->write_byte(REG_PULL_UP_B, temp_byte);
+  const uint8_t col_bits = (1 << this->cols_) - 1;
+  this->update_register(REG_PULL_UP_B, col_bits, col_bits);
 
   if (debounce_time_ >= scan_time_) {
     debounce_time_ = scan_time_ >> 1;  // Force debounce_time to be less than scan_time
@@ -271,13 +257,8 @@ uint16_t SX1509Component::read_key_data() {
 
 void SX1509Component::set_debounce_config_(uint8_t config_value) {
   // First make sure clock is configured
-  uint8_t temp_byte = 0;
-  this->read_byte(REG_MISC, &temp_byte);
-  temp_byte |= (1 << 4);  // Just default to no divider if not set
-  this->write_byte(REG_MISC, temp_byte);
-  this->read_byte(REG_CLOCK, &temp_byte);
-  temp_byte |= (1 << 6);  // default to internal osc.
-  this->write_byte(REG_CLOCK, temp_byte);
+  this->update_register(REG_MISC, 1 << 4, 1 << 4);   // Just default to no divider if not set
+  this->update_register(REG_CLOCK, 1 << 6, 1 << 6);  // default to internal osc.
 
   config_value &= 0b111;  // 3-bit value
   this->write_byte(REG_DEBOUNCE_CONFIG, config_value);
