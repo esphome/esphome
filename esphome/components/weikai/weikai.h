@@ -471,6 +471,9 @@ class WeikaiChannel final : public uart::UARTComponent {
   /// @brief number of bytes that can still be written to the transmit FIFO
   size_t tx_room_();
 
+  /// @brief time in ms needed to send 'bytes' bytes with the current line settings (rounded down)
+  uint32_t tx_time_ms_(size_t bytes) const;
+
   /// @brief test if transmit buffer is not empty in the status register (optimization)
   /// @return true if not emptygroup test_
   bool tx_fifo_is_not_empty_();

@@ -449,22 +449,27 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   return status;
 }
 
+uint32_t WeikaiChannel::tx_time_ms_(size_t bytes) const {
+  // bits per frame: start bit, 8 data bits, optional parity bit and the stop bits
+  uint32_t const frame_bits = 9 + this->stop_bits_ + (this->parity_ != uart::UART_CONFIG_PARITY_NONE ? 1 : 0);
+  return static_cast<uint32_t>(bytes * frame_bits * 1000ULL / std::max<uint32_t>(this->baud_rate_, 1));
+}
+
 void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
   // Split large writes in chunks of at most XFER_MAX_SIZE bytes. Before each chunk, wait for room in the transmit FIFO.
   while (length > 0) {
     size_t const chunk = std::min(length, XFER_MAX_SIZE);
     if (this->tx_room_estimate_ < chunk) {
       // The estimate is too low: read the real room, and wait for it if needed.
-      // The time needed to send 'chunk' bytes (up to 12 bits per byte) plus a margin gives the timeout.
-      uint32_t const timeout_ms =
-          static_cast<uint32_t>(chunk * 12000ULL / std::max<uint32_t>(this->baud_rate_, 1)) + 50;
+      uint32_t const timeout_ms = this->tx_time_ms_(chunk) + 50;
       uint32_t const start_time = millis();
       while ((this->tx_room_estimate_ = this->tx_room_()) < chunk) {
         if (millis() - start_time > timeout_ms) {
           ESP_LOGE(TAG, "write_array: timeout waiting for room in the transmit FIFO - %d bytes dropped", (int) length);
           return;
         }
-        yield();
+        // let the missing bytes leave the FIFO before reading the chip again
+        delay(std::max<uint32_t>(this->tx_time_ms_(chunk - this->tx_room_estimate_), 1));
       }
     }
     this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), chunk);
@@ -475,13 +480,21 @@ void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
 }
 
 uart::UARTFlushResult WeikaiChannel::flush() {
+  // time to empty a full FIFO, but never less than 200 ms
+  uint32_t const timeout_ms = std::max<uint32_t>(this->tx_time_ms_(FIFO_SIZE) + 50, 200);
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
-    if (millis() - start_time > 200) {
-      ESP_LOGW(TAG, "WARNING flush timeout - still %d bytes not sent after 200 ms", this->tx_in_fifo_());
+    if (millis() - start_time > timeout_ms) {
+      ESP_LOGW(TAG, "WARNING flush timeout - still %d bytes not sent after %" PRIu32 " ms", this->tx_in_fifo_(),
+               timeout_ms);
       return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
-    yield();  // reschedule our thread to avoid blocking
+    // let the bytes still in the FIFO leave before reading the chip again
+    uint32_t const wait_ms = this->tx_time_ms_(this->tx_in_fifo_());
+    if (wait_ms > 0)
+      delay(wait_ms);
+    else
+      yield();  // reschedule our thread to avoid blocking
   }
   return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
