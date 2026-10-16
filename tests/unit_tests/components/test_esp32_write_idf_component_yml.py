@@ -109,14 +109,14 @@ def test_write_idf_component_yml_empty_managed_when_no_components(
     [
         (cv.Version(5, 5, 4), True),
         (cv.Version(5, 99, 99), True),
-        (cv.Version(6, 0, 0), False),
-        (cv.Version(6, 1, 0), False),
+        (cv.Version(6, 0, 0), True),
+        (cv.Version(6, 1, 0), True),
     ],
 )
 def test_arduino_excluded_idf_components_depends_on_idf_version(
     version: cv.Version, libsodium_stubbed: bool
 ) -> None:
-    """espressif/libsodium is stubbed below IDF 6.0 only; unmapped entries always."""
+    """espressif/libsodium is stubbed on every IDF while arduino-esp32 4.0.x declares it."""
     CORE.reset()
     CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
 
@@ -130,14 +130,14 @@ def test_arduino_excluded_idf_components_depends_on_idf_version(
     ("framework", "version", "bundled"),
     [
         (Framework.ARDUINO, cv.Version(5, 5, 5), True),
-        (Framework.ARDUINO, cv.Version(6, 0, 0), False),
+        (Framework.ARDUINO, cv.Version(6, 0, 0), True),
         (Framework.ESP_IDF, cv.Version(5, 5, 5), False),
     ],
 )
 def test_arduino_bundles_libsodium(
     framework: Framework, version: cv.Version, bundled: bool, tmp_path: Path
 ) -> None:
-    """Only Arduino below IDF 6.0 brings its own libsodium."""
+    """Only Arduino brings its own libsodium."""
     _setup_core(tmp_path)
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(framework)
     CORE.data[esp32.KEY_ESP32] = {esp32.KEY_IDF_VERSION: version}
@@ -147,14 +147,14 @@ def test_arduino_bundles_libsodium(
 
 @pytest.mark.parametrize(
     ("version", "libsodium_stubbed"),
-    [(cv.Version(5, 5, 4), True), (cv.Version(6, 0, 0), False)],
+    [(cv.Version(5, 5, 4), True), (cv.Version(6, 0, 0), True)],
 )
 def test_write_idf_component_yml_arduino_stubs_follow_idf_version(
     version: cv.Version,
     libsodium_stubbed: bool,
     tmp_path: Path,
 ) -> None:
-    """The manifest stubs follow the IDF version: espressif/libsodium below 6.0 only."""
+    """The manifest stubs espressif/libsodium on every IDF version."""
     _setup_core(tmp_path)
     CORE.toolchain = Toolchain.PLATFORMIO
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ARDUINO)

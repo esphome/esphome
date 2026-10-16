@@ -197,13 +197,15 @@ def test_esphome_manifest_deps_reads_repo_manifest() -> None:
     assert deps == set(manifest["dependencies"])
 
 
+@pytest.mark.parametrize("idf_version", [cv.Version(5, 5, 5), cv.Version(6, 0, 0)])
 def test_convert_pio_libs_arduino_framework_passes_empty_managed(
+    idf_version: cv.Version,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Below IDF 6.0 the manifest gates noise-c/libsodium off on Arduino, so they
-    still go through the converter."""
-    _set_idf_version(cv.Version(5, 5, 5))
+    """The manifest gates noise-c/libsodium off on Arduino, so they still go
+    through the converter."""
+    _set_idf_version(idf_version)
     monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
 
     captured: dict[str, set[str] | None] = {}
@@ -229,29 +231,6 @@ def test_convert_pio_libs_arduino_framework_passes_empty_managed(
     assert result == {
         "esphome/other-lib": {"override_path": str(tmp_path / "other-lib")}
     }
-
-
-def test_convert_pio_libs_arduino_idf_6_passes_manifest_deps(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """From IDF 6.0 the manifest enables them on Arduino too, so the converter
-    must skip them."""
-    _set_idf_version(cv.Version(6, 0, 0))
-    monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
-
-    captured: dict[str, set[str] | None] = {}
-
-    def fake_generate_idf_components(libraries, managed=None):
-        captured["managed"] = managed
-        return []
-
-    monkeypatch.setattr(
-        espidf_component, "generate_idf_components", fake_generate_idf_components
-    )
-
-    assert _convert_pio_libs(tmp_path / "platformio.ini", "arduino") == {}
-    assert captured["managed"] == _esphome_manifest_deps()
 
 
 def test_convert_pio_libs_espidf_framework_passes_manifest_deps(
@@ -332,13 +311,13 @@ def test_arduino_excluded_stubs_points_libsodium_at_converted_library(
     assert (tmp_path / "component_stubs" / "cbor" / "CMakeLists.txt").is_file()
 
 
-def test_arduino_excluded_stubs_skips_libsodium_from_idf_6(tmp_path: Path) -> None:
-    """From IDF 6.0 arduino-esp32 drops espressif/libsodium; a stub would clash
-    with esphome/libsodium."""
+def test_arduino_excluded_stubs_keeps_libsodium_on_idf_6(tmp_path: Path) -> None:
+    """arduino-esp32 4.0.x still declares espressif/libsodium on IDF 6, so the
+    stub stays."""
     _set_idf_version(cv.Version(6, 0, 0))
 
     deps = _arduino_excluded_stubs(tmp_path)
 
-    assert "espressif/libsodium" not in deps
+    assert "espressif/libsodium" in deps
     # Other arduino-bundled components are still stubbed.
     assert "espressif/cbor" in deps
