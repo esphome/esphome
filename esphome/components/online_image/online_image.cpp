@@ -211,10 +211,13 @@ void OnlineImage::loop() {
       // The response has ended, so data left in the buffer can never be completed
       size_t unread = this->download_buffer_.unread();
       if (unread == 0 && this->downloader_->get_bytes_read() > 0) {
-        this->finish_download_();
-        return;
-      }
-      if (unread == 0) {
+        // A decoder that counts pixels knows the image was cut off; PNG cannot tell, so it passes
+        if (this->is_decode_finished() || !this->decoder_knows_end()) {
+          this->finish_download_();
+          return;
+        }
+        ESP_LOGE(TAG, "Download ended before the image was complete");
+      } else if (unread == 0) {
         ESP_LOGE(TAG, "Server sent an empty response");
       } else {
         ESP_LOGE(TAG, "Download ended with %zu bytes the decoder could not use", unread);
@@ -233,6 +236,7 @@ void OnlineImage::loop() {
     // Buffer is full, need to decode some data first
     auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
     if (consumed > 0) {
+      this->last_data_time_ = App.get_loop_component_start_time();
       this->download_buffer_.read(consumed);
     } else if (consumed < 0) {
       ESP_LOGE(TAG, "Decode error with full buffer: %d", consumed);

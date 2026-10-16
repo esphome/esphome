@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -114,6 +115,14 @@ static std::vector<uint8_t> make_palette_bmp() {
   return bmp;
 }
 
+// A 1x1 RGB PNG: 8 signature bytes, a 25 byte IHDR chunk, a 24 byte IDAT chunk and a 12 byte IEND chunk.
+static constexpr size_t PNG_HEADER_SIZE = 8 + 25;
+static constexpr std::array<uint8_t, 69> PNG_1X1{
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+    0x0C, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0xC9,
+    0xFE, 0x92, 0xEF, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82};
+
 static void set_loop_time(uint32_t now) { LoopBlockingGuard clock(nullptr, LOG_STR("test"), now); }
 
 class OnlineImageDownloadEnd : public ::testing::Test {
@@ -137,16 +146,15 @@ class OnlineImageDownloadEnd : public ::testing::Test {
   int errors_{0};
 };
 
-// A chunked stream can end without the decoder reporting it is finished (PNG never does).
-// When the decoder used every byte, the download succeeds, but the image is not cached:
-// it may be cut off, and a 304 response must not keep it.
-TEST_F(OnlineImageDownloadEnd, ChunkedStreamEndWithAllDataUsedFinishesWithoutCaching) {
-  std::vector<uint8_t> bmp = make_bmp();
-  bmp.resize(BMP_HEADER_SIZE + BMP_ROW_SIZE);  // only the first row, so the decoder is not finished
-  auto container = std::make_shared<FakeContainer>(bmp, bmp.size(), true);
+// A chunked stream can end without the decoder reporting it is finished. PNG cannot tell a
+// complete image from a cut-off one, so when the decoder used every byte the download succeeds,
+// but the image is not cached: a 304 response must not keep it.
+TEST_F(OnlineImageDownloadEnd, ChunkedPngCutOffFinishesWithoutCaching) {
+  std::vector<uint8_t> png(PNG_1X1.begin(), PNG_1X1.begin() + PNG_HEADER_SIZE);  // ends after IHDR
+  auto container = std::make_shared<FakeContainer>(png, png.size(), true);
   container->add_response_header("etag", "\"abc\"");
   container->add_response_header("last-modified", "Mon, 12 Oct 2026 10:00:00 GMT");
-  auto image = this->make_image_(runtime_image::BMP);
+  auto image = this->make_image_(runtime_image::PNG);
   this->start_(*image, container);
 
   for (int i = 0; i < 4 && this->finished_ + this->errors_ == 0; i++)
@@ -155,10 +163,25 @@ TEST_F(OnlineImageDownloadEnd, ChunkedStreamEndWithAllDataUsedFinishesWithoutCac
   EXPECT_EQ(this->finished_, 1);
   EXPECT_EQ(this->errors_, 0);
 
-  this->http_.next = std::make_shared<FakeContainer>(make_bmp(), 0, false);
+  this->http_.next = std::make_shared<FakeContainer>(png, 0, false);
   image->update();
   EXPECT_FALSE(this->http_.sent_header("if-none-match"));
   EXPECT_FALSE(this->http_.sent_header("if-modified-since"));
+}
+
+// BMP knows its pixel count from the header, so a chunked BMP cut off at a row boundary is an error.
+TEST_F(OnlineImageDownloadEnd, ChunkedBmpCutOffAtRowReportsError) {
+  std::vector<uint8_t> bmp = make_bmp();
+  bmp.resize(BMP_HEADER_SIZE + BMP_ROW_SIZE);  // only the first row
+  auto container = std::make_shared<FakeContainer>(bmp, bmp.size(), true);
+  auto image = this->make_image_(runtime_image::BMP);
+  this->start_(*image, container);
+
+  for (int i = 0; i < 4 && this->finished_ + this->errors_ == 0; i++)
+    image->loop();
+
+  EXPECT_EQ(this->errors_, 1);
+  EXPECT_EQ(this->finished_, 0);
 }
 
 // An image the decoder confirmed as complete is cached.
