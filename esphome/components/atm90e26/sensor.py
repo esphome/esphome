@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_FORWARD_ACTIVE_ENERGY,
     CONF_FREQUENCY,
+    CONF_ID,
     CONF_LINE_FREQUENCY,
     CONF_POWER,
     CONF_POWER_FACTOR,
@@ -124,7 +125,9 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await spi.new_spi_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

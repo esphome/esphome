@@ -325,7 +325,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = await spi.new_spi_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
 
     for opt in CONFIG_MAP:
         key = opt.schema
