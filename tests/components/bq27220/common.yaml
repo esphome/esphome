@@ -1,7 +1,6 @@
 sensor:
   - platform: bq27220
     id: bq27220_id
-    i2c_id: i2c_bus
     voltage:
       name: "Battery Voltage"
     current:
