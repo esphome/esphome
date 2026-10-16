@@ -143,12 +143,6 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
 
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCA9554GPIOPin::setup() { pin_mode(flags_); }
-void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PCA9554GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCA9554GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t PCA9554GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PCA9554", this->pin_);
-}
-
 }  // namespace esphome::pca9554
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pca9554::PCA9554Component, "%u via PCA9554")

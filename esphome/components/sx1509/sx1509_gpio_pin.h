@@ -1,31 +1,12 @@
 #pragma once
 
 #include "esphome/core/gpio.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::sx1509 {
 
 class SX1509Component;
 
-class SX1509GPIOPin final : public GPIOPin {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_parent(SX1509Component *parent) { this->parent_ = parent; }
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  SX1509Component *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
+using SX1509GPIOPin = gpio_expander::ExpanderGPIOPin<SX1509Component>;
 
 }  // namespace esphome::sx1509

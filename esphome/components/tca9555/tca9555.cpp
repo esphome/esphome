@@ -153,12 +153,6 @@ bool TCA9555Component::digital_read_cache(uint8_t pin) { return this->input_mask
 
 float TCA9555Component::get_setup_priority() const { return setup_priority::IO; }
 
-void TCA9555GPIOPin::setup() { this->pin_mode(this->flags_); }
-void TCA9555GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool TCA9555GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void TCA9555GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t TCA9555GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via TCA9555", this->pin_);
-}
-
 }  // namespace esphome::tca9555
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::tca9555::TCA9555Component, "%u via TCA9555")

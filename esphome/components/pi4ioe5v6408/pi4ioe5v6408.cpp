@@ -193,14 +193,6 @@ bool PI4IOE5V6408Component::digital_read_cache(uint8_t pin) { return (this->inpu
 
 float PI4IOE5V6408Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PI4IOE5V6408GPIOPin::setup() { this->pin_mode(this->flags_); }
-void PI4IOE5V6408GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PI4IOE5V6408GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PI4IOE5V6408GPIOPin::digital_write(bool value) {
-  this->parent_->digital_write(this->pin_, value != this->inverted_);
-}
-size_t PI4IOE5V6408GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PI4IOE5V6408", this->pin_);
-}
-
 }  // namespace esphome::pi4ioe5v6408
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pi4ioe5v6408::PI4IOE5V6408Component, "%u via PI4IOE5V6408")
