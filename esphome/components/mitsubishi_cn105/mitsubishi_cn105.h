@@ -187,7 +187,7 @@ class MitsubishiCN105 {
   // Default 60s; legacy climate-owned hub compatibility relies on this when current_temperature_min_interval is
   // omitted. Remove legacy note in 2027.2.0.
   uint32_t telemetry_request_min_interval_ms_{60000};
-  uint32_t heatpump_request_min_interval_ms_{10007};
+  uint32_t heatpump_request_min_interval_ms_{60000};
   std::optional<uint32_t> last_telemetry_update_ms_;
   std::optional<uint32_t> last_heatpump_request_ms_;
   Status status_{};
