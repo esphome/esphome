@@ -9,8 +9,9 @@ void I2CAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits,
   const uint8_t value = bits << start_pos;
   // Bits of value outside mask were ORed in before, so they stay part of the update
   // Also called at runtime, so a transient bus error only warns, like read_register()
-  if (!this->update_register(reg, mask | value, value))
+  if (!this->update_register(reg, mask | value, value)) {
     ESP_LOGW(TAG, "Failed to update register 0x%02X", reg);
+  }
 }
 
 uint8_t I2CAS3935Component::read_register(uint8_t reg) {
