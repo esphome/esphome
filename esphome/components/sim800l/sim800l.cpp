@@ -431,7 +431,7 @@ void Sim800LComponent::loop() {
     if (byte >= 0x7F)
       byte = '?';  // need to be valid utf8 string for log functions.
     const char *line = this->line_reader_.feed(byte);
-    if (this->state_ == STATE_SENDING_SMS_2 && byte == '>' && this->line_reader_.length() == 1) {
+    if (line == nullptr && this->state_ == STATE_SENDING_SMS_2 && byte == '>' && this->line_reader_.length() == 1) {
       // The send prompt has no line end
       line = this->line_reader_.partial();
       this->line_reader_.reset();
