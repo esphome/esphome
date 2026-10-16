@@ -6,8 +6,7 @@
 
 namespace esphome::uart {
 
-/// Shared warning for a line dropped because it was longer than max_len characters; out of line so each
-/// component pays only for the call.
+/// Logs the shared "line dropped" warning; out of line to keep each caller small.
 void log_line_dropped(const char *tag, size_t max_len);
 
 /// Collects bytes into NUL terminated lines of up to N - 1 characters; IGNORE bytes are skipped and an
@@ -19,9 +18,14 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
   static_assert(TERMINATOR != IGNORE, "LineReader terminator and ignore byte must differ");
 
  public:
-  /// Feed one byte. Returns the completed line, valid until the next call on this reader, or nullptr.
-  /// Empty lines are returned too, as an empty string.
+  /// Feed one byte; returns the completed line (empty lines included), valid until the next call, or nullptr.
   char *feed(uint8_t c) {
+    size_t len = 0;
+    return this->feed(c, len);
+  }
+
+  /// As feed(c), and sets len to the line length when a line is returned.
+  char *feed(uint8_t c, size_t &len) {
     pos_t pos = this->pos_;
     if (pos == N) {
       this->pos_ = pos = N + 1;
@@ -35,6 +39,7 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
         return nullptr;
       }
       this->buf_[pos] = '\0';
+      len = pos;
       return this->buf_;
     }
     if (pos < N - 1) {
@@ -46,12 +51,11 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
     return nullptr;
   }
 
-  /// Characters of the partial line collected so far; 0 right after a line was returned, and from the byte
-  /// that overflowed until the terminator.
+  /// Length of the partial line; 0 after a line is returned and while an overlong line is dropped.
   size_t length() const { return this->pos_ < N ? this->pos_ : 0; }
 
-  /// The partial line, NUL terminated, for prompts that have no line end. On the byte that overflowed it is
-  /// the first N - 1 characters; while the rest of that line is dropped it is empty.
+  /// The partial line, NUL terminated, for prompts with no line end; the first N - 1 characters on the byte
+  /// that overflowed, empty while the rest of that line is dropped.
   const char *partial() {
     this->buf_[this->end_()] = '\0';
     return this->buf_;
@@ -69,6 +73,12 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
 
   /// Forget the partial line and start a new one with the next byte.
   void reset() { this->pos_ = 0; }
+
+  /// Start a new line with c, e.g. the byte that overflowed; c must not be TERMINATOR or IGNORE.
+  void restart_with(uint8_t c) {
+    this->buf_[0] = static_cast<char>(c);
+    this->pos_ = 1;
+  }
 
   /// Drop everything up to and including the next terminator.
   void discard_line() { this->pos_ = N + 1; }
