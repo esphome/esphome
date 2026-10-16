@@ -54,7 +54,7 @@ void LP5562Output::setup() {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  for (uint8_t channel = 0; channel < this->currents_.size(); channel++) {
+  for (size_t channel = 0; channel < this->currents_.size(); channel++) {
     if (!this->write_byte(progmem_read_byte(&LP5562_REG_CURRENT[channel]), this->currents_[channel])) {
       this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;

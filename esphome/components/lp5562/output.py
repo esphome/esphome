@@ -10,6 +10,8 @@ DEPENDENCIES = ["lp5562"]
 
 LP5562Channel = lp5562_ns.class_("LP5562Channel", output.FloatOutput)
 CONF_LP5562_ID = "lp5562_id"
+# Chip reset value of the current registers, 17.5 mA; matches currents_ in lp5562_output.h
+CURRENT_RESET_TENTHS = 175
 
 # Indices match the LP5562_REG_PWM lookup table in lp5562_output.cpp
 LP5562_CHANNELS = {
@@ -35,7 +37,6 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Required(CONF_ID): cv.declare_id(LP5562Channel),
         cv.GenerateID(CONF_LP5562_ID): cv.use_id(LP5562Output),
         cv.Required(CONF_CHANNEL): cv.enum(LP5562_CHANNELS, lower=True),
-        # The chip's reset value, so a config without it keeps today's behaviour
         cv.Optional(CONF_CURRENT, default="17.5mA"): cv.All(
             cv.current, _current_tenths
         ),
@@ -48,5 +49,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_parented(var, config[CONF_LP5562_ID])
     parent = await cg.get_variable(config[CONF_LP5562_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-    cg.add(parent.set_channel_current(config[CONF_CHANNEL], config[CONF_CURRENT]))
+    # The hub already holds the chip's reset value, 17.5 mA
+    if (current := config[CONF_CURRENT]) != CURRENT_RESET_TENTHS:
+        cg.add(parent.set_channel_current(config[CONF_CHANNEL], current))
     await output.register_output(var, config)
