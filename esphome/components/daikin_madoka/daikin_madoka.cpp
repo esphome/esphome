@@ -12,7 +12,7 @@ namespace esphome::daikin_madoka {
 
 using namespace esphome::climate;
 
-static const char *const TAG = "daikin_madoka";
+ESPHOME_LOG_TAG(TAG, "daikin_madoka");
 
 static const uint16_t CMD_GET_SETTING_STATUS = 0x0020;
 static const uint16_t CMD_SET_SETTING_STATUS = 0x4020;
