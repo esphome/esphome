@@ -27,13 +27,12 @@ struct VendorCurve {
 
 // ------------------------------------------------------------------ vendor model
 
-/// x = VCC - V_ao: 0 at VCC (a saturated sensor, never clean air), NaN above it, which
-/// only a wrong vcc or voltage_multiplier produces.
+/// x = VCC - V_ao: 0 at VCC (a saturated sensor, never clean air). NaN at or below 0 V (a
+/// disconnected pin) and above VCC, which only a wrong vcc or voltage_multiplier produces.
 inline float air_value_from_voltage(float voltage, float vcc) {
-  if (!std::isfinite(voltage) || !std::isfinite(vcc))
+  if (!std::isfinite(voltage) || !std::isfinite(vcc) || voltage <= 0.0f || voltage > vcc)
     return NAN;
-  const float x = vcc - voltage;
-  return x < 0.0f ? NAN : x;
+  return vcc - voltage;
 }
 
 /// ratio = x / x_air (NaN when either value is unusable).
