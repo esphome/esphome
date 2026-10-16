@@ -15,7 +15,8 @@ class RecordingBus : public I2CBus {
     EXPECT_EQ(address, 0x18);
     EXPECT_EQ(write_count, 2u);
     EXPECT_EQ(read_count, 0u);
-    if (this->writes.size() == this->fail_at)
+    // Only this attempt fails, so any write after it would be recorded
+    if (this->attempts++ == this->fail_at)
       return ERROR_NOT_ACKNOWLEDGED;
     this->writes.emplace_back(write_buffer[0], write_buffer[1]);
     return ERROR_OK;
@@ -23,6 +24,7 @@ class RecordingBus : public I2CBus {
 
   std::vector<std::pair<uint8_t, uint8_t>> writes;
   size_t fail_at{SIZE_MAX};
+  size_t attempts{0};
 };
 
 static constexpr I2CRegValue INIT[] PROGMEM = {{0x01, 0x3A}, {0x00, 0x80}, {0xF9, 0x00}, {0x01, 0x00}};
