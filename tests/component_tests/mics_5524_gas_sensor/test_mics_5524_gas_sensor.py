@@ -105,7 +105,7 @@ def test_shared_options_reach_the_hub(
     assert "mics_5524_boot->set_voltage_multiplier(1.5f);" in main_cpp
     assert "mics_5524_boot->set_samples(3);" in main_cpp
     assert "mics_5524_boot->set_warmup_time(180000);" in main_cpp
-    assert "mics_5524_boot->set_calibration(5000, 3, 20);" in main_cpp
+    assert "mics_5524_boot->set_calibration(5000, 3, 20, true);" in main_cpp
     assert "mics_5524_fixed->set_air_reference(3.6f);" in main_cpp
     # `air_reference:` and `calibration:` exclude each other, so the sensor with the
     # hard-coded reference is never calibrated at boot.

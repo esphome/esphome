@@ -8,6 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 
 #include "mics_math.h"
 
@@ -82,12 +83,21 @@ class MiCS5524Component : public PollingComponent {
   /// Optional EN pin of the module, driven high in `setup()`.
   void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
   /// Enable the clean-air calibration at boot: it starts `delay` ms from now and
-  /// averages `samples` readings spaced `sample_interval` ms apart.
-  void set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval);
+  /// averages `samples` readings spaced `sample_interval` ms apart. When `persist`
+  /// is set the reference is kept in flash across reboots.
+  void set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval, bool persist);
   /// Fixed clean-air reference of the vendor model: `x_air` in volts.
   void set_air_reference(float air_reference);
   /// Fixed clean-air reference of the datasheet model: `R0` in kOhm.
   void set_r0(float r0);
+  /// (Re)start the clean-air calibration, deferred until the warm-up window ends.
+  void request_calibration();
+  /// True while a calibration run samples the clean-air reference.
+  bool is_calibrating() const { return this->calibrating_; }
+  /// A clean-air reference (`x_air` or `R0`) is available.
+  bool has_reference() const { return this->reference_ > 0.0f; }
+  /// Current clean-air reference (`x_air` in volts, `R0` in kOhm).
+  float get_reference() const { return this->reference_; }
   SUB_SENSOR(voltage)
   SUB_SENSOR(ratio)
   // RS only exists in the datasheet model, so its sensor stays silent in the vendor one.
@@ -116,6 +126,8 @@ class MiCS5524Component : public PollingComponent {
   void finish_calibration_();
   /// Raise the status warning and schedule the next calibration attempt.
   void schedule_calibration_retry_();
+  void save_reference_();
+  bool load_reference_();
   /// True while the active model is the vendor one.
   bool is_vendor_model_() const { return this->conversion_ == micsmath::CONVERSION_MODEL_DFROBOT; }
   /// A clean-air reference (`x_air` or `R0`) is available.
@@ -139,6 +151,7 @@ class MiCS5524Component : public PollingComponent {
 
   // -------------------------------------------------------------- calibration
   bool calibration_enabled_{false};
+  bool persist_{false};
   uint32_t calibration_delay_{0};
   uint32_t calibration_samples_{10};
   /// Minimum spacing between two clean-air calibration samples (ms); a normal reading
@@ -174,6 +187,8 @@ class MiCS5524Component : public PollingComponent {
 
   /// Clean-air reference: `x_air` in volts (vendor) or `R0` in kOhm (datasheet).
   float reference_{0.0f};
+
+  ESPPreferenceObject reference_pref_;
 
   // Diagnostic sub-sensors are declared by the SUB_SENSOR setters above.
 

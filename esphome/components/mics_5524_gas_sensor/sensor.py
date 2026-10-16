@@ -13,7 +13,7 @@ an internal ``adc`` sensor for you).
 
 import logging
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
@@ -53,6 +53,7 @@ from . import (
     CONF_CONVERSION,
     CONF_MAX_PPM,
     CONF_MIN_PPM,
+    CONF_PERSIST,
     CONF_R0,
     CONF_R1,
     CONF_R2,
@@ -237,6 +238,7 @@ CALIBRATION_SCHEMA = cv.Schema(
             cv.positive_time_period_milliseconds,
             cv.Range(min=cv.TimePeriod(milliseconds=MIN_SAMPLE_INTERVAL_MS)),
         ),
+        cv.Optional(CONF_PERSIST, default=True): cv.boolean,
     }
 )
 
@@ -458,6 +460,7 @@ async def to_code(config: ConfigType) -> None:
                 calibration[CONF_DELAY],
                 calibration[CONF_SAMPLE_COUNT],
                 calibration[CONF_SAMPLE_INTERVAL],
+                calibration[CONF_PERSIST],
             )
         )
 
@@ -511,3 +514,16 @@ async def _create_internal_adc(config: ConfigType) -> cg.MockObj:
 
     await adc_sensor.to_code(adc_config)
     return await cg.get_variable(adc_config[CONF_ID])
+
+
+CALIBRATION_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(MiCS5524Component),
+    }
+)
+
+automation.register_apply_action(
+    "mics_5524_gas_sensor.request_calibration",
+    CALIBRATION_ACTION_SCHEMA,
+    automation.ApplyCall("request_calibration()"),
+)

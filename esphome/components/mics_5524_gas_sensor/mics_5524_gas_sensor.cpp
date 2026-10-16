@@ -10,6 +10,11 @@ namespace esphome::mics_5524_gas_sensor {
 
 ESPHOME_LOG_TAG(TAG, "mics_5524_gas_sensor");
 
+/// Preference version mixed into the flash key of the persisted reference. The
+/// conversion model is added to it, so a value stored for one model can never
+/// be used by the other one.
+static constexpr uint32_t REFERENCE_PREFERENCE_VERSION = 0x00000010;
+
 /// Name of the clean-air reference, which differs per conversion model.
 static const LogString *reference_name(uint8_t conversion) {
   return conversion == micsmath::CONVERSION_MODEL_DFROBOT ? LOG_STR("air reference") : LOG_STR("R0");
@@ -31,6 +36,8 @@ void MiCS5524GasSensor::publish_ratio(float ratio) {
 }
 
 void MiCS5524Component::setup() {
+  this->reference_pref_ = this->make_entity_preference<float>(REFERENCE_PREFERENCE_VERSION + this->conversion_);
+
   if (this->enable_pin_ != nullptr) {
     // The component powers the module by driving the pin active, and EN of the DFRobot
     // breakout is active low: `inverted: true` in the configuration is what turns this
@@ -43,6 +50,9 @@ void MiCS5524Component::setup() {
   if (this->has_reference_()) {
     ESP_LOGI(TAG, "using the %s from the configuration (%.4f) - the sensor is not calibrated at boot",
              LOG_STR_ARG(reference_name(this->conversion_)), this->reference_);
+  } else if (this->persist_ && this->load_reference_()) {
+    ESP_LOGI(TAG, "restored the %s from flash (%.4f)", LOG_STR_ARG(reference_name(this->conversion_)),
+             this->reference_);
   }
 
   if (this->warmup_time_ > 0) {
@@ -51,14 +61,18 @@ void MiCS5524Component::setup() {
   }
 
   if (this->calibration_enabled_) {
-    // Nothing is stored across reboots, so every boot calibrates when it is configured
-    // to; the reference in the configuration is the way to skip that.
-    // The warm-up window starts here, so all of it still lies ahead of the calibration.
-    const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
-    this->calibration_pending_ = true;
-    this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
-    ESP_LOGI(TAG, "clean-air calibration of the %s in %" PRIu32 " s - the sensor must be in clean air",
-             LOG_STR_ARG(reference_name(this->conversion_)), delay / 1000);
+    // A fixed or restored reference wins over the automatic run; otherwise the
+    // warm-up window starts here, so all of it still lies ahead of the calibration.
+    if (this->has_reference_()) {
+      ESP_LOGI(TAG, "%s already known (%.4f) - automatic calibration skipped",
+               LOG_STR_ARG(reference_name(this->conversion_)), this->reference_);
+    } else {
+      const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
+      this->calibration_pending_ = true;
+      this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
+      ESP_LOGI(TAG, "clean-air calibration of the %s in %" PRIu32 " s - the sensor must be in clean air",
+               LOG_STR_ARG(reference_name(this->conversion_)), delay / 1000);
+    }
   } else if (!this->has_reference_()) {
     ESP_LOGW(TAG,
              "no %s available, set it in the configuration or enable 'calibration:' - the PPM values stay "
@@ -207,16 +221,41 @@ void MiCS5524Component::loop() {
   this->process_calibration_();
 }
 
-void MiCS5524Component::set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval) {
+void MiCS5524Component::set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval, bool persist) {
   this->calibration_enabled_ = true;
   this->calibration_delay_ = delay;
   this->calibration_samples_ = samples;
   this->sample_interval_ = sample_interval;
+  this->persist_ = persist;
 }
 
 void MiCS5524Component::set_air_reference(float air_reference) { this->reference_ = air_reference; }
 
 void MiCS5524Component::set_r0(float r0) { this->reference_ = r0; }
+
+void MiCS5524Component::request_calibration() {
+  if (this->calibrating_) {
+    ESP_LOGW(TAG, "calibration already running");
+    return;
+  }
+  if (this->calibration_pending_) {
+    ESP_LOGW(TAG, "calibration already requested");
+    return;
+  }
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!this->in_warmup_()) {
+    this->calibration_pending_ = true;
+    this->set_timeout(CALIBRATION_START_ID, 0, [this]() { this->begin_calibration_(); });
+    ESP_LOGI(TAG, "calibration requested - keep the sensor in clean air");
+  } else {
+    // A request (button, on_boot lambda) must never capture an unstable reading,
+    // so it waits for the warm-up window to end.
+    const uint32_t remaining = this->warmup_time_ - (now - this->warmup_start_);
+    this->calibration_pending_ = true;
+    this->set_timeout(CALIBRATION_START_ID, remaining, [this]() { this->begin_calibration_(); });
+    ESP_LOGI(TAG, "calibration requested - waiting for the warm-up window to end (%" PRIu32 " s)", remaining / 1000);
+  }
+}
 
 void MiCS5524Component::begin_calibration_() {
   this->calibration_pending_ = false;
@@ -299,9 +338,11 @@ void MiCS5524Component::finish_calibration_() {
 
   this->reference_ = reference;
   this->status_clear_warning();
+  if (this->persist_)
+    this->save_reference_();
 
-  ESP_LOGI(TAG, "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)", LOG_STR_ARG(reference_name(this->conversion_)),
-           this->reference_, valid, attempts);
+  ESP_LOGI(TAG, "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)%s", LOG_STR_ARG(reference_name(this->conversion_)),
+           this->reference_, valid, attempts, this->persist_ ? ", stored in flash" : "");
   if (this->is_vendor_model_()) {
     ESP_LOGI(TAG, "hard-code 'air_reference: %.4f' in the YAML to skip the calibration at boot", this->reference_);
   } else {
@@ -317,6 +358,24 @@ void MiCS5524Component::schedule_calibration_retry_() {
   const uint32_t delay = std::max(this->calibration_delay_, CALIBRATION_RETRY_MIN_MS);
   this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
   ESP_LOGW(TAG, "retrying the calibration in %" PRIu32 " s", delay / 1000);
+}
+
+void MiCS5524Component::save_reference_() {
+  if (!this->reference_pref_.save(&this->reference_)) {
+    ESP_LOGW(TAG, "could not store the %s in flash", LOG_STR_ARG(reference_name(this->conversion_)));
+    return;
+  }
+  ESP_LOGD(TAG, "%s %.4f saved", LOG_STR_ARG(reference_name(this->conversion_)), this->reference_);
+}
+
+bool MiCS5524Component::load_reference_() {
+  float stored = 0.0f;
+  if (!this->reference_pref_.load(&stored))
+    return false;
+  if (!std::isfinite(stored) || stored <= 0.0f)
+    return false;
+  this->reference_ = stored;
+  return true;
 }
 
 }  // namespace esphome::mics_5524_gas_sensor
