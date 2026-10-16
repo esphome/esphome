@@ -1,6 +1,7 @@
 """Tests for the new_<bus>_component helpers."""
 
 from collections.abc import Callable
+import inspect
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
@@ -42,3 +43,12 @@ async def test_creates_registers_and_attaches_in_order(
         call.register(var, config),
         call.bus(var, config),
     ]
+
+
+@pytest.mark.parametrize(
+    "helper",
+    [i2c.new_i2c_component, uart.new_uart_component, spi.new_spi_component],
+)
+def test_wrappers_are_plain_functions(helper: Callable[..., Any]) -> None:
+    # An async wrapper would stay on the stack and become the component source.
+    assert not inspect.iscoroutinefunction(helper)
