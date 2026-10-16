@@ -28,6 +28,10 @@ void EPaperInkplate13Spectra::setup() {
   this->pwr_en_pin_->setup();
   this->bs0_pin_->setup();
   this->bs1_pin_->setup();
+  // EPaperDualCS::setup() leaves CS and CS1 high, and their pull-ups go to the panel supply, so
+  // until the first update the unpowered panel would be fed through them. Hold every pin low
+  // instead; on some boards that half-powered state stopped the panel from responding.
+  this->set_all_pins_low_();
 }
 
 void EPaperInkplate13Spectra::dump_config() {
