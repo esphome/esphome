@@ -59,14 +59,17 @@ class UARTDevice {
   }
   /// Same, reading exactly count bytes; count must not exceed available().
   template<size_t N = 64, typename F> bool read_available_chunks(F &&on_chunk, size_t count) {
+    static_assert(N > 0, "read buffer size must be non-zero");
     uint8_t buf[N];
     while (count > 0) {
       const size_t len = std::min(count, N);
-      if (!this->read_array(buf, len))
+      if (!this->read_array(buf, len)) {
         return false;
+      }
       count -= len;
-      if (!continue_after(on_chunk, static_cast<const uint8_t *>(buf), len))
+      if (!continue_after(on_chunk, static_cast<const uint8_t *>(buf), len)) {
         break;
+      }
     }
     return true;
   }
@@ -79,8 +82,9 @@ class UARTDevice {
     return this->read_available_chunks<N>(
         [&on_byte](const uint8_t *data, size_t len) {
           for (const uint8_t *p = data; p != data + len; p++) {
-            if (!continue_after(on_byte, *p))
+            if (!continue_after(on_byte, *p)) {
               return false;
+            }
           }
           return true;
         },
@@ -113,13 +117,15 @@ class UARTDevice {
                            UARTParityOptions parity = UART_CONFIG_PARITY_NONE, uint8_t data_bits = 8);
 
  protected:
-  /// Call f(args...) and return its result when it returns bool, otherwise true.
+  /// Call f(args...) and return its result; a void callback always continues.
   template<typename F, typename... A> static bool continue_after(F &f, A... args) {
-    if constexpr (std::is_same_v<std::invoke_result_t<F &, A...>, bool>) {
-      return f(args...);
-    } else {
+    using R = std::invoke_result_t<F &, A...>;
+    if constexpr (std::is_void_v<R>) {
       f(args...);
       return true;
+    } else {
+      static_assert(std::is_same_v<std::remove_cvref_t<R>, bool>, "callback must return void or bool");
+      return f(args...);
     }
   }
 

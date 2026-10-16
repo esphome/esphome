@@ -60,11 +60,11 @@ TEST(UARTReadAvailableTest, OnlyBytesAvailableOnEntry) {
   ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{1, 2, 3});
   UARTDevice dev(&uart);
   std::vector<uint8_t> got;
-  dev.read_available<2>([&](uint8_t b) {
+  EXPECT_TRUE(dev.read_available<2>([&](uint8_t b) {
     got.push_back(b);
     if (b == 1)
       uart.append({9, 9});  // arrives while draining; left for the next call
-  });
+  }));
   EXPECT_EQ(got, (std::vector<uint8_t>{1, 2, 3}));
   EXPECT_EQ(uart.remaining(), 2u);
 }
@@ -125,6 +125,20 @@ TEST(UARTReadAvailableTest, ChunkCallbackReturningFalseStops) {
   }));
   EXPECT_EQ(chunks, 1);
   EXPECT_EQ(uart.remaining(), 12u);
+}
+
+TEST(UARTReadAvailableTest, ChunksWithCountStopEarly) {
+  ::testing::NiceMock<FakeRxUART> uart(make_bytes(30));
+  UARTDevice dev(&uart);
+  std::vector<size_t> lens;
+  EXPECT_TRUE(dev.read_available_chunks<8>(
+      [&lens](const uint8_t *, size_t len) {
+        lens.push_back(len);
+        return lens.size() < 2;
+      },
+      20));
+  EXPECT_EQ(lens, (std::vector<size_t>{8, 8}));
+  EXPECT_EQ(uart.remaining(), 14u);
 }
 
 }  // namespace esphome::uart::testing
