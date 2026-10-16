@@ -560,6 +560,8 @@ def claim_exclusive(
 
     Fails on a second owner entry for that UART, on another domain that names it by
     uart_id or conf_key (skipped in testing mode) and on a dummy_receiver in its debug.
+    owner must be the caller's top-level config key: the scan skips that domain, and
+    the claims are kept in full_config.data[owner][conf_key], one set per key.
     """
     full_config = fv.full_config.get()
     uart_id = str(config[conf_key])

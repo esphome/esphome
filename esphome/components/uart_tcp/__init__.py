@@ -68,7 +68,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # A second reader would split the bytes with this one, and every connect
     # discards what the other reader has not read yet.
     full_config = fv.full_config.get()
@@ -90,7 +90,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 [CONF_PORT],
             )
         ports.add(port)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
