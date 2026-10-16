@@ -225,12 +225,14 @@ file does, and it is the authority when they disagree. The most useful starting 
         stays inside the `#ifdef`.
     *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
         sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
-    *   **Setup failures carry their reason:** call `this->mark_failed(LOG_STR(...))` with
-        `ESP_LOG_MSG_COMM_FAIL` for a failed bus transfer and a short specific reason otherwise ("Wrong chip ID").
-        Core logs the reason and prints `<component> is marked FAILED: <reason>` after `dump_config()`, so
-        `dump_config()` never checks `is_failed()` to print a failure line, no `ESP_LOGE` repeats the reason before
-        `mark_failed()`, and no `error_code_` member exists only to pick the message. Keep a separate log line only
-        when it prints a value read at run time, such as the chip ID that did not match.
+    *   **`dump_config()` already prints the failure reason:** for a failed component, core prints
+        `<component> is marked FAILED: <reason>` right after the component's `dump_config()`, using the reason
+        passed to `mark_failed()`. So `dump_config()` never checks `is_failed()` to log a failure, and no
+        `error_code_` member exists only to pick that message. Pass the reason where setup fails instead:
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))` for a failed bus transfer, a short specific reason
+        otherwise (`LOG_STR("Wrong chip ID")`). Core also logs it at that moment, so no `ESP_LOGE` repeats it
+        before `mark_failed()`; keep a separate line only when it prints a value read at run time, such as the
+        chip ID that did not match.
     *   **Fixed platform facts compile to nothing:** gate on `#ifdef USE_ESP8266` and friends, not on a
         runtime check of something the build already knows.
     *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
