@@ -78,10 +78,7 @@ bool MPU6886Component::setup_registers_() {
   accel_config &= 0b11100111;
   accel_config |= (MPU6886_RANGE_2G << 3);
   ESP_LOGV(TAG, "    Output accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
-  if (!this->write_byte(MPU6886_REGISTER_ACCEL_CONFIG, accel_config)) {
-    return false;
-  }
-  return true;
+  return this->write_byte(MPU6886_REGISTER_ACCEL_CONFIG, accel_config);
 }
 
 void MPU6886Component::dump_config() {
