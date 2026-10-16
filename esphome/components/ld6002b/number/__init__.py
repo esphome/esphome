@@ -149,9 +149,7 @@ async def to_code(config: ConfigType) -> None:
     meters = {"min_value": -10, "max_value": 10, "step": 0.1, **control}
     await numbers(CONF_Z_MIN, hub.set_z_min_number, **meters)
     await numbers(CONF_Z_MAX, hub.set_z_max_number, **meters)
-    # 0x0205 carries a uint32 of milliseconds; the vendor documents 500 ms as
-    # the default and no upper bound, so the range ends at a minute rather
-    # than at a default the module is free to be sleeping past.
+    # 0x0205 is a uint32 of ms with no documented maximum; cap it at a minute
     await numbers(
         CONF_LOW_POWER_SLEEP_TIME,
         hub.set_low_power_sleep_number,
