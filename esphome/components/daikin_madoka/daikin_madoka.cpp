@@ -13,15 +13,15 @@ using namespace esphome::climate;
 
 ESPHOME_LOG_TAG(TAG, "daikin_madoka");
 
-static const uint16_t CMD_GET_SETTING_STATUS = 0x0020;
-static const uint16_t CMD_SET_SETTING_STATUS = 0x4020;
-static const uint16_t CMD_GET_OPERATION_MODE = 0x0030;
-static const uint16_t CMD_SET_OPERATION_MODE = 0x4030;
-static const uint16_t CMD_GET_SETPOINT = 0x0040;
-static const uint16_t CMD_SET_SETPOINT = 0x4040;
-static const uint16_t CMD_GET_FAN_SPEED = 0x0050;
-static const uint16_t CMD_SET_FAN_SPEED = 0x4050;
-static const uint16_t CMD_GET_SENSOR_INFORMATION = 0x0110;
+static constexpr uint16_t CMD_GET_SETTING_STATUS = 0x0020;
+static constexpr uint16_t CMD_SET_SETTING_STATUS = 0x4020;
+static constexpr uint16_t CMD_GET_OPERATION_MODE = 0x0030;
+static constexpr uint16_t CMD_SET_OPERATION_MODE = 0x4030;
+static constexpr uint16_t CMD_GET_SETPOINT = 0x0040;
+static constexpr uint16_t CMD_SET_SETPOINT = 0x4040;
+static constexpr uint16_t CMD_GET_FAN_SPEED = 0x0050;
+static constexpr uint16_t CMD_SET_FAN_SPEED = 0x4050;
+static constexpr uint16_t CMD_GET_SENSOR_INFORMATION = 0x0110;
 
 // Indexed by the device's operation mode byte
 static constexpr std::array<ClimateMode, 5> DEVICE_MODES{CLIMATE_MODE_FAN_ONLY, CLIMATE_MODE_DRY,
@@ -77,7 +77,7 @@ void DaikinMadoka::control(const ClimateCall &call) {
     if (mode == CLIMATE_MODE_OFF) {
       this->enqueue_query_(CMD_SET_SETTING_STATUS, std::array<uint8_t, 3>{0x20, 0x01, 0});
     } else {
-      auto it = std::find(DEVICE_MODES.begin(), DEVICE_MODES.end(), mode);
+      const auto *it = std::find(DEVICE_MODES.begin(), DEVICE_MODES.end(), mode);
       if (it == DEVICE_MODES.end()) {
         ESP_LOGW(TAG, "Unsupported mode: %d", mode);
       } else {
@@ -159,9 +159,8 @@ void DaikinMadoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_c
       this->notify_handle_ = nfy->handle;
       this->wwr_handle_ = wwr->handle;
 
-      auto status = this->parent_->register_for_notify(nfy->handle);
-      if (status) {
-        ESP_LOGW(TAG, "[%s] failed to register for notify, status=%d", this->get_name().c_str(), status);
+      if (this->parent_->register_for_notify(nfy->handle) != ESP_OK) {
+        this->fail_connection_(LOG_STR("Notify registration failed"));
       }
       break;
     }
@@ -185,7 +184,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->publish_state();
 
       this->assembler_.reset();
-      this->cancel_timeout("query");
+      this->cancel_timeout(QUERY_TIMEOUT_ID);
       this->query_cooldown_ = false;
       this->query_queue_.clear();
       this->pending_responses_ = 0;
@@ -201,7 +200,9 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       }
       break;
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      esp_ble_set_encryption(this->parent_->get_remote_bda(), ESP_BLE_SEC_ENCRYPT_MITM);
+      if (esp_ble_set_encryption(this->parent_->get_remote_bda(), ESP_BLE_SEC_ENCRYPT_MITM) != ESP_OK) {
+        this->fail_connection_(LOG_STR("Encryption request failed"));
+      }
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -209,7 +210,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         break;
       }
       if (param->reg_for_notify.status != ESP_GATT_OK) {
-        ESP_LOGE(TAG, "Failed to register for notify, status = 0x%x", param->reg_for_notify.status);
+        this->fail_connection_(LOG_STR("Notify registration failed"));
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
@@ -243,6 +244,11 @@ void DaikinMadoka::update() {
   // Nothing is in flight, so responses still counted from the last batch were lost
   if (!this->query_cooldown_) {
     this->pending_responses_ = 0;
+  }
+  // A queued poll runs after any SET commands ahead of it, so it already reads back the new state
+  for (const auto &queued : this->query_queue_) {
+    if (expects_response(queued.cmd))
+      return;
   }
   for (auto cmd : ALL_CMDS) {
     this->enqueue_query_(cmd, NO_ARGS);
@@ -294,7 +300,7 @@ void DaikinMadoka::send_next_query_() {
       this->pending_responses_++;
   }
   this->query_cooldown_ = true;
-  this->set_timeout("query", get_command_cooldown(cmd), [this]() { this->send_next_query_(); });
+  this->set_timeout(QUERY_TIMEOUT_ID, get_command_cooldown(cmd), [this]() { this->send_next_query_(); });
 }
 
 bool DaikinMadoka::write_query_(const Query &query) {
@@ -393,7 +399,10 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
       break;
   }
 
-  if (this->pending_responses_ > 0 && --this->pending_responses_ == 0) {
+  if (this->pending_responses_ == 0)
+    return;
+  this->pending_responses_--;
+  if (this->pending_responses_ == 0) {
     this->publish_state();
   }
 }

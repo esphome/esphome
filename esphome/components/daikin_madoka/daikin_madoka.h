@@ -19,7 +19,7 @@ namespace esphome::daikin_madoka {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-// Deepest backlog is one control() burst (4) plus a full update() poll (5)
+// Deepest backlog is one control() burst (4) plus one update() poll (5); update() never queues a second poll
 static constexpr uint8_t QUERY_QUEUE_SIZE = 10;
 
 // BLE service and characteristic UUIDs
@@ -85,8 +85,10 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
   // Responses still expected from the queries sent; the state is published when it reaches zero
   uint8_t pending_responses_{0};
   bool power_on_{false};
-  // True while the "query" timeout is armed to pace the next send
+  // True while the query timeout is armed to pace the next send
   bool query_cooldown_{false};
+
+  static constexpr uint32_t QUERY_TIMEOUT_ID = 0;
 };
 
 }  // namespace esphome::daikin_madoka
