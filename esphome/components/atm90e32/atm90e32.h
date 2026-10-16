@@ -22,34 +22,24 @@ struct OffsetCalibration {
   int16_t second_offset{0};
 };
 
+struct GainCalibration {
+  uint16_t voltage_gain{1};
+  uint16_t current_gain{1};
+};
+
+static constexpr GainCalibration GAIN_CALIBRATION_CLEARED{0, 0};
+
 static_assert(sizeof(OffsetCalibration[3]) == 12, "Offset calibration preference layout must remain compatible");
+static_assert(sizeof(GainCalibration[3]) == 12, "Gain calibration preference layout must remain compatible");
 
 enum class OffsetCalibrationType : uint8_t {
   OFFSET_CALIBRATION_TYPE_VOLTAGE_CURRENT,
   OFFSET_CALIBRATION_TYPE_POWER,
 };
 
-struct OffsetRestoreState {
-  bool restored;
-  bool values_verified;
-};
-
-inline OffsetRestoreState resolve_offset_restore_state(bool has_stored_values, bool initial_values_verified,
-                                                       bool fallback_values_verified) {
-  if (initial_values_verified)
-    return {has_stored_values, true};
-  return {false, fallback_values_verified};
-}
-
-inline void prepare_offset_rollback(const OffsetCalibration (&previous)[3], bool had_stored_values,
-                                    OffsetCalibration (&rollback)[3]) {
-  for (uint8_t phase = 0; phase < 3; phase++)
-    rollback[phase] = had_stored_values ? previous[phase] : OffsetCalibration{};
-}
-
-class ATM90E32Component final : public PollingComponent,
-                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                      spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
+class ATM90E32Component : public PollingComponent,
+                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   static const uint8_t PHASEA = 0;
   static const uint8_t PHASEB = 1;
@@ -157,7 +147,8 @@ class ATM90E32Component final : public PollingComponent,
     return 5.0f;   // Default current
 #endif
   }
-  bool using_saved_calibrations_ = false;  // Track if stored calibrations are being used
+  // True when any verified stored gain, offset, or power-offset calibration is in use.
+  bool using_saved_calibrations_ = false;
 #ifdef USE_TEXT_SENSOR
   void check_phase_status();
   void check_freq_status();
@@ -207,9 +198,9 @@ class ATM90E32Component final : public PollingComponent,
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
   void restore_offset_calibrations_(OffsetCalibrationType type);
   void restore_gain_calibrations_();
-  void save_gain_calibration_to_memory_();
+  void finish_gain_calibration_(const GainCalibration (&previous)[3], bool previous_restored);
   void finish_offset_calibration_(const OffsetCalibration (&previous)[3], bool previous_restored,
-                                  bool previous_using_saved, OffsetCalibrationType type);
+                                  OffsetCalibrationType type);
   void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
                                    OffsetCalibrationType type);
   void write_gains_to_registers_();
@@ -217,6 +208,7 @@ class ATM90E32Component final : public PollingComponent,
   bool verify_offset_writes_(OffsetCalibrationType type);
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
+  void update_using_saved_calibrations_();
   const char *get_calibration_id_();
   void get_cs_summary_(std::span<char, GPIO_SUMMARY_MAX_LEN> buffer);
 
@@ -258,11 +250,7 @@ class ATM90E32Component final : public PollingComponent,
   OffsetCalibration power_offset_phase_[3];
   OffsetCalibration config_power_offset_phase_[3];
 
-  struct GainCalibration {
-    uint16_t voltage_gain{1};
-    uint16_t current_gain{1};
-  } gain_phase_[3];
-
+  GainCalibration gain_phase_[3];
   GainCalibration config_gain_phase_[3];
 
   bool has_config_voltage_offset_[3]{false, false, false};
@@ -292,6 +280,7 @@ class ATM90E32Component final : public PollingComponent,
   const char *instance_id_{nullptr};
   bool has_stored_offset_calibration_{false};
   bool has_stored_power_offset_calibration_{false};
+  bool has_stored_gain_calibration_{false};
   bool restored_offset_calibration_{false};
   bool restored_power_offset_calibration_{false};
   bool restored_gain_calibration_{false};
