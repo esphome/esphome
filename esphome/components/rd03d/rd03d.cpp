@@ -85,40 +85,38 @@ void RD03DComponent::dump_config() {
 }
 
 void RD03DComponent::loop() {
-  this->read_available([this](uint8_t byte) { this->handle_byte_(byte); });
-}
+  this->read_available([this](uint8_t byte) {
+    ESP_LOGVV(TAG, "Received byte: 0x%02X, buffer_pos: %d", byte, this->buffer_pos_);
 
-void RD03DComponent::handle_byte_(uint8_t byte) {
-  ESP_LOGVV(TAG, "Received byte: 0x%02X, buffer_pos: %d", byte, this->buffer_pos_);
+    // Check if we're looking for frame header
+    if (this->buffer_pos_ < FRAME_HEADER_SIZE) {
+      if (byte == FRAME_HEADER[this->buffer_pos_]) {
+        this->buffer_[this->buffer_pos_++] = byte;
+      } else if (byte == FRAME_HEADER[0]) {
+        // Start over if we see a potential new header
+        this->buffer_[0] = byte;
+        this->buffer_pos_ = 1;
+      } else {
+        this->buffer_pos_ = 0;
+      }
+      return;
+    }
 
-  // Check if we're looking for frame header
-  if (this->buffer_pos_ < FRAME_HEADER_SIZE) {
-    if (byte == FRAME_HEADER[this->buffer_pos_]) {
-      this->buffer_[this->buffer_pos_++] = byte;
-    } else if (byte == FRAME_HEADER[0]) {
-      // Start over if we see a potential new header
-      this->buffer_[0] = byte;
-      this->buffer_pos_ = 1;
-    } else {
+    // Accumulate data bytes
+    this->buffer_[this->buffer_pos_++] = byte;
+
+    // Check if we have a complete frame
+    if (this->buffer_pos_ == FRAME_SIZE) {
+      // Validate footer
+      if (this->buffer_[FRAME_SIZE - 2] == FRAME_FOOTER[0] && this->buffer_[FRAME_SIZE - 1] == FRAME_FOOTER[1]) {
+        this->process_frame_();
+      } else {
+        ESP_LOGW(TAG, "Invalid frame footer: 0x%02X 0x%02X (expected 0x55 0xCC)", this->buffer_[FRAME_SIZE - 2],
+                 this->buffer_[FRAME_SIZE - 1]);
+      }
       this->buffer_pos_ = 0;
     }
-    return;
-  }
-
-  // Accumulate data bytes
-  this->buffer_[this->buffer_pos_++] = byte;
-
-  // Check if we have a complete frame
-  if (this->buffer_pos_ == FRAME_SIZE) {
-    // Validate footer
-    if (this->buffer_[FRAME_SIZE - 2] == FRAME_FOOTER[0] && this->buffer_[FRAME_SIZE - 1] == FRAME_FOOTER[1]) {
-      this->process_frame_();
-    } else {
-      ESP_LOGW(TAG, "Invalid frame footer: 0x%02X 0x%02X (expected 0x55 0xCC)", this->buffer_[FRAME_SIZE - 2],
-               this->buffer_[FRAME_SIZE - 1]);
-    }
-    this->buffer_pos_ = 0;
-  }
+  });
 }
 
 void RD03DComponent::process_frame_() {

@@ -1,6 +1,5 @@
 #include "ld2410s.h"
 #include "ld2410s_number.h"
-#include <algorithm>
 #include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"

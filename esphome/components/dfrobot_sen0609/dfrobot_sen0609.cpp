@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
