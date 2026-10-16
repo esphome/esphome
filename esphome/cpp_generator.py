@@ -1270,6 +1270,9 @@ class MockObj(Expression):
         return MockObj(op)
 
 
+_ENUM_NON_ALNUM = re.compile(r"[^A-Za-z0-9]")
+
+
 class MockObjEnum(MockObj):
     def __init__(self, *args, **kwargs):
         self._enum = kwargs.pop("enum")
@@ -1288,6 +1291,29 @@ class MockObjEnum(MockObj):
 
     def __repr__(self):
         return f"MockObj<{str(self.base)}>"
+
+    def options(
+        self,
+        *names: str,
+        prefix: str = "",
+        overrides: dict[str, str] | None = None,
+    ) -> dict[str, "MockObj"]:
+        """Map option names to enumerators, for cv.enum.
+
+        Each name maps to prefix + the name upper-cased, with characters that
+        are not letters or digits turned into "_". overrides gives exact
+        enumerator names (without prefix) for names that do not follow this.
+        """
+        overrides = overrides or {}
+        if unknown := set(overrides) - set(names):
+            raise ValueError(f"Overrides for unknown options: {sorted(unknown)}")
+        return {
+            name: getattr(
+                self,
+                prefix + overrides.get(name, _ENUM_NON_ALNUM.sub("_", name).upper()),
+            )
+            for name in names
+        }
 
 
 class MockObjClass(MockObj):
