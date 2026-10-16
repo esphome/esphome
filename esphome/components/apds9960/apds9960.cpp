@@ -8,7 +8,7 @@ ESPHOME_LOG_TAG(TAG, "apds9960");
 
 #define APDS9960_ERROR_CHECK(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Setting up APDS9960 registers failed")); \
     return; \
   }
 #define APDS9960_WRITE_BYTE(reg, value) APDS9960_ERROR_CHECK(this->write_byte(reg, value));
@@ -16,14 +16,12 @@ ESPHOME_LOG_TAG(TAG, "apds9960");
 void APDS9960::setup() {
   uint8_t id;
   if (!this->read_byte(0x92, &id)) {  // ID register
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   if (id != 0xAB && id != 0x9C && id != 0xA8 && id != 0x9E) {  // APDS9960 all should have one of these IDs
-    this->error_code_ = WRONG_ID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("APDS9960 has invalid id"));
     return;
   }
 
@@ -135,20 +133,6 @@ void APDS9960::dump_config() {
   LOG_SENSOR("  ", "Clear channel", this->clear_sensor_);
   LOG_SENSOR("  ", "Proximity", this->proximity_sensor_);
 #endif
-
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case WRONG_ID:
-        ESP_LOGE(TAG, "APDS9960 has invalid id!");
-        break;
-      default:
-        ESP_LOGE(TAG, "Setting up APDS9960 registers failed!");
-        break;
-    }
-  }
 }
 
 #define APDS9960_WARNING_CHECK(func, warning) \
