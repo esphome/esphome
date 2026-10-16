@@ -1,6 +1,5 @@
 #include "i2c.h"
 
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -49,21 +48,6 @@ ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, 
   buffer[1] = a_register;
   std::copy(data, data + len, buffer + 2);
   return this->bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
-}
-
-bool I2CDevice::check_chip_id(Component *component, uint8_t a_register, uint8_t expected, uint8_t alternative,
-                              uint8_t mask) {
-  uint8_t id;
-  if (this->read_register(a_register, &id, 1) != ERROR_OK) {
-    component->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return false;
-  }
-  const uint8_t masked = id & mask;
-  if (masked == expected || masked == alternative)
-    return true;
-  ESP_LOGE(TAG, "Wrong chip ID 0x%02X, expected 0x%02X", id, expected);
-  component->mark_failed(LOG_STR("Wrong chip ID"));
-  return false;
 }
 
 bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {

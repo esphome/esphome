@@ -2,13 +2,11 @@
 
 #include <array>
 #include <vector>
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 #include "i2c_bus.h"
-
-namespace esphome {
-class Component;
-}  // namespace esphome
 
 namespace esphome::i2c {
 
@@ -212,12 +210,15 @@ class I2CDevice {
   /// @return an i2c::ErrorCode
   ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
 
-  /// Read the 8-bit ID at \p a_register and accept it when `(id & mask)` is \p expected or \p alternative.
-  /// Otherwise log it, mark \p component failed and return false.
-  bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected, uint8_t alternative,
-                     uint8_t mask = 0xFF);
-  bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected) {
-    return this->check_chip_id(component, a_register, expected, expected);
+  /// Read the 8-bit ID at \p a_register and accept it when `(id & mask)` equals \p expected.
+  /// Otherwise mark \p component failed and return false.
+  bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected, uint8_t mask = 0xFF) {
+    uint8_t id;
+    const ErrorCode err = this->read_register(a_register, &id, 1);
+    if (err == ERROR_OK && (id & mask) == expected)
+      return true;
+    component->mark_failed(err == ERROR_OK ? LOG_STR("Wrong chip ID") : LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
   }
 
   ///

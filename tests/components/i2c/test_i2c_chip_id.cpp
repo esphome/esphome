@@ -62,21 +62,24 @@ TEST_F(I2CChipIdTest, ReadFailureFails) {
   EXPECT_TRUE(this->device_.is_failed());
 }
 
-TEST_F(I2CChipIdTest, AlternativeIdPasses) {
-  this->bus_.id = 0x81;
-  EXPECT_TRUE(this->device_.check_chip_id(&this->device_, 0x01, 0x80, 0x81));
+TEST_F(I2CChipIdTest, MaskAcceptsTwoIds) {
+  // 0xB1 and 0xB3 differ only in bit 1
+  for (uint8_t id : {0xB1, 0xB3}) {
+    this->bus_.id = id;
+    EXPECT_TRUE(this->device_.check_chip_id(&this->device_, 0x06, 0xB1, 0xFD));
+  }
   EXPECT_FALSE(this->device_.is_failed());
-  this->bus_.id = 0x82;
-  EXPECT_FALSE(this->device_.check_chip_id(&this->device_, 0x01, 0x80, 0x81));
+  this->bus_.id = 0xB5;
+  EXPECT_FALSE(this->device_.check_chip_id(&this->device_, 0x06, 0xB1, 0xFD));
   EXPECT_TRUE(this->device_.is_failed());
 }
 
 TEST_F(I2CChipIdTest, MaskIgnoresRevisionBits) {
   this->bus_.id = 0x27;
-  EXPECT_TRUE(this->device_.check_chip_id(&this->device_, 0x92, 0x24, 0x24, 0xFC));
+  EXPECT_TRUE(this->device_.check_chip_id(&this->device_, 0x92, 0x24, 0xFC));
   EXPECT_FALSE(this->device_.is_failed());
   this->bus_.id = 0x2B;
-  EXPECT_FALSE(this->device_.check_chip_id(&this->device_, 0x92, 0x24, 0x24, 0xFC));
+  EXPECT_FALSE(this->device_.check_chip_id(&this->device_, 0x92, 0x24, 0xFC));
   EXPECT_TRUE(this->device_.is_failed());
 }
 
