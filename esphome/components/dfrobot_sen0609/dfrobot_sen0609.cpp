@@ -210,30 +210,14 @@ void DFRobotSEN0609Component::loop() {
 }
 
 void DFRobotSEN0609Component::readline_(uint8_t c) {
-  if (c == '\r')
-    return;
-  if (c == '\n') {
-    if (!this->line_overflow_) {
-      this->line_[this->line_pos_] = '\0';
-      this->handle_line_(this->line_);
-    }
-    this->line_overflow_ = false;
-    this->line_pos_ = 0;
-    return;
-  }
-  if (this->line_overflow_)
-    return;
-  if (this->line_pos_ >= MAX_LINE_LENGTH - 1) {
+  char *line = this->line_reader_.feed(c);
+  if (line != nullptr) {
+    this->handle_line_(line);
+  } else if (this->line_reader_.overflowed()) {
     ESP_LOGW(TAG, "Line too long, dropped");
-    this->line_overflow_ = true;
-    return;
-  }
-  this->line_[this->line_pos_++] = static_cast<char>(c);
-  // The prompt has no line end, and the echo of the next command follows it on the same line
-  if (c == '>') {
-    this->line_[this->line_pos_] = '\0';
-    if (ESPHOME_strcmp_P(this->line_, ESPHOME_PSTR("DFRobot:/>")) == 0)
-      this->line_pos_ = 0;
+  } else if (c == '>' && ESPHOME_strcmp_P(this->line_reader_.partial(), ESPHOME_PSTR("DFRobot:/>")) == 0) {
+    // The prompt has no line end, and the echo of the next command follows it on the same line
+    this->line_reader_.reset();
   }
 }
 

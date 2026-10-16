@@ -12,8 +12,12 @@ void SMT100Component::update() {
 
 void SMT100Component::loop() {
   while (this->available() != 0) {
-    if (this->readline_(this->read(), this->readline_buffer_, MAX_LINE_LENGTH) > 0) {
-      char *token = strtok(this->readline_buffer_, ",");
+    const int readch = this->read();
+    if (readch <= 0)
+      continue;
+    char *line = this->line_reader_.feed(readch);
+    if (line != nullptr && line[0] != '\0') {
+      char *token = strtok(line, ",");
       if (!token)
         continue;
       int counts = (int) strtol(token, nullptr, 10);
@@ -65,28 +69,6 @@ void SMT100Component::dump_config() {
   LOG_SENSOR(TAG, "Temperature", this->temperature_sensor_);
   LOG_SENSOR(TAG, "Moisture", this->moisture_sensor_);
   LOG_UPDATE_INTERVAL(this);
-}
-
-int SMT100Component::readline_(int readch, char *buffer, int len) {
-  int rpos;
-
-  if (readch > 0) {
-    switch (readch) {
-      case '\n':  // Ignore new-lines
-        break;
-      case '\r':  // Return on CR
-        rpos = this->readline_pos_;
-        this->readline_pos_ = 0;  // Reset position index ready for next time
-        return rpos;
-      default:
-        if (this->readline_pos_ < len - 1) {
-          buffer[this->readline_pos_++] = readch;
-          buffer[this->readline_pos_] = 0;
-        }
-    }
-  }
-  // No end of line has been found, so return -1.
-  return -1;
 }
 
 }  // namespace esphome::smt100

@@ -24,6 +24,7 @@
 #ifdef USE_BUTTON
 #include "esphome/components/button/button.h"
 #endif
+#include "esphome/components/uart/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 #include <array>
@@ -188,7 +189,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   std::array<bool, SWITCH_COUNT> switch_states_{};
 #endif
 
-  char line_[MAX_LINE_LENGTH];
   char command_[MAX_COMMAND_LENGTH]{};
   float response_[MAX_RESPONSE_VALUES]{};
   uint32_t sent_ms_{0};
@@ -203,6 +203,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint16_t paired_reads_{0};
   // Writes given up on that are tried again in a later sequence
   uint16_t deferred_writes_{0};
+  uart::LineReader<MAX_LINE_LENGTH> line_reader_;
 #ifdef USE_NUMBER
   // Numbers changed since their last write was sent, one bit per NumberSetting
   uint16_t changed_numbers_{0};
@@ -210,7 +211,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   RunMode mode_;
   Operation operation_{Operation::OPERATION_NONE};
   Param param_{PARAM_COUNT};
-  uint8_t line_pos_{0};
   uint8_t response_count_{0};
   uint8_t out_pin_level_{0};
   uint8_t attempts_{0};
@@ -221,7 +221,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t led_on_{0};
   bool sent_led_on_{false};
 #endif
-  bool line_overflow_{false};
   bool read_failed_{false};
   bool bad_frame_logged_{false};
   bool echo_seen_{false};

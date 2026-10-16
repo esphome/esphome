@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/uart/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::smt100 {
@@ -25,10 +26,7 @@ class SMT100Component final : public PollingComponent, public uart::UARTDevice {
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
 
  protected:
-  int readline_(int readch, char *buffer, int len);
-
-  char readline_buffer_[MAX_LINE_LENGTH]{};
-  int readline_pos_{0};
+  uart::LineReader<MAX_LINE_LENGTH, '\r', '\n'> line_reader_;
 
   sensor::Sensor *counts_sensor_{nullptr};
   sensor::Sensor *permittivity_sensor_{nullptr};
