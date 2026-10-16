@@ -52,14 +52,15 @@ uart_mock:
                 reply[3] = 0x14;
                 reply[4] = 0x04;  // CO
                 reply[5] = 0x00;  // no decimal places
-                reply[6] = 0x02;  // NTC ADC 512: 25 C
-                reply[7] = 0x00;
+                reply[6] = 0x01;  // NTC ADC 511, a non-zero byte 7 that the checksum must leave out
+                reply[7] = 0xFF;
                 break;
               default:
                 return;
             }
+            // The checksum covers bytes 1 to 6 only, as in the DFRobot library
             uint8_t sum = 0;
-            for (int i = 1; i < 8; i++)
+            for (int i = 1; i < 7; i++)
               sum += reply[i];
             reply[8] = static_cast<uint8_t>(~sum + 1);
             id(mock_uart).inject_to_rx_buffer(reply);

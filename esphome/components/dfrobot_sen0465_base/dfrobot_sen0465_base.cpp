@@ -29,9 +29,10 @@ static constexpr uint32_t MODE_CHANGE_DELAY_MS = 1000;
 static constexpr uint32_t RETRY_DELAY_MS = 1000;
 static constexpr uint8_t MAX_ATTEMPTS = 3;
 
+// Like FucCheckSum() in the DFRobot library, the checksum covers bytes 1 to 6 only, not byte 7
 static uint8_t frame_checksum(const uint8_t *frame) {
   uint8_t sum = 0;
-  for (uint8_t i = 1; i < FRAME_SIZE - 1; i++)
+  for (uint8_t i = 1; i < FRAME_SIZE - 2; i++)
     sum += frame[i];
   return static_cast<uint8_t>(~sum + 1);
 }
@@ -168,7 +169,8 @@ void DFRobotSEN0465Component::handle_response_(const uint8_t *frame) {
 
 void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
   if (frame[FRAME_SIZE - 1] != frame_checksum(frame)) {
-    ESP_LOGW(TAG, "Invalid checksum");
+    char hex[format_hex_pretty_size(FRAME_SIZE)];
+    ESP_LOGW(TAG, "Invalid checksum: %s", format_hex_pretty_to(hex, frame, FRAME_SIZE));
     this->status_set_warning();
     return;
   }

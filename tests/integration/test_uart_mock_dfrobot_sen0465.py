@@ -7,6 +7,7 @@ a reading is decoded and temperature compensated.
 from __future__ import annotations
 
 import asyncio
+import math
 from pathlib import Path
 import re
 
@@ -81,6 +82,10 @@ async def test_uart_mock_dfrobot_sen0465(
         assert any("Alarm setting confirmed" in x for x in lines)
         assert not any("Data requested before the setup was done" in x for x in lines)
 
-        # 20 ppm at 25 C: 20 / (0.005 * 25 + 0.9) - (0.3 * 25 - 6)
-        assert state_of(concentration) == pytest.approx(20 / 1.025 - 1.5, abs=0.05)
-        assert state_of(temperature) == pytest.approx(25.0, abs=0.1)
+        # NTC ADC 511 converted like the DFRobot library, then compensated with the CO formula
+        voltage = 3 * 511 / 1024
+        resistance = voltage * 10000 / (3 - voltage)
+        temp = 1 / (1 / 298.15 + math.log(resistance / 10000) / 3380.13) - 273.15
+        assert state_of(temperature) == pytest.approx(temp, abs=0.05)
+        expected = 20 / (0.005 * temp + 0.9) - (0.3 * temp - 6)
+        assert state_of(concentration) == pytest.approx(expected, abs=0.05)
