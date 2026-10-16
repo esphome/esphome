@@ -46,7 +46,7 @@ void HDC2080Component::update() {
     data = MEAS_TRIG | MEAS_CONF_HUM;
   }
   if (this->write_register(REG_MEASUREMENT_CONFIGURATION, &data, 1) != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // wait for conversion to complete 2ms should be enough, more is fine

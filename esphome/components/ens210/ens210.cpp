@@ -161,8 +161,7 @@ void ENS210Component::update() {
 
     // Read T_VAL and H_VAL
     if (!this->read_bytes(ENS210_REGISTER_T_VAL, data, 6)) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->status_set_warning();
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
     // Pack bytes for humidity

@@ -109,8 +109,7 @@ void Emc2101Component::set_duty_cycle(float value) {
   uint8_t duty_cycle = remap(value, 0.0f, 1.0f, (uint8_t) 0, this->max_output_value_);
   ESP_LOGD(TAG, "Setting duty fan setting to %02X", duty_cycle);
   if (!this->write_byte(EMC2101_REGISTER_FAN_SETTING, duty_cycle)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -118,8 +117,7 @@ void Emc2101Component::set_duty_cycle(float value) {
 float Emc2101Component::get_duty_cycle() {
   uint8_t duty_cycle;
   if (!this->read_byte(EMC2101_REGISTER_FAN_SETTING, &duty_cycle)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return NAN;
   }
   return remap(duty_cycle, (uint8_t) 0, this->max_output_value_, 0.0f, 1.0f);
@@ -128,8 +126,7 @@ float Emc2101Component::get_duty_cycle() {
 float Emc2101Component::get_internal_temperature() {
   uint8_t temperature;
   if (!this->read_byte(EMC2101_REGISTER_INTERNAL_TEMP, &temperature)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return NAN;
   }
   return temperature;
@@ -140,8 +137,7 @@ float Emc2101Component::get_external_temperature() {
   uint8_t lsb, msb;
   if (!this->read_byte(EMC2101_REGISTER_EXTERNAL_TEMP_MSB, &msb) ||
       !this->read_byte(EMC2101_REGISTER_EXTERNAL_TEMP_LSB, &lsb)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return NAN;
   }
 
@@ -154,8 +150,7 @@ float Emc2101Component::get_speed() {
   // Read **LSB** first to match 'Data Read Interlock' behavior from 6.1 of datasheet
   uint8_t lsb, msb;
   if (!this->read_byte(EMC2101_REGISTER_TACH_LSB, &lsb) || !this->read_byte(EMC2101_REGISTER_TACH_MSB, &msb)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return NAN;
   }
 
