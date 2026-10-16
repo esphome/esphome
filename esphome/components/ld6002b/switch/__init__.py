@@ -14,7 +14,6 @@ from ..const import (
 
 DEPENDENCIES = ["ld6002b"]
 
-LD6002BSwitch = ld6002b_ns.class_("LD6002BSwitch", switch.Switch)
 SwitchType = ld6002b_ns.enum("SwitchType", is_class=True)
 
 # None of these three carry an inversion. They name what the module is doing, not
@@ -25,19 +24,19 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
         cv.Optional(CONF_LOW_POWER): switch.switch_schema(
-            LD6002BSwitch,
+            switch.ApplySwitch,
             block_inverted=True,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_POINT_CLOUD): switch.switch_schema(
-            LD6002BSwitch,
+            switch.ApplySwitch,
             block_inverted=True,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_TARGET_DISPLAY): switch.switch_schema(
-            LD6002BSwitch,
+            switch.ApplySwitch,
             block_inverted=True,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
@@ -49,13 +48,16 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
+    switches = switch.sub_switches(config, parent=hub)
 
     for key, switch_type, setter in (
         (CONF_LOW_POWER, SwitchType.LOW_POWER, "set_low_power_switch"),
         (CONF_POINT_CLOUD, SwitchType.POINT_CLOUD, "set_point_cloud_switch"),
         (CONF_TARGET_DISPLAY, SwitchType.TARGET_DISPLAY, "set_target_display_switch"),
     ):
-        if conf := config.get(key):
-            s = await switch.new_switch(conf, switch_type)
-            await cg.register_parented(s, config[CONF_LD6002B_ID])
-            cg.add(getattr(hub, setter)(s))
+        await switches(
+            key,
+            getattr(hub, setter),
+            apply=f"set_switch_state({switch_type}, state)",
+            publish="after",
+        )

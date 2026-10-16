@@ -9,7 +9,6 @@ from ..const import CONF_INSTALLATION_MODE, CONF_LD6002B_ID, CONF_TRIGGER_SPEED
 
 DEPENDENCIES = ["ld6002b"]
 
-LD6002BSelect = ld6002b_ns.class_("LD6002BSelect", select.Select)
 SelectType = ld6002b_ns.enum("SelectType", is_class=True)
 
 AREA_ID_OPTIONS = [
@@ -27,16 +26,16 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
         cv.Optional(CONF_SENSITIVITY): select.select_schema(
-            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+            select.ApplySelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_TRIGGER_SPEED): select.select_schema(
-            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+            select.ApplySelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_INSTALLATION_MODE): select.select_schema(
-            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+            select.ApplySelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_AREA_ID): select.select_schema(
-            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+            select.ApplySelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
     }
 )
@@ -67,9 +66,13 @@ SELECT_MAP = (
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
+    selects = select.sub_selects(config, parent=hub)
 
     for key, select_type, setter, options in SELECT_MAP:
-        if conf := config.get(key):
-            s = await select.new_select(conf, select_type, options=options)
-            await cg.register_parented(s, config[CONF_LD6002B_ID])
-            cg.add(getattr(hub, setter)(s))
+        await selects(
+            key,
+            getattr(hub, setter),
+            options=options,
+            apply=f"set_select_value({select_type}, index)",
+            publish="before",
+        )

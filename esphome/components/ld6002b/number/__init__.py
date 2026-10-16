@@ -32,32 +32,31 @@ from ..const import (
 
 DEPENDENCIES = ["ld6002b"]
 
-LD6002BNumber = ld6002b_ns.class_("LD6002BNumber", number.Number)
 NumberType = ld6002b_ns.enum("NumberType", is_class=True)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
         cv.Optional(CONF_HOLD_DELAY): number.number_schema(
-            LD6002BNumber,
+            number.ApplyNumber,
             unit_of_measurement=UNIT_SECOND,
             device_class=DEVICE_CLASS_DURATION,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_Z_MIN): number.number_schema(
-            LD6002BNumber,
+            number.ApplyNumber,
             unit_of_measurement=UNIT_METER,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_Z_MAX): number.number_schema(
-            LD6002BNumber,
+            number.ApplyNumber,
             unit_of_measurement=UNIT_METER,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_LOW_POWER_SLEEP_TIME): number.number_schema(
-            LD6002BNumber,
+            number.ApplyNumber,
             unit_of_measurement=UNIT_MILLISECOND,
             device_class=DEVICE_CLASS_DURATION,
             entity_category=ENTITY_CATEGORY_CONFIG,
@@ -65,37 +64,37 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_AREA_CONFIG): cv.Schema(
             {
                 cv.Optional(KEY_X_MIN): number.number_schema(
-                    LD6002BNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_METER,
                     device_class=DEVICE_CLASS_DISTANCE,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(KEY_X_MAX): number.number_schema(
-                    LD6002BNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_METER,
                     device_class=DEVICE_CLASS_DISTANCE,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(KEY_Y_MIN): number.number_schema(
-                    LD6002BNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_METER,
                     device_class=DEVICE_CLASS_DISTANCE,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(KEY_Y_MAX): number.number_schema(
-                    LD6002BNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_METER,
                     device_class=DEVICE_CLASS_DISTANCE,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(CONF_Z_MIN): number.number_schema(
-                    LD6002BNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_METER,
                     device_class=DEVICE_CLASS_DISTANCE,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(CONF_Z_MAX): number.number_schema(
-                    LD6002BNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_METER,
                     device_class=DEVICE_CLASS_DISTANCE,
                     entity_category=ENTITY_CATEGORY_CONFIG,
@@ -139,6 +138,7 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
+    numbers = number.sub_numbers(config, parent=hub)
 
     for key, number_type, setter, min_value, max_value, step in (
         (CONF_HOLD_DELAY, NumberType.HOLD_DELAY, "set_hold_delay_number", 0, 65535, 1),
@@ -156,14 +156,18 @@ async def to_code(config: ConfigType) -> None:
             100,
         ),
     ):
-        if conf := config.get(key):
-            n = await number.new_number(
-                conf, number_type, min_value=min_value, max_value=max_value, step=step
-            )
-            await cg.register_parented(n, config[CONF_LD6002B_ID])
-            cg.add(getattr(hub, setter)(n))
+        await numbers(
+            key,
+            getattr(hub, setter),
+            min_value=min_value,
+            max_value=max_value,
+            step=step,
+            apply=f"set_number_value({number_type}, value)",
+            publish="before",
+        )
 
     if area_config := config.get(CONF_AREA_CONFIG):
+        area_numbers = number.sub_numbers(area_config, parent=hub)
         for key, number_type, setter in (
             (KEY_X_MIN, NumberType.AREA_X_MIN, "set_area_x_min_number"),
             (KEY_X_MAX, NumberType.AREA_X_MAX, "set_area_x_max_number"),
@@ -172,9 +176,12 @@ async def to_code(config: ConfigType) -> None:
             (CONF_Z_MIN, NumberType.AREA_Z_MIN, "set_area_z_min_number"),
             (CONF_Z_MAX, NumberType.AREA_Z_MAX, "set_area_z_max_number"),
         ):
-            if conf := area_config.get(key):
-                n = await number.new_number(
-                    conf, number_type, min_value=-10, max_value=10, step=0.1
-                )
-                await cg.register_parented(n, config[CONF_LD6002B_ID])
-                cg.add(getattr(hub, setter)(n))
+            await area_numbers(
+                key,
+                getattr(hub, setter),
+                min_value=-10,
+                max_value=10,
+                step=0.1,
+                apply=f"set_number_value({number_type}, value)",
+                publish="before",
+            )
