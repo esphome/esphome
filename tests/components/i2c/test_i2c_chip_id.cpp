@@ -34,7 +34,9 @@ class I2CChipIdTest : public ::testing::Test {
  protected:
   void SetUp() override {
     new (&App) Application;
-    App.pre_setup("i2c-chip-id-tests", 17, "I2C chip ID tests", 17);
+    static char name[] = "i2c-chip-id-tests";
+    static char friendly_name[] = "I2C chip ID tests";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, sizeof(friendly_name) - 1);
     this->device_.set_i2c_bus(&this->bus_);
     this->device_.set_i2c_address(0x40);
   }
