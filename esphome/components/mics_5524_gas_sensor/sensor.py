@@ -82,6 +82,7 @@ from .coefficients import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
 def _auto_load(config: ConfigType | None) -> list[str]:
     """Components this platform needs: ``adc`` only for a ``pin:`` source.
 
