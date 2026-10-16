@@ -7,8 +7,6 @@
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
 
-#define BME280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
-
 namespace esphome::bme280_base {
 
 ESPHOME_LOG_TAG(TAG, "bme280.sensor");
@@ -100,13 +98,11 @@ void BME280Component::setup() {
   }
 
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x60) {
-    this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(LOG_STR(BME280_ERROR_WRONG_CHIP_ID));
+    this->mark_failed(LOG_STR("Wrong chip ID or no response"));
     return;
   }
 
@@ -182,17 +178,6 @@ void BME280Component::setup() {
 }
 void BME280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME280:");
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, BME280_ERROR_WRONG_CHIP_ID);
-      break;
-    case NONE:
-    default:
-      break;
-  }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
 
