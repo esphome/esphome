@@ -148,6 +148,25 @@ uint8_t HitachiClimate::get_button_() { return remote_state_[HITACHI_AC344_BUTTO
 
 void HitachiClimate::set_button_(uint8_t button) { remote_state_[HITACHI_AC344_BUTTON_BYTE] = button; }
 
+#ifdef USE_HITACHI_AC344_MILDEW_PROOF
+bool HitachiClimate::get_mildew_proof() const {
+  return GETBIT8(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], HITACHI_AC344_MILDEWPROOF_OFFSET);
+}
+
+void HitachiClimate::set_mildew_proof(bool on) {
+  if (on == this->get_mildew_proof())
+    return;
+  set_bit(&this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], HITACHI_AC344_MILDEWPROOF_OFFSET, on);
+  this->transmit_state();
+  this->mildew_proof_switch_->publish_state(on);
+}
+
+void HitachiClimate::set_mildew_proof_switch(switch_::Switch *sw) {
+  this->mildew_proof_switch_ = sw;
+  this->mildew_proof_switch_->publish_state(this->get_mildew_proof());
+}
+#endif
+
 void HitachiClimate::transmit_state() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
@@ -211,6 +230,11 @@ void HitachiClimate::transmit_state() {
 
   // TODO: find change value to set button, now always set to power button
   set_button_(HITACHI_AC344_BUTTON_POWER);
+
+  // The physical remote uses this value when powering off with mildew proof enabled.
+  if (this->mode == climate::CLIMATE_MODE_OFF &&
+      GETBIT8(remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], HITACHI_AC344_MILDEWPROOF_OFFSET))
+    remote_state_[9] = 0xA5;
 
   invert_byte_pairs(remote_state_ + 3, HITACHI_AC344_STATE_LENGTH - 3);
 
@@ -352,6 +376,9 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->publish_state();
   for (uint8_t i = 0; i < HITACHI_AC344_STATE_LENGTH; i++)
     remote_state_[i] = recv_state[i];
+#ifdef USE_HITACHI_AC344_MILDEW_PROOF
+  this->mildew_proof_switch_->publish_state(this->get_mildew_proof());
+#endif
 
   return true;
 }
