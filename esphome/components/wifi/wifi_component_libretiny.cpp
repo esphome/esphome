@@ -629,7 +629,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
-#ifdef USE_WIFI_AP_EXCLUSIVE
+#ifdef USE_WIFI_AP
       this->ap_clients_++;
 #endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -641,7 +641,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
-#ifdef USE_WIFI_AP_EXCLUSIVE
+#ifdef USE_WIFI_AP
       if (this->ap_clients_ > 0)
         this->ap_clients_--;
 #endif
@@ -881,6 +881,7 @@ bool WiFiComponent::wifi_loop_() {
   // so if pop() returned nullptr above we can skip this check.
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
+    // A dropped station event cannot be made up for: the BK72xx core has no station query
     ESP_LOGW(TAG, "Dropped %" PRIu16 " WiFi events due to buffer overflow", dropped);
   }
   return true;

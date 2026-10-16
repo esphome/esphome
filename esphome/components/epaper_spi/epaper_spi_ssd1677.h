@@ -23,8 +23,8 @@ namespace esphome::epaper_spi {
 class EPaperSSD1677 : public EPaperMono {
  public:
   EPaperSSD1677(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY)
-      : EPaperMono(name, width, height, init_sequence, init_sequence_length, display_type) {}
+                size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY, uint8_t bits_per_pixel = 1)
+      : EPaperMono(name, width, height, init_sequence, init_sequence_length, display_type, bits_per_pixel) {}
 
   void setup() override;
 
