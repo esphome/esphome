@@ -102,6 +102,19 @@ TEST_F(TcpClientLinkClock, PendingConnectTimesOutIntoBackoff) {
   EXPECT_TRUE(this->link_.in_backoff());
 }
 
+TEST_F(TcpClientLinkClock, ConnectingUntilThePendingAttemptEnds) {
+  this->link_.begin("link_test");
+  EXPECT_FALSE(this->link_.connecting());
+  this->set_pending_socket();
+  this->link_.note_attempt();
+  this->link_.poll();
+  EXPECT_TRUE(this->link_.connecting());
+  set_loop_time(1000 + 10000);
+  this->link_.poll();
+  EXPECT_FALSE(this->link_.connecting());
+  EXPECT_FALSE(this->link_.connected());
+}
+
 TEST_F(TcpClientLinkClock, ConnectTimeoutFollowsALongerInterval) {
   this->link_.set_reconnect_interval(20000);
   this->link_.begin("link_test");
@@ -175,6 +188,7 @@ TEST_F(TcpClientLinkClock, BackoffSpansAMillisWrap) {
 TEST(TcpClientLink, AdoptedSocketFlushesQueuedBytes) {
   LinkPeer p;
   ASSERT_TRUE(p.link_.connected());
+  EXPECT_FALSE(p.link_.connecting());
   EXPECT_EQ(p.link_.queue(reinterpret_cast<const uint8_t *>("ping"), 4), 4u);
   EXPECT_TRUE(p.link_.flush_tx());
   char buf[8];

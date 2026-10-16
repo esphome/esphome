@@ -20,7 +20,8 @@ ESPHOME_LOG_TAG(TAG, "http_request");
 
 std::shared_ptr<HttpContainer> HttpRequestHost::perform(const char *url, const char *method, const std::string &body,
                                                         const std::vector<Header> &request_headers,
-                                                        const std::vector<std::string> &lower_case_collect_headers) {
+                                                        const std::vector<std::string> &lower_case_collect_headers,
+                                                        uint32_t) {
   if (!network::is_connected()) {
     this->status_momentary_error(1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -53,7 +54,7 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const char *url, const c
   for (const auto &[name, value] : request_headers) {
     h_headers.emplace(name, value);
   }
-  httplib::Client client(scheme_host.c_str());
+  httplib::Client client(scheme_host);
   if (!client.is_valid()) {
     ESP_LOGE(TAG, "HTTP Request failed; Invalid URL: %s", url);
     return nullptr;
@@ -114,7 +115,7 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const char *url, const c
   }
 
   container->content_length = container->response_body_.size();
-  for (auto header : response.headers) {
+  for (const auto &header : response.headers) {
     ESP_LOGD(TAG, "Header: %s: %s", header.first.c_str(), header.second.c_str());
     auto lower_name = str_lower_case(header.first);  // NOLINT
     if (should_collect_header(lower_case_collect_headers, lower_name)) {

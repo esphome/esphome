@@ -7,10 +7,11 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::mipi_spi {
 
-constexpr static const char *const TAG = "display.mipi_spi";
+ESPHOME_LOG_TAG(TAG, "display.mipi_spi");
 
 // Maximum bytes to log for commands (truncated if larger)
 static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
@@ -129,19 +130,8 @@ class MipiSpi : public display::Display,
   }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
-  int get_width() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return HEIGHT;
-    return WIDTH;
-  }
-
-  int get_height() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return WIDTH;
-    return HEIGHT;
-  }
+  int get_width() override { return display::rotation_swaps_axes(this->rotation_) ? HEIGHT : WIDTH; }
+  int get_height() override { return display::rotation_swaps_axes(this->rotation_) ? WIDTH : HEIGHT; }
 
   void set_init_sequence(const uint8_t *sequence, size_t len) {
     this->init_sequence_ = sequence;
@@ -580,12 +570,12 @@ class MipiSpiBuffer
       if (this->auto_clear_enabled_) {
         this->clear();
       }
-      if (this->page_ != nullptr) {
+      if (this->show_test_card_) {
+        this->test_card();
+      } else if (this->page_ != nullptr) {
         this->page_->get_writer()(*this);
       } else if (this->writer_.has_value()) {
         (*this->writer_)(*this);
-      } else {
-        this->test_card();
       }
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
       esph_log_v(TAG, "Drawing from line %d took %dms", this->start_line_, millis() - lap);
@@ -619,6 +609,9 @@ class MipiSpiBuffer
     esph_log_v(TAG, "Total update took %dms", millis() - now);
 #endif
   }
+
+  // With hardware rotation the buffer is written in drawn coordinates.
+  bool pixel_axes_swapped() const override { return !HAS_HARDWARE_ROTATION && display::Display::pixel_axes_swapped(); }
 
   // Draw a pixel at the given coordinates.
   void draw_pixel_at(int x, int y, Color color) override {

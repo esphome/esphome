@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
 #include <array>
@@ -111,13 +112,19 @@ class ABBWelcomeData {
     return (this->data_[7] << 16) + (this->data_[8] << 8) + this->data_[9];
   }
   void set_message_id(uint8_t message_id) { this->data_[4 + 2 * this->get_address_length()] = message_id; }
+  /// A configured id, which finalize() keeps instead of picking one
+  void set_fixed_message_id(uint8_t message_id) {
+    this->set_message_id(message_id);
+    this->auto_message_id = false;
+  }
   uint8_t get_message_id() const { return this->data_[4 + 2 * this->get_address_length()]; }
+  /// data may be a PROGMEM table
   void set_data(const uint8_t *data, size_t len) {
     uint8_t size = static_cast<uint8_t>(std::min<size_t>(MAX_DATA_LENGTH, len));
     this->data_[2] &= (0xff ^ DATA_LENGTH_MASK);
     this->data_[2] |= (size & DATA_LENGTH_MASK);
     if (size)
-      std::copy_n(data, size, this->data_.begin() + 5 + 2 * this->get_address_length());
+      progmem_memcpy(this->data_.data() + 5 + 2 * this->get_address_length(), data, size);
   }
   void set_data(const std::vector<uint8_t> &data) { this->set_data(data.data(), data.size()); }
   std::vector<uint8_t> get_data() const {
@@ -225,31 +232,5 @@ class ABBWelcomeBinarySensor : public RemoteReceiverBinarySensorBase {
 
 using ABBWelcomeTrigger = RemoteReceiverTrigger<ABBWelcomeProtocol>;
 using ABBWelcomeDumper = RemoteReceiverDumper<ABBWelcomeProtocol>;
-
-template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterActionBase<Ts...> {
-  TEMPLATABLE_VALUE(uint32_t, source_address)
-  TEMPLATABLE_VALUE(uint32_t, destination_address)
-  TEMPLATABLE_VALUE(bool, retransmission)
-  TEMPLATABLE_VALUE(bool, three_byte_address)
-  TEMPLATABLE_VALUE(uint8_t, message_type)
-  TEMPLATABLE_VALUE(uint8_t, message_id)
-  TEMPLATABLE_VALUE(bool, auto_message_id)
-  TEMPLATABLE_BYTES(data)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    ABBWelcomeData data;
-    data.set_three_byte_address(this->three_byte_address_.value(x...));
-    data.set_source_address(this->source_address_.value(x...));
-    data.set_destination_address(this->destination_address_.value(x...));
-    data.set_retransmission(this->retransmission_.value(x...));
-    data.set_message_type(this->message_type_.value(x...));
-    data.set_message_id(this->message_id_.value(x...));
-    data.auto_message_id = this->auto_message_id_.value(x...);
-    this->data_.template visit<MAX_DATA_LENGTH>(
-        [&data](const uint8_t *bytes, size_t len) { data.set_data(bytes, len); }, x...);
-    data.finalize();
-    ABBWelcomeProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

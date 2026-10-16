@@ -281,67 +281,29 @@ template<auto Fn, typename... Ts> class ApplyCondition final : public Condition<
   bool check(const Ts &...x) override { return Fn(x...); }
 };
 
-/// Simple continuation action that calls play_next_ on a parent action.
-/// Used internally by IfAction, WhileAction, RepeatAction, etc. to chain actions.
-/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
-template<typename... Ts> class ContinuationAction : public Action<Ts...> {
- public:
-  explicit ContinuationAction(Action<Ts...> *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->play_next_(x...); }
-
- protected:
-  Action<Ts...> *parent_;
-};
-
-// Forward declaration for WhileLoopContinuation
-template<typename... Ts> class WhileAction;
-
-/// Loop continuation for WhileAction that checks condition and repeats or continues.
-/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
-template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
- public:
-  explicit WhileLoopContinuation(WhileAction<Ts...> *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override;
-
- protected:
-  WhileAction<Ts...> *parent_;
-};
-
-// Wraps a ContinuationAction when Enabled, empty otherwise.
-// Lets IfAction elide the else continuation when HasElse is false.
-template<bool Enabled, typename... Ts> struct OptionalContinuation {
-  ContinuationAction<Ts...> action;
-  explicit OptionalContinuation(Action<Ts...> *parent) : action(parent) {}
-};
-template<typename... Ts> struct OptionalContinuation<false, Ts...> {
-  explicit OptionalContinuation(Action<Ts...> * /*parent*/) {}
-};
-
 template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
   // Precondition: build each branch either with one add_then/add_else call, or with
   // add_then_action/add_else_action calls followed by one finish_then/finish_else, never both.
-  // Appending the inline continuation twice forms a self-loop in the next_ chain.
+  // set_owner() closes the list; appending after it is a codegen bug.
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(&this->then_continuation_);
+    this->then_.set_owner(this);
   }
 
   void add_else(const std::initializer_list<Action<Ts...> *> &actions)
     requires(HasElse)
   {
     this->else_.add_actions(actions);
-    this->else_.add_action(&this->else_continuation_.action);
+    this->else_.set_owner(this);
   }
 
   // Codegen appends branch actions one at a time, then finishes each branch once; a list literal
   // would be a constant array in .rodata, which is RAM on ESP8266.
   void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
-  void finish_then() { this->then_.add_action(&this->then_continuation_); }
+  void finish_then() { this->then_.set_owner(this); }
   void add_else_action(Action<Ts...> *action)
     requires(HasElse)
   {
@@ -350,11 +312,12 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
   void finish_else()
     requires(HasElse)
   {
-    this->else_.add_action(&this->else_continuation_.action);
+    this->else_.set_owner(this);
   }
 
-  void play_complex(const Ts &...x) override {
+  void play_complex(const Ts &...x) final {
     this->num_running_++;
+    // The condition may stop this automation (e.g. script.stop in a lambda)
     if (this->condition_->check(x...)) {
       if (!this->then_.empty() && this->num_running_ > 0) {
         this->then_.play(x...);
@@ -369,7 +332,8 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
     this->play_next_(x...);
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */ }
+  // Branch-end resume hook
+  void play(const Ts &...x) override { this->play_next_(x...); }
 
   void stop() override {
     this->then_.stop();
@@ -381,10 +345,8 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  ContinuationAction<Ts...> then_continuation_{this};
   struct NoElse {};
   [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
-  [[no_unique_address]] OptionalContinuation<HasElse, Ts...> else_continuation_{this};
 };
 
 template<typename... Ts> class WhileAction : public Action<Ts...> {
@@ -395,14 +357,12 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   // (see IfAction::add_then).
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(&this->loop_continuation_);
+    this->then_.set_owner(this);
   }
   void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
-  void finish_then() { this->then_.add_action(&this->loop_continuation_); }
+  void finish_then() { this->then_.set_owner(this); }
 
-  friend class WhileLoopContinuation<Ts...>;
-
-  void play_complex(const Ts &...x) override {
+  void play_complex(const Ts &...x) final {
     this->num_running_++;
     // Initial condition check
     if (!this->condition_->check(x...)) {
@@ -412,37 +372,39 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
       return;
     }
 
-    if (this->num_running_ > 0) {
-      this->then_.play(x...);
+    // The condition may have stopped this automation
+    if (this->num_running_ == 0)
+      return;
+    // An empty body cannot resume the loop
+    if (this->then_.empty()) {
+      this->play_next_(x...);
+      return;
     }
+    this->then_.play(x...);
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */ }
+  // Branch-end resume hook: loop again or continue
+  void play(const Ts &...x) override {
+    // The condition may stop this automation
+    if (this->num_running_ > 0 && this->condition_->check(x...) && this->num_running_ > 0) {
+      this->then_.play(x...);
+    } else {
+      this->play_next_(x...);
+    }
+  }
 
   void stop() override { this->then_.stop(); }
 
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  WhileLoopContinuation<Ts...> loop_continuation_{this};
 };
-
-// Implementation of WhileLoopContinuation::play
-template<typename... Ts> void WhileLoopContinuation<Ts...>::play(const Ts &...x) {
-  if (this->parent_->num_running_ > 0 && this->parent_->condition_->check(x...)) {
-    // play again
-    this->parent_->then_.play(x...);
-  } else {
-    // condition false, play next
-    this->parent_->play_next_(x...);
-  }
-}
 
 // Forward declaration for RepeatLoopContinuation
 template<typename... Ts> class RepeatAction;
 
 /// Loop continuation for RepeatAction that increments iteration and repeats or continues.
-/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
+/// Repeat keeps a continuation: its body takes an extra uint32_t, so it cannot be tagged.
 template<typename... Ts> class RepeatLoopContinuation : public Action<uint32_t, Ts...> {
  public:
   explicit RepeatLoopContinuation(RepeatAction<Ts...> *parent) : parent_(parent) {}
@@ -458,7 +420,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint32_t, count)
 
   // Precondition: use either add_then or add_then_action plus one finish_then, never both
-  // (see IfAction::add_then).
+  // (see IfAction::add_then); appending the continuation twice forms a self-loop.
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);

@@ -32,25 +32,4 @@ class KeeloqProtocol : public RemoteProtocol<KeeloqData> {
 
 DECLARE_REMOTE_PROTOCOL(Keeloq)
 
-template<typename... Ts> class KeeloqAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, address)
-  TEMPLATABLE_VALUE(uint32_t, encrypted)
-  TEMPLATABLE_VALUE(uint8_t, command)
-  TEMPLATABLE_VALUE(bool, vlow)
-  TEMPLATABLE_VALUE(uint16_t, suffix)
-  TEMPLATABLE_VALUE(uint8_t, suffix_bits)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    KeeloqData data{};
-    data.address = this->address_.value(x...);
-    data.encrypted = this->encrypted_.value(x...);
-    data.command = this->command_.value(x...);
-    data.vlow = this->vlow_.value(x...);
-    data.suffix = this->suffix_.value(x...);
-    data.suffix_bits = this->suffix_bits_.value(x...);
-    KeeloqProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

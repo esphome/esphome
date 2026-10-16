@@ -117,7 +117,7 @@ namespace esphome::shelly_dimmer {
 namespace {
 
 int flash_addr_to_page_ceil(const stm32_unique_ptr &stm, uint32_t addr) {
-  if (!(addr >= stm->dev->fl_start && addr <= stm->dev->fl_end))
+  if (addr < stm->dev->fl_start || addr > stm->dev->fl_end)
     return 0;
 
   int page = 0;
@@ -730,7 +730,7 @@ stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address, co
   uint8_t buf[256 + 2];
 
   buf[0] = aligned_len - 1;
-  for (auto i = 0; i < len; i++) {
+  for (unsigned int i = 0; i < len; i++) {
     cs ^= data[i];
     buf[i + 1] = data[i];
   }

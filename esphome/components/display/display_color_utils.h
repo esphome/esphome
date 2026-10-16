@@ -1,5 +1,8 @@
 #pragma once
+#include <array>
+#include <cstdint>
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::display {
 enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
@@ -8,6 +11,26 @@ inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 25
 
 class ColorUtil {
  public:
+  /// Reads one packed pixel of the given bitness from a source buffer into the
+  /// value to_color() takes. BITNESS is a template argument so the byte layout
+  /// folds; pass it on to to_color() as a constant too, and its channel scaling
+  /// divides by a constant, which the compiler turns into a multiply and shift.
+  template<ColorBitness BITNESS>
+  static ESPHOME_ALWAYS_INLINE uint32_t read_packed(const uint8_t *ptr, size_t index, bool big_endian) {
+    if constexpr (BITNESS == COLOR_BITNESS_565) {
+      const size_t idx = index * 2;
+      if (big_endian)
+        return (ptr[idx] << 8) + ptr[idx + 1];
+      return ptr[idx] + (ptr[idx + 1] << 8);
+    } else if constexpr (BITNESS == COLOR_BITNESS_888) {
+      // Always the LVGL RGB888 layout, b,g,r in memory for RGB order; byte order applies to 565 only
+      const size_t idx = index * 3;
+      return ptr[idx + 0] + (ptr[idx + 1] << 8) + (ptr[idx + 2] << 16);
+    } else {
+      return ptr[index];
+    }
+  }
+
   static Color to_color(uint32_t colorcode, ColorOrder color_order,
                         ColorBitness color_bitness = ColorBitness::COLOR_BITNESS_888, bool right_bit_aligned = true) {
     uint8_t first_color, second_color, third_color;
@@ -154,4 +177,54 @@ class ColorUtil {
     return color;
   }
 };
+
+/** Rec.601 luma weights (0.299/0.587/0.114), scaled by 256 */
+static constexpr uint16_t REC601_LUMA_R = 77;
+static constexpr uint16_t REC601_LUMA_G = 150;
+static constexpr uint16_t REC601_LUMA_B = 29;
+
+/** Rec.601 luma of an RGB color, for optimum perceptual brightness */
+constexpr uint8_t rec601_luma(Color color) {
+  return (uint8_t) ((REC601_LUMA_R * color.r + REC601_LUMA_G * color.g + REC601_LUMA_B * color.b + 128u) >> 8);
+}
+
+/** Map an RGB color to a single monochrome bit: 1 = white, 0 = black */
+constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 ? 1 : 0; }
+
+/** color_to_mono() of an RGB565 value as ColorUtil::to_color() reads it, from table lookups instead of a division
+ * per channel.
+ */
+class Rgb565ToMono {
+ public:
+  explicit Rgb565ToMono(ColorOrder order) {
+    // Rec.601 weight of the 5-bit, 6-bit and 5-bit fields, by the channel each one holds in this order
+    uint16_t high = REC601_LUMA_R, middle = REC601_LUMA_G, low = REC601_LUMA_B;
+    if (order == COLOR_ORDER_BGR) {
+      high = REC601_LUMA_B;
+      low = REC601_LUMA_R;
+    } else if (order == COLOR_ORDER_GRB) {
+      high = REC601_LUMA_G;
+      middle = REC601_LUMA_R;
+    }
+    // Each field value scaled to 0..255, then weighted
+    for (unsigned i = 0; i != 32; i++) {
+      this->high_[i] = high * esp_scale(i, 31);
+      this->low_[i] = low * esp_scale(i, 31);
+    }
+    for (unsigned i = 0; i != 64; i++)
+      this->middle_[i] = middle * esp_scale(i, 63);
+  }
+
+  uint8_t operator()(uint16_t value) const {
+    const uint32_t weighted = this->high_[value >> 11] + this->middle_[(value >> 5) & 0x3F] + this->low_[value & 0x1F];
+    return ((weighted + 128u) >> 8) >= 128 ? 1 : 0;
+  }
+
+ protected:
+  // Weighted contribution of each value of each field
+  std::array<uint16_t, 32> high_{};
+  std::array<uint16_t, 64> middle_{};
+  std::array<uint16_t, 32> low_{};
+};
+
 }  // namespace esphome::display

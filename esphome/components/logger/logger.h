@@ -178,6 +178,8 @@ class Logger final : public Component {
   void set_log_level(const char *tag, uint8_t log_level);
 #endif
   uint8_t get_log_level() { return this->current_level_; }
+  /// The level in force for a tag: its own when one is set, else the default
+  uint8_t get_log_level(const char *tag);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -510,6 +512,14 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
   char ram_tag_[MAX_TAG_LENGTH + 1]{};
 #endif
 };
+
+#ifdef USE_CRASH_HANDLER
+/// Whether a crash record from before this boot is waiting to be reported
+bool crash_log_pending();
+/// Log the previous crash for a client that just subscribed to the logs. On the ESP32 the record
+/// is kept until a client has seen it, so this call also clears it there.
+void log_crash_to_client();
+#endif
 
 }  // namespace esphome::logger
 

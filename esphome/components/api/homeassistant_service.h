@@ -117,42 +117,18 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
     const Field *fields = this->fields_;
     const size_t total = 1 + this->data_count_ + this->data_template_count_ + this->variables_count_;
 
-    // Lambda results, and on ESP8266 the RAM copies of the flash strings, must live until the send
+    // Lambda results must live until the send; the constant strings are encoded from flash where they are
     size_t lambda_count = 0;
-#ifdef USE_ESP8266
-    size_t flash_len = 0;
-#endif
-    for (size_t i = 0; i < total; i++) {
+    for (size_t i = 0; i < total; i++)
       lambda_count += fields[i].fn != nullptr;
-#ifdef USE_ESP8266
-      if (fields[i].fn == nullptr)
-        flash_len += ESPHOME_strlen_P(fields[i].value);
-      if (fields[i].key != nullptr)
-        flash_len += ESPHOME_strlen_P(fields[i].key);
-#endif
-    }
     FixedVector<std::string> results;
     results.init(lambda_count);
-#ifdef USE_ESP8266
-    SmallBufferWithHeapFallback<128, char> flash_copy(flash_len);
-    char *cursor = flash_copy.get();
-#endif
-    auto string_ref = [&](const char *str) {
-#ifdef USE_ESP8266
-      size_t len = ESPHOME_strlen_P(str);
-      memcpy_P(cursor, str, len);
-      StringRef ref(cursor, len);
-      cursor += len;
-      return ref;
-#else
-      return StringRef(str);
-#endif
-    };
+    auto string_ref = [](const char *str) { return ProgmemStringRef(str, ESPHOME_strlen_P(str)); };
     auto value_ref = [&](const Field &field) {
       if (field.fn == nullptr)
         return string_ref(field.value);
       results.push_back(field.fn(x...));
-      return StringRef(results.back());
+      return ProgmemStringRef(StringRef(results.back()));
     };
     auto fill = [&](FixedVector<HomeassistantServiceMap> &dest, uint8_t count) {
       dest.init(count);
