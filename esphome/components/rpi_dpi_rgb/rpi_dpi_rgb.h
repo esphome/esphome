@@ -62,6 +62,8 @@ class RpiDpiRgb final : public display::Display {
   void dump_config() override;
 
  protected:
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   void reset_display_() const;
