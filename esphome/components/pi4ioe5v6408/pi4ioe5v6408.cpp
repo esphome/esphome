@@ -22,12 +22,12 @@ void PI4IOE5V6408Component::setup() {
     this->reg(PI4IOE5V6408_REGISTER_OUT_HIGH_IMPEDENCE) = 0b00000000;
   } else {
     if (!this->read_gpio_modes_()) {
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       ESP_LOGE(TAG, "Failed to read GPIO modes");
       return;
     }
     if (!this->read_gpio_outputs_()) {
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       ESP_LOGE(TAG, "Failed to read GPIO outputs");
       return;
     }
@@ -51,9 +51,6 @@ void PI4IOE5V6408Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PI4IOE5V6408:");
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 void PI4IOE5V6408Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags & gpio::FLAG_OUTPUT) {
