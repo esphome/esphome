@@ -15,9 +15,6 @@ static const char *const IGNORE_STRINGS[] = {HYDREON_RGXX_IGNORE_LIST(, HYDREON_
 
 void HydreonRGxxComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "hydreon_rgxx:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
-  }
   if (model_ == RG9) {
     ESP_LOGCONFIG(TAG,
                   "  Model: RG9\n"
@@ -154,7 +151,7 @@ void HydreonRGxxComponent::schedule_reboot_() {
           sensor->publish_state(NAN);
         }
       }
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Sensor did not boot"));
     }
   });
 }
