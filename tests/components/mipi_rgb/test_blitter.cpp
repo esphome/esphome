@@ -25,17 +25,17 @@ static void reference_rotate(int &x, int &y, int width, int height, display::Dis
 }
 
 static void test_rotation(display::DisplayRotation rotation) {
-  constexpr int FB_WIDTH = 40;
-  constexpr int FB_HEIGHT = 30;
-  constexpr int W = 7, H = 5, X_OFFSET = 2, Y_OFFSET = 3, X_PAD = 4;
-  constexpr size_t STRIDE = X_OFFSET + W + X_PAD;
-  constexpr size_t LINES = Y_OFFSET + H;
+  constexpr int fb_width = 40;
+  constexpr int fb_height = 30;
+  constexpr int w = 7, h = 5, x_offset = 2, y_offset = 3, x_pad = 4;
+  constexpr size_t stride = x_offset + w + x_pad;
+  constexpr size_t lines = y_offset + h;
 
-  std::vector<uint16_t> source(STRIDE * LINES);
+  std::vector<uint16_t> source(stride * lines);
   uint16_t val = 0x1000;
-  for (size_t y = 0; y < LINES; y++) {
-    for (size_t x = 0; x < STRIDE; x++) {
-      source[y * STRIDE + x] = val++;
+  for (size_t y = 0; y < lines; y++) {
+    for (size_t x = 0; x < stride; x++) {
+      source[y * stride + x] = val++;
     }
   }
 
@@ -43,18 +43,18 @@ static void test_rotation(display::DisplayRotation rotation) {
   int y_start = 8;
 
   // Run blit_rotated_565
-  std::vector<uint16_t> fb_actual(FB_WIDTH * FB_HEIGHT, 0);
-  const uint16_t *src_origin = source.data() + (Y_OFFSET * STRIDE + X_OFFSET);
-  blit_rotated_565(fb_actual.data(), FB_WIDTH, FB_HEIGHT, rotation, src_origin, x_start, y_start, W, H, STRIDE);
+  std::vector<uint16_t> fb_actual(fb_width * fb_height, 0);
+  const uint16_t *src_origin = source.data() + (y_offset * stride + x_offset);
+  blit_rotated_565(fb_actual.data(), fb_width, fb_height, rotation, src_origin, x_start, y_start, w, h, stride);
 
   // Compute reference per-pixel using reference_rotate
-  std::vector<uint16_t> fb_expected(FB_WIDTH * FB_HEIGHT, 0);
-  for (int py = 0; py < H; py++) {
-    for (int px = 0; px < W; px++) {
+  std::vector<uint16_t> fb_expected(fb_width * fb_height, 0);
+  for (int py = 0; py < h; py++) {
+    for (int px = 0; px < w; px++) {
       int rx = x_start + px;
       int ry = y_start + py;
-      reference_rotate(rx, ry, FB_WIDTH, FB_HEIGHT, rotation);
-      fb_expected[ry * FB_WIDTH + rx] = src_origin[py * STRIDE + px];
+      reference_rotate(rx, ry, fb_width, fb_height, rotation);
+      fb_expected[ry * fb_width + rx] = src_origin[py * stride + px];
     }
   }
 
