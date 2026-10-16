@@ -559,6 +559,8 @@ class SubEntities:
             raise ValueError(f"{entity_id}: apply= needs a parent")
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
+        if publish not in (None, "before", "after"):
+            raise ValueError(f'{entity_id}: publish= must be "before" or "after"')
 
         if apply is None:
             var = await self.new_entity(conf, *args, **kwargs)
