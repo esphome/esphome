@@ -82,7 +82,21 @@ from .coefficients import (
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["sensor", "voltage_sampler", "adc"]
+def _auto_load(config: ConfigType | None) -> list[str]:
+    """Components this platform needs: ``adc`` only for a ``pin:`` source.
+
+    A ``pin:`` configuration creates its own internal ``adc`` sensor, so the
+    ``adc`` component has to be part of the build.  A ``voltage:``
+    configuration reads an existing sampler and must not pull ``adc`` in: it
+    has no host implementation, so it breaks the C++ unit-test link, and it
+    bloats firmware that never uses it.
+    """
+    if config is not None and CONF_PIN in config:
+        return ["sensor", "voltage_sampler", "adc"]
+    return ["sensor", "voltage_sampler"]
+
+
+AUTO_LOAD = _auto_load
 
 #: The main loop runs every ~16 ms, so a shorter spacing cannot sample more often
 #: than that and only makes a calibration overrun a tick of everything else.
