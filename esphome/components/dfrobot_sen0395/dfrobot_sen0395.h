@@ -125,9 +125,7 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   uint8_t retries_left_{2};
   StaticRingBuffer<Command, COMMAND_QUEUE_SIZE> cmd_queue_;
   uint32_t ts_last_cmd_sent_{0};
-  // Values of the queued range and latency commands, in the sensor's steps of 0.15 m and 0.025 s.
-  // A later command replaces them, which leaves the sensor in the same final state. One replaced while its
-  // command waits for a reply makes that command's log and any retry use the newer values.
+  // Range and latency of the queued commands, in sensor steps (0.15 m, 0.025 s); a later command overwrites them
   int16_t det_range_steps_[8]{};
   uint16_t latency_steps_[2]{};
 
