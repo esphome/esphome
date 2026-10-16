@@ -159,6 +159,42 @@ def install_git_hooks(env: dict[str, str]) -> None:
         installed.chmod(0o755)
 
 
+SHIM_MARKER = "esphome-tree-aware-shim"
+SHIM_TEMPLATE = """#!/bin/sh
+# {marker}: run the esphome checkout the cwd is inside, if any.
+root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$root" ] && [ -f "$root/esphome/__main__.py" ]; then
+  PYTHONPATH="$root${{PYTHONPATH:+:$PYTHONPATH}}" exec "{python}" -m esphome "$@"
+fi
+exec "{dist}" "$@"
+"""
+
+
+def install_tree_aware_shim(venv: Path) -> None:
+    """Wrap the esphome console script so it runs the checkout the cwd is in.
+
+    An editable install pins the tree it was installed from; without this,
+    `esphome` run from another worktree silently compiles the wrong tree's code.
+    The wrapper is a POSIX shell script, so it is not installed on Windows.
+    """
+    if os.name == "nt":
+        return
+    scripts = bin_dir(venv)
+    esphome_bin = scripts / "esphome"
+    if not esphome_bin.is_file():
+        raise SystemExit(
+            "esphome console script not found after install; "
+            "cannot install the tree-aware wrapper"
+        )
+    dist = scripts / "esphome-dist"
+    if SHIM_MARKER not in esphome_bin.read_text(errors="replace"):
+        esphome_bin.replace(dist)
+    esphome_bin.write_text(
+        SHIM_TEMPLATE.format(marker=SHIM_MARKER, python=venv_python(venv), dist=dist)
+    )
+    esphome_bin.chmod(0o755)
+
+
 def activate_hint() -> str:
     """Return the command that activates the environment this script creates."""
     activate = bin_dir(DEFAULT_VENV).relative_to(ROOT) / "activate"
@@ -214,6 +250,7 @@ def main() -> None:
     env = venv_environment(venv)
     install_dependencies(venv, env)
     install_git_hooks(env)
+    install_tree_aware_shim(venv)
     (ROOT / ".temp").mkdir(exist_ok=True)
     report(state, venv)
 
