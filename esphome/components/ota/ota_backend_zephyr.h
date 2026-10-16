@@ -3,7 +3,7 @@
 #if defined(USE_ZEPHYR) && !defined(USE_NRF52)
 #include "ota_backend.h"
 
-#include "esphome/components/sha256/sha256.h"
+#include "esphome/components/md5/md5.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -16,23 +16,14 @@
 
 namespace esphome::ota {
 
-// SHA256 checksum only -- not MD5. NCS's nrf_security routes crypto through pluggable
-// PSA drivers (Oberon by default), which don't implement MD5 at all (unlike SHA256).
 class ZephyrOTABackend final {
  public:
   OTAResponseTypes begin(size_t image_size, OTAType ota_type = OTA_TYPE_UPDATE_APP);
-  // Unused: supports_sha256_checksum() is true, but the (non-virtual) backend
-  // interface is shared across platforms, so this still needs to exist.
-  void set_update_md5(const char *md5) {}
-  void set_update_sha256(const char *sha256);
+  void set_update_md5(const char *md5);
   OTAResponseTypes write(const uint8_t *data, size_t len);
   OTAResponseTypes end();
   void abort();
   static constexpr bool supports_compression() { return false; }
-  static constexpr bool supports_sha256_checksum() { return true; }
-  // No MD5 fallback exists here (set_update_md5() is a no-op) -- silently skipping
-  // verification would be worse than rejecting a client that can't negotiate SHA256.
-  static constexpr bool requires_sha256_checksum() { return true; }
 #if defined(USE_OTA_ZEPHYR_DIRECT_XIP) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
   // True when slot1 is the slot currently executing -- the host must then send the
   // slot0-linked variant instead of re-sending what's running. See espota2.py's
@@ -42,11 +33,11 @@ class ZephyrOTABackend final {
 
  protected:
   UpdateLock lock_;
-  sha256::SHA256 sha256_{};
+  md5::MD5Digest md5_{};
   size_t expected_size_{0};
   size_t bytes_written_{0};
-  uint8_t expected_sha256_[32]{};
-  bool sha256_set_{false};
+  uint8_t expected_md5_[16]{};
+  bool md5_set_{false};
 
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
   // native_sim has no real flash/bootloader -- OTA replaces the running host

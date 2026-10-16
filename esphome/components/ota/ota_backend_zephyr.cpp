@@ -144,9 +144,9 @@ bool validate_executable_(const char *staging_path, const std::string &exe_path)
 
 std::unique_ptr<ZephyrOTABackend> make_ota_backend() { return make_unique<ZephyrOTABackend>(); }
 
-void ZephyrOTABackend::set_update_sha256(const char *sha256) {
-  if (parse_hex(sha256, this->expected_sha256_, 32))
-    this->sha256_set_ = true;
+void ZephyrOTABackend::set_update_md5(const char *md5) {
+  if (parse_hex(md5, this->expected_md5_, 16))
+    this->md5_set_ = true;
 }
 
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
@@ -179,8 +179,8 @@ OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
 
   this->expected_size_ = image_size;
   this->bytes_written_ = 0;
-  this->sha256_set_ = false;
-  this->sha256_.init();
+  this->md5_set_ = false;
+  this->md5_.init();
 
   ESP_LOGD(TAG, "OTA begin: staging=%s, size=%zu", this->staging_path_.c_str(), image_size);
   return OTA_RESPONSE_OK;
@@ -208,7 +208,7 @@ OTAResponseTypes ZephyrOTABackend::write(const uint8_t *data, size_t len) {
     p += n;
     remaining -= n;
   }
-  this->sha256_.add(data, len);
+  this->md5_.add(data, len);
   this->bytes_written_ += len;
   return OTA_RESPONSE_OK;
 }
@@ -228,17 +228,17 @@ OTAResponseTypes ZephyrOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  // No MD5 fallback here, so a hash that failed to parse must fail the update.
-  if (!this->sha256_set_) {
-    ESP_LOGE(TAG, "No valid SHA256 received");
+  // A hash that failed to parse must fail the update, not skip the check.
+  if (!this->md5_set_) {
+    ESP_LOGE(TAG, "No valid MD5 received");
     this->abort();
-    return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
-  this->sha256_.calculate();
-  if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
-    ESP_LOGE(TAG, "SHA256 mismatch");
+  this->md5_.calculate();
+  if (!this->md5_.equals_bytes(this->expected_md5_)) {
+    ESP_LOGE(TAG, "MD5 mismatch");
     this->abort();
-    return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
 
   if (::fsync(this->fd_) != 0) {
@@ -285,7 +285,7 @@ void ZephyrOTABackend::abort() {
   }
   this->expected_size_ = 0;
   this->bytes_written_ = 0;
-  this->sha256_set_ = false;
+  this->md5_set_ = false;
 }
 
 #else  // real Zephyr hardware under MCUboot
@@ -323,9 +323,9 @@ OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
 
   this->expected_size_ = image_size;
   this->bytes_written_ = 0;
-  this->sha256_set_ = false;
+  this->md5_set_ = false;
   this->active_ = true;
-  this->sha256_.init();
+  this->md5_.init();
 
   ESP_LOGD(TAG, "OTA begin: size=%zu", image_size);
   return OTA_RESPONSE_OK;
@@ -340,7 +340,7 @@ OTAResponseTypes ZephyrOTABackend::write(const uint8_t *data, size_t len) {
     ESP_LOGE(TAG, "flash_img_buffered_write failed: %d", err);
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
-  this->sha256_.add(data, len);
+  this->md5_.add(data, len);
   this->bytes_written_ += len;
   return OTA_RESPONSE_OK;
 }
@@ -361,15 +361,15 @@ OTAResponseTypes ZephyrOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  // No MD5 fallback here, so a hash that failed to parse must fail the update.
-  if (!this->sha256_set_) {
-    ESP_LOGE(TAG, "No valid SHA256 received");
-    return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
+  // A hash that failed to parse must fail the update, not skip the check.
+  if (!this->md5_set_) {
+    ESP_LOGE(TAG, "No valid MD5 received");
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
-  this->sha256_.calculate();
-  if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
-    ESP_LOGE(TAG, "SHA256 mismatch");
-    return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
+  this->md5_.calculate();
+  if (!this->md5_.equals_bytes(this->expected_md5_)) {
+    ESP_LOGE(TAG, "MD5 mismatch");
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
 
 #ifdef USE_OTA_ZEPHYR_DIRECT_XIP
@@ -411,7 +411,7 @@ void ZephyrOTABackend::abort() {
   this->active_ = false;
   this->expected_size_ = 0;
   this->bytes_written_ = 0;
-  this->sha256_set_ = false;
+  this->md5_set_ = false;
 }
 
 #endif  // USE_ZEPHYR_VARIANT_NATIVE_SIM
