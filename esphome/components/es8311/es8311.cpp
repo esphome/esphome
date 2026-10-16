@@ -20,31 +20,10 @@ ESPHOME_LOG_TAG(TAG, "es8311");
     return false; \
   }
 
-static constexpr i2c::I2CRegValue ES8311_RESET[] PROGMEM = {
-    // Reset
-    {ES8311_REG00_RESET, 0x1F},
-    {ES8311_REG00_RESET, 0x00},
-};
-
-static constexpr i2c::I2CRegValue ES8311_POWER_UP[] PROGMEM = {
-    // Power up analog circuitry
-    {ES8311_REG0D_SYSTEM, 0x01},
-    // Enable analog PGA, enable ADC modulator
-    {ES8311_REG0E_SYSTEM, 0x02},
-    // Power up DAC
-    {ES8311_REG12_SYSTEM, 0x00},
-    // Enable output to HP drive
-    {ES8311_REG13_SYSTEM, 0x10},
-    // ADC Equalizer bypass, cancel DC offset in digital domain
-    {ES8311_REG1C_ADC, 0x6A},
-    // Bypass DAC equalizer
-    {ES8311_REG37_DAC, 0x08},
-    // Power On
-    {ES8311_REG00_RESET, 0x80},
-};
-
 void ES8311::setup() {
-  ES8311_ERROR_FAILED(this->write_registers(ES8311_RESET));
+  // Reset
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG00_RESET, 0x1F));
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG00_RESET, 0x00));
 
   ES8311_ERROR_FAILED(this->configure_clock_());
   ES8311_ERROR_FAILED(this->configure_format_());
@@ -53,7 +32,20 @@ void ES8311::setup() {
   // Set initial volume
   this->set_volume(0.75);  // 0.75 = 0xBF = 0dB
 
-  ES8311_ERROR_FAILED(this->write_registers(ES8311_POWER_UP));
+  // Power up analog circuitry
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG0D_SYSTEM, 0x01));
+  // Enable analog PGA, enable ADC modulator
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG0E_SYSTEM, 0x02));
+  // Power up DAC
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG12_SYSTEM, 0x00));
+  // Enable output to HP drive
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG13_SYSTEM, 0x10));
+  // ADC Equalizer bypass, cancel DC offset in digital domain
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG1C_ADC, 0x6A));
+  // Bypass DAC equalizer
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG37_DAC, 0x08));
+  // Power On
+  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG00_RESET, 0x80));
 }
 
 void ES8311::dump_config() {
