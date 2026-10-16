@@ -436,8 +436,11 @@ void Sim800LComponent::loop() {
       line = this->line_reader_.partial();
       this->line_reader_.reset();
     }
-    if (line != nullptr)
+    if (line != nullptr) {
       this->parse_cmd_(line);
+    } else {
+      this->line_reader_.log_if_overflowed(TAG);
+    }
   }
   if (state_ == STATE_INIT && this->registered_ &&
       (this->call_state_ != 6  // A call is in progress

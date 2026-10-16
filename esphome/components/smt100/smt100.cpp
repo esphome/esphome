@@ -16,6 +16,7 @@ void SMT100Component::loop() {
     if (readch <= 0)
       continue;
     char *line = this->line_reader_.feed(readch);
+    this->line_reader_.log_if_overflowed(TAG);
     if (line != nullptr && line[0] != '\0') {
       char *token = strtok(line, ",");
       if (!token)

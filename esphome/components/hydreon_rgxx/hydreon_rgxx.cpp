@@ -112,8 +112,11 @@ void HydreonRGxxComponent::loop() {
   while (this->available() > 0) {
     if (this->read_byte(&data)) {
       const char *line = this->line_reader_.feed(data);
-      if (line != nullptr)
+      if (line != nullptr) {
         this->process_line_(StringRef(line, strlen(line)));
+      } else {
+        this->line_reader_.log_if_overflowed(TAG);
+      }
     }
   }
 }
