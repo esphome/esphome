@@ -13,20 +13,24 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
   // pos_ is the length so far; N means "overflowed on this byte", N + 1 "dropping up to the terminator"
   using pos_t = std::conditional_t<(N < 0xFE), uint8_t, uint16_t>;
   static_assert(N >= 2 && N < 0xFFFE, "LineReader size out of range");
+  static_assert(TERMINATOR != IGNORE, "LineReader terminator and ignore byte must differ");
 
  public:
   /// Feed one byte. Returns the completed line, valid until the next call on this reader, or nullptr.
   /// Empty lines are returned too, as an empty string.
   char *feed(uint8_t c) {
     pos_t pos = this->pos_;
-    if (pos == N)
+    if (pos == N) {
       this->pos_ = pos = N + 1;
-    if (c == static_cast<uint8_t>(IGNORE))
+    }
+    if (c == static_cast<uint8_t>(IGNORE)) {
       return nullptr;
+    }
     if (c == static_cast<uint8_t>(TERMINATOR)) {
       this->pos_ = 0;
-      if (pos > N)
+      if (pos > N) {
         return nullptr;
+      }
       this->buf_[pos] = '\0';
       return this->buf_;
     }
@@ -39,13 +43,13 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
     return nullptr;
   }
 
-  /// Characters of the partial line collected so far (0 right after a line was returned).
-  size_t length() const { return this->pos_; }
+  /// Characters of the partial line collected so far: 0 right after a line was returned and while a line
+  /// is dropped, N - 1 on the byte that overflowed.
+  size_t length() const { return this->end_(); }
 
-  /// The partial line, NUL terminated, for prompts that have no line end. After an overflow it is the
-  /// first N - 1 characters.
+  /// The partial line, NUL terminated, for prompts that have no line end; it has length() characters.
   const char *partial() {
-    this->buf_[this->pos_ < N ? this->pos_ : N - 1] = '\0';
+    this->buf_[this->end_()] = '\0';
     return this->buf_;
   }
 
@@ -59,6 +63,13 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
   void discard_line() { this->pos_ = N + 1; }
 
  protected:
+  pos_t end_() const {
+    if (this->pos_ < N) {
+      return this->pos_;
+    }
+    return this->pos_ == N ? N - 1 : 0;
+  }
+
   char buf_[N];
   pos_t pos_{0};
 };

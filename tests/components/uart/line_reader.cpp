@@ -64,6 +64,7 @@ TEST(LineReaderTest, OverlongLineIsDroppedUpToTerminator) {
       saw_overflow = true;
       overflow_count++;
       EXPECT_STREQ(reader.partial(), "12345");
+      EXPECT_EQ(reader.length(), 5u);
     }
     if (line != nullptr)
       lines.emplace_back(line);
@@ -101,6 +102,8 @@ TEST(LineReaderTest, DiscardLineDropsUntilTerminator) {
   LineReader<16> reader;
   feed_all(reader, "half");
   reader.discard_line();
+  EXPECT_EQ(reader.length(), 0u);
+  EXPECT_STREQ(reader.partial(), "");
   EXPECT_EQ(feed_all(reader, "rest\nnext\n"), (Lines{"next"}));
 }
 
