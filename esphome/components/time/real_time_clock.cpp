@@ -107,17 +107,23 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   this->time_sync_callback_.call();
 }
 
+// Bits of each calendar byte that hold the value; byte 3 is the one-hot weekday.
+static constexpr uint8_t BCD_CALENDAR_MASKS[7] = {0x7F, 0x7F, 0x3F, 0x7F, 0x3F, 0x1F, 0xFF};
+
 ESPTime decode_bcd_calendar(const uint8_t *raw) {
-  const uint8_t weekday = raw[3] & 0x7F;
+  uint8_t value[7];
+  for (size_t i = 0; i < 7; i++)
+    value[i] = bcd_to_uint8(raw[i] & BCD_CALENDAR_MASKS[i]);
+  const uint8_t weekday = raw[3] & BCD_CALENDAR_MASKS[3];
   ESPTime time{
-      .second = bcd_to_uint8(raw[0] & 0x7F),
-      .minute = bcd_to_uint8(raw[1] & 0x7F),
-      .hour = bcd_to_uint8(raw[2] & 0x3F),
+      .second = value[0],
+      .minute = value[1],
+      .hour = value[2],
       .day_of_week = static_cast<uint8_t>(weekday ? __builtin_ctz(weekday) + 1 : 1),
-      .day_of_month = bcd_to_uint8(raw[4] & 0x3F),
+      .day_of_month = value[4],
       .day_of_year = 1,
-      .month = bcd_to_uint8(raw[5] & 0x1F),
-      .year = static_cast<uint16_t>(bcd_to_uint8(raw[6]) + 2000),
+      .month = value[5],
+      .year = static_cast<uint16_t>(value[6] + 2000),
       .is_dst = false,
       .timestamp = 0,
   };
@@ -126,13 +132,11 @@ ESPTime decode_bcd_calendar(const uint8_t *raw) {
 }
 
 void encode_bcd_calendar(const ESPTime &time, uint8_t *raw) {
-  raw[0] = uint8_to_bcd(time.second);
-  raw[1] = uint8_to_bcd(time.minute);
-  raw[2] = uint8_to_bcd(time.hour);
+  const uint8_t value[7] = {
+      time.second, time.minute, time.hour, 0, time.day_of_month, time.month, static_cast<uint8_t>(time.year % 100)};
+  for (size_t i = 0; i < 7; i++)
+    raw[i] = uint8_to_bcd(value[i]);
   raw[3] = 1 << (time.day_of_week - 1);
-  raw[4] = uint8_to_bcd(time.day_of_month);
-  raw[5] = uint8_to_bcd(time.month);
-  raw[6] = uint8_to_bcd(time.year % 100);
 }
 
 }  // namespace esphome::time
