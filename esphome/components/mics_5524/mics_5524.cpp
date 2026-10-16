@@ -109,10 +109,7 @@ void MiCS5524Component::update() {
   }
 
   if (!this->has_reference_()) {
-    if (!this->warned_no_reference_) {
-      this->warned_no_reference_ = true;
-      ESP_LOGW(TAG, "air reference unknown - publish it in the configuration or enable 'calibration:'");
-    }
+    // setup() already warned that neither air_reference: nor calibration: is set.
     this->publish_ratio_(NAN);
     return;
   }

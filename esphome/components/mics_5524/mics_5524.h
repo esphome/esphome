@@ -99,7 +99,6 @@ class MiCS5524Component : public PollingComponent {
   uint32_t warmup_start_{0};
   /// Latched end of the warm-up window.
   bool warmup_ended_{false};
-  bool warned_no_reference_{false};
   bool warned_voltage_{false};
 
   /// Clean-air reference x_air in volts, 0 while there is none.
