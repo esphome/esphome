@@ -250,7 +250,7 @@ bool LTRAlsPs501Component::check_part_number_() {
   uint8_t manuf_id = this->reg((uint8_t) CommandRegisters::MANUFAC_ID).get();
   if (manuf_id != 0x05) {  // 0x05 is Lite-On Semiconductor Corp. ID
     ESP_LOGW(TAG, "Unknown manufacturer ID: 0x%02X", manuf_id);
-    this->mark_failed(LOG_STR("Unknown manufacturer ID"));
+    this->mark_failed();
     return false;
   }
 

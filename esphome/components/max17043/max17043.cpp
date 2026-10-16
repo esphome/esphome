@@ -55,8 +55,7 @@ void MAX17043Component::setup() {
   ESP_LOGV(TAG, "MAX17043 CONFIG register reads 0x%X", config_reg);
 
   if (config_reg != MAX17043_CONFIG_POWER_UP_DEFAULT) {
-    ESP_LOGE(TAG, "Device does not appear to be a MAX17043");
-    this->mark_failed(LOG_STR("unrecognised"));
+    this->mark_failed(LOG_STR("Device does not appear to be a MAX17043"));
     return;
   }
 

@@ -39,20 +39,17 @@ void MMC5603Component::setup() {
   }
 
   if (id != 0 && id != MMC56X3_CHIP_ID) {  // ID is not reported correctly by all chips, 0 on some chips
-    ESP_LOGCONFIG(TAG, "Chip Wrong");
     this->mark_failed(LOG_STR("The ID registers don't match - Is this really an MMC5603?"));
     return;
   }
 
   if (!this->write_byte(MMC56X3_CTRL1_REG, 0x80)) {  // turn on set bit
-    ESP_LOGCONFIG(TAG, "Control 1 Failed for set bit");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Control 1 failed for set bit"));
     return;
   }
 
   if (!this->write_byte(MMC56X3_CTRL0_REG, 0x08)) {  // turn on set bit
-    ESP_LOGCONFIG(TAG, "Control 0 Failed for set bit");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Control 0 failed for set bit"));
     return;
   }
 
