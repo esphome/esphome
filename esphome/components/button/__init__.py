@@ -15,6 +15,11 @@ from esphome.const import (
     DEVICE_CLASS_IDENTIFY,
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
+    ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_DATABASE,
+    ICON_RESTART,
+    ICON_RESTART_ALERT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
@@ -81,6 +86,33 @@ def button_schema(
             schema[cv.Optional(key, default=default)] = validator
 
     return _BUTTON_SCHEMA.extend(schema)
+
+
+def factory_reset_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that resets a device to its factory settings."""
+    return button_schema(
+        class_,
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_RESTART_ALERT,
+    )
+
+
+def restart_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that restarts a device."""
+    return button_schema(
+        class_,
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon=ICON_RESTART,
+    )
+
+
+def query_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that reads the settings back from a device."""
+    return button_schema(
+        class_, entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_DATABASE
+    )
 
 
 _CALLBACK_AUTOMATIONS = (
