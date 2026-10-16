@@ -176,7 +176,7 @@ CONFIG_SCHEMA = cv.All(
                     validate_parameter_name: validate_parameter_type,
                 }
             ),
-            cv.Optional(CONF_ON_STOP): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STOP): automation.validate_automation(single=True),
         },
         extra_validators=cv.All(check_max_runs, assign_declare_id),
     ),
@@ -204,10 +204,8 @@ async def to_code(config):
         cg.add_define("USE_SCRIPT_ON_STOP")
     for trigger, func_args, conf in triggers:
         await automation.build_automation(trigger, func_args, conf)
-        for stop_conf in conf.get(CONF_ON_STOP, []):
-            await automation.build_callback_automation(
-                trigger, "add_on_stop_callback", [], stop_conf
-            )
+        if (stop_conf := conf.get(CONF_ON_STOP)) is not None:
+            await automation.build_automation(trigger.get_stop_trigger(), [], stop_conf)
 
 
 @automation.register_action(

@@ -34,13 +34,13 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   /// Check if any instance of this script is currently running.
   virtual bool is_running() { return this->is_action_running(); }
 #ifdef USE_SCRIPT_ON_STOP
-  /// Stop all instances of this script. Fires the on_stop callbacks once if any instance was running.
+  /// Stop all instances of this script. Fires the on_stop trigger once if any instance was running.
   virtual void stop() {
     if (this->is_action_running())
       this->stop_running_();
   }
 
-  template<typename F> void add_on_stop_callback(F &&callback) { this->stop_callback_.add(std::forward<F>(callback)); }
+  Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
 #else
   /// Stop all instances of this script.
   virtual void stop() { this->stop_action(); }
@@ -67,17 +67,17 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
     this->trigger(x...);
   }
 
-  // Stop the running actions early and notify the on_stop callbacks.
+  // Stop the running actions early and fire the on_stop trigger.
   void stop_running_() {
     this->stop_action();
 #ifdef USE_SCRIPT_ON_STOP
-    this->stop_callback_.call();
+    this->stop_trigger_.trigger();
 #endif
   }
 
   const LogString *name_{nullptr};
 #ifdef USE_SCRIPT_ON_STOP
-  LazyCallbackManager<void()> stop_callback_;
+  Trigger<> stop_trigger_;
 #endif
 };
 

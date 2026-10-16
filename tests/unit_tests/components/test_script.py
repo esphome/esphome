@@ -99,15 +99,15 @@ def test_bare_script_stop_in_single_script_mapping() -> None:
 
 
 @pytest.mark.asyncio
-async def test_on_stop_registers_callback_automations() -> None:
-    stop_confs = [{CONF_THEN: []}, {CONF_THEN: []}]
+async def test_on_stop_builds_stop_trigger_automation() -> None:
+    stop_conf = {CONF_THEN: []}
     config = [
         {
             CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
-            CONF_ON_STOP: stop_confs,
+            CONF_ON_STOP: stop_conf,
         },
         {
             CONF_ID: ID("other_script", is_declaration=True, type=SingleScript),
@@ -120,19 +120,21 @@ async def test_on_stop_registers_callback_automations() -> None:
         patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
-        patch("esphome.automation.build_automation", new_callable=AsyncMock),
         patch(
-            "esphome.automation.build_callback_automation", new_callable=AsyncMock
-        ) as build_callback,
+            "esphome.automation.build_automation", new_callable=AsyncMock
+        ) as build_automation,
     ):
         new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
         await to_code(config)
 
     add_define.assert_called_once_with("USE_SCRIPT_ON_STOP")
 
-    assert [(str(c.args[0]), *c.args[1:]) for c in build_callback.await_args_list] == [
-        ("my_script", "add_on_stop_callback", [], stop_confs[0]),
-        ("my_script", "add_on_stop_callback", [], stop_confs[1]),
+    assert [
+        (str(c.args[0]), *c.args[1:]) for c in build_automation.await_args_list
+    ] == [
+        ("my_script", [], config[0]),
+        ("my_script->get_stop_trigger()", [], stop_conf),
+        ("other_script", [], config[1]),
     ]
 
 

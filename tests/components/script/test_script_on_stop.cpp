@@ -4,6 +4,15 @@
 
 namespace esphome::script::testing {
 
+class CountAction : public Action<> {
+ public:
+  explicit CountAction(int *count) : count_(count) {}
+
+ protected:
+  void play() override { (*this->count_)++; }
+  int *count_;
+};
+
 // Stays running until release() is called, like a delay that never expires on its own.
 class HoldAction : public Action<> {
  public:
@@ -23,13 +32,15 @@ class QueueingScriptOnStopTest : public ::testing::Test {
   void SetUp() override {
     this->script_.set_max_runs(3);
     this->automation_.add_action(&this->hold_);
-    this->script_.add_on_stop_callback([this]() { this->on_stop_calls_++; });
+    this->stop_automation_.add_action(&this->count_);
   }
 
   QueueingScript<> script_;
   Automation<> automation_{&this->script_};
   HoldAction hold_;
   int on_stop_calls_{0};
+  Automation<> stop_automation_{this->script_.get_stop_trigger()};
+  CountAction count_{&this->on_stop_calls_};
 };
 
 TEST_F(QueueingScriptOnStopTest, StopWhileRunningFiresOnStopOnceAndDropsQueuedRun) {
