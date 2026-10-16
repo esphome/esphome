@@ -175,6 +175,12 @@ void MipiRgb::common_setup_() {
     err = esp_lcd_panel_reset(this->handle_);
   if (err == ESP_OK)
     err = esp_lcd_panel_init(this->handle_);
+  if (err == ESP_OK) {
+    void *fb = nullptr;
+    if (esp_lcd_rgb_panel_get_frame_buffer(this->handle_, 1, &fb) == ESP_OK && fb != nullptr) {
+      this->fb_ = reinterpret_cast<uint16_t *>(fb);
+    }
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd setup failed: %s", esp_err_to_name(err));
     this->mark_failed(LOG_STR("lcd setup failed"));
@@ -223,8 +229,80 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
                                    int x_pad) {
   if (w <= 0 || h <= 0 || this->is_failed())
     return;
-  if (bitness != display::COLOR_BITNESS_565 || big_endian != this->big_endian_ ||
-      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
+  if (bitness != display::COLOR_BITNESS_565 || big_endian != this->big_endian_ || this->is_clipping()) {
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    this->mark_dirty_(x_start, y_start, w, h);
+    this->flush_dirty_();
+    return;
+  }
+
+  if (this->fb_ != nullptr) {
+    int log_w = (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
+                 this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
+                    ? this->height_
+                    : this->width_;
+    int log_h = (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
+                 this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
+                    ? this->width_
+                    : this->height_;
+
+    if (x_start < 0 || y_start < 0 || x_start + w > log_w || y_start + h > log_h) {
+      Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+      return;
+    }
+
+    const size_t stride = static_cast<size_t>(x_offset) + w + x_pad;
+    const auto *src_origin =
+        reinterpret_cast<const uint16_t *>(ptr) + (static_cast<size_t>(y_offset) * stride + x_offset);
+
+    switch (this->rotation_) {
+      case display::DISPLAY_ROTATION_0_DEGREES: {
+        for (int py = 0; py < h; py++) {
+          memcpy(&this->fb_[(y_start + py) * this->width_ + x_start], src_origin + static_cast<size_t>(py) * stride,
+                 w * sizeof(uint16_t));
+        }
+        break;
+      }
+      case display::DISPLAY_ROTATION_90_DEGREES: {
+        const size_t x_dest_offset = this->width_ - y_start - h;
+        for (int px = 0; px < w; px++) {
+          uint16_t *dest = &this->fb_[(x_start + px) * this->width_ + x_dest_offset];
+          const uint16_t *s = src_origin + (static_cast<size_t>(h - 1) * stride + px);
+          for (int py = 0; py < h; py++) {
+            *dest++ = *s;
+            s -= stride;
+          }
+        }
+        break;
+      }
+      case display::DISPLAY_ROTATION_180_DEGREES: {
+        const size_t x_dest_offset = this->width_ - x_start - w;
+        for (int py = 0; py < h; py++) {
+          uint16_t *dest = &this->fb_[(this->height_ - 1 - (y_start + py)) * this->width_ + x_dest_offset];
+          const uint16_t *src_row = src_origin + (static_cast<size_t>(py) * stride + (w - 1));
+          for (int px = 0; px < w; px++) {
+            *dest++ = *src_row--;
+          }
+        }
+        break;
+      }
+      case display::DISPLAY_ROTATION_270_DEGREES: {
+        for (int px = 0; px < w; px++) {
+          uint16_t *dest = &this->fb_[(this->height_ - 1 - x_start - px) * this->width_ + y_start];
+          const uint16_t *s = src_origin + px;
+          for (int py = 0; py < h; py++) {
+            *dest++ = *s;
+            s += stride;
+          }
+        }
+        break;
+      }
+    }
+    return;
+  }
+
+  // Fallback if fb_ is not available
+  if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
     this->flush_dirty_();
@@ -275,7 +353,7 @@ void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const ui
 bool MipiRgb::check_buffer_() {
   if (this->is_failed())
     return false;
-  if (this->buffer_ != nullptr)
+  if (this->fb_ != nullptr || this->buffer_ != nullptr)
     return true;
   // this is dependent on the enum values.
   RAMAllocator<uint16_t> allocator;
@@ -321,6 +399,10 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
+  if (this->fb_ != nullptr) {
+    this->fb_[y * this->width_ + x] = this->to_panel_565_(color);
+    return;
+  }
   if (!this->check_buffer_())
     return;
   size_t pos = (y * this->width_) + x;
@@ -339,14 +421,20 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
     this->y_high_ = y;
 }
 void MipiRgb::fill(Color color) {
-  if (!this->check_buffer_())
-    return;
-
   // If clipping is active, fall back to base implementation
   if (this->get_clipping().is_set()) {
     Display::fill(color);
     return;
   }
+
+  if (this->fb_ != nullptr) {
+    uint16_t new_color = this->to_panel_565_(color);
+    std::fill_n(this->fb_, this->width_ * this->height_, new_color);
+    return;
+  }
+
+  if (!this->check_buffer_())
+    return;
 
   auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
   uint16_t new_color = this->to_panel_565_(color);

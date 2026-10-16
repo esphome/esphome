@@ -3,12 +3,17 @@
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
+#include "esphome/core/version.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 #include <esp_lcd_panel_rgb.h>
 #include <utility>
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
+#endif
+
+#ifndef ESPHOME_LOG_TAG
+#define ESPHOME_LOG_TAG(name, tag) static constexpr const char *const name = tag
 #endif
 
 namespace esphome::mipi_rgb {
@@ -66,6 +71,9 @@ class MipiRgb : public display::Display {
   int get_height_internal() override { return this->height_; }
   void dump_config() override;
   void draw_pixel_at(int x, int y, Color color) override;
+#if ESPHOME_VERSION_CODE < VERSION_CODE(2026, 10, 0)
+  bool is_point_clipped(int x, int y) const { return const_cast<MipiRgb *>(this)->clip(x, y); }
+#endif
 
  protected:
   void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
@@ -134,6 +142,7 @@ class MipiRgb : public display::Display {
   uint16_t y_high_{0};
 
   esp_lcd_panel_handle_t handle_{};
+  uint16_t *fb_{nullptr};
 };
 
 #ifdef USE_SPI
