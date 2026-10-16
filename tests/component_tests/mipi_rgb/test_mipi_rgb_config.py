@@ -139,7 +139,7 @@ def test_st7701s_only_supports_mirror_x(
         CONFIG_SCHEMA({**base, "transform": {"mirror_x": True, "mirror_y": True}})
 
 
-def test_pure_rgb_model_has_no_hardware_transform(
+def test_pure_rgb_model_has_hardware_rotation(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     """A model with no init sequence has no command interface, so no transform

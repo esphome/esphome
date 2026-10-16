@@ -1,6 +1,5 @@
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "mipi_rgb.h"
-#include "mipi_rgb_blitter.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -242,14 +241,8 @@ void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const
 
   uint16_t *dst = this->buffer_ != nullptr ? this->buffer_ : this->fb_;
   if (dst != nullptr) {
-    int log_w = (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-                 this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-                    ? this->height_
-                    : this->width_;
-    int log_h = (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-                 this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-                    ? this->width_
-                    : this->height_;
+    const int log_w = this->get_width();
+    const int log_h = this->get_height();
 
     if (x_start < 0 || y_start < 0 || x_start + w > log_w || y_start + h > log_h) {
       return;
