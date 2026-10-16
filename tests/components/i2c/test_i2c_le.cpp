@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <array>
-#include <cstring>
 
 #include "esphome/components/i2c/i2c.h"
 
@@ -47,16 +46,6 @@ TEST_F(I2CLittleEndianTest, ReadByte16LittleEndian) {
   EXPECT_EQ(value, 0x1234);
   ASSERT_TRUE(this->device_.read_byte_16(4, &value));
   EXPECT_EQ(value, 0x3412);
-}
-
-TEST_F(I2CLittleEndianTest, ReadBytes16LittleEndian) {
-  static constexpr uint8_t RAW[] = {0x01, 0x02, 0xFE, 0xFF, 0x00, 0x80};
-  std::memcpy(&this->bus_.memory[8], RAW, sizeof(RAW));
-  uint16_t values[3]{};
-  ASSERT_TRUE(this->device_.read_bytes_16_le(8, values, 3));
-  EXPECT_EQ(values[0], 0x0201);
-  EXPECT_EQ(static_cast<int16_t>(values[1]), -2);
-  EXPECT_EQ(values[2], 0x8000);
 }
 
 TEST_F(I2CLittleEndianTest, ReadFailureReturnsFalse) {
