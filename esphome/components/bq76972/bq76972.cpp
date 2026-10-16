@@ -288,11 +288,7 @@ void BQ76972Component::update() {
       ok = false;
     }
   }
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
+  this->status_comm_result(ok);
 }
 
 }  // namespace esphome::bq76972

@@ -223,11 +223,9 @@ void TAS58xx::on_audio_started() {
 
 void TAS58xx::update() {
   uint8_t power_state;
-  if (!this->read_faults_() || !this->read_byte(TAS58XX_POWER_STATE, &power_state)) {
-    this->status_set_warning(LOG_STR("Failed to read status"));
+  if (!this->status_comm_result(this->read_faults_() && this->read_byte(TAS58XX_POWER_STATE, &power_state),
+                                LOG_STR("Failed to read status")))
     return;
-  }
-  this->status_clear_warning();
 
   power_state &= TAS58XX_CTRL_STATE_MASK;
   if (power_state != this->power_state_) {

@@ -127,14 +127,7 @@ bool ES9038Q2MKatana::write_volume_() {
 }
 
 // Records the outcome of a runtime write; the cached state only changes on success.
-bool ES9038Q2MKatana::check_write_(bool ok) {
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
-  return ok;
-}
+bool ES9038Q2MKatana::check_write_(bool ok) { return this->status_comm_result(ok); }
 
 bool ES9038Q2MKatana::set_volume(float volume) {
   if (this->is_failed())

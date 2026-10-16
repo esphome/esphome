@@ -141,11 +141,8 @@ void BH1745Component::update() {
     return;
 
   uint8_t buffer[BH1745_CHANNELS * 2];
-  if (!this->read_bytes(REG_RED_DATA_LSB, buffer, sizeof(buffer))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_result(this->read_bytes(REG_RED_DATA_LSB, buffer, sizeof(buffer))))
     return;
-  }
-  this->status_clear_warning();
 
   // Each channel is sent low byte first.
   const uint16_t red = encode_uint16(buffer[1], buffer[0]);

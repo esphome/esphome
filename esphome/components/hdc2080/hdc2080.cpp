@@ -52,11 +52,8 @@ void HDC2080Component::update() {
   // wait for conversion to complete 2ms should be enough, more is fine
   this->set_timeout(5, [this]() {
     uint8_t raw_data[4];
-    if (this->read_register(REG_TEMPERATURE_LOW, raw_data, 4) != i2c::ERROR_OK) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    if (!this->status_comm_result(this->read_register(REG_TEMPERATURE_LOW, raw_data, 4) == i2c::ERROR_OK))
       return;
-    }
-    this->status_clear_warning();
     if (this->temperature_sensor_ != nullptr) {
       float temp = encode_uint16(raw_data[1], raw_data[0]) * (165.0f / 65536.0f) - 40.5f;
       this->temperature_sensor_->publish_state(temp);
