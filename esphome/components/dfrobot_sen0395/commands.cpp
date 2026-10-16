@@ -1,7 +1,9 @@
 #include "commands.h"
 
 #include <cmath>
+#include <cstring>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "dfrobot_sen0395.h"
@@ -10,323 +12,236 @@ namespace esphome::dfrobot_sen0395 {
 
 ESPHOME_LOG_TAG(TAG, "dfrobot_sen0395.commands");
 
-uint8_t Command::execute(DfrobotSen0395Component *parent) {
-  this->parent_ = parent;
-  if (this->cmd_sent_) {
-    if (this->parent_->read_message_()) {
-      std::string message(this->parent_->read_buffer_);
-      if (message.rfind("is not recognized as a CLI command") != std::string::npos) {
-        ESP_LOGD(TAG, "Command not recognized properly by sensor");
-        if (this->retries_left_ > 0) {
-          this->retries_left_ -= 1;
-          this->cmd_sent_ = false;
-          ESP_LOGD(TAG, "Retrying");
-          return 0;
-        } else {
-          this->parent_->find_prompt_();
-          return 1;  // Command done
-        }
-      }
-      uint8_t rc = on_message(message);
-      if (rc == 2) {
-        if (this->retries_left_ > 0) {
-          this->retries_left_ -= 1;
-          this->cmd_sent_ = false;
-          ESP_LOGD(TAG, "Retrying");
-          return 0;
-        } else {
-          this->parent_->find_prompt_();
-          return 1;  // Command done
-        }
-      } else if (rc == 0) {
-        return 0;
-      } else {
-        this->parent_->find_prompt_();
-        return 1;
-      }
-    }
-    if (millis() - this->parent_->ts_last_cmd_sent_ > this->timeout_ms_) {
-      ESP_LOGD(TAG, "Command timeout");
-      if (this->retries_left_ > 0) {
-        this->retries_left_ -= 1;
-        this->cmd_sent_ = false;
-        ESP_LOGD(TAG, "Retrying");
-      } else {
-        return 1;  // Command done
-      }
-    }
-  } else if (this->parent_->send_cmd_(this->cmd_.c_str(), this->cmd_duration_ms_)) {
-    this->cmd_sent_ = true;
-  }
-  return 0;  // Command not done yet
-}
+static constexpr float DET_RANGE_STEP_M = 0.15f;
+static constexpr float LATENCY_STEP_S = 0.025f;
 
-uint8_t ReadStateCommand::execute(DfrobotSen0395Component *parent) {
-  this->parent_ = parent;
-  if (this->parent_->read_message_()) {
-    std::string message(this->parent_->read_buffer_);
-    if (message.rfind("$JYBSS,0, , , *") != std::string::npos) {
-      this->parent_->set_detected_(false);
-      this->parent_->set_active(true);
-      return 1;  // Command done
-    } else if (message.rfind("$JYBSS,1, , , *") != std::string::npos) {
-      this->parent_->set_detected_(true);
-      this->parent_->set_active(true);
-      return 1;  // Command done
-    }
-  }
-  if (millis() - this->parent_->ts_last_cmd_sent_ > this->timeout_ms_) {
-    return 1;  // Command done, timeout
-  }
-  return 0;  // Command not done yet.
-}
-
-uint8_t ReadStateCommand::on_message(std::string &message) { return 1; }
-
-uint8_t PowerCommand::on_message(std::string &message) {
-  if (message == "sensor stopped already") {
-    this->parent_->set_active(false);
-    ESP_LOGI(TAG, "Stopped sensor (already stopped)");
-    return 1;  // Command done
-  } else if (message == "sensor started already") {
-    this->parent_->set_active(true);
-    ESP_LOGI(TAG, "Started sensor (already started)");
-    return 1;  // Command done
-  } else if (message == "new parameter isn't save, can't startSensor") {
-    this->parent_->set_active(false);
-    ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    this->parent_->set_active(this->power_on_);
-    if (this->power_on_) {
-      ESP_LOGI(TAG, "Started sensor");
-    } else {
-      ESP_LOGI(TAG, "Stopped sensor");
-    }
-    return 1;  // Command done
-  }
-  return 0;  // Command not done yet.
-}
-
-DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float max2, float min3, float max3,
-                                       float min4, float max4) {
+void DfrobotSen0395Component::enqueue_det_range_cfg(float min1, float max1, float min2, float max2, float min3,
+                                                    float max3, float min4, float max4) {
   // TODO: Print warning when values are rounded
-  if (min1 < 0 || max1 < 0) {
-    this->min1_ = min1 = 0;
-    this->max1_ = max1 = 0;
-    this->min2_ = min2 = this->max2_ = max2 = this->min3_ = min3 = this->max3_ = max3 = this->min4_ = min4 =
-        this->max4_ = max4 = -1;
-
+  const float values[8] = {min1, max1, min2, max2, min3, max3, min4, max4};
+  int16_t steps[8];
+  // Segments are used up to the first one with a negative bound
+  bool in_use = true;
+  for (size_t i = 0; i < 8; i += 2) {
+    in_use = in_use && values[i] >= 0 && values[i + 1] >= 0;
+    for (size_t j = i; j < i + 2; j++) {
+      steps[j] = in_use ? static_cast<int16_t>(clamp(rintf(values[j] / DET_RANGE_STEP_M), 0.0f, 32767.0f)) : -1;
+    }
+  }
+  if (steps[0] < 0) {
     ESP_LOGW(TAG, "DetRangeCfgCommand invalid input parameters. Using range config 0 0.");
-
-    this->cmd_ = "detRangeCfg -1 0 0";
-  } else if (min2 < 0 || max2 < 0) {
-    this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
-    this->max1_ = max1 = roundf(max1 / 0.15f) * 0.15f;
-    this->min2_ = min2 = this->max2_ = max2 = this->min3_ = min3 = this->max3_ = max3 = this->min4_ = min4 =
-        this->max4_ = max4 = -1;
-
-    char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f", min1 / 0.15f, max1 / 0.15f);
-    this->cmd_ = buf;
-  } else if (min3 < 0 || max3 < 0) {
-    this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
-    this->max1_ = max1 = roundf(max1 / 0.15f) * 0.15f;
-    this->min2_ = min2 = roundf(min2 / 0.15f) * 0.15f;
-    this->max2_ = max2 = roundf(max2 / 0.15f) * 0.15f;
-    this->min3_ = min3 = this->max3_ = max3 = this->min4_ = min4 = this->max4_ = max4 = -1;
-
-    char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f, min2 / 0.15f,
-             max2 / 0.15f);
-    this->cmd_ = buf;
-  } else if (min4 < 0 || max4 < 0) {
-    this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
-    this->max1_ = max1 = roundf(max1 / 0.15f) * 0.15f;
-    this->min2_ = min2 = roundf(min2 / 0.15f) * 0.15f;
-    this->max2_ = max2 = roundf(max2 / 0.15f) * 0.15f;
-    this->min3_ = min3 = roundf(min3 / 0.15f) * 0.15f;
-    this->max3_ = max3 = roundf(max3 / 0.15f) * 0.15f;
-    this->min4_ = min4 = this->max4_ = max4 = -1;
-
-    char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f, min2 / 0.15f,
-             max2 / 0.15f, min3 / 0.15f, max3 / 0.15f);
-    this->cmd_ = buf;
-  } else {
-    this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
-    this->max1_ = max1 = roundf(max1 / 0.15f) * 0.15f;
-    this->min2_ = min2 = roundf(min2 / 0.15f) * 0.15f;
-    this->max2_ = max2 = roundf(max2 / 0.15f) * 0.15f;
-    this->min3_ = min3 = roundf(min3 / 0.15f) * 0.15f;
-    this->max3_ = max3 = roundf(max3 / 0.15f) * 0.15f;
-    this->min4_ = min4 = roundf(min4 / 0.15f) * 0.15f;
-    this->max4_ = max4 = roundf(max4 / 0.15f) * 0.15f;
-
-    char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f,
-             min2 / 0.15f, max2 / 0.15f, min3 / 0.15f, max3 / 0.15f, min4 / 0.15f, max4 / 0.15f);
-    this->cmd_ = buf;
+    steps[0] = steps[1] = 0;
   }
+  if (this->enqueue(CommandType::COMMAND_TYPE_DET_RANGE_CFG))
+    memcpy(this->det_range_steps_, steps, sizeof(steps));
+}
 
-  this->min1_ = min1;
-  this->max1_ = max1;
-  this->min2_ = min2;
-  this->max2_ = max2;
-  this->min3_ = min3;
-  this->max3_ = max3;
-  this->min4_ = min4;
-  this->max4_ = max4;
-};
+void DfrobotSen0395Component::enqueue_set_latency(float delay_after_detection, float delay_after_disappear) {
+  if (!this->enqueue(CommandType::COMMAND_TYPE_SET_LATENCY))
+    return;
+  // 1638.375 s is 65535 steps
+  this->latency_steps_[0] =
+      static_cast<uint16_t>(clamp(std::round(delay_after_detection / LATENCY_STEP_S), 0.0f, 65535.0f));
+  this->latency_steps_[1] =
+      static_cast<uint16_t>(clamp(std::round(delay_after_disappear / LATENCY_STEP_S), 0.0f, 65535.0f));
+}
 
-uint8_t DetRangeCfgCommand::on_message(std::string &message) {
-  if (message == "sensor is not stopped") {
-    ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    ESP_LOGI(TAG,
-             "Updated detection area config:\n"
-             "  Detection area 1 from %.02fm to %.02fm.",
-             this->min1_, this->max1_);
-    if (this->min2_ >= 0 && this->max2_ >= 0) {
-      ESP_LOGI(TAG, "  Detection area 2 from %.02fm to %.02fm.", this->min2_, this->max2_);
+void DfrobotSen0395Component::format_command_(const Command &cmd, char *buf, size_t size) {
+  const char *text = "";
+  switch (cmd.type) {
+    case CommandType::COMMAND_TYPE_POWER:
+      text = cmd.arg ? "sensorStart" : "sensorStop";
+      break;
+    case CommandType::COMMAND_TYPE_DET_RANGE_CFG: {
+      size_t pos = buf_append_printf(buf, size, 0, "detRangeCfg -1");
+      for (size_t i = 0; i < 8 && this->det_range_steps_[i] >= 0; i += 2) {
+        pos = buf_append_printf(buf, size, pos, " %d %d", this->det_range_steps_[i], this->det_range_steps_[i + 1]);
+      }
+      return;
     }
-    if (this->min3_ >= 0 && this->max3_ >= 0) {
-      ESP_LOGI(TAG, "  Detection area 3 from %.02fm to %.02fm.", this->min3_, this->max3_);
-    }
-    if (this->min4_ >= 0 && this->max4_ >= 0) {
-      ESP_LOGI(TAG, "  Detection area 4 from %.02fm to %.02fm.", this->min4_, this->max4_);
-    }
-    ESP_LOGD(TAG, "  Used command: %s", this->cmd_.c_str());
-    return 1;  // Command done
+    case CommandType::COMMAND_TYPE_SET_LATENCY:
+      snprintf(buf, size, "setLatency %.03f %.03f", this->latency_steps_[0] * LATENCY_STEP_S,
+               this->latency_steps_[1] * LATENCY_STEP_S);
+      return;
+    case CommandType::COMMAND_TYPE_SENSOR_CFG_START:
+      snprintf(buf, size, "sensorCfgStart %d", cmd.arg);
+      return;
+    case CommandType::COMMAND_TYPE_FACTORY_RESET:
+      text = "factoryReset 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
+      break;
+    case CommandType::COMMAND_TYPE_RESET_SYSTEM:
+      text = "resetSystem";
+      break;
+    case CommandType::COMMAND_TYPE_SAVE_CFG:
+      text = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
+      break;
+    case CommandType::COMMAND_TYPE_LED_MODE:
+      text = cmd.arg ? "setLedMode 1 0" : "setLedMode 1 1";
+      break;
+    case CommandType::COMMAND_TYPE_UART_OUTPUT:
+      text = cmd.arg ? "setUartOutput 1 1" : "setUartOutput 1 0";
+      break;
+    case CommandType::COMMAND_TYPE_SENSITIVITY:
+      snprintf(buf, size, "setSensitivity %d", cmd.arg);
+      return;
+    case CommandType::COMMAND_TYPE_READ_STATE:
+      break;
   }
-  return 0;  // Command not done yet.
+  snprintf(buf, size, "%s", text);
 }
 
-SetLatencyCommand::SetLatencyCommand(float delay_after_detection, float delay_after_disappear) {
-  delay_after_detection = std::round(delay_after_detection / 0.025f) * 0.025f;
-  delay_after_disappear = std::round(delay_after_disappear / 0.025f) * 0.025f;
-  this->delay_after_detection_ = clamp(delay_after_detection, 0.0f, 1638.375f);
-  this->delay_after_disappear_ = clamp(delay_after_disappear, 0.0f, 1638.375f);
-  // max 32: "setLatency "(11) + float(8) + " "(1) + float(8) + null, rounded to 32
-  char buf[32];
-  snprintf(buf, sizeof(buf), "setLatency %.03f %.03f", this->delay_after_detection_, this->delay_after_disappear_);
-  this->cmd_ = buf;
-};
+bool DfrobotSen0395Component::handle_reply_(const Command &cmd) {
+  const char *message = this->read_buffer_;
+  auto is = [message](const char *text) { return strcmp(message, text) == 0; };
+  const bool not_stopped = is("sensor is not stopped");
+  const bool done = is("Done");
+  char used[72];
 
-uint8_t SetLatencyCommand::on_message(std::string &message) {
-  if (message == "sensor is not stopped") {
-    ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    ESP_LOGI(TAG,
-             "Updated output latency config:\n"
-             "  Signal that someone was detected is delayed by %.03f s.\n"
-             "  Signal that nobody is detected anymore is delayed by %.03f s.",
-             this->delay_after_detection_, this->delay_after_disappear_);
-    ESP_LOGD(TAG, "  Used command: %s", this->cmd_.c_str());
-    return 1;  // Command done
-  }
-  return 0;  // Command not done yet
-}
+  switch (cmd.type) {
+    case CommandType::COMMAND_TYPE_READ_STATE:
+      return true;
 
-uint8_t SensorCfgStartCommand::on_message(std::string &message) {
-  if (message == "sensor is not stopped") {
-    ESP_LOGE(TAG, "Cannot configure sensor startup behavior. Sensor is not stopped!");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    ESP_LOGI(TAG, "Updated sensor startup behavior:");
-    if (startup_mode_) {
-      this->parent_->set_start_after_boot(true);
-      ESP_LOGI(TAG, "Sensor will start automatically after power-on.");
-    } else {
-      this->parent_->set_start_after_boot(false);
-      ESP_LOGI(TAG, "Sensor needs to be started manually after power-on.");
-    }
-    ESP_LOGD(TAG, "Used command: %s", this->cmd_.c_str());
-    return 1;  // Command done
-  }
-  return 0;  // Command not done yet
-}
+    case CommandType::COMMAND_TYPE_POWER:
+      if (is("sensor stopped already")) {
+        this->set_active(false);
+        ESP_LOGI(TAG, "Stopped sensor (already stopped)");
+      } else if (is("sensor started already")) {
+        this->set_active(true);
+        ESP_LOGI(TAG, "Started sensor (already started)");
+      } else if (is("new parameter isn't save, can't startSensor")) {
+        this->set_active(false);
+        ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
+      } else if (done) {
+        this->set_active(cmd.arg);
+        if (cmd.arg) {
+          ESP_LOGI(TAG, "Started sensor");
+        } else {
+          ESP_LOGI(TAG, "Stopped sensor");
+        }
+      } else {
+        return false;
+      }
+      return true;
 
-uint8_t FactoryResetCommand::on_message(std::string &message) {
-  if (message == "sensor is not stopped") {
-    ESP_LOGE(TAG, "Cannot factory reset. Sensor is not stopped!");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    ESP_LOGI(TAG, "Sensor factory reset done.");
-    return 1;  // Command done
-  }
-  return 0;  // Command not done yet
-}
+    case CommandType::COMMAND_TYPE_DET_RANGE_CFG:
+      if (not_stopped) {
+        ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
+        return true;
+      }
+      if (!done)
+        return false;
+      ESP_LOGI(TAG,
+               "Updated detection area config:\n"
+               "  Detection area 1 from %.02fm to %.02fm.",
+               this->det_range_steps_[0] * DET_RANGE_STEP_M, this->det_range_steps_[1] * DET_RANGE_STEP_M);
+      for (size_t i = 2; i < 8 && this->det_range_steps_[i] >= 0; i += 2) {
+        ESP_LOGI(TAG, "  Detection area %u from %.02fm to %.02fm.", static_cast<unsigned>(i / 2 + 1),
+                 this->det_range_steps_[i] * DET_RANGE_STEP_M, this->det_range_steps_[i + 1] * DET_RANGE_STEP_M);
+      }
+      break;
 
-uint8_t ResetSystemCommand::on_message(std::string &message) {
-  if (message == "leapMMW:/>") {
-    ESP_LOGI(TAG, "Restarted sensor.");
-    return 1;  // Command done
-  }
-  return 0;  // Command not done yet
-}
+    case CommandType::COMMAND_TYPE_SET_LATENCY:
+      if (not_stopped) {
+        ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
+        return true;
+      }
+      if (!done)
+        return false;
+      ESP_LOGI(TAG,
+               "Updated output latency config:\n"
+               "  Signal that someone was detected is delayed by %.03f s.\n"
+               "  Signal that nobody is detected anymore is delayed by %.03f s.",
+               this->latency_steps_[0] * LATENCY_STEP_S, this->latency_steps_[1] * LATENCY_STEP_S);
+      break;
 
-uint8_t SaveCfgCommand::on_message(std::string &message) {
-  if (message == "no parameter has changed") {
-    ESP_LOGI(TAG, "Not saving config (no parameter changed).");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    ESP_LOGI(TAG, "Saved config. Saving a lot may damage the sensor.");
-    return 1;  // Command done
-  }
-  return 0;  // Command not done yet
-}
+    case CommandType::COMMAND_TYPE_SENSOR_CFG_START:
+      if (not_stopped) {
+        ESP_LOGE(TAG, "Cannot configure sensor startup behavior. Sensor is not stopped!");
+        return true;
+      }
+      if (!done)
+        return false;
+      ESP_LOGI(TAG, "Updated sensor startup behavior:");
+      this->set_start_after_boot(cmd.arg);
+      if (cmd.arg) {
+        ESP_LOGI(TAG, "Sensor will start automatically after power-on.");
+      } else {
+        ESP_LOGI(TAG, "Sensor needs to be started manually after power-on.");
+      }
+      break;
 
-uint8_t LedModeCommand::on_message(std::string &message) {
-  if (message == "sensor is not stopped") {
-    ESP_LOGE(TAG, "Cannot set led mode. Sensor is not stopped!");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    ESP_LOGI(TAG, "Set led mode done.");
-    if (this->active_) {
-      this->parent_->set_led_active(true);
-      ESP_LOGI(TAG, "Sensor LED will blink.");
-    } else {
-      this->parent_->set_led_active(false);
-      ESP_LOGI(TAG, "Turned off LED.");
-    }
-    ESP_LOGD(TAG, "Used command: %s", this->cmd_.c_str());
-    return 1;  // Command done
-  }
-  return 0;  // Command not done yet
-}
+    case CommandType::COMMAND_TYPE_FACTORY_RESET:
+      if (not_stopped) {
+        ESP_LOGE(TAG, "Cannot factory reset. Sensor is not stopped!");
+        return true;
+      }
+      if (!done)
+        return false;
+      ESP_LOGI(TAG, "Sensor factory reset done.");
+      return true;
 
-uint8_t UartOutputCommand::on_message(std::string &message) {
-  if (message == "sensor is not stopped") {
-    ESP_LOGE(TAG, "Cannot set uart output mode. Sensor is not stopped!");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    ESP_LOGI(TAG, "Set uart mode done.");
-    if (this->active_) {
-      this->parent_->set_uart_presence_active(true);
-      ESP_LOGI(TAG, "Presence information is sent via UART and GPIO.");
-    } else {
-      this->parent_->set_uart_presence_active(false);
-      ESP_LOGI(TAG, "Presence information is only sent via GPIO.");
-    }
-    ESP_LOGD(TAG, "Used command: %s", this->cmd_.c_str());
-    return 1;  // Command done
-  }
-  return 0;  // Command not done yet
-}
+    case CommandType::COMMAND_TYPE_RESET_SYSTEM:
+      if (!is("leapMMW:/>"))
+        return false;
+      ESP_LOGI(TAG, "Restarted sensor.");
+      return true;
 
-uint8_t SensitivityCommand::on_message(std::string &message) {
-  if (message == "sensor is not stopped") {
-    ESP_LOGE(TAG, "Cannot set sensitivity. Sensor is not stopped!");
-    return 1;  // Command done
-  } else if (message == "Done") {
-    ESP_LOGI(TAG, "Set sensitivity done. Set to value %d.", this->sensitivity_);
-    ESP_LOGD(TAG, "Used command: %s", this->cmd_.c_str());
-    return 1;  // Command done
+    case CommandType::COMMAND_TYPE_SAVE_CFG:
+      if (is("no parameter has changed")) {
+        ESP_LOGI(TAG, "Not saving config (no parameter changed).");
+        return true;
+      }
+      if (!done)
+        return false;
+      ESP_LOGI(TAG, "Saved config. Saving a lot may damage the sensor.");
+      return true;
+
+    case CommandType::COMMAND_TYPE_LED_MODE:
+      if (not_stopped) {
+        ESP_LOGE(TAG, "Cannot set led mode. Sensor is not stopped!");
+        return true;
+      }
+      if (!done)
+        return false;
+      ESP_LOGI(TAG, "Set led mode done.");
+      this->set_led_active(cmd.arg);
+      if (cmd.arg) {
+        ESP_LOGI(TAG, "Sensor LED will blink.");
+      } else {
+        ESP_LOGI(TAG, "Turned off LED.");
+      }
+      break;
+
+    case CommandType::COMMAND_TYPE_UART_OUTPUT:
+      if (not_stopped) {
+        ESP_LOGE(TAG, "Cannot set uart output mode. Sensor is not stopped!");
+        return true;
+      }
+      if (!done)
+        return false;
+      ESP_LOGI(TAG, "Set uart mode done.");
+      this->set_uart_presence_active(cmd.arg);
+      if (cmd.arg) {
+        ESP_LOGI(TAG, "Presence information is sent via UART and GPIO.");
+      } else {
+        ESP_LOGI(TAG, "Presence information is only sent via GPIO.");
+      }
+      break;
+
+    case CommandType::COMMAND_TYPE_SENSITIVITY:
+      if (not_stopped) {
+        ESP_LOGE(TAG, "Cannot set sensitivity. Sensor is not stopped!");
+        return true;
+      }
+      if (!done)
+        return false;
+      ESP_LOGI(TAG, "Set sensitivity done. Set to value %d.", cmd.arg);
+      break;
   }
-  return 0;  // Command not done yet
+
+  this->format_command_(cmd, used, sizeof(used));
+  ESP_LOGD(TAG, "Used command: %s", used);
+  return true;
 }
 
 }  // namespace esphome::dfrobot_sen0395

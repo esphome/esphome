@@ -27,9 +27,9 @@ class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented
   TEMPLATABLE_VALUE(float, det_max4)
 
   void play(const Ts &...x) override {
-    this->parent_->enqueue(make_unique<PowerCommand>(0));
+    this->parent_->enqueue(CommandType::COMMAND_TYPE_POWER, false);
     if (this->factory_reset_.has_value() && this->factory_reset_.value(x...) == true) {
-      this->parent_->enqueue(make_unique<FactoryResetCommand>());
+      this->parent_->enqueue(CommandType::COMMAND_TYPE_FACTORY_RESET);
     }
     if (this->det_min1_.has_value() && this->det_max1_.has_value()) {
       // Each segment is read once, so the guard and the command see the same values.
@@ -37,10 +37,10 @@ class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented
       if (min1 >= 0) {
         const float max1 = this->det_max1_.value(x...);
         if (max1 >= 0) {
-          this->parent_->enqueue(make_unique<DetRangeCfgCommand>(
-              min1, max1, this->det_min2_.value_or(x..., -1), this->det_max2_.value_or(x..., -1),
-              this->det_min3_.value_or(x..., -1), this->det_max3_.value_or(x..., -1),
-              this->det_min4_.value_or(x..., -1), this->det_max4_.value_or(x..., -1)));
+          this->parent_->enqueue_det_range_cfg(min1, max1, this->det_min2_.value_or(x..., -1),
+                                               this->det_max2_.value_or(x..., -1), this->det_min3_.value_or(x..., -1),
+                                               this->det_max3_.value_or(x..., -1), this->det_min4_.value_or(x..., -1),
+                                               this->det_max4_.value_or(x..., -1));
         }
       }
     }
@@ -48,38 +48,35 @@ class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented
       float detect = this->delay_after_detect_.value(x...);
       float disappear = this->delay_after_disappear_.value(x...);
       if (detect >= 0 && disappear >= 0) {
-        this->parent_->enqueue(make_unique<SetLatencyCommand>(detect, disappear));
+        this->parent_->enqueue_set_latency(detect, disappear);
       }
     }
     if (this->start_after_power_on_.has_value()) {
       int8_t val = this->start_after_power_on_.value(x...);
       if (val >= 0) {
-        this->parent_->enqueue(make_unique<SensorCfgStartCommand>(val));
+        this->parent_->enqueue(CommandType::COMMAND_TYPE_SENSOR_CFG_START, val);
       }
     }
     if (this->turn_on_led_.has_value()) {
       int8_t val = this->turn_on_led_.value(x...);
       if (val >= 0) {
-        this->parent_->enqueue(make_unique<LedModeCommand>(val));
+        this->parent_->enqueue(CommandType::COMMAND_TYPE_LED_MODE, val);
       }
     }
     if (this->presence_via_uart_.has_value()) {
       int8_t val = this->presence_via_uart_.value(x...);
       if (val >= 0) {
-        this->parent_->enqueue(make_unique<UartOutputCommand>(val));
+        this->parent_->enqueue(CommandType::COMMAND_TYPE_UART_OUTPUT, val);
       }
     }
     if (this->sensitivity_.has_value()) {
       int8_t val = this->sensitivity_.value(x...);
       if (val >= 0) {
-        if (val > 9) {
-          val = 9;
-        }
-        this->parent_->enqueue(make_unique<SensitivityCommand>(val));
+        this->parent_->enqueue(CommandType::COMMAND_TYPE_SENSITIVITY, val);
       }
     }
-    this->parent_->enqueue(make_unique<SaveCfgCommand>());
-    this->parent_->enqueue(make_unique<PowerCommand>(1));
+    this->parent_->enqueue(CommandType::COMMAND_TYPE_SAVE_CFG);
+    this->parent_->enqueue(CommandType::COMMAND_TYPE_POWER, true);
   }
 };
 

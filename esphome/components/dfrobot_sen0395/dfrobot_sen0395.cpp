@@ -1,5 +1,7 @@
 #include "dfrobot_sen0395.h"
 
+#include <cstring>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -23,20 +25,84 @@ void DfrobotSen0395Component::dump_config() {
 }
 
 void DfrobotSen0395Component::loop() {
-  if (cmd_queue_.is_empty()) {
+  if (this->cmd_queue_.is_empty()) {
     // Command queue empty. Read sensor state.
-    cmd_queue_.enqueue(make_unique<ReadStateCommand>());
+    this->cmd_queue_.enqueue({CommandType::COMMAND_TYPE_READ_STATE, 0});
   }
 
   // Commands are non-blocking and need to be called repeatedly.
-  if (cmd_queue_.process(this)) {
+  if (this->run_command_(this->cmd_queue_.front())) {
     // Dequeue if command is done
-    cmd_queue_.dequeue();
+    this->cmd_queue_.dequeue();
+    this->cmd_sent_ = false;
+    this->retries_left_ = 2;
   }
 }
 
-int8_t DfrobotSen0395Component::enqueue(std::unique_ptr<Command> cmd) {
-  return cmd_queue_.enqueue(std::move(cmd));  // Transfer ownership using std::move
+bool DfrobotSen0395Component::enqueue(CommandType type, uint8_t arg) {
+  if (type == CommandType::COMMAND_TYPE_SENSITIVITY && arg > 9)
+    arg = 9;
+  return this->cmd_queue_.enqueue({type, arg});
+}
+
+bool DfrobotSen0395Component::run_command_(const Command &cmd) {
+  if (cmd.type == CommandType::COMMAND_TYPE_READ_STATE)
+    return this->run_read_state_();
+
+  const bool save_cfg = cmd.type == CommandType::COMMAND_TYPE_SAVE_CFG;
+  if (!this->cmd_sent_) {
+    // The interval between two commands must be larger than the command duration
+    if (millis() - this->ts_last_cmd_sent_ > (save_cfg ? 3000 : 1000)) {
+      char buf[72];  // "detRangeCfg -1" + 8 * " 32767" + null
+      this->format_command_(cmd, buf, sizeof(buf));
+      this->write_str(buf);
+      this->ts_last_cmd_sent_ = millis();
+      this->cmd_sent_ = true;
+    }
+    return false;  // Command not done yet
+  }
+
+  if (this->read_message_()) {
+    if (strstr(this->read_buffer_, "is not recognized as a CLI command") != nullptr) {
+      ESP_LOGD(TAG, "Command not recognized properly by sensor");
+    } else if (this->handle_reply_(cmd)) {
+      this->find_prompt_();
+      return true;  // Command done
+    } else {
+      return false;  // Command not done yet
+    }
+  } else if (millis() - this->ts_last_cmd_sent_ > (save_cfg ? 3500 : 1500)) {
+    ESP_LOGD(TAG, "Command timeout");
+    if (this->retries_left_ == 0)
+      return true;  // Command done
+  } else {
+    return false;  // Command not done yet
+  }
+
+  if (this->retries_left_ == 0) {
+    this->find_prompt_();
+    return true;  // Command done
+  }
+  this->retries_left_--;
+  this->cmd_sent_ = false;
+  ESP_LOGD(TAG, "Retrying");
+  return false;
+}
+
+bool DfrobotSen0395Component::run_read_state_() {
+  if (this->read_message_()) {
+    if (strstr(this->read_buffer_, "$JYBSS,0, , , *") != nullptr) {
+      this->set_detected_(false);
+      this->set_active(true);
+      return true;
+    }
+    if (strstr(this->read_buffer_, "$JYBSS,1, , , *") != nullptr) {
+      this->set_detected_(true);
+      this->set_active(true);
+      return true;
+    }
+  }
+  return millis() - this->ts_last_cmd_sent_ > 500;  // Done on timeout
 }
 
 uint8_t DfrobotSen0395Component::read_message_() {
@@ -71,24 +137,10 @@ uint8_t DfrobotSen0395Component::read_message_() {
 }
 
 uint8_t DfrobotSen0395Component::find_prompt_() {
-  if (this->read_message_()) {
-    std::string message(this->read_buffer_);
-    if (message.rfind("leapMMW:/>") != std::string::npos) {
-      return 1;  // Prompt found
-    }
+  if (this->read_message_() && strstr(this->read_buffer_, "leapMMW:/>") != nullptr) {
+    return 1;  // Prompt found
   }
   return 0;  // Not found yet
-}
-
-uint8_t DfrobotSen0395Component::send_cmd_(const char *cmd, uint32_t duration) {
-  // The interval between two commands must be larger than the specified duration (in ms).
-  if (millis() - ts_last_cmd_sent_ > duration) {
-    this->write_str(cmd);
-    ts_last_cmd_sent_ = millis();
-    return 1;  // Command sent
-  }
-  // Could not send command yet as command duration did not fully pass yet.
-  return 0;
 }
 
 void DfrobotSen0395Component::set_detected_(bool detected) {
@@ -99,43 +151,26 @@ void DfrobotSen0395Component::set_detected_(bool detected) {
 #endif
 }
 
-int8_t CircularCommandQueue::enqueue(std::unique_ptr<Command> cmd) {
+bool CircularCommandQueue::enqueue(Command cmd) {
   if (this->is_full()) {
     ESP_LOGE(TAG, "Command queue is full");
-    return -1;
-  } else if (this->is_empty()) {
-    front_++;
+    return false;
   }
-  rear_ = (rear_ + 1) % COMMAND_QUEUE_SIZE;
-  commands_[rear_] = std::move(cmd);  // Transfer ownership using std::move
-  return 1;
-}
-
-std::unique_ptr<Command> CircularCommandQueue::dequeue() {
   if (this->is_empty())
-    return nullptr;
-  std::unique_ptr<Command> dequeued_cmd = std::move(commands_[front_]);
-  if (front_ == rear_) {
-    front_ = -1;
-    rear_ = -1;
-  } else {
-    front_ = (front_ + 1) % COMMAND_QUEUE_SIZE;
-  }
-
-  return dequeued_cmd;
+    this->front_ = 0;
+  this->rear_ = (this->rear_ + 1) % COMMAND_QUEUE_SIZE;
+  this->commands_[this->rear_] = cmd;
+  return true;
 }
 
-bool CircularCommandQueue::is_empty() { return front_ == -1; }
-
-bool CircularCommandQueue::is_full() { return (rear_ + 1) % COMMAND_QUEUE_SIZE == front_; }
-
-// Run execute method of first in line command.
-// Execute is non-blocking and has to be called until it returns 1.
-uint8_t CircularCommandQueue::process(DfrobotSen0395Component *parent) {
-  if (!is_empty()) {
-    return commands_[front_]->execute(parent);
+void CircularCommandQueue::dequeue() {
+  if (this->is_empty())
+    return;
+  if (this->front_ == this->rear_) {
+    this->front_ = -1;
+    this->rear_ = -1;
   } else {
-    return 1;
+    this->front_ = (this->front_ + 1) % COMMAND_QUEUE_SIZE;
   }
 }
 

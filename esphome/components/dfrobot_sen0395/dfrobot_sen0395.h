@@ -24,16 +24,16 @@ static const uint8_t COMMAND_QUEUE_SIZE = 20;
 
 class CircularCommandQueue {
  public:
-  int8_t enqueue(std::unique_ptr<Command> cmd);
-  std::unique_ptr<Command> dequeue();
-  bool is_empty();
-  bool is_full();
-  uint8_t process(DfrobotSen0395Component *parent);
+  bool enqueue(Command cmd);
+  void dequeue();
+  bool is_empty() const { return this->front_ == -1; }
+  bool is_full() const { return (this->rear_ + 1) % COMMAND_QUEUE_SIZE == this->front_; }
+  const Command &front() const { return this->commands_[this->front_]; }
 
  protected:
-  int front_{-1};
-  int rear_{-1};
-  std::unique_ptr<Command> commands_[COMMAND_QUEUE_SIZE];
+  int8_t front_{-1};
+  int8_t rear_{-1};
+  Command commands_[COMMAND_QUEUE_SIZE];
 };
 
 class DfrobotSen0395Component final : public uart::UARTDevice, public Component {
@@ -93,9 +93,14 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   }
 #endif
 
-  int8_t enqueue(std::unique_ptr<Command> cmd);
+  bool enqueue(CommandType type, uint8_t arg = 0);
+  /// Queue a detection range config; a negative value ends the list of segments
+  void enqueue_det_range_cfg(float min1, float max1, float min2, float max2, float min3, float max3, float min4,
+                             float max4);
+  /// Queue an output latency config, both delays in seconds
+  void enqueue_set_latency(float delay_after_detection, float delay_after_disappear);
   /// Queue a sensor reset
-  void reset_system() { this->enqueue(make_unique<ResetSystemCommand>()); }
+  void reset_system() { this->enqueue(CommandType::COMMAND_TYPE_RESET_SYSTEM); }
 
  protected:
 #ifdef USE_BINARY_SENSOR
@@ -109,17 +114,25 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   bool start_after_boot_{false};
   char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
+  bool cmd_sent_{false};
+  int8_t retries_left_{2};
   CircularCommandQueue cmd_queue_;
   uint32_t ts_last_cmd_sent_{0};
+  // Values of the queued range and latency commands, in the sensor's steps of 0.15 m and 0.025 s.
+  // A later command replaces them, which leaves the sensor in the same final state.
+  int16_t det_range_steps_[8]{};
+  uint16_t latency_steps_[2]{};
 
   uint8_t read_message_();
   uint8_t find_prompt_();
-  uint8_t send_cmd_(const char *cmd, uint32_t duration);
+  /// Run the command at the front of the queue; true when it is done
+  bool run_command_(const Command &cmd);
+  bool run_read_state_();
+  /// Handle a reply to a sent command; true when the command is done
+  bool handle_reply_(const Command &cmd);
+  void format_command_(const Command &cmd, char *buf, size_t size);
 
   void set_detected_(bool detected);
-
-  friend class Command;
-  friend class ReadStateCommand;
 };
 
 }  // namespace esphome::dfrobot_sen0395
