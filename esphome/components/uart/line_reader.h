@@ -43,11 +43,12 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
     return nullptr;
   }
 
-  /// Characters of the partial line collected so far: 0 right after a line was returned and while a line
-  /// is dropped, N - 1 on the byte that overflowed.
-  size_t length() const { return this->end_(); }
+  /// Characters of the partial line collected so far; 0 right after a line was returned, and from the byte
+  /// that overflowed until the terminator.
+  size_t length() const { return this->pos_ < N ? this->pos_ : 0; }
 
-  /// The partial line, NUL terminated, for prompts that have no line end; it has length() characters.
+  /// The partial line, NUL terminated, for prompts that have no line end. On the byte that overflowed it is
+  /// the first N - 1 characters; while the rest of that line is dropped it is empty.
   const char *partial() {
     this->buf_[this->end_()] = '\0';
     return this->buf_;
