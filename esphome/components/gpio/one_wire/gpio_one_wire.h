@@ -16,7 +16,6 @@ class GPIOOneWireBus final : public one_wire::OneWireBus, public Component {
     this->t_pin_ = pin;
     this->pin_ = pin->to_isr();
   }
-  void set_timing_scale(uint8_t scale) { this->timing_scale_ = scale; }
 
   void write8(uint8_t val) override;
   void write64(uint64_t val) override;
@@ -29,7 +28,6 @@ class GPIOOneWireBus final : public one_wire::OneWireBus, public Component {
   uint8_t last_discrepancy_{0};
   bool last_device_flag_{false};
   uint64_t address_;
-  uint8_t timing_scale_{1};
 
   int reset_int() override;
   void reset_search() override;

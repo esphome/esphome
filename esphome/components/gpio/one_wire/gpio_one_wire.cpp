@@ -9,10 +9,10 @@ ESPHOME_LOG_TAG(TAG, "gpio.one_wire");
 void GPIOOneWireBus::setup() {
   this->t_pin_->setup();
   this->t_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  // clear bus with scaled high time, otherwise initial reset in search might fail
+  // clear bus with 480µs high, otherwise initial reset in search might fail
   this->pin_.digital_write(true);
   this->pin_.pin_mode(gpio::FLAG_OUTPUT);
-  delayMicroseconds(480 * this->timing_scale_);
+  delayMicroseconds(480);
   this->search();
 }
 
@@ -28,7 +28,7 @@ int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
   // https://www.maximintegrated.com/en/design/technical-documents/app-notes/1/126.html
   // Wait for communication to clear (delay G)
   this->pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  uint32_t retries = 125 * this->timing_scale_;
+  uint8_t retries = 125;
   do {
     if (--retries == 0)
       return -1;
@@ -40,14 +40,14 @@ int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
   // Send 480µs LOW TX reset pulse (drive bus low, delay H)
   this->pin_.digital_write(false);
   this->pin_.pin_mode(gpio::FLAG_OUTPUT);
-  delayMicroseconds(480 * this->timing_scale_);
+  delayMicroseconds(480);
 
   // Release the bus, delay I
   this->pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   uint32_t start = micros();
-  delayMicroseconds(30 * this->timing_scale_);
+  delayMicroseconds(30);
 
-  while (micros() - start < 300 * this->timing_scale_) {
+  while (micros() - start < 300) {
     // sample bus, 0=device(s) present, 1=no device present
     r = !this->pin_.digital_read();
     if (r)
@@ -58,8 +58,8 @@ int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
   // delay J: finish the 480us slot, but never spin if it already elapsed
   // (unsigned wrap here would busy-wait for minutes with interrupts off)
   uint32_t elapsed = micros() - start;
-  if (elapsed < 480 * this->timing_scale_)
-    delayMicroseconds(480 * this->timing_scale_ - elapsed);
+  if (elapsed < 480)
+    delayMicroseconds(480 - elapsed);
   this->pin_.digital_write(true);
   this->pin_.pin_mode(gpio::FLAG_OUTPUT);
   return r ? 1 : 0;
@@ -75,8 +75,8 @@ void HOT IRAM_ATTR GPIOOneWireBus::write_bit_(bool bit) {
   // time slot: t_slot: min=60µs, max=120µs
   // recovery time: t_rec: min=1µs
   // ds18b20 appears to read the bus after roughly 14µs
-  uint32_t delay0 = (bit ? 6 : 60) * this->timing_scale_;
-  uint32_t delay1 = (bit ? 64 : 10) * this->timing_scale_;
+  uint32_t delay0 = bit ? 6 : 60;
+  uint32_t delay1 = bit ? 64 : 10;
 
   // delay A/C
   delayMicroseconds(delay0);
@@ -91,17 +91,17 @@ bool HOT IRAM_ATTR GPIOOneWireBus::read_bit_() {
   this->pin_.digital_write(false);
 
   // datasheet says >= 1µs
-  delayMicroseconds(5 * this->timing_scale_);
+  delayMicroseconds(5);
 
   // release bus, delay E
   this->pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
 
-  delayMicroseconds(8 * this->timing_scale_);
+  delayMicroseconds(8);
   // sample bus to read bit from peer
   bool r = this->pin_.digital_read();
 
   // read slot is at least 60µs
-  delayMicroseconds(50 * this->timing_scale_);
+  delayMicroseconds(50);
 
   this->pin_.digital_write(true);
   this->pin_.pin_mode(gpio::FLAG_OUTPUT);

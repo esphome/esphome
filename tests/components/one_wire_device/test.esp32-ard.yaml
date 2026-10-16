@@ -1,5 +1,5 @@
 esphome:
-  name: one-wire-device-task-test
+  name: one-wire-device-io-test
 
 esp32:
   board: esp32dev
@@ -8,9 +8,12 @@ esp32:
 
 logger:
 
+binary_sensor:
+  - platform: template
+    id: one_wire_device_input
+    lambda: return true;
+
 one_wire_device:
   pin: GPIO4
-  address: 0x6EB807A434E3EC28
-  temperature: 23.5
-  timing_scale: 2
-  interrupt_mode: false
+  type: DS2413
+  pio_a: one_wire_device_input
