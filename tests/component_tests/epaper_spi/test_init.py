@@ -6,14 +6,21 @@ import re
 from typing import Any
 
 import pytest
+import voluptuous as vol
 
 from esphome import config_validation as cv
 from esphome.components.epaper_spi.display import (
+    CONF_CS_SECONDARY_PIN,
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     MODELS,
 )
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    VARIANT_ESP32S3,
+)
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
@@ -36,6 +43,7 @@ _PIN_CONF_KEYS = (
     CONF_RESET_PIN,
     CONF_BUSY_PIN,
     CONF_ENABLE_PIN,
+    CONF_CS_SECONDARY_PIN,
 )
 
 
@@ -116,10 +124,26 @@ def test_all_predefined_models(
 ) -> None:
     """Test all predefined epaper models validate successfully with appropriate defaults."""
 
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
-    )
+    # Test all models, providing default values where necessary
+    for name in MODELS:
+        # Some models require ESP32-S3 (SEEED hardware or displays needing PSRAM)
+        if name in (
+            "SEEED-EE04-MONO-4.26",
+            "SEEED-RETERMINAL-E1002",
+            "13.3IN-SPECTRA-E6",
+        ):
+            set_core_config(
+                PlatformFramework.ESP32_IDF,
+                platform_data={
+                    KEY_BOARD: "esp32-s3-devkitc-1",
+                    KEY_VARIANT: VARIANT_ESP32S3,
+                },
+            )
+        else:
+            set_core_config(
+                PlatformFramework.ESP32_IDF,
+                platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+            )
 
     # Configure SPI component which is required by epaper_spi
     set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
@@ -131,9 +155,13 @@ def test_all_predefined_models(
         # Add ID field
         config["id"] = "test_display"
 
-        # Add required fields that don't have defaults
-        # Use safe GPIO pins that work on ESP32 (avoiding flash pins 6-11)
-        if not model.get_default(CONF_DC_PIN):
+        # DualCS models require a secondary CS pin and have no D/C line
+        is_dual_cs = isinstance(model.option(CONF_CS_SECONDARY_PIN), vol.Required)
+        if is_dual_cs:
+            config[CONF_CS_SECONDARY_PIN] = 6
+        elif not model.get_default(CONF_DC_PIN):
+            # Add required DC pin for non-DualCS models
+            # Use safe GPIO pins that work on ESP32 (avoiding flash pins 6-11)
             config[CONF_DC_PIN] = 21
 
         # Add dimensions if not provided by model
@@ -144,15 +172,17 @@ def test_all_predefined_models(
         if model.initsequence is None:
             config[CONF_INIT_SEQUENCE] = [[0xA0, 0x01]]
 
-        # Add other optional pins that some models might require
+        # Add other optional pins that some models might require.
+        # ESP32-S3 models use lower GPIO numbers (GPIOs 22-25 do not exist on S3).
+        busy_pin, reset_pin, cs_pin = (4, 3, 10) if is_dual_cs else (22, 23, 5)
         if not model.get_default(CONF_BUSY_PIN):
-            config[CONF_BUSY_PIN] = 22
+            config[CONF_BUSY_PIN] = busy_pin
 
         if not model.get_default(CONF_RESET_PIN):
-            config[CONF_RESET_PIN] = 23
+            config[CONF_RESET_PIN] = reset_pin
 
         if not model.get_default(CONF_CS_PIN):
-            config[CONF_CS_PIN] = 5
+            config[CONF_CS_PIN] = cs_pin
 
         # Dual-CS models (e.g. T133A01) require a second chip-select pin
         if model.manages_cs and not model.get_default("cs1_pin"):
@@ -176,16 +206,29 @@ def test_individual_models(
     choose_variant_with_pins: Callable[[list], None],
 ) -> None:
     """Test each epaper model individually to ensure it validates correctly."""
-    model = MODELS[model_name]
-
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
-    )
+    # Some models require ESP32-S3 (e.g. SEEED hardware or displays needing PSRAM)
+    if model_name in (
+        "SEEED-EE04-MONO-4.26",
+        "SEEED-RETERMINAL-E1002",
+        "13.3IN-SPECTRA-E6",
+    ):
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={
+                KEY_BOARD: "esp32-s3-devkitc-1",
+                KEY_VARIANT: VARIANT_ESP32S3,
+            },
+        )
+    else:
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+        )
 
     # Configure SPI component which is required by epaper_spi
     set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
 
+    model = MODELS[model_name]
     config: dict[str, Any] = {"model": model_name, "id": "test_display"}
 
     # Add required fields based on model defaults
@@ -207,6 +250,19 @@ def test_individual_models(
 
     if not model.get_default(CONF_CS_PIN):
         config[CONF_CS_PIN] = 5
+
+    # DualCS models require a secondary CS pin; non-DualCS models do not use it
+    if isinstance(model.option(CONF_CS_SECONDARY_PIN), vol.Required):
+        config[CONF_CS_SECONDARY_PIN] = 6
+        # DualCS models have no D/C line — remove it so the optional path is exercised
+        config.pop(CONF_DC_PIN, None)
+        # Override GPIO pins to ones valid on ESP32-S3 (GPIOs 22-25 do not exist)
+        if CONF_BUSY_PIN in config:
+            config[CONF_BUSY_PIN] = 4
+        if CONF_RESET_PIN in config:
+            config[CONF_RESET_PIN] = 3
+        if CONF_CS_PIN in config:
+            config[CONF_CS_PIN] = 10
 
     # Dual-CS models (e.g. T133A01) require a second chip-select pin
     if model.manages_cs and not model.get_default("cs1_pin"):

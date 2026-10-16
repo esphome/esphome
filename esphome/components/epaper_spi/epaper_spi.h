@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "colorconv.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
@@ -173,6 +175,18 @@ class EPaperBase : public Display,
   void set_state_(EPaperState state, uint16_t delay = 0);
 
   void start_data_();
+
+  // D/C control. Some panels (e.g. the dual-CS 13.3" Spectra E6) have no D/C line and
+  // distinguish command from data purely by CS framing; for those dc_pin_ is null and these
+  // are no-ops.
+  void dc_command_() const {
+    if (this->dc_pin_ != nullptr)
+      this->dc_pin_->digital_write(false);
+  }
+  void dc_data_() const {
+    if (this->dc_pin_ != nullptr)
+      this->dc_pin_->digital_write(true);
+  }
 
   // properties initialised in the constructor
   const char *name_;
