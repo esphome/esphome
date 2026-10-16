@@ -74,6 +74,17 @@ def pytest_configure(config: pytest.Config) -> None:
     )
 
 
+# Fails a hung test instead of letting the job run until GitHub stops it; must
+# exceed the shared build lock wait (_SHARED_LOCK_TIMEOUT_S) plus a cold compile
+TEST_TIMEOUT_S = 1800
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        if item.get_closest_marker("timeout") is None:
+            item.add_marker(pytest.mark.timeout(TEST_TIMEOUT_S))
+
+
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 

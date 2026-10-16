@@ -395,6 +395,9 @@ jobs:
       - common
       - determine-jobs
     if: needs.determine-jobs.outputs.integration-tests == 'true'
+    # A hung test is failed by its own timeout (tests/integration/conftest.py);
+    # this bounds whatever that does not catch.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
