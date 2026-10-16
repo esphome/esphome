@@ -4,6 +4,27 @@ keeloq:
     # Made-up key for the tests, not a real manufacturer key
     manufacturer_key: "0x1A2B3C4D5E6F7081"
     serial: 0x1234500
+    receiver_id: rcvr
+    on_frame:
+      - logger.log:
+          format: "serial %07X counter %u group %04X command %X"
+          args: ["x.serial", "x.counter", "x.channels", "x.command"]
+    on_command:
+      - channel: 1
+        command: up
+        then:
+          - logger.log: "Channel 1 up"
+      - command: 0x4
+        then:
+          - logger.log:
+              format: "stop, counter %u"
+              args: ["x.counter"]
+
+  - id: hand_remote_clone
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    receiver_id: rcvr
+    channels: [1, 2]
 
 button:
   - platform: template
@@ -19,7 +40,7 @@ button:
       - keeloq.send:
           id: shutter_remote
           command: shade
-          channels: [1, 2]
+          channels: 0x0001
   - platform: template
     name: Shutter lambda
     on_press:
@@ -39,10 +60,32 @@ button:
   - platform: template
     name: Pair shutter 1
     on_press:
-      - keeloq.learn:
+      - keeloq.send:
           id: shutter_remote
+          command: learn
           channels: 0x0001
+      - delay: 1s
+      - keeloq.send:
+          id: shutter_remote
+          command: stop
+          channels: 0x0001
+  - platform: template
+    name: Sync counter
+    on_press:
+      - keeloq.take_over: hand_remote_clone
+  - platform: template
+    name: Hand remote up
+    on_press:
+      - keeloq.send:
+          id: hand_remote_clone
+          command: up
+  - platform: template
+    name: Pair shutter 2
+    on_press:
       - keeloq.learn:
           id: shutter_remote
-          channels: !lambda return 0x0001;
+          channels: 0x0002
+      - keeloq.learn:
+          id: shutter_remote
+          channels: !lambda return 0x0002;
           legacy: true

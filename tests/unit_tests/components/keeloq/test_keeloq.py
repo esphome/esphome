@@ -7,6 +7,7 @@ import pytest
 from esphome.components.keeloq import (
     CONFIG_SCHEMA,
     JAROLIFT_COMMANDS,
+    _actions_have_channels,
     _channels,
     _command,
 )
@@ -47,10 +48,50 @@ def test_commands_by_name_or_number() -> None:
         _command("open")
 
 
+def test_on_frame_needs_a_receiver() -> None:
+    with pytest.raises(cv.Invalid, match="on_frame needs receiver_id"):
+        CONFIG_SCHEMA({**BASE, "on_frame": []})
+
+
+def test_a_remote_needs_serial_or_receiver() -> None:
+    config = {k: v for k, v in BASE.items() if k != "serial"}
+    with pytest.raises(cv.Invalid, match="Set serial, or receiver_id"):
+        CONFIG_SCHEMA(config)
+
+
+def test_on_command_needs_a_receiver_and_valid_filters() -> None:
+    with pytest.raises(cv.Invalid, match="on_command needs receiver_id"):
+        CONFIG_SCHEMA({**BASE, "on_command": []})
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA(
+            {**BASE, "receiver_id": "rx", "on_command": [{"channel": 17, "then": []}]}
+        )
+
+
 def test_shade_is_stop_sent_20_times() -> None:
-    # The other names leave the count to the type: twice for Jarolift.
     assert JAROLIFT_COMMANDS["shade"] == (0x4, 20)
     assert JAROLIFT_COMMANDS["up"] == (0x8, None)
+
+
+def _check_groups(remote: dict, action: dict) -> None:
+    import esphome.final_validate as fv
+
+    full = {"keeloq": [remote], "button": [{"on_press": [{"keeloq.send": action}]}]}
+    token = fv.full_config.set(full)
+    try:
+        _actions_have_channels(remote)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_a_frame_needs_channels_from_the_action_or_the_remote() -> None:
+    with_serial = {"id": "own", "serial": 0x1234500}
+    _check_groups(with_serial, {"id": "own", "channels": 0x0001})
+    _check_groups({**with_serial, "channels": 0x0001}, {"id": "own"})
+    # Without serial the channels may come from the hand remote.
+    _check_groups({"id": "clone"}, {"id": "clone"})
+    with pytest.raises(cv.Invalid, match="own has no channels"):
+        _check_groups(with_serial, {"id": "own"})
 
 
 def test_channels_as_list_or_mask() -> None:
