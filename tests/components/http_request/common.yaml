@@ -49,6 +49,13 @@ button:
             password: !lambda 'return std::string("pass");'
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
+        - ota.http_request.flash:
+            id: http_request_ota
+            md5: !lambda 'return std::string("0123456789abcdef0123456789abcdef");'
+            username: !lambda 'return std::string("user");'
+            password: pass
+            url: !lambda 'return std::string("http://my.ha.net:8123/local/esphome/firmware.bin");'
+
         - logger.log: "This message should be not displayed (reboot)"
 
 update:
