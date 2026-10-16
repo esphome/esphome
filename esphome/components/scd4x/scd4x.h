@@ -7,14 +7,6 @@
 
 namespace esphome::scd4x {
 
-enum ErrorCode : uint8_t {
-  COMMUNICATION_FAILED,
-  SERIAL_NUMBER_IDENTIFICATION_FAILED,
-  MEASUREMENT_INIT_FAILED,
-  FRC_FAILED,
-  UNKNOWN,
-};
-
 enum MeasurementMode : uint8_t {
   PERIODIC,
   LOW_POWER_PERIODIC,
@@ -54,7 +46,6 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   uint16_t ambient_pressure_{0};  // Per datasheet, valid values are 700 to 1200 hPa; 0 is a valid sentinel value
   bool initialized_{false};
   bool enable_asc_{false};
-  ErrorCode error_code_;
   MeasurementMode measurement_mode_{PERIODIC};
 };
 

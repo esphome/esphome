@@ -24,7 +24,7 @@ void BMP085Component::update() {
 void BMP085Component::setup() {
   uint8_t data[22];
   if (!this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -44,9 +44,6 @@ void BMP085Component::setup() {
 void BMP085Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP085:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Connection with BMP085 failed!");
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_);
