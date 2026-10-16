@@ -512,6 +512,18 @@ TEST_F(NoiseStreamTest, AWaitingHandshakeHonoursTheLinkIdleTimeout) {
   EXPECT_TRUE(server.ready());
 }
 
+TEST_F(NoiseStreamTest, AHandshakeStuckOnAFullSendBufferHonoursTheLinkIdleTimeout) {
+  NoiseStream client(this->key_.data(), true);
+  // The peer reads nothing: the send buffer is full and stays full
+  this->client_link_.chunk_ = 0;
+  this->client_link_.tx_len_ = sizeof(this->client_link_.tx_);
+  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_TRUE(this->client_link_.connected());
+  this->client_link_.idle_ = true;
+  EXPECT_FALSE(client.up(this->client_link_));
+  EXPECT_FALSE(this->client_link_.connected());
+}
+
 TEST_F(NoiseStreamTest, AHandshakeFrameOutsideTheLimitsIsDropped) {
   // One byte over a status byte and the largest message, then an empty frame; only the header arrives
   constexpr size_t over = 1 + MAX_HANDSHAKE_SIZE + 1;

@@ -17,8 +17,8 @@ static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 static constexpr char PROLOGUE[] PROGMEM = "NoiseStreamInit";
 static constexpr size_t PROLOGUE_LEN = sizeof(PROLOGUE) - 1;
 
-// rx_commit_() returns this after it logged the peer's reason, so log_failure_() skips it
-static constexpr char PEER_REJECTED[] PROGMEM = "";
+// start_() and rx_commit_() return this after they logged the cause, so log_failure_() skips it
+static constexpr char ALREADY_LOGGED[] PROGMEM = "";
 
 // Stream version in the Hello, apart from the ESPHome release. Every peer version is accepted; a later minor
 // version may add fields after these two bytes, which an older peer ignores.
@@ -56,7 +56,8 @@ const LogString *NoiseStream::start_() {
   int err = this->initiator_ ? this->handshake_.init_initiator(this->ctx_, prologue, PROLOGUE_LEN)
                              : this->handshake_.init(this->ctx_, prologue, PROLOGUE_LEN);
   if (err != 0) {
-    return LOG_STR("Handshake init failed");
+    ESP_LOGW(this->tag_, "Handshake init failed: %s", LOG_STR_ARG(noise_err_to_logstr(err)));
+    return reinterpret_cast<const LogString *>(ALREADY_LOGGED);
   }
   this->state_ = State::STATE_HANDSHAKE;
   this->started_ms_ = App.get_loop_component_start_time();
@@ -192,7 +193,7 @@ const LogString *NoiseStream::rx_commit_(size_t count, const LogString **reject)
       return LOG_STR("Peer rejected the handshake: wrong encryption key");
     }
     ESP_LOGW(this->tag_, "Peer rejected the handshake: %.*s", static_cast<int>(payload_len - 1), reason);
-    return reinterpret_cast<const LogString *>(PEER_REJECTED);
+    return reinterpret_cast<const LogString *>(ALREADY_LOGGED);
   }
   int err = this->handshake_.read_message(payload + 1, payload_len - 1);
   if (err != 0) {
@@ -226,11 +227,13 @@ bool NoiseStream::seal_frame_(uint8_t *frame, size_t len) {
 }
 
 void NoiseStream::log_failure_(const LogString *error) {
-  if (error == reinterpret_cast<const LogString *>(PEER_REJECTED)) {
+  if (error == reinterpret_cast<const LogString *>(ALREADY_LOGGED)) {
     return;
   }
   ESP_LOGW(this->tag_, "%s", LOG_STR_ARG(error));
 }
+
+void NoiseStream::log_reject_unsent_() { ESP_LOGV(this->tag_, "No room to send the reject reason"); }
 
 #ifdef USE_NOISE_STREAM_RUNTIME_KEY
 bool NoiseStream::load_key() {
