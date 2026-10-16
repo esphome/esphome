@@ -284,9 +284,13 @@ bool NoiseStream::save_key_(const std::string &key) {
     ESP_LOGD(this->tag_, "Encryption key unchanged");
     return false;
   }
-  if (!this->pref_.save(&psk) || !global_preferences->sync()) {
-    ESP_LOGW(this->tag_, "Failed to save encryption key");
+  if (!this->pref_.save(&psk)) {
+    ESP_LOGW(this->tag_, "Failed to save encryption key, the preference storage may be full");
     return false;
+  }
+  // A later sync may still write the pending record, so the key is used either way
+  if (!global_preferences->sync()) {
+    ESP_LOGW(this->tag_, "Encryption key not yet written to flash");
   }
   this->key_ = psk;
   this->ctx_.set_psk(this->key_.data());

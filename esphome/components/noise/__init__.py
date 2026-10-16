@@ -33,7 +33,8 @@ DOMAIN = "noise"
 
 _LOGGER = logging.getLogger(__name__)
 
-# The setup priority at which the stream owners load a saved key (AFTER_WIFI)
+# The setup priority at which TcpUart and UartTcp load a saved key, setup_priority::AFTER_WIFI.
+# Keep it in step with their get_setup_priority() and the "below 200" in NoiseStream::save_key_().
 _KEY_LOAD_PRIORITY = 200
 
 # Keep in sync with platformio.ini and esphome/idf_component.yml.
