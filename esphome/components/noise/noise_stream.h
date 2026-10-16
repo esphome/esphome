@@ -98,7 +98,8 @@ class NoiseStream {
       this->open_len_ += static_cast<uint16_t>(count);
       taken += count;
       if (this->open_len_ == MAX_PLAIN && !this->seal_(link)) {
-        break;
+        // The link closed and dropped its buffer, with every frame of this call
+        return 0;
       }
     }
     return taken;
@@ -176,6 +177,11 @@ class NoiseStream {
         case Step::STEP_WRITE: {
           if (link.tx_free() < HANDSHAKE_FRAME_SIZE) {
             link.flush_tx();
+            // A peer that reads nothing hits the link's idle timeout, as one that sends nothing does
+            link.check_idle();
+            if (!link.connected()) {
+              this->abort_(link.reconnect_interval());
+            }
             return false;
           }
           size_t frame = this->write_handshake_(link.tx_tail());
@@ -234,9 +240,13 @@ class NoiseStream {
   /// Log, send a responder's reject reason when there is one, close the link and abort.
   template<typename Link> void fail_(Link &link, const LogString *error, const LogString *reject) {
     this->log_failure_(error);
-    if (reject != nullptr && !this->initiator_ && link.tx_free() >= HANDSHAKE_FRAME_SIZE) {
-      link.tx_commit(this->write_reject_(link.tx_tail(), reject));
-      link.flush_tx();
+    if (reject != nullptr && !this->initiator_) {
+      if (link.tx_free() >= HANDSHAKE_FRAME_SIZE) {
+        link.tx_commit(this->write_reject_(link.tx_tail(), reject));
+        link.flush_tx();
+      } else {
+        this->log_reject_unsent_();
+      }
     }
     link.close();
     link.note_attempt();
@@ -272,6 +282,8 @@ class NoiseStream {
 #if defined(USE_NOISE_SPARE_EPHEMERAL) && !defined(USE_API)
     // With the api, APIServer::loop refills it under its connect grace
     if (!this->initiator_ && !has_spare_ephemeral()) {
+      // Generating the key pair cannot be split across loop passes
+      UnavoidableBlockingScope scope;
       prepare_spare_ephemeral();
     }
 #endif
@@ -302,6 +314,7 @@ class NoiseStream {
   size_t take_plain_(uint8_t *buf, size_t len);
   bool seal_frame_(uint8_t *frame, size_t len);
   void log_failure_(const LogString *error);
+  void log_reject_unsent_();
 
   NoiseContext ctx_;
   NoiseResponderHandshake handshake_;
