@@ -47,8 +47,9 @@ void OneWireDeviceComponent::setup() {
   this->mark_failed();
   return;
 #endif
-  if (this->pin_ == nullptr || this->pin_->is_inverted() || !GPIO_IS_VALID_OUTPUT_GPIO(this->pin_->get_pin()) ||
-      !esp_ptr_internal(this)) {
+  const bool valid = this->pin_ != nullptr && !this->pin_->is_inverted() &&
+                     GPIO_IS_VALID_OUTPUT_GPIO(this->pin_->get_pin()) && esp_ptr_internal(this);
+  if (!valid) {
     this->mark_failed();
     return;
   }
@@ -132,10 +133,11 @@ bool IRAM_ATTR OneWireDeviceComponent::read_() const { return gpio_ll_get_level(
 void IRAM_ATTR OneWireDeviceComponent::release_() { gpio_ll_set_level(&GPIO, this->pin_number_, 1); }
 void IRAM_ATTR OneWireDeviceComponent::pull_low_() { gpio_ll_set_level(&GPIO, this->pin_number_, 0); }
 void IRAM_ATTR OneWireDeviceComponent::clear_interrupt_() {
-  if (this->pin_number_ < 32)
+  if (this->pin_number_ < 32) {
     gpio_ll_clear_intr_status(&GPIO, 1UL << this->pin_number_);
-  else
+  } else {
     gpio_ll_clear_intr_status_high(&GPIO, 1UL << (this->pin_number_ - 32));
+  }
 }
 void IRAM_ATTR OneWireDeviceComponent::enable_interrupt_() {
   gpio_ll_intr_enable_on_core(&GPIO, this->interrupt_core_, this->pin_number_);
@@ -143,10 +145,11 @@ void IRAM_ATTR OneWireDeviceComponent::enable_interrupt_() {
 void IRAM_ATTR OneWireDeviceComponent::gpio_isr(void *arg) {
   auto *self = static_cast<OneWireDeviceComponent *>(arg);
   uint32_t pending;
-  if (self->pin_number_ < 32)
+  if (self->pin_number_ < 32) {
     gpio_ll_get_intr_status(&GPIO, self->interrupt_core_, &pending);
-  else
+  } else {
     gpio_ll_get_intr_status_high(&GPIO, self->interrupt_core_, &pending);
+  }
   if ((pending & (1UL << (self->pin_number_ % 32))) == 0)
     return;
   self->clear_interrupt_();
