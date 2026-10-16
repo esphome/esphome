@@ -83,4 +83,10 @@ TEST_F(I2CChipIdTest, MaskIgnoresRevisionBits) {
   EXPECT_TRUE(this->device_.is_failed());
 }
 
+TEST_F(I2CChipIdTest, ExpectedBitsOutsideTheMaskAreIgnored) {
+  this->bus_.id = 0x24;
+  EXPECT_TRUE(this->device_.check_chip_id(&this->device_, 0x92, 0x27, 0xFC));
+  EXPECT_FALSE(this->device_.is_failed());
+}
+
 }  // namespace esphome::i2c::testing
