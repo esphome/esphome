@@ -38,6 +38,12 @@ class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
   audio::AudioStreamInfo full_duplex_stream_info_() const;
 #endif
 
+#ifdef USE_ESP32_VARIANT_ESP32
+  /// @brief Widens frames to the output bit depth through a small stack buffer and writes them to the peripheral.
+  /// @return Bytes written, which is short of the widened size if a write timed out
+  size_t write_widened_(const uint8_t *input, uint32_t frames);
+#endif
+
   /// @brief Frame multiple for DMA buffers and writes; 2 keeps ESP32 mono sample pairs word-aligned.
   static uint32_t dma_frame_multiple(const audio::AudioStreamInfo &stream_info) {
     return esp32_mono_swap_needed(stream_info) ? 2 : 1;

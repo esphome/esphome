@@ -38,6 +38,11 @@ static constexpr size_t I2S_EVENT_QUEUE_COUNT = DMA_BUFFERS_COUNT * 2;
 // DMA_BUFFER_DURATION_MS, so a multiple of that gives plenty of slack against scheduling jitter
 // without masking real failures.
 static constexpr TickType_t WRITE_TIMEOUT_TICKS = pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS * (DMA_BUFFERS_COUNT + 1));
+#ifdef USE_ESP32_VARIANT_ESP32
+// Stack buffer that widened audio passes through on the original ESP32. Small enough for the speaker task's stack,
+// large enough that the extra i2s_channel_write calls cost little.
+static constexpr size_t WIDEN_BUFFER_BYTES = 512;
+#endif
 
 // Requested frames per DMA buffer for the given stream, clamped so the byte size stays within the ESP-IDF
 // maximum DMA descriptor size. This is only the value handed to the channel config: ESP-IDF may still adjust
@@ -66,9 +71,8 @@ void I2SAudioSpeaker::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Communication format: %s", fmt_str);
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
-    // The width of each I2S slot. It is also the narrowing ceiling: streams wider than this are narrowed to
-    // it. A stream narrower than the slot is left at its own width and clocked into the wider slot, so this
-    // is not necessarily the sample data width (which depends on the incoming stream).
+    // The width of each I2S slot. Wider streams are narrowed to it. Narrower streams are padded into the slot by
+    // the peripheral, except on the original ESP32, where they are widened to it.
     ESP_LOGCONFIG(TAG, "  Slot bit width: %u", (unsigned) static_cast<uint32_t>(this->slot_bit_width_));
   }
 }
@@ -92,11 +96,16 @@ void I2SAudioSpeaker::run_speaker_task() {
   const size_t ring_buffer_size =
       (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / source_alignment) * source_alignment;
 
-  // Per-frame byte widths and whether the task must narrow the bit depth before writing to the I2S peripheral.
+  // Per-frame byte widths and whether the task must convert the bit depth before writing to the I2S peripheral.
   const uint8_t channels = this->current_stream_info_.get_channels();
   const uint8_t input_bytes_per_sample = this->current_stream_info_.get_bits_per_sample() / 8;
   const uint8_t output_bytes_per_sample = this->output_stream_info_.get_bits_per_sample() / 8;
-  const bool narrowing = input_bytes_per_sample != output_bytes_per_sample;
+  const bool narrowing = input_bytes_per_sample > output_bytes_per_sample;
+#ifdef USE_ESP32_VARIANT_ESP32
+  const bool widening = input_bytes_per_sample < output_bytes_per_sample;
+#else
+  constexpr bool widening = false;
+#endif
 
   // ESP-IDF may allocate smaller (or cache-line-rounded) DMA buffers than dma_buffer_frames() requested: it
   // clamps each descriptor to the max DMA descriptor size and, on targets that route internal memory through
@@ -323,20 +332,25 @@ void I2SAudioSpeaker::run_speaker_task() {
           const size_t output_bytes = this->output_stream_info_.frames_to_bytes(frames_to_write);
 
           uint8_t *chunk = audio_source->mutable_data();
-          if (narrowing) {
-            // Narrow the bit depth in place: output exactly aliases input with the same channel count and a
-            // smaller width, which copy_frames handles as a single forward pass. Only the frames about to be
-            // consumed are overwritten, so any unprocessed tail stays intact for the next iteration.
-            esp_audio_libs::pcm_convert::copy_frames(chunk, chunk, input_bytes_per_sample, channels,
-                                                     output_bytes_per_sample, channels, frames_to_write);
-          }
-          this->swap_esp32_mono_samples_(chunk, output_bytes);
-
           size_t bw = 0;
-          i2s_channel_write(this->tx_handle_, chunk, output_bytes, &bw, WRITE_TIMEOUT_TICKS);
+          if (widening) {
+#ifdef USE_ESP32_VARIANT_ESP32
+            bw = this->write_widened_(chunk, frames_to_write);
+#endif
+          } else {
+            if (narrowing) {
+              // Narrow the bit depth in place: output exactly aliases input with the same channel count and a
+              // smaller width, which copy_frames handles as a single forward pass. Only the frames about to be
+              // consumed are overwritten, so any unprocessed tail stays intact for the next iteration.
+              esp_audio_libs::pcm_convert::copy_frames(chunk, chunk, input_bytes_per_sample, channels,
+                                                       output_bytes_per_sample, channels, frames_to_write);
+            }
+            this->swap_esp32_mono_samples_(chunk, output_bytes);
+            i2s_channel_write(this->tx_handle_, chunk, output_bytes, &bw, WRITE_TIMEOUT_TICKS);
+          }
           if (bw != output_bytes) {
             // A short write breaks DMA descriptor alignment for every subsequent event. Drop the chunk rather
-            // than retry it: it was already narrowed in place.
+            // than retry it: it may already have been converted in place.
             ESP_LOGE(TAG, "Partial DMA write (%u of %u bytes), resyncing DMA lockstep", (unsigned) bw,
                      (unsigned) output_bytes);
             audio_source->consume(input_bytes);
@@ -416,16 +430,19 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     return ESP_ERR_NOT_SUPPORTED;
   }
 
-  // When the stream is wider than the configured slot bit width, the speaker task narrows each frame in place
-  // before handing it to the I2S peripheral. Compute the output format here so the driver, DMA buffers, and
-  // the task's conversion all agree on the clocked-out width. A stream no wider than the slot width is passed
-  // through unchanged (the slot may still be wider than the data, the existing behavior).
+  // Compute the clocked-out width so the driver, DMA buffers, and the task's conversion all agree. A stream wider
+  // than the configured slot is narrowed to it. A narrower stream keeps its width and the peripheral pads it into
+  // the slot, except on the original ESP32, which cannot clock a slot wider than its data and so widens it.
   uint8_t output_bits_per_sample = audio_stream_info.get_bits_per_sample();
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
     const uint8_t configured_bits = static_cast<uint8_t>(this->slot_bit_width_);
+#ifdef USE_ESP32_VARIANT_ESP32
+    output_bits_per_sample = configured_bits;
+#else
     if (output_bits_per_sample > configured_bits) {
       output_bits_per_sample = configured_bits;
     }
+#endif
   }
   this->output_stream_info_ = audio::AudioStreamInfo(output_bits_per_sample, audio_stream_info.get_channels(),
                                                      audio_stream_info.get_sample_rate());
@@ -434,8 +451,8 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   // The original ESP32 I2S peripheral stores each sample in a whole number of 16-bit words (a 24-bit sample
   // occupies 4 bytes in the DMA buffer, an 8-bit sample 2 bytes), but ESPHome's audio pipeline packs samples
   // tightly (3 bytes for 24-bit, 1 for 8-bit). The two layouts only line up when the bit depth is a multiple
-  // of 16. The check is on the output width since that is what reaches the peripheral; a wider input is fine
-  // as long as it narrows to a 16- or 32-bit slot.
+  // of 16. The check is on the output width since that is what reaches the peripheral; any input is converted
+  // to a 16- or 32-bit slot.
   if (output_bits_per_sample % 16 != 0) {
     ESP_LOGE(TAG, "ESP32 supports only 16- or 32-bit output, got %u-bit", (unsigned) output_bits_per_sample);
     return ESP_ERR_NOT_SUPPORTED;
@@ -544,23 +561,10 @@ void I2SAudioSpeaker::build_i2s_config_(const audio::AudioStreamInfo &output_str
       break;
   }
 
-#ifdef USE_ESP32_VARIANT_ESP32
-  // There seems to be a bug on the ESP32 (non-variant) platform where setting the slot bit width higher than the
-  // bits per sample causes the audio to play too fast. Setting the ws_width to the configured slot bit width seems
-  // to make it play at the correct speed while sending more bits per slot.
-  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
-    uint32_t configured_bit_width = static_cast<uint32_t>(this->slot_bit_width_);
-    slot_cfg.ws_width = configured_bit_width;
-    if (configured_bit_width > 16) {
-      slot_cfg.msb_right = false;
-    }
-  }
-#else
   slot_cfg.slot_bit_width = this->slot_bit_width_;
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
     slot_cfg.ws_width = static_cast<uint32_t>(this->slot_bit_width_);
   }
-#endif  // USE_ESP32_VARIANT_ESP32
   slot_cfg.slot_mask = slot_mask;
 
   i2s_std_gpio_config_t gpio_cfg = this->parent_->get_pin_config();
@@ -572,6 +576,33 @@ void I2SAudioSpeaker::build_i2s_config_(const audio::AudioStreamInfo &output_str
       .gpio_cfg = gpio_cfg,
   };
 }
+
+#ifdef USE_ESP32_VARIANT_ESP32
+size_t I2SAudioSpeaker::write_widened_(const uint8_t *input, uint32_t frames) {
+  alignas(4) uint8_t widened[WIDEN_BUFFER_BYTES];
+  const uint8_t channels = this->current_stream_info_.get_channels();
+  const uint8_t input_bytes_per_sample = this->current_stream_info_.get_bits_per_sample() / 8;
+  const uint8_t output_bytes_per_sample = this->output_stream_info_.get_bits_per_sample() / 8;
+  const uint32_t frames_per_pass = WIDEN_BUFFER_BYTES / this->output_stream_info_.frames_to_bytes(1);
+
+  size_t bytes_written = 0;
+  while (frames > 0) {
+    const uint32_t pass_frames = std::min(frames, frames_per_pass);
+    esp_audio_libs::pcm_convert::copy_frames(input, widened, input_bytes_per_sample, channels, output_bytes_per_sample,
+                                             channels, pass_frames);
+    const size_t pass_bytes = this->output_stream_info_.frames_to_bytes(pass_frames);
+    size_t bw = 0;
+    i2s_channel_write(this->tx_handle_, widened, pass_bytes, &bw, WRITE_TIMEOUT_TICKS);
+    bytes_written += bw;
+    if (bw != pass_bytes) {
+      break;
+    }
+    input += this->current_stream_info_.frames_to_bytes(pass_frames);
+    frames -= pass_frames;
+  }
+  return bytes_written;
+}
+#endif  // USE_ESP32_VARIANT_ESP32
 
 }  // namespace esphome::i2s_audio
 

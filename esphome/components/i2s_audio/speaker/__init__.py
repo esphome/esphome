@@ -110,9 +110,9 @@ def _set_stream_limits(config: ConfigType) -> ConfigType:
     # stream it accepts is 16-bit (see start_i2s_driver); the other variants handle 8-bit.
     min_bits_per_sample = 16 if esp32.get_esp32_variant() == esp32.VARIANT_ESP32 else 8
 
-    # The configured bits per sample sets the I2S slot width, but the speaker narrows wider streams down to it
-    # in place before clocking them out (see start_i2s_driver). Advertise up to 32-bit so those wider streams
-    # are accepted rather than forcing an upstream conversion.
+    # The configured bits per sample sets the I2S slot width, but the speaker converts streams of other widths
+    # before clocking them out (see start_i2s_driver). Advertise up to 32-bit so those streams are accepted
+    # rather than forcing an upstream conversion.
     max_bits_per_sample = 32
 
     if config[CONF_I2S_MODE] == CONF_PRIMARY:
@@ -151,11 +151,11 @@ def _validate_esp32_variant(config: ConfigType) -> ConfigType:
     if config[CONF_DAC_TYPE] == "internal":
         if variant not in INTERNAL_DAC_VARIANTS:
             raise cv.Invalid(f"{variant} does not have an internal DAC")
-    elif variant == esp32.VARIANT_ESP32 and config[CONF_BITS_PER_SAMPLE] == 8:
-        # The original ESP32 I2S peripheral packs each sample into a whole number of 16-bit words, so an
-        # 8-bit slot does not line up with ESPHome's tightly packed audio (see start_i2s_driver). Reject it
-        # at config time rather than emitting corrupted output at runtime.
-        raise cv.Invalid("8-bit audio is not supported on the original ESP32")
+    elif variant == esp32.VARIANT_ESP32 and config[CONF_BITS_PER_SAMPLE] % 16 != 0:
+        # The original ESP32 I2S peripheral packs each sample into a whole number of 16-bit words, so an 8- or
+        # 24-bit slot does not line up with ESPHome's tightly packed audio (see start_i2s_driver). Reject it at
+        # config time rather than failing at runtime; streams of other widths are converted to the slot.
+        raise cv.Invalid("bits_per_sample must be 16bit or 32bit on the original ESP32")
     return config
 
 
