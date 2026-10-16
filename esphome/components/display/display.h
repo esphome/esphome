@@ -139,6 +139,11 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+/// Whether a rotation swaps the x and y axes.
+constexpr bool rotation_swaps_axes(DisplayRotation rotation) {
+  return rotation == DISPLAY_ROTATION_90_DEGREES || rotation == DISPLAY_ROTATION_270_DEGREES;
+}
+
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;
@@ -352,12 +357,17 @@ class Display : public PollingComponent {
    * \param ptr A pointer to the start of the data to be copied
    * \param order The ordering of the colors
    * \param bitness Defines the number of bits and their format for each pixel
-   * \param big_endian True if 16 bit values are stored big-endian
+   * \param big_endian True if 16 bit values are stored big-endian. Ignored for 888, which is always b,g,r
+   *                   in memory for RGB order, as LVGL and ESPHome images store it.
    * \param x_offset The initial x-offset into the source buffer.
    * \param y_offset The initial y-offset into the source buffer.
    * \param x_pad How many pixels are in each line after the end of the pixels to be copied.
    *
    * The length of each source buffer line (stride) will be x_offset + w + x_pad.
+   *
+   * An override that copies the block as is must send any other format, byte order, a software
+   * rotation or an active clipping rectangle through this base version, which draws per pixel.
+   * The block must lie on the screen.
    */
   virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                               ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
@@ -716,6 +726,12 @@ class Display : public PollingComponent {
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
   virtual DisplayRotation get_rotation() const { return this->rotation_; }
+
+  /// True when draw_pixel_at() swaps x and y before writing, so pixels that are
+  /// neighbours along x land a row apart in the frame buffer. Not the same as
+  /// get_width()/get_height() swapping: a display that rotates in hardware
+  /// reports swapped dimensions but writes unswapped pixels.
+  virtual bool pixel_axes_swapped() const { return rotation_swaps_axes(this->rotation_); }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
