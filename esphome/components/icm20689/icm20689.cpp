@@ -38,8 +38,7 @@ void ICM20689Component::setup() {
   this->spi_setup();
 
   if (!this->spi_is_ready()) {
-    ESP_LOGE(TAG, "SPI device is not ready");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("SPI device is not ready"));
     return;
   }
 

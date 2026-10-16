@@ -72,7 +72,7 @@ void ENS160Component::setup() {
 
   // set mode to reset
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET)) {
-    this->mark_failed(LOG_STR("Error writing to register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(ENS160_BOOTING);
@@ -80,7 +80,7 @@ void ENS160Component::setup() {
   // check status
   uint8_t status_value;
   if (!this->read_byte(ENS160_REG_DATA_STATUS, &status_value)) {
-    this->mark_failed(LOG_STR("Error reading from register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->validity_flag_ = static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
@@ -92,32 +92,32 @@ void ENS160Component::setup() {
 
   // set mode to idle
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE)) {
-    this->mark_failed(LOG_STR("Error writing to register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(ENS160_BOOTING);
 
   // clear command
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP)) {
-    this->mark_failed(LOG_STR("Error writing to register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR)) {
-    this->mark_failed(LOG_STR("Error writing to register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(ENS160_BOOTING);
 
   // read firmware version
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER)) {
-    this->mark_failed(LOG_STR("Error writing to register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(ENS160_BOOTING);
 
   uint8_t version_data[3];
   if (!this->read_bytes(ENS160_REG_GPR_READ_4, version_data, 3)) {
-    this->mark_failed(LOG_STR("Error reading from register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->firmware_ver_major_ = version_data[0];
@@ -126,14 +126,14 @@ void ENS160Component::setup() {
 
   // set mode to standard
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)) {
-    this->mark_failed(LOG_STR("Error writing to register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // read opmode and check standard mode is achieved before finishing Setup
   uint8_t op_mode;
   if (!this->read_byte(ENS160_REG_OPMODE, &op_mode)) {
-    this->mark_failed(LOG_STR("Error reading from register"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
