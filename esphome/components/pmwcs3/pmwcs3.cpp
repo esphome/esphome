@@ -55,9 +55,6 @@ void PMWCS3Component::update() { this->read_data_(); }
 void PMWCS3Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMWCS3");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "e25", this->e25_sensor_);
   LOG_SENSOR("  ", "ec", this->ec_sensor_);
@@ -79,7 +76,7 @@ void PMWCS3Component::read_data_() {
     float e25, ec, temperature, vwc;
     if (!this->read_bytes(PMWCS3_REG_GET_DATA, (uint8_t *) &data, 8)) {
       ESP_LOGVV(TAG, "Reading PMWCS3_REG_GET_DATA failed");
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
     if (this->e25_sensor_ != nullptr) {
