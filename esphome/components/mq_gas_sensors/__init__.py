@@ -28,8 +28,9 @@ CODEOWNERS = ["@nliaudat"]
 DOMAIN = "mq_gas_sensors"
 
 # No ``AUTO_LOAD`` here: for a platform component ESPHome processes the list of the
-# platform module, and ``sensor.py`` declares ``sensor``, ``voltage_sampler`` and
-# ``adc`` (the last one for the internal ADC sensor of a ``pin:`` configuration).
+# platform module, and ``sensor.py`` declares ``sensor``, ``voltage_sampler``,
+# ``adc`` (for the internal ADC sensor of a ``pin:`` configuration) and
+# ``text_sensor`` (for the log mirror).
 
 mq_gas_sensors_ns = cg.esphome_ns.namespace("mq_gas_sensors")
 

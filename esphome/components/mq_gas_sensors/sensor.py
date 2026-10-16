@@ -89,7 +89,7 @@ from .coefficients import (
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["sensor", "voltage_sampler", "adc"]
+AUTO_LOAD = ["sensor", "voltage_sampler", "adc", "text_sensor"]
 
 ADC_ATTENUATIONS = ("0db", "2.5db", "6db", "11db", "12db", "auto")
 
