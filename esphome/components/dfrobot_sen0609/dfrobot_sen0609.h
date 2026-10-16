@@ -7,7 +7,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/sensor/sensor_with_dedup.h"
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -102,9 +102,9 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   SUB_BINARY_SENSOR(has_target)
 #endif
 #ifdef USE_SENSOR
-  SUB_SENSOR(target_distance)
-  SUB_SENSOR(target_speed)
-  SUB_SENSOR(target_energy)
+  SUB_SENSOR_WITH_DEDUP(target_distance, float)
+  SUB_SENSOR_WITH_DEDUP(target_speed, float)
+  SUB_SENSOR_WITH_DEDUP(target_energy, float)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
@@ -174,9 +174,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #endif
 #ifdef USE_SENSOR
   void publish_target_(float distance, float speed, float energy);
-  Deduplicator<float> distance_dedup_;
-  Deduplicator<float> speed_dedup_;
-  Deduplicator<float> energy_dedup_;
 #endif
 
 #ifdef USE_NUMBER
