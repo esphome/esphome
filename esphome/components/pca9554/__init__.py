@@ -54,7 +54,7 @@ PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
     PCA9554GPIOPin,
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT],
-    mode_validator=gpio_expander.validate_input_xor_output,
+    mode_validator=pins.gpio_validate_input_xor_output,
 ).extend(
     {
         cv.Required(CONF_PCA9554): pins.use_id_or_address(PCA9554Component),
@@ -74,4 +74,4 @@ def pca9554_pin_final_validate(
     CONF_PCA9554, PCA9554_PIN_SCHEMA, pca9554_pin_final_validate
 )
 async def pca9554_pin_to_code(config: ConfigType) -> MockObj:
-    return await gpio_expander.new_expander_pin(config, CONF_PCA9554)
+    return await pins.new_parented_pin(config, CONF_PCA9554)
