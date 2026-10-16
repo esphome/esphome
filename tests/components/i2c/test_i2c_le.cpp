@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 
 #include "esphome/components/i2c/i2c.h"
 
@@ -46,6 +48,27 @@ TEST_F(I2CLittleEndianTest, ReadByte16LittleEndian) {
   EXPECT_EQ(value, 0x1234);
   ASSERT_TRUE(this->device_.read_byte_16(4, &value));
   EXPECT_EQ(value, 0x3412);
+}
+
+TEST_F(I2CLittleEndianTest, ReadBytes16LittleEndian) {
+  const uint8_t raw[6] = {0x34, 0x12, 0xFF, 0xFF, 0x00, 0x80};
+  std::copy(raw, raw + 6, this->bus_.memory.begin() + 8);
+  uint16_t values[3] = {};
+  ASSERT_TRUE(this->device_.read_bytes_16_le(8, values, 3));
+  EXPECT_EQ(values[0], 0x1234);
+  EXPECT_EQ(values[1], 0xFFFF);
+  EXPECT_EQ(values[2], 0x8000);
+  int16_t signed_values[3] = {};
+  ASSERT_TRUE(this->device_.read_bytes_16_le(8, signed_values, 3));
+  EXPECT_EQ(signed_values[0], 0x1234);
+  EXPECT_EQ(signed_values[1], -1);
+  EXPECT_EQ(signed_values[2], INT16_MIN);
+}
+
+TEST_F(I2CLittleEndianTest, ReadBytes16FailureReturnsFalse) {
+  this->bus_.fail = true;
+  int16_t values[2] = {};
+  EXPECT_FALSE(this->device_.read_bytes_16_le(0, values, 2));
 }
 
 TEST_F(I2CLittleEndianTest, ReadFailureReturnsFalse) {
