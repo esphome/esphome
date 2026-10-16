@@ -67,15 +67,12 @@ void CSE7761Component::setup() {
     ESP_LOGD(TAG, "CSE7761 found");
     this->data_.ready = true;
   } else {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
 void CSE7761Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CSE7761:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG, "  Current input: %s",
                 LOG_STR_ARG(this->is_current_transformer_() ? LOG_STR("current transformer") : LOG_STR("shunt")));
   LOG_UPDATE_INTERVAL(this);

@@ -87,9 +87,6 @@ void OPT3001Sensor::read_lx_(const std::function<void(float)> &f) {
 void OPT3001Sensor::dump_config() {
   LOG_SENSOR("", "OPT3001", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 
   LOG_UPDATE_INTERVAL(this);
 }

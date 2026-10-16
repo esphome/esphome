@@ -1133,16 +1133,20 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// read_byte(i) returns character i, so a name in flash can be hashed through progmem_read_byte().
 /// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
 /// If you modify this function, update the Python version and tests in both places.
-inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+template<typename ReadByte> inline uint32_t fnv1_hash_object_id(size_t len, ReadByte read_byte) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
-    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(read_byte(i))));
   }
   return hash;
+}
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+  return fnv1_hash_object_id(len, [str](size_t i) { return str[i]; });
 }
 
 #ifdef USE_ESP8266
@@ -1445,8 +1449,8 @@ inline char *buf_append_sep_str(char *buf, size_t remaining, char separator, con
   return buf;
 }
 
-/// Return 10^n for small non-negative n (0-3) as uint32_t, avoiding float.
-inline uint32_t small_pow10(int8_t n) { return n == 3 ? 1000 : n == 2 ? 100 : n == 1 ? 10 : 1; }
+/// Return 10^n for small non-negative n (0-4) as uint32_t, avoiding float.
+inline uint32_t small_pow10(int8_t n) { return n == 4 ? 10000 : n == 3 ? 1000 : n == 2 ? 100 : n == 1 ? 10 : 1; }
 
 /// Minimum buffer size for uint32_to_str: 10 digits + null terminator.
 static constexpr size_t UINT32_MAX_STR_SIZE = 11;

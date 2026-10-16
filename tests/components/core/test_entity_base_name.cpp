@@ -2,6 +2,7 @@
 
 #include "esphome/core/entity_base.h"
 
+#include <cstring>
 #include <type_traits>
 #include <utility>
 
@@ -22,6 +23,17 @@ TEST(EntityBaseName, ZeroHashIsComputedFromTheName) {
   TestEntity entity;
   entity.configure("Living Room Temp", 0);
   EXPECT_EQ(entity.get_object_id_hash(), fnv1_hash_object_id("Living Room Temp", 16));
+}
+
+// The values come from the Python fnv1_hash_object_id() test table. Reading through the byte
+// reader is the path a name in flash takes on ESP8266.
+TEST(EntityBaseName, HashThroughByteReaderMatchesPlainHash) {
+  const char *name = "My Sensor Name";
+  const size_t len = strlen(name);
+  const uint32_t expected = 0x2760962A;
+  EXPECT_EQ(fnv1_hash_object_id(name, len), expected);
+  EXPECT_EQ(fnv1_hash_object_id(len, [name](size_t i) { return name[i]; }), expected);
+  EXPECT_EQ(fnv1_hash_object_id(0, [](size_t) { return 'x'; }), 0x811C9DC5u);
 }
 
 TEST(EntityBaseName, PrecomputedHashIsKept) {
