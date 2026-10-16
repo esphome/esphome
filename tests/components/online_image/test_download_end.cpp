@@ -63,7 +63,8 @@ class FakeHttpRequest : public http_request::HttpRequestComponent {
  protected:
   std::shared_ptr<http_request::HttpContainer> perform(const char *url, const char *method, const std::string &body,
                                                        const std::vector<http_request::Header> &request_headers,
-                                                       const std::vector<std::string> &collect_headers) override {
+                                                       const std::vector<std::string> &collect_headers,
+                                                       uint32_t timeout) override {
     this->sent_headers = request_headers;
     return std::move(this->next);
   }
@@ -88,6 +89,28 @@ static std::vector<uint8_t> make_bmp() {
   put32(22, 2);   // height
   bmp[26] = 1;    // color planes
   bmp[28] = 24;   // bits per pixel
+  return bmp;
+}
+
+// An 8x8, 8-bit BMP whose 256-color table puts the pixels at offset 1078, past a 256 byte buffer.
+static std::vector<uint8_t> make_palette_bmp() {
+  constexpr size_t data_offset = 14 + 40 + 256 * 4;
+  std::vector<uint8_t> bmp(data_offset + 8 * 8, 0);
+  auto put32 = [&bmp](size_t offset, uint32_t value) {
+    for (size_t i = 0; i < 4; i++)
+      bmp[offset + i] = (value >> (8 * i)) & 0xFF;
+  };
+  bmp[0] = 'B';
+  bmp[1] = 'M';
+  put32(2, bmp.size());
+  put32(10, data_offset);
+  put32(14, 40);   // DIB header size
+  put32(18, 8);    // width
+  put32(22, 8);    // height
+  bmp[26] = 1;     // color planes
+  bmp[28] = 8;     // bits per pixel
+  put32(34, 64);   // image size
+  put32(46, 256);  // colors in the table
   return bmp;
 }
 
@@ -195,6 +218,30 @@ TEST_F(OnlineImageDownloadEnd, NoDataTimeoutStartsAfterRequest) {
   set_loop_time(now + 100);
   image->loop();
   EXPECT_EQ(this->errors_, 1);
+}
+
+// A full buffer the decoder cannot use waits for the no-data timeout before it fails, so a decoder
+// that only had to wait is not cut off early.
+TEST_F(OnlineImageDownloadEnd, FullBufferFailsAfterTimeout) {
+  this->http_.set_timeout(100);
+  auto bmp = make_palette_bmp();
+  auto container = std::make_shared<FakeContainer>(bmp, bmp.size(), false);
+  auto image = this->make_image_(runtime_image::BMP);
+  this->start_(*image, container);
+
+  const uint32_t now = millis();
+  set_loop_time(now);
+  for (int i = 0; i < 8; i++)
+    image->loop();
+  EXPECT_EQ(this->errors_, 0);
+  set_loop_time(now + 99);
+  image->loop();
+  EXPECT_EQ(this->errors_, 0);
+
+  set_loop_time(now + 100);
+  image->loop();
+  EXPECT_EQ(this->errors_, 1);
+  EXPECT_EQ(this->finished_, 0);
 }
 
 // A JPEG too big for the heap must fail, and the next download must get the configured buffer back.

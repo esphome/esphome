@@ -239,10 +239,9 @@ void OnlineImage::loop() {
       this->end_connection_();
       this->download_error_callback_.call();
       return;
-    } else {
-      // The decoder needs more data than the buffer can hold, so it can never make progress.
-      // A streaming decoder (PNG, QOI) that returns 0 here would also fail; if that is reported,
-      // apply the no-data timeout in this branch instead of failing straight away.
+    } else if (App.get_loop_component_start_time() - this->last_data_time_ >= this->parent_->get_timeout()) {
+      // The decoder needs more data than the buffer can hold, so it can never make progress. The
+      // no-data timeout gives a decoder that only had to wait the chance to show otherwise.
       ESP_LOGE(TAG, "Image does not fit in the %zu byte download buffer; increase buffer_size",
                this->download_buffer_.size());
       this->end_connection_();

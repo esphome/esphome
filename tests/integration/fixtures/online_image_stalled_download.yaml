@@ -4,6 +4,7 @@ esphome:
 host:
 
 http_request:
+  timeout: 500ms
 
 display:
 
