@@ -5,7 +5,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_LOOP
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICE, CONF_FILE, CONF_VOLUME
+from esphome.const import CONF_DEVICE, CONF_FILE, CONF_ID, CONF_VOLUME
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
@@ -61,7 +61,9 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config):
-    var = await uart.new_uart_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

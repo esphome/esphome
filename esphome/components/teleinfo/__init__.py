@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@0hax", "@FredM67"]
@@ -52,4 +53,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    await uart.new_uart_component(config, config[CONF_HISTORICAL_MODE])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_HISTORICAL_MODE])
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)

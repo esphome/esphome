@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_CUSTOM,
     CONF_FLOW,
+    CONF_ID,
     CONF_POWER,
     CONF_VOLUME,
     DEVICE_CLASS_EMPTY,
@@ -112,7 +113,9 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await uart.new_uart_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     # Standard sensors
     for key in [

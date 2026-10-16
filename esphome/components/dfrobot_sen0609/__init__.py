@@ -79,4 +79,6 @@ def final_validate_mode(keys: dict[str, str]) -> Callable[[ConfigType], None]:
 
 
 async def to_code(config: ConfigType) -> None:
-    await uart.new_uart_component(config, RUN_MODES[config[CONF_MODE]])
+    var = cg.new_Pvariable(config[CONF_ID], RUN_MODES[config[CONF_MODE]])
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)

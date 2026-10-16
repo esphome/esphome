@@ -90,7 +90,9 @@ async def register_mitsubishi_cn105_device(var: MockObj, config: ConfigType) -> 
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await uart.new_uart_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
     cg.add(
         var.set_telemetry_request_min_interval(
             config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL]

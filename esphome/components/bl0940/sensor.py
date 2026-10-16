@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
     CONF_EXTERNAL_TEMPERATURE,
+    CONF_ID,
     CONF_INTERNAL_TEMPERATURE,
     CONF_POWER,
     CONF_REFERENCE_VOLTAGE,
@@ -226,7 +227,9 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await uart.new_uart_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

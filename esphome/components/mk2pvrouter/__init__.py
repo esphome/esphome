@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_TAG
+from esphome.const import CONF_ID, CONF_TAG
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -65,4 +65,6 @@ async def register_mk2pvrouter_listener(mk2pvrouter: MockObj, var: MockObj) -> N
 
 
 async def to_code(config: ConfigType) -> None:
-    await uart.new_uart_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
