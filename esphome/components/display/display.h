@@ -367,7 +367,8 @@ class Display : public PollingComponent {
    *
    * An override that copies the block as is must send any other format, byte order, a software
    * rotation or an active clipping rectangle through this base version, which draws per pixel.
-   * The block must lie on the screen.
+   * The block must lie on the screen. A class that overrides it should also declare
+   * `using display::Display::draw_pixels_at;`, or the other forms are hidden for calls through that class.
    */
   virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
                               bool big_endian, int x_offset, int y_offset, int x_pad);

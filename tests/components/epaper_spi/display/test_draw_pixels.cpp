@@ -115,6 +115,30 @@ TEST(EPaperDrawPixels, SameResultAsDrawingPixelByPixel) {
   }
 }
 
+/// Every form of draw_pixels_at() can be called through the driver's own type and draws the same result.
+TEST(EPaperDrawPixels, AllFormsAreVisibleThroughTheDriver) {
+  const auto data = rgb565(24 * 16, 11);
+  TestableDisplay<EPaperSSD1683> slow(24, 16);
+  slow.draw_one_by_one(0, 0, 24, 16, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
+  TestableDisplay<EPaperSSD1683> full(24, 16);
+  TestableDisplay<EPaperSSD1683> packed(24, 16);
+  full.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
+  packed.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_BITNESS_565, false);
+  EXPECT_EQ(full.buffer(), slow.buffer());
+  EXPECT_EQ(packed.buffer(), slow.buffer());
+  // Remove before 2027.5.0, with the forms that take a color order
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  TestableDisplay<EPaperSSD1683> old_full(24, 16);
+  TestableDisplay<EPaperSSD1683> old_packed(24, 16);
+  old_full.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0,
+                          0);
+  old_packed.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false);
+#pragma GCC diagnostic pop
+  EXPECT_EQ(old_full.buffer(), slow.buffer());
+  EXPECT_EQ(old_packed.buffer(), slow.buffer());
+}
+
 /// With a clipping region set the block goes through draw_pixel_at(), which honours it.
 TEST(EPaperDrawPixels, ClippingFallsBackToDrawingPixelByPixel) {
   TestableDisplay<EPaperSSD1683> fast(24, 16);

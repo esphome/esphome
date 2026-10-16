@@ -59,6 +59,7 @@ class QspiDbi final : public display::DisplayBuffer,
                                             spi::DATA_RATE_1MHZ> {
  public:
   void set_model(const char *model) { this->model_ = model; }
+  using display::Display::draw_pixels_at;
   void update() override;
   void setup() override;
   display::ColorOrder get_color_mode() { return this->color_mode_; }

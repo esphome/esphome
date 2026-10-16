@@ -201,6 +201,7 @@ class MipiSpi : public display::Display,
 
   // Drawing operations
 
+  using display::Display::draw_pixels_at;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                       bool big_endian, int x_offset, int y_offset, int x_pad) override {
     if (this->is_failed())
@@ -627,6 +628,7 @@ class MipiSpiBuffer
 
   // While update() runs the writer, a block goes into the buffer slice, or the slice flush would paint over it.
   // Outside update() (e.g. LVGL) it is written straight to the display.
+  using display::Display::draw_pixels_at;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                       bool big_endian, int x_offset, int y_offset, int x_pad) override {
     if (!this->updating_) {

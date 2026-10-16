@@ -38,6 +38,7 @@ class Pixoo : public display::Display,
 
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
+  using display::Display::draw_pixels_at;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                       bool big_endian, int x_offset, int y_offset, int x_pad) override;
 

@@ -72,6 +72,7 @@ class MipiDsi final : public display::Display {
 
   void setup() override;
 
+  using display::Display::draw_pixels_at;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
                       bool big_endian, int x_offset, int y_offset, int x_pad) override;
 

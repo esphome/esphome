@@ -111,6 +111,7 @@ class EPaperBase : public Display,
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   bool pixel_axes_swapped() const override { return this->effective_transform_ & SWAP_XY; }
   void draw_pixel_at(int x, int y, Color color) override;
+  using display::Display::draw_pixels_at;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness, bool big_endian,
                       int x_offset, int y_offset, int x_pad) override;
   // Make the next update a full one. Applied when that update starts, so one in progress is not affected.

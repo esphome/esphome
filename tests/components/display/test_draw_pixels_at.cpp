@@ -146,18 +146,40 @@ TEST(DrawPixelsAt, LegacyOverrideStillReceivesBlocks) {
 }
 
 // The deprecated form still honours a color order other than RGB when it draws per pixel.
-static void expect_ordered(ColorOrder order, Color expected) {
-  const std::vector<uint8_t> source{0x12, 0x34, 0x56};  // b, g, r in memory: 0x563412
+static void expect_ordered(ColorBitness bitness, std::initializer_list<uint8_t> bytes, uint32_t code, ColorOrder order,
+                           Color expected) {
+  const std::vector<uint8_t> source(bytes);
   RecordingDisplay display;
-  display.draw_pixels_at(3, 4, 1, 1, source.data(), order, COLOR_BITNESS_888, false);
+  display.draw_pixels_at(3, 4, 1, 1, source.data(), order, bitness, true);
   ASSERT_EQ(display.count(), 1u);
   EXPECT_EQ(display.pixels()[0], std::make_tuple(3, 4, expected.raw_32));
-  EXPECT_EQ(expected.raw_32, ColorUtil::to_color(0x563412, order, COLOR_BITNESS_888).raw_32);
+  EXPECT_EQ(expected.raw_32, ColorUtil::to_color(code, order, bitness).raw_32);
 }
 
-TEST(DrawPixelsAt, DeprecatedOrderRgb) { expect_ordered(COLOR_ORDER_RGB, Color(0x56, 0x34, 0x12)); }
-TEST(DrawPixelsAt, DeprecatedOrderBgr) { expect_ordered(COLOR_ORDER_BGR, Color(0x12, 0x34, 0x56)); }
-TEST(DrawPixelsAt, DeprecatedOrderGrb) { expect_ordered(COLOR_ORDER_GRB, Color(0x34, 0x56, 0x12)); }
+// 888 is b, g, r in memory: 0x563412
+TEST(DrawPixelsAt, DeprecatedOrderRgb) {
+  expect_ordered(COLOR_BITNESS_888, {0x12, 0x34, 0x56}, 0x563412, COLOR_ORDER_RGB, Color(0x56, 0x34, 0x12));
+}
+TEST(DrawPixelsAt, DeprecatedOrderBgr) {
+  expect_ordered(COLOR_BITNESS_888, {0x12, 0x34, 0x56}, 0x563412, COLOR_ORDER_BGR, Color(0x12, 0x34, 0x56));
+}
+TEST(DrawPixelsAt, DeprecatedOrderGrb) {
+  expect_ordered(COLOR_BITNESS_888, {0x12, 0x34, 0x56}, 0x563412, COLOR_ORDER_GRB, Color(0x34, 0x56, 0x12));
+}
+// 565 big endian 0xE007 is r 230, g 0, b 57 in RGB order
+TEST(DrawPixelsAt, DeprecatedOrderBgr565) {
+  expect_ordered(COLOR_BITNESS_565, {0xE0, 0x07}, 0xE007, COLOR_ORDER_BGR, Color(57, 0, 230));
+}
+TEST(DrawPixelsAt, DeprecatedOrderGrb565) {
+  expect_ordered(COLOR_BITNESS_565, {0xE0, 0x07}, 0xE007, COLOR_ORDER_GRB, Color(0, 230, 57));
+}
+// 332 0xE0 is r 255, g 0, b 0 in RGB order
+TEST(DrawPixelsAt, DeprecatedOrderBgr332) {
+  expect_ordered(COLOR_BITNESS_332, {0xE0}, 0xE0, COLOR_ORDER_BGR, Color(0, 0, 255));
+}
+TEST(DrawPixelsAt, DeprecatedOrderGrb332) {
+  expect_ordered(COLOR_BITNESS_332, {0xE0}, 0xE0, COLOR_ORDER_GRB, Color(0, 255, 0));
+}
 
 // The deprecated packing functions still honour the order; with RGB they match the new ones.
 TEST(DrawPixelsAt, DeprecatedPackingMatchesForRgb) {
