@@ -1,10 +1,12 @@
+import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.types import ConfigType
 
-from ..climate import CONF_HAIER_ID, HonClimate
+from ..climate import CONF_HAIER_ID, HonClimate, haier_ns
 
 CODEOWNERS = ["@paveldn"]
+SelfCleaningButton = haier_ns.class_("SelfCleaningButton", button.Button)
+SteriCleaningButton = haier_ns.class_("SteriCleaningButton", button.Button)
 
 
 # Haier buttons
@@ -18,18 +20,19 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_HAIER_ID): cv.use_id(HonClimate),
         cv.Optional(CONF_SELF_CLEANING): button.button_schema(
-            button.ApplyButton,
+            SelfCleaningButton,
             icon=ICON_SPRAY_BOTTLE,
         ),
         cv.Optional(CONF_STERI_CLEANING): button.button_schema(
-            button.ApplyButton,
+            SteriCleaningButton,
             icon=ICON_SPRAY_BOTTLE,
         ),
     }
 )
 
 
-async def to_code(config: ConfigType) -> None:
-    buttons = button.sub_buttons(config, parent=config[CONF_HAIER_ID])
-    await buttons(CONF_SELF_CLEANING, None, apply="start_self_cleaning()")
-    await buttons(CONF_STERI_CLEANING, None, apply="start_steri_cleaning()")
+async def to_code(config):
+    for button_type in [CONF_SELF_CLEANING, CONF_STERI_CLEANING]:
+        if conf := config.get(button_type):
+            btn = await button.new_button(conf)
+            await cg.register_parented(btn, config[CONF_HAIER_ID])

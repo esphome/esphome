@@ -13,7 +13,11 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2410_ID, LD2410Component
+from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
+
+BaudRateSelect = ld2410_ns.class_("BaudRateSelect", select.Select)
+DistanceResolutionSelect = ld2410_ns.class_("DistanceResolutionSelect", select.Select)
+LightOutControlSelect = ld2410_ns.class_("LightOutControlSelect", select.Select)
 
 CONF_DISTANCE_RESOLUTION = "distance_resolution"
 CONF_LIGHT_FUNCTION = "light_function"
@@ -23,22 +27,22 @@ CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_DISTANCE_RESOLUTION): select.select_schema(
-        select.ApplySelect,
+        DistanceResolutionSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RULER,
     ),
     cv.Optional(CONF_LIGHT_FUNCTION): select.select_schema(
-        select.ApplySelect,
+        LightOutControlSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_LIGHTBULB,
     ),
     cv.Optional(CONF_OUT_PIN_LEVEL): select.select_schema(
-        select.ApplySelect,
+        LightOutControlSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_SCALE,
     ),
     cv.Optional(CONF_BAUD_RATE): select.select_schema(
-        select.ApplySelect,
+        BaudRateSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_THERMOMETER,
     ),
@@ -52,27 +56,18 @@ async def to_code(config: ConfigType) -> None:
         CONF_DISTANCE_RESOLUTION,
         hub.set_distance_resolution_select,
         options=["0.2m", "0.75m"],
-        apply="set_distance_resolution(entity->option_at(index))",
-        publish="before",
     )
-    light = {"apply": "set_light_out_control()", "publish": "before"}
     await selects(
-        CONF_OUT_PIN_LEVEL,
-        hub.set_out_pin_level_select,
-        options=["low", "high"],
-        **light,
+        CONF_OUT_PIN_LEVEL, hub.set_out_pin_level_select, options=["low", "high"]
     )
     await selects(
         CONF_LIGHT_FUNCTION,
         hub.set_light_function_select,
         options=["off", "below", "above"],
-        **light,
     )
     await selects(
         CONF_BAUD_RATE,
         hub.set_baud_rate_select,
-        apply="set_baud_rate(entity->option_at(index))",
-        publish="before",
         options=[
             "9600",
             "19200",

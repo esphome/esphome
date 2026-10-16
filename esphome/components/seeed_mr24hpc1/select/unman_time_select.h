@@ -1,0 +1,16 @@
+#pragma once
+
+#include "esphome/components/select/select.h"
+#include "../seeed_mr24hpc1.h"
+
+namespace esphome::seeed_mr24hpc1 {
+
+class UnmanTimeSelect final : public select::Select, public Parented<MR24HPC1Component> {
+ public:
+  UnmanTimeSelect() = default;
+
+ protected:
+  void control(size_t index) override;
+};
+
+}  // namespace esphome::seeed_mr24hpc1

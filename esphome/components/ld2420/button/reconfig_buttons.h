@@ -1,0 +1,40 @@
+#pragma once
+
+#include "esphome/components/button/button.h"
+#include "../ld2420.h"
+
+namespace esphome::ld2420 {
+
+class LD2420ApplyConfigButton final : public button::Button, public Parented<LD2420Component> {
+ public:
+  LD2420ApplyConfigButton() = default;
+
+ protected:
+  void press_action() override;
+};
+
+class LD2420RevertConfigButton final : public button::Button, public Parented<LD2420Component> {
+ public:
+  LD2420RevertConfigButton() = default;
+
+ protected:
+  void press_action() override;
+};
+
+class LD2420RestartModuleButton final : public button::Button, public Parented<LD2420Component> {
+ public:
+  LD2420RestartModuleButton() = default;
+
+ protected:
+  void press_action() override;
+};
+
+class LD2420FactoryResetButton final : public button::Button, public Parented<LD2420Component> {
+ public:
+  LD2420FactoryResetButton() = default;
+
+ protected:
+  void press_action() override;
+};
+
+}  // namespace esphome::ld2420

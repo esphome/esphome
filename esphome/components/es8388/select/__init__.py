@@ -28,12 +28,14 @@ ADC_INPUT_MIC_OPTIONS = {
 }
 ADC_INPUT_MIC_OPTION_NAMES = list(ADC_INPUT_MIC_OPTIONS)
 
+DacOutputSelect = es8388_ns.class_("DacOutputSelect", select.Select)
+ADCInputMicSelect = es8388_ns.class_("ADCInputMicSelect", select.Select)
 
 CONFIG_SCHEMA = cv.All(
     {
         cv.GenerateID(CONF_ES8388_ID): cv.use_id(ES8388),
         cv.Optional(CONF_DAC_OUTPUT): select.select_schema(
-            select.ApplySelect,
+            DacOutputSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_CHIP,
         ).extend(
@@ -44,7 +46,7 @@ CONFIG_SCHEMA = cv.All(
             }
         ),
         cv.Optional(CONF_ADC_INPUT_MIC): select.select_schema(
-            select.ApplySelect,
+            ADCInputMicSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_CHIP,
         ).extend(
@@ -63,18 +65,12 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ES8388_ID])
     selects = select.sub_selects(config, parent=hub)
     await selects(
-        CONF_DAC_OUTPUT,
-        hub.set_dac_output_select,
-        options=DAC_OUTPUT_OPTION_NAMES,
-        apply="set_dac_output(static_cast<es8388::DacOutputLine>(index))",
-        publish="before",
+        CONF_DAC_OUTPUT, hub.set_dac_output_select, options=DAC_OUTPUT_OPTION_NAMES
     )
     await selects(
         CONF_ADC_INPUT_MIC,
         hub.set_adc_input_mic_select,
         options=ADC_INPUT_MIC_OPTION_NAMES,
-        apply="set_adc_input_mic(static_cast<es8388::AdcInputMicLine>(index))",
-        publish="before",
     )
     if (
         initial := config.get(CONF_DAC_OUTPUT, {}).get(CONF_INITIAL_OPTION)

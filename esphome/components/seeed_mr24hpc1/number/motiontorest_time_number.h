@@ -1,0 +1,16 @@
+#pragma once
+
+#include "esphome/components/number/number.h"
+#include "../seeed_mr24hpc1.h"
+
+namespace esphome::seeed_mr24hpc1 {
+
+class MotionToRestTimeNumber final : public number::Number, public Parented<MR24HPC1Component> {
+ public:
+  MotionToRestTimeNumber() = default;
+
+ protected:
+  void control(float value) override;
+};
+
+}  // namespace esphome::seeed_mr24hpc1

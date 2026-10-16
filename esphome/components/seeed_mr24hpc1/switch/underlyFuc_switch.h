@@ -1,0 +1,16 @@
+#pragma once
+
+#include "esphome/components/switch/switch.h"
+#include "../seeed_mr24hpc1.h"
+
+namespace esphome::seeed_mr24hpc1 {
+
+class UnderlyOpenFunctionSwitch final : public switch_::Switch, public Parented<MR24HPC1Component> {
+ public:
+  UnderlyOpenFunctionSwitch() = default;
+
+ protected:
+  void write_state(bool state) override;
+};
+
+}  // namespace esphome::seeed_mr24hpc1

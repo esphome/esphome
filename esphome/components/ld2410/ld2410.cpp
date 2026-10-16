@@ -727,16 +727,7 @@ void LD2410Component::set_max_distances_timeout() {
   this->set_config_mode_(false);
 }
 
-void LD2410Component::set_gate_threshold(number::Number *n) {
-  // Found by pointer: up to 18 compares per write beat storing the gate in each number
-  uint8_t gate = 0;
-  while (gate < TOTAL_GATES && this->gate_move_threshold_numbers_[gate] != n &&
-         this->gate_still_threshold_numbers_[gate] != n)
-    gate++;
-  if (gate == TOTAL_GATES) {
-    ESP_LOGW(TAG, "Threshold number is not a known gate");
-    return;
-  }
+void LD2410Component::set_gate_threshold(uint8_t gate) {
   number::Number *motionsens = this->gate_move_threshold_numbers_[gate];
   number::Number *stillsens = this->gate_still_threshold_numbers_[gate];
 

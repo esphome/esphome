@@ -1,0 +1,16 @@
+#pragma once
+
+#include "esphome/components/button/button.h"
+#include "../seeed_mr60fda2.h"
+
+namespace esphome::seeed_mr60fda2 {
+
+class ResetRadarButton final : public button::Button, public Parented<MR60FDA2Component> {
+ public:
+  ResetRadarButton() = default;
+
+ protected:
+  void press_action() override;
+};
+
+}  // namespace esphome::seeed_mr60fda2

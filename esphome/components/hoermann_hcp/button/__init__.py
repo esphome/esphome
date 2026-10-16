@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import ICON_AIR_FILTER
 from esphome.types import ConfigType
 
-from .. import CONF_HOERMANN_HCP_ID, HoermannHcp
+from .. import CONF_HOERMANN_HCP_ID, HoermannHcp, hoermann_hcp_ns
 
 DEPENDENCIES = ["hoermann_hcp"]
 
@@ -13,6 +13,10 @@ CONF_VENT = "vent"
 
 ICON_GARAGE_OPEN_VARIANT = "mdi:garage-open-variant"
 
+HoermannHcpVentButton = hoermann_hcp_ns.class_("HoermannHcpVentButton", button.Button)
+HoermannHcpHalfOpenButton = hoermann_hcp_ns.class_(
+    "HoermannHcpHalfOpenButton", button.Button
+)
 
 BUTTON_KEYS = (CONF_VENT, CONF_HALF_OPEN)
 
@@ -21,10 +25,10 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_HOERMANN_HCP_ID): cv.use_id(HoermannHcp),
             cv.Optional(CONF_VENT): button.button_schema(
-                button.ApplyButton, icon=ICON_AIR_FILTER
+                HoermannHcpVentButton, icon=ICON_AIR_FILTER
             ),
             cv.Optional(CONF_HALF_OPEN): button.button_schema(
-                button.ApplyButton, icon=ICON_GARAGE_OPEN_VARIANT
+                HoermannHcpHalfOpenButton, icon=ICON_GARAGE_OPEN_VARIANT
             ),
         }
     ),
@@ -33,7 +37,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
-    buttons = button.sub_buttons(config, parent=hub)
-    await buttons(CONF_VENT, None, apply="vent_door()")
-    await buttons(CONF_HALF_OPEN, None, apply="half_open_door()")
+    parent = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
+    for key in BUTTON_KEYS:
+        if (conf := config.get(key)) is not None:
+            await button.new_button(conf, parent)
