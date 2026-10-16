@@ -34,7 +34,7 @@ static constexpr bool is_bootloader_menu_byte(uint8_t byte) {
   return byte == 0 || byte == '\r' || byte == '\n' || (byte >= 0x20 && byte <= 0x7E);
 }
 
-static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
+static uint8_t calculate_frame_checksum(const uint8_t *data, size_t length) {
   // Initial value is 0xFF per Z-Wave protocol specification
   return xor_bytes(data + 1, length - 2, 0xFF);
 }
