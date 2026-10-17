@@ -2,20 +2,24 @@ lp5562:
   - address: 0x30
     id: lp5562_1
     i2c_id: i2c_bus
+    logarithmic_dimming: true
 
 output:
   - platform: lp5562
     id: lp5562_red
     channel: red
     lp5562_id: lp5562_1
+    current: 10mA
   - platform: lp5562
     id: lp5562_green
     channel: green
     lp5562_id: lp5562_1
+    current: 25.5mA
   - platform: lp5562
     id: lp5562_blue
     channel: blue
     lp5562_id: lp5562_1
+    current: 0.5mA
   - platform: lp5562
     id: lp5562_white
     channel: white

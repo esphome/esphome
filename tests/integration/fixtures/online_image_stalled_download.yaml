@@ -1,0 +1,54 @@
+esphome:
+  name: online-image-stalled
+
+host:
+
+http_request:
+  timeout: 500ms
+
+display:
+
+image:
+  - platform: online_image
+    url: http://127.0.0.1:HTTP_PORT/truncated.bmp
+    id: truncated_img
+    format: BMP
+    type: RGB
+    on_download_finished:
+      logger.log: "download finished: truncated"
+    on_error:
+      logger.log: "download error: truncated"
+  - platform: online_image
+    url: http://127.0.0.1:HTTP_PORT/large_header.bmp
+    id: large_header_img
+    format: BMP
+    type: RGB
+    buffer_size: 256
+    on_download_finished:
+      logger.log: "download finished: large_header"
+    on_error:
+      logger.log: "download error: large_header"
+  - platform: online_image
+    url: http://127.0.0.1:HTTP_PORT/empty.bmp
+    id: empty_img
+    format: BMP
+    type: RGB
+    on_download_finished:
+      logger.log: "download finished: empty"
+    on_error:
+      logger.log: "download error: empty"
+
+api:
+  actions:
+    - action: fetch_truncated
+      then:
+        - component.update: truncated_img
+    - action: fetch_large_header
+      then:
+        - component.update: large_header_img
+    - action: fetch_empty
+      then:
+        - component.update: empty_img
+
+logger:
+  level: DEBUG

@@ -57,10 +57,6 @@ class QMC5883LComponent final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_sensor_{nullptr};
   GPIOPin *drdy_pin_{nullptr};
   bool drdy_use_isr_{false};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-  } error_code_;
   i2c::ErrorCode read_bytes_16_le_(uint8_t a_register, uint16_t *data, uint8_t len = 1);
   HighFrequencyLoopRequester high_freq_;
 };

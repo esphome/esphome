@@ -111,14 +111,15 @@ class EPaperBase : public Display,
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   bool pixel_axes_swapped() const override { return this->effective_transform_ & SWAP_XY; }
   void draw_pixel_at(int x, int y, Color color) override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   // Make the next update a full one. Applied when that update starts, so one in progress is not affected.
   void request_full_update() { this->full_update_requested_ = true; }
   // True from the start of an update until the display has refreshed and gone back to sleep.
   bool is_updating() const { return this->state_ != EPaperState::IDLE; }
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
   bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
@@ -135,8 +136,8 @@ class EPaperBase : public Display,
   bool init_buffer_(size_t buffer_length);
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
-  void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                          bool big_endian, int x_offset, int y_offset, int x_pad);
+  void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, bool big_endian,
+                          int x_offset, int y_offset, int x_pad);
   // Whether the buffer is a single plane of 1 bit per pixel, as draw_pixel_at() writes it
   bool buffer_is_mono_() const { return this->bits_per_pixel_ == 1 && this->planes_ == 1; }
 

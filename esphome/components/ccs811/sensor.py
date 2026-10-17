@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BASELINE,
     CONF_ECO2,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_VERSION,
@@ -61,9 +60,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_ECO2, var.set_co2)

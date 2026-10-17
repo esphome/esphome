@@ -59,16 +59,6 @@ class SGP4xComponent;
 class SGP4xComponent final : public PollingComponent,
                              public sensor::Sensor,
                              public sensirion_common::SensirionI2CDevice {
-  enum ErrorCode {
-    COMMUNICATION_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    INVALID_ID,
-    UNSUPPORTED_ID,
-    SERIAL_NUMBER_IDENTIFICATION_FAILED,
-    SELF_TEST_FAILED,
-    UNKNOWN
-  } error_code_{UNKNOWN};
-
  public:
   // SGP4xComponent()  {};
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
