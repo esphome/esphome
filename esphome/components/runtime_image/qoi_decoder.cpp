@@ -10,7 +10,7 @@
 
 namespace esphome::runtime_image {
 
-static const char *const TAG = "image_decoder.qoi";
+ESPHOME_LOG_TAG(TAG, "image_decoder.qoi");
 
 constexpr uint8_t QOI_OP_RGB = 0b11111110;
 constexpr uint8_t QOI_OP_RGBA = 0b11111111;

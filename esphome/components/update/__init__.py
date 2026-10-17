@@ -25,6 +25,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "update"
 IS_PLATFORM_COMPONENT = True
 
 update_ns = cg.esphome_ns.namespace("update")

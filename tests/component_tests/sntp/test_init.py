@@ -8,7 +8,8 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.sntp.time import CONF_SNTP, _sntp_final_validate
+from esphome.components.sntp import DOMAIN as SNTP_DOMAIN
+from esphome.components.sntp.time import _sntp_final_validate
 from esphome.const import CONF_ID, CONF_PLATFORM, CONF_SERVERS, CONF_TIME
 from esphome.core import ID
 import esphome.final_validate as fv
@@ -20,7 +21,7 @@ import esphome.final_validate as fv
         pytest.param(
             [
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time", is_manual=False),
                     CONF_SERVERS: ["192.168.1.1", "pool.ntp.org"],
                 }
@@ -33,12 +34,12 @@ import esphome.final_validate as fv
         pytest.param(
             [
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_1", is_manual=False),
                     CONF_SERVERS: ["192.168.1.1", "pool.ntp.org"],
                 },
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_2", is_manual=False),
                     CONF_SERVERS: ["192.168.1.2"],
                 },
@@ -51,12 +52,12 @@ import esphome.final_validate as fv
         pytest.param(
             [
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_1", is_manual=False),
                     CONF_SERVERS: ["192.168.1.1", "pool.ntp.org"],
                 },
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_2", is_manual=False),
                     CONF_SERVERS: ["pool.ntp.org", "192.168.1.2"],
                 },
@@ -69,17 +70,17 @@ import esphome.final_validate as fv
         pytest.param(
             [
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_1", is_manual=False),
                     CONF_SERVERS: ["192.168.1.1", "pool.ntp.org"],
                 },
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_2", is_manual=False),
                     CONF_SERVERS: ["192.168.1.2", "pool2.ntp.org"],
                 },
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_3", is_manual=False),
                     CONF_SERVERS: ["pool3.ntp.org"],
                 },
@@ -95,7 +96,7 @@ import esphome.final_validate as fv
         pytest.param(
             [
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_1", is_manual=False),
                     CONF_SERVERS: [
                         "192.168.1.1",
@@ -105,7 +106,7 @@ import esphome.final_validate as fv
                     ],
                 },
                 {
-                    CONF_PLATFORM: CONF_SNTP,
+                    CONF_PLATFORM: SNTP_DOMAIN,
                     CONF_ID: ID("sntp_time_2", is_manual=False),
                     CONF_SERVERS: ["pool.ntp.org", "192.168.1.2"],
                 },
@@ -143,7 +144,7 @@ def test_sntp_instance_merging(
             sntp_instances = [
                 tc
                 for tc in updated_conf[CONF_TIME]
-                if tc.get(CONF_PLATFORM) == CONF_SNTP
+                if tc.get(CONF_PLATFORM) == SNTP_DOMAIN
             ]
             assert len(sntp_instances) == expected_count
 
@@ -169,12 +170,12 @@ def test_sntp_inconsistent_manual_ids() -> None:
     # Create configs with manual IDs that are inconsistent
     time_configs = [
         {
-            CONF_PLATFORM: CONF_SNTP,
+            CONF_PLATFORM: SNTP_DOMAIN,
             CONF_ID: ID("sntp_time_1", is_manual=True),
             CONF_SERVERS: ["192.168.1.1"],
         },
         {
-            CONF_PLATFORM: CONF_SNTP,
+            CONF_PLATFORM: SNTP_DOMAIN,
             CONF_ID: ID("sntp_time_2", is_manual=True),
             CONF_SERVERS: ["192.168.1.2"],
         },
@@ -197,7 +198,7 @@ def test_sntp_with_other_time_platforms(caplog: pytest.LogCaptureFixture) -> Non
     """Test that SNTP merging doesn't affect other time platforms."""
     time_configs = [
         {
-            CONF_PLATFORM: CONF_SNTP,
+            CONF_PLATFORM: SNTP_DOMAIN,
             CONF_ID: ID("sntp_time_1", is_manual=False),
             CONF_SERVERS: ["192.168.1.1"],
         },
@@ -206,7 +207,7 @@ def test_sntp_with_other_time_platforms(caplog: pytest.LogCaptureFixture) -> Non
             CONF_ID: ID("homeassistant_time", is_manual=False),
         },
         {
-            CONF_PLATFORM: CONF_SNTP,
+            CONF_PLATFORM: SNTP_DOMAIN,
             CONF_ID: ID("sntp_time_2", is_manual=False),
             CONF_SERVERS: ["192.168.1.2"],
         },
@@ -226,11 +227,11 @@ def test_sntp_with_other_time_platforms(caplog: pytest.LogCaptureFixture) -> Non
 
         # Find the platforms
         platforms = {tc[CONF_PLATFORM] for tc in updated_conf[CONF_TIME]}
-        assert platforms == {CONF_SNTP, "homeassistant"}
+        assert platforms == {SNTP_DOMAIN, "homeassistant"}
 
         # Verify SNTP was merged
         sntp_instances = [
-            tc for tc in updated_conf[CONF_TIME] if tc[CONF_PLATFORM] == CONF_SNTP
+            tc for tc in updated_conf[CONF_TIME] if tc[CONF_PLATFORM] == SNTP_DOMAIN
         ]
         assert len(sntp_instances) == 1
         assert sntp_instances[0][CONF_SERVERS] == ["192.168.1.1", "192.168.1.2"]

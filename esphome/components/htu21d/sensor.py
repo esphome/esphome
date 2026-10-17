@@ -27,11 +27,9 @@ HTU21DComponent = htu21d_ns.class_(
 )
 HTU21DSensorModels = htu21d_ns.enum("HTU21DSensorModels")
 
-MODELS = {
-    "HTU21D": HTU21DSensorModels.HTU21D_SENSOR_MODEL_HTU21D,
-    "SI7021": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SI7021,
-    "SHT21": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SHT21,
-}
+MODELS = HTU21DSensorModels.options(
+    "HTU21D", "SI7021", "SHT21", prefix="HTU21D_SENSOR_MODEL_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -67,17 +65,10 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity(sens))
-
-    if CONF_HEATER in config:
-        sens = await sensor.new_sensor(config[CONF_HEATER])
-        cg.add(var.set_heater(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_HUMIDITY, var.set_humidity)
+    await sensors(CONF_HEATER, var.set_heater)
 
     cg.add(var.set_sensor_model(config[CONF_MODEL]))
 

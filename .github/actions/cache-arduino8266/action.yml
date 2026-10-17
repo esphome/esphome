@@ -22,7 +22,7 @@ runs:
         # cached path cannot diverge.
         echo "ESPHOME_ARDUINO8266_PREFIX=$HOME/.esphome-arduino8266" >> "$GITHUB_ENV"
         . venv/bin/activate
-        key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')
+        key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import FRAMEWORK_RELEASES, TOOLCHAIN_VERSION as t; print(f"{FRAMEWORK_RELEASES[f].tag}-{t}")')
         [ -n "$key" ] || exit 1
         echo "key=$key" >> "$GITHUB_OUTPUT"
     - name: Cache the native toolchain (write on dev)

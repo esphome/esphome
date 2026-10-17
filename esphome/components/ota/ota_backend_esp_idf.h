@@ -33,9 +33,15 @@ class IDFOTABackend final {
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
   void abort();
-  bool supports_compression() { return false; }
+  static constexpr bool supports_compression() { return false; }
 
  protected:
+  UpdateLock lock_;
+  OTAResponseTypes hold_lock_if_ok_(OTAResponseTypes result) {
+    if (result == OTA_RESPONSE_OK)
+      this->lock_.hold_until_reboot();
+    return result;
+  }
 #ifdef USE_OTA_PARTITIONS
   // copy_dest_part non-null means the running app must be copied INTO this slot of the current
   // table before the new partition table is committed. The destination is in the current table

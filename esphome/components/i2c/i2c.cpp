@@ -3,11 +3,10 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <memory>
 
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c";
+ESPHOME_LOG_TAG(TAG, "i2c");
 
 void I2CBus::i2c_scan_() {
   for (uint8_t address = 8; address != 120; address++) {
@@ -20,6 +19,10 @@ void I2CBus::i2c_scan_() {
     // it takes 16sec to scan on nrf52. It prevents board reset.
     arch_feed_wdt();
   }
+}
+
+void log_wrong_chip_id(uint8_t id, uint8_t expected) {
+  ESP_LOGE(TAG, "Wrong chip ID 0x%02X, expected 0x%02X", id, expected);
 }
 
 ErrorCode I2CDevice::read_register(uint8_t a_register, uint8_t *data, size_t len) {
@@ -59,11 +62,22 @@ bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
 }
 
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {
-  // we have to copy in order to be able to change byte order
-  std::unique_ptr<uint16_t[]> temp{new uint16_t[len]};
-  for (size_t i = 0; i < len; i++)
-    temp[i] = htoi2cs(data[i]);
-  return write_register(a_register, reinterpret_cast<const uint8_t *>(temp.get()), len * 2) == ERROR_OK;
+  const size_t size = 1 + len * 2;
+  SmallBufferWithHeapFallback<17> buffer_alloc(size);  // Register plus up to 8 words
+  uint8_t *buffer = buffer_alloc.get();
+
+  buffer[0] = a_register;
+  for (size_t i = 0; i < len; i++) {
+    const uint16_t word = data[i];
+    buffer[1 + i * 2] = word >> 8;
+    buffer[2 + i * 2] = word;
+  }
+  return this->bus_->write_readv(this->address_, buffer, size, nullptr, 0) == ERROR_OK;
+}
+
+bool I2CDevice::write_byte_16(uint8_t a_register, uint16_t data) const {
+  const uint8_t buffer[3] = {a_register, static_cast<uint8_t>(data >> 8), static_cast<uint8_t>(data)};
+  return this->bus_->write_readv(this->address_, buffer, sizeof(buffer), nullptr, 0) == ERROR_OK;
 }
 
 I2CRegister &I2CRegister::operator=(uint8_t value) {

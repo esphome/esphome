@@ -6,7 +6,7 @@
 
 namespace esphome::runtime_image {
 
-static const char *const TAG = "image_decoder";
+ESPHOME_LOG_TAG(TAG, "image_decoder");
 
 bool ImageDecoder::set_size(int width, int height) {
   bool success = this->image_->resize(width, height) > 0;
@@ -28,5 +28,8 @@ void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
     }
   }
 }
+
+uint8_t *ImageDecoder::image_buffer_() const { return this->image_->buffer_; }
+bool ImageDecoder::image_is_big_endian_() const { return this->image_->big_endian_; }
 
 }  // namespace esphome::runtime_image

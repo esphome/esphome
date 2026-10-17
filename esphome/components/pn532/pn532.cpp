@@ -1,5 +1,7 @@
 #include "pn532.h"
 
+#include <algorithm>
+#include <array>
 #include <memory>
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -12,24 +14,22 @@
 
 namespace esphome::pn532 {
 
-static const char *const TAG = "pn532";
+ESPHOME_LOG_TAG(TAG, "pn532");
 
 void PN532::setup() {
   // Get version data
   if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
     ESP_LOGW(TAG, "Error sending version command, trying again");
     if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
-      ESP_LOGE(TAG, "Error sending version command");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Error sending version command"));
       return;
     }
   }
 
-  std::vector<uint8_t> version_data;
+  PN532Frame version_data;
   // GetFirmwareVersion returns IC, Ver, Rev and Support
   if (!this->read_response(PN532_COMMAND_VERSION_DATA, version_data) || version_data.size() < 3) {
-    ESP_LOGE(TAG, "Error getting version");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Error getting version"));
     return;
   }
   ESP_LOGD(TAG, "Found chip PN5%02X, Firmware v%d.%d", version_data[0], version_data[1], version_data[2]);
@@ -40,15 +40,13 @@ void PN532::setup() {
           0x14,  // timeout: 20 x 50 ms (only used in virtual card mode)
           0x01,  // use IRQ
       })) {
-    ESP_LOGE(TAG, "No wakeup ack");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("No wakeup ack"));
     return;
   }
 
-  std::vector<uint8_t> wakeup_result;
+  PN532Frame wakeup_result;
   if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) {
-    this->error_code_ = WAKEUP_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Wake Up command failed"));
     return;
   }
 
@@ -60,19 +58,17 @@ void PN532::setup() {
           sam_timeout,  // timeout as multiple of 50ms (actually only for virtual card mode, but shouldn't matter)
           0x01,         // Enable IRQ
       })) {
-    this->error_code_ = SAM_COMMAND_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SAM command failed"));
     return;
   }
 
-  std::vector<uint8_t> sam_result;
+  PN532Frame sam_result;
   if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, sam_result)) {
     ESP_LOGV(TAG, "Invalid SAM result: (%u)", sam_result.size());  // NOLINT
     for (uint8_t dat : sam_result) {
       ESP_LOGV(TAG, " 0x%02X", dat);
     }
-    this->error_code_ = SAM_COMMAND_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SAM command failed"));
     return;
   }
 
@@ -87,7 +83,7 @@ bool PN532::powerdown() {
     ESP_LOGE(TAG, "Error writing powerdown command to PN532");
     return false;
   }
-  std::vector<uint8_t> response;
+  PN532Frame response;
   if (!this->read_response(PN532_COMMAND_POWERDOWN, response)) {
     ESP_LOGE(TAG, "Error reading PN532 powerdown response");
     return false;
@@ -105,8 +101,10 @@ void PN532::update() {
   if (!updates_enabled_)
     return;
 
+#ifdef PN532_BINARY_SENSOR_COUNT
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
+#endif
 
   if (!this->write_command_({
           PN532_COMMAND_INLISTPASSIVETARGET,
@@ -130,7 +128,7 @@ void PN532::loop() {
     return;
 
   bool success = false;
-  std::vector<uint8_t> read;
+  PN532Frame read;
 
   if (ready == READY) {
     success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
@@ -142,11 +140,13 @@ void PN532::loop() {
 
   if (!success) {
     // Something failed
+#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
     if (!this->current_uid_.empty()) {
       auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
     }
+#endif
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -155,11 +155,13 @@ void PN532::loop() {
   uint8_t num_targets = read.empty() ? 0 : read[0];
   if (num_targets != 1) {
     // no tags found or too many
+#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
     if (!this->current_uid_.empty()) {
       auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
     }
+#endif
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -181,11 +183,13 @@ void PN532::loop() {
   const uint8_t tag_type = tag_type_from_sel_res(sel_res);
 
   bool report = true;
+#ifdef PN532_BINARY_SENSOR_COUNT
   for (auto *bin_sens : this->binary_sensors_) {
     if (bin_sens->process(nfcid)) {
       report = false;
     }
   }
+#endif
 
   if (nfcid.size() == this->current_uid_.size()) {
     bool same_uid = true;
@@ -199,8 +203,10 @@ void PN532::loop() {
 
   if (next_task_ == READ) {
     auto tag = this->read_tag_(nfcid, tag_type);
+#ifdef PN532_ON_TAG_TRIGGER_COUNT
     for (auto *trigger : this->triggers_ontag_)
       trigger->process(tag);
+#endif
 
     if (report) {
       char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
@@ -249,39 +255,42 @@ void PN532::loop() {
   this->turn_off_rf_();
 }
 
-bool PN532::write_command_(const std::vector<uint8_t> &data) {
-  std::vector<uint8_t> write_data;
+bool PN532::write_command_(const std::span<const uint8_t> data) {
+  if (data.size() > PN532_FRAME_MAX_DATA_SIZE) {
+    return false;
+  }
+  PN532Frame frame;
   // Preamble
-  write_data.push_back(0x00);
+  frame.push_back(0x00);
 
   // Start code
-  write_data.push_back(0x00);
-  write_data.push_back(0xFF);
+  frame.push_back(0x00);
+  frame.push_back(0xFF);
 
   // Length of message, TFI + data bytes
   const uint8_t real_length = data.size() + 1;
   // LEN
-  write_data.push_back(real_length);
+  frame.push_back(real_length);
   // LCS (Length checksum)
-  write_data.push_back(~real_length + 1);
+  frame.push_back(~real_length + 1);
 
   // TFI (Frame Identifier, 0xD4 means to PN532, 0xD5 means from PN532)
-  write_data.push_back(0xD4);
+  frame.push_back(0xD4);
   // calculate checksum, TFI is part of checksum
   uint8_t checksum = 0xD4;
 
   // DATA
   for (uint8_t dat : data) {
-    write_data.push_back(dat);
+    frame.push_back(dat);
     checksum += dat;
   }
 
   // DCS (Data checksum)
-  write_data.push_back(~checksum + 1);
+  frame.push_back(~checksum + 1);
   // Postamble
-  write_data.push_back(0x00);
+  frame.push_back(0x00);
 
-  this->write_data(write_data);
+  this->write_data(frame);
 
   return this->read_ack_();
 }
@@ -289,8 +298,8 @@ bool PN532::write_command_(const std::vector<uint8_t> &data) {
 bool PN532::read_ack_() {
   ESP_LOGV(TAG, "Reading ACK");
 
-  std::vector<uint8_t> data;
-  if (!this->read_data(data, 6)) {
+  PN532Frame data;
+  if (!this->read_data(data, 6) || data.size() < 7) {
     return false;
   }
 
@@ -303,13 +312,15 @@ bool PN532::read_ack_() {
 }
 
 void PN532::send_ack_() {
+  static constexpr std::array<uint8_t, 6> ACK_FRAME = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
   ESP_LOGV(TAG, "Sending ACK for abort");
-  this->write_data({0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00});
+  this->write_data(ACK_FRAME);
   delay(10);
 }
 void PN532::send_nack_() {
+  static constexpr std::array<uint8_t, 6> NACK_FRAME = {0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00};
   ESP_LOGV(TAG, "Sending NACK for retransmit");
-  this->write_data({0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00});
+  this->write_data(NACK_FRAME);
   delay(10);
 }
 
@@ -322,8 +333,9 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
     return READY;
   }
 
+  // the non-blocking call comes from loop(), where the tick's timestamp is already cached
   if (!this->rd_started_) {
-    this->rd_start_time_ = millis();
+    this->rd_start_time_ = block ? millis() : App.get_loop_component_start_time();
     this->rd_started_ = true;
   }
   const uint32_t rd_start_time = this->rd_start_time_;
@@ -334,7 +346,8 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
       break;
     }
 
-    if (millis() - rd_start_time > 100) {
+    const uint32_t now = block ? millis() : App.get_loop_component_start_time();
+    if (now - rd_start_time > 100) {
       ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
       this->rd_ready_ = TIMEOUT;
       break;
@@ -425,7 +438,7 @@ bool PN532::write_tag_(nfc::NfcTagUid &uid, const uint8_t tag_type, nfc::NdefMes
   return false;
 }
 
-bool PN532::in_data_exchange_(const std::vector<uint8_t> &command, std::vector<uint8_t> &response) {
+bool PN532::in_data_exchange_(const std::span<const uint8_t> command, PN532Frame &response) {
   // formatting a tag takes seconds of back-to-back exchanges inside loop(), longer than the task watchdog allows
   App.feed_wdt();
   if (!this->write_command_(command)) {
@@ -439,28 +452,38 @@ bool PN532::in_data_exchange_(const std::vector<uint8_t> &command, std::vector<u
     ESP_LOGV(TAG, "InDataExchange failed, status 0x%02X", response[0]);
     return false;
   }
-  response.erase(response.begin());
+  std::copy(response.begin() + 1, response.end(), response.begin());
+  response.resize(response.size() - 1);
+  return true;
+}
+
+bool PN532::mifare_read_(uint8_t address, MifareReadData &data) {
+  PN532Frame response;
+  if (!this->in_data_exchange_(
+          {
+              PN532_COMMAND_INDATAEXCHANGE,
+              0x01,  // One card
+              nfc::MIFARE_CMD_READ,
+              address,
+          },
+          response) ||
+      response.size() != data.size()) {
+    return false;
+  }
+  std::copy(response.begin(), response.end(), data.begin());
   return true;
 }
 
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
-  switch (this->error_code_) {
-    case NONE:
-      break;
-    case WAKEUP_FAILED:
-      ESP_LOGE(TAG, "Wake Up command failed!");
-      break;
-    case SAM_COMMAND_FAILED:
-      ESP_LOGE(TAG, "SAM command failed!");
-      break;
-  }
 
   LOG_UPDATE_INTERVAL(this);
 
+#ifdef PN532_BINARY_SENSOR_COUNT
   for (auto *child : this->binary_sensors_) {
     LOG_BINARY_SENSOR("  ", "Tag", child);
   }
+#endif
 }
 
 bool PN532BinarySensor::process(const nfc::NfcTagUid &data) {

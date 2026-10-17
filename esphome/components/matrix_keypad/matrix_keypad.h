@@ -27,7 +27,8 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
   void dump_config() override;
   void set_columns(std::vector<GPIOPin *> pins) { columns_ = std::move(pins); };
   void set_rows(std::vector<GPIOPin *> pins) { rows_ = std::move(pins); };
-  void set_keys(std::string keys) { keys_ = std::move(keys); };
+  /// `keys` is a codegen PROGMEM table with one key code per button.
+  void set_keys(const uint8_t *keys) { this->keys_ = keys; }
   void set_debounce_time(uint32_t debounce_time) { debounce_time_ = debounce_time; };
   void set_has_diodes(bool has_diodes) { has_diodes_ = has_diodes; };
   void set_has_pulldowns(bool has_pulldowns) { has_pulldowns_ = has_pulldowns; };
@@ -38,7 +39,7 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
  protected:
   std::vector<GPIOPin *> rows_;
   std::vector<GPIOPin *> columns_;
-  std::string keys_;
+  const uint8_t *keys_{nullptr};
   uint32_t debounce_time_ = 0;
   bool has_diodes_{false};
   bool has_pulldowns_{false};

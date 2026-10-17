@@ -79,20 +79,11 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_config := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(current_config)
-        cg.add(var.set_current_sensor(sens))
-    if power_config := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(power_config)
-        cg.add(var.set_power_sensor(sens))
-    if apparent_power_config := config.get(CONF_APPARENT_POWER):
-        sens = await sensor.new_sensor(apparent_power_config)
-        cg.add(var.set_apparent_power_sensor(sens))
-    if power_factor_config := config.get(CONF_POWER_FACTOR):
-        sens = await sensor.new_sensor(power_factor_config)
-        cg.add(var.set_power_factor_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_APPARENT_POWER, var.set_apparent_power_sensor)
+    await sensors(CONF_POWER_FACTOR, var.set_power_factor_sensor)
     cg.add(var.set_current_resistor(config[CONF_CURRENT_RESISTOR]))
     cg.add(var.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))

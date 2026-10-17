@@ -4,6 +4,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <algorithm>
+#include <cstring>
 #include <driver/gpio.h>
 #include <esp_lcd_panel_ops.h>
 #include <span>
@@ -44,8 +47,10 @@ void MipiRgb::setup_enables_() {
 void MipiRgbSpi::setup() {
   this->setup_enables_();
   this->spi_setup();
-  this->write_init_sequence_();
   this->common_setup_();
+  if (this->is_failed())
+    return;
+  this->write_init_sequence_();
 }
 void MipiRgbSpi::write_command_(uint8_t value) {
   this->enable();
@@ -76,27 +81,28 @@ void MipiRgbSpi::write_data_(uint8_t value) {
 
 void MipiRgbSpi::write_init_sequence_() {
   size_t index = 0;
-  auto &vec = this->init_sequence_;
-  while (index != vec.size()) {
-    if (vec.size() - index < 2) {
+  const uint8_t *seq = this->init_sequence_;
+  const size_t len = this->init_sequence_len_;
+  while (index != len) {
+    if (len - index < 2) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
-    uint8_t cmd = vec[index++];
-    uint8_t x = vec[index++];
+    uint8_t cmd = seq[index++];
+    uint8_t x = seq[index++];
     if (x == DELAY_FLAG) {
       ESP_LOGD(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
       uint8_t num_args = x & 0x7F;
-      if (vec.size() - index < num_args) {
+      if (len - index < num_args) {
         this->mark_failed(LOG_STR("Malformed init sequence"));
         return;
       }
       if (cmd == SLEEP_OUT) {
         delay(120);  // NOLINT
       }
-      const auto *ptr = vec.data() + index;
+      const auto *ptr = seq + index;
       char hex_buf[format_hex_pretty_size(MIPI_RGB_MAX_CMD_LOG_BYTES)];
       ESP_LOGD(TAG, "Write command %02X, length %d, byte(s) %s", cmd, num_args,
                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
@@ -109,7 +115,6 @@ void MipiRgbSpi::write_init_sequence_() {
     }
   }
   // this->spi_teardown();  // SPI not needed after this
-  this->init_sequence_.clear();
   delay(10);
 }
 
@@ -170,6 +175,15 @@ void MipiRgb::common_setup_() {
     err = esp_lcd_panel_reset(this->handle_);
   if (err == ESP_OK)
     err = esp_lcd_panel_init(this->handle_);
+  if (err == ESP_OK) {
+    void *fb = nullptr;
+    err = esp_lcd_rgb_panel_get_frame_buffer(this->handle_, 1, &fb);
+    if (err == ESP_OK && fb != nullptr) {
+      this->fb_ = reinterpret_cast<uint16_t *>(fb);
+    } else if (err == ESP_OK) {
+      err = ESP_ERR_NO_MEM;
+    }
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd setup failed: %s", esp_err_to_name(err));
     this->mark_failed(LOG_STR("lcd setup failed"));
@@ -183,6 +197,7 @@ void MipiRgb::update() {
   if (this->auto_clear_enabled_) {
     this->clear();
   }
+  this->updating_ = true;
   if (this->show_test_card_) {
     this->test_card();
   } else if (this->page_ != nullptr) {
@@ -192,7 +207,13 @@ void MipiRgb::update() {
   } else {
     this->stop_poller();
   }
-  if (this->buffer_ == nullptr || this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_)
+  this->updating_ = false;
+  this->flush_dirty_();
+}
+
+void MipiRgb::flush_dirty_() {
+  // Inside update() the one flush at its end sends everything
+  if (this->updating_ || this->buffer_ == nullptr || this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_)
     return;
   ESP_LOGV(TAG, "x_low %d, y_low %d, x_high %d, y_high %d", this->x_low_, this->y_low_, this->x_high_, this->y_high_);
   int w = this->x_high_ - this->x_low_ + 1;
@@ -206,18 +227,36 @@ void MipiRgb::update() {
   this->y_high_ = 0;
 }
 
-void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                             display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                   display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                   int x_pad) {
   if (w <= 0 || h <= 0 || this->is_failed())
     return;
-  // if color mapping is required, pass the buck.
-  // note that endianness is not considered here - it is assumed to match!
-  if (bitness != display::COLOR_BITNESS_565) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
-    this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const uint8_t *>(this->buffer_), x_start, y_start,
-                            this->width_ - w - x_start);
-  } else {
-    this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+  if (bitness != display::COLOR_BITNESS_565 || big_endian != this->big_endian_ || this->is_clipping()) {
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    this->mark_dirty_(x_start, y_start, w, h);
+    this->flush_dirty_();
+    return;
+  }
+
+  const int log_w = this->get_width();
+  const int log_h = this->get_height();
+
+  if (x_start < 0 || y_start < 0 || x_start + w > log_w || y_start + h > log_h) {
+    return;
+  }
+
+  uint16_t *dst = this->buffer_ != nullptr ? this->buffer_ : this->fb_;
+  const size_t stride = static_cast<size_t>(x_offset) + w + x_pad;
+  const auto *src_origin =
+      reinterpret_cast<const uint16_t *>(ptr) + (static_cast<size_t>(y_offset) * stride + x_offset);
+
+  blit_rotated_565(dst, this->width_, this->height_, this->rotation_, src_origin, x_start, y_start, w, h, stride);
+  if (dst == this->buffer_) {
+    this->mark_dirty_(x_start, y_start, w, h);
+    if (!this->updating_) {
+      this->flush_dirty_();
+    }
   }
 }
 
@@ -258,33 +297,44 @@ bool MipiRgb::check_buffer_() {
   return true;
 }
 
+// Widen the dirty box to the drawn rectangle, even where the buffer already held the same values.
+void MipiRgb::mark_dirty_(int x_start, int y_start, int w, int h) {
+  int x1 = x_start, y1 = y_start;
+  int x2 = x_start + w - 1, y2 = y_start + h - 1;
+  this->rotate_(x1, y1);
+  this->rotate_(x2, y2);
+  const int right = static_cast<int>(this->width_) - 1;
+  const int bottom = static_cast<int>(this->height_) - 1;
+  const int left = std::clamp(std::min(x1, x2), 0, right);
+  const int top = std::clamp(std::min(y1, y2), 0, bottom);
+  x2 = std::clamp(std::max(x1, x2), 0, right);
+  y2 = std::clamp(std::max(y1, y2), 0, bottom);
+  // An empty box is low above high, so it is replaced rather than widened
+  if (this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_) {
+    this->x_low_ = left;
+    this->x_high_ = x2;
+    this->y_low_ = top;
+    this->y_high_ = y2;
+    return;
+  }
+  this->x_low_ = std::min<int>(this->x_low_, left);
+  this->x_high_ = std::max<int>(this->x_high_, x2);
+  this->y_low_ = std::min<int>(this->y_low_, top);
+  this->y_high_ = std::max<int>(this->y_high_, y2);
+}
+
 void MipiRgb::draw_pixel_at(int x, int y, Color color) {
   if (this->is_point_clipped(x, y) || this->is_failed())
     return;
 
-  switch (this->rotation_) {
-    case display::DISPLAY_ROTATION_0_DEGREES:
-      break;
-    case display::DISPLAY_ROTATION_90_DEGREES:
-      std::swap(x, y);
-      x = this->width_ - x - 1;
-      break;
-    case display::DISPLAY_ROTATION_180_DEGREES:
-      x = this->width_ - x - 1;
-      y = this->height_ - y - 1;
-      break;
-    case display::DISPLAY_ROTATION_270_DEGREES:
-      std::swap(x, y);
-      y = this->height_ - y - 1;
-      break;
-  }
+  this->rotate_(x, y);
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
   if (!this->check_buffer_())
     return;
   size_t pos = (y * this->width_) + x;
-  uint16_t new_color = convert_big_endian(display::ColorUtil::color_to_565(color));
+  uint16_t new_color = this->to_panel_565_(color);
   if (this->buffer_[pos] == new_color)
     return;
   this->buffer_[pos] = new_color;
@@ -309,7 +359,7 @@ void MipiRgb::fill(Color color) {
   }
 
   auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
-  uint16_t new_color = convert_big_endian(display::ColorUtil::color_to_565(color));
+  uint16_t new_color = this->to_panel_565_(color);
   std::fill_n(ptr_16, this->width_ * this->height_, new_color);
   this->x_low_ = 0;
   this->y_low_ = 0;

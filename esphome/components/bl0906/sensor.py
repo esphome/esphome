@@ -150,15 +150,10 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    if frequency_config := config.get(CONF_FREQUENCY):
-        sens = await sensor.new_sensor(frequency_config)
-        cg.add(var.set_frequency_sensor(sens))
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
 
     for i in range(6):
         if channel_config := config.get(f"{CONF_CHANNEL}_{i + 1}"):
@@ -172,10 +167,5 @@ async def to_code(config: ConfigType) -> None:
                 sens = await sensor.new_sensor(energy_config)
                 cg.add(getattr(var, f"set_energy_{i + 1}_sensor")(sens))
 
-    if total_power_config := config.get(CONF_TOTAL_POWER):
-        sens = await sensor.new_sensor(total_power_config)
-        cg.add(var.set_total_power_sensor(sens))
-
-    if total_energy_config := config.get(CONF_TOTAL_ENERGY):
-        sens = await sensor.new_sensor(total_energy_config)
-        cg.add(var.set_total_energy_sensor(sens))
+    await sensors(CONF_TOTAL_POWER, var.set_total_power_sensor)
+    await sensors(CONF_TOTAL_ENERGY, var.set_total_energy_sensor)
