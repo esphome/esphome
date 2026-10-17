@@ -284,6 +284,10 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
       .disable_auto_redirect = false,
       .max_redirection_count = 10,
   };
+#ifdef USE_NETWORK_IPV6_ONLY
+  // getaddrinfo(AF_UNSPEC) resolves the A record first, so a dual-stack host would be dialled over IPv4.
+  config.addr_type = HTTP_ADDR_TYPE_INET6;
+#endif
   // Initialize the HTTP client with the configuration
   esp_http_client_handle_t http_client = esp_http_client_init(&config);
   if (!http_client) {

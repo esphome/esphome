@@ -103,6 +103,10 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
   client_config.buffer_size = HTTP_STREAM_BUFFER_SIZE;
   client_config.keep_alive_enable = true;
   client_config.timeout_ms = CONNECTION_TIMEOUT_MS;  // Shouldn't trigger watchdog resets if caller runs in a task
+#ifdef USE_NETWORK_IPV6_ONLY
+  // getaddrinfo(AF_UNSPEC) resolves the A record first, so a dual-stack host would be dialled over IPv4.
+  client_config.addr_type = HTTP_ADDR_TYPE_INET6;
+#endif
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
   if (uri.find("https:") != std::string::npos) {

@@ -16,7 +16,9 @@ from esphome.components.esp32 import (
     require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
+    CONF_ENABLE_IPV4,
     add_use_address,
+    final_validate_no_manual_ip_if_ipv6_only,
     get_network_priority,
     has_high_performance_wifi,
     ip_address_literal,
@@ -508,7 +510,26 @@ def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+def _final_validate_no_lease_cache_if_ipv6_only(config: ConfigType) -> ConfigType:
+    """Reject ``lease_cache`` when ``network: enable_ipv4`` is false.
+
+    A persisted IPv4 lease would be applied (address and DNS) and renewed over DHCPv4
+    at boot, which defeats IPv6-only mode.
+    """
+    network = fv.full_config.get().get("network", {})
+    if network.get(CONF_ENABLE_IPV4, True):
+        return config
+    if config.get(CONF_LEASE_CACHE, {}).get(CONF_ENABLED, False):
+        raise cv.Invalid(
+            "lease_cache can't be used with 'network: enable_ipv4: false'",
+            [CONF_LEASE_CACHE],
+        )
+    return config
+
+
 FINAL_VALIDATE_SCHEMA = cv.All(
+    final_validate_no_manual_ip_if_ipv6_only,
+    _final_validate_no_lease_cache_if_ipv6_only,
     final_validate,
     validate_variant,
     _consume_wifi_sockets,

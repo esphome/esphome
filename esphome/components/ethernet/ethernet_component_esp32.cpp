@@ -6,6 +6,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_NETWORK_IPV6_ONLY
+#include "lwip/dhcp6.h"
+#endif
 #include "w5500_custom_spi.h"
 
 #include <lwip/dns.h>
@@ -242,6 +245,16 @@ void EthernetComponent::ethernet_lazy_init_() {
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
+#ifdef USE_NETWORK_IPV6_ONLY
+  // Stop DHCPv4 before the driver starts. The netif glue's link-up handler starts the client for an
+  // INIT client, and start_connect_() only runs later from loop(), so DHCPv4 would leak at boot.
+  if (this->eth_netif_ != nullptr) {
+    esp_err_t dhcp_err = esp_netif_dhcpc_stop(this->eth_netif_);
+    if (dhcp_err != ESP_OK && dhcp_err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+      ESP_LOGW(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(dhcp_err));
+    }
+  }
+#endif
 
   // Init MAC and PHY configs to default
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
@@ -809,12 +822,18 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
 void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                               void *event_data) {
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
+  if (event->esp_netif != global_eth_component->eth_netif_) {
+    return;  // another interface's address (wifi alongside ethernet)
+  }
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   // Count the addresses on the interface, not the events: recreating the link-local
   // after a link flap fires another event for the same address.
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(global_eth_component->eth_netif_, if_ip6s);
-#if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+#if defined(USE_NETWORK_IPV6_ONLY)
+  global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
+  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
+#elif (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
       global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
@@ -829,23 +848,39 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 #endif /* USE_NETWORK_IPV6 */
 
 #if USE_NETWORK_IPV6
+void EthernetComponent::enable_stateless_dhcp6_() {
+#if defined(USE_NETWORK_IPV6_ONLY) && LWIP_IPV6_DHCP6
+  // Stateless DHCPv6 for DNS servers; esp_netif never starts it. Idempotent in lwIP.
+  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
+    LwIPLock lock;
+    dhcp6_enable_stateless(netif);
+  }
+#endif
+}
+
 // Create the link-local address unless the interface already has one, including one still in
 // duplicate address detection: recreating it would restart DAD. esp_netif_get_ip6_linklocal()
 // only reports a preferred address, so ask lwIP for the slot state instead.
 esp_err_t EthernetComponent::ensure_ip6_linklocal_() {
+  bool present = false;
   if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
     u8_t state;
     {
       LwIPLock lock;
       state = netif_ip6_addr_state(netif, 0);
     }
-    if (ip6_addr_istentative(state) || ip6_addr_isvalid(state)) {
-      return ESP_OK;
+    present = ip6_addr_istentative(state) || ip6_addr_isvalid(state);
+  }
+  esp_err_t err = ESP_OK;
+  if (!present) {
+    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+    if (err == ESP_OK) {
+      ESP_LOGD(TAG, "IPv6 link-local address created");
     }
   }
-  esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
   if (err == ESP_OK) {
-    ESP_LOGD(TAG, "IPv6 link-local address created");
+    // The link-up handler may have created the address already, so hook DHCPv6 here, not on creation.
+    this->enable_stateless_dhcp6_();
   }
   return err;
 }
@@ -943,10 +978,12 @@ void EthernetComponent::start_connect_() {
   } else
 #endif
   {
+#ifndef USE_NETWORK_IPV6_ONLY
     err = esp_netif_dhcpc_start(this->eth_netif_);
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
+#endif
   }
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
