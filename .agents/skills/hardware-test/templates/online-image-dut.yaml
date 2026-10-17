@@ -1,0 +1,84 @@
+esphome:
+  name: NAME
+  friendly_name: NAME
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+  actions:
+    - action: fetch
+      variables:
+        url: string
+      then:
+        - online_image.set_url:
+            id: img
+            url: !lambda 'return url;'
+            update: false
+        - component.update: img
+    - action: refetch
+      then:
+        - component.update: img
+    - action: fetch_small
+      variables:
+        url: string
+      then:
+        - online_image.set_url:
+            id: img_small
+            url: !lambda 'return url;'
+            update: false
+        - component.update: img_small
+    - action: refetch_small
+      then:
+        - component.update: img_small
+
+http_request:
+  timeout: 4.5s
+  verify_ssl: false
+
+display:
+
+image:
+  - platform: online_image
+    id: img
+    url: http://127.0.0.1/none.bmp
+    format: AUTO
+    type: RGB565
+    update_interval: never
+    on_download_finished:
+      logger.log:
+        format: "download finished: img cached=%d"
+        args: [cached]
+    on_error:
+      logger.log: "download error: img"
+  - platform: online_image
+    id: img_small
+    url: http://127.0.0.1/none.bmp
+    format: AUTO
+    type: RGB565
+    buffer_size: 256
+    update_interval: never
+    on_download_finished:
+      logger.log:
+        format: "download finished: img_small cached=%d"
+        args: [cached]
+    on_error:
+      logger.log: "download error: img_small"
+
+button:
+  - platform: restart
+    id: reboot_btn
+    name: Reboot

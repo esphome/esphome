@@ -1,0 +1,111 @@
+esphome:
+  name: cdc11634
+
+nrf52:
+  board: nrf52840dongle
+  dfu: true
+
+logger:
+  hardware_uart: USB_CDC
+  level: VERBOSE
+  logs:
+    usb_cdc_acm: VERBOSE
+    scheduler: DEBUG
+    component: DEBUG
+    app: DEBUG
+    preferences: DEBUG
+    logger: DEBUG
+    nrf52: DEBUG
+    dfu: DEBUG
+
+usb_cdc_acm:
+  interfaces:
+    - disabled: true
+    - id: cdc1
+
+globals:
+  - id: rx_total
+    type: uint32_t
+    initial_value: "0"
+  - id: tx_total
+    type: uint32_t
+    initial_value: "0"
+  - id: stream_left
+    type: int32_t
+    initial_value: "0"
+
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          uint8_t buf[64];
+          while (id(cdc1).available() > 0) {
+            size_t n = std::min<size_t>(id(cdc1).available(), sizeof(buf));
+            if (!id(cdc1).read_array(buf, n)) {
+              ESP_LOGE("test", "read_array(%u) failed", (unsigned) n);
+              break;
+            }
+            id(rx_total) += n;
+            if (buf[0] == 0x01 && n >= 2) {
+              const char cmd = buf[1];
+              if (cmd == 'B') {
+                // one oversized write: the 256 byte TX ring must drop the rest and warn once
+                static uint8_t big[1000];
+                for (size_t i = 0; i < sizeof(big); i++) big[i] = 'A' + (i % 26);
+                id(cdc1).write_array(big, sizeof(big));
+                id(tx_total) += sizeof(big);
+                ESP_LOGI("test", "burst 1000 written");
+              } else if (cmd == 'S') {
+                id(stream_left) = 100;
+                ESP_LOGI("test", "stream started");
+              } else if (cmd == 'L') {
+                ESP_LOGI("test", "line coding baud=%u data=%u stop=%u parity=%u", (unsigned) id(cdc1).get_baud_rate(),
+                         id(cdc1).get_data_bits(), id(cdc1).get_stop_bits(), (unsigned) id(cdc1).get_parity());
+              } else if (cmd == 'K') {
+                uint8_t p = 0, r = 0;
+                bool pk = n > 2 ? false : true;
+                // peek the next byte after the command (host sends "\x01Kxyz")
+                if (n > 2) { p = buf[2]; r = buf[2]; pk = true; }
+                uint8_t pb = 0, rb = 0;
+                bool okp = id(cdc1).peek_byte(&pb);
+                bool okr = id(cdc1).read_byte(&rb);
+                ESP_LOGI("test", "peek ok=%d 0x%02X read ok=%d 0x%02X inline=%d 0x%02X", okp, pb, okr, rb, pk, p);
+                (void) r;
+                if (okr) id(rx_total) += 1;
+              } else if (cmd == 'F') {
+                static uint8_t pat[200];
+                for (size_t i = 0; i < sizeof(pat); i++) pat[i] = 'a' + (i % 26);
+                id(cdc1).write_array(pat, sizeof(pat));
+                id(tx_total) += sizeof(pat);
+                const uint32_t t0 = millis();
+                auto res = id(cdc1).flush();
+                ESP_LOGI("test", "flush result=%d took %u ms", (int) res, (unsigned) (millis() - t0));
+              } else if (cmd == 'C') {
+                ESP_LOGI("test", "counters rx=%u tx=%u", (unsigned) id(rx_total), (unsigned) id(tx_total));
+              } else {
+                ESP_LOGW("test", "unknown cmd 0x%02X", cmd);
+              }
+              continue;
+            }
+            id(cdc1).write_array(buf, n);
+            id(tx_total) += n;
+          }
+  - interval: 100ms
+    then:
+      - lambda: |-
+          if (id(stream_left) > 0) {
+            char line[101];
+            int len = snprintf(line, sizeof(line), "STREAM %03d ", 100 - id(stream_left));
+            for (int i = len; i < 99; i++) line[i] = 'x';
+            line[99] = '\n';
+            id(cdc1).write_array(reinterpret_cast<const uint8_t *>(line), 100);
+            id(tx_total) += 100;
+            id(stream_left) -= 1;
+            if (id(stream_left) == 0) {
+              ESP_LOGI("test", "stream done");
+            }
+          }
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "alive rx=%u tx=%u heap-free n/a", (unsigned) id(rx_total), (unsigned) id(tx_total));

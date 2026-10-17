@@ -1,0 +1,50 @@
+substitutions:
+  run: "3"
+
+esphome:
+  name: cd13122d
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          ESP_LOGI("crashtest", "boot, crashed_before=%d run=", id(crashed_${run}));
+      - delay: 20s
+      - if:
+          condition:
+            lambda: 'return id(crashed_${run}) == 0;'
+          then:
+            - lambda: |-
+                id(crashed_${run}) = 1;
+                ESP_LOGW("crashtest", "flag set, letting the loop save it");
+            - delay: 3s
+            - lambda: |-
+                global_preferences->sync();
+                delay(500);
+                ESP_LOGW("crashtest", "writing to 0xDEADBEEF now");
+                delay(100);
+                *reinterpret_cast<volatile uint32_t *>(0xDEADBEEF) = 1;
+          else:
+            - lambda: |-
+                ESP_LOGI("crashtest", "already crashed once, running normally");
+
+nrf52:
+  board: nrf52840dongle
+  dfu: true
+
+logger:
+  hardware_uart: USB_CDC
+  level: DEBUG
+
+zephyr_coredump:
+
+globals:
+  - id: crashed_${run}
+    type: int
+    restore_value: true
+    initial_value: "0"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("crashtest", "alive");
