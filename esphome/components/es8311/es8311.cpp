@@ -11,7 +11,7 @@ ESPHOME_LOG_TAG(TAG, "es8311");
 // Mark the component as failed; use only in setup
 #define ES8311_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 // Return false; use outside of setup
@@ -56,11 +56,6 @@ void ES8311::dump_config() {
                 "  DAC Bits per Sample: %" PRIu8 "\n"
                 "  Sample Rate: %" PRIu32,
                 YESNO(this->use_mclk_), YESNO(this->use_mic_), this->resolution_out_, this->sample_frequency_);
-
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  Failed to initialize!");
-    return;
-  }
 }
 
 bool ES8311::set_volume(float volume) {

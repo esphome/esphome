@@ -29,10 +29,6 @@ void DS3231Component::setup() {
 void DS3231Component::dump_config() {
   ESP_LOGCONFIG(TAG, "DS3231:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    return;
-  }
 }
 
 bool DS3231Component::read_temperature(float &out) {

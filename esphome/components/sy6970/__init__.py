@@ -27,12 +27,9 @@ SY6970Listener = sy6970_ns.class_("SY6970Listener")
 I2CWatchdogTimeout = sy6970_ns.enum("I2CWatchdogTimeout")
 
 # REG07[5:4]; the component kicks the watchdog itself, so the chip's 40S default can stay on
-I2C_WATCHDOG_TIMEOUTS = {
-    "DISABLED": I2CWatchdogTimeout.I2C_WATCHDOG_DISABLED,
-    "40S": I2CWatchdogTimeout.I2C_WATCHDOG_40S,
-    "80S": I2CWatchdogTimeout.I2C_WATCHDOG_80S,
-    "160S": I2CWatchdogTimeout.I2C_WATCHDOG_160S,
-}
+I2C_WATCHDOG_TIMEOUTS = I2CWatchdogTimeout.options(
+    "DISABLED", "40S", "80S", "160S", prefix="I2C_WATCHDOG_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(

@@ -175,6 +175,15 @@ void MipiRgb::common_setup_() {
     err = esp_lcd_panel_reset(this->handle_);
   if (err == ESP_OK)
     err = esp_lcd_panel_init(this->handle_);
+  if (err == ESP_OK) {
+    void *fb = nullptr;
+    err = esp_lcd_rgb_panel_get_frame_buffer(this->handle_, 1, &fb);
+    if (err == ESP_OK && fb != nullptr) {
+      this->fb_ = reinterpret_cast<uint16_t *>(fb);
+    } else if (err == ESP_OK) {
+      err = ESP_ERR_NO_MEM;
+    }
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd setup failed: %s", esp_err_to_name(err));
     this->mark_failed(LOG_STR("lcd setup failed"));
@@ -218,34 +227,36 @@ void MipiRgb::flush_dirty_() {
   this->y_high_ = 0;
 }
 
-void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                             display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void MipiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                   display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                   int x_pad) {
   if (w <= 0 || h <= 0 || this->is_failed())
     return;
-  if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB || big_endian != this->big_endian_ ||
-      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+  if (bitness != display::COLOR_BITNESS_565 || big_endian != this->big_endian_ || this->is_clipping()) {
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     this->mark_dirty_(x_start, y_start, w, h);
     this->flush_dirty_();
-  } else if (this->buffer_ != nullptr) {
-    // With a buffer the block goes through it, or a flush of the old contents would paint over it
-    const int first_col = std::max(0, -x_start), end_col = std::min(w, static_cast<int>(this->width_) - x_start);
-    const int first_row = std::max(0, -y_start), end_row = std::min(h, static_cast<int>(this->height_) - y_start);
-    if (first_col >= end_col || first_row >= end_row)
-      return;
-    const size_t stride = x_offset + w + x_pad;
-    for (int y = first_row; y != end_row; y++) {
-      memcpy(this->buffer_ + (y_start + y) * this->width_ + x_start + first_col,
-             ptr + ((y_offset + y) * stride + x_offset + first_col) * 2, (end_col - first_col) * 2);
+    return;
+  }
+
+  const int log_w = this->get_width();
+  const int log_h = this->get_height();
+
+  if (x_start < 0 || y_start < 0 || x_start + w > log_w || y_start + h > log_h) {
+    return;
+  }
+
+  uint16_t *dst = this->buffer_ != nullptr ? this->buffer_ : this->fb_;
+  const size_t stride = static_cast<size_t>(x_offset) + w + x_pad;
+  const auto *src_origin =
+      reinterpret_cast<const uint16_t *>(ptr) + (static_cast<size_t>(y_offset) * stride + x_offset);
+
+  blit_rotated_565(dst, this->width_, this->height_, this->rotation_, src_origin, x_start, y_start, w, h, stride);
+  if (dst == this->buffer_) {
+    this->mark_dirty_(x_start, y_start, w, h);
+    if (!this->updating_) {
+      this->flush_dirty_();
     }
-    if (this->updating_) {
-      this->mark_dirty_(x_start + first_col, y_start + first_row, end_col - first_col, end_row - first_row);
-    } else {
-      this->write_to_display_(x_start + first_col, y_start + first_row, end_col - first_col, end_row - first_row, ptr,
-                              x_offset + first_col, y_offset + first_row, x_pad + w - end_col);
-    }
-  } else {
-    this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
   }
 }
 

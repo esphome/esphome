@@ -25,11 +25,7 @@ BH1745Component = bh1745_ns.class_(
 )
 
 AdcGain = bh1745_ns.enum("AdcGain", is_class=True)
-ADC_GAINS = {
-    "1X": AdcGain.ADC_GAIN_1X,
-    "2X": AdcGain.ADC_GAIN_2X,
-    "16X": AdcGain.ADC_GAIN_16X,
-}
+ADC_GAINS = AdcGain.options("1X", "2X", "16X", prefix="ADC_GAIN_")
 
 MeasurementTime = bh1745_ns.enum("MeasurementTime", is_class=True)
 MEASUREMENT_TIMES = {

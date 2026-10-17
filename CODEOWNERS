@@ -255,6 +255,7 @@ esphome/components/haier/text_sensor/* @paveldn
 esphome/components/haier_tundra/* @fauxpark
 esphome/components/haier_tundra/button/* @fauxpark
 esphome/components/haier_tundra/switch/* @fauxpark
+esphome/components/haier_water_heater/* @TheLexus
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
@@ -393,6 +394,7 @@ esphome/components/micro_wake_word/* @jesserockz @kahrendt
 esphome/components/micronova/* @edenhaus @jorre05
 esphome/components/microphone/* @jesserockz @kahrendt
 esphome/components/mics_4514/* @jesserockz
+esphome/components/mics_5524/* @nliaudat
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/midea_portasplit/* @Fexiven
