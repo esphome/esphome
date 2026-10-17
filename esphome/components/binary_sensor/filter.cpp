@@ -63,12 +63,12 @@ optional<bool> DelayedOffFilter::new_value(bool value) {
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
-// AutorepeatFilterBase
+// AutorepeatFilter
 // Two independent timers per instance, keyed off two stable addresses inside
 // the filter: `this` for the timing-step timer, `&active_timing_` for the
 // on/off timer. Both are unique per instance and don't collide with anything
 // else, so the self-keyed scheduler API is sufficient.
-optional<bool> AutorepeatFilterBase::new_value(bool value) {
+optional<bool> AutorepeatFilter::new_value(bool value) {
   if (value) {
     if (this->active_timing_ != 0)
       return {};
@@ -82,18 +82,18 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
   }
 }
 
-void AutorepeatFilterBase::next_timing_() {
-  if (this->active_timing_ < this->timings_count_) {
-    App.scheduler.set_timeout(this, this->timings_[this->active_timing_].delay, [this]() { this->next_timing_(); });
+void AutorepeatFilter::next_timing_() {
+  const uint32_t delay = this->timings_[this->active_timing_].delay;
+  if (delay != SCHEDULER_DONT_RUN) {
+    App.scheduler.set_timeout(this, delay, [this]() { this->next_timing_(); });
   }
-  if (this->active_timing_ <= this->timings_count_) {
-    this->active_timing_++;
-  }
+  // Only reached with active_timing_ at most the end-marker index, so this never passes it.
+  this->active_timing_++;
   if (this->active_timing_ == 2)
     this->next_value_(false);
 }
 
-void AutorepeatFilterBase::next_value_(bool val) {
+void AutorepeatFilter::next_value_(bool val) {
   const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
   this->output(val);
   App.scheduler.set_timeout(&this->active_timing_, val ? timing.time_on : timing.time_off,
