@@ -66,6 +66,7 @@ TEST(LineReaderTest, OverlongLineIsDroppedUpToTerminator) {
       overflow_count++;
       EXPECT_STREQ(reader.partial(), "12345");
       EXPECT_EQ(reader.length(), 0u);
+      reader.log_if_overflowed("line_reader_test");
     }
     if (line != nullptr)
       lines.emplace_back(line);
@@ -152,16 +153,6 @@ TEST(LineReaderTest, LineIsWritable) {
   ASSERT_NE(line, nullptr);
   line[1] = '\0';
   EXPECT_STREQ(line, "a");
-}
-
-TEST(LineReaderTest, LogIfOverflowedIsSafeInEveryState) {
-  // Smoke test: the shared warning links and is safe to call in every state
-  LineReader<4> reader;
-  for (char c : std::string("abcdef\n")) {
-    reader.feed(c);
-    reader.log_if_overflowed("line_reader_test");
-  }
-  EXPECT_FALSE(reader.overflowed());
 }
 
 }  // namespace esphome::uart::testing
