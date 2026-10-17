@@ -6,9 +6,12 @@
 D=${0:A:h}
 IP=$1; SECS=$2; L=$3; S=${4:-.}; F=${5:-}
 PY=${PYTHON:-python3}
+setopt pipefail
 ping -i 1 -c $SECS $IP > $S/ping-$L.txt 2>&1 &
 P=$!
-timeout $((SECS + 40)) $PY $D/observe.py $IP $SECS $S/obs-$L.txt "$F" 2>&1 | sed "s/$IP/<ip>/g"
+if ! timeout $((SECS + 40)) $PY $D/observe.py $IP $SECS $S/obs-$L.txt "$F" 2>&1 | sed "s/$IP/<ip>/g"; then
+  echo "observe.py failed or timed out, no summary"; wait $P; exit 1
+fi
 wait $P
 echo "ping: $(tail -2 $S/ping-$L.txt | head -1 | sed "s/$IP/<ip>/g") $(tail -1 $S/ping-$L.txt)"
 python3 - "$S/obs-$L.txt" <<'PY'

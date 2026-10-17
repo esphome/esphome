@@ -7,7 +7,7 @@ esphome:
     priority: -100
     then:
       - lambda: |-
-          ESP_LOGI("crashtest", "boot, crashed_before=%d run=", id(crashed_${run}));
+          ESP_LOGI("crashtest", "boot, crashed_before=%d run=%s", id(crashed_${run}), "${run}");
       - delay: 20s
       - if:
           condition:

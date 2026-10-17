@@ -11,14 +11,19 @@ D=${0:A:h}
 L=$1; P=$2; ELF=$3; S=${4:-.}
 PY=${PYTHON:-python3}
 CAP=$D/../serial_capture.py
-$PY $CAP $P 3 $S/$L-brief.txt >/dev/null 2>&1
+capture() {  # SECONDS OUTFILE: stop the flow when the capture fails (busy or missing port)
+  if ! $PY $CAP $P $1 $2 > $2.err 2>&1; then
+    echo "capture of $2 failed:"; cat $2.err; exit 1
+  fi
+}
+capture 3 $S/$L-brief.txt
 echo "$L brief 3 s open: $(wc -l < $S/$L-brief.txt) lines, CD lines $(grep -a -c '#CD:' $S/$L-brief.txt), END $(grep -a -c '#CD:END#' $S/$L-brief.txt)"
 sleep 5
-$PY $CAP $P 100 $S/$L-full.txt >/dev/null 2>&1
+capture 100 $S/$L-full.txt
 echo "$L full 100 s open: $(wc -l < $S/$L-full.txt) lines, CD lines $(grep -a -c '#CD:' $S/$L-full.txt), BEGIN $(grep -a -c '#CD:BEGIN#' $S/$L-full.txt), END $(grep -a -c '#CD:END#' $S/$L-full.txt)"
 grep -a "crashtest\|zephyr_coredump\|Reset reason\|Has stored\|  Size:\|  Error:\|took a long\|compiled on" $S/$L-full.txt | grep -a -v "#CD:[0-9A-F]" | head -16
 sleep 3
-$PY $CAP $P 20 $S/$L-after.txt >/dev/null 2>&1
+capture 20 $S/$L-after.txt
 echo "$L reopen 20 s: CD lines $(grep -a -c '#CD:' $S/$L-after.txt); $(grep -a 'Has stored\|  Size:' $S/$L-after.txt | sed -E 's/^\[[^]]*\]//' | tr '\n' ' ')"
 echo "== decode"
 $D/decode.sh $S/$L-full.txt $ELF $S/$L

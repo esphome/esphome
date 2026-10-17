@@ -51,25 +51,28 @@ class Client:
         self.s.sendall(req.encode())
         return self.cseq
 
+    def _recv(self):
+        chunk = self.s.recv(4096)
+        if not chunk:
+            raise ConnectionError("closed")
+        self.buf += chunk
+
     def read_response(self):
         # Read until a full RTSP response (headers + optional body); skip any interleaved data in between
         while True:
             if self.buf.startswith(b"$"):
                 if len(self.buf) < 4:
-                    self.buf += self.s.recv(4096)
+                    self._recv()
                     continue
                 ln = struct.unpack(">H", self.buf[2:4])[0]
                 if len(self.buf) < 4 + ln:
-                    self.buf += self.s.recv(4096)
+                    self._recv()
                     continue
                 self.buf = self.buf[4 + ln :]
                 continue
             end = self.buf.find(b"\r\n\r\n")
             if end < 0:
-                chunk = self.s.recv(4096)
-                if not chunk:
-                    raise ConnectionError("closed")
-                self.buf += chunk
+                self._recv()
                 continue
             head = self.buf[:end].decode(errors="replace")
             body_len = 0
@@ -77,7 +80,7 @@ class Client:
                 if line.lower().startswith("content-length:"):
                     body_len = int(line.split(":", 1)[1])
             while len(self.buf) < end + 4 + body_len:
-                self.buf += self.s.recv(4096)
+                self._recv()
             body = self.buf[end + 4 : end + 4 + body_len]
             self.buf = self.buf[end + 4 + body_len :]
             status = int(head.split(" ", 2)[1])
@@ -267,7 +270,8 @@ for case in cases:
                 st, _, _ = d.read_response()
                 third = f"third got {st}"
                 d.close()
-            except Exception as e:  # noqa: BLE001
+            except ConnectionError as e:
+                # refused, reset or closed by the server; a timeout or a bug propagates and fails the case
                 third = f"third rejected ({type(e).__name__})"
             a.send("TEARDOWN")
             a.read_response()
@@ -316,10 +320,11 @@ for case in cases:
                         break
             except ConnectionError:
                 dead = True
+            elapsed = time.monotonic() - t0
             say(
                 case,
-                True,
-                f"connection closed by server after idle: {dead} at {time.monotonic() - t0:.0f} s (expect ~60 s session timeout if the client sends nothing)",
+                dead and 50 <= elapsed <= 68,
+                f"connection closed by server after idle: {dead} at {elapsed:.0f} s (expect the 60 s session timeout when the client sends nothing)",
             )
     except Exception as e:  # noqa: BLE001
         say(case, False, f"exception {type(e).__name__}: {e}")

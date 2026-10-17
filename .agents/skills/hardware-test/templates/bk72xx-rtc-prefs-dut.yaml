@@ -3,14 +3,14 @@ substitutions:
 
 esphome:
   name: lt21007e
-  includes: [ltprefs.hpp]
+  includes: [../scripts/libretiny_prefs/ltprefs.hpp]
   platformio_options:
     build_flags: ["-DUSE_LIBRETINY_RTC_PREFERENCES"]
   on_boot:
     priority: -100
     then:
       - lambda: id(act) = ltprefs_boot(id(step), ${run});
-      # the first boot waits so the host can open the port (which resets the chip) before the sequence starts
+      # the first boot waits so the host can open the port and pulse a reset before the sequence starts
       - delay: !lambda 'return (id(step) == 0 || id(step) == 8) ? 30000 : 3000;'
       - lambda: ltprefs_exit(id(step), ${run}, id(act));
 

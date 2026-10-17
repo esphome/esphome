@@ -43,7 +43,9 @@ inline int ltprefs_boot(int &step, uint32_t run) {
   memmove(&ltprefs_hist.line[1], &ltprefs_hist.line[0], sizeof(ltprefs_hist.line) - sizeof(ltprefs_hist.line[0]));
   strncpy(ltprefs_hist.line[0], ltprefs_report, sizeof(ltprefs_hist.line[0]) - 1);
   ltprefs_hist.line[0][sizeof(ltprefs_hist.line[0]) - 1] = 0;
-  histp.save(&ltprefs_hist);
+  if (!histp.save(&ltprefs_hist)) {
+    ESP_LOGW("lttest", "history save failed");
+  }
   int act = 0;
   bool save = true;
   switch (step) {
@@ -88,10 +90,10 @@ inline int ltprefs_boot(int &step, uint32_t run) {
   }
   if (save) {
     uint32_t v = 100 + step;
-    rtcp.save(&v);
-    flp.save(&v);
-    global_preferences->sync();
-    ESP_LOGI("lttest", "saved %u to rtc and flash, synced", v);
+    bool srtc = rtcp.save(&v);
+    bool sfl = flp.save(&v);
+    bool synced = global_preferences->sync();
+    ESP_LOGI("lttest", "save %u: rtc=%d flash=%d sync=%d", v, srtc, sfl, synced);
   }
   ESP_LOGI("lttest", "exit action=%d", act);
   return act;
@@ -99,9 +101,13 @@ inline int ltprefs_boot(int &step, uint32_t run) {
 
 inline void ltprefs_exit(int &step, uint32_t run, int act) {
   step++;
-  ltprefs_step_pref(run).save(&step);
-  global_preferences->sync();
-  ESP_LOGI("lttest", "step %d saved and synced", step);
+  bool saved = ltprefs_step_pref(run).save(&step);
+  bool synced = global_preferences->sync();
+  ESP_LOGI("lttest", "step %d save=%d sync=%d", step, saved, synced);
+  if (!saved || !synced) {
+    ESP_LOGE("lttest", "step not stored, staying idle instead of repeating the step");
+    return;
+  }
   vTaskDelay(pdMS_TO_TICKS(200));
   switch (act) {
     case 1:

@@ -143,7 +143,7 @@ async def main() -> None:
             await asyncio.sleep(1)
             lines, offset = tail(CAPTURE, offset)
             notes += [line.strip() for line in lines if INTEREST.search(line)]
-        ok = expect in ("any", outcome)
+        ok = outcome == expect or (expect == "any" and outcome != "no outcome")
         rows.append((label, path, expect, outcome, took, ok, notes))
         print(
             f"{'PASS' if ok else 'FAIL'} {label:32s} {path:18s} expected {expect:9s} got {outcome:10s} {took:5.1f}s",

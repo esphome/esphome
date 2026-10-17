@@ -155,8 +155,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   the camera is off by default. `power_down_pin: GPIO8` only pulls it low 10 ms before the probe, which is
   not enough; use `switch: gpio GPIO8 restore_mode: ALWAYS_OFF setup_priority: 800` plus `on_boot:
   priority: 700` with `delay(1200)` and `esp32_camera: setup_priority: 200`
-  (`templates/rtsp-waveshare-s3-eth-dut.yaml`). `esphome config` rejects GPIO8 in both the switch and
-  `power_down_pin`.
+  (`templates/rtsp-waveshare-s3-eth-dut.yaml`). `esphome config` rejects a config that uses GPIO8 for both the switch
+  and `power_down_pin` (pin reuse), so it is one or the other.
 - The sensor at SCCB 0x3C answers only with XCLK running, so the ESPHome i2c scan at boot (before XCLK)
   reporting no devices on 48/47 is expected. If the SCCB ID register (0x3100 = 0x78) reads fine but every
   0x30xx register reads 0x00 (`Detected camera not supported`, 0x106), reseat the ribbon before blaming

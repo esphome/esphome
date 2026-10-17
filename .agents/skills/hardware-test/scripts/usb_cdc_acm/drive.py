@@ -32,6 +32,11 @@ def say(case, ok, detail):
     print(f"{'PASS' if ok else 'FAIL'} {case}: {detail}", flush=True)
 
 
+def info(case, detail):
+    """A case whose result lives in the device log; printed, not counted."""
+    print(f"INFO {case}: {detail}", flush=True)
+
+
 def open_port(baud=115200):
     s = serial.Serial(port, baudrate=baud, timeout=1)
     time.sleep(0.3)  # let the 100 ms line-state poll see DTR and the echo loop settle
@@ -132,7 +137,10 @@ for case in cases:
         cmd(s, b"K", b"Z")
         time.sleep(0.5)
         s.close()
-        say(case, True, "peek/read result in device log (expect ok=1 0x5A for both)")
+        info(
+            case,
+            "peek/read result is in the device log: expect `peek ok=1 0x5A read ok=1 0x5A`",
+        )
     elif case == "linecoding":
         for baud in (9600, 115200, 921600):
             s = open_port(baud)
