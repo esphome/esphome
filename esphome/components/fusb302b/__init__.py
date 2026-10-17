@@ -4,7 +4,6 @@ from esphome.components import i2c, sensor, text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
-    CONF_ID,
     CONF_INTERRUPT_PIN,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
@@ -99,9 +98,7 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     interrupt_pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
-    var = cg.new_Pvariable(config[CONF_ID], interrupt_pin)
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config, interrupt_pin)
     cg.add(var.set_request_voltage(config[CONF_REQUEST_VOLTAGE]))
 
     sensors = sensor.sub_sensors(config)
