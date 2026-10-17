@@ -3,6 +3,7 @@ from typing import NamedTuple
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_DRIVE_STRENGTH
 from esphome.components.gpio_expander import validate_interrupt_pin
 import esphome.config_validation as cv
 from esphome.const import (
@@ -28,7 +29,6 @@ DEPENDENCIES = ["i2c"]
 DOMAIN = "pca9554"
 MULTI_CONF = True
 
-CONF_DRIVE_STRENGTH = "drive_strength"
 CONF_LATCH = "latch"
 CONF_PCA9554 = "pca9554"
 CONF_PIN_COUNT = "pin_count"
