@@ -48,10 +48,11 @@ TEST(OneWireDevice, ProtocolRoundTrips) {
         b = read(d);
       EXPECT_TRUE(crc(sp, 8) == sp[8]);
       int raw = int16_t(sp[0] | (sp[1] << 8));
-      if (family == 0x10)
+      if (family == 0x10) {
         EXPECT_TRUE((raw >> 1) * 16 + 12 - sp[6] == value && sp[7] == 16);
-      else
+      } else {
         EXPECT_TRUE(raw == value && sp[6] != 0x0c);
+      }
     }
     d.reset();
     write(d, 0x33, 0);
