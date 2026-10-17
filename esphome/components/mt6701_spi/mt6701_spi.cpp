@@ -10,24 +10,43 @@ ESPHOME_LOG_TAG(TAG, "mt6701_spi");
 // polynomial shifted up by two, so a good frame checks to zero as a whole
 static constexpr uint8_t CRC6_AS_CRC8_POLY = 0x0C;
 
+bool decode_frame(const uint8_t frame[3], uint16_t &count, uint8_t &status) {
+  if (crc8(frame, 3, 0x00, CRC6_AS_CRC8_POLY, true) != 0)
+    return false;
+  const uint32_t bits = encode_uint24(frame[0], frame[1], frame[2]);
+  count = bits >> 10;
+  status = (bits >> 6) & 0x0F;
+  return true;
+}
+
+ProbeResult probe_result(uint8_t valid_frames, bool any_nonzero) {
+  if (valid_frames < PROBE_MIN_VALID)
+    return ProbeResult::PROBE_RESULT_NO_ENCODER;
+  return any_nonzero ? ProbeResult::PROBE_RESULT_OK : ProbeResult::PROBE_RESULT_ALL_ZERO;
+}
+
 void MT6701SPIComponent::setup() {
   this->spi_setup();
-  // Noise passes the 6-bit CRC 1 time in 64, so a present encoder must send 3 valid frames. A
-  // stuck-low data line reads all-zero frames that pass too; that only gets a warning, since a
-  // real encoder resting at count 0 with no flags set looks the same and must keep working.
+  // An all-zero result only warns: a real encoder resting at count 0 with no flags set looks
+  // like a stuck-low data line and must keep working
   uint8_t valid = 0;
   bool nonzero = false;
-  for (uint8_t i = 0; i < 10 && (valid < 3 || !nonzero); i++) {
+  for (uint8_t i = 0; i < PROBE_FRAMES && (valid < PROBE_MIN_VALID || !nonzero); i++) {
     uint16_t count;
     if (this->read_count(count)) {
       valid++;
       nonzero |= count != 0 || this->status_ != 0;
     }
   }
-  if (valid < 3) {
-    this->mark_failed(LOG_STR("no valid frame received, check the wiring and CS pin"));
-  } else if (!nonzero) {
-    ESP_LOGW(TAG, "Every frame read zero: the data line may be stuck low");
+  switch (probe_result(valid, nonzero)) {
+    case ProbeResult::PROBE_RESULT_NO_ENCODER:
+      this->mark_failed(LOG_STR("no valid frame received, check the wiring and CS pin"));
+      break;
+    case ProbeResult::PROBE_RESULT_ALL_ZERO:
+      ESP_LOGW(TAG, "Every frame read zero: the data line may be stuck low");
+      break;
+    case ProbeResult::PROBE_RESULT_OK:
+      break;
   }
 }
 
@@ -45,13 +64,7 @@ bool MT6701SPIComponent::read_count(uint16_t &count) {
   this->enable();
   this->read_array(buffer, 3);
   this->disable();
-  if (crc8(buffer, 3, 0x00, CRC6_AS_CRC8_POLY, true) != 0)
-    return false;
-
-  const uint32_t frame = encode_uint24(buffer[0], buffer[1], buffer[2]);
-  count = frame >> 10;
-  this->status_ = (frame >> 6) & 0x0F;
-  return true;
+  return decode_frame(buffer, count, this->status_);
 }
 
 }  // namespace esphome::mt6701_spi
