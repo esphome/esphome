@@ -1007,18 +1007,41 @@ template<unsigned BITS> constexpr int32_t sign_extend(uint32_t value) {
 }
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
-  T val = 0;
-  for (size_t i = 0; i < sizeof(T); i++) {
-    val <<= 8;
-    val |= bytes[i];
+/// A signed T takes the two's complement of the assembled bits.
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
+  if constexpr (sizeof(T) == 1) {
+    return static_cast<T>(bytes[0]);
+  } else {
+    std::make_unsigned_t<T> val = 0;
+    for (size_t i = 0; i < sizeof(T); i++) {
+      val <<= 8;
+      val |= bytes[i];
+    }
+    return static_cast<T>(val);
   }
-  return val;
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
 constexpr T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
   return encode_value<T>(bytes.data());
+}
+/// Encode a value from its constituent bytes (from least to most significant) in an array with length sizeof(T).
+/// A signed T takes the two's complement of the assembled bits.
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
+constexpr T encode_value_le(const uint8_t *bytes) {
+  // Loops here grow 16-bit callers by up to 48 bytes on ESP8266 through different inlining
+  if constexpr (sizeof(T) == 1) {
+    return static_cast<T>(bytes[0]);
+  } else if constexpr (sizeof(T) == 2) {
+    return static_cast<T>(encode_uint16(bytes[1], bytes[0]));
+  } else {
+    std::make_unsigned_t<T> val = 0;
+    for (size_t i = sizeof(T); i > 0; i--) {
+      val <<= 8;
+      val |= bytes[i - 1];
+    }
+    return static_cast<T>(val);
+  }
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>

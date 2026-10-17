@@ -80,6 +80,11 @@ bool I2CDevice::write_byte_16(uint8_t a_register, uint16_t data) const {
   return this->bus_->write_readv(this->address_, buffer, sizeof(buffer), nullptr, 0) == ERROR_OK;
 }
 
+bool I2CDevice::write_byte_16_le(uint8_t a_register, uint16_t data) const {
+  const uint8_t buffer[3] = {a_register, static_cast<uint8_t>(data), static_cast<uint8_t>(data >> 8)};
+  return this->bus_->write_readv(this->address_, buffer, sizeof(buffer), nullptr, 0) == ERROR_OK;
+}
+
 I2CRegister &I2CRegister::operator=(uint8_t value) {
   this->parent_->write_register(this->register_, &value, 1);
   return *this;
