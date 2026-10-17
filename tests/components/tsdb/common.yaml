@@ -17,7 +17,8 @@ tsdb:
       name: humidity
       scale_factor: 10.0
       offset: 0.0
-  errors_sensor: tsdb_errors
+  errors_sensor:
+    name: TSDB errors
 
 sensor:
   - platform: template
@@ -29,11 +30,6 @@ sensor:
     id: tsdb_humidity
     name: TSDB humidity
     lambda: return 48.0f;
-    update_interval: 60s
-  - platform: template
-    id: tsdb_errors
-    name: TSDB errors
-    lambda: return 0.0f;
     update_interval: 60s
 
 time:

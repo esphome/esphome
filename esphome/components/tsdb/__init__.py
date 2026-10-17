@@ -22,6 +22,8 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_TIME_ID,
     CONF_UPDATE_INTERVAL,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_TOTAL_INCREASING,
     Framework,
     PlatformFramework,
 )
@@ -143,8 +145,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
     for column in columns:
         if column[CONF_SCALE_FACTOR] == 0:
             raise cv.Invalid(f"'{column[CONF_NAME]}': scale_factor must not be 0")
-    if config[CONF_REQUIRE_TIME] and CONF_TIME_ID not in config:
-        raise cv.Invalid("`require_time: true` needs a `time_id:`")
     partition = config[CONF_PARTITION_SIZE]
     min_free = config[CONF_MIN_FREE_BYTES]
     max_file = config[CONF_MAX_FILE_SIZE]
@@ -207,7 +207,11 @@ CONFIG_SCHEMA = cv.All(
                 cv.ensure_list(COLUMN_SCHEMA),
                 cv.Length(min=1, max=TSDB_MAX_BASE_PARAMS),
             ),
-            cv.Optional(CONF_ERRORS_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_ERRORS_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
         }
     ),
     _validate_config,
@@ -249,8 +253,8 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_column_source(index, await cg.get_variable(column[CONF_SENSOR])))
 
-    if (target := config.get(CONF_ERRORS_SENSOR)) is not None:
-        cg.add(var.set_errors_sensor(await cg.get_variable(target)))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ERRORS_SENSOR, var.set_errors_sensor)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

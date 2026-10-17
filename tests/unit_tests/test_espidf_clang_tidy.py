@@ -85,7 +85,7 @@ def test_setup_core_sets_arduino_env(
     assert os.environ["ESPHOME_ARDUINO_COMPONENT"] == expected
 
 
-def test_espidf_only_deps_are_tsdb_engines() -> None:
+def test_tsdb_idf_deps_are_the_pinned_engines() -> None:
     """The idf envs get tsdb's registry engines, pinned as tsdb pins them."""
     from esphome.components.tsdb import (
         ESP_LITTLEFS_COMPONENT,
@@ -94,7 +94,7 @@ def test_espidf_only_deps_are_tsdb_engines() -> None:
         ESP_TSDB_VERSION,
     )
 
-    assert clang_tidy._espidf_only_deps() == {
+    assert clang_tidy._tsdb_idf_deps() == {
         ESP_TSDB_COMPONENT: {"version": ESP_TSDB_VERSION},
         ESP_LITTLEFS_COMPONENT: {"version": ESP_LITTLEFS_VERSION},
     }
@@ -134,7 +134,7 @@ def test_generate_compile_commands_scopes_engines_to_idf(
 
     # Both phases of the two-phase configure see the same deps.
     assert len(written) == 2
-    engines = set(clang_tidy._espidf_only_deps())
+    engines = set(clang_tidy._tsdb_idf_deps())
     for deps in written:
         if expects_engines:
             assert engines <= set(deps)
@@ -154,7 +154,7 @@ def test_write_tidy_project_merges_espidf_only_deps(tmp_path: Path) -> None:
 
     from esphome.components.tsdb import ESP_TSDB_COMPONENT, ESP_TSDB_VERSION
 
-    _write_tidy_project(tmp_path, [], clang_tidy._espidf_only_deps(), _settings())
+    _write_tidy_project(tmp_path, [], clang_tidy._tsdb_idf_deps(), _settings())
 
     manifest = yaml.safe_load(
         (tmp_path / "main" / "idf_component.yml").read_text(encoding="utf-8")

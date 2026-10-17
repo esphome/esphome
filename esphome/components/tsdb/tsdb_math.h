@@ -72,14 +72,24 @@ constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t
 }
 
 // raw = round(value * scale + offset), clamped to int16.
-inline int16_t encode(double value, double scale, double offset = 0.0) {
+// *saturated reports that the scaled value fell outside int16 and was clamped,
+// so a scale_factor that is too small for the sensor's range does not pass silently.
+inline int16_t encode(double value, double scale, double offset = 0.0, bool *saturated = nullptr) {
+  if (saturated != nullptr)
+    *saturated = false;
   if (!std::isfinite(value) || scale == 0.0)
     return RAW_UNKNOWN;
   const double raw = std::round(value * scale + offset);
-  if (raw < static_cast<double>(RAW_MIN))
+  if (raw < static_cast<double>(RAW_MIN)) {
+    if (saturated != nullptr)
+      *saturated = true;
     return RAW_MIN;
-  if (raw > static_cast<double>(RAW_MAX))
+  }
+  if (raw > static_cast<double>(RAW_MAX)) {
+    if (saturated != nullptr)
+      *saturated = true;
     return RAW_MAX;
+  }
   return static_cast<int16_t>(raw);
 }
 

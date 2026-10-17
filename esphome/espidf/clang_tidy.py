@@ -129,13 +129,13 @@ def _arduino_framework_deps(version: str) -> dict[str, dict]:
     return {ARDUINO_ESP32_COMPONENT_NAME: {"version": version}}
 
 
-def _espidf_only_deps() -> dict[str, dict]:
-    """Registry engines of the ESP-IDF-only components, for the ``idf`` envs.
+def _tsdb_idf_deps() -> dict[str, dict]:
+    """Registry engines tsdb needs, for the ``idf`` tidy envs.
 
-    A component that only builds for ESP-IDF adds its managed components from
-    ``to_code()``; the tidy project loads no config, so nothing does that here
-    and its sources cannot find the engine headers. The versions come from the
-    component itself -- the database file format belongs to them.
+    tsdb is ESP-IDF only and adds its managed components (esp_tsdb, littlefs)
+    from ``to_code()``; the tidy project loads no config, so nothing does that
+    here and tsdb's sources cannot find the engine headers. The versions come
+    from tsdb itself -- the database file format belongs to it.
     """
     from esphome.components.tsdb import (
         ESP_LITTLEFS_COMPONENT,
@@ -449,11 +449,11 @@ def _generate_compile_commands(
         # libsodium clash with noise-c and ~26 unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
     else:
-        # tsdb is ESP-IDF only and adds its engines from to_code(), which never
-        # runs here. The arduino envs must not get them: littlefs is one of the
-        # components they stub out (_arduino_excluded_stubs), and a real dep
-        # alongside that stub does not resolve.
-        extra_deps.update(_espidf_only_deps())
+        # tsdb's engines: tsdb is ESP-IDF only and adds them from to_code(),
+        # which never runs here. The arduino envs must not get them: littlefs is
+        # one of the components they stub out (_arduino_excluded_stubs), and a
+        # real dep alongside that stub does not resolve.
+        extra_deps.update(_tsdb_idf_deps())
 
     # Phase 1: discover the components available for this target.
     _write_tidy_project(work_dir, [], extra_deps, settings)

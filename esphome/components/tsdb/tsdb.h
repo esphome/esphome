@@ -4,11 +4,11 @@
 #ifdef USE_ESP_IDF
 
 #include <cstdint>
-#include <string>
 #include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/time/real_time_clock.h"
 
@@ -19,7 +19,7 @@
 namespace esphome::tsdb {
 
 struct TsdbColumn {
-  std::string name;
+  StringRef name;
   sensor::Sensor *source{nullptr};
   double scale{1.0};
   double offset{0.0};
@@ -35,9 +35,9 @@ class TsdbComponent : public PollingComponent {
   void dump_config() override;
   void on_shutdown() override;
 
-  void set_file(const std::string &file) { this->file_ = file; }
-  void set_mount_point(const std::string &mount_point) { this->mount_point_ = mount_point; }
-  void set_partition_label(const std::string &label) { this->partition_label_ = label; }
+  void set_file(const char *file) { this->file_ = StringRef(file); }
+  void set_mount_point(const char *mount_point) { this->mount_point_ = StringRef(mount_point); }
+  void set_partition_label(const char *label) { this->partition_label_ = StringRef(label); }
   void set_partition_size(uint32_t bytes) { this->partition_size_ = bytes; }
   void set_format_on_first_boot(bool format) { this->format_on_first_boot_ = format; }
   void set_max_file_size(uint32_t bytes) { this->max_file_size_ = bytes; }
@@ -49,23 +49,25 @@ class TsdbComponent : public PollingComponent {
   void set_missing_policy(uint8_t policy) { this->missing_policy_ = policy; }
   void set_time_source(time::RealTimeClock *clock) { this->time_ = clock; }
 
-  void add_column(const std::string &name, double scale, double offset);
+  void add_column(const char *name, double scale, double offset);
   void set_column_source(size_t index, sensor::Sensor *source);
 
   bool is_ready() const { return this->db_ != nullptr; }
 
  protected:
   bool mount_filesystem_();
+  void unmount_filesystem_();
   bool open_database_();
-  void log_init_failure_(const char *stage);
+  void log_init_failure_();
   void close_database_();
   bool write_record_();
+  void publish_errors_();
   void flush_(bool force);
   static uint64_t free_space_probe();
 
-  std::string file_{"history.tsdb"};
-  std::string mount_point_{"/littlefs"};
-  std::string partition_label_{"littlefs"};
+  StringRef file_{"history.tsdb"};
+  StringRef mount_point_{"/littlefs"};
+  StringRef partition_label_{"littlefs"};
   uint32_t partition_size_{512 * 1024};
   bool format_on_first_boot_{true};
   uint32_t max_file_size_{384 * 1024};
@@ -76,6 +78,7 @@ class TsdbComponent : public PollingComponent {
   bool require_time_{true};
   uint8_t missing_policy_{tsdbmath::MISSING_SKIP};
   std::vector<TsdbColumn> columns_{};
+  std::vector<int16_t> values_{};
   time::RealTimeClock *time_{nullptr};
 
   void *db_{nullptr};
@@ -83,10 +86,10 @@ class TsdbComponent : public PollingComponent {
   uint32_t writes_{0};
   uint32_t write_errors_{0};
   uint32_t dropped_{0};
+  uint32_t saturated_{0};
   uint32_t last_sync_{0};
   bool dirty_{false};
   bool warned_time_{false};
-  const char *failed_stage_{nullptr};
   esp_err_t mount_error_{ESP_OK};
   bool format_attempted_{false};
   esp_err_t format_error_{ESP_OK};

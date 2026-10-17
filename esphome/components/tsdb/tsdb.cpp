@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdio>
 #include <ctime>
+#include <string>
+#include <sys/stat.h>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -23,13 +25,14 @@ ESPHOME_LOG_TAG(TAG, "tsdb");
 static constexpr uint8_t LITTLEFS_SUBTYPE = 0x83;
 // Every Nth dropped record logs at WARN, the rest at DEBUG.
 static constexpr uint32_t DROP_LOG_EVERY = 10;
-
-static const char *const INIT_STAGE_CONFIG = "the configuration";
-static const char *const INIT_STAGE_MOUNT = "mounting the LittleFS partition";
-static const char *const INIT_STAGE_OPEN = "opening the database";
+// Rate limit for the free-space and out-of-range warnings.
+static constexpr uint32_t PROBE_LOG_EVERY = 100;
+static constexpr uint32_t SATURATION_LOG_EVERY = 100;
 
 // esp_tsdb free-space callback takes no context; the mounted label lives here.
 static const char *g_free_space_label = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Failed free-space probes, to rate limit the warning the callback emits.
+static uint32_t g_probe_failures = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static_assert(tsdbmath::BLOCK_SIZE == TSDB_BLOCK_SIZE, "esp_tsdb changed TSDB_BLOCK_SIZE");
 static_assert(tsdbmath::BLOCK_HEADER_SIZE == TSDB_BLOCK_HEADER_SIZE, "esp_tsdb changed the block header");
@@ -56,9 +59,9 @@ static bool partition_is_blank(const esp_partition_t *partition) {
   return true;
 }
 
-void TsdbComponent::add_column(const std::string &name, double scale, double offset) {
+void TsdbComponent::add_column(const char *name, double scale, double offset) {
   TsdbColumn column;
-  column.name = name;
+  column.name = StringRef(name);
   column.scale = scale;
   column.offset = offset;
   this->columns_.push_back(column);
@@ -69,38 +72,43 @@ void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { th
 void TsdbComponent::setup() {
   if (this->columns_.empty()) {
     ESP_LOGE(TAG, "tsdb: no columns configured");
-    this->failed_stage_ = INIT_STAGE_CONFIG;
-    this->log_init_failure_(this->failed_stage_);
+    this->log_init_failure_();
     this->mark_failed(LOG_STR("no columns configured"));
     return;
   }
+  // Size the write buffer once so write_record_() never allocates.
+  this->values_.reserve(this->columns_.size());
   if (!this->mount_filesystem_()) {
-    this->failed_stage_ = INIT_STAGE_MOUNT;
-    this->log_init_failure_(this->failed_stage_);
+    this->log_init_failure_();
     this->mark_failed(LOG_STR("mounting the LittleFS partition"));
     return;
   }
   if (!this->open_database_()) {
-    this->failed_stage_ = INIT_STAGE_OPEN;
-    this->log_init_failure_(this->failed_stage_);
+    this->log_init_failure_();
+    this->unmount_filesystem_();  // the failed open must not leak the mount
     this->mark_failed(LOG_STR("opening the database"));
     return;
   }
   ESP_LOGI(TAG, "%s: history opened", this->file_.c_str());
+  this->publish_errors_();  // report 0 back to the diagnostics sensor
 }
 
 void TsdbComponent::on_shutdown() {
-  if (this->db_ == nullptr)
+  if (this->db_ == nullptr) {
+    this->unmount_filesystem_();
     return;
+  }
   this->flush_(true);
   ESP_LOGI(TAG, "%s: closing on shutdown", this->file_.c_str());
   this->close_database_();
+  this->unmount_filesystem_();
 }
 
 bool TsdbComponent::mount_filesystem_() {
   const esp_partition_t *partition = esp_partition_find_first(
       ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(LITTLEFS_SUBTYPE), this->partition_label_.c_str());
   if (partition == nullptr) {
+    this->mount_error_ = ESP_ERR_NOT_FOUND;
     ESP_LOGE(TAG, "%s: no data/littlefs partition '%s' - flash the partition table over USB", this->file_.c_str(),
              this->partition_label_.c_str());
     return false;
@@ -115,7 +123,6 @@ bool TsdbComponent::mount_filesystem_() {
   conf.grow_on_mount = false;
 
   esp_err_t err = esp_vfs_littlefs_register(&conf);
-  this->mount_error_ = err;
   if (err != ESP_OK && this->format_on_first_boot_ && partition_is_blank(partition)) {
     ESP_LOGW(TAG, "%s: partition '%s' is unformatted - formatting it", this->file_.c_str(),
              this->partition_label_.c_str());
@@ -128,6 +135,7 @@ bool TsdbComponent::mount_filesystem_() {
                esp_err_to_name(this->format_error_));
     }
   }
+  this->mount_error_ = err;  // the final result, for log_init_failure_()
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "%s: mounting '%s' on %s failed: %s", this->file_.c_str(), this->partition_label_.c_str(),
              this->mount_point_.c_str(), esp_err_to_name(err));
@@ -146,30 +154,9 @@ bool TsdbComponent::mount_filesystem_() {
   return true;
 }
 
-static bool database_file_exists(const std::string &path) {
-  FILE *file = fopen(path.c_str(), "rb");
-  if (file == nullptr)
-    return false;
-  fclose(file);
-  return true;
-}
-
-static size_t file_size_of(const std::string &path) {
-  FILE *file = fopen(path.c_str(), "rb");
-  if (file == nullptr)
-    return 0;
-  if (fseek(file, 0, SEEK_END) != 0) {
-    fclose(file);
-    return 0;
-  }
-  const int64_t size = static_cast<int64_t>(ftell(file));
-  fclose(file);
-  return size > 0 ? static_cast<size_t>(size) : 0;
-}
-
-void TsdbComponent::log_init_failure_(const char *stage) {
+// One stat() covers both the presence and the size of the database file.
+void TsdbComponent::log_init_failure_() {
   const std::string path = this->mount_point_ + "/" + this->file_;
-  ESP_LOGE(TAG, "history is NOT available: setup failed at %s", stage);
   const esp_partition_t *partition = esp_partition_find_first(
       ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(LITTLEFS_SUBTYPE), this->partition_label_.c_str());
   if (partition == nullptr) {
@@ -178,13 +165,27 @@ void TsdbComponent::log_init_failure_(const char *stage) {
     ESP_LOGE(TAG, "  partition '%s': at 0x%08" PRIx32 ", %" PRIu32 " bytes", partition->label,
              static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size));
   }
+  struct stat info = {};
+  const bool present = ::stat(path.c_str(), &info) == 0;
   ESP_LOGE(TAG, "  mount: %s, %s: %s", esp_err_to_name(this->mount_error_), path.c_str(),
-           database_file_exists(path) ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("missing"));
-  if (database_file_exists(path)) {
-    ESP_LOGE(TAG, "    %" PRIu32 " bytes", static_cast<uint32_t>(file_size_of(path)));
+           present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("missing"));
+  if (present) {
+    ESP_LOGE(TAG, "    %" PRIu32 " bytes", static_cast<uint32_t>(info.st_size));
+  }
+  if (this->format_attempted_) {
+    ESP_LOGE(TAG, "  format attempt: %s", esp_err_to_name(this->format_error_));
   }
   ESP_LOGE(TAG, "  heap: %" PRIu32 " bytes internal free",
            static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)));
+}
+
+// A failed or shut-down database must not leave the VFS mount behind.
+void TsdbComponent::unmount_filesystem_() {
+  if (!this->mounted_)
+    return;
+  esp_vfs_littlefs_unregister(this->partition_label_.c_str());
+  this->mounted_ = false;
+  g_free_space_label = nullptr;
 }
 
 bool TsdbComponent::open_database_() {
@@ -234,12 +235,15 @@ void TsdbComponent::close_database_() {
 }
 
 uint64_t TsdbComponent::free_space_probe() {
-  if (g_free_space_label == nullptr)
-    return UINT64_MAX;
   size_t total = 0;
   size_t used = 0;
-  if (esp_littlefs_info(g_free_space_label, &total, &used) != ESP_OK)
-    return UINT64_MAX;
+  if (g_free_space_label == nullptr || esp_littlefs_info(g_free_space_label, &total, &used) != ESP_OK) {
+    // Fail closed: an unreadable free-space value must not disable min_free_bytes.
+    if (g_probe_failures++ % PROBE_LOG_EVERY == 0) {
+      ESP_LOGW(TAG, "free space could not be read - refusing to grow the database");
+    }
+    return 0;
+  }
   return static_cast<uint64_t>(total) - static_cast<uint64_t>(used);
 }
 
@@ -251,13 +255,12 @@ void TsdbComponent::update() {
 }
 
 bool TsdbComponent::write_record_() {
-  uint32_t timestamp = 0;
+  // Any synced time platform also sets the system clock, so ::time() is a usable fallback.
+  uint32_t timestamp = static_cast<uint32_t>(::time(nullptr));
   if (this->time_ != nullptr) {
     const ESPTime now = this->time_->now();
     if (now.is_valid())
       timestamp = static_cast<uint32_t>(now.timestamp);
-  } else {
-    timestamp = static_cast<uint32_t>(::time(nullptr));
   }
 
   if (this->require_time_ && !tsdbmath::is_valid_timestamp(timestamp)) {
@@ -269,22 +272,26 @@ bool TsdbComponent::write_record_() {
   }
   this->warned_time_ = false;
 
-  std::vector<int16_t> values;
-  values.reserve(this->columns_.size());
+  this->values_.clear();
   for (TsdbColumn &column : this->columns_) {
     const bool has_value =
         column.source != nullptr && column.source->has_state() && !tsdbmath::is_missing(column.source->state);
     if (has_value) {
-      column.held = tsdbmath::encode(column.source->state, column.scale, column.offset);
-      values.push_back(column.held);
+      bool saturated = false;
+      column.held = tsdbmath::encode(column.source->state, column.scale, column.offset, &saturated);
+      if (saturated && this->saturated_++ % SATURATION_LOG_EVERY == 0) {
+        ESP_LOGW(TAG, "%s: %s out of range for scale_factor %.6g - clamped, raise it?", this->file_.c_str(),
+                 column.name.c_str(), column.scale);
+      }
+      this->values_.push_back(column.held);
       continue;
     }
     if (this->missing_policy_ == tsdbmath::MISSING_HOLD && column.held != tsdbmath::RAW_UNKNOWN) {
-      values.push_back(column.held);
+      this->values_.push_back(column.held);
       continue;
     }
     if (this->missing_policy_ == tsdbmath::MISSING_SENTINEL) {
-      values.push_back(tsdbmath::RAW_UNKNOWN);
+      this->values_.push_back(tsdbmath::RAW_UNKNOWN);
       continue;
     }
     this->dropped_++;
@@ -293,20 +300,27 @@ bool TsdbComponent::write_record_() {
     } else {
       ESP_LOGD(TAG, "%s: %s has no value - record dropped", this->file_.c_str(), column.name.c_str());
     }
+    this->publish_errors_();
     return false;
   }
 
-  const esp_err_t err = tsdb_write_h(static_cast<tsdb_t *>(this->db_), timestamp, values.data());
+  const esp_err_t err = tsdb_write_h(static_cast<tsdb_t *>(this->db_), timestamp, this->values_.data());
   if (err != ESP_OK) {
     this->write_errors_++;
     ESP_LOGE(TAG, "%s: writing a record failed: %s", this->file_.c_str(), esp_err_to_name(err));
-    if (this->errors_sensor_ != nullptr)
-      this->errors_sensor_->publish_state(this->write_errors_);
+    this->publish_errors_();
     return false;
   }
   this->writes_++;
   this->dirty_ = true;
   return true;
+}
+
+// Errors covers failed writes/syncs and dropped records, so data loss is visible.
+void TsdbComponent::publish_errors_() {
+  if (this->errors_sensor_ == nullptr)
+    return;
+  this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_);
 }
 
 void TsdbComponent::flush_(bool force) {
@@ -323,8 +337,7 @@ void TsdbComponent::flush_(bool force) {
   if (err != ESP_OK) {
     this->write_errors_++;
     ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
-    if (this->errors_sensor_ != nullptr)
-      this->errors_sensor_->publish_state(this->write_errors_);
+    this->publish_errors_();
     return;
   }
   this->dirty_ = false;
@@ -341,10 +354,8 @@ void TsdbComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  write interval: %" PRIu32 " ms, sync interval: %" PRIu32 " ms", this->get_update_interval(),
                 this->sync_interval_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  the database is NOT available: setup failed at %s",
-             this->failed_stage_ != nullptr ? this->failed_stage_ : LOG_STR_LITERAL("an unknown stage"));
-  }
+  ESP_LOGCONFIG(TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32,
+                this->writes_, this->write_errors_, this->dropped_, this->saturated_);
 }
 
 }  // namespace esphome::tsdb
