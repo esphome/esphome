@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/hal.h"
+#include "esphome/components/remote_base/remote_base.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -17,31 +17,13 @@
 
 namespace esphome::vevor_dtx {
 
-struct VevorDtxStore {
-  static void gpio_intr(VevorDtxStore *arg);
-
-  volatile int32_t *buffer{nullptr};
-  volatile uint16_t buffer_index{0};
-  uint16_t buffer_size{512};
-  uint32_t filter_us{20};
-  ISRInternalGPIOPin pin;
-  volatile uint32_t last_micros{0};
-  volatile bool last_level{false};
-  volatile bool available{false};
-  volatile bool overflow{false};
-};
-
-class VevorDtxComponent : public Component {
+class VevorDtxComponent : public Component, public remote_base::RemoteReceiverListener {
  public:
-  void setup() override;
   void dump_config() override;
-  void loop() override;
+  bool on_receive(remote_base::RemoteReceiveData data) override;
 
-  void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   void set_bit_time_us(uint32_t bit_time_us) { this->bit_time_us_ = bit_time_us; }
-  void set_max_gap_us(uint32_t max_gap_us) { this->max_gap_us_ = max_gap_us; }
-  void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
-  void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
+  void set_station_id(uint16_t station_id) { this->station_id_ = station_id; }
 
 #ifdef USE_SENSOR
   void set_temperature_sensor(sensor::Sensor *sensor) { this->temperature_sensor_ = sensor; }
@@ -66,17 +48,18 @@ class VevorDtxComponent : public Component {
   static constexpr uint8_t PAYLOAD_SIZE = 21;
   static constexpr uint16_t MAX_BITS = 1024;
   static constexpr uint16_t MAX_BYTES = MAX_BITS / 8;
+  // No run inside a frame is this long; a longer one is the gap before or after it
+  static constexpr uint32_t MAX_RUN_CELLS = 24;
 
-  bool decode_bits_(const std::array<bool, MAX_BITS> &bits, uint16_t bit_count,
-                    std::array<uint8_t, PAYLOAD_SIZE> &payload) const;
-  bool extract_payload_(const std::array<uint8_t, MAX_BYTES> &bytes, uint16_t byte_count,
-                        std::array<uint8_t, PAYLOAD_SIZE> &payload) const;
-  bool decode_timings_(const volatile int32_t *timings, uint16_t timing_count,
-                       std::array<uint8_t, PAYLOAD_SIZE> &payload);
-  void reset_store_();
-  void publish_(const std::array<uint8_t, PAYLOAD_SIZE> &payload);
+  using Payload = std::array<uint8_t, PAYLOAD_SIZE>;
+  // The received bit stream, packed most significant bit first
+  using Bits = std::array<uint8_t, MAX_BYTES>;
 
-  InternalGPIOPin *pin_{nullptr};
+  bool decode_timings_(const remote_base::RawTimings &timings, Payload &payload) const;
+  bool decode_bits_(const Bits &bits, uint16_t bit_count, Payload &payload) const;
+  static bool extract_payload_(const std::array<uint8_t, MAX_BYTES> &bytes, uint16_t byte_count, Payload &payload);
+  bool publish_(const Payload &payload);
+
 #ifdef USE_SENSOR
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
@@ -96,13 +79,10 @@ class VevorDtxComponent : public Component {
 #endif
 
   uint32_t bit_time_us_{88};
-  uint32_t max_gap_us_{2000};
-  uint32_t filter_us_{20};
-  uint16_t buffer_size_{512};
-  uint8_t last_tx_counter_raw_{0};
+  uint16_t station_id_{0};  // 0 accepts every station in range
   uint16_t tx_counter_wraps_{0};
+  uint8_t last_tx_counter_raw_{0};
   bool has_last_tx_counter_{false};
-  VevorDtxStore store_;
 };
 
 }  // namespace esphome::vevor_dtx

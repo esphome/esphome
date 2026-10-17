@@ -9,53 +9,14 @@ namespace esphome::vevor_dtx {
 
 ESPHOME_LOG_TAG(TAG, "vevor_dtx");
 
-static uint16_t vevor_encode_uint16(uint8_t msb, uint8_t lsb) { return (uint16_t(msb) << 8) | lsb; }
-
-void IRAM_ATTR HOT VevorDtxStore::gpio_intr(VevorDtxStore *arg) {
-  if (arg->available) {
-    return;
-  }
-
-  const bool level = arg->pin.digital_read();
-  const uint32_t now = micros();
-  const uint32_t delta = now - arg->last_micros;
-  if (delta < arg->filter_us) {
-    return;
-  }
-
-  uint16_t index = arg->buffer_index;
-  if (index >= arg->buffer_size) {
-    arg->overflow = true;
-    arg->available = true;
-    return;
-  }
-
-  arg->buffer[index] = arg->last_level ? int32_t(delta) : -int32_t(delta);
-  arg->buffer_index = index + 1;
-  arg->last_micros = now;
-  arg->last_level = level;
-}
-
-void VevorDtxComponent::setup() {
-  this->pin_->setup();
-  this->store_.pin = this->pin_->to_isr();
-  this->store_.buffer = new int32_t[this->buffer_size_];
-  this->store_.buffer_size = this->buffer_size_;
-  this->store_.filter_us = this->filter_us_;
-  this->store_.last_level = this->pin_->digital_read();
-  this->store_.last_micros = micros();
-  this->pin_->attach_interrupt(VevorDtxStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
-}
-
 void VevorDtxComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Vevor DTX:\n"
-                "  Bit time: %" PRIu32 " us\n"
-                "  Max run gap: %" PRIu32 " us\n"
-                "  Filter pulses shorter than: %" PRIu32 " us\n"
-                "  Buffer Size: %" PRIu16,
-                this->bit_time_us_, this->max_gap_us_, this->filter_us_, this->buffer_size_);
-  LOG_PIN("  Pin: ", this->pin_);
+                "  Bit time: %" PRIu32 " us",
+                this->bit_time_us_);
+  if (this->station_id_ != 0) {
+    ESP_LOGCONFIG(TAG, "  Station ID: 0x%04X", this->station_id_);
+  }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -75,68 +36,38 @@ void VevorDtxComponent::dump_config() {
 #endif
 }
 
-void VevorDtxComponent::loop() {
-  auto &s = this->store_;
-
-  if (!s.available && s.buffer_index > 0 && micros() - s.last_micros >= this->max_gap_us_) {
-    InterruptLock lock;
-    if (!s.available && s.buffer_index > 0 && micros() - s.last_micros >= this->max_gap_us_) {
-      const uint16_t index = s.buffer_index;
-      if (index < s.buffer_size) {
-        const uint32_t delta = micros() - s.last_micros;
-        s.buffer[index] = s.last_level ? int32_t(delta) : -int32_t(delta);
-        s.buffer_index = index + 1;
-      } else {
-        s.overflow = true;
-      }
-      s.available = true;
-    }
+bool VevorDtxComponent::on_receive(remote_base::RemoteReceiveData data) {
+  Payload payload{};
+  if (!this->decode_timings_(data.get_raw_data(), payload)) {
+    ESP_LOGVV(TAG, "No Vevor DTX frame in %" PRId32 " timings", data.size());
+    return false;
   }
-
-  if (!s.available) {
-    return;
-  }
-
-  if (s.overflow) {
-    ESP_LOGW(TAG, "Buffer overflow");
-  }
-
-  std::array<uint8_t, PAYLOAD_SIZE> payload{};
-  if (this->decode_timings_(s.buffer, s.buffer_index, payload)) {
-    this->publish_(payload);
-  } else {
-    ESP_LOGVV(TAG, "No Vevor DTX frame found in %" PRIu16 " timings", s.buffer_index);
-  }
-  this->reset_store_();
+  return this->publish_(payload);
 }
 
-bool VevorDtxComponent::decode_timings_(const volatile int32_t *timings, uint16_t timing_count,
-                                        std::array<uint8_t, PAYLOAD_SIZE> &payload) {
-  std::array<bool, MAX_BITS> bits{};
+// Turns the mark and space runs into the NRZ bit stream: a high run of n bit times is n one bits
+bool VevorDtxComponent::decode_timings_(const remote_base::RawTimings &timings, Payload &payload) const {
+  Bits bits{};
   uint16_t bit_count = 0;
 
-  for (uint16_t timing_index = 0; timing_index < timing_count; timing_index++) {
-    const int32_t timing = timings[timing_index];
-    uint32_t duration = timing < 0 ? uint32_t(-timing) : uint32_t(timing);
-    if (duration >= this->max_gap_us_) {
+  for (const int32_t timing : timings) {
+    const uint32_t duration = timing < 0 ? uint32_t(-timing) : uint32_t(timing);
+    uint32_t cells = (duration + this->bit_time_us_ / 2) / this->bit_time_us_;
+    if (cells > MAX_RUN_CELLS) {
+      // The gap around the frame: skipped in front of it, the end of it behind
       if (bit_count > 0) {
         break;
       }
       continue;
     }
-
-    uint32_t cells = (duration + (this->bit_time_us_ / 2)) / this->bit_time_us_;
     if (cells == 0) {
       cells = 1;
     }
-    if (cells > 32) {
-      ESP_LOGVV(TAG, "Ignoring implausible run: %" PRIu32 " us -> %" PRIu32 " cells", duration, cells);
-      return false;
-    }
-
     const bool level = timing > 0;
-    for (uint32_t i = 0; i < cells && bit_count < MAX_BITS; i++) {
-      bits[bit_count++] = level;
+    for (uint32_t i = 0; i < cells && bit_count < MAX_BITS; i++, bit_count++) {
+      if (level) {
+        bits[bit_count / 8] |= 0x80 >> (bit_count % 8);
+      }
     }
     if (bit_count >= MAX_BITS) {
       ESP_LOGV(TAG, "Bit buffer full before frame end");
@@ -147,19 +78,18 @@ bool VevorDtxComponent::decode_timings_(const volatile int32_t *timings, uint16_
   return this->decode_bits_(bits, bit_count, payload);
 }
 
-bool VevorDtxComponent::decode_bits_(const std::array<bool, MAX_BITS> &bits, uint16_t bit_count,
-                                     std::array<uint8_t, PAYLOAD_SIZE> &payload) const {
+// The frame is not byte aligned to the first edge, so every bit offset is tried
+bool VevorDtxComponent::decode_bits_(const Bits &bits, uint16_t bit_count, Payload &payload) const {
   for (uint8_t bit_offset = 0; bit_offset < 8; bit_offset++) {
     std::array<uint8_t, MAX_BYTES> bytes{};
     uint16_t byte_count = 0;
     for (uint16_t pos = bit_offset; pos + 7 < bit_count && byte_count < MAX_BYTES; pos += 8) {
-      uint8_t value = 0;
-      for (uint8_t bit = 0; bit < 8; bit++) {
-        value = (value << 1) | uint8_t(bits[pos + bit]);
-      }
-      bytes[byte_count++] = value;
+      // Eight bits from pos straddle two packed bytes
+      const uint16_t index = pos / 8;
+      const uint16_t pair = (uint16_t(bits[index]) << 8) | (index + 1 < MAX_BYTES ? bits[index + 1] : 0);
+      bytes[byte_count++] = uint8_t(pair >> (8 - pos % 8));
     }
-    if (this->extract_payload_(bytes, byte_count, payload)) {
+    if (extract_payload_(bytes, byte_count, payload)) {
       ESP_LOGVV(TAG, "Decoded with bit offset %u", bit_offset);
       return true;
     }
@@ -167,17 +97,8 @@ bool VevorDtxComponent::decode_bits_(const std::array<bool, MAX_BITS> &bits, uin
   return false;
 }
 
-void VevorDtxComponent::reset_store_() {
-  InterruptLock lock;
-  this->store_.buffer_index = 0;
-  this->store_.last_level = this->pin_->digital_read();
-  this->store_.last_micros = micros();
-  this->store_.available = false;
-  this->store_.overflow = false;
-}
-
 bool VevorDtxComponent::extract_payload_(const std::array<uint8_t, MAX_BYTES> &bytes, uint16_t byte_count,
-                                         std::array<uint8_t, PAYLOAD_SIZE> &payload) const {
+                                         Payload &payload) {
   static constexpr std::array<uint8_t, SYNC_SIZE> SYNC{{0xAA, 0xAA, 0xCA, 0xCA, 0x54}};
 
   if (byte_count < SYNC_SIZE + PAYLOAD_SIZE) {
@@ -219,24 +140,28 @@ bool VevorDtxComponent::extract_payload_(const std::array<uint8_t, MAX_BYTES> &b
   return false;
 }
 
-void VevorDtxComponent::publish_(const std::array<uint8_t, PAYLOAD_SIZE> &payload) {
-  const uint16_t sensor_id = vevor_encode_uint16(payload[2], payload[3]);
-  const float temperature = (float(vevor_encode_uint16(payload[5], payload[6])) - 500.0f) / 10.0f;
+bool VevorDtxComponent::publish_(const Payload &payload) {
+  const uint16_t sensor_id = encode_uint16(payload[2], payload[3]);
+  if (this->station_id_ != 0 && sensor_id != this->station_id_) {
+    ESP_LOGV(TAG, "Ignoring station 0x%04X", sensor_id);
+    return false;
+  }
+  const float temperature = (float(encode_uint16(payload[5], payload[6])) - 500.0f) / 10.0f;
   const uint8_t humidity = payload[7];
 
-  const uint16_t wind_raw = vevor_encode_uint16(payload[8], payload[9]);
+  const uint16_t wind_raw = encode_uint16(payload[8], payload[9]);
   const float wind_speed_kmh = (float(wind_raw) - 0x0101) / 8.333f;
   const float wind_gust_kmh = float(payload[10]) / 1.25f;
   const float wind_speed = wind_speed_kmh / 3.6f;
   const float wind_gust = wind_gust_kmh / 3.6f;
-  const uint16_t direction_raw = vevor_encode_uint16(payload[11] & 0x0F, payload[12]);
+  const uint16_t direction_raw = encode_uint16(payload[11] & 0x0F, payload[12]);
   const float wind_direction = float(direction_raw) - 0x0101;
-  const uint16_t rain_raw = vevor_encode_uint16(payload[13], payload[14]);
+  const uint16_t rain_raw = encode_uint16(payload[13], payload[14]);
   const float rain = (float(rain_raw) - 0x0101) * 0.233f;
   const uint8_t uv_byte = payload[15];
   const int8_t uv_index = int8_t(uv_byte & 0x1F) - 1;
 
-  const uint16_t lux_raw = vevor_encode_uint16(payload[16], payload[17]);
+  const uint16_t lux_raw = encode_uint16(payload[16], payload[17]);
   float illuminance = float((lux_raw & 0x7FFF) - 0x0101);
   if ((lux_raw & 0x8000) != 0) {
     illuminance *= 10.0f;
@@ -294,6 +219,7 @@ void VevorDtxComponent::publish_(const std::array<uint8_t, PAYLOAD_SIZE> &payloa
   if (this->low_battery_sensor_ != nullptr)
     this->low_battery_sensor_->publish_state((payload[4] & 0x80) != 0);
 #endif
+  return true;
 }
 
 }  // namespace esphome::vevor_dtx

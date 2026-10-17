@@ -1,10 +1,8 @@
 vevor_dtx:
   id: vevor_dtx_hub
-  pin: GPIO14
+  receiver_id: rcvr
   bit_time: 88us
-  max_gap: 2ms
-  filter: 20us
-  buffer_size: 512b
+  station_id: 0x1234
 
 sensor:
   - platform: vevor_dtx
