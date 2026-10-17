@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from ipaddress import IPv4Address, IPv6Address
 import logging
 import re
@@ -253,7 +254,7 @@ def _validate_supports_response(value: Any) -> str:
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
 
-_DEFAULT_VALUE_VALIDATORS = {
+_DEFAULT_VALUE_VALIDATORS: dict[str, Callable[[Any], Any]] = {
     "bool": cv.boolean,
     "int": cv.int_,
     "float": cv.float_,
@@ -264,8 +265,7 @@ _DEFAULT_VALUE_VALIDATORS = {
 def _validate_variable_optionality(value: ConfigType) -> ConfigType:
     """Cross-validate required/default against the variable type."""
     var_type = value[CONF_TYPE]
-    is_optional = CONF_DEFAULT in value or value.get(CONF_REQUIRED) is False
-    if is_optional and var_type not in _DEFAULT_VALUE_VALIDATORS:
+    if _is_optional_var(value) and var_type not in _DEFAULT_VALUE_VALIDATORS:
         raise cv.Invalid("Array variables cannot be optional")
     if CONF_DEFAULT in value:
         if value.get(CONF_REQUIRED) is True:

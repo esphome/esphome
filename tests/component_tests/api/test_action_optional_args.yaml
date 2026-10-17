@@ -10,29 +10,5 @@ wifi:
 
 logger:
 
-api:
-  actions:
-    - action: play_buzzer
-      variables:
-        song_str:
-          type: string
-          required: false
-        notes:
-          type: string
-          required: false
-        octave:
-          type: int
-          default: 5
-        bpm:
-          type: int
-          default: 100
-        loud:
-          type: bool
-          default: true
-      then:
-        - logger.log: Action Called
-    - action: plain_action
-      variables:
-        value: int
-      then:
-        - logger.log: Action Called
+packages:
+  api: !include test_action_optional_args_common.yaml

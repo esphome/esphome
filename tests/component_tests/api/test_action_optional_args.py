@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -15,6 +16,7 @@ from esphome.config_validation import Invalid
 from esphome.core import CORE
 
 CONFIG = "tests/component_tests/api/test_action_optional_args.yaml"
+CONFIG_ESP8266 = "tests/component_tests/api/test_action_optional_args_esp8266.yaml"
 CONFIG_SHORTHAND = "tests/component_tests/api/test_action_metadata_shorthand.yaml"
 
 
@@ -38,6 +40,29 @@ def test_defaults_are_emitted_in_the_string_table(
     assert main_cpp.count("set_optional_args_mask(") == 1
     assert "set_optional_args_mask(31)" in main_cpp
     assert "USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS" in {d.name for d in CORE.defines}
+
+
+def test_esp8266_defaults_are_progmem_arrays(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """On ESP8266 each default is its own PROGMEM array, referenced from the table."""
+    main_cpp = generate_main(CONFIG_ESP8266)
+
+    def array_for(text: str) -> str:
+        match = re.search(
+            rf'static constexpr char (progmem_str\w*)\[\] PROGMEM = "{text}";', main_cpp
+        )
+        assert match, text
+        return match.group(1)
+
+    assert (
+        "static constexpr const char * api_action0_strings[] PROGMEM = {"
+        f"{array_for('play_buzzer')}, {array_for('song_str')}, nullptr, "
+        f"{array_for('notes')}, nullptr, {array_for('octave')}, {array_for('5')}, "
+        f"{array_for('bpm')}, {array_for('100')}, {array_for('loud')}, "
+        f"{array_for('true')}}};" in main_cpp
+    )
+    assert "set_optional_args_mask(31)" in main_cpp
 
 
 def test_required_variables_emit_no_mask_or_define(
