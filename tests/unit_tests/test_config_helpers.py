@@ -1,6 +1,7 @@
 """Unit tests for esphome.config_helpers module."""
 
 from collections.abc import Callable
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,7 @@ from esphome.config_helpers import (
     filter_source_files_from_platform,
     frameworks_for_platforms,
     get_logger_level,
+    iter_include_files,
 )
 from esphome.const import (
     CONF_LEVEL,
@@ -172,3 +174,15 @@ def test_filter_source_files_from_defines() -> None:
 
         mock_core.defines = set()
         assert sorted(filter_func()) == ["automation.cpp", "filter.cpp"]
+
+
+def test_iter_include_files(setup_core: Path) -> None:
+    """Files yield their name, directory members keep the directory prefix, system headers are skipped."""
+    (setup_core / "one.h").write_text("")
+    (setup_core / "lib").mkdir()
+    (setup_core / "lib" / "two.h").write_text("")
+    files = {
+        basename.as_posix()
+        for _, basename in iter_include_files(["one.h", "lib", "<cstdio>"])
+    }
+    assert files == {"one.h", "lib/two.h"}

@@ -217,6 +217,8 @@ ESPHOME_H_EXCLUDE = {
     Path(ENTITY_TYPES_H_TARGET),
     # main.cpp includes it after defining esphome_controllers()
     Path("esphome/core/controller_dispatch.h"),
+    # only the esp32 sscanf wrap includes it
+    Path("esphome/core/sscanf_no_float.h"),
     # build machinery, not user API
     Path("esphome/core/pch_prefix.h"),
 }
