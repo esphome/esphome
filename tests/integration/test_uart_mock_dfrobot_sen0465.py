@@ -64,7 +64,8 @@ async def test_uart_mock_dfrobot_sen0465(
 
         try:
             async with asyncio.timeout(15.0):
-                while state_of(concentration) is None:
+                # The unanswered request publishes NAN first; wait for the decoded reading
+                while (value := state_of(concentration)) is None or math.isnan(value):
                     await asyncio.sleep(0.05)
         except TimeoutError:
             pytest.fail(f"No reading; log: {lines[-20:]}")
