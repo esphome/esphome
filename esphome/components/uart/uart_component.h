@@ -23,6 +23,14 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_SPACE,
 };
 
+// A runtime setting like CRTSCTS and IXON/IXOFF in termios. A backend without the lines
+// keeps the value and ignores it, as a Linux driver does.
+enum UARTFlowControl : uint8_t {
+  UART_FLOW_CONTROL_NONE,
+  UART_FLOW_CONTROL_RTS_CTS,
+  UART_FLOW_CONTROL_XON_XOFF,
+};
+
 #ifdef USE_UART_DEBUGGER
 enum UARTDirection {
   UART_DIRECTION_RX,
@@ -185,6 +193,14 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+  // Set the flow control used in UART communication.
+  // @param flow_control Flow control option.
+  void set_flow_control(UARTFlowControl flow_control) { this->flow_control_ = flow_control; }
+
+  // Get the flow control used in UART communication.
+  // @return Flow control option.
+  UARTFlowControl get_flow_control() const { return this->flow_control_; }
+
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -231,6 +247,7 @@ class UARTComponent {
   uint32_t baud_rate_{0};
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
+  UARTFlowControl flow_control_{UART_FLOW_CONTROL_NONE};
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
