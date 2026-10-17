@@ -13,4 +13,9 @@ wifi:
     coexist: true
     napt: true
 
+# The coexist AP is a routed AP for its clients, not a provisioning surface: closing the
+# provisioning window ends the portal on it and leaves the AP up.
+provisioning:
+  timeout: 1min
+
 captive_portal:
