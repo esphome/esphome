@@ -4,7 +4,6 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_MODEL
-from esphome.core import ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -59,16 +58,11 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-def get_hub_config(root: ConfigType, hub_id: ID) -> ConfigType:
-    """Return the configuration of the hub with the given id."""
-    return next(conf for conf in root[DOMAIN] if conf[CONF_ID] == hub_id)
-
-
 def final_validate_mode(keys: dict[str, str]) -> Callable[[ConfigType], None]:
     """Reject entity keys that need a different hub mode; `keys` maps each key to the mode it needs."""
 
     def validator(config: ConfigType) -> None:
-        hub = get_hub_config(fv.full_config.get(), config[CONF_DFROBOT_SEN0609_ID])
+        hub = fv.get_declaring_config(config[CONF_DFROBOT_SEN0609_ID])
         for key, mode in keys.items():
             if key in config and hub[CONF_MODE] != mode:
                 raise cv.Invalid(
