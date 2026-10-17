@@ -30,10 +30,12 @@ enum class DisplayControl : uint8_t {
 
 class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditioner>, public climate::Climate {
  public:
+  void setup() override;
   void dump_config() override;
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = sensor; }
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
+  void set_compressor_power_sensor(Sensor *sensor) { this->compressor_power_sensor_ = sensor; }
   void set_display_control(DisplayControl control) { this->display_control_ = control; }
   void on_status_change() override;
 
@@ -56,6 +58,7 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   void set_custom_fan_modes(std::initializer_list<const char *> modes) { this->set_supported_custom_fan_modes(modes); }
 
  protected:
+  void poll_compressor_power_();
   void control(const ClimateCall &call) override;
   ClimateTraits traits() override;
   ClimateModeMask supported_modes_{};
@@ -66,6 +69,9 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
+  Sensor *compressor_power_sensor_{nullptr};
+  uint8_t compressor_power_failures_{0};
+  bool compressor_power_cooldown_{false};
 };
 
 }  // namespace esphome::midea::ac
