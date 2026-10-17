@@ -45,12 +45,11 @@ inline bool is_color_on(const Color &color) {
 
 RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Transparency transparency,
                            image::Image *placeholder, bool is_big_endian, int fixed_width, int fixed_height)
-    : Image(nullptr, 0, 0, type, transparency),
+    : Image(nullptr, 0, 0, type, transparency, is_big_endian),
       format_(format),
       fixed_width_(fixed_width),
       fixed_height_(fixed_height),
-      placeholder_(placeholder),
-      is_big_endian_(is_big_endian) {}
+      placeholder_(placeholder) {}
 
 RuntimeImage::~RuntimeImage() { this->release(); }
 
@@ -103,6 +102,22 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       }
       break;
     }
+    case image::IMAGE_TYPE_RGB111: {
+      uint8_t bits = (color.r >> 7) << 2 | (color.g >> 7) << 1 | (color.b >> 7);
+      if (this->bpp_ == 4)
+        bits = bits << 1 | (color.w >> 7);
+      const uint32_t stride = (this->buffer_width_ * this->bpp_ + 7u) / 8u;
+      const uint32_t bitpos = y * stride * 8 + x * this->bpp_;
+      uint8_t *byte = this->buffer_ + bitpos / 8;
+      // Place the pixel in a 16-bit window so it may straddle two bytes.
+      const uint8_t shift = 16 - this->bpp_ - bitpos % 8;
+      const uint16_t mask = ((1u << this->bpp_) - 1) << shift;
+      const uint16_t value = bits << shift;
+      byte[0] = (byte[0] & ~(mask >> 8)) | (value >> 8);
+      if (mask & 0xFF)
+        byte[1] = (byte[1] & ~(mask & 0xFF)) | (value & 0xFF);
+      break;
+    }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
       auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
@@ -125,7 +140,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
       uint16_t rgb565 = display::ColorUtil::color_to_565(mapped_color);
-      if (this->is_big_endian_) {
+      if (this->big_endian_) {
         this->buffer_[pos + 0] = static_cast<uint8_t>((rgb565 >> 8) & 0xFF);
         this->buffer_[pos + 1] = static_cast<uint8_t>(rgb565 & 0xFF);
       } else {
@@ -250,6 +265,8 @@ bool RuntimeImage::end_decode() {
 }
 
 bool RuntimeImage::is_decode_finished() const { return this->is_decoding() && this->decoder_->is_finished(); }
+
+bool RuntimeImage::decoder_knows_end() const { return this->is_decoding() && this->decoder_->knows_end(); }
 
 void RuntimeImage::release() {
   this->release_buffer_();

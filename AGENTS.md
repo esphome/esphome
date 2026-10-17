@@ -144,6 +144,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
 *   **C++ Preprocessor Directives:**
     *   **Avoid `#define` for constants:** Using `#define` for constants is discouraged and should be replaced with `const` variables or enums.
+    *   **A constant with a compile-time initializer is `static constexpr`,** not `static const`, at namespace scope
+        and inside functions; `static const` is only for a value computed at run time. A function-local
+        `static constexpr` table is a static constant to clang-tidy, so it is `UPPER_SNAKE_CASE` too.
     *   **Use `#define` only for:**
         - Conditional compilation (`#ifdef`, `#ifndef`)
         - Compile-time sizes calculated during Python code generation (e.g., configuring `std::array` or `StaticVector` dimensions via `cg.add_define()`)
@@ -217,8 +220,20 @@ file does, and it is the authority when they disagree. The most useful starting 
         listener base (a second vptr per entity).
     *   **A global feature define** says the code is compiled in, not that this instance uses it: keep the
         per-instance check (`if (this->aux_device_ == ...)`) inside the `#ifdef`.
+    *   **Model-specific code** sits behind a define the Python side emits only for configs that use that model
+        (`cg.add_define("USE_SELEC_METER_EM4M")`), so the other models' builds leave it out; the runtime model check
+        stays inside the `#ifdef`.
     *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
         sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+    *   **`dump_config()` already prints the failure reason:** for a failed component, core prints
+        `<component> is marked FAILED: <reason>` right after the component's `dump_config()`, using the reason
+        passed to `mark_failed()`. So `dump_config()` never checks `is_failed()` to log a failure, and no
+        `error_code_` member exists only to pick that message. Pass the reason where setup fails instead:
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))` for a failed bus transfer, a short specific reason
+        otherwise (`LOG_STR("Wrong chip ID")`). Core also logs it at that moment, so no `ESP_LOGE` repeats it
+        before `mark_failed()`; keep a separate line only when it prints a value read at run time, such as the
+        chip ID that did not match. Only the first reason is kept, so do not call `status_set_error()` before
+        `mark_failed()` and do not mark the component failed again after a helper already did.
     *   **Fixed platform facts compile to nothing:** gate on `#ifdef USE_ESP8266` and friends, not on a
         runtime check of something the build already knows.
     *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
@@ -567,6 +582,9 @@ file does, and it is the authority when they disagree. The most useful starting 
     An intentionally empty body (an unused `register_dumper` builder, for example) gets a one-line docstring, not `pass`.
 
 *   **Configuration Validation:**
+    *   **One schema per model:** when a component's options depend on a `model` key, use `cv.typed_schema({...},
+        key=CONF_MODEL, default_type=...)` with each model's own keys and defaults, not one schema plus a validator
+        that rejects keys and fills defaults afterwards.
     *   **Reuse existing validators:** Before writing a custom validator, check for an existing one in `config_validation.py` and compose it in `cv.All(...)` rather than duplicating logic across components. For example, rename a config key with `cv.rename_key(CONF_OLD, CONF_NEW, removed_in="2026.6.0")`, and reject mutually-exclusive keys with `cv.has_at_most_one_key(...)` / `cv.has_exactly_one_key(...)`. See how `api` composes `cv.has_exactly_one_key` + `cv.rename_key`.
     *   **Common Validators:** `cv.int_`, `cv.float_`, `cv.string`, `cv.boolean`, `cv.int_range(min=0, max=100)`, `cv.positive_int`, `cv.percentage`.
     *   **Complex Validation:** `cv.All(cv.string, cv.Length(min=1, max=50))`, `cv.Any(cv.int_, cv.string)`.
@@ -609,6 +627,9 @@ file does, and it is the authority when they disagree. The most useful starting 
         `on_tx` lambda with a static counter and `inject_to_rx_buffer` (see `uart_mock_ld2412_requery_after_giveup.yaml`).
     *   **Keep build-test variants few:** one `test.<platform>.yaml` per platform the code actually differs
         on. A variant per board for platform-identical code only adds CI time.
+    *   **A test that needs a shared component in a particular state** (`esp32_ble` security settings, an option
+        that PSRAM rejects) cannot be grouped: the merged block wins and the whole batch fails. Add the component to
+        `ISOLATED_COMPONENTS` in `script/analyze_component_buses.py`, or move the option to a `test-<variant>` file.
     *   **Component Tests:** YAML-based compilation tests are located in `tests/`. The structure is as follows:
         ```
         tests/

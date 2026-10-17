@@ -55,10 +55,9 @@ TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Comp
 TemplateClimateRestoreMode = template_ns.enum(
     "TemplateClimateRestoreMode", is_class=True
 )
-CLIMATE_RESTORE_MODES = {
-    "NO_RESTORE": TemplateClimateRestoreMode.TEMPLATE_CLIMATE_RESTORE_MODE_NO_RESTORE,
-    "RESTORE": TemplateClimateRestoreMode.TEMPLATE_CLIMATE_RESTORE_MODE_RESTORE,
-}
+CLIMATE_RESTORE_MODES = TemplateClimateRestoreMode.options(
+    "NO_RESTORE", "RESTORE", prefix="TEMPLATE_CLIMATE_RESTORE_MODE_"
+)
 
 # Per-field actions that forward a requested value on. The third item is the type of `x`.
 SET_ACTIONS = (

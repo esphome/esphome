@@ -32,7 +32,7 @@ ESPHOME_LOG_TAG(TAG, "ota");
 constexpr size_t MAX_OTA_SIZE = 256u * 1024u * 1024u;  // 256 MiB
 constexpr size_t HEADER_PEEK_SIZE = 64;
 
-ssize_t read_header_(const char *path, uint8_t *buf, size_t len) {
+ssize_t read_header(const char *path, uint8_t *buf, size_t len) {
   int fd = ::open(path, O_RDONLY);
   if (fd < 0)
     return -1;
@@ -50,7 +50,7 @@ struct ElfIdent {
   uint16_t e_type;
 };
 
-ElfIdent parse_elf_(const uint8_t *buf, size_t len) {
+ElfIdent parse_elf(const uint8_t *buf, size_t len) {
   ElfIdent out{};
   if (len < EI_NIDENT + 4)
     return out;
@@ -76,17 +76,17 @@ ElfIdent parse_elf_(const uint8_t *buf, size_t len) {
   return out;
 }
 
-bool validate_elf_(const char *staging_path, const std::string &exe_path) {
+bool validate_elf(const char *staging_path, const std::string &exe_path) {
   uint8_t new_buf[HEADER_PEEK_SIZE];
   uint8_t cur_buf[HEADER_PEEK_SIZE];
-  ssize_t new_n = read_header_(staging_path, new_buf, sizeof(new_buf));
-  ssize_t cur_n = read_header_(exe_path.c_str(), cur_buf, sizeof(cur_buf));
+  ssize_t new_n = read_header(staging_path, new_buf, sizeof(new_buf));
+  ssize_t cur_n = read_header(exe_path.c_str(), cur_buf, sizeof(cur_buf));
   if (new_n < static_cast<ssize_t>(EI_NIDENT + 4) || cur_n < static_cast<ssize_t>(EI_NIDENT + 4)) {
     ESP_LOGE(TAG, "ELF header read failed");
     return false;
   }
-  ElfIdent new_id = parse_elf_(new_buf, new_n);
-  ElfIdent cur_id = parse_elf_(cur_buf, cur_n);
+  ElfIdent new_id = parse_elf(new_buf, new_n);
+  ElfIdent cur_id = parse_elf(cur_buf, cur_n);
   if (!new_id.valid) {
     ESP_LOGE(TAG, "Uploaded payload is not a valid ELF");
     return false;
@@ -122,7 +122,7 @@ struct MachOIdent {
   uint32_t cpusubtype;
 };
 
-MachOIdent parse_macho_(const uint8_t *buf, size_t len) {
+MachOIdent parse_macho(const uint8_t *buf, size_t len) {
   MachOIdent out{};
   // mach_header is the common prefix of mach_header and mach_header_64;
   // cputype/cpusubtype/filetype have identical offsets in both.
@@ -153,18 +153,18 @@ MachOIdent parse_macho_(const uint8_t *buf, size_t len) {
   return out;
 }
 
-bool validate_macho_(const char *staging_path, const std::string &exe_path) {
+bool validate_macho(const char *staging_path, const std::string &exe_path) {
   uint8_t new_buf[HEADER_PEEK_SIZE];
   uint8_t cur_buf[HEADER_PEEK_SIZE];
-  ssize_t new_n = read_header_(staging_path, new_buf, sizeof(new_buf));
-  ssize_t cur_n = read_header_(exe_path.c_str(), cur_buf, sizeof(cur_buf));
+  ssize_t new_n = read_header(staging_path, new_buf, sizeof(new_buf));
+  ssize_t cur_n = read_header(exe_path.c_str(), cur_buf, sizeof(cur_buf));
   if (new_n < static_cast<ssize_t>(sizeof(struct mach_header)) ||
       cur_n < static_cast<ssize_t>(sizeof(struct mach_header))) {
     ESP_LOGE(TAG, "Mach-O header read failed");
     return false;
   }
-  MachOIdent new_id = parse_macho_(new_buf, new_n);
-  MachOIdent cur_id = parse_macho_(cur_buf, cur_n);
+  MachOIdent new_id = parse_macho(new_buf, new_n);
+  MachOIdent cur_id = parse_macho(cur_buf, cur_n);
   if (!new_id.valid) {
     ESP_LOGE(TAG, "Uploaded payload is not a valid thin Mach-O executable");
     return false;
@@ -182,11 +182,11 @@ bool validate_macho_(const char *staging_path, const std::string &exe_path) {
 }
 #endif  // __APPLE__
 
-bool validate_executable_(const char *staging_path, const std::string &exe_path) {
+bool validate_executable(const char *staging_path, const std::string &exe_path) {
 #ifdef __linux__
-  return validate_elf_(staging_path, exe_path);
+  return validate_elf(staging_path, exe_path);
 #elif defined(__APPLE__)
-  return validate_macho_(staging_path, exe_path);
+  return validate_macho(staging_path, exe_path);
 #else
   (void) staging_path;
   (void) exe_path;
@@ -298,7 +298,7 @@ OTAResponseTypes HostOTABackend::end() {
   ::close(this->fd_);
   this->fd_ = -1;
 
-  if (!validate_executable_(this->staging_path_.c_str(), this->final_path_)) {
+  if (!validate_executable(this->staging_path_.c_str(), this->final_path_)) {
     ::unlink(this->staging_path_.c_str());
     this->staging_path_.clear();
     return OTA_RESPONSE_ERROR_UPDATE_END;
