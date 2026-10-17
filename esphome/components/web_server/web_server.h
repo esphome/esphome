@@ -670,7 +670,7 @@ class WebServer final : public Component, public AsyncWebHandler {
   void cover_json_(cover::Cover *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_NUMBER
-  void number_json_(number::Number *obj, float value, JsonDetail start_config, json::JsonBuilder &builder);
+  void number_json_(number::Number *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_DATETIME_DATE
   void date_json_(datetime::DateEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
