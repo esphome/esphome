@@ -32,10 +32,7 @@ TextPtr = Text.operator("ptr")
 # Conditions
 TextMode = text_ns.enum("TextMode")
 
-TEXT_MODES = {
-    "TEXT": TextMode.TEXT_MODE_TEXT,
-    "PASSWORD": TextMode.TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
-}
+TEXT_MODES = TextMode.options("TEXT", "PASSWORD", prefix="TEXT_MODE_")
 
 _TEXT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)

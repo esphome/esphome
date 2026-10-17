@@ -114,7 +114,8 @@ BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
     "BLECharacteristicNotifyAction", automation.Action
 )
 bytebuffer_ns = cg.esphome_ns.namespace("bytebuffer")
-Endianness_ns = bytebuffer_ns.namespace("Endian")
+# Unscoped in C++; is_class keeps the generated Endian::LITTLE spelling
+Endian = bytebuffer_ns.enum("Endian", is_class=True)
 
 
 PROPERTY_MAP = {
@@ -414,10 +415,7 @@ def value_schema(default_type=UNDEFINED, templatable=True):
                 ),
                 cv.Optional(CONF_STRING_ENCODING, default="utf_8"): validate_encoding,
                 cv.Optional(CONF_ENDIANNESS, default="LITTLE"): cv.enum(
-                    {
-                        "LITTLE": Endianness_ns.LITTLE,
-                        "BIG": Endianness_ns.BIG,
-                    }
+                    Endian.options("LITTLE", "BIG")
                 ),
             },
             validate_value_type,
