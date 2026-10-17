@@ -1,16 +1,15 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
-#include "esphome/components/remote_transmitter/remote_transmitter.h"
-
 #include "esphome/components/fujitsu_general/fujitsu_general.h"
+#include "esphome/core/component.h"
 
 namespace esphome::fujitsu_general {
 
-class FujitsuGeneralButton : public button::Button, public Parented<FujitsuGeneralClimate> {
+/// Sends one stateless util command, such as a vane step, when pressed.
+class FujitsuGeneralButton final : public button::Button, public Parented<FujitsuGeneralClimate> {
  public:
-  FujitsuGeneralButton(uint8_t command_byte) : command_byte_(command_byte) {}
+  explicit FujitsuGeneralButton(uint8_t command_byte) : command_byte_(command_byte) {}
 
  protected:
   void press_action() override;

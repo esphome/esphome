@@ -17,7 +17,7 @@ extern const char *core_release;
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 // PROGMEM string table for reset reasons, indexed by reason code (0-6), with "Unknown" as fallback
 // clang-format off
@@ -159,12 +159,10 @@ void DebugComponent::update_platform_() {
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
   }
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   if (this->fragmentation_sensor_ != nullptr) {
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
   }
-#endif
 
 #endif
 }

@@ -59,7 +59,7 @@ class BMP280Component : public PollingComponent {
   /// Set the oversampling value for the pressure sensor. Default is 16x.
   void set_pressure_oversampling(BMP280Oversampling pressure_over_sampling);
   /// Set the IIR Filter used to increase accuracy, defaults to no IIR Filter.
-  void set_iir_filter(BMP280IIRFilter iir_filter);
+  void set_iir_filter(BMP280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 
   void setup() override;
   void dump_config() override;
@@ -85,11 +85,6 @@ class BMP280Component : public PollingComponent {
   BMP280IIRFilter iir_filter_{BMP280_IIR_FILTER_OFF};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_CHIP_ID,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::bmp280_base

@@ -99,7 +99,7 @@ class CanvasType(WidgetType):
         if config[CONF_TRANSPARENT]:
             color_format = "LV_COLOR_FORMAT_ARGB8888"
         else:
-            color_format = "LV_COLOR_FORMAT_NATIVE"
+            color_format = "LV_COLOR_FORMAT_RGB565"
 
         # LVGL 9.4: LV_CANVAS_BUF_SIZE(width, height, bits_per_pixel, stride)
         # stride is 0 for default (width * bytes_per_pixel)
@@ -141,7 +141,7 @@ async def canvas_fill(config, action_id, template_arg, args):
     async def do_fill(w: Widget):
         lv.canvas_fill_bg(w.obj, color, opa)
 
-    return await action_to_code(widget, do_fill, action_id, template_arg, args, config)
+    return await action_to_code(widget, do_fill, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -176,9 +176,7 @@ async def canvas_set_pixel(config, action_id, template_arg, args):
             x, y = point
             lv.canvas_set_px(w.obj, x, y, color, opa)
 
-    return await action_to_code(
-        widget, do_set_pixels, action_id, template_arg, args, config
-    )
+    return await action_to_code(widget, do_set_pixels, action_id, template_arg, args)
 
 
 DRAW_SCHEMA = {
@@ -214,9 +212,7 @@ async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg
                 await do_draw(addr(layer), x, y, dsc)
             lv.canvas_finish_layer(w.obj, addr(layer))
 
-    return await action_to_code(
-        widget, action_func, action_id, template_arg, args, config
-    )
+    return await action_to_code(widget, action_func, action_id, template_arg, args)
 
 
 RECT_PROPS = {

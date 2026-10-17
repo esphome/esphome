@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
 from .. import factory_reset_ns
 
@@ -22,7 +23,7 @@ CONFIG_SCHEMA = button.button_schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await button.register_button(var, config)

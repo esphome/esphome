@@ -4,7 +4,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.6c";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.6c");
 
 // Native hardware color codes for this panel's 4-bit color values.
 enum E6Color : uint8_t {

@@ -8,8 +8,10 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_NUM_CHIPS,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["output"]
+DOMAIN = "sm16716"
 sm16716_ns = cg.esphome_ns.namespace("sm16716")
 SM16716 = sm16716_ns.class_("SM16716", cg.Component)
 
@@ -25,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

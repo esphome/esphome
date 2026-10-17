@@ -7,6 +7,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_DEGREES,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_SUN_ID, Sun, sun_ns
 
@@ -14,10 +15,7 @@ DEPENDENCIES = ["sun"]
 
 SunSensor = sun_ns.class_("SunSensor", sensor.Sensor, cg.PollingComponent)
 SensorType = sun_ns.enum("SensorType")
-TYPES = {
-    "elevation": SensorType.SUN_SENSOR_ELEVATION,
-    "azimuth": SensorType.SUN_SENSOR_AZIMUTH,
-}
+TYPES = SensorType.options("elevation", "azimuth", prefix="SUN_SENSOR_")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -37,7 +35,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

@@ -3,7 +3,7 @@
 
 namespace esphome::cst226 {
 
-static const char *const TAG = "CST226.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "CST226.binary_sensor");
 
 void CST226Button::setup() {
   this->parent_->register_button_listener(this);

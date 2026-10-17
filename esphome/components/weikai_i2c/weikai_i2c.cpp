@@ -6,7 +6,7 @@
 #include "weikai_i2c.h"
 
 namespace esphome::weikai_i2c {
-static const char *const TAG = "weikai_i2c";
+ESPHOME_LOG_TAG(TAG, "weikai_i2c");
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line).
 void print_buffer(const uint8_t *data, size_t length) {

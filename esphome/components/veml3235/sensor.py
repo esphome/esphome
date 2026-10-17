@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["i2c"]
@@ -23,27 +24,18 @@ VEML3235Sensor = veml3235_ns.class_(
     "VEML3235Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 VEML3235ComponentIntegrationTime = veml3235_ns.enum("VEML3235ComponentIntegrationTime")
-VEML3235_INTEGRATION_TIMES = {
-    "50ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_50MS,
-    "100ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_100MS,
-    "200ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_200MS,
-    "400ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_400MS,
-    "800ms": VEML3235ComponentIntegrationTime.VEML3235_INTEGRATION_TIME_800MS,
-}
+VEML3235_INTEGRATION_TIMES = VEML3235ComponentIntegrationTime.options(
+    "50ms", "100ms", "200ms", "400ms", "800ms", prefix="VEML3235_INTEGRATION_TIME_"
+)
 VEML3235ComponentDigitalGain = veml3235_ns.enum("VEML3235ComponentDigitalGain")
-DIGITAL_GAINS = {
-    "1X": VEML3235ComponentDigitalGain.VEML3235_DIGITAL_GAIN_1X,
-    "2X": VEML3235ComponentDigitalGain.VEML3235_DIGITAL_GAIN_2X,
-}
+DIGITAL_GAINS = VEML3235ComponentDigitalGain.options(
+    "1X", "2X", prefix="VEML3235_DIGITAL_GAIN_"
+)
 VEML3235ComponentGain = veml3235_ns.enum("VEML3235ComponentGain")
-GAINS = {
-    "1X": VEML3235ComponentGain.VEML3235_GAIN_1X,
-    "2X": VEML3235ComponentGain.VEML3235_GAIN_2X,
-    "4X": VEML3235ComponentGain.VEML3235_GAIN_4X,
-}
+GAINS = VEML3235ComponentGain.options("1X", "2X", "4X", prefix="VEML3235_GAIN_")
 
 
-def _validate_auto_gain_thresholds(config):
+def _validate_auto_gain_thresholds(config: ConfigType) -> ConfigType:
     if config[CONF_AUTO_GAIN_THRESHOLD_LOW] >= config[CONF_AUTO_GAIN_THRESHOLD_HIGH]:
         raise cv.Invalid(
             f"'{CONF_AUTO_GAIN_THRESHOLD_LOW}' must be less than '{CONF_AUTO_GAIN_THRESHOLD_HIGH}'"
@@ -80,7 +72,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -58,20 +60,13 @@ CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 
 
-# Actions
-StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
-
 ACCELERATION_MODES = {
     "low": RhtAccelerationMode.LOW_ACCELERATION,
     "medium": RhtAccelerationMode.MEDIUM_ACCELERATION,
     "high": RhtAccelerationMode.HIGH_ACCELERATION,
 }
 
-MODELS = {
-    "SEN50": Sen5xType.SEN50,
-    "SEN54": Sen5xType.SEN54,
-    "SEN55": Sen5xType.SEN55,
-}
+MODELS = Sen5xType.options("SEN50", "SEN54", "SEN55")
 
 
 def _gas_sensor(
@@ -115,7 +110,7 @@ def _gas_sensor(
     )
 
 
-def float_previously_pct(value):
+def float_previously_pct(value: Any) -> Any:
     if isinstance(value, str) and "%" in value:
         raise cv.Invalid(
             f"The value '{value}' is a percentage. Suggested value: {float(value.strip('%')) / 100}"
@@ -278,12 +273,8 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sen5x.start_fan_autoclean",
-    StartFanAction,
     SEN5X_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("start_fan_cleaning()"),
 )
-async def sen54_fan_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

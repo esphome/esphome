@@ -1,8 +1,7 @@
 #include "toshiba.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-
-#include <vector>
 
 namespace esphome::toshiba {
 
@@ -11,7 +10,7 @@ struct RacPt1411hwruFanSpeed {
   uint8_t code2;
 };
 
-static const char *const TAG = "toshiba.climate";
+ESPHOME_LOG_TAG(TAG, "toshiba.climate");
 // Timings for IR bits/data
 const uint16_t TOSHIBA_HEADER_MARK = 4380;
 const uint16_t TOSHIBA_HEADER_SPACE = 4370;
@@ -68,8 +67,8 @@ const uint8_t RAC_PT1411HWRU_CS_FOOTER_COOL = 0x72;
 const uint8_t RAC_PT1411HWRU_CS_FOOTER_HEAT = 0x7E;
 // RAC-PT1411HWRU Swing
 const uint8_t RAC_PT1411HWRU_SWING_HEADER = 0xB9;
-const std::vector<uint8_t> RAC_PT1411HWRU_SWING_VERTICAL{0xB9, 0x46, 0xF5, 0x0A, 0x04, 0xFB};
-const std::vector<uint8_t> RAC_PT1411HWRU_SWING_OFF{0xB9, 0x46, 0xF5, 0x0A, 0x05, 0xFA};
+static constexpr uint8_t RAC_PT1411HWRU_SWING_VERTICAL[] PROGMEM = {0xB9, 0x46, 0xF5, 0x0A, 0x04, 0xFB};
+static constexpr uint8_t RAC_PT1411HWRU_SWING_OFF[] PROGMEM = {0xB9, 0x46, 0xF5, 0x0A, 0x05, 0xFA};
 // RAC-PT1411HWRU Fan speeds
 const uint8_t RAC_PT1411HWRU_FAN_OFF = 0x7B;
 constexpr RacPt1411hwruFanSpeed RAC_PT1411HWRU_FAN_AUTO{0xBF, 0x66};
@@ -91,12 +90,12 @@ const uint8_t RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY = 0x0E;
 //  Hence these look-up tables. In addition, the upper nibble is used here for additional
 //  "negative" and "fractional value" flags as required for some temperatures.
 // RAC-PT1411HWRU °C Temperatures (short codes)
-const std::vector<uint8_t> RAC_PT1411HWRU_TEMPERATURE_C{0x10, 0x00, 0x01, 0x03, 0x02, 0x06, 0x07, 0x05,
-                                                        0x04, 0x0C, 0x0D, 0x09, 0x08, 0x0A, 0x0B};
+static constexpr uint8_t RAC_PT1411HWRU_TEMPERATURE_C[] PROGMEM = {0x10, 0x00, 0x01, 0x03, 0x02, 0x06, 0x07, 0x05,
+                                                                   0x04, 0x0C, 0x0D, 0x09, 0x08, 0x0A, 0x0B};
 // RAC-PT1411HWRU °F Temperatures (short codes)
-const std::vector<uint8_t> RAC_PT1411HWRU_TEMPERATURE_F{0x10, 0x30, 0x00, 0x20, 0x01, 0x21, 0x03, 0x23, 0x02,
-                                                        0x22, 0x06, 0x26, 0x07, 0x05, 0x25, 0x04, 0x24, 0x0C,
-                                                        0x2C, 0x0D, 0x2D, 0x09, 0x08, 0x28, 0x0A, 0x2A, 0x0B};
+static constexpr uint8_t RAC_PT1411HWRU_TEMPERATURE_F[] PROGMEM = {
+    0x10, 0x30, 0x00, 0x20, 0x01, 0x21, 0x03, 0x23, 0x02, 0x22, 0x06, 0x26, 0x07, 0x05,
+    0x25, 0x04, 0x24, 0x0C, 0x2C, 0x0D, 0x2D, 0x09, 0x08, 0x28, 0x0A, 0x2A, 0x0B};
 
 // RAS-2819T protocol constants
 const uint16_t RAS_2819T_HEADER1 = 0xC23D;
@@ -163,8 +162,56 @@ const uint8_t RAS_2819T_AUTO_DRY_FAN_BYTE = 0x65;
 const uint8_t RAS_2819T_AUTO_DRY_SUFFIX = 0x3A;
 const uint8_t RAS_2819T_HEAT_SUFFIX = 0x3B;
 
+// Bit timings differ per protocol family; the frame layout is shared
+struct ToshibaTimings {
+  uint16_t header_mark;
+  uint16_t header_space;
+  uint16_t bit_mark;
+  uint16_t zero_space;
+  uint16_t one_space;
+  uint16_t gap_space;
+  bool gap_after_last;  // Seiya ends on a bare mark and only puts the gap between repeats
+};
+// Kept in flash on ESP8266, where plain const objects referenced through a function would land in RAM
+static const ToshibaTimings TOSHIBA_TIMINGS PROGMEM = {TOSHIBA_HEADER_MARK,
+                                                       TOSHIBA_HEADER_SPACE,
+                                                       TOSHIBA_BIT_MARK,
+                                                       TOSHIBA_ZERO_SPACE,
+                                                       TOSHIBA_ONE_SPACE,
+                                                       TOSHIBA_GAP_SPACE,
+                                                       true};
+static const ToshibaTimings SEIYA_TIMINGS PROGMEM = {4630, 4450, 625, 490, 1570, 5830, false};
+// The RAS-B13 remote family does not accept the generic timings; these are IRremoteESP8266's TOSHIBA_AC values
+static const ToshibaTimings RAS_B10N3KV2_TIMINGS PROGMEM = {4400, 4300, 580, 490, 1600, 7400, true};
+
+static ToshibaTimings timings_for(Model model) {
+  const ToshibaTimings *source = &TOSHIBA_TIMINGS;
+  switch (model) {
+    case MODEL_SEIYA:
+      source = &SEIYA_TIMINGS;
+      break;
+    case MODEL_RAS_B10N3KV2:
+      source = &RAS_B10N3KV2_TIMINGS;
+      break;
+    default:
+      break;
+  }
+  ToshibaTimings timings;
+  progmem_memcpy(&timings, source, sizeof(timings));
+  return timings;
+}
+
+// Seiya is the generic frame plus two bytes: a feature marker and a one-shot swing command
+static constexpr uint8_t SEIYA_MESSAGE_LENGTH = 11;
+static constexpr uint8_t SEIYA_FEATURE_MARKER = 0x21;
+static constexpr uint8_t SEIYA_SWING_BOTH = 0x01;
+static constexpr uint8_t SEIYA_SWING_OMNI = 0x02;  // no ESPHome equivalent; treated as BOTH
+static constexpr uint8_t SEIYA_SWING_VERTICAL = 0x08;
+static constexpr uint8_t SEIYA_SWING_HORIZONTAL = 0x09;
+static constexpr uint8_t SEIYA_SWING_NEUTRAL = 0x17;  // no swing change in this frame
+
 // RAS-2819T temperature codes for 18-30°C
-static const uint8_t RAS_2819T_TEMP_CODES[] = {
+static constexpr uint8_t RAS_2819T_TEMP_CODES[] PROGMEM = {
     0x10,  // 18°C
     0x30,  // 19°C
     0x20,  // 20°C
@@ -279,7 +326,7 @@ static uint8_t get_ras_2819t_temp_code(float temperature) {
     return 0x40;  // Default to 24°C
   }
 
-  return RAS_2819T_TEMP_CODES[temp_index];
+  return progmem_read_byte(&RAS_2819T_TEMP_CODES[temp_index]);
 }
 
 /**
@@ -290,7 +337,7 @@ static float decode_ras_2819t_temperature(uint8_t temp_code) {
 
   // Find the code in the temperature array
   for (size_t temp_index = 0; temp_index < sizeof(RAS_2819T_TEMP_CODES); temp_index++) {
-    if (RAS_2819T_TEMP_CODES[temp_index] == base_temp_code) {
+    if (progmem_read_byte(&RAS_2819T_TEMP_CODES[temp_index]) == base_temp_code) {
       return static_cast<float>(temp_index + 18);  // 18°C is the minimum
     }
   }
@@ -404,11 +451,14 @@ void ToshibaClimate::setup() {
   this->maximum_temperature_ = this->temperature_max_();
   this->swing_modes_ = this->toshiba_swing_modes_();
 
-  // Ensure swing mode is always initialized to a valid value
+  // Ensure swing mode is always initialized to a valid value. OFF also stands for "not yet
+  // commanded" on models that cannot switch the swing off, such as Seiya.
   if (this->swing_modes_.empty() || !this->swing_modes_.count(this->swing_mode)) {
-    // No swing support for this model or current swing mode not supported, reset to OFF
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
+
+  // A restored swing mode is already in effect, so it must not go out as a fresh swing command
+  this->last_swing_mode_ = this->swing_mode;
 
   // Ensure mode is valid - ESPHome should only use standard climate modes
   if (this->mode != climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_HEAT &&
@@ -451,8 +501,9 @@ void ToshibaClimate::transmit_state() {
 }
 
 void ToshibaClimate::transmit_generic_() {
+  const bool seiya = this->model_ == MODEL_SEIYA;
   uint8_t message[16] = {0};
-  uint8_t message_length = 9;
+  const uint8_t message_length = seiya ? SEIYA_MESSAGE_LENGTH : 9;
 
   // Header
   message[0] = 0xf2;
@@ -473,6 +524,40 @@ void ToshibaClimate::transmit_generic_() {
   message[5] = (temperature - static_cast<uint8_t>(TOSHIBA_GENERIC_TEMP_C_MIN)) << 4;
 
   // Mode and fan
+  message[6] = this->encode_mode_fan_();
+
+  // Zero
+  message[7] = 0x00;
+
+  if (seiya) {
+    // Captured OFF frames carry no fan bits
+    if (this->mode == climate::CLIMATE_MODE_OFF) {
+      message[6] = TOSHIBA_MODE_OFF;
+    }
+    message[8] = SEIYA_FEATURE_MARKER;
+    // Swing is a momentary command, sent only when the mode changes, like the remote does
+    message[9] = SEIYA_SWING_NEUTRAL;
+    if (this->swing_mode != this->last_swing_mode_) {
+      message[9] = this->seiya_swing_code_();
+      this->last_swing_mode_ = this->swing_mode;
+    }
+  }
+
+  // The last byte is the xor of all bytes from [4]
+  for (uint8_t i = 4; i < message_length - 1; i++) {
+    message[message_length - 1] ^= message[i];
+  }
+
+  // Transmit
+  auto transmit = this->transmitter_->transmit();
+  auto *data = transmit.get_data();
+
+  this->encode_(data, message, message_length, 1);
+
+  transmit.perform();
+}
+
+uint8_t ToshibaClimate::encode_mode_fan_() const {
   uint8_t mode;
   switch (this->mode) {
     case climate::CLIMATE_MODE_OFF:
@@ -523,27 +608,20 @@ void ToshibaClimate::transmit_generic_() {
       fan = TOSHIBA_FAN_SPEED_AUTO;
       break;
   }
-  message[6] = fan | mode;
+  return fan | mode;
+}
 
-  // Zero
-  message[7] = 0x00;
-
-  // If timers bit in the command is set, two extra bytes are added here
-
-  // If power bit is set in the command, one extra byte is added here
-
-  // The last byte is the xor of all bytes from [4]
-  for (uint8_t i = 4; i < 8; i++) {
-    message[8] ^= message[i];
+uint8_t ToshibaClimate::seiya_swing_code_() const {
+  switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_VERTICAL:
+      return SEIYA_SWING_VERTICAL;
+    case climate::CLIMATE_SWING_HORIZONTAL:
+      return SEIYA_SWING_HORIZONTAL;
+    case climate::CLIMATE_SWING_BOTH:
+      return SEIYA_SWING_BOTH;
+    default:
+      return SEIYA_SWING_NEUTRAL;
   }
-
-  // Transmit
-  auto transmit = this->transmitter_->transmit();
-  auto *data = transmit.get_data();
-
-  this->encode_(data, message, message_length, 1);
-
-  transmit.perform();
 }
 
 void ToshibaClimate::transmit_rac_pt1411hwru_() {
@@ -600,10 +678,10 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   index = static_cast<uint8_t>(roundf(temp_adjd));
 
   if (this->model_ == MODEL_RAC_PT1411HWRU_F) {
-    code = RAC_PT1411HWRU_TEMPERATURE_F[index];
+    code = progmem_read_byte(&RAC_PT1411HWRU_TEMPERATURE_F[index]);
     message[9] |= RAC_PT1411HWRU_FLAG_FAH;
   } else {
-    code = RAC_PT1411HWRU_TEMPERATURE_C[index];
+    code = progmem_read_byte(&RAC_PT1411HWRU_TEMPERATURE_C[index]);
   }
   if ((this->mode == climate::CLIMATE_MODE_FAN_ONLY) || (this->mode == climate::CLIMATE_MODE_OFF)) {
     code = RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY;
@@ -672,15 +750,11 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   // Swing Mode
   data->reset();
   data->space(TOSHIBA_PACKET_SPACE);
-  switch (this->swing_mode) {
-    case climate::CLIMATE_SWING_VERTICAL:
-      this->encode_(data, &RAC_PT1411HWRU_SWING_VERTICAL[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
-      break;
-
-    case climate::CLIMATE_SWING_OFF:
-    default:
-      this->encode_(data, &RAC_PT1411HWRU_SWING_OFF[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
-  }
+  const uint8_t *swing_frame =
+      this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? RAC_PT1411HWRU_SWING_VERTICAL : RAC_PT1411HWRU_SWING_OFF;
+  uint8_t swing[RAC_PT1411HWRU_MESSAGE_LENGTH];
+  progmem_memcpy(swing, swing_frame, sizeof(swing));
+  this->encode_(data, swing, sizeof(swing), 1);
 
   data->space(TOSHIBA_PACKET_SPACE);
   transmit.perform();
@@ -972,8 +1046,6 @@ bool ToshibaClimate::compare_rac_pt1411hwru_packets_(const uint8_t *message1, co
 }
 
 bool ToshibaClimate::is_valid_rac_pt1411hwru_message_(const uint8_t *message) {
-  uint8_t checksum = 0;
-
   switch (this->is_valid_rac_pt1411hwru_header_(message)) {
     case RAC_PT1411HWRU_MESSAGE_HEADER0:
     case RAC_PT1411HWRU_CS_HEADER:
@@ -985,10 +1057,7 @@ bool ToshibaClimate::is_valid_rac_pt1411hwru_message_(const uint8_t *message) {
       break;
 
     case RAC_PT1411HWRU_MESSAGE_HEADER1:
-      for (uint8_t i = 0; i < RAC_PT1411HWRU_MESSAGE_LENGTH - 1; i++) {
-        checksum += message[i];
-      }
-      if (checksum == message[RAC_PT1411HWRU_MESSAGE_LENGTH - 1]) {
+      if (sum_bytes(message, RAC_PT1411HWRU_MESSAGE_LENGTH - 1) == message[RAC_PT1411HWRU_MESSAGE_LENGTH - 1]) {
         return true;
       }
       break;
@@ -1085,14 +1154,16 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 
 bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Try modern ToshibaAcProtocol decoder first (handles RAS-2819T and potentially others)
-  remote_base::ToshibaAcProtocol toshiba_protocol;
-  auto decode_result = toshiba_protocol.decode(data);
+  if (this->model_ != MODEL_SEIYA) {
+    remote_base::ToshibaAcProtocol toshiba_protocol;
+    auto decode_result = toshiba_protocol.decode(data);
 
-  if (decode_result.has_value()) {
-    auto toshiba_data = decode_result.value();
-    // Validate and process RAS-2819T commands
-    if (is_valid_ras_2819t_command(toshiba_data.rc_code_1, toshiba_data.rc_code_2)) {
-      return this->process_ras_2819t_command_(toshiba_data);
+    if (decode_result.has_value()) {
+      auto toshiba_data = decode_result.value();
+      // Validate and process RAS-2819T commands
+      if (is_valid_ras_2819t_command(toshiba_data.rc_code_1, toshiba_data.rc_code_2)) {
+        return this->process_ras_2819t_command_(toshiba_data);
+      }
     }
   }
 
@@ -1101,7 +1172,8 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t message_length = TOSHIBA_HEADER_LENGTH, temperature_code = 0;
 
   // Validate header
-  if (!data.expect_item(TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE)) {
+  const ToshibaTimings timings = timings_for(this->model_);
+  if (!data.expect_item(timings.header_mark, timings.header_space)) {
     return false;
   }
   // Read incoming bits into buffer
@@ -1117,6 +1189,10 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   } else {
     // First checksum was valid so continue receiving the remaining bits
+    // The shortest frame is 9 bytes (length byte 3); longer ones must still fit the buffer
+    if (message[2] < 3 || message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
+      return false;
+    }
     message_length = message[2] + 2;
   }
   // Decode the remaining bytes
@@ -1218,14 +1294,14 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         temperature_code =
             (message[4] >> 4) | (message[14] & RAC_PT1411HWRU_FLAG_FRAC) | (message[15] & RAC_PT1411HWRU_FLAG_NEG);
         if (message[15] & RAC_PT1411HWRU_FLAG_FAH) {
-          for (size_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_F.size(); i++) {
-            if (RAC_PT1411HWRU_TEMPERATURE_F[i] == temperature_code) {
+          for (size_t i = 0; i < sizeof(RAC_PT1411HWRU_TEMPERATURE_F); i++) {
+            if (progmem_read_byte(&RAC_PT1411HWRU_TEMPERATURE_F[i]) == temperature_code) {
               this->target_temperature = static_cast<float>((i + TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32) * 5) / 9;
             }
           }
         } else {
-          for (size_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_C.size(); i++) {
-            if (RAC_PT1411HWRU_TEMPERATURE_C[i] == temperature_code) {
+          for (size_t i = 0; i < sizeof(RAC_PT1411HWRU_TEMPERATURE_C); i++) {
+            if (progmem_read_byte(&RAC_PT1411HWRU_TEMPERATURE_C[i]) == temperature_code) {
               this->target_temperature = i + TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
             }
           }
@@ -1251,7 +1327,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
     // Swing mode
     case RAC_PT1411HWRU_SWING_HEADER:
-      if (message[4] == RAC_PT1411HWRU_SWING_VERTICAL[4]) {
+      if (message[4] == progmem_read_byte(&RAC_PT1411HWRU_SWING_VERTICAL[4])) {
         this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
       } else {
         this->swing_mode = climate::CLIMATE_SWING_OFF;
@@ -1276,59 +1352,11 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
 
-      // Get the mode
-      switch (message[6] & 0x0F) {
-        case TOSHIBA_MODE_OFF:
-          this->mode = climate::CLIMATE_MODE_OFF;
-          break;
-
-        case TOSHIBA_MODE_COOL:
-          this->mode = climate::CLIMATE_MODE_COOL;
-          break;
-
-        case TOSHIBA_MODE_DRY:
-          this->mode = climate::CLIMATE_MODE_DRY;
-          break;
-
-        case TOSHIBA_MODE_FAN_ONLY:
-          this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-          break;
-
-        case TOSHIBA_MODE_HEAT:
-          this->mode = climate::CLIMATE_MODE_HEAT;
-          break;
-
-        case TOSHIBA_MODE_AUTO:
-        default:
-          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+      this->decode_mode_fan_temperature_(message);
+      // The marker byte tells a Seiya frame from another checksum-valid 11 byte frame within receiver tolerance
+      if (this->model_ == MODEL_SEIYA && message_length == SEIYA_MESSAGE_LENGTH && message[8] == SEIYA_FEATURE_MARKER) {
+        this->seiya_decode_swing_(message[9]);
       }
-
-      // Get the fan mode
-      switch (message[6] & 0xF0) {
-        case TOSHIBA_FAN_SPEED_QUIET:
-          this->fan_mode = climate::CLIMATE_FAN_QUIET;
-          break;
-
-        case TOSHIBA_FAN_SPEED_1:
-          this->fan_mode = climate::CLIMATE_FAN_LOW;
-          break;
-
-        case TOSHIBA_FAN_SPEED_3:
-          this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-          break;
-
-        case TOSHIBA_FAN_SPEED_5:
-          this->fan_mode = climate::CLIMATE_FAN_HIGH;
-          break;
-
-        case TOSHIBA_FAN_SPEED_AUTO:
-        default:
-          this->fan_mode = climate::CLIMATE_FAN_AUTO;
-          break;
-      }
-
-      // Get the target temperature
-      this->target_temperature = (message[5] >> 4) + TOSHIBA_GENERIC_TEMP_C_MIN;
   }
 
   this->publish_state();
@@ -1337,31 +1365,36 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
 void ToshibaClimate::encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, const uint8_t nbytes,
                              const uint8_t repeat) {
+  const ToshibaTimings timings = timings_for(this->model_);
   data->set_carrier_frequency(TOSHIBA_CARRIER_FREQUENCY);
 
   for (uint8_t copy = 0; copy <= repeat; copy++) {
-    data->item(TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE);
+    data->item(timings.header_mark, timings.header_space);
 
     for (uint8_t byte = 0; byte < nbytes; byte++) {
       for (uint8_t bit = 0; bit < 8; bit++) {
-        data->mark(TOSHIBA_BIT_MARK);
+        data->mark(timings.bit_mark);
         if (message[byte] & (1 << (7 - bit))) {
-          data->space(TOSHIBA_ONE_SPACE);
+          data->space(timings.one_space);
         } else {
-          data->space(TOSHIBA_ZERO_SPACE);
+          data->space(timings.zero_space);
         }
       }
     }
-    data->item(TOSHIBA_BIT_MARK, TOSHIBA_GAP_SPACE);
+    data->mark(timings.bit_mark);
+    if (copy < repeat || timings.gap_after_last) {
+      data->space(timings.gap_space);
+    }
   }
 }
 
 bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *message, const uint8_t nbytes) {
+  const ToshibaTimings timings = timings_for(this->model_);
   for (uint8_t byte = 0; byte < nbytes; byte++) {
     for (uint8_t bit = 0; bit < 8; bit++) {
-      if (data->expect_item(TOSHIBA_BIT_MARK, TOSHIBA_ONE_SPACE)) {
+      if (data->expect_item(timings.bit_mark, timings.one_space)) {
         message[byte] |= 1 << (7 - bit);
-      } else if (data->expect_item(TOSHIBA_BIT_MARK, TOSHIBA_ZERO_SPACE)) {
+      } else if (data->expect_item(timings.bit_mark, timings.zero_space)) {
         message[byte] &= static_cast<uint8_t>(~(1 << (7 - bit)));
       } else {
         return false;
@@ -1369,6 +1402,82 @@ bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *mess
     }
   }
   return true;
+}
+
+void ToshibaClimate::decode_mode_fan_temperature_(const uint8_t *message) {
+  switch (message[6] & 0x0F) {
+    case TOSHIBA_MODE_OFF:
+      this->mode = climate::CLIMATE_MODE_OFF;
+      break;
+
+    case TOSHIBA_MODE_COOL:
+      this->mode = climate::CLIMATE_MODE_COOL;
+      break;
+
+    case TOSHIBA_MODE_DRY:
+      this->mode = climate::CLIMATE_MODE_DRY;
+      break;
+
+    case TOSHIBA_MODE_FAN_ONLY:
+      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+      break;
+
+    case TOSHIBA_MODE_HEAT:
+      this->mode = climate::CLIMATE_MODE_HEAT;
+      break;
+
+    case TOSHIBA_MODE_AUTO:
+    default:
+      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+  }
+
+  // Speeds 2 and 4 are not exposed; report the nearest mode
+  switch (message[6] & 0xF0) {
+    case TOSHIBA_FAN_SPEED_QUIET:
+      this->fan_mode = climate::CLIMATE_FAN_QUIET;
+      break;
+
+    case TOSHIBA_FAN_SPEED_1:
+      this->fan_mode = climate::CLIMATE_FAN_LOW;
+      break;
+
+    case TOSHIBA_FAN_SPEED_2:
+    case TOSHIBA_FAN_SPEED_3:
+      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+      break;
+
+    case TOSHIBA_FAN_SPEED_4:
+    case TOSHIBA_FAN_SPEED_5:
+      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+      break;
+
+    case TOSHIBA_FAN_SPEED_AUTO:
+    default:
+      this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+  }
+
+  this->target_temperature = (message[5] >> 4) + TOSHIBA_GENERIC_TEMP_C_MIN;
+}
+
+void ToshibaClimate::seiya_decode_swing_(uint8_t code) {
+  // A momentary command: the neutral value on an ordinary update means no change, not swing off
+  switch (code) {
+    case SEIYA_SWING_BOTH:
+    case SEIYA_SWING_OMNI:
+      this->swing_mode = climate::CLIMATE_SWING_BOTH;
+      break;
+    case SEIYA_SWING_VERTICAL:
+      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+      break;
+    case SEIYA_SWING_HORIZONTAL:
+      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+      break;
+    default:
+      return;
+  }
+  // Keep the tracker in sync so the received command is not sent back out
+  this->last_swing_mode_ = this->swing_mode;
 }
 
 }  // namespace esphome::toshiba

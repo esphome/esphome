@@ -55,6 +55,29 @@ TEST(HelpersTest, Ilog10RoundTripMatchesLog10) {
   }
 }
 
+TEST(HelpersTest, SignExtend) {
+  EXPECT_EQ(sign_extend<24>(0x000000), 0);
+  EXPECT_EQ(sign_extend<24>(0x7FFFFF), 8388607);
+  EXPECT_EQ(sign_extend<24>(0x800000), -8388608);
+  EXPECT_EQ(sign_extend<24>(0xFFFFFE), -2);
+  EXPECT_EQ(sign_extend<24>(0xAB000001), 1);  // bits above BITS are ignored
+  EXPECT_EQ(sign_extend<12>(0x7FF), 2047);
+  EXPECT_EQ(sign_extend<12>(0x800), -2048);
+  EXPECT_EQ(sign_extend<16>(0xFF38), -200);
+  EXPECT_EQ(sign_extend<1>(1), -1);
+  EXPECT_EQ(sign_extend<32>(0xFFFFFFFF), -1);
+  EXPECT_EQ(sign_extend<32>(0x7FFFFFFF), INT32_MAX);
+  static_assert(sign_extend<12>(0xFFF) == -1, "usable in constant expressions");
+}
+
+TEST(HelpersTest, SumBytes) {
+  static constexpr uint8_t FRAME[] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x10};
+  EXPECT_EQ(sum_bytes(FRAME, sizeof(FRAME)), 0xE7);  // the Daikin comfort frame checksum
+  EXPECT_EQ(sum_bytes(FRAME, 0), 0);
+  EXPECT_EQ(sum_bytes(FRAME, sizeof(FRAME), 0x19), 0x00);  // wraps at 8 bits
+  static_assert(sum_bytes(FRAME, 2) == 0xEB, "usable in constant expressions");
+}
+
 TEST(StaticVectorTest, ConvertingConstructorFromSmaller) {
   StaticVector<uint8_t, 5> small{0x03, 0x00, 0x10, 0x00, 0x01};
   StaticVector<uint8_t, 253> big = small;
@@ -81,6 +104,52 @@ TEST(StaticVectorTest, ConvertingConstructorSameSize) {
   StaticVector<int, 3> dst = src;
   ASSERT_EQ(dst.size(), 3u);
   EXPECT_EQ(dst[2], 3);
+}
+
+TEST(StringContainsIgnoreCaseTest, NullPointerAlwaysFalse) {
+  const char *haystack = nullptr;
+  const char *needle = nullptr;
+
+  EXPECT_FALSE(str_contains_ignore_case(haystack, needle));
+  EXPECT_FALSE(str_contains_ignore_case("Hello World", needle));
+  EXPECT_FALSE(str_contains_ignore_case(haystack, "anything"));
+}
+
+TEST(StringContainsIgnoreCaseTest, EmptySearchMatches) {
+  const char *haystack = "Hello World";
+
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, ""));
+}
+
+TEST(StringContainsIgnoreCaseTest, MiscCaseMatches) {
+  const char *haystack = "Hello World";
+
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hello"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "hello"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "HELLO"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "hELLO"));
+}
+
+TEST(StringContainsIgnoreCaseTest, MiscNotMatching) {
+  const char *haystack = "Hello World";
+
+  // Expected to match
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hell"));
+
+  // Expected not to match
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Heaven"));
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Hello!"));
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "world!"));
+}
+
+TEST(StringContainsIgnoreCaseTest, FallbackMatchesLibc) {
+  const char *haystack = "Hello World";
+  for (const char *needle : {"", "Hello", "hELLO", "HELLO", "Hell", "world", "World", "Heaven", "Hello!", "d"}) {
+    EXPECT_EQ(str_contains_ignore_case_fallback(haystack, needle), str_contains_ignore_case(haystack, needle))
+        << "needle: " << needle;
+  }
+  EXPECT_EQ(str_contains_ignore_case_fallback("", ""), str_contains_ignore_case("", ""));
+  EXPECT_EQ(str_contains_ignore_case_fallback("ab", "abc"), str_contains_ignore_case("ab", "abc"));
 }
 
 }  // namespace esphome

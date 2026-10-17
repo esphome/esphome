@@ -27,12 +27,9 @@ class EPaperJD79660 final : public EPaperBase {
  public:
   EPaperJD79660(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                 size_t init_sequence_length, const uint8_t *fast_update, uint16_t fast_update_length)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR),
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR, 2),
         fast_update_(fast_update),
-        fast_update_length_(fast_update_length) {
-    this->row_width_ = (width + 3) / 4;  // Fix base class calc (2bpp instead of 1bpp)
-    this->buffer_length_ = this->row_width_ * height;
-  }
+        fast_update_length_(fast_update_length) {}
 
   void fill(Color color) override;
 

@@ -15,7 +15,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_connection.rp2";
+ESPHOME_LOG_TAG(TAG, "bluetooth_connection");
 
 using ble_device_base::ESPBTUUID;
 using ble_device_base::GATT_ERR_NOT_CONNECTED;
@@ -76,16 +76,14 @@ void RP2GattClient::setup() {
   // Pre-create every pool entry so the packet handlers' allocate() calls are
   // always a free-list pop -- the IRQ path must never reach malloc().
   if (!this->event_pool_.warm() || !this->notify_pool_.warm()) {
-    ESP_LOGE(TAG, "GATT event pool warm-up failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("GATT event pool warm-up failed"));
     return;
   }
 
   // Register this engine for IRQ-context event routing.
   if (instance_count >= ESPHOME_BLE_GATT_CLIENT_COUNT) {
     // Cannot happen with codegen-sized storage; refuse loudly if it ever does.
-    ESP_LOGE(TAG, "GATT client registry full");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("GATT client registry full"));
     return;
   }
   {
@@ -626,7 +624,7 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
   // explicit kick the MTU would only be exchanged on the first GATT query,
   // which never happens on a V3_WITH_CACHE connection.
   // Both registration calls above return void (BTstack 075a078, arduino-pico
-  // 6.0.0); failures surface as a missing GATT_EVENT_MTU and are reclaimed by
+  // 6.1.0); failures surface as a missing GATT_EVENT_MTU and are reclaimed by
   // the connect timeout in loop().
   gatt_client_send_mtu_negotiation(&RP2GattClient::gatt_packet_handler, this->con_handle_);
 }
