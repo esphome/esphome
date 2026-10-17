@@ -25,6 +25,7 @@ ble_aes_ccm.h.
 """
 
 from collections.abc import Callable
+import logging
 import re
 
 import esphome.codegen as cg
@@ -39,6 +40,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, KEY_CORE, TimePeriod
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@Bl00d-B0b"]
 DOMAIN = "ble_device_base"
@@ -231,12 +234,23 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
     # (radio permanently on) from a config that asked for less.
     interval_units = to_ble_units(interval)
     for name, value in windows:
-        if to_ble_units(value) == interval_units and value < interval:
+        if to_ble_units(value) != interval_units:
+            continue
+        if value < interval:
             raise cv.Invalid(
                 f"{name} ({value}) and interval ({interval}) both truncate to "
                 f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
                 f"cycle. Separate them by at least 0.625 ms."
             )
+        # A deliberate 100 % duty cycle is allowed, but the radio then never idles: on a
+        # single-antenna chip that starves Wi-Fi and active BLE connections of air time.
+        _LOGGER.warning(
+            "%s (%s) equals the scan interval, so the radio scans continuously with no "
+            "idle time; this can cause Wi-Fi instability and dropped BLE connections. "
+            "Set a window smaller than the interval to leave the radio idle time.",
+            name,
+            value,
+        )
 
     if interval.total_microseconds * 3 > duration.total_microseconds:
         raise cv.Invalid(
