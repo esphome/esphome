@@ -24,7 +24,7 @@
 #ifdef USE_BUTTON
 #include "esphome/components/button/button.h"
 #endif
-#include "esphome/components/uart/line_reader.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 #include <array>
@@ -189,7 +189,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   std::array<bool, SWITCH_COUNT> switch_states_{};
 #endif
 
-  uart::LineReader<MAX_LINE_LENGTH> line_reader_;
+  LineReader<MAX_LINE_LENGTH> line_reader_;
   char command_[MAX_COMMAND_LENGTH]{};
   float response_[MAX_RESPONSE_VALUES]{};
   uint32_t sent_ms_{0};

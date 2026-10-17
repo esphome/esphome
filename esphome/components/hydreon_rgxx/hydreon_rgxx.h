@@ -7,7 +7,7 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
-#include "esphome/components/uart/line_reader.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::hydreon_rgxx {
@@ -81,7 +81,7 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
   bool em_sat_ = false;
   bool request_temperature_ = false;
   bool disable_led_ = false;
-  uart::LineReader<80> line_reader_;
+  LineReader<80> line_reader_;
 
   // bit field showing which sensors we have received data for
   int sensors_received_ = -1;

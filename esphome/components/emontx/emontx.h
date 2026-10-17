@@ -4,7 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
-#include "esphome/components/uart/line_reader.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/json/json_util.h"
 
@@ -101,7 +101,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   uint8_t version_frames_left_{0};  // Data lines still to wait for a version reply; 0 when none is owed
   uint32_t last_msg_number_{0};
 #endif
-  uart::LineReader<MAX_LINE_LENGTH + 1> line_reader_;
+  LineReader<MAX_LINE_LENGTH + 1> line_reader_;
 };
 
 }  // namespace esphome::emontx
