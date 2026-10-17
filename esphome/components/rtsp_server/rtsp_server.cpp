@@ -4,7 +4,6 @@
 
 #include <cerrno>
 #include <cinttypes>
-#include <span>
 #include <utility>
 
 #include "esphome/core/application.h"
@@ -13,10 +12,6 @@
 namespace esphome::rtsp_server {
 
 ESPHOME_LOG_TAG(TAG, "rtsp_server");
-
-#ifdef USE_SOCKET_IPV4_ALLOW
-static constexpr uint32_t REJECT_LOG_INTERVAL_MS = 5000;
-#endif
 
 void RTSPServer::socket_failed_(const char *what) {
   ESP_LOGE(TAG, "Socket %s failed: errno %d", what, errno);
@@ -87,16 +82,8 @@ void RTSPServer::accept_new_connections_(uint32_t now) {
     if (!sock)
       break;
 #ifdef USE_SOCKET_IPV4_ALLOW
-    if (!this->allow_.allows(reinterpret_cast<const struct sockaddr *>(&source_addr))) {
-      if (this->last_reject_log_ms_ == 0 || now - this->last_reject_log_ms_ >= REJECT_LOG_INTERVAL_MS) {
-        this->last_reject_log_ms_ = now;
-        char text[socket::SOCKADDR_STR_LEN];
-        socket::format_sockaddr_to(reinterpret_cast<const struct sockaddr *>(&source_addr), addr_len,
-                                   std::span<char, socket::SOCKADDR_STR_LEN>(text));
-        ESP_LOGW(TAG, "Rejected %s", text);
-      }
+    if (!this->allow_.admit(reinterpret_cast<const struct sockaddr *>(&source_addr), addr_len, TAG, now))
       continue;
-    }
 #endif
 
     RTSPSession *free_slot = nullptr;
@@ -146,13 +133,7 @@ void RTSPServer::dump_config() {
                 "  Max connections: %u",
                 this->port_, MAX_RTSP_CONNECTIONS);
 #ifdef USE_SOCKET_IPV4_ALLOW
-  for (size_t i = 0; i < this->allow_.size(); i++) {
-    const socket::Ipv4AllowEntry e = this->allow_.entry(i);
-    // Network order is dotted order, and the contiguous mask's popcount is the prefix
-    const auto *b = reinterpret_cast<const uint8_t *>(&e.addr);
-    ESP_LOGCONFIG(TAG, "  Allowed IP: %u.%u.%u.%u/%u", b[0], b[1], b[2], b[3],
-                  static_cast<unsigned>(__builtin_popcount(e.mask)));
-  }
+  this->allow_.dump_config(TAG);
 #endif
 }
 

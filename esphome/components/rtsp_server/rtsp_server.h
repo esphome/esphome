@@ -39,7 +39,6 @@ class RTSPServer : public Component, public camera::CameraListener {
   std::array<RTSPSession, MAX_RTSP_CONNECTIONS> sessions_{};
 #ifdef USE_SOCKET_IPV4_ALLOW
   socket::Ipv4Allow allow_;
-  uint32_t last_reject_log_ms_{0};
 #endif
   uint16_t port_;
   bool streaming_{false};

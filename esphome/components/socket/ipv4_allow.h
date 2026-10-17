@@ -47,6 +47,10 @@ class Ipv4Allow {
     return false;
   }
 
+  /// allows(peer), logging a refused peer at most once every REJECT_LOG_INTERVAL_MS.
+  bool admit(const struct sockaddr *peer, socklen_t len, const char *tag, uint32_t now);
+  /// One config line per allowed network.
+  void dump_config(const char *tag) const;
   size_t size() const { return this->count_; }
   /// A copy of entry i, read from flash.
   Ipv4AllowEntry entry(size_t i) const {
@@ -56,8 +60,11 @@ class Ipv4Allow {
   }
 
  private:
+  static constexpr uint32_t REJECT_LOG_INTERVAL_MS = 5000;
+
   const Ipv4AllowEntry *entries_{nullptr};
   size_t count_{0};
+  uint32_t last_reject_log_ms_{0};
 };
 
 }  // namespace esphome::socket
