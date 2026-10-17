@@ -8,44 +8,6 @@
 
 namespace esphome::nfc {
 
-static constexpr uint8_t PAYLOAD_IDENTIFIERS_COUNT = 0x23;
-static const char *const PAYLOAD_IDENTIFIERS[] = {"",
-                                                  "http://www.",
-                                                  "https://www.",
-                                                  "http://",
-                                                  "https://",
-                                                  "tel:",
-                                                  "mailto:",
-                                                  "ftp://anonymous:anonymous@",
-                                                  "ftp://ftp.",
-                                                  "ftps://",
-                                                  "sftp://",
-                                                  "smb://",
-                                                  "nfs://",
-                                                  "ftp://",
-                                                  "dav://",
-                                                  "news:",
-                                                  "telnet://",
-                                                  "imap:",
-                                                  "rtsp://",
-                                                  "urn:",
-                                                  "pop:",
-                                                  "sip:",
-                                                  "sips:",
-                                                  "tftp:",
-                                                  "btspp://",
-                                                  "btl2cap://",
-                                                  "btgoep://",
-                                                  "tcpobex://",
-                                                  "irdaobex://",
-                                                  "file://",
-                                                  "urn:epc:id:",
-                                                  "urn:epc:tag:",
-                                                  "urn:epc:pat:",
-                                                  "urn:epc:raw:",
-                                                  "urn:epc:",
-                                                  "urn:nfc:"};
-
 class NdefRecordUri : public NdefRecord {
  public:
   NdefRecordUri(){};
