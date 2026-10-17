@@ -117,16 +117,8 @@ const char *orientation_xy_to_string(OrientationXY orientation) {
 const char *orientation_z_to_string(bool orientation) { return orientation ? "Downwards looking" : "Upwards looking"; }
 
 void MSA3xxComponent::setup() {
-  uint8_t part_id{0xff};
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, static_cast<uint8_t>(RegisterMap::PART_ID), MSA_3XX_PART_ID))
     return;
-  }
-  if (part_id != MSA_3XX_PART_ID) {
-    ESP_LOGE(TAG, "Part ID is wrong. Got 0x%02X", part_id);
-    this->mark_failed(LOG_STR("Wrong chip ID"));
-    return;
-  }
 
   // Resolution LSB/g
   // Range : MSA301      : MSA311
