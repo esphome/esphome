@@ -40,7 +40,7 @@ extern "C" {
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_esp8266";
+ESPHOME_LOG_TAG(TAG, "wifi_esp8266");
 
 enum class ESP8266WiFiSTAState : uint8_t {
   IDLE,             // Not connecting
@@ -376,17 +376,17 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_apply_hostname_();
 
-  // Reset flags, do this _before_ wifi_station_connect as the callback method
-  // may be called from wifi_station_connect
-  this->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::CONNECTING);
-
   ETS_UART_INTR_DISABLE();
   ret = wifi_station_connect();
   ETS_UART_INTR_ENABLE();
   if (!ret) {
     ESP_LOGV(TAG, "wifi_station_connect failed");
+    this->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_FAILED);
     return false;
   }
+  // Reset after, not before: wifi_station_connect() synchronously reports the attempt it replaces as failed
+  this->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::CONNECTING);
+  this->error_from_callback_ = false;
 
 #if USE_NETWORK_IPV6
   bool connected = false;
@@ -572,6 +572,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STACONNECTED: {
+#ifdef USE_WIFI_AP
+      global_wifi_component->ap_clients_++;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_connected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -581,6 +584,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STADISCONNECTED: {
+#ifdef USE_WIFI_AP
+      if (global_wifi_component->ap_clients_ > 0)
+        global_wifi_component->ap_clients_--;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_disconnected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -773,7 +780,11 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     }
   }
 
-  this->scan_result_.init(count);  // Exact allocation
+  if (!this->scan_result_.try_init(count)) {
+    ESP_LOGW(TAG, "No memory for %zu scan results", count);
+    this->scan_done_ = true;
+    return;
+  }
 
   // Second pass: store matching networks
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {

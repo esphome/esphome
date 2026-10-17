@@ -15,18 +15,25 @@ from esphome.const import (
     DEVICE_CLASS_IDENTIFY,
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
+    ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_DATABASE,
+    ICON_RESTART,
+    ICON_RESTART_ALERT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "button"
 IS_PLATFORM_COMPONENT = True
 
 DEVICE_CLASSES = [
@@ -39,8 +46,6 @@ DEVICE_CLASSES = [
 button_ns = cg.esphome_ns.namespace("button")
 Button = button_ns.class_("Button", cg.EntityBase)
 ButtonPtr = Button.operator("ptr")
-
-PressAction = button_ns.class_("PressAction", automation.Action)
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
@@ -83,6 +88,40 @@ def button_schema(
     return _BUTTON_SCHEMA.extend(schema)
 
 
+def factory_reset_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that resets the connected module to factory settings.
+
+    For a sensor or radio module's own reset, not the ESPHome node.
+    """
+    return button_schema(
+        class_,
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_RESTART_ALERT,
+    )
+
+
+def restart_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that restarts the connected module.
+
+    For a sensor or radio module's own restart, not the ESPHome node; the core
+    restart button uses the config category instead of diagnostic.
+    """
+    return button_schema(
+        class_,
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon=ICON_RESTART,
+    )
+
+
+def query_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that reads the settings back from the connected module."""
+    return button_schema(
+        class_, entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_DATABASE
+    )
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_PRESS, "add_on_press_callback"),
 )
@@ -116,6 +155,13 @@ async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     return var
 
 
+def sub_buttons(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_button."""
+    return SubEntities(new_button, config, parent)
+
+
 BUTTON_PRESS_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(Button),
@@ -123,17 +169,9 @@ BUTTON_PRESS_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "button.press", PressAction, BUTTON_PRESS_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "button.press", BUTTON_PRESS_SCHEMA, automation.ApplyCall("press()")
 )
-async def button_press_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

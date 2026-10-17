@@ -15,6 +15,7 @@ from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@anatoly-savchenkov"]
+DOMAIN = "factory_reset"
 
 factory_reset_ns = cg.esphome_ns.namespace("factory_reset")
 FactoryResetComponent = factory_reset_ns.class_("FactoryResetComponent", cg.Component)

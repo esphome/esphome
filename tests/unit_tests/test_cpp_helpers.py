@@ -1,4 +1,8 @@
+import importlib.util
 import logging
+from pathlib import Path
+import sys
+from types import ModuleType
 from unittest.mock import Mock
 
 import pytest
@@ -187,6 +191,31 @@ def test_slot_counter_emits_requested_count() -> None:
     assert _define_value("TEST_SLOT_COUNT") == "2"
 
 
+def test_slot_counter_keyed_emits_largest_count() -> None:
+    """Keyed requests size storage every key declares at the same capacity:
+    the define is the busiest key's count, not the total over all keys."""
+    request = ch.slot_counter("TEST_SLOT_COUNT_KEYED")
+    request("rx_a")
+    request("rx_a")
+    request("rx_a")
+    request("rx_b")
+    assert ch.get_slot_count("TEST_SLOT_COUNT_KEYED") == 3
+    ch.CORE.flush_tasks()
+    assert _define_value("TEST_SLOT_COUNT_KEYED") == "3"
+
+
+def test_slot_counter_rejects_mixed_keyed_and_unkeyed_requests() -> None:
+    """A keyed and an unkeyed request for one define cannot be sized together."""
+    request = ch.slot_counter("TEST_SLOT_COUNT_MIXED")
+    request("rx_a")
+    with pytest.raises(ValueError, match="TEST_SLOT_COUNT_MIXED"):
+        request()
+    unkeyed = ch.slot_counter("TEST_SLOT_COUNT_MIXED_2")
+    unkeyed()
+    with pytest.raises(ValueError, match="TEST_SLOT_COUNT_MIXED_2"):
+        unkeyed("rx_a")
+
+
 def test_slot_counter_without_requests_emits_nothing() -> None:
     """No requests, no job, no define — the guarded storage compiles out."""
     ch.slot_counter("TEST_SLOT_COUNT_UNUSED")
@@ -218,3 +247,57 @@ def test_slot_counter_request_after_emit_raises() -> None:
     assert _define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
     with pytest.raises(ValueError, match="TEST_SLOT_COUNT_TOO_LATE"):
         request()
+
+
+def _load_module(
+    monkeypatch: pytest.MonkeyPatch, name: str, path: Path, source: str
+) -> ModuleType:
+    path.write_text(source, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(
+    ("wrapper", "expected"),
+    [
+        # A plain wrapper returns the coroutine, so its frame is gone when
+        # register_component looks for the source; an async one is still on the stack.
+        ("def new_component(config):\n    return ", "fake_dev"),
+        ("async def new_component(config):\n    return await ", "fake_bus"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_new_bus_component_source_is_the_caller(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, wrapper: str, expected: str
+) -> None:
+    bus = _load_module(
+        monkeypatch,
+        "esphome.components.fake_bus",
+        tmp_path / "fake_bus.py",
+        "from esphome import cpp_helpers as ch\n"
+        "async def register_device(var, config):\n"
+        "    pass\n"
+        f"{wrapper}ch.new_bus_component(register_device, config)\n",
+    )
+    dev = _load_module(
+        monkeypatch,
+        "esphome.components.fake_dev",
+        tmp_path / "fake_dev.py",
+        "async def to_code(new_component, config):\n"
+        "    return await new_component(config)\n",
+    )
+    base = Mock()
+    base.__str__ = lambda self: "foo.bar"
+    var = Mock(base=base)
+    monkeypatch.setattr(ch, "new_Pvariable", Mock(return_value=var))
+    monkeypatch.setattr(ch, "CORE", Mock(component_ids=["foo.bar"], data={}))
+    monkeypatch.setattr(ch, "add", Mock())
+    monkeypatch.setattr(ch, "App", Mock())
+    source = Mock(return_value=1)
+    monkeypatch.setattr(ch, "register_component_source", source)
+    result = await dev.to_code(bus.new_component, {const.CONF_ID: "foo.bar"})
+    assert result is var
+    source.assert_called_once_with(expected)

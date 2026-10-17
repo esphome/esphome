@@ -4,7 +4,7 @@
 
 namespace esphome::vbus {
 
-static const char *const TAG = "vbus.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "vbus.binary_sensor");
 
 void DeltaSolBSPlusBSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol BS Plus:");

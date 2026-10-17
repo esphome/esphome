@@ -1,0 +1,16 @@
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
+  status_pin: GPIO12
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  common: !include common.yaml
+
+time:
+  - platform: sntp
+    id: tuya_time
+
+tuya:
+  time_id: tuya_time
+  force_time_sync: true

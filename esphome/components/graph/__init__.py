@@ -32,6 +32,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@synco"]
+DOMAIN = "graph"
 
 DEPENDENCIES = ["display", "sensor"]
 MULTI_CONF = True
@@ -42,26 +43,17 @@ GraphTrace = graph_ns.class_("GraphTrace")
 GraphLegend = graph_ns.class_("GraphLegend")
 
 LineType = graph_ns.enum("LineType")
-LINE_TYPE = {
-    "SOLID": LineType.LINE_TYPE_SOLID,
-    "DOTTED": LineType.LINE_TYPE_DOTTED,
-    "DASHED": LineType.LINE_TYPE_DASHED,
-}
+LINE_TYPE = LineType.options("SOLID", "DOTTED", "DASHED", prefix="LINE_TYPE_")
 
 DirectionType = graph_ns.enum("DirectionType")
-DIRECTION_TYPE = {
-    "AUTO": DirectionType.DIRECTION_TYPE_AUTO,
-    "HORIZONTAL": DirectionType.DIRECTION_TYPE_HORIZONTAL,
-    "VERTICAL": DirectionType.DIRECTION_TYPE_VERTICAL,
-}
+DIRECTION_TYPE = DirectionType.options(
+    "AUTO", "HORIZONTAL", "VERTICAL", prefix="DIRECTION_TYPE_"
+)
 
 ValuePositionType = graph_ns.enum("ValuePositionType")
-VALUE_POSITION_TYPE = {
-    "NONE": ValuePositionType.VALUE_POSITION_TYPE_NONE,
-    "AUTO": ValuePositionType.VALUE_POSITION_TYPE_AUTO,
-    "BESIDE": ValuePositionType.VALUE_POSITION_TYPE_BESIDE,
-    "BELOW": ValuePositionType.VALUE_POSITION_TYPE_BELOW,
-}
+VALUE_POSITION_TYPE = ValuePositionType.options(
+    "NONE", "AUTO", "BESIDE", "BELOW", prefix="VALUE_POSITION_TYPE_"
+)
 
 GRAPH_TRACE_SCHEMA = cv.Schema(
     {

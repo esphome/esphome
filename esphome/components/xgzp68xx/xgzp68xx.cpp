@@ -8,7 +8,9 @@
 
 namespace esphome::xgzp68xx {
 
-static const char *const TAG = "xgzp68xx.sensor";
+ESPHOME_LOG_TAG(TAG, "xgzp68xx.sensor");
+
+static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 
 static const uint8_t CMD_ADDRESS = 0x30;
 static const uint8_t SYSCONFIG_ADDRESS = 0xA5;
@@ -54,7 +56,7 @@ void XGZP68XXComponent::update() {
   this->write_register(0x30, &READ_COMMAND, 1);
 
   // Wait 20mS per datasheet
-  this->set_timeout("measurement", 20, [this]() {
+  this->set_timeout(MEASUREMENT_TIMEOUT_ID, 20, [this]() {
     uint8_t data[5] = {};
     uint32_t pressure_raw = 0;
     uint16_t temperature_raw = 0;
@@ -74,9 +76,7 @@ void XGZP68XXComponent::update() {
     ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u, K value=%u", pressure_raw, temperature_raw,
              this->k_value_);
 
-    // Sign extend the pressure
-    float pressure_in_pa = (float) (((int32_t) pressure_raw << 8) >> 8);
-    pressure_in_pa /= (float) (this->k_value_);
+    const float pressure_in_pa = static_cast<float>(sign_extend<24>(pressure_raw)) / this->k_value_;
 
     float temperature = ((float) (int16_t) temperature_raw) / 256.0f;
 

@@ -7,7 +7,7 @@
 
 namespace esphome::daikin_arc {
 
-static const char *const TAG = "daikin.climate";
+ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
 void DaikinArcClimate::setup() {
   climate_ir::ClimateIR::setup();
@@ -246,10 +246,7 @@ climate::ClimateTraits DaikinArcClimate::traits() {
 }
 
 bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DAIKIN_STATE_FRAME_SIZE - 1);
   if (frame[DAIKIN_STATE_FRAME_SIZE - 1] != checksum) {
     ESP_LOGI(TAG, "checksum error");
     return false;

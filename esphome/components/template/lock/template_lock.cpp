@@ -5,7 +5,7 @@ namespace esphome::template_ {
 
 using namespace esphome::lock;
 
-static const char *const TAG = "template.lock";
+ESPHOME_LOG_TAG(TAG, "template.lock");
 
 TemplateLock::TemplateLock() = default;
 
@@ -47,7 +47,6 @@ void TemplateLock::open_latch() {
   this->prev_trigger_ = &this->open_trigger_;
   this->open_trigger_.trigger();
 }
-void TemplateLock::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 float TemplateLock::get_setup_priority() const { return setup_priority::HARDWARE; }
 void TemplateLock::dump_config() {
   LOG_LOCK("", "Template Lock", this);

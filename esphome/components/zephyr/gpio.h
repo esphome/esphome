@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef USE_ZEPHYR
-#include "esphome/core/hal.h"
+#include "esphome/core/gpio_pin.h"
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 namespace esphome::zephyr {
@@ -16,7 +16,7 @@ struct ZephyrGPIOInterrupt {
   void *arg{nullptr};
 };
 
-class ZephyrGPIOPin final : public InternalGPIOPin {
+class ZephyrGPIOPin final : public GPIOPin {
  public:
   ZephyrGPIOPin(const device *gpio, int gpio_size, const char *pin_name_prefix) {
     this->gpio_ = gpio;
@@ -32,14 +32,18 @@ class ZephyrGPIOPin final : public InternalGPIOPin {
   bool digital_read() override;
   void digital_write(bool value) override;
   size_t dump_summary(char *buffer, size_t len) const override;
-  void detach_interrupt() const override;
-  ISRInternalGPIOPin to_isr() const override;
-  uint8_t get_pin() const override { return this->pin_; }
-  bool is_inverted() const override { return this->inverted_; }
+  void detach_interrupt() const;
+  template<typename T> void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
+    this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
+  }
+  ISRInternalGPIOPin to_isr() const;
+  uint8_t get_pin() const { return this->pin_; }
+  bool is_inverted() const { return this->inverted_; }
+  bool is_internal() override { return true; }
   gpio::Flags get_flags() const override { return flags_; }
 
  protected:
-  void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
+  void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
   const device *gpio_{nullptr};
   const char *pin_name_prefix_{nullptr};
   gpio::Flags flags_{};
@@ -48,8 +52,7 @@ class ZephyrGPIOPin final : public InternalGPIOPin {
   bool inverted_{};
   bool value_{false};
 
-  // attach_interrupt()/detach_interrupt() are const (matching the base class), so
-  // the interrupt state they manage has to be mutable.
+  // attach_interrupt_()/detach_interrupt() are const, so their interrupt state is mutable.
   mutable ZephyrGPIOInterrupt interrupt_{};
 };
 
