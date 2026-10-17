@@ -1,0 +1,36 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+# The key of tcp_uart_runtime_key comes from Home Assistant, or back to a fixed one
+api:
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
+  actions:
+    - action: set_tcp_uart_key
+      variables:
+        key: string
+      then:
+        - tcp_uart.set_encryption_key:
+            id: tcp_uart_runtime_key
+            key: !lambda return key;
+    - action: reset_tcp_uart_key
+      then:
+        - tcp_uart.set_encryption_key:
+            id: tcp_uart_runtime_key
+            key: "dGNwX3VhcnQgcnVudGltZSBrZXkgY29tcGlsZSB0ZXM="
+
+tcp_uart:
+  - id: tcp_uart_noise_server
+    role: server
+    port: 6638
+    encryption:
+      key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+    connected:
+      name: TCP UART Noise Connected
+  - id: tcp_uart_runtime_key
+    host: 192.0.2.10
+    port: 6638
+    encryption:
+    connected:
+      name: TCP UART Runtime Key Connected

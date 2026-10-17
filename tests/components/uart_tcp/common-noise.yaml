@@ -1,0 +1,13 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+uart_tcp:
+  - id: noise_bridge
+    uart_id: uart_bus
+    role: server
+    port: 6638
+    encryption:
+      key: "dWFydF90Y3Agbm9pc2UgY29tcGlsZSB0ZXN0IGtleSE="
+    connected:
+      name: UART TCP Noise Connected
