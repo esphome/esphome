@@ -159,6 +159,7 @@ class MediaPlayer : public EntityBase {
   }
 
   virtual bool is_muted() const { return false; }
+  bool is_announcing() const { return this->state == MEDIA_PLAYER_STATE_ANNOUNCING; }
 
   virtual MediaPlayerTraits get_traits() = 0;
 
