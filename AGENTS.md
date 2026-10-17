@@ -287,28 +287,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           `from esphome.components.my_component import DOMAIN`. Keep it in alphabetical order with the other
           metadata constants. CI (`lint_component_domain`) fails without it.
         - `DEPENDENCIES`: List of required components
-        - `AUTO_LOAD`: Components to automatically load. Never list entity platforms (`sensor`,
-          `binary_sensor`, `text_sensor`, `switch`, `button`, `number`, `select` and the like) in a
-          component's top-level `AUTO_LOAD` so that its entities can sit under the component's own key.
-          New components expose them as a hub with platforms (`sensor.py`, `binary_sensor.py`, ...) that
-          take the hub's id, as in
-          https://developers.esphome.io/architecture/components/#exposing-multiple-entities; reviewers
-          reject the nested form.
-          ```yaml
-          # Bad - entities nested in the hub, entity platforms auto loaded
-          my_hub:
-            connected:
-              name: Connected
-
-          # Good - the hub, then a platform entry that holds its entities
-          my_hub:
-            id: hub1
-          binary_sensor:
-            - platform: my_hub
-              my_hub_id: hub1
-              connected:
-                name: Connected
-          ```
+        - `AUTO_LOAD`: Components to automatically load. Not a way to put entities under the component's
+          own key; see "Entities of a hub" below.
         - `CONFLICTS_WITH`: Incompatible components
         - `CODEOWNERS`: GitHub usernames responsible for maintenance
         - `MULTI_CONF`: Whether multiple instances are allowed
@@ -398,6 +378,26 @@ file does, and it is the authority when they disagree. The most useful starting 
 
           async def to_code(config):
               var = await switch.new_switch(config)
+          ```
+
+        - **Entities of a hub:** a new component's entities go in platform files (`sensor.py`,
+          `binary_sensor.py`, ...) that take the hub's id, never under the hub's own key with their platforms
+          added to `AUTO_LOAD` to make that work. Auto loading a platform because the C++ uses its type is
+          fine. See https://developers.esphome.io/architecture/components/#exposing-multiple-entities.
+          ```yaml
+          # Bad - entities under the hub's key
+          my_hub:
+            connected:
+              name: Connected
+
+          # Good - the hub, then one platform entry that holds its entities
+          my_hub:
+            id: hub1
+          binary_sensor:
+            - platform: my_hub
+              my_hub_id: hub1  # optional with a single hub
+              connected:
+                name: Connected
           ```
 
         - **Optional child entities of a hub:** bind the config once with `sensor.sub_sensors(config)` (or
