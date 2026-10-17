@@ -42,7 +42,6 @@ binary_sensor:
         input: true
         pullup: true
         latch: true
-        interrupt: true
   # A pin on the second port of a 16 bit PCAL part, with a non-default drive strength
   - platform: gpio
     id: pcal9555_output

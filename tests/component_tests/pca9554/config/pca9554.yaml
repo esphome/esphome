@@ -35,5 +35,4 @@ binary_sensor:
         input: true
         pullup: true
         latch: true
-        interrupt: true
       drive_strength: 2

@@ -10,23 +10,17 @@ static constexpr uint8_t INVERT_REG = 2;
 static constexpr uint8_t CONFIG_REG = 3;
 
 #ifdef USE_PCA9554_PCAL
-// PCAL registers; on 16 bit parts the offset from 0x40 is doubled as well.
-static constexpr uint8_t OUTPUT_DRIVE_0 = 0x40;
-static constexpr uint8_t OUTPUT_DRIVE_1 = 0x41;
-static constexpr uint8_t INPUT_LATCH = 0x42;
-static constexpr uint8_t PUPD_ENABLE = 0x43;
-static constexpr uint8_t PUPD_SEL = 0x44;
-static constexpr uint8_t INTERRUPT_MASK = 0x45;
+// PCAL registers, as offsets from PCAL_BASE spaced by the register width like the ones above.
+static constexpr uint8_t PCAL_BASE = 0x40;
+static constexpr uint8_t OUTPUT_DRIVE_0 = 0;
+static constexpr uint8_t OUTPUT_DRIVE_1 = 1;
+static constexpr uint8_t INPUT_LATCH = 2;
+static constexpr uint8_t PUPD_ENABLE = 3;
+static constexpr uint8_t PUPD_SEL = 4;
+static constexpr uint8_t INTERRUPT_MASK = 5;
 #endif
 
 ESPHOME_LOG_TAG(TAG, "pca9554");
-
-/// Register address on the chip: the base registers are spaced by the register width.
-static uint8_t register_address(uint8_t reg, size_t reg_width) {
-  if (reg < 0x40)
-    return reg * reg_width;
-  return 0x40 + (reg - 0x40) * reg_width;
-}
 
 void PCA9554Component::setup() {
   this->reg_width_ = (this->pin_count_ + 7) / 8;
@@ -47,8 +41,15 @@ void PCA9554Component::setup() {
   this->output_mask_ = 0;
   this->write_register_(OUTPUT_REG, this->output_mask_);
 #ifdef USE_PCA9554_PCAL
-  if (this->pcal_)
-    this->reset_pcal_registers_();
+  // The chip keeps these across an MCU reboot
+  if (this->pcal_) {
+    this->write_pcal_register_(PUPD_ENABLE, this->pupd_enable_);
+    this->write_pcal_register_(PUPD_SEL, this->pupd_select_);
+    this->write_pcal_register_(INPUT_LATCH, this->latch_);
+    this->write_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_);
+    this->write_pcal_register_(OUTPUT_DRIVE_0, this->drive_0_);
+    this->write_pcal_register_(OUTPUT_DRIVE_1, this->drive_1_);
+  }
 #endif
   // Read the inputs
   this->read_inputs_();
@@ -127,12 +128,23 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   this->write_register_(CONFIG_REG, ~this->config_mask_);
 
 #ifdef USE_PCA9554_PCAL
-  // Validation only lets a PCAL pin ask for a pull resistor
   if (this->pcal_) {
-    const bool pulled = flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN);
-    this->set_register_bit_(PUPD_ENABLE, pin, pulled);
-    if (pulled)
-      this->set_register_bit_(PUPD_SEL, pin, flags & gpio::FLAG_PULLUP);
+    const uint16_t bit = 1U << pin;
+    // A masked pin never asserts INT, so only inputs are unmasked
+    this->interrupt_mask_ = (this->interrupt_mask_ & ~bit) | (this->config_mask_ & bit);
+    this->write_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_);
+    if (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
+      this->pupd_enable_ |= bit;
+    } else {
+      this->pupd_enable_ &= ~bit;
+    }
+    if (flags & gpio::FLAG_PULLUP) {
+      this->pupd_select_ |= bit;
+    } else {
+      this->pupd_select_ &= ~bit;
+    }
+    this->write_pcal_register_(PUPD_SEL, this->pupd_select_);
+    this->write_pcal_register_(PUPD_ENABLE, this->pupd_enable_);
   }
 #endif
 }
@@ -145,10 +157,10 @@ bool PCA9554Component::read_inputs_() {
     return false;
   }
 
-  this->last_error_ = this->read_register(register_address(INPUT_REG, this->reg_width_), inputs, this->reg_width_);
-  if (this->last_error_ != i2c::ERROR_OK) {
+  const i2c::ErrorCode err = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_);
+  if (err != i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
+    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) err);
     return false;
   }
   this->status_clear_warning();
@@ -159,14 +171,14 @@ bool PCA9554Component::read_inputs_() {
   return true;
 }
 
-bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
+bool PCA9554Component::write_address_(uint8_t address, uint16_t value) {
   uint8_t outputs[2];
   outputs[0] = (uint8_t) value;
   outputs[1] = (uint8_t) (value >> 8);
-  this->last_error_ = this->write_register(register_address(reg, this->reg_width_), outputs, this->reg_width_);
-  if (this->last_error_ != i2c::ERROR_OK) {
+  const i2c::ErrorCode err = this->write_register(address, outputs, this->reg_width_);
+  if (err != i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
+    ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) err);
     return false;
   }
 
@@ -175,78 +187,22 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
 }
 
 #ifdef USE_PCA9554_PCAL
-bool PCA9554Component::read_register_(uint8_t reg, uint16_t &value) {
-  uint8_t data[2] = {0, 0};
-  this->last_error_ = this->read_register(register_address(reg, this->reg_width_), data, this->reg_width_);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
-    return false;
-  }
-  this->status_clear_warning();
-  value = (data[1] << 8) | data[0];
-  return true;
-}
-
-bool PCA9554Component::set_register_bit_(uint8_t reg, uint8_t bit, bool value) {
-  uint16_t data;
-  if (!this->read_register_(reg, data))
-    return false;
-  if (value) {
-    data |= 1U << bit;
-  } else {
-    data &= ~(1U << bit);
-  }
-  return this->write_register_(reg, data);
-}
-
-void PCA9554Component::reset_pcal_registers_() {
-  this->write_register_(PUPD_ENABLE, 0x0000);
-  this->write_register_(PUPD_SEL, 0xFFFF);
-  this->write_register_(INPUT_LATCH, 0x0000);
-  this->write_register_(INTERRUPT_MASK, 0xFFFF);
-  this->write_register_(OUTPUT_DRIVE_0, 0xFFFF);
-  this->write_register_(OUTPUT_DRIVE_1, 0xFFFF);
-}
-
-void PCA9554Component::set_latch(uint8_t pin, bool latch) {
-  if (this->pcal_)
-    this->set_register_bit_(INPUT_LATCH, pin, latch);
-}
-
-void PCA9554Component::set_interrupt(uint8_t pin, bool enabled) {
-  // A set mask bit disables the interrupt
-  if (this->pcal_)
-    this->set_register_bit_(INTERRUPT_MASK, pin, !enabled);
+bool PCA9554Component::write_pcal_register_(uint8_t reg, uint16_t value) {
+  return this->write_address_(PCAL_BASE + reg * this->reg_width_, value);
 }
 
 void PCA9554Component::set_drive_strength(uint8_t pin, uint8_t strength) {
-  if (!this->pcal_)
-    return;
   // Two bits per pin: a one byte register holds four pins, a two byte one holds eight
-  const uint8_t pins_per_register = 4 * this->reg_width_;
-  const uint8_t reg = pin < pins_per_register ? OUTPUT_DRIVE_0 : OUTPUT_DRIVE_1;
+  const uint8_t pins_per_register = this->pin_count_ > 8 ? 8 : 4;
+  uint16_t &drive = pin < pins_per_register ? this->drive_0_ : this->drive_1_;
   const uint8_t shift = 2 * (pin % pins_per_register);
-  uint16_t value;
-  if (!this->read_register_(reg, value))
-    return;
-  value &= ~(3U << shift);
-  value |= (strength & 3U) << shift;
-  this->write_register_(reg, value);
+  drive = (drive & ~(3U << shift)) | ((strength & 3U) << shift);
 }
 #endif
 
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCA9554GPIOPin::setup() {
-  this->pin_mode(this->flags_);
-#ifdef USE_PCA9554_PCAL
-  this->parent_->set_latch(this->pin_, this->latch_);
-  this->parent_->set_interrupt(this->pin_, this->interrupt_);
-  this->parent_->set_drive_strength(this->pin_, this->drive_strength_);
-#endif
-}
-
+void PCA9554GPIOPin::setup() { this->pin_mode(this->flags_); }
 void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool PCA9554GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void PCA9554GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
