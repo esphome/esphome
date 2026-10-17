@@ -493,6 +493,40 @@ optional<float> ToNTCTemperatureFilter::new_value(float value) {
   return temp;
 }
 
+// RHCorrectionFilter
+static constexpr float MAGNUS_B = 17.67f, MAGNUS_C = 243.5f;
+
+static bool rh_correction_temp_in_band(float t) { return t >= -40.0f && t <= 50.0f; }
+
+optional<float> RHCorrectionFilter::new_value(float value) {
+  if (!this->temperature_sensor_->has_state()) {
+    ESP_LOGVV(TAG, "RHCorrectionFilter(%p): no temp available.", this);
+    return value;
+  }
+  float offset = this->temperature_offset_.value();
+  float tc = this->temperature_sensor_->get_state();
+  if (this->use_fahrenheit_) {
+    tc = fahrenheit_to_celsius(tc);
+    offset /= 1.8f;
+  }
+  const float tnc = tc - offset;
+  // A NaN temperature or offset is a faulted input: keep the last corrected value
+  if (std::isnan(tnc))
+    return {};
+  if (!rh_correction_temp_in_band(tc) || !rh_correction_temp_in_band(tnc)) {
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): Temperature out of range -40..50 °C. Tc=%f Tnc=%f", this, tc, tnc);
+      this->warned_ = true;
+    }
+    return value;
+  }
+  this->warned_ = false;
+  const float rh =
+      clamp(value * std::exp(MAGNUS_B * MAGNUS_C * (tnc - tc) / ((tnc + MAGNUS_C) * (tc + MAGNUS_C))), 0.0f, 100.0f);
+  ESP_LOGVV(TAG, "RHCorrectionFilter(%p)::new_value(%f) -> %f", this, value, rh);
+  return rh;
+}
+
 // StreamingFilter (base class)
 StreamingFilter::StreamingFilter(uint16_t window_size, uint16_t send_first_at)
     : window_size_(window_size), send_first_at_(send_first_at) {}
