@@ -28,7 +28,7 @@ enum : uint8_t {
 enum class ControlMode : uint8_t { CONTROL_MODE_OPEN_LOOP = 0, CONTROL_MODE_CLOSED_LOOP = 1 };
 enum class Direction : uint8_t { DIRECTION_FORWARD = 0, DIRECTION_BACKWARD = 1 };
 enum class MotorModel : uint8_t { MOTOR_MODEL_LOW_SPEED = 0, MOTOR_MODEL_HIGH_SPEED = 1 };
-enum class MotorStatus : uint8_t { MOTOR_STATUS_STANDBY = 0, MOTOR_STATUS_RUNNING = 1, MOTOR_STATUS_ERROR = 2 };
+// REG_MOTOR_STATUS raw values 0/1/2 (standby/running/error); see MotorStatusStrings in the .cpp.
 
 /// Hub component for a single M5Stack M5Unit-BLDC brushless DC motor driver. Add `number`/`select`
 /// sub-platforms to drive it, and `sensor`/`text_sensor` sub-platforms to read it back.

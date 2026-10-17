@@ -4,10 +4,15 @@
 #include <cstring>
 
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::m5_unit_bldc {
 
 ESPHOME_LOG_TAG(TAG, "m5_unit_bldc");
+
+// Index matches the raw REG_MOTOR_STATUS byte; any value past MOTOR_STATUS_UNKNOWN falls back to it.
+PROGMEM_STRING_TABLE(MotorStatusStrings, "Standby", "Running", "Error", "Unknown");
+static constexpr uint8_t MOTOR_STATUS_UNKNOWN = 3;
 
 bool M5UnitBldc::write_float_(uint8_t reg, float value) {
   uint8_t buf[4];
@@ -43,7 +48,11 @@ void M5UnitBldc::setup() {
                                                                                                      : "Forward");
   }
 
+  // Read the previously-active values back before overwriting them, so the save-to-flash check
+  // below compares against what the device actually had, not against what this boot just wrote.
   uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
+  uint8_t previous_motor_config[2];
+  bool had_previous_motor_config = this->read_register(REG_MOTOR_CONFIG, previous_motor_config, 2) == i2c::ERROR_OK;
   if (this->write_register(REG_MOTOR_CONFIG, motor_config, 2) != i2c::ERROR_OK) {
     this->mark_failed(LOG_STR("Failed to write motor model/pole pairs"));
     return;
@@ -69,7 +78,11 @@ void M5UnitBldc::setup() {
   }
 
   uint8_t pid[12];
+  uint8_t previous_pid[12];
+  bool had_previous_pid = false;
   if (this->has_pid_) {
+    had_previous_pid = this->read_register(REG_PID, previous_pid, 12) == i2c::ERROR_OK;
+
     int32_t p_int = lroundf(this->p_ * 100);
     int32_t i_int = lroundf(this->i_ * 100);
     int32_t d_int = lroundf(this->d_ * 100);
@@ -84,18 +97,11 @@ void M5UnitBldc::setup() {
 
   if (this->save_to_flash_) {
     // The device only has a limited number of flash erase/write cycles, so only persist when the
-    // values on the device actually differ from the ones just written above; otherwise every ESP
-    // reboot, OTA or crash loop would needlessly wear out the unit's flash.
-    bool needs_save = true;
-    uint8_t current_motor_config[2];
-    if (this->read_register(REG_MOTOR_CONFIG, current_motor_config, 2) == i2c::ERROR_OK &&
-        std::memcmp(current_motor_config, motor_config, 2) == 0) {
-      needs_save = false;
-      if (this->has_pid_) {
-        uint8_t current_pid[12];
-        needs_save =
-            this->read_register(REG_PID, current_pid, 12) != i2c::ERROR_OK || std::memcmp(current_pid, pid, 12) != 0;
-      }
+    // values just written above actually differ from what the device had before this boot;
+    // otherwise every ESP reboot, OTA or crash loop would needlessly wear out the unit's flash.
+    bool needs_save = !had_previous_motor_config || std::memcmp(previous_motor_config, motor_config, 2) != 0;
+    if (!needs_save && this->has_pid_) {
+      needs_save = !had_previous_pid || std::memcmp(previous_pid, pid, 12) != 0;
     }
 
     if (needs_save) {
@@ -106,38 +112,43 @@ void M5UnitBldc::setup() {
 }
 
 void M5UnitBldc::update() {
+  bool read_failed = false;
+
   if (this->rpm_sensor_ != nullptr) {
     float rpm;
-    if (this->read_float_(REG_READBACK_RPM, &rpm))
+    if (this->read_float_(REG_READBACK_RPM, &rpm)) {
       this->rpm_sensor_->publish_state(rpm);
+    } else {
+      read_failed = true;
+    }
   }
 
   if (this->frequency_sensor_ != nullptr) {
     float freq;
-    if (this->read_float_(REG_READBACK_FREQ, &freq))
+    if (this->read_float_(REG_READBACK_FREQ, &freq)) {
       this->frequency_sensor_->publish_state(freq);
+    } else {
+      read_failed = true;
+    }
   }
 
   if (this->status_text_sensor_ != nullptr) {
     uint8_t status;
     if (this->read_register(REG_MOTOR_STATUS, &status, 1) == i2c::ERROR_OK) {
-      const char *status_str;
-      switch (static_cast<MotorStatus>(status)) {
-        case MotorStatus::MOTOR_STATUS_STANDBY:
-          status_str = "Standby";
-          break;
-        case MotorStatus::MOTOR_STATUS_RUNNING:
-          status_str = "Running";
-          break;
-        case MotorStatus::MOTOR_STATUS_ERROR:
-          status_str = "Error";
-          break;
-        default:
-          status_str = "Unknown";
-          break;
-      }
-      this->status_text_sensor_->publish_state(status_str);
+      ProgmemStr name = MotorStatusStrings::get_progmem_str(status, MOTOR_STATUS_UNKNOWN);
+      char text[16];
+      ESPHOME_strncpy_P(text, reinterpret_cast<ESPHOME_PGM_P>(name), sizeof(text));
+      text[sizeof(text) - 1] = '\0';
+      this->status_text_sensor_->publish_state(text);
+    } else {
+      read_failed = true;
     }
+  }
+
+  if (read_failed) {
+    this->status_set_warning(LOG_STR("Failed to read motor status"));
+  } else {
+    this->status_clear_warning();
   }
 }
 
@@ -201,10 +212,14 @@ bool M5UnitBldc::write_direction(Direction direction) {
   // `write_target_rpm()` only cache the latest request instead of writing it, so a command
   // arriving mid-cycle cannot make the motor resume before the stop interval ends.
   this->direction_change_pending_ = true;
-  if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP) {
-    this->write_float_(REG_SET_RPM, 0.0f);
-  } else {
-    this->write_pwm_raw_(0);
+  bool zeroed = this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP ? this->write_float_(REG_SET_RPM, 0.0f)
+                                                                             : this->write_pwm_raw_(0);
+  if (!zeroed) {
+    // The motor was never actually told to stop, so the 800ms spin-down assumption below does not
+    // hold; abandon the reversal instead of restoring a command to a motor that may still be
+    // running at the old direction.
+    this->direction_change_pending_ = false;
+    return false;
   }
 
   this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, 800, [this]() {
