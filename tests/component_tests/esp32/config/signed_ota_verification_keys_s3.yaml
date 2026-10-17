@@ -1,0 +1,12 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+        signing_scheme: rsa3072
+        verification_keys:
+          - ../../../components/esp32/dummy_signing_key.pem

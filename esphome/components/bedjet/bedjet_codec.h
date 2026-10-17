@@ -5,8 +5,7 @@
 
 #include "bedjet_const.h"
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 struct BedjetPacket {
   uint8_t data_length;
@@ -190,5 +189,4 @@ class BedjetCodec {
 /// Converts a BedJet temp step into degrees Celsius.
 float bedjet_temp_to_c(uint8_t temp);
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet

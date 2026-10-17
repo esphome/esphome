@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pmwcs3 {
+namespace esphome::pmwcs3 {
 
 static const uint8_t PMWCS3_I2C_ADDRESS = 0x63;
 static const uint8_t PMWCS3_REG_READ_START = 0x01;
@@ -21,7 +20,7 @@ static const uint8_t PMWCS3_REG_RES = 0x0B;
 static const uint8_t PMWCS3_REG_RC = 0x0C;
 static const uint8_t PMWCS3_REG_RT = 0x0D;
 
-static const char *const TAG = "pmwcs3";
+ESPHOME_LOG_TAG(TAG, "pmwcs3");
 
 void PMWCS3Component::new_i2c_address(uint8_t address) {
   if (!this->write_byte(PMWCS3_SET_I2C_ADDRESS, address)) {
@@ -56,9 +55,6 @@ void PMWCS3Component::update() { this->read_data_(); }
 void PMWCS3Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMWCS3");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "e25", this->e25_sensor_);
   LOG_SENSOR("  ", "ec", this->ec_sensor_);
@@ -80,7 +76,7 @@ void PMWCS3Component::read_data_() {
     float e25, ec, temperature, vwc;
     if (!this->read_bytes(PMWCS3_REG_GET_DATA, (uint8_t *) &data, 8)) {
       ESP_LOGVV(TAG, "Reading PMWCS3_REG_GET_DATA failed");
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
     if (this->e25_sensor_ != nullptr) {
@@ -106,5 +102,4 @@ void PMWCS3Component::read_data_() {
   });
 }
 
-}  // namespace pmwcs3
-}  // namespace esphome
+}  // namespace esphome::pmwcs3

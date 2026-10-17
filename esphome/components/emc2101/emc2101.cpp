@@ -5,10 +5,9 @@
 #include "esphome/core/log.h"
 #include "emc2101.h"
 
-namespace esphome {
-namespace emc2101 {
+namespace esphome::emc2101 {
 
-static const char *const TAG = "EMC2101";
+ESPHOME_LOG_TAG(TAG, "EMC2101");
 
 static const uint8_t EMC2101_CHIP_ID = 0x16;      // EMC2101 default device id from part id
 static const uint8_t EMC2101_ALT_CHIP_ID = 0x28;  // EMC2101 alternate device id from part id
@@ -61,7 +60,7 @@ void Emc2101Component::setup() {
   uint8_t chip_id = reg(EMC2101_REGISTER_WHOAMI).get();
   if ((chip_id != EMC2101_CHIP_ID) && (chip_id != EMC2101_ALT_CHIP_ID)) {
     ESP_LOGE(TAG, "Wrong chip ID %02X", chip_id);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
@@ -91,10 +90,7 @@ void Emc2101Component::setup() {
 void Emc2101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Emc2101 component:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
-  ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? "DAC" : "PWM");
+  ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? LOG_STR_LITERAL("DAC") : LOG_STR_LITERAL("PWM"));
   if (this->dac_mode_) {
     ESP_LOGCONFIG(TAG, "  DAC Conversion Rate: %X", this->dac_conversion_rate_);
   } else {
@@ -146,9 +142,9 @@ float Emc2101Component::get_external_temperature() {
     return NAN;
   }
 
-  // join msb and lsb (5 least significant bits are not used)
-  uint16_t raw = (msb << 8 | lsb) >> 5;
-  return raw * 0.125;
+  // join msb and lsb (5 least significant bits are not used); msb is signed, so read as int16_t
+  int16_t raw = static_cast<int16_t>((msb << 8) | lsb) >> 5;
+  return raw * 0.125f;
 }
 
 float Emc2101Component::get_speed() {
@@ -165,5 +161,4 @@ float Emc2101Component::get_speed() {
   return tach == 0xFFFF ? 0.0f : 5400000.0f / tach;
 }
 
-}  // namespace emc2101
-}  // namespace esphome
+}  // namespace esphome::emc2101

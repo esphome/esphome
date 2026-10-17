@@ -1,8 +1,7 @@
 #include "pca9554.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pca9554 {
+namespace esphome::pca9554 {
 
 // for 16 bit expanders, these addresses will be doubled.
 const uint8_t INPUT_REG = 0;
@@ -10,14 +9,14 @@ const uint8_t OUTPUT_REG = 1;
 const uint8_t INVERT_REG = 2;
 const uint8_t CONFIG_REG = 3;
 
-static const char *const TAG = "pca9554";
+ESPHOME_LOG_TAG(TAG, "pca9554");
 
 void PCA9554Component::setup() {
   this->reg_width_ = (this->pin_count_ + 7) / 8;
   // Test to see if device exists
   if (!this->read_inputs_()) {
     ESP_LOGE(TAG, "PCA95xx not detected at 0x%02X", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -65,9 +64,6 @@ void PCA9554Component::dump_config() {
                 this->pin_count_);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 bool PCA9554Component::digital_read_hw(uint8_t pin) {
@@ -152,5 +148,4 @@ size_t PCA9554GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PCA9554", this->pin_);
 }
 
-}  // namespace pca9554
-}  // namespace esphome
+}  // namespace esphome::pca9554

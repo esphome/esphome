@@ -4,7 +4,7 @@
 
 namespace esphome::total_daily_energy {
 
-static const char *const TAG = "total_daily_energy";
+ESPHOME_LOG_TAG(TAG, "total_daily_energy");
 static constexpr uint32_t TIMEOUT_ID_MIDNIGHT = 1;
 static constexpr uint8_t SECONDS_PER_MINUTE = 60;
 static constexpr uint8_t MINUTES_PER_HOUR = 60;
@@ -72,7 +72,7 @@ void TotalDailyEnergy::schedule_midnight_reset_() {
     timeout_seconds = seconds_until_midnight + 1;
   }
 
-  ESP_LOGD(TAG, "Scheduling midnight check in %us", timeout_seconds);
+  ESP_LOGD(TAG, "Scheduling midnight check in %" PRIu32 "s", timeout_seconds);
   this->set_timeout(TIMEOUT_ID_MIDNIGHT, timeout_seconds * MILLIS_PER_SECOND,
                     [this]() { this->schedule_midnight_reset_(); });
 }

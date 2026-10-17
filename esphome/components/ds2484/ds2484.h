@@ -6,14 +6,13 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/one_wire/one_wire.h"
 
-namespace esphome {
-namespace ds2484 {
+namespace esphome::ds2484 {
 
-class DS2484OneWireBus : public one_wire::OneWireBus, public i2c::I2CDevice, public Component {
+class DS2484OneWireBus final : public one_wire::OneWireBus, public i2c::I2CDevice, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::BUS - 1.0; }
+  float get_setup_priority() const override { return setup_priority::BUS - 1.0f; }
 
   bool reset_device();
   int reset_int() override;
@@ -39,5 +38,4 @@ class DS2484OneWireBus : public one_wire::OneWireBus, public i2c::I2CDevice, pub
   bool active_pullup_{false};
   bool strong_pullup_{false};
 };
-}  // namespace ds2484
-}  // namespace esphome
+}  // namespace esphome::ds2484

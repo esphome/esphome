@@ -10,8 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bmp3xx_base {
+namespace esphome::bmp3xx_base {
 
 static const uint8_t BMP388_ID = 0x50;   // The BMP388 device ID
 static const uint8_t BMP390_ID = 0x60;   // The BMP390 device ID
@@ -125,13 +124,6 @@ class BMP3XXComponent : public PollingComponent {
   OperationMode operation_mode_{FORCED_MODE};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    ERROR_COMMUNICATION_FAILED,
-    ERROR_WRONG_CHIP_ID,
-    ERROR_SENSOR_STATUS,
-    ERROR_SENSOR_RESET,
-  } error_code_{NONE};
 
   struct {  // The BMP388 compensation trim parameters (coefficients)
     uint16_t param_T1;
@@ -237,5 +229,4 @@ class BMP3XXComponent : public PollingComponent {
   virtual bool write_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
 };
 
-}  // namespace bmp3xx_base
-}  // namespace esphome
+}  // namespace esphome::bmp3xx_base

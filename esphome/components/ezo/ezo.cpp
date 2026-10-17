@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ezo {
+namespace esphome::ezo {
 
 static const char *const EZO_COMMAND_TYPE_STRINGS[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
                                                        "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
@@ -14,9 +13,6 @@ static const char *const EZO_CALIBRATION_TYPE_STRINGS[] = {"LOW", "MID", "HIGH"}
 void EZOSensor::dump_config() {
   LOG_SENSOR("", "EZO", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -238,5 +234,4 @@ void EZOSensor::send_custom(const std::string &to_send) {
   this->add_command_(to_send.c_str(), EzoCommandType::EZO_CUSTOM);
 }
 
-}  // namespace ezo
-}  // namespace esphome
+}  // namespace esphome::ezo

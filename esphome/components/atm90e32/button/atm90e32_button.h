@@ -4,10 +4,9 @@
 #include "esphome/components/atm90e32/atm90e32.h"
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace atm90e32 {
+namespace esphome::atm90e32 {
 
-class ATM90E32GainCalibrationButton : public button::Button, public Parented<ATM90E32Component> {
+class ATM90E32GainCalibrationButton final : public button::Button, public Parented<ATM90E32Component> {
  public:
   ATM90E32GainCalibrationButton() = default;
 
@@ -15,7 +14,7 @@ class ATM90E32GainCalibrationButton : public button::Button, public Parented<ATM
   void press_action() override;
 };
 
-class ATM90E32ClearGainCalibrationButton : public button::Button, public Parented<ATM90E32Component> {
+class ATM90E32ClearGainCalibrationButton final : public button::Button, public Parented<ATM90E32Component> {
  public:
   ATM90E32ClearGainCalibrationButton() = default;
 
@@ -23,7 +22,7 @@ class ATM90E32ClearGainCalibrationButton : public button::Button, public Parente
   void press_action() override;
 };
 
-class ATM90E32OffsetCalibrationButton : public button::Button, public Parented<ATM90E32Component> {
+class ATM90E32OffsetCalibrationButton final : public button::Button, public Parented<ATM90E32Component> {
  public:
   ATM90E32OffsetCalibrationButton() = default;
 
@@ -31,7 +30,7 @@ class ATM90E32OffsetCalibrationButton : public button::Button, public Parented<A
   void press_action() override;
 };
 
-class ATM90E32ClearOffsetCalibrationButton : public button::Button, public Parented<ATM90E32Component> {
+class ATM90E32ClearOffsetCalibrationButton final : public button::Button, public Parented<ATM90E32Component> {
  public:
   ATM90E32ClearOffsetCalibrationButton() = default;
 
@@ -39,7 +38,7 @@ class ATM90E32ClearOffsetCalibrationButton : public button::Button, public Paren
   void press_action() override;
 };
 
-class ATM90E32PowerOffsetCalibrationButton : public button::Button, public Parented<ATM90E32Component> {
+class ATM90E32PowerOffsetCalibrationButton final : public button::Button, public Parented<ATM90E32Component> {
  public:
   ATM90E32PowerOffsetCalibrationButton() = default;
 
@@ -47,7 +46,7 @@ class ATM90E32PowerOffsetCalibrationButton : public button::Button, public Paren
   void press_action() override;
 };
 
-class ATM90E32ClearPowerOffsetCalibrationButton : public button::Button, public Parented<ATM90E32Component> {
+class ATM90E32ClearPowerOffsetCalibrationButton final : public button::Button, public Parented<ATM90E32Component> {
  public:
   ATM90E32ClearPowerOffsetCalibrationButton() = default;
 
@@ -55,5 +54,4 @@ class ATM90E32ClearPowerOffsetCalibrationButton : public button::Button, public 
   void press_action() override;
 };
 
-}  // namespace atm90e32
-}  // namespace esphome
+}  // namespace esphome::atm90e32

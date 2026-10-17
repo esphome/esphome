@@ -4,10 +4,9 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ektf2232 {
+namespace esphome::ektf2232 {
 
-static const char *const TAG = "ektf2232";
+ESPHOME_LOG_TAG(TAG, "ektf2232");
 
 static const uint8_t SOFT_RESET_CMD[4] = {0x77, 0x77, 0x77, 0x77};
 static const uint8_t HELLO[4] = {0x55, 0x55, 0x55, 0x55};
@@ -130,5 +129,4 @@ void EKTF2232Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace ektf2232
-}  // namespace esphome
+}  // namespace esphome::ektf2232

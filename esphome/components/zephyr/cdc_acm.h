@@ -7,7 +7,7 @@
 
 namespace esphome::zephyr {
 
-class CdcAcm : public Component {
+class CdcAcm final : public Component {
  public:
   CdcAcm();
   void setup() override;

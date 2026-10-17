@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "tuya_cover.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 const uint8_t COMMAND_OPEN = 0x00;
 const uint8_t COMMAND_CLOSE = 0x02;
@@ -10,7 +9,7 @@ const uint8_t COMMAND_STOP = 0x01;
 
 using namespace esphome::cover;
 
-static const char *const TAG = "tuya.cover";
+ESPHOME_LOG_TAG(TAG, "tuya.cover");
 
 void TuyaCover::setup() {
   this->value_range_ = this->max_value_ - this->min_value_;
@@ -140,5 +139,4 @@ cover::CoverTraits TuyaCover::get_traits() {
   return traits;
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

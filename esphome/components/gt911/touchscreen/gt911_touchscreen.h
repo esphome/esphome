@@ -5,27 +5,17 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace gt911 {
+namespace esphome::gt911 {
 
 class GT911ButtonListener {
  public:
   virtual void update_button(uint8_t index, bool state) = 0;
 };
 
-class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
-  /// @brief Initialize the GT911 touchscreen.
-  ///
-  /// If @ref reset_pin_ is set, the touchscreen will be hardware reset,
-  /// and the rest of the setup will be scheduled to run 50ms later using @ref set_timeout()
-  /// to allow the device to stabilize after reset.
-  ///
-  /// If @ref interrupt_pin_ is set, it will be temporarily configured during reset
-  /// to control I2C address selection.
-  ///
-  /// After the timeout, or immediately if no reset is performed, @ref setup_internal_()
-  /// is called to complete the initialization.
+  /// With a reset pin the chip is reset with the interrupt pin held low, which selects address 0x5D, and the
+  /// rest of the setup runs from timeouts once the chip is ready. Without one setup_internal_() runs at once.
   void setup() override;
   void dump_config() override;
   bool can_proceed() override { return this->setup_done_; }
@@ -57,5 +47,4 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice 
   uint8_t button_state_{0xFF};  // last button state. Initial FF guarantees first update.
 };
 
-}  // namespace gt911
-}  // namespace esphome
+}  // namespace esphome::gt911

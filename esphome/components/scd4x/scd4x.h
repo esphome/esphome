@@ -5,16 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace scd4x {
-
-enum ErrorCode : uint8_t {
-  COMMUNICATION_FAILED,
-  SERIAL_NUMBER_IDENTIFICATION_FAILED,
-  MEASUREMENT_INIT_FAILED,
-  FRC_FAILED,
-  UNKNOWN,
-};
+namespace esphome::scd4x {
 
 enum MeasurementMode : uint8_t {
   PERIODIC,
@@ -23,7 +14,7 @@ enum MeasurementMode : uint8_t {
   SINGLE_SHOT_RHT_ONLY,
 };
 
-class SCD4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SCD4XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -55,9 +46,7 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
   uint16_t ambient_pressure_{0};  // Per datasheet, valid values are 700 to 1200 hPa; 0 is a valid sentinel value
   bool initialized_{false};
   bool enable_asc_{false};
-  ErrorCode error_code_;
   MeasurementMode measurement_mode_{PERIODIC};
 };
 
-}  // namespace scd4x
-}  // namespace esphome
+}  // namespace esphome::scd4x

@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hx711 {
+namespace esphome::hx711 {
 
-static const char *const TAG = "hx711";
+ESPHOME_LOG_TAG(TAG, "hx711");
 
 void HX711Sensor::setup() {
   this->sck_pin_->setup();
@@ -68,14 +67,11 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
 
   this->status_clear_warning();
 
-  if (data & 0x800000ULL) {
-    data |= 0xFF000000ULL;
-  }
+  data = static_cast<uint32_t>(sign_extend<24>(data));
 
   if (result != nullptr)
     *result = data;
   return true;
 }
 
-}  // namespace hx711
-}  // namespace esphome
+}  // namespace esphome::hx711

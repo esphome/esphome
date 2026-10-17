@@ -1,10 +1,9 @@
 #include "addressable_light_display.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace addressable_light {
+namespace esphome::addressable_light {
 
-static const char *const TAG = "addressable_light.display";
+ESPHOME_LOG_TAG(TAG, "addressable_light.display");
 
 int AddressableLightDisplay::get_width_internal() { return this->width_; }
 int AddressableLightDisplay::get_height_internal() { return this->height_; }
@@ -66,5 +65,4 @@ void HOT AddressableLightDisplay::draw_absolute_pixel_internal(int x, int y, Col
     this->addressable_light_buffer_[y * this->get_width_internal() + x] = color;
   }
 }
-}  // namespace addressable_light
-}  // namespace esphome
+}  // namespace esphome::addressable_light

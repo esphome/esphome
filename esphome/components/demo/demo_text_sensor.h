@@ -4,16 +4,15 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
-class DemoTextSensor : public text_sensor::TextSensor, public PollingComponent {
+class DemoTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
   void update() override {
     float val = random_float();
-    if (val < 0.33) {
+    if (val < 0.33f) {
       this->publish_state("foo");
-    } else if (val < 0.66) {
+    } else if (val < 0.66f) {
       this->publish_state("bar");
     } else {
       this->publish_state("foobar");
@@ -21,5 +20,4 @@ class DemoTextSensor : public text_sensor::TextSensor, public PollingComponent {
   }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

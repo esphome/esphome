@@ -3,11 +3,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cmath>
+#include <numbers>
 
-namespace esphome {
-namespace qmc5883l {
+namespace esphome::qmc5883l {
 
-static const char *const TAG = "qmc5883l";
+ESPHOME_LOG_TAG(TAG, "qmc5883l");
 
 static const uint8_t QMC5883L_ADDRESS = 0x0D;
 
@@ -29,8 +29,7 @@ void IRAM_ATTR QMC5883LComponent::gpio_intr(QMC5883LComponent *arg) { arg->enabl
 void QMC5883LComponent::setup() {
   // Soft Reset
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(10);
@@ -51,8 +50,7 @@ void QMC5883LComponent::setup() {
   control_1 |= this->range_ << 4;
   control_1 |= this->oversampling_ << 6;
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_1, control_1)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -61,15 +59,13 @@ void QMC5883LComponent::setup() {
   control_2 |= 0b0 << 6;  // ROL_PNT (Pointer Roll Over) -> 0b00=disabled, 0b01=enabled
   control_2 |= 0b0 << 0;  // INT_ENB (Interrupt) -> 0b00=disabled, 0b01=enabled
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, control_2)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   uint8_t period = 0x01;  // recommended value
   if (!this->write_byte(QMC5883L_REGISTER_PERIOD, period)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -81,9 +77,6 @@ void QMC5883LComponent::setup() {
 void QMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "QMC5883L:");
   LOG_I2C_DEVICE(this);
-  if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
@@ -174,7 +167,7 @@ void QMC5883LComponent::read_sensor_() {
   const float y = int16_t(raw[1]) * mg_per_bit * 0.1f;
   const float z = int16_t(raw[2]) * mg_per_bit * 0.1f;
 
-  float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
+  float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
 
   float temp = NAN;
   if (this->temperature_sensor_ != nullptr) {
@@ -213,5 +206,4 @@ i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t
   return err;
 }
 
-}  // namespace qmc5883l
-}  // namespace esphome
+}  // namespace esphome::qmc5883l

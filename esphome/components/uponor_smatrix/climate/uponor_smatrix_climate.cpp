@@ -5,10 +5,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace uponor_smatrix {
+namespace esphome::uponor_smatrix {
 
-static const char *const TAG = "uponor_smatrix.climate";
+ESPHOME_LOG_TAG(TAG, "uponor_smatrix.climate");
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);
@@ -100,5 +99,4 @@ void UponorSmatrixClimate::on_device_data(const UponorSmatrixData *data, size_t 
   this->last_data_ = millis();
 }
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

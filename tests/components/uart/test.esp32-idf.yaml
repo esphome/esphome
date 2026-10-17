@@ -14,12 +14,18 @@ esphome:
 
 uart:
   - id: uart_id
-    tx_pin: 17
+    tx_pin:
+      number: 17
+      mode:
+        pullup: true
+        output: true
+      hold_state: true
     rx_pin: 16
     flow_control_pin: 4
     baud_rate: 9600
     data_bits: 8
     rx_buffer_size: 512
+    tx_buffer_size: 512
     rx_full_threshold: 10
     rx_timeout: 1
     parity: EVEN
@@ -28,6 +34,7 @@ uart:
     tx_pin: 21
     rx_pin: 22
     baud_rate: 115200
+    clock_source: REF_TICK
     debug:
       debug_prefix: "[UART1] "
   - id: uart_debug_custom
@@ -79,7 +86,7 @@ switch:
 number:
   - platform: template
     name: "Test Number"
-    id: test_number
+    id: uart_test_number
     optimistic: true
     min_value: 0
     max_value: 100
@@ -103,7 +110,7 @@ button:
       - uart.write:
           id: uart_id
           data: !lambda |-
-            std::string cmd = "VALUE=" + str_sprintf("%.0f", id(test_number).state) + "\r\n";
+            std::string cmd = "VALUE=" + str_sprintf("%.0f", id(uart_test_number).state) + "\r\n";
             return std::vector<uint8_t>(cmd.begin(), cmd.end());
 
 event:

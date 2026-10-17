@@ -5,10 +5,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace power_supply {
+namespace esphome::power_supply {
 
-class PowerSupply : public Component {
+class PowerSupply final : public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_enable_time(uint32_t enable_time) { enable_time_ = enable_time; }
@@ -40,6 +39,7 @@ class PowerSupply : public Component {
   uint32_t keep_on_time_;
   int16_t active_requests_{0};  // use signed integer to make catching negative requests easier.
   bool enable_on_boot_{false};
+  void schedule_off_if_idle_();
 };
 
 class PowerSupplyRequester {
@@ -63,5 +63,4 @@ class PowerSupplyRequester {
   bool requested_{false};
 };
 
-}  // namespace power_supply
-}  // namespace esphome
+}  // namespace esphome::power_supply

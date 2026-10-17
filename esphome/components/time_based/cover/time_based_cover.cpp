@@ -3,10 +3,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace time_based {
+namespace esphome::time_based {
 
-static const char *const TAG = "time_based.cover";
+ESPHOME_LOG_TAG(TAG, "time_based.cover");
 
 using namespace esphome::cover;
 
@@ -183,5 +182,4 @@ void TimeBasedCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace time_based
-}  // namespace esphome
+}  // namespace esphome::time_based

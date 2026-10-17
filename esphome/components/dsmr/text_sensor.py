@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_INTERNAL
+from esphome.types import ConfigType
 
 from . import CONF_DSMR_ID, Dsmr
 
@@ -14,6 +15,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("p1_version"): text_sensor.text_sensor_schema(),
         cv.Optional("p1_version_be"): text_sensor.text_sensor_schema(),
         cv.Optional("timestamp"): text_sensor.text_sensor_schema(),
+        cv.Optional("electricity_switch_position"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_tariff"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_tariff_il"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_failure_log"): text_sensor.text_sensor_schema(),
@@ -38,7 +40,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DSMR_ID])
 
     text_sensors = []

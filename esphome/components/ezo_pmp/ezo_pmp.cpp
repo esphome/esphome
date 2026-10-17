@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ezo_pmp {
+namespace esphome::ezo_pmp {
 
-static const char *const TAG = "ezo-pmp";
+ESPHOME_LOG_TAG(TAG, "ezo-pmp");
 
 static const uint16_t EZO_PMP_COMMAND_NONE = 0;
 static const uint16_t EZO_PMP_COMMAND_TYPE_READ = 1;
@@ -40,9 +39,6 @@ static const std::string DOSING_MODE_CONTINUOUS = "Continuous";
 
 void EzoPMP::dump_config() {
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -547,5 +543,4 @@ void EzoPMP::exec_arbitrary_command(const std::basic_string<char> &command) {
   this->queue_command_(EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS, 0, 0, true);
 }
 
-}  // namespace ezo_pmp
-}  // namespace esphome
+}  // namespace esphome::ezo_pmp

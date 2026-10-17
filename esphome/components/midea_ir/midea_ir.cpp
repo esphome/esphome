@@ -4,10 +4,9 @@
 #include "esphome/core/log.h"
 #include "esphome/components/coolix/coolix.h"
 
-namespace esphome {
-namespace midea_ir {
+namespace esphome::midea_ir {
 
-static const char *const TAG = "midea_ir.climate";
+ESPHOME_LOG_TAG(TAG, "midea_ir.climate");
 
 void ControlData::set_temp(float temp) {
   uint8_t min;
@@ -204,5 +203,4 @@ bool MideaIR::on_midea_(const MideaData &data) {
   return false;
 }
 
-}  // namespace midea_ir
-}  // namespace esphome
+}  // namespace esphome::midea_ir

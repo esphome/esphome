@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tlc59208f {
+namespace esphome::tlc59208f {
 
-static const char *const TAG = "tlc59208f";
+ESPHOME_LOG_TAG(TAG, "tlc59208f");
 
 // * marks register defaults
 // 0*: Register auto increment disabled, 1: Register auto increment enabled
@@ -143,5 +142,4 @@ void TLC59208FChannel::write_state(float state) {
   this->parent_->set_channel_value_(this->channel_, duty);
 }
 
-}  // namespace tlc59208f
-}  // namespace esphome
+}  // namespace esphome::tlc59208f

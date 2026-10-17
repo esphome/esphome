@@ -3,10 +3,9 @@
 #include "esphome/components/switch/switch.h"
 #include "../hon_climate.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
-class QuietModeSwitch : public switch_::Switch, public Parented<HonClimate> {
+class QuietModeSwitch final : public switch_::Switch, public Parented<HonClimate> {
  public:
   QuietModeSwitch() = default;
 
@@ -14,5 +13,4 @@ class QuietModeSwitch : public switch_::Switch, public Parented<HonClimate> {
   void write_state(bool state) override;
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

@@ -4,12 +4,11 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace pcd8544 {
+namespace esphome::pcd8544 {
 
-class PCD8544 : public display::DisplayBuffer,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
-                                      spi::DATA_RATE_8MHZ> {
+class PCD8544 final : public display::DisplayBuffer,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                            spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_8MHZ> {
  public:
   const uint8_t PCD8544_POWERDOWN = 0x04;
   const uint8_t PCD8544_ENTRYMODE = 0x02;
@@ -74,5 +73,4 @@ class PCD8544 : public display::DisplayBuffer,
   GPIOPin *dc_pin_;
 };
 
-}  // namespace pcd8544
-}  // namespace esphome
+}  // namespace esphome::pcd8544

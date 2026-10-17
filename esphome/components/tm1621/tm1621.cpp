@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tm1621 {
+namespace esphome::tm1621 {
 
-static const char *const TAG = "tm1621";
+ESPHOME_LOG_TAG(TAG, "tm1621");
 
 const uint8_t TM1621_PULSE_WIDTH = 10;  // microseconds (Sonoff = 100)
 
@@ -277,5 +276,4 @@ int TM1621Display::get_command_code_(char *destination, size_t destination_size,
   }
   return result;
 }
-}  // namespace tm1621
-}  // namespace esphome
+}  // namespace esphome::tm1621

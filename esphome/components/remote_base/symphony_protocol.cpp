@@ -3,10 +3,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.symphony";
+ESPHOME_LOG_TAG(TAG, "remote.symphony");
 
 // Reference implementation and timing details:
 // IRremoteESP8266 ir_Symphony.cpp
@@ -118,5 +117,4 @@ void SymphonyProtocol::dump(const SymphonyData &data) {
   ESP_LOGI(TAG, "Received Symphony: data=0x%0*" PRIX32 ", nbits=%" PRIu8, hex_width, (uint32_t) data.data, data.nbits);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

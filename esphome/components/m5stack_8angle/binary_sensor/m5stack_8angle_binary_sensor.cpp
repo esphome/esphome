@@ -1,7 +1,6 @@
 #include "m5stack_8angle_binary_sensor.h"
 
-namespace esphome {
-namespace m5stack_8angle {
+namespace esphome::m5stack_8angle {
 
 void M5Stack8AngleSwitchBinarySensor::update() {
   int8_t out = this->parent_->read_switch();
@@ -13,5 +12,4 @@ void M5Stack8AngleSwitchBinarySensor::update() {
   this->status_clear_warning();
 }
 
-}  // namespace m5stack_8angle
-}  // namespace esphome
+}  // namespace esphome::m5stack_8angle

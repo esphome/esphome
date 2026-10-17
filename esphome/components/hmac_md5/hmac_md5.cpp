@@ -4,8 +4,7 @@
 #ifdef USE_MD5
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace hmac_md5 {
+namespace esphome::hmac_md5 {
 void HmacMD5::init(const uint8_t *key, size_t len) {
   uint8_t ipad[64], opad[64];
 
@@ -53,6 +52,6 @@ bool HmacMD5::equals_bytes(const uint8_t *expected) { return this->ohash_.equals
 
 bool HmacMD5::equals_hex(const char *expected) { return this->ohash_.equals_hex(expected); }
 
-}  // namespace hmac_md5
-}  // namespace esphome
+}  // namespace esphome::hmac_md5
+
 #endif

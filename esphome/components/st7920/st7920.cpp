@@ -3,10 +3,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7920 {
+namespace esphome::st7920 {
 
-static const char *const TAG = "st7920";
+ESPHOME_LOG_TAG(TAG, "st7920");
 
 // ST7920 COMMANDS
 static const uint8_t LCD_DATA = 0xFA;
@@ -154,5 +153,4 @@ void ST7920::display_init_() {
   this->write_display_data();
 }
 
-}  // namespace st7920
-}  // namespace esphome
+}  // namespace esphome::st7920

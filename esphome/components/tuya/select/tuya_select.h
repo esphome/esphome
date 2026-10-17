@@ -6,10 +6,9 @@
 
 #include <vector>
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
-class TuyaSelect : public select::Select, public Component {
+class TuyaSelect final : public select::Select, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -32,5 +31,4 @@ class TuyaSelect : public select::Select, public Component {
   bool is_int_ = false;
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

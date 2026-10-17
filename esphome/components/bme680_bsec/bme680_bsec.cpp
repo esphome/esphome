@@ -3,10 +3,11 @@
 #include "esphome/core/log.h"
 #include <string>
 
-namespace esphome {
-namespace bme680_bsec {
+namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
-static const char *const TAG = "bme680_bsec.sensor";
+ESPHOME_LOG_TAG(TAG, "bme680_bsec.sensor");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
@@ -162,9 +163,10 @@ void BME680BSECComponent::dump_config() {
                 "  IAQ Mode: %s\n"
                 "  Supply Voltage: %sV\n"
                 "  Sample Rate: %s\n"
-                "  State Save Interval: %ims",
-                this->temperature_offset_, this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile",
-                this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? "3.3" : "1.8",
+                "  State Save Interval: %" PRIu32 "ms",
+                this->temperature_offset_,
+                this->iaq_mode_ == IAQ_MODE_STATIC ? LOG_STR_LITERAL("Static") : LOG_STR_LITERAL("Mobile"),
+                this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? LOG_STR_LITERAL("3.3") : LOG_STR_LITERAL("1.8"),
                 BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_), this->state_save_interval_ms_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
@@ -259,7 +261,7 @@ void BME680BSECComponent::run_() {
       this->snapshot_state_();
 
     ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
-    this->set_timeout("read", meas_dur, [this]() { this->read_(); });
+    this->set_timeout(READ_TIMEOUT_ID, meas_dur, [this]() { this->read_(); });
   } else {
     ESP_LOGV(TAG, "Measurement not required");
     this->read_();
@@ -462,7 +464,7 @@ int8_t BME680BSECComponent::write_bytes_wrapper(uint8_t devid, uint8_t a_registe
 }
 
 void BME680BSECComponent::delay_ms(uint32_t period) {
-  ESP_LOGV(TAG, "Delaying for %ums", period);
+  ESP_LOGV(TAG, "Delaying for %" PRIu32 "ms", period);
   delay(period);
 }
 
@@ -565,5 +567,4 @@ void BME680BSECComponent::save_state_(uint8_t accuracy) {
   ESP_LOGI(TAG, "Saved state");
 }
 #endif
-}  // namespace bme680_bsec
-}  // namespace esphome
+}  // namespace esphome::bme680_bsec

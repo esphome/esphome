@@ -1,1 +1,10 @@
-<<: !include common.yaml
+substitutions:
+  mic_din_pin: GPIO18
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-s3-idf.yaml
+  micro_wake_word: !include common.yaml
+
+micro_wake_word:
+  task_core: 1
+  prefer_internal_ram: true

@@ -4,14 +4,13 @@
 // Datasheet:
 // - https://nl.mouser.com/datasheet/2/302/PCF8563-1127619.pdf
 
-namespace esphome {
-namespace pcf8563 {
+namespace esphome::pcf8563 {
 
-static const char *const TAG = "PCF8563";
+ESPHOME_LOG_TAG(TAG, "PCF8563");
 
 void PCF8563Component::setup() {
   if (!this->read_rtc_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
@@ -20,9 +19,6 @@ void PCF8563Component::update() { this->read_time(); }
 void PCF8563Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCF8563:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   RealTimeClock::dump_config();
 }
 
@@ -99,5 +95,4 @@ bool PCF8563Component::write_rtc_() {
            pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled);
   return true;
 }
-}  // namespace pcf8563
-}  // namespace esphome
+}  // namespace esphome::pcf8563

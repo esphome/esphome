@@ -6,10 +6,9 @@
 
 using esphome::i2c::ErrorCode;
 
-namespace esphome {
-namespace ltr501 {
+namespace esphome::ltr501 {
 
-static const char *const TAG = "ltr501";
+ESPHOME_LOG_TAG(TAG, "ltr501");
 
 static const uint8_t MAX_TRIES = 5;
 static const uint8_t MAX_SENSITIVITY_ADJUSTMENTS = 10;
@@ -116,10 +115,6 @@ void LTRAlsPs501Component::dump_config() {
   LOG_SENSOR("  ", "CH1 Infrared counts", this->infrared_counts_sensor_);
   LOG_SENSOR("  ", "CH0 Visible+IR counts", this->full_spectrum_counts_sensor_);
   LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void LTRAlsPs501Component::update() {
@@ -152,7 +147,7 @@ void LTRAlsPs501Component::loop() {
       err = this->write(nullptr, 0);
       if (err != i2c::ERROR_OK) {
         ESP_LOGW(TAG, "i2c connection failed");
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       }
       this->configure_reset_();
       if (this->is_als_()) {
@@ -501,12 +496,12 @@ void LTRAlsPs501Component::apply_lux_calculation_(AlsReadings &data) {
   // method from
   // https://github.com/fards/Ainol_fire_kernel/blob/83832cf8a3082fd8e963230f4b1984479d1f1a84/customer/drivers/lightsensor/ltr501als.c#L295
 
-  if (ratio < 0.45) {
-    lux = 1.7743 * ch0 + 1.1059 * ch1;
-  } else if (ratio < 0.64) {
-    lux = 3.7725 * ch0 - 1.3363 * ch1;
-  } else if (ratio < 0.85) {
-    lux = 1.6903 * ch0 - 0.1693 * ch1;
+  if (ratio < 0.45f) {
+    lux = 1.7743f * ch0 + 1.1059f * ch1;
+  } else if (ratio < 0.64f) {
+    lux = 3.7725f * ch0 - 1.3363f * ch1;
+  } else if (ratio < 0.85f) {
+    lux = 1.6903f * ch0 - 0.1693f * ch1;
   } else {
     ESP_LOGW(TAG, "Impossible ch1/(ch0 + ch1) ratio");
     lux = 0.0f;
@@ -542,5 +537,4 @@ void LTRAlsPs501Component::publish_data_part_2_(AlsReadings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));
   }
 }
-}  // namespace ltr501
-}  // namespace esphome
+}  // namespace esphome::ltr501

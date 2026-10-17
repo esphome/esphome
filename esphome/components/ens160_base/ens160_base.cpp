@@ -18,10 +18,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ens160_base {
+namespace esphome::ens160_base {
 
-static const char *const TAG = "ens160";
+ESPHOME_LOG_TAG(TAG, "ens160");
 
 // Datasheet specifies 10ms, but some users report that 10ms is not sufficient for the
 // sensor to boot and be ready for commands. 11ms seems to be a safe value.
@@ -63,20 +62,17 @@ void ENS160Component::setup() {
   // check part_id
   uint16_t part_id;
   if (!this->read_bytes(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (part_id != ENS160_PART_ID) {
-    this->error_code_ = INVALID_ID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Sensor reported an invalid ID. Is this a ENS160?"));
     return;
   }
 
   // set mode to reset
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET)) {
-    this->error_code_ = WRITE_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(ENS160_BOOTING);
@@ -84,51 +80,44 @@ void ENS160Component::setup() {
   // check status
   uint8_t status_value;
   if (!this->read_byte(ENS160_REG_DATA_STATUS, &status_value)) {
-    this->error_code_ = READ_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->validity_flag_ = static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
 
   if (this->validity_flag_ == INVALID_OUTPUT) {
-    this->error_code_ = VALIDITY_INVALID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Invalid Device Status - No valid output"));
     return;
   }
 
   // set mode to idle
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE)) {
-    this->error_code_ = WRITE_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(ENS160_BOOTING);
 
   // clear command
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP)) {
-    this->error_code_ = WRITE_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR)) {
-    this->error_code_ = WRITE_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(ENS160_BOOTING);
 
   // read firmware version
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER)) {
-    this->error_code_ = WRITE_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(ENS160_BOOTING);
 
   uint8_t version_data[3];
   if (!this->read_bytes(ENS160_REG_GPR_READ_4, version_data, 3)) {
-    this->error_code_ = READ_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->firmware_ver_major_ = version_data[0];
@@ -137,22 +126,19 @@ void ENS160Component::setup() {
 
   // set mode to standard
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)) {
-    this->error_code_ = WRITE_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // read opmode and check standard mode is achieved before finishing Setup
   uint8_t op_mode;
   if (!this->read_byte(ENS160_REG_OPMODE, &op_mode)) {
-    this->error_code_ = READ_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   if (op_mode != ENS160_OPMODE_STD) {
-    this->error_code_ = STD_OPMODE_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Device failed to achieve Standard Operating Mode"));
     return;
   }
 }
@@ -292,29 +278,8 @@ void ENS160Component::send_env_data_() {
 
 void ENS160Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ENS160:");
-
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case READ_FAILED:
-      ESP_LOGE(TAG, "Error reading from register");
-      break;
-    case WRITE_FAILED:
-      ESP_LOGE(TAG, "Error writing to register");
-      break;
-    case INVALID_ID:
-      ESP_LOGE(TAG, "Sensor reported an invalid ID. Is this a ENS160?");
-      break;
-    case VALIDITY_INVALID:
-      ESP_LOGE(TAG, "Invalid Device Status - No valid output");
-      break;
-    case STD_OPMODE_FAILED:
-      ESP_LOGE(TAG, "Device failed to achieve Standard Operating Mode");
-      break;
-    case NONE:
-      ESP_LOGD(TAG, "Setup successful");
-      break;
+  if (!this->is_failed()) {
+    ESP_LOGD(TAG, "Setup successful");
   }
   ESP_LOGI(TAG, "Firmware Version: %d.%d.%d", this->firmware_ver_major_, this->firmware_ver_minor_,
            this->firmware_ver_build_);
@@ -332,5 +297,4 @@ void ENS160Component::dump_config() {
   }
 }
 
-}  // namespace ens160_base
-}  // namespace esphome
+}  // namespace esphome::ens160_base

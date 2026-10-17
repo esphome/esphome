@@ -6,7 +6,7 @@
 namespace esphome::sy6970 {
 
 // Bus status text sensor
-class SY6970BusStatusTextSensor : public SY6970Listener, public text_sensor::TextSensor {
+class SY6970BusStatusTextSensor final : public SY6970Listener, public text_sensor::TextSensor {
  public:
   void on_data(const SY6970Data &data) override {
     uint8_t status = (data.registers[SY6970_REG_STATUS] >> 5) & 0x07;
@@ -40,7 +40,7 @@ class SY6970BusStatusTextSensor : public SY6970Listener, public text_sensor::Tex
 };
 
 // Charge status text sensor
-class SY6970ChargeStatusTextSensor : public SY6970Listener, public text_sensor::TextSensor {
+class SY6970ChargeStatusTextSensor final : public SY6970Listener, public text_sensor::TextSensor {
  public:
   void on_data(const SY6970Data &data) override {
     uint8_t status = (data.registers[SY6970_REG_STATUS] >> 3) & 0x03;
@@ -66,7 +66,7 @@ class SY6970ChargeStatusTextSensor : public SY6970Listener, public text_sensor::
 };
 
 // NTC status text sensor
-class SY6970NtcStatusTextSensor : public SY6970Listener, public text_sensor::TextSensor {
+class SY6970NtcStatusTextSensor final : public SY6970Listener, public text_sensor::TextSensor {
  public:
   void on_data(const SY6970Data &data) override {
     uint8_t status = data.registers[SY6970_REG_FAULT] & 0x07;

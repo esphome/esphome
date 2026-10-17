@@ -1,10 +1,9 @@
 #include "hbridge_fan.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
-static const char *const TAG = "fan.hbridge";
+ESPHOME_LOG_TAG(TAG, "fan.hbridge");
 
 void HBridgeFan::set_hbridge_levels_(float a_level, float b_level) {
   this->pin_a_->set_level(a_level);
@@ -93,5 +92,4 @@ void HBridgeFan::write_state_() {
     this->oscillating_->set_state(this->oscillating);
 }
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge
