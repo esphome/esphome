@@ -294,17 +294,24 @@ void BME68xBSEC2Component::run_() {
     uint32_t meas_dur = bme68x_get_meas_dur(this->op_mode_, &bme68x_conf, &this->bme68x_);
     ESP_LOGV(TAG, "Queueing read in %" PRIu32 "us", meas_dur);
     this->trigger_time_ns_ = curr_time_ns;
-    this->set_timeout(READ_TIMEOUT_ID, meas_dur / 1000, [this]() { this->read_(this->trigger_time_ns_); });
+    this->set_timeout(READ_TIMEOUT_ID, meas_dur / 1000, [this]() {
+      this->read_(this->trigger_time_ns_);
+      this->check_status_();
+    });
   } else {
     ESP_LOGV(TAG, "Measurement not required, queueing immediate read");
     this->trigger_time_ns_ = curr_time_ns;
-    this->set_timeout(READ_TIMEOUT_ID, 0, [this]() { this->read_(this->trigger_time_ns_); });
+    this->set_timeout(READ_TIMEOUT_ID, 0, [this]() {
+      this->read_(this->trigger_time_ns_);
+      this->check_status_();
+    });
   }
 
   // schedule next run
-  ESP_LOGV(TAG, "Next run in: %u", (this->bsec_settings_.next_call - curr_time_ns) / 1000000);
-  this->set_timeout(RUN_TIMEOUT_ID, (this->bsec_settings_.next_call - curr_time_ns) / 1000000,
-                    [this]() { this->run_(); });
+  int64_t delay_ns = this->bsec_settings_.next_call - curr_time_ns;
+  uint32_t delay_ms = delay_ns > 0 ? static_cast<uint32_t>((delay_ns + 999999) / 1000000) : 1;
+  ESP_LOGV(TAG, "Next run in: %" PRIu32 "ms", delay_ms);
+  this->set_timeout(RUN_TIMEOUT_ID, delay_ms, [this]() { this->run_(); });
   this->check_status_();
 }
 
@@ -326,7 +333,6 @@ void BME68xBSEC2Component::read_(int64_t trigger_time_ns) {
   }
   if (this->bme68x_status_ != BME68X_OK) {
     ESP_LOGW(TAG, "Fetching data failed (BME68X error code %d)", this->bme68x_status_);
-    this->check_status_();
     return;
   }
   if (nFields < 1) {
@@ -390,7 +396,6 @@ void BME68xBSEC2Component::read_(int64_t trigger_time_ns) {
     this->bsec_status_ = bsec_do_steps_m(&this->bsec_instance_, inputs, num_inputs, outputs, &num_outputs);
     if (this->bsec_status_ != BSEC_OK) {
       ESP_LOGW(TAG, "Signal processing failed (BSEC2 error code %d)", this->bsec_status_);
-      this->check_status_();
       return;
     }
     if (num_outputs < 1) {
