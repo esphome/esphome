@@ -31,7 +31,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import CORE, HexInt, TimePeriodMilliseconds
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -48,6 +48,7 @@ CONF_TASK_CORE = "task_core"
 
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
 CONF_MODELS = "models"
+CONF_RING_BUFFER_DURATION = "ring_buffer_duration"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_PREFER_INTERNAL_RAM = "prefer_internal_ram"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
@@ -433,6 +434,13 @@ def _validate_task_core(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_ring_buffer_duration(value: object) -> TimePeriodMilliseconds:
+    duration = cv.positive_time_period_milliseconds(value)
+    if not 120 <= duration.total_milliseconds <= 1000:
+        raise cv.Invalid("ring_buffer_duration must be between 120ms and 1s")
+    return duration
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -455,6 +463,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_STOP_AFTER_DETECTION, default=True): cv.boolean,
             cv.Optional(CONF_TASK_CORE, default=-1): cv.int_range(min=-1, max=1),
             cv.Optional(CONF_PREFER_INTERNAL_RAM, default=False): cv.boolean,
+            cv.Optional(CONF_RING_BUFFER_DURATION): _validate_ring_buffer_duration,
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_MODEL): cv.invalid(
                 f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
@@ -635,6 +644,8 @@ async def to_code(config):
             cg.add(var.add_wake_word_model(wake_word_model))
 
     cg.add(var.set_features_step_size(feature_step_size))
+    if (ring_buffer_duration := config.get(CONF_RING_BUFFER_DURATION)) is not None:
+        cg.add(var.set_ring_buffer_duration_ms(ring_buffer_duration.total_milliseconds))
     cg.add(var.set_stop_after_detection(config[CONF_STOP_AFTER_DETECTION]))
 
     if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
