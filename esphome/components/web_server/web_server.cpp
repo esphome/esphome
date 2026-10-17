@@ -203,6 +203,10 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain,
 EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   EntityMatchResult result{false, this->method.empty()};
 
+  // Internal entities are unreachable by URL unless include_internal is set, as with the native API and MQTT.
+  if (!this->include_internal && entity->is_internal())
+    return result;
+
 #ifdef USE_DEVICES
   Device *entity_device = entity->get_device();
   bool url_has_device = !this->device_name.empty();
@@ -2560,6 +2564,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   // Parse URL for component routing
   // Pass HTTP method to disambiguate 3-segment URLs (GET=sub-device state, POST=main device action)
   UrlMatch match = match_url(url.c_str(), url.length(), false, request->method() == HTTP_POST);
+  match.include_internal = this->include_internal_;
 
   // Route to appropriate handler based on domain
   // NOLINTNEXTLINE(readability-simplify-boolean-expr)

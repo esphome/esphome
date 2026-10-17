@@ -6,3 +6,4 @@ text_sensor:
 number:
 switch:
 select:
+button:

@@ -27,8 +27,7 @@ uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
 void CM1106Component::setup() {
   uint8_t response[8] = {0};
   if (!this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -138,9 +137,6 @@ void CM1106Component::dump_config() {
                   "  ABC calibration cycle: %u days\n"
                   "  ABC baseline: %uppm",
                   ONOFF(this->abc_boot_logic_ == CM1106_ABC_ENABLED), this->abc_cycle_, this->abc_baseline_);
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

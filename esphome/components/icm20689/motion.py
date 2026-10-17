@@ -11,12 +11,9 @@ DEPENDENCIES = ["spi"]
 
 #  Enum proxies (must match the C++ enum values exactly)
 ICM20689AccelRange = icm20689_ns.enum("ICM20689AccelRange")
-ACCEL_RANGE_OPTIONS = {
-    "2G": ICM20689AccelRange.ICM20689_ACCEL_RANGE_2G,
-    "4G": ICM20689AccelRange.ICM20689_ACCEL_RANGE_4G,
-    "8G": ICM20689AccelRange.ICM20689_ACCEL_RANGE_8G,
-    "16G": ICM20689AccelRange.ICM20689_ACCEL_RANGE_16G,
-}
+ACCEL_RANGE_OPTIONS = ICM20689AccelRange.options(
+    "2G", "4G", "8G", "16G", prefix="ICM20689_ACCEL_RANGE_"
+)
 
 ICM20689GyroRange = icm20689_ns.enum("ICM20689GyroRange")
 GYRO_RANGE_OPTIONS = {
