@@ -117,6 +117,34 @@ TEST(VevorDtxTest, PublishesDecodedValues) {
   EXPECT_TRUE(low_battery.state);
 }
 
+// A byte that wrapped past 0xFF and a light word with the tenfold bit set
+TEST(VevorDtxTest, UndoesTheOffsetPerByte) {
+  VevorDtxUnderTest hub;
+  sensor::Sensor rain, illuminance;
+  hub.set_rain_sensor(&rain);
+  hub.set_illuminance_sensor(&illuminance);
+  auto payload = sample_payload();
+  payload[13] = 0x01;  // rain 255: the low byte is 255 + 1 wrapped to 0
+  payload[14] = 0x00;
+  payload[16] = 0x80;  // light 0x7F00 = 32512 lx without the tenfold bit
+  payload[17] = 0x01;
+  payload[19] = sum_bytes(payload.data(), 19);
+  EXPECT_TRUE(hub.on_receive(receive_data(timings(payload))));
+  EXPECT_NEAR(rain.state, 255 * 0.233f, 0.01f);
+  EXPECT_NEAR(illuminance.state, 32512.0f, 0.01f);
+}
+
+TEST(VevorDtxTest, DecodesAFrameAfterNoise) {
+  VevorDtxUnderTest hub;
+  VevorDtxUnderTest::Payload payload{};
+  // A noise burst, the gap, then the frame: the gap resets the search and the frame still decodes
+  remote_base::RawTimings raw{FRAME_GAP_US, 300, -500, 1000, -176};
+  const auto frame = timings(sample_payload());
+  raw.insert(raw.end(), frame.begin(), frame.end());
+  ASSERT_TRUE(hub.decode_timings_(raw, payload));
+  EXPECT_EQ(payload, sample_payload());
+}
+
 TEST(VevorDtxTest, IgnoresOtherStations) {
   VevorDtxUnderTest hub;
   hub.set_station_id(0x9999);

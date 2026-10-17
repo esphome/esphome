@@ -14,12 +14,15 @@ ESPHOME_LOG_TAG(TAG, "vevor_dtx");
 static constexpr uint64_t SYNC_AND_HEADER = 0xAAAACACA54AA00ULL;
 static constexpr uint64_t SYNC_AND_HEADER_MASK = (1ULL << 56) - 1;
 static constexpr uint8_t HEADER_SIZE = 2;
-// Raw wind, direction, rain and light values sit above this offset
-static constexpr uint16_t RAW_OFFSET = 0x0101;
 // Wind arrives in 1/8.333 km/h and 1.25 km/h units; both are published in m/s
 static constexpr float WIND_SPEED_MS_PER_RAW = 1.0f / (8.333f * 3.6f);
 static constexpr float WIND_GUST_MS_PER_RAW = 1.0f / (1.25f * 3.6f);
 static constexpr float RAIN_MM_PER_RAW = 0.233f;
+
+// Wind, direction, rain and light arrive with an offset of one on each byte; 0x00 wraps to 0xFF
+static uint16_t offset_word(uint8_t high, uint8_t low) {
+  return encode_uint16(static_cast<uint8_t>(high - 1), static_cast<uint8_t>(low - 1));
+}
 
 void VevorDtxComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -107,16 +110,14 @@ bool VevorDtxComponent::publish_(const Payload &payload) {
   }
   const float temperature = (float(encode_uint16(payload[5], payload[6])) - 500.0f) / 10.0f;
   const uint8_t humidity = payload[7];
-  const float wind_speed = (float(encode_uint16(payload[8], payload[9])) - RAW_OFFSET) * WIND_SPEED_MS_PER_RAW;
+  const float wind_speed = float(offset_word(payload[8], payload[9])) * WIND_SPEED_MS_PER_RAW;
   const float wind_gust = float(payload[10]) * WIND_GUST_MS_PER_RAW;
-  const float wind_direction = float(encode_uint16(payload[11] & 0x0F, payload[12])) - RAW_OFFSET;
-  const float rain = (float(encode_uint16(payload[13], payload[14])) - RAW_OFFSET) * RAIN_MM_PER_RAW;
+  const float wind_direction = float(offset_word(payload[11], payload[12]) & 0x0FFF);
+  const float rain = float(offset_word(payload[13], payload[14])) * RAIN_MM_PER_RAW;
   const int8_t uv_index = int8_t(payload[15] & 0x1F) - 1;
-  const uint16_t lux_raw = encode_uint16(payload[16], payload[17]);
-  float illuminance = float((lux_raw & 0x7FFF) - RAW_OFFSET);
-  if ((lux_raw & 0x8000) != 0) {
-    illuminance *= 10.0f;
-  }
+  // The top bit of the light word selects a tenfold range
+  const uint16_t lux_raw = offset_word(payload[16], payload[17]);
+  const float illuminance = (lux_raw & 0x8000) != 0 ? float(lux_raw & 0x7FFF) * 10.0f : float(lux_raw);
   const uint8_t tx_counter = payload[18];
 
   ESP_LOGD(TAG,
