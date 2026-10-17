@@ -452,6 +452,74 @@ bool Nextion::remove_from_q_(bool report_empty) {
   return true;
 }
 
+void Nextion::deliver_queue_response_(const LogString *response_name, const NextionQueueResponse &resp) {
+  auto it = this->nextion_queue_.begin();
+  while (it != this->nextion_queue_.end()) {
+    NextionQueue *nb = *it;
+    if (nb == nullptr || nb->component == nullptr) {
+      ESP_LOGE(TAG, "Invalid queue entry");
+      if (nb != nullptr) {
+        this->release_queue_entry_(nb);
+      }
+      it = this->nextion_queue_.erase(it);
+      continue;
+    }
+    NextionComponentBase *component = nb->component;
+    NextionQueueType qtype = component->get_queue_type();
+
+    if (!nb->pending_command.empty()) {
+      ESP_LOGV(TAG, "%s: skipping unsent '%s'", LOG_STR_ARG(response_name), component->get_variable_name().c_str());
+      ++it;
+      continue;
+    }
+
+    if (qtype == NextionQueueType::NO_RESULT && !nb->raw_get) {
+      // Leave in queue -- its 0x01 ACK will remove it via remove_from_q_().
+      ESP_LOGV(TAG, "%s: skipping NO_RESULT '%s'", LOG_STR_ARG(response_name), component->get_variable_name().c_str());
+      ++it;
+      continue;
+    }
+
+    // The display answers queries in order, so the response belongs to this query even when the type does
+    // not match. Consume only this entry and never hand the value to a later query.
+    if (nb->raw_get) {
+      // A raw "get" from send_command() has no entity to update
+      ESP_LOGV(TAG, "%s for raw get dropped", LOG_STR_ARG(response_name));
+    } else if (!resp.is_string && (qtype == NextionQueueType::SENSOR || qtype == NextionQueueType::BINARY_SENSOR ||
+                                   qtype == NextionQueueType::SWITCH)) {
+      ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(), qtype,
+               component->get_queue_type_string(), resp.int_value);
+      component->set_state_from_int(resp.int_value, true, false);
+    } else if (resp.is_string && qtype == NextionQueueType::TEXT_SENSOR) {
+      ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", resp.str_value->c_str(),
+               component->get_variable_name().c_str(), component->get_queue_type_string());
+      component->set_state_from_string(*resp.str_value, true, false);
+    } else {
+      ESP_LOGE(TAG, "%s but '%s' invalid type %d", LOG_STR_ARG(response_name), component->get_variable_name().c_str(),
+               qtype);
+    }
+
+    this->release_queue_entry_(nb);
+    this->nextion_queue_.erase(it);
+    return;
+  }
+  ESP_LOGE(TAG, "%s but no sent query in queue", LOG_STR_ARG(response_name));
+}
+
+void Nextion::set_numeric_return_(int value) {
+  NextionQueueResponse resp{};
+  resp.is_string = false;
+  resp.int_value = value;
+  this->deliver_queue_response_(LOG_STR("Numeric return"), resp);
+}
+
+void Nextion::set_string_return_(const std::string &value) {
+  NextionQueueResponse resp{};
+  resp.is_string = true;
+  resp.str_value = &value;
+  this->deliver_queue_response_(LOG_STR("String return"), resp);
+}
+
 void Nextion::process_serial_() {
   // Read all available bytes in batches to reduce UART call overhead.
   size_t avail = this->available();
@@ -657,28 +725,7 @@ void Nextion::process_nextion_commands_() {
           break;
         }
 
-        NextionQueue *nb = this->nextion_queue_.front();
-        if (!nb || !nb->component) {
-          ESP_LOGE(TAG, "Invalid queue entry");
-          if (nb != nullptr) {
-            this->release_queue_entry_(nb);
-          }
-          this->nextion_queue_.pop_front();
-          return;
-        }
-        NextionComponentBase *component = nb->component;
-
-        if (component->get_queue_type() != NextionQueueType::TEXT_SENSOR) {
-          ESP_LOGE(TAG, "String return but '%s' not text sensor", component->get_variable_name().c_str());
-        } else {
-          ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name().c_str(),
-                   component->get_queue_type_string());
-          component->set_state_from_string(to_process, true, false);
-        }
-
-        this->release_queue_entry_(nb);
-        this->nextion_queue_.pop_front();
-
+        this->set_string_return_(to_process);
         break;
       }
         //  0x71 0x01 0x02 0x03 0x04 0xFF 0xFF 0xFF
@@ -700,31 +747,7 @@ void Nextion::process_nextion_commands_() {
 
         int value = static_cast<int>(encode_uint32(to_process[3], to_process[2], to_process[1], to_process[0]));
 
-        NextionQueue *nb = this->nextion_queue_.front();
-        if (!nb || !nb->component) {
-          ESP_LOGE(TAG, "Invalid queue");
-          if (nb != nullptr) {
-            this->release_queue_entry_(nb);
-          }
-          this->nextion_queue_.pop_front();
-          return;
-        }
-        NextionComponentBase *component = nb->component;
-
-        if (component->get_queue_type() != NextionQueueType::SENSOR &&
-            component->get_queue_type() != NextionQueueType::BINARY_SENSOR &&
-            component->get_queue_type() != NextionQueueType::SWITCH) {
-          ESP_LOGE(TAG, "Numeric return but '%s' invalid type %d", component->get_variable_name().c_str(),
-                   component->get_queue_type());
-        } else {
-          ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(),
-                   component->get_queue_type(), component->get_queue_type_string(), value);
-          component->set_state_from_int(value, true, false);
-        }
-
-        this->release_queue_entry_(nb);
-        this->nextion_queue_.pop_front();
-
+        this->set_numeric_return_(value);
         break;
       }
 
@@ -1131,13 +1154,15 @@ NextionQueue *Nextion::make_no_result_entry_(const std::string &variable_name) {
  * If the `max_queue_size` limit is configured and reached, the command will be skipped.
  *
  * @param variable_name Name of the variable or component associated with the command.
+ * @return The queued entry, or nullptr if it was dropped.
  */
-void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
+NextionQueue *Nextion::add_no_result_to_queue_(const std::string &variable_name) {
   auto *nextion_queue = this->make_no_result_entry_(variable_name);
   if (nextion_queue == nullptr)
-    return;
+    return nullptr;
   this->nextion_queue_.push_back(nextion_queue);
   ESP_LOGN(TAG, "Queue NORESULT: %s", variable_name.c_str());
+  return nextion_queue;
 }
 
 /**
@@ -1158,25 +1183,33 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || command.empty())
     return;
 
+  ESP_LOGV(TAG, "Queue NORESULT '%s': %s", variable_name.c_str(), command.c_str());
+
+  NextionQueue *entry = nullptr;
   if (this->send_command_(command)) {
-    this->add_no_result_to_queue_(variable_name);
+    entry = this->add_no_result_to_queue_(variable_name);
 #ifdef USE_NEXTION_COMMAND_SPACING
   } else {
     // Command blocked by spacing, add to queue WITH the command for retry
-    this->add_no_result_to_queue_with_pending_command_(variable_name, command);
+    entry = this->add_no_result_to_queue_with_pending_command_(variable_name, command);
 #endif  // USE_NEXTION_COMMAND_SPACING
+  }
+  // The display answers "get" with a value instead of 0x01, so the value return must remove this entry
+  if (entry != nullptr && command.starts_with("get ")) {
+    entry->raw_get = true;
   }
 }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-void Nextion::add_no_result_to_queue_with_pending_command_(const std::string &variable_name,
-                                                           const std::string &command) {
+NextionQueue *Nextion::add_no_result_to_queue_with_pending_command_(const std::string &variable_name,
+                                                                    const std::string &command) {
   auto *nextion_queue = this->make_no_result_entry_(variable_name);
   if (nextion_queue == nullptr)
-    return;
+    return nullptr;
   nextion_queue->pending_command = command;  // Store command for retry
   this->nextion_queue_.push_back(nextion_queue);
   ESP_LOGVV(TAG, "Queue with pending command: %s", variable_name.c_str());
+  return nextion_queue;
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
 
