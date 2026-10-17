@@ -100,7 +100,8 @@ void AirtonClimate::send_settings() {
 
 void AirtonClimate::control(const climate::ClimateCall &call) {
   // ClimateIR::control() sends and publishes the whole state afterwards
-  if (auto swing_mode = call.get_swing_mode(); swing_mode.has_value()) {
+  // Only a change of swing mode moves the flap, so a repeated swing-off keeps a fixed position
+  if (auto swing_mode = call.get_swing_mode(); swing_mode.has_value() && *swing_mode != this->swing_mode) {
     this->set_vertical_direction_state(*swing_mode == climate::CLIMATE_SWING_VERTICAL
                                            ? VerticalDirection::VERTICAL_DIRECTION_SWING
                                            : VerticalDirection::VERTICAL_DIRECTION_OFF);
