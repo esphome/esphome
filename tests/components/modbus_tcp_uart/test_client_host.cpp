@@ -1,0 +1,293 @@
+#include <gtest/gtest.h>
+
+#include <cstdint>
+#include <cstring>
+
+#include "esphome/components/modbus_tcp_uart/mbap.h"
+#include "esphome/components/modbus_tcp_uart/modbus_tcp_uart.h"
+#include "esphome/components/tcp_uart/tcp_uart.h"
+
+#ifdef USE_HOST
+
+namespace esphome::modbus_tcp_uart::testing {
+namespace {
+
+class Pipe : public tcp_uart::TcpUart {
+ public:
+  bool is_connected() override { return this->up_; }
+  size_t available() override { return this->rx_n_; }
+  size_t available_for_write() override { return this->room_; }
+  bool read_array(uint8_t *data, size_t len) override {
+    if (len > this->rx_n_) {
+      return false;
+    }
+    std::memcpy(data, this->rx_, len);
+    this->rx_n_ -= len;
+    std::memmove(this->rx_, this->rx_ + len, this->rx_n_);
+    return true;
+  }
+  void write_array(const uint8_t *data, size_t len) override {
+    ASSERT_LE(this->n_ + len, sizeof(this->buf_));
+    std::memcpy(this->buf_ + this->n_, data, len);
+    this->n_ += len;
+  }
+  uart::UARTFlushResult flush() override { return this->flushed_; }
+  void feed(const uint8_t *data, size_t len) {
+    ASSERT_LE(this->rx_n_ + len, sizeof(this->rx_));
+    std::memcpy(this->rx_ + this->rx_n_, data, len);
+    this->rx_n_ += len;
+  }
+  void feed_mbap(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
+    uint8_t frame[32];
+    size_t n = write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    ASSERT_GT(n, 0u);
+    this->feed(frame, n);
+  }
+
+  bool up_{true};
+  size_t room_{1024};
+  size_t n_{0};
+  uart::UARTFlushResult flushed_{uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS};
+  uint8_t buf_[300]{};
+  size_t rx_n_{0};
+  uint8_t rx_[64]{};
+};
+
+class ClientLink : public ModbusTcpUart {
+ public:
+  explicit ClientLink(Pipe *pipe) { this->set_parent(pipe); }
+
+  void arm(uint16_t txn) {
+    this->txn_ = txn;
+    this->txn_pending_ = true;
+  }
+
+  void set_txn(uint16_t txn) { this->txn_ = txn; }
+
+  void push(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
+    uint8_t frame[32];
+    size_t n = write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    ASSERT_GT(n, 0u);
+    std::memcpy(this->tcp_buf_ + this->tcp_len_, frame, n);
+    this->tcp_len_ += static_cast<uint16_t>(n);
+    this->deliver_mbap_();
+  }
+
+  // A whole frame that waits for room in the transport.
+  void preload(const uint8_t *frame, size_t n) {
+    std::memcpy(this->tx_, frame, n);
+    this->tx_len_ = static_cast<uint16_t>(n);
+    this->tx_frame_len_ = static_cast<uint16_t>(n);
+  }
+
+  uint16_t txn() const { return this->txn_; }
+  bool pending() const { return this->txn_pending_; }
+  uint16_t held() const { return this->tx_len_; }
+  const uint8_t *held_bytes() const { return this->tx_; }
+};
+
+const uint8_t RESPONSE_PDU[] = {0x03, 0x02, 0x12, 0x34};
+// 01 03 00 00 00 01 84 0A
+const uint8_t RTU[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+
+TEST(ModbusTcpUartClient, MatchingResponseBecomesRtu) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.write_array(RTU, sizeof(RTU));
+  link.push(1, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+
+  uint8_t taken[16];
+  size_t n = link.available();
+  ASSERT_EQ(n, sizeof(RESPONSE_PDU) + 3);
+  ASSERT_TRUE(link.read_array(taken, n));
+  EXPECT_TRUE(rtu_crc_ok(taken, n));
+  EXPECT_EQ(taken[0], 1);
+  EXPECT_EQ(taken[1], 0x03);
+  EXPECT_EQ(taken[2], 0x02);
+  EXPECT_EQ(taken[3], 0x12);
+  EXPECT_EQ(taken[4], 0x34);
+  EXPECT_FALSE(link.pending());
+}
+
+TEST(ModbusTcpUartClient, ResponseKeepsTheRequestUnit) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.write_array(RTU, sizeof(RTU));
+  // A device addressed directly may answer with unit 0xFF.
+  link.push(1, 0xFF, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  uint8_t taken[16];
+  size_t n = link.available();
+  ASSERT_EQ(n, sizeof(RESPONSE_PDU) + 3);
+  ASSERT_TRUE(link.read_array(taken, n));
+  EXPECT_EQ(taken[0], 1);
+  EXPECT_TRUE(rtu_crc_ok(taken, n));
+}
+
+TEST(ModbusTcpUartClient, StaleTransactionIsDropped) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.arm(7);
+  link.push(9, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  EXPECT_EQ(link.available(), 0u);
+  EXPECT_TRUE(link.pending());
+  EXPECT_EQ(link.txn(), 7);
+}
+
+TEST(ModbusTcpUartClient, HeldFrameIsReplaced) {
+  Pipe pipe;
+  pipe.room_ = 0;
+  ClientLink link(&pipe);
+  link.preload(RTU, sizeof(RTU));
+
+  uint8_t next[8] = {0x01, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00};
+  uint16_t crc = crc16(next, 6);
+  next[6] = crc & 0xFF;
+  next[7] = crc >> 8;
+  link.write_array(next, sizeof(next));
+
+  EXPECT_EQ(link.held(), sizeof(next));
+  EXPECT_EQ(std::memcmp(link.held_bytes(), next, sizeof(next)), 0);
+  EXPECT_EQ(pipe.n_, 0u);
+}
+
+TEST(ModbusTcpUartClient, TransactionWrapsToOne) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.set_txn(0xFFFF);
+  link.write_array(RTU, sizeof(RTU));
+
+  ASSERT_GE(pipe.n_, 2u);
+  EXPECT_EQ(pipe.buf_[0], 0x00);
+  EXPECT_EQ(pipe.buf_[1], 0x01);
+  EXPECT_EQ(link.txn(), 1);
+  EXPECT_TRUE(link.pending());
+}
+
+TEST(ModbusTcpUartClient, FlushTimeoutKeepsTheTransaction) {
+  Pipe pipe;
+  pipe.flushed_ = uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  ClientLink link(&pipe);
+  link.write_array(RTU, sizeof(RTU));
+  EXPECT_TRUE(link.pending());
+  EXPECT_EQ(link.txn(), 1);
+  link.push(1, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  EXPECT_GT(link.available(), 0u);
+}
+
+TEST(ModbusTcpUartClient, BadProtocolIdSkipsOnlyThatFrame) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.arm(7);
+  // A reply with protocol id 1, split over two reads, then the valid reply.
+  const uint8_t bad[] = {0x00, 0x07, 0x00, 0x01, 0x00, 0x05, 0x01, 0x03, 0x02, 0x99, 0x99};
+  pipe.feed(bad, 8);
+  link.loop();
+  pipe.feed(bad + 8, sizeof(bad) - 8);
+  pipe.feed_mbap(7, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
+  link.loop();
+
+  uint8_t taken[16];
+  ASSERT_EQ(link.available(), sizeof(RESPONSE_PDU) + 3);
+  ASSERT_TRUE(link.read_array(taken, sizeof(RESPONSE_PDU) + 3));
+  EXPECT_EQ(taken[3], 0x12);
+  EXPECT_FALSE(link.pending());
+}
+
+// 02 03 00 00 00 01 84 39, a request to unit 2.
+const uint8_t RTU_UNIT2[] = {0x02, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x39};
+
+TEST(ModbusTcpUartClient, PiecesOfARequestAreJoined) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.write_array(RTU, 3);
+  EXPECT_EQ(link.held(), 3u);
+  EXPECT_EQ(link.available_for_write(), 256u - 3u);
+  EXPECT_EQ(pipe.n_, 0u);
+  link.write_array(RTU + 3, sizeof(RTU) - 3);
+  const uint8_t want[] = {0x00, 0x01, 0, 0, 0, 6, 1, 0x03, 0x00, 0x00, 0x00, 0x01};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+  EXPECT_EQ(link.held(), 0u);
+  EXPECT_TRUE(link.pending());
+}
+
+TEST(ModbusTcpUartClient, TwoRequestsInOneWriteAreSplit) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  uint8_t both[sizeof(RTU) + sizeof(RTU_UNIT2)];
+  std::memcpy(both, RTU, sizeof(RTU));
+  std::memcpy(both + sizeof(RTU), RTU_UNIT2, sizeof(RTU_UNIT2));
+  link.write_array(both, sizeof(both));
+  const uint8_t want[] = {0x00, 0x01, 0, 0, 0, 6, 1, 0x03, 0x00, 0x00, 0x00, 0x01,
+                          0x00, 0x02, 0, 0, 0, 6, 2, 0x03, 0x00, 0x00, 0x00, 0x01};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+  EXPECT_EQ(link.held(), 0u);
+}
+
+TEST(ModbusTcpUartClient, PartThatTheNextWriteCannotContinueIsDropped) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.write_array(RTU, 5);
+  link.write_array(RTU_UNIT2, sizeof(RTU_UNIT2));
+  ASSERT_EQ(pipe.n_, 12u);
+  EXPECT_EQ(pipe.buf_[6], 2);
+  EXPECT_EQ(link.held(), 0u);
+}
+
+TEST(ModbusTcpUartClient, WriteThatIsNotAFrameIsDropped) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  uint8_t bad[sizeof(RTU)];
+  std::memcpy(bad, RTU, sizeof(RTU));
+  bad[sizeof(bad) - 1] ^= 0xFF;
+  link.write_array(bad, sizeof(bad));
+  EXPECT_EQ(link.held(), 0u);
+  EXPECT_EQ(pipe.n_, 0u);
+  EXPECT_FALSE(link.pending());
+  link.write_array(RTU, sizeof(RTU));
+  EXPECT_EQ(pipe.n_, 12u);
+}
+
+TEST(ModbusTcpUartClient, UnknownFunctionCodeIsFramedByItsCrc) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  uint8_t custom[6] = {0x01, 0x41, 0xAA, 0xBB, 0, 0};
+  uint16_t crc = crc16(custom, 4);
+  custom[4] = crc & 0xFF;
+  custom[5] = crc >> 8;
+  link.write_array(custom, 3);
+  EXPECT_EQ(pipe.n_, 0u);
+  link.write_array(custom + 3, 3);
+  const uint8_t want[] = {0x00, 0x01, 0, 0, 0, 4, 1, 0x41, 0xAA, 0xBB};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+}
+
+TEST(ModbusTcpUartClient, NoRoomWhileAWholeFrameWaitsForTheTransport) {
+  Pipe pipe;
+  pipe.room_ = 0;
+  ClientLink link(&pipe);
+  link.write_array(RTU, sizeof(RTU));
+  EXPECT_EQ(link.held(), sizeof(RTU));
+  EXPECT_EQ(link.available_for_write(), 0u);
+  pipe.room_ = 1024;
+  link.loop();
+  EXPECT_EQ(pipe.n_, 12u);
+  EXPECT_EQ(link.available_for_write(), 256u);
+}
+
+TEST(ModbusTcpUartClient, DisconnectDropsInFlight) {
+  Pipe pipe;
+  ClientLink link(&pipe);
+  link.loop();
+  link.arm(3);
+  pipe.up_ = false;
+  link.loop();
+  EXPECT_FALSE(link.pending());
+}
+
+}  // namespace
+}  // namespace esphome::modbus_tcp_uart::testing
+
+#endif  // USE_HOST
