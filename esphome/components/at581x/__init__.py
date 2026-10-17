@@ -93,7 +93,7 @@ def _megahertz(value: float) -> int:
 
 
 def _microamps(value: float) -> int:
-    return int(value * 1000000)
+    return round(value * 1000000)
 
 
 RADAR_SETTINGS_SCHEMA = cv.Schema(
