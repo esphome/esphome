@@ -8,6 +8,14 @@
 
 namespace esphome::weikai {
 
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+/// What is stored in flash: the baud rate chosen at run time and the one of the configuration it was chosen for
+struct SavedBaudRate {
+  uint32_t config_baud_rate;
+  uint32_t baud_rate;
+};
+#endif
+
 ESPHOME_LOG_TAG(TAG, "weikai");
 
 #ifdef TEST_COMPONENT
@@ -261,7 +269,48 @@ void WeikaiChannel::setup_channel() {
   this->reset_fifo_();
   this->receive_buffer_.clear();
   this->set_line_param_();
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+  this->config_baud_rate_ = this->baud_rate_;
+  if (this->restore_baud_rate_) {
+    this->pref_ = global_preferences->make_preference<SavedBaudRate>(
+        fnv1_hash_extend(fnv1_hash("weikai_baud_rate"), this->get_channel_name()));
+    SavedBaudRate saved{};
+    // a value saved for another configured baud rate is ignored: the configuration has been changed since
+    if (this->pref_.load(&saved) && saved.config_baud_rate == this->config_baud_rate_ && saved.baud_rate != 0) {
+      this->baud_rate_ = saved.baud_rate;
+      ESP_LOGCONFIG(TAG, "  Baud rate restored: %" PRIu32 " Bd", this->baud_rate_);
+    }
+  }
+#endif
   this->set_baudrate_();
+}
+
+bool WeikaiChannel::change_baud_rate(uint32_t baud_rate) {
+  if (baud_rate == 0) {
+    ESP_LOGE(TAG, "%s: invalid baud rate 0", this->get_channel_name());
+    return false;
+  }
+  if (baud_rate == this->baud_rate_)
+    return true;
+  if (this->flush() != uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS) {
+    ESP_LOGE(TAG, "%s: baud rate not changed, the transmit FIFO is not empty", this->get_channel_name());
+    return false;
+  }
+  this->baud_rate_ = baud_rate;
+  this->set_baudrate_();  // can reduce the baud rate if it is too high for the crystal
+  // what is in the receive FIFOs was received at the old baud rate
+  this->reset_fifo_();
+  this->receive_buffer_.clear();
+  this->tx_room_estimate_ = 0;
+  this->rfoe_latched_ = false;
+  ESP_LOGD(TAG, "%s: baud rate changed to %" PRIu32 " Bd", this->get_channel_name(), this->baud_rate_);
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+  if (this->restore_baud_rate_) {
+    SavedBaudRate const saved{this->config_baud_rate_, this->baud_rate_};
+    this->pref_.save(&saved);
+  }
+#endif
+  return true;
 }
 
 void WeikaiChannel::dump_channel() {

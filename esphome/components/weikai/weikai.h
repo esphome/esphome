@@ -15,6 +15,9 @@
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+#include "esphome/core/preferences.h"
+#endif
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
 
@@ -366,6 +369,17 @@ class WeikaiChannel final : public uart::UARTComponent {
   /// @brief Setup the channel
   void setup_channel();
 
+  /// @brief Change the baud rate while the component is running. Only this channel is affected.
+  /// Waits for the transmit FIFO to empty and drops what was received at the old baud rate.
+  /// @param baud_rate the new baud rate
+  /// @return true if the baud rate has been changed (or was already the requested one)
+  bool change_baud_rate(uint32_t baud_rate);
+
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+  /// @brief Keep the baud rate chosen at run time over restarts
+  void set_restore_baud_rate(bool restore) { this->restore_baud_rate_ = restore; }
+#endif
+
   /// @brief dump channel information
   void dump_channel();
 
@@ -512,6 +526,11 @@ class WeikaiChannel final : public uart::UARTComponent {
   /// Saves reading the room before every write.
   uint16_t tx_room_estimate_{0};
   bool rfoe_latched_{false};  ///< RFOE seen by an FSR read that was not made by rx_in_fifo_()
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+  ESPPreferenceObject pref_;
+  uint32_t config_baud_rate_{0};  ///< baud rate given in the configuration
+  bool restore_baud_rate_{false};
+#endif
 };
 
 }  // namespace esphome::weikai
