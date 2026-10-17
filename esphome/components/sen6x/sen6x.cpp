@@ -539,6 +539,10 @@ void SEN6XComponent::parse_and_publish_device_status_() {
       entry.sensor->publish_state((status & entry.mask) != 0);
   }
 
+  // A status automation may have stopped the measurement; its settling window must not get a poll
+  if (!this->measuring_) {
+    return;
+  }
   this->poll_data_ready_();
 }
 #endif
