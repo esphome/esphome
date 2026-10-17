@@ -53,7 +53,7 @@ class ComponentManifestOverride:
         """
         overrides: dict[str, Any] = object.__getattribute__(self, "_overrides")
         # Keep a custom to_code another override of the same manifest installed
-        if overrides.get("to_code", None) is None:
+        if overrides.get("to_code") is None:
             overrides.pop("to_code", None)
 
     def add_resources(self, *resources: FileResource) -> None:
