@@ -12,7 +12,7 @@
     if (val.has_value()) { \
       (field) = val.value(); \
     } else { \
-      ESP_LOGD(TAG, "invalid " field_name " in line %s", buffer); \
+      ESP_LOGV(TAG, "invalid " field_name " in line %s", buffer); \
       return; \
     } \
   }
@@ -21,7 +21,7 @@
   { \
     get_token(field); \
     if (strlen(field) < 2) { \
-      ESP_LOGD(TAG, "too short " field_name " in line %s", buffer); \
+      ESP_LOGV(TAG, "too short " field_name " in line %s", buffer); \
       return; \
     } \
   }
@@ -35,9 +35,11 @@ PylontechComponent::PylontechComponent() {}
 void PylontechComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "pylontech:");
 
+#ifdef PYLONTECH_LISTENER_COUNT
   for (PylontechListener *listener : this->listeners_) {
     listener->dump_config();
   }
+#endif
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -51,8 +53,14 @@ void PylontechComponent::setup() {
 void PylontechComponent::update() { this->write_str("pwr\n"); }
 
 void PylontechComponent::loop() {
-  // Drain the UART quickly; pylontech sends large bursts
+  // Drain the UART quickly; pylontech sends large bursts. Logging and publishing wait until it is idle.
   size_t avail = this->available();
+#ifdef PYLONTECH_LISTENER_COUNT
+  if (avail == 0) {
+    this->dispatch_one_();
+    return;
+  }
+#endif
   uint8_t buf[64];
   while (avail > 0) {
     size_t to_read = std::min(avail, sizeof(buf));
@@ -60,17 +68,39 @@ void PylontechComponent::loop() {
       break;
     }
     avail -= to_read;
+#ifdef PYLONTECH_LISTENER_COUNT
     for (size_t i = 0; i < to_read; i++) {
       const char *line = this->line_reader_.feed(buf[i]);
       if (line != nullptr) {
         this->process_line_(line);
       }
     }
+#endif
   }
 }
 
+#ifdef PYLONTECH_LISTENER_COUNT
+void PylontechComponent::dispatch_one_() {
+  if (this->dispatched_ == this->queue_.size()) {
+    return;
+  }
+  PylontechListener::LineContents *l = &this->queue_[this->dispatched_++];
+  ESP_LOGV(TAG, "Publishing battery %d", l->bat_num);
+  for (PylontechListener *listener : this->listeners_) {
+    listener->on_line_read(l);
+  }
+  if (this->dispatched_ == this->queue_.size()) {
+    this->queue_.clear();
+    this->dispatched_ = 0;
+    if (this->dropped_ != 0) {
+      ESP_LOGW(TAG, "Queue full, dropped %u lines", this->dropped_);
+      this->dropped_ = 0;
+    }
+  }
+}
+
+// Runs while the UART drains: no logging above VERBOSE and no publishing here
 void PylontechComponent::process_line_(const char *buffer) {
-  ESP_LOGV(TAG, "Read from serial: %s", buffer);
   // clang-format off
   // example lines to parse:
   // Power Volt   Curr   Tempr  Tlow   Thigh  Vlow   Vhigh  Base.St  Volt.St  Curr.St  Temp.St  Coulomb  Time                 B.V.St   B.T.St   MosTempr M.T.St
@@ -115,14 +145,17 @@ void PylontechComponent::process_line_(const char *buffer) {
     auto val = parse_number<int>(token_buf);
     if (val.has_value() && val.value() > 0) {
       l.bat_num = val.value();
+      if (l.bat_num > 16 || (this->batteries_ & (1u << (l.bat_num - 1))) == 0) {
+        return;  // no listener for this battery
+      }
     } else if (strcmp(token_buf, "Power") == 0) {
       // header line i.e. "Power Volt   Curr" and so on
       this->has_tlow_id_ = strstr(buffer, "Tlow.Id") != nullptr;
-      ESP_LOGD(TAG, "header line %s Tlow.Id: %s",
+      ESP_LOGV(TAG, "header line %s Tlow.Id: %s",
                this->has_tlow_id_ ? LOG_STR_LITERAL("with") : LOG_STR_LITERAL("without"), buffer);
       return;
     } else {
-      ESP_LOGD(TAG, "unknown line %s", buffer);
+      ESP_LOGV(TAG, "unknown line %s", buffer);
       return;
     }
   }
@@ -161,7 +194,7 @@ void PylontechComponent::process_line_(const char *buffer) {
     if (coul_val.has_value()) {
       l.coulomb = coul_val.value();
     } else {
-      ESP_LOGD(TAG, "invalid Coulomb in line %s", buffer);
+      ESP_LOGV(TAG, "invalid Coulomb in line %s", buffer);
       return;
     }
   }
@@ -171,12 +204,15 @@ void PylontechComponent::process_line_(const char *buffer) {
   get_token(token_buf);  // Skip B.T.St
   PARSE_INT(l.mostempr, "Mostempr");
 
-  ESP_LOGD(TAG, "successful line %s", buffer);
-
-  for (PylontechListener *listener : this->listeners_) {
-    listener->on_line_read(&l);
+  if (this->queue_.size() == PYLONTECH_BATTERY_COUNT) {
+    if (this->dropped_ != UINT8_MAX) {
+      this->dropped_++;
+    }
+    return;
   }
+  this->queue_.push_back(l);
 }
+#endif
 
 }  // namespace esphome::pylontech
 

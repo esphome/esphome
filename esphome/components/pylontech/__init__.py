@@ -1,9 +1,12 @@
+from dataclasses import dataclass, field
 import logging
 
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,6 +26,27 @@ PylontechComponent = pylontech_ns.class_(
 PylontechBattery = pylontech_ns.class_("PylontechBattery")
 
 CV_NUM_BATTERIES = cv.int_range(1, 16)
+
+_request_listener_slot = cg.slot_counter("PYLONTECH_LISTENER_COUNT")
+_request_battery_slot = cg.slot_counter("PYLONTECH_BATTERY_COUNT")
+
+
+@dataclass
+class PylontechData:
+    batteries: set[tuple[str, int]] = field(default_factory=set)
+
+
+async def register_listener(config: ConfigType, listener: MockObj) -> None:
+    """Register a battery listener; the line queue holds one record per distinct battery."""
+    hub = await cg.get_variable(config[CONF_PYLONTECH_ID])
+    battery = config[CONF_BATTERY]
+    _request_listener_slot(str(hub))
+    data = CORE.data.setdefault(DOMAIN, PylontechData())
+    if (key := (str(hub), battery)) not in data.batteries:
+        data.batteries.add(key)
+        _request_battery_slot(str(hub))
+    cg.add(hub.register_listener(listener, battery))
+
 
 PYLONTECH_COMPONENT_SCHEMA = cv.Schema(
     {
