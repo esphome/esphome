@@ -1,0 +1,21 @@
+display:
+  - platform: uart_terminal
+    id: terminal
+    dimensions: 20x4
+    lambda: |-
+      it.print("Uart terminal");
+      it.printf(0, 1, "Row %d", 2);
+
+lcd_menu:
+  id: terminal_menu
+  display_id: terminal
+  active: true
+  mode: joystick
+  items:
+    - type: label
+      text: Settings
+    - type: menu
+      text: Submenu
+      items:
+        - type: back
+          text: Back

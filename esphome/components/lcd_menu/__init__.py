@@ -13,7 +13,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@numo68"]
 DOMAIN = "lcd_menu"
 
-AUTO_LOAD = ["display_menu_base", "text_display"]
+AUTO_LOAD = ["display_menu_base"]
 
 lcd_menu_ns = cg.esphome_ns.namespace("lcd_menu")
 
@@ -34,7 +34,7 @@ MULTI_CONF = True
 def validate_lcd_dimensions(config: ConfigType) -> ConfigType:
     if config[CONF_DIMENSIONS][0] < MINIMUM_COLUMNS:
         raise cv.Invalid(
-            f"LCD display must have at least {MINIMUM_COLUMNS} columns to be usable with the menu"
+            f"The display must have at least {MINIMUM_COLUMNS} columns to be usable with the menu"
         )
     return config
 

@@ -1,15 +1,25 @@
 #include "text_display.h"
 
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
+
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
 namespace esphome::text_display {
 
-static const char *const TAG = "text_display";
-
-void TextDisplay::print(const char *str) { this->print(0, 0, str); }
+ESPHOME_LOG_TAG(TAG, "text_display");
 
 void TextDisplay::setup() {
-  this->buffer_ = new uint8_t[this->rows_ * this->columns_];  // NOLINT
-  for (uint16_t i = 0; i < this->rows_ * this->columns_; i++)
-    this->buffer_[i] = ' ';
+  const size_t size = this->rows_ * this->columns_;
+  RAMAllocator<uint8_t> allocator;
+  this->buffer_ = allocator.allocate(size);
+  if (this->buffer_ == nullptr) {
+    this->mark_failed(LOG_STR("buffer allocation failed"));
+    return;
+  }
+  this->clear();
 }
 
 void TextDisplay::update() {
@@ -18,19 +28,17 @@ void TextDisplay::update() {
   this->display();
 }
 
-void TextDisplay::clear() {
-  for (uint16_t i = 0; i < this->rows_ * this->columns_; i++)
-    this->buffer_[i] = ' ';
-}
+void TextDisplay::clear() { memset(this->buffer_, ' ', this->rows_ * this->columns_); }
 
 void TextDisplay::print(uint8_t column, uint8_t row, const char *str) {
+  const uint16_t size = this->rows_ * this->columns_;
   uint16_t pos = column + row * this->columns_;
   for (; *str != '\0'; str++) {
     if (*str == '\n') {
       pos = ((pos / this->columns_) + 1) * this->columns_;
       continue;
     }
-    if (pos >= this->rows_ * this->columns_) {
+    if (pos >= size) {
       ESP_LOGW(TAG, "TextDisplay writing out of range!");
       break;
     }
@@ -40,24 +48,26 @@ void TextDisplay::print(uint8_t column, uint8_t row, const char *str) {
   }
 }
 void TextDisplay::print(uint8_t column, uint8_t row, const std::string &str) { this->print(column, row, str.c_str()); }
-void TextDisplay::print(const std::string &str) { this->print(0, 0, str.c_str()); }
+void TextDisplay::print(const char *str) { this->print(0, 0, str); }
+void TextDisplay::print(const std::string &str) { this->print(str.c_str()); }
+
+void TextDisplay::vprintf_(uint8_t column, uint8_t row, const char *format, va_list arg) {
+  char buffer[256];
+  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  if (ret > 0)
+    this->print(column, row, buffer);
+}
 void TextDisplay::printf(uint8_t column, uint8_t row, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  char buffer[256];
-  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  this->vprintf_(column, row, format, arg);
   va_end(arg);
-  if (ret > 0)
-    this->print(column, row, buffer);
 }
 void TextDisplay::printf(const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  char buffer[256];
-  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  this->vprintf_(0, 0, format, arg);
   va_end(arg);
-  if (ret > 0)
-    this->print(0, 0, buffer);
 }
 
 void TextDisplay::strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) {

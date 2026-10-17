@@ -1,7 +1,7 @@
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components import display, text_display
+from esphome.components import text_display
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_DIMENSIONS, CONF_POSITION
 from esphome.cpp_generator import MockObj
@@ -37,7 +37,7 @@ def validate_user_characters(value: list[ConfigType]) -> list[ConfigType]:
     return value
 
 
-LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
+LCD_SCHEMA = text_display.TEXT_DISPLAY_SCHEMA.extend(
     {
         cv.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
         cv.Optional(CONF_USER_CHARACTERS): cv.All(
@@ -56,12 +56,11 @@ LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
             validate_user_characters,
         ),
     }
-).extend(cv.polling_component_schema("1s"))
+)
 
 
 async def setup_lcd_display(var: MockObj, config: ConfigType) -> None:
-    await display.register_display(var, config)
-    cg.add(var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1]))
+    await text_display.setup_text_display(var, config)
     if CONF_USER_CHARACTERS in config:
         for usr in config[CONF_USER_CHARACTERS]:
             cg.add(var.set_user_defined_char(usr[CONF_POSITION], usr[CONF_DATA]))

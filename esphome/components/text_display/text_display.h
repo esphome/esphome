@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdarg>
+#include <string>
+
 #include "esphome/core/component.h"
 #include "esphome/core/time.h"
 
@@ -16,7 +19,7 @@ class TextDisplay : public PollingComponent {
   void update() override;
 
   virtual void display() = 0;
-  //// Clear LCD display
+  /// Clear the text buffer
   void clear();
 
   /// Print the given text at the specified column and row.
@@ -38,6 +41,7 @@ class TextDisplay : public PollingComponent {
 
  protected:
   virtual void call_writer() = 0;
+  void vprintf_(uint8_t column, uint8_t row, const char *format, va_list arg);
   uint8_t columns_;
   uint8_t rows_;
   uint8_t *buffer_{nullptr};
