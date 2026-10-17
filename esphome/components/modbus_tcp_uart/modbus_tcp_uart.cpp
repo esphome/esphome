@@ -65,9 +65,11 @@ void ModbusTcpUart::loop() {
     this->link_was_up_ = false;
     this->resync_ = false;
     this->tcp_len_ = 0;
+    // A request the hub has read but not answered stays open, so its late reply cannot reach the next connection.
+    this->orphan_ = this->server_ && this->txn_pending_ && this->available() == 0 && this->tx_len_ == 0;
     this->clear_tx_();
     this->rx_.clear();
-    this->txn_pending_ = false;
+    this->txn_pending_ = this->orphan_;
     return;
   }
   this->link_was_up_ = true;
@@ -243,6 +245,7 @@ void ModbusTcpUart::deliver_mbap_() {
           uint8_t rtu[RTU_FRAME_SIZE];
           size_t rtu_len = write_rtu(rtu, frame.unit, frame.pdu, frame.pdu_len);
           this->request_ms_ = now;
+          this->orphan_ = false;
           // Address 0 is a broadcast. Nothing answers it.
           if (frame.unit != 0) {
             this->txn_ = frame.txn;
@@ -303,6 +306,12 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
         (this->tx_[1] & modbus::FUNCTION_CODE_MASK) != this->function_) {
       this->note_drop_(LOG_STR("Reply without a matching request, dropped"));
       this->consume_tx_(this->tx_frame_len_);
+      return;
+    }
+    if (this->orphan_) {
+      this->note_drop_(LOG_STR("Reply to a request from a closed connection, dropped"));
+      this->consume_tx_(this->tx_frame_len_);
+      this->txn_pending_ = false;
       return;
     }
     txn = this->txn_;

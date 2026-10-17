@@ -71,6 +71,8 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   uint8_t function_{0};
   // Client: a request was sent. Server: a request was delivered.
   bool txn_pending_{false};
+  // Server: the open request came on a connection that has closed.
+  bool orphan_{false};
   bool server_{false};
   bool tx_hold_logged_{false};
   bool link_was_up_{false};

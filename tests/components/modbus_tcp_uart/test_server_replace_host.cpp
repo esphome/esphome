@@ -16,9 +16,9 @@ namespace {
 
 class Pipe : public tcp_uart::TcpUart {
  public:
-  bool is_connected() override { return true; }
+  bool is_connected() override { return this->up_; }
   size_t available() override { return this->rx_n_; }
-  size_t available_for_write() override { return 1024; }
+  size_t available_for_write() override { return this->room_; }
   bool read_array(uint8_t *data, size_t len) override {
     if (this->fail_reads_ || len > this->rx_n_) {
       return false;
@@ -46,6 +46,8 @@ class Pipe : public tcp_uart::TcpUart {
     this->feed(frame, n);
   }
 
+  bool up_{true};
+  size_t room_{1024};
   bool fail_reads_{false};
   size_t n_{0};
   uint8_t buf_[300]{};
@@ -176,6 +178,83 @@ TEST(ModbusTcpUartServer, PipelinedRequestsAreAnsweredInOrder) {
                           0x0B, 0x02, 0, 0, 0, 5, 1, 0x03, 0x02, 0xBE, 0xEF};
   ASSERT_EQ(pipe.n_, sizeof(want));
   EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+}
+
+TEST(ModbusTcpUartServer, ReplyToARequestFromAClosedConnectionIsDropped) {
+  // 7 = the old connection's request, 1 = the new client's first id.
+  Pipe pipe;
+  ServerLink link;
+  link.set_pipe(&pipe);
+  pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
+  link.loop();
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+
+  // The client closes before the hub answers, and a new client connects.
+  pipe.up_ = false;
+  link.loop();
+  pipe.up_ = true;
+  pipe.feed_mbap(1, 1, PDU, sizeof(PDU));
+  link.loop();
+  // Request 1 waits for the old one's reply.
+  EXPECT_EQ(link.available(), 0u);
+
+  // The hub's late reply to 7 must not go out as the reply to 1.
+  link.answer({0x01, 0x03, 0x02, 0x12, 0x34});
+  EXPECT_EQ(pipe.n_, 0u);
+
+  link.loop();
+  ASSERT_EQ(link.available(), sizeof(PDU) + 3);
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  link.answer({0x01, 0x03, 0x02, 0xBE, 0xEF});
+  const uint8_t want[] = {0x00, 0x01, 0, 0, 0, 5, 1, 0x03, 0x02, 0xBE, 0xEF};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+}
+
+TEST(ModbusTcpUartServer, RequestTheHubHasNotReadIsForgottenWhenTheConnectionCloses) {
+  // 7 = the old connection's request, 1 = the new client's first id.
+  Pipe pipe;
+  ServerLink link;
+  link.set_pipe(&pipe);
+  pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
+  link.loop();
+
+  // The client closes before the hub reads 7, and a new client connects.
+  pipe.up_ = false;
+  link.loop();
+  pipe.up_ = true;
+  pipe.feed_mbap(1, 1, PDU, sizeof(PDU));
+  link.loop();
+  // The hub never read 7, so request 1 goes to it at once.
+  EXPECT_EQ(link.available(), sizeof(PDU) + 3);
+  EXPECT_EQ(link.txn(), 1);
+}
+
+TEST(ModbusTcpUartServer, AReplyHeldWhenTheConnectionClosesDoesNotHoldUpTheNextClient) {
+  // 7 = the old connection's request, 1 = the new client's first id.
+  Pipe pipe;
+  ServerLink link;
+  link.set_pipe(&pipe);
+  pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
+  link.loop();
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+
+  // The socket has no room, so the hub's reply to 7 waits in the link.
+  pipe.room_ = 0;
+  link.answer({0x01, 0x03, 0x02, 0x12, 0x34});
+
+  // The client closes, and a new client connects.
+  pipe.up_ = false;
+  link.loop();
+  pipe.up_ = true;
+  pipe.room_ = 1024;
+  pipe.feed_mbap(1, 1, PDU, sizeof(PDU));
+  link.loop();
+  // The hub has answered 7, so request 1 goes to it at once.
+  EXPECT_EQ(link.available(), sizeof(PDU) + 3);
+  EXPECT_EQ(link.txn(), 1);
 }
 
 TEST(ModbusTcpUartServer, OnlyAFrameFromTheRequestUnitAndFunctionIsTheReply) {
