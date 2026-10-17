@@ -11,7 +11,7 @@
 
 namespace esphome::factory_reset {
 
-static const char *const TAG = "factory_reset.button";
+ESPHOME_LOG_TAG(TAG, "factory_reset.button");
 
 void FactoryResetButton::dump_config() { LOG_BUTTON("", "Factory Reset Button", this); }
 void FactoryResetButton::press_action() {

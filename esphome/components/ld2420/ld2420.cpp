@@ -60,7 +60,7 @@ Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_
 
 namespace esphome::ld2420 {
 
-static const char *const TAG = "ld2420";
+ESPHOME_LOG_TAG(TAG, "ld2420");
 
 // Local const's
 static constexpr uint16_t REFRESH_RATE_MS = 1000;
@@ -183,8 +183,6 @@ static int32_t get_firmware_int(const char *version_string) {
   }
   return result;
 }
-
-float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
 
 void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -703,7 +701,8 @@ uint8_t LD2420Component::set_config_mode(bool enable) {
     cmd_frame.data_length += sizeof(CMD_PROTOCOL_VER);
   }
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"),
+           cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
 }
 

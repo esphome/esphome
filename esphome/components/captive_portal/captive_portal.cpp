@@ -4,12 +4,13 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
+#include "esphome/components/wifi/scan_list.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
 
 namespace esphome::captive_portal {
 
-static const char *const TAG = "captive_portal";
+ESPHOME_LOG_TAG(TAG, "captive_portal");
 
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
@@ -33,8 +34,10 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     // Invariant: only bounded in-memory work under the lock; the network send
     // happens later in request->send()
     wifi::ScanResultsLock lock(wifi::global_wifi_component);
-    for (const auto &scan : wifi::global_wifi_component->get_scan_result()) {
-      if (scan.get_is_hidden())
+    const auto &results = wifi::global_wifi_component->get_scan_result();
+    for (const auto &scan : results) {
+      bool with_auth = false;
+      if (!wifi::should_show_scan_entry(results, scan, with_auth))
         continue;
 
       json_escape_into_buffer(escaped_ssid, scan.get_ssid());
@@ -44,10 +47,10 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
       stream->print(ESPHOME_F("\",\"rssi\":"));
       stream->print(scan.get_rssi());
       stream->print(ESPHOME_F(",\"lock\":"));
-      stream->print(scan.get_with_auth());
+      stream->print(with_auth);
       stream->print(ESPHOME_F("}"));
 #else
-      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), scan.get_with_auth());
+      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), with_auth);
 #endif
     }
   }
@@ -77,22 +80,15 @@ void CaptivePortal::setup() {
   this->disable_loop();
 }
 void CaptivePortal::start() {
+  // Each start takes a web server reference that end() returns once
+  if (this->active_)
+    return;
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler_without_auth(this);
   }
 
-  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-
-#if defined(USE_ESP32)
-  // Create DNS server instance for ESP-IDF
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->start(ip);
-#elif defined(USE_ARDUINO)
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  this->dns_server_->start(53, ESPHOME_F("*"), ip);
-#endif
+  this->dns_.start(wifi::global_wifi_component->wifi_soft_ap_ip());
 
   this->initialized_ = true;
   this->active_ = true;

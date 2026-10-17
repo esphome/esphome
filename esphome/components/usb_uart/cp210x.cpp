@@ -43,6 +43,12 @@ static constexpr uint8_t SET_BAUDRATE = 0x1E;     // Set the baud rate.
 static constexpr uint8_t SET_CHARS = 0x19;        // Set special characters.
 static constexpr uint8_t VENDOR_SPECIFIC = 0xFF;  // Vendor specific command.
 
+// SET_MHS value bits. The high byte selects which lines the low byte changes.
+static constexpr uint16_t CONTROL_DTR = 0x0001;
+static constexpr uint16_t CONTROL_RTS = 0x0002;
+static constexpr uint16_t CONTROL_WRITE_DTR = 0x0100;
+static constexpr uint16_t CONTROL_WRITE_RTS = 0x0200;
+
 std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev_hdl) {
   const usb_config_desc_t *config_desc;
   const usb_device_desc_t *device_desc;
@@ -88,16 +94,16 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
       ESP_LOGE(TAG, "in_ep: usb_parse_endpoint_descriptor_by_index failed");
       continue;
     }
-    if (in_ep->bEndpointAddress & usb_host::USB_DIR_IN) {
-      cdc_devs.push_back({CdcEps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber}});
-    } else {
-      cdc_devs.push_back({CdcEps{nullptr, out_ep, in_ep, data_desc->bInterfaceNumber}});
-    }
+    CdcEps eps = in_ep->bEndpointAddress & usb_host::USB_DIR_IN
+                     ? CdcEps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber}
+                     : CdcEps{nullptr, out_ep, in_ep, data_desc->bInterfaceNumber};
+    eps.bulk_interface_class = data_desc->bInterfaceClass;
+    cdc_devs.push_back(eps);
   }
   return cdc_devs;
 }
 
-bool USBUartTypeCP210X::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   // On reload, skip the one-time IFC_ENABLE step (the interface is already enabled).
   if (reload)
@@ -107,8 +113,8 @@ bool USBUartTypeCP210X::config_step(USBUartChannel *channel, uint8_t step, bool 
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, IFC_ENABLE, 1, channel->index_);
       return true;
     case 1: {
-      uint16_t line_control = channel->stop_bits_;
-      line_control |= static_cast<uint8_t>(channel->parity_) << 4;
+      uint16_t line_control = static_cast<uint8_t>(channel->line_stop_bits_());
+      line_control |= static_cast<uint8_t>(channel->line_parity_()) << 4;
       line_control |= channel->data_bits_ << 8;
       ESP_LOGD(TAG, "Line control value 0x%X", line_control);
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_LINE_CTL, line_control, channel->index_);
@@ -119,9 +125,21 @@ bool USBUartTypeCP210X::config_step(USBUartChannel *channel, uint8_t step, bool 
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, baud.get_data());
       return true;
     }
+    case 3:  // Assert DTR+RTS (init only)
+      if (reload)
+        return false;
+      this->modem_control_transfer(channel);
+      return true;
     default:
       return false;
   }
+}
+
+void USBUartTypeCP210X::modem_control_transfer(USBUartChannelBase *channel) {
+  const uint16_t value =
+      CONTROL_WRITE_DTR | CONTROL_WRITE_RTS | (channel->dtr_ ? CONTROL_DTR : 0) | (channel->rts_ ? CONTROL_RTS : 0);
+  ESP_LOGD(TAG, "SET_MHS: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_MHS, value, channel->index_);
 }
 }  // namespace esphome::usb_uart
 

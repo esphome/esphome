@@ -17,7 +17,9 @@
 
 namespace esphome::bmp581_base {
 
-static const char *const TAG = "bmp581";
+ESPHOME_LOG_TAG(TAG, "bmp581");
+
+static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 
 // Oversampling strings indexed by Oversampling enum (0-7): NONE, X2, X4, X8, X16, X32, X64, X128
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
@@ -35,29 +37,6 @@ static const LogString *iir_filter_to_str(IIRFilter filter) {
 
 void BMP581Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP581:");
-
-  switch (this->error_code_) {
-    case NONE:
-      break;
-    case ERROR_COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case ERROR_WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "Unknown chip ID");
-      break;
-    case ERROR_SENSOR_RESET:
-      ESP_LOGE(TAG, "Reset failed");
-      break;
-    case ERROR_SENSOR_STATUS:
-      ESP_LOGE(TAG, "Get status failed");
-      break;
-    case ERROR_PRIME_IIR_FAILED:
-      ESP_LOGE(TAG, "IIR Filter failed to prime with initial measurement");
-      break;
-    default:
-      ESP_LOGE(TAG, "Error %d", (int) this->error_code_);
-      break;
-  }
 
   LOG_UPDATE_INTERVAL(this);
 
@@ -94,17 +73,13 @@ void BMP581Component::setup() {
    *  6) Configure and prime IIR Filter(s), if enabled
    */
 
-  this->error_code_ = NONE;
   ////////////////////
   // 1) Soft reboot //
   ////////////////////
 
   // Power-On-Reboot bit is asserted if sensor successfully reset
   if (!this->reset_()) {
-    ESP_LOGE(TAG, "Reset failed");
-
-    this->error_code_ = ERROR_SENSOR_RESET;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Reset failed"));
 
     return;
   }
@@ -117,20 +92,14 @@ void BMP581Component::setup() {
 
   // read chip id from sensor
   if (!this->bmp_read_byte(BMP581_CHIP_ID, &chip_id)) {
-    ESP_LOGE(TAG, "Read chip ID failed");
-
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Read chip ID failed"));
 
     return;
   }
 
   // verify id
   if (chip_id != BMP581_ASIC_ID && chip_id != BMP585_ASIC_ID) {
-    ESP_LOGE(TAG, "Unknown chip ID");
-
-    this->error_code_ = ERROR_WRONG_CHIP_ID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unknown chip ID"));
 
     return;
   }
@@ -140,30 +109,21 @@ void BMP581Component::setup() {
   ////////////////////////////////////////////////////
 
   if (!this->bmp_read_byte(BMP581_STATUS, &this->status_.reg)) {
-    ESP_LOGE(TAG, "Failed to read status register");
-
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to read status register"));
 
     return;
   }
 
   // verify status_nvm_rdy bit (it is asserted if boot was successful)
   if (!(this->status_.bit.status_nvm_rdy)) {
-    ESP_LOGE(TAG, "NVM not ready");
-
-    this->error_code_ = ERROR_SENSOR_STATUS;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("NVM not ready"));
 
     return;
   }
 
   // verify status_nvm_err bit (it is asserted if an error is detected)
   if (this->status_.bit.status_nvm_err) {
-    ESP_LOGE(TAG, "NVM error detected");
-
-    this->error_code_ = ERROR_SENSOR_STATUS;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("NVM error detected"));
 
     return;
   }
@@ -174,10 +134,7 @@ void BMP581Component::setup() {
 
   // enable the data ready interrupt source
   if (!this->write_interrupt_source_settings_(true)) {
-    ESP_LOGE(TAG, "Failed to write interrupt source register");
-
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to write interrupt source register"));
 
     return;
   }
@@ -196,10 +153,7 @@ void BMP581Component::setup() {
 
   // write oversampling settings
   if (!this->write_oversampling_settings_(this->temperature_oversampling_, this->pressure_oversampling_)) {
-    ESP_LOGE(TAG, "Failed to write oversampling register");
-
-    this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to write oversampling register"));
 
     return;
   }
@@ -216,19 +170,13 @@ void BMP581Component::setup() {
 
   if ((this->iir_temperature_level_ != IIR_FILTER_OFF) || (this->iir_pressure_level_ != IIR_FILTER_OFF)) {
     if (!this->write_iir_settings_(this->iir_temperature_level_, this->iir_pressure_level_)) {
-      ESP_LOGE(TAG, "Failed to write IIR configuration registers");
-
-      this->error_code_ = ERROR_COMMUNICATION_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Failed to write IIR configuration registers"));
 
       return;
     }
 
     if (!this->prime_iir_filter_()) {
-      ESP_LOGE(TAG, "Failed to prime the IIR filter with an initial measurement");
-
-      this->error_code_ = ERROR_PRIME_IIR_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Failed to prime the IIR filter with an initial measurement"));
 
       return;
     }
@@ -272,7 +220,7 @@ void BMP581Component::update() {
 
   ESP_LOGVV(TAG, "Measurement should take %d ms", this->conversion_time_);
 
-  this->set_timeout("measurement", this->conversion_time_, [this]() {
+  this->set_timeout(MEASUREMENT_TIMEOUT_ID, this->conversion_time_, [this]() {
     float temperature = 0.0;
     float pressure = 0.0;
 

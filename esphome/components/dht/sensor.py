@@ -15,19 +15,21 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 from esphome.cpp_helpers import gpio_pin_expression
+from esphome.types import ConfigType
 
 dht_ns = cg.esphome_ns.namespace("dht")
 DHTModel = dht_ns.enum("DHTModel")
-DHT_MODELS = {
-    "AUTO_DETECT": DHTModel.DHT_MODEL_AUTO_DETECT,
-    "DHT11": DHTModel.DHT_MODEL_DHT11,
-    "DHT22": DHTModel.DHT_MODEL_DHT22,
-    "AM2120": DHTModel.DHT_MODEL_AM2120,
-    "AM2302": DHTModel.DHT_MODEL_AM2302,
-    "RHT03": DHTModel.DHT_MODEL_RHT03,
-    "SI7021": DHTModel.DHT_MODEL_SI7021,
-    "DHT22_TYPE2": DHTModel.DHT_MODEL_DHT22_TYPE2,
-}
+DHT_MODELS = DHTModel.options(
+    "AUTO_DETECT",
+    "DHT11",
+    "DHT22",
+    "AM2120",
+    "AM2302",
+    "RHT03",
+    "SI7021",
+    "DHT22_TYPE2",
+    prefix="DHT_MODEL_",
+)
 DHT = dht_ns.class_("DHT", cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.Schema(
@@ -53,18 +55,15 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     pin = await gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
     cg.add(var.set_dht_model(config[CONF_MODEL]))

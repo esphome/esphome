@@ -10,7 +10,7 @@
 
 namespace esphome::provisioning {
 
-static const char *const TAG = "provisioning";
+ESPHOME_LOG_TAG(TAG, "provisioning");
 
 ProvisioningManager *global_provisioning_manager =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;

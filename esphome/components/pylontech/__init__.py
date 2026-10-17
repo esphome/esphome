@@ -4,11 +4,13 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "pylontech"
 MULTI_CONF = True
 
 CONF_PYLONTECH_ID = "pylontech_id"
@@ -40,8 +42,16 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "pylontech",
+    baud_rate=115200,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

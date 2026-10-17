@@ -1,7 +1,7 @@
 # These are initialisation sequences for ST7701S displays. The contents are somewhat arcane.
 
 
-def cmd(c, *args):
+def cmd(c: int, *args: int) -> list[int]:
     """
     Create a command sequence
     :param c: The command (8 bit)

@@ -18,38 +18,88 @@
 #ifdef USE_OPENTHREAD
 #include "esphome/components/openthread/openthread.h"
 #endif
+#ifdef USE_ESP32
+#include "esp_netif.h"
+#endif
 
 namespace esphome::network {
+
+#if defined(USE_ESP32) && USE_NETWORK_IPV6
+/// Copies the IPv6 addresses of an esp_netif into `addresses[1..]`, warning once when some do not fit.
+void fill_ip6_addresses(esp_netif_t *netif, IPAddresses &addresses);
+#endif
 
 // The order of the components is important: WiFi should come after any possible main interfaces (it may be used as
 // an AP that uses a previous interface for NAT).
 
 /// Return whether the node is connected to the network (through wifi, eth, ...)
 ESPHOME_ALWAYS_INLINE inline bool is_connected() {
+  // With a single interface enabled the checks below collapse to `if (x) return true; return false;`, which
+  // clang-tidy wants folded into one return. Keep the per-interface form so every enabled interface is checked.
+  // NOLINTBEGIN(readability-simplify-boolean-expr)
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr && ethernet::global_eth_component->is_connected())
     return true;
 #endif
 
 #ifdef USE_MODEM
-  if (modem::global_modem_component != nullptr)
-    return modem::global_modem_component->is_connected();
+  if (modem::global_modem_component != nullptr && modem::global_modem_component->is_connected())
+    return true;
 #endif
 
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    return wifi::global_wifi_component->is_connected();
+  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected())
+    return true;
 #endif
 
-#ifdef USE_OPENTHREAD
-  if (openthread::global_openthread_component != nullptr)
-    return openthread::global_openthread_component->is_connected();
+#if defined(USE_OPENTHREAD) && !defined(USE_OPENTHREAD_BORDER_ROUTER)
+  // A border router is reached over its Wi-Fi backbone, so the Thread link alone does not count
+  if (openthread::global_openthread_component != nullptr && openthread::global_openthread_component->is_connected())
+    return true;
 #endif
 
 #ifdef USE_HOST
   return true;  // Assume it's connected
 #endif
   return false;
+  // NOLINTEND(readability-simplify-boolean-expr)
+}
+
+/// The network interface currently providing connectivity, in priority order when more than one
+/// is connected. Modem has no value yet (no matching API wire value); a device reachable only
+/// over modem reports NETWORK_TYPE_NONE, same as no interface being connected at all.
+enum class NetworkType : uint8_t {
+  NETWORK_TYPE_NONE,
+  NETWORK_TYPE_ETHERNET,
+  NETWORK_TYPE_WIFI,
+  NETWORK_TYPE_THREAD,
+};
+
+/// Return which interface the device is currently reachable through. Uses the same
+/// wifi-vs-ethernet priority pivot as get_use_address_to() (USE_NETWORK_PRIMARY_INTERFACE_WIFI),
+/// so the reported interface always matches the address a client would actually use.
+ESPHOME_ALWAYS_INLINE inline NetworkType get_network_type() {
+#if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected())
+    return NetworkType::NETWORK_TYPE_WIFI;
+#endif
+
+#ifdef USE_ETHERNET
+  if (ethernet::global_eth_component != nullptr && ethernet::global_eth_component->is_connected())
+    return NetworkType::NETWORK_TYPE_ETHERNET;
+#endif
+
+#if !defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected())
+    return NetworkType::NETWORK_TYPE_WIFI;
+#endif
+
+#if defined(USE_OPENTHREAD) && !defined(USE_OPENTHREAD_BORDER_ROUTER)
+  if (openthread::global_openthread_component != nullptr && openthread::global_openthread_component->is_connected())
+    return NetworkType::NETWORK_TYPE_THREAD;
+#endif
+
+  return NetworkType::NETWORK_TYPE_NONE;
 }
 
 /// Return whether the network is disabled: every configured interface with a

@@ -51,9 +51,8 @@ modbus_controller:
     modbus_id: virtual_modbus_client
     id: ctl
     max_cmd_retries: 1
-    # offline_skip_updates and the sensor's skip_updates deliberately share a period: offline
-    # probing must follow the offline cadence alone, or phase combinations like this one can
-    # leave the device never probing again.
+    # offline_skip_updates: 1 -> once offline, the controller re-probes every second update cycle;
+    # the test silences the device to force it offline, then answers again and checks it recovers.
     offline_skip_updates: 1
     update_interval: never
     on_offline:
@@ -71,7 +70,6 @@ sensor:
     address: 0x03
     register_type: holding
     value_type: U_WORD
-    skip_updates: 1
   # Mirrors the controller's online state so the test can await the transitions.
   - platform: template
     name: link_state

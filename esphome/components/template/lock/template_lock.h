@@ -18,7 +18,7 @@ class TemplateLock final : public lock::Lock, public Component {
   Trigger<> *get_lock_trigger() { return &this->lock_trigger_; }
   Trigger<> *get_unlock_trigger() { return &this->unlock_trigger_; }
   Trigger<> *get_open_trigger() { return &this->open_trigger_; }
-  void set_optimistic(bool optimistic);
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void loop() override;
 
   float get_setup_priority() const override;

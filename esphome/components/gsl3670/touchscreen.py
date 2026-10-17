@@ -174,7 +174,7 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)
 
 
-def _config_schema(config):
+def _config_schema(config: ConfigType) -> ConfigType:
     model_option = {
         cv.Optional(CONF_MODEL, default="CUSTOM"): cv.one_of(*MODELS, upper=True)
     }
@@ -206,7 +206,7 @@ def _config_schema(config):
 CONFIG_SCHEMA = _config_schema
 
 
-def _read_firmware(config) -> bytes:
+def _read_firmware(config: ConfigType) -> bytes:
     path = firmware_path(config[CONF_FIRMWARE])
     data = path.read_bytes()
     LOGGER.info(
@@ -221,7 +221,7 @@ def _read_firmware(config) -> bytes:
 # ---------------------------------------------------------------------------
 # Code generation
 # ---------------------------------------------------------------------------
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)

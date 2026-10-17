@@ -5,7 +5,9 @@
 
 namespace esphome::mics_4514 {
 
-static const char *const TAG = "mics_4514";
+ESPHOME_LOG_TAG(TAG, "mics_4514");
+
+static constexpr uint32_t WARMUP_TIMEOUT_ID = 0;
 
 static const uint8_t SENSOR_REGISTER = 0x04;
 static const uint8_t POWER_MODE_REGISTER = 0x0a;
@@ -18,7 +20,7 @@ void MICS4514Component::setup() {
     power_mode = 0x01;
     this->write_register(POWER_MODE_REGISTER, &power_mode, 1);
     delay(100);  // NOLINT
-    this->set_timeout("warmup", 3 * 60 * 1000, [this]() { this->warmed_up_ = true; });
+    this->set_timeout(WARMUP_TIMEOUT_ID, 3 * 60 * 1000, [this]() { this->warmed_up_ = true; });
     this->status_set_warning();
     return;
   }

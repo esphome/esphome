@@ -9,9 +9,11 @@ from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_IPV6,
+    CONF_ETHERNET,
     CONF_ID,
     CONF_MIN_IPV6_ADDR_COUNT,
     CONF_PRIORITY,
+    CONF_WIFI,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
@@ -19,13 +21,35 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
+DOMAIN = "network"
 
 _LOGGER = logging.getLogger(__name__)
 
 # High performance networking tracking infrastructure
 # Components can request high performance networking and this configures lwip and WiFi settings
-KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
+KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"  # lwip tier
+KEY_HIGH_PERFORMANCE_WIFI = "high_performance_wifi"  # WiFi driver buffers
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
+CONF_TCP_SEND_BUFFER = "tcp_send_buffer"
+
+# TCP receive window of the optimized lwip tier (PSRAM not guaranteed)
+TCP_WND_OPTIMIZED = 65534
+# Ethernet drivers keep every queued frame in internal RAM, so ethernet-only builds
+# get a window sized for a LAN round trip and the stock lwip input mailbox. Dual
+# wifi + ethernet builds keep wifi's sizes; the ethernet component moves their
+# received frames to PSRAM instead.
+TCP_WND_ETHERNET = 16384
+TCPIP_RECVMBOX_ETHERNET = 32
+TCPIP_RECVMBOX_OPTIMIZED = 64
+
+# lwIP queues at most this many unsent/unacked bytes per TCP socket; the
+# stock ESP-IDF default (5744 bytes) stalls bursty senders like a Bluetooth
+# proxy streaming GATT notifications. Bounds follow the lwIP guidance for the
+# default 1440 byte MSS: at least 2 x MSS, at most 65535 without window
+# scaling. The cap is kept even when window scaling is on (high performance
+# with PSRAM) as a deliberate conservative bound.
+TCP_SEND_BUFFER_MIN = 2880
+TCP_SEND_BUFFER_MAX = 65535
 
 # Network priority tracking infrastructure
 # Components can query this to determine their relative setup priority.
@@ -77,6 +101,37 @@ if (
 
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
+
+_request_active_interface_listener_slot = cg.slot_counter(
+    "NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT"
+)
+
+
+def has_active_interface() -> bool:
+    """Return True when NetworkComponent tracks the interface holding the default route.
+
+    That is ESP32 with more than one interface in 'network: priority:', the same
+    condition that emits USE_NETWORK_DEFAULT_ROUTE.
+    """
+    return CORE.is_esp32 and len(CORE.config.get(DOMAIN, {}).get(CONF_PRIORITY, [])) > 1
+
+
+async def register_active_interface_listener(listener: cg.MockObj) -> bool:
+    """Register an ActiveInterfaceListener with the NetworkComponent.
+
+    The listener is notified from the main loop when the interface holding the
+    default route changes. Returns False, and registers nothing, when
+    has_active_interface() is False; the caller then needs another way to
+    follow interface changes.
+    """
+    if not has_active_interface():
+        return False
+    _request_active_interface_listener_slot()
+    network = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
+    cg.add(network.add_active_interface_listener(listener))
+    return True
+
+
 IPAddress = network_ns.class_("IPAddress")
 
 
@@ -156,6 +211,8 @@ def require_high_performance_networking() -> None:
     Configuration is PSRAM-aware:
     - With PSRAM guaranteed: Aggressive settings (512 RX buffers, 512KB TCP windows)
     - Without PSRAM: Conservative optimized settings (64 buffers, 65KB TCP windows)
+    - Ethernet only: 16KB TCP windows regardless of PSRAM, because ESP-IDF
+      ethernet drivers keep received frames in internal RAM
 
     Example:
         from esphome.components import network
@@ -169,9 +226,26 @@ def require_high_performance_networking() -> None:
             _request_high_performance_networking,
         )
     """
-    # Only set up once (idempotent - multiple components can call this)
-    if not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False):
-        CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+    CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+    require_high_performance_wifi()
+
+
+def require_high_performance_wifi() -> None:
+    """Request only the WiFi driver part of high performance networking.
+
+    For traffic that passes through the device below its own sockets, such as the
+    NAT of a WISP access point: more RX/TX buffers, AMPDU aggregation and a deeper
+    lwip input mailbox help every forwarded packet, while the larger TCP windows
+    would only serve the device's own connections and cost internal RAM for nothing.
+    ``network: enable_high_performance: false`` turns the mailbox part off like the
+    lwip tier; the WiFi driver settings follow the component request alone.
+    """
+    CORE.data[KEY_HIGH_PERFORMANCE_WIFI] = True
+
+
+def has_high_performance_wifi() -> bool:
+    """True when a component asked for the high performance WiFi driver settings."""
+    return CORE.data.get(KEY_HIGH_PERFORMANCE_WIFI, False)
 
 
 def has_high_performance_networking() -> bool:
@@ -253,7 +327,7 @@ def get_priority_interfaces_from_full_config(full_config: ConfigType) -> set[str
     """
     return {
         entry["interface"]
-        for entry in full_config.get("network", {}).get(CONF_PRIORITY, [])
+        for entry in full_config.get(DOMAIN, {}).get(CONF_PRIORITY, [])
     }
 
 
@@ -306,6 +380,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            cv.Optional(CONF_TCP_SEND_BUFFER): cv.All(
+                cv.validate_bytes,
+                cv.int_range(min=TCP_SEND_BUFFER_MIN, max=TCP_SEND_BUFFER_MAX),
+                cv.only_on_esp32,
+            ),
             cv.Optional(CONF_PRIORITY): _validate_priority_list,
         }
     ),
@@ -349,7 +428,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.NETWORK)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
 
@@ -372,7 +451,7 @@ async def to_code(config):
         # frameworks build from source.
         # The ethernet/wifi-only assumption behind the arbitration is enforced in
         # _final_validate() so a future unsupported type fails as a config error.
-        if len(priority_list) > 1 and CORE.is_esp32:
+        if has_active_interface():
             cg.add_define("USE_NETWORK_DEFAULT_ROUTE")
             # Have lwIP switch to the DNS servers of the netif that owns the
             # default route whenever the arbitration changes it.
@@ -402,8 +481,11 @@ async def to_code(config):
     if CORE.is_esp32 and should_enable:
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
+        # ESP-IDF ethernet drivers malloc() received frames into internal RAM, so
+        # lwip is never sized for PSRAM on an ethernet-only build.
+        ethernet_only = CONF_ETHERNET in CORE.config and CONF_WIFI not in CORE.config
 
-        if psram_guaranteed:
+        if psram_guaranteed and not ethernet_only:
             _LOGGER.info(
                 "Applying high-performance lwip settings (PSRAM guaranteed): 512KB TCP windows, 512 mailbox sizes"
             )
@@ -436,15 +518,42 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_OVERSIZE_MSS", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_QUEUE_OOSEQ", True)
         else:
+            # Every queued byte is internal RAM on ethernet and a LAN round trip needs
+            # little window; wifi keeps the larger sizes.
+            if ethernet_only:
+                tcp_window, tcpip_mailbox = TCP_WND_ETHERNET, TCPIP_RECVMBOX_ETHERNET
+            else:
+                tcp_window, tcpip_mailbox = TCP_WND_OPTIMIZED, TCPIP_RECVMBOX_OPTIMIZED
             _LOGGER.info(
-                "Applying optimized lwip settings: 65KB TCP windows, 64 mailbox sizes"
+                "Applying optimized lwip settings: %dKB TCP windows, %d entry input mailbox",
+                tcp_window // 1000,
+                tcpip_mailbox,
             )
             # PSRAM not guaranteed - use more conservative, but still optimized settings
             # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
+            # The send buffer stays at 65534 on ethernet too: it only fills under outbound
+            # load, and bursty senders such as a Bluetooth proxy stall on the IDF default.
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
-            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", tcp_window)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
-            add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", tcpip_mailbox)
+    elif (
+        CORE.is_esp32 and enable_high_perf is not False and has_high_performance_wifi()
+    ):
+        # Forwarded frames still queue through tcpip_input, so the WiFi-only tier deepens that mailbox too
+        add_idf_sdkconfig_option(
+            "CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", TCPIP_RECVMBOX_OPTIMIZED
+        )
+
+    # After the high performance block so an explicit size wins over the
+    # bundle's 65534 (last write wins in the sdkconfig store).
+    if (tcp_send_buffer := config.get(CONF_TCP_SEND_BUFFER)) is not None:
+        if CORE.is_esp32 and should_enable:
+            _LOGGER.info(
+                "TCP send buffer set to %d bytes by configuration (overriding high performance value)",
+                tcp_send_buffer,
+            )
+        add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", tcp_send_buffer)
 
     if CORE.is_nrf52:
         zephyr_add_prj_conf("NETWORKING", True)

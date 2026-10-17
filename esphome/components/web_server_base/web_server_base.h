@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
 #include <vector>
 
 #include "esphome/core/progmem.h"
@@ -170,7 +170,7 @@ class WebServerBase final {
 
  protected:
   uint8_t initialized_{0};
-  uint16_t port_{80};
+  uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
   AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH
