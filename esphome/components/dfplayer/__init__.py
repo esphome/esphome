@@ -21,19 +21,9 @@ CONF_EQ_PRESET = "eq_preset"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
 EqPreset = dfplayer_ns.enum("EqPreset")
-EQ_PRESET = {
-    "NORMAL": EqPreset.NORMAL,
-    "POP": EqPreset.POP,
-    "ROCK": EqPreset.ROCK,
-    "JAZZ": EqPreset.JAZZ,
-    "CLASSIC": EqPreset.CLASSIC,
-    "BASS": EqPreset.BASS,
-}
+EQ_PRESET = EqPreset.options("NORMAL", "POP", "ROCK", "JAZZ", "CLASSIC", "BASS")
 Device = dfplayer_ns.enum("Device")
-DEVICE = {
-    "USB": Device.USB,
-    "TF_CARD": Device.TF_CARD,
-}
+DEVICE = Device.options("USB", "TF_CARD")
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

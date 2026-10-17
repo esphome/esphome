@@ -79,4 +79,5 @@ def final_validate_mode(keys: dict[str, str]) -> Callable[[ConfigType], None]:
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LINE_READER")
     await uart.new_uart_component(config, RUN_MODES[config[CONF_MODE]])

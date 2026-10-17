@@ -38,10 +38,9 @@ CONF_POWER_FACTOR_1 = "power_factor_1"
 CONF_CURRENT_INPUT = "current_input"
 
 CSE7761CurrentInput = cse7761_ns.enum("CSE7761CurrentInput", is_class=True)
-CURRENT_INPUTS = {
-    "shunt": CSE7761CurrentInput.CSE7761_CURRENT_INPUT_SHUNT,
-    "current_transformer": CSE7761CurrentInput.CSE7761_CURRENT_INPUT_CURRENT_TRANSFORMER,
-}
+CURRENT_INPUTS = CSE7761CurrentInput.options(
+    "shunt", "current_transformer", prefix="CSE7761_CURRENT_INPUT_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(

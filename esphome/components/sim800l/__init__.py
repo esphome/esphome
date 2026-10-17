@@ -66,6 +66,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config):
+    cg.add_define("USE_LINE_READER")
     var = await uart.new_uart_component(config)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

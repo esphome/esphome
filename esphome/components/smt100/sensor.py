@@ -78,6 +78,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LINE_READER")
     var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
