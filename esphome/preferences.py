@@ -3,10 +3,11 @@
 Preferences can be stored either in flash (durable across power loss) or in RTC
 memory (fast, survives deep sleep and soft resets but not power loss). The
 flash-vs-RTC choice is only meaningful on platforms whose preferences backend
-honors the ``in_flash`` flag — currently ESP32, ESP8266 and the BK7231T. LibreTiny
-chips have no RTC memory: there ``rtc`` keeps the preference in flash and discards
-it after a reset that RTC memory would not survive. On other platforms the value
-is accepted only as ``flash`` (the sole supported backend).
+honors the ``in_flash`` flag — currently ESP32, ESP8266 and the Beken BK7231T,
+BK7231N and BK7238. LibreTiny chips have no RTC memory: there ``rtc`` keeps the
+preference in flash and discards it after a reset that RTC memory would not
+survive. On other platforms the value is accepted only as ``flash`` (the sole
+supported backend).
 
 Components include :func:`storage_schema` in their config and convert the chosen
 value with :func:`is_in_flash` when calling ``make_preference``.
@@ -22,7 +23,7 @@ STORAGE_RTC = "rtc"
 
 
 def rtc_supported() -> bool:
-    """Whether the target has RTC-backed preferences (ESP8266, ESP32 except C2/C61, BK7231T); call at validation time."""
+    """Whether the target has RTC-backed preferences (ESP8266, ESP32 except C2/C61, some Beken chips); call at validation time."""
     if CORE.is_esp8266:
         return True
     if CORE.is_esp32:
@@ -38,17 +39,24 @@ def _libretiny_rtc_supported() -> bool:
     """Whether this LibreTiny family accepts ``rtc``, emulated with flash plus the reset reason.
 
     The emulation is only as good as the family's ``lt_get_reboot_reason()``, so families are
-    listed once that reporting has been checked on hardware; so far only the BK7231T.
+    listed once that reporting has been checked on hardware: a chip-enable reset and a power cut
+    both report a power-on, a software, watchdog or crash reset does not.
     """
     if not CORE.is_libretiny:
         return False
     from esphome.components.libretiny.const import (
+        FAMILY_BK7231N,
         FAMILY_BK7231T,
+        FAMILY_BK7238,
         KEY_FAMILY,
         KEY_LIBRETINY,
     )
 
-    return CORE.data.get(KEY_LIBRETINY, {}).get(KEY_FAMILY) == FAMILY_BK7231T
+    return CORE.data.get(KEY_LIBRETINY, {}).get(KEY_FAMILY) in (
+        FAMILY_BK7231T,
+        FAMILY_BK7231N,
+        FAMILY_BK7238,
+    )
 
 
 def _default_storage() -> str:

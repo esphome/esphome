@@ -13,6 +13,7 @@ from esphome.components.esp32.const import (
 from esphome.components.libretiny.const import (
     FAMILY_BK7231N,
     FAMILY_BK7231T,
+    FAMILY_BK7238,
     FAMILY_BK7251,
     FAMILY_RTL8710B,
     KEY_FAMILY,
@@ -208,16 +209,16 @@ def _set_libretiny(platform: str, family: str) -> None:
     CORE.data[KEY_LIBRETINY] = {KEY_FAMILY: family}
 
 
-def test_rtc_allowed_on_bk7231t() -> None:
+@pytest.mark.parametrize("family", [FAMILY_BK7231T, FAMILY_BK7231N, FAMILY_BK7238])
+def test_rtc_allowed_on_tested_beken_families(family: str) -> None:
     # Emulated with flash plus the reset reason, which was checked on hardware.
-    _set_libretiny(PLATFORM_BK72XX, FAMILY_BK7231T)
+    _set_libretiny(PLATFORM_BK72XX, family)
     assert _validate({CONF_STORAGE: "rtc"})[CONF_STORAGE] == preferences.STORAGE_RTC
 
 
 @pytest.mark.parametrize(
     ("platform", "family"),
     [
-        (PLATFORM_BK72XX, FAMILY_BK7231N),
         (PLATFORM_BK72XX, FAMILY_BK7251),
         (PLATFORM_RTL87XX, FAMILY_RTL8710B),
     ],
@@ -240,6 +241,6 @@ def test_request_rtc_storage_bk7231t_emits_define() -> None:
 
 
 def test_request_rtc_storage_other_libretiny_family_is_a_no_op() -> None:
-    _set_libretiny(PLATFORM_BK72XX, FAMILY_BK7231N)
+    _set_libretiny(PLATFORM_BK72XX, FAMILY_BK7251)
     preferences.request_rtc_storage()
     assert "USE_LIBRETINY_RTC_PREFERENCES" not in _define_names()

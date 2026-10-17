@@ -23,12 +23,10 @@ class LibreTinyPreferenceBackend final {
   struct fdb_kvdb *db;
   struct fdb_blob *blob;
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
-  // storage: rtc. Kept in FlashDB, but the value saved before a boot that RTC memory would not
-  // survive (power-on, brown-out, reset pin, unknown) is discarded by its first save or load.
-  bool discard_after_hard_reset{false};
-
- protected:
-  bool discard_if_stale_();
+  // storage: rtc keeps the value in FlashDB and deletes it when the preference is made after a boot
+  // that RTC memory would not have survived. Set when that delete failed: the old value is then never
+  // loaded, and the next save replaces it.
+  bool stale{false};
 #endif
 };
 
