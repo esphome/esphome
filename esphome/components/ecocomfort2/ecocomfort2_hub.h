@@ -20,6 +20,15 @@
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 
 namespace esphome::ecocomfort2 {
 
@@ -42,6 +51,18 @@ static constexpr uint8_t SPEED_VEL3 = 0x04;
 static constexpr uint8_t SPEED_MASK = 0x0F;
 static constexpr uint8_t FLAG_AUTO = 0x10;
 static constexpr uint8_t FLAG_BOOST = 0x40;
+
+// The thresholds come first, in the order of their C_CONFIGURATION bytes
+enum class NumberSetting : uint8_t {
+  HUMIDITY_THRESHOLD,
+  LUMINOSITY_THRESHOLD,
+  VOC_THRESHOLD,
+  TEMPERATURE_OFFSET,
+  HUMIDITY_OFFSET,
+  COUNT,
+};
+enum class SwitchSetting : uint8_t { HUMIDITY_ADVANCED, VOC_ADVANCED, COUNT };
+enum class SelectSetting : uint8_t { SEASON, FREE_COOLING, COUNT };
 
 /** Hub component for Ecocomfort 2.0 VMC via BLE. */
 class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public PollingComponent {
@@ -75,6 +96,28 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   /// Keeps the unit's clock in step with this time source while connected.
   void set_time(time::RealTimeClock *time) { this->time_ = time; }
 #endif
+  // The writes below publish every entity they affect with the value sent; a refused change publishes nothing
+#ifdef USE_NUMBER
+  void set_number(NumberSetting setting, number::Number *number) {
+    this->numbers_[static_cast<uint8_t>(setting)] = number;
+    this->has_settings_ = true;
+  }
+  void write_number(NumberSetting setting, float value);
+#endif
+#ifdef USE_SWITCH
+  void set_switch(SwitchSetting setting, switch_::Switch *sw) {
+    this->switches_[static_cast<uint8_t>(setting)] = sw;
+    this->has_settings_ = true;
+  }
+  void write_switch(SwitchSetting setting, bool state);
+#endif
+#ifdef USE_SELECT
+  void set_select(SelectSetting setting, select::Select *select) {
+    this->selects_[static_cast<uint8_t>(setting)] = select;
+    this->has_settings_ = true;
+  }
+  void write_select(SelectSetting setting, size_t index);
+#endif
 
   /// True once the link is established and paired.
   bool is_ready() const { return this->node_state == espbt::ClientState::ESTABLISHED && this->parent_->is_paired(); }
@@ -95,7 +138,7 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   void on_paired_();
   void set_connected_(bool connected);
   void publish_unknown_();
-  void read_char_(uint16_t handle);
+  bool read_char_(uint16_t handle);
   bool read_ok_(const esp_ble_gattc_cb_param_t *param);
   void on_oper_(const uint8_t *data, uint16_t len);
   void on_state_(const uint8_t *data, uint16_t len);
@@ -103,6 +146,15 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 #ifdef USE_TIME
   void sync_clock_();
 #endif
+  void read_settings_();
+  void on_config_(const uint8_t *data, uint16_t len);
+  void on_advanced_(const uint8_t *data, uint16_t len);
+  /// Change one C_CONFIGURATION byte and leave the others as they are.
+  void write_config_(uint8_t index, uint8_t value);
+  void write_offsets_(int16_t temperature, int16_t humidity);
+  bool write_settings_(uint16_t handle, uint8_t *data, uint16_t len);
+  void publish_config_();
+  void publish_offsets_();
 
 #ifdef ECOCOMFORT2_CHILD_COUNT
   StaticVector<Ecocomfort2Client *, ECOCOMFORT2_CHILD_COUNT> children_;
@@ -129,6 +181,29 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   uint16_t char_handle_clock_{0};
   uint8_t mode_{OPER_OFF};
   uint8_t speed_{SPEED_OFF};
+#ifdef USE_NUMBER
+  number::Number *numbers_[static_cast<uint8_t>(NumberSetting::COUNT)]{};
+#endif
+#ifdef USE_SWITCH
+  switch_::Switch *switches_[static_cast<uint8_t>(SwitchSetting::COUNT)]{};
+#endif
+#ifdef USE_SELECT
+  select::Select *selects_[static_cast<uint8_t>(SelectSetting::COUNT)]{};
+#endif
+  uint16_t char_handle_config_{0};
+  uint16_t char_handle_advanced_{0};
+  // C_CONFIGURATION bytes 1-4, as last read or written
+  uint8_t thresholds_[3]{};
+  uint8_t season_byte_{0};
+  // C_ADVANCED_SETTINGS temperature and humidity offsets, in hundredths
+  int16_t offsets_[2]{};
+  bool config_read_{false};
+  bool offsets_read_{false};
+  // Settings reads sent but not answered yet; the unit answers them in order
+  uint8_t config_reads_pending_{0};
+  uint8_t advanced_reads_pending_{0};
+  // Without a setting entity the settings are never read
+  bool has_settings_{false};
 };
 
 }  // namespace esphome::ecocomfort2
