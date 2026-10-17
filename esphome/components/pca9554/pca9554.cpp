@@ -186,8 +186,9 @@ void PCA9554Component::update_pcal_register_(uint8_t reg, uint16_t &shadow, uint
   // setup() wrote every shadow, so an unchanged value is already on the chip
   if (updated == shadow)
     return;
-  shadow = updated;
-  this->write_pcal_register_(reg, shadow);
+  // Keep the old shadow on a failed write so the same request retries it
+  if (this->write_pcal_register_(reg, updated))
+    shadow = updated;
 }
 
 void PCA9554Component::set_drive_strength(uint8_t pin, uint8_t strength) {
