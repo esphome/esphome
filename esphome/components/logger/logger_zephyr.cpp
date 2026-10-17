@@ -15,6 +15,7 @@
 namespace esphome::zephyr_coredump {
 
 __attribute__((weak)) void print_coredump() {}
+__attribute__((weak)) void stop_coredump() {}
 
 }  // namespace esphome::zephyr_coredump
 
@@ -57,6 +58,8 @@ void Logger::cdc_loop_() {
     App.schedule_dump_config();
     // The new reader also gets a coredump stored by the last crash
     zephyr_coredump::print_coredump();
+  } else {
+    zephyr_coredump::stop_coredump();
   }
   opened = !opened;
 }
@@ -109,6 +112,11 @@ void Logger::pre_setup() {
 #ifdef USE_LOGGER_UART_SELECTION_USB_CDC
   // Nobody reads a USB port this early; cdc_loop_() reports the dump once the port is opened
   if (this->uart_ == UART_SELECTION_USB_CDC)
+    return;
+#endif
+#ifndef CONFIG_PRINTK
+  // Without a UART (baud_rate: 0, or one that did not come up) the dump would be printed to nobody
+  if (this->uart_dev_ == nullptr)
     return;
 #endif
   zephyr_coredump::print_coredump();

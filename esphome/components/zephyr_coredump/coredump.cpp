@@ -1,3 +1,4 @@
+#ifdef USE_ZEPHYR
 #include "coredump.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -28,30 +29,46 @@ void print_coredump() {
     global_coredump->start_print_();
 }
 
+void stop_coredump() {
+  reader_present = false;
+  if (global_coredump != nullptr)
+    global_coredump->stop_print_();
+}
+
 void Coredump::setup() {
   global_coredump = this;
-  if (coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) != 1) {
-    this->disable_loop();
-    return;
-  }
-  const int ret = coredump_cmd(COREDUMP_CMD_VERIFY_STORED_DUMP, nullptr);
-  if (ret != 1) {
-    ESP_LOGE(TAG, "Stored coredump verification failed: %d", ret);
-    this->finish_(0);
-    return;
-  }
-  this->total_ = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
   this->disable_loop();
+  if (coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) != 1) {
+    return;
+  }
+  // A bad dump is reported and erased from loop() like a good one, once somebody can read the message
+  this->stored_ = true;
+  this->verify_ = coredump_cmd(COREDUMP_CMD_VERIFY_STORED_DUMP, nullptr);
+  this->total_ = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
   if (reader_present)
     this->start_print_();
 }
 
+// A new reader gets the whole dump: a print cut short by the port closing starts over
 void Coredump::start_print_() {
-  if (this->total_ != 0)
-    this->set_timeout(START_DELAY_ID, START_DELAY_MS, [this]() { this->enable_loop(); });
+  if (!this->stored_)
+    return;
+  this->offset_ = 0;
+  this->disable_loop();
+  this->set_timeout(START_DELAY_ID, START_DELAY_MS, [this]() { this->enable_loop(); });
+}
+
+void Coredump::stop_print_() {
+  this->cancel_timeout(START_DELAY_ID);
+  this->disable_loop();
 }
 
 void Coredump::loop() {
+  if (this->verify_ != 1) {
+    ESP_LOGE(TAG, "Stored coredump verification failed: %d", this->verify_);
+    this->finish_(0);
+    return;
+  }
   if (this->offset_ == 0) {
     ESP_LOGE(TAG, "#CD:BEGIN#");
   }
@@ -80,7 +97,7 @@ void Coredump::finish_(int err) {
   if (erase < 0) {
     ESP_LOGE(TAG, "Failed to erase coredump: %d", erase);
   }
-  this->total_ = 0;
+  this->stored_ = false;
   this->disable_loop();
 }
 
@@ -100,6 +117,7 @@ void Coredump::dump_config() {
 // Backport of https://github.com/zephyrproject-rtos/zephyr/pull/79622 (Zephyr 4.0): give GDB the stack
 // pointer from before the exception frame so it can unwind. The Python side links it in with --wrap.
 #ifdef USE_ZEPHYR_COREDUMP_SP_FIX
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
 
 #if KERNEL_VERSION_NUMBER >= 0x030700
@@ -139,4 +157,6 @@ void __wrap_z_arm_fatal_error(unsigned int reason, const esf_t *esf) {
   __real_z_arm_fatal_error(reason, esf);
 }
 }
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif
 #endif
