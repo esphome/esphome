@@ -497,10 +497,11 @@ void Nextion::deliver_queue_response_(const char *response_name, const NextionQu
       return;
     }
 
-    // Unexpected type -- remove the stale entry and keep scanning.
+    // Consume the mismatched response without assigning it to a later query.
     ESP_LOGE(TAG, "%s but '%s' invalid type %d", response_name, component->get_variable_name().c_str(), qtype);
-    delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-    it = this->nextion_queue_.erase(it);
+    this->release_queue_entry_(nb);
+    this->nextion_queue_.erase(it);
+    return;
   }
   ESP_LOGE(TAG, "%s but no matching entry found after skipping NO_RESULT", response_name);
 }
