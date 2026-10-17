@@ -1031,6 +1031,11 @@ constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
   return ret;
 }
 
+/// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
+constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
+/// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
+constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
+
 /// Reverse the order of 8 bits.
 inline uint8_t reverse_bits(uint8_t x) {
   x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
