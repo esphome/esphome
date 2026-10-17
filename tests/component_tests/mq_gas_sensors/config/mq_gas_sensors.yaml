@@ -1,0 +1,105 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    id: mq8_adc
+    name: MQ-8 AO voltage
+    pin: GPIO34
+
+  # Calibrated at boot: R0 is averaged from clean air, then every reading is
+  # converted with the built-in MQ-8 H2 curve.
+  - platform: mq_gas_sensors
+    id: mq8_boot
+    name: MQ-8 H2
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq8_adc
+    voltage_multiplier: 1.5
+    sample_count: 4
+    calibration:
+      delay: 5s
+      sample_count: 5
+
+  # The reference is hard-coded, so nothing is calibrated at boot.
+  - platform: mq_gas_sensors
+    id: mq4_fixed
+    name: MQ-4 CH4
+    sensor_type: MQ-4
+    voltage: mq8_adc
+    r0: 10.0
+
+  # Owned wiring and diagnostics: `pin:` creates the hidden `adc` sensor, the
+  # 10k/20k divider brings the 5 V output down to the ADC input, and the linked
+  # T/RH sensors switch the compensation on.
+  - platform: mq_gas_sensors
+    id: mq8_pin
+    name: MQ-8 H2 on pin
+    sensor_type: MQ-8
+    gas: H2
+    pin: GPIO32
+    voltage_divider:
+      r1: 10.0
+      r2: 20.0
+    adc_input_max: 3.34
+    adc_attenuation: 12db
+    calibration:
+      delay: 5s
+      sample_count: 5
+      persist: true
+    temperature: mq8_temperature
+    humidity: mq8_humidity
+    ratio_sensor:
+      id: mq8_ratio
+      name: MQ-8 ratio
+    rs_sensor:
+      id: mq8_rs
+      name: MQ-8 RS
+    voltage_sensor:
+      id: mq8_voltage
+      name: MQ-8 voltage
+    correction_sensor:
+      id: mq8_correction
+      name: MQ-8 T-RH correction
+    r0_sensor:
+      id: mq8_r0
+      name: MQ-8 R0
+    log_sensor:
+      id: mq8_logs
+      name: MQ-8 logs
+    log_ppm: true
+
+  # The MQDataScience dataset with the scaled clamp.
+  - platform: mq_gas_sensors
+    id: mq8_curve
+    name: MQ-8 H2 mqdatascience
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq8_adc
+    voltage_multiplier: 1.5
+    curve: mqdatascience
+    correction_clamp: scaled
+    max_ppm: 20000.0
+    r0: 9.5
+
+  - platform: template
+    id: mq8_temperature
+    name: Air temperature
+    accuracy_decimals: 2
+    update_interval: 60s
+
+  - platform: template
+    id: mq8_humidity
+    name: Air humidity
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    update_interval: 60s
+
+button:
+  - platform: template
+    name: Calibrate the MQ-8
+    on_press:
+      - mq_gas_sensors.calibrate_r0: mq8_boot
