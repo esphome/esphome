@@ -1,5 +1,6 @@
 #include "tsdb.h"
 
+#include <array>
 #include <cinttypes>
 #include <cmath>
 #include <cstddef>
@@ -8,6 +9,7 @@
 #include <string>
 #include <sys/stat.h>
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -34,6 +36,18 @@ static constexpr uint32_t SATURATION_LOG_EVERY = 100;
 static constexpr size_t CSV_LINE_SIZE = 256;
 // Dump window margin for jitter and single gaps.
 static constexpr uint32_t DUMP_WINDOW_MARGIN = 2;
+
+// dump_config() names, indexed by the tsdbmath enums (last entry is the fallback).
+PROGMEM_STRING_TABLE(MissingPolicyStrings, "skip", "hold", "sentinel", "unknown");
+PROGMEM_STRING_TABLE(MemoryModeStrings, "internal", "psram", "auto", "unknown");
+
+static const LogString *missing_policy_to_string(tsdbmath::MissingPolicy policy) {
+  return MissingPolicyStrings::get_log_str(static_cast<uint8_t>(policy), MissingPolicyStrings::LAST_INDEX);
+}
+
+static const LogString *memory_mode_to_string(tsdbmath::MemoryMode mode) {
+  return MemoryModeStrings::get_log_str(static_cast<uint8_t>(mode), MemoryModeStrings::LAST_INDEX);
+}
 
 // esp_tsdb free-space callback takes no context; the mounted label lives here.
 static const char *g_free_space_label = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -106,8 +120,6 @@ void TsdbComponent::setup() {
     this->fail_setup_(LOG_STR("no columns configured"));
     return;
   }
-  // Size the write buffer once so write_record_() never allocates.
-  this->values_.reserve(this->columns_.size());
   if (!this->mount_filesystem_()) {
     this->log_init_failure_();
     this->fail_setup_(LOG_STR("mounting the LittleFS partition"));
@@ -120,7 +132,10 @@ void TsdbComponent::setup() {
     return;
   }
   this->publish_log_("history opened");
-  this->publish_errors_();  // report 0 back to the diagnostics sensor
+  // Report the diagnostics now instead of leaving them unknown until the first
+  // stats tick.
+  this->last_stats_ = millis();
+  this->publish_stats_();
 }
 
 // Count the failed initialisation so the diagnostics sensor reports it instead
@@ -269,22 +284,21 @@ void TsdbComponent::unmount_filesystem_() {
 }
 
 bool TsdbComponent::open_database_() {
-  std::vector<const char *> names;
-  names.reserve(this->columns_.size());
-  for (const TsdbColumn &column : this->columns_)
-    names.push_back(column.name.c_str());
+  const uint32_t columns = static_cast<uint32_t>(this->columns_.size());
+  std::array<const char *, TSDB_COLUMN_COUNT> names{};
+  for (uint32_t index = 0; index < columns; index++)
+    names[index] = this->columns_[index].name.c_str();
 
-  const uint32_t max_records = tsdbmath::capacity_for_bytes(this->max_file_size_, names.size(), this->index_stride_);
+  const uint32_t max_records = tsdbmath::capacity_for_bytes(this->max_file_size_, columns, this->index_stride_);
   if (max_records == 0) {
-    ESP_LOGE(TAG, "%s: max_file_size too small for %" PRIu32 " columns", this->file_.c_str(),
-             static_cast<uint32_t>(names.size()));
+    ESP_LOGE(TAG, "%s: max_file_size too small for %" PRIu32 " columns", this->file_.c_str(), columns);
     return false;
   }
   const std::string path = this->mount_point_ + "/" + this->file_;
 
   tsdb_config_t config = {};
   config.filepath = path.c_str();
-  config.num_params = static_cast<uint8_t>(names.size());
+  config.num_params = static_cast<uint8_t>(columns);
   config.param_names = names.data();
   config.max_records = max_records;
   config.index_stride = this->index_stride_;
@@ -300,7 +314,7 @@ bool TsdbComponent::open_database_() {
     // A column-count change makes the engine refuse the file; only the file's
     // own header may authorize deleting it (other failures keep the file).
     const uint32_t stored = read_stored_columns(path);
-    const uint32_t configured = static_cast<uint32_t>(names.size());
+    const uint32_t configured = columns;
     if (stored != 0 && stored != configured) {
       ESP_LOGW(TAG, "%s: schema changed (stored %" PRIu32 ", configured %" PRIu32 ") - recreating", this->file_.c_str(),
                stored, configured);
@@ -315,13 +329,13 @@ bool TsdbComponent::open_database_() {
   }
   if (this->db_ == nullptr) {
     ESP_LOGE(TAG, "%s: esp_tsdb refused to open %s (%" PRIu32 " columns, up to %" PRIu32 " records)",
-             this->file_.c_str(), path.c_str(), static_cast<uint32_t>(names.size()), max_records);
+             this->file_.c_str(), path.c_str(), columns, max_records);
     return false;
   }
 
-  const uint64_t bytes = tsdbmath::file_bytes_for(max_records, names.size(), this->index_stride_);
+  const uint64_t bytes = tsdbmath::file_bytes_for(max_records, columns, this->index_stride_);
   ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records (up to %" PRIu32 " KB) at %s", this->file_.c_str(),
-           static_cast<uint32_t>(names.size()), max_records, static_cast<uint32_t>(bytes / 1024), path.c_str());
+           columns, max_records, static_cast<uint32_t>(bytes / 1024), path.c_str());
   return true;
 }
 
@@ -357,7 +371,7 @@ void TsdbComponent::update() {
   this->write_record_();
   this->flush_(false);
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->aggregate_interval_ > 0 &&
       (this->last_aggregate_ == 0 || now - this->last_aggregate_ >= this->aggregate_interval_)) {
     this->last_aggregate_ = now;
@@ -377,6 +391,7 @@ void TsdbComponent::handle_requests_() {
     const esp_err_t err = tsdb_clear_h(db);
     if (err != ESP_OK) {
       this->write_errors_++;
+      this->publish_errors_();
       ESP_LOGE(TAG, "%s: clearing the history failed: %s", this->file_.c_str(), esp_err_to_name(err));
     } else {
       this->records_ = 0;
@@ -487,7 +502,7 @@ void TsdbComponent::publish_errors_() {
 void TsdbComponent::flush_(bool force) {
   if (this->db_ == nullptr)
     return;
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (!force && !this->dirty_)
     return;
   if (!force && this->last_sync_ != 0 && this->sync_interval_ > 0 && now - this->last_sync_ < this->sync_interval_)
@@ -508,15 +523,24 @@ void TsdbComponent::flush_(bool force) {
 void TsdbComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "tsdb:");
   ESP_LOGCONFIG(TAG, "  file: %s/%s", this->mount_point_.c_str(), this->file_.c_str());
-  ESP_LOGCONFIG(TAG, "  partition: %s, %" PRIu32 " KB", this->partition_label_.c_str(), this->partition_size_ / 1024);
+  ESP_LOGCONFIG(TAG, "  partition: %s, %" PRIu32 " KB, format on first boot: %s, recreate on schema change: %s",
+                this->partition_label_.c_str(), this->partition_size_ / 1024, YESNO(this->format_on_first_boot_),
+                YESNO(this->recreate_on_schema_change_));
+  ESP_LOGCONFIG(TAG, "  budget: max file %" PRIu32 " KB, min free %" PRIu32 " KB, index stride %" PRIu32,
+                this->max_file_size_ / 1024, this->min_free_bytes_ / 1024, this->index_stride_);
   ESP_LOGCONFIG(TAG, "  columns: %" PRIu32, static_cast<uint32_t>(this->columns_.size()));
   for (const TsdbColumn &column : this->columns_) {
     ESP_LOGCONFIG(TAG, "    %s: scale %.6g, offset %.6g", column.name.c_str(), column.scale, column.offset);
   }
   ESP_LOGCONFIG(TAG, "  write interval: %" PRIu32 " ms, sync interval: %" PRIu32 " ms", this->get_update_interval(),
                 this->sync_interval_);
-  ESP_LOGCONFIG(TAG, "  buffer pool: %" PRIu32 " bytes (paged: %u), memory mode: %u", this->buffer_pool_size_,
-                static_cast<unsigned>(this->paged_allocation_), static_cast<unsigned>(this->memory_mode_));
+  ESP_LOGCONFIG(TAG, "  buffer pool: %" PRIu32 " bytes (page size: %" PRIu32 "), memory: %s, paged allocation: %s",
+                this->buffer_pool_size_, this->page_size_, LOG_STR_ARG(memory_mode_to_string(this->memory_mode_)),
+                YESNO(this->paged_allocation_));
+  ESP_LOGCONFIG(TAG, "  time required: %s, missing values: %s", YESNO(this->require_time_),
+                LOG_STR_ARG(missing_policy_to_string(this->missing_policy_)));
+  ESP_LOGCONFIG(TAG, "  aggregates: window %" PRIu32 " s, interval %" PRIu32 " ms, dump rows: %" PRIu32,
+                this->aggregate_window_, this->aggregate_interval_, this->dump_rows_);
   ESP_LOGCONFIG(TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32,
                 this->writes_, this->write_errors_, this->dropped_, this->saturated_);
 }
@@ -559,6 +583,17 @@ void TsdbComponent::publish_aggregates_() {
   }
 }
 
+// Wall-clock seconds, or 0 when no clock is synced (record ages are then unknown).
+uint32_t TsdbComponent::wall_clock_() const {
+  if (this->time_ != nullptr) {
+    const ESPTime now = this->time_->now();
+    if (now.is_valid())
+      return static_cast<uint32_t>(now.timestamp);
+  }
+  const uint32_t fallback = static_cast<uint32_t>(::time(nullptr));
+  return tsdbmath::is_valid_timestamp(fallback) ? fallback : 0;
+}
+
 void TsdbComponent::publish_stats_() {
   auto *db = static_cast<tsdb_t *>(this->db_);
   tsdb_stats_t stats = {};
@@ -569,22 +604,34 @@ void TsdbComponent::publish_stats_() {
   this->records_ = stats.total_records;
   if (this->records_sensor_ != nullptr)
     this->records_sensor_->publish_state(stats.total_records);
-  if (this->oldest_sensor_ != nullptr)
-    this->oldest_sensor_->publish_state(stats.total_records > 0 ? static_cast<float>(stats.oldest_timestamp) : NAN);
-  if (this->newest_sensor_ != nullptr)
-    this->newest_sensor_->publish_state(stats.total_records > 0 ? static_cast<float>(stats.newest_timestamp) : NAN);
+  if (this->evictions_sensor_ != nullptr)
+    this->evictions_sensor_->publish_state(stats.total_evictions);
+
+  // Ages rather than timestamps: a uint32 epoch in a float state loses about
+  // two minutes, which is more than a retention window's usable resolution.
+  const uint32_t now = this->wall_clock_();
+  const bool ages_known = now != 0 && stats.total_records > 0 && tsdbmath::is_valid_timestamp(stats.oldest_timestamp);
+  const uint32_t oldest_age = ages_known && now > stats.oldest_timestamp ? now - stats.oldest_timestamp : 0;
+  const uint32_t newest_age = ages_known && now > stats.newest_timestamp ? now - stats.newest_timestamp : 0;
+  if (this->oldest_age_sensor_ != nullptr)
+    this->oldest_age_sensor_->publish_state(ages_known ? static_cast<float>(oldest_age) : NAN);
+  if (this->newest_age_sensor_ != nullptr)
+    this->newest_age_sensor_->publish_state(ages_known ? static_cast<float>(newest_age) : NAN);
   this->publish_errors_();
 
+  // esp_littlefs_info() walks the filesystem, so it only runs when a sensor needs it.
   size_t total = 0;
   size_t used = 0;
-  if (esp_littlefs_info(this->partition_label_.c_str(), &total, &used) == ESP_OK) {
+  if ((this->used_sensor_ != nullptr || this->free_sensor_ != nullptr) &&
+      esp_littlefs_info(this->partition_label_.c_str(), &total, &used) == ESP_OK) {
     if (this->used_sensor_ != nullptr)
       this->used_sensor_->publish_state(static_cast<float>(used));
     if (this->free_sensor_ != nullptr)
       this->free_sensor_->publish_state(static_cast<float>(total - used));
   }
-  ESP_LOGD(TAG, "%s: %" PRIu32 " records, %" PRIu32 " writes, %" PRIu32 " dropped, %" PRIu32 " errors",
-           this->file_.c_str(), this->records_, this->writes_, this->dropped_, this->write_errors_);
+  ESP_LOGD(
+      TAG, "%s: %" PRIu32 " records, %" PRIu32 " evicted, %" PRIu32 " writes, %" PRIu32 " dropped, %" PRIu32 " errors",
+      this->file_.c_str(), this->records_, stats.total_evictions, this->writes_, this->dropped_, this->write_errors_);
 }
 
 void TsdbComponent::dump_csv_(uint32_t rows) {
@@ -615,12 +662,16 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
     skip = tsdbmath::dump_skip(stats.total_records, rows);
   }
 
-  std::string header = "timestamp";
-  for (const TsdbColumn &column : this->columns_) {
-    header += ',';
-    header += column.name;
+  // Column names in a stack buffer: header and rows stay heap free.
+  char header[CSV_LINE_SIZE];
+  int header_length = snprintf(header, sizeof(header), "timestamp");
+  for (size_t index = 0;
+       index < this->columns_.size() && header_length > 0 && header_length < static_cast<int>(sizeof(header));
+       index++) {
+    header_length += snprintf(header + header_length, sizeof(header) - static_cast<size_t>(header_length), ",%s",
+                              this->columns_[index].name.c_str());
   }
-  ESP_LOGI(TAG, "%s: csv-dump begin (newest %" PRIu32 " records)", this->file_.c_str(), rows);
+  ESP_LOGI(TAG, "%s: csv-dump begin (newest %" PRIu32 " records): %s", this->file_.c_str(), rows, header);
 
   static tsdb_query_t query = {};
   if (tsdb_query_init_h(db, &query, window_start, end, nullptr, 0) != ESP_OK) {
@@ -630,9 +681,10 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
 
   uint32_t timestamp = 0;
   // Reuse the write buffer so a dump does not allocate.
-  this->values_.assign(this->columns_.size(), 0);
+  this->values_.resize(this->columns_.size());
   uint32_t seen = 0;
   uint32_t count = 0;
+  bool warned_truncation = false;
   while (count < rows && tsdb_query_next(&query, &timestamp, this->values_.data()) == ESP_OK) {
     if (seen++ < skip)
       continue;
@@ -643,6 +695,14 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
       const double value =
           tsdbmath::decode(this->values_[index], this->columns_[index].scale, this->columns_[index].offset);
       length += snprintf(line + length, sizeof(line) - static_cast<size_t>(length), ",%.4f", value);
+    }
+    // snprintf() reports the length it would have written, so an overflowing
+    // line is detectable and must not pass as a complete row.
+    if (length >= static_cast<int>(sizeof(line)) && !warned_truncation) {
+      warned_truncation = true;
+      ESP_LOGW(TAG,
+               "%s: csv-dump line longer than %" PRIu32 " bytes - truncated, lower the column count or the name length",
+               this->file_.c_str(), static_cast<uint32_t>(sizeof(line)));
     }
     if (length > 0) {
       ESP_LOGI(TAG, "%s: %s", this->file_.c_str(), line);

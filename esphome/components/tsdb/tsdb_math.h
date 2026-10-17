@@ -31,7 +31,7 @@ static constexpr uint32_t HEADER_BYTES = 584;
 static constexpr uint32_t TIMESTAMP_BYTES = 4;
 static constexpr uint32_t COLUMN_BYTES = 2;
 static constexpr uint32_t INDEX_ENTRY_BYTES = 8;
-static constexpr uint32_t INDEX_DEFAULT_STRIDE = 380;
+static constexpr uint32_t INDEX_DEFAULT_STRIDE = 380;  // mirrors TSDB_DEFAULT_INDEX_STRIDE in __init__.py
 static constexpr uint32_t MAX_RECORDS_RESERVE = 2048;
 
 // Header probe for schema changes (offsets mirror tsdb_header_t).

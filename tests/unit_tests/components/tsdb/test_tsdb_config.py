@@ -5,7 +5,18 @@ from __future__ import annotations
 import pytest
 
 from esphome.components.tsdb import (
+    CONF_AVERAGE_SENSOR,
+    CONF_COLUMNS,
+    CONF_MAX_FILE_SIZE,
+    CONF_MIN_FREE_BYTES,
+    CONF_MIN_SENSOR,
+    CONF_NAME,
+    CONF_PARTITION_SIZE,
+    CONF_SCALE_FACTOR,
+    CONF_SENSOR,
+    _validate_config,
     _validate_file_name,
+    _validate_memory,
     _validate_min_free_bytes,
     _validate_mount_point,
     _validate_partition_size,
@@ -93,3 +104,68 @@ def test_validate_file_name_accepts_plain() -> None:
 def test_validate_min_free_bytes_allows_zero() -> None:
     assert _validate_min_free_bytes(0) == 0
     assert _validate_min_free_bytes("32KB") == 32 * 1024
+
+
+def _column(name: str = "value", **kwargs: object) -> dict:
+    column: dict = {CONF_NAME: name, CONF_SCALE_FACTOR: 1.0, CONF_SENSOR: "source"}
+    column.update(kwargs)
+    return column
+
+
+def _config(**kwargs: object) -> dict:
+    config: dict = {
+        CONF_COLUMNS: [_column()],
+        CONF_PARTITION_SIZE: 512 * 1024,
+        CONF_MIN_FREE_BYTES: 32 * 1024,
+        CONF_MAX_FILE_SIZE: 384 * 1024,
+    }
+    config.update(kwargs)
+    return config
+
+
+def test_validate_config_accepts_a_fitting_budget() -> None:
+    config = _config()
+    assert _validate_config(config) is config
+
+
+def test_validate_config_rejects_duplicate_column_names() -> None:
+    config = _config(columns=[_column("value"), _column("value")])
+    with pytest.raises(cv.Invalid, match="duplicate column name"):
+        _validate_config(config)
+
+
+def test_validate_config_rejects_zero_scale_factor() -> None:
+    config = _config(columns=[_column(scale_factor=0.0)])
+    with pytest.raises(cv.Invalid, match="scale_factor must not be 0"):
+        _validate_config(config)
+
+
+@pytest.mark.parametrize("key", [CONF_AVERAGE_SENSOR, CONF_MIN_SENSOR])
+def test_validate_config_requires_a_clock_for_aggregates(key: str) -> None:
+    config = _config(columns=[_column(**{key: {}})])
+    with pytest.raises(cv.Invalid, match="need a time source"):
+        _validate_config(config)
+    # With a clock the same columns are accepted.
+    assert _validate_config(_config(columns=[_column(**{key: {}})], time_id="clock"))
+
+
+def test_validate_config_rejects_a_budget_that_does_not_fit() -> None:
+    with pytest.raises(cv.Invalid, match="min_free_bytes must stay below"):
+        _validate_config(_config(min_free_bytes=512 * 1024))
+    with pytest.raises(cv.Invalid, match="do not fit into partition_size"):
+        _validate_config(_config(max_file_size=500 * 1024))
+
+
+@pytest.mark.parametrize("value", ["internal", "auto", "AUTO"])
+def test_validate_memory_accepts_modes(value: str) -> None:
+    assert _validate_memory(value) == value.lower()
+
+
+def test_validate_memory_rejects_unknown_mode() -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_memory("sdram")
+
+
+def test_validate_memory_requires_the_psram_component() -> None:
+    with pytest.raises(cv.Invalid, match="requires component psram"):
+        _validate_memory("psram")

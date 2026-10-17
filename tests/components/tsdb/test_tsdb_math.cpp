@@ -87,4 +87,57 @@ TEST(TsdbMath, DecodeUnknownAndInvalidScale) {
   EXPECT_DOUBLE_EQ(tsdbmath::decode(123, 1.0), 123.0);
 }
 
+TEST(TsdbMath, StoredColumnsReadsOnlyAValidHeader) {
+  uint8_t buffer[16] = {};
+  buffer[0] = static_cast<uint8_t>(tsdbmath::FILE_MAGIC & 0xFF);
+  buffer[1] = static_cast<uint8_t>((tsdbmath::FILE_MAGIC >> 8) & 0xFF);
+  buffer[2] = static_cast<uint8_t>((tsdbmath::FILE_MAGIC >> 16) & 0xFF);
+  buffer[3] = static_cast<uint8_t>((tsdbmath::FILE_MAGIC >> 24) & 0xFF);
+  buffer[tsdbmath::HEADER_COLUMNS_OFFSET] = 4;
+  EXPECT_EQ(tsdbmath::stored_columns(buffer, sizeof(buffer)), 4u);
+  EXPECT_EQ(tsdbmath::stored_columns(nullptr, sizeof(buffer)), 0u);
+  // Too short to hold the column count.
+  EXPECT_EQ(tsdbmath::stored_columns(buffer, tsdbmath::HEADER_COLUMNS_OFFSET), 0u);
+  // A foreign magic must never authorize deleting the file.
+  buffer[0] ^= 0xFF;
+  EXPECT_EQ(tsdbmath::stored_columns(buffer, sizeof(buffer)), 0u);
+  buffer[0] ^= 0xFF;
+  // Zero, or more columns than the engine supports.
+  buffer[tsdbmath::HEADER_COLUMNS_OFFSET] = 0;
+  EXPECT_EQ(tsdbmath::stored_columns(buffer, sizeof(buffer)), 0u);
+  buffer[tsdbmath::HEADER_COLUMNS_OFFSET] = static_cast<uint8_t>(tsdbmath::MAX_COLUMNS + 1);
+  EXPECT_EQ(tsdbmath::stored_columns(buffer, sizeof(buffer)), 0u);
+}
+
+TEST(TsdbMath, DecodeAggregateUsesTheColumnScale) {
+  EXPECT_TRUE(std::isnan(tsdbmath::decode_aggregate(tsdbmath::RAW_UNKNOWN, 1.0)));
+  EXPECT_TRUE(std::isnan(tsdbmath::decode_aggregate(5, 0.0)));
+  EXPECT_DOUBLE_EQ(tsdbmath::decode_aggregate(214, 10.0), 21.4);
+  EXPECT_DOUBLE_EQ(tsdbmath::decode_aggregate(96, 10.0, -40.0), 13.6);
+}
+
+TEST(TsdbMath, DumpWindowStartKeepsTheNewestRows) {
+  // rows * interval * margin back from the newest record.
+  EXPECT_EQ(tsdbmath::dump_window_start(10000, 100, 10, 60), 10000u - 10u * 60u * 2u);
+  // Never starts before the oldest record.
+  EXPECT_EQ(tsdbmath::dump_window_start(10000, 9900, 10, 60), 9900u);
+  // An empty history floors at 1.
+  EXPECT_EQ(tsdbmath::dump_window_start(100, 0, 10, 60), 1u);
+}
+
+TEST(TsdbMath, DumpSkipKeepsOnlyTheNewestRows) {
+  EXPECT_EQ(tsdbmath::dump_skip(500, 60), 440u);
+  EXPECT_EQ(tsdbmath::dump_skip(60, 60), 0u);
+  EXPECT_EQ(tsdbmath::dump_skip(10, 60), 0u);
+}
+
+TEST(TsdbMath, DumpNeedsWideningOnlyAboveTheOldestRecord) {
+  // A short window above the oldest record is widened to the whole history.
+  EXPECT_TRUE(tsdbmath::dump_needs_widening(10, 60, 5000, 100));
+  // A short window that already starts at the oldest record is the whole history.
+  EXPECT_FALSE(tsdbmath::dump_needs_widening(10, 60, 100, 100));
+  // Enough records need no widening.
+  EXPECT_FALSE(tsdbmath::dump_needs_widening(60, 60, 5000, 100));
+}
+
 }  // namespace esphome::tsdb::testing

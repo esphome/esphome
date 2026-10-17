@@ -1,7 +1,13 @@
-# Config-only: aggregation mirrors, page allocator, custom retention budget.
+# Config-only: non-default sizes, page allocator, clock off.
+# sntp needs the network stack; nothing is flashed here.
+wifi:
+  ssid: MySSID
+  password: password1
+
 tsdb:
   id: tsdb_validate
   file: events.tsdb
+  time_id: tsdb_validate_time
   partition_size: 1MB
   max_file_size: 768KB
   min_free_bytes: 64KB
@@ -34,10 +40,12 @@ tsdb:
     name: TSDB validate used
   free_sensor:
     name: TSDB validate free
-  oldest_sensor:
-    name: TSDB validate oldest
-  newest_sensor:
-    name: TSDB validate newest
+  oldest_age_sensor:
+    name: TSDB validate oldest age
+  newest_age_sensor:
+    name: TSDB validate newest age
+  evictions_sensor:
+    name: TSDB validate evictions
   errors_sensor:
     name: TSDB validate errors
   log_sensor:
@@ -49,3 +57,8 @@ sensor:
     name: TSDB validate value
     lambda: return 21.4f;
     update_interval: 60s
+
+time:
+  - platform: sntp
+    id: tsdb_validate_time
+    timezone: UTC

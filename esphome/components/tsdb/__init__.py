@@ -2,6 +2,7 @@
 
 import re
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import sensor, text_sensor
 from esphome.components.const import CONF_COLUMNS
@@ -22,6 +23,7 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_TIME_ID,
     CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
@@ -42,6 +44,7 @@ TsdbComponent = tsdb_ns.class_("TsdbComponent", cg.PollingComponent)
 
 tsdbmath_ns = tsdb_ns.namespace("tsdbmath")
 MissingPolicy = tsdbmath_ns.enum("MissingPolicy")
+MemoryMode = tsdbmath_ns.enum("MemoryMode")
 
 ESP_TSDB_COMPONENT = "zakery292/esp_tsdb"
 ESP_TSDB_VERSION = "2.4.3"
@@ -50,6 +53,8 @@ ESP_LITTLEFS_VERSION = "1.22.3"
 
 TSDB_MAX_BASE_PARAMS = 16
 TSDB_MAX_NAME_LENGTH = 31
+# Mirrors tsdbmath::INDEX_DEFAULT_STRIDE; keep the two in step.
+TSDB_DEFAULT_INDEX_STRIDE = 380
 LITTLEFS_BLOCK_BYTES = 0x1000
 
 CONF_MOUNT_POINT = "mount_point"
@@ -77,15 +82,16 @@ CONF_DUMP_ROWS = "dump_rows"
 CONF_RECORDS_SENSOR = "records_sensor"
 CONF_USED_SENSOR = "used_sensor"
 CONF_FREE_SENSOR = "free_sensor"
-CONF_OLDEST_SENSOR = "oldest_sensor"
-CONF_NEWEST_SENSOR = "newest_sensor"
+CONF_OLDEST_AGE_SENSOR = "oldest_age_sensor"
+CONF_NEWEST_AGE_SENSOR = "newest_age_sensor"
+CONF_EVICTIONS_SENSOR = "evictions_sensor"
 CONF_ERRORS_SENSOR = "errors_sensor"
 CONF_LOG_SENSOR = "log_sensor"
 
 MEMORY_MODES = {
-    "internal": 0,
-    "psram": 1,
-    "auto": 2,
+    "internal": MemoryMode.MEMORY_INTERNAL,
+    "psram": MemoryMode.MEMORY_PSRAM,
+    "auto": MemoryMode.MEMORY_AUTO,
 }
 
 MISSING_POLICIES = {
@@ -185,6 +191,16 @@ def _validate_config(config: ConfigType) -> ConfigType:
     for column in columns:
         if column[CONF_SCALE_FACTOR] == 0:
             raise cv.Invalid(f"'{column[CONF_NAME]}': scale_factor must not be 0")
+    # An aggregate is queried over a time window, so without a clock the sensors
+    # would stay unknown forever.
+    if CONF_TIME_ID not in config and any(
+        key in column
+        for column in columns
+        for key in (CONF_AVERAGE_SENSOR, CONF_MIN_SENSOR, CONF_MAX_SENSOR)
+    ):
+        raise cv.Invalid(
+            "average_sensor, min_sensor and max_sensor need a time source; set time_id"
+        )
     partition = config[CONF_PARTITION_SIZE]
     min_free = config[CONF_MIN_FREE_BYTES]
     max_file = config[CONF_MAX_FILE_SIZE]
@@ -231,9 +247,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORMAT_ON_FIRST_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_RECREATE_ON_SCHEMA_CHANGE, default=False): cv.boolean,
             cv.Optional(CONF_MAX_FILE_SIZE, default="384KB"): _validate_size,
-            cv.Optional(CONF_INDEX_STRIDE, default=380): cv.int_range(
-                min=1, max=100000
-            ),
+            cv.Optional(
+                CONF_INDEX_STRIDE, default=TSDB_DEFAULT_INDEX_STRIDE
+            ): cv.int_range(min=1, max=100000),
             cv.Optional(CONF_BUFFER_POOL_SIZE, default="4KB"): cv.All(
                 _validate_size, cv.Range(min=1024, max=256 * 1024)
             ),
@@ -278,14 +294,21 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_BYTES,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Optional(CONF_OLDEST_SENSOR): sensor.sensor_schema(
+            cv.Optional(CONF_OLDEST_AGE_SENSOR): sensor.sensor_schema(
                 accuracy_decimals=0,
                 unit_of_measurement=UNIT_SECOND,
+                device_class=DEVICE_CLASS_DURATION,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Optional(CONF_NEWEST_SENSOR): sensor.sensor_schema(
+            cv.Optional(CONF_NEWEST_AGE_SENSOR): sensor.sensor_schema(
                 accuracy_decimals=0,
                 unit_of_measurement=UNIT_SECOND,
+                device_class=DEVICE_CLASS_DURATION,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_EVICTIONS_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_ERRORS_SENSOR): sensor.sensor_schema(
@@ -299,6 +322,19 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _validate_config,
+)
+
+# Actions target the hub by id: `tsdb.flush: tsdb1`.
+TSDB_ACTION_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(TsdbComponent)})
+
+automation.register_apply_action(
+    "tsdb.flush", TSDB_ACTION_SCHEMA, automation.ApplyCall("request_flush()")
+)
+automation.register_apply_action(
+    "tsdb.dump", TSDB_ACTION_SCHEMA, automation.ApplyCall("request_dump()")
+)
+automation.register_apply_action(
+    "tsdb.clear", TSDB_ACTION_SCHEMA, automation.ApplyCall("request_clear()")
 )
 
 
@@ -336,6 +372,7 @@ async def to_code(config: ConfigType) -> None:
     if CONF_TIME_ID in config:
         cg.add(var.set_time_source(await cg.get_variable(config[CONF_TIME_ID])))
 
+    cg.add_define("TSDB_COLUMN_COUNT", len(config[CONF_COLUMNS]))
     for index, column in enumerate(config[CONF_COLUMNS]):
         cg.add(
             var.add_column(
@@ -356,8 +393,9 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_RECORDS_SENSOR, var.set_records_sensor)
     await sensors(CONF_USED_SENSOR, var.set_used_sensor)
     await sensors(CONF_FREE_SENSOR, var.set_free_sensor)
-    await sensors(CONF_OLDEST_SENSOR, var.set_oldest_sensor)
-    await sensors(CONF_NEWEST_SENSOR, var.set_newest_sensor)
+    await sensors(CONF_OLDEST_AGE_SENSOR, var.set_oldest_age_sensor)
+    await sensors(CONF_NEWEST_AGE_SENSOR, var.set_newest_age_sensor)
+    await sensors(CONF_EVICTIONS_SENSOR, var.set_evictions_sensor)
     await sensors(CONF_ERRORS_SENSOR, var.set_errors_sensor)
     text_sensors = text_sensor.sub_text_sensors(config)
     await text_sensors(CONF_LOG_SENSOR, var.set_log_sensor)

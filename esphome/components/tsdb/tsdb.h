@@ -4,9 +4,9 @@
 #ifdef USE_ESP_IDF
 
 #include <cstdint>
-#include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
@@ -34,8 +34,9 @@ class TsdbComponent : public PollingComponent {
   SUB_SENSOR(records)
   SUB_SENSOR(used)
   SUB_SENSOR(free)
-  SUB_SENSOR(oldest)
-  SUB_SENSOR(newest)
+  SUB_SENSOR(oldest_age)
+  SUB_SENSOR(newest_age)
+  SUB_SENSOR(evictions)
   SUB_SENSOR(errors)
 
  public:
@@ -53,7 +54,7 @@ class TsdbComponent : public PollingComponent {
   void set_max_file_size(uint32_t bytes) { this->max_file_size_ = bytes; }
   void set_index_stride(uint32_t stride) { this->index_stride_ = stride; }
   void set_buffer_pool_size(uint32_t bytes) { this->buffer_pool_size_ = bytes; }
-  void set_memory_mode(uint8_t mode) { this->memory_mode_ = mode; }
+  void set_memory_mode(tsdbmath::MemoryMode mode) { this->memory_mode_ = mode; }
   void set_paged_allocation(bool paged) { this->paged_allocation_ = paged; }
   void set_page_size(uint32_t bytes) { this->page_size_ = bytes; }
   void set_sync_interval(uint32_t ms) { this->sync_interval_ = ms; }
@@ -94,6 +95,7 @@ class TsdbComponent : public PollingComponent {
   void publish_stats_();
   void dump_csv_(uint32_t rows);
   void publish_log_(const char *message);
+  uint32_t wall_clock_() const;
   static uint64_t free_space_probe();
 
   StringRef file_{"history.tsdb"};
@@ -105,7 +107,7 @@ class TsdbComponent : public PollingComponent {
   uint32_t max_file_size_{384 * 1024};
   uint32_t index_stride_{tsdbmath::INDEX_DEFAULT_STRIDE};
   uint32_t buffer_pool_size_{4096};
-  uint8_t memory_mode_{tsdbmath::MEMORY_AUTO};
+  tsdbmath::MemoryMode memory_mode_{tsdbmath::MEMORY_AUTO};
   bool paged_allocation_{false};
   uint32_t page_size_{2048};
   uint32_t sync_interval_{60000};
@@ -115,8 +117,9 @@ class TsdbComponent : public PollingComponent {
   uint32_t aggregate_window_{3600};
   uint32_t aggregate_interval_{300000};
   uint32_t dump_rows_{60};
-  std::vector<TsdbColumn> columns_{};
-  std::vector<int16_t> values_{};
+  // Sized by TSDB_COLUMN_COUNT, emitted by the Python config; defines.h covers static analysis.
+  StaticVector<TsdbColumn, TSDB_COLUMN_COUNT> columns_;
+  StaticVector<int16_t, TSDB_COLUMN_COUNT> values_;
   time::RealTimeClock *time_{nullptr};
 
   text_sensor::TextSensor *log_sensor_{nullptr};
