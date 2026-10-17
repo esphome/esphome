@@ -37,7 +37,17 @@ static bool boot_kept_rtc_preferences() {
 
 bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
-  this->stale = false;  // this save replaces any value from before the boot
+  if (this->stale) {
+    // The discard after the hard reset failed: try again, so the old value cannot come back if this
+    // save's own write fails too. From here on this save's value is the one to load.
+    char key_str[UINT32_MAX_STR_SIZE];
+    uint32_to_str(key_str, this->key);
+    const fdb_err_t err = fdb_kv_del(this->db, key_str);
+    if (err != FDB_NO_ERR && err != FDB_KV_NAME_ERR) {
+      ESP_LOGW(TAG, "Failed to discard rtc preference %s again: %d", key_str, err);
+    }
+    this->stale = false;
+  }
 #endif
   // try find in pending saves and update that
   for (auto &obj : s_pending_save) {

@@ -25,7 +25,7 @@ class LibreTinyPreferenceBackend final {
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
   // storage: rtc keeps the value in FlashDB and deletes it when the preference is made after a boot
   // that RTC memory would not have survived. Set when that delete failed: the old value is then never
-  // loaded, and the next save replaces it.
+  // loaded, and the next save deletes it again before writing its own.
   bool stale{false};
 #endif
 };
