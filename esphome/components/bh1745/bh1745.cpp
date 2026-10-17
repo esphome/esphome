@@ -63,15 +63,8 @@ static float calculate_cct(uint16_t red, uint16_t green, uint16_t blue, bool low
 }
 
 void BH1745Component::setup() {
-  uint8_t manufacturer_id;
-  if (!this->read_byte(REG_MANUFACTURER_ID, &manufacturer_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, REG_MANUFACTURER_ID, MANUFACTURER_ID))
     return;
-  }
-  if (manufacturer_id != MANUFACTURER_ID) {
-    this->mark_failed(LOG_STR("Wrong manufacturer ID"));
-    return;
-  }
   uint8_t system_control;
   if (!this->read_byte(REG_SYSTEM_CONTROL, &system_control) ||
       (system_control & SYSTEM_CONTROL_PART_ID_MASK) != PART_ID) {

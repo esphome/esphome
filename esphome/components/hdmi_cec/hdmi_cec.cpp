@@ -75,10 +75,7 @@ void HDMICEC::loop() {
   }
   // One inbound frame per pass keeps the time spent in the automations bounded
   if (const Frame *frame = this->frames_queue_.front()) {
-#ifdef ESPHOME_LOG_HAS_DEBUG
-    char line[format_hex_pretty_size(Frame::MAX_LENGTH)];
-    ESP_LOGD(TAG, "Received: %s", format_hex_pretty_to(line, frame->bytes().data(), frame->size()));
-#endif
+    ESP_LOGD_HEX(TAG, frame->bytes().data(), frame->size(), Frame::MAX_LENGTH, "Received: %s");
 #ifdef HDMI_CEC_MESSAGE_CALLBACK_COUNT
     this->message_callbacks_.call(frame->initiator_addr(), frame->destination_addr(), frame->payload());
 #endif
