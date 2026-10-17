@@ -16,6 +16,7 @@ static constexpr uint32_t PROM_READ_TIMEOUT_ID = 1;
 static constexpr uint32_t TEMPERATURE_TIMEOUT_ID = 2;
 static constexpr uint32_t PRESSURE_TIMEOUT_ID = 3;
 static constexpr uint32_t HUMIDITY_TIMEOUT_ID = 4;
+static constexpr uint32_t CALCULATE_TIMEOUT_ID = 5;
 
 /// Reset the Pressure/Temperature sensor
 static constexpr uint8_t MS8607_PT_CMD_RESET = 0x1E;
@@ -342,7 +343,7 @@ void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
 
     // delay the call to calculate to give the pressure conversion more time to finish, which hopefully reduces
     // the chances of any issues if there's a humidity reading needed
-    this->set_timeout("calculate", 20, [this, d2_raw_temperature]() {
+    this->set_timeout(CALCULATE_TIMEOUT_ID, 20, [this, d2_raw_temperature]() {
       this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
     });
   } else {
