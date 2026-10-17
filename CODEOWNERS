@@ -444,6 +444,7 @@ esphome/components/ns2009/* @tchilov
 esphome/components/ns2009/touchscreen/* @tchilov
 esphome/components/number/* @esphome/core
 esphome/components/one_wire/* @ssieb
+esphome/components/one_wire_device/* @tomtom13
 esphome/components/online_image/* @clydebarrow @guillempages
 esphome/components/opentherm/* @olegtarasov
 esphome/components/openthread/* @mrene

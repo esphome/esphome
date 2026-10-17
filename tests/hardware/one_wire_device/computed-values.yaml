@@ -1,0 +1,65 @@
+esphome:
+  name: ow-computed-values
+  on_boot:
+    priority: -100
+    then:
+      - component.update: input_x
+      - component.update: input_y
+      - component.update: emulated
+      - lambda: |-
+          ESP_LOGI("hil", "HIL_IMAGE computed-values-v1");
+          ESP_LOGI("hil", "HIL_INPUT x=%.4f y=%.4f offset=%.4f", id(x), id(y), id(offset));
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+globals:
+  - id: x
+    type: float
+    initial_value: '20.0'
+  - id: y
+    type: float
+    initial_value: '2.0'
+  - id: offset
+    type: float
+    initial_value: '4.0'
+  - id: phase
+    type: int
+    initial_value: '0'
+sensor:
+  - platform: template
+    id: input_x
+    internal: true
+    update_interval: never
+    lambda: return id(x);
+  - platform: template
+    id: input_y
+    internal: true
+    update_interval: never
+    lambda: return id(y);
+one_wire_device:
+  id: emulated
+  pin: GPIO4
+  type: DS18B20
+  value: !lambda return id(input_x).state + id(input_y).state + id(offset);
+  update_interval: 500ms
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          id(phase) = (id(phase) + 1) % 6;
+          switch (id(phase)) {
+            case 0: id(x) = 20; id(y) = 2; id(offset) = 4; break;
+            case 1: id(offset) = 7; break;
+            case 2: id(x) = -10.125; id(y) = 3; id(offset) = 4; break;
+            case 3: id(x) = NAN; break;
+            case 4: id(x) = 5; id(y) = 2; id(offset) = 4; break;
+            default: id(offset) = -3; break;
+          }
+      - component.update: input_x
+      - component.update: input_y
+      - component.update: emulated
+      - lambda: |-
+          ESP_LOGI("hil", "HIL_INPUT x=%.4f y=%.4f offset=%.4f", id(x), id(y), id(offset));

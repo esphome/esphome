@@ -1,0 +1,17 @@
+# Deliberate bench-only setup failure. The null DQ pointer must never configure/drive a pin.
+esphome:
+  name: ow-setup-failure
+  on_boot:
+    priority: 1000
+    then:
+      - lambda: id(emulated).set_pin(nullptr);
+      - logger.log: "HIL_IMAGE missing-pin-fault"
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+one_wire_device:
+  id: emulated
+  pin: GPIO4
