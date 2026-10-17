@@ -1,8 +1,6 @@
 #pragma once
 #ifdef USE_LIBRETINY
 
-#include "esphome/core/defines.h"
-
 #include <cstddef>
 #include <cstdint>
 
@@ -22,14 +20,6 @@ class LibreTinyPreferenceBackend final {
   uint32_t key;
   struct fdb_kvdb *db;
   struct fdb_blob *blob;
-#ifdef USE_LIBRETINY_RTC_PREFERENCES
-  // storage: rtc. Kept in FlashDB, but the value saved before a boot that RTC memory would not
-  // survive (power-on, brown-out, reset pin, unknown) is discarded by its first save or load.
-  bool discard_after_hard_reset{false};
-
- protected:
-  bool discard_if_stale_();
-#endif
 };
 
 class LibreTinyPreferences;

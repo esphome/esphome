@@ -3,10 +3,8 @@
 Preferences can be stored either in flash (durable across power loss) or in RTC
 memory (fast, survives deep sleep and soft resets but not power loss). The
 flash-vs-RTC choice is only meaningful on platforms whose preferences backend
-honors the ``in_flash`` flag — currently ESP32, ESP8266 and the BK7231T. LibreTiny
-chips have no RTC memory: there ``rtc`` keeps the preference in flash and discards
-it after a reset that RTC memory would not survive. On other platforms the value
-is accepted only as ``flash`` (the sole supported backend).
+honors the ``in_flash`` flag — currently ESP32 and ESP8266. On other platforms
+the value is accepted only as ``flash`` (the sole supported backend).
 
 Components include :func:`storage_schema` in their config and convert the chosen
 value with :func:`is_in_flash` when calling ``make_preference``.
@@ -22,7 +20,7 @@ STORAGE_RTC = "rtc"
 
 
 def rtc_supported() -> bool:
-    """Whether the target has RTC-backed preferences (ESP8266, ESP32 except C2/C61, BK7231T); call at validation time."""
+    """Whether the target has RTC-backed preferences (not ESP32-C2/C61); call at validation time."""
     if CORE.is_esp8266:
         return True
     if CORE.is_esp32:
@@ -31,24 +29,7 @@ def rtc_supported() -> bool:
 
         # Mirrors the C++ SOC_RTC_MEM_SUPPORTED guard in the ESP32 backend
         return get_esp32_variant() not in (VARIANT_ESP32C2, VARIANT_ESP32C61)
-    return _libretiny_rtc_supported()
-
-
-def _libretiny_rtc_supported() -> bool:
-    """Whether this LibreTiny family accepts ``rtc``, emulated with flash plus the reset reason.
-
-    The emulation is only as good as the family's ``lt_get_reboot_reason()``, so families are
-    listed once that reporting has been checked on hardware; so far only the BK7231T.
-    """
-    if not CORE.is_libretiny:
-        return False
-    from esphome.components.libretiny.const import (
-        FAMILY_BK7231T,
-        KEY_FAMILY,
-        KEY_LIBRETINY,
-    )
-
-    return CORE.data.get(KEY_LIBRETINY, {}).get(KEY_FAMILY) == FAMILY_BK7231T
+    return False
 
 
 def _default_storage() -> str:
@@ -77,17 +58,15 @@ def storage_schema():
 
 
 def request_rtc_storage() -> None:
-    """Compile the RTC-backed storage into the ESP32 or LibreTiny preferences backend.
+    """Compile the RTC-backed storage into the ESP32 preferences backend.
 
-    It is left out of ESP32 and LibreTiny builds unless something asks for it, so
-    unused builds don't reserve RTC memory or check the reset reason. Call this
-    from ``to_code`` when a config option selects RTC storage. No-op on other
-    platforms (ESP8266 always has its RTC backend).
+    The RTC storage region is left out of ESP32 builds unless something asks for
+    it, so unused builds don't reserve RTC memory. Call this from ``to_code``
+    when a config option selects RTC storage. No-op on other platforms (ESP8266
+    always has its RTC backend).
     """
     if CORE.is_esp32:
         cg.add_define("USE_ESP32_RTC_PREFERENCES")
-    elif _libretiny_rtc_supported():
-        cg.add_define("USE_LIBRETINY_RTC_PREFERENCES")
 
 
 def validate_rtc_storage(value):
