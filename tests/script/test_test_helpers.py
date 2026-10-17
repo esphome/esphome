@@ -241,6 +241,30 @@ def test_load_wraps_top_level_component(tmp_path: Path) -> None:
     assert installed.to_code is None
 
 
+def test_load_core_overrides_esphome_manifest(tmp_path: Path) -> None:
+    """tests/components/core/__init__.py overrides the "esphome" core manifest."""
+    core_dir = tmp_path / "core"
+    core_dir.mkdir()
+    (core_dir / "__init__.py").write_text(
+        textwrap.dedent("""\
+        def override_manifest(manifest):
+            manifest.dependencies = ["injected"]
+    """)
+    )
+    inner = _make_component_manifest()
+
+    with (
+        patch("build_helpers.get_component", return_value=inner) as mock_get,
+        patch("build_helpers.set_testing_manifest") as mock_set,
+    ):
+        build_helpers.load_test_manifest_overrides(["core"], tmp_path)
+
+    mock_get.assert_called_once_with("esphome")
+    key, installed = mock_set.call_args[0]
+    assert key == "esphome"
+    assert installed.dependencies == ["injected"]
+
+
 def test_load_wraps_platform_component(tmp_path: Path) -> None:
     inner = _make_component_manifest()
 
