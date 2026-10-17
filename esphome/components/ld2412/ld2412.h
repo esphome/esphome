@@ -148,8 +148,8 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   GateThresholds gate_still_thresholds_;
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
 #endif
 };
 
