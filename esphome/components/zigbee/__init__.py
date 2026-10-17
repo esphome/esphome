@@ -65,7 +65,7 @@ from .zigbee_esp32 import (
     validate_switch_esp32,
     zigbee_require_vfs_select,
 )
-from .zigbee_zephyr import zephyr_number, zephyr_sensor, zephyr_switch
+from .zigbee_zephyr import zephyr_number, zephyr_switch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,11 +79,7 @@ CONFLICTS_WITH = ["openthread"]
 # them without importing this package; re-exported here for existing consumers.
 BASE_SCHEMA = entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA
 BINARY_SENSOR_SCHEMA = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
-SENSOR_SCHEMA = (
-    cv.Schema({})
-    .extend(entity_helpers.zigbee_base_entity_schema(["generic", "device_class"]))
-    .extend(zephyr_sensor)
-)
+SENSOR_SCHEMA = entity_helpers.ZIGBEE_SENSOR_SCHEMA
 SWITCH_SCHEMA = (
     cv.Schema({})
     .extend(entity_helpers.zigbee_base_entity_schema(["generic", "on_off"]))
