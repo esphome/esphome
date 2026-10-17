@@ -17,3 +17,8 @@ one_wire_device:
   # Preserve the address expected by the installed bridge-backed controller.
   address: 0x6EB807A434E3EC28
   value: 23.5
+
+interval:
+  - interval: 5s
+    then:
+      - logger.log: "HIL_TICK final-bench"

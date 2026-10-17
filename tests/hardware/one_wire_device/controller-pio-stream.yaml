@@ -1,0 +1,40 @@
+# Physical bridge-backed bench; see controller-temperature.yaml for the stock Dallas oracle.
+esphome:
+  name: ow-pio-stream-controller
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  frequency: 50kHz
+  scan: false
+ds248x:
+  id: bridge
+  type: ds2482-800
+  address: 0x18
+  active_pullup: true
+one_wire:
+  - platform: ds248x
+    id: bench_bus
+    ds248x_id: bridge
+    channel: 2
+interval:
+  - interval: 500ms
+    then:
+      - lambda: |-
+          static bool started = false, recovered = false;
+          auto *bus = id(bench_bus);
+          const auto &devices = bus->get_devices();
+          if (devices.size() != 1) { ESP_LOGE("hil", "HIL_STREAM no device"); return; }
+          if (!started || (!recovered && millis() >= 18000)) {
+            if (!bus->select(devices[0])) { ESP_LOGE("hil", "HIL_STREAM select failed"); return; }
+            bus->write8(0xf5);
+            if (started) recovered = true;
+            started = true;
+          }
+          uint8_t status = bus->read8();
+          ESP_LOGI("hil", "HIL_STREAM phase=%u status=%02X", recovered ? 1 : 0, status);
