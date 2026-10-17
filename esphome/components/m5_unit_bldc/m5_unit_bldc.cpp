@@ -34,6 +34,10 @@ void M5UnitBldc::setup() {
   uint8_t direction = static_cast<uint8_t>(this->initial_direction_);
   this->write_register(REG_DIRECTION, &direction, 1);
 
+  if (this->direction_select_ != nullptr) {
+    this->direction_select_->publish_state(this->initial_direction_ == Direction::BACKWARD ? "Backward" : "Forward");
+  }
+
   uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
   this->write_register(REG_MOTOR_CONFIG, motor_config, 2);
 

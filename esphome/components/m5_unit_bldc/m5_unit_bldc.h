@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/select/select.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
@@ -55,6 +56,7 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   void set_status_text_sensor(text_sensor::TextSensor *status_text_sensor) {
     this->status_text_sensor_ = status_text_sensor;
   }
+  void set_direction_select(select::Select *direction_select) { this->direction_select_ = direction_select; }
 
   // Called by the `number`/`select` sub-platforms to drive the motor.
   void write_pwm(uint16_t duty);
@@ -85,6 +87,7 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   sensor::Sensor *rpm_sensor_{nullptr};
   sensor::Sensor *frequency_sensor_{nullptr};
   text_sensor::TextSensor *status_text_sensor_{nullptr};
+  select::Select *direction_select_{nullptr};
 };
 
 }  // namespace esphome::m5_unit_bldc

@@ -26,3 +26,4 @@ async def to_code(config):
     if direction_config := config.get(CONF_DIRECTION):
         sel = await select.new_select(direction_config, options=DIRECTION_OPTIONS)
         await cg.register_parented(sel, parent)
+        cg.add(parent.set_direction_select(sel))
