@@ -52,7 +52,7 @@ async def to_code(config: ConfigType) -> None:
         CONF_DISTANCE_RESOLUTION,
         hub.set_distance_resolution_select,
         options=["0.2m", "0.75m"],
-        apply="set_distance_resolution(entity->option_at(index))",
+        apply="set_distance_resolution(option)",
         publish="before",
     )
     light = {"apply": "set_light_out_control()", "publish": "before"}
@@ -71,7 +71,7 @@ async def to_code(config: ConfigType) -> None:
     await selects(
         CONF_BAUD_RATE,
         hub.set_baud_rate_select,
-        apply="set_baud_rate(entity->option_at(index))",
+        apply="set_baud_rate(option)",
         publish="before",
         options=[
             "9600",

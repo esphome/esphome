@@ -27,5 +27,5 @@ async def to_code(config: ConfigType) -> None:
         config,
         hub.set_traffic_mode_select,
         options=options,
-        apply="request_traffic_generator_mode(entity->option_at(index))",
+        apply="request_traffic_generator_mode(option)",
     )

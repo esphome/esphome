@@ -46,7 +46,7 @@ async def to_code(config: ConfigType) -> None:
             "256000",
             "460800",
         ],
-        apply="set_baud_rate(entity->option_at(index))",
+        apply="set_baud_rate(option)",
         publish="before",
     )
     await selects(
@@ -57,6 +57,6 @@ async def to_code(config: ConfigType) -> None:
             "Detection",
             "Filter",
         ],
-        apply="set_zone_type(entity->option_at(index))",
+        apply="set_zone_type(option)",
         publish="before",
     )

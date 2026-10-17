@@ -30,6 +30,6 @@ async def to_code(config: ConfigType) -> None:
         CONF_OPERATING_MODE,
         hub.set_operating_mode_select,
         options=CONF_SELECTS,
-        apply="set_operating_mode(entity->option_at(index))",
+        apply="set_operating_mode(option)",
         publish="before",
     )

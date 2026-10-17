@@ -61,14 +61,14 @@ async def to_code(config: ConfigType) -> None:
             "256000",
             "460800",
         ],
-        apply="set_baud_rate(entity->option_at(index))",
+        apply="set_baud_rate(option)",
         publish="before",
     )
     await selects(
         CONF_DISTANCE_RESOLUTION,
         hub.set_distance_resolution_select,
         options=["0.2m", "0.5m", "0.75m"],
-        apply="set_distance_resolution(entity->option_at(index))",
+        apply="set_distance_resolution(option)",
         publish="before",
     )
     light = {"apply": "set_light_out_control()", "publish": "before"}
