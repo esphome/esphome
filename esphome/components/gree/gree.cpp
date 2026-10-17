@@ -1,4 +1,7 @@
 #include "gree.h"
+
+#include <climits>
+#include <cmath>
 #include "esphome/components/remote_base/remote_base.h"
 
 namespace esphome::gree {
@@ -28,6 +31,40 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
   }
   this->transmit_state();
 }
+
+uint8_t frame_checksum(const uint8_t *remote_state) {
+  return (
+      (((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
+        ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
+       0x0F)
+      << 4);
+}
+
+#ifdef USE_GREE_FAHRENHEIT
+void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_degree) {
+  temp_field = 0;
+  extra_degree = false;
+  if (!std::isfinite(target_celsius)) {
+    return;
+  }
+
+  const int desired_f = static_cast<int>(roundf(target_celsius * 9.0f / 5.0f + 32.0f));
+  int best_error = INT_MAX;
+  for (uint8_t candidate = 0; candidate <= (GREE_TEMP_MAX - GREE_TEMP_MIN); candidate++) {
+    for (uint8_t half = 0; half <= 1; half++) {
+      const float celsius = static_cast<float>(GREE_TEMP_MIN + candidate) + 0.5f * static_cast<float>(half);
+      // The unit truncates rather than rounds when converting to Fahrenheit.
+      const int shown = static_cast<int>(celsius * 9.0f / 5.0f + 32.0f);
+      const int error = shown > desired_f ? shown - desired_f : desired_f - shown;
+      if (error < best_error) {
+        best_error = error;
+        temp_field = candidate;
+        extra_degree = half != 0;
+      }
+    }
+  }
+}
+#endif
 
 void GreeClimate::transmit_state() {
   uint8_t remote_state[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
@@ -86,16 +123,24 @@ void GreeClimate::transmit_state() {
     }
   }
 
-  // Calculate the checksum
-  if (model == GREE_YAN || model == GREE_YX1FF) {
-    remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
-  } else {
-    remote_state[7] =
-        ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
-           ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
-          0x0F)
-         << 4);
+#ifdef USE_GREE_FAHRENHEIT
+  // Fahrenheit display. byte 3 bit 3 selects Fahrenheit on the unit's own panel and bit 2 is
+  // TempExtraDegreeF, a half-degree Celsius step. Verified against frames captured from a real YX1FF
+  // remote on a Blueridge mini-split, and confirmed on the unit's display at 65, 71, 77 and 78 F.
+  // The checksum below covers byte 3, so it picks up these bits.
+  if (this->use_fahrenheit_) {
+    remote_state[3] |= 0x08;
+    uint8_t temp_field;
+    bool extra_degree;
+    fahrenheit_fields(this->target_temperature, temp_field, extra_degree);
+    remote_state[1] = temp_field;
+    if (extra_degree) {
+      remote_state[3] |= 0x04;
+    }
   }
+#endif
+
+  remote_state[7] = frame_checksum(remote_state);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
