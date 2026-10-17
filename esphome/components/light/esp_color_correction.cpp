@@ -39,9 +39,9 @@ uint8_t ESPColorCorrection::color_uncorrect_channel_(uint8_t value, uint8_t max_
   // The limit is undone on read-back, so an effect that reads, changes and writes a pixel sees the
   // level it asked for and the dimming does not compound from frame to frame
   if (this->power_brightness_ != 255) {
-    if (this->power_brightness_ == 0)
-      return 0;
-    uint32_t unscaled = (static_cast<uint32_t>(value) * 255UL) / this->power_brightness_;
+    // The exact inverse of esp_scale8, rounded up, so a stored level re-encodes to itself
+    const uint32_t divisor = static_cast<uint32_t>(this->power_brightness_) + 1;
+    const uint32_t unscaled = (static_cast<uint32_t>(value) * 256UL + divisor - 1) / divisor;
     value = static_cast<uint8_t>(std::min(unscaled, uint32_t(255)));
   }
 #endif

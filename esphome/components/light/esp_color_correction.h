@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/color.h"
+#include <algorithm>
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
@@ -72,7 +73,9 @@ class ESPColorCorrection {
   inline uint8_t color_correct_channel_(uint8_t value, uint8_t max_brightness) const ESPHOME_ALWAYS_INLINE {
     uint8_t res = this->gamma_correct_(esp_scale8_twice(value, max_brightness, this->local_brightness_));
 #ifdef USE_LIGHT_POWER_ESTIMATION
-    res = esp_scale8(res, this->power_brightness_);
+    // Rounded up, so a lit channel stays lit under the limit
+    if (res != 0)
+      res = std::max<uint8_t>(esp_scale8(res, this->power_brightness_), 1);
 #endif
     return res;
   }

@@ -105,7 +105,9 @@ POWER_ESTIMATION_SCHEMA = cv.Schema(
         cv.Optional(CONF_MA_PER_LED_BLUE, default=20.0): cv.positive_float,
         cv.Optional(CONF_MA_PER_LED_WHITE, default=20.0): cv.positive_float,
         cv.Optional(CONF_IDLE_MA_PER_LED, default=1.0): cv.positive_float,
-        cv.Optional(CONF_MAX_CURRENT_MA): cv.positive_float,
+        cv.Optional(CONF_MAX_CURRENT_MA): cv.All(
+            cv.positive_float, cv.Range(min=0, min_included=False)
+        ),
     }
 )
 

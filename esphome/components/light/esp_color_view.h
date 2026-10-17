@@ -92,6 +92,14 @@ class ESPColorView : public ESPColorSettable {
   void raw_set_color_correction(const ESPColorCorrection *color_correction) {
     this->color_correction_ = color_correction;
   }
+  /// Store hardware levels as they are, without the correction
+  void set_raw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) {
+    *this->red_ = red;
+    *this->green_ = green;
+    *this->blue_ = blue;
+    if (this->white_ != nullptr)
+      *this->white_ = white;
+  }
 
  protected:
   uint8_t *const red_;

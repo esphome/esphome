@@ -13,8 +13,8 @@ float AddressableLightState::get_estimated_current_ma() {
 }
 
 // sums are the raw channel totals of a frame as the hardware sees it, so they already carry the
-// limit in force; the limit for the next frame is set from the draw the frame asked for
-void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
+// limit in force; the scale for the next frame comes from the draw the frame asked for
+uint8_t AddressableLight::power_scale_for_(const uint32_t sums[4]) {
   const float idle_ma = this->size() * this->idle_ma_per_led_;
   float pixel_ma = 0.0f;
   for (size_t channel = 0; channel < 4; channel++) {
@@ -22,24 +22,46 @@ void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
   }
   this->estimated_ma_ = idle_ma + pixel_ma;
   if (this->max_current_ma_ <= 0.0f)
-    return;
-  const float intended_ma = pixel_ma * 255.0f / this->correction_.get_power_brightness();
+    return 255;
   const float budget_ma = this->max_current_ma_ - idle_ma;
+  if (budget_ma <= 0.0f && !this->budget_warned_) {
+    this->budget_warned_ = true;
+    ESP_LOGW(TAG, "max_current_ma %.0f leaves nothing for the pixels after the idle draw of %.0f mA",
+             this->max_current_ma_, idle_ma);
+  }
+  const float intended_ma = pixel_ma * 255.0f / this->correction_.get_power_brightness();
+  if (intended_ma <= budget_ma)
+    return 255;
   // Never 0: that would black the strip out and the next frame's estimate would swing back to full
-  const uint8_t scale =
-      intended_ma > budget_ma ? static_cast<uint8_t>(std::max(budget_ma / intended_ma * 255.0f, 1.0f)) : 255;
-  this->correction_.set_power_brightness(scale);
+  return static_cast<uint8_t>(std::max(budget_ma / intended_ma * 255.0f, 1.0f));
 }
 
-// A static frame is one color on every pixel, so its draw is known before it is written
-void AddressableLight::limit_power_for_(const Color &color) {
-  this->correction_.set_power_brightness(255);
-  const Color hardware = this->correction_.color_correct(color);
-  const uint32_t count = this->size();
-  const uint32_t sums[4] = {count * hardware.red, count * hardware.green, count * hardware.blue,
-                            count * hardware.white};
-  this->apply_power_limit_(sums);
+// A hardware level moved to a new scale; a lit channel stays lit, so the demand it stands for is
+// never read back as zero
+static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
+  if (level == 0)
+    return 0;
+  return std::max<uint32_t>((static_cast<uint32_t>(level) * scale + previous - 1) / previous, 1);
 }
+
+// Called with the frame that was just sent. When the limit changes, the frame is moved to the new
+// scale and sent again, so every write path is limited and each pixel reads back as the level it
+// was written with
+void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
+  const uint8_t previous = this->correction_.get_power_brightness();
+  const uint8_t scale = this->power_scale_for_(sums);
+  if (scale == previous)
+    return;
+  this->correction_.set_power_brightness(scale);
+  for (auto view : *this) {
+    view.set_raw(
+        rescale_level(view.get_red_raw(), scale, previous), rescale_level(view.get_green_raw(), scale, previous),
+        rescale_level(view.get_blue_raw(), scale, previous), rescale_level(view.get_white_raw(), scale, previous));
+  }
+  if (this->state_parent_ != nullptr)
+    this->schedule_show();
+}
+
 #endif
 
 void AddressableLight::call_setup() {
@@ -80,11 +102,7 @@ void AddressableLight::update_state(LightState *state) {
     return;
 
   // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
-  const Color color = color_from_light_color_values(val);
-#ifdef USE_LIGHT_POWER_ESTIMATION
-  this->limit_power_for_(color);
-#endif
-  this->all() = color;
+  this->all() = color_from_light_color_values(val);
   this->schedule_show();
 }
 

@@ -31,6 +31,7 @@ void M5Stack8AngleLightOutput::write_state(light::LightState *state) {
     this->parent_->write_register(M5STACK_8ANGLE_REGISTER_RGB_24B + i * M5STACK_8ANGLE_BYTES_PER_LED,
                                   this->buf_ + i * M5STACK_8ANGLE_BYTES_PER_LED, M5STACK_8ANGLE_BYTES_PER_LED);
   }
+  this->mark_shown_();
 }
 
 light::ESPColorView M5Stack8AngleLightOutput::get_view_internal(int32_t index) const {

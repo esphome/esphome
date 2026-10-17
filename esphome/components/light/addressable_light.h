@@ -135,8 +135,8 @@ class AddressableLight : public LightOutput, public Component {
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
+  uint8_t power_scale_for_(const uint32_t sums[4]);
   void apply_power_limit_(const uint32_t sums[4]);
-  void limit_power_for_(const Color &color);
 #endif
 
   ESPColorCorrection correction_{};
@@ -151,6 +151,9 @@ class AddressableLight : public LightOutput, public Component {
   power_supply::PowerSupplyRequester power_;
 #endif
   bool effect_active_{false};
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  bool budget_warned_{false};
+#endif
 };
 
 class AddressableLightTransformer : public LightTransformer {
