@@ -1,0 +1,7 @@
+packages:
+  web_server: !include common_v3.yaml
+
+web_server:
+  js_extra_urls:
+    - https://example.com/first-add-on.js
+    - https://example.com/second-add-on.js
