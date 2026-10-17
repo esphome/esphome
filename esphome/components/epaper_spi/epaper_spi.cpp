@@ -216,10 +216,7 @@ void EPaperBase::process_state_() {
         // Refresh the whole panel even if nothing was drawn
         this->full_update_requested_ = false;
         this->update_count_ = 0;
-        this->x_low_ = 0;
-        this->y_low_ = 0;
-        this->x_high_ = this->width_;
-        this->y_high_ = this->height_;
+        this->mark_all_dirty_();
       }
       if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
         this->set_state_(EPaperState::IDLE);

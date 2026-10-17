@@ -84,22 +84,15 @@ class EPaperBase : public Display,
 
   DisplayType get_display_type() override { return this->display_type_; };
 
-  // Default implementation for monochrome displays
-  void fill(Color color) override {
-    // If clipping is active, fall back to base implementation
+  // Whole buffer fills bypass draw_pixel_at(), so the dirty bounds are set here once for every driver.
+  void fill(Color color) final {
+    // If clipping is active, fall back to the per-pixel base implementation
     if (this->get_clipping().is_set()) {
       Display::fill(color);
       return;
     }
-
-    auto pixel_color = color_to_mono(color) ? 0xFF : 0x00;
-
-    // We store 8 pixels per byte
-    this->buffer_.fill(pixel_color);
-    this->x_high_ = this->width_;
-    this->y_high_ = this->height_;
-    this->x_low_ = 0;
-    this->y_low_ = 0;
+    this->fill_buffer(color);
+    this->mark_all_dirty_();
   }
 
   void clear() override {
@@ -123,6 +116,18 @@ class EPaperBase : public Display,
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
   bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
+  /// Fill the whole frame buffer with the color.
+  virtual void fill_buffer(Color color) {
+    // We store 8 pixels per byte
+    this->buffer_.fill(color_to_mono(color) ? 0xFF : 0x00);
+  }
+  /// An update with no dirty area is skipped, so whole buffer writes must call this.
+  void mark_all_dirty_() {
+    this->x_low_ = 0;
+    this->y_low_ = 0;
+    this->x_high_ = this->width_;
+    this->y_high_ = this->height_;
+  }
   void process_state_();
 
   const char *epaper_state_to_string_();

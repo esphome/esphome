@@ -39,12 +39,7 @@ void EPaperInkplate2::deep_sleep() {
   this->cmd_data(0x07, {0xA5});
 }
 
-void EPaperInkplate2::fill(Color color) {
-  if (this->get_clipping().is_set()) {
-    EPaperBase::fill(color);  // clipping active: defer to the base per-pixel path
-    return;
-  }
-
+void EPaperInkplate2::fill_buffer(Color color) {
   const size_t half_buffer = this->buffer_length_ / 2;
 
   // Plane encoding: B/W plane 1=white, 0=black; red plane 0=red, 1=no-red.
@@ -70,14 +65,7 @@ void EPaperInkplate2::fill(Color color) {
     this->buffer_[i] = bw_byte;
   for (size_t i = half_buffer; i < this->buffer_length_; i++)
     this->buffer_[i] = red_byte;
-
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->width_;
-  this->y_high_ = this->height_;
 }
-
-void EPaperInkplate2::clear() { this->fill(COLOR_ON); }
 
 void HOT EPaperInkplate2::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
@@ -85,7 +73,7 @@ void HOT EPaperInkplate2::draw_pixel_at(int x, int y, Color color) {
 
   const size_t half_buffer = this->buffer_length_ / 2;
   const size_t pos = y * this->row_width_ + x / 8;
-  const uint8_t mask = 0x80 >> (x & 0x07);  // MSB first; see fill() for plane encoding
+  const uint8_t mask = 0x80 >> (x & 0x07);  // MSB first; see fill_buffer() for plane encoding
 
   switch (to_inkplate2_color(color)) {
     case Inkplate2Color::BLACK:

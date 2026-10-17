@@ -49,7 +49,7 @@ void EPaperWaveshareBWR::draw_pixel_at(int x, int y, Color color) {
   }
 }
 
-void EPaperWaveshareBWR::fill(Color color) {
+void EPaperWaveshareBWR::fill_buffer(Color color) {
   const size_t half_buffer = this->buffer_length_ / 2u;
   const auto bwr = color_to_bwr(color);
 

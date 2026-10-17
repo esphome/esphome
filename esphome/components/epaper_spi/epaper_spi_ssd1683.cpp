@@ -35,10 +35,7 @@ void EPaperSSD1683::set_window() {
   // if not using partial update, the display will go into deep sleep mode 2, so must rewrite entire
   // buffer since the display RAM will not retain contents
   if (!this->is_using_partial_update_()) {
-    this->x_low_ = 0;
-    this->x_high_ = this->width_;
-    this->y_low_ = 0;
-    this->y_high_ = this->height_;
+    this->mark_all_dirty_();
   }
 
   // round x-coordinates to byte boundaries

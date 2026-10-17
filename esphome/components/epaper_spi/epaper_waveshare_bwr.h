@@ -24,9 +24,8 @@ class EPaperWaveshareBWR : public EPaperBase {
                      size_t init_sequence_length)
       : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY, 1, 2) {}
 
-  void fill(Color color) override;
-
  protected:
+  void fill_buffer(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
   bool transfer_data() override;
   void refresh_screen(bool partial) override;
