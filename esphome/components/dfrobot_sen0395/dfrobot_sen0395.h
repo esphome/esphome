@@ -4,6 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/line_reader.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -14,7 +15,7 @@
 
 namespace esphome::dfrobot_sen0395 {
 
-static constexpr uint8_t MMWAVE_READ_BUFFER_LENGTH = 255;
+static constexpr uint8_t MMWAVE_READ_BUFFER_LENGTH = 253;
 static constexpr uint8_t COMMAND_QUEUE_SIZE = 20;
 
 // Keep in sync with the BusyActions table in dfrobot_sen0395.cpp
@@ -121,8 +122,7 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   bool led_active_{false};
   bool uart_presence_active_{false};
   bool start_after_boot_{false};
-  char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
-  size_t read_pos_{0};
+  LineReader<MMWAVE_READ_BUFFER_LENGTH> line_reader_;
   bool cmd_sent_{false};
   uint8_t retries_left_{2};
   StaticRingBuffer<Command, COMMAND_QUEUE_SIZE> cmd_queue_;
@@ -131,12 +131,13 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   int16_t det_range_steps_[8]{};
   uint16_t latency_steps_[2]{};
 
-  bool read_message_();
+  /// The next complete line, valid until the next call, or nullptr
+  const char *read_message_();
   void read_state_();
   /// Run the command at the front of the queue; true when it is done
   bool run_command_(const Command &cmd, uint32_t now);
   /// Handle a reply to a sent command; true when the command is done
-  bool handle_reply_(const Command &cmd);
+  bool handle_reply_(const Command &cmd, const char *message);
 
   void set_detected_(bool detected);
 };
