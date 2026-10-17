@@ -3,7 +3,7 @@
 
 namespace esphome::mt6701 {
 
-static const char *const TAG = "mt6701.sensor";
+ESPHOME_LOG_TAG(TAG, "mt6701.sensor");
 
 void MT6701Sensor::update() {
   // Trigger a fresh read; skip publishing when it failed so we never emit a

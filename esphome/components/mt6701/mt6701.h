@@ -4,21 +4,13 @@
 
 namespace esphome::mt6701 {
 
-// The MT6701 is a 14-bit absolute magnetic angle encoder: one mechanical
-// revolution maps to 16384 counts.
-static const uint16_t COUNTS_PER_REV = 16384;
-static const float COUNTS_TO_DEGREES = 360.0f / COUNTS_PER_REV;
+// A 14-bit absolute angle: one revolution is 16384 counts
+static constexpr float COUNTS_TO_DEGREES = 360.0f / 16384;
+// Consecutive read or CRC failures tolerated before the component reports a warning
+static constexpr uint8_t MAX_CONSECUTIVE_ERRORS = 5;
 
-// Number of consecutive read/CRC failures tolerated before the component
-// reports a warning status.
-static const uint8_t MAX_CONSECUTIVE_ERRORS = 5;
-
-/// Bus-independent core of the MT6701 driver.
-///
-/// The I2C and SSI/SPI components provide the transport by implementing
-/// read_count(). The sensor platform reads the encoder whenever it polls, so
-/// published angles are always fresh; the SSI/SPI hub polls on its own as well,
-/// since its frames carry the status bits its entities publish.
+/// Bus-independent core of the MT6701 driver. The I2C and SSI/SPI components provide
+/// the transport through read_count(); the entities read the encoder when they poll.
 class MT6701Component : public Component {
  public:
   /// Read a fresh angle from the bus. Returns false on a bus or CRC error (the
@@ -36,15 +28,9 @@ class MT6701Component : public Component {
   /// Returns false on a bus or CRC error, in which case the sample is dropped.
   virtual bool read_count(uint16_t &count) = 0;
 
-  /// Account for a dropped sample and raise a warning after repeated failures.
-  void handle_read_error_();
-
   uint16_t count_{0};
   uint8_t consecutive_errors_{0};
-  // A configuration write failed in setup; the warning stays until a reboot fixes it
-  bool config_failed_{false};
-  // Gates all bus access; set by transports while the bus must stay untouched
-  // (the I2C hub uses it during the EEPROM programming window).
+  // Set by the I2C hub while the EEPROM is programmed; no bus access until it clears
   bool suspend_sampling_{false};
 };
 

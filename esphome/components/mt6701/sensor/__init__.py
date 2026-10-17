@@ -47,6 +47,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    if raw_count_config := config.get(CONF_RAW_COUNT):
-        sens = await sensor.new_sensor(raw_count_config)
-        cg.add(var.set_raw_count_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RAW_COUNT, var.set_raw_count_sensor)

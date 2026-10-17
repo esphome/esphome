@@ -2,7 +2,6 @@ mt6701_spi:
   id: mt6701_spi_encoder
   spi_id: spi_bus
   cs_pin: ${cs_pin}
-  update_interval: 500ms
 
 sensor:
   - platform: mt6701
@@ -15,6 +14,7 @@ sensor:
 binary_sensor:
   - platform: mt6701_spi
     mt6701_spi_id: mt6701_spi_encoder
+    update_interval: 20ms
     push_button:
       name: MT6701 SPI Button
     track_loss:
@@ -24,3 +24,4 @@ text_sensor:
   - platform: mt6701_spi
     mt6701_spi_id: mt6701_spi_encoder
     name: MT6701 SPI Field Status
+    update_interval: 10s

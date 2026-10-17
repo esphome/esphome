@@ -25,7 +25,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(MT6701SPIComponent),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(
         spi.spi_device_schema(
             cs_pin_required=True,

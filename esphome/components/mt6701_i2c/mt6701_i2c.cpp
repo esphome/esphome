@@ -13,7 +13,6 @@ static const uint8_t CONFIG_REGS[] = {
 static const uint8_t CONFIG_REG_COUNT = sizeof(CONFIG_REGS);
 
 void MT6701I2CComponent::setup() {
-  // Probe the device by reading the angle registers.
   uint16_t count;
   if (!this->read_count(count)) {
     ESP_LOGE(TAG, "MT6701 not responding on I2C");
@@ -26,7 +25,6 @@ void MT6701I2CComponent::setup() {
 void MT6701I2CComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MT6701 (I2C):");
   LOG_I2C_DEVICE(this);
-  LOG_UPDATE_INTERVAL(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
@@ -153,9 +151,8 @@ void MT6701I2CComponent::apply_config_() {
       ok &= this->update_register_(CONFIG_REGS[i], masks[i], values[i]);
   }
   if (!ok) {
-    // The chip may now be half-configured; surface it instead of just logging.
-    this->config_failed_ = true;
-    this->status_set_warning(LOG_STR("configuration register write failed"));
+    // The chip may be half-configured; an error, so a later run of read errors cannot clear it
+    this->status_set_error(LOG_STR("configuration register write failed"));
   }
 }
 

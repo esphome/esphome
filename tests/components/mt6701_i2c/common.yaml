@@ -2,7 +2,6 @@ mt6701_i2c:
   id: mt6701_i2c_encoder
   i2c_id: i2c_bus
   address: 0x06
-  update_interval: 500ms
   direction: CLOCKWISE
   zero_offset: 45deg
   hysteresis: 1
