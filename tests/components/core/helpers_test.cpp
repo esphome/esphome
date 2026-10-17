@@ -78,6 +78,24 @@ TEST(HelpersTest, SumBytes) {
   static_assert(sum_bytes(FRAME, 2) == 0xEB, "usable in constant expressions");
 }
 
+TEST(HelpersTest, Sum16Bytes) {
+  static constexpr uint8_t FRAME[] = {0x42, 0x4D, 0xE1, 0x00, 0x01};
+  EXPECT_EQ(sum16_bytes(FRAME, sizeof(FRAME)), 0x0171);  // the PMSx003 active mode command checksum
+  EXPECT_EQ(sum16_bytes(FRAME, 0), 0);
+  EXPECT_EQ(sum16_bytes(FRAME, sizeof(FRAME), 0x1234), 0x13A5);
+  EXPECT_EQ(sum16_bytes(FRAME, sizeof(FRAME), 0xFFFF), 0x0170);  // wraps at 16 bits
+  static_assert(sum16_bytes(FRAME, 2) == 0x8F, "usable in constant expressions");
+}
+
+TEST(HelpersTest, XorBytes) {
+  static constexpr uint8_t FRAME[] = {0x01, 0x03, 0x00, 0x15, 0x00};
+  EXPECT_EQ(xor_bytes(FRAME + 1, 3, 0xFF), 0xE9);  // the Z-Wave GetVersion frame checksum
+  EXPECT_EQ(xor_bytes(FRAME, 0), 0);
+  EXPECT_EQ(xor_bytes(FRAME, 0, 0x5A), 0x5A);
+  EXPECT_EQ(xor_bytes(FRAME, sizeof(FRAME)), 0x17);
+  static_assert(xor_bytes(FRAME, 2) == 0x02, "usable in constant expressions");
+}
+
 TEST(StaticVectorTest, ConvertingConstructorFromSmaller) {
   StaticVector<uint8_t, 5> small{0x03, 0x00, 0x10, 0x00, 0x01};
   StaticVector<uint8_t, 253> big = small;
