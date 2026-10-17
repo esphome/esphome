@@ -25,6 +25,7 @@ import esphome.config_validation as cv
         ("1KiB", 1024),
         ("2MB", 2 * 1024 * 1024),
         ("1.5KB", 1536),
+        ("0.5KB", 512),
         ("0x40000", 0x40000),
         (" 3KB ", 3072),
     ],
@@ -33,10 +34,19 @@ def test_validate_size_accepts_units(value: object, expected: int) -> None:
     assert _validate_size(value) == expected
 
 
-@pytest.mark.parametrize("value", ["", "abc", "KB", "5GB", "10PB", "-1", "1.2.3"])
+@pytest.mark.parametrize(
+    "value",
+    ["", "abc", "KB", "5GB", "10PB", "-1", "1.2.3", "1.1KB", "1.0001KB", "0.1MB"],
+)
 def test_validate_size_rejects_bad_text(value: str) -> None:
     with pytest.raises(cv.Invalid):
         _validate_size(value)
+
+
+def test_validate_size_rejects_fractional_bytes() -> None:
+    # 1.0001KB is 1024.1024 bytes; truncating it would silently store 1024.
+    with pytest.raises(cv.Invalid, match="whole number of bytes"):
+        _validate_size("1.0001KB")
 
 
 def test_validate_size_rejects_bool_and_nonpositive() -> None:

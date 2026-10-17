@@ -73,24 +73,32 @@ void TsdbComponent::setup() {
   if (this->columns_.empty()) {
     ESP_LOGE(TAG, "tsdb: no columns configured");
     this->log_init_failure_();
-    this->mark_failed(LOG_STR("no columns configured"));
+    this->fail_setup_(LOG_STR("no columns configured"));
     return;
   }
   // Size the write buffer once so write_record_() never allocates.
   this->values_.reserve(this->columns_.size());
   if (!this->mount_filesystem_()) {
     this->log_init_failure_();
-    this->mark_failed(LOG_STR("mounting the LittleFS partition"));
+    this->fail_setup_(LOG_STR("mounting the LittleFS partition"));
     return;
   }
   if (!this->open_database_()) {
     this->log_init_failure_();
     this->unmount_filesystem_();  // the failed open must not leak the mount
-    this->mark_failed(LOG_STR("opening the database"));
+    this->fail_setup_(LOG_STR("opening the database"));
     return;
   }
   ESP_LOGI(TAG, "%s: history opened", this->file_.c_str());
   this->publish_errors_();  // report 0 back to the diagnostics sensor
+}
+
+// Count the failed initialisation so the diagnostics sensor reports it instead
+// of staying "unknown" on a device whose database never opened.
+void TsdbComponent::fail_setup_(const LogString *reason) {
+  this->write_errors_++;
+  this->publish_errors_();
+  this->mark_failed(reason);
 }
 
 void TsdbComponent::on_shutdown() {
@@ -111,6 +119,15 @@ bool TsdbComponent::mount_filesystem_() {
     this->mount_error_ = ESP_ERR_NOT_FOUND;
     ESP_LOGE(TAG, "%s: no data/littlefs partition '%s' - flash the partition table over USB", this->file_.c_str(),
              this->partition_label_.c_str());
+    return false;
+  }
+  // A partition_size change needs the table reflashed; a stale, smaller one
+  // would make max_file_size wrong and surface later as ENOSPC write errors.
+  if (partition->size < this->partition_size_) {
+    this->mount_error_ = ESP_ERR_INVALID_SIZE;
+    ESP_LOGE(TAG, "%s: partition '%s' is %" PRIu32 " bytes but %" PRIu32 " configured - flash the partition table",
+             this->file_.c_str(), this->partition_label_.c_str(), static_cast<uint32_t>(partition->size),
+             this->partition_size_);
     return false;
   }
 
@@ -183,7 +200,10 @@ void TsdbComponent::log_init_failure_() {
 void TsdbComponent::unmount_filesystem_() {
   if (!this->mounted_)
     return;
-  esp_vfs_littlefs_unregister(this->partition_label_.c_str());
+  const esp_err_t err = esp_vfs_littlefs_unregister(this->partition_label_.c_str());
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "%s: unmounting the filesystem failed: %s", this->file_.c_str(), esp_err_to_name(err));
+  }
   this->mounted_ = false;
   g_free_space_label = nullptr;
 }
@@ -230,7 +250,12 @@ bool TsdbComponent::open_database_() {
 void TsdbComponent::close_database_() {
   if (this->db_ == nullptr)
     return;
-  tsdb_close_h(static_cast<tsdb_t *>(this->db_));
+  // The final header and index write happens here, so a failure means a
+  // possibly inconsistent file on the next boot.
+  const esp_err_t err = tsdb_close_h(static_cast<tsdb_t *>(this->db_));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "%s: closing the database failed: %s", this->file_.c_str(), esp_err_to_name(err));
+  }
   this->db_ = nullptr;
 }
 
@@ -263,14 +288,24 @@ bool TsdbComponent::write_record_() {
       timestamp = static_cast<uint32_t>(now.timestamp);
   }
 
-  if (this->require_time_ && !tsdbmath::is_valid_timestamp(timestamp)) {
+  if (!tsdbmath::is_valid_timestamp(timestamp)) {
+    if (this->require_time_) {
+      if (!this->warned_time_) {
+        this->warned_time_ = true;
+        ESP_LOGW(TAG, "%s: no valid time yet - no record written", this->file_.c_str());
+      }
+      // Count the skipped interval so a clock that never syncs is visible.
+      this->dropped_++;
+      this->publish_errors_();
+      return false;
+    }
     if (!this->warned_time_) {
       this->warned_time_ = true;
-      ESP_LOGW(TAG, "%s: no valid time yet - no record written", this->file_.c_str());
+      ESP_LOGW(TAG, "%s: no valid time yet - storing an uptime timestamp", this->file_.c_str());
     }
-    return false;
+  } else {
+    this->warned_time_ = false;
   }
-  this->warned_time_ = false;
 
   this->values_.clear();
   for (TsdbColumn &column : this->columns_) {
@@ -279,9 +314,12 @@ bool TsdbComponent::write_record_() {
     if (has_value) {
       bool saturated = false;
       column.held = tsdbmath::encode(column.source->state, column.scale, column.offset, &saturated);
-      if (saturated && this->saturated_++ % SATURATION_LOG_EVERY == 0) {
-        ESP_LOGW(TAG, "%s: %s out of range for scale_factor %.6g - clamped, raise it?", this->file_.c_str(),
-                 column.name.c_str(), column.scale);
+      if (saturated) {
+        if (this->saturated_++ % SATURATION_LOG_EVERY == 0) {
+          ESP_LOGW(TAG, "%s: %s out of range for scale_factor %.6g - clamped, raise it?", this->file_.c_str(),
+                   column.name.c_str(), column.scale);
+        }
+        this->publish_errors_();  // a clamped value is one of the anomalies reported
       }
       this->values_.push_back(column.held);
       continue;
@@ -316,11 +354,12 @@ bool TsdbComponent::write_record_() {
   return true;
 }
 
-// Errors covers failed writes/syncs and dropped records, so data loss is visible.
+// The diagnostics sensor counts every anomaly - failed writes/syncs, dropped
+// records and clamped values - so data loss or corruption is visible.
 void TsdbComponent::publish_errors_() {
   if (this->errors_sensor_ == nullptr)
     return;
-  this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_);
+  this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_ + this->saturated_);
 }
 
 void TsdbComponent::flush_(bool force) {

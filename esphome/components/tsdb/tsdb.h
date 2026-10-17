@@ -46,7 +46,7 @@ class TsdbComponent : public PollingComponent {
   void set_sync_interval(uint32_t ms) { this->sync_interval_ = ms; }
   void set_min_free_bytes(uint32_t bytes) { this->min_free_bytes_ = bytes; }
   void set_require_time(bool require) { this->require_time_ = require; }
-  void set_missing_policy(uint8_t policy) { this->missing_policy_ = policy; }
+  void set_missing_policy(tsdbmath::MissingPolicy policy) { this->missing_policy_ = policy; }
   void set_time_source(time::RealTimeClock *clock) { this->time_ = clock; }
 
   void add_column(const char *name, double scale, double offset);
@@ -59,6 +59,7 @@ class TsdbComponent : public PollingComponent {
   void unmount_filesystem_();
   bool open_database_();
   void log_init_failure_();
+  void fail_setup_(const LogString *reason);
   void close_database_();
   bool write_record_();
   void publish_errors_();
@@ -76,7 +77,7 @@ class TsdbComponent : public PollingComponent {
   uint32_t sync_interval_{60000};
   uint32_t min_free_bytes_{32768};
   bool require_time_{true};
-  uint8_t missing_policy_{tsdbmath::MISSING_SKIP};
+  tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   std::vector<TsdbColumn> columns_{};
   std::vector<int16_t> values_{};
   time::RealTimeClock *time_{nullptr};

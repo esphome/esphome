@@ -37,6 +37,9 @@ AUTO_LOAD = ["sensor"]
 tsdb_ns = cg.esphome_ns.namespace("tsdb")
 TsdbComponent = tsdb_ns.class_("TsdbComponent", cg.PollingComponent)
 
+tsdbmath_ns = tsdb_ns.namespace("tsdbmath")
+MissingPolicy = tsdbmath_ns.enum("MissingPolicy")
+
 ESP_TSDB_COMPONENT = "zakery292/esp_tsdb"
 ESP_TSDB_VERSION = "2.4.3"
 ESP_LITTLEFS_COMPONENT = "joltwallet/littlefs"
@@ -61,9 +64,9 @@ CONF_SCALE_FACTOR = "scale_factor"
 CONF_ERRORS_SENSOR = "errors_sensor"
 
 MISSING_POLICIES = {
-    "skip": 0,
-    "hold": 1,
-    "sentinel": 2,
+    "skip": MissingPolicy.MISSING_SKIP,
+    "hold": MissingPolicy.MISSING_HOLD,
+    "sentinel": MissingPolicy.MISSING_SENTINEL,
 }
 
 _SIZE_UNITS = {
@@ -103,7 +106,12 @@ def _validate_size(value: object, *, allow_zero: bool = False) -> int:
                 raise cv.Invalid(
                     f"unknown unit '{match.group(2)}' in '{value}' (use B, KB or MB)"
                 )
-            bytes_ = int(float(match.group(1)) * factor)
+            scaled = float(match.group(1)) * factor
+            if not scaled.is_integer():
+                raise cv.Invalid(
+                    f"'{value}' does not resolve to a whole number of bytes"
+                )
+            bytes_ = int(scaled)
     if bytes_ < 0 or (bytes_ == 0 and not allow_zero):
         raise cv.Invalid(f"'{value}' must be a positive size")
     return bytes_
