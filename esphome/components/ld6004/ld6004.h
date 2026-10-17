@@ -20,7 +20,7 @@ enum LD6004ButtonType : uint8_t {
 
 class LD6004Component final : public ld600x::LD600XComponent {
  public:
-  LD6004Component() : LD600XComponent("LD6004", "ld6004") {}
+  LD6004Component() : LD600XComponent(LOG_STR("LD6004"), LOG_STR("ld6004")) {}
 
 #ifdef USE_NUMBER
   void set_dwell_lifetime_number(number::Number *number) { this->dwell_lifetime_number_ = number; }

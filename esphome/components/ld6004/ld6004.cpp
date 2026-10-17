@@ -1,12 +1,13 @@
 #include "ld6004.h"
 #include "esphome/components/ld600x/ld600x_frame.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <array>
+#include "esphome/core/progmem.h"
 #include <cmath>
 
 namespace esphome::ld6004 {
 
-static const char *const TAG = "ld6004";
+ESPHOME_LOG_TAG(TAG, "ld6004");
 
 static constexpr uint16_t TYPE_SET_DWELL_LIFETIME = 0x0206;
 static constexpr uint16_t TYPE_SET_OUTPUT_INTERVAL = 0x0207;
@@ -33,18 +34,22 @@ static constexpr uint32_t CMD_CLEAR_DWELL = 0x25;
 static constexpr uint32_t CMD_GET_DWELL_LIFETIME = 0x26;
 static constexpr uint32_t CMD_GET_OUTPUT_INTERVAL = 0x27;
 
-static constexpr std::array<uint32_t, 5> WORK_MODE_COMMANDS = {CMD_WORK_NORMAL, CMD_WORK_LOW_POWER,
-                                                               CMD_WORK_RADAR_OFF_P20_HIGH, CMD_WORK_RADAR_OFF_P20_LOW,
-                                                               CMD_WORK_HIGH_REFLECTIVITY};
-#ifdef USE_TEXT_SENSOR
-// Same order as the work_mode select options and the 0x0A12 report values.
-static const char *const WORK_MODE_NAMES[] = {"normal", "low_power", "radar_off_p20_high", "radar_off_p20_low",
-                                              "high_reflectivity"};
-#endif
+// The work_mode select options, the 0x0A12 report values and the tables below share one order.
+static constexpr uint8_t WORK_MODE_COUNT = 5;
 #ifdef USE_SELECT
-static constexpr std::array<uint32_t, 6> P20_MODE_COMMANDS = {CMD_P20_PRESENCE_HIGH, CMD_P20_PRESENCE_LOW,
-                                                              CMD_P20_CONSTANT_LOW,  CMD_P20_CONSTANT_HIGH,
-                                                              CMD_P20_PULSE_LOW,     CMD_P20_PULSE_HIGH};
+// Every control code fits in a byte, so the tables are bytes in flash.
+static constexpr uint8_t WORK_MODE_COMMANDS[WORK_MODE_COUNT] PROGMEM = {
+    CMD_WORK_NORMAL, CMD_WORK_LOW_POWER, CMD_WORK_RADAR_OFF_P20_HIGH, CMD_WORK_RADAR_OFF_P20_LOW,
+    CMD_WORK_HIGH_REFLECTIVITY};
+static constexpr uint8_t P20_MODE_COUNT = 6;
+static constexpr uint8_t P20_MODE_COMMANDS[P20_MODE_COUNT] PROGMEM = {CMD_P20_PRESENCE_HIGH, CMD_P20_PRESENCE_LOW,
+                                                                      CMD_P20_CONSTANT_LOW,  CMD_P20_CONSTANT_HIGH,
+                                                                      CMD_P20_PULSE_LOW,     CMD_P20_PULSE_HIGH};
+#endif
+#ifdef USE_TEXT_SENSOR
+PROGMEM_STRING_TABLE(WorkModeStrings, "normal", "low_power", "radar_off_p20_high", "radar_off_p20_low",
+                     "high_reflectivity");
+static_assert(WorkModeStrings::COUNT == WORK_MODE_COUNT);
 #endif
 
 bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) {
@@ -53,7 +58,7 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       if (len != 1 && len != 4)
         return true;
       const uint32_t mode = len == 4 ? ld600x::read_u32_le(data) : data[0];
-      if (mode >= WORK_MODE_COMMANDS.size())
+      if (mode >= WORK_MODE_COUNT)
         return true;
 #ifdef USE_SELECT
       if (this->work_mode_select_ != nullptr)
@@ -64,7 +69,12 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       // two-state fallback, which is disarmed by marking the mode as reported.
       if (this->work_mode_text_sensor_ != nullptr) {
         this->work_mode_reported_ = true;
-        this->work_mode_text_sensor_->publish_state(WORK_MODE_NAMES[mode]);
+        char name[WorkModeStrings::MAX_LENGTH + 1];
+        ESPHOME_strncpy_P(
+            name, reinterpret_cast<ESPHOME_PGM_P>(WorkModeStrings::get_progmem_str(static_cast<uint8_t>(mode), 0)),
+            sizeof(name));
+        name[sizeof(name) - 1] = '\0';
+        this->work_mode_text_sensor_->publish_state(name);
       }
 #endif
       this->low_power_enabled_ = mode == 1;
@@ -79,7 +89,7 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       return true;
     case TYPE_REPORT_P20_MODE:
 #ifdef USE_SELECT
-      if (len == 1 && data[0] < P20_MODE_COMMANDS.size() && this->p20_mode_select_ != nullptr)
+      if (len == 1 && data[0] < P20_MODE_COUNT && this->p20_mode_select_ != nullptr)
         this->p20_mode_select_->publish_state(data[0]);
 #endif
       return true;
@@ -123,12 +133,12 @@ void LD6004Component::set_number_value(uint8_t kind, float value) {
 void LD6004Component::set_select_value(uint8_t kind, size_t index) {
   switch (kind) {
     case SELECT_WORK_MODE:
-      if (index < WORK_MODE_COMMANDS.size())
-        this->send_control_command_(WORK_MODE_COMMANDS[index]);
+      if (index < WORK_MODE_COUNT)
+        this->send_control_command_(progmem_read_byte(&WORK_MODE_COMMANDS[index]));
       break;
     case SELECT_P20_MODE:
-      if (index < P20_MODE_COMMANDS.size())
-        this->send_control_command_(P20_MODE_COMMANDS[index]);
+      if (index < P20_MODE_COUNT)
+        this->send_control_command_(progmem_read_byte(&P20_MODE_COMMANDS[index]));
       break;
     default:
       this->LD600XComponent::set_select_value(kind, index);

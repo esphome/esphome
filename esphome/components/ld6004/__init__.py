@@ -10,9 +10,10 @@ from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["ld600x"]
 CODEOWNERS = ["@wolph"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["ld600x"]
+DOMAIN = "ld6004"
 MULTI_CONF = True
 
 ld6004_ns = cg.esphome_ns.namespace("ld6004")
