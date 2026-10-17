@@ -2,14 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_INPUT,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
-    CONF_OUTPUT,
-)
+from esphome.const import CONF_ID, CONF_INPUT, CONF_OUTPUT
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -50,19 +43,11 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
 
 
-def validate_mode(value: ConfigType) -> ConfigType:
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    return value
-
-
 WAVESHARE_IO_PIN_SCHEMA = pins.gpio_base_schema(
     WaveshareIOCH32V003GPIOPin,
     cv.int_range(min=0, max=7),
     modes=[CONF_INPUT, CONF_OUTPUT],
-    mode_validator=validate_mode,
+    mode_validator=pins.gpio_validate_input_xor_output,
     invertible=True,
 ).extend(
     {
@@ -75,13 +60,4 @@ WAVESHARE_IO_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_WAVESHARE_IO_CH32V003, WAVESHARE_IO_PIN_SCHEMA)
 async def waveshare_io_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_WAVESHARE_IO_CH32V003])
-
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+    return await pins.new_parented_pin(config, CONF_WAVESHARE_IO_CH32V003)

@@ -193,12 +193,6 @@ void PCA6416AComponent::update_register_(uint8_t pin, bool pin_value, uint8_t re
 
 float PCA6416AComponent::get_setup_priority() const { return setup_priority::IO; }
 
-void PCA6416AGPIOPin::setup() { pin_mode(flags_); }
-void PCA6416AGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PCA6416AGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCA6416AGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t PCA6416AGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PCA6416A", this->pin_);
-}
-
 }  // namespace esphome::pca6416a
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pca6416a::PCA6416AComponent, "%u via PCA6416A")

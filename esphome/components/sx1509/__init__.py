@@ -6,9 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
     CONF_ON_KEY,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
@@ -115,12 +112,7 @@ async def to_code(config: ConfigType) -> None:
 
 
 def validate_mode(value: ConfigType) -> ConfigType:
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_PULLUP] and not value[CONF_INPUT]:
-        raise cv.Invalid("Pullup only available with input")
+    pins.gpio_validate_input_xor_output_pullup(value)
     if value[CONF_PULLDOWN] and not value[CONF_INPUT]:
         raise cv.Invalid("Pulldown only available with input")
     if value[CONF_PULLUP] and value[CONF_PULLDOWN]:
@@ -131,34 +123,18 @@ def validate_mode(value: ConfigType) -> ConfigType:
 
 
 CONF_SX1509 = "sx1509"
-SX1509_PIN_SCHEMA = cv.All(
+SX1509_PIN_SCHEMA = pins.gpio_base_schema(
+    SX1509GPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_PULLUP, CONF_PULLDOWN, CONF_OUTPUT, CONF_OPEN_DRAIN],
+    mode_validator=validate_mode,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(SX1509GPIOPin),
         cv.Required(CONF_SX1509): pins.use_id_or_address(SX1509Component),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_MODE, default={}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_PULLDOWN, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
-            },
-            validate_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_SX1509, SX1509_PIN_SCHEMA)
 async def sx1509_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_SX1509])
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+    return await pins.new_parented_pin(config, CONF_SX1509)

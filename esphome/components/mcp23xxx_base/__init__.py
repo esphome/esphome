@@ -7,9 +7,6 @@ from esphome.const import (
     CONF_INPUT,
     CONF_INTERRUPT,
     CONF_INTERRUPT_PIN,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
     CONF_OPEN_DRAIN_INTERRUPT,
     CONF_OUTPUT,
     CONF_PULLUP,
@@ -52,23 +49,13 @@ async def register_mcp23xxx(config: ConfigType, num_pins: int) -> MockObj:
     return var
 
 
-def validate_mode(value: ConfigType) -> ConfigType:
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_PULLUP] and not value[CONF_INPUT]:
-        raise cv.Invalid("Pullup only available with input")
-    return value
-
-
 CONF_MCP23XXX = "mcp23xxx"
 
 MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
     MCP23XXXGPIOPin,
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
-    mode_validator=validate_mode,
+    mode_validator=pins.gpio_validate_input_xor_output_pullup,
     invertible=True,
 ).extend(
     {
@@ -83,16 +70,9 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23XXX, MCP23XXX_PIN_SCHEMA)
 async def mcp23xxx_pin_to_code(config: ConfigType) -> MockObj:
     parent_id: ID = config[CONF_MCP23XXX]
-    parent = await cg.get_variable(parent_id)
-
+    # Wait for the hub so its to_code has recorded the pin count
+    await cg.get_variable(parent_id)
     num_pins = cg.TemplateArguments(CORE.data[CONF_MCP23XXX][parent_id.id])
-
-    var = cg.new_Pvariable(config[CONF_ID], num_pins)
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    var = await pins.new_parented_pin(config, CONF_MCP23XXX, num_pins)
     cg.add(var.set_interrupt_mode(config[CONF_INTERRUPT]))
     return var
