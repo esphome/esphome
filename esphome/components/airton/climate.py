@@ -66,5 +66,5 @@ for _name, _call in (
 async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
     # The default until a saved setting is restored in setup(); off is the member's initial value
-    if (direction := config[CONF_VERTICAL_DIRECTION]) is not VERTICAL_DIRECTIONS["off"]:
+    if (direction := config[CONF_VERTICAL_DIRECTION]) != "off":
         cg.add(var.set_default_vertical_direction(direction))
