@@ -61,9 +61,9 @@ static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool) {
 #endif  // USE_LIBRETINY_RTC_PREFERENCES
 
 bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
-  // try find in pending saves and update that
+  // try find in pending saves and update that; a flash and an rtc entry may share a key
   for (auto &obj : s_pending_save) {
-    if (obj.key == this->key) {
+    if (obj.key == this->key && obj.is_rtc() == this->is_rtc()) {
       obj.data.set(data, len);
       return true;
     }
@@ -82,7 +82,7 @@ bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
 bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
   // try find in pending saves and load from that
   for (auto &obj : s_pending_save) {
-    if (obj.key == this->key) {
+    if (obj.key == this->key && obj.is_rtc() == this->is_rtc()) {
       if (obj.data.size() != len) {
         // size mismatch
         return false;
@@ -95,8 +95,10 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
   // A discard that failed at open leaves old rtc values in flash; every rtc key then counts as nothing stored
   // for this boot, including one saved and synced since, and the discard runs again at the next boot
-  if (this->is_rtc() && get_preferences()->rtc_discard_failed())
+  if (this->is_rtc() && get_preferences()->rtc_discard_failed()) {
+    ESP_LOGV(TAG, "rtc preference %" PRIu32 " reads as empty: the discard at boot failed", this->key);
     return false;
+  }
 #endif
   char key_str[KEY_NAME_SIZE];
   key_name(key_str, this->key, this->is_rtc());
@@ -160,7 +162,10 @@ void LibreTinyPreferences::discard_rtc_entries_() {
   if (this->rtc_discard_failed_) {
     static constexpr uint8_t PENDING = 1;
     fdb_blob_make(&this->blob, &PENDING, sizeof(PENDING));
-    fdb_kv_set_blob(&this->db, RTC_DISCARD_PENDING_KEY, &this->blob);
+    const fdb_err_t err = fdb_kv_set_blob(&this->db, RTC_DISCARD_PENDING_KEY, &this->blob);
+    if (err != FDB_NO_ERR) {
+      LT_E("Failed to record the incomplete rtc discard: %d", err);
+    }
   }
   if (discarded != 0) {
     LT_D("Discarded %u rtc preferences after a hard reset", discarded);
