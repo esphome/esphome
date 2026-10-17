@@ -23,6 +23,9 @@ void FastLEDLightOutput::dump_config() {
                 this->num_leds_, this->max_refresh_rate_.value_or(0));
 }
 void FastLEDLightOutput::write_state(light::LightState *state) {
+  if (!this->is_ready()) {
+    return;
+  }
   // protect from refreshing too often
   uint32_t now = micros();
   uint32_t max_rate = this->max_refresh_rate_.value_or(0);

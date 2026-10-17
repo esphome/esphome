@@ -24,7 +24,11 @@ class SpiLedStrip final : public light::AddressableLight,
 
   void write_state(light::LightState *state) override;
 
-  void clear_effect_data() override { memset(this->effect_data_, 0, this->num_leds_ * sizeof(this->effect_data_[0])); }
+  void clear_effect_data() override {
+    if (this->effect_data_ == nullptr)
+      return;
+    memset(this->effect_data_, 0, this->num_leds_ * sizeof(this->effect_data_[0]));
+  }
 
  protected:
   light::ESPColorView get_view_internal(int32_t index) const override;

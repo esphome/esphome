@@ -38,6 +38,8 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   void set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency);
 
   void clear_effect_data() override {
+    if (this->effect_data_ == nullptr)
+      return;
     for (int i = 0; i < this->size(); i++)
       this->effect_data_[i] = 0;
   }
