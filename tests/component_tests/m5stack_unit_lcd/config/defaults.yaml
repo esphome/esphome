@@ -1,0 +1,17 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+display:
+  - platform: m5stack_unit_lcd
+    id: unit_lcd
+    pages:
+      - id: page1
+        lambda: |-
+          it.draw_pixel_at(0, 0);

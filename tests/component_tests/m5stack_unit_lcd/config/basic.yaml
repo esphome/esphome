@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+display:
+  - platform: m5stack_unit_lcd
+    id: unit_lcd
+    rotation: 90
+    brightness: 50%
+    invert_colors: true
+    update_interval: 2s
+    lambda: |-
+      it.draw_pixel_at(0, 0);
