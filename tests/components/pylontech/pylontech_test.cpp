@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <initializer_list>
 #include <string>
@@ -77,9 +78,12 @@ constexpr const char *NEW_BAT1 =
 
 // An older firmware line for battery bat with pack voltage volt (mV)
 std::string bat_line(int bat, int volt) {
-  return std::to_string(bat) + "     " + std::to_string(volt) +
-         "  0      17000  16000  18000  3200   3300   Idle     Normal   Normal   Normal   50%      "
-         "2025-11-28 17:56:33  Normal   Normal  16000    Normal\r\n";
+  char buf[160];
+  snprintf(buf, sizeof(buf),
+           "%d     %d  0      17000  16000  18000  3200   3300   Idle     Normal   Normal   Normal   50%%      "
+           "2025-11-28 17:56:33  Normal   Normal  16000    Normal\r\n",
+           bat, volt);
+  return buf;
 }
 
 class PylontechTest : public ::testing::Test {
