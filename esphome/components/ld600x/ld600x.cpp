@@ -414,7 +414,7 @@ void LD600XComponent::dump_config() {
                 "HLK-%s:\n"
                 "  Auto wake: %s\n"
                 "  Max data length: %u",
-                this->model_name_, this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
+                LOG_STR_ARG(this->model_name_), this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
                 static_cast<unsigned>(this->max_data_len_));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);

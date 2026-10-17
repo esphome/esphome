@@ -5,6 +5,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/gpio.h"
 #include "esphome/components/uart/uart.h"
@@ -131,9 +132,11 @@ struct VersionPref {
 
 class LD600XComponent : public Component, public uart::UARTDevice {
  public:
-  // Both strings are literals that live in flash: the model name is printed by dump_config and the log
-  // tag keeps the model's own name on every log line, so a logger `logs:` filter on `ld6002b` keeps working.
-  LD600XComponent(const char *model_name, const char *log_tag) : model_name_(model_name), log_tag_(log_tag) {}
+  // Both strings come from LOG_STR, so they stay in flash on ESP8266 like an ESPHOME_LOG_TAG. The model
+  // name is printed by dump_config and the log tag keeps the model's own name on every log line, so a
+  // logger `logs:` filter on `ld6002b` keeps working.
+  LD600XComponent(const LogString *model_name, const LogString *log_tag)
+      : model_name_(model_name), log_tag_(LOG_STR_ARG(log_tag)) {}
 
   void setup() override;
   void loop() override;
@@ -243,7 +246,7 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   virtual void setup_model() {}
   virtual void dump_model_config() {}
 
-  const char *model_name_;
+  const LogString *model_name_;
   const char *log_tag_;
 
   struct PendingCommand {
