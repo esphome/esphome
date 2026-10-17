@@ -16,7 +16,7 @@ ESPHOME_LOG_TAG(TAG, "mq_gas_sensors");
 static constexpr uint32_t R0_PREFERENCE_VERSION = 0x00000001;
 
 /// Human readable name of a `mqmath::RegressionMethod` value.
-static const LogString *regression_method_name(uint8_t method) {
+static const LogString *regression_method_name(mqmath::RegressionMethod method) {
   switch (method) {
     case mqmath::REGRESSION_LINEAR:
       return LOG_STR("linear");
@@ -87,6 +87,7 @@ void MQGasSensor::setup() {
   } else if (this->persist_ && this->load_r0_()) {
     this->log_message_(LOG_SEVERITY_INFO, "restored R0 from flash (%.4f kOhm)", this->r0_);
   }
+  this->publish_r0_();
 
   if (this->warmup_time_ > 0) {
     this->warmup_start_ = App.get_loop_component_start_time();
@@ -171,8 +172,7 @@ float MQGasSensor::sample_voltage_() {
 float MQGasSensor::current_rs_() const { return mqmath::rs_from_voltage(this->sensor_voltage_, this->vcc_, this->rl_); }
 
 float MQGasSensor::current_ratio_() const {
-  return mqmath::ratio_from_rs(this->rs_, this->r0_, this->correction_factor_,
-                               static_cast<mqmath::RatioMode>(this->ratio_mode_));
+  return mqmath::ratio_from_rs(this->rs_, this->r0_, this->correction_factor_, this->ratio_mode_);
 }
 
 float MQGasSensor::compute_correction_() {
@@ -209,12 +209,10 @@ float MQGasSensor::compute_correction_() {
 
 float MQGasSensor::read_ppm_() {
   const float ratio = mqmath::apply_correction(this->ratio_, this->correction_);
-  const float ppm = mqmath::ppm_from_ratio(this->a_, this->b_, ratio,
-                                           static_cast<mqmath::RegressionMethod>(this->regression_method_));
+  const float ppm = mqmath::ppm_from_ratio(this->a_, this->b_, ratio, this->regression_method_);
   if (!std::isfinite(ppm))
     return NAN;
-  return mqmath::clamp_ppm_corrected(ppm, this->min_ppm_, this->max_ppm_, this->correction_,
-                                     static_cast<mqmath::CorrectionClamp>(this->correction_clamp_));
+  return mqmath::clamp_ppm_corrected(ppm, this->min_ppm_, this->max_ppm_, this->correction_, this->correction_clamp_);
 }
 
 void MQGasSensor::publish_diagnostics_() {
@@ -226,6 +224,12 @@ void MQGasSensor::publish_diagnostics_() {
     this->ratio_sensor_->publish_state(this->ratio_);
   if (this->correction_sensor_ != nullptr)
     this->correction_sensor_->publish_state(this->correction_);
+}
+
+void MQGasSensor::publish_r0_() {
+  if (this->r0_sensor_ == nullptr || !this->has_r0())
+    return;
+  this->r0_sensor_->publish_state(this->r0_);
 }
 
 void MQGasSensor::update() {
@@ -317,6 +321,30 @@ void MQGasSensor::set_calibration(bool enabled, float ratio_in_clean_air, uint32
   this->calibration_duration_ = duration;
   this->calibration_samples_ = samples;
   this->persist_ = persist;
+}
+
+void MQGasSensor::start_calibration() {
+  if (this->calibrating_ || this->calibration_pending_) {
+    this->log_message_(LOG_SEVERITY_WARN, "a calibration is already running");
+    return;
+  }
+  if (this->ratio_in_clean_air_ <= 0.0f) {
+    this->log_message_(LOG_SEVERITY_ERROR,
+                       "cannot calibrate without an RS/R0 in clean air - set 'ratio_in_clean_air:'");
+    return;
+  }
+
+  // A sensor that is still warming up has not settled: sample after the rest of
+  // the window instead of turning an unsettled run into the new R0.
+  if (this->in_warmup_()) {
+    const uint32_t delay = this->warmup_start_ + this->warmup_time_ - App.get_loop_component_start_time();
+    this->calibration_pending_ = true;
+    this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
+    this->log_message_(LOG_SEVERITY_INFO, "calibration requested, starting in %" PRIu32 " s (warm-up)", delay / 1000);
+    return;
+  }
+
+  this->begin_calibration_();
 }
 
 void MQGasSensor::loop() {
@@ -412,6 +440,7 @@ void MQGasSensor::finish_calibration_() {
   }
 
   this->r0_ = r0;
+  this->publish_r0_();
   const bool stored = this->persist_ && this->save_r0_();
   if (this->persist_ && !stored) {
     // The reading stays usable, but the next boot calibrates again: keep the

@@ -2,9 +2,11 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
+import esphome
 from esphome import config_validation as cv
 from esphome.components.esp32 import (
     KEY_BOARD,
@@ -22,7 +24,7 @@ from esphome.components.mq_gas_sensors.coefficients import (
     resolve_sensor,
 )
 from esphome.components.mq_gas_sensors.sensor import CONFIG_SCHEMA
-from esphome.const import PlatformFramework
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 ESP32_PLATFORM_DATA = {KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32}
@@ -51,7 +53,10 @@ def test_built_in_curve_reaches_the_sensor(
     assert 'mq8_boot->set_gas("H2");' in main_cpp
     assert "mq8_boot->set_a(976.97f);" in main_cpp
     assert "mq8_boot->set_b(-0.688f);" in main_cpp
-    assert "mq8_boot->set_regression_method(1);" in main_cpp
+    assert (
+        "mq8_boot->set_regression_method(mq_gas_sensors::mqmath::REGRESSION_EXPONENTIAL);"
+        in main_cpp
+    )
     assert "mq8_boot->set_ratio_in_clean_air(70.0f);" in main_cpp
     assert "mq8_boot->set_voltage_multiplier(1.5f);" in main_cpp
     assert "mq8_boot->set_samples(4);" in main_cpp
@@ -206,22 +211,107 @@ def test_pin_range_follows_the_attenuation(
     assert "above 'adc_input_max' (1.75 V)" in caplog.text
 
 
-def test_diagnostics_and_log_are_wired(
+def test_diagnostics_and_log_are_owned_entities(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
+    """The mirrors of the measurement chain are created by the component itself."""
     main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    # The mirrors are child entities of the sensor - registered by the component
+    # and marked as diagnostics, not wired to `sensor:` entries of the user.
+    for entity_id, name in (
+        ("mq8_ratio", "MQ-8 ratio"),
+        ("mq8_rs", "MQ-8 RS"),
+        ("mq8_voltage", "MQ-8 voltage"),
+        ("mq8_correction", "MQ-8 T-RH correction"),
+        ("mq8_r0", "MQ-8 R0"),
+    ):
+        assert f'App.register_sensor({entity_id}, "{name}"' in main_cpp
+    assert 'App.register_text_sensor(mq8_logs, "MQ-8 logs"' in main_cpp
+    assert "// category:diagnostic" in main_cpp
+    assert "template__mq8_ratio" not in main_cpp
 
     assert "mq8_pin->set_ratio_sensor(mq8_ratio);" in main_cpp
     assert "mq8_pin->set_rs_sensor(mq8_rs);" in main_cpp
     assert "mq8_pin->set_voltage_sensor(mq8_voltage);" in main_cpp
     assert "mq8_pin->set_correction_sensor(mq8_correction);" in main_cpp
+    assert "mq8_pin->set_r0_sensor(mq8_r0);" in main_cpp
     assert "mq8_pin->set_log_sensor(mq8_logs);" in main_cpp
     assert "mq8_pin->set_log_ppm(true);" in main_cpp
     # The linked T/RH sensors switch the compensation on.
-    assert "mq8_pin->set_correction_mode(1);" in main_cpp
+    assert (
+        "mq8_pin->set_correction_mode(mq_gas_sensors::mqmath::CORRECTION_MQDATASCIENCE);"
+        in main_cpp
+    )
     assert "mq8_pin->set_temperature_source(mq8_temperature);" in main_cpp
     assert "mq8_pin->set_humidity_source(mq8_humidity);" in main_cpp
+
+
+def test_diagnostics_default_to_the_diagnostic_category(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A mirror is a diagnostic entity with a unit of its own, without being asked."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    config = CONFIG_SCHEMA(
+        {
+            "id": "mq8",
+            "name": "MQ-8",
+            "sensor_type": "MQ-8",
+            "voltage": "mq8_adc",
+            "rs_sensor": {"name": "MQ-8 RS"},
+            "log_sensor": {"name": "MQ-8 logs"},
+        }
+    )
+
+    assert config["rs_sensor"]["entity_category"] == ENTITY_CATEGORY_DIAGNOSTIC
+    assert config["rs_sensor"]["unit_of_measurement"] == "kOhm"
+    assert config["rs_sensor"]["accuracy_decimals"] == 3
+    assert config["log_sensor"]["entity_category"] == ENTITY_CATEGORY_DIAGNOSTIC
+
+
+def test_calibration_action_reaches_the_sensor(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """`mq_gas_sensors.calibrate_r0` runs the calibration from an automation."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "::mq8_boot->start_calibration();" in main_cpp
+
+
+def test_a_bad_pin_is_reported_as_a_pin(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """`pin:` is validated before the divider guard, so the pin is what fails."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with pytest.raises(cv.Invalid, match="Cannot resolve pin name"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "pin": "NOT_A_PIN",
+            }
+        )
+
+
+def test_the_firmware_clamp_matches_the_code_generation_clamp() -> None:
+    """`mq_math.h` clamps `a` and `b` on the device with its own limits.
+
+    A table value is clamped twice, once here by `resolve_sensor()` and once on the
+    device by `mqmath::clamp_a()` / `clamp_b()`, so a change to one limit has to be
+    mirrored in the other.
+    """
+    header = (
+        Path(esphome.__file__).parent / "components" / "mq_gas_sensors" / "mq_math.h"
+    )
+    source = header.read_text(encoding="utf-8")
+
+    for name, limit in (("MQ_MAX_A", MQ_MAX_A), ("MQ_MAX_B", MQ_MAX_B)):
+        match = re.search(rf"static constexpr double {name} = ([^;]+);", source)
+        assert match is not None, f"{name} is not defined in {header.name}"
+        assert float(match.group(1)) == limit
 
 
 def test_mqdatascience_curve_reaches_the_sensor(
@@ -233,5 +323,8 @@ def test_mqdatascience_curve_reaches_the_sensor(
 
     assert "mq8_curve->set_a(18391.5667f);" in main_cpp
     assert "mq8_curve->set_b(-1.4494f);" in main_cpp
-    assert "mq8_curve->set_regression_method(3);" in main_cpp
+    assert (
+        "mq8_curve->set_regression_method(mq_gas_sensors::mqmath::REGRESSION_INVERSE);"
+        in main_cpp
+    )
     assert "mq8_curve->set_max_ppm(20000.0f);" in main_cpp

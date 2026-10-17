@@ -27,6 +27,7 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   SUB_SENSOR(rs)
   SUB_SENSOR(voltage)
   SUB_SENSOR(correction)
+  SUB_SENSOR(r0)
 
  public:
   /// `source` is the voltage sampler the analog output is read from. It must
@@ -43,8 +44,8 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void set_gas(const char *gas) { this->gas_ = StringRef(gas); }
   void set_a(float a) { this->a_ = mqmath::clamp_a(a); }
   void set_b(float b) { this->b_ = mqmath::clamp_b(b); }
-  void set_regression_method(uint8_t method) { this->regression_method_ = method; }
-  void set_ratio_mode(uint8_t mode) { this->ratio_mode_ = mode; }
+  void set_regression_method(mqmath::RegressionMethod method) { this->regression_method_ = method; }
+  void set_ratio_mode(mqmath::RatioMode mode) { this->ratio_mode_ = mode; }
   void set_rl(float rl) { this->rl_ = rl; }
   void set_r0(float r0) {
     this->r0_ = r0;
@@ -56,8 +57,8 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void set_min_ppm(float ppm) { this->min_ppm_ = ppm; }
   void set_max_ppm(float ppm) { this->max_ppm_ = ppm; }
   void set_correction_factor(float factor) { this->correction_factor_ = factor; }
-  void set_correction_mode(uint8_t mode) { this->correction_mode_ = mode; }
-  void set_correction_clamp(uint8_t mode) { this->correction_clamp_ = mode; }
+  void set_correction_mode(mqmath::CorrectionMode mode) { this->correction_mode_ = mode; }
+  void set_correction_clamp(mqmath::CorrectionClamp mode) { this->correction_clamp_ = mode; }
   void set_tc_coefficients(float a33, float b33, float c33, float a85, float b85, float c85) {
     this->tc_ = mqmath::TcCorrectionCoefficients{a33, b33, c33, a85, b85, c85};
   }
@@ -97,6 +98,15 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   // ----------------------------------------------------------------- runtime
   bool has_r0() const { return this->r0_ > 0.0f; }
 
+  /// Start a clean-air calibration now - the `mq_gas_sensors.calibrate_r0` action.
+  ///
+  /// The samples are taken straight away, except while the warm-up window still
+  /// runs: the start then waits for the rest of it instead of sampling a sensor
+  /// that has not settled.  A successful run replaces the R0 of this boot and is
+  /// stored in flash when `persist:` is on; without a `calibration:` block it uses
+  /// its defaults (10 samples, not persisted).
+  void start_calibration();
+
   float get_r0() const { return this->r0_; }
   float get_rs() const { return this->rs_; }
   float get_ratio() const { return this->ratio_; }
@@ -129,6 +139,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// the readings.
   bool in_warmup_();
   void publish_diagnostics_();
+  /// Publish the current R0 to `r0_sensor` (no-op when it is not configured).
+  /// Only called where R0 is set - it does not change between readings.
+  void publish_r0_();
   bool save_r0_();
   bool load_r0_();
   void log_config_();
@@ -154,8 +167,8 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
 
   float a_{0.0f};
   float b_{0.0f};
-  uint8_t regression_method_{mqmath::REGRESSION_EXPONENTIAL};
-  uint8_t ratio_mode_{mqmath::RATIO_RS_R0};
+  mqmath::RegressionMethod regression_method_{mqmath::REGRESSION_EXPONENTIAL};
+  mqmath::RatioMode ratio_mode_{mqmath::RATIO_RS_R0};
   float rl_{10.0f};  ///< load resistor of the module (kOhm)
   float r0_{0.0f};   ///< sensor resistance in clean air (kOhm)
   float vcc_{5.0f};  ///< sensor supply (V)
@@ -164,8 +177,8 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   float min_ppm_{0.0f};
   float max_ppm_{10000.0f};
   float correction_factor_{0.0f};
-  uint8_t correction_mode_{mqmath::CORRECTION_NONE};
-  uint8_t correction_clamp_{mqmath::CLAMP_ABSOLUTE};
+  mqmath::CorrectionMode correction_mode_{mqmath::CORRECTION_NONE};
+  mqmath::CorrectionClamp correction_clamp_{mqmath::CLAMP_ABSOLUTE};
   mqmath::TcCorrectionCoefficients tc_{};
   uint8_t samples_{2};
   uint32_t sample_interval_{20};

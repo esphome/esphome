@@ -46,6 +46,14 @@ MQGasSensor = mq_gas_sensors_ns.class_(
     "MQGasSensor", sensor.Sensor, cg.PollingComponent
 )
 
+# The C++ enums of `mq_math.h`, so the code generation passes the named values
+# instead of bare integers and a renamed enumerator breaks the build.
+mqmath_ns = mq_gas_sensors_ns.namespace("mqmath")
+RegressionMethod = mqmath_ns.enum("RegressionMethod")
+RatioMode = mqmath_ns.enum("RatioMode")
+CorrectionMode = mqmath_ns.enum("CorrectionMode")
+CorrectionClamp = mqmath_ns.enum("CorrectionClamp")
+
 # ---------------------------------------------------------------------------
 # Configuration keys
 # ---------------------------------------------------------------------------
@@ -78,6 +86,7 @@ CONF_CURVE = "curve"
 CONF_LOG_SENSOR = "log_sensor"
 CONF_LOG_PPM = "log_ppm"
 CONF_PERSIST = "persist"
+CONF_R0_SENSOR = "r0_sensor"
 CONF_RATIO_SENSOR = "ratio_sensor"
 CONF_RS_SENSOR = "rs_sensor"
 CONF_VOLTAGE_SENSOR = "voltage_sensor"
@@ -85,24 +94,24 @@ CONF_VOLTAGE_SENSOR = "voltage_sensor"
 # MQUnifiedsensor::setRegressionMethod() values plus the MQDataScience inverse
 # form (used by their published MQ-8 H2 coefficients: ppm = (ratio / a)^(1 / b)).
 REGRESSION_METHODS = {
-    "exponential": 1,  # _PPM = a * ratio^b
-    "linear": 2,  # log10(_PPM) = (log10(ratio) - b) / a
-    "inverse": 3,  # _PPM = (ratio / a)^(1 / b)
+    "exponential": RegressionMethod.REGRESSION_EXPONENTIAL,  # _PPM = a * ratio^b
+    "linear": RegressionMethod.REGRESSION_LINEAR,  # log10(_PPM) = (log10(ratio) - b) / a
+    "inverse": RegressionMethod.REGRESSION_INVERSE,  # _PPM = (ratio / a)^(1 / b)
 }
 
 # Temperature/humidity compensation of the RS/R0 ratio.
 CORRECTION_MODES = {
-    "none": 0,  # no compensation (default)
-    "mqdatascience": 1,  # a + c * exp(b * T), MQDataScience Correction.cpp
+    "none": CorrectionMode.CORRECTION_NONE,  # no compensation (default)
+    "mqdatascience": CorrectionMode.CORRECTION_MQDATASCIENCE,  # a + c * exp(b * T)
 }
 
 # How the corrected PPM value is clamped.
 CORRECTION_CLAMPS = {
     # Clip to the configured max_ppm - the alarm ceiling never moves.
-    "absolute": 0,
+    "absolute": CorrectionClamp.CLAMP_ABSOLUTE,
     # Clip to max_ppm * correction - MQDataScience's own behaviour, the ceiling
     # drops with the correction (not recommended for a safety limit).
-    "scaled": 1,
+    "scaled": CorrectionClamp.CLAMP_SCALED,
 }
 
 # Default ADC input limits used by the divider guard when the attenuation of an
@@ -144,6 +153,6 @@ ADC_LIMIT_MARGIN_V = 0.01
 # MQUnifiedsensor uses R0/RS (see readSensorR0Rs(), "INVERTED for MQ-131"),
 # while the published datasheet coefficients are fitted against RS/R0.
 RATIO_MODES = {
-    "rs_r0": 0,  # datasheet convention (default)
-    "r0_rs": 1,  # MQUnifiedsensor readSensorR0Rs() convention
+    "rs_r0": RatioMode.RATIO_RS_R0,  # datasheet convention (default)
+    "r0_rs": RatioMode.RATIO_R0_RS,  # MQUnifiedsensor readSensorR0Rs() convention
 }

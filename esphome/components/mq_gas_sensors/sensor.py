@@ -8,6 +8,8 @@ creates a hidden internal ``adc`` sensor with the requested attenuation).
 
 import logging
 
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import sensor, text_sensor, voltage_sampler
 from esphome.components.esp32 import get_esp32_variant
@@ -28,8 +30,10 @@ from esphome.const import (
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
     CONF_WARMUP_TIME,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
+    UNIT_VOLT,
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
@@ -54,6 +58,7 @@ from . import (
     CONF_MIN_PPM,
     CONF_PERSIST,
     CONF_R0,
+    CONF_R0_SENSOR,
     CONF_R1,
     CONF_R2,
     CONF_RATIO_IN_CLEAN_AIR,
@@ -81,6 +86,7 @@ from .coefficients import (
     CURVE_STANDARD,
     CURVES,
     SENSOR_TYPES,
+    ResolvedSensor,
     corrected_types,
     label_for,
     normalize_gas,
@@ -181,6 +187,28 @@ CALIBRATION_SCHEMA = cv.Schema(
 )
 
 
+def _resolve_sensor(config: ConfigType) -> ResolvedSensor:
+    """Resolve the curve of the entry.
+
+    The one place that lists the configuration keys the coefficients are taken
+    from, used by the validator and by the code generation alike, so the two
+    cannot drift apart.
+    """
+    return resolve_sensor(
+        config[CONF_SENSOR_TYPE],
+        config.get(CONF_GAS),
+        a=config.get(CONF_COEFFICIENT_A),
+        b=config.get(CONF_COEFFICIENT_B),
+        method=config.get(CONF_REGRESSION_METHOD),
+        ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
+        rl=config.get(CONF_RL),
+        vcc=config.get(CONF_VCC),
+        min_ppm=config.get(CONF_MIN_PPM),
+        max_ppm=config.get(CONF_MAX_PPM),
+        curve=config[CONF_CURVE],
+    )
+
+
 def _validate_config(config: ConfigType) -> ConfigType:
     """Cross-check the coefficients and resolve the compensation mode.
 
@@ -189,23 +217,16 @@ def _validate_config(config: ConfigType) -> ConfigType:
     selected as soon as both ambient measurements are linked, ``none`` is the
     explicit opt-out and a *partial* link fails here.
     """
+    # The pin is validated with the ADC platform's own schema, and first: a bad
+    # pin has to be reported as such, not as one of the checks below.
+    if CONF_PIN in config:
+        config[_KEY_GENERATED_ADC] = _build_internal_adc(config)
+
     type_key = config[CONF_SENSOR_TYPE]
     label = label_for(type_key)
 
     try:
-        resolved = resolve_sensor(
-            type_key,
-            config.get(CONF_GAS),
-            a=config.get(CONF_COEFFICIENT_A),
-            b=config.get(CONF_COEFFICIENT_B),
-            method=config.get(CONF_REGRESSION_METHOD),
-            ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
-            rl=config.get(CONF_RL),
-            vcc=config.get(CONF_VCC),
-            min_ppm=config.get(CONF_MIN_PPM),
-            max_ppm=config.get(CONF_MAX_PPM),
-            curve=config[CONF_CURVE],
-        )
+        resolved = _resolve_sensor(config)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
 
@@ -349,9 +370,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 input_max,
             )
 
-    if CONF_PIN in config:
-        config[_KEY_GENERATED_ADC] = _build_internal_adc(config)
-
     return config
 
 
@@ -409,11 +427,35 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
-            cv.Optional(CONF_RATIO_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_RS_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_VOLTAGE_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_CORRECTION_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_LOG_SENSOR): cv.use_id(text_sensor.TextSensor),
+            # The mirrors of the measurement chain are owned by this component and
+            # carry the diagnostic category, so Home Assistant keeps them out of
+            # the way of the PPM entity.
+            cv.Optional(CONF_RATIO_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=3,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_RS_SENSOR): sensor.sensor_schema(
+                unit_of_measurement="kOhm",
+                accuracy_decimals=3,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_VOLTAGE_SENSOR): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=4,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_CORRECTION_SENSOR): sensor.sensor_schema(
+                accuracy_decimals=4,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_R0_SENSOR): sensor.sensor_schema(
+                unit_of_measurement="kOhm",
+                accuracy_decimals=4,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_LOG_SENSOR): text_sensor.text_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
             cv.Optional(CONF_LOG_PPM, default=False): cv.boolean,
         }
     )
@@ -445,19 +487,7 @@ async def _create_internal_adc(config: ConfigType):
 
 
 async def to_code(config: ConfigType) -> None:
-    resolved = resolve_sensor(
-        config[CONF_SENSOR_TYPE],
-        config.get(CONF_GAS),
-        a=config.get(CONF_COEFFICIENT_A),
-        b=config.get(CONF_COEFFICIENT_B),
-        method=config.get(CONF_REGRESSION_METHOD),
-        ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
-        rl=config.get(CONF_RL),
-        vcc=config.get(CONF_VCC),
-        min_ppm=config.get(CONF_MIN_PPM),
-        max_ppm=config.get(CONF_MAX_PPM),
-        curve=config[CONF_CURVE],
-    )
+    resolved = _resolve_sensor(config)
 
     calibration = config.get(CONF_CALIBRATION)
     ratio_in_clean_air = resolved.ratio_in_clean_air
@@ -522,15 +552,16 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_log_ppm(config[CONF_LOG_PPM]))
 
-    for key, setter in (
-        (CONF_RATIO_SENSOR, var.set_ratio_sensor),
-        (CONF_RS_SENSOR, var.set_rs_sensor),
-        (CONF_VOLTAGE_SENSOR, var.set_voltage_sensor),
-        (CONF_CORRECTION_SENSOR, var.set_correction_sensor),
-        (CONF_LOG_SENSOR, var.set_log_sensor),
-    ):
-        if (target := config.get(key)) is not None:
-            cg.add(setter(await cg.get_variable(target)))
+    # The diagnostics are this component's own entities: they are created from its
+    # configuration instead of being wired to sensors the user has to declare.
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RATIO_SENSOR, var.set_ratio_sensor)
+    await sensors(CONF_RS_SENSOR, var.set_rs_sensor)
+    await sensors(CONF_VOLTAGE_SENSOR, var.set_voltage_sensor)
+    await sensors(CONF_CORRECTION_SENSOR, var.set_correction_sensor)
+    await sensors(CONF_R0_SENSOR, var.set_r0_sensor)
+    logs = text_sensor.sub_text_sensors(config)
+    await logs(CONF_LOG_SENSOR, var.set_log_sensor)
 
     _LOGGER.debug(
         "%s %s: coefficient_a=%s coefficient_b=%s method=%s curve=%s "
@@ -548,3 +579,17 @@ async def to_code(config: ConfigType) -> None:
         resolved.max_ppm,
         config[CONF_CORRECTION_MODE],
     )
+
+
+CALIBRATE_R0_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(MQGasSensor),
+    }
+)
+
+
+automation.register_apply_action(
+    "mq_gas_sensors.calibrate_r0",
+    CALIBRATE_R0_ACTION_SCHEMA,
+    automation.ApplyCall("start_calibration()"),
+)
