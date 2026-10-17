@@ -32,10 +32,7 @@ POLARITY = {
 }
 
 EAlertFunction = tmp1075_ns.enum("EAlertFunction")
-ALERT_FUNCTION = {
-    "COMPARATOR": EAlertFunction.ALERT_COMPARATOR,
-    "INTERRUPT": EAlertFunction.ALERT_INTERRUPT,
-}
+ALERT_FUNCTION = EAlertFunction.options("COMPARATOR", "INTERRUPT", prefix="ALERT_")
 
 CONF_ALERT = "alert"
 CONF_LIMIT_LOW = "limit_low"

@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "mipi_rgb_blitter.h"
 #include <esp_lcd_panel_rgb.h>
 #include <utility>
 #ifdef USE_SPI
@@ -36,8 +37,6 @@ class MipiRgb : public display::Display {
 #endif
   void update() override;
   void fill(Color color) override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
@@ -69,8 +68,11 @@ class MipiRgb : public display::Display {
   void dump_config() override;
   void draw_pixel_at(int x, int y, Color color) override;
 
-  // this will be horribly slow.
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
+  // this will be horribly slow.
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   bool check_buffer_();
@@ -82,24 +84,7 @@ class MipiRgb : public display::Display {
   /// Send the region touched since the last flush to the panel.
   void flush_dirty_();
   // Maps drawn coordinates to the buffer the way draw_pixel_at() stores them
-  void rotate_(int &x, int &y) const {
-    switch (this->rotation_) {
-      case display::DISPLAY_ROTATION_0_DEGREES:
-        break;
-      case display::DISPLAY_ROTATION_90_DEGREES:
-        std::swap(x, y);
-        x = this->width_ - x - 1;
-        break;
-      case display::DISPLAY_ROTATION_180_DEGREES:
-        x = this->width_ - x - 1;
-        y = this->height_ - y - 1;
-        break;
-      case display::DISPLAY_ROTATION_270_DEGREES:
-        std::swap(x, y);
-        y = this->height_ - y - 1;
-        break;
-    }
-  }
+  void rotate_(int &x, int &y) const { rotate_point(x, y, this->width_, this->height_, this->rotation_); }
   void mark_dirty_(int x_start, int y_start, int w, int h);
   void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void setup_enables_();
@@ -133,6 +118,7 @@ class MipiRgb : public display::Display {
   uint16_t y_high_{0};
 
   esp_lcd_panel_handle_t handle_{};
+  uint16_t *fb_{nullptr};
 };
 
 #ifdef USE_SPI

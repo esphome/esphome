@@ -24,8 +24,7 @@ void CH423Component::setup() {
     success = this->read_inputs_();
   }
   if (!success) {
-    ESP_LOGE(TAG, "CH423 not detected");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("CH423 not detected"));
     return;
   }
 
@@ -38,12 +37,7 @@ void CH423Component::loop() {
   this->pin_read_flags_ = 0x00;
 }
 
-void CH423Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "CH423:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
-}
+void CH423Component::dump_config() { ESP_LOGCONFIG(TAG, "CH423:"); }
 
 void CH423Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (pin < 8) {
