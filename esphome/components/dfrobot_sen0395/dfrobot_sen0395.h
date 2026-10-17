@@ -15,7 +15,7 @@
 
 namespace esphome::dfrobot_sen0395 {
 
-static constexpr uint8_t MMWAVE_READ_BUFFER_LENGTH = 253;
+static constexpr uint8_t MMWAVE_READ_BUFFER_LENGTH = 253;  // largest LineReader size with a one byte position
 static constexpr uint8_t COMMAND_QUEUE_SIZE = 20;
 
 // Keep in sync with the BusyActions table in dfrobot_sen0395.cpp

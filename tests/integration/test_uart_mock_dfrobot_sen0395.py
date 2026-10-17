@@ -7,9 +7,16 @@ reset command, which the module answers only with its "leapMMW:/>" prompt (no li
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
 
-from aioesphomeapi import BinarySensorInfo, ButtonInfo, EntityState, SwitchInfo
+from aioesphomeapi import (
+    BinarySensorInfo,
+    ButtonInfo,
+    EntityInfo,
+    EntityState,
+    SwitchInfo,
+)
 import pytest
 
 from .state_utils import require_entity
@@ -42,7 +49,7 @@ async def test_uart_mock_dfrobot_sen0395(
 
     states: dict[int, EntityState] = {}
 
-    async def wait_for(condition, what: str) -> None:
+    async def wait_for(condition: Callable[[], bool], what: str) -> None:
         try:
             async with asyncio.timeout(10.0):
                 while not condition():
@@ -63,7 +70,7 @@ async def test_uart_mock_dfrobot_sen0395(
 
         client.subscribe_states(lambda state: states.__setitem__(state.key, state))
 
-        def state_of(entity):
+        def state_of(entity: EntityInfo) -> object | None:
             state = states.get(entity.key)
             return None if state is None or state.missing_state else state.state
 
