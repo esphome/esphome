@@ -308,7 +308,7 @@ void BME68xBSEC2Component::run_() {
   }
 
   // schedule next run
-  int64_t delay_ns = this->bsec_settings_.next_call - curr_time_ns;
+  int64_t delay_ns = this->bsec_settings_.next_call - this->get_time_ns_();
   uint32_t delay_ms = delay_ns > 0 ? static_cast<uint32_t>((delay_ns + 999999) / 1000000) : 1;
   ESP_LOGV(TAG, "Next run in: %" PRIu32 "ms", delay_ms);
   this->set_timeout(RUN_TIMEOUT_ID, delay_ms, [this]() { this->run_(); });
