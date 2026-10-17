@@ -15,10 +15,7 @@ DEPENDENCIES = ["sun"]
 
 SunSensor = sun_ns.class_("SunSensor", sensor.Sensor, cg.PollingComponent)
 SensorType = sun_ns.enum("SensorType")
-TYPES = {
-    "elevation": SensorType.SUN_SENSOR_ELEVATION,
-    "azimuth": SensorType.SUN_SENSOR_AZIMUTH,
-}
+TYPES = SensorType.options("elevation", "azimuth", prefix="SUN_SENSOR_")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(

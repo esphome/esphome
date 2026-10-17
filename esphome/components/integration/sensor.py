@@ -28,11 +28,9 @@ INTEGRATION_TIMES = {
     "d": IntegrationSensorTime.INTEGRATION_SENSOR_TIME_DAY,
 }
 IntegrationMethod = integration_ns.enum("IntegrationMethod")
-INTEGRATION_METHODS = {
-    "trapezoid": IntegrationMethod.INTEGRATION_METHOD_TRAPEZOID,
-    "left": IntegrationMethod.INTEGRATION_METHOD_LEFT,
-    "right": IntegrationMethod.INTEGRATION_METHOD_RIGHT,
-}
+INTEGRATION_METHODS = IntegrationMethod.options(
+    "trapezoid", "left", "right", prefix="INTEGRATION_METHOD_"
+)
 
 CONF_TIME_UNIT = "time_unit"
 CONF_INTEGRATION_METHOD = "integration_method"

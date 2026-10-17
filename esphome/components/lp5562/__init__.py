@@ -9,6 +9,8 @@ DEPENDENCIES = ["i2c"]
 DOMAIN = "lp5562"
 MULTI_CONF = True
 
+CONF_LOGARITHMIC_DIMMING = "logarithmic_dimming"
+
 lp5562_ns = cg.esphome_ns.namespace("lp5562")
 LP5562Output = lp5562_ns.class_("LP5562Output", cg.Component, i2c.I2CDevice)
 
@@ -16,6 +18,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LP5562Output),
+            cv.Optional(CONF_LOGARITHMIC_DIMMING, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -27,3 +30,5 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    if config[CONF_LOGARITHMIC_DIMMING]:
+        cg.add(var.set_logarithmic_dimming(True))

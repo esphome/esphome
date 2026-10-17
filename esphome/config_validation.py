@@ -16,6 +16,7 @@ from ipaddress import (
     ip_network,
 )
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -1416,12 +1417,16 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         if match is None:
             raise Invalid(f"Expected {quantity} with unit, got {value}")
 
-        mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
             raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
-        multiplier = METRIC_SUFFIXES[match.group(2)]
-        return mantissa * multiplier
+        # Parse the scaled decimal in one go: "91uA" is then the same float as the
+        # literal 91e-6, which a product of two floats is not always.
+        exponent = round(math.log10(METRIC_SUFFIXES[match.group(2)]))
+        try:
+            return float(f"{match.group(1)}e{exponent}")
+        except ValueError as err:
+            raise Invalid(f"Expected {quantity} with unit, got {value}") from err
 
     return validator
 
