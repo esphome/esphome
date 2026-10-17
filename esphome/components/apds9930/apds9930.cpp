@@ -103,11 +103,9 @@ void APDS9930Component::dump_config() {
 void APDS9930Component::update() {
   // STATUS, CH0DATAL/H, CH1DATAL/H, PDATAL/H
   uint8_t raw[7];
-  if (!this->read_bytes(APDS9930_STATUS | APDS9930_CMD_AUTO_INCREMENT, raw, sizeof(raw))) {
-    this->status_set_warning(LOG_STR("Reading data failed"));
+  if (!this->status_comm_result(this->read_bytes(APDS9930_STATUS | APDS9930_CMD_AUTO_INCREMENT, raw, sizeof(raw)),
+                                LOG_STR("Reading data failed")))
     return;
-  }
-  this->status_clear_warning();
   const uint8_t status = raw[0];
 
   if (this->illuminance_sensor_ != nullptr && (status & APDS9930_AVALID) != 0) {

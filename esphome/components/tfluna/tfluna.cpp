@@ -65,7 +65,7 @@ void TFLuna::setup() {
 
   uint8_t raw_version[3];
   if (!this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version))) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   } else {
     snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
@@ -80,7 +80,7 @@ void TFLuna::setup() {
 bool TFLuna::read_data_() {
   uint8_t buf[8];
   if (!this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   // Layout:
@@ -135,7 +135,7 @@ void TFLuna::update() {
   this->cancel_timeout(READ_RETRY_TIMEOUT_ID);
   this->attempt_ = 0;
   if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->read_data_timeout_();

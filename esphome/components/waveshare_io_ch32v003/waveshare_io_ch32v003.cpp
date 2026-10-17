@@ -56,13 +56,10 @@ uint16_t WaveshareIOCH32V003Component::get_adc_value() {
     return 0;
 
   uint8_t data[2];
-  if (!this->read_bytes(IO_EXTENSION_ADC_ADDR, data, 2)) {
-    this->status_set_warning(LOG_STR("Failed to read ADC register"));
+  if (!this->status_comm_result(this->read_bytes(IO_EXTENSION_ADC_ADDR, data, 2),
+                                LOG_STR("Failed to read ADC register")))
     return 0;
-  }
-  uint16_t adc_value = (data[1] << 8) | data[0];
-  this->status_clear_warning();
-  return adc_value;
+  return (data[1] << 8) | data[0];
 }
 
 uint8_t WaveshareIOCH32V003Component::get_rtc_interrupt_status() {
@@ -70,11 +67,9 @@ uint8_t WaveshareIOCH32V003Component::get_rtc_interrupt_status() {
     return 0;
 
   uint8_t data = 0;
-  if (!this->read_bytes(IO_EXTENSION_RTC_INT_ADDR, &data, 1)) {
-    this->status_set_warning(LOG_STR("Failed to read RTC interrupt register"));
+  if (!this->status_comm_result(this->read_bytes(IO_EXTENSION_RTC_INT_ADDR, &data, 1),
+                                LOG_STR("Failed to read RTC interrupt register")))
     return 0;
-  }
-  this->status_clear_warning();
   return data;
 }
 
@@ -86,34 +81,21 @@ void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
   // based on circuit schematic requirements. This follows the pattern from the
   // original Waveshare IO library function "void IO_EXTENSION_Pwm_Output(uint8_t Value)".
 
-  if (!this->write_byte(IO_EXTENSION_PWM_ADDR, value)) {
-    this->status_set_warning(LOG_STR("Failed to set PWM duty cycle"));
-    return;
-  }
-
-  this->status_clear_warning();
+  this->status_comm_result(this->write_byte(IO_EXTENSION_PWM_ADDR, value), LOG_STR("Failed to set PWM duty cycle"));
 }
 
 bool WaveshareIOCH32V003Component::write_gpio_modes_() {
   if (this->is_failed())
     return false;
-  if (!this->write_byte(IO_EXTENSION_DIRECTION, this->mode_mask_)) {
-    this->status_set_warning(LOG_STR("Failed to write mode register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_byte(IO_EXTENSION_DIRECTION, this->mode_mask_),
+                                  LOG_STR("Failed to write mode register"));
 }
 
 bool WaveshareIOCH32V003Component::write_gpio_outputs_() {
   if (this->is_failed())
     return false;
-  if (!this->write_byte(IO_EXTENSION_IO_OUTPUT_ADDR, this->output_mask_)) {
-    this->status_set_warning(LOG_STR("Failed to write output register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_byte(IO_EXTENSION_IO_OUTPUT_ADDR, this->output_mask_),
+                                  LOG_STR("Failed to write output register"));
 }
 
 bool WaveshareIOCH32V003Component::digital_read_hw(uint8_t pin) {
@@ -121,13 +103,10 @@ bool WaveshareIOCH32V003Component::digital_read_hw(uint8_t pin) {
     return false;
 
   uint8_t data = 0;
-  if (!this->read_bytes(IO_EXTENSION_IO_INPUT_ADDR, &data, 1)) {
-    this->status_set_warning(LOG_STR("Failed to read input register"));
+  if (!this->status_comm_result(this->read_bytes(IO_EXTENSION_IO_INPUT_ADDR, &data, 1),
+                                LOG_STR("Failed to read input register")))
     return false;
-  }
   this->input_mask_ = data;
-
-  this->status_clear_warning();
   return true;
 }
 
@@ -142,12 +121,8 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
   }
 
   uint8_t data = this->output_mask_;
-  if (!this->write_byte(IO_EXTENSION_IO_OUTPUT_ADDR, data)) {
-    this->status_set_warning(LOG_STR("Failed to write output register"));
-    return;
-  }
-
-  this->status_clear_warning();
+  this->status_comm_result(this->write_byte(IO_EXTENSION_IO_OUTPUT_ADDR, data),
+                           LOG_STR("Failed to write output register"));
 }
 
 bool WaveshareIOCH32V003Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }

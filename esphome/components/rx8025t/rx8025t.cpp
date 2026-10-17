@@ -115,11 +115,7 @@ void RX8025TComponent::write_time() {
     return;
   }
   flags &= ~(RX8025T_FLAG_VLF | RX8025T_FLAG_VDET);
-  if (!this->write_byte(RX8025T_REG_FLAG, flags)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
-  this->status_clear_warning();
+  this->status_comm_result(this->write_byte(RX8025T_REG_FLAG, flags));
 }
 
 }  // namespace esphome::rx8025t
