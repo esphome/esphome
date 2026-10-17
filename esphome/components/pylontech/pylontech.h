@@ -6,7 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/uart/line_reader.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::pylontech {
@@ -68,7 +68,7 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   }
 
   // The longest line, the newer firmware header, is 182 characters
-  uart::LineReader<200> line_reader_;
+  LineReader<200> line_reader_;
   StaticVector<PylontechListener *, PYLONTECH_LISTENER_COUNT> listeners_;
   // One slot per listened battery, in battery order; parsed while the UART drains, published one per
   // loop once it is idle. A newer line for a battery replaces the unpublished one.
