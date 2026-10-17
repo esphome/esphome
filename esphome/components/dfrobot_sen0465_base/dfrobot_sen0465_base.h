@@ -65,6 +65,8 @@ class DFRobotSEN0465Component : public PollingComponent {
 
   void handle_response_(const uint8_t *frame);
   void handle_no_response_();
+  /// Publish unknown on both sensors and set the warning when a reading cannot be used
+  void fail_reading_();
 
   /// Sends the request of the current step.
   bool send_step_request_();

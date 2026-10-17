@@ -31,10 +31,8 @@ static constexpr uint8_t MAX_ATTEMPTS = 3;
 
 // Like FucCheckSum() in the DFRobot library, the checksum covers bytes 1 to 6 only, not byte 7
 static uint8_t frame_checksum(const uint8_t *frame) {
-  uint8_t sum = 0;
-  for (uint8_t i = 1; i < FRAME_SIZE - 2; i++)
-    sum += frame[i];
-  return static_cast<uint8_t>(~sum + 1);
+  // Two's complement of the byte sum between the head and the checksum
+  return static_cast<uint8_t>(~sum16_bytes(frame + 1, FRAME_SIZE - 3) + 1);
 }
 
 static const LogString *step_name(SetupStep step) {
@@ -153,6 +151,15 @@ void DFRobotSEN0465Component::handle_no_response_() {
     return;
   }
   ESP_LOGW(TAG, "No response from the sensor");
+  this->fail_reading_();
+}
+
+void DFRobotSEN0465Component::fail_reading_() {
+  // A frozen gas reading would hide a rising concentration, so the entities go unknown
+  if (this->concentration_sensor_ != nullptr)
+    this->concentration_sensor_->publish_state(NAN);
+  if (this->temperature_sensor_ != nullptr)
+    this->temperature_sensor_->publish_state(NAN);
   this->status_set_warning();
 }
 
@@ -160,19 +167,19 @@ void DFRobotSEN0465Component::handle_response_(const uint8_t *frame) {
   // Reject a late answer to an earlier request or a reading sent before passive mode was set
   const bool expected = frame[0] == FRAME_HEAD && frame[1] == this->pending_command_;
   this->pending_command_ = NO_COMMAND;
-  char hex[format_hex_pretty_size(FRAME_SIZE)];
 
   if (this->step_ == SetupStep::SETUP_STEP_DONE) {
     if (!expected) {
+      char hex[format_hex_pretty_size(FRAME_SIZE)];
       ESP_LOGW(TAG, "Unexpected response: %s", format_hex_pretty_to(hex, frame, FRAME_SIZE));
-      this->status_set_warning();
+      this->fail_reading_();
       return;
     }
     this->handle_data_(frame);
     return;
   }
 
-  ESP_LOGD(TAG, "%s response: %s", LOG_STR_ARG(step_name(this->step_)), format_hex_pretty_to(hex, frame, FRAME_SIZE));
+  ESP_LOGD_HEX(TAG, frame, FRAME_SIZE, FRAME_SIZE, "%s response: %s", LOG_STR_ARG(step_name(this->step_)));
   if (!expected) {
     this->step_failed_(LOG_STR("unexpected response"));
     return;
@@ -194,7 +201,7 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
   if (frame[FRAME_SIZE - 1] != frame_checksum(frame)) {
     char hex[format_hex_pretty_size(FRAME_SIZE)];
     ESP_LOGW(TAG, "Invalid checksum: %s", format_hex_pretty_to(hex, frame, FRAME_SIZE));
-    this->status_set_warning();
+    this->fail_reading_();
     return;
   }
 
@@ -215,6 +222,8 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
   if (frame[4] != this->gas_type_) {
     ESP_LOGW(TAG, "Probe reports gas type 0x%02X, expected %s (0x%02X); check the configured model", frame[4],
              this->gas_name_, this->gas_type_);
+    if (this->concentration_sensor_ != nullptr)
+      this->concentration_sensor_->publish_state(NAN);
     this->status_set_warning();
     return;
   }
@@ -231,6 +240,8 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
       break;
     default:
       ESP_LOGW(TAG, "Invalid number of decimal places: %u", frame[5]);
+      if (this->concentration_sensor_ != nullptr)
+        this->concentration_sensor_->publish_state(NAN);
       this->status_set_warning();
       return;
   }
