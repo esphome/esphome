@@ -1,5 +1,7 @@
 #include "ld600x_frame.h"
 
+#include "esphome/core/helpers.h"
+
 #include <cstring>
 
 namespace esphome::ld600x {
@@ -150,30 +152,21 @@ bool FrameParser::feed(uint8_t byte) {
 }
 
 size_t encode_frame(uint16_t frame_id, uint16_t type, const uint8_t *data, uint8_t len, uint8_t *out) {
-  size_t pos = 0;
-  uint8_t header_xor = 0;
-  auto write_header = [&](uint8_t b) {
-    out[pos++] = b;
-    header_xor ^= b;
-  };
-
-  write_header(TF_SOF);
-  write_header((frame_id >> 8) & 0xFF);
-  write_header(frame_id & 0xFF);
-  write_header((len >> 8) & 0xFF);
-  write_header(len & 0xFF);
-  write_header((type >> 8) & 0xFF);
-  write_header(type & 0xFF);
-
-  out[pos++] = static_cast<uint8_t>(~header_xor);
-
+  out[0] = TF_SOF;
+  out[1] = frame_id >> 8;
+  out[2] = frame_id & 0xFF;
+  // The length field is 16 bits wide; a command payload never needs the high byte.
+  out[3] = 0;
+  out[4] = len;
+  out[5] = type >> 8;
+  out[6] = type & 0xFF;
+  // TinyFrame checksums are the inverted XOR of the bytes they cover, SOF included for the header.
+  out[TF_HEADER_LEN + 1] = static_cast<uint8_t>(~xor_bytes(out, TF_HEADER_LEN + 1));
+  size_t pos = TF_HEADER_LEN + 2;
   if (len > 0 && data != nullptr) {
-    uint8_t data_xor = 0;
-    for (uint8_t i = 0; i < len; i++) {
-      out[pos++] = data[i];
-      data_xor ^= data[i];
-    }
-    out[pos++] = static_cast<uint8_t>(~data_xor);
+    std::memcpy(out + pos, data, len);
+    pos += len;
+    out[pos++] = static_cast<uint8_t>(~xor_bytes(data, len));
   }
   return pos;
 }

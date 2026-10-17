@@ -7,5 +7,6 @@ another report format) and gets its own component, so it does not build on this 
 import esphome.codegen as cg
 
 CODEOWNERS = ["@hepter", "@wolph"]
+DOMAIN = "ld600x"
 
 ld600x_ns = cg.esphome_ns.namespace("ld600x")
