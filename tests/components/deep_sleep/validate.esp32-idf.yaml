@@ -7,6 +7,7 @@ substitutions:
 # wakeup_pin_mode is hoisted to the top level by validate_config so it
 # actually takes effect rather than being silently dropped.
 deep_sleep:
+  id: deep_sleep_1
   run_duration: 10s
   sleep_duration: 50s
   wakeup_pin:

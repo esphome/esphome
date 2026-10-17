@@ -14,7 +14,7 @@
 
 namespace esphome::ethernet {
 
-static const char *const TAG = "ethernet";
+ESPHOME_LOG_TAG(TAG, "ethernet");
 
 void EthernetComponent::setup() {
   // Configure SPI pins
@@ -247,11 +247,6 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   } else {
     memset(mac, 0, MAC_ADDRESS_SIZE);
   }
-}
-
-std::string EthernetComponent::get_eth_mac_address_pretty() {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return std::string(this->get_eth_mac_address_pretty_into_buffer(buf));
 }
 
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(

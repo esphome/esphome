@@ -8,17 +8,15 @@ from esphome.components.const import (
 )
 from esphome.components.motion import motion_schema, new_motion_component
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from . import QMI8658Component, qmi8658_ns
 
 #  Enum proxies (must match the C++ enum values exactly)
 QMI8658AccelRange = qmi8658_ns.enum("QMI8658AccelRange")
-ACCEL_RANGE_OPTIONS = {
-    "2G": QMI8658AccelRange.QMI8658_ACCEL_RANGE_2G,
-    "4G": QMI8658AccelRange.QMI8658_ACCEL_RANGE_4G,
-    "8G": QMI8658AccelRange.QMI8658_ACCEL_RANGE_8G,
-    "16G": QMI8658AccelRange.QMI8658_ACCEL_RANGE_16G,
-}
+ACCEL_RANGE_OPTIONS = QMI8658AccelRange.options(
+    "2G", "4G", "8G", "16G", prefix="QMI8658_ACCEL_RANGE_"
+)
 
 QMI8658GyroRange = qmi8658_ns.enum("QMI8658GyroRange")
 GYRO_RANGE_OPTIONS = {
@@ -82,7 +80,7 @@ CONFIG_SCHEMA = (
 
 
 #  Code generation
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await new_motion_component(config)
     await i2c.register_i2c_device(var, config)
 

@@ -4,7 +4,7 @@
 
 namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann_hcp.light";
+ESPHOME_LOG_TAG(TAG, "hoermann_hcp.light");
 
 light::LightTraits HoermannHcpLight::get_traits() {
   auto traits = light::LightTraits();
@@ -37,15 +37,10 @@ void HoermannHcpLight::write_state(light::LightState *state) {
   if (restored) {
     ESP_LOGD(TAG, "Ignoring the restored state, the door decides what the lamp is doing");
   } else if (published != binary) {
-    if (!this->parent_->is_light_known()) {
-      // Commanding a lamp that has not been read could switch off one that is already on.
-      ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
-    } else if (this->parent_->cancel_light_toggle() || this->parent_->toggle_light()) {
-      // A toggle the controller has not fetched is withdrawn outright rather than fought with a second one.
+    // Refused until the door has reported the lamp, as commanding an unread one could switch off a lit lamp.
+    if (this->parent_->set_light(binary))
       return;
-    } else {
-      ESP_LOGW(TAG, "Light command was not accepted by the door");
-    }
+    ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
   }
   // Nothing was sent, so the entity has to go back to showing the lamp rather than the request.
   this->publish_lamp_state_(heading_on);

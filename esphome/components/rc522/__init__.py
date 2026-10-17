@@ -13,6 +13,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
 AUTO_LOAD = ["binary_sensor"]
+DOMAIN = "rc522"
 
 CONF_RC522_ID = "rc522_id"
 

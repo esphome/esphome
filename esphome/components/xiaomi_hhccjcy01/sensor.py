@@ -21,6 +21,7 @@ from esphome.const import (
     UNIT_MICROSIEMENS_PER_CENTIMETER,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
@@ -73,25 +74,16 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_MOISTURE in config:
-        sens = await sensor.new_sensor(config[CONF_MOISTURE])
-        cg.add(var.set_moisture(sens))
-    if CONF_ILLUMINANCE in config:
-        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
-        cg.add(var.set_illuminance(sens))
-    if CONF_CONDUCTIVITY in config:
-        sens = await sensor.new_sensor(config[CONF_CONDUCTIVITY])
-        cg.add(var.set_conductivity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_MOISTURE, var.set_moisture)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
+    await sensors(CONF_CONDUCTIVITY, var.set_conductivity)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)

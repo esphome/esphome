@@ -2,12 +2,12 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if (defined(USE_LIBRETINY) && !defined(USE_RTL87XX)) || defined(USE_ESP8266) || defined(USE_RP2) || \
-    (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if (defined(USE_LIBRETINY) && !defined(USE_RTL87XX) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || \
+    defined(USE_ESP8266) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 
 namespace esphome::remote_transmitter {
 
-static const char *const TAG = "remote_transmitter";
+ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 
 void RemoteTransmitterComponent::setup() {
   this->pin_->setup();
@@ -114,7 +114,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
       }
     }
   }
-  this->complete_trigger_.trigger();
+  this->fire_complete_(send_times != 0);  // same answer as the ISR backend for a frame sent zero times
 }
 
 }  // namespace esphome::remote_transmitter
