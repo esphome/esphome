@@ -8,42 +8,37 @@ namespace esphome::light {
 ESPHOME_LOG_TAG(TAG, "light.addressable");
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
-float AddressableLight::get_estimated_current_ma() { return this->estimated_ma_; }
+float AddressableLightState::get_estimated_current_ma() {
+  return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
+}
 
-void AddressableLight::apply_power_limit_() {
-  // Read-only: sum the actual hardware values currently in the buffer (already scaled by the
-  // active power_scale_ via the color correction). This is the real draw, cached for
-  // get_estimated_current_ma().
-  float estimated = 0.0f;
-  for (int i = 0; i < this->size(); i++) {
-    auto view = this->get(i);
-    estimated += (view.get_red_raw() / 255.0f) * this->ma_per_led_red_;
-    estimated += (view.get_green_raw() / 255.0f) * this->ma_per_led_green_;
-    estimated += (view.get_blue_raw() / 255.0f) * this->ma_per_led_blue_;
-    estimated += (view.get_white_raw() / 255.0f) * this->ma_per_led_white_;
-    estimated += this->idle_ma_per_led_;
+// sums are the raw channel totals of a frame as the hardware sees it, so they already carry the
+// limit in force; the limit for the next frame is set from the draw the frame asked for
+void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
+  const float idle_ma = this->size() * this->idle_ma_per_led_;
+  float pixel_ma = 0.0f;
+  for (size_t channel = 0; channel < 4; channel++) {
+    pixel_ma += sums[channel] * this->ma_per_level_[channel];
   }
-  this->estimated_ma_ = estimated;
-
+  this->estimated_ma_ = idle_ma + pixel_ma;
   if (this->max_current_ma_ <= 0.0f)
     return;
+  const float intended_ma = pixel_ma * 255.0f / this->correction_.get_power_brightness();
+  const float budget_ma = this->max_current_ma_ - idle_ma;
+  // Never 0: that would black the strip out and the next frame's estimate would swing back to full
+  const uint8_t scale =
+      intended_ma > budget_ma ? static_cast<uint8_t>(std::max(budget_ma / intended_ma * 255.0f, 1.0f)) : 255;
+  this->correction_.set_power_brightness(scale);
+}
 
-  // Recover the unscaled draw (the buffer already includes power_scale_) so the new scale is
-  // computed against the intended draw and stays stable. Only the pixel-driven part scales with
-  // power_scale_; the idle draw is constant, so the scale divides the budget left after the idle
-  // draw among the pixels. The scale is applied non-destructively through the color correction,
-  // which dims every future write (static, transitions, effects) and is inverted on read-back, so
-  // effect buffers never compound.
-  float idle_total = this->size() * this->idle_ma_per_led_;
-  float pixel_ma = estimated - idle_total;
-  float pixel_intended = (this->power_scale_ > 0) ? pixel_ma * 255.0f / this->power_scale_ : pixel_ma;
-  float pixel_budget = this->max_current_ma_ - idle_total;
-  // Clamp to at least 1 so a budget at or below the idle draw can't drive the scale to 0, which
-  // would black out the strip and make the next frame's estimate oscillate back to full brightness.
-  this->power_scale_ = (pixel_intended > pixel_budget)
-                           ? static_cast<uint8_t>(std::max((pixel_budget / pixel_intended) * 255.0f, 1.0f))
-                           : uint8_t(255);
-  this->correction_.set_power_brightness(this->power_scale_);
+// A static frame is one color on every pixel, so its draw is known before it is written
+void AddressableLight::limit_power_for_(const Color &color) {
+  this->correction_.set_power_brightness(255);
+  const Color hardware = this->correction_.color_correct(color);
+  const uint32_t count = this->size();
+  const uint32_t sums[4] = {count * hardware.red, count * hardware.green, count * hardware.blue,
+                            count * hardware.white};
+  this->apply_power_limit_(sums);
 }
 #endif
 
@@ -85,20 +80,12 @@ void AddressableLight::update_state(LightState *state) {
     return;
 
   // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
-  this->all() = color_from_light_color_values(val);
+  const Color color = color_from_light_color_values(val);
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  // A static frame is written once, before schedule_show() knows this frame's power scale. If the
-  // scale changes, re-render once so the new limit is applied to the buffer now. Continuous updates
-  // (effects, transitions) pick up the new scale on their next frame and don't need this.
-  uint8_t prev_scale = this->power_scale_;
-  this->schedule_show();
-  if (this->power_scale_ != prev_scale) {
-    this->all() = color_from_light_color_values(val);
-    this->schedule_show();
-  }
-#else
-  this->schedule_show();
+  this->limit_power_for_(color);
 #endif
+  this->all() = color;
+  this->schedule_show();
 }
 
 void AddressableLightTransformer::start() {

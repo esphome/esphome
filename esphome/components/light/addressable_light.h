@@ -26,6 +26,7 @@ class AddressableLightState final : public LightState {
 
  public:
 #ifdef USE_LIGHT_POWER_ESTIMATION
+  // The output's estimate, so a lambda can read it from the light's id
   float get_estimated_current_ma();
 #endif
 };
@@ -71,16 +72,19 @@ class AddressableLight : public LightOutput, public Component {
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  void set_power_estimation(float ma_per_led_red, float ma_per_led_green, float ma_per_led_blue, float ma_per_led_white,
-                            float idle_ma_per_led) {
-    this->ma_per_led_red_ = ma_per_led_red;
-    this->ma_per_led_green_ = ma_per_led_green;
-    this->ma_per_led_blue_ = ma_per_led_blue;
-    this->ma_per_led_white_ = ma_per_led_white;
+  // The draw of a pixel at full level per channel, its idle draw, and the budget (0 for no limit)
+  void set_power_estimation(float ma_red, float ma_green, float ma_blue, float ma_white, float idle_ma_per_led,
+                            float max_current_ma) {
+    // Stored per raw level, so a frame's draw is the raw channel sums times these
+    this->ma_per_level_[0] = ma_red / 255.0f;
+    this->ma_per_level_[1] = ma_green / 255.0f;
+    this->ma_per_level_[2] = ma_blue / 255.0f;
+    this->ma_per_level_[3] = ma_white / 255.0f;
     this->idle_ma_per_led_ = idle_ma_per_led;
+    this->max_current_ma_ = max_current_ma;
   }
-  void set_max_current_ma(float max_current_ma) { this->max_current_ma_ = max_current_ma; }
-  float get_estimated_current_ma();
+  // The draw of the last frame sent
+  float get_estimated_current_ma() const { return this->estimated_ma_; }
 #endif
   void setup_state(LightState *state) override {
 #ifdef USE_LIGHT_GAMMA_LUT
@@ -89,12 +93,7 @@ class AddressableLight : public LightOutput, public Component {
     this->state_parent_ = state;
   }
   void update_state(LightState *state) override;
-  void schedule_show() {
-#ifdef USE_LIGHT_POWER_ESTIMATION
-    this->apply_power_limit_();
-#endif
-    this->state_parent_->schedule_write_();
-  }
+  void schedule_show() { this->state_parent_->schedule_write_(); }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
@@ -105,8 +104,25 @@ class AddressableLight : public LightOutput, public Component {
  protected:
   friend class AddressableLightTransformer;
 
+  // Called by the driver once per frame it sends
   void mark_shown_() {
+#ifdef USE_LIGHT_POWER_ESTIMATION
+    uint32_t sums[4] = {};
+    for (const auto &c : *this) {
+      sums[0] += c.get_red_raw();
+      sums[1] += c.get_green_raw();
+      sums[2] += c.get_blue_raw();
+      sums[3] += c.get_white_raw();
+    }
+    this->apply_power_limit_(sums);
 #ifdef USE_POWER_SUPPLY
+    if ((sums[0] | sums[1] | sums[2] | sums[3]) != 0) {
+      this->power_.request();
+    } else {
+      this->power_.unrequest();
+    }
+#endif
+#elif defined(USE_POWER_SUPPLY)
     for (const auto &c : *this) {
       if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
         this->power_.request();
@@ -119,33 +135,23 @@ class AddressableLight : public LightOutput, public Component {
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  void apply_power_limit_();
+  void apply_power_limit_(const uint32_t sums[4]);
+  void limit_power_for_(const Color &color);
 #endif
 
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  float ma_per_led_red_{20.0f};
-  float ma_per_led_green_{20.0f};
-  float ma_per_led_blue_{20.0f};
-  float ma_per_led_white_{20.0f};
-  float idle_ma_per_led_{1.0f};
-  float max_current_ma_{0.0f};  // 0 = disabled
-  float estimated_ma_{0.0f};
-  uint8_t power_scale_{255};  // 255 = no reduction; fed into the color correction each frame
+  float ma_per_level_[4]{};
+  float idle_ma_per_led_{};
+  float max_current_ma_{};
+  float estimated_ma_{};
 #endif
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
   bool effect_active_{false};
 };
-
-#ifdef USE_LIGHT_POWER_ESTIMATION
-// Defined here (after AddressableLight is complete) to avoid incomplete-type cast error.
-inline float AddressableLightState::get_estimated_current_ma() {
-  return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
-}
-#endif
 
 class AddressableLightTransformer : public LightTransformer {
  public:

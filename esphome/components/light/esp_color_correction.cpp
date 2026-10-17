@@ -36,12 +36,14 @@ uint8_t ESPColorCorrection::color_uncorrect_channel_(uint8_t value, uint8_t max_
   if (max_brightness == 0 || this->local_brightness_ == 0)
     return 0;
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  if (this->power_brightness_ == 0)
-    return 0;
-  // Undo the post-gamma power-limit factor before reverse gamma, so effect read-modify-write
-  // recovers the logical value and the dimming never compounds across frames.
-  uint32_t unscaled = (static_cast<uint32_t>(value) * 255UL) / this->power_brightness_;
-  value = static_cast<uint8_t>(std::min(unscaled, uint32_t(255)));
+  // The limit is undone on read-back, so an effect that reads, changes and writes a pixel sees the
+  // level it asked for and the dimming does not compound from frame to frame
+  if (this->power_brightness_ != 255) {
+    if (this->power_brightness_ == 0)
+      return 0;
+    uint32_t unscaled = (static_cast<uint32_t>(value) * 255UL) / this->power_brightness_;
+    value = static_cast<uint8_t>(std::min(unscaled, uint32_t(255)));
+  }
 #endif
   // Use 32-bit intermediates: when max_brightness and local_brightness_ are small but non-zero,
   // (uncorrected / max_brightness) * 255 can exceed 65535 before the std::min(255) clamp runs.
