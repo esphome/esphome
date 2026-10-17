@@ -4,7 +4,7 @@
 
 namespace esphome::st7567_base {
 
-static const char *const TAG = "st7567";
+ESPHOME_LOG_TAG(TAG, "st7567");
 
 void ST7567::setup() {
   this->init_internal_(this->get_buffer_length_());

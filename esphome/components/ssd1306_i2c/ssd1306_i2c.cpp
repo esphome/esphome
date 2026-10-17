@@ -3,7 +3,7 @@
 
 namespace esphome::ssd1306_i2c {
 
-static const char *const TAG = "ssd1306_i2c";
+ESPHOME_LOG_TAG(TAG, "ssd1306_i2c");
 
 void I2CSSD1306::setup() {
   this->init_reset_();

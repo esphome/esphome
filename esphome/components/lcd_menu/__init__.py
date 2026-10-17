@@ -11,6 +11,7 @@ from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@numo68"]
+DOMAIN = "lcd_menu"
 
 AUTO_LOAD = ["display_menu_base"]
 

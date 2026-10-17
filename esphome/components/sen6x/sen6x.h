@@ -80,6 +80,10 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(uint16_t pressure_hpa) { this->ambient_pressure_ = pressure_hpa; }
   void set_ambient_pressure_source(sensor::Sensor *pressure) { this->ambient_pressure_source_ = pressure; }
+  void start_measurement();
+  void stop_measurement();
+  void start_fan_cleaning();
+  void activate_sht_heater();
 
  protected:
   Sen6xType infer_type_from_product_name_(const std::string &product_name);
@@ -91,6 +95,9 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
   bool write_temperature_acceleration_(const TemperatureAcceleration &acceleration);
   bool update_ambient_pressure_compensation_(float pressure_hpa);
+  bool command_blocked_() const;
+  void set_command_wait_(uint32_t wait_ms);
+  void on_measurement_started_();
   void poll_data_ready_();
   void read_measurements_();
   void parse_and_publish_measurements_();
@@ -108,6 +115,11 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   optional<uint16_t> ambient_pressure_;
   // Last pressure written to the device, used to skip redundant writes
   optional<uint16_t> last_ambient_pressure_;
+  // Post-command wait windows, stored as start time plus duration so elapsed-time checks survive millis() wrap
+  uint32_t command_started_at_{0};
+  uint32_t command_wait_{0};
+  uint32_t co2_started_at_{0};
+  uint32_t co2_wait_{0};
   uint16_t read_cmd_{0};
   optional<bool> co2_asc_;
   uint8_t setup_step_index_{0};
@@ -117,6 +129,7 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   uint8_t read_words_{0};
   bool initialized_{false};
   bool pressure_range_warned_{false};
+  bool measuring_{false};
   bool startup_complete_{false};
 };
 

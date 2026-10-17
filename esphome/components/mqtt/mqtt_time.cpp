@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.datetime.time";
+ESPHOME_LOG_TAG(TAG, "mqtt.datetime.time");
 
 using namespace esphome::datetime;
 

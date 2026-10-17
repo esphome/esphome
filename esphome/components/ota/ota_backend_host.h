@@ -19,9 +19,10 @@ class HostOTABackend final {
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
   void abort();
-  bool supports_compression() { return false; }
+  static constexpr bool supports_compression() { return false; }
 
  protected:
+  UpdateLock lock_;
   md5::MD5Digest md5_{};
   std::string staging_path_;
   std::string final_path_;

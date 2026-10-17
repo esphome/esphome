@@ -7,6 +7,7 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "esp32_rmt"
 
 VARIANTS_NO_RMT = {esp32.VARIANT_ESP32C2, esp32.VARIANT_ESP32C61}
 

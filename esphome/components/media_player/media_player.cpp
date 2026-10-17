@@ -6,7 +6,7 @@
 
 namespace esphome::media_player {
 
-static const char *const TAG = "media_player";
+ESPHOME_LOG_TAG(TAG, "media_player");
 
 const char *media_player_state_to_string(MediaPlayerState state) {
   switch (state) {

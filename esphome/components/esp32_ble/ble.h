@@ -102,8 +102,8 @@ class ESP32BLE final : public Component {
   }
   uint32_t get_advertising_cycle_time() const { return this->advertising_cycle_time_; }
 
-  void enable();
-  void disable();
+  void enable() { this->request_state_(true); }
+  void disable() { this->request_state_(false); }
   ESPHOME_ALWAYS_INLINE bool is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
   void setup() override;
   void loop() override;
@@ -176,7 +176,15 @@ class ESP32BLE final : public Component {
 
   bool ble_setup_();
   bool ble_dismantle_();
-  bool ble_pre_setup_();
+  void request_state_(bool enable);
+  // Drop what the old stack queued; the next stack reuses the same interface ids.
+  void drain_ble_events_() {
+    BLEEvent *ble_event;
+    while ((ble_event = this->ble_events_.pop()) != nullptr) {
+      this->ble_event_pool_.release(ble_event);
+    }
+    this->ble_events_.get_and_reset_dropped_count();
+  }
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
 #endif
@@ -226,14 +234,14 @@ class ESP32BLE final : public Component {
 #ifdef USE_ESP32_BLE_ADVERTISING
   BLEAdvertising *advertising_{};  // 4 bytes (pointer)
 #endif
-  const char *name_{nullptr};                 // 4 bytes (pointer to string literal in flash)
-  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
-  uint32_t advertising_cycle_time_{};         // 4 bytes
+  const char *name_{nullptr};          // 4 bytes (pointer to string literal in flash)
+  uint32_t advertising_cycle_time_{};  // 4 bytes
 
   // 2-byte aligned members
   uint16_t appearance_{0};  // 2 bytes
 
   // 1-byte aligned members (grouped together to minimize padding)
+  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};          // 1 byte (uint8_t typedef)
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
   bool enable_on_boot_{};                             // 1 byte
 #ifdef USE_ESP32_BLE_ADVERTISING
@@ -250,27 +258,6 @@ class ESP32BLE final : public Component {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
-
-template<typename... Ts> class BLEEnabledCondition final : public Condition<Ts...> {
- public:
-  bool check(const Ts &...x) override { return global_ble != nullptr && global_ble->is_active(); }
-};
-
-template<typename... Ts> class BLEEnableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override {
-    if (global_ble != nullptr)
-      global_ble->enable();
-  }
-};
-
-template<typename... Ts> class BLEDisableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override {
-    if (global_ble != nullptr)
-      global_ble->disable();
-  }
-};
 
 }  // namespace esphome::esp32_ble
 

@@ -1,0 +1,33 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+remote_transmitter:
+  pin: GPIO4
+  carrier_duty_percent: 100%
+
+button:
+  - platform: template
+    name: Plain word
+    on_press:
+      - remote_transmitter.transmit_keeloq:
+          address: 0x57ffe7b
+          code: 0xd19ef0a9
+  - platform: template
+    name: Constant suffix
+    on_press:
+      - remote_transmitter.transmit_keeloq:
+          address: 0x116ea01
+          code: 0xd19ef0a9
+          suffix: 0x2A
+          suffix_bits: 6
+  - platform: template
+    name: Lambda suffix
+    on_press:
+      - remote_transmitter.transmit_keeloq:
+          address: 0x116ea01
+          code: 0xd19ef0a9
+          suffix: !lambda return 0x2A;
+          suffix_bits: !lambda return 6;

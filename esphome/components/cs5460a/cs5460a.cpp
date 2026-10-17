@@ -1,9 +1,12 @@
 #include "cs5460a.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::cs5460a {
 
-static const char *const TAG = "cs5460a";
+ESPHOME_LOG_TAG(TAG, "cs5460a");
+
+static constexpr uint32_t STATUS_CHECK_TIMEOUT_ID = 0;
 
 void CS5460AComponent::write_register_(enum CS5460ARegister addr, uint32_t value) {
   this->write_byte(CMD_WRITE | (addr << 1));
@@ -146,16 +149,16 @@ void CS5460AComponent::schedule_next_check_() {
      */
     if (time_left > -15000) {
       time_left = 1000;
-      this->status_momentary_warning("warning", 1000);
+      this->status_momentary_warning(1000);
     } else {
       ESP_LOGCONFIG(TAG, "Device officially stuck, resetting");
-      this->cancel_timeout("status-check");
+      this->cancel_timeout(STATUS_CHECK_TIMEOUT_ID);
       this->hw_init_();
       return;
     }
   }
 
-  this->set_timeout("status-check", time_left, [this]() {
+  this->set_timeout(STATUS_CHECK_TIMEOUT_ID, time_left, [this]() {
     if (!this->check_status_())
       this->schedule_next_check_();
   });
@@ -177,67 +180,67 @@ bool CS5460AComponent::check_status_() {
   if (status & (1 << 2)) {
     clear |= 1 << 2;
     ESP_LOGE(TAG, "Low supply detected");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 3)) {
     clear |= 1 << 3;
     ESP_LOGE(TAG, "Modulator oscillation on current channel");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 4)) {
     clear |= 1 << 4;
     ESP_LOGE(TAG, "Modulator oscillation on voltage channel");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 5)) {
     clear |= 1 << 5;
     ESP_LOGE(TAG, "Watch-dog timeout");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 11)) {
     clear |= 1 << 11;
     ESP_LOGE(TAG, "EOUT Energy Accumulation Register out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 12)) {
     clear |= 1 << 12;
     ESP_LOGE(TAG, "Energy out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 13)) {
     clear |= 1 << 13;
     ESP_LOGE(TAG, "RMS voltage out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 14)) {
     clear |= 1 << 14;
     ESP_LOGE(TAG, "RMS current out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 15)) {
     clear |= 1 << 15;
     ESP_LOGE(TAG, "Power calculation out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 16)) {
     clear |= 1 << 16;
     ESP_LOGE(TAG, "Voltage out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 17)) {
     clear |= 1 << 17;
     ESP_LOGE(TAG, "Current out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 19)) {
@@ -302,7 +305,7 @@ bool CS5460AComponent::check_status_() {
       voltage_sensor_->publish_state(raw_voltage * voltage_multiplier_);
 
     if (power_sensor_ != nullptr && raw_energy != prev_raw_energy_) {
-      int32_t raw = (int32_t) (raw_energy << 8) >> 8; /* Sign-extend */
+      int32_t raw = sign_extend<24>(raw_energy);
       power_sensor_->publish_state(raw * power_multiplier_);
       prev_raw_energy_ = raw_energy;
     }

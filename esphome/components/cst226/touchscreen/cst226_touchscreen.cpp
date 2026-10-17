@@ -2,7 +2,7 @@
 
 namespace esphome::cst226 {
 
-static const char *const TAG = "cst226.touchscreen";
+ESPHOME_LOG_TAG(TAG, "cst226.touchscreen");
 
 void CST226Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {

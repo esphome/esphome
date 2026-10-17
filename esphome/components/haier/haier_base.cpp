@@ -12,7 +12,7 @@ using namespace esphome::uart;
 
 namespace esphome::haier {
 
-static const char *const TAG = "haier.climate";
+ESPHOME_LOG_TAG(TAG, "haier.climate");
 constexpr size_t COMMUNICATION_TIMEOUT_MS = 60000;
 constexpr size_t STATUS_REQUEST_INTERVAL_MS = 5000;
 constexpr size_t PROTOCOL_INITIALIZATION_INTERVAL = 10000;
@@ -189,8 +189,6 @@ void HaierClimateBase::set_supported_presets(climate::ClimatePresetMask presets)
   if (!presets.empty())
     this->traits_.add_supported_preset(climate::CLIMATE_PRESET_NONE);
 }
-
-void HaierClimateBase::set_send_wifi(bool send_wifi) { this->send_wifi_signal_ = send_wifi; }
 
 void HaierClimateBase::send_custom_command(const haier_protocol::HaierMessage &message) {
   this->action_request_ = PendingAction({ActionRequest::SEND_CUSTOM_COMMAND, message});
