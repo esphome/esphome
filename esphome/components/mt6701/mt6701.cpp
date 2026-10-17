@@ -10,7 +10,7 @@ void MT6701Component::handle_read_error_() {
   if (this->consecutive_errors_ == MAX_CONSECUTIVE_ERRORS) {
     // The message overload logs once on the transition and is a no-op while
     // the warning is already set.
-    this->status_set_warning("repeated read/CRC errors");
+    this->status_set_warning(LOG_STR("repeated read/CRC errors"));
   }
 }
 
@@ -27,7 +27,9 @@ bool MT6701Component::read_encoder() {
   }
   if (this->consecutive_errors_ != 0) {
     this->consecutive_errors_ = 0;
-    this->status_clear_warning();
+    // A half-configured chip keeps its warning; only the read errors are over
+    if (!this->config_failed_)
+      this->status_clear_warning();
   }
 
   this->count_ = count;

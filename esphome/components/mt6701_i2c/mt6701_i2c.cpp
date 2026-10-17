@@ -3,7 +3,7 @@
 
 namespace esphome::mt6701_i2c {
 
-static const char *const TAG = "mt6701_i2c";
+ESPHOME_LOG_TAG(TAG, "mt6701_i2c");
 
 // Registers touched by apply_config_(), each read-modify-written at most once.
 static const uint8_t CONFIG_REGS[] = {
@@ -154,7 +154,8 @@ void MT6701I2CComponent::apply_config_() {
   }
   if (!ok) {
     // The chip may now be half-configured; surface it instead of just logging.
-    this->status_set_warning("configuration register write failed");
+    this->config_failed_ = true;
+    this->status_set_warning(LOG_STR("configuration register write failed"));
   }
 }
 

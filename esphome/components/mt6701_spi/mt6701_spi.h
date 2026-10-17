@@ -43,9 +43,13 @@ class MT6701SPIComponent final : public mt6701::MT6701Component,
  public:
   void setup() override;
   void dump_config() override;
+  // The status bits are published from the reads this interval drives
+  void set_update_interval(uint32_t update_interval_ms) { this->update_interval_ms_ = update_interval_ms; }
 
  protected:
   bool read_count(uint16_t &count) override;
+
+  uint32_t update_interval_ms_{60000};
 
   // Last raw 4-bit status nibble published; 0xFF means "nothing published yet".
   uint8_t last_status_{0xFF};

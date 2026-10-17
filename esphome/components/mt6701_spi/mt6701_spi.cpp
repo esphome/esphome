@@ -3,7 +3,7 @@
 
 namespace esphome::mt6701_spi {
 
-static const char *const TAG = "mt6701_spi";
+ESPHOME_LOG_TAG(TAG, "mt6701_spi");
 
 // ESPHome's core CRC helpers are 8 and 16 bits wide; the SSI frame uses a 6-bit CRC.
 uint8_t crc6_mt6701(uint32_t data18) {
@@ -37,12 +37,13 @@ void MT6701SPIComponent::setup() {
     return;
   }
   this->setup_complete_ = true;
+  this->set_interval(this->update_interval_ms_, [this]() { this->read_encoder(); });
 }
 
 void MT6701SPIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MT6701 (SSI/SPI):");
   LOG_PIN("  CS Pin: ", this->cs_);
-  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->update_interval_ms_ / 1000.0f);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }

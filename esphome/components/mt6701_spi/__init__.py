@@ -9,6 +9,7 @@ from ..mt6701 import MT6701Component
 CODEOWNERS = ["@slimcdk"]
 AUTO_LOAD = ["mt6701"]
 DEPENDENCIES = ["spi"]
+DOMAIN = "mt6701_spi"
 MULTI_CONF = True
 
 mt6701_spi_ns = cg.esphome_ns.namespace("mt6701_spi")

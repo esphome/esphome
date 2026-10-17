@@ -16,13 +16,11 @@ static const uint8_t MAX_CONSECUTIVE_ERRORS = 5;
 /// Bus-independent core of the MT6701 driver.
 ///
 /// The I2C and SSI/SPI components provide the transport by implementing
-/// read_count(). The hub polls the encoder on its update_interval, and the
-/// sensor platform triggers an extra read whenever it polls so published angles
-/// are always fresh.
-class MT6701Component : public PollingComponent {
+/// read_count(). The sensor platform reads the encoder whenever it polls, so
+/// published angles are always fresh; the SSI/SPI hub polls on its own as well,
+/// since its frames carry the status bits its entities publish.
+class MT6701Component : public Component {
  public:
-  void update() override { this->read_encoder(); }
-
   /// Read a fresh angle from the bus. Returns false on a bus or CRC error (the
   /// cached value is left unchanged), while the bus is suspended (EEPROM
   /// programming in flight), or when the hub failed setup.
@@ -43,6 +41,8 @@ class MT6701Component : public PollingComponent {
 
   uint16_t count_{0};
   uint8_t consecutive_errors_{0};
+  // A configuration write failed in setup; the warning stays until a reboot fixes it
+  bool config_failed_{false};
   // Gates all bus access; set by transports while the bus must stay untouched
   // (the I2C hub uses it during the EEPROM programming window).
   bool suspend_sampling_{false};

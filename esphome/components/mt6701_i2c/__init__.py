@@ -12,6 +12,7 @@ from ..mt6701 import MT6701Component
 CODEOWNERS = ["@slimcdk"]
 AUTO_LOAD = ["mt6701"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "mt6701_i2c"
 MULTI_CONF = True
 
 mt6701_i2c_ns = cg.esphome_ns.namespace("mt6701_i2c")
@@ -155,7 +156,7 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x06))
 )
 
