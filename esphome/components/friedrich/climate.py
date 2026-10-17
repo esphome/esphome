@@ -11,9 +11,7 @@ friedrich_ns = cg.esphome_ns.namespace("friedrich")
 FriedrichClimate = friedrich_ns.class_("FriedrichClimate", climate_ir.ClimateIR)
 
 Model = friedrich_ns.enum("Model", is_class=True)
-MODELS = {
-    "MW12Y3H": Model.MODEL_MW12Y3H,
-}
+MODELS = Model.options("MW12Y3H", prefix="MODEL_")
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(FriedrichClimate).extend(
     {
