@@ -20,6 +20,21 @@ struct GasTuning {
   uint16_t gain_factor;
 };
 
+// Raw values in the device's fixed-point encoding (offset x200, slope x10000)
+struct TemperatureCompensation {
+  int16_t offset;
+  int16_t normalized_offset_slope;
+  uint16_t time_constant;
+};
+
+// Raw values in the device's fixed-point encoding (all x10)
+struct TemperatureAcceleration {
+  uint16_t k;
+  uint16_t p;
+  uint16_t t1;
+  uint16_t t2;
+};
+
 // The CO2 settings a config may leave out: altitude is 0 to 3000 m, pressure 700 to 1200 hPa
 inline constexpr uint16_t ALTITUDE_UNSET = 0xFFFF;
 inline constexpr uint16_t PRESSURE_UNSET = 0;
@@ -62,6 +77,13 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
                                          NOX_STD_INITIAL,
                                          gain_factor};
   }
+  void set_startup_delay(uint32_t delay_ms) { this->startup_delay_ms_ = delay_ms; }
+  void set_temperature_compensation(int16_t offset, int16_t normalized_offset_slope, uint16_t time_constant) {
+    this->temperature_compensation_ = TemperatureCompensation{offset, normalized_offset_slope, time_constant};
+  }
+  void set_temperature_acceleration(uint16_t k, uint16_t p, uint16_t t1, uint16_t t2) {
+    this->temperature_acceleration_ = TemperatureAcceleration{k, p, t1, t2};
+  }
   void set_automatic_self_calibration(bool enabled) { this->co2_asc_ = enabled; }
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(uint16_t pressure_hpa) { this->ambient_pressure_ = pressure_hpa; }
@@ -75,6 +97,8 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   enum SetupStep : uint8_t {
     SETUP_STEP_VOC_TUNING,
     SETUP_STEP_NOX_TUNING,
+    SETUP_STEP_TEMPERATURE_COMPENSATION,
+    SETUP_STEP_TEMPERATURE_ACCELERATION,
     SETUP_STEP_CO2_ASC,
     SETUP_STEP_ALTITUDE,
     SETUP_STEP_AMBIENT_PRESSURE,
@@ -88,6 +112,8 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   bool write_config_words_(uint16_t i2c_command, const uint16_t *data, uint8_t len);
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_setup_register_(uint16_t i2c_command, uint16_t value);
+  bool write_temperature_compensation_(const TemperatureCompensation &compensation);
+  bool write_temperature_acceleration_(const TemperatureAcceleration &acceleration);
   void write_ambient_pressure_(uint16_t pressure_hpa);
   void update_ambient_pressure_compensation_(float pressure_hpa);
   uint32_t command_wait_remaining_() const;
@@ -102,14 +128,17 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   std::string serial_number_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
+  optional<TemperatureAcceleration> temperature_acceleration_;
+  optional<TemperatureCompensation> temperature_compensation_;
+  uint16_t read_cmd_{0};
   sensor::Sensor *ambient_pressure_source_{nullptr};
+  uint32_t startup_delay_ms_{60000};
   Sen6xType sen6x_type_{UNKNOWN};
   // Post-command wait windows, stored as start time plus duration so elapsed-time checks survive millis() wrap
   uint32_t command_started_at_{0};
   uint32_t command_wait_{0};
   uint32_t co2_started_at_{0};
   uint32_t co2_wait_{0};
-  uint16_t read_cmd_{0};
   uint16_t altitude_compensation_{ALTITUDE_UNSET};
   uint16_t ambient_pressure_{PRESSURE_UNSET};
   // Last pressure written to the device, used to skip redundant writes
