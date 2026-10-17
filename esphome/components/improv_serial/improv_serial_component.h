@@ -55,7 +55,7 @@ static const uint8_t IMPROV_SERIAL_VERSION = 1;
 #ifdef USE_WIFI
 // Wi-Fi connect failure timers: a fresh provision reports at 30 s (stock behavior), while
 // switching networks on an already-connected device (disconnect + reconnect) can legitimately
-// take longer; 90 s matches esp32_improv's default wifi_timeout.
+// take longer; 90 s matches improv_ble's default wifi_timeout.
 static const uint32_t WIFI_CONNECT_TIMEOUT_MS = 30000;
 static const uint32_t WIFI_SWITCH_TIMEOUT_MS = 90000;
 #endif

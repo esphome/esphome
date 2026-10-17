@@ -37,11 +37,14 @@ struct TuyaDatapoint {
   };
   std::string value_string;
   std::vector<uint8_t> value_raw;
+
+  /// Log a warning when this datapoint is not of type `expected`, and return it.
+  const TuyaDatapoint &expect_type(TuyaDatapointType expected) const;
 };
 
 struct TuyaDatapointListener {
   uint8_t datapoint_id;
-  std::function<void(TuyaDatapoint)> on_datapoint;
+  Callback<void(const TuyaDatapoint &)> on_datapoint;
 };
 
 enum class TuyaCommandType : uint8_t {
@@ -91,7 +94,9 @@ class Tuya final : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
+  template<typename F> void register_listener(uint8_t datapoint_id, F &&func) {
+    this->register_listener_(datapoint_id, Callback<void(const TuyaDatapoint &)>::create(std::forward<F>(func)));
+  }
   void set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
   void set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
   void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
@@ -108,6 +113,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   TuyaInitState get_init_state();
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+  void set_force_time_sync(bool force_time_sync) { this->force_time_sync_ = force_time_sync; }
 #endif
   void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
     this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
@@ -117,6 +123,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   }
 
  protected:
+  void register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func);
   void handle_char_(uint8_t c);
   void handle_datapoints_(const uint8_t *buffer, size_t len);
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
@@ -138,9 +145,13 @@ class Tuya final : public Component, public uart::UARTDevice {
   uint8_t get_wifi_rssi_();
 
 #ifdef USE_TIME
-  void send_local_time_();
+  void register_local_time_sync_callback_();
+  void check_force_time_sync_();
+  void send_local_time_(bool periodic = false);
   void send_gmt_time_();
   time::RealTimeClock *time_id_{nullptr};
+  bool force_time_sync_{false};
+  uint8_t last_force_time_sync_minute_{0xFF};  // 0xFF: no minute seen yet
   bool time_sync_callback_registered_{false};
   bool gmt_time_sync_callback_registered_{false};
 #endif

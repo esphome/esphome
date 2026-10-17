@@ -1,13 +1,16 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
-from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
+from esphome.components.const import (
+    CONF_HUMIDITY_SOURCE,
+    CONF_NOX_INDEX,
+    CONF_VOC_INDEX,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
     CONF_COMPENSATION,
     CONF_GAIN_FACTOR,
     CONF_GATING_MAX_DURATION_MINUTES,
-    CONF_ID,
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
@@ -32,8 +35,6 @@ SGP4xComponent = sgp4x_ns.class_(
     cg.PollingComponent,
     sensirion_common.SensirionI2CDevice,
 )
-
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
 
 def validate_sensors(config: ConfigType) -> ConfigType:
@@ -98,9 +99,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]

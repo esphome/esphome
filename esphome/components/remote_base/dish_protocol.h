@@ -13,24 +13,11 @@ struct DishData {
 
 class DishProtocol : public RemoteProtocol<DishData> {
  public:
-  void encode(RemoteTransmitData *dst, const DishData &data) override;
-  optional<DishData> decode(RemoteReceiveData src) override;
-  void dump(const DishData &data) override;
+  void encode(RemoteTransmitData *dst, const DishData &data);
+  optional<DishData> decode(RemoteReceiveData src);
+  void dump(const DishData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Dish)
-
-template<typename... Ts> class DishAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    DishData data{};
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    DishProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

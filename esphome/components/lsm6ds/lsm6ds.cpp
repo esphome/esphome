@@ -1,15 +1,48 @@
 #include "lsm6ds.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::lsm6ds {
 
-static const char *const TAG = "lsm6ds";
+ESPHOME_LOG_TAG(TAG, "lsm6ds");
 
-static const struct {
-  uint8_t who_am_i;
-  const char *const name;
-} CHIP_IDS[] = {{0x69, "LSMDSO"}, {0x6A, "LSM6DS3"}};
+// Indexed by the accel range field, which is not in ascending order (datasheet Table 3)
+PROGMEM_STRING_TABLE(AccelRangeStrings, "±2g", "±16g", "±4g", "±8g");
+
+static const LogString *gyro_range_to_str(LSM6DSGyroRange range) {
+  switch (range) {
+    case LSM6DS_GYRO_RANGE_125:
+      return LOG_STR("±125dps");
+    case LSM6DS_GYRO_RANGE_250:
+      return LOG_STR("±250dps");
+    case LSM6DS_GYRO_RANGE_500:
+      return LOG_STR("±500dps");
+    case LSM6DS_GYRO_RANGE_1000:
+      return LOG_STR("±1000dps");
+    case LSM6DS_GYRO_RANGE_2000:
+      return LOG_STR("±2000dps");
+    default:
+      return LOG_STR("unknown");
+  }
+}
+
+const LogString *chip_name_from_who_am_i(uint8_t who_am_i) {
+  switch (who_am_i) {
+    case LSM6DS_WHO_AM_I_LSM6DS3:
+      return LOG_STR("LSM6DS3");
+    case LSM6DS_WHO_AM_I_LSM6DS3TR_C:
+      return LOG_STR("LSM6DS3TR-C");
+    case LSM6DS_WHO_AM_I_LSM6DSO:
+      return LOG_STR("LSM6DSO");
+    default:
+      return nullptr;
+  }
+}
+
+uint16_t temperature_sensitivity_from_who_am_i(uint8_t who_am_i) {
+  return who_am_i == LSM6DS_WHO_AM_I_LSM6DS3 ? 16 : 256;
+}
 
 void LSM6DSComponent::setup() {
   MotionComponent::setup();
@@ -19,20 +52,15 @@ void LSM6DSComponent::setup() {
     this->mark_failed();
     return;
   }
-  const char *chip_name = nullptr;
-  for (const auto &chip : CHIP_IDS) {
-    if (chip.who_am_i == who_am_i) {
-      chip_name = chip.name;
-      break;
-    }
-  }
+  const LogString *chip_name = chip_name_from_who_am_i(who_am_i);
   if (chip_name == nullptr) {
     ESP_LOGE(TAG, "Unknown WHO_AM_I: 0x%02X", who_am_i);
     this->mark_failed(LOG_STR("Unknown WHO_AM_I value"));
     return;
   }
-  ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", chip_name, who_am_i);
+  ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", LOG_STR_ARG(chip_name), who_am_i);
   this->chip_name_ = chip_name;
+  this->temperature_sensitivity_ = temperature_sensitivity_from_who_am_i(who_am_i);
 
   // 2. Software reset — clears all registers to defaults
   if (this->write_register(LSM6DS_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1) != i2c::ERROR_OK) {
@@ -85,34 +113,10 @@ void LSM6DSComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LSM6DS IMU:\n"
                 "  Chip type: %s\n",
-                this->chip_name_);
+                LOG_STR_ARG(this->chip_name_ != nullptr ? this->chip_name_ : LOG_STR("Unknown")));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
-  // Accel range — index into the sensitivity table (datasheet Table 3)
-  static const char *const ACCEL_RANGE_STR[] = {"±2g", "±16g", "±4g", "±8g"};
-
-  const char *gyro_str;
-  switch (this->gyro_range_) {
-    case LSM6DS_GYRO_RANGE_125:
-      gyro_str = "±125dps";
-      break;
-    case LSM6DS_GYRO_RANGE_250:
-      gyro_str = "±250dps";
-      break;
-    case LSM6DS_GYRO_RANGE_500:
-      gyro_str = "±500dps";
-      break;
-    case LSM6DS_GYRO_RANGE_1000:
-      gyro_str = "±1000dps";
-      break;
-    case LSM6DS_GYRO_RANGE_2000:
-      gyro_str = "±2000dps";
-      break;
-    default:
-      gyro_str = "unknown";
-      break;
-  }
   auto accel_odr = this->accel_odr_ == 0 ? 0 : 13 * (1 << (this->accel_odr_ - 1));
   auto gyro_odr = this->gyro_odr_ == 0 ? 0 : 13 * (1 << (this->gyro_odr_ - 1));
   ESP_LOGCONFIG(TAG,
@@ -120,7 +124,8 @@ void LSM6DSComponent::dump_config() {
                 "  Accel data rate : %dHz\n"
                 "  Gyro  range : %s\n"
                 "  Gyro  data rate : %dHz",
-                ACCEL_RANGE_STR[this->accel_range_], accel_odr, gyro_str, gyro_odr);
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_, AccelRangeStrings::LAST_INDEX)),
+                accel_odr, LOG_STR_ARG(gyro_range_to_str(this->gyro_range_)), gyro_odr);
 }
 
 //  update_data()
@@ -187,12 +192,12 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   //  Temperature (lazy — only read if a listener is registered)
   // Kept as a separate 2-byte read to avoid extending the burst to 14 bytes when
   // temperature is not needed.
-  // Formula: T(°C) = (raw / 256.0) + 25.0  (datasheet Table 90, OUT_TEMP register)
+  // Formula: T(°C) = raw / sensitivity + 25.0, sensitivity in LSB/°C per chip (0 LSB at 25 °C)
   if (!this->temperature_callback_.empty()) {
     uint8_t raw_t[2];
     if (this->read_bytes(LSM6DS_REG_OUT_TEMP_L, raw_t, 2)) {
       int16_t temp_raw = (int16_t) ((raw_t[1] << 8) | raw_t[0]);
-      float temperature = (temp_raw / 256.0f) + 25.0f;
+      float temperature = temp_raw / static_cast<float>(this->temperature_sensitivity_) + 25.0f;
       this->temperature_callback_.call(temperature);
     }
   }

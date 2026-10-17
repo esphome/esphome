@@ -163,6 +163,11 @@ struct StrobeLightEffectColor {
 class StrobeLightEffect : public LightEffect {
  public:
   explicit StrobeLightEffect(const char *name) : LightEffect(name) {}
+  void start() override {
+    // Place the cycle at the end of the last color, so the first apply() switches straight to the first color
+    this->at_color_ = this->colors_.size() - 1;
+    this->last_switch_ = millis() - this->colors_.back().duration;
+  }
   void apply() override {
     const uint32_t now = millis();
     if (now - this->last_switch_ < this->colors_[this->at_color_].duration)

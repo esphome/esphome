@@ -5,7 +5,7 @@
 
 namespace esphome::hlk_fm22x {
 
-static const char *const TAG = "hlk_fm22x";
+ESPHOME_LOG_TAG(TAG, "hlk_fm22x");
 static constexpr uint32_t PAYLOAD_TIMEOUT_MS = 20;
 
 void HlkFm22xComponent::setup() {
@@ -161,11 +161,8 @@ void HlkFm22xComponent::recv_command_() {
     }
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(HLK_FM22X_MAX_RESPONSE_SIZE)];
-  ESP_LOGV(TAG, "Recv type: 0x%.2X, data: %s", response_type,
-           format_hex_pretty_to(hex_buf, this->recv_buf_.data(), to_store));
-#endif
+  ESP_LOGV_HEX(TAG, this->recv_buf_.data(), to_store, HLK_FM22X_MAX_RESPONSE_SIZE, "Recv type: 0x%.2X, data: %s",
+               response_type);
 
   byte = this->read();
   if (byte != checksum) {

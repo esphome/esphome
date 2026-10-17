@@ -7,7 +7,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.noise import (
     decode_encryption_key,
-    is_reserved_key,
+    generate_encryption_key,
     validate_encryption_key,
 )
 
@@ -41,6 +41,16 @@ def test_decode_encryption_key_rejects_short_decode() -> None:
         decode_encryption_key("AAECAw==")
 
 
-def test_is_reserved_key() -> None:
-    assert is_reserved_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
-    assert not is_reserved_key(KEY)
+def test_validate_encryption_key_rejects_all_zeros() -> None:
+    """The all-zeros key is the provisioning sentinel the device treats as no
+    key, so it never reaches a build."""
+    with pytest.raises(cv.Invalid, match="all-zeros key is reserved"):
+        validate_encryption_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+
+
+def test_generate_encryption_key_passes_the_validator() -> None:
+    """A fresh key is 32 random bytes in the base64 form the yaml takes."""
+    key = generate_encryption_key()
+    assert validate_encryption_key(key) == key
+    assert len(decode_encryption_key(key)) == 32
+    assert key != generate_encryption_key()

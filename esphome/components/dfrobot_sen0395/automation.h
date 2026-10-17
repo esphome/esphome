@@ -8,12 +8,6 @@
 namespace esphome::dfrobot_sen0395 {
 
 template<typename... Ts>
-class DfrobotSen0395ResetAction final : public Action<Ts...>, public Parented<DfrobotSen0395Component> {
- public:
-  void play(const Ts &...x) { this->parent_->enqueue(make_unique<ResetSystemCommand>()); }
-};
-
-template<typename... Ts>
 class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented<DfrobotSen0395Component> {
  public:
   TEMPLATABLE_VALUE(int8_t, factory_reset)
@@ -32,17 +26,22 @@ class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented
   TEMPLATABLE_VALUE(float, det_min4)
   TEMPLATABLE_VALUE(float, det_max4)
 
-  void play(const Ts &...x) {
+  void play(const Ts &...x) override {
     this->parent_->enqueue(make_unique<PowerCommand>(0));
     if (this->factory_reset_.has_value() && this->factory_reset_.value(x...) == true) {
       this->parent_->enqueue(make_unique<FactoryResetCommand>());
     }
     if (this->det_min1_.has_value() && this->det_max1_.has_value()) {
-      if (this->det_min1_.value() >= 0 && this->det_max1_.value() >= 0) {
-        this->parent_->enqueue(make_unique<DetRangeCfgCommand>(
-            this->det_min1_.value_or(-1), this->det_max1_.value_or(-1), this->det_min2_.value_or(-1),
-            this->det_max2_.value_or(-1), this->det_min3_.value_or(-1), this->det_max3_.value_or(-1),
-            this->det_min4_.value_or(-1), this->det_max4_.value_or(-1)));
+      // Each segment is read once, so the guard and the command see the same values.
+      const float min1 = this->det_min1_.value(x...);
+      if (min1 >= 0) {
+        const float max1 = this->det_max1_.value(x...);
+        if (max1 >= 0) {
+          this->parent_->enqueue(make_unique<DetRangeCfgCommand>(
+              min1, max1, this->det_min2_.value_or(x..., -1), this->det_max2_.value_or(x..., -1),
+              this->det_min3_.value_or(x..., -1), this->det_max3_.value_or(x..., -1),
+              this->det_min4_.value_or(x..., -1), this->det_max4_.value_or(x..., -1)));
+        }
       }
     }
     if (this->delay_after_detect_.has_value() && this->delay_after_disappear_.has_value()) {

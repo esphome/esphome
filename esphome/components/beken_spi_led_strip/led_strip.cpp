@@ -35,7 +35,7 @@ static const uint32_t SPI_RX_FINISH_EN = 1 << 3;
 
 namespace esphome::beken_spi_led_strip {
 
-static const char *const TAG = "beken_spi_led_strip";
+ESPHOME_LOG_TAG(TAG, "beken_spi_led_strip");
 
 struct SpiData {
   SemaphoreHandle_t dma_tx_semaphore;
