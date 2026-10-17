@@ -31,11 +31,6 @@ class TestCardDisplay : public Display {
 namespace {
 class TestCard : public ::testing::Test {
  protected:
-  void SetUp() override {
-    // test_card() stops the poller, which needs the scheduler; the test main does not construct App.
-    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-    (void) APP_CONSTRUCTED;
-  }
   int writer_calls_{0};
   display_writer_t count_writer_() {
     return [this](Display &) { this->writer_calls_++; };
