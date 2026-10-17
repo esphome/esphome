@@ -29,8 +29,9 @@ TEST(Scheduler, TimeoutAddedByACancelledCallbackIsVisibleAfterCall) {
 
   auto next = scheduler.next_schedule_in(millis());
   ASSERT_TRUE(next.has_value());
-  EXPECT_GT(*next, 50u);
-  EXPECT_LE(*next, 100u);
+  const uint32_t next_ms = next.has_value() ? *next : 0;
+  EXPECT_GT(next_ms, 50u);
+  EXPECT_LE(next_ms, 100u);
   EXPECT_FALSE(fired);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(120));
