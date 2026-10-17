@@ -157,6 +157,9 @@ esphome/components/delonghi/* @grob6000
 esphome/components/dew_point/* @CFlix
 esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
+esphome/components/dfrobot_sen0465_base/* @tzabbi
+esphome/components/dfrobot_sen0465_i2c/* @tzabbi
+esphome/components/dfrobot_sen0465_uart/* @tzabbi
 esphome/components/dfrobot_sen0609/* @remcom
 esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
