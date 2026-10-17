@@ -28,6 +28,9 @@ class NextionQueue {
 
   // Store command for retry if spacing blocked it
   std::string pending_command;  // Empty if command was sent successfully
+
+  // A raw "get" sent with send_command(): the display answers it with a value instead of 0x01
+  bool raw_get{false};
 };
 
 class NextionComponentBase {

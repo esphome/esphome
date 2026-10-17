@@ -1066,6 +1066,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   /**
    * Manually send a raw command to the display.
+   * A "get" command is accepted, but the returned value is dropped. Use a Nextion sensor or text sensor to read values.
    * @param command The pcommand, like "page 0"
    * @return Whether the send was successful.
    */
@@ -1073,6 +1074,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   /**
    * Manually send a raw formatted command to the display.
+   * A "get" command is accepted, but the returned value is dropped. Use a Nextion sensor or text sensor to read values.
    * @param format The printf-style command format, like "vis %s,0"
    * @param ... The format arguments
    * @return Whether the send was successful.
@@ -1479,7 +1481,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /// Deliver a 0x70/0x71 response to the first query in the queue that was sent and expects a value, then
   /// remove that query. NO_RESULT entries are skipped (their own 0x01 ACK removes them), as are entries whose
   /// command is still waiting to be sent. Invalid entries are dropped. If the first query has the wrong type
-  /// (for example a numeric return for a TEXT_SENSOR), it is removed without a state update.
+  /// (for example a numeric return for a TEXT_SENSOR), it is removed without a state update. A raw "get" sent
+  /// with send_command() counts as a query, and its value is dropped.
   void deliver_queue_response_(const LogString *response_name, const NextionQueueResponse &resp);
   void set_numeric_return_(int value);
   void set_string_return_(const std::string &value);
@@ -1518,7 +1521,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * @param command The command to write, for example "vis b0,0".
    */
   bool send_command_(const std::string &command);
-  void add_no_result_to_queue_(const std::string &variable_name);
+  NextionQueue *add_no_result_to_queue_(const std::string &variable_name);
   bool add_no_result_to_queue_with_ignore_sleep_printf_(const std::string &variable_name, const char *format, ...)
       __attribute__((format(printf, 3, 4)));
   void add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command);
@@ -1536,8 +1539,10 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    *
    * @param variable_name Name of the variable or component associated with the command
    * @param command The actual command string to be sent when spacing allows
+   * @return The queued entry, or nullptr if it was dropped
    */
-  void add_no_result_to_queue_with_pending_command_(const std::string &variable_name, const std::string &command);
+  NextionQueue *add_no_result_to_queue_with_pending_command_(const std::string &variable_name,
+                                                             const std::string &command);
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   bool add_no_result_to_queue_with_printf_(const std::string &variable_name, const char *format, ...)
