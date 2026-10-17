@@ -1,1 +1,2 @@
-zephyr_coredump:
+packages:
+  zephyr_coredump: !include common.yaml

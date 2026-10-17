@@ -210,17 +210,18 @@ async def to_code(config: ConfigType) -> None:
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:
-        # Derive partition addresses from the SoftDevice and bootloader sections
-        # registered with the Partition Manager (moved in testing mode) so that
-        # the DTS flash map matches what it produces:
-        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
+        # Derive partition addresses from the sections registered with the
+        # Partition Manager (moved in testing mode) so that the DTS flash map
+        # matches what it produces:
+        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1,
+        #   which ends at the lowest section reserved above (bootloader, coredump).
         sections = zephyr_data()[KEY_PM_STATIC]
         mcuboot_size = 0x9000
-        sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
-        bl_start = next(s.address for s in sections if "Adafruit" in s.name)
+        sd_end = next(s.end_address for s in sections if "SoftDevice" in s.name)
+        top = min(s.address for s in sections if s.address >= sd_end)
         slot0_start = sd_end + mcuboot_size
         # Align slot size down to a 4 KB sector boundary
-        slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
+        slot_size = ((top - slot0_start) // 2 // 0x1000) * 0x1000
         slot1_start = slot0_start + slot_size
 
         def _mcuboot_partition_overlay() -> str:
