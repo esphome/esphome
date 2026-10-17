@@ -1,4 +1,5 @@
 #include "pylontech.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
@@ -38,6 +39,11 @@
 namespace esphome::pylontech {
 
 ESPHOME_LOG_TAG(TAG, "pylontech");
+
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+// The pack drops a command that follows its reply without a pause
+static constexpr uint32_t BAT_COMMAND_DELAY_MS = 20;
+#endif
 
 // Rejects values that would wrap in a narrowed field
 template<typename T> static bool in_range(int value) {
@@ -100,11 +106,12 @@ void PylontechComponent::setup() {
 }
 
 void PylontechComponent::update() {
-  this->write_str("pwr\n");
 #ifdef PYLONTECH_CELL_BATTERY_COUNT
-  // A "bat N" reply that never finished must not swallow the "pwr" lines
+  // A "bat N" that was not sent yet, or whose reply never finished, must not get in the way of "pwr"
+  this->bat_command_due_ = false;
   this->bat_reply_ = 0;
 #endif
+  this->write_str("pwr\n");
 }
 
 void PylontechComponent::loop() {
@@ -112,6 +119,15 @@ void PylontechComponent::loop() {
   size_t avail = this->available();
 #ifdef PYLONTECH_LISTENER_COUNT
   if (avail == 0) {
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+    if (this->bat_command_due_ &&
+        static_cast<int32_t>(App.get_loop_component_start_time() - this->bat_command_at_) >= 0) {
+      this->bat_command_due_ = false;
+      char cmd[8];  // "bat 16\n"
+      snprintf(cmd, sizeof(cmd), "bat %u\n", this->bat_reply_);
+      this->write_str(cmd);
+    }
+#endif
     this->dispatch_one_();
     return;
   }
@@ -173,13 +189,18 @@ void PylontechComponent::dispatch_one_() {
   }
 #endif
   if (this->rejected_ != 0) {
-    ESP_LOGW(TAG, "Rejected %u malformed battery lines", this->rejected_);
+    ESP_LOGW(TAG, "Rejected %u malformed lines", this->rejected_);
     this->rejected_ = 0;
   }
 }
 
 void PylontechComponent::parse_header_(const char *buffer) {
   this->has_tlow_id_ = strstr(buffer, "Tlow.Id") != nullptr;
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+  // The header opens a "pwr" reply, so what follows are battery lines even after a late "bat N" reply
+  this->bat_reply_ = 0;
+  this->pwr_reply_ = true;
+#endif
   ESP_LOGV(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id_ ? LOG_STR_LITERAL("with") : LOG_STR_LITERAL("without"),
            buffer);
 }
@@ -188,11 +209,15 @@ void PylontechComponent::parse_header_(const char *buffer) {
 void PylontechComponent::process_line_(const char *buffer) {
 #ifdef PYLONTECH_CELL_BATTERY_COUNT
   if (strcmp(buffer, "$$") == 0) {
-    // Every reply ends with "$$"; after the "pwr" reply one "bat N" follows per battery with cell sensors
+    // Every reply ends with "$$"; after the "pwr" reply one "bat N" follows per battery with cell sensors.
+    // A "$$" that ends neither of the two, such as a late reply to an abandoned "bat N", sends nothing.
     if (this->bat_reply_ != 0) {
       this->cells_pending_ |= 1u << (this->bat_reply_ - 1);
+      this->send_next_bat_();
+    } else if (this->pwr_reply_) {
+      this->pwr_reply_ = false;
+      this->send_next_bat_();
     }
-    this->send_next_bat_();
     return;
   }
   if (this->bat_reply_ != 0) {
@@ -272,24 +297,24 @@ void PylontechComponent::process_line_(const char *buffer) {
 }
 
 #ifdef PYLONTECH_CELL_BATTERY_COUNT
-// Sends "bat N" for the first cell battery above the one just read; the cycle ends when none is left
+// Picks the next cell battery above the one just read and schedules "bat N" for it; the cycle ends when none
+// is left or cell polling was turned off
 void PylontechComponent::send_next_bat_() {
-  if (this->bat_reply_ == 0 && !this->cell_polling_enabled_) {
-    return;
-  }
   // Battery n is bit n - 1, so clearing the low bat_reply_ bits leaves the batteries above it
   const battery_mask_t remaining =
       this->cell_batteries_ & static_cast<battery_mask_t>(~((1u << this->bat_reply_) - 1u));
-  if (remaining == 0) {
+  if (remaining == 0 || !this->cell_polling_enabled_) {
     this->bat_reply_ = 0;
     return;
   }
   const uint8_t bat_index = __builtin_ctz(remaining);
   this->bat_reply_ = bat_index + 1;
+  // The slot is about to be rewritten, so an unpublished record must not go out half filled
+  this->cells_pending_ &= ~(1u << bat_index);
   this->cells_read_[slot_index(this->cell_batteries_, bat_index)] = 0;
-  char cmd[8];  // "bat 16\n"
-  snprintf(cmd, sizeof(cmd), "bat %u\n", this->bat_reply_);
-  this->write_str(cmd);
+  // loop() writes the command once the pause has passed and the line is idle
+  this->bat_command_due_ = true;
+  this->bat_command_at_ = App.get_loop_component_start_time() + BAT_COMMAND_DELAY_MS;
 }
 
 // Runs while the UART drains, like process_line_

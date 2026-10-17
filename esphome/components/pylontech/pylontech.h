@@ -114,7 +114,12 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   std::array<cell_mask_t, PYLONTECH_CELL_BATTERY_COUNT> cells_read_;  // cells the current reply has filled
   battery_mask_t cell_batteries_{0};                                  // batteries whose cells are read
   battery_mask_t cells_pending_{0};  // batteries whose cell slot is waiting to be published
-  uint8_t bat_reply_{0};             // battery whose "bat N" reply is arriving; 0 while the "pwr" reply arrives
+  // Battery whose "bat N" reply is arriving, 0 while the "pwr" reply arrives
+  uint8_t bat_reply_{0};
+  bool pwr_reply_{false};  // a "pwr" header arrived and its "$$" has not
+  // A "bat N" waits for the pause after the last reply, which ends at this loop time
+  bool bat_command_due_{false};
+  uint32_t bat_command_at_{0};
   bool cell_polling_enabled_{true};
 #endif
 #endif

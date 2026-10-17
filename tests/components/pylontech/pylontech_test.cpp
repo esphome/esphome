@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "esphome/components/pylontech/pylontech.h"
+#include "esphome/core/application.h"
 #include "esphome/components/uart/uart_component.h"
 
 namespace esphome::pylontech::testing {
@@ -140,12 +141,22 @@ class PylontechCellTest : public PylontechTest {
     this->hub_.add_cell_battery(3);
   }
 
-  // Lets the hub drain what was pushed and then publish everything pending
+  // Lets the hub drain what was pushed and publish everything pending
   void drain_and_publish_() {
     for (int i = 0; i < 8; i++) {
       this->hub_.loop();
     }
   }
+
+  // Lets the pause before a bat command pass: moves the loop clock on and runs one idle loop, which also
+  // publishes one pending record
+  void let_pause_pass_() {
+    this->now_ += 50;
+    LoopBlockingGuard{nullptr, nullptr, this->now_};
+    this->hub_.loop();
+  }
+
+  uint32_t now_{1000};
 };
 
 }  // namespace
@@ -295,28 +306,28 @@ TEST_F(PylontechTest, BadLineClearsTheBatteryPendingRecord) {
 }
 
 TEST_F(PylontechCellTest, CellsAreReadAfterThePwrReplyOneBatteryAtATime) {
+  // Each pause's idle loop publishes one pending record: the battery record, then one battery's cells
   this->uart_.push_rx({"pwr\r\n@\r\n", HEADER, BAT1, REPLY_END});
   this->hub_.loop();
+  EXPECT_TRUE(this->uart_.tx.empty());  // the pack needs a pause after its reply
+  EXPECT_TRUE(this->published_().empty());
+  this->let_pause_pass_();
   EXPECT_EQ(this->uart_.tx, "bat 1\n");
+  ASSERT_EQ(this->published_().size(), 1u);
+  EXPECT_EQ(this->published_()[0].bat_num, 1);
 
   this->uart_.push_rx({"pylon>bat 1\r\n@\r\n", CELL_HEADER, cell_line(0, 3308, 18300), cell_line(1, 3310, 18400),
                        cell_line(14, 3299, 17900), REPLY_END});
   this->hub_.loop();
-  EXPECT_EQ(this->uart_.tx, "bat 1\nbat 3\n");
   EXPECT_TRUE(published_cells.empty());
+  this->let_pause_pass_();
+  EXPECT_EQ(this->uart_.tx, "bat 1\nbat 3\n");
+  ASSERT_EQ(published_cells.size(), 1u);
 
   this->uart_.push_rx({"pylon>bat 3\r\n@\r\n", CELL_HEADER, cell_line(5, 3250, 16000), REPLY_END});
   this->hub_.loop();
+  this->let_pause_pass_();
   EXPECT_EQ(this->uart_.tx, "bat 1\nbat 3\n");
-
-  // Idle: the battery record first, then the cells of one battery per loop
-  this->hub_.loop();
-  ASSERT_EQ(this->published_().size(), 1u);
-  EXPECT_EQ(this->published_()[0].bat_num, 1);
-  EXPECT_TRUE(published_cells.empty());
-  this->hub_.loop();
-  ASSERT_EQ(published_cells.size(), 1u);
-  this->hub_.loop();
   ASSERT_EQ(published_cells.size(), 2u);
   this->hub_.loop();
   ASSERT_EQ(published_cells.size(), 2u);
@@ -338,43 +349,89 @@ TEST_F(PylontechCellTest, CellsAreReadAfterThePwrReplyOneBatteryAtATime) {
   // The next pwr reply starts the cycle again
   this->uart_.push_rx({HEADER, BAT1, REPLY_END});
   this->hub_.loop();
+  this->let_pause_pass_();
   EXPECT_EQ(this->uart_.tx, "bat 1\nbat 3\nbat 1\n");
 }
 
-TEST_F(PylontechCellTest, CellPollingCanBeTurnedOff) {
+TEST_F(PylontechCellTest, CellPollingCanBeTurnedOffAtAnyReplyEnd) {
   this->hub_.set_cell_polling_enabled(false);
   this->uart_.push_rx({HEADER, BAT1, REPLY_END});
   this->drain_and_publish_();
+  this->let_pause_pass_();
   EXPECT_TRUE(this->uart_.tx.empty());
   EXPECT_EQ(this->published_().size(), 1u);
 
   this->hub_.set_cell_polling_enabled(true);
   this->uart_.push_rx({HEADER, BAT1, REPLY_END});
   this->hub_.loop();
+  this->let_pause_pass_();
   EXPECT_EQ(this->uart_.tx, "bat 1\n");
+
+  // Turned off while bat 1 is answering: its cells are still published, bat 3 is not sent
+  this->hub_.set_cell_polling_enabled(false);
+  this->uart_.push_rx({CELL_HEADER, cell_line(0, 3308, 18300), REPLY_END});
+  this->drain_and_publish_();
+  this->let_pause_pass_();
+  EXPECT_EQ(this->uart_.tx, "bat 1\n");
+  ASSERT_EQ(published_cells.size(), 1u);
+  EXPECT_EQ(published_cells[0].bat_num, 1);
 }
 
 TEST_F(PylontechCellTest, UpdateAbandonsAnUnansweredBatReply) {
   this->uart_.push_rx({HEADER, BAT1, REPLY_END});
   this->hub_.loop();
+  this->let_pause_pass_();
   EXPECT_EQ(this->uart_.tx, "bat 1\n");
 
   // No reply ever comes; the next pwr lines are battery lines again
   this->hub_.update();
   this->uart_.push_rx({HEADER, BAT2, REPLY_END});
   this->drain_and_publish_();
+  this->let_pause_pass_();
   EXPECT_EQ(this->uart_.tx, "bat 1\npwr\nbat 1\n");
   ASSERT_EQ(this->published_().size(), 2u);
   EXPECT_EQ(this->published_()[1].bat_num, 2);
   EXPECT_TRUE(published_cells.empty());
 }
 
+TEST_F(PylontechCellTest, UpdateCancelsABatCommandThatWasNotSentYet) {
+  this->uart_.push_rx({HEADER, BAT1, REPLY_END});
+  this->hub_.loop();
+  this->hub_.update();
+  this->let_pause_pass_();
+  EXPECT_EQ(this->uart_.tx, "pwr\n");
+}
+
+TEST_F(PylontechCellTest, LateBatReplyAfterUpdateIsNotMistakenForThePwrReply) {
+  this->uart_.push_rx({HEADER, BAT1, REPLY_END});
+  this->hub_.loop();
+  this->let_pause_pass_();
+  EXPECT_EQ(this->uart_.tx, "bat 1\n");
+
+  // The pack answers the abandoned bat 1 only after the next pwr went out, then answers pwr
+  this->hub_.update();
+  this->uart_.push_rx({CELL_HEADER, cell_line(0, 3308, 18300), REPLY_END});
+  this->uart_.push_rx({"pwr\r\n@\r\n", HEADER, BAT2, REPLY_END});
+  this->drain_and_publish_();
+  this->let_pause_pass_();
+
+  // The late cells are dropped, its "$$" sends nothing, and the pwr reply starts the cycle once
+  EXPECT_EQ(this->uart_.tx, "bat 1\npwr\nbat 1\n");
+  ASSERT_EQ(this->published_().size(), 2u);
+  EXPECT_EQ(this->published_()[1].bat_num, 2);
+  EXPECT_EQ(this->published_()[1].volt, 46012);
+  EXPECT_TRUE(published_cells.empty());
+}
+
 TEST_F(PylontechCellTest, BadCellLinesAreIgnoredAndTheNextReplyStartsEmpty) {
   this->uart_.push_rx({HEADER, BAT1, REPLY_END});
   this->hub_.loop();
+  this->let_pause_pass_();
   this->uart_.push_rx({CELL_HEADER, cell_line(0, 3308, 18300), "0        abc      -914     18300    Dischg\r\n",
                        cell_line(15, 3300, 18000), cell_line(14, 70000, 18000), cell_line(13, 3300, 400000),
                        REPLY_END});
+  this->hub_.loop();
+  this->let_pause_pass_();
   this->uart_.push_rx({CELL_HEADER, cell_line(5, 3250, 16000), cell_line(5, 3251, 16100), REPLY_END});
   this->drain_and_publish_();
 
@@ -390,11 +447,43 @@ TEST_F(PylontechCellTest, BadCellLinesAreIgnoredAndTheNextReplyStartsEmpty) {
   // A reply that read nothing publishes an empty record, not the old cells
   this->uart_.push_rx({HEADER, BAT1, REPLY_END});
   this->hub_.loop();
+  this->let_pause_pass_();
   this->uart_.push_rx({CELL_HEADER, REPLY_END});
   this->drain_and_publish_();
   ASSERT_EQ(published_cells.size(), 3u);
   EXPECT_EQ(published_cells[2].bat_num, 1);
   EXPECT_EQ(published_cells[2].read, 0u);
+}
+
+TEST_F(PylontechCellTest, ANewReplyUnmarksTheUnpublishedRecordOfItsBattery) {
+  // A whole cycle arrives with only the idle loops of the pauses: the battery record and battery 1's
+  // cells are published, battery 3's cells stay pending
+  this->uart_.push_rx({HEADER, BAT1, REPLY_END});
+  this->hub_.loop();
+  this->let_pause_pass_();
+  this->uart_.push_rx({CELL_HEADER, cell_line(0, 3308, 18300), REPLY_END});
+  this->hub_.loop();
+  this->let_pause_pass_();
+  this->uart_.push_rx({CELL_HEADER, cell_line(5, 3250, 16000), REPLY_END});
+  this->hub_.loop();
+  this->uart_.push_rx({HEADER, BAT1, REPLY_END});
+  this->hub_.loop();
+  this->let_pause_pass_();
+  ASSERT_EQ(published_cells.size(), 1u);
+  EXPECT_EQ(published_cells[0].bat_num, 1);
+
+  // The next bat 1 reply is cut short by a gap: battery 3's cells go out, battery 1's wait for "$$"
+  this->uart_.push_rx({CELL_HEADER, cell_line(0, 3400, 19000)});
+  this->hub_.loop();
+  this->hub_.loop();
+  this->hub_.loop();
+  ASSERT_EQ(published_cells.size(), 2u);
+  EXPECT_EQ(published_cells[1].bat_num, 3);
+  this->uart_.push_rx({REPLY_END});
+  this->drain_and_publish_();
+  ASSERT_EQ(published_cells.size(), 3u);
+  EXPECT_EQ(published_cells[2].bat_num, 1);
+  EXPECT_EQ(published_cells[2].cells[0].volt, 3400);
 }
 
 }  // namespace esphome::pylontech::testing
