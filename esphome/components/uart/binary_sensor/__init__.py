@@ -3,6 +3,7 @@ from esphome.components import binary_sensor, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_UART_ID
 from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
+from esphome.types import ConfigType
 
 from .. import uart_ns, validate_raw_data
 
@@ -26,14 +27,15 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_HUB_ID): cv.declare_id(UARTBinarySensor),
-            cv.Required(CONF_DATA): validate_raw_data,
+            # An empty pattern would match every byte
+            cv.Required(CONF_DATA): cv.All(validate_raw_data, cv.Length(min=1)),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hubs = _get_hubs()
     uart_id = config[CONF_UART_ID]
 
@@ -42,7 +44,7 @@ async def to_code(config):
         await cg.register_component(hub, config)
         await uart.register_uart_device(hub, config)
         hubs[uart_id] = (hub, [])
-        CORE.add_job(_finalize_hubs)
+        CORE.add_job(_finalize_hub, uart_id)
 
     _, matchers = hubs[uart_id]
     var = await binary_sensor.new_binary_sensor(config)
@@ -60,11 +62,11 @@ async def to_code(config):
     matchers.append((var, data_var, len(raw_data)))
 
 
+# Runs once every sensor on the bus has registered, so the hub is sized once
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _finalize_hubs():
-    for hub, matchers in _get_hubs().values():
-        max_matcher_len = max(data_len for _, _, data_len in matchers)
-        cg.add(hub.setup_matchers(len(matchers)))
-        for sensor_var, data_var, data_len in matchers:
-            cg.add(hub.add_event_matcher(sensor_var, data_var, data_len))
-        cg.add(hub.setup_buffer(max_matcher_len))
+async def _finalize_hub(uart_id: ID) -> None:
+    hub, matchers = _get_hubs()[uart_id]
+    cg.add(hub.setup_matchers(len(matchers)))
+    for sensor_var, data_var, data_len in matchers:
+        cg.add(hub.add_event_matcher(sensor_var, data_var, data_len))
+    cg.add(hub.setup_buffer(max(data_len for _, _, data_len in matchers)))

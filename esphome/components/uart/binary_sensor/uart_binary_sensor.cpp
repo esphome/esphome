@@ -3,7 +3,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "uart.binary_sensor");
 
 void UARTBinarySensor::loop() {
   for (auto &matcher : this->matchers_) {
@@ -15,7 +15,12 @@ void UARTBinarySensor::loop() {
   this->read_data_();
 }
 
-void UARTBinarySensor::dump_config() { ESP_LOGCONFIG(TAG, "UART Binary Sensor:"); }
+void UARTBinarySensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "UART Binary Sensor:");
+  for (const auto &matcher : this->matchers_) {
+    LOG_BINARY_SENSOR("  ", "Pattern", matcher.sensor);
+  }
+}
 
 void UARTBinarySensor::read_data_() {
   while (this->available()) {
@@ -42,7 +47,8 @@ void UARTBinarySensor::read_data_() {
         matcher.sensor->publish_state(true);
         matcher.triggered = true;
         this->buffer_.clear();
-        break;
+        // The rest of the input waits for the next loop, so a repeated sequence is a second press
+        return;
       }
     }
   }
