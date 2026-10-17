@@ -780,6 +780,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
       }
       this->feed_wdt_with_time(last_op_end_time);
     }
+    this->scheduler.process_to_add();
 
 #ifdef USE_RUNTIME_STATS
     loop_tail_start_us = micros();
