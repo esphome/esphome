@@ -114,6 +114,7 @@ BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
     "BLECharacteristicNotifyAction", automation.Action
 )
 bytebuffer_ns = cg.esphome_ns.namespace("bytebuffer")
+# Unscoped in C++; is_class keeps the generated Endian::LITTLE spelling
 Endian = bytebuffer_ns.enum("Endian", is_class=True)
 
 
