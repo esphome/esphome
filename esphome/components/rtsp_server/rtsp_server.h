@@ -8,6 +8,9 @@
 #include <memory>
 
 #include "esphome/components/camera/camera.h"
+#ifdef USE_SOCKET_IPV4_ALLOW
+#include "esphome/components/socket/ipv4_allow.h"
+#endif
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/component.h"
 #include "rtsp_session.h"
@@ -24,6 +27,9 @@ class RTSPServer : public Component, public camera::CameraListener {
   float get_setup_priority() const override;
 
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
+#ifdef USE_SOCKET_IPV4_ALLOW
+  void set_allow(const socket::Ipv4AllowEntry *entries, size_t count) { this->allow_.set(entries, count); }
+#endif
 
  protected:
   void accept_new_connections_(uint32_t now);
@@ -31,6 +37,10 @@ class RTSPServer : public Component, public camera::CameraListener {
 
   socket::ListenSocket *socket_{nullptr};
   std::array<RTSPSession, MAX_RTSP_CONNECTIONS> sessions_{};
+#ifdef USE_SOCKET_IPV4_ALLOW
+  socket::Ipv4Allow allow_;
+  uint32_t last_reject_log_ms_{0};
+#endif
   uint16_t port_;
   bool streaming_{false};
   bool frame_warned_{false};
