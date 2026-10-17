@@ -162,6 +162,38 @@ TEST_F(RTSPSessionTest, PipelinedRequestsBothAnswered) {
   EXPECT_LT(first, second);
 }
 
+TEST_F(RTSPSessionTest, RequestBodyIsConsumed) {
+  this->send(request("GET_PARAMETER", 3, "Content-Length: 6\r\n") + "ping\r\n" + request("OPTIONS", 4));
+  this->loops(3);
+  std::string out = this->receive();
+  EXPECT_EQ(count(out, "RTSP/1.0 200 OK\r\n"), 2u) << out;
+  EXPECT_EQ(out.find("400"), std::string::npos) << out;
+  size_t first = out.find("CSeq: 3\r\n");
+  size_t second = out.find("CSeq: 4\r\n");
+  ASSERT_NE(first, std::string::npos);
+  ASSERT_NE(second, std::string::npos);
+  EXPECT_LT(first, second);
+}
+
+TEST_F(RTSPSessionTest, RequestBodySplitAcrossReads) {
+  this->send(request("GET_PARAMETER", 3, "Content-Length: 6\r\n") + "pi");
+  this->loops(2);
+  this->send("ng\r\n" + request("OPTIONS", 4));
+  this->loops(3);
+  std::string out = this->receive();
+  EXPECT_EQ(count(out, "RTSP/1.0 200 OK\r\n"), 2u) << out;
+  EXPECT_EQ(out.find("400"), std::string::npos) << out;
+  EXPECT_NE(out.find("CSeq: 4\r\n"), std::string::npos) << out;
+  EXPECT_TRUE(this->session_.is_active());
+}
+
+TEST_F(RTSPSessionTest, OversizedContentLengthClosesSession) {
+  this->send(request("GET_PARAMETER", 3, "Content-Length: 100000\r\n"));
+  this->loops(2);
+  EXPECT_EQ(this->receive().rfind("RTSP/1.0 400 Bad Request\r\nCSeq: 3\r\n", 0), 0u);
+  EXPECT_FALSE(this->session_.is_active());
+}
+
 static std::string padded_request(size_t total_len) {
   std::string head = "GET_PARAMETER rtsp://host/ RTSP/1.0\r\nCSeq: 9\r\nX-Pad: ";
   std::string tail = "\r\n\r\n";
@@ -233,7 +265,17 @@ TEST_F(RTSPSessionTest, StalledWriterDropsFrame) {
   EXPECT_EQ(image.use_count(), 1);
   EXPECT_TRUE(this->session_.is_active());
 
-  // A half-written packet is completed, so the interleaved stream stays well framed.
+  // Until the socket drains, new frames are refused so the camera can keep capturing for other consumers.
+  for (int i = 0; i < 5; i++) {
+    this->now_ += 100;
+    auto next = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
+    this->session_.on_new_frame(next, stub_jpeg(*next), this->now_);
+    this->loops(1);
+    EXPECT_FALSE(this->session_.has_frame());
+    EXPECT_EQ(next.use_count(), 1);
+  }
+
+  // The packet in flight is completed with zeros, so the interleaved stream stays well framed.
   std::string stream;
   for (int i = 0; i < 100; i++) {
     stream += this->receive();
@@ -241,8 +283,19 @@ TEST_F(RTSPSessionTest, StalledWriterDropsFrame) {
   }
   stream += this->receive();
   std::vector<uint16_t> sequences;
-  EXPECT_TRUE(parse_interleaved(stream, 0, sequences));
-  EXPECT_FALSE(sequences.empty());
+  ASSERT_TRUE(parse_interleaved(stream, 0, sequences));
+  ASSERT_FALSE(sequences.empty());
+
+  // Once drained, the next frame is taken and follows on in sequence.
+  auto next = std::make_shared<StubImage>(2 * QTABLE_LEN + 100);
+  this->session_.on_new_frame(next, stub_jpeg(*next), this->now_);
+  EXPECT_TRUE(this->session_.has_frame());
+  this->loops(2);
+  std::vector<uint16_t> after;
+  ASSERT_TRUE(parse_interleaved(this->receive(), 0, after));
+  ASSERT_EQ(after.size(), 1u);
+  EXPECT_EQ(after[0], static_cast<uint16_t>(sequences.back() + 1));
+  EXPECT_EQ(next.use_count(), 1);
 }
 
 TEST_F(RTSPSessionTest, RepeatPlayContinuesSequence) {

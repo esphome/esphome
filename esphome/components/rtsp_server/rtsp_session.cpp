@@ -272,6 +272,7 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
 
   this->cseq_ = 0;
   StringRef transport;
+  int64_t content_length = 0;
 
   // Headers first: even a 400 reply has to echo the request's CSeq
   size_t pos = line_end == std::string::npos ? request.size() : line_end + 2;
@@ -288,6 +289,8 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
         this->cseq_ = static_cast<uint32_t>(stol(value));
       } else if (str_equals_case_insensitive(key, StringRef::from_lit("Transport"))) {
         transport = value;
+      } else if (str_equals_case_insensitive(key, StringRef::from_lit("Content-Length"))) {
+        content_length = stol(value);
       }
     }
 
@@ -295,6 +298,14 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
       break;
     pos = next + 2;
   }
+
+  if (content_length < 0 || content_length > static_cast<int64_t>(this->request_buf_.size())) {
+    this->queue_response_(400, "Bad Request");
+    this->close_after_send_ = true;
+    return;
+  }
+  // The body is ignored; it is discarded as it arrives, like an interleaved packet.
+  this->skip_len_ = static_cast<uint32_t>(content_length);
 
   size_t sp1 = first_line.find(' ');
   size_t sp2 = sp1 == std::string::npos ? std::string::npos : first_line.find(' ', sp1 + 1);
@@ -380,7 +391,9 @@ void RTSPSession::stop_playing_() {
 }
 
 void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now) {
-  if (this->state_ != State::PLAYING || this->frame_ != nullptr)
+  // Pending output means a frame is in flight or a stalled one is still being padded out.
+  if (this->state_ != State::PLAYING || this->frame_ != nullptr || this->iov_pos_ < this->iov_count_ ||
+      this->filler_len_ > 0)
     return;
   this->frame_ = image;
   this->jpeg_ = jpeg;
@@ -466,11 +479,8 @@ void RTSPSession::drop_frame_() {
   this->frame_.reset();
   if (!this->sending_packet_ || this->iov_pos_ >= this->iov_count_)
     return;
-  if (this->iov_pos_ == 0 && this->iov_[0].iov_base == this->send_buf_.data()) {
-    this->iov_count_ = 0;  // nothing written yet; the receiver sees a lost packet
-    return;
-  }
-  // Entries after the header point into the frame.
+  // Even an unwritten packet is kept, so output stays pending and on_new_frame() takes nothing until the
+  // socket drains. Entries after the header point into the frame.
   for (uint8_t i = std::max<uint8_t>(this->iov_pos_, 1); i < this->iov_count_; i++)
     this->filler_len_ += this->iov_[i].iov_len;
   this->iov_count_ = std::max<uint8_t>(this->iov_pos_, 1);

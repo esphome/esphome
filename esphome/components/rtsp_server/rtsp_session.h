@@ -51,7 +51,7 @@ class RTSPSession {
 
   void open(std::unique_ptr<socket::Socket> socket, uint32_t now);
   void loop(uint32_t now, uint16_t port);
-  /// Ignored unless playing and idle; packets of the frame being sent point into that frame.
+  /// Ignored unless playing with no output pending; packets of the frame being sent point into that frame.
   void on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now);
 
  protected:
@@ -71,7 +71,7 @@ class RTSPSession {
       __attribute__((format(printf, 4, 5)));
   void stop_playing_();
   bool queue_next_packet_();
-  /// Releases the frame; the rest of a packet already partly written is sent as zeros to keep the framing.
+  /// Releases the frame; the frame-backed rest of the current packet is sent as zeros to keep the framing.
   void drop_frame_();
   /// Writes what is queued; true once all of it is written, false while backlogged or after a failure.
   bool flush_(uint32_t now);
@@ -88,7 +88,7 @@ class RTSPSession {
   uint32_t last_activity_ms_{0};
   uint32_t last_frame_ms_{0};
   uint32_t frame_progress_ms_{0};
-  // Bytes of an interleaved packet from the client (RTCP) still to discard.
+  // Bytes of an interleaved packet (RTCP) or request body from the client still to discard.
   uint32_t skip_len_{0};
   uint16_t sequence_number_{0};
   uint16_t request_len_{0};
