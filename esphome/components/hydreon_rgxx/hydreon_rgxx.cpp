@@ -228,44 +228,39 @@ void HydreonRGxxComponent::process_line_(StringRef line) {
   }
   bool is_data_line = false;
   for (int i = 0; i < NUM_SENSORS; i++) {
-    if (this->sensors_[i] != nullptr && line.find(PROTOCOL_NAMES[i]) != std::string::npos) {
-      is_data_line = true;
-      break;
+    if (this->sensors_[i] == nullptr) {
+      continue;
     }
+    StringRef::size_type n = line.find(PROTOCOL_NAMES[i]);
+    if (n == std::string::npos) {
+      continue;
+    }
+    is_data_line = true;
+
+    if (n == line.find('t', n)) {
+      // The device temperature ('t') response contains both °C and °F values:
+      // "t 72F 22C".
+      // ESPHome uses only °C, only parse °C value (move past 'F').
+      n = line.find('F', n);
+      if (n == std::string::npos) {
+        continue;
+      }
+      n += 1;  // move past 'F'
+    } else {
+      n += strlen(PROTOCOL_NAMES[i]);  // move past protocol name
+    }
+
+    // parse value, starting at str position n
+    float data = strtof(line.c_str() + n, nullptr);
+    this->sensors_[i]->publish_state(data);
+    ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
+    this->sensors_received_ |= (1 << i);
   }
   if (is_data_line) {
     StringRef::size_type tc = line.find("TooCold");
     this->too_cold_ |= tc != std::string::npos;
     if (this->too_cold_) {
       ESP_LOGD(TAG, "Received TooCold");
-    }
-    for (int i = 0; i < NUM_SENSORS; i++) {
-      if (this->sensors_[i] == nullptr) {
-        continue;
-      }
-      StringRef::size_type n = line.find(PROTOCOL_NAMES[i]);
-      if (n == std::string::npos) {
-        continue;
-      }
-
-      if (n == line.find('t', n)) {
-        // The device temperature ('t') response contains both °C and °F values:
-        // "t 72F 22C".
-        // ESPHome uses only °C, only parse °C value (move past 'F').
-        n = line.find('F', n);
-        if (n == std::string::npos) {
-          continue;
-        }
-        n += 1;  // move past 'F'
-      } else {
-        n += strlen(PROTOCOL_NAMES[i]);  // move past protocol name
-      }
-
-      // parse value, starting at str position n
-      float data = strtof(line.c_str() + n, nullptr);
-      this->sensors_[i]->publish_state(data);
-      ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
-      this->sensors_received_ |= (1 << i);
     }
     if (this->request_temperature_ && this->num_sensors_missing_() == 1) {
       this->write_str("T\n");
