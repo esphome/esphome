@@ -4,8 +4,7 @@ from . import EpaperModel
 
 
 class SpectraE6(EpaperModel):
-    def __init__(self, name, class_name="EPaperSpectraE6", **defaults):
-        super().__init__(name, class_name, **defaults)
+    class_name = "EPaperSpectraE6"
 
     # fmt: off
     def get_init_sequence(self, config: dict):
