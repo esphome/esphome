@@ -28,37 +28,43 @@ tsdb:
       name: value
       scale_factor: 100.0
       offset: -40.0
-      average_sensor:
-        name: TSDB validate average
-      min_sensor:
-        name: TSDB validate min
-      max_sensor:
-        name: TSDB validate max
-  records_sensor:
-    name: TSDB validate records
-  used_sensor:
-    name: TSDB validate used
-  free_sensor:
-    name: TSDB validate free
-  oldest_age_sensor:
-    name: TSDB validate oldest age
-  newest_age_sensor:
-    name: TSDB validate newest age
-  evictions_sensor:
-    name: TSDB validate evictions
-  log_sensor:
-    name: TSDB validate log
 
 sensor:
   - platform: tsdb
     tsdb_id: tsdb_validate
+    records:
+      name: TSDB validate records
+    used:
+      name: TSDB validate used
+    free:
+      name: TSDB validate free
+    oldest_age:
+      name: TSDB validate oldest age
+    newest_age:
+      name: TSDB validate newest age
+    evictions:
+      name: TSDB validate evictions
     errors:
       name: TSDB validate errors
+    columns:
+      - column: value
+        average:
+          name: TSDB validate average
+        min:
+          name: TSDB validate min
+        max:
+          name: TSDB validate max
   - platform: template
     id: tsdb_validate_value
     name: TSDB validate value
     lambda: return 21.4f;
     update_interval: 60s
+
+text_sensor:
+  - platform: tsdb
+    tsdb_id: tsdb_validate
+    log:
+      name: TSDB validate log
 
 time:
   - platform: sntp

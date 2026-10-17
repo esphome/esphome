@@ -5,11 +5,9 @@ from __future__ import annotations
 import pytest
 
 from esphome.components.tsdb import (
-    CONF_AVERAGE_SENSOR,
     CONF_COLUMNS,
     CONF_MAX_FILE_SIZE,
     CONF_MIN_FREE_BYTES,
-    CONF_MIN_SENSOR,
     CONF_NAME,
     CONF_PARTITION_SIZE,
     CONF_SCALE_FACTOR,
@@ -22,7 +20,15 @@ from esphome.components.tsdb import (
     _validate_partition_size,
     _validate_size,
 )
+from esphome.components.tsdb.sensor import (
+    CONF_AVERAGE,
+    CONF_COLUMN,
+    CONF_MIN,
+    _final_validate,
+)
 import esphome.config_validation as cv
+from esphome.const import CONF_TIME_ID
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -140,13 +146,27 @@ def test_validate_config_rejects_zero_scale_factor() -> None:
         _validate_config(config)
 
 
-@pytest.mark.parametrize("key", [CONF_AVERAGE_SENSOR, CONF_MIN_SENSOR])
-def test_validate_config_requires_a_clock_for_aggregates(key: str) -> None:
-    config = _config(columns=[_column(**{key: {}})])
+def _final_validate_with_hub(hub: dict, platform: dict) -> None:
+    token = fv.full_config.set({"tsdb": hub})
+    try:
+        _final_validate(platform)
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize("key", [CONF_AVERAGE, CONF_MIN])
+def test_sensor_platform_requires_a_clock_for_aggregates(key: str) -> None:
+    platform = {CONF_COLUMNS: [{CONF_COLUMN: "value", key: {}}]}
     with pytest.raises(cv.Invalid, match="need a time source"):
-        _validate_config(config)
+        _final_validate_with_hub(_config(), platform)
     # With a clock the same columns are accepted.
-    assert _validate_config(_config(columns=[_column(**{key: {}})], time_id="clock"))
+    _final_validate_with_hub(_config(**{CONF_TIME_ID: "clock"}), platform)
+
+
+def test_sensor_platform_rejects_an_unknown_column() -> None:
+    platform = {CONF_COLUMNS: [{CONF_COLUMN: "missing", CONF_AVERAGE: {}}]}
+    with pytest.raises(cv.Invalid, match="'missing' is not a tsdb column"):
+        _final_validate_with_hub(_config(**{CONF_TIME_ID: "clock"}), platform)
 
 
 def test_validate_config_rejects_a_budget_that_does_not_fit() -> None:

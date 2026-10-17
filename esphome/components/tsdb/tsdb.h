@@ -3,6 +3,7 @@
 // tsdb hub header; ESP-IDF only (esp_tsdb + LittleFS engine).
 #ifdef USE_ESP_IDF
 
+#include <array>
 #include <cstdint>
 
 #include "esphome/core/component.h"
@@ -10,7 +11,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/components/time/real_time_clock.h"
 
 #include "esp_err.h"
@@ -24,11 +27,17 @@ struct TsdbColumn {
   sensor::Sensor *source{nullptr};
   double scale{1.0};
   double offset{0.0};
-  sensor::Sensor *average_sensor{nullptr};
-  sensor::Sensor *min_sensor{nullptr};
-  sensor::Sensor *max_sensor{nullptr};
   int16_t held{tsdbmath::RAW_UNKNOWN};
 };
+
+#ifdef USE_SENSOR
+// Kept apart from TsdbColumn: the sensor platform may set these before the hub adds its columns.
+struct TsdbAggregateSensors {
+  sensor::Sensor *average{nullptr};
+  sensor::Sensor *min{nullptr};
+  sensor::Sensor *max{nullptr};
+};
+#endif
 
 class TsdbComponent : public PollingComponent {
 #ifdef USE_SENSOR
@@ -70,11 +79,14 @@ class TsdbComponent : public PollingComponent {
 
   void add_column(const char *name, double scale, double offset);
   void set_column_source(size_t index, sensor::Sensor *source);
-  void set_column_average_sensor(size_t index, sensor::Sensor *sensor);
-  void set_column_min_sensor(size_t index, sensor::Sensor *sensor);
-  void set_column_max_sensor(size_t index, sensor::Sensor *sensor);
-
+#ifdef USE_SENSOR
+  void set_column_average_sensor(size_t index, sensor::Sensor *sensor) { this->aggregates_[index].average = sensor; }
+  void set_column_min_sensor(size_t index, sensor::Sensor *sensor) { this->aggregates_[index].min = sensor; }
+  void set_column_max_sensor(size_t index, sensor::Sensor *sensor) { this->aggregates_[index].max = sensor; }
+#endif
+#ifdef USE_TEXT_SENSOR
   void set_log_sensor(text_sensor::TextSensor *sensor) { this->log_sensor_ = sensor; }
+#endif
 
   void request_flush() { this->flush_requested_ = true; }
   void request_dump(uint32_t rows = 0) { this->dump_requested_ = rows == 0 ? this->dump_rows_ : rows; }
@@ -123,8 +135,12 @@ class TsdbComponent : public PollingComponent {
   StaticVector<TsdbColumn, TSDB_COLUMN_COUNT> columns_;
   StaticVector<int16_t, TSDB_COLUMN_COUNT> values_;
   time::RealTimeClock *time_{nullptr};
-
+#ifdef USE_SENSOR
+  std::array<TsdbAggregateSensors, TSDB_COLUMN_COUNT> aggregates_{};
+#endif
+#ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *log_sensor_{nullptr};
+#endif
 
   void *db_{nullptr};
   bool mounted_{false};

@@ -4,7 +4,7 @@ import re
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import sensor, text_sensor
+from esphome.components import sensor
 from esphome.components.const import CONF_COLUMNS
 from esphome.components.esp32 import (
     add_idf_component,
@@ -23,12 +23,6 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_TIME_ID,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_DURATION,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_BYTES,
-    UNIT_SECOND,
     Framework,
     PlatformFramework,
 )
@@ -37,7 +31,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "tsdb"
-AUTO_LOAD = ["sensor", "text_sensor"]
+AUTO_LOAD = ["sensor"]
 
 tsdb_ns = cg.esphome_ns.namespace("tsdb")
 TsdbComponent = tsdb_ns.class_("TsdbComponent", cg.PollingComponent)
@@ -73,19 +67,9 @@ CONF_MIN_FREE_BYTES = "min_free_bytes"
 CONF_REQUIRE_TIME = "require_time"
 CONF_ON_MISSING = "on_missing"
 CONF_SCALE_FACTOR = "scale_factor"
-CONF_AVERAGE_SENSOR = "average_sensor"
-CONF_MIN_SENSOR = "min_sensor"
-CONF_MAX_SENSOR = "max_sensor"
 CONF_AGGREGATE_WINDOW = "aggregate_window"
 CONF_AGGREGATE_INTERVAL = "aggregate_interval"
 CONF_DUMP_ROWS = "dump_rows"
-CONF_RECORDS_SENSOR = "records_sensor"
-CONF_USED_SENSOR = "used_sensor"
-CONF_FREE_SENSOR = "free_sensor"
-CONF_OLDEST_AGE_SENSOR = "oldest_age_sensor"
-CONF_NEWEST_AGE_SENSOR = "newest_age_sensor"
-CONF_EVICTIONS_SENSOR = "evictions_sensor"
-CONF_LOG_SENSOR = "log_sensor"
 CONF_TSDB_ID = "tsdb_id"
 
 MEMORY_MODES = {
@@ -191,16 +175,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
     for column in columns:
         if column[CONF_SCALE_FACTOR] == 0:
             raise cv.Invalid(f"'{column[CONF_NAME]}': scale_factor must not be 0")
-    # An aggregate is queried over a time window, so without a clock the sensors
-    # would stay unknown forever.
-    if CONF_TIME_ID not in config and any(
-        key in column
-        for column in columns
-        for key in (CONF_AVERAGE_SENSOR, CONF_MIN_SENSOR, CONF_MAX_SENSOR)
-    ):
-        raise cv.Invalid(
-            "average_sensor, min_sensor and max_sensor need a time source; set time_id"
-        )
     partition = config[CONF_PARTITION_SIZE]
     min_free = config[CONF_MIN_FREE_BYTES]
     max_file = config[CONF_MAX_FILE_SIZE]
@@ -222,9 +196,6 @@ COLUMN_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_,
         cv.Optional(CONF_OFFSET, default=0.0): cv.float_,
-        cv.Optional(CONF_AVERAGE_SENSOR): sensor.sensor_schema(),
-        cv.Optional(CONF_MIN_SENSOR): sensor.sensor_schema(),
-        cv.Optional(CONF_MAX_SENSOR): sensor.sensor_schema(),
     }
 )
 
@@ -278,41 +249,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_COLUMNS): cv.All(
                 cv.ensure_list(COLUMN_SCHEMA),
                 cv.Length(min=1, max=TSDB_MAX_BASE_PARAMS),
-            ),
-            cv.Optional(CONF_RECORDS_SENSOR): sensor.sensor_schema(
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_USED_SENSOR): sensor.sensor_schema(
-                accuracy_decimals=0,
-                unit_of_measurement=UNIT_BYTES,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_FREE_SENSOR): sensor.sensor_schema(
-                accuracy_decimals=0,
-                unit_of_measurement=UNIT_BYTES,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_OLDEST_AGE_SENSOR): sensor.sensor_schema(
-                accuracy_decimals=0,
-                unit_of_measurement=UNIT_SECOND,
-                device_class=DEVICE_CLASS_DURATION,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_NEWEST_AGE_SENSOR): sensor.sensor_schema(
-                accuracy_decimals=0,
-                unit_of_measurement=UNIT_SECOND,
-                device_class=DEVICE_CLASS_DURATION,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_EVICTIONS_SENSOR): sensor.sensor_schema(
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_LOG_SENSOR): text_sensor.text_sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     ),
@@ -375,24 +311,6 @@ async def to_code(config: ConfigType) -> None:
             )
         )
         cg.add(var.set_column_source(index, await cg.get_variable(column[CONF_SENSOR])))
-        if (average := column.get(CONF_AVERAGE_SENSOR)) is not None:
-            cg.add(
-                var.set_column_average_sensor(index, await sensor.new_sensor(average))
-            )
-        if (low := column.get(CONF_MIN_SENSOR)) is not None:
-            cg.add(var.set_column_min_sensor(index, await sensor.new_sensor(low)))
-        if (high := column.get(CONF_MAX_SENSOR)) is not None:
-            cg.add(var.set_column_max_sensor(index, await sensor.new_sensor(high)))
-
-    sensors = sensor.sub_sensors(config)
-    await sensors(CONF_RECORDS_SENSOR, var.set_records_sensor)
-    await sensors(CONF_USED_SENSOR, var.set_used_sensor)
-    await sensors(CONF_FREE_SENSOR, var.set_free_sensor)
-    await sensors(CONF_OLDEST_AGE_SENSOR, var.set_oldest_age_sensor)
-    await sensors(CONF_NEWEST_AGE_SENSOR, var.set_newest_age_sensor)
-    await sensors(CONF_EVICTIONS_SENSOR, var.set_evictions_sensor)
-    text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_LOG_SENSOR, var.set_log_sensor)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

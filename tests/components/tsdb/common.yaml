@@ -17,36 +17,36 @@ tsdb:
     - sensor: tsdb_temperature
       name: temperature
       scale_factor: 10.0
-      average_sensor:
-        name: TSDB temperature average
-      min_sensor:
-        name: TSDB temperature min
-      max_sensor:
-        name: TSDB temperature max
     - sensor: tsdb_humidity
       name: humidity
       scale_factor: 10.0
       offset: 0.0
-  records_sensor:
-    name: TSDB records
-  used_sensor:
-    name: TSDB used
-  free_sensor:
-    name: TSDB free
-  oldest_age_sensor:
-    name: TSDB oldest record age
-  newest_age_sensor:
-    name: TSDB newest record age
-  evictions_sensor:
-    name: TSDB evictions
-  log_sensor:
-    name: TSDB log
 
 sensor:
   - platform: tsdb
     tsdb_id: tsdb_test
+    records:
+      name: TSDB records
+    used:
+      name: TSDB used
+    free:
+      name: TSDB free
+    oldest_age:
+      name: TSDB oldest record age
+    newest_age:
+      name: TSDB newest record age
+    evictions:
+      name: TSDB evictions
     errors:
       name: TSDB errors
+    columns:
+      - column: temperature
+        average:
+          name: TSDB temperature average
+        min:
+          name: TSDB temperature min
+        max:
+          name: TSDB temperature max
   - platform: template
     id: tsdb_temperature
     name: TSDB temperature
@@ -57,6 +57,12 @@ sensor:
     name: TSDB humidity
     lambda: return 48.0f;
     update_interval: 60s
+
+text_sensor:
+  - platform: tsdb
+    tsdb_id: tsdb_test
+    log:
+      name: TSDB log
 
 time:
   - platform: sntp

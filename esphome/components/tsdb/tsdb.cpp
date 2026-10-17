@@ -101,18 +101,6 @@ void TsdbComponent::add_column(const char *name, double scale, double offset) {
 
 void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { this->columns_[index].source = source; }
 
-void TsdbComponent::set_column_average_sensor(size_t index, sensor::Sensor *sensor) {
-  this->columns_[index].average_sensor = sensor;
-}
-
-void TsdbComponent::set_column_min_sensor(size_t index, sensor::Sensor *sensor) {
-  this->columns_[index].min_sensor = sensor;
-}
-
-void TsdbComponent::set_column_max_sensor(size_t index, sensor::Sensor *sensor) {
-  this->columns_[index].max_sensor = sensor;
-}
-
 void TsdbComponent::setup() {
   if (this->columns_.empty()) {
     ESP_LOGE(TAG, "tsdb: no columns configured");
@@ -548,6 +536,7 @@ void TsdbComponent::dump_config() {
 }
 
 void TsdbComponent::publish_aggregates_() {
+#ifdef USE_SENSOR
   if (this->time_ == nullptr || this->aggregate_window_ == 0)
     return;
   const ESPTime now = this->time_->now();
@@ -575,14 +564,16 @@ void TsdbComponent::publish_aggregates_() {
 
   for (size_t index = 0; index < this->columns_.size(); index++) {
     const TsdbColumn &column = this->columns_[index];
+    const TsdbAggregateSensors &sensors = this->aggregates_[index];
     const auto param = static_cast<uint8_t>(index);
-    if (column.average_sensor != nullptr)
-      publish(column.average_sensor, param, TSDB_AGG_AVG, column);
-    if (column.min_sensor != nullptr)
-      publish(column.min_sensor, param, TSDB_AGG_MIN, column);
-    if (column.max_sensor != nullptr)
-      publish(column.max_sensor, param, TSDB_AGG_MAX, column);
+    if (sensors.average != nullptr)
+      publish(sensors.average, param, TSDB_AGG_AVG, column);
+    if (sensors.min != nullptr)
+      publish(sensors.min, param, TSDB_AGG_MIN, column);
+    if (sensors.max != nullptr)
+      publish(sensors.max, param, TSDB_AGG_MAX, column);
   }
+#endif
 }
 
 // Wall-clock seconds, or 0 when no clock is synced (record ages are then unknown).
@@ -604,6 +595,7 @@ void TsdbComponent::publish_stats_() {
     return;
   }
   this->records_ = stats.total_records;
+#ifdef USE_SENSOR
   if (this->records_sensor_ != nullptr)
     this->records_sensor_->publish_state(stats.total_records);
   if (this->evictions_sensor_ != nullptr)
@@ -631,6 +623,7 @@ void TsdbComponent::publish_stats_() {
     if (this->free_sensor_ != nullptr)
       this->free_sensor_->publish_state(static_cast<float>(total - used));
   }
+#endif
   ESP_LOGD(
       TAG, "%s: %" PRIu32 " records, %" PRIu32 " evicted, %" PRIu32 " writes, %" PRIu32 " dropped, %" PRIu32 " errors",
       this->file_.c_str(), this->records_, stats.total_evictions, this->writes_, this->dropped_, this->write_errors_);
@@ -716,9 +709,11 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
 }
 
 void TsdbComponent::publish_log_(const char *message) {
+#ifdef USE_TEXT_SENSOR
   if (this->log_sensor_ == nullptr)
     return;
   this->log_sensor_->publish_state(message);
+#endif
 }
 
 }  // namespace esphome::tsdb
