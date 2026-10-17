@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_CALIBRATION,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_TYPE,
     CONF_UPDATE_INTERVAL,
 )
@@ -55,12 +54,9 @@ GAINS_41 = {
 GAINS_43 = {**GAINS_41, "X1024": Gain.GAIN_1024X, "X2048": Gain.GAIN_2048X}
 
 Normalization = as734x_ns.enum("Normalization", True)
-NORMALIZATIONS = {
-    "NONE": Normalization.NORMALIZATION_NONE,
-    "ALL": Normalization.NORMALIZATION_ALL,
-    "BANDS": Normalization.NORMALIZATION_BANDS,
-    "CLEAR": Normalization.NORMALIZATION_CLEAR,
-}
+NORMALIZATIONS = Normalization.options(
+    "NONE", "ALL", "BANDS", "CLEAR", prefix="NORMALIZATION_"
+)
 
 # Per-channel correction for the golden device, measured by the manufacturer.
 DEFAULT_CHANNEL_CORRECTION_43 = [
@@ -169,9 +165,7 @@ def _per_band(
 async def to_code(config: ConfigType) -> None:
     chip = config[CONF_TYPE]
     cg.add_define("USE_AS7341" if chip == "AS7341" else "USE_AS7343")
-    var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(f"&as734x::{chip}_CHIP"))
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config, cg.RawExpression(f"&as734x::{chip}_CHIP"))
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_atime(config[CONF_ATIME]))
     cg.add(var.set_astep(config[CONF_ASTEP]))

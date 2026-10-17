@@ -62,16 +62,8 @@ void TSL2591Component::setup() {
       break;
   }
 
-  uint8_t id;
-  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, 0x50))
     return;
-  }
-
-  if (id != 0x50) {
-    this->mark_failed(LOG_STR("Unknown chip ID"));
-    return;
-  }
 
   this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   this->disable_if_power_saving_();
