@@ -119,10 +119,18 @@ def clang_options(idedata, environment):
         "-mthumb-interwork",
     )
 
+    if not native:
+        cmd.extend(
+            [
+                # disable built-in include directories from the host
+                "-nostdinc++",
+            ]
+        )
+
     # set flags
     if not native:
         # disable built-in include directories from the host
-        cmd.extend(["-nostdinc++", "-nostdinc"])
+        cmd.append("-nostdinc")
     cmd.extend(
         [
             # allow to condition code on the presence of clang-tidy
@@ -546,7 +554,12 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
 
     platformio_ini = Path(root_path) / "platformio.ini"
 
-    from clang_tidy_hash import cache_key, is_cached, update_cache
+    from clang_tidy_hash import (
+        ZEPHYR_CODECHECKER_FILES,
+        cache_key,
+        is_cached,
+        update_cache,
+    )
 
     requested_sources = {Path(f).resolve() for f in files}
 
@@ -562,7 +575,7 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         cache_key_path = work_dir / ".compile_commands.hash"
         # Snapshotted now, before the west configure/CodeChecker analyze
         # below -- see cache_key()'s docstring for why.
-        key = cache_key(extra)
+        key = cache_key(extra, ZEPHYR_CODECHECKER_FILES)
         # Skip the west/CMake reconfigure if nothing that affects the
         # generated compile commands has changed since the last run.
         if not compile_commands_path.is_file() or not is_cached(cache_key_path, key):

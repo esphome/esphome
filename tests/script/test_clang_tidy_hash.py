@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "script"))
 
 import clang_tidy_hash  # noqa: E402
-from clang_tidy_hash import CLANG_TIDY_GLOBAL_FILES  # noqa: E402
+from clang_tidy_hash import CLANG_TIDY_GLOBAL_FILES, ZEPHYR_CODECHECKER_FILES  # noqa: E402
 
 
 def _populate(repo_root: Path) -> None:
@@ -89,8 +89,27 @@ def test_global_files_exist_in_real_repo() -> None:
     ever populate a synthetic tmp_path root.
     """
     repo_root = clang_tidy_hash.get_repo_root()
-    for name in CLANG_TIDY_GLOBAL_FILES:
+    for name in CLANG_TIDY_GLOBAL_FILES + ZEPHYR_CODECHECKER_FILES:
         assert (repo_root / name).is_file(), f"{name} not found under repo root"
+
+
+@pytest.mark.parametrize("filename", ZEPHYR_CODECHECKER_FILES)
+def test_zephyr_files_change_cache_key_not_global_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, filename: str
+) -> None:
+    """Zephyr-only inputs change the CodeChecker cache key but not the global hash."""
+    _populate(tmp_path)
+    path = tmp_path / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("a\n")
+    monkeypatch.setattr(clang_tidy_hash, "get_repo_root", lambda: tmp_path)
+    global_before = clang_tidy_hash.calculate_clang_tidy_hash()
+    key_before = clang_tidy_hash.cache_key("src.cpp", ZEPHYR_CODECHECKER_FILES)
+
+    path.write_text("b\n")
+
+    assert clang_tidy_hash.calculate_clang_tidy_hash() == global_before
+    assert clang_tidy_hash.cache_key("src.cpp", ZEPHYR_CODECHECKER_FILES) != key_before
 
 
 def test_is_cached_missing_file_returns_false(tmp_path: Path) -> None:

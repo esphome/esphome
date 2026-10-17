@@ -21,6 +21,12 @@ CLANG_TIDY_GLOBAL_FILES = (
     "esphome/idf_component.yml",
     "esphome/components/esp32/__init__.py",
     "esphome/components/nrf52/__init__.py",
+)
+
+# Inputs to the Zephyr CodeChecker compile commands only; kept out of
+# CLANG_TIDY_GLOBAL_FILES so a change does not force a full scan of every
+# platform.
+ZEPHYR_CODECHECKER_FILES = (
     "esphome/components/nrf52/clang_tidy.py",
     "esphome/components/nrf52/framework.py",
     "esphome/components/nrf52/requirements.txt",
@@ -81,15 +87,23 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
     return hasher.hexdigest()
 
 
-def cache_key(extra: str = "") -> str:
-    """Compute the current cache key (plus extra).
+def cache_key(extra: str = "", files: tuple[str, ...] = ()) -> str:
+    """Compute the current cache key (plus extra and the contents of files).
 
     Snapshot this once, before the work it gates -- recomputed after, it
     would reflect edits made mid-run rather than what the work actually saw.
     """
-    if not extra:
+    if not extra and not files:
         return calculate_clang_tidy_hash()
-    return hashlib.sha256((calculate_clang_tidy_hash() + extra).encode()).hexdigest()
+    hasher = hashlib.sha256(calculate_clang_tidy_hash().encode())
+    repo_root = get_repo_root()
+    for name in files:
+        path = repo_root / name
+        if path.is_file():
+            hasher.update(name.encode())
+            hasher.update(read_file_bytes(path))
+    hasher.update(extra.encode())
+    return hasher.hexdigest()
 
 
 def is_cached(hash_path: Path, key: str) -> bool:
