@@ -1,0 +1,34 @@
+vnc:
+  - id: vnc_client
+    display_id: test_display_screen
+    host: 192.0.2.10
+    port: 5901
+    password: secret12
+    reconnect_interval: 10s
+    update_delay: 300ms
+    max_update_delay: 2s
+    pixel_format: rgb565
+    on_connect:
+      - logger.log: VNC connected
+    on_disconnect:
+      - logger.log: VNC disconnected
+
+interval:
+  - interval: 60s
+    then:
+      - vnc.connect: vnc_client
+      - vnc.disconnect:
+          id: vnc_client
+      - vnc.refresh: vnc_client
+      - if:
+          condition:
+            vnc.is_connected: vnc_client
+          then:
+            - logger.log: VNC is connected
+      - if:
+          condition:
+            vnc.is_connected:
+              id: vnc_client
+          then:
+            - vnc.refresh:
+                id: vnc_client
