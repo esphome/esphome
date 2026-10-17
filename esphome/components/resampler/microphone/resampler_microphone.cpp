@@ -35,8 +35,9 @@ void ResamplerMicrophone::dump_config() {
                 "Resampler Microphone:\n"
                 "  Target Sample Rate: %" PRIu32 " Hz\n"
                 "  Taps: %u\n"
-                "  Filters: %u",
-                this->target_sample_rate_, this->taps_, this->filters_);
+                "  Filters: %u\n"
+                "  ESP-DSP 48 -> 16 kHz decimation: %s",
+                this->target_sample_rate_, this->taps_, this->filters_, YESNO(this->fast_decimation_));
 }
 
 void ResamplerMicrophone::start() {
@@ -65,6 +66,14 @@ void ResamplerMicrophone::loop() {
 
   switch (this->state_) {
     case microphone::STATE_STOPPED:
+      if (this->fast_decimation_) {
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
+        if (!this->dsp_decimator_.reset()) {
+          this->mark_failed();
+          return;
+        }
+#endif
+      }
       this->source_->start();
       this->state_ = microphone::STATE_STARTING;
       break;
@@ -90,6 +99,27 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
 
   if (input_stream_info.get_sample_rate() == this->target_sample_rate_) {
     // The source already delivers the target sample rate, so its audio is passed through unchanged
+    this->input_stream_info_ = input_stream_info;
+    this->resampler_ready_ = true;
+    return true;
+  }
+
+  if (this->fast_decimation_) {
+    if (input_stream_info.get_sample_rate() != 48000 || this->target_sample_rate_ != 16000 ||
+        input_stream_info.get_bits_per_sample() != 16 || input_stream_info.get_channels() != 1) {
+      ESP_LOGE(TAG, "Fast decimation requires 48 kHz mono 16-bit input and 16 kHz output");
+      return false;
+    }
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
+    if (!this->dsp_decimator_.reset()) {
+      ESP_LOGE(TAG, "ESP-DSP decimator initialization failed");
+      return false;
+    }
+#else
+    ESP_LOGE(TAG, "Fast decimation requires ESP-DSP");
+    return false;
+#endif
+    this->output_buffer_.reserve(this->audio_stream_info_.ms_to_bytes(BUFFER_DURATION_MS));
     this->input_stream_info_ = input_stream_info;
     this->resampler_ready_ = true;
     return true;
@@ -133,6 +163,15 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
     this->init_resampler_(input_stream_info);
   }
   if (!this->resampler_ready_) {
+    return;
+  }
+
+  if (this->fast_decimation_ && input_stream_info.get_sample_rate() != this->target_sample_rate_) {
+#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
+    this->dsp_decimator_.process(data, this->output_buffer_);
+#endif
+    if (!this->output_buffer_.empty())
+      this->data_callbacks_.call(this->output_buffer_);
     return;
   }
 
