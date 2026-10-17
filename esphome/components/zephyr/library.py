@@ -37,6 +37,24 @@ from esphome.platformio.library import (
 # framework mismatch warning fires.
 ZEPHYR_FRAMEWORK = "zephyr"
 
+# CMake variable carrying the project-wide compile flags into converted libraries.
+LIBRARY_COMPILE_OPTIONS_VAR = "ESPHOME_LIBRARY_COMPILE_OPTIONS"
+
+
+def library_compile_options_cmake(compile_flags: list[str]) -> list[str]:
+    """App CMakeLists lines handing ``compile_flags`` to every converted library.
+
+    Must come before find_package(Zephyr), which is where Zephyr processes modules.
+    """
+    if not compile_flags:
+        return []
+    return [
+        f"set({LIBRARY_COMPILE_OPTIONS_VAR}",
+        *[f"  {_escape(flag)}" for flag in compile_flags],
+        ")",
+        "",
+    ]
+
 
 def _escape(p: PathType) -> str:
     # In CMakeLists.txt, backslashes and embedded quotes need escaping
@@ -138,6 +156,15 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
             *[f"  {_escape(f)}" for f in build_flags],
             ")",
         ]
+    # Project-wide -D/-W flags (cg.add_build_flag()), set by the app CMakeLists --
+    # PlatformIO's build_flags reach libraries too, and components rely on that to
+    # configure them (e.g. canopen-stack's CO_* sizes). Read from a variable rather
+    # than inlined so this file stays project-independent in the shared cache.
+    lines += [
+        f"if({LIBRARY_COMPILE_OPTIONS_VAR})",
+        f"  zephyr_library_compile_options(${{{LIBRARY_COMPILE_OPTIONS_VAR}}})",
+        "endif()",
+    ]
     # Best-effort link wiring; most Zephyr-portable libraries don't need it.
     link_flags = [f"-L{d}" for d in link_directories] + [
         f"-l{lib}" for lib in link_libraries

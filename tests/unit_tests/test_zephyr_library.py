@@ -6,9 +6,11 @@ import pytest
 
 import esphome.components.zephyr.library as zlib
 from esphome.components.zephyr.library import (
+    LIBRARY_COMPILE_OPTIONS_VAR,
     generate_cmakelists_txt,
     generate_module_yml,
     generate_zephyr_modules,
+    library_compile_options_cmake,
 )
 from esphome.core import EsphomeError, Library
 from esphome.platformio.library import ConvertedLibrary, URLSource
@@ -92,6 +94,31 @@ def test_generate_cmakelists_txt_lexes_spaced_flags(tmp_path):
     assert str((tmp_path / "include").resolve()).replace("\\", "\\\\") in out
     assert "-DBAR=1" in out
     assert "-I include" not in out
+
+
+def test_generate_cmakelists_txt_applies_project_compile_options(tmp_path):
+    """Project-wide build flags reach the library through a variable the app
+    CMakeLists sets, like PlatformIO's build_flags -- and the generated file
+    stays project-independent (no flags inlined) for the shared cache."""
+    c = _make_component(tmp_path)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.c").write_text("")
+    c.data = {}
+
+    out = generate_cmakelists_txt(c)
+
+    assert f"if({LIBRARY_COMPILE_OPTIONS_VAR})" in out
+    assert f"zephyr_library_compile_options(${{{LIBRARY_COMPILE_OPTIONS_VAR}}})" in out
+
+
+def test_library_compile_options_cmake():
+    assert library_compile_options_cmake([]) == []
+    out = "\n".join(
+        library_compile_options_cmake(["-DCO_SDO_BUF_SEG=16", '-DMSG="hi"'])
+    )
+    assert out.startswith(f"set({LIBRARY_COMPILE_OPTIONS_VAR}")
+    assert '"-DCO_SDO_BUF_SEG=16"' in out
+    assert '"-DMSG=\\"hi\\""' in out
 
 
 def test_generate_zephyr_modules_collects_all_dirs_and_writes(tmp_path, monkeypatch):

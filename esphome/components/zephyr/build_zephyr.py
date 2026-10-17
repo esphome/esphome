@@ -246,6 +246,8 @@ def generate_cmake_lists(mode: str) -> bool:
 
     Returns True if the file changed.
     """
+    from .library import library_compile_options_cmake
+
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
 
@@ -254,6 +256,7 @@ def generate_cmake_lists(mode: str) -> bool:
         "",
         'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
         "",
+        *library_compile_options_cmake(compile_flags),
         "find_package(Zephyr REQUIRED)",
         "",
         f"project({CORE.name})",
