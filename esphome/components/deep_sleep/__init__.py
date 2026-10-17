@@ -223,19 +223,15 @@ DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
 EnterDeepSleepAction = deep_sleep_ns.class_("EnterDeepSleepAction", automation.Action)
 
 WakeupPinMode = deep_sleep_ns.enum("WakeupPinMode")
-WAKEUP_PIN_MODES = {
-    "IGNORE": WakeupPinMode.WAKEUP_PIN_MODE_IGNORE,
-    "KEEP_AWAKE": WakeupPinMode.WAKEUP_PIN_MODE_KEEP_AWAKE,
-    "INVERT_WAKEUP": WakeupPinMode.WAKEUP_PIN_MODE_INVERT_WAKEUP,
-}
+WAKEUP_PIN_MODES = WakeupPinMode.options(
+    "IGNORE", "KEEP_AWAKE", "INVERT_WAKEUP", prefix="WAKEUP_PIN_MODE_"
+)
 
 esp_sleep_ext1_wakeup_mode_t = cg.global_ns.enum("esp_sleep_ext1_wakeup_mode_t")
 Ext1Wakeup = deep_sleep_ns.struct("Ext1Wakeup")
-EXT1_WAKEUP_MODES = {
-    "ANY_LOW": esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ANY_LOW,
-    "ALL_LOW": esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ALL_LOW,
-    "ANY_HIGH": esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ANY_HIGH,
-}
+EXT1_WAKEUP_MODES = esp_sleep_ext1_wakeup_mode_t.options(
+    "ANY_LOW", "ALL_LOW", "ANY_HIGH", prefix="ESP_EXT1_WAKEUP_"
+)
 WakeupCauseToRunDuration = deep_sleep_ns.struct("WakeupCauseToRunDuration")
 
 WakeupCause = deep_sleep_ns.enum("WakeupCause")
