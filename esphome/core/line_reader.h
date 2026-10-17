@@ -6,7 +6,8 @@
 
 namespace esphome {
 
-/// Logs the shared "line dropped" warning; out of line to keep each caller small.
+/// Logs the shared "line dropped" warning; out of line to keep each caller small. Components that call it
+/// (directly or via log_if_overflowed) add cg.add_define("USE_LINE_READER") so line_reader.cpp is compiled.
 void log_line_dropped(const char *tag, size_t max_len);
 
 /// Collects bytes into NUL terminated lines of up to N - 1 characters; IGNORE_CHAR bytes are skipped and an
