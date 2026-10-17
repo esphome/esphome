@@ -189,14 +189,10 @@ void DFRobotSEN0609Component::setup() {
 }
 
 void DFRobotSEN0609Component::loop() {
-  if (!this->read_available_chunks<MAX_LINE_LENGTH>([this](const uint8_t *data, size_t len) {
-        this->read_failed_ = false;
-        for (const uint8_t *p = data; p != data + len; p++)
-          this->readline_(*p);
-      })) {
-    if (!this->read_failed_) {
-      ESP_LOGW(TAG, "UART read failed");
-    }
+  if (this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); })) {
+    this->read_failed_ = false;
+  } else if (!this->read_failed_) {
+    ESP_LOGW(TAG, "UART read failed");
     this->read_failed_ = true;
   }
   this->run_sequencer_();
