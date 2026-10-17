@@ -13,20 +13,12 @@ from esphome.components import sensor
 
 CODEOWNERS = ["@nliaudat"]
 DOMAIN = "mq_gas_sensors"
-
-# No ``AUTO_LOAD`` here: for a platform component ESPHome processes the list of the
-# platform module, and ``sensor.py`` declares ``sensor`` and ``voltage_sampler``.
-
 mq_gas_sensors_ns = cg.esphome_ns.namespace("mq_gas_sensors")
 
-# C++ class: class MQGasSensor : public sensor::Sensor, public PollingComponent
 MQGasSensor = mq_gas_sensors_ns.class_(
     "MQGasSensor", sensor.Sensor, cg.PollingComponent
 )
 
-# ---------------------------------------------------------------------------
-# Configuration keys
-# ---------------------------------------------------------------------------
 CONF_SENSOR_TYPE = "sensor_type"
 CONF_GAS = "gas"
 CONF_VOLTAGE_MULTIPLIER = "voltage_multiplier"
@@ -37,7 +29,6 @@ CONF_RATIO_IN_CLEAN_AIR = "ratio_in_clean_air"
 CONF_SAMPLE_COUNT = "sample_count"
 CONF_SAMPLE_INTERVAL = "sample_interval"
 
-# MQUnifiedsensor::setRegressionMethod() values.
 REGRESSION_METHODS = {
     "exponential": 1,  # _PPM = a * ratio^b
     "linear": 2,  # log10(_PPM) = (log10(ratio) - b) / a
