@@ -26,6 +26,7 @@
 #define ESPHOME_strncmp_P strncmp_P
 #define ESPHOME_strncasecmp_P strncasecmp_P
 #define ESPHOME_strlen_P strlen_P
+#define ESPHOME_strstr_P strstr_P
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
 using ProgmemStr = const __FlashStringHelper *;
 // Storage class for PROGMEM_STRING_TABLE data; LOG_STR_ARG treats a LogString as PGM_P
@@ -43,6 +44,7 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_strncmp_P strncmp
 #define ESPHOME_strncasecmp_P strncasecmp
 #define ESPHOME_strlen_P strlen
+#define ESPHOME_strstr_P strstr
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
 using ProgmemStr = const char *;
 // No-op on non-ESP8266 platforms where PROGMEM itself is a no-op.

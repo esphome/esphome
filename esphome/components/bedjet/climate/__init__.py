@@ -12,14 +12,10 @@ DEPENDENCIES = ["bedjet"]
 BedJetClimate = bedjet_ns.class_("BedJetClimate", climate.Climate, cg.PollingComponent)
 BedjetHeatMode = bedjet_ns.enum("BedjetHeatMode")
 BedjetTemperatureSource = bedjet_ns.enum("BedjetTemperatureSource")
-BEDJET_HEAT_MODES = {
-    "heat": BedjetHeatMode.HEAT_MODE_HEAT,
-    "extended": BedjetHeatMode.HEAT_MODE_EXTENDED,
-}
-BEDJET_TEMPERATURE_SOURCES = {
-    "outlet": BedjetTemperatureSource.TEMPERATURE_SOURCE_OUTLET,
-    "ambient": BedjetTemperatureSource.TEMPERATURE_SOURCE_AMBIENT,
-}
+BEDJET_HEAT_MODES = BedjetHeatMode.options("heat", "extended", prefix="HEAT_MODE_")
+BEDJET_TEMPERATURE_SOURCES = BedjetTemperatureSource.options(
+    "outlet", "ambient", prefix="TEMPERATURE_SOURCE_"
+)
 
 CONFIG_SCHEMA = (
     climate.climate_schema(BedJetClimate)

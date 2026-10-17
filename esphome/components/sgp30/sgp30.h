@@ -46,14 +46,6 @@ class SGP30Component final : public PollingComponent, public sensirion_common::S
   uint16_t tvoc_baseline_{0x0000};
   bool store_baseline_;
 
-  enum ErrorCode : uint8_t {
-    COMMUNICATION_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    INVALID_ID,
-    UNSUPPORTED_ID,
-    UNKNOWN
-  } error_code_{UNKNOWN};
-
   ESPPreferenceObject pref_;
   SGP30Baselines baselines_storage_;
 
