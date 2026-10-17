@@ -355,6 +355,10 @@ void SEN6XComponent::update() {
   if (!this->initialized_ || !this->measuring_) {
     return;
   }
+  // A command is still executing (a pressure write or an action moments ago): leave the bus alone this cycle
+  if (this->command_blocked_()) {
+    return;
+  }
 
   // Cancel any in-flight polling from a previous update() cycle before touching the bus.
   this->cancel_timeout(TIMEOUT_POLL);
@@ -584,6 +588,8 @@ bool SEN6XComponent::update_ambient_pressure_compensation_(float pressure_hpa) {
     return false;
   }
   this->last_ambient_pressure_ = value;
+  // The action guard waits for the write to execute, like after any other set command
+  this->set_command_wait_(CMD_EXEC_DELAY);
   return true;
 }
 
