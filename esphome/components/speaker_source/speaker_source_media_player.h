@@ -15,6 +15,7 @@
 
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <memory>
 #include <vector>
 #include <freertos/FreeRTOS.h>
@@ -28,7 +29,8 @@ namespace esphome::speaker_source {
 //
 // - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
 //   handle_volume_request_(), handle_mute_request_(), handle_play_uri_request_(),
-//   set_volume_(), set_mute_state_(), control(), get_source_state_(),
+//   set_volume_(), apply_speaker_volume_(), set_announcement_volume(), begin_announcement_volume_(),
+//   end_announcement_volume_(), is_media_playing_(), set_mute_state_(), control(), get_source_state_(),
 //   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
 //   process_control_queue_(), handle_player_command_(), queue_command_(), queue_play_current_()
 //
@@ -168,6 +170,9 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
   void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
   void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
 
+  /// @brief Sets the volume for announcements that start while nothing else is playing.
+  void set_announcement_volume(float announcement_volume);
+
   /// @brief Adds a media source to a pipeline and registers this player as its listener
   void add_media_source(uint8_t pipeline, media_source::MediaSource *media_source);
 
@@ -200,6 +205,17 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
 
   /// @brief Updates this->volume and saves volume/mute state to flash for restoration if publish is true.
   void set_volume_(float volume, bool publish = true);
+
+  /// @brief Remaps a volume to the configured limits and sends it to the speakers.
+  void apply_speaker_volume_(float volume);
+
+  /// @brief Switches the speakers to the announcement volume, if one is configured.
+  void begin_announcement_volume_();
+  /// @brief Switches the speakers back to the media player volume.
+  void end_announcement_volume_();
+
+  /// @brief Whether the media pipeline's active source is playing.
+  bool is_media_playing_() const;
 
   /// @brief Sets the mute state.
   /// @param mute_state If true, audio will be muted. If false, audio will be unmuted
@@ -254,6 +270,10 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
 
   float volume_max_;
   float volume_min_;
+
+  // Volume for announcements that start while nothing else is playing; NAN when not configured
+  float announcement_volume_{NAN};
+  bool announcement_volume_active_{false};
 
   bool is_muted_{false};
 };

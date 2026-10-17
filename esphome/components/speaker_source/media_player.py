@@ -2,6 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import audio, media_player, media_source, speaker
 from esphome.components.const import (
+    CONF_ANNOUNCEMENT_VOLUME,
     CONF_VOLUME_INCREMENT,
     CONF_VOLUME_INITIAL,
     CONF_VOLUME_MAX,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
+    CONF_VOLUME,
 )
 from esphome.types import ConfigType
 
@@ -123,6 +125,17 @@ def _validate_volume_settings(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_announcement_volume(config: ConfigType) -> ConfigType:
+    # With a single pipeline, announcements and media share one playlist, so there is no idle announcement to tell apart
+    if CONF_ANNOUNCEMENT_VOLUME in config and not (
+        CONF_ANNOUNCEMENT_PIPELINE in config and CONF_MEDIA_PIPELINE in config
+    ):
+        raise cv.Invalid(
+            f"{CONF_ANNOUNCEMENT_VOLUME} requires both {CONF_ANNOUNCEMENT_PIPELINE} and {CONF_MEDIA_PIPELINE}"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -130,6 +143,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
             cv.Optional(CONF_VOLUME_MIN, default=0.0): cv.percentage,
+            cv.Optional(CONF_ANNOUNCEMENT_VOLUME): cv.percentage,
             cv.Optional(CONF_ANNOUNCEMENT_PIPELINE): PIPELINE_SCHEMA,
             cv.Optional(CONF_MEDIA_PIPELINE): PIPELINE_SCHEMA,
             cv.Optional(CONF_ON_MUTE): automation.validate_automation(single=True),
@@ -143,6 +157,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE),
     _validate_no_shared_resources,
     _validate_volume_settings,
+    _validate_announcement_volume,
 )
 
 
@@ -174,6 +189,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_volume_initial(config[CONF_VOLUME_INITIAL]))
     cg.add(var.set_volume_max(config[CONF_VOLUME_MAX]))
     cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
+    if (announcement_volume := config.get(CONF_ANNOUNCEMENT_VOLUME)) is not None:
+        cg.add(var.set_announcement_volume(announcement_volume))
 
     for pipeline_key, (pipeline_enum, purpose) in _PIPELINE_INFO.items():
         if pipeline_config := config.get(pipeline_key):
@@ -233,4 +250,17 @@ automation.register_apply_action(
         "set_playlist_delay_ms({}, {})",
         ((CONF_PIPELINE, cg.uint8), (CONF_DELAY, cg.uint32)),
     ),
+)
+
+
+automation.register_apply_action(
+    "speaker_source.set_announcement_volume",
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(SpeakerSourceMediaPlayer),
+            cv.Required(CONF_VOLUME): cv.templatable(cv.percentage),
+        },
+        key=CONF_VOLUME,
+    ),
+    automation.ApplyField(CONF_VOLUME, "set_announcement_volume", cg.float_),
 )

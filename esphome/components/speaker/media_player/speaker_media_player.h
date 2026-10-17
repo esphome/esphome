@@ -17,6 +17,7 @@
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
+#include <cmath>
 #include <deque>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -27,6 +28,8 @@ struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
   optional<float> volume;
   optional<bool> announce;
+  // The caller asked for an announcement; `announce` is also forced on in single-pipeline mode
+  bool is_announcement{false};
   optional<std::string *> url;  // Must be manually deleted after receiving this struct from a queue
   optional<const audio::AudioFile *> file;
   optional<bool> enqueue;
@@ -74,6 +77,9 @@ class SpeakerMediaPlayer final : public Component,
   void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
   void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
 
+  /// @brief Sets the volume for announcements that start while nothing else is playing.
+  void set_announcement_volume(float announcement_volume);
+
   void set_announcement_speaker(Speaker *announcement_speaker) { this->announcement_speaker_ = announcement_speaker; }
   void set_announcement_format(const media_player::MediaPlayerSupportedFormat &announcement_format) {
     this->announcement_format_ = announcement_format;
@@ -98,6 +104,14 @@ class SpeakerMediaPlayer final : public Component,
 
   /// @brief Updates this->volume and saves volume/mute state to flash for restortation if publish is true.
   void set_volume_(float volume, bool publish = true);
+
+  /// @brief Remaps a volume to the configured limits and sends it to the speakers.
+  void apply_speaker_volume_(float volume);
+
+  /// @brief Switches the speakers to the announcement volume, if one is configured.
+  void begin_announcement_volume_();
+  /// @brief Switches the speakers back to the media player volume.
+  void end_announcement_volume_();
 
   /// @brief Sets the mute state. Restores previous volume if unmuting. Always saves volume/mute state to flash for
   /// restoration.
@@ -161,6 +175,10 @@ class SpeakerMediaPlayer final : public Component,
 
   float volume_max_;
   float volume_min_;
+
+  // Volume for announcements that start while nothing else is playing; NAN when not configured
+  float announcement_volume_{NAN};
+  bool announcement_volume_active_{false};
 
   // Used to save volume/mute state for restoration on reboot
   ESPPreferenceObject pref_;

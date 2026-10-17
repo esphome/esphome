@@ -154,6 +154,16 @@ void SpeakerMediaPlayer::watch_media_commands_() {
         playlist_item.file = media_command.file;
       }
 
+      if (media_command.is_announcement) {
+        // Only when nothing is audible; a running announcement pipeline counts unless it already uses this volume
+        if (this->media_pipeline_state_ != AudioPipelineState::PLAYING &&
+            (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED || this->announcement_volume_active_)) {
+          this->begin_announcement_volume_();
+        }
+      } else {
+        this->end_announcement_volume_();
+      }
+
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
         if (!enqueue) {
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
@@ -479,6 +489,11 @@ void SpeakerMediaPlayer::loop() {
     }
   }
 
+  if (this->media_pipeline_state_ == AudioPipelineState::PLAYING ||
+      (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED && this->announcement_playlist_.empty())) {
+    this->end_announcement_volume_();
+  }
+
   if (this->state != old_state) {
     this->publish_state();
     ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
@@ -508,6 +523,7 @@ void SpeakerMediaPlayer::play_file(const audio::AudioFile *media_file, bool anno
   MediaCallCommand media_command;
 
   media_command.file = media_file;
+  media_command.is_announcement = announcement;
   if (this->single_pipeline_() || announcement) {
     media_command.announce = true;
   } else {
@@ -526,7 +542,8 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   MediaCallCommand media_command;
 
   auto ann = call.get_announcement();
-  if (this->single_pipeline_() || (ann.has_value() && *ann)) {
+  media_command.is_announcement = ann.has_value() && *ann;
+  if (this->single_pipeline_() || media_command.is_announcement) {
     media_command.announce = true;
   } else {
     media_command.announce = false;
@@ -623,6 +640,19 @@ void SpeakerMediaPlayer::set_mute_state_(bool mute_state) {
 }
 
 void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
+  // A volume change made while an announcement uses the announcement volume applies right away
+  this->announcement_volume_active_ = false;
+  this->apply_speaker_volume_(volume);
+
+  if (publish) {
+    this->volume = volume;
+    this->save_volume_restore_state_();
+  }
+
+  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
+}
+
+void SpeakerMediaPlayer::apply_speaker_volume_(float volume) {
   // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
   // the speaker silences it, otherwise volume_min would make it audible.
   float bounded_volume = (volume < SILENT_VOLUME_THRESHOLD)
@@ -636,13 +666,31 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
   if (this->announcement_speaker_ != nullptr) {
     this->announcement_speaker_->set_volume(bounded_volume);
   }
+}
 
-  if (publish) {
-    this->volume = volume;
-    this->save_volume_restore_state_();
+void SpeakerMediaPlayer::set_announcement_volume(float announcement_volume) {
+  this->announcement_volume_ = announcement_volume;
+  if (this->announcement_volume_active_) {
+    this->apply_speaker_volume_(announcement_volume);
   }
+}
 
-  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
+void SpeakerMediaPlayer::begin_announcement_volume_() {
+  if (this->announcement_volume_active_ || std::isnan(this->announcement_volume_)) {
+    return;
+  }
+  ESP_LOGD(TAG, "Using announcement volume %.2f", this->announcement_volume_);
+  this->announcement_volume_active_ = true;
+  this->apply_speaker_volume_(this->announcement_volume_);
+}
+
+void SpeakerMediaPlayer::end_announcement_volume_() {
+  if (!this->announcement_volume_active_) {
+    return;
+  }
+  ESP_LOGD(TAG, "Restoring volume %.2f", this->volume);
+  this->announcement_volume_active_ = false;
+  this->apply_speaker_volume_(this->volume);
 }
 
 }  // namespace esphome::speaker
