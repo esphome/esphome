@@ -20,6 +20,7 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
+from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -38,6 +39,7 @@ from esphome.const import (
     KEY_VARIANT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2,
     PlatformFramework,
 )
@@ -58,8 +60,16 @@ SPIMode = spi_ns.enum("SPIMode")
 PLATFORM_SPI_CLOCKS = {
     PLATFORM_ESP8266: 40e6,
     PLATFORM_ESP32: 80e6,
+    # nRF52 exposes spi2 (SPIM2), whose documented max data rate is 8 MHz;
+    # the 16/32 MHz "fast" rates are only available on the separate SPIM3
+    # peripheral, which isn't used here.
+    PLATFORM_NRF52: 8e6,
     PLATFORM_RP2: 62.5e6,
 }
+
+# SPIM2 only implements these discrete clock steps - unlike the other platforms
+# it does not derive an arbitrary rate from a divisor of its max clock.
+PLATFORM_NRF52_SPI_RATES = (125e3, 250e3, 500e3, 1e6, 2e6, 4e6, 8e6)
 
 MAX_DATA_RATE_ERROR = 0.05  # Max allowable actual data rate difference from requested
 
@@ -97,8 +107,15 @@ def _frequency_validator(value: Any) -> float:
         )
     if value < 1000:
         raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
-    divisor = round(frequency / value)
-    actual = frequency / divisor
+    if platform == PLATFORM_NRF52:
+        # The SPIM driver runs at the highest step not above the request
+        actual = max(
+            (rate for rate in PLATFORM_NRF52_SPI_RATES if rate <= value),
+            default=PLATFORM_NRF52_SPI_RATES[0],
+        )
+    else:
+        divisor = round(frequency / value)
+        actual = frequency / divisor
     error = abs(actual - value) / value
     if error > MAX_DATA_RATE_ERROR:
         raise cv.Invalid(
@@ -209,6 +226,8 @@ def get_hw_interface_list() -> list[list[str]]:
         return [["spi", "spi2"], ["spi3"]]
     if target_platform == PLATFORM_RP2:
         return [["spi"], ["spi1"]]
+    if target_platform == PLATFORM_NRF52:
+        return [["spi", "spi2"]]
     return []
 
 
@@ -274,6 +293,14 @@ def validate_hw_pins(spi: ConfigType, index: int = -1) -> bool:
 
     if target_platform == PLATFORM_ESP32:
         return clk_pin_no >= 0
+
+    if target_platform == PLATFORM_NRF52:
+        # Expander pin numbers would be mapped into NRF_PSEL and route the bus to the wrong pads
+        return all(
+            pins.PIN_SCHEMA_REGISTRY.get_key(spi[key]) == PLATFORM_NRF52
+            for key in (CONF_CLK_PIN, CONF_MOSI_PIN, CONF_MISO_PIN)
+            if key in spi
+        )
 
     if target_platform == PLATFORM_RP2:
         if index == -1:
@@ -353,6 +380,8 @@ def get_spi_interface(index: int) -> str:
     # Arduino code follows
     if platform == PLATFORM_RP2:
         return ["&SPI", "&SPI1"][index]
+    if platform == PLATFORM_NRF52:
+        return "DEVICE_DT_GET(DT_NODELABEL(spi2))"
     if index == 0:
         return "&SPI"
     return "new SPIClass(HSPI)"
@@ -377,7 +406,7 @@ SPI_SINGLE_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52, PLATFORM_RP2]),
 )
 
 
@@ -427,6 +456,44 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _add_nrf52_spi2_overlay(spi: ConfigType) -> None:
+    """Route SPIM2 to the configured pins; a board file may leave spi2 on the legacy non-DMA driver."""
+    zephyr_add_prj_conf("SPI", True)
+    signals = [("SCK", spi[CONF_CLK_PIN])]
+    if (mosi := spi.get(CONF_MOSI_PIN)) is not None:
+        signals.append(("MOSI", mosi))
+    if (miso := spi.get(CONF_MISO_PIN)) is not None:
+        signals.append(("MISO", miso))
+    psels = ", ".join(
+        f"<NRF_PSEL(SPIM_{signal}, {pin[CONF_NUMBER] // 32}, {pin[CONF_NUMBER] % 32})>"
+        for signal, pin in signals
+    )
+    zephyr_add_overlay(
+        f"""
+            &pinctrl {{
+                spi2_default: spi2_default {{
+                    group1 {{
+                        psels = {psels};
+                    }};
+                }};
+                spi2_sleep: spi2_sleep {{
+                    group1 {{
+                        psels = {psels};
+                        low-power-enable;
+                    }};
+                }};
+            }};
+            &spi2 {{
+                compatible = "nordic,nrf-spim";
+                status = "okay";
+                pinctrl-0 = <&spi2_default>;
+                pinctrl-1 = <&spi2_sleep>;
+                pinctrl-names = "default", "sleep";
+            }};
+        """
+    )
+
+
 @coroutine_with_priority(CoroPriority.BUS)
 async def to_code(configs: list[ConfigType]) -> None:
     cg.add_define("USE_SPI")
@@ -447,11 +514,15 @@ async def to_code(configs: list[ConfigType]) -> None:
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
             interface = get_spi_interface(index)
             cg.add(var.set_interface(cg.RawExpression(interface)))
-            cg.add(
-                var.set_interface_name(
-                    re.sub(r"\W", "", interface.replace("new SPIClass", ""))
+            if CORE.using_zephyr:
+                _add_nrf52_spi2_overlay(spi)
+                cg.add(var.set_interface_name("spi2"))
+            else:
+                cg.add(
+                    var.set_interface_name(
+                        re.sub(r"\W", "", interface.replace("new SPIClass", ""))
+                    )
                 )
-            )
 
 
 def spi_device_schema(
@@ -584,5 +655,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "spi_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )
