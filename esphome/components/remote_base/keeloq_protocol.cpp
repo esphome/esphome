@@ -93,9 +93,14 @@ void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
     dst->space(1 * BIT_TIME_US);
   }
 
-  // repeat flag - always sent as a '1'
-  dst->mark(1 * BIT_TIME_US);
-  dst->space(2 * BIT_TIME_US);
+  // repeat flag
+  if (data.repeat) {
+    dst->mark(1 * BIT_TIME_US);
+    dst->space(2 * BIT_TIME_US);
+  } else {
+    dst->mark(2 * BIT_TIME_US);
+    dst->space(1 * BIT_TIME_US);
+  }
 
   const uint8_t extra = data.suffix_bits > NBITS_SUFFIX_MAX ? NBITS_SUFFIX_MAX : data.suffix_bits;
   for (uint8_t i = 0; i < extra; i++) {
