@@ -1,8 +1,9 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_UART_ID
-from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
+from esphome.const import CONF_DATA, CONF_UART_ID
+from esphome.core import CORE, ID
 from esphome.types import ConfigType
 
 from .. import uart_ns, validate_raw_data
@@ -14,59 +15,46 @@ CONF_HUB_ID = "hub_id"
 
 UARTBinarySensor = uart_ns.class_("UARTBinarySensor", uart.UARTDevice, cg.Component)
 
-type _Matcher = tuple[cg.MockObj, cg.MockObj, int]
-type _HubEntry = tuple[cg.MockObj, list[_Matcher]]
-
-
-def _get_hubs() -> dict[ID, _HubEntry]:
-    return CORE.data.setdefault(DOMAIN, {})
-
+# Every sensor on a bus is one matcher of that bus's hub; the define is the largest hub
+_request_matcher_slot = cg.slot_counter("UART_BINARY_SENSOR_COUNT")
 
 CONFIG_SCHEMA = (
     binary_sensor.binary_sensor_schema()
     .extend(
         {
             cv.GenerateID(CONF_HUB_ID): cv.declare_id(UARTBinarySensor),
-            # An empty pattern would match every byte
-            cv.Required(CONF_DATA): cv.All(validate_raw_data, cv.Length(min=1)),
+            # An empty pattern would match every byte; the hub's buffer index is a byte
+            cv.Required(CONF_DATA): cv.All(
+                validate_raw_data, cv.Length(min=1, max=255)
+            ),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
 
-async def to_code(config: ConfigType) -> None:
-    hubs = _get_hubs()
-    uart_id = config[CONF_UART_ID]
+def _hubs() -> dict[ID, cg.MockObj]:
+    """The hub of each bus, keyed by the bus id."""
+    return CORE.data.setdefault(DOMAIN, {})
 
-    if uart_id not in hubs:
-        hub = cg.new_Pvariable(config[CONF_HUB_ID])
+
+async def _hub_for(config: ConfigType) -> cg.MockObj:
+    """The one hub that reads the bus for every sensor on it, created by the first sensor."""
+    hubs = _hubs()
+    if (hub := hubs.get(config[CONF_UART_ID])) is None:
+        hub = hubs[config[CONF_UART_ID]] = cg.new_Pvariable(config[CONF_HUB_ID])
         await cg.register_component(hub, config)
         await uart.register_uart_device(hub, config)
-        hubs[uart_id] = (hub, [])
-        CORE.add_job(_finalize_hub, uart_id)
+    return hub
 
-    _, matchers = hubs[uart_id]
+
+async def to_code(config: ConfigType) -> None:
+    hub = await _hub_for(config)
     var = await binary_sensor.new_binary_sensor(config)
-
-    raw_data = config[CONF_DATA]
-    if isinstance(raw_data, bytes):
-        raw_data = [HexInt(x) for x in raw_data]
-
-    data_var_id = ID(
-        f"uart_binary_sensor_data_{config[CONF_ID].id}",
-        is_declaration=True,
-        type=cg.uint8,
+    data = config[CONF_DATA]
+    _request_matcher_slot(str(hub))
+    cg.add(
+        hub.add_event_matcher(
+            var, automation.progmem_bytes("uart_binary_sensor_data", data), len(data)
+        )
     )
-    data_var = cg.static_const_array(data_var_id, cg.ArrayInitializer(*raw_data))
-    matchers.append((var, data_var, len(raw_data)))
-
-
-# Runs once every sensor on the bus has registered, so the hub is sized once
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _finalize_hub(uart_id: ID) -> None:
-    hub, matchers = _get_hubs()[uart_id]
-    cg.add(hub.setup_matchers(len(matchers)))
-    for sensor_var, data_var, data_len in matchers:
-        cg.add(hub.add_event_matcher(sensor_var, data_var, data_len))
-    cg.add(hub.setup_buffer(max(data_len for _, _, data_len in matchers)))

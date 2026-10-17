@@ -2,32 +2,36 @@
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::uart {
 
+// One per bus: reads the bytes once and presses each sensor whose pattern ends the stream
 class UARTBinarySensor : public UARTDevice, public Component {
  public:
+  void setup() override { this->buffer_.init(this->max_len_); }
   void loop() override;
   void dump_config() override;
 
-  void add_event_matcher(binary_sensor::BinarySensor *sensor, const uint8_t *data, size_t data_len) {
-    this->matchers_.push_back({sensor, data, data_len, false});
+  // The pattern lives in flash; called once per sensor by the generated code
+  void add_event_matcher(binary_sensor::BinarySensor *sensor, const uint8_t *data, uint8_t data_len) {
+    this->matchers_.push_back({sensor, data, data_len});
+    this->max_len_ = std::max(this->max_len_, data_len);
   }
-  void setup_matchers(size_t count) { this->matchers_.init(count); }
-  void setup_buffer(size_t max_matcher_len) { this->buffer_.init(max_matcher_len); }
 
  protected:
   struct EventMatcher {
     binary_sensor::BinarySensor *sensor;
     const uint8_t *data;
-    size_t data_len;
-    bool triggered{false};
+    uint8_t data_len;
   };
 
-  void read_data_();
-  FixedVector<EventMatcher> matchers_;
-  FixedRingBuffer<uint8_t> buffer_;
+  bool matches_(const EventMatcher &matcher) const;
+
+  StaticVector<EventMatcher, UART_BINARY_SENSOR_COUNT> matchers_;
+  FixedRingBuffer<uint8_t, 255> buffer_;
+  uint8_t max_len_{0};
 };
 
 }  // namespace esphome::uart

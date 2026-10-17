@@ -1,19 +1,10 @@
 #include "uart_binary_sensor.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart.binary_sensor");
-
-void UARTBinarySensor::loop() {
-  for (auto &matcher : this->matchers_) {
-    if (matcher.triggered) {
-      matcher.sensor->publish_state(false);
-      matcher.triggered = false;
-    }
-  }
-  this->read_data_();
-}
 
 void UARTBinarySensor::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Binary Sensor:");
@@ -22,36 +13,37 @@ void UARTBinarySensor::dump_config() {
   }
 }
 
-void UARTBinarySensor::read_data_() {
+void UARTBinarySensor::loop() {
   while (this->available()) {
     uint8_t byte;
     this->read_byte(&byte);
     this->buffer_.push_overwrite(byte);
-
-    for (auto &matcher : this->matchers_) {
-      if (this->buffer_.size() < matcher.data_len) {
+    for (const auto &matcher : this->matchers_) {
+      // The byte just read has to be the pattern's last one before the rest is compared
+      if (progmem_read_byte(&matcher.data[matcher.data_len - 1]) != byte || !this->matches_(matcher)) {
         continue;
       }
-
-      size_t start = this->buffer_.size() - matcher.data_len;
-
-      bool match = true;
-      for (size_t i = 0; i < matcher.data_len; ++i) {
-        if (this->buffer_[start + i] != matcher.data[i]) {
-          match = false;
-          break;
-        }
-      }
-
-      if (match) {
-        matcher.sensor->publish_state(true);
-        matcher.triggered = true;
-        this->buffer_.clear();
-        // The rest of the input waits for the next loop, so a repeated sequence is a second press
-        return;
-      }
+      // A momentary press, as the remote receiver binary sensors publish theirs
+      matcher.sensor->publish_state(true);
+      matcher.sensor->publish_state(false);
+      this->buffer_.clear();
+      break;
     }
   }
+}
+
+// Whether the pattern, apart from its last byte, ends the buffer
+bool UARTBinarySensor::matches_(const EventMatcher &matcher) const {
+  if (this->buffer_.size() < matcher.data_len) {
+    return false;
+  }
+  const size_t start = this->buffer_.size() - matcher.data_len;
+  for (size_t i = 0; i + 1 < matcher.data_len; i++) {
+    if (this->buffer_[start + i] != progmem_read_byte(&matcher.data[i])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace esphome::uart
