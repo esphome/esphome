@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <zephyr/version.h>
 // The header has no C++ linkage guards of its own
 extern "C" {
@@ -123,11 +124,11 @@ void Coredump::finish_(int err) {
 void Coredump::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Coredump:\n"
-                "  Has stored dump: %d\n"
-                "  Size: %d\n"
+                "  Stored dump: %s\n"
+                "  Size: %" PRIu32 "\n"
+                "  Verified: %s\n"
                 "  Error: %d",
-                coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr),
-                coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr),
+                YESNO(this->stored_), this->total_, YESNO(this->verify_ == 1),
                 coredump_query(COREDUMP_QUERY_GET_ERROR, nullptr));
 }
 

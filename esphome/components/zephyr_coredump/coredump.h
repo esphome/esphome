@@ -13,6 +13,8 @@ bool coredump_pending();
 /// carries on.
 void print_coredump();
 /// The reader went away (the USB port was closed); the print stops and the dump stays for the next one.
+/// Readers are not told apart: closing the USB port also stops a print an API or MQTT client is receiving,
+/// and a client that disconnects does not stop one, the same as the other platforms' crash records.
 void stop_coredump();
 
 class Coredump : public Component {
