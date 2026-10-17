@@ -143,7 +143,7 @@ struct Fixture {
 
   /// Pass keep_preferences to restore what an earlier fixture saved
   explicit Fixture(bool keep_preferences = false) {
-    // Every fixture shares one preference key, so clear what an earlier test saved or setup restores it
+    // A second fixture in the same test would otherwise restore what the first saved
     if (!keep_preferences && global_preferences != nullptr)
       global_preferences->reset();
     // The test main does not construct App as generated code does; the boost timer needs its scheduler

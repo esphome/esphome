@@ -30,10 +30,7 @@ MAX6956 = max6956_ns.class_("MAX6956", cg.Component, i2c.I2CDevice)
 MAX6956GPIOPin = max6956_ns.class_("MAX6956GPIOPin", cg.GPIOPin)
 
 MAX6956_CURRENTMODE = max6956_ns.enum("MAX6956CURRENTMODE")
-CURRENT_MODES = {
-    "global": MAX6956_CURRENTMODE.GLOBAL,
-    "segment": MAX6956_CURRENTMODE.SEGMENT,
-}
+CURRENT_MODES = MAX6956_CURRENTMODE.options("global", "segment")
 
 
 CONFIG_SCHEMA = (

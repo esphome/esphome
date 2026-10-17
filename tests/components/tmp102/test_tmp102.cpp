@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cmath>
+#include <functional>
 #include <utility>
 #include "esphome/components/host/preferences.h"
 #include "esphome/components/tmp102/tmp102.h"
@@ -29,6 +30,7 @@ class RegisterBus final : public i2c::I2CBus {
   unsigned transactions{0};
   unsigned writes{0};
   uint8_t pointer{0};
+  std::function<void()> on_write;
 
   i2c::ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out,
                              size_t out_size) override {
@@ -42,6 +44,10 @@ class RegisterBus final : public i2c::I2CBus {
           return i2c::ERROR_NOT_ACKNOWLEDGED;
         ++this->writes;
         this->registers[this->pointer] = (uint16_t(data[1]) << 8) | data[2];
+        if (this->on_write) {
+          auto callback = std::move(this->on_write);
+          callback();
+        }
       }
     }
     if (out_size != 0) {
@@ -59,6 +65,7 @@ class TMP102Test : public ::testing::Test {
   RegisterBus bus_;
   TMP102Component chip_;
   binary_sensor::BinarySensor alert_;
+  text_sensor::TextSensor status_;
   TMP102LimitNumber high_{TMP102_LIMIT_HIGH};
   TMP102LimitNumber low_{TMP102_LIMIT_LOW};
   unsigned publications_{0};
@@ -122,6 +129,8 @@ class TMP102Test : public ::testing::Test {
   static void save(TMP102LimitNumber &number, float value) {
     ASSERT_TRUE(number.make_entity_preference<float>().save(&value));
   }
+
+  static void fail_saves(TMP102LimitNumber &number) { number.pref_ = {}; }
 };
 
 TEST_F(TMP102Test, LegacySetupAndContinuousReadDoNotWriteRegisters) {
@@ -134,6 +143,24 @@ TEST_F(TMP102Test, LegacySetupAndContinuousReadDoNotWriteRegisters) {
   EXPECT_EQ(this->publications_, 1);
   EXPECT_EQ(this->bus_.writes, 0);
   EXPECT_EQ(this->bus_.registers, original);
+}
+
+TEST_F(TMP102Test, ReadOnlyStatusDoesNotConfigureOrWriteRegisters) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  const auto original = this->bus_.registers;
+  this->chip_.setup();
+  EXPECT_EQ(this->bus_.transactions, 0);
+  EXPECT_EQ(this->bus_.registers, original);
+  ASSERT_TRUE(this->status_.has_state());
+  EXPECT_EQ(this->status_.state, "Not configured");
+}
+
+TEST_F(TMP102Test, ConfiguredSetupPublishesStatus) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  this->configure();
+  this->chip_.setup();
+  ASSERT_TRUE(this->status_.has_state());
+  EXPECT_EQ(this->status_.state, "OK");
 }
 
 TEST_F(TMP102Test, SampleFormatOverridesConfiguredModeInBothDirections) {
@@ -408,6 +435,7 @@ TEST_F(TMP102Test, FailureOfAnySetupWriteMarksComponentFailed) {
 }
 
 TEST_F(TMP102Test, InvalidRestoredPairIsRepairedAfterSuccessfulSetup) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
   this->numbers_();
   save(this->high_, 20);
   save(this->low_, 35);
@@ -416,30 +444,53 @@ TEST_F(TMP102Test, InvalidRestoredPairIsRepairedAfterSuccessfulSetup) {
   EXPECT_FLOAT_EQ(this->low_.state, 25);
   EXPECT_FLOAT_EQ(saved(this->high_), 30);
   EXPECT_FLOAT_EQ(saved(this->low_), 25);
+  EXPECT_EQ(this->status_.state, "Restored thresholds reset");
+}
+
+TEST_F(TMP102Test, InvalidRestoredPairAndSaveFailurePublishCombinedStatus) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  this->numbers_();
+  save(this->high_, 20);
+  save(this->low_, 35);
+  this->bus_.on_write = [this]() {
+    fail_saves(this->high_);
+    fail_saves(this->low_);
+  };
+  this->chip_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+  EXPECT_FLOAT_EQ(this->low_.state, 25);
+  EXPECT_EQ(this->status_.state, "Restore reset; save failed");
 }
 
 TEST_F(TMP102Test, InvalidRestoredValuesAreRepaired) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
   this->numbers_();
   save(this->high_, NAN);
   save(this->low_, INFINITY);
   this->chip_.setup();
   EXPECT_FLOAT_EQ(this->high_.state, 30);
   EXPECT_FLOAT_EQ(this->low_.state, 25);
+  EXPECT_FLOAT_EQ(saved(this->high_), 30);
+  EXPECT_FLOAT_EQ(saved(this->low_), 25);
+  EXPECT_EQ(this->status_.state, "Restored thresholds reset");
 }
 
 TEST_F(TMP102Test, FailedSetupDoesNotOverwritePreferences) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
   this->numbers_();
   save(this->high_, 90);
   save(this->low_, 85);
   this->bus_.fail_write = 3;
   this->chip_.setup();
   EXPECT_TRUE(this->chip_.is_failed());
+  EXPECT_EQ(this->status_.state, "Setup failed");
   EXPECT_FALSE(this->high_.has_state());
   EXPECT_FLOAT_EQ(saved(this->high_), 90);
   EXPECT_FLOAT_EQ(saved(this->low_), 85);
 }
 
 TEST_F(TMP102Test, FailedSetupRejectsThresholdChanges) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
   this->numbers_();
   save(this->high_, 90);
   this->bus_.fail_write = 3;
@@ -450,6 +501,7 @@ TEST_F(TMP102Test, FailedSetupRejectsThresholdChanges) {
   EXPECT_FALSE(this->high_.has_state());
   EXPECT_EQ(this->bus_.writes, writes);
   EXPECT_FLOAT_EQ(saved(this->high_), 90);
+  EXPECT_EQ(this->status_.state, "Rejected: sensor setup failed");
 }
 
 TEST_F(TMP102Test, SetupOnlySavesChangedThresholds) {
@@ -464,6 +516,7 @@ TEST_F(TMP102Test, SetupOnlySavesChangedThresholds) {
 }
 
 TEST_F(TMP102Test, FailedNumberWriteKeepsAcceptedState) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
   this->numbers_();
   save(this->high_, 90);
   save(this->low_, 85);
@@ -475,6 +528,47 @@ TEST_F(TMP102Test, FailedNumberWriteKeepsAcceptedState) {
   EXPECT_FLOAT_EQ(this->high_.state, 90);
   EXPECT_EQ(publications, 1);
   EXPECT_FLOAT_EQ(saved(this->high_), 90);
+  EXPECT_EQ(this->status_.state, "Write failed: high threshold");
+
+  this->bus_.fail_write = 2;
+  this->low_.make_call().set_value(80).perform();
+  EXPECT_FLOAT_EQ(this->low_.state, 85);
+  EXPECT_FLOAT_EQ(saved(this->low_), 85);
+  EXPECT_EQ(this->status_.state, "Write failed: low threshold");
+}
+
+TEST_F(TMP102Test, PreferenceSaveFailurePublishesStatus) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  this->numbers_();
+  this->chip_.setup();
+  fail_saves(this->high_);
+  this->high_.make_call().set_value(35).perform();
+  EXPECT_FLOAT_EQ(this->high_.state, 35);
+  EXPECT_EQ(this->status_.state, "Preference save failed");
+}
+
+TEST_F(TMP102Test, RejectedNumberWritePublishesStatus) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  this->numbers_();
+  this->chip_.setup();
+  this->high_.make_call().set_value(20).perform();
+  EXPECT_EQ(this->status_.state, "Rejected: high 20.0000°C crosses low 25.0000°C");
+  this->high_.make_call().set_value(35).perform();
+  EXPECT_EQ(this->status_.state, "OK");
+}
+
+TEST_F(TMP102Test, ConfigurationRecoveryPublishesStatus) {
+  this->chip_.set_threshold_status_text_sensor(&this->status_);
+  this->configure();
+  this->chip_.setup();
+  this->bus_.registers[1] = 0;
+  this->chip_.update();
+  EXPECT_EQ(this->status_.state, "Configuration restored");
+
+  this->bus_.registers[1] = 0;
+  this->bus_.fail_write = 1;
+  this->chip_.update();
+  EXPECT_EQ(this->status_.state, "Configuration recovery failed");
 }
 
 TEST_F(TMP102Test, RestoreDisabledNeverChangesSavedValue) {

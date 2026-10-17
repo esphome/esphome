@@ -310,16 +310,17 @@ IO_CAPABILITY = {
 }
 
 AuthReqMode = esp32_ble_ns.enum("AuthReqMode")
-AUTH_REQ_MODE = {
-    "no_bond": AuthReqMode.AUTH_REQ_NO_BOND,
-    "bond": AuthReqMode.AUTH_REQ_BOND,
-    "mitm": AuthReqMode.AUTH_REQ_MITM,
-    "bond_mitm": AuthReqMode.AUTH_REQ_BOND_MITM,
-    "sc_only": AuthReqMode.AUTH_REQ_SC_ONLY,
-    "sc_bond": AuthReqMode.AUTH_REQ_SC_BOND,
-    "sc_mitm": AuthReqMode.AUTH_REQ_SC_MITM,
-    "sc_mitm_bond": AuthReqMode.AUTH_REQ_SC_MITM_BOND,
-}
+AUTH_REQ_MODE = AuthReqMode.options(
+    "no_bond",
+    "bond",
+    "mitm",
+    "bond_mitm",
+    "sc_only",
+    "sc_bond",
+    "sc_mitm",
+    "sc_mitm_bond",
+    prefix="AUTH_REQ_",
+)
 
 esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
 

@@ -32,10 +32,7 @@ PulseMeterSensor = pulse_meter_ns.class_(
 )
 
 PulseMeterInternalFilterMode = PulseMeterSensor.enum("InternalFilterMode")
-FILTER_MODES = {
-    "EDGE": PulseMeterInternalFilterMode.FILTER_EDGE,
-    "PULSE": PulseMeterInternalFilterMode.FILTER_PULSE,
-}
+FILTER_MODES = PulseMeterInternalFilterMode.options("EDGE", "PULSE", prefix="FILTER_")
 
 
 def validate_internal_filter(value: Any) -> TimePeriodMicroseconds:

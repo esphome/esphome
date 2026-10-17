@@ -54,10 +54,7 @@ ST7701S = st7701s_ns.class_("ST7701S", display.Display, cg.Component, spi.SPIDev
 ColorOrder = display.display_ns.enum("ColorMode")
 ST7701S_DELAY_FLAG = 0xFF
 
-COLOR_ORDERS = {
-    "RGB": ColorOrder.COLOR_ORDER_RGB,
-    "BGR": ColorOrder.COLOR_ORDER_BGR,
-}
+COLOR_ORDERS = ColorOrder.options("RGB", "BGR", prefix="COLOR_ORDER_")
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 

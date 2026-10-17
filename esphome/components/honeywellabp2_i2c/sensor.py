@@ -20,10 +20,7 @@ CONF_MIN_PRESSURE = "min_pressure"
 CONF_MAX_PRESSURE = "max_pressure"
 TRANSFER_FUNCTION = "transfer_function"
 ABP2TRANFERFUNCTION = honeywellabp2_ns.enum("ABP2TRANFERFUNCTION")
-TRANS_FUNC_OPTIONS = {
-    "A": ABP2TRANFERFUNCTION.ABP2_TRANS_FUNC_A,
-    "B": ABP2TRANFERFUNCTION.ABP2_TRANS_FUNC_B,
-}
+TRANS_FUNC_OPTIONS = ABP2TRANFERFUNCTION.options("A", "B", prefix="ABP2_TRANS_FUNC_")
 
 HONEYWELLABP2Sensor = honeywellabp2_ns.class_(
     "HONEYWELLABP2Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
