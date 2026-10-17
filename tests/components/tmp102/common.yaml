@@ -30,3 +30,8 @@ binary_sensor:
   - platform: tmp102
     tmp102_id: tmp102_extended_temperature
     name: TMP102 Alert
+
+text_sensor:
+  - platform: tmp102
+    tmp102_id: tmp102_extended_temperature
+    name: TMP102 Threshold Status

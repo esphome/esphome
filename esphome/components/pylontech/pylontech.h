@@ -1,42 +1,45 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
-#include <algorithm>
-#include <climits>
-#include <vector>
 
 namespace esphome::pylontech {
 
-static const uint8_t NUM_BUFFERS = 32;
-static const uint8_t TEXT_SENSOR_MAX_LEN = 14;
+static constexpr uint8_t TEXT_SENSOR_MAX_LEN = 14;
+// Battery numbers run 1 to MAX_BATTERIES; bit n - 1 of a battery_mask_t stands for battery n
+static constexpr uint8_t MAX_BATTERIES = 16;
+using battery_mask_t = uint16_t;
+static_assert(MAX_BATTERIES <= sizeof(battery_mask_t) * 8, "battery mask too narrow");
 
 class PylontechListener {
  public:
+  // No default initializers: the hub's slots stay plain zeroed storage; a parse writes every field
   struct LineContents {
-    int bat_num = 0, volt, curr, tempr, tlow, thigh, vlow, vhigh, coulomb, mostempr = INT_MIN;
-    char base_st[TEXT_SENSOR_MAX_LEN] = {0}, volt_st[TEXT_SENSOR_MAX_LEN] = {0}, curr_st[TEXT_SENSOR_MAX_LEN] = {0},
-         temp_st[TEXT_SENSOR_MAX_LEN] = {0};
+    int32_t curr, tempr, tlow, thigh, mostempr;
+    uint16_t volt, vlow, vhigh;  // mV
+    uint8_t bat_num, coulomb;
+    char base_st[TEXT_SENSOR_MAX_LEN], volt_st[TEXT_SENSOR_MAX_LEN], curr_st[TEXT_SENSOR_MAX_LEN],
+        temp_st[TEXT_SENSOR_MAX_LEN];
   };
 
-  struct CellLineContents {
-    int bat_num = 0;
-    int cell_num = 0;
-    int volt = 0;
-    int curr = 0;
-    int tempr = 0;
-    int coulomb = 0;
-    int soc = 0;
-    bool balancing = false;
-  };
+  explicit PylontechListener(uint8_t bat_num) : bat_num_(bat_num) {}
+  uint8_t get_battery() const { return this->bat_num_; }
 
-  virtual void on_line_read(LineContents *line);
-  virtual void on_cell_line_read(CellLineContents *line);
-  virtual void dump_config();
+  /// Called only with records for this listener's battery.
+  virtual void on_line_read(LineContents *line) = 0;
+  virtual void dump_config() = 0;
+
+ protected:
+  uint8_t bat_num_;
 };
 
-class PylontechComponent : public PollingComponent, public uart::UARTDevice {
+class PylontechComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   PylontechComponent();
 
@@ -48,40 +51,34 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
 
-  void register_listener(PylontechListener *listener) { this->listeners_.push_back(listener); }
-
-  void set_cell_polling_enabled(bool enabled) { this->cell_polling_enabled_ = enabled; }
-  bool is_cell_polling_enabled() const { return this->cell_polling_enabled_; }
-
-  /// Register a battery number for cell-level data retrieval via the "bat N" command.
-  void request_cell_data(int bat_num) {
-    if (std::find(this->bat_batteries_.begin(), this->bat_batteries_.end(), bat_num) == this->bat_batteries_.end()) {
-      this->bat_batteries_.push_back(bat_num);
-      std::sort(this->bat_batteries_.begin(), this->bat_batteries_.end());
-    }
+#ifdef PYLONTECH_LISTENER_COUNT
+  void register_listener(PylontechListener *listener) {
+    this->listeners_.push_back(listener);
+    this->batteries_ |= 1u << (listener->get_battery() - 1);
   }
 
  protected:
-  enum class State : uint8_t { IDLE, PWR_SENT, BAT_SENDING, BAT_SENT };
+  void process_line_(const char *buffer);
+  void parse_header_(const char *buffer);
+  void dispatch_one_();
+  void reject_line_() {
+    if (this->rejected_ < UINT8_MAX) {
+      this->rejected_++;
+    }
+  }
 
-  void process_line_(std::string &buffer);
-  void parse_pwr_line_(std::string &buffer);
-  void parse_cell_line_(std::string &buffer);
-  void send_bat_command_();
-
-  // ring buffer
-  std::string buffer_[NUM_BUFFERS];
-  int buffer_index_write_ = 0;
-  int buffer_index_read_ = 0;
-  bool has_tlow_id_ = false;
-
-  std::vector<PylontechListener *> listeners_{};
-
-  // state machine for sequential pwr + bat N commands
-  State state_ = State::IDLE;
-  std::vector<int> bat_batteries_{};
-  int current_bat_index_ = 0;
-  bool cell_polling_enabled_ = false;
+  // The longest line, the newer firmware header, is 182 characters
+  LineReader<200> line_reader_;
+  StaticVector<PylontechListener *, PYLONTECH_LISTENER_COUNT> listeners_;
+  // One slot per listened battery, in battery order; parsed while the UART drains, published one per
+  // loop once it is idle. A newer line for a battery replaces the unpublished one.
+  static_assert(PYLONTECH_BATTERY_COUNT <= MAX_BATTERIES, "more slots than batteries");
+  std::array<PylontechListener::LineContents, PYLONTECH_BATTERY_COUNT> slots_;
+  battery_mask_t batteries_{0};  // batteries with a listener
+  battery_mask_t pending_{0};    // bit i set: slots_[i] is waiting to be published
+  bool has_tlow_id_{false};
+  uint8_t rejected_{0};  // malformed battery lines since the last idle pass
+#endif
 };
 
 }  // namespace esphome::pylontech

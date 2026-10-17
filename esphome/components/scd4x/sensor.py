@@ -37,12 +37,9 @@ SCD4XComponent = scd4x_ns.class_(
     "SCD4XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
 MeasurementMode = scd4x_ns.enum("MEASUREMENT_MODE")
-MEASUREMENT_MODE_OPTIONS = {
-    "periodic": MeasurementMode.PERIODIC,
-    "low_power_periodic": MeasurementMode.LOW_POWER_PERIODIC,
-    "single_shot": MeasurementMode.SINGLE_SHOT,
-    "single_shot_rht_only": MeasurementMode.SINGLE_SHOT_RHT_ONLY,
-}
+MEASUREMENT_MODE_OPTIONS = MeasurementMode.options(
+    "periodic", "low_power_periodic", "single_shot", "single_shot_rht_only"
+)
 
 
 CONFIG_SCHEMA = (
@@ -104,9 +101,7 @@ SETTING_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     for key, funcName in SETTING_MAP.items():
         if key in config:

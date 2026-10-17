@@ -40,13 +40,9 @@ PZEM6L24 = pzem6l24_ns.class_(
 )
 
 ResetPhase = pzem6l24_ns.enum("ResetPhase")
-RESET_PHASE_OPTIONS = {
-    "all": ResetPhase.RESET_PHASE_ALL,
-    "a": ResetPhase.RESET_PHASE_A,
-    "b": ResetPhase.RESET_PHASE_B,
-    "c": ResetPhase.RESET_PHASE_C,
-    "combined": ResetPhase.RESET_PHASE_COMBINED,
-}
+RESET_PHASE_OPTIONS = ResetPhase.options(
+    "all", "a", "b", "c", "combined", prefix="RESET_PHASE_"
+)
 
 # Combined config keys
 CONF_TOTAL_ACTIVE_POWER = "total_active_power"

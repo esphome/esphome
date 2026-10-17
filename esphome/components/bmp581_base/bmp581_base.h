@@ -133,15 +133,6 @@ class BMP581Component : public PollingComponent {
   // Sets the power mode on the BMP581 by writing to the ODR register
   bool write_power_mode_(OperationMode mode);
 
-  enum ErrorCode {
-    NONE = 0,
-    ERROR_COMMUNICATION_FAILED,
-    ERROR_WRONG_CHIP_ID,
-    ERROR_SENSOR_STATUS,
-    ERROR_SENSOR_RESET,
-    ERROR_PRIME_IIR_FAILED
-  } error_code_{NONE};
-
   // BMP581's interrupt source register (address 0x15) to configure which interrupts are enabled (page 54 of datasheet)
   union {
     struct {

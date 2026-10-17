@@ -31,6 +31,10 @@ esphome:
           request_headers:
             Content-Type: application/json
           body: "Some data"
+          timeout: 15s
+      - http_request.get:
+          url: https://esphome.io
+          timeout: !lambda "return 10000;"
       - http_request.post:
           url: https://esphome.io
           request_headers:

@@ -6,12 +6,10 @@ namespace esphome::pylontech {
 
 ESPHOME_LOG_TAG(TAG, "pylontech.sensor");
 
-PylontechSensor::PylontechSensor(int8_t bat_num) { this->bat_num_ = bat_num; }
-
 void PylontechSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Pylontech Sensor:\n"
-                " Battery %d",
+                " Battery %u",
                 this->bat_num_);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
@@ -25,9 +23,6 @@ void PylontechSensor::dump_config() {
 }
 
 void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
-  if (this->bat_num_ != line->bat_num) {
-    return;
-  }
   if (this->voltage_sensor_ != nullptr) {
     this->voltage_sensor_->publish_state(((float) line->volt) / 1000.0f);
   }
@@ -53,35 +48,7 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
     this->coulomb_sensor_->publish_state(line->coulomb);
   }
   if (this->mos_temperature_sensor_ != nullptr) {
-    if (line->mostempr != INT_MIN) {
-      this->mos_temperature_sensor_->publish_state(((float) line->mostempr) / 1000.0f);
-    } else {
-      this->mos_temperature_sensor_->publish_state(NAN);
-      ESP_LOGD(TAG, "no MosTempr reading found");
-    }
-  }
-}
-
-PylontechCellSensor::PylontechCellSensor(int8_t bat_num, int8_t cell_num) {
-  this->bat_num_ = bat_num;
-  this->cell_num_ = cell_num;
-}
-
-void PylontechCellSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pylontech Cell Sensor: Battery %d Cell %d", this->bat_num_, this->cell_num_);
-  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-}
-
-void PylontechCellSensor::on_cell_line_read(PylontechListener::CellLineContents *line) {
-  if (this->bat_num_ != line->bat_num || this->cell_num_ != line->cell_num) {
-    return;
-  }
-  if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state(((float) line->volt) / 1000.0f);
-  }
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(((float) line->tempr) / 1000.0f);
+    this->mos_temperature_sensor_->publish_state(((float) line->mostempr) / 1000.0f);
   }
 }
 

@@ -5,7 +5,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_check.h"
-#include "nvs_flash.h"
 #include "zigbee_attribute_esp32.h"
 #include "zigbee_esp32.h"
 #include "esphome/core/application.h"
