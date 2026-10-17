@@ -3,8 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
-#include <vector>
 #include <algorithm>
+#include <climits>
+#include <vector>
 
 namespace esphome::pylontech {
 
@@ -35,7 +36,7 @@ class PylontechListener {
   virtual void dump_config();
 };
 
-class PylontechComponent final : public PollingComponent, public uart::UARTDevice {
+class PylontechComponent : public PollingComponent, public uart::UARTDevice {
  public:
   PylontechComponent();
 
