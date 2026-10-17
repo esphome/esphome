@@ -9,13 +9,20 @@ from esphome.components.lvgl.schemas import theme_schema
 from esphome.config_validation import Invalid
 
 
-def _config(displays: list[str], theme: dict | None = None) -> dict:
+def _config(
+    displays: list[str],
+    theme: dict | None = None,
+    debug_outline: bool = False,
+    check_args: bool = False,
+) -> dict:
     config = {
         df.CONF_DISPLAYS: displays,
         "log_level": "WARN",
+        df.CONF_CHECK_ARGS: check_args,
         "color_depth": 16,
         "byte_order": "big_endian",
         df.CONF_TRANSPARENCY_KEY: 0x000400,
+        df.CONF_DEBUG_OUTLINE: debug_outline,
     }
     if theme is not None:
         config[df.CONF_THEME] = theme
@@ -53,3 +60,25 @@ class TestThemeOnMultipleInstances:
     def test_passes_when_no_instance_has_theme(self) -> None:
         configs = [_config(["disp_a"]), _config(["disp_b"])]
         multi_conf_validate(configs)
+
+
+class TestDebugOutlineOnMultipleInstances:
+    def test_raises_when_instances_differ(self) -> None:
+        configs = [
+            _config(["disp_a"], debug_outline=True),
+            _config(["disp_b"], debug_outline=False),
+        ]
+        with pytest.raises(Invalid, match="'debug_outline' must be the same"):
+            multi_conf_validate(configs)
+
+    def test_passes_when_instances_match(self) -> None:
+        configs = [
+            _config(["disp_a"], debug_outline=True),
+            _config(["disp_b"], debug_outline=True),
+        ]
+        multi_conf_validate(configs)
+
+
+def test_check_args_may_differ_between_instances() -> None:
+    configs = [_config(["disp_a"], check_args=True), _config(["disp_b"])]
+    multi_conf_validate(configs)

@@ -17,7 +17,7 @@
 namespace esphome::htu31d {
 
 /** Logging prefix */
-static const char *const TAG = "htu31d";
+ESPHOME_LOG_TAG(TAG, "htu31d");
 
 /** Default I2C address for the HTU31D. */
 static const uint8_t HTU31D_DEFAULT_I2CADDR = 0x40;
@@ -49,12 +49,12 @@ static const uint8_t HTU31D_DIAGNOSTICS = 0x08;
  */
 void HTU31DComponent::setup() {
   if (!this->reset_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   if (this->read_serial_num_() == 0) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -131,9 +131,6 @@ void HTU31DComponent::update() {
 void HTU31DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU31D:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);

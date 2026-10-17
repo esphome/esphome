@@ -1,2 +1,2 @@
 CODEOWNERS = ["@e28eta"]
-DEPENDENCIES = ["i2c", "sensor"]
+DOMAIN = "ms8607"

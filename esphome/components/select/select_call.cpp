@@ -4,7 +4,7 @@
 
 namespace esphome::select {
 
-static const char *const TAG = "select";
+ESPHOME_LOG_TAG(TAG, "select");
 
 SelectCall &SelectCall::set_option(const char *option, size_t len) { return this->with_option(option, len); }
 

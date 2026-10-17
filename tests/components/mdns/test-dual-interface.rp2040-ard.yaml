@@ -1,0 +1,17 @@
+packages:
+  mdns: !include common-dual-interface.yaml
+
+ethernet:
+  type: W5500
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+
+# wifi first, so the USE_NETWORK_PRIMARY_INTERFACE_WIFI order is compiled
+network:
+  priority:
+    - wifi
+    - ethernet

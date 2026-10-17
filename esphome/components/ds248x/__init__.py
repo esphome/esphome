@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_SLEEP_PIN, CONF_TYPE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@tomwellnitz"]
+DOMAIN = "ds248x"
 MULTI_CONF = True
 DEPENDENCIES = ["i2c"]
 

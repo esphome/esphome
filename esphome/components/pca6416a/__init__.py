@@ -18,6 +18,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@Mat931"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["gpio_expander"]
+DOMAIN = "pca6416a"
 MULTI_CONF = True
 pca6416a_ns = cg.esphome_ns.namespace("pca6416a")
 
@@ -60,7 +61,7 @@ def validate_mode(value: ConfigType) -> ConfigType:
 PCA6416A_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(PCA6416AGPIOPin),
-        cv.Required(CONF_PCA6416A): cv.use_id(PCA6416AComponent),
+        cv.Required(CONF_PCA6416A): pins.use_id_or_address(PCA6416AComponent),
         cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {

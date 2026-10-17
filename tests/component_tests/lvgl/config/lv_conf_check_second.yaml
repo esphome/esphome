@@ -1,0 +1,41 @@
+esphome:
+  name: test-lv-conf-check-second
+
+esp32:
+  board: lolin_c3_mini
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    id: display_a
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin:
+      number: GPIO3
+  - platform: mipi_spi
+    id: display_b
+    data_rate: 20MHz
+    model: st7735
+    cs_pin: GPIO4
+    dc_pin: GPIO5
+
+lvgl:
+  - id: lvgl_a
+    displays: display_a
+    widgets:
+      - label:
+          text: Hello
+  - id: lvgl_b
+    displays: display_b
+    check_args: true
+    widgets:
+      - label:
+          text: Hello

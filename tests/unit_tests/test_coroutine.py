@@ -1,5 +1,7 @@
 """Tests for the coroutine module."""
 
+import contextvars
+
 import pytest
 
 from esphome.coroutine import CoroPriority, FakeEventLoop, coroutine_with_priority
@@ -217,3 +219,46 @@ def test_custom_priority_between_enum_values() -> None:
 
     # Check execution order
     assert execution_order == ["core", "custom", "diagnostics"]
+
+
+def test_context_isolated_between_interleaved_tasks() -> None:
+    """Test that a contextvar set in one task does not leak into another task that the scheduler interleaves with it."""
+    my_var: contextvars.ContextVar[str] = contextvars.ContextVar("my_var")
+    seen: dict[str, str] = {}
+
+    def task_a():
+        my_var.set("a")
+        yield  # suspend so task_b can run before task_a resumes
+        seen["a"] = my_var.get()
+
+    def task_b():
+        my_var.set("b")
+        yield
+        seen["b"] = my_var.get()
+
+    loop = FakeEventLoop()
+    loop.add_job(task_a)
+    loop.add_job(task_b)
+    loop.flush_tasks()
+
+    assert seen == {"a": "a", "b": "b"}
+
+
+def test_context_inherits_ambient_value_at_schedule_time() -> None:
+    """Test that a job sees whatever contextvar value was set before it was scheduled."""
+    my_var: contextvars.ContextVar[str] = contextvars.ContextVar("my_var")
+    token = my_var.set("ambient")
+    seen: dict[str, str] = {}
+
+    def task():
+        seen["value"] = my_var.get()
+        yield
+
+    try:
+        loop = FakeEventLoop()
+        loop.add_job(task)
+        loop.flush_tasks()
+    finally:
+        my_var.reset(token)
+
+    assert seen == {"value": "ambient"}

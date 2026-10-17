@@ -3,7 +3,7 @@
 
 namespace esphome::adc128s102 {
 
-static const char *const TAG = "adc128s102";
+ESPHOME_LOG_TAG(TAG, "adc128s102");
 
 float ADC128S102::get_setup_priority() const { return setup_priority::HARDWARE; }
 

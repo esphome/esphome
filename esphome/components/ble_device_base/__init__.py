@@ -41,6 +41,7 @@ from esphome.core import CORE, ID, KEY_CORE, TimePeriod
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "ble_device_base"
 
 CONF_BLE_HUB_ID = "ble_hub_id"
 
