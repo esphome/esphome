@@ -27,10 +27,7 @@ PM2005Component = pm2005_ns.class_(
 )
 
 SensorType = pm2005_ns.enum("SensorType")
-SENSOR_TYPE = {
-    "PM2005": SensorType.PM2005,
-    "PM2105": SensorType.PM2105,
-}
+SENSOR_TYPE = SensorType.options("PM2005", "PM2105")
 
 
 CONFIG_SCHEMA = cv.All(

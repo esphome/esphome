@@ -32,19 +32,18 @@ void QMI8658Component::setup() {
   // 1. Verify chip ID
   uint8_t who_am_i = 0;
   if (!this->read_byte(QMI8658_REG_WHO_AM_I, &who_am_i)) {
-    ESP_LOGE(TAG, "Failed to read chip ID - check wiring / address");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to read chip ID - check wiring / address"));
     return;
   }
   if (who_am_i != QMI8658_WHO_AM_I_VALUE) {
     ESP_LOGE(TAG, "Wrong chip ID: 0x%02X (expected 0x%02X)", who_am_i, QMI8658_WHO_AM_I_VALUE);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
   // 2. Soft reset
   if (!this->write_byte(QMI8658_REG_RESET, QMI8658_RESET_CMD)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(15);  // spec: wait for reset to complete
@@ -70,7 +69,6 @@ void QMI8658Component::setup() {
   // 6. Disable the built-in low-pass filters (leave raw data to the motion pipeline)
   if (!this->write_byte(QMI8658_REG_CTRL5, 0x00)) {
     this->mark_failed(LOG_STR("Failed to write REG_CTRL5"));
-    this->mark_failed();
     return;
   }
 
@@ -86,10 +84,8 @@ void QMI8658Component::setup() {
 void QMI8658Component::dump_config() {
   ESP_LOGCONFIG(TAG, "QMI8658 IMU:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Communication failed!");
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Accel range : %s",
                 LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_ >> 4, AccelRangeStrings::LAST_INDEX)));
