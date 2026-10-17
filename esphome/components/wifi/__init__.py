@@ -194,11 +194,9 @@ WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")
 
 WiFiPowerSaveMode = wifi_ns.enum("WiFiPowerSaveMode")
-WIFI_POWER_SAVE_MODES = {
-    "NONE": WiFiPowerSaveMode.WIFI_POWER_SAVE_NONE,
-    "LIGHT": WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
-    "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
-}
+WIFI_POWER_SAVE_MODES = WiFiPowerSaveMode.options(
+    "NONE", "LIGHT", "HIGH", prefix="WIFI_POWER_SAVE_"
+)
 
 WiFiBandMode = cg.global_ns.enum("wifi_band_mode_t")
 WIFI_BAND_MODES = {
@@ -208,20 +206,15 @@ WIFI_BAND_MODES = {
 }
 
 WifiMinAuthMode = wifi_ns.enum("WifiMinAuthMode")
-WIFI_MIN_AUTH_MODES = {
-    "WPA": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA,
-    "WPA2": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA2,
-    "WPA3": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA3,
-}
+WIFI_MIN_AUTH_MODES = WifiMinAuthMode.options(
+    "WPA", "WPA2", "WPA3", prefix="WIFI_MIN_AUTH_MODE_"
+)
 VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
 
 WiFi8266PhyMode = wifi_ns.enum("WiFi8266PhyMode")
-WIFI_8266_PHY_MODES = {
-    "AUTO": WiFi8266PhyMode.WIFI_8266_PHY_MODE_AUTO,
-    "11B": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11B,
-    "11G": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11G,
-    "11N": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11N,
-}
+WIFI_8266_PHY_MODES = WiFi8266PhyMode.options(
+    "AUTO", "11B", "11G", "11N", prefix="WIFI_8266_PHY_MODE_"
+)
 
 WIFI_AP_MODE_FALLBACK = "FALLBACK"
 WIFI_AP_MODE_WISP = "WISP"
