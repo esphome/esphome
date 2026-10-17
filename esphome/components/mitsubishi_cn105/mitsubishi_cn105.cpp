@@ -489,10 +489,7 @@ void MitsubishiCN105::FrameParser::reset_and_dump_buffer_(const char *prefix) {
 }
 
 void MitsubishiCN105::FrameParser::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char buf[format_hex_pretty_size(READ_BUFFER_SIZE)];
-  ESP_LOGVV(TAG, "%s (%zu): %s", prefix, len, format_hex_pretty_to(buf, data, len));
-#endif
+  ESP_LOGVV_HEX(TAG, data, len, READ_BUFFER_SIZE, "%s (%zu): %s", prefix, len);
 }
 
 }  // namespace esphome::mitsubishi_cn105
