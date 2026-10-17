@@ -8,9 +8,7 @@ or any platform package.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 import re
-import subprocess
 from typing import TYPE_CHECKING
 
 from esphome import platform_hooks
@@ -19,6 +17,7 @@ from esphome.types import ConfigType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
     # The contract every platform's process_stacktrace implements.
     StacktraceHandler = Callable[[ConfigType, str, bool], bool]
@@ -135,6 +134,9 @@ CRASH_HANDLER_ADDR_RE = re.compile(
 
 
 def _addr2line(tool: str, elf: Path, addr: str) -> str:
+    # Imported here: __main__ loads this module on every CLI start and subprocess is slow to import
+    import subprocess
+
     try:
         result = subprocess.run(
             [tool, "-pfiaC", "-e", str(elf), addr],
