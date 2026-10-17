@@ -93,6 +93,7 @@ class AudioPipeline final {
   uint32_t get_playback_ms() { return this->playback_ms_; }
 
   void set_pause_state(bool pause_state);
+  void set_start_condition(bool (*condition)()) { this->start_condition_ = condition; }
 
  protected:
   /// @brief Allocates the event group and info error queue.
@@ -117,6 +118,8 @@ class AudioPipeline final {
   // Pending file start state used to ensure the pipeline fully stops before attempting to start the next file
   bool pending_url_{false};
   bool pending_file_{false};
+  bool (*start_condition_)(){nullptr};
+  bool waiting_for_start_condition_{false};
 
   speaker::Speaker *speaker_{nullptr};
 
