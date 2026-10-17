@@ -13,14 +13,8 @@ runtime.
 from dataclasses import dataclass
 import math
 
-#: Upper clamp of the magnitude of ``a`` / ``b`` in the firmware, mirroring
-#: MQUnifiedsensor's ``MQ_MAX_A`` / ``MQ_MAX_B`` (``mqmath::clamp_a()`` /
-#: ``mqmath::clamp_b()``). A published pair outside this range would be silently
-#: clamped on the device, so it is clamped here too: the firmware then evaluates
-#: exactly what :func:`resolve_sensor` returns.
 MQ_MAX_A = 1e30
 MQ_MAX_B = 100.0
-
 
 @dataclass(frozen=True)
 class ResolvedSensor:
