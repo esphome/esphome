@@ -24,7 +24,7 @@ float gain_to_lsb(MAX9611Multiplexer gain) {
   }
   return lsb;
 }
-static const char *const TAG = "max9611";
+ESPHOME_LOG_TAG(TAG, "max9611");
 static const uint8_t SETUP_DELAY = 4;         // Wait 2 integration periods.
 static const float VOUT_LSB = 14.0 / 1000.0;  // 14mV/LSB
 static const float TEMP_LSB = 0.48;           // 0.48C/LSB

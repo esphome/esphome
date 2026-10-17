@@ -5,6 +5,7 @@ import io
 import logging
 from pathlib import Path
 import re
+from typing import Any
 
 from PIL import Image, UnidentifiedImageError
 
@@ -41,7 +42,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import HexInt
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.external_files import RemoteFile
 from esphome.types import ConfigType
@@ -75,16 +76,18 @@ def compute_local_image_path(value: str | ConfigType) -> Path:
     return external_files.compute_local_file_path(DOMAIN, url)
 
 
-def local_path(value):
-    value = value[CONF_PATH] if isinstance(value, dict) else value
-    return str(CORE.relative_config_path(value))
+def local_path(value: Path | ConfigType) -> Path:
+    # cv.file_ has already resolved the path against the config dir.
+    return value[CONF_PATH] if isinstance(value, dict) else value
 
 
-def download_file(url, path):
+def download_file(url: str, path: Path) -> Path:
     # The shared NETWORK_TIMEOUT applies; a per-caller timeout would be
     # silently ignored on a per-run memo hit anyway (memos key by path).
     external_files.download_content(url, path)
-    return str(path)
+    # Keep the Path: config-hash normalizes Path values under the data dir,
+    # which a str would dump verbatim and break the CLI/add-on comparison.
+    return path
 
 
 def _gh_svg_url_path(mdi_id: str, source: str) -> tuple[str, Path]:
@@ -92,13 +95,13 @@ def _gh_svg_url_path(mdi_id: str, source: str) -> tuple[str, Path]:
     return MDI_SOURCES[source] + mdi_id + ".svg", base_dir / f"{mdi_id}.svg"
 
 
-def download_gh_svg(value: str | ConfigType, source: str) -> str:
+def download_gh_svg(value: str | ConfigType, source: str) -> Path:
     mdi_id = value[CONF_ICON] if isinstance(value, dict) else value
     url, path = _gh_svg_url_path(mdi_id, source)
     return download_file(url, path)
 
 
-def download_image(value):
+def download_image(value: str | ConfigType) -> Path:
     value = value[CONF_URL] if isinstance(value, dict) else value
     return download_file(value, compute_local_image_path(value))
 
@@ -146,7 +149,7 @@ def _extract_entry_ref(entry: ConfigType) -> RemoteFile | None:
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_entry_ref)
 
 
-def validate_file_shorthand(value):
+def validate_file_shorthand(value: Any) -> Path:
     value = cv.string_strict(value)
     if (remote := _parse_remote_shorthand(value)) is not None:
         return download_file(remote.url, remote.path)
@@ -163,8 +166,8 @@ LOCAL_SCHEMA = cv.All(
 )
 
 
-def mdi_schema(source):
-    def validate_mdi(value):
+def mdi_schema(source: str) -> cv.All:
+    def validate_mdi(value: ConfigType) -> Path:
         return download_gh_svg(value, source)
 
     return cv.All(
@@ -251,7 +254,13 @@ async def new_image(config: ConfigType) -> MockObj:
     """
     prog_arr, width, height, image_type, trans_value, _ = await write_image(config)
     var = cg.new_Pvariable(
-        config[CONF_ID], prog_arr, width, height, image_type, trans_value
+        config[CONF_ID],
+        prog_arr,
+        width,
+        height,
+        image_type,
+        trans_value,
+        config.get(CONF_BYTE_ORDER) == "BIG_ENDIAN",
     )
     add_metadata(
         config[CONF_ID], width, height, config[CONF_TYPE], config[CONF_TRANSPARENCY]
@@ -259,7 +268,9 @@ async def new_image(config: ConfigType) -> MockObj:
     return var
 
 
-async def write_image(config, all_frames=False):
+async def write_image(
+    config: ConfigType, all_frames: bool = False
+) -> tuple[MockObj, int, int, MockObj, MockObj, int]:
     path = Path(config[CONF_FILE])
     if not path.is_file():
         raise core.EsphomeError(f"Could not load image file {path}")
@@ -325,7 +336,9 @@ async def write_image(config, all_frames=False):
         if byte_order is not None:
             # Check for valid type has already been done in validate_settings
             encoder.set_big_endian(byte_order == "BIG_ENDIAN")
-        pixels = encoder.convert(image.resize((width, height)), path).getdata()
+        pixels = encoder.convert(
+            image.resize((width, height)), path
+        ).get_flattened_data()
         for row in range(height):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])

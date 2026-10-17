@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_GAIN, CONF_ID
+from esphome.types import ConfigType
 
 from .. import CONF_MCP4728_ID, MCP4728Component, mcp4728_ns
 
@@ -18,7 +19,7 @@ VREF_OPTIONS = {
 }
 
 MCP4728Gain = mcp4728_ns.enum("MCP4728Gain")
-GAIN_OPTIONS = {"X1": MCP4728Gain.MCP4728_GAIN_X1, "X2": MCP4728Gain.MCP4728_GAIN_X2}
+GAIN_OPTIONS = MCP4728Gain.options("X1", "X2", prefix="MCP4728_GAIN_")
 
 MCP4728PwrDown = mcp4728_ns.enum("MCP4728PwrDown")
 PWRDOWN_OPTIONS = {
@@ -29,12 +30,9 @@ PWRDOWN_OPTIONS = {
 }
 
 MCP4728ChannelIdx = mcp4728_ns.enum("MCP4728ChannelIdx")
-CHANNEL_OPTIONS = {
-    "A": MCP4728ChannelIdx.MCP4728_CHANNEL_A,
-    "B": MCP4728ChannelIdx.MCP4728_CHANNEL_B,
-    "C": MCP4728ChannelIdx.MCP4728_CHANNEL_C,
-    "D": MCP4728ChannelIdx.MCP4728_CHANNEL_D,
-}
+CHANNEL_OPTIONS = MCP4728ChannelIdx.options(
+    "A", "B", "C", "D", prefix="MCP4728_CHANNEL_"
+)
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
@@ -50,7 +48,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_MCP4728_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],

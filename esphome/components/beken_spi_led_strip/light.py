@@ -56,7 +56,7 @@ SUPPORTED_PINS = {
 }
 
 
-def _validate_pin(value):
+def _validate_pin(value: int) -> int:
     family = libretiny.get_libretiny_family()
     if family not in SUPPORTED_PINS:
         raise cv.Invalid(f"Chip family {family} is not supported.")

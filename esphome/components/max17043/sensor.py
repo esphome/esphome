@@ -15,8 +15,6 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -39,11 +37,8 @@ MODELS = {
     MODEL_MAX17048: MAX17043Model.MAX17043_MODEL_MAX17048,
 }
 
-# Actions
-SleepAction = max17043_ns.class_("SleepAction", automation.Action)
 
-
-def _validate_model_features(config):
+def _validate_model_features(config: ConfigType) -> ConfigType:
     # The CRATE register (0x16) only exists on the MAX17048/MAX17049.
     if CONF_BATTERY_CHARGE_RATE in config and config[CONF_MODEL] != MODEL_MAX17048:
         raise cv.Invalid(
@@ -95,17 +90,10 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_model(config[CONF_MODEL]))
 
-    if voltage_config := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-
-    if level_config := config.get(CONF_BATTERY_LEVEL):
-        sens = await sensor.new_sensor(level_config)
-        cg.add(var.set_battery_remaining_sensor(sens))
-
-    if charge_rate_config := config.get(CONF_BATTERY_CHARGE_RATE):
-        sens = await sensor.new_sensor(charge_rate_config)
-        cg.add(var.set_charge_rate_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_remaining_sensor)
+    await sensors(CONF_BATTERY_CHARGE_RATE, var.set_charge_rate_sensor)
 
 
 MAX17043_ACTION_SCHEMA = maybe_simple_id(
@@ -115,14 +103,6 @@ MAX17043_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "max17043.sleep_mode", SleepAction, MAX17043_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "max17043.sleep_mode", MAX17043_ACTION_SCHEMA, automation.ApplyCall("sleep_mode()")
 )
-async def max17043_sleep_mode_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

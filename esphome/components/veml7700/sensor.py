@@ -1,5 +1,8 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTUAL_GAIN,
@@ -23,11 +26,12 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_MILLISECOND,
 )
+from esphome.core import EnumValue
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 
-UNIT_COUNTS = "#"
 ICON_MULTIPLICATION = "mdi:multiplication"
 ICON_BRIGHTNESS_7 = "mdi:brightness-7"
 
@@ -59,7 +63,7 @@ INTEGRATION_TIMES = {
 }
 
 
-def validate_integration_time(value):
+def validate_integration_time(value: Any) -> EnumValue:
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
@@ -151,38 +155,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if als_config := config.get(CONF_AMBIENT_LIGHT):
-        sens = await sensor.new_sensor(als_config)
-        cg.add(var.set_ambient_light_sensor(sens))
-
-    if als_cnt_config := config.get(CONF_AMBIENT_LIGHT_COUNTS):
-        sens = await sensor.new_sensor(als_cnt_config)
-        cg.add(var.set_ambient_light_counts_sensor(sens))
-
-    if full_spect_config := config.get(CONF_FULL_SPECTRUM):
-        sens = await sensor.new_sensor(full_spect_config)
-        cg.add(var.set_white_sensor(sens))
-
-    if full_spect_cnt_config := config.get(CONF_FULL_SPECTRUM_COUNTS):
-        sens = await sensor.new_sensor(full_spect_cnt_config)
-        cg.add(var.set_white_counts_sensor(sens))
-
-    if infrared_config := config.get(CONF_INFRARED):
-        sens = await sensor.new_sensor(infrared_config)
-        cg.add(var.set_infrared_sensor(sens))
-
-    if act_gain_config := config.get(CONF_ACTUAL_GAIN):
-        sens = await sensor.new_sensor(act_gain_config)
-        cg.add(var.set_actual_gain_sensor(sens))
-
-    if act_itime_config := config.get(CONF_ACTUAL_INTEGRATION_TIME):
-        sens = await sensor.new_sensor(act_itime_config)
-        cg.add(var.set_actual_integration_time_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_AMBIENT_LIGHT, var.set_ambient_light_sensor)
+    await sensors(CONF_AMBIENT_LIGHT_COUNTS, var.set_ambient_light_counts_sensor)
+    await sensors(CONF_FULL_SPECTRUM, var.set_white_sensor)
+    await sensors(CONF_FULL_SPECTRUM_COUNTS, var.set_white_counts_sensor)
+    await sensors(CONF_INFRARED, var.set_infrared_sensor)
+    await sensors(CONF_ACTUAL_GAIN, var.set_actual_gain_sensor)
+    await sensors(CONF_ACTUAL_INTEGRATION_TIME, var.set_actual_integration_time_sensor)
 
     cg.add(var.set_enable_automatic_mode(config[CONF_AUTO_MODE]))
     cg.add(var.set_enable_lux_compensation(config[CONF_LUX_COMPENSATION]))

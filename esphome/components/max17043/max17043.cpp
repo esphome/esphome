@@ -9,7 +9,7 @@ namespace esphome::max17043 {
 // charge-rate register, and a MODE.EnSleep gate in front of CONFIG.SLEEP.
 // Consult the datasheet at https://www.analog.com/en/products/max17048.html
 
-static const char *const TAG = "max17043";
+ESPHOME_LOG_TAG(TAG, "max17043");
 
 static const uint8_t MAX17043_VCELL = 0x02;
 static const uint8_t MAX17043_SOC = 0x04;
@@ -120,9 +120,8 @@ bool MAX17043Component::configure_() {
   // Both models power up with the same CONFIG value, so this only proves that something
   // fuel-gauge shaped answered; it cannot tell the two of them apart.
   if (config_reg != MAX17043_CONFIG_POWER_UP_DEFAULT) {
-    ESP_LOGE(TAG, "Device does not appear to be a %s", this->model_name_());
-    this->status_set_error(LOG_STR("unrecognised"));
-    this->mark_failed();
+    ESP_LOGE(TAG, "CONFIG reads 0x%04X, not the power-up value of a %s", config_reg, this->model_name_());
+    this->mark_failed(LOG_STR("Device not recognised"));
     return false;
   }
 
@@ -137,8 +136,7 @@ bool MAX17043Component::configure_() {
 
   // need to write back to config register to reset the sleep bit
   if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT)) {
-    this->status_set_error(LOG_STR("sleep reset failed"));
-    this->mark_failed();
+    this->mark_failed(LOG_STR("sleep reset failed"));
     return false;
   }
 
@@ -150,9 +148,6 @@ bool MAX17043Component::configure_() {
 void MAX17043Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX17043:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_name_());
   if (this->configured_) {
     ESP_LOGCONFIG(TAG, "  IC version: 0x%04X", this->version_);

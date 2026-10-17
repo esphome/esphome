@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -34,14 +35,9 @@ OVERSAMPLING_OPTIONS = {
 }
 
 QMP6988IIRFilter = qmp6988_ns.enum("QMP6988IIRFilter")
-IIR_FILTER_OPTIONS = {
-    "OFF": QMP6988IIRFilter.QMP6988_IIR_FILTER_OFF,
-    "2X": QMP6988IIRFilter.QMP6988_IIR_FILTER_2X,
-    "4X": QMP6988IIRFilter.QMP6988_IIR_FILTER_4X,
-    "8X": QMP6988IIRFilter.QMP6988_IIR_FILTER_8X,
-    "16X": QMP6988IIRFilter.QMP6988_IIR_FILTER_16X,
-    "32X": QMP6988IIRFilter.QMP6988_IIR_FILTER_32X,
-}
+IIR_FILTER_OPTIONS = QMP6988IIRFilter.options(
+    "OFF", "2X", "4X", "8X", "16X", "32X", prefix="QMP6988_IIR_FILTER_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -81,7 +77,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

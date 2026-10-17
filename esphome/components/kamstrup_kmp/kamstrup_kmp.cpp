@@ -5,13 +5,10 @@
 
 namespace esphome::kamstrup_kmp {
 
-static const char *const TAG = "kamstrup_kmp";
+ESPHOME_LOG_TAG(TAG, "kamstrup_kmp");
 
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Heat Energy", this->heat_energy_sensor_);
@@ -26,8 +23,6 @@ void KamstrupKMPComponent::dump_config() {
     LOG_SENSOR("  ", "Custom Sensor", this->custom_sensors_[i]);
     ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom_commands_[i]);
   }
-
-  this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
 void KamstrupKMPComponent::update() {

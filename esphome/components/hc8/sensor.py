@@ -12,15 +12,12 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
 hc8_ns = cg.esphome_ns.namespace("hc8")
 HC8Component = hc8_ns.class_("HC8Component", cg.PollingComponent, uart.UARTDevice)
-HC8CalibrateAction = hc8_ns.class_("HC8CalibrateAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -47,6 +44,9 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     baud_rate=9600,
     require_rx=True,
     require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
@@ -55,9 +55,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if co2 := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2)
-        cg.add(var.set_co2_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
 
     cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
 
@@ -70,20 +69,8 @@ CALIBRATION_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hc8.calibrate",
-    HC8CalibrateAction,
     CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_BASELINE, "calibrate", cg.uint16),
 )
-async def hc8_calibration_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_BASELINE], args, cg.uint16)
-    cg.add(var.set_baseline(template_))
-    return var

@@ -51,16 +51,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    mr60bha2_component = await cg.get_variable(config[CONF_MR60BHA2_ID])
-    if breath_rate_config := config.get(CONF_BREATH_RATE):
-        sens = await sensor.new_sensor(breath_rate_config)
-        cg.add(mr60bha2_component.set_breath_rate_sensor(sens))
-    if heart_rate_config := config.get(CONF_HEART_RATE):
-        sens = await sensor.new_sensor(heart_rate_config)
-        cg.add(mr60bha2_component.set_heart_rate_sensor(sens))
-    if distance_config := config.get(CONF_DISTANCE):
-        sens = await sensor.new_sensor(distance_config)
-        cg.add(mr60bha2_component.set_distance_sensor(sens))
-    if num_targets_config := config.get(CONF_NUM_TARGETS):
-        sens = await sensor.new_sensor(num_targets_config)
-        cg.add(mr60bha2_component.set_num_targets_sensor(sens))
+    hub = await cg.get_variable(config[CONF_MR60BHA2_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BREATH_RATE, hub.set_breath_rate_sensor)
+    await sensors(CONF_HEART_RATE, hub.set_heart_rate_sensor)
+    await sensors(CONF_DISTANCE, hub.set_distance_sensor)
+    await sensors(CONF_NUM_TARGETS, hub.set_num_targets_sensor)
