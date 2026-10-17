@@ -146,7 +146,7 @@ def test_pch_checksum_written_before_the_first_configure(tmp_path: Path) -> None
     assert _write_checksum(tmp_path, "zephyr", configured=False).is_file()
 
 
-def _fake_build_env(ccache: str | None) -> dict[str, str]:
+def _fake_build_env(ccache: str | None, zigbee: bool = False) -> dict[str, str]:
     """The real get_build_env with only the install path lookups stubbed."""
     with (
         patch.object(framework, "_get_version_str", return_value="v1"),

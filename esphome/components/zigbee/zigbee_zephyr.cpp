@@ -174,9 +174,15 @@ void ZigbeeComponent::setup() {
   }
 #endif
   if (wipe) {
+#ifdef CONFIG_PARTITION_MANAGER_ENABLED
     erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
     erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
     erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
+#else
+    erase_flash_(PARTITION_ID(zboss_nvram));
+    erase_flash_(PARTITION_ID(zboss_product_config));
+    erase_flash_(PARTITION_ID(storage_partition));
+#endif
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
     wipe_value = USE_ZIGBEE_WIPE_ON_BOOT_MAGIC;
     wipe_pref.save(&wipe_value);

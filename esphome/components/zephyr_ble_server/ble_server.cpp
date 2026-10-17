@@ -25,7 +25,12 @@ static const bt_data SD[] = {
 #endif
 };
 
+// BT_LE_ADV_CONN was removed in sdk-nrf 3.2.0; its replacement only exists from 3.0.0
+#ifdef BT_LE_ADV_CONN_FAST_2
+const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN_FAST_2;
+#else
 const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
+#endif
 
 static void advertise(k_work *work) {
   int rc = bt_le_adv_stop();
