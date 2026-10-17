@@ -62,6 +62,8 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   void write_direction(Direction direction);
 
  protected:
+  static constexpr uint32_t DIRECTION_CHANGE_TIMEOUT_ID = 0;
+
   bool write_float_(uint8_t reg, float value);
   bool read_float_(uint8_t reg, float *value);
   void write_pwm_raw_(uint16_t duty);

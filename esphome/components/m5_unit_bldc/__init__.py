@@ -5,6 +5,7 @@ from esphome.const import CONF_DIRECTION, CONF_ID, CONF_MODE, CONF_MODEL
 
 CODEOWNERS = ["@lboue"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "m5_unit_bldc"
 MULTI_CONF = True
 
 CONF_M5_UNIT_BLDC_ID = "m5_unit_bldc_id"

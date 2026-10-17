@@ -6,7 +6,7 @@
 
 namespace esphome::m5_unit_bldc {
 
-static const char *const TAG = "m5_unit_bldc";
+ESPHOME_LOG_TAG(TAG, "m5_unit_bldc");
 
 bool M5UnitBldc::write_float_(uint8_t reg, float value) {
   uint8_t buf[4];
@@ -93,10 +93,15 @@ void M5UnitBldc::update() {
 void M5UnitBldc::dump_config() {
   ESP_LOGCONFIG(TAG, "M5Unit-BLDC:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Control mode: %s",
-                this->control_mode_ == ControlMode::CLOSED_LOOP ? "closed loop" : "open loop");
-  ESP_LOGCONFIG(TAG, "  Direction: %s", this->initial_direction_ == Direction::BACKWARD ? "backward" : "forward");
-  ESP_LOGCONFIG(TAG, "  Motor model: %s", this->motor_model_ == MotorModel::HIGH_SPEED ? "high speed" : "low speed");
+  ESP_LOGCONFIG(
+      TAG, "  Control mode: %s",
+      this->control_mode_ == ControlMode::CLOSED_LOOP ? LOG_STR_LITERAL("closed loop") : LOG_STR_LITERAL("open loop"));
+  ESP_LOGCONFIG(
+      TAG, "  Direction: %s",
+      this->initial_direction_ == Direction::BACKWARD ? LOG_STR_LITERAL("backward") : LOG_STR_LITERAL("forward"));
+  ESP_LOGCONFIG(
+      TAG, "  Motor model: %s",
+      this->motor_model_ == MotorModel::HIGH_SPEED ? LOG_STR_LITERAL("high speed") : LOG_STR_LITERAL("low speed"));
   ESP_LOGCONFIG(TAG, "  Pole pairs: %u", this->pole_pairs_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with M5Unit-BLDC failed");
@@ -132,12 +137,13 @@ void M5UnitBldc::write_direction(Direction direction) {
   if (this->control_mode_ == ControlMode::CLOSED_LOOP) {
     this->write_float_(REG_SET_RPM, 0.0f);
     if (this->last_target_rpm_ != 0.0f) {
-      this->set_timeout("direction_change", 800, [this]() { this->write_float_(REG_SET_RPM, this->last_target_rpm_); });
+      this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, 800,
+                        [this]() { this->write_float_(REG_SET_RPM, this->last_target_rpm_); });
     }
   } else {
     this->write_pwm_raw_(0);
     if (this->last_pwm_ != 0) {
-      this->set_timeout("direction_change", 800, [this]() { this->write_pwm_raw_(this->last_pwm_); });
+      this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, 800, [this]() { this->write_pwm_raw_(this->last_pwm_); });
     }
   }
 }
