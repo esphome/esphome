@@ -17,10 +17,12 @@ tsdb:
       name: humidity
       scale_factor: 10.0
       offset: 0.0
-  errors_sensor:
-    name: TSDB errors
 
 sensor:
+  - platform: tsdb
+    tsdb_id: tsdb_test
+    errors:
+      name: TSDB errors
   - platform: template
     id: tsdb_temperature
     name: TSDB temperature

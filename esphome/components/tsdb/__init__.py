@@ -22,8 +22,6 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_TIME_ID,
     CONF_UPDATE_INTERVAL,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_TOTAL_INCREASING,
     Framework,
     PlatformFramework,
 )
@@ -61,7 +59,7 @@ CONF_MIN_FREE_BYTES = "min_free_bytes"
 CONF_REQUIRE_TIME = "require_time"
 CONF_ON_MISSING = "on_missing"
 CONF_SCALE_FACTOR = "scale_factor"
-CONF_ERRORS_SENSOR = "errors_sensor"
+CONF_TSDB_ID = "tsdb_id"
 
 MISSING_POLICIES = {
     "skip": MissingPolicy.MISSING_SKIP,
@@ -215,11 +213,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.ensure_list(COLUMN_SCHEMA),
                 cv.Length(min=1, max=TSDB_MAX_BASE_PARAMS),
             ),
-            cv.Optional(CONF_ERRORS_SENSOR): sensor.sensor_schema(
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
         }
     ),
     _validate_config,
@@ -260,9 +253,6 @@ async def to_code(config: ConfigType) -> None:
             )
         )
         cg.add(var.set_column_source(index, await cg.get_variable(column[CONF_SENSOR])))
-
-    sensors = sensor.sub_sensors(config)
-    await sensors(CONF_ERRORS_SENSOR, var.set_errors_sensor)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

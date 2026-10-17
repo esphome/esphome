@@ -27,7 +27,9 @@ struct TsdbColumn {
 };
 
 class TsdbComponent : public PollingComponent {
+#ifdef USE_SENSOR
   SUB_SENSOR(errors)
+#endif
 
  public:
   void setup() override;
