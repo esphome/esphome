@@ -151,16 +151,16 @@ void STCC4Component::dump_config() {
                                                                        : LOG_STR_LITERAL("Single shot"));
   if (this->ambient_pressure_source_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
-                  this->ambient_pressure_source_->get_name().c_str());
+                  LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
   } else if (this->ambient_pressure_in_pa_2_ != 0) {
     ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %f hPa",
                   pressure_in_pa_2_to_hpa(this->ambient_pressure_in_pa_2_));
   }
   if (this->temperature_source_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Temperature compensation using '%s'", this->temperature_source_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  Temperature compensation using '%s'", LOG_STR_ARG(this->temperature_source_->get_log_name()));
   }
   if (this->humidity_source_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Humidity compensation using '%s'", this->humidity_source_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  Humidity compensation using '%s'", LOG_STR_ARG(this->humidity_source_->get_log_name()));
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);

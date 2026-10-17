@@ -14,7 +14,7 @@ ESPHOME_LOG_TAG(TAG, "entity_base");
 
 #ifdef USE_ESP8266
 namespace {
-// RAM copies made by get_name(), only for entities whose name is asked for
+// RAM copies made by the deprecated get_name(), only for entities whose name is asked for. Remove before 2027.5.0
 struct NameCopy {
   NameCopy *next;
   const char *key;

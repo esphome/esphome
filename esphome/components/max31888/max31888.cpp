@@ -66,7 +66,7 @@ void MAX31888Sensor::update() {
       return;
     }
     const float temperature = raw * MAX31888_DEGREES_PER_LSB;
-    ESP_LOGD(TAG, "'%s': Got Temperature=%.3f°C", this->get_name().c_str(), temperature);
+    ESP_LOGD(TAG, "'%s': Got Temperature=%.3f°C", LOG_STR_ARG(this->get_log_name()), temperature);
     this->status_clear_warning();
     this->publish_state(temperature);
   });

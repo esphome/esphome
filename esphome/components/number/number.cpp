@@ -13,7 +13,7 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
     return;
   }
 
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, LOG_STR_ARG(obj->get_log_name()));
   LOG_ENTITY_ICON(tag, prefix, *obj);
   LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, *obj);
   LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
@@ -22,7 +22,7 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
 void Number::publish_state(float state) {
   this->set_has_state(true);
   this->state = state;
-  ESP_LOGV(TAG, "'%s' >> %.2f", this->get_name().c_str(), state);
+  ESP_LOGV(TAG, "'%s' >> %.2f", LOG_STR_ARG(this->get_log_name()), state);
   this->state_callback_.call(state);
 #if defined(USE_NUMBER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_number_update(this);

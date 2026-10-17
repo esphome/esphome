@@ -47,7 +47,7 @@ bool VEML3235Sensor::refresh_config_reg() {
 
 void VEML3235Sensor::update() {
   if (this->measurement_in_progress_) {
-    ESP_LOGV(TAG, "'%s': Previous measurement still in progress; skipping update", this->get_name().c_str());
+    ESP_LOGV(TAG, "'%s': Previous measurement still in progress; skipping update", LOG_STR_ARG(this->get_log_name()));
     return;
   }
   this->measurement_in_progress_ = true;
@@ -80,9 +80,9 @@ void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
   }
 
   float lux = this->counts_to_lux_(als_counts);
-  ESP_LOGVV(TAG, "'%s': ALS counts = %u, sensitivity = %ux", this->get_name().c_str(), als_counts,
+  ESP_LOGVV(TAG, "'%s': ALS counts = %u, sensitivity = %ux", LOG_STR_ARG(this->get_log_name()), als_counts,
             this->sensitivity_factor_());
-  ESP_LOGV(TAG, "'%s': Illuminance = %.4flx", this->get_name().c_str(), lux);
+  ESP_LOGV(TAG, "'%s': Illuminance = %.4flx", LOG_STR_ARG(this->get_log_name()), lux);
   this->publish_state(lux);
   this->measurement_in_progress_ = false;
 }
@@ -177,7 +177,7 @@ bool VEML3235Sensor::adjust_sensitivity_(uint16_t counts) {
     return false;
   }
 
-  ESP_LOGV(TAG, "'%s': Sensitivity adjusted from %ux to %ux (ALS counts = %u)", this->get_name().c_str(),
+  ESP_LOGV(TAG, "'%s': Sensitivity adjusted from %ux to %ux (ALS counts = %u)", LOG_STR_ARG(this->get_log_name()),
            current_factor, new_factor, counts);
   return true;
 }

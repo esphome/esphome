@@ -16,7 +16,7 @@ using EventTypes = ConstVector<const char *, true>;
 
 #define LOG_EVENT(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), LOG_STR_ARG((obj)->get_log_name())); \
     LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
     LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }

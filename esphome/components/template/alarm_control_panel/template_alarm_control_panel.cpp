@@ -67,7 +67,8 @@ void TemplateAlarmControlPanel::dump_config() {
                   "    Armed night bypass: %s\n"
                   "    Auto bypass: %s\n"
                   "    Chime mode: %s",
-                  alarm_sensor.sensor->get_name().c_str(), LOG_STR_ARG(sensor_type_to_string(alarm_sensor.info.type)),
+                  LOG_STR_ARG(alarm_sensor.sensor->get_log_name()),
+                  LOG_STR_ARG(sensor_type_to_string(alarm_sensor.info.type)),
                   TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME),
                   TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT),
                   TRUEFALSE(flags & BINARY_SENSOR_MODE_BYPASS_AUTO), TRUEFALSE(flags & BINARY_SENSOR_MODE_CHIME));
@@ -252,7 +253,7 @@ void TemplateAlarmControlPanel::auto_bypass_sensors_() {
     auto *sensor = alarm_sensor.sensor;
     // Check for faulted bypass_auto sensors and remove them from monitoring
     if ((info.flags & BINARY_SENSOR_MODE_BYPASS_AUTO) && (sensor->state)) {
-      ESP_LOGW(TAG, "'%s' is faulted and will be automatically bypassed", sensor->get_name().c_str());
+      ESP_LOGW(TAG, "'%s' is faulted and will be automatically bypassed", LOG_STR_ARG(sensor->get_log_name()));
       info.auto_bypassed = true;
     }
   }

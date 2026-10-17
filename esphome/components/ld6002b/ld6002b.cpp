@@ -1058,8 +1058,8 @@ void LD6002BComponent::publish_number_clamped_(number::Number *number, float val
   // Outside the declared range the user cannot write the value back, so publish
   // what they can reach and say what the module actually sent.
   if (value < min_value || value > max_value) {
-    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", number->get_name().c_str(), value, min_value,
-             max_value);
+    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", LOG_STR_ARG(number->get_log_name()), value,
+             min_value, max_value);
     value = std::clamp(value, min_value, max_value);
   }
   number->publish_state(value);

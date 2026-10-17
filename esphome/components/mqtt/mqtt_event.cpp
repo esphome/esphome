@@ -28,7 +28,7 @@ void MQTTEventComponent::setup() {
 }
 
 void MQTTEventComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Event '%s': ", this->event_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT Event '%s': ", LOG_STR_ARG(this->event_->get_log_name()));
   ESP_LOGCONFIG(TAG, "Event Types: ");
   for (const char *event_type : this->event_->get_event_types()) {
     ESP_LOGCONFIG(TAG, "- %s", event_type);

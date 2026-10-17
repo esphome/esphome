@@ -58,7 +58,7 @@ void HE60rCover::endstop_reached_(CoverOperation operation) {
     this->current_operation = COVER_OPERATION_IDLE;
     if (this->last_command_ == operation) {
       float dur = (float) (now - this->start_dir_time_) / 1e3f;
-      ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(),
+      ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()),
                operation == COVER_OPERATION_OPENING ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"), dur);
     }
     this->publish_state();
@@ -213,7 +213,7 @@ void HE60rCover::start_direction_(CoverOperation dir) {
   this->last_command_ = dir;
   if (this->current_operation == dir)
     return;
-  ESP_LOGD(TAG, "'%s' - Direction '%s' requested.", this->name_.c_str(),
+  ESP_LOGD(TAG, "'%s' - Direction '%s' requested.", LOG_STR_ARG(this->get_log_name()),
            dir == COVER_OPERATION_OPENING   ? LOG_STR_LITERAL("OPEN")
            : dir == COVER_OPERATION_CLOSING ? LOG_STR_LITERAL("CLOSE")
                                             : LOG_STR_LITERAL("STOP"));
@@ -229,7 +229,7 @@ void HE60rCover::start_direction_(CoverOperation dir) {
       // just stop and reverse
       this->toggles_needed_ = 2;
     }
-    ESP_LOGD(TAG, "'%s' - Reversing direction.", this->name_.c_str());
+    ESP_LOGD(TAG, "'%s' - Reversing direction.", LOG_STR_ARG(this->get_log_name()));
   }
   this->start_dir_time_ = millis();
 }

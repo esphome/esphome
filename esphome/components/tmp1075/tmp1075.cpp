@@ -19,7 +19,7 @@ static float regvalue2temp(uint16_t regvalue);
 void TMP1075Sensor::setup() {
   uint8_t cfg;
   if (!this->read_byte(REG_CFGR, &cfg)) {
-    ESP_LOGE(TAG, "'%s' - unable to read", this->name_.c_str());
+    ESP_LOGE(TAG, "'%s' - unable to read", LOG_STR_ARG(this->get_log_name()));
     this->mark_failed();
     return;
   }
@@ -30,7 +30,7 @@ void TMP1075Sensor::setup() {
 void TMP1075Sensor::update() {
   uint16_t regvalue;
   if (!read_byte_16(REG_TEMP, &regvalue)) {
-    ESP_LOGW(TAG, "'%s' - unable to read temperature register", this->name_.c_str());
+    ESP_LOGW(TAG, "'%s' - unable to read temperature register", LOG_STR_ARG(this->get_log_name()));
     this->status_set_warning(LOG_STR("can't read"));
     return;
   }
@@ -61,11 +61,11 @@ void TMP1075Sensor::dump_config() {
 
 void TMP1075Sensor::set_fault_count(const int faults) {
   if (faults < 1) {
-    ESP_LOGE(TAG, "'%s' - fault_count too low: %d", this->name_.c_str(), faults);
+    ESP_LOGE(TAG, "'%s' - fault_count too low: %d", LOG_STR_ARG(this->get_log_name()), faults);
     return;
   }
   if (faults > 4) {
-    ESP_LOGE(TAG, "'%s' - fault_count too high: %d", this->name_.c_str(), faults);
+    ESP_LOGE(TAG, "'%s' - fault_count too high: %d", LOG_STR_ARG(this->get_log_name()), faults);
     return;
   }
   config_.fields.faults = faults - 1;
@@ -90,28 +90,28 @@ void TMP1075Sensor::write_config() {
 }
 
 void TMP1075Sensor::send_config_() {
-  ESP_LOGV(TAG, "'%s' - sending configuration %02x", this->name_.c_str(), config_.regvalue);
+  ESP_LOGV(TAG, "'%s' - sending configuration %02x", LOG_STR_ARG(this->get_log_name()), config_.regvalue);
   log_config_();
   if (!this->write_byte(REG_CFGR, config_.regvalue)) {
-    ESP_LOGW(TAG, "'%s' - unable to write configuration register", this->name_.c_str());
+    ESP_LOGW(TAG, "'%s' - unable to write configuration register", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 }
 
 void TMP1075Sensor::send_alert_limit_low_() {
-  ESP_LOGV(TAG, "'%s' - sending alert limit low %.3f °C", this->name_.c_str(), alert_limit_low_);
+  ESP_LOGV(TAG, "'%s' - sending alert limit low %.3f °C", LOG_STR_ARG(this->get_log_name()), alert_limit_low_);
   const uint16_t regvalue = temp2regvalue(alert_limit_low_);
   if (!this->write_byte_16(REG_LLIM, regvalue)) {
-    ESP_LOGW(TAG, "'%s' - unable to write low limit register", this->name_.c_str());
+    ESP_LOGW(TAG, "'%s' - unable to write low limit register", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 }
 
 void TMP1075Sensor::send_alert_limit_high_() {
-  ESP_LOGV(TAG, "'%s' - sending alert limit high %.3f °C", this->name_.c_str(), alert_limit_high_);
+  ESP_LOGV(TAG, "'%s' - sending alert limit high %.3f °C", LOG_STR_ARG(this->get_log_name()), alert_limit_high_);
   const uint16_t regvalue = temp2regvalue(alert_limit_high_);
   if (!this->write_byte_16(REG_HLIM, regvalue)) {
-    ESP_LOGW(TAG, "'%s' - unable to write high limit register", this->name_.c_str());
+    ESP_LOGW(TAG, "'%s' - unable to write high limit register", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 }
