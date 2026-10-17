@@ -410,13 +410,19 @@ file does, and it is the authority when they disagree. The most useful starting 
           itself, `hub` for one fetched with `cg.get_variable`) so the calls fit on one line. Loops whose
           setter also takes an index, such as `set_gate_threshold(x, n)`, stay as they are.
           ```python
+          # my_hub/sensor.py
           async def to_code(config):
-              var = cg.new_Pvariable(config[CONF_ID])
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
               sensors = sensor.sub_sensors(config)
-              await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
-              await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
-              buttons = button.sub_buttons(config, parent=var)
-              await buttons(CONF_RESTART, var.set_restart_button)
+              await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)
+              await sensors(CONF_HUMIDITY, hub.set_humidity_sensor)
+
+
+          # my_hub/button.py
+          async def to_code(config):
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
+              buttons = button.sub_buttons(config, parent=hub)
+              await buttons(CONF_RESTART, hub.set_restart_button)
           ```
 
 *   **Automations (Triggers, Actions, Conditions):**
