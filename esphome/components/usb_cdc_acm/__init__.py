@@ -28,7 +28,7 @@ CODEOWNERS = ["@kbx81"]
 DOMAIN = "usb_cdc_acm"
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     if CORE.using_zephyr:
         return ["uart"]
     return ["uart", "tinyusb"]

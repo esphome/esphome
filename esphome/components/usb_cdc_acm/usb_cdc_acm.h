@@ -169,14 +169,14 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 
   const device *uart_dev_;
   uint32_t last_line_poll_ms_{0};
+  ring_buf rx_ringbuf_;
+  ring_buf tx_ringbuf_;
   std::atomic<bool> rx_irq_disabled_{false};
   std::atomic<bool> tx_irq_disabled_{false};
   // Set by the IRQ handler when our TX ring buffer and the driver's are both empty
   std::atomic<bool> tx_drained_{false};
   bool dtr_{false};
   bool rts_{false};
-  ring_buf rx_ringbuf_;
-  ring_buf tx_ringbuf_;
   uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];
   uint8_t tx_ringbuf_data_[ESPHOME_CDC_TX_RING_BUFFER_SIZE];
 #else
@@ -203,13 +203,13 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   // flood the log).
   size_t tx_dropped_bytes_{0};
   uint32_t tx_dropped_log_ms_{0};
+  // User-registered callbacks (called from main loop)
+  LineCodingCallback line_coding_callback_{nullptr};
+  LineStateCallback line_state_callback_{nullptr};
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};
   uint8_t itf_{0};
-  // User-registered callbacks (called from main loop)
-  LineCodingCallback line_coding_callback_{nullptr};
-  LineStateCallback line_state_callback_{nullptr};
 
   // Lock-free queue and event pool for cross-task event passing
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
