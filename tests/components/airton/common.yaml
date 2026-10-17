@@ -1,0 +1,34 @@
+esphome:
+  on_boot:
+    then:
+      - climate_ir.airton.display_on: airton_climate
+      - climate_ir.airton.display_off:
+          id: airton_climate
+      - climate_ir.airton.sleep_on: airton_climate
+      - climate_ir.airton.sleep_off: airton_climate
+
+sensor:
+  - platform: template
+    id: airton_sensor
+    lambda: "return 21;"
+
+climate:
+  - platform: airton
+    id: airton_climate
+    name: Airton Climate
+    transmitter_id: xmitr
+    receiver_id: rcvr
+    sensor: airton_sensor
+    vertical_direction: middle
+
+switch:
+  - platform: airton
+    sleep_mode:
+      name: Sleep Mode
+    display:
+      name: Display Light
+
+select:
+  - platform: airton
+    vertical_direction:
+      name: Vertical Direction

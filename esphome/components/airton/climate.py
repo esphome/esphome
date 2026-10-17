@@ -2,8 +2,10 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate_ir
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["climate_ir"]
+CODEOWNERS = ["@Procsiab"]
 
 airton_ns = cg.esphome_ns.namespace("airton")
 AirtonClimate = airton_ns.class_("AirtonClimate", climate_ir.ClimateIR)
@@ -12,15 +14,16 @@ CONF_AIRTON_ID = "airton_id"
 CONF_SLEEP_MODE = "sleep_mode"
 CONF_VERTICAL_DIRECTION = "vertical_direction"
 
-VerticalDirections = airton_ns.enum("VerticalDirections")
+VerticalDirection = airton_ns.enum("VerticalDirection", is_class=True)
+# In the order of the enum, so the option index is the direction value
 VERTICAL_DIRECTIONS = {
-    "off": VerticalDirections.VERTICAL_DIRECTION_OFF,
-    "swing": VerticalDirections.VERTICAL_DIRECTION_SWING,
-    "up": VerticalDirections.VERTICAL_DIRECTION_UP,
-    "middle-up": VerticalDirections.VERTICAL_DIRECTION_MIDDLE_UP,
-    "middle": VerticalDirections.VERTICAL_DIRECTION_MIDDLE,
-    "middle-down": VerticalDirections.VERTICAL_DIRECTION_MIDDLE_DOWN,
-    "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
+    "off": VerticalDirection.VERTICAL_DIRECTION_OFF,
+    "swing": VerticalDirection.VERTICAL_DIRECTION_SWING,
+    "up": VerticalDirection.VERTICAL_DIRECTION_UP,
+    "middle-up": VerticalDirection.VERTICAL_DIRECTION_MIDDLE_UP,
+    "middle": VerticalDirection.VERTICAL_DIRECTION_MIDDLE,
+    "middle-down": VerticalDirection.VERTICAL_DIRECTION_MIDDLE_DOWN,
+    "down": VerticalDirection.VERTICAL_DIRECTION_DOWN,
 }
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(AirtonClimate).extend(
@@ -48,6 +51,7 @@ for _name, _call in (
     )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
-    cg.add(var.set_vertical_direction_state(config[CONF_VERTICAL_DIRECTION]))
+    # The default until a saved setting is restored in setup()
+    cg.add(var.set_vertical_direction_state(config[CONF_VERTICAL_DIRECTION], False))

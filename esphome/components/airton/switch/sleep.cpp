@@ -2,11 +2,7 @@
 
 namespace esphome::airton {
 
-void SleepSwitch::write_state(bool state) {
-  if (this->parent_->get_sleep_mode_state() != state) {
-    this->parent_->set_sleep_mode_state(state, true);
-  }
-  this->publish_state(state);
-}
+// The parent sends the state to the unit and publishes it back to this switch
+void SleepSwitch::write_state(bool state) { this->parent_->set_sleep_mode_state(state, true); }
 
 }  // namespace esphome::airton

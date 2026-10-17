@@ -1,102 +1,75 @@
 #include "airton.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::airton {
 
-static const char *const TAG = "airton.climate";
+ESPHOME_LOG_TAG(TAG, "airton.climate");
 
-void AirtonClimate::set_sleep_mode_state(bool state, bool send_ir = false) {
-  if (state != this->settings_.sleep_state) {
-    this->settings_.sleep_state = state;
+void AirtonClimate::setup() {
+  // Restore what the climate state does not carry; the configured defaults stay when nothing is saved
+  this->settings_pref_ = global_preferences->make_preference<AirtonSettings>(this->get_preference_hash());
+  this->settings_pref_.load(&this->settings_);
+  this->publish_settings_();
+  climate_ir::ClimateIR::setup();
+}
+
+void AirtonClimate::publish_settings_() {
 #ifdef USE_SWITCH
-    this->sleep_mode_switch_->publish_state(state);
+  if (this->sleep_mode_switch_ != nullptr)
+    this->sleep_mode_switch_->publish_state(this->settings_.sleep_state);
+  if (this->display_switch_ != nullptr)
+    this->display_switch_->publish_state(this->settings_.display_state);
 #endif
-    this->airton_rtc_.save(&this->settings_);
-    if (send_ir)
-      this->transmit_state();
-  }
-}
-
-bool AirtonClimate::get_sleep_mode_state() const { return this->settings_.sleep_state; }
-
-void AirtonClimate::set_display_state(bool state, bool send_ir = false) {
-  if (state != this->settings_.display_state) {
-    this->settings_.display_state = state;
-#ifdef USE_SWITCH
-    this->display_switch_->publish_state(state);
-#endif
-    this->airton_rtc_.save(&this->settings_);
-    if (send_ir)
-      this->transmit_state();
-  }
-}
-
-bool AirtonClimate::get_display_state() const { return this->settings_.display_state; }
-
-void AirtonClimate::set_vertical_direction_state(VerticalDirection state) {
-  if (state.to_uint8() != this->settings_.vertical_direction_state.to_uint8()) {
-    this->settings_.vertical_direction_state = state;
 #ifdef USE_SELECT
-    this->vertical_direction_select_->publish_state(state.to_string());
+  if (this->vertical_direction_select_ != nullptr)
+    this->vertical_direction_select_->publish_state(static_cast<size_t>(this->settings_.vertical_direction));
 #endif
-    this->airton_rtc_.save(&this->settings_);
-  }
 }
-void AirtonClimate::set_vertical_direction_state(const std::string &state) {
-  if (state != this->settings_.vertical_direction_state.to_string()) {
-    VerticalDirection new_state;
-    new_state.set_direction(state);
-    this->settings_.vertical_direction_state = new_state.get_direction();
-#ifdef USE_SELECT
-    this->vertical_direction_select_->publish_state(state);
-#endif
-    this->airton_rtc_.save(&this->settings_);
-    // This overloaded function is called only from the select component, upon changing selection
-    // Therefore, we transmit the updated state after saving it
+
+void AirtonClimate::save_settings_() { this->settings_pref_.save(&this->settings_); }
+
+void AirtonClimate::set_sleep_mode_state(bool state, bool send_ir) {
+  const bool changed = state != this->settings_.sleep_state;
+  this->settings_.sleep_state = state;
+  this->publish_settings_();
+  if (changed && send_ir) {
+    this->save_settings_();
     this->transmit_state();
   }
 }
 
-VerticalDirection AirtonClimate::get_vertical_direction_state() const {
-  return this->settings_.vertical_direction_state;
-}
-
-#ifdef USE_SWITCH
-void AirtonClimate::set_sleep_mode_switch(switch_::Switch *sw) {
-  this->sleep_mode_switch_ = sw;
-  if (this->sleep_mode_switch_ != nullptr) {
-    this->sleep_mode_switch_->publish_state(this->get_sleep_mode_state());
+void AirtonClimate::set_display_state(bool state, bool send_ir) {
+  const bool changed = state != this->settings_.display_state;
+  this->settings_.display_state = state;
+  this->publish_settings_();
+  if (changed && send_ir) {
+    this->save_settings_();
+    this->transmit_state();
   }
 }
-void AirtonClimate::set_display_switch(switch_::Switch *sw) {
-  this->display_switch_ = sw;
-  if (this->display_switch_ != nullptr) {
-    this->display_switch_->publish_state(this->get_display_state());
+
+void AirtonClimate::set_vertical_direction_state(VerticalDirection state, bool send_ir) {
+  const bool changed = state != this->settings_.vertical_direction;
+  this->settings_.vertical_direction = state;
+  this->swing_mode = state == VerticalDirection::VERTICAL_DIRECTION_SWING ? climate::CLIMATE_SWING_VERTICAL
+                                                                          : climate::CLIMATE_SWING_OFF;
+  this->publish_settings_();
+  if (changed && send_ir) {
+    this->save_settings_();
+    this->transmit_state();
+    this->publish_state();
   }
 }
-#endif  // USE_SWITCH
-
-#ifdef USE_SELECT
-void AirtonClimate::set_vertical_direction_select(select::Select *sel) {
-  this->vertical_direction_select_ = sel;
-  if (this->vertical_direction_select_ != nullptr) {
-    this->vertical_direction_select_->publish_state(this->get_vertical_direction_state().to_string());
-  }
-}
-#endif  // USE_SELECT
-
-uint8_t AirtonClimate::get_previous_mode_() { return previous_mode_; }
-
-void AirtonClimate::set_previous_mode_(uint8_t mode) { previous_mode_ = mode; }
 
 void AirtonClimate::control(const climate::ClimateCall &call) {
-  auto swing_mode = call.get_swing_mode();
-  if (swing_mode.has_value()) {
-    if (*swing_mode == climate::CLIMATE_SWING_VERTICAL) {
-      this->set_vertical_direction_state(VERTICAL_DIRECTION_SWING);
-    } else {
-      this->set_vertical_direction_state(VERTICAL_DIRECTION_OFF);
-    }
+  if (auto swing_mode = call.get_swing_mode(); swing_mode.has_value()) {
+    // ClimateIR::control() sends and publishes the whole state afterwards
+    this->set_vertical_direction_state(*swing_mode == climate::CLIMATE_SWING_VERTICAL
+                                           ? VerticalDirection::VERTICAL_DIRECTION_SWING
+                                           : VerticalDirection::VERTICAL_DIRECTION_OFF,
+                                       false);
+    this->save_settings_();
   }
   ClimateIR::control(call);
 }
@@ -119,8 +92,7 @@ void AirtonClimate::transmit_state() {
   remote_state[3] = 0;
   remote_state[3] |= this->temperature_();
 
-  remote_state[4] = 0;
-  remote_state[4] |= this->get_vertical_direction_state().to_uint8();
+  remote_state[4] = static_cast<uint8_t>(this->settings_.vertical_direction);
 
   remote_state[5] = this->operation_settings_();
 
@@ -175,9 +147,9 @@ uint8_t AirtonClimate::operation_mode_() {
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
-      operating_mode = 0b0111 & this->get_previous_mode_();  // Set previous mode with power state bit off
+      operating_mode = 0b0111 & this->previous_mode_;  // Set previous mode with power state bit off
   }
-  this->set_previous_mode_(operating_mode);
+  this->previous_mode_ = operating_mode;
   return operating_mode;
 }
 
@@ -235,17 +207,8 @@ uint8_t AirtonClimate::operation_settings_() {
 }
 
 // From IRutils.h of IRremoteESP8266 library
-uint8_t AirtonClimate::sum_bytes_(const uint8_t *const start, const uint16_t length) {
-  uint8_t checksum = 0;
-  const uint8_t *ptr;
-  for (ptr = start; ptr - start < length; ptr++)
-    checksum += *ptr;
-  return checksum;
-}
-// From IRutils.h of IRremoteESP8266 library
 uint8_t AirtonClimate::checksum_(const uint8_t *r_state) {
-  uint8_t checksum = (uint8_t) (0x7F - this->sum_bytes_(r_state, 6)) ^ 0x2C;
-  return checksum;
+  return static_cast<uint8_t>(0x7F - sum_bytes(r_state, AIRTON_STATE_FRAME_SIZE - 1)) ^ 0x2C;
 }
 
 bool AirtonClimate::parse_state_frame_(uint8_t const frame[]) {
@@ -294,19 +257,15 @@ bool AirtonClimate::parse_state_frame_(uint8_t const frame[]) {
   this->target_temperature =
       (temperature & 0b00001111) + 16;  // Mask the higher half of the byte (unused), add back the offset
 
-  uint8_t swing_mode = frame[4] & 0b00001111;  // Mask the higher nibble
-  if (swing_mode == (uint8_t) VerticalDirection::VERTICAL_DIRECTION_OFF) {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  const uint8_t direction = frame[4] & 0b00001111;  // Mask the higher nibble
+  if (direction <= static_cast<uint8_t>(VerticalDirection::VERTICAL_DIRECTION_DOWN)) {
+    this->set_vertical_direction_state(static_cast<VerticalDirection>(direction), false);
   } else {
-    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+    ESP_LOGV(TAG, "Unknown vertical direction %u", direction);
   }
-  this->set_vertical_direction_state(static_cast<VerticalDirection::Direction>(swing_mode));
 
-  uint8_t display_light = frame[5] & 0b10000000;  // Mask anything but the MSB
-  this->set_display_state(display_light != 0);
-
-  uint8_t sleep_mode = frame[5] & 0b00000010;  // Mask anything but the second bit
-  this->set_sleep_mode_state(sleep_mode != 0);
+  this->set_display_state((frame[5] & 0b10000000) != 0, false);     // The MSB is the display light
+  this->set_sleep_mode_state((frame[5] & 0b00000010) != 0, false);  // The second bit is sleep mode
 
   this->publish_state();
   return true;

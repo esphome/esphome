@@ -1,1 +1,2 @@
 CODEOWNERS = ["@Procsiab"]
+DOMAIN = "airton"

@@ -6,9 +6,6 @@
 namespace esphome::airton {
 
 class VerticalDirectionSelect : public select::Select, public Parented<AirtonClimate> {
- public:
-  VerticalDirectionSelect() = default;
-
  protected:
   void control(const std::string &value) override;
 };

@@ -1,0 +1,12 @@
+# The climate alone next to a switch of another platform: USE_SWITCH is defined, the airton switches are not
+climate:
+  - platform: airton
+    id: airton_bare
+    name: Airton Climate
+    transmitter_id: xmitr
+    receiver_id: rcvr
+
+switch:
+  - platform: template
+    name: Unrelated Switch
+    optimistic: true

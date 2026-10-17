@@ -2,12 +2,11 @@
 
 namespace esphome::airton {
 
+// The options are in the order of the enum, so the index is the direction; the parent publishes the state
 void VerticalDirectionSelect::control(const std::string &value) {
-  if (this->parent_->get_vertical_direction_state().to_string() != value) {
-    ESP_LOGD("vertical_direction", "Select received value: %s", value.c_str());
-    this->parent_->set_vertical_direction_state(value);
+  if (auto index = this->index_of(value); index.has_value()) {
+    this->parent_->set_vertical_direction_state(static_cast<VerticalDirection>(*index), true);
   }
-  this->publish_state(value);
 }
 
 }  // namespace esphome::airton
