@@ -76,4 +76,6 @@ async def to_code(config: ConfigType) -> None:
     var = await light.new_light(config)
     await cg.register_component(var, config)
     cg.add(var.set_report_timeout(config[CONF_REPORT_TIMEOUT].total_seconds))
-    setup_home_assistant_entity(var, config)
+    # 1 state + supported_color_modes, min/max_color_temp_kelvin, color_mode, brightness,
+    # color_temp_kelvin and rgb_color in HomeassistantLight::setup()
+    setup_home_assistant_entity(var, config, state_subscription_count=8)
