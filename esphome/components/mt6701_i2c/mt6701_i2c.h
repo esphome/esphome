@@ -5,20 +5,18 @@
 
 namespace esphome::mt6701_i2c {
 
-// Angle output registers: D[13:6] at 0x03, D[5:0] in bits 7:2 of 0x04.
+// Angle: D[13:6] at 0x03, D[5:0] in bits 7:2 of 0x04
 static constexpr uint8_t REG_ANGLE_H = 0x03;
 static constexpr uint8_t REG_ANGLE_L = 0x04;
 
-// EEPROM programming sequence (datasheet section 8.2). The chip must be left
-// alone for more than 600 ms afterwards, so the wait carries a margin.
+// EEPROM programming (datasheet 8.2) needs more than 600 ms left alone afterwards
 static constexpr uint8_t REG_EEPROM_KEY = 0x09;
 static constexpr uint8_t REG_EEPROM_CMD = 0x0A;
 static constexpr uint8_t EEPROM_KEY_VALUE = 0xB3;
 static constexpr uint8_t EEPROM_CMD_VALUE = 0x05;
 static constexpr uint32_t EEPROM_PROGRAM_DELAY_MS = 700;
 
-// Configuration registers (writable over I2C only). Several of these also
-// contain manufacturer-reserved bits, so every write is read-modify-write.
+// Configuration registers; reserved bits make every write a read-modify-write
 static constexpr uint8_t REG_ABZ_MUX_DIR = 0x29;  // bit6 ABZ_MUX, bit1 DIR
 static constexpr uint8_t REG_RES_H = 0x30;        // bits7:4 UVW_RES, bits1:0 ABZ_RES[9:8]
 static constexpr uint8_t REG_ABZ_RES_L = 0x31;    // ABZ_RES[7:0]
@@ -30,14 +28,13 @@ static constexpr uint8_t REG_A_HIGH = 0x3E;       // bits7:4 A_STOP[11:8], bits3
 static constexpr uint8_t REG_A_START_L = 0x3F;    // A_START[7:0]
 static constexpr uint8_t REG_A_STOP_L = 0x40;     // A_STOP[7:0]
 
-/// MT6701 driver over the I2C interface, with full configuration support.
+/// MT6701 over I2C, with the configuration registers
 class MT6701I2CComponent final : public mt6701::MT6701Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
 
-  // Configuration setters. Every option is optional: values that are not set in
-  // YAML are never written, so the chip keeps its factory / EEPROM defaults.
+  // Options left unset are never written, so the chip keeps its EEPROM defaults
   void set_direction(uint8_t direction) { this->direction_ = direction; }
   void set_zero_offset(uint16_t position) { this->zero_offset_ = position; }
   void set_hysteresis(uint8_t hysteresis) { this->hysteresis_ = hysteresis; }
@@ -51,22 +48,17 @@ class MT6701I2CComponent final : public mt6701::MT6701Component, public i2c::I2C
   void set_analog_start(uint16_t position) { this->analog_start_ = position; }
   void set_analog_stop(uint16_t position) { this->analog_stop_ = position; }
 
-  /// Persist the current register contents to the chip's EEPROM.
-  ///
-  /// Non-blocking: pauses sampling, sends the programming sequence and clears
-  /// the pause after the required delay. The EEPROM has a limited number of
-  /// write cycles, so this must only be triggered by an explicit user action.
+  /// Write the registers to the EEPROM: pauses sampling for the programming time.
+  /// The EEPROM wears, so only an explicit action calls this.
   void save_eeprom();
 
  protected:
   bool read_count(uint16_t &count) override;
 
-  /// Apply all configured options to the chip via read-modify-write.
   void apply_config_();
-  /// Read-modify-write the given bits of a register, preserving the others.
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
-  // Every option is above its field's range when unset, so no option needs an optional
+  // Unset options sit above their field's range
   static constexpr uint16_t UNSET_U16 = 0xFFFF;
   static constexpr uint8_t UNSET_U8 = 0xFF;
 

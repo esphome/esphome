@@ -6,7 +6,7 @@ namespace esphome::mt6701_i2c {
 
 ESPHOME_LOG_TAG(TAG, "mt6701_i2c");
 
-// Registers touched by apply_config_(), each read-modify-written at most once.
+// Registers apply_config_() may write, each read-modify-written once
 static const uint8_t CONFIG_REGS[] PROGMEM = {
     REG_ABZ_MUX_DIR, REG_RES_H, REG_ABZ_RES_L, REG_CONFIG_H,  REG_ZERO_L,
     REG_HYST_L,      REG_OUT,   REG_A_HIGH,    REG_A_START_L, REG_A_STOP_L,
@@ -69,8 +69,7 @@ void MT6701I2CComponent::dump_config() {
 }
 
 bool MT6701I2CComponent::read_count(uint16_t &count) {
-  // The datasheet specifies single-byte reads, 0x03 before 0x04; its current revision
-  // (1.9) does not document register auto-increment for a burst read.
+  // Single-byte reads, 0x03 first; datasheet 1.9 documents no burst read
   uint8_t high;
   uint8_t low;
   if (this->read_register(REG_ANGLE_H, &high, 1) != i2c::ERROR_OK ||
@@ -91,9 +90,7 @@ bool MT6701I2CComponent::update_register_(uint8_t reg, uint8_t mask, uint8_t val
 }
 
 void MT6701I2CComponent::apply_config_() {
-  // Collect the configured bits per register first, so registers shared by
-  // several options (e.g. 0x32 holds hysteresis, Z width and zero offset bits)
-  // are read-modify-written only once.
+  // Collect the bits per register first; several options share one register
   uint8_t masks[CONFIG_REG_COUNT] = {};
   uint8_t values[CONFIG_REG_COUNT] = {};
   auto add = [&masks, &values](uint8_t reg, uint8_t mask, uint8_t value) {
@@ -119,7 +116,7 @@ void MT6701I2CComponent::apply_config_() {
     add(REG_HYST_L, 0xC0, (this->hysteresis_ & 0x03) << 6);    // HYST[1:0] -> bits7:6
   }
   if (this->abz_pulses_per_revolution_ != UNSET_U16) {
-    // ABZ_RES is stored as (pulses per revolution - 1), 10 bits.
+    // ABZ_RES holds pulses per revolution minus 1
     uint16_t res = this->abz_pulses_per_revolution_ - 1;
     add(REG_RES_H, 0x03, res >> 8);
     add(REG_ABZ_RES_L, 0xFF, res & 0xFF);
@@ -127,7 +124,7 @@ void MT6701I2CComponent::apply_config_() {
   if (this->z_pulse_width_ != UNSET_U8)
     add(REG_CONFIG_H, 0x70, (this->z_pulse_width_ & 0x07) << 4);
   if (this->uvw_pole_pairs_ != UNSET_U8) {
-    // UVW_RES is stored as (pole pairs - 1), 4 bits, in the high nibble.
+    // UVW_RES holds pole pairs minus 1
     add(REG_RES_H, 0xF0, (this->uvw_pole_pairs_ - 1) << 4);
   }
   if (this->out_pin_mode_ != UNSET_U8)
@@ -158,8 +155,7 @@ void MT6701I2CComponent::apply_config_() {
 
 void MT6701I2CComponent::save_eeprom() {
   if (this->is_failed()) {
-    // Timeouts are not delivered to failed components, so starting the
-    // sequence here would leave the bus suspended forever.
+    // A failed component gets no timeouts, so the bus would stay suspended
     ESP_LOGW(TAG, "Not programming EEPROM: component is marked failed");
     return;
   }
@@ -178,11 +174,9 @@ void MT6701I2CComponent::save_eeprom() {
     return;
   }
 
-  // suspend_sampling_ already keeps a second save from being queued, so the timer needs no name
+  // suspend_sampling_ keeps a second save out, so the timer needs no name
   this->set_timeout(EEPROM_PROGRAM_DELAY_MS, [this]() {
     this->suspend_sampling_ = false;
-    // The datasheet verifies programming only after a power cycle, which this
-    // component cannot do.
     ESP_LOGI(TAG, "EEPROM programming finished. Power-cycle the MT6701 to verify the stored configuration");
   });
 }

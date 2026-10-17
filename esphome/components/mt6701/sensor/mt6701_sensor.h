@@ -7,11 +7,7 @@
 
 namespace esphome::mt6701 {
 
-/// Publishes readings from an MT6701 hub (I2C or SSI/SPI) as ESPHome sensors.
-///
-/// The main entity is the absolute shaft angle in degrees; the raw count is an
-/// optional sub-sensor. Derived values such as multi-turn position or speed are
-/// left to the user to compute in YAML.
+/// The shaft angle in degrees, with the raw count as an optional sub-sensor
 class MT6701Sensor final : public PollingComponent, public Parented<MT6701Component>, public sensor::Sensor {
   SUB_SENSOR(raw_count)
 

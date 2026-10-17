@@ -6,8 +6,6 @@ namespace esphome::mt6701 {
 ESPHOME_LOG_TAG(TAG, "mt6701.sensor");
 
 void MT6701Sensor::update() {
-  // Trigger a fresh read; skip publishing when it failed so we never emit a
-  // stale or garbage value.
   if (!this->parent_->read_encoder())
     return;
 

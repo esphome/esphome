@@ -6,8 +6,7 @@ namespace esphome::mt6701_spi {
 
 ESPHOME_LOG_TAG(TAG, "mt6701_spi");
 
-// The frame's 6-bit CRC (x^6 + x + 1, MSB first) over its first 18 bits is the core 8-bit CRC with the
-// polynomial shifted up by two, so a good frame checks to zero as a whole
+// The 6-bit CRC (x^6 + x + 1) over 18 bits is crc8 with the polynomial shifted up by two
 static constexpr uint8_t CRC6_AS_CRC8_POLY = 0x0C;
 
 bool decode_frame(const uint8_t frame[3], uint16_t &count, uint8_t &status) {
@@ -27,8 +26,7 @@ ProbeResult probe_result(uint8_t valid_frames, bool any_nonzero) {
 
 void MT6701SPIComponent::setup() {
   this->spi_setup();
-  // An all-zero result only warns: a real encoder resting at count 0 with no flags set looks
-  // like a stuck-low data line and must keep working
+  // All-zero frames only warn: an encoder at rest looks like a stuck-low data line
   uint8_t valid = 0;
   bool nonzero = false;
   for (uint8_t i = 0; i < PROBE_FRAMES && (valid < PROBE_MIN_VALID || !nonzero); i++) {
@@ -59,7 +57,6 @@ void MT6701SPIComponent::dump_config() {
 }
 
 bool MT6701SPIComponent::read_count(uint16_t &count) {
-  // The 24-bit SSI frame is a 14-bit angle, 4-bit status and 6-bit CRC, most significant bit first
   uint8_t buffer[3] = {0, 0, 0};
   this->enable();
   this->read_array(buffer, 3);

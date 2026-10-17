@@ -33,14 +33,13 @@ CONF_PWM_POLARITY = "pwm_polarity"
 CONF_ANALOG_START = "analog_start"
 CONF_ANALOG_STOP = "analog_stop"
 
-# Register bit value written for each rotation direction (DIR bit, datasheet
-# section 8.1: DIR=1 means the angle increases clockwise).
+# DIR bit: 1 counts clockwise
 DIRECTION = {
     "CLOCKWISE": 1,
     "COUNTERCLOCKWISE": 0,
 }
 
-# Hysteresis expressed in output LSBs -> HYST register code.
+# Output LSBs to the HYST register code
 HYSTERESIS = {
     0: 4,
     0.25: 5,
@@ -81,8 +80,7 @@ PWM_POLARITY = {
     "LOW": 1,
 }
 
-# The configurable position registers (zero offset, analog start/stop) are
-# 12-bit values covering one full revolution.
+# Zero offset and analog start/stop are 12-bit positions over one revolution
 RESOLUTION_12BIT = 4096
 MAX_POSITION_12BIT = RESOLUTION_12BIT - 1
 ANGLE_TO_POSITION_12 = RESOLUTION_12BIT / 360
@@ -92,8 +90,7 @@ def _angle_to_position_12(value: Any) -> int:
     value = cv.float_range(min=0, max=360)(
         cv.float_with_unit("angle", "(°|deg)")(value)
     )
-    # The register cannot represent a full 360°, so clamp the top of the range
-    # to the maximum count instead of letting it wrap back to 0.
+    # 360° is not representable; clamp instead of wrapping to 0
     return min(round(value * ANGLE_TO_POSITION_12), MAX_POSITION_12BIT)
 
 
@@ -103,11 +100,7 @@ def _percent_to_position_12(value: Any) -> int:
 
 
 def position12(value: Any) -> int:
-    """Validate a 12-bit position register value.
-
-    Accepts a raw integer count (0-4095), an angle such as ``45deg`` or ``90°``,
-    or a percentage of a full revolution such as ``25%``.
-    """
+    """A 12-bit position: a raw count, an angle (``45deg``, ``90°``) or a share of a turn (``25%``)."""
     if isinstance(value, str) and value.endswith("%"):
         return _percent_to_position_12(value)
     if isinstance(value, str) and value.endswith(("°", "deg")):
