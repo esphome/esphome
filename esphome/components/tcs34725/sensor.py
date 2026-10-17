@@ -1,5 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import (
+    CONF_BLUE_CHANNEL,
+    CONF_CLEAR_CHANNEL,
+    CONF_GREEN_CHANNEL,
+    CONF_RED_CHANNEL,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR_TEMPERATURE,
@@ -16,13 +22,9 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
-
-CONF_RED_CHANNEL = "red_channel"
-CONF_GREEN_CHANNEL = "green_channel"
-CONF_BLUE_CHANNEL = "blue_channel"
-CONF_CLEAR_CHANNEL = "clear_channel"
 
 tcs34725_ns = cg.esphome_ns.namespace("tcs34725")
 TCS34725Component = tcs34725_ns.class_(
@@ -30,35 +32,31 @@ TCS34725Component = tcs34725_ns.class_(
 )
 
 TCS34725IntegrationTime = tcs34725_ns.enum("TCS34725IntegrationTime")
-TCS34725_INTEGRATION_TIMES = {
-    "auto": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_AUTO,
-    "2.4ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_2_4MS,
-    "24ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_24MS,
-    "50ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_50MS,
-    "101ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_101MS,
-    "120ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_120MS,
-    "154ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_154MS,
-    "180ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_180MS,
-    "199ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_199MS,
-    "240ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_240MS,
-    "300ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_300MS,
-    "360ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_360MS,
-    "401ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_401MS,
-    "420ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_420MS,
-    "480ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_480MS,
-    "499ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_499MS,
-    "540ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_540MS,
-    "600ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_600MS,
-    "614ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_614MS,
-}
+TCS34725_INTEGRATION_TIMES = TCS34725IntegrationTime.options(
+    "auto",
+    "2.4ms",
+    "24ms",
+    "50ms",
+    "101ms",
+    "120ms",
+    "154ms",
+    "180ms",
+    "199ms",
+    "240ms",
+    "300ms",
+    "360ms",
+    "401ms",
+    "420ms",
+    "480ms",
+    "499ms",
+    "540ms",
+    "600ms",
+    "614ms",
+    prefix="TCS34725_INTEGRATION_TIME_",
+)
 
 TCS34725Gain = tcs34725_ns.enum("TCS34725Gain")
-TCS34725_GAINS = {
-    "1X": TCS34725Gain.TCS34725_GAIN_1X,
-    "4X": TCS34725Gain.TCS34725_GAIN_4X,
-    "16X": TCS34725Gain.TCS34725_GAIN_16X,
-    "60X": TCS34725Gain.TCS34725_GAIN_60X,
-}
+TCS34725_GAINS = TCS34725Gain.options("1X", "4X", "16X", "60X", prefix="TCS34725_GAIN_")
 
 color_channel_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_PERCENT,
@@ -103,7 +101,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -112,21 +110,10 @@ async def to_code(config):
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
 
-    if CONF_RED_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_RED_CHANNEL])
-        cg.add(var.set_red_sensor(sens))
-    if CONF_GREEN_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_GREEN_CHANNEL])
-        cg.add(var.set_green_sensor(sens))
-    if CONF_BLUE_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_BLUE_CHANNEL])
-        cg.add(var.set_blue_sensor(sens))
-    if CONF_CLEAR_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_CLEAR_CHANNEL])
-        cg.add(var.set_clear_sensor(sens))
-    if CONF_ILLUMINANCE in config:
-        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
-        cg.add(var.set_illuminance_sensor(sens))
-    if CONF_COLOR_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_COLOR_TEMPERATURE])
-        cg.add(var.set_color_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RED_CHANNEL, var.set_red_sensor)
+    await sensors(CONF_GREEN_CHANNEL, var.set_green_sensor)
+    await sensors(CONF_BLUE_CHANNEL, var.set_blue_sensor)
+    await sensors(CONF_CLEAR_CHANNEL, var.set_clear_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
+    await sensors(CONF_COLOR_TEMPERATURE, var.set_color_temperature_sensor)

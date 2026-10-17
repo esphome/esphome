@@ -13,12 +13,12 @@ esphome:
 
 canbus:
   - platform: esp32_can
-    id: esp32_internal_can
+    id: esp32_can_esp32_internal_can
     rx_pin: ${rx_pin}
     tx_pin: ${tx_pin}
     can_id: 4
     bit_rate: 50kbps
-    mode: NORMAL
+    mode: NO_ACK
     on_frame:
       - can_id: 500
         then:
@@ -44,3 +44,12 @@ canbus:
                   break;
                 // to be continued...
               }
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          auto status = id(esp32_can_esp32_internal_can).get_status();
+          ESP_LOGD("canbus_status", "bus_off: %d, tx_err: %d, rx_err: %d, bus_err: %" PRIu32 ", arb_lost: %" PRIu32,
+            status.bus_off, status.tx_error_counter, status.rx_error_counter,
+            status.bus_error_count, status.arb_lost_count);

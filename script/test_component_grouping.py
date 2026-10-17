@@ -63,7 +63,7 @@ def test_component_group(
     try:
         result = subprocess.run(cmd, check=False)
         return result.returncode == 0
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error running test: {e}")
         return False
 

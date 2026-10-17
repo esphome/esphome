@@ -6,7 +6,7 @@
 
 namespace esphome::sm300d2 {
 
-class SM300D2Sensor : public PollingComponent, public uart::UARTDevice {
+class SM300D2Sensor final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
   void set_formaldehyde_sensor(sensor::Sensor *formaldehyde_sensor) { formaldehyde_sensor_ = formaldehyde_sensor; }

@@ -1,10 +1,11 @@
 #include "nau7802.h"
+#include <cmath>
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::nau7802 {
 
-static const char *const TAG = "nau7802";
+ESPHOME_LOG_TAG(TAG, "nau7802");
 
 // Only define what we need
 
@@ -55,8 +56,7 @@ void NAU7802Sensor::setup() {
   uint8_t rev;
 
   if (this->read_register(DEVICE_REV | READ_BIT, &rev, 1)) {
-    ESP_LOGE(TAG, "Failed I2C read during setup()");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed I2C read during setup()"));
     return;
   }
   ESP_LOGI(TAG, "Setting up NAU7802 Rev %d", rev);
@@ -71,12 +71,11 @@ void NAU7802Sensor::setup() {
 
   delay(1);
   if (!(pu_ctrl.get() & PU_CTRL_POWERUP_READY)) {
-    ESP_LOGE(TAG, "Failed to reset sensor during setup()");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to reset sensor during setup()"));
     return;
   }
 
-  uint32_t gcal = (uint32_t) (round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
+  uint32_t gcal = (uint32_t) (std::round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
   this->write_value_(OCAL1_B2_REG, 3, this->offset_calibration_);
   this->write_value_(GCAL1_B3_REG, 4, gcal);
 
@@ -123,10 +122,8 @@ void NAU7802Sensor::dump_config() {
   LOG_SENSOR("", "NAU7802", this);
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
+  if (this->is_failed())
     return;
-  }
   // Note these may differ from the values on the device if calbration has been run
   ESP_LOGCONFIG(TAG,
                 "  Offset Calibration: %" PRId32 "\n"

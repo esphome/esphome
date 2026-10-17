@@ -6,7 +6,7 @@
 
 namespace esphome::switch_ {
 
-class SwitchBinarySensor : public binary_sensor::BinarySensor, public Component {
+class SwitchBinarySensor final : public binary_sensor::BinarySensor, public Component {
  public:
   void set_source(Switch *source) { source_ = source; }
   void setup() override;

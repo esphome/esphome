@@ -7,7 +7,7 @@
 
 namespace esphome::gcja5 {
 
-class GCJA5Component : public Component, public uart::UARTDevice {
+class GCJA5Component final : public Component, public uart::UARTDevice {
  public:
   void dump_config() override;
   void loop() override;

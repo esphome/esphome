@@ -6,7 +6,7 @@
 
 namespace esphome::color_temperature {
 
-class CTLightOutput : public light::LightOutput {
+class CTLightOutput final : public light::LightOutput {
  public:
   void set_color_temperature(output::FloatOutput *color_temperature) { color_temperature_ = color_temperature; }
   void set_brightness(output::FloatOutput *brightness) { brightness_ = brightness; }

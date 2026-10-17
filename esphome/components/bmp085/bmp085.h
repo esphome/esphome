@@ -6,7 +6,7 @@
 
 namespace esphome::bmp085 {
 
-class BMP085Component : public PollingComponent, public i2c::I2CDevice {
+class BMP085Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }

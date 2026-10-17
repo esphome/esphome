@@ -1,9 +1,7 @@
 substitutions:
-  scl_pin: GPIO16
-  sda_pin: GPIO17
-  i2s_bclk_pin: GPIO27
-  i2s_lrclk_pin: GPIO26
-  i2s_mclk_pin: GPIO25
-  i2s_dout_pin: GPIO23
+  i2s_dout_pin: GPIO13
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
 
 <<: !include common-media_player.yaml

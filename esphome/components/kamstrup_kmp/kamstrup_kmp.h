@@ -73,7 +73,7 @@ static const char *const UNITS[] = {
     "mm:dd", "",     "bar",  "RTC",   "ASCII",   "m3 x 10", "ton x 10", "GJ x 10",  "minutes",  "Bitfield",
     "s",     "ms",   "days", "RTC-Q", "Datetime"};
 
-class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
+class KamstrupKMPComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_heat_energy_sensor(sensor::Sensor *sensor) { this->heat_energy_sensor_ = sensor; }
   void set_power_sensor(sensor::Sensor *sensor) { this->power_sensor_ = sensor; }

@@ -1,0 +1,10 @@
+# The deprecated rgb_order / is_rgbw / is_wrgb keys, kept working until 2027.3.0.
+# Config-only, and only one strip because P16 is the sole supported pin.
+light:
+  - platform: beken_spi_led_strip
+    name: Legacy RGBW
+    pin: P16
+    num_leds: 30
+    chipset: sk6812
+    rgb_order: GRB
+    is_rgbw: true # -> GRBW

@@ -6,7 +6,7 @@
 
 namespace esphome::tm1638 {
 
-class TM1638SwitchLed : public switch_::Switch, public Component {
+class TM1638SwitchLed final : public switch_::Switch, public Component {
  public:
   void dump_config() override;
 

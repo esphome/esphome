@@ -11,10 +11,7 @@
 
 namespace esphome::hrxl_maxsonar_wr {
 
-static const char *const TAG = "hrxl.maxsonar.wr.sensor";
-static const uint8_t ASCII_CR = 0x0D;
-static const uint8_t ASCII_NBSP = 0xFF;
-static const int MAX_DATA_LENGTH_BYTES = 6;
+ESPHOME_LOG_TAG(TAG, "hrxl.maxsonar.wr.sensor");
 
 /**
  * HRXL sensors output the format "R1234\r" at 6Hz
@@ -25,51 +22,41 @@ static const int MAX_DATA_LENGTH_BYTES = 6;
 void HrxlMaxsonarWrComponent::loop() {
   uint8_t data;
   while (this->available() > 0) {
-    if (this->read_byte(&data)) {
-      buffer_ += (char) data;
-      this->check_buffer_();
+    if (!this->read_byte(&data))
+      continue;
+    size_t len;
+    const char *line = this->line_reader_.feed(data, len);
+    if (line != nullptr) {
+      ESP_LOGV(TAG, "Read from serial: %s", line);
+      this->handle_line_(line, len);
+    } else if (this->line_reader_.overflowed()) {
+      // No CR in time: report it and start over with the next byte
+      ESP_LOGW(TAG, "Invalid data read from sensor: %s", this->line_reader_.partial());
+      this->line_reader_.reset();
     }
   }
 }
 
-void HrxlMaxsonarWrComponent::check_buffer_() {
-  // The sensor seems to inject a rogue ASCII 255 byte from time to time. Get rid of that.
-  if (this->buffer_.back() == static_cast<char>(ASCII_NBSP)) {
-    this->buffer_.pop_back();
+void HrxlMaxsonarWrComponent::handle_line_(const char *line, size_t len) {
+  if (line[0] != 'R') {
+    ESP_LOGW(TAG, "Invalid data read from sensor: %s", line);
     return;
   }
+  int millimeters = parse_number<int>(line + 1).value_or(0);
 
-  // Stop reading at ASCII_CR. Also prevent the buffer from growing
-  // indefinitely if no ASCII_CR is received after MAX_DATA_LENGTH_BYTES.
-  if (this->buffer_.back() == static_cast<char>(ASCII_CR) || this->buffer_.length() >= MAX_DATA_LENGTH_BYTES) {
-    ESP_LOGV(TAG, "Read from serial: %s", this->buffer_.c_str());
-
-    size_t rpos = this->buffer_.find(static_cast<char>(ASCII_CR));
-
-    if (this->buffer_.length() <= MAX_DATA_LENGTH_BYTES && this->buffer_[0] == 'R' && rpos != std::string::npos) {
-      std::string distance = this->buffer_.substr(1, rpos - 1);
-      int millimeters = parse_number<int>(distance).value_or(0);
-
-      // XL reports in cm instead of mm and reports 3 digits instead of 4
-      if (distance.length() == 3) {
-        millimeters = millimeters * 10;
-      }
-
-      float meters = float(millimeters) / 1000.0;
-      ESP_LOGV(TAG, "Distance from sensor: %d mm, %f m", millimeters, meters);
-      this->publish_state(meters);
-    } else {
-      ESP_LOGW(TAG, "Invalid data read from sensor: %s", this->buffer_.c_str());
-    }
-    this->buffer_.clear();
+  // XL reports in cm instead of mm and reports 3 digits instead of 4
+  if (len == 4) {
+    millimeters *= 10;
   }
+
+  float meters = float(millimeters) / 1000.0f;
+  ESP_LOGV(TAG, "Distance from sensor: %d mm, %f m", millimeters, meters);
+  this->publish_state(meters);
 }
 
 void HrxlMaxsonarWrComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HRXL MaxSonar WR Sensor:");
   LOG_SENSOR("  ", "Distance", this);
-  // As specified in the sensor's data sheet
-  this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
 }  // namespace esphome::hrxl_maxsonar_wr

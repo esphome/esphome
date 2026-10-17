@@ -1,0 +1,37 @@
+# Per-target ESP-IDF sdkconfig defaults for esp32s3 static analysis (clang-tidy) only.
+# Read by IDF in addition to sdkconfig.defaults. Enables variant-only components so
+# their headers register for the tidy translation unit (these are normally set at
+# codegen via add_idf_sdkconfig_option, which the stub tidy build skips).
+
+# tinyusb CDC (usb_cdc_acm) -- the esp_tinyusb managed component is already in
+# esphome/idf_component.yml; these enable its CDC class so tud_cdc_* and the
+# CONFIG_TINYUSB_CDC_* macros are declared.
+CONFIG_TINYUSB_CDC_ENABLED=y
+CONFIG_TINYUSB_CDC_COUNT=1
+CONFIG_TINYUSB_CDC_RX_BUFSIZE=256
+CONFIG_TINYUSB_CDC_TX_BUFSIZE=256
+
+# OpenThread Border Router with external UART RCP.
+CONFIG_OPENTHREAD_ENABLED=y
+CONFIG_OPENTHREAD_FTD=y
+CONFIG_OPENTHREAD_PLATFORM_NETIF=y
+CONFIG_OPENTHREAD_BORDER_ROUTER=y
+CONFIG_OPENTHREAD_RADIO_SPINEL_UART=y
+CONFIG_OPENTHREAD_CLI=n
+CONFIG_OPENTHREAD_CONSOLE_ENABLE=n
+CONFIG_OPENTHREAD_DIAG=n
+CONFIG_OPENTHREAD_DNS64_CLIENT=n
+CONFIG_OPENTHREAD_SRP_CLIENT=n
+CONFIG_LWIP_IPV6_FORWARD=y
+CONFIG_LWIP_IPV6_NUM_ADDRESSES=12
+CONFIG_LWIP_MULTICAST_PING=y
+CONFIG_LWIP_NETIF_STATUS_CALLBACK=y
+CONFIG_LWIP_HOOK_IP6_ROUTE_DEFAULT=y
+CONFIG_LWIP_HOOK_ND6_GET_GW_DEFAULT=y
+CONFIG_LWIP_HOOK_IP6_INPUT_CUSTOM=y
+CONFIG_LWIP_HOOK_IP6_SELECT_SRC_ADDR_CUSTOM=y
+CONFIG_MDNS_MULTIPLE_INSTANCE=y
+CONFIG_MBEDTLS_CMAC_C=y
+CONFIG_MBEDTLS_SSL_PROTO_DTLS=y
+CONFIG_MBEDTLS_KEY_EXCHANGE_ECJPAKE=y
+CONFIG_MBEDTLS_ECJPAKE_C=y

@@ -6,7 +6,7 @@
 
 namespace esphome::bl0940 {
 
-class CalibrationNumber : public number::Number, public Component {
+class CalibrationNumber final : public number::Number, public Component {
  public:
   void setup() override;
   void dump_config() override;

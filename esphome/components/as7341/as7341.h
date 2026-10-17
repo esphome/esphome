@@ -73,7 +73,7 @@ enum AS7341Gain {
   AS7341_GAIN_512X,
 };
 
-class AS7341Component : public PollingComponent, public i2c::I2CDevice {
+class AS7341Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

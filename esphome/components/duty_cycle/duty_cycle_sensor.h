@@ -16,7 +16,7 @@ struct DutyCycleSensorStore {
   static void gpio_intr(DutyCycleSensorStore *arg);
 };
 
-class DutyCycleSensor : public sensor::Sensor, public PollingComponent {
+class DutyCycleSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
 

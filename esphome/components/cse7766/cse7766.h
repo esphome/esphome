@@ -9,7 +9,7 @@ namespace esphome::cse7766 {
 
 static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
 
-class CSE7766Component : public Component, public uart::UARTDevice {
+class CSE7766Component final : public Component, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
@@ -36,6 +36,7 @@ class CSE7766Component : public Component, public uart::UARTDevice {
 
   uint8_t raw_data_[CSE7766_RAW_DATA_SIZE];
   uint8_t raw_data_index_{0};
+  uint16_t cf_pulses_last_{0};
   uint32_t last_transmission_{0};
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
@@ -45,7 +46,8 @@ class CSE7766Component : public Component, public uart::UARTDevice {
   sensor::Sensor *reactive_power_sensor_{nullptr};
   sensor::Sensor *power_factor_sensor_{nullptr};
   uint32_t cf_pulses_total_{0};
-  uint16_t cf_pulses_last_{0};
+  // Power cycle of the last frame that carried a new power measurement, 0 if none
+  uint32_t last_power_cycle_{0};
 };
 
 }  // namespace esphome::cse7766

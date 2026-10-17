@@ -6,7 +6,7 @@
 
 namespace esphome::gl_r01_i2c {
 
-class GLR01I2CComponent : public sensor::Sensor, public i2c::I2CDevice, public PollingComponent {
+class GLR01I2CComponent final : public sensor::Sensor, public i2c::I2CDevice, public PollingComponent {
  public:
   void setup() override;
   void dump_config() override;
