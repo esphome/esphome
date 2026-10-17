@@ -18,6 +18,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
@@ -41,6 +42,7 @@ DEVICE_CLASSES = [
 button_ns = cg.esphome_ns.namespace("button")
 Button = button_ns.class_("Button", cg.EntityBase)
 ButtonPtr = Button.operator("ptr")
+ApplyButton = button_ns.class_("ApplyButton", Button)
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
@@ -116,11 +118,14 @@ async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     return var
 
 
+APPLY_ENTITY = ApplyEntity(ApplyButton, ((ButtonPtr, "entity"),))
+
+
 def sub_buttons(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_button."""
-    return SubEntities(new_button, config, parent)
+    """Return a SubEntities bound to new_button; ``apply`` statements can use ``entity``."""
+    return SubEntities(new_button, config, parent, APPLY_ENTITY)
 
 
 BUTTON_PRESS_SCHEMA = maybe_simple_id(

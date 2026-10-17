@@ -430,10 +430,18 @@ def _apply_function(
 ) -> MockObj:
     """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
     ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
-    fn = cg.static_function(
-        f"esphome__{id_.id}__fn", return_type, lambda_args, statements
-    )
+    fn = apply_static_function(id_, return_type, lambda_args, statements)
     return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
+
+
+def apply_static_function(
+    id_: ID,
+    return_type: SafeExpType,
+    params: TemplateArgsType,
+    statements: list[str],
+) -> MockObj:
+    """Emit the static function generated for ``id_`` and return an expression naming it."""
+    return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
 
 
 async def _render_values(
