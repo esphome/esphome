@@ -1,15 +1,33 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/optional.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
-#ifdef USE_BINARY_SENSOR
+#ifdef SEN6X_STATUS_SENSOR_COUNT
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/helpers.h"
 #endif
 
 namespace esphome::sen6x {
+
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+// Bits of the device status register (datasheet section 4.3) a binary sensor can watch
+enum class Sen6xStatus : uint8_t {
+  SEN6X_STATUS_FAN_ERROR,
+  SEN6X_STATUS_FAN_SPEED_WARNING,
+  SEN6X_STATUS_RHT_ERROR,
+  SEN6X_STATUS_GAS_ERROR,
+  SEN6X_STATUS_CO2_ERROR,
+  SEN6X_STATUS_HCHO_ERROR,
+  SEN6X_STATUS_PM_ERROR,
+};
+
+struct StatusSensor {
+  binary_sensor::BinarySensor *sensor;
+  Sen6xStatus status;
+};
+#endif
 
 // The NOx algorithm requires std_initial to stay at 50 (Sensirion datasheet)
 static constexpr uint16_t NOX_STD_INITIAL = 50;
@@ -35,15 +53,6 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   SUB_SENSOR(nox)
   SUB_SENSOR(co2)
   SUB_SENSOR(hcho)
-#ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(fan_error)
-  SUB_BINARY_SENSOR(fan_speed_warning)
-  SUB_BINARY_SENSOR(rht_error)
-  SUB_BINARY_SENSOR(gas_error)
-  SUB_BINARY_SENSOR(co2_error)
-  SUB_BINARY_SENSOR(hcho_error)
-  SUB_BINARY_SENSOR(pm_error)
-#endif
 
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -71,6 +80,11 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
                                          NOX_STD_INITIAL,
                                          gain_factor};
   }
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  void add_status_binary_sensor(binary_sensor::BinarySensor *sensor, Sen6xStatus status) {
+    this->status_sensors_.push_back({sensor, status});
+  }
+#endif
   void start_measurement();
   void stop_measurement();
   void start_fan_cleaning();
@@ -88,13 +102,16 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void poll_data_ready_();
   void read_measurements_();
   void parse_and_publish_measurements_();
-#ifdef USE_BINARY_SENSOR
   void read_device_status_();
+#ifdef SEN6X_STATUS_SENSOR_COUNT
   void parse_and_publish_device_status_();
 #endif
 
   std::string product_name_;
   std::string serial_number_;
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  StaticVector<StatusSensor, SEN6X_STATUS_SENSOR_COUNT> status_sensors_;
+#endif
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   Sen6xType sen6x_type_{UNKNOWN};
@@ -110,9 +127,6 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   uint8_t poll_retries_remaining_{0};
   uint8_t read_words_{0};
   bool initialized_{false};
-#ifdef USE_BINARY_SENSOR
-  bool has_status_sensors_{false};
-#endif
   bool measuring_{false};
   bool startup_complete_{false};
 };

@@ -147,24 +147,17 @@ void SEN6XComponent::setup() {
           ESP_LOGE(TAG, "Formaldehyde requires SEN68 or SEN69C");
           this->hcho_sensor_ = nullptr;
         }
-#ifdef USE_BINARY_SENSOR
-        if (this->gas_error_binary_sensor_ && !has_voc_nox) {
-          ESP_LOGE(TAG, "VOC requires SEN65, SEN66, SEN68, or SEN69C");
-          this->gas_error_binary_sensor_ = nullptr;
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+        // A status sensor for a feature this variant lacks is dropped like the measurement sensor above
+        for (auto &entry : this->status_sensors_) {
+          const bool supported = (entry.status != Sen6xStatus::SEN6X_STATUS_GAS_ERROR || has_voc_nox) &&
+                                 (entry.status != Sen6xStatus::SEN6X_STATUS_CO2_ERROR || has_co2) &&
+                                 (entry.status != Sen6xStatus::SEN6X_STATUS_HCHO_ERROR || has_hcho);
+          if (!supported) {
+            ESP_LOGE(TAG, "'%s' needs a variant with that feature", entry.sensor->get_name().c_str());
+            entry.sensor = nullptr;
+          }
         }
-        if (this->co2_error_binary_sensor_ && !has_co2) {
-          ESP_LOGE(TAG, "CO2 requires SEN63C, SEN66, or SEN69C");
-          this->co2_error_binary_sensor_ = nullptr;
-        }
-        if (this->hcho_error_binary_sensor_ && !has_hcho) {
-          ESP_LOGE(TAG, "Formaldehyde requires SEN68 or SEN69C");
-          this->hcho_error_binary_sensor_ = nullptr;
-        }
-        this->has_status_sensors_ =
-            this->fan_error_binary_sensor_ != nullptr || this->fan_speed_warning_binary_sensor_ != nullptr ||
-            this->rht_error_binary_sensor_ != nullptr || this->gas_error_binary_sensor_ != nullptr ||
-            this->co2_error_binary_sensor_ != nullptr || this->hcho_error_binary_sensor_ != nullptr ||
-            this->pm_error_binary_sensor_ != nullptr;
 #endif
 
         // Step 3: Read firmware version and start measurements in next loop iteration
@@ -269,14 +262,10 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "NOx", this->nox_sensor_);
   LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-#ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Fan error", this->fan_error_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "Fan speed warning", this->fan_speed_warning_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "RH&T error", this->rht_error_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "Gas error", this->gas_error_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "CO2 error", this->co2_error_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "HCHO error", this->hcho_error_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "PM error", this->pm_error_binary_sensor_);
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  for (const auto &entry : this->status_sensors_) {
+    LOG_BINARY_SENSOR("  ", "Device status", entry.sensor);
+  }
 #endif
 }
 
@@ -293,11 +282,10 @@ void SEN6XComponent::update() {
   // Polling uses chained timeouts to guarantee each I2C operation completes
   // before the next begins. The flow is:
   //
-  //   if any status binary sensor: read_device_status_()
-  //     -> write_command (read and clear device status)
-  //     -> timeout I2C_READ_DELAY
-  //       -> parse_and_publish_device_status_()
-  //         -> poll_data_ready_() (also on any status failure)
+  //   read_device_status_()
+  //     with status sensors: write_command (read and clear device status)
+  //       -> timeout I2C_READ_DELAY -> parse_and_publish_device_status_()
+  //     -> poll_data_ready_()
   //
   //   poll_data_ready_()
   //     -> write_command (data ready status)
@@ -312,17 +300,13 @@ void SEN6XComponent::update() {
   // All timeouts share a single ID (TIMEOUT_POLL) since only one is active
   // at a time. cancel_timeout in update() stops any in-flight chain.
   this->poll_retries_remaining_ = POLL_RETRIES;
-#ifdef USE_BINARY_SENSOR
-  // Read the status register first so error sensors update even when the measurement chain fails
-  if (this->has_status_sensors_) {
-    this->read_device_status_();
-    return;
-  }
-#endif
-  this->poll_data_ready_();
+  this->read_device_status_();
 }
 
 void SEN6XComponent::poll_data_ready_() {
+  // stop_measurement() may have run from a publish callback while the chain was in flight
+  if (!this->measuring_)
+    return;
   if (this->poll_retries_remaining_ == 0) {
     this->status_set_warning();
     ESP_LOGD(TAG, "Data not ready");
@@ -496,52 +480,54 @@ void SEN6XComponent::parse_and_publish_measurements_() {
   this->status_clear_warning();
 }
 
-#ifdef USE_BINARY_SENSOR
-// Reads and clears the status register, then continues into the measurement poll chain.
-// Read And Clear (0xD210) is used because error flags are sticky on the device; clearing
-// each cycle makes the sensors report whether a problem occurred since the last update.
+// Reads the status register first, so the error sensors update even when the measurement read fails, then runs
+// the measurement poll chain. Read And Clear (0xD210) is used because error flags are sticky on the device;
+// clearing each cycle makes the sensors report whether a problem occurred since the last update.
 void SEN6XComponent::read_device_status_() {
-  if (!this->write_command(SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS)) {
-    this->status_set_warning();
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  if (!this->status_sensors_.empty()) {
+    if (this->write_command(SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS)) {
+      this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_device_status_(); });
+      return;
+    }
     ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
-    this->poll_data_ready_();
-    return;
   }
+#endif
+  this->poll_data_ready_();
+}
 
-  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_device_status_(); });
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+// Bit of the status register behind each kind; the CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C
+static uint8_t status_bit(Sen6xStatus status, SEN6XComponent::Sen6xType type) {
+  switch (status) {
+    case Sen6xStatus::SEN6X_STATUS_FAN_ERROR:
+      return 4;
+    case Sen6xStatus::SEN6X_STATUS_FAN_SPEED_WARNING:
+      return 21;
+    case Sen6xStatus::SEN6X_STATUS_RHT_ERROR:
+      return 6;
+    case Sen6xStatus::SEN6X_STATUS_GAS_ERROR:
+      return 7;
+    case Sen6xStatus::SEN6X_STATUS_CO2_ERROR:
+      return type == SEN6XComponent::SEN66 ? 9 : 12;
+    case Sen6xStatus::SEN6X_STATUS_HCHO_ERROR:
+      return 10;
+    case Sen6xStatus::SEN6X_STATUS_PM_ERROR:
+      return 11;
+  }
+  return 0;
 }
 
 void SEN6XComponent::parse_and_publish_device_status_() {
   uint16_t words[2];
-
-  if (!this->read_data(words, 2)) {
-    this->status_set_warning();
-    ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
-    this->poll_data_ready_();
-    return;
-  }
-  const uint32_t status = (static_cast<uint32_t>(words[0]) << 16) | words[1];
-
-  // Bit positions from the device status register (datasheet section 4.3).
-  // The CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C.
-  const uint32_t co2_mask = this->sen6x_type_ == SEN66 ? (1UL << 9) : (1UL << 12);
-  const struct {
-    binary_sensor::BinarySensor *sensor;
-    uint32_t mask;
-  } statuses[] = {
-      {this->fan_error_binary_sensor_, 1UL << 4}, {this->fan_speed_warning_binary_sensor_, 1UL << 21},
-      {this->rht_error_binary_sensor_, 1UL << 6}, {this->gas_error_binary_sensor_, 1UL << 7},
-      {this->co2_error_binary_sensor_, co2_mask}, {this->hcho_error_binary_sensor_, 1UL << 10},
-      {this->pm_error_binary_sensor_, 1UL << 11},
-  };
-  for (const auto &entry : statuses) {
-    if (entry.sensor != nullptr)
-      entry.sensor->publish_state((status & entry.mask) != 0);
-  }
-
-  // A status automation may have stopped the measurement; its settling window must not get a poll
-  if (!this->measuring_) {
-    return;
+  if (this->read_data(words, 2)) {
+    const uint32_t status = (static_cast<uint32_t>(words[0]) << 16) | words[1];
+    for (const auto &entry : this->status_sensors_) {
+      if (entry.sensor != nullptr)
+        entry.sensor->publish_state(((status >> status_bit(entry.status, this->sen6x_type_)) & 1) != 0);
+    }
+  } else {
+    ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
   }
   this->poll_data_ready_();
 }
