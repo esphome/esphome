@@ -163,7 +163,7 @@ void SEN6XComponent::setup() {
 #ifdef SEN6X_STATUS_SENSOR_COUNT
         // A status sensor for a feature this variant lacks is dropped like the measurement sensor above;
         // an empty table then skips the status read altogether
-        const auto kept = std::remove_if(
+        auto *const kept = std::remove_if(
             this->status_sensors_.begin(), this->status_sensors_.end(),
             [has_voc_nox, has_co2, has_hcho](const StatusSensor &entry) {
               const bool supported = (entry.status != Sen6xStatus::SEN6X_STATUS_GAS_ERROR || has_voc_nox) &&
