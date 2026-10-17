@@ -16,14 +16,14 @@ ESPHOME_LOG_TAG(TAG, "mq_gas_sensors");
 static constexpr uint32_t R0_PREFERENCE_VERSION = 0x00000001;
 
 /// Human readable name of a `mqmath::RegressionMethod` value.
-static const char *regression_method_name(uint8_t method) {
+static const LogString *regression_method_name(uint8_t method) {
   switch (method) {
     case mqmath::REGRESSION_LINEAR:
-      return "linear";
+      return LOG_STR("linear");
     case mqmath::REGRESSION_INVERSE:
-      return "inverse";
+      return LOG_STR("inverse");
     default:
-      return "exponential";
+      return LOG_STR("exponential");
   }
 }
 
@@ -120,8 +120,8 @@ void MQGasSensor::setup() {
 void MQGasSensor::log_config_() {
   ESP_LOGCONFIG(TAG, "  Type: %s", this->type_.c_str());
   ESP_LOGCONFIG(TAG, "  Target gas: %s", this->gas_.c_str());
-  ESP_LOGCONFIG(TAG, "  Curve: %s (a=%.6g, b=%.6g), ratio: %s", regression_method_name(this->regression_method_),
-                this->a_, this->b_,
+  ESP_LOGCONFIG(TAG, "  Curve: %s (a=%.6g, b=%.6g), ratio: %s",
+                LOG_STR_ARG(regression_method_name(this->regression_method_)), this->a_, this->b_,
                 this->ratio_mode_ == mqmath::RATIO_R0_RS ? LOG_STR_LITERAL("R0/RS (MQUnifiedsensor)")
                                                          : LOG_STR_LITERAL("RS/R0 (datasheet)"));
   ESP_LOGCONFIG(TAG, "  VCC: %.2f V, RL: %.2f kOhm, AO multiplier: x%.3f", this->vcc_, this->rl_,

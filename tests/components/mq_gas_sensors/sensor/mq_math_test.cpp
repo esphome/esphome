@@ -47,6 +47,10 @@ TEST(MqMath, SaturatedSensorReportsTheTopOfTheRange) {
 TEST(MqMath, UnusableInputReadsUnknown) {
   EXPECT_TRUE(std::isnan(ppm_from_ratio(H2_A, H2_B, NAN, REGRESSION_EXPONENTIAL)));
   EXPECT_TRUE(std::isnan(clamp_ppm(NAN, 0.0f, H2_MAX_PPM)));
+  // Coefficients the method cannot evaluate (log10 of a negative a) read
+  // unknown, not a saturated max_ppm.
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(-H2_A, H2_B, 1.0f, REGRESSION_EXPONENTIAL)));
+  EXPECT_TRUE(std::isnan(clamp_ppm(ppm_from_ratio(-H2_A, H2_B, 1.0f, REGRESSION_EXPONENTIAL), 0.0f, H2_MAX_PPM)));
   // No coefficients configured: 0 ppm, never a clamped range value.
   EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(0.0f, H2_B, 1.0f, REGRESSION_EXPONENTIAL));
 }
