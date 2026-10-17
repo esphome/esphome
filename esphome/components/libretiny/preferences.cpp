@@ -35,17 +35,26 @@ static bool boot_kept_rtc_preferences() {
 }
 
 bool LibreTinyPreferenceBackend::discard_if_stale_() {
-  // Runs once per preference, on its first save or load: only the value saved before this boot is
-  // discarded, never one this boot saved.
+  // Runs on a preference's first save or load until the value from before this boot is gone; save()
+  // then clears the flag, so a value this boot saved is never discarded.
   if (!this->discard_after_hard_reset)
     return false;
-  this->discard_after_hard_reset = false;
-  if (boot_kept_rtc_preferences())
+  if (boot_kept_rtc_preferences()) {
+    this->discard_after_hard_reset = false;
     return false;
+  }
   char key_str[UINT32_MAX_STR_SIZE];
   uint32_to_str(key_str, this->key);
-  fdb_kv_del(this->db, key_str);
-  ESP_LOGD(TAG, "Discarded rtc preference %s after a hard reset", key_str);
+  fdb_err_t err = fdb_kv_del(this->db, key_str);
+  if (err == FDB_NO_ERR || err == FDB_KV_NAME_ERR) {  // FDB_KV_NAME_ERR: nothing was stored
+    this->discard_after_hard_reset = false;
+    if (err == FDB_NO_ERR)
+      ESP_LOGD(TAG, "Discarded rtc preference %s after a hard reset", key_str);
+  } else {
+    // Keep the flag, so the next save or load tries again
+    ESP_LOGW(TAG, "Failed to discard rtc preference %s: %d", key_str, err);
+  }
+  // Report nothing stored either way: a value from before the hard reset must not be restored
   return true;
 }
 #endif  // USE_LIBRETINY_RTC_PREFERENCES
@@ -53,6 +62,7 @@ bool LibreTinyPreferenceBackend::discard_if_stale_() {
 bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
   this->discard_if_stale_();
+  this->discard_after_hard_reset = false;  // this save replaces any value from before the boot
 #endif
   // try find in pending saves and update that
   for (auto &obj : s_pending_save) {

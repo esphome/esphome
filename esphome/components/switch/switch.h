@@ -54,6 +54,14 @@ class Switch : public EntityBase {
   /// The current reported state of the binary sensor.
   bool state;
 
+#ifdef USE_SWITCH_STORAGE
+ protected:
+  enum SwitchStorage : uint8_t { SWITCH_STORAGE_DEFAULT, SWITCH_STORAGE_FLASH, SWITCH_STORAGE_RTC };
+  // Declared here to use the padding byte after state (before rtc_) instead of adding a word at the end
+  SwitchStorage restore_storage_{SWITCH_STORAGE_DEFAULT};
+
+ public:
+#endif
   /** Control this switch using a boolean state value.
    *
    * This method provides a unified interface for setting the switch state based on a boolean parameter.
@@ -147,13 +155,9 @@ class Switch : public EntityBase {
   LazyCallbackManager<void(bool)> state_callback_{};
 
   // Small types grouped together
-  Deduplicator<bool> publish_dedup_;  // 2 bytes (bool has_value_ + bool last_value_)
+  Deduplicator<bool> publish_dedup_;  // 3 bytes (bool has_value_ + bool value_unknown_ + bool last_value_)
   bool inverted_{false};              // 1 byte
-#ifdef USE_SWITCH_STORAGE
-  enum SwitchStorage : uint8_t { SWITCH_STORAGE_DEFAULT, SWITCH_STORAGE_FLASH, SWITCH_STORAGE_RTC };
-  SwitchStorage restore_storage_{SWITCH_STORAGE_DEFAULT};  // 1 byte
-#endif
-  // Total: 3 bytes, 1 byte padding
+  // Total: 4 bytes, no padding
 };
 
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))

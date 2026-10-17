@@ -129,16 +129,28 @@ def _validate_initial_state(config: ConfigType) -> ConfigType:
     return config
 
 
+# Platform defaults that restore the state, and the restore_state they keep when only
+# initial_state is set. Every other default restores nothing, so initial_state applies at each boot.
+_RESTORING_DEFAULTS = {
+    "RESTORE_DEFAULT_OFF": RESTORE_STATE_KEEP,
+    "RESTORE_DEFAULT_ON": RESTORE_STATE_KEEP,
+    "RESTORE_INVERTED_DEFAULT_OFF": RESTORE_STATE_INVERT,
+    "RESTORE_INVERTED_DEFAULT_ON": RESTORE_STATE_INVERT,
+}
+
+
 def _apply_default_restore_mode(default_restore_mode: str):
     # cv.Exclusive has no default, so apply it here when no restore option is configured.
+    # With only initial_state set, keep a restoring default's restore (as light does) and
+    # let initial_state supply the state used when nothing is saved.
     def validator(config: ConfigType) -> ConfigType:
-        if not any(
-            key in config
-            for key in (CONF_RESTORE_MODE, CONF_RESTORE_STATE, CONF_INITIAL_STATE)
-        ):
-            config[CONF_RESTORE_MODE] = cv.enum(RESTORE_MODES, upper=True, space="_")(
-                default_restore_mode
-            )
+        if CONF_RESTORE_MODE in config or CONF_RESTORE_STATE in config:
+            return config
+        default = cv.enum(RESTORE_MODES, upper=True, space="_")(default_restore_mode)
+        if CONF_INITIAL_STATE not in config:
+            config[CONF_RESTORE_MODE] = default
+        elif (state := _RESTORING_DEFAULTS.get(str(default))) is not None:
+            config[CONF_RESTORE_STATE] = RESTORE_STATE_SCHEMA(state)
         return config
 
     return validator

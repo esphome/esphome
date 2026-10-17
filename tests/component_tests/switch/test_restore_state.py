@@ -154,6 +154,30 @@ def test_platform_default_restore_mode_applies_only_when_nothing_is_set() -> Non
     assert "restore_mode" not in configured
 
 
+@pytest.mark.usefixtures("esp8266")
+@pytest.mark.parametrize(
+    ("default_restore_mode", "initial_state", "expected"),
+    [
+        # A restoring default keeps restoring; initial_state only replaces its fallback
+        ("RESTORE_DEFAULT_ON", False, "RESTORE_DEFAULT_OFF"),
+        ("RESTORE_DEFAULT_OFF", True, "RESTORE_DEFAULT_ON"),
+        ("RESTORE_INVERTED_DEFAULT_OFF", True, "RESTORE_INVERTED_DEFAULT_ON"),
+        # A default that restores nothing starts in initial_state
+        ("ALWAYS_OFF", True, "ALWAYS_ON"),
+        ("DISABLED", True, "ALWAYS_ON"),
+    ],
+)
+def test_initial_state_alone_keeps_a_restoring_platform_default(
+    default_restore_mode: str, initial_state: bool, expected: str
+) -> None:
+    config = _validate(
+        {"initial_state": initial_state}, default_restore_mode=default_restore_mode
+    )
+    assert "restore_mode" not in config
+    assert "storage" not in config.get("restore_state", {})
+    assert switch._resolve_restore_mode(config) == expected
+
+
 def test_rtc_accepted_on_bk7231t(set_core_config: SetCoreConfigCallable) -> None:
     set_core_config(PlatformFramework.BK72XX_ARDUINO)
     CORE.data[KEY_LIBRETINY] = {KEY_FAMILY: FAMILY_BK7231T}
