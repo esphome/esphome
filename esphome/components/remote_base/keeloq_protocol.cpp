@@ -239,6 +239,12 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
 }
 
 void KeeloqProtocol::dump(const KeeloqData &data) {
+  if (data.suffix_bits == 6) {
+    // Jarolift TDEF frame: show the group as transmit_keeloq takes it.
+    ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", group=0x%02x",
+             data.address, data.command, data.encrypted, data.group());
+    return;
+  }
   ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", suffix=0x%04x/%u",
            data.address, data.command, data.encrypted, data.suffix, data.suffix_bits);
 }
