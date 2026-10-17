@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "esphome/components/vevor_dtx/vevor_dtx.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::vevor_dtx::testing {
 
@@ -20,11 +21,7 @@ class VevorDtxUnderTest : public VevorDtxComponent {
 static VevorDtxUnderTest::Payload sample_payload(uint8_t tx = 7) {
   VevorDtxUnderTest::Payload p{0xAA, 0x00, 0x12, 0x34, 0x80, 0x02, 0xCB, 55, 0x01, 0x54, 25,
                                0x01, 0xB5, 0x01, 0x65, 6,    0x05, 0xD3, tx, 0,    0};
-  uint8_t checksum = 0;
-  for (size_t i = 0; i < 19; i++) {
-    checksum += p[i];
-  }
-  p[19] = checksum;
+  p[19] = sum_bytes(p.data(), 19);
   return p;
 }
 
@@ -32,15 +29,16 @@ static VevorDtxUnderTest::Payload sample_payload(uint8_t tx = 7) {
 // sides; `lead_bits` extra one bits in front shift the byte alignment the receiver sees
 static remote_base::RawTimings timings(const VevorDtxUnderTest::Payload &payload, uint8_t lead_bits = 0) {
   std::vector<bool> bits(lead_bits, true);
-  for (uint8_t byte : {0xAA, 0xAA, 0xCA, 0xCA, 0x54}) {
+  const auto push_byte = [&bits](uint8_t byte) {
     for (int i = 7; i >= 0; i--) {
       bits.push_back(((byte >> i) & 1) != 0);
     }
+  };
+  for (uint8_t byte : {0xAA, 0xAA, 0xCA, 0xCA, 0x54}) {
+    push_byte(byte);
   }
   for (uint8_t byte : payload) {
-    for (int i = 7; i >= 0; i--) {
-      bits.push_back(((byte >> i) & 1) != 0);
-    }
+    push_byte(byte);
   }
   remote_base::RawTimings out{FRAME_GAP_US};
   bool level = bits[0];
@@ -127,14 +125,14 @@ TEST(VevorDtxTest, IgnoresOtherStations) {
   EXPECT_TRUE(hub.on_receive(receive_data(timings(sample_payload()))));
 }
 
-TEST(VevorDtxTest, TxCounterKeepsCountingPastTheByteWrap) {
+TEST(VevorDtxTest, TxCounterIsTheStationsByte) {
   VevorDtxUnderTest hub;
   sensor::Sensor tx_counter;
   hub.set_tx_counter_sensor(&tx_counter);
   EXPECT_TRUE(hub.on_receive(receive_data(timings(sample_payload(250)))));
   EXPECT_NEAR(tx_counter.state, 250.0f, 0.01f);
   EXPECT_TRUE(hub.on_receive(receive_data(timings(sample_payload(3)))));
-  EXPECT_NEAR(tx_counter.state, 259.0f, 0.01f);
+  EXPECT_NEAR(tx_counter.state, 3.0f, 0.01f);
 }
 
 }  // namespace esphome::vevor_dtx::testing

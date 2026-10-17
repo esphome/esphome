@@ -36,6 +36,14 @@ CONF_TX_COUNTER = "tx_counter"
 CONF_UV_INDEX = "uv_index"
 CONF_WIND_GUST = "wind_gust"
 
+_WIND_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_METER_PER_SECOND,
+    icon=ICON_WEATHER_WINDY,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_WIND_SPEED,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_VEVOR_DTX_ID): cv.use_id(VevorDtxComponent),
@@ -51,20 +59,8 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_HUMIDITY,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_WIND_SPEED): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER_PER_SECOND,
-            icon=ICON_WEATHER_WINDY,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_WIND_SPEED,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_WIND_GUST): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER_PER_SECOND,
-            icon=ICON_WEATHER_WINDY,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_WIND_SPEED,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_WIND_SPEED): _WIND_SCHEMA,
+        cv.Optional(CONF_WIND_GUST): _WIND_SCHEMA,
         cv.Optional(CONF_WIND_DIRECTION_DEGREES): sensor.sensor_schema(
             unit_of_measurement=UNIT_DEGREES,
             icon=ICON_SIGN_DIRECTION,
