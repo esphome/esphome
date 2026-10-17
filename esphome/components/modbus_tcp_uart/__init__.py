@@ -84,14 +84,17 @@ def _served_units(full: ConfigType, link_id: str) -> list[int]:
 
 
 def _reply_timeout_ms(full: ConfigType) -> int:
-    """Server: a forwarded request may wait the longest send_wait_time of a client hub."""
+    """Server: room for one transaction ahead of a forwarded request on a client hub, then its own."""
     waits = [
-        hub[modbus.CONF_SEND_WAIT_TIME].total_milliseconds
+        hub[modbus.CONF_TURNAROUND_TIME].total_milliseconds
+        + hub[modbus.CONF_SEND_WAIT_TIME].total_milliseconds
         for hub in full.get("modbus") or []
         if hub.get(CONF_ROLE, "client") == "client"
         and modbus.CONF_SEND_WAIT_TIME in hub
+        and modbus.CONF_TURNAROUND_TIME in hub
     ]
-    return max([DEFAULT_REPLY_TIMEOUT_MS, *waits])
+    # One second for the frames and the reply path, as without a client hub.
+    return DEFAULT_REPLY_TIMEOUT_MS + 2 * max(waits, default=0)
 
 
 async def to_code(config: ConfigType) -> None:

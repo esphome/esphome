@@ -84,16 +84,18 @@ def test_a_block_without_address_is_ignored() -> None:
     assert _served_units(full, "mb_link") == [1]
 
 
-def test_reply_timeout_covers_the_longest_client_send_wait_time() -> None:
+def test_reply_timeout_outlasts_two_transactions_on_a_client_hub() -> None:
     full = {
         "modbus": [
             {
                 "id": ID("rtu"),
                 "role": "client",
-                "send_wait_time": TimePeriod(seconds=3),
+                "send_wait_time": TimePeriod(seconds=2),
+                "turnaround_time": TimePeriod(milliseconds=600),
             },
             {"id": ID("tcp"), "role": "server"},
         ],
     }
-    assert _reply_timeout_ms(full) == 3000
+    # 1 s for the reply, plus 2 x (0.6 s + 2 s): the transaction ahead and this one
+    assert _reply_timeout_ms(full) == 6200
     assert _reply_timeout_ms({"modbus": [{"id": ID("tcp"), "role": "server"}]}) == 1000
