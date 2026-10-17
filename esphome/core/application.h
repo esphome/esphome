@@ -784,6 +784,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #ifdef USE_RUNTIME_STATS
     loop_tail_start_us = micros();
 #endif
+    // process scheduler items added in component phase
+    this->scheduler.process_to_add();
     this->last_loop_ = last_op_end_time;
     now = last_op_end_time;
     // phase_guard destructor clears in_loop_ at scope exit
