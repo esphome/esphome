@@ -4,7 +4,7 @@
 
 namespace esphome::pipsolar {
 
-static const char *const TAG = "pipsolar.output";
+ESPHOME_LOG_TAG(TAG, "pipsolar.output");
 
 void PipsolarOutput::write_state(float state) {
   char tmp[16];

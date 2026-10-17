@@ -2,7 +2,6 @@
 
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/datatypes.h"
 
@@ -47,8 +46,6 @@ struct sbe24_t {  // NOLINT(readability-identifier-naming,altera-struct-pack-ali
   int8_t h{0};
 } __attribute__((packed));
 
-template<typename... Ts> class ResetEnergyAction;
-
 class BL0906;
 
 using ActionCallbackFuncPtr = void (BL0906::*)();
@@ -85,9 +82,10 @@ class BL0906 final : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
 
- protected:
-  template<typename... Ts> friend class ResetEnergyAction;
+  /// Queue an energy counter reset for the next poll
+  void reset_energy() { this->enqueue_action_(&BL0906::reset_energy_); }
 
+ protected:
   void reset_energy_();
 
   void read_data_(uint8_t address, float reference, sensor::Sensor *sensor);
@@ -101,11 +99,6 @@ class BL0906 final : public PollingComponent, public uart::UARTDevice {
 
  private:
   std::vector<ActionCallbackFuncPtr> action_queue_{};
-};
-
-template<typename... Ts> class ResetEnergyAction final : public Action<Ts...>, public Parented<BL0906> {
- public:
-  void play(const Ts &...x) override { this->parent_->enqueue_action_(&BL0906::reset_energy_); }
 };
 
 }  // namespace esphome::bl0906

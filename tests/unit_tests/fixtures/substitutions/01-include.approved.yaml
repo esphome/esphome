@@ -13,3 +13,10 @@ test_list:
       - a: alpha
       - b: beta
       - c: The value of C is $c
+  - {}
+  - values:
+      - var1: '1'
+      - a: alpha
+      - b: delta
+      - c: The value of C is saw
+  - {}

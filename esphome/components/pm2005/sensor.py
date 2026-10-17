@@ -27,10 +27,7 @@ PM2005Component = pm2005_ns.class_(
 )
 
 SensorType = pm2005_ns.enum("SensorType")
-SENSOR_TYPE = {
-    "PM2005": SensorType.PM2005,
-    "PM2105": SensorType.PM2105,
-}
+SENSOR_TYPE = SensorType.options("PM2005", "PM2105")
 
 
 CONFIG_SCHEMA = cv.All(
@@ -74,14 +71,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_sensor_type(config[CONF_TYPE]))
 
-    if pm_1_0_config := config.get(CONF_PM_1_0):
-        sens = await sensor.new_sensor(pm_1_0_config)
-        cg.add(var.set_pm_1_0_sensor(sens))
-
-    if pm_2_5_config := config.get(CONF_PM_2_5):
-        sens = await sensor.new_sensor(pm_2_5_config)
-        cg.add(var.set_pm_2_5_sensor(sens))
-
-    if pm_10_0_config := config.get(CONF_PM_10_0):
-        sens = await sensor.new_sensor(pm_10_0_config)
-        cg.add(var.set_pm_10_0_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)

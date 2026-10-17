@@ -7,7 +7,7 @@
 
 namespace esphome::waveshare_epaper {
 
-static const char *const TAG = "waveshare_epaper";
+ESPHOME_LOG_TAG(TAG, "waveshare_epaper");
 
 static const uint8_t LUT_SIZE_WAVESHARE = 30;
 

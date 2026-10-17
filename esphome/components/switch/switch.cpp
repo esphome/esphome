@@ -5,12 +5,11 @@
 
 namespace esphome::switch_ {
 
-static const char *const TAG = "switch";
+ESPHOME_LOG_TAG(TAG, "switch");
 
 Switch::Switch() : state(false) {}
 
 void Switch::control(bool target_state) {
-  ESP_LOGV(TAG, "'%s' Control: %s", this->get_name().c_str(), ONOFF(target_state));
   if (target_state) {
     this->turn_on();
   } else {
@@ -58,6 +57,7 @@ void Switch::publish_state(bool state) {
   if (!this->publish_dedup_.next(state))
     return;
   this->state = state != this->inverted_;
+  this->set_has_state(true);
 
   if (restore_mode & RESTORE_MODE_PERSISTENT_MASK)
     this->rtc_.save(&this->state);
