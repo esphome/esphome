@@ -129,15 +129,7 @@ void RX8111Component::write_time() {
 }
 
 bool RX8111Component::set_stop_bit_(bool stop) {
-  uint8_t control;
-  if (!this->read_byte(RX8111_REG_CONTROL, &control))
-    return false;
-  if (stop) {
-    control |= RX8111_CTRL_STOP;
-  } else {
-    control &= ~RX8111_CTRL_STOP;
-  }
-  return this->write_byte(RX8111_REG_CONTROL, control);
+  return this->update_register(RX8111_REG_CONTROL, RX8111_CTRL_STOP, stop ? RX8111_CTRL_STOP : 0);
 }
 
 }  // namespace esphome::rx8111

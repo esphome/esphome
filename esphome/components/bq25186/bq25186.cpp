@@ -28,13 +28,10 @@ bool BQ25186Component::write_register_(uint8_t reg, uint8_t value) {
 }
 
 bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value) {
-  uint8_t reg_value;
-  if (!this->read_byte(reg, &reg_value)) {
-    ESP_LOGW(TAG, "Failed to read register 0x%02X", reg);
-    return false;
-  }
-  reg_value = (reg_value & ~mask) | (value & mask);
-  return this->write_register_(reg, reg_value);
+  if (this->update_register(reg, mask, value))
+    return true;
+  ESP_LOGW(TAG, "Failed to update register 0x%02X", reg);
+  return false;
 }
 
 uint8_t BQ25186Component::expected_register_(size_t index) const {
