@@ -122,6 +122,7 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   uint8_t bat_reply_{0};         // battery whose "bat N" reply is arriving, 0 while the "pwr" reply arrives
   bool pwr_reply_{false};        // a "pwr" header arrived and its "$$" has not
   bool bat_command_due_{false};  // a "bat N" waits for the pause after the last reply
+  bool late_reply_{false};       // an abandoned "bat N" may still answer; its lines are dropped until "pwr" answers
   bool cell_polling_enabled_{true};
 #endif
   // The longest line, the newer firmware header, is 182 characters

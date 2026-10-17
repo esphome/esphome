@@ -109,6 +109,7 @@ void PylontechComponent::update() {
 #ifdef PYLONTECH_CELL_BATTERY_COUNT
   // A "bat N" that was not sent yet, or whose reply never finished, must not get in the way of "pwr"
   this->bat_command_due_ = false;
+  this->late_reply_ = this->bat_reply_ != 0;
   this->bat_reply_ = 0;
 #endif
   this->write_str("pwr\n");
@@ -203,6 +204,7 @@ void PylontechComponent::parse_header_(const char *buffer) {
 #ifdef PYLONTECH_CELL_BATTERY_COUNT
   // The header opens a "pwr" reply, so what follows are battery lines even after a late "bat N" reply
   this->bat_reply_ = 0;
+  this->late_reply_ = false;
   this->pwr_reply_ = true;
 #endif
   ESP_LOGV(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id_ ? LOG_STR_LITERAL("with") : LOG_STR_LITERAL("without"),
@@ -224,7 +226,8 @@ void PylontechComponent::process_line_(const char *buffer) {
     }
     return;
   }
-  if (this->bat_reply_ != 0) {
+  // The "pwr" header always starts a "pwr" reply, whatever was expected
+  if (this->bat_reply_ != 0 && strncmp(buffer, "Power", 5) != 0) {
     this->parse_cell_line_(buffer);
     return;
   }
@@ -253,6 +256,12 @@ void PylontechComponent::process_line_(const char *buffer) {
     }
     return;
   }
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+  if (this->late_reply_) {
+    ESP_LOGV(TAG, "dropped late line %s", buffer);  // cell rows of the abandoned "bat N" look like battery lines
+    return;
+  }
+#endif
   const unsigned bat_index = static_cast<unsigned>(*bat) - 1u;
   if (bat_index >= MAX_BATTERIES || (this->batteries_ & (1u << bat_index)) == 0) {
     return;  // no listener for this battery

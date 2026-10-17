@@ -420,19 +420,27 @@ TEST_F(PylontechCellTest, LateBatReplyAfterUpdateIsNotMistakenForThePwrReply) {
   this->hub_.loop();
   this->let_pause_pass_();
   EXPECT_EQ(this->uart_.tx, "bat 1\n");
+  ASSERT_EQ(this->published_().size(), 1u);
 
-  // The pack answers the abandoned bat 1 only after the next pwr went out, then answers pwr
+  // Battery 1's next record is still unpublished when update() abandons bat 1; the pack answers it only
+  // after the next pwr went out, with cell rows that look like battery lines, then answers pwr
+  this->uart_.push_rx({HEADER, bat_line(1, 49100), REPLY_END});
+  this->hub_.loop();
   this->hub_.update();
-  this->uart_.push_rx({CELL_HEADER, cell_line(0, 3308, 18300), REPLY_END});
+  this->uart_.push_rx(
+      {CELL_HEADER, cell_line(0, 3308, 18300), cell_line(1, 3310, 18400), cell_line(2, 3312, 18500), REPLY_END});
   this->uart_.push_rx({"pwr\r\n@\r\n", HEADER, BAT2, REPLY_END});
   this->drain_and_publish_();
   this->let_pause_pass_();
 
-  // The late cells are dropped, its "$$" sends nothing, and the pwr reply starts the cycle once
+  // The late rows are dropped without touching battery 1's record, its "$$" sends nothing, and the pwr
+  // reply starts the cycle once
   EXPECT_EQ(this->uart_.tx, "bat 1\npwr\nbat 1\n");
-  ASSERT_EQ(this->published_().size(), 2u);
-  EXPECT_EQ(this->published_()[1].bat_num, 2);
-  EXPECT_EQ(this->published_()[1].volt, 46012);
+  ASSERT_EQ(this->published_().size(), 3u);
+  EXPECT_EQ(this->published_()[1].bat_num, 1);
+  EXPECT_EQ(this->published_()[1].volt, 49100);
+  EXPECT_EQ(this->published_()[2].bat_num, 2);
+  EXPECT_EQ(this->published_()[2].volt, 46012);
   EXPECT_TRUE(published_cells.empty());
 }
 
