@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -190,21 +189,11 @@ void DFRobotSEN0609Component::setup() {
 }
 
 void DFRobotSEN0609Component::loop() {
-  uint8_t buf[MAX_LINE_LENGTH];
-  size_t avail = this->available();
-  while (avail > 0) {
-    const size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      if (!this->read_failed_) {
-        ESP_LOGW(TAG, "UART read failed");
-      }
-      this->read_failed_ = true;
-      break;
-    }
+  if (this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); })) {
     this->read_failed_ = false;
-    avail -= to_read;
-    for (size_t i = 0; i < to_read; i++)
-      this->readline_(buf[i]);
+  } else if (!this->read_failed_) {
+    ESP_LOGW(TAG, "UART read failed");
+    this->read_failed_ = true;
   }
   this->run_sequencer_();
 }

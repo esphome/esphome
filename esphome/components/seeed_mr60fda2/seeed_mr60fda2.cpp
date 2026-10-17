@@ -46,20 +46,7 @@ void MR60FDA2Component::setup() {
 
 // main loop
 void MR60FDA2Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->split_frame_(buf[i]);  // split data frame
-    }
-  }
+  this->read_available([this](uint8_t b) { this->split_frame_(b); });
 }
 
 // The checksum is the inverted XOR of the bytes
