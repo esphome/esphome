@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 from esphome import automation, pins
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.network import (
@@ -238,10 +237,6 @@ MANUAL_IP_SCHEMA = cv.Schema(
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
-EthernetConnectedCondition = ethernet_ns.class_("EthernetConnectedCondition", Condition)
-EthernetEnabledCondition = ethernet_ns.class_("EthernetEnabledCondition", Condition)
-EthernetEnableAction = ethernet_ns.class_("EthernetEnableAction", automation.Action)
-EthernetDisableAction = ethernet_ns.class_("EthernetDisableAction", automation.Action)
 
 
 def _is_framework_spi_polling_mode_supported() -> bool:
@@ -933,15 +928,22 @@ def _filter_source_files() -> list[str]:
 FILTER_SOURCE_FILES = _filter_source_files
 
 
-automation.register_bare_condition(
-    "ethernet.connected", EthernetConnectedCondition, cv.Schema({})
+ETHERNET_AUTOMATION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(EthernetComponent),
+    }
 )
-automation.register_bare_condition(
-    "ethernet.enabled", EthernetEnabledCondition, cv.Schema({})
-)
-automation.register_bare_action(
-    "ethernet.enable", EthernetEnableAction, cv.Schema({}), synchronous=True
-)
-automation.register_bare_action(
-    "ethernet.disable", EthernetDisableAction, cv.Schema({}), synchronous=True
-)
+
+for _name, _check in (
+    ("ethernet.connected", "is_connected()"),
+    ("ethernet.enabled", "is_enabled()"),
+):
+    automation.register_apply_condition(_name, ETHERNET_AUTOMATION_SCHEMA, _check)
+
+for _name, _call in (
+    ("ethernet.enable", "enable()"),
+    ("ethernet.disable", "disable()"),
+):
+    automation.register_apply_action(
+        _name, ETHERNET_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
