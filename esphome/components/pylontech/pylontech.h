@@ -92,36 +92,40 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
     }
   }
 
-  // The longest line, the newer firmware header, is 182 characters
-  LineReader<200> line_reader_;
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+  void parse_cell_line_(const char *buffer);
+  void send_next_bat_();
+#endif
+
+  // Members are ordered by alignment, widest first, so the small ones pack without padding
   StaticVector<PylontechListener *, PYLONTECH_LISTENER_COUNT> listeners_;
   // One slot per listened battery, in battery order; parsed while the UART drains, published one per
   // loop once it is idle. A newer line for a battery replaces the unpublished one.
   static_assert(PYLONTECH_BATTERY_COUNT <= MAX_BATTERIES, "more slots than batteries");
   std::array<PylontechListener::LineContents, PYLONTECH_BATTERY_COUNT> slots_;
-  battery_mask_t batteries_{0};  // batteries with a listener
-  battery_mask_t pending_{0};    // bit i set: slots_[i] is waiting to be published
-  bool has_tlow_id_{false};
-  uint8_t rejected_{0};  // malformed battery lines since the last idle pass
-
 #ifdef PYLONTECH_CELL_BATTERY_COUNT
-  void parse_cell_line_(const char *buffer);
-  void send_next_bat_();
-
   // One cell slot per battery with cell sensors, in battery order, filled by its "bat N" reply and published
   // to that battery's listeners once the reply has ended and the UART is idle
   std::array<PylontechListener::CellArray, PYLONTECH_CELL_BATTERY_COUNT> cell_slots_;
+  uint32_t bat_command_at_{0};  // loop time the pause before the next "bat N" ends at
+#endif
+  battery_mask_t batteries_{0};  // batteries with a listener
+  battery_mask_t pending_{0};    // bit i set: slots_[i] is waiting to be published
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
   std::array<cell_mask_t, PYLONTECH_CELL_BATTERY_COUNT> cells_read_;  // cells the current reply has filled
   battery_mask_t cell_batteries_{0};                                  // batteries whose cells are read
   battery_mask_t cells_pending_{0};  // batteries whose cell slot is waiting to be published
-  // Battery whose "bat N" reply is arriving, 0 while the "pwr" reply arrives
-  uint8_t bat_reply_{0};
-  bool pwr_reply_{false};  // a "pwr" header arrived and its "$$" has not
-  // A "bat N" waits for the pause after the last reply, which ends at this loop time
-  bool bat_command_due_{false};
-  uint32_t bat_command_at_{0};
+#endif
+  bool has_tlow_id_{false};
+  uint8_t rejected_{0};  // malformed lines since the last idle pass
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+  uint8_t bat_reply_{0};         // battery whose "bat N" reply is arriving, 0 while the "pwr" reply arrives
+  bool pwr_reply_{false};        // a "pwr" header arrived and its "$$" has not
+  bool bat_command_due_{false};  // a "bat N" waits for the pause after the last reply
   bool cell_polling_enabled_{true};
 #endif
+  // The longest line, the newer firmware header, is 182 characters
+  LineReader<200> line_reader_;
 #endif
 };
 
