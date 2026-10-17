@@ -299,7 +299,6 @@ void BQ76972Component::update() {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
-
 #else
 void BQ76972Component::update() {}
 #endif
