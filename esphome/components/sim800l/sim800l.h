@@ -10,6 +10,7 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
@@ -95,8 +96,7 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
 #endif
   std::string sender_;
   std::string message_;
-  char read_buffer_[SIM800L_READ_BUFFER_LENGTH];
-  size_t read_pos_{0};
+  LineReader<SIM800L_READ_BUFFER_LENGTH> line_reader_;
   uint8_t parse_index_{0};
   uint8_t watch_dog_{0};
   bool expect_ack_{false};

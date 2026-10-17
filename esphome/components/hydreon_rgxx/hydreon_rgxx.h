@@ -2,10 +2,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::hydreon_rgxx {
@@ -55,10 +57,9 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
   void set_disable_led(bool disable_led) { this->disable_led_ = disable_led; }
 
  protected:
-  void process_line_();
+  /// line is NUL terminated
+  void process_line_(StringRef line);
   void schedule_reboot_();
-  bool buffer_starts_with_(const std::string &prefix);
-  bool buffer_starts_with_(const char *prefix);
   int num_sensors_missing_();
 
   sensor::Sensor *sensors_[NUM_SENSORS] = {nullptr};
@@ -70,7 +71,6 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
 
   int16_t boot_count_ = 0;
   int16_t no_response_count_ = 0;
-  std::string buffer_;
 
   RGModel model_ = RG9;
   RG15Resolution resolution_ = FORCE_HIGH;
@@ -81,6 +81,7 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
   bool em_sat_ = false;
   bool request_temperature_ = false;
   bool disable_led_ = false;
+  LineReader<80> line_reader_;
 
   // bit field showing which sensors we have received data for
   int sensors_received_ = -1;
