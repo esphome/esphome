@@ -60,7 +60,7 @@ void Emc2101Component::setup() {
   uint8_t chip_id = reg(EMC2101_REGISTER_WHOAMI).get();
   if ((chip_id != EMC2101_CHIP_ID) && (chip_id != EMC2101_ALT_CHIP_ID)) {
     ESP_LOGE(TAG, "Wrong chip ID %02X", chip_id);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
@@ -90,9 +90,6 @@ void Emc2101Component::setup() {
 void Emc2101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Emc2101 component:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? LOG_STR_LITERAL("DAC") : LOG_STR_LITERAL("PWM"));
   if (this->dac_mode_) {
     ESP_LOGCONFIG(TAG, "  DAC Conversion Rate: %X", this->dac_conversion_rate_);

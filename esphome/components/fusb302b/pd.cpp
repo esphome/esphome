@@ -114,8 +114,14 @@ void PowerDelivery::set_ams_(bool active) {
 }
 
 bool PowerDelivery::check_ams_() {
-  if (this->active_ams_ && millis() - this->ams_start_ > AMS_TIMEOUT_MS)
+  if (this->active_ams_ && millis() - this->ams_start_ > AMS_TIMEOUT_MS) {
     this->set_ams_(false);
+    // Every sequence carries a request. In TRANSITION, check_transition_timeout_() handles the missing PS_RDY.
+    if (this->state_ != PdState::PD_STATE_TRANSITION) {
+      ESP_LOGW(TAG, "Source did not complete the request in time");
+      this->request_failed_();
+    }
+  }
   return this->active_ams_;
 }
 
@@ -148,6 +154,7 @@ void PowerDelivery::request_failed_() {
   // A contract already in place stays valid. Without one, report that negotiation is over at default power.
   if (this->state_ == PdState::PD_STATE_DEFAULT_CONTRACT)
     this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
+  this->on_request_failed();
 }
 
 void PowerDelivery::check_transition_timeout_() {

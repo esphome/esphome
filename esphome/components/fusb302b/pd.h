@@ -30,6 +30,7 @@ enum PdControlMsgType : uint8_t {
   PD_CNTRL_REJECT = 0x04,
   PD_CNTRL_PING = 0x05,
   PD_CNTRL_PS_RDY = 0x06,
+  PD_CNTRL_GET_SOURCE_CAP = 0x07,
   PD_CNTRL_GET_SINK_CAP = 0x08,
   PD_CNTRL_WAIT = 0x0C,
   PD_CNTRL_SOFT_RESET = 0x0D,
@@ -124,6 +125,9 @@ class PowerDelivery {
   /// Called after an accepted request was not followed by PS_RDY in time and the state fell back to default power;
   /// the PHY sends a soft reset so the source offers its capabilities again.
   virtual void on_transition_timeout() = 0;
+  /// Called when a request ended without a new contract: it was rejected, the source kept answering Wait or did not
+  /// answer in time, or it could not be sent. A contract already in place stays valid.
+  virtual void on_request_failed() = 0;
 
   void handle_message_(const PdMsg &msg);
   /// Called by the PHY when the chip gave up on a message after its retries without receiving a GoodCRC.
@@ -136,7 +140,8 @@ class PowerDelivery {
   /// contract.
   void set_state_and_contract_(PdState state, const PdContract &contract);
   void set_ams_(bool active);
-  /// Returns true while an atomic message sequence is in progress; ends it after a timeout.
+  /// Returns true while an atomic message sequence is in progress. Ends it after a timeout, which fails the
+  /// request unless the source already accepted a new contract.
   bool check_ams_();
   /// Falls back to default power when the source accepted a request but did not report the new supply ready in time.
   void check_transition_timeout_();

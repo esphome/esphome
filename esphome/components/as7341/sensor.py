@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLEAR,
     CONF_GAIN,
-    CONF_ID,
     DEVICE_CLASS_EMPTY,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
@@ -97,9 +96,7 @@ SENSORS = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_atime(config[CONF_ATIME]))
