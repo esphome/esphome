@@ -44,11 +44,8 @@ class MockUARTComponent : public uart::UARTComponent {
 #endif  // defined(USE_ESP8266) || defined(USE_ESP32)
 };
 
-// The test main does not construct App as generated code does
-inline void construct_app() {
-  static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-  (void) APP_CONSTRUCTED;
-}
+// The test main constructs App; kept because the emontx tests still call it
+inline void construct_app() {}
 
 inline void cancel_timers(EmonTx *emontx) {
   for (uint32_t id = 0; id < 3; id++)
