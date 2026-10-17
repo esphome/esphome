@@ -33,8 +33,18 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   virtual void execute(Ts...) = 0;
   /// Check if any instance of this script is currently running.
   virtual bool is_running() { return this->is_action_running(); }
+#ifdef USE_SCRIPT_ON_STOP
+  /// Stop all instances of this script. Fires the on_stop trigger once if any instance was running.
+  virtual void stop() {
+    if (this->is_action_running())
+      this->stop_running_();
+  }
+
+  Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
+#else
   /// Stop all instances of this script.
   virtual void stop() { this->stop_action(); }
+#endif
 
   // execute this script using a tuple that contains the arguments
   void execute_tuple(const std::tuple<Ts...> &tuple) {
@@ -57,7 +67,18 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
     this->trigger(x...);
   }
 
+  // Stop the running actions early and fire the on_stop trigger.
+  void stop_running_() {
+    this->stop_action();
+#ifdef USE_SCRIPT_ON_STOP
+    this->stop_trigger_.trigger();
+#endif
+  }
+
   const LogString *name_{nullptr};
+#ifdef USE_SCRIPT_ON_STOP
+  Trigger<> stop_trigger_;
+#endif
 };
 
 /** A script type for which only a single instance at a time is allowed.
@@ -88,7 +109,12 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
   void execute(Ts... x) override {
     if (this->is_action_running()) {
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' restarting (mode: restart)"), LOG_STR_ARG(this->name_));
-      this->stop_action();
+      this->stop_running_();
+#ifdef USE_SCRIPT_ON_STOP
+      // on_stop may have executed this script again; only the newest run may continue
+      if (this->is_action_running())
+        this->stop_action();
+#endif
     }
 
     this->run_actions_(x...);
@@ -145,12 +171,21 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   void stop() override {
+#ifdef USE_SCRIPT_ON_STOP
+    // Queued runs are unfinished work too, even between two runs when nothing is running
+    const bool stopping = this->is_action_running() || this->num_queued_ != 0;
+#endif
     // Clear all queued items to free memory immediately
     // Resetting the array automatically destroys all unique_ptrs and their contents
     this->var_queue_.reset();
     this->num_queued_ = 0;
     this->queue_front_ = 0;
+#ifdef USE_SCRIPT_ON_STOP
+    if (stopping)
+      this->stop_running_();
+#else
     Script<Ts...>::stop();
+#endif
   }
 
   void loop() override {
@@ -295,8 +330,11 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
   void loop() override {
-    if (this->num_running_ == 0)
+    if (this->num_running_ == 0) {
+      // Nothing left to wait for, e.g. once the last queued item has run
+      this->disable_loop();
       return;
+    }
 
     if (this->script_->is_running())
       return;
@@ -305,9 +343,10 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
     // Processing all items in a while loop causes infinite loops because
     // play_next_() can trigger more items to be queued
     if (!this->param_queue_.empty()) {
-      auto &params = this->param_queue_.front();
-      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
+      // Take the item out first: the chain may call stop(), which clears the queue
+      auto params = std::move(this->param_queue_.front());
       this->param_queue_.pop_front();
+      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
     } else {
       // Queue is now empty - disable loop until next play_complex
       this->disable_loop();

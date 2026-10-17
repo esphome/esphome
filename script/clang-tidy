@@ -70,6 +70,9 @@ def clang_options(idedata, environment):
 
     # extract target architecture from triplet in g++ filename
     triplet = Path(idedata["cxx_path"]).name[:-4]
+    # env:host compiles with the system g++, so there is no triplet and the
+    # host's own target and headers are the right ones.
+    native = environment.startswith("host")
     if triplet.startswith("xtensa-"):
         # clang has an Xtensa frontend, but only a generic core -- the esp32 IDF
         # toolchain headers (xtruntime, xtensa/config) need the GCC core config
@@ -85,6 +88,8 @@ def clang_options(idedata, environment):
         cmd.append("-D__XTENSA__")
         cmd.append("-D__XTENSA_EL__")
         cmd.append("-D_LIBC")
+    elif native:
+        cmd.append("-Qunused-arguments")
     else:
         # RISC-V (and other non-Xtensa targets) have a real clang backend, so
         # compile for the actual triplet. Espressif's RISC-V GCC -march adds
@@ -115,11 +120,11 @@ def clang_options(idedata, environment):
     )
 
     # set flags
+    if not native:
+        # disable built-in include directories from the host
+        cmd.extend(["-nostdinc++", "-nostdinc"])
     cmd.extend(
         [
-            # disable built-in include directories from the host
-            "-nostdinc++",
-            "-nostdinc",
             # allow to condition code on the presence of clang-tidy
             "-DCLANG_TIDY",
             # (esp-idf) Fix __once_callable in some libstdc++ headers
@@ -273,6 +278,18 @@ TIDY_DISABLED_CHECKS = [
     "cert-ctr56-cpp",
 ]
 
+# Checks disabled for "host"
+HOST_TIDY_DISABLED_CHECKS = [
+    # glibc's assert() expands to a call the check mistakes for a
+    # constant condition.
+    "misc-static-assert",
+    "cert-dcl03-c",
+    # Same clang-tidy 22 crash as above, on the all-include file under the
+    # host defines.
+    "bugprone-pointer-arithmetic-on-polymorphic-object",
+    "cert-ctr56-cpp",
+]
+
 # Checks disabled for zephyr -- see run_codechecker_zephyr() below.
 CODECHECKER_DISABLED_CHECKS = [
     # Zephyr's generated autoconf.h and ZBOSS's own headers define
@@ -319,11 +336,15 @@ def run_tidy(
         disabled_checks = []
         if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
             disabled_checks += [f"-{c}" for c in TIDY_DISABLED_CHECKS]
+        if args.environment.startswith("host"):
+            disabled_checks += [f"-{c}" for c in HOST_TIDY_DISABLED_CHECKS]
         if os.path.normpath(path) in ANALYZER_SKIPPED_FILES:
             disabled_checks.append("-clang-analyzer-*")
         if disabled_checks:
             invocation.append("--checks=" + ",".join(disabled_checks))
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
+        # Vendored third-party headers are kept as upstream wrote them.
+        invocation.append("--exclude-header-filter=.*/http_request/httplib\\.h")
         invocation.append(str(Path(path).resolve()))
         invocation.append("--")
         invocation.extend(options)
@@ -839,6 +860,11 @@ def main():
 
     if args.grep:
         files = filter_grep(files, args.grep)
+        # Not every tidy environment carries googletest (LibreTiny does not),
+        # so a platform grep that matched a unit test would fail on
+        # <gtest/gtest.h>. The tests are analyzed by the full ESP32 IDF run,
+        # which has no --grep.
+        files = [f for f in files if not f.startswith("tests/")]
 
     if args.exclude_grep:
         excluded = set(filter_grep(files, args.exclude_grep))
@@ -855,11 +881,16 @@ def main():
 
     # Add header file for checking (before early exit check)
     if args.all_headers and args.split_at in (None, 1):
+        all_headers = [
+            os.path.relpath(p, cwd) for p in git_ls_files(["esphome/**/*.h"])
+        ]
+        # The path filter applies to headers too: a component left out because
+        # it does not build in this environment must not come back via the
+        # all-include file.
+        if args.files:
+            all_headers = [p for p in all_headers if file_name_re.search(p)]
         # When --changed is used, only include changed headers instead of all headers
         if args.changed:
-            all_headers = [
-                os.path.relpath(p, cwd) for p in git_ls_files(["esphome/**/*.h"])
-            ]
             changed_headers = filter_changed(all_headers)
             if changed_headers:
                 build_all_include(changed_headers)
@@ -867,7 +898,7 @@ def main():
             else:
                 print("No changed headers to check")
         else:
-            build_all_include()
+            build_all_include(all_headers)
             files.insert(0, temp_header_file)
             print(f"Added all-include header file, new total: {len(files)}")
 

@@ -254,7 +254,13 @@ async def new_image(config: ConfigType) -> MockObj:
     """
     prog_arr, width, height, image_type, trans_value, _ = await write_image(config)
     var = cg.new_Pvariable(
-        config[CONF_ID], prog_arr, width, height, image_type, trans_value
+        config[CONF_ID],
+        prog_arr,
+        width,
+        height,
+        image_type,
+        trans_value,
+        config.get(CONF_BYTE_ORDER) == "BIG_ENDIAN",
     )
     add_metadata(
         config[CONF_ID], width, height, config[CONF_TYPE], config[CONF_TRANSPARENCY]
@@ -330,7 +336,9 @@ async def write_image(
         if byte_order is not None:
             # Check for valid type has already been done in validate_settings
             encoder.set_big_endian(byte_order == "BIG_ENDIAN")
-        pixels = encoder.convert(image.resize((width, height)), path).getdata()
+        pixels = encoder.convert(
+            image.resize((width, height)), path
+        ).get_flattened_data()
         for row in range(height):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
