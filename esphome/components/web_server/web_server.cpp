@@ -1252,7 +1252,7 @@ void WebServer::number_json_(number::Number *obj, float value, JsonDetail start_
   // Need two buffers: one for value, one for state with UOM
   char val_buf[VALUE_ACCURACY_MAX_LEN];
   char state_buf[VALUE_ACCURACY_MAX_LEN];
-  JsonString val_str = linked("\"NaN\"");
+  JsonString val_str = linked("NaN");
   JsonString state_str = linked("NA");
   if (!std::isnan(value)) {
     value_accuracy_to_buf(val_buf, value, accuracy);
