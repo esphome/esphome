@@ -14,6 +14,9 @@ from esphome.components.esp32 import (
 )
 from esphome.components.mq_gas_sensors import esp32_attenuation_input_max
 from esphome.components.mq_gas_sensors.coefficients import (
+    CUSTOM_TYPE,
+    MQ_MAX_A,
+    MQ_MAX_B,
     SENSOR_TYPES,
     requires_coefficients,
     resolve_sensor,
@@ -69,6 +72,28 @@ def test_every_built_in_type_resolves() -> None:
             resolved = resolve_sensor(type_key)
         assert resolved.a != 0.0
         assert resolved.min_ppm < resolved.max_ppm
+
+
+def test_every_curve_stays_within_the_firmware_clamp() -> None:
+    """The device clamps `a` / `b`, so no resolved curve may promise more than that."""
+    for type_key, definition in SENSOR_TYPES.items():
+        for gas in definition["gases"]:
+            resolved = resolve_sensor(type_key, gas)
+            assert abs(resolved.a) <= MQ_MAX_A
+            assert abs(resolved.b) <= MQ_MAX_B
+
+
+def test_coefficients_the_firmware_clamps_are_resolved_to_the_clamp() -> None:
+    """A user supplied coefficient above `MQ_MAX_A` is clamped, not silently dropped."""
+    resolved = resolve_sensor(CUSTOM_TYPE, a=1e40, b=1000.0)
+    assert resolved.a == MQ_MAX_A
+    assert resolved.b == MQ_MAX_B
+
+
+def test_published_curve_above_the_clamp_resolves_to_the_clamp() -> None:
+    """MQ-3 CH4 publishes a = 2e31, above what the firmware can evaluate."""
+    assert SENSOR_TYPES["MQ3"]["gases"]["CH4"][0] == 2e31
+    assert resolve_sensor("MQ3", "CH4").a == MQ_MAX_A
 
 
 def test_mq8_h2_matches_the_reference_curve() -> None:
