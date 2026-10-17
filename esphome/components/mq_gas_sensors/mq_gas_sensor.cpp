@@ -411,12 +411,20 @@ void MQGasSensor::finish_calibration_() {
   }
 
   this->r0_ = r0;
-  this->status_clear_warning();
-  if (this->persist_)
-    this->save_r0_();
+  const bool stored = this->persist_ && this->save_r0_();
+  if (this->persist_ && !stored) {
+    // The reading stays usable, but the next boot calibrates again: keep the
+    // failure visible instead of clearing the warning of the failed attempts.
+    this->status_set_warning(LOG_STR("could not store R0 in flash"));
+  } else {
+    this->status_clear_warning();
+  }
 
   this->log_message_(LOG_SEVERITY_INFO, "R0 = %.4f kOhm (%" PRIu32 "/%" PRIu32 " samples valid)%s", this->r0_, valid,
-                     attempts, this->persist_ ? LOG_STR_LITERAL(", stored in flash") : "");
+                     attempts,
+                     stored           ? LOG_STR_LITERAL(", stored in flash")
+                     : this->persist_ ? LOG_STR_LITERAL(", not stored in flash")
+                                      : LOG_STR_LITERAL(", kept until reboot"));
   if (!this->persist_) {
     this->log_message_(LOG_SEVERITY_INFO, "hard-code 'r0: %.4f' in the YAML to skip the calibration at boot",
                        this->r0_);
@@ -444,23 +452,26 @@ bool MQGasSensor::in_warmup_() {
   return false;
 }
 
-void MQGasSensor::save_r0_() {
+bool MQGasSensor::save_r0_() {
   if (!this->r0_pref_.save(&this->r0_)) {
     this->log_message_(LOG_SEVERITY_WARN, "could not store R0 in flash");
-    return;
+    return false;
   }
   if (!global_preferences->sync()) {
     this->log_message_(LOG_SEVERITY_WARN, "R0 stored but the flash sync failed (will be written later)");
   }
   this->log_message_(LOG_SEVERITY_DEBUG, "R0 %.4f kOhm saved", this->r0_);
+  return true;
 }
 
 bool MQGasSensor::load_r0_() {
   float stored = 0.0f;
   if (!this->r0_pref_.load(&stored))
     return false;
-  if (!std::isfinite(stored) || stored <= 0.0f)
+  if (!std::isfinite(stored) || stored <= 0.0f) {
+    this->log_message_(LOG_SEVERITY_WARN, "ignoring the stored R0 %.4f, calibrating again", stored);
     return false;
+  }
   this->r0_ = stored;
   return true;
 }

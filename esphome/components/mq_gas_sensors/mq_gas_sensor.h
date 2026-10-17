@@ -129,7 +129,7 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// the readings.
   bool in_warmup_();
   void publish_diagnostics_();
-  void save_r0_();
+  bool save_r0_();
   bool load_r0_();
   void log_config_();
   /// Log the value published by the next `publish_state()` at `INFO`
