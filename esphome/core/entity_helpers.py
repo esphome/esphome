@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 import functools
 import logging
+import re
 from typing import Any, Literal
 
 from esphome.automation import apply_static_function, parent_ref
@@ -474,11 +475,15 @@ ApplyPublish = Literal["before", "after"] | None
 
 @dataclass(frozen=True, slots=True)
 class ApplyEntity:
-    """A domain's ``Apply*`` class, its generated function's parameters and its publish statement."""
+    """A domain's ``Apply*`` class, its generated function's parameters and its publish statement.
+
+    ``locals`` are (name, declaration) pairs, emitted only when the body uses the name.
+    """
 
     cls: MockObjClass
     params: tuple[tuple[SafeExpType, str], ...]
     publish: str | None = None
+    locals: tuple[tuple[str, str], ...] = ()
 
 
 _APPLY_DOMAIN = "entity_apply"
@@ -562,6 +567,12 @@ class SubEntities:
             body.insert(0, apply_entity.publish)
         elif publish == "after":
             body.append(apply_entity.publish)
+        text = "\n".join(body)
+        body[:0] = [
+            decl
+            for name, decl in apply_entity.locals
+            if re.search(rf"\b{name}\b", text)
+        ]
         functions: dict[str, SafeExpType] = CORE.data.setdefault(_APPLY_DOMAIN, {})
         key = "\n".join([*(f"{t} {n}" for t, n in apply_entity.params), *body])
         if (fn := functions.get(key)) is None:
