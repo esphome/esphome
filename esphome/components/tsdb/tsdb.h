@@ -31,6 +31,7 @@ struct TsdbColumn {
 };
 
 class TsdbComponent : public PollingComponent {
+#ifdef USE_SENSOR
   SUB_SENSOR(records)
   SUB_SENSOR(used)
   SUB_SENSOR(free)
@@ -38,6 +39,7 @@ class TsdbComponent : public PollingComponent {
   SUB_SENSOR(newest_age)
   SUB_SENSOR(evictions)
   SUB_SENSOR(errors)
+#endif
 
  public:
   void setup() override;

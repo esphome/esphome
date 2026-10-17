@@ -46,12 +46,14 @@ tsdb:
     name: TSDB validate newest age
   evictions_sensor:
     name: TSDB validate evictions
-  errors_sensor:
-    name: TSDB validate errors
   log_sensor:
     name: TSDB validate log
 
 sensor:
+  - platform: tsdb
+    tsdb_id: tsdb_validate
+    errors:
+      name: TSDB validate errors
   - platform: template
     id: tsdb_validate_value
     name: TSDB validate value

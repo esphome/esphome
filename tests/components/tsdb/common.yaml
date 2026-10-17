@@ -39,12 +39,14 @@ tsdb:
     name: TSDB newest record age
   evictions_sensor:
     name: TSDB evictions
-  errors_sensor:
-    name: TSDB errors
   log_sensor:
     name: TSDB log
 
 sensor:
+  - platform: tsdb
+    tsdb_id: tsdb_test
+    errors:
+      name: TSDB errors
   - platform: template
     id: tsdb_temperature
     name: TSDB temperature

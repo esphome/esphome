@@ -85,8 +85,8 @@ CONF_FREE_SENSOR = "free_sensor"
 CONF_OLDEST_AGE_SENSOR = "oldest_age_sensor"
 CONF_NEWEST_AGE_SENSOR = "newest_age_sensor"
 CONF_EVICTIONS_SENSOR = "evictions_sensor"
-CONF_ERRORS_SENSOR = "errors_sensor"
 CONF_LOG_SENSOR = "log_sensor"
+CONF_TSDB_ID = "tsdb_id"
 
 MEMORY_MODES = {
     "internal": MemoryMode.MEMORY_INTERNAL,
@@ -311,11 +311,6 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_TOTAL_INCREASING,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Optional(CONF_ERRORS_SENSOR): sensor.sensor_schema(
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
             cv.Optional(CONF_LOG_SENSOR): text_sensor.text_sensor_schema(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
@@ -396,7 +391,6 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_OLDEST_AGE_SENSOR, var.set_oldest_age_sensor)
     await sensors(CONF_NEWEST_AGE_SENSOR, var.set_newest_age_sensor)
     await sensors(CONF_EVICTIONS_SENSOR, var.set_evictions_sensor)
-    await sensors(CONF_ERRORS_SENSOR, var.set_errors_sensor)
     text_sensors = text_sensor.sub_text_sensors(config)
     await text_sensors(CONF_LOG_SENSOR, var.set_log_sensor)
 

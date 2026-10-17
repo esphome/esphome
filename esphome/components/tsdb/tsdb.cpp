@@ -494,9 +494,11 @@ bool TsdbComponent::write_record_() {
 // The diagnostics sensor counts every anomaly - failed writes/syncs, dropped
 // records and clamped values - so data loss or corruption is visible.
 void TsdbComponent::publish_errors_() {
+#ifdef USE_SENSOR
   if (this->errors_sensor_ == nullptr)
     return;
   this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_ + this->saturated_);
+#endif
 }
 
 void TsdbComponent::flush_(bool force) {
