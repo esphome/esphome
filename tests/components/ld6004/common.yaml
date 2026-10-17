@@ -1,0 +1,14 @@
+ld6004:
+  id: ld6004_radar
+
+binary_sensor:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    target:
+      name: LD6004 Presence
+    target_1:
+      name: LD6004 Target 1
+    target_3:
+      name: LD6004 Target 3
+    detection_area_0:
+      name: LD6004 Detection Area 0
