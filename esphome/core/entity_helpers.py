@@ -477,7 +477,7 @@ ApplyPublish = Literal["before", "after"] | None
 class ApplyEntity:
     """A domain's ``Apply*`` class, its generated function's parameters and its publish statement.
 
-    ``locals`` are (name, declaration) pairs, emitted only when the body uses the name.
+    ``locals`` are (name, declaration) pairs, declared only when the body uses the name.
     """
 
     cls: MockObjClass
@@ -567,12 +567,11 @@ class SubEntities:
             body.insert(0, apply_entity.publish)
         elif publish == "after":
             body.append(apply_entity.publish)
-        text = "\n".join(body)
-        body[:0] = [
-            decl
-            for name, decl in apply_entity.locals
-            if re.search(rf"\b{name}\b", text)
-        ]
+        for name, decl in apply_entity.locals:
+            # Declared right before its first use, so calls keep their order.
+            uses = (i for i, line in enumerate(body) if re.search(rf"\b{name}\b", line))
+            if (first := next(uses, None)) is not None:
+                body.insert(first, decl)
         functions: dict[str, SafeExpType] = CORE.data.setdefault(_APPLY_DOMAIN, {})
         key = "\n".join([*(f"{t} {n}" for t, n in apply_entity.params), *body])
         if (fn := functions.get(key)) is None:
