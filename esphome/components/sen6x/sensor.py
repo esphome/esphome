@@ -180,8 +180,11 @@ CONFIG_SCHEMA = cv.All(
             ).extend(
                 {
                     cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION): cv.boolean,
-                    cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.int_range(
-                        min=0, max=3000
+                    cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(
+                        cv.float_with_unit(
+                            "altitude", "(m|m a.s.l.|MAMSL|MASL)", optional_unit=True
+                        ),
+                        cv.int_range(min=0, max=3000),
                     ),
                     cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.int_range(
                         min=700, max=1200
