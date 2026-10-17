@@ -48,8 +48,9 @@ bool LibreTinyPreferenceBackend::discard_if_stale_() {
   fdb_err_t err = fdb_kv_del(this->db, key_str);
   if (err == FDB_NO_ERR || err == FDB_KV_NAME_ERR) {  // FDB_KV_NAME_ERR: nothing was stored
     this->discard_after_hard_reset = false;
-    if (err == FDB_NO_ERR)
+    if (err == FDB_NO_ERR) {
       ESP_LOGD(TAG, "Discarded rtc preference %s after a hard reset", key_str);
+    }
   } else {
     // Keep the flag, so the next save or load tries again
     ESP_LOGW(TAG, "Failed to discard rtc preference %s: %d", key_str, err);
