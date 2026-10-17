@@ -1,0 +1,91 @@
+keeloq:
+  - id: shutter_remote
+    type: jarolift
+    # Made-up key for the tests, not a real manufacturer key
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x1234500
+    receiver_id: rcvr
+    on_frame:
+      - logger.log:
+          format: "serial %07X counter %u group %04X command %X"
+          args: ["x.serial", "x.counter", "x.channels", "x.command"]
+    on_command:
+      - channel: 1
+        command: up
+        then:
+          - logger.log: "Channel 1 up"
+      - command: 0x4
+        then:
+          - logger.log:
+              format: "stop, counter %u"
+              args: ["x.counter"]
+
+  - id: hand_remote_clone
+    type: jarolift
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    receiver_id: rcvr
+    channels: [1, 2]
+
+button:
+  - platform: template
+    name: Shutters 1 to 4 and 9 to 12 up
+    on_press:
+      - keeloq.send:
+          id: shutter_remote
+          command: 0x8
+          channels: 0x0F0F
+          repeat:
+            times: 2
+            wait_time: 0ms
+      - keeloq.send:
+          id: shutter_remote
+          command: shade
+          channels: 0x0001
+  - platform: template
+    name: Shutter lambda
+    on_press:
+      - keeloq.send:
+          id: shutter_remote
+          command: !lambda return 0x2;
+          channels: !lambda return 0x0001;
+  - platform: template
+    name: Set counter
+    on_press:
+      - keeloq.set_counter:
+          id: shutter_remote
+          counter: 0x1000
+      - keeloq.set_counter:
+          id: shutter_remote
+          counter: !lambda return id(shutter_remote).get_counter() + 16;
+  - platform: template
+    name: Pair shutter 1
+    on_press:
+      - keeloq.send:
+          id: shutter_remote
+          command: learn
+          channels: 0x0001
+      - delay: 1s
+      - keeloq.send:
+          id: shutter_remote
+          command: stop
+          channels: 0x0001
+  - platform: template
+    name: Sync counter
+    on_press:
+      - keeloq.take_over: hand_remote_clone
+  - platform: template
+    name: Hand remote up
+    on_press:
+      - keeloq.send:
+          id: hand_remote_clone
+          command: up
+  - platform: template
+    name: Pair shutter 2
+    on_press:
+      - keeloq.learn:
+          id: shutter_remote
+          channels: 0x0002
+      - keeloq.learn:
+          id: shutter_remote
+          channels: !lambda return 0x0002;
+          legacy: true
