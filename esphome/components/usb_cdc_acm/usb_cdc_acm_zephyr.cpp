@@ -189,11 +189,12 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
   // flush() and write_array() both run on the main loop, so nothing is added while we wait.
   // The IRQ handler sets tx_drained_ once both our ring buffer and the driver are empty.
   this->tx_drained_ = false;
+  // A stall may have left the flag set; clear it once so a handler run during the wait is not undone.
+  // The handler sets it again if the device is still suspended.
+  this->tx_irq_disabled_ = false;
   uint32_t start = millis();
   while (true) {
-    // Wakes the IRQ handler now if the driver is idle, or after the transfer in progress. A stall
-    // may have left the flag set; the handler sets it again if the device is still suspended.
-    this->tx_irq_disabled_ = false;
+    // Wakes the IRQ handler now if the driver is idle, or after the transfer in progress
     uart_irq_tx_enable(this->uart_dev_);
     // ring_buf_is_empty() is not enough: it is already true while the IRQ handler holds
     // claimed bytes that it has not yet copied into the driver.
