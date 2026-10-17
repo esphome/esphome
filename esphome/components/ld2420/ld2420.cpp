@@ -60,7 +60,7 @@ Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_
 
 namespace esphome::ld2420 {
 
-static const char *const TAG = "ld2420";
+ESPHOME_LOG_TAG(TAG, "ld2420");
 
 // Local const's
 static constexpr uint16_t REFRESH_RATE_MS = 1000;

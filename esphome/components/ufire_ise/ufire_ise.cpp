@@ -5,7 +5,9 @@
 
 namespace esphome::ufire_ise {
 
-static const char *const TAG = "ufire_ise";
+ESPHOME_LOG_TAG(TAG, "ufire_ise");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 void UFireISEComponent::setup() {
   uint8_t version;
@@ -38,7 +40,7 @@ void UFireISEComponent::update() {
   }
 
   // Wait until measurement are taken
-  this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+  this->set_timeout(DATA_TIMEOUT_ID, wait, [this]() { this->update_internal_(); });
 }
 
 void UFireISEComponent::update_internal_() {

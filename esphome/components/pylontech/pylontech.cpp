@@ -26,7 +26,7 @@
 
 namespace esphome::pylontech {
 
-static const char *const TAG = "pylontech";
+ESPHOME_LOG_TAG(TAG, "pylontech");
 static const int MAX_DATA_LENGTH_BYTES = 256;
 static const uint8_t ASCII_LF = 0x0A;
 
@@ -34,9 +34,6 @@ PylontechComponent::PylontechComponent() {}
 
 void PylontechComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "pylontech:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Connection with pylontech failed!");
-  }
 
   for (PylontechListener *listener : this->listeners_) {
     listener->dump_config();

@@ -129,36 +129,15 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity(sens))
-    if CONF_PRESSURE in config:
-        sens = await sensor.new_sensor(config[CONF_PRESSURE])
-        cg.add(var.set_pressure(sens))
-    if CONF_ACCELERATION in config:
-        sens = await sensor.new_sensor(config[CONF_ACCELERATION])
-        cg.add(var.set_acceleration(sens))
-    if CONF_ACCELERATION_X in config:
-        sens = await sensor.new_sensor(config[CONF_ACCELERATION_X])
-        cg.add(var.set_acceleration_x(sens))
-    if CONF_ACCELERATION_Y in config:
-        sens = await sensor.new_sensor(config[CONF_ACCELERATION_Y])
-        cg.add(var.set_acceleration_y(sens))
-    if CONF_ACCELERATION_Z in config:
-        sens = await sensor.new_sensor(config[CONF_ACCELERATION_Z])
-        cg.add(var.set_acceleration_z(sens))
-    if CONF_BATTERY_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
-        cg.add(var.set_battery_voltage(sens))
-    if CONF_TX_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_TX_POWER])
-        cg.add(var.set_tx_power(sens))
-    if CONF_MOVEMENT_COUNTER in config:
-        sens = await sensor.new_sensor(config[CONF_MOVEMENT_COUNTER])
-        cg.add(var.set_movement_counter(sens))
-    if CONF_MEASUREMENT_SEQUENCE_NUMBER in config:
-        sens = await sensor.new_sensor(config[CONF_MEASUREMENT_SEQUENCE_NUMBER])
-        cg.add(var.set_measurement_sequence_number(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_HUMIDITY, var.set_humidity)
+    await sensors(CONF_PRESSURE, var.set_pressure)
+    await sensors(CONF_ACCELERATION, var.set_acceleration)
+    await sensors(CONF_ACCELERATION_X, var.set_acceleration_x)
+    await sensors(CONF_ACCELERATION_Y, var.set_acceleration_y)
+    await sensors(CONF_ACCELERATION_Z, var.set_acceleration_z)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
+    await sensors(CONF_TX_POWER, var.set_tx_power)
+    await sensors(CONF_MOVEMENT_COUNTER, var.set_movement_counter)
+    await sensors(CONF_MEASUREMENT_SEQUENCE_NUMBER, var.set_measurement_sequence_number)

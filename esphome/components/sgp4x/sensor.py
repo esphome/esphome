@@ -1,6 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
-from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
+from esphome.components.const import (
+    CONF_HUMIDITY_SOURCE,
+    CONF_NOX_INDEX,
+    CONF_VOC_INDEX,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
@@ -32,8 +36,6 @@ SGP4xComponent = sgp4x_ns.class_(
     cg.PollingComponent,
     sensirion_common.SensirionI2CDevice,
 )
-
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
 
 def validate_sensors(config: ConfigType) -> ConfigType:

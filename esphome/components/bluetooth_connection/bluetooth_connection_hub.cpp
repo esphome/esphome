@@ -31,7 +31,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_connection";
+ESPHOME_LOG_TAG(TAG, "bluetooth_connection");
 
 void BluetoothConnection::set_address(uint64_t address) {
   // Keep the proxy's pre-allocated connections-free message in step
