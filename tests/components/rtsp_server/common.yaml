@@ -1,6 +1,6 @@
 rtsp_server:
   port: 554
-  max_sessions: 2
+  max_connections: 2
 
 wifi:
   ssid: MySSID

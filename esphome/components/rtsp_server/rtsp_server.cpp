@@ -1,17 +1,17 @@
-#ifdef USE_ESP32
-
 #include "rtsp_server.h"
 
+#ifdef USE_CAMERA
+
 #include <cerrno>
+#include <cinttypes>
 #include <utility>
 
-#include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::rtsp_server {
 
-static const char *const TAG = "rtsp_server";
+ESPHOME_LOG_TAG(TAG, "rtsp_server");
 
 void RTSPServer::socket_failed_(const char *what) {
   ESP_LOGE(TAG, "Socket %s failed: errno %d", what, errno);
@@ -21,12 +21,6 @@ void RTSPServer::socket_failed_(const char *what) {
 }
 
 void RTSPServer::setup() {
-  if (camera::Camera::instance() == nullptr) {
-    ESP_LOGE(TAG, "No camera configured");
-    this->mark_failed();
-    return;
-  }
-
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Socket creation failed: errno %d", errno);
@@ -58,31 +52,28 @@ void RTSPServer::setup() {
 }
 
 void RTSPServer::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->socket_ != nullptr && this->socket_->ready()) {
-    this->accept_new_connections_();
+    this->accept_new_connections_(now);
   }
 
-  uint8_t i = 0;
-  while (i < this->session_count_) {
-    auto &session = this->sessions_[i];
-    session->loop();
+  bool playing = false;
+  for (auto &session : this->sessions_) {
+    session.loop(now, this->port_);
+    playing |= session.is_playing();
+  }
 
-    if (session->should_close()) {
-      session->ensure_stream_stopped();
-
-      const uint8_t last_index = this->session_count_ - 1;
-      if (i < last_index) {
-        std::swap(this->sessions_[i], this->sessions_[last_index]);
-      }
-      this->session_count_--;
-      this->sessions_[last_index].reset();
+  if (playing != this->streaming_) {
+    this->streaming_ = playing;
+    if (playing) {
+      camera::Camera::instance()->start_stream(camera::RTSP_REQUESTER);
     } else {
-      i++;
+      camera::Camera::instance()->stop_stream(camera::RTSP_REQUESTER);
     }
   }
 }
 
-void RTSPServer::accept_new_connections_() {
+void RTSPServer::accept_new_connections_(uint32_t now) {
   while (true) {
     struct sockaddr_storage source_addr;
     socklen_t addr_len = sizeof(source_addr);
@@ -91,37 +82,41 @@ void RTSPServer::accept_new_connections_() {
     if (!sock)
       break;
 
-    if (this->session_count_ >= MAX_RTSP_SESSIONS) {
-      ESP_LOGW(TAG, "Max sessions (%d) reached, rejecting connection", MAX_RTSP_SESSIONS);
-      sock.reset();
+    RTSPSession *free_slot = nullptr;
+    for (auto &session : this->sessions_) {
+      if (!session.is_active()) {
+        free_slot = &session;
+        break;
+      }
+    }
+    if (free_slot == nullptr) {
+      ESP_LOGW(TAG, "Max connections (%d) reached, rejecting connection", MAX_RTSP_CONNECTIONS);
       continue;
     }
 
     ESP_LOGD(TAG, "Accepted RTSP connection");
-    this->sessions_[this->session_count_++] = make_unique<RTSPSession>(std::move(sock), this, this->port_);
+    free_slot->open(std::move(sock), now);
   }
 }
 
 void RTSPServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
-  if (!image->was_requested_by(camera::RTSP_REQUESTER))
+  if (!this->streaming_ || !image->was_requested_by(camera::RTSP_REQUESTER))
     return;
-  for (uint8_t i = 0; i < this->session_count_; i++) {
-    this->sessions_[i]->on_new_frame(image);
-  }
-}
 
-void RTSPServer::session_started_playing() {
-  if (this->playing_count_++ == 0) {
-    camera::Camera::instance()->start_stream(camera::RTSP_REQUESTER);
-  }
-}
-
-void RTSPServer::session_stopped_playing() {
-  if (this->playing_count_ == 0)
+  JpegInfo jpeg;
+  if (!parse_jpeg_info(image->get_data_buffer(), image->get_data_length(), jpeg) ||
+      jpeg.width > RTP_JPEG_MAX_DIMENSION || jpeg.height > RTP_JPEG_MAX_DIMENSION) {
+    if (!this->frame_warned_) {
+      this->frame_warned_ = true;
+      ESP_LOGW(TAG, "Dropping frame %" PRIu16 "x%" PRIu16 ": not a baseline JPEG of at most %" PRIu16 " px per side",
+               jpeg.width, jpeg.height, RTP_JPEG_MAX_DIMENSION);
+    }
     return;
-  this->playing_count_--;
-  if (this->playing_count_ == 0) {
-    camera::Camera::instance()->stop_stream(camera::RTSP_REQUESTER);
+  }
+
+  const uint32_t now = App.get_loop_component_start_time();
+  for (auto &session : this->sessions_) {
+    session.on_new_frame(image, jpeg, now);
   }
 }
 
@@ -129,11 +124,8 @@ void RTSPServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "RTSP Server:\n"
                 "  Port: %u\n"
-                "  Max sessions: %u",
-                this->port_, MAX_RTSP_SESSIONS);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Setup Failed");
-  }
+                "  Max connections: %u",
+                this->port_, MAX_RTSP_CONNECTIONS);
 }
 
 float RTSPServer::get_setup_priority() const { return setup_priority::LATE; }

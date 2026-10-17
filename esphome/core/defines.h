@@ -107,7 +107,6 @@
 #define USE_JSON
 #define USE_JSON_ARENA
 #define USE_RADIO_FREQUENCY
-#define USE_RTSP_SERVER
 #define USE_LD2410S_PARAMETERS
 #define USE_LD2410S_VERSION
 #define USE_LIGHT
@@ -332,7 +331,7 @@
 #define API_WIZARD_DATA_SIZE 1
 #define API_WIZARD_INPUT_COUNT 1
 #define MAX_API_CONNECTIONS 6
-#define MAX_RTSP_SESSIONS 2
+#define MAX_RTSP_CONNECTIONS 2
 // The Improv library is not in the Zephyr tidy environment
 #define USE_IMPROV_SERIAL
 #define USE_IMPROV_NEXT_URL
