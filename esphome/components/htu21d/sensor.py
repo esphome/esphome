@@ -27,11 +27,9 @@ HTU21DComponent = htu21d_ns.class_(
 )
 HTU21DSensorModels = htu21d_ns.enum("HTU21DSensorModels")
 
-MODELS = {
-    "HTU21D": HTU21DSensorModels.HTU21D_SENSOR_MODEL_HTU21D,
-    "SI7021": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SI7021,
-    "SHT21": HTU21DSensorModels.HTU21D_SENSOR_MODEL_SHT21,
-}
+MODELS = HTU21DSensorModels.options(
+    "HTU21D", "SI7021", "SHT21", prefix="HTU21D_SENSOR_MODEL_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(

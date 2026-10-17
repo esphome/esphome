@@ -34,8 +34,7 @@ enum {  // APDS9306 registers
 
 #define APDS9306_ERROR_CHECK(func, error) \
   if (!(func)) { \
-    ESP_LOGE(TAG, error); \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR(error)); \
     return; \
   }
 #define APDS9306_WARNING_CHECK(func, warning) \
@@ -48,21 +47,19 @@ enum {  // APDS9306 registers
   ESP_LOGV(TAG, "Writing 0x%02x to 0x%02x", value, reg); \
   if (!this->write_byte(reg, value)) { \
     ESP_LOGE(TAG, "Failed writing 0x%02x to 0x%02x", value, reg); \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL)); \
     return; \
   }
 
 void APDS9306::setup() {
   uint8_t id;
   if (!this->read_byte(APDS9306_PART_ID, &id)) {  // Part ID register
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   if (id != 0xB1 && id != 0xB3) {  // 0xB1 for APDS9306 0xB3 for APDS9306-065
-    this->error_code_ = WRONG_ID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("APDS9306 has invalid id"));
     return;
   }
 
@@ -88,20 +85,6 @@ void APDS9306::setup() {
 void APDS9306::dump_config() {
   LOG_SENSOR("", "APDS9306", this);
   LOG_I2C_DEVICE(this);
-
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case WRONG_ID:
-        ESP_LOGE(TAG, "APDS9306 has invalid id!");
-        break;
-      default:
-        ESP_LOGE(TAG, "Setting up APDS9306 registers failed!");
-        break;
-    }
-  }
 
   ESP_LOGCONFIG(TAG,
                 "  Gain: %u\n"

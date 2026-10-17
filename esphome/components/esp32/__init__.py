@@ -243,7 +243,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_coex",  # WiFi/BT coexistence - re-included by esp32_ble_tracker, zigbee; esp_wifi/bt pull it back
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
-    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, hdmi_cec, opentherm, Arduino BLE libs
     "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
@@ -2071,6 +2071,17 @@ def require_vfs_termios() -> None:
     CORE.data[KEY_VFS_TERMIOS_REQUIRED] = True
 
 
+def allow_insecure_tls() -> None:
+    """Let esp-tls connect without verifying the server certificate.
+
+    The two sdkconfig flags are global, so a component asking for an unverified
+    connection switches them on for the whole build; they are never switched off
+    here because another component may have asked first.
+    """
+    add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
+    add_idf_sdkconfig_option("CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True)
+
+
 def require_certificate_bundle() -> None:
     """Enable the mbedTLS root certificate bundle for this build.
 
@@ -2909,6 +2920,7 @@ async def _finalize_arduino_aware_flags():
     if not arduino_linked:
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
         cg.add_define("USE_ESP32_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
     elif not CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
 

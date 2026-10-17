@@ -84,11 +84,9 @@ automation.register_apply_action(
 )
 
 AGS10SetZeroPointActionMode = ags10_ns.enum("AGS10SetZeroPointActionMode")
-AGS10_SET_ZERO_POINT_ACTION_MODE = {
-    "FACTORY_DEFAULT": AGS10SetZeroPointActionMode.FACTORY_DEFAULT,
-    "CURRENT_VALUE": AGS10SetZeroPointActionMode.CURRENT_VALUE,
-    "CUSTOM_VALUE": AGS10SetZeroPointActionMode.CUSTOM_VALUE,
-}
+AGS10_SET_ZERO_POINT_ACTION_MODE = AGS10SetZeroPointActionMode.options(
+    "FACTORY_DEFAULT", "CURRENT_VALUE", "CUSTOM_VALUE"
+)
 
 AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
     {

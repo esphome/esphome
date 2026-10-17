@@ -82,16 +82,9 @@ CODING_RATE = {
     "CR_4_8": SX127xModemCfg1.CODING_RATE_4_8,
 }
 
-MOD = {
-    "LORA": SX127xOpMode.MOD_LORA,
-    "FSK": SX127xOpMode.MOD_FSK,
-    "OOK": SX127xOpMode.MOD_OOK,
-}
+MOD = SX127xOpMode.options("LORA", "FSK", "OOK", prefix="MOD_")
 
-PA_PIN = {
-    "RFO": SX127xPaConfig.PA_PIN_RFO,
-    "BOOST": SX127xPaConfig.PA_PIN_BOOST,
-}
+PA_PIN = SX127xPaConfig.options("RFO", "BOOST", prefix="PA_PIN_")
 
 RAMP = {
     "10us": SX127xPaRamp.PA_RAMP_10,

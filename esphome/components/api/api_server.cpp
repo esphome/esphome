@@ -237,6 +237,8 @@ void APIServer::refill_spare_ephemeral_() {
       return;
     }
   }
+  // Generating the key pair cannot be split across loop passes
+  UnavoidableBlockingScope scope;
   noise::prepare_spare_ephemeral();
 }
 #endif
@@ -545,7 +547,7 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
     // arrive before the subscription and are lost - warn instead of failing silently.
     ESP_LOGW(TAG, "Home Assistant %s '%.*s' dropped; %s",
              call.is_event ? LOG_STR_LITERAL("event") : LOG_STR_LITERAL("action"),
-             static_cast<int>(call.service.size()), call.service.empty() ? "" : call.service.c_str(),
+             static_cast<int>(call.service.size()), call.service.empty() ? "" : call.service.progmem_ptr(),
              this->is_connected() ? LOG_STR_LITERAL("client has not subscribed to actions (yet)")
                                   : LOG_STR_LITERAL("no client connected"));
   }

@@ -129,12 +129,7 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
 
   while ((it = std::find(it, data.end(), 0xA5)) != data.end()) {
     if (data.end() - it >= DALY_FRAME_SIZE && it[1] == 0x01) {
-      uint8_t checksum;
-      int sum = 0;
-      for (int i = 0; i < 12; i++) {
-        sum += it[i];
-      }
-      checksum = sum;
+      const uint8_t checksum = sum_bytes(&*it, 12);
 
       if (checksum == it[12]) {
         switch (it[2]) {

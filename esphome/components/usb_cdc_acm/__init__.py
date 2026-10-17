@@ -44,7 +44,7 @@ USBCDCACMInstance = usb_cdc_acm_ns.class_(
 # Schema for individual CDC ACM interface instances
 INTERFACE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(USBCDCACMInstance),
+        cv.GenerateID(): cv.All(cv.declare_id(USBCDCACMInstance), uart.mark_unclocked),
         cv.Optional(CONF_DEBUG): maybe_empty_debug,
         cv.Optional(CONF_DISABLED): cv.All(cv.boolean, cv.only_on_nrf52),
     }

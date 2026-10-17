@@ -57,12 +57,9 @@ AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
 AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
 
 report = zigbee_ns.enum("ZigbeeReportT")
-REPORT = {
-    "coordinator": report.ZIGBEE_REPORT_COORDINATOR,
-    "enable": report.ZIGBEE_REPORT_ENABLE,
-    "force": report.ZIGBEE_REPORT_FORCE,
-    "default": report.ZIGBEE_REPORT_DEFAULT,
-}
+REPORT = report.options(
+    "coordinator", "enable", "force", "default", prefix="ZIGBEE_REPORT_"
+)
 
 CONF_CLUSTER = "cluster"
 CONF_ENDPOINT = "endpoint"
@@ -85,6 +82,8 @@ POWER_SOURCE = {
 }
 
 KEY_ZIGBEE = "zigbee"
+KEY_ZIGBEE_AREA_STR = "zigbee_area_str"
+KEY_ZIGBEE_VERSION_STR = "zigbee_version_str"
 
 # BACnet engineering units mapping (ZCL uses BACnet unit codes)
 # See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
