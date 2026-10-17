@@ -90,7 +90,9 @@ bool EPaperBase::is_idle_() const {
   return !this->busy_pin_->digital_read();
 }
 
-bool EPaperBase::reset() {
+bool EPaperBase::reset() { return this->hardware_reset_(); }
+
+bool EPaperBase::hardware_reset_() {
   if (this->reset_pin_ != nullptr) {
     if (this->state_ == EPaperState::RESET) {
       this->reset_pin_->digital_write(false);
