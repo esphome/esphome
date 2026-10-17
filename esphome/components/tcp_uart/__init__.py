@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, sensor, socket, uart
+from esphome.components import binary_sensor, noise, sensor, socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
     CONF_CONNECTED,
@@ -13,8 +13,11 @@ from esphome.components.const import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
+    CONF_ENCRYPTION,
     CONF_ID,
+    CONF_KEY,
     CONF_PORT,
+    CONF_TIMEOUT,
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_TOTAL_INCREASING,
@@ -23,8 +26,10 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["uart", "binary_sensor", "sensor", "socket"]
 DOMAIN = "tcp_uart"
+AUTO_LOAD = noise.stream_auto_load(
+    DOMAIN, ["uart", "binary_sensor", "sensor", "socket"]
+)
 MULTI_CONF = True
 
 CONF_DISCONNECTS = "disconnects"
@@ -46,6 +51,8 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ENCRYPTION): noise.STREAM_ENCRYPTION_SCHEMA,
         cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_CONNECTIVITY,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -79,6 +86,12 @@ CONFIG_SCHEMA = cv.All(
     socket.consume_role_sockets("tcp_uart"),
 )
 
+FINAL_VALIDATE_SCHEMA = cv.All(
+    socket.final_validate_idle_timeout,
+    noise.final_validate_reconnect_interval,
+    noise.final_validate_stream_key(DOMAIN),
+)
+
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
@@ -93,6 +106,8 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
+    if (timeout := config[CONF_TIMEOUT]).total_milliseconds > 0:
+        cg.add(var.set_timeout(timeout))
     # The socket is not clocked. These only satisfy UARTComponent and a consumer check.
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
@@ -100,6 +115,12 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_parity(config[CONF_PARITY]))
     if (host := config.get(CONF_HOST)) is not None:
         cg.add(var.set_host(host))
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
+        # The TCP client starts the handshake
+        stream = noise.new_stream(
+            config[CONF_ID], encryption[CONF_KEY], config[CONF_ROLE] == "client"
+        )
+        cg.add(var.set_noise_stream(stream))
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
     sensors = sensor.sub_sensors(config)
