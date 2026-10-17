@@ -90,7 +90,9 @@ bool EPaperBase::is_idle_() const {
   return !this->busy_pin_->digital_read();
 }
 
-bool EPaperBase::reset() {
+bool EPaperBase::reset() { return this->hardware_reset_(); }
+
+bool EPaperBase::hardware_reset_() {
   if (this->reset_pin_ != nullptr) {
     if (this->state_ == EPaperState::RESET) {
       this->reset_pin_->digital_write(false);
@@ -225,10 +227,12 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
+      // A full update resets update_count_ to zero, so a non-zero count marks a partial one
+      this->partial_ = this->update_count_ != 0;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
-      if (!this->initialise(this->update_count_ != 0)) {
+      if (!this->initialise(this->partial_)) {
         return;  // Not done yet, come back next loop
       }
       this->set_state_(EPaperState::TRANSFER_DATA);
@@ -248,11 +252,14 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::REFRESH_SCREEN);
       break;
     case EPaperState::REFRESH_SCREEN:
-      this->refresh_screen(this->update_count_ != 0);
+      this->refresh_screen(this->partial_);
       this->update_count_ = (this->update_count_ + 1) % this->full_update_every_;
       this->set_state_(EPaperState::POWER_OFF);
       break;
     case EPaperState::POWER_OFF:
+      if (!this->after_refresh()) {
+        return;  // Not done yet, come back next loop
+      }
       this->power_off();
       this->set_state_(EPaperState::DEEP_SLEEP);
       break;

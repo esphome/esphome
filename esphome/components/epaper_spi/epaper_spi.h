@@ -129,6 +129,8 @@ class EPaperBase : public Display,
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
+  /// The reset pin part of reset(), for a driver that must skip what its parent adds to it
+  bool hardware_reset_();
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
@@ -166,6 +168,13 @@ class EPaperBase : public Display,
   virtual void power_off() = 0;
 
   /**
+   * Called after the refresh, before power off, repeatedly until it returns true.
+   * Lets a driver do extra work spread over several loops, such as rewriting the previous image.
+   * @return true when done, false to be called again next loop
+   */
+  virtual bool after_refresh() { return true; }
+
+  /**
    * Place the display into deep sleep
    */
   virtual void deep_sleep() = 0;
@@ -199,6 +208,7 @@ class EPaperBase : public Display,
   uint8_t effective_transform_{};
   uint8_t update_count_{};
   bool full_update_requested_{};
+  bool partial_{};  // the update in progress is a partial one; set when UPDATE moves to RESET
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};
