@@ -1,4 +1,4 @@
-# The climate alone next to a switch of another platform: USE_SWITCH is defined, the airton switches are not
+# The climate with USE_SWITCH defined by another platform and USE_SELECT not defined at all
 climate:
   - platform: airton
     id: airton_bare

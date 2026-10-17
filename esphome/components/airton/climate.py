@@ -41,10 +41,22 @@ AIRTON_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 for _name, _call in (
-    ("climate_ir.airton.display_on", "set_display_state(true, true)"),
-    ("climate_ir.airton.display_off", "set_display_state(false, true)"),
-    ("climate_ir.airton.sleep_on", "set_sleep_mode_state(true, true)"),
-    ("climate_ir.airton.sleep_off", "set_sleep_mode_state(false, true)"),
+    (
+        "climate_ir.airton.display_on",
+        "set_setting(esphome::airton::AirtonSetting::AIRTON_SETTING_DISPLAY, true)",
+    ),
+    (
+        "climate_ir.airton.display_off",
+        "set_setting(esphome::airton::AirtonSetting::AIRTON_SETTING_DISPLAY, false)",
+    ),
+    (
+        "climate_ir.airton.sleep_on",
+        "set_setting(esphome::airton::AirtonSetting::AIRTON_SETTING_SLEEP_MODE, true)",
+    ),
+    (
+        "climate_ir.airton.sleep_off",
+        "set_setting(esphome::airton::AirtonSetting::AIRTON_SETTING_SLEEP_MODE, false)",
+    ),
 ):
     automation.register_apply_action(
         _name, AIRTON_ACTION_SCHEMA, automation.ApplyCall(_call)
@@ -53,5 +65,6 @@ for _name, _call in (
 
 async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
-    # The default until a saved setting is restored in setup()
-    cg.add(var.set_vertical_direction_state(config[CONF_VERTICAL_DIRECTION], False))
+    # The default until a saved setting is restored in setup(); off is the member's initial value
+    if (direction := config[CONF_VERTICAL_DIRECTION]) != VERTICAL_DIRECTIONS["off"]:
+        cg.add(var.set_default_vertical_direction(direction))
