@@ -161,7 +161,7 @@ void PylontechComponent::process_line_(const char *buffer) {
     }
     return;
   }
-  const unsigned bat_index = *bat - 1;
+  const unsigned bat_index = static_cast<unsigned>(*bat) - 1u;
   if (bat_index >= MAX_BATTERIES || (this->batteries_ & (1u << bat_index)) == 0) {
     return;  // no listener for this battery
   }

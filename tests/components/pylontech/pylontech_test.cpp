@@ -78,7 +78,7 @@ constexpr const char *NEW_BAT1 =
 
 // An older firmware line for battery bat with pack voltage volt (mV)
 std::string bat_line(int bat, int volt) {
-  char buf[160];
+  char buf[192];
   snprintf(buf, sizeof(buf),
            "%d     %d  0      17000  16000  18000  3200   3300   Idle     Normal   Normal   Normal   50%%      "
            "2025-11-28 17:56:33  Normal   Normal  16000    Normal\r\n",
@@ -194,7 +194,8 @@ TEST_F(PylontechTest, OverlongHeaderStillSetsTheColumnLayout) {
 }
 
 TEST_F(PylontechTest, BatteryWithoutListenerIsIgnored) {
-  this->uart_.push_rx({HEADER, bat_line(5, 49000), bat_line(17, 49000), bat_line(0, 49000), BAT1, BAT2});
+  this->uart_.push_rx(
+      {HEADER, bat_line(5, 49000), bat_line(17, 49000), bat_line(0, 49000), bat_line(INT32_MIN, 49000), BAT1, BAT2});
   for (int i = 0; i < 4; i++) {
     this->hub_.loop();
   }
