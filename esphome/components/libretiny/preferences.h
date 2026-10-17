@@ -33,6 +33,9 @@ class LibreTinyPreferences final : public PreferencesMixin<LibreTinyPreferences>
  protected:
   LibreTinyPreferenceBackend make_backend_(uint32_t type);
   bool is_changed_(fdb_kvdb_t db, const NVSData &to_save, const char *key_str);
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  void discard_rtc_entries_();
+#endif
 };
 
 void setup_preferences();

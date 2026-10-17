@@ -44,19 +44,14 @@ def _libretiny_rtc_supported() -> bool:
     """
     if not CORE.is_libretiny:
         return False
+    from esphome.components.libretiny import get_libretiny_family
     from esphome.components.libretiny.const import (
         FAMILY_BK7231N,
         FAMILY_BK7231T,
         FAMILY_BK7238,
-        KEY_FAMILY,
-        KEY_LIBRETINY,
     )
 
-    return CORE.data.get(KEY_LIBRETINY, {}).get(KEY_FAMILY) in (
-        FAMILY_BK7231T,
-        FAMILY_BK7231N,
-        FAMILY_BK7238,
-    )
+    return get_libretiny_family() in (FAMILY_BK7231T, FAMILY_BK7231N, FAMILY_BK7238)
 
 
 def _default_storage() -> str:

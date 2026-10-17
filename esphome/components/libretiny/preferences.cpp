@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
+#include <span>
 #include <vector>
 
 namespace esphome::libretiny {
@@ -13,32 +14,25 @@ ESPHOME_LOG_TAG(TAG, "preferences");
 struct NVSData {
   uint32_t key;
   SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  bool rtc;
+#endif
 };
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// The FlashDB name of a key: its decimal digits, with a prefix for storage: rtc so one pass over the
+// database finds every rtc entry
+static constexpr size_t KEY_NAME_SIZE = UINT32_MAX_STR_SIZE + 1;
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
-// The rtc keys already dealt with this boot. A preference made again later (wifi.enable remakes its own)
-// keeps this boot's value and takes over a discard that is still pending. A key past the table's end is
-// not remembered, so making it again discards again, as before the table existed.
-struct DiscardedKey {
-  uint32_t key;
-  bool stale;
-};
-static constexpr size_t MAX_DISCARDED_KEYS = 8;
-static StaticVector<DiscardedKey, MAX_DISCARDED_KEYS>
-    s_discarded;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-static DiscardedKey *find_discarded(uint32_t key) {
-  for (auto &entry : s_discarded) {
-    if (entry.key == key)
-      return &entry;
-  }
-  return nullptr;
+static constexpr char RTC_KEY_PREFIX = 'r';
+static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool rtc) {
+  char *digits = buf;
+  if (rtc)
+    *digits++ = RTC_KEY_PREFIX;
+  uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE>(digits, UINT32_MAX_STR_SIZE), key);
 }
-#endif  // USE_LIBRETINY_RTC_PREFERENCES
 
-#ifdef USE_LIBRETINY_RTC_PREFERENCES
 // Whether this boot followed a reset that RTC memory survives on ESP32 and ESP8266. LibreTiny chips
 // have no such memory, so storage: rtc keeps preferences in flash and uses this to forget them.
 static bool boot_kept_rtc_preferences() {
@@ -54,25 +48,13 @@ static bool boot_kept_rtc_preferences() {
       return false;
   }
 }
+#else
+static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool) {
+  uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE>(buf, UINT32_MAX_STR_SIZE), key);
+}
 #endif  // USE_LIBRETINY_RTC_PREFERENCES
 
 bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
-#ifdef USE_LIBRETINY_RTC_PREFERENCES
-  if (this->stale) {
-    // The discard after the hard reset failed: try again, so the old value cannot come back if this
-    // save's own write fails too. While the delete keeps failing, loads keep reporting nothing stored.
-    char key_str[UINT32_MAX_STR_SIZE];
-    uint32_to_str(key_str, this->key);
-    const fdb_err_t err = fdb_kv_del(this->db, key_str);
-    if (err == FDB_NO_ERR || err == FDB_KV_NAME_ERR) {
-      this->stale = false;
-      if (auto *entry = find_discarded(this->key); entry != nullptr)
-        entry->stale = false;
-    } else {
-      ESP_LOGW(TAG, "Failed to discard rtc preference %s again: %d", key_str, err);
-    }
-  }
-#endif
   // try find in pending saves and update that
   for (auto &obj : s_pending_save) {
     if (obj.key == this->key) {
@@ -82,6 +64,9 @@ bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
   }
   NVSData save{};
   save.key = this->key;
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  save.rtc = this->rtc;
+#endif
   save.data.set(data, len);
   s_pending_save.push_back(std::move(save));
   ESP_LOGVV(TAG, "s_pending_save: key: %" PRIu32 ", len: %zu", this->key, len);
@@ -101,12 +86,8 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-#ifdef USE_LIBRETINY_RTC_PREFERENCES
-  if (this->stale)
-    return false;
-#endif
-  char key_str[UINT32_MAX_STR_SIZE];
-  uint32_to_str(key_str, this->key);
+  char key_str[KEY_NAME_SIZE];
+  key_name(key_str, this->key, this->is_rtc());
   fdb_blob_make(this->blob, data, len);
   size_t actual_len = fdb_kv_get_blob(this->db, key_str, this->blob);
   if (actual_len != len) {
@@ -123,36 +104,47 @@ void LibreTinyPreferences::open() {
   fdb_err_t err = fdb_kvdb_init(&this->db, "esphome", "kvs", NULL, NULL);
   if (err != FDB_NO_ERR) {
     LT_E("fdb_kvdb_init(...) failed: %d", err);
-  } else {
-    LT_I("Preferences initialized");
+    return;
   }
+  LT_I("Preferences initialized");
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  if (!boot_kept_rtc_preferences())
+    this->discard_rtc_entries_();
+#endif
 }
 
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
 ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {
-  if (in_flash)
-    return this->make_preference(length, type);
-  auto *pref = new LibreTinyPreferenceBackend(this->make_backend_(type));  // NOLINT(cppcoreguidelines-owning-memory)
-  // The value from before a hard reset goes the first time a key is made this boot; save only touches flash
-  // to retry a failed discard
-  static const bool BOOT_KEPT_RTC = boot_kept_rtc_preferences();
-  if (!BOOT_KEPT_RTC) {
-    if (auto *entry = find_discarded(type); entry != nullptr) {
-      pref->stale = entry->stale;
-      return ESPPreferenceObject(pref);
+  LibreTinyPreferenceBackend backend = this->make_backend_(type);
+  backend.rtc = !in_flash;
+  return ESPPreferenceObject(new LibreTinyPreferenceBackend(backend));  // NOLINT(cppcoreguidelines-owning-memory)
+}
+
+// Every entry with the rtc prefix goes; the iteration restarts after each delete, so the walk stays valid
+void LibreTinyPreferences::discard_rtc_entries_() {
+  uint16_t discarded = 0;
+  fdb_kv_iterator iterator;
+  for (;;) {
+    fdb_kv_iterator_init(&iterator);
+    bool found = false;
+    while (fdb_kv_iterate(&this->db, &iterator)) {
+      if (iterator.curr_kv.name[0] == RTC_KEY_PREFIX) {
+        found = true;
+        break;
+      }
     }
-    char key_str[UINT32_MAX_STR_SIZE];
-    uint32_to_str(key_str, type);
-    const fdb_err_t err = fdb_kv_del(&this->db, key_str);
-    if (err == FDB_NO_ERR) {
-      ESP_LOGD(TAG, "Discarded rtc preference %s after a hard reset", key_str);
-    } else if (err != FDB_KV_NAME_ERR) {  // FDB_KV_NAME_ERR: nothing was stored
-      ESP_LOGW(TAG, "Failed to discard rtc preference %s: %d", key_str, err);
-      pref->stale = true;
+    if (!found)
+      break;
+    const fdb_err_t err = fdb_kv_del(&this->db, iterator.curr_kv.name);
+    if (err != FDB_NO_ERR) {
+      ESP_LOGE(TAG, "Failed to discard rtc preference %s: %d", iterator.curr_kv.name, err);
+      return;
     }
-    s_discarded.push_back({type, pref->stale});
+    discarded++;
   }
-  return ESPPreferenceObject(pref);
+  if (discarded != 0) {
+    ESP_LOGD(TAG, "Discarded %u rtc preferences after a hard reset", discarded);
+  }
 }
 #endif
 
@@ -184,8 +176,12 @@ bool LibreTinyPreferences::sync() {
   uint32_t last_key = 0;
 
   for (const auto &save : s_pending_save) {
-    char key_str[UINT32_MAX_STR_SIZE];
-    uint32_to_str(key_str, save.key);
+    char key_str[KEY_NAME_SIZE];
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+    key_name(key_str, save.key, save.rtc);
+#else
+    key_name(key_str, save.key, false);
+#endif
     ESP_LOGVV(TAG, "Checking if FDB data %s has changed", key_str);
     if (this->is_changed_(&this->db, save, key_str)) {
       ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.data.size());
