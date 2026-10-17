@@ -17,7 +17,7 @@ from esphome.core.entity_helpers import (
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@dhoeben"]
+CODEOWNERS = ["@esphome/core"]
 DOMAIN = "water_heater"
 
 IS_PLATFORM_COMPONENT = True
