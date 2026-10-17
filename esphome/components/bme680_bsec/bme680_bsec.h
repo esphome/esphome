@@ -77,7 +77,7 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
   int64_t get_time_ns_();
 
   void publish_sensor_(sensor::Sensor *sensor, float value, bool change_only = false);
-  void publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value);
+  void publish_sensor_(text_sensor::TextSensor *sensor, const char *value);
 
   void snapshot_state_();  // Fetch the current BSEC library state and save it in the bsec_state_data_ member (volatile
                            // memory)
