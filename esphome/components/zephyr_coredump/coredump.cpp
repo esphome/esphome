@@ -117,6 +117,8 @@ void Coredump::finish_(int err) {
     ESP_LOGE(TAG, "Failed to erase coredump: %d", erase);
   }
   this->stored_ = false;
+  this->total_ = 0;
+  this->verify_ = 0;
   this->printing_ = false;
   this->disable_loop();
 }
