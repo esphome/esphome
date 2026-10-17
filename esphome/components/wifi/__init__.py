@@ -359,6 +359,8 @@ WIFI_NETWORK_BASE = cv.Schema(
 )
 
 CONF_AP_TIMEOUT = "ap_timeout"
+CONF_COEXIST = "coexist"
+CONF_NAPT = "napt"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
@@ -370,6 +372,8 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
             cv.Length(min=1, max=2),
             _validate_dns_servers,
         ),
+        cv.Optional(CONF_COEXIST, default=False): cv.boolean,
+        cv.Optional(CONF_NAPT, default=False): cv.boolean,
     }
 )
 
@@ -437,6 +441,63 @@ def _apply_min_auth_mode_default(config):
     return config
 
 
+def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
+    """Reject the ``coexist:``/``napt:`` combinations the target cannot run.
+
+    Both need the ESP-IDF driver: ``coexist:`` puts it in WIFI_MODE_APSTA, and
+    ``napt:`` adds the lwip forwarding that lets the AP subnet out through the
+    station. ``coexist:`` also needs a station to fall back from, and no
+    post-connect roaming, whose scan would take the AP down again.
+
+    ``ap_mode: WISP`` covers this ground on its own, so the two cannot be
+    combined.
+    """
+    coexist = ap_config.get(CONF_COEXIST, False)
+    napt = ap_config.get(CONF_NAPT, False)
+    if not coexist and not napt:
+        return
+    if ap_config[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
+        raise cv.Invalid(
+            "ap_mode: WISP keeps the access point up and routes its subnet through "
+            "the station already; remove 'coexist' and/or 'napt'"
+        )
+    if coexist:
+        if not CORE.is_esp32 or CORE.using_arduino:
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) is only supported on ESP32 (ESP-IDF)."
+            )
+        if napt:
+            # esp_netif_napt_enable() exists from ESP-IDF 5.1
+            cv.require_framework_version(
+                esp_idf=cv.Version(5, 1, 0),
+                extra_message="NAPT routes through NAT",
+            )(napt)
+        if not config.get(CONF_NETWORKS):
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) requires at least one STA network configured."
+            )
+        if config[CONF_POST_CONNECT_ROAMING]:
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) is incompatible with post_connect_roaming. "
+                "Please set post_connect_roaming: false in the wifi block."
+            )
+        # The coexist AP stays up permanently; ap_timeout only gates the
+        # fallback AP, so a non-default value would be silently ignored.
+        if ap_config.get(CONF_AP_TIMEOUT) != DEFAULT_AP_TIMEOUT_PERIOD:
+            raise cv.Invalid(
+                "ap_timeout has no effect with AP+STA coexistence (coexist: true); "
+                "the AP stays up while the station is connected. Please remove ap_timeout."
+            )
+    elif napt:
+        if not CORE.is_esp32 or CORE.using_arduino:
+            raise cv.Invalid(
+                "IP routing / NAPT (napt: true) is only supported on ESP32 (ESP-IDF)."
+            )
+        raise cv.Invalid(
+            "IP routing / NAPT (napt: true) requires AP+STA coexistence (coexist: true) to be enabled."
+        )
+
+
 def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
@@ -452,6 +513,9 @@ def final_validate(config):
         )
     if CONF_ON_DPP_URI in config and not has_dpp:
         raise cv.Invalid(f"'{CONF_ON_DPP_URI}' requires '{CONF_DPP}'")
+
+    if has_ap:
+        _validate_ap_coexist(config[CONF_AP], config)
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
@@ -828,6 +892,15 @@ async def to_code(config):
                     cg.add_define(
                         f"WIFI_AP_WISP_DNS_{i}", int.from_bytes(ip.packed, "little")
                     )
+
+        # Both fall back to the same routed AP the bridge gives, so only one of them is set up
+        if conf.get(CONF_COEXIST, False):
+            cg.add_define("USE_WIFI_APSTA")
+
+        if conf.get(CONF_NAPT, False):
+            cg.add_define("USE_WIFI_AP_NAPT")
+            add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP
         # takes turns with the networks instead.

@@ -402,6 +402,19 @@ static constexpr uint32_t WIFI_AP_EXCLUSIVE_DWELL_MS = 300000;
 static constexpr uint32_t WIFI_AP_EXCLUSIVE_MAX_DWELL_MS = 3 * WIFI_AP_EXCLUSIVE_DWELL_MS;
 static constexpr uint32_t WIFI_AP_EXCLUSIVE_HANDOVER_MS = 1000;
 #endif
+#ifdef USE_WIFI_APSTA
+/// Retry interval after a failed coexist AP start, so a failure is not retried
+/// (and logged) on every loop pass. The first attempt starts as soon as the
+/// loop runs.
+static constexpr uint32_t WIFI_AP_COEXIST_RETRY_MS = 5000;
+#endif
+#if defined(USE_WIFI_APSTA) && (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE))
+/// How long the station must stay disconnected in coexist mode before the portal
+/// is served again. Long enough that a roaming scan or a brief drop does not
+/// restart it; short enough that a lost upstream or a wrong password can be
+/// corrected over the AP without a reboot.
+static constexpr uint32_t WIFI_PORTAL_REOPEN_DELAY_MS = 10000;
+#endif
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
 /// Longer interval gives users time to configure WiFi without constant connection attempts
@@ -656,10 +669,11 @@ void WiFiComponent::setup() {
 #endif
 
 #if defined(USE_PROVISIONING) && (defined(USE_WIFI_DPP) || (defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)))
-  // The access point, the portals on it and the DPP listen are provisioning surfaces: once the
-  // window has closed, end them (mirrors the teardown on a successful connection). The blocks in
-  // loop() that start them are gated so none of them is started again afterwards. A bridge AP
-  // carries no portal and stays up.
+  // The portals on the access point and the DPP listen are provisioning surfaces: once the window
+  // has closed, end them (mirrors the teardown on a successful connection). The blocks in loop()
+  // that start them are gated so none of them is started again afterwards. A bridge AP carries no
+  // portal, and a coexist AP is a routed AP for its clients rather than a provisioning surface, so
+  // both stay up.
   if (provisioning::global_provisioning_manager != nullptr) {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
 #ifdef USE_WIFI_DPP
@@ -668,6 +682,10 @@ void WiFiComponent::setup() {
 #if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)
       this->end_ap_portal_();  // no-op when nothing is active, so not tied to ap_setup_
       if (this->ap_setup_) {
+#ifdef USE_WIFI_APSTA
+        // The AP is a routed AP for its clients, not a provisioning surface.
+        ESP_LOGD(TAG, "Provisioning window closed; AP stays up without a portal");
+#else
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
 #ifdef USE_WIFI_AP_EXCLUSIVE
         // The networks wait while the AP runs on its own; hand them the radio
@@ -678,6 +696,7 @@ void WiFiComponent::setup() {
         }
 #endif
         this->disable_ap_();
+#endif  // USE_WIFI_APSTA
       }
 #endif  // USE_WIFI_AP
     });
@@ -944,12 +963,31 @@ void WiFiComponent::loop() {
       this->setup_ap_config_();
     }
 #elif defined(USE_WIFI_AP)
-    // Once the provisioning window has closed, don't bring up the fallback AP (or
-    // the captive portal on it) - the device must stay unprovisionable until it is
-    // power-cycled.
-    if (this->has_ap() && !this->ap_setup_ && !this->is_provisioning_closed_()) {
+    if (this->has_ap() && !this->ap_setup_) {
+#ifdef USE_WIFI_APSTA
+      // A coexist AP is a routed AP for its clients, not a provisioning surface: a closed
+      // provisioning window ends only the portal on it, so it is started and retried like any
+      // other AP. A failed start leaves ap_setup_ false; throttle retries so a failure is not
+      // retried (and logged) on every loop pass. The first attempt is never delayed -
+      // ap_coexist_last_attempt_ is 0 until then.
+      if (this->ap_coexist_last_attempt_ == 0 || now - this->ap_coexist_last_attempt_ >= WIFI_AP_COEXIST_RETRY_MS) {
+        this->ap_coexist_last_attempt_ = now;
+        ESP_LOGI(TAG, "Starting coexist AP");
+        this->setup_ap_config_();
+        if (!this->ap_setup_) {
+          ESP_LOGW(TAG, "Coexist AP start failed; retrying");
+        } else if (!this->is_connected() && !this->is_provisioning_closed_()) {
+          // The portal follows the station: a retry that lands after the station connected, or
+          // after the provisioning window closed, must not reopen the unauthenticated portal on
+          // the AP, which nothing would close again.
+          this->start_ap_portal_();
+        }
+      }
+#else
+      // Once the provisioning window has closed, don't bring up the fallback AP (or the captive
+      // portal on it) - the device must stay unprovisionable until it is power-cycled.
       const uint32_t since_connected = now - this->last_connected_;
-      if (this->ap_timeout_ != 0 &&
+      if (this->ap_timeout_ != 0 && !this->is_provisioning_closed_() &&
 #ifdef USE_WIFI_AP_EXCLUSIVE
           // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again
           since_connected > this->ap_timeout_ && now - this->ap_changed_ > this->ap_timeout_
@@ -972,7 +1010,21 @@ void WiFiComponent::loop() {
 #endif
         this->start_ap_portal_();
       }
+#endif  // USE_WIFI_APSTA
     }
+#if defined(USE_WIFI_APSTA) && (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE))
+    // A coexist AP stays up for the whole uptime, so the portal is the one thing
+    // that follows the station: it is ended when the station connects (see
+    // check_connecting_finished) and served again while the station is down, so a
+    // lost upstream or a wrong password can be corrected without a reboot. Only a
+    // change is acted on, and only after the station has been down for a while, so a
+    // roaming scan or a brief drop does not restart the DNS server and the HTTP
+    // listener. Once the provisioning window has closed it is not served again.
+    if (this->ap_setup_ && !this->is_connected() && !this->is_provisioning_closed_() && !this->is_ap_portal_active_() &&
+        now - this->last_connected_ > WIFI_PORTAL_REOPEN_DELAY_MS) {
+      this->start_ap_portal_();
+    }
+#endif  // USE_WIFI_APSTA && (USE_CAPTIVE_PORTAL || USE_WEBSERVER_CAPTIVE)
 #endif  // USE_WIFI_AP
 
 #ifdef USE_IMPROV_BLE
@@ -1147,8 +1199,11 @@ void WiFiComponent::pause_exclusive_ap_() {
 }
 #endif
 
-#ifdef USE_WIFI_AP_WISP
+#if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
 void WiFiComponent::fail_bridge_() {
+  // End the portal before the AP goes away, as disable_ap_() does: it is served on the AP's address, and the retry
+  // in loop() must not leave an unauthenticated portal answering with its AP down
+  this->end_ap_portal_();
   this->ap_setup_ = false;
   this->ap_clients_ = 0;  // dropped with the AP, without a disconnect event for each
   this->wifi_mode_({}, false);
@@ -1156,6 +1211,7 @@ void WiFiComponent::fail_bridge_() {
 #endif
 
 void WiFiComponent::disable_ap_() {
+  // End the portal before the AP goes away: it is served on the AP's address.
   this->end_ap_portal_();
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
@@ -1805,7 +1861,16 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->num_retried_ = 0;
 #if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)  // the bridge AP stays up for its clients
     if (this->has_ap()) {
+#ifdef USE_WIFI_APSTA
+      // Coexist mode: the AP stays up permanently, only the portal goes away.
+      ESP_LOGD(TAG, "STA connected; AP remains active (coexist mode)");
+      // The portal must not stay up: it answers every GET from anywhere without
+      // authentication, hands out the stored credentials over /wifisave, and while
+      // it is active the retries below stay in their slow, scan-free lane.
+      this->end_ap_portal_();
+#else
       this->disable_ap_();
+#endif
     }
 #endif
 #ifdef USE_WIFI_DPP
