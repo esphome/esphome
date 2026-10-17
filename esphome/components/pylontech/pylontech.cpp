@@ -125,7 +125,7 @@ void PylontechComponent::loop() {
         static_cast<int32_t>(App.get_loop_component_start_time() - this->bat_command_at_) >= 0) {
       this->bat_command_due_ = false;
       if (this->cell_polling_enabled_) {
-        char cmd[8];  // "bat 16\n"
+        char cmd[9];  // "bat 16\n"
         snprintf(cmd, sizeof(cmd), "bat %u\n", this->bat_reply_);
         this->write_str(cmd);
       } else {
