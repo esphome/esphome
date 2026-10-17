@@ -3,7 +3,7 @@
 Phases, all injected after the Start Scenario button press:
   1. Older firmware header and two battery lines publish exact values
   2. Garbage bytes are skipped
-  3. A truncated battery line publishes nothing
+  3. A truncated battery line publishes nothing and is counted in a warning
   4. A line over the 199 character limit is dropped with a warning
   5. Recovery: a newer firmware header, itself over the limit, still selects the
      layout with the extra Id columns, so its battery lines parse correctly
@@ -74,10 +74,13 @@ async def test_uart_mock_pylontech(
     )
 
     overflow_lines: list[str] = []
+    rejected_lines: list[str] = []
 
     def line_callback(line: str) -> None:
         if "Line over 199 chars dropped" in line:
             overflow_lines.append(line)
+        if "malformed battery lines" in line:
+            rejected_lines.append(line)
 
     collector = SensorStateCollector(
         sensor_names=SENSORS, text_sensor_names=TEXT_SENSORS
@@ -129,3 +132,5 @@ async def test_uart_mock_pylontech(
 
         # Phase 4 and the phase 5 header both overflow
         assert len(overflow_lines) == 2, overflow_lines
+        # The phase 3 cut line is counted and reported once the UART is idle
+        assert rejected_lines, "no rejected-line summary logged"

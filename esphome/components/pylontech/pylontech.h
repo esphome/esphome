@@ -61,6 +61,11 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   void process_line_(const char *buffer);
   void parse_header_(const char *buffer);
   void dispatch_one_();
+  void reject_line_() {
+    if (this->rejected_ < UINT8_MAX) {
+      this->rejected_++;
+    }
+  }
 
   // The longest line, the newer firmware header, is 182 characters
   uart::LineReader<200> line_reader_;
@@ -72,6 +77,7 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
   battery_mask_t batteries_{0};  // batteries with a listener
   battery_mask_t pending_{0};    // bit i set: slots_[i] is waiting to be published
   bool has_tlow_id_{false};
+  uint8_t rejected_{0};  // malformed battery lines since the last idle pass
 #endif
 };
 

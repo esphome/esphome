@@ -14,6 +14,7 @@
       (field) = val.value(); \
     } else { \
       ESP_LOGV(TAG, "invalid " field_name " in line %s", buffer); \
+      this->reject_line_(); \
       return; \
     } \
   }
@@ -23,6 +24,7 @@
     get_token(field); \
     if (strlen(field) < 2) { \
       ESP_LOGV(TAG, "too short " field_name " in line %s", buffer); \
+      this->reject_line_(); \
       return; \
     } \
   }
@@ -112,6 +114,10 @@ void PylontechComponent::dispatch_one_() {
       }
     }
     return;
+  }
+  if (this->rejected_ != 0) {
+    ESP_LOGW(TAG, "Rejected %u malformed battery lines", this->rejected_);
+    this->rejected_ = 0;
   }
 }
 
@@ -223,6 +229,7 @@ void PylontechComponent::process_line_(const char *buffer) {
       l.coulomb = coul_val.value();
     } else {
       ESP_LOGV(TAG, "invalid Coulomb in line %s", buffer);
+      this->reject_line_();
       return;
     }
   }
