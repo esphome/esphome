@@ -280,6 +280,13 @@ void DaikinMadoka::enqueue_query_(uint16_t cmd, std::span<const uint8_t> args) {
 }
 
 void DaikinMadoka::send_next_query_() {
+  // BLE being disabled resets the client without a disconnect event, so the queue stops here
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    this->query_queue_.clear();
+    this->query_cooldown_ = false;
+    this->poll_pending_ = false;
+    return;
+  }
   if (this->query_queue_.empty()) {
     if (!this->poll_pending_) {
       this->query_cooldown_ = false;
