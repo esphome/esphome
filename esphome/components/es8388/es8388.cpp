@@ -151,8 +151,8 @@ void ES8388::dump_config() {
   ESP_LOGCONFIG(TAG, "ES8388 Audio Codec:");
   LOG_I2C_DEVICE(this);
 #ifdef USE_ES8388_SELECT
-  LOG_SELECT("  ", "DacOutputSelect", this->dac_output_select_);
-  LOG_SELECT("  ", "ADCInputMicSelect", this->adc_input_mic_select_);
+  LOG_SELECT("  ", "DAC Output", this->dac_output_select_);
+  LOG_SELECT("  ", "ADC Input Mic", this->adc_input_mic_select_);
 #endif
 }
 
