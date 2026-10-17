@@ -5,7 +5,7 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.const import CONF_DRIVE_STRENGTH, CONF_HOLD_STATE
+from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -238,6 +238,7 @@ DRIVE_STRENGTHS = {
 }
 gpio_num_t = cg.global_ns.enum("gpio_num_t")
 
+CONF_DRIVE_STRENGTH = "drive_strength"
 
 ESP32_PIN_SCHEMA = cv.All(
     pins.gpio_base_schema(ESP32InternalGPIOPin, gpio_pin_number_validator).extend(
