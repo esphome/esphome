@@ -10,12 +10,14 @@ from esphome.const import (
     CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
+    CONF_RESET,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pcf8574"
 MULTI_CONF = True
 
 pcf8574_ns = cg.esphome_ns.namespace("pcf8574")
@@ -25,11 +27,14 @@ PCF8574GPIOPin = pcf8574_ns.class_("PCF8574GPIOPin", cg.GPIOPin)
 
 CONF_PCF8574 = "pcf8574"
 CONF_PCF8575 = "pcf8575"
+# Keep in sync with PCF8574Component::reset_ in pcf8574.h.
+DEFAULT_RESET = True
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(PCF8574Component),
             cv.Optional(CONF_PCF8575, default=False): cv.boolean,
+            cv.Optional(CONF_RESET, default=DEFAULT_RESET): cv.boolean,
             cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
@@ -39,10 +44,10 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_pcf8575(config[CONF_PCF8575]))
+    if (reset := config[CONF_RESET]) != DEFAULT_RESET:
+        cg.add(var.set_reset(reset))
     if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
@@ -63,7 +68,7 @@ PCF8574_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_PCF8574): cv.use_id(PCF8574Component),
+        cv.Required(CONF_PCF8574): pins.use_id_or_address(PCF8574Component),
     }
 )
 

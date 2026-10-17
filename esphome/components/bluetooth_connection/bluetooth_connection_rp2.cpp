@@ -15,7 +15,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_connection";
+ESPHOME_LOG_TAG(TAG, "bluetooth_connection");
 
 using ble_device_base::ESPBTUUID;
 using ble_device_base::GATT_ERR_NOT_CONNECTED;
@@ -76,16 +76,14 @@ void RP2GattClient::setup() {
   // Pre-create every pool entry so the packet handlers' allocate() calls are
   // always a free-list pop -- the IRQ path must never reach malloc().
   if (!this->event_pool_.warm() || !this->notify_pool_.warm()) {
-    ESP_LOGE(TAG, "GATT event pool warm-up failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("GATT event pool warm-up failed"));
     return;
   }
 
   // Register this engine for IRQ-context event routing.
   if (instance_count >= ESPHOME_BLE_GATT_CLIENT_COUNT) {
     // Cannot happen with codegen-sized storage; refuse loudly if it ever does.
-    ESP_LOGE(TAG, "GATT client registry full");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("GATT client registry full"));
     return;
   }
   {

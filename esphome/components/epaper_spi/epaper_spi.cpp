@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static const char *const TAG = "epaper_spi";
+ESPHOME_LOG_TAG(TAG, "epaper_spi");
 static constexpr size_t EPAPER_MAX_CMD_LOG_BYTES = 128;
 
 static constexpr const char *const EPAPER_STATE_STRINGS[] = {
@@ -90,7 +90,9 @@ bool EPaperBase::is_idle_() const {
   return !this->busy_pin_->digital_read();
 }
 
-bool EPaperBase::reset() {
+bool EPaperBase::reset() { return this->hardware_reset_(); }
+
+bool EPaperBase::hardware_reset_() {
   if (this->reset_pin_ != nullptr) {
     if (this->state_ == EPaperState::RESET) {
       this->reset_pin_->digital_write(false);
@@ -131,9 +133,7 @@ void EPaperBase::update() {
 }
 
 void EPaperBase::wait_for_idle_(bool should_wait) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   this->waiting_for_idle_start_ = millis();
-#endif
   this->waiting_for_idle_ = should_wait;
 }
 
@@ -156,6 +156,10 @@ void EPaperBase::loop() {
       ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
 #endif
     } else {
+      if (now - this->waiting_for_idle_start_ > this->busy_timeout_seconds_ * 1000u) {
+        this->abandon_update_();
+        return;
+      }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       if (now - this->waiting_for_idle_last_print_ >= 1000) {
         ESP_LOGV(TAG, "Waiting for idle in state %s", this->epaper_state_to_string_());
@@ -166,6 +170,20 @@ void EPaperBase::loop() {
     }
   }
   this->process_state_();
+}
+
+// The busy pin never cleared: give up on this update so later ones are not refused, and make the next one full
+void EPaperBase::abandon_update_() {
+  ESP_LOGE(TAG, "Display stayed busy for %u s in state %s; check the busy pin", (unsigned) this->busy_timeout_seconds_,
+           this->epaper_state_to_string_());
+  this->status_set_warning(LOG_STR("Busy pin timeout"));
+  if (this->state_ == EPaperState::TRANSFER_DATA)
+    this->abort_transfer();
+  // Leave the panel powered down rather than with its high-voltage drivers enabled
+  this->power_off();
+  this->full_update_requested_ = true;
+  this->current_data_index_ = 0;
+  this->set_state_(EPaperState::IDLE);
 }
 
 /**
@@ -196,6 +214,15 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::UPDATE:
       this->do_update_();  // Calls ESPHome (current page) lambda
+      if (this->full_update_requested_) {
+        // Refresh the whole panel even if nothing was drawn
+        this->full_update_requested_ = false;
+        this->update_count_ = 0;
+        this->x_low_ = 0;
+        this->y_low_ = 0;
+        this->x_high_ = this->width_;
+        this->y_high_ = this->height_;
+      }
       if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
         this->set_state_(EPaperState::IDLE);
         return;
@@ -233,6 +260,7 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
+      this->status_clear_warning();
       this->set_state_(EPaperState::IDLE);
       ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
       break;
@@ -327,13 +355,128 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
     return;
   const size_t byte_position = y * this->row_width_ + x / 8;
   const uint8_t bit_position = x % 8;
-  const uint8_t pixel_bit = 0x80 >> bit_position;
+  const uint8_t pixel_bit = 0x80u >> bit_position;
   const auto original = this->buffer_[byte_position];
-  if ((color_to_bit(color) == 0)) {
+  if (color_to_mono(color) == 0) {
     this->buffer_[byte_position] = original & ~pixel_bit;
   } else {
     this->buffer_[byte_position] = original | pixel_bit;
   }
+}
+
+namespace {
+// One source row of an RGB565 block, written into a contiguous 1 bit per pixel buffer. Without SwapAxes the row lies
+// along a buffer row and the bit moves by step; with it the row lies along a bit column and the byte moves by step
+// rows.
+template<bool SwapAxes, bool BigEndianSource>
+void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, size_t row_width, const uint8_t *source, int count,
+                          const Rgb565ToMono &to_mono) {
+  const ptrdiff_t byte_step = SwapAxes ? step * static_cast<ptrdiff_t>(row_width) : 0;
+  for (; count != 0; count--, source += 2) {
+    const uint16_t value = BigEndianSource ? (source[0] << 8) | source[1] : source[0] | (source[1] << 8);
+    if (to_mono(value)) {
+      *byte |= mask;
+    } else {
+      *byte &= ~mask;
+    }
+    if constexpr (SwapAxes) {
+      byte += byte_step;
+    } else if (step > 0) {
+      mask >>= 1;
+      if (mask == 0) {
+        mask = 0x80;
+        byte++;
+      }
+    } else {
+      mask <<= 1;
+      if (mask == 0) {
+        mask = 0x01;
+        byte--;
+      }
+    }
+  }
+}
+}  // namespace
+
+// Each source column maps to one buffer coordinate and each source row to the other, each moving by 1 per pixel, so
+// the visible part of a block and its dirty area are worked out once for the whole block.
+void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                        bool big_endian, int x_offset, int y_offset, int x_pad) {
+  const bool swap = this->effective_transform_ & SWAP_XY;
+  const bool mirror_x = this->effective_transform_ & MIRROR_X;
+  const bool mirror_y = this->effective_transform_ & MIRROR_Y;
+  // The buffer axis a source column moves along, and the one a source row moves along
+  const int column_limit = swap ? this->height_ : this->width_;
+  const int row_limit = swap ? this->width_ : this->height_;
+  const bool column_mirrored = swap ? mirror_y : mirror_x;
+  const bool row_mirrored = swap ? mirror_x : mirror_y;
+  const int first_column = std::max(0, -x_start);
+  const int end_column = std::min(w, column_limit - x_start);
+  const int first_row = std::max(0, -y_start);
+  const int end_row = std::min(h, row_limit - y_start);
+  if (first_column >= end_column || first_row >= end_row)
+    return;
+  auto column_to_buffer = [&](int column) {
+    const int u = x_start + column;
+    return column_mirrored ? column_limit - 1 - u : u;
+  };
+  auto row_to_buffer = [&](int row) {
+    const int v = y_start + row;
+    return row_mirrored ? row_limit - 1 - v : v;
+  };
+
+  const int column_low = std::min(column_to_buffer(first_column), column_to_buffer(end_column - 1));
+  const int row_low = std::min(row_to_buffer(first_row), row_to_buffer(end_row - 1));
+  const int columns = end_column - first_column;
+  const int rows = end_row - first_row;
+  const int x_low = swap ? row_low : column_low;
+  const int y_low = swap ? column_low : row_low;
+  const int x_high = x_low + (swap ? rows : columns);
+  const int y_high = y_low + (swap ? columns : rows);
+
+  const Rgb565ToMono to_mono;
+  const size_t line_stride = x_offset + w + x_pad;
+  const size_t row_width = this->row_width_;
+  const int step = column_mirrored ? -1 : 1;
+  for (int row = first_row; row != end_row; row++) {
+    const uint8_t *source = ptr + ((y_offset + row) * line_stride + x_offset + first_column) * 2;
+    const int along = column_to_buffer(first_column);
+    const int across = row_to_buffer(row);
+    const int x = swap ? across : along;
+    const int y = swap ? along : across;
+    uint8_t *byte = buffer + y * row_width + x / 8;
+    const uint8_t mask = 0x80u >> (x % 8);
+    if (swap) {
+      if (big_endian) {
+        write_rgb565_row<true, true>(byte, mask, step, row_width, source, columns, to_mono);
+      } else {
+        write_rgb565_row<true, false>(byte, mask, step, row_width, source, columns, to_mono);
+      }
+    } else if (big_endian) {
+      write_rgb565_row<false, true>(byte, mask, step, row_width, source, columns, to_mono);
+    } else {
+      write_rgb565_row<false, false>(byte, mask, step, row_width, source, columns, to_mono);
+    }
+  }
+  this->x_low_ = clamp_at_most(this->x_low_, x_low);
+  this->x_high_ = clamp_at_least(this->x_high_, x_high);
+  this->y_low_ = clamp_at_most(this->y_low_, y_low);
+  this->y_high_ = clamp_at_least(this->y_high_, y_high);
+}
+
+// Writes an RGB565 block of pixels, as LVGL sends them, straight into a 1 bit per pixel buffer that is one block (the
+// usual case): the same result as draw_pixel_at() for each pixel. Anything else goes through draw_pixel_at().
+void HOT EPaperBase::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                          ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                          int x_pad) {
+  size_t contiguous_length;
+  uint8_t *contiguous = this->buffer_.get_span(0, contiguous_length);
+  if (!this->buffer_is_mono_() || this->get_clipping().is_set() || bitness != COLOR_BITNESS_565 ||
+      contiguous_length != this->buffer_length_) {
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    return;
+  }
+  this->draw_rgb565_block_(contiguous, x_start, y_start, w, h, ptr, big_endian, x_offset, y_offset, x_pad);
 }
 
 void EPaperBase::dump_config() {

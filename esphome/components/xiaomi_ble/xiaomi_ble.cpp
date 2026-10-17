@@ -21,7 +21,7 @@
 
 namespace esphome::xiaomi_ble {
 
-static const char *const TAG = "xiaomi_ble";
+ESPHOME_LOG_TAG(TAG, "xiaomi_ble");
 
 // Maximum bytes to log in very verbose hex output (covers largest packet of ~24 bytes)
 static constexpr size_t XIAOMI_MAX_LOG_BYTES = 32;
@@ -286,10 +286,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const ble_device_base::ServiceDa
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address) {
   if ((raw.size() != 19) && ((raw.size() < 22) || (raw.size() > 24))) {
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): data packet has wrong size (%d)!", raw.size());
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-    char hex_buf[format_hex_pretty_size(XIAOMI_MAX_LOG_BYTES)];
-#endif
-    ESP_LOGVV(TAG, "  Packet : %s", format_hex_pretty_to(hex_buf, raw.data(), raw.size()));
+    ESP_LOGVV_HEX(TAG, raw.data(), raw.size(), XIAOMI_MAX_LOG_BYTES, "  Packet : %s");
     return false;
   }
 

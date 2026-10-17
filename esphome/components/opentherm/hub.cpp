@@ -5,7 +5,7 @@
 
 namespace esphome::opentherm {
 
-static const char *const TAG = "opentherm";
+ESPHOME_LOG_TAG(TAG, "opentherm");
 namespace message_data {
 bool parse_flag8_lb_0(OpenthermData &data) { return read_bit(data.valueLB, 0); }
 bool parse_flag8_lb_1(OpenthermData &data) { return read_bit(data.valueLB, 1); }
