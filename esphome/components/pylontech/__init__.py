@@ -45,12 +45,12 @@ def _get_data() -> PylontechData:
 async def register_listener(config: ConfigType, listener: MockObj) -> None:
     """Register a battery listener; the hub keeps one line slot per distinct battery."""
     hub = await cg.get_variable(config[CONF_PYLONTECH_ID])
-    battery = config[CONF_BATTERY]
-    _request_listener_slot(str(hub))
+    hub_key = str(hub)
+    _request_listener_slot(hub_key)
     data = _get_data()
-    if (key := (str(hub), battery)) not in data.batteries:
+    if (key := (hub_key, config[CONF_BATTERY])) not in data.batteries:
         data.batteries.add(key)
-        _request_battery_slot(str(hub))
+        _request_battery_slot(hub_key)
     cg.add(hub.register_listener(listener))
 
 

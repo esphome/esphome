@@ -6,17 +6,22 @@
 #include <limits>
 
 // Helper macros
-#define PARSE_INT(field, field_name) \
+#define PARSE_TOKEN_INT(field, field_name) \
   { \
-    get_token(token_buf); \
     auto val = parse_number<int>(token_buf); \
     if (val.has_value() && in_range<decltype(field)>(*val)) { \
-      (field) = val.value(); \
+      (field) = *val; \
     } else { \
       ESP_LOGV(TAG, "invalid " field_name " in line %s", buffer); \
       this->reject_line_(); \
       return; \
     } \
+  }
+
+#define PARSE_INT(field, field_name) \
+  { \
+    get_token(token_buf); \
+    PARSE_TOKEN_INT(field, field_name) \
   }
 
 #define PARSE_STR(field, field_name) \
@@ -100,7 +105,7 @@ void PylontechComponent::loop() {
 
 #ifdef PYLONTECH_LISTENER_COUNT
 void PylontechComponent::dispatch_one_() {
-  for (uint8_t i = 0; i < PYLONTECH_BATTERY_COUNT; i++) {
+  for (uint8_t i = 0; this->pending_ != 0 && i < PYLONTECH_BATTERY_COUNT; i++) {
     const battery_mask_t bit = 1u << i;
     if ((this->pending_ & bit) == 0) {
       continue;
@@ -216,23 +221,11 @@ void PylontechComponent::process_line_(const char *buffer) {
   PARSE_STR(l.volt_st, "Volt.St");
   PARSE_STR(l.curr_st, "Curr.St");
   PARSE_STR(l.temp_st, "Temp.St");
-  {
-    get_token(token_buf);
-    for (char &i : token_buf) {
-      if (i == '%') {
-        i = 0;
-        break;
-      }
-    }
-    auto coul_val = parse_number<int>(token_buf);
-    if (coul_val.has_value() && in_range<decltype(l.coulomb)>(*coul_val)) {
-      l.coulomb = coul_val.value();
-    } else {
-      ESP_LOGV(TAG, "invalid Coulomb in line %s", buffer);
-      this->reject_line_();
-      return;
-    }
+  get_token(token_buf);
+  if (char *pct = strchr(token_buf, '%')) {
+    *pct = '\0';
   }
+  PARSE_TOKEN_INT(l.coulomb, "Coulomb");
   get_token(token_buf);  // Skip Date
   get_token(token_buf);  // Skip Time
   get_token(token_buf);  // Skip B.V.St
