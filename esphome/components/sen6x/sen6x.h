@@ -4,8 +4,31 @@
 #include "esphome/core/optional.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/helpers.h"
+#endif
 
 namespace esphome::sen6x {
+
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+// Bits of the device status register (datasheet section 4.3) a binary sensor can watch
+enum class Sen6xStatus : uint8_t {
+  SEN6X_STATUS_FAN_ERROR,
+  SEN6X_STATUS_FAN_SPEED_WARNING,
+  SEN6X_STATUS_RHT_ERROR,
+  SEN6X_STATUS_GAS_ERROR,
+  SEN6X_STATUS_CO2_ERROR,
+  SEN6X_STATUS_HCHO_ERROR,
+  SEN6X_STATUS_PM_ERROR,
+};
+
+struct StatusSensor {
+  binary_sensor::BinarySensor *sensor;
+  Sen6xStatus status;
+  uint8_t bit;  // of the status register, set at setup once the variant is known
+};
+#endif
 
 // The NOx algorithm requires std_initial to stay at 50 (Sensirion datasheet)
 static constexpr uint16_t NOX_STD_INITIAL = 50;
@@ -91,6 +114,11 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void set_temperature_acceleration(uint16_t k, uint16_t p, uint16_t t1, uint16_t t2) {
     this->temperature_acceleration_ = TemperatureAcceleration{k, p, t1, t2};
   }
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  void add_status_binary_sensor(binary_sensor::BinarySensor *sensor, Sen6xStatus status) {
+    this->status_sensors_.push_back({sensor, status, 0});
+  }
+#endif
   void set_automatic_self_calibration(bool enabled) { this->co2_asc_ = enabled; }
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(uint16_t pressure_hpa) { this->ambient_pressure_ = pressure_hpa; }
@@ -130,6 +158,10 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void poll_data_ready_();
   void read_measurements_();
   void parse_and_publish_measurements_();
+  void read_device_status_();
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  void parse_and_publish_device_status_();
+#endif
 #ifdef USE_SEN6X_NUMBER_CONCENTRATION
   bool has_number_concentration_sensor_() const;
   void read_number_concentration_();
@@ -138,6 +170,9 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
 
   std::string product_name_;
   std::string serial_number_;
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  StaticVector<StatusSensor, SEN6X_STATUS_SENSOR_COUNT> status_sensors_;
+#endif
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureAcceleration> temperature_acceleration_;
