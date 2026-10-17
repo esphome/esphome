@@ -1,0 +1,38 @@
+climate:
+  - platform: airton
+    name: Airton Climate
+    transmitter_id: irblaster
+    receiver_id: recvr
+    sensor: airton_sensor
+
+remote_transmitter:
+  id: irblaster
+  pin: 2
+  carrier_duty_percent: 50%
+
+remote_receiver:
+  id: recvr
+  pin:
+    number: 4
+    inverted: true
+  tolerance:
+    type: percentage
+    value: 35%
+
+sensor:
+  - platform: template
+    id: airton_sensor
+    lambda: "return 21;"
+
+switch:
+  - platform: airton
+    sleep_mode:
+      name: "sleep mode"
+    display:
+      name: "display light"
+
+select:
+  - platform: airton
+    vertical_direction:
+      name: "Vertical direction"
+      id: direction
