@@ -90,11 +90,9 @@ bool MAX17043Component::configure_() {
     ESP_LOGCONFIG(TAG, "IC version: 0x%04X", version);
   }
 
-  // Write back the power-up value to clear a stale sleep bit.
-  if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT)) {
-    this->mark_failed(LOG_STR("sleep reset failed"));
+  // Write back the power-up value to clear a stale sleep bit; a failed write is retried like a silent bus
+  if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT))
     return false;
-  }
 
   this->configured_ = true;
   return true;
@@ -114,6 +112,12 @@ void MAX17043Component::dump_config() {
 
 void MAX17043Component::sleep_mode() {
   if (this->is_failed()) {
+    return;
+  }
+  // The deferred configuration clears the sleep bit, so it has to run before the gauge is put to sleep
+  if (!this->configured_ && !this->configure_()) {
+    ESP_LOGW(TAG, "Gauge did not answer, not putting it to sleep");
+    this->status_set_warning(LOG_STR("Gauge did not answer"));
     return;
   }
 
