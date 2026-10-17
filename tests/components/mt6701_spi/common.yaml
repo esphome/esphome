@@ -1,0 +1,26 @@
+mt6701_spi:
+  id: mt6701_spi_encoder
+  spi_id: spi_bus
+  cs_pin: ${cs_pin}
+  update_interval: 500ms
+
+sensor:
+  - platform: mt6701
+    mt6701_id: mt6701_spi_encoder
+    name: MT6701 SPI Angle
+    update_interval: 100ms
+    raw_count:
+      name: MT6701 SPI Raw Count
+
+binary_sensor:
+  - platform: mt6701_spi
+    mt6701_spi_id: mt6701_spi_encoder
+    push_button:
+      name: MT6701 SPI Button
+    track_loss:
+      name: MT6701 SPI Track Loss
+
+text_sensor:
+  - platform: mt6701_spi
+    mt6701_spi_id: mt6701_spi_encoder
+    name: MT6701 SPI Field Status
