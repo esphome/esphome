@@ -8,6 +8,7 @@
 D=${0:A:h}
 IP=$1; LABEL=$2; LOG=$3; S=${4:-.}
 PY=${PYTHON:-python3}
+[ -f "$LOG" ] || { echo "device capture not found: $LOG"; exit 1; }
 rtt=$(ping -c 10 -i 0.2 $IP 2>&1 | tail -1 | awk -F/ '{print $5}')
 stall0=$(grep -a -c "stalled" $LOG)
 f1=$(timeout 40 ffmpeg -hide_banner -rtsp_transport tcp -i rtsp://$IP:554/ -t 12 -f null - 2>&1 | grep -o "frame= *[0-9]*" | tail -1 | tr -dc 0-9); sleep 2
