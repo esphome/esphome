@@ -7,7 +7,7 @@
 
 namespace esphome::vevor_dtx {
 
-static const char *const TAG = "vevor_dtx";
+ESPHOME_LOG_TAG(TAG, "vevor_dtx");
 
 static uint16_t vevor_encode_uint16(uint8_t msb, uint8_t lsb) { return (uint16_t(msb) << 8) | lsb; }
 
@@ -56,6 +56,7 @@ void VevorDtxComponent::dump_config() {
                 "  Buffer Size: %" PRIu16,
                 this->bit_time_us_, this->max_gap_us_, this->filter_us_, this->buffer_size_);
   LOG_PIN("  Pin: ", this->pin_);
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "Wind speed", this->wind_speed_sensor_);
@@ -64,9 +65,14 @@ void VevorDtxComponent::dump_config() {
   LOG_SENSOR("  ", "Rain", this->rain_sensor_);
   LOG_SENSOR("  ", "UV index", this->uv_index_sensor_);
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
-  LOG_TEXT_SENSOR("  ", "Sensor ID", this->sensor_id_text_sensor_);
   LOG_SENSOR("  ", "TX counter", this->tx_counter_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Sensor ID", this->sensor_id_text_sensor_);
+#endif
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Low battery", this->low_battery_sensor_);
+#endif
 }
 
 void VevorDtxComponent::loop() {
@@ -215,7 +221,6 @@ bool VevorDtxComponent::extract_payload_(const std::array<uint8_t, MAX_BYTES> &b
 
 void VevorDtxComponent::publish_(const std::array<uint8_t, PAYLOAD_SIZE> &payload) {
   const uint16_t sensor_id = vevor_encode_uint16(payload[2], payload[3]);
-  const bool low_battery = (payload[4] & 0x80) != 0;
   const float temperature = (float(vevor_encode_uint16(payload[5], payload[6])) - 500.0f) / 10.0f;
   const uint8_t humidity = payload[7];
 
@@ -252,6 +257,7 @@ void VevorDtxComponent::publish_(const std::array<uint8_t, PAYLOAD_SIZE> &payloa
            sensor_id, payload[4], temperature, humidity, wind_speed, wind_gust, wind_direction, rain, uv_index, uv_byte,
            illuminance, lux_raw, tx_counter, payload[20]);
 
+#ifdef USE_SENSOR
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
   if (this->humidity_sensor_ != nullptr)
@@ -268,6 +274,10 @@ void VevorDtxComponent::publish_(const std::array<uint8_t, PAYLOAD_SIZE> &payloa
     this->uv_index_sensor_->publish_state(uv_index);
   if (this->illuminance_sensor_ != nullptr)
     this->illuminance_sensor_->publish_state(illuminance);
+  if (this->tx_counter_sensor_ != nullptr)
+    this->tx_counter_sensor_->publish_state(tx_counter);
+#endif
+#ifdef USE_TEXT_SENSOR
   if (this->sensor_id_text_sensor_ != nullptr) {
     char sensor_id_text[7];
     sensor_id_text[0] = '0';
@@ -279,10 +289,11 @@ void VevorDtxComponent::publish_(const std::array<uint8_t, PAYLOAD_SIZE> &payloa
     sensor_id_text[6] = '\0';
     this->sensor_id_text_sensor_->publish_state(sensor_id_text);
   }
-  if (this->tx_counter_sensor_ != nullptr)
-    this->tx_counter_sensor_->publish_state(tx_counter);
+#endif
+#ifdef USE_BINARY_SENSOR
   if (this->low_battery_sensor_ != nullptr)
-    this->low_battery_sensor_->publish_state(low_battery);
+    this->low_battery_sensor_->publish_state((payload[4] & 0x80) != 0);
+#endif
 }
 
 }  // namespace esphome::vevor_dtx

@@ -1,10 +1,17 @@
 #pragma once
 
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 #include <array>
 
@@ -36,6 +43,7 @@ class VevorDtxComponent : public Component {
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
   void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
 
+#ifdef USE_SENSOR
   void set_temperature_sensor(sensor::Sensor *sensor) { this->temperature_sensor_ = sensor; }
   void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
   void set_wind_speed_sensor(sensor::Sensor *sensor) { this->wind_speed_sensor_ = sensor; }
@@ -44,9 +52,14 @@ class VevorDtxComponent : public Component {
   void set_rain_sensor(sensor::Sensor *sensor) { this->rain_sensor_ = sensor; }
   void set_uv_index_sensor(sensor::Sensor *sensor) { this->uv_index_sensor_ = sensor; }
   void set_illuminance_sensor(sensor::Sensor *sensor) { this->illuminance_sensor_ = sensor; }
-  void set_sensor_id_text_sensor(text_sensor::TextSensor *sensor) { this->sensor_id_text_sensor_ = sensor; }
   void set_tx_counter_sensor(sensor::Sensor *sensor) { this->tx_counter_sensor_ = sensor; }
+#endif
+#ifdef USE_TEXT_SENSOR
+  void set_sensor_id_text_sensor(text_sensor::TextSensor *sensor) { this->sensor_id_text_sensor_ = sensor; }
+#endif
+#ifdef USE_BINARY_SENSOR
   void set_low_battery_binary_sensor(binary_sensor::BinarySensor *sensor) { this->low_battery_sensor_ = sensor; }
+#endif
 
  protected:
   static constexpr uint8_t SYNC_SIZE = 5;
@@ -64,6 +77,7 @@ class VevorDtxComponent : public Component {
   void publish_(const std::array<uint8_t, PAYLOAD_SIZE> &payload);
 
   InternalGPIOPin *pin_{nullptr};
+#ifdef USE_SENSOR
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *wind_speed_sensor_{nullptr};
@@ -72,9 +86,14 @@ class VevorDtxComponent : public Component {
   sensor::Sensor *rain_sensor_{nullptr};
   sensor::Sensor *uv_index_sensor_{nullptr};
   sensor::Sensor *illuminance_sensor_{nullptr};
-  text_sensor::TextSensor *sensor_id_text_sensor_{nullptr};
   sensor::Sensor *tx_counter_sensor_{nullptr};
+#endif
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *sensor_id_text_sensor_{nullptr};
+#endif
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *low_battery_sensor_{nullptr};
+#endif
 
   uint32_t bit_time_us_{88};
   uint32_t max_gap_us_{2000};
