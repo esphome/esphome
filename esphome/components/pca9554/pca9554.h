@@ -42,6 +42,8 @@ class PCA9554Component final : public Component,
   bool write_address_(uint8_t address, uint16_t value);
 #ifdef USE_PCA9554_PCAL
   bool write_pcal_register_(uint8_t reg, uint16_t value);
+  /// Write every PCAL shadow to the chip; false when any write failed
+  bool write_pcal_shadows_();
   /// Changes the masked bits of a shadow and writes the register only when it changed.
   void update_pcal_register_(uint8_t reg, uint16_t &shadow, uint16_t mask, uint16_t value);
 #endif
@@ -73,6 +75,7 @@ class PCA9554Component final : public Component,
   uint8_t reg_width_{1};
 #ifdef USE_PCA9554_PCAL
   bool pcal_{false};
+  bool pcal_dirty_{false};  // a PCAL write failed; the shadows are rewritten on the next good read
 #endif
 };
 

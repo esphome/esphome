@@ -42,13 +42,9 @@ void PCA9554Component::setup() {
   this->write_register_(OUTPUT_REG, this->output_mask_);
 #ifdef USE_PCA9554_PCAL
   // The chip keeps these across an MCU reboot
-  if (this->pcal_) {
-    this->write_pcal_register_(PUPD_ENABLE, this->pupd_enable_);
-    this->write_pcal_register_(PUPD_SEL, this->pupd_select_);
-    this->write_pcal_register_(INPUT_LATCH, this->latch_);
-    this->write_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_);
-    this->write_pcal_register_(OUTPUT_DRIVE_0, this->drive_0_);
-    this->write_pcal_register_(OUTPUT_DRIVE_1, this->drive_1_);
+  if (this->pcal_ && !this->write_pcal_shadows_()) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
   }
 #endif
   // Read the inputs
@@ -158,6 +154,11 @@ bool PCA9554Component::read_inputs_() {
   if (this->reg_width_ == 2) {
     this->input_mask_ |= inputs[1] << 8;
   }
+#ifdef USE_PCA9554_PCAL
+  // The bus answers again, so retry the settings a failed write left off the chip
+  if (this->pcal_dirty_)
+    this->write_pcal_shadows_();
+#endif
   return true;
 }
 
@@ -178,17 +179,31 @@ bool PCA9554Component::write_address_(uint8_t address, uint16_t value) {
 
 #ifdef USE_PCA9554_PCAL
 bool PCA9554Component::write_pcal_register_(uint8_t reg, uint16_t value) {
-  return this->write_address_(PCAL_BASE + reg * this->reg_width_, value);
+  if (this->write_address_(PCAL_BASE + reg * this->reg_width_, value))
+    return true;
+  this->pcal_dirty_ = true;
+  return false;
+}
+
+bool PCA9554Component::write_pcal_shadows_() {
+  this->pcal_dirty_ = false;
+  // Every write runs so one failure does not hide the others; each failure sets pcal_dirty_ again
+  bool ok = this->write_pcal_register_(PUPD_ENABLE, this->pupd_enable_);
+  ok &= this->write_pcal_register_(PUPD_SEL, this->pupd_select_);
+  ok &= this->write_pcal_register_(INPUT_LATCH, this->latch_);
+  ok &= this->write_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_);
+  ok &= this->write_pcal_register_(OUTPUT_DRIVE_0, this->drive_0_);
+  ok &= this->write_pcal_register_(OUTPUT_DRIVE_1, this->drive_1_);
+  return ok;
 }
 
 void PCA9554Component::update_pcal_register_(uint8_t reg, uint16_t &shadow, uint16_t mask, uint16_t value) {
   const uint16_t updated = (shadow & ~mask) | (value & mask);
-  // setup() wrote every shadow, so an unchanged value is already on the chip
-  if (updated == shadow)
+  // The shadows hold the wanted state; an unchanged value is already on the chip unless a write failed
+  if (updated == shadow && !this->pcal_dirty_)
     return;
-  // Keep the old shadow on a failed write so the same request retries it
-  if (this->write_pcal_register_(reg, updated))
-    shadow = updated;
+  shadow = updated;
+  this->write_pcal_register_(reg, shadow);
 }
 
 void PCA9554Component::set_drive_strength(uint8_t pin, uint8_t strength) {
