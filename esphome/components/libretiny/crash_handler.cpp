@@ -9,32 +9,36 @@
 #include "esphome/core/progmem.h"
 
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 
+extern "C" {
+#include <intc.h>  // struct arm_registers
+}
+
 // The BK72xx SDK (driver/entry/boot_handlers.S) answers an undefined instruction, prefetch abort or
-// data abort by building this frame on the exception mode's stack (PUSH_SVC_REG, the layout of
-// driver/intc/intc.h struct arm_registers) and branching to bk_trap_udef/pabt/dabt with a pointer to
-// it. The SDK handler records the crash type in a retention register, prints a register dump that
-// sdk_silent hides, and spins with interrupts off until the hardware watchdog resets the chip about
-// 10 s later. The build wraps those three handlers (-Wl,--wrap) so the fault location and a stack
-// scan are saved first, in RAM that survives the watchdog reset, and reported on the next boot.
+// data abort by building a struct arm_registers frame on the exception mode's stack (PUSH_SVC_REG)
+// and branching to bk_trap_udef/pabt/dabt with a pointer to it. The SDK handler records the crash
+// type in a retention register, prints a register dump that sdk_silent hides, and spins with
+// interrupts off until the hardware watchdog resets the chip about 10 s later. The build wraps those
+// three handlers (-Wl,--wrap) so the fault location and a stack scan are saved first, in RAM that
+// survives the watchdog reset, and reported on the next boot.
 //
-// sp, lr and pc in the frame belong to the exception mode.
-struct BkArmRegisters {
-  uint32_t r[13];
-  uint32_t sp;
-  uint32_t lr;
-  uint32_t pc;
-  uint32_t spsr;
-  uint32_t cpsr;
-};
+// sp, lr and pc in the frame belong to the exception mode. PUSH_SVC_REG stores them at these word
+// offsets, so the SDK header must keep describing that frame.
+static_assert(sizeof(arm_registers) == 18 * sizeof(uint32_t), "SDK exception frame changed size");
+static_assert(offsetof(arm_registers, sp) == 13 * 4 && offsetof(arm_registers, lr) == 14 * 4 &&
+                  offsetof(arm_registers, pc) == 15 * 4 && offsetof(arm_registers, spsr) == 16 * 4 &&
+                  offsetof(arm_registers, cpsr) == 17 * 4,
+              "SDK exception frame layout changed");
+static_assert(LT_HW_WATCHDOG, "the crash reboot relies on the hardware watchdog");
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
-void __real_bk_trap_udef(BkArmRegisters *regs);
-void __real_bk_trap_pabt(BkArmRegisters *regs);
-void __real_bk_trap_dabt(BkArmRegisters *regs);
+void __real_bk_trap_udef(arm_registers *regs);
+void __real_bk_trap_pabt(arm_registers *regs);
+void __real_bk_trap_dabt(arm_registers *regs);
 // Linker symbols bounding the app's flash image (code and rodata) and its ITCM code copy.
 extern char _vector_start[];
 extern char _data_flash_begin[];
@@ -166,7 +170,7 @@ __attribute__((target("arm"), naked, noinline)) static void read_banked_sp_lr(ui
                    "bx lr\n");
 }
 
-static void record_crash(BkArmRegisters *regs, uint32_t reason, uint32_t pc_offset) {
+static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offset) {
   uint32_t mode = regs->spsr & CPSR_MODE_MASK;
   if (mode == CPSR_MODE_USR)
     mode = CPSR_MODE_SYS;  // same register bank
@@ -201,17 +205,17 @@ static void record_crash(BkArmRegisters *regs, uint32_t reason, uint32_t pc_offs
 // The exception LR points past the faulting instruction: by one instruction for an undefined
 // instruction, 4 bytes for a prefetch abort and 8 bytes for a data abort.
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
-extern "C" void __wrap_bk_trap_udef(BkArmRegisters *regs) {
+extern "C" void __wrap_bk_trap_udef(arm_registers *regs) {
   record_crash(regs, CRASH_REASON_UNDEFINED, (regs->spsr & CPSR_THUMB) ? 2 : 4);
   __real_bk_trap_udef(regs);
 }
 
-extern "C" void __wrap_bk_trap_pabt(BkArmRegisters *regs) {
+extern "C" void __wrap_bk_trap_pabt(arm_registers *regs) {
   record_crash(regs, CRASH_REASON_PREFETCH_ABORT, 4);
   __real_bk_trap_pabt(regs);
 }
 
-extern "C" void __wrap_bk_trap_dabt(BkArmRegisters *regs) {
+extern "C" void __wrap_bk_trap_dabt(arm_registers *regs) {
   record_crash(regs, CRASH_REASON_DATA_ABORT, 8);
   __real_bk_trap_dabt(regs);
 }
