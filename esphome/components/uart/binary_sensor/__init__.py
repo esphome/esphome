@@ -22,7 +22,8 @@ UARTBinarySensorHub = uart_ns.class_(
 _request_matcher_slot = cg.slot_counter("UART_BINARY_SENSOR_COUNT")
 
 CONFIG_SCHEMA = (
-    binary_sensor.binary_sensor_schema()
+    # Initially off, so the first sequence after boot is an OFF to ON edge for on_press
+    binary_sensor.binary_sensor_schema(binary_sensor.BinarySensorInitiallyOff)
     .extend(
         {
             cv.GenerateID(CONF_HUB_ID): cv.declare_id(UARTBinarySensorHub),
@@ -36,11 +37,15 @@ CONFIG_SCHEMA = (
 )
 
 
+_validate_bus = uart.final_validate_device_schema("uart binary_sensor", require_rx=True)
+
+
 def _one_hub_per_bus(config: ConfigType) -> ConfigType:
-    """The first matching sensor takes the bytes, so a pattern that ends another on the same bus
-    would leave one of them dead; and the sensors of a bus share the hub the first one creates,
-    so only that one can name it."""
+    """The first matching sensor takes the bytes and clears them, so a sequence that contains
+    another on the same bus would leave one of them dead; and the sensors of a bus share the hub
+    the first one creates, so only that one can name it and claim the bus's receive side."""
     data = bytes(config[CONF_DATA])
+    first = True
     for other in fv.full_config.get().get("binary_sensor", []):
         if (
             other.get("platform") != "uart"
@@ -49,8 +54,9 @@ def _one_hub_per_bus(config: ConfigType) -> ConfigType:
             continue
         if other is config:
             break  # Every sensor before this one on the bus has been seen
+        first = False
         other_data = bytes(other[CONF_DATA])
-        if other_data.endswith(data) or data.endswith(other_data):
+        if other_data in data or data in other_data:
             raise cv.Invalid(
                 f"Another uart binary_sensor on '{config[CONF_UART_ID]}' has data this pattern "
                 "would match as well"
@@ -60,6 +66,8 @@ def _one_hub_per_bus(config: ConfigType) -> ConfigType:
                 f"Set hub_id on the first uart binary_sensor of '{config[CONF_UART_ID]}'; "
                 "the others share its hub"
             )
+    if first:
+        _validate_bus(config)
     return config
 
 
