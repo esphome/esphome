@@ -1,0 +1,1 @@
+../../../../../esphome/components/wifi/scan_list.h

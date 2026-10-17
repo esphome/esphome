@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import spi, ssd1322_base
 import esphome.config_validation as cv
 from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 
@@ -29,7 +30,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ssd1322_base.setup_ssd1322(var, config)
     await spi.register_spi_device(var, config, write_only=True)

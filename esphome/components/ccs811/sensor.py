@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BASELINE,
     CONF_ECO2,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_VERSION,
@@ -18,6 +17,7 @@ from esphome.const import (
     UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["text_sensor"]
 CODEOWNERS = ["@habbie"]
@@ -59,22 +59,15 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
-    if eco2_config := config.get(CONF_ECO2):
-        sens = await sensor.new_sensor(eco2_config)
-        cg.add(var.set_co2(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ECO2, var.set_co2)
+    await sensors(CONF_TVOC, var.set_tvoc)
 
-    if tvoc_config := config.get(CONF_TVOC):
-        sens = await sensor.new_sensor(tvoc_config)
-        cg.add(var.set_tvoc(sens))
-
-    if version_config := config.get(CONF_VERSION):
-        sens = await text_sensor.new_text_sensor(version_config)
-        cg.add(var.set_version(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_VERSION, var.set_version)
 
     if (baseline := config.get(CONF_BASELINE)) is not None:
         cg.add(var.set_baseline(baseline))

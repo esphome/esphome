@@ -1,0 +1,2 @@
+packages:
+  improv_serial: !include common-ethernet.yaml

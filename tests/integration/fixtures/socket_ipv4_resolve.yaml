@@ -1,0 +1,17 @@
+esphome:
+  name: socket-ipv4-resolve-test
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [ipv4_resolve_test_component]
+
+ipv4_resolve_test_component:

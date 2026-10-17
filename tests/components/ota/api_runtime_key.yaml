@@ -1,0 +1,10 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+  encryption:
+
+ota:
+  - platform: esphome
+    port: 3291

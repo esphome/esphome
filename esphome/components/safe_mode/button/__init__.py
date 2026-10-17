@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
 from .. import SafeModeComponent, safe_mode_ns
 
@@ -26,7 +27,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await button.new_button(config)
     await cg.register_component(var, config)
 

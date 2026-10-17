@@ -189,13 +189,17 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
     }
 
     if (in_ep && out_ep) {
-      cdc_devs.push_back(CdcEps{notify_ep, in_ep, out_ep, intf->bInterfaceNumber, intf->bInterfaceNumber});
+      CdcEps eps{notify_ep, in_ep, out_ep, intf->bInterfaceNumber, intf->bInterfaceNumber};
+      eps.bulk_interface_class = intf->bInterfaceClass;
+      eps.interrupt_interface_class = intf->bInterfaceClass;
+      cdc_devs.push_back(eps);
       break;  // PL2303 is single-port
     }
   }
 
-  if (cdc_devs.empty())
+  if (cdc_devs.empty()) {
     ESP_LOGE(TAG, "PL2303: failed to find bulk IN+OUT endpoints");
+  }
 
   return cdc_devs;
 }
@@ -226,7 +230,7 @@ static const Pl2303InitStep PL2303_INIT[] = {
 };
 static constexpr uint8_t PL2303_INIT_COUNT = sizeof(PL2303_INIT) / sizeof(PL2303_INIT[0]);
 
-bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   bool is_legacy = (this->chip_type_ == PL2303_TYPE_H);
   bool is_hxn = (this->chip_type_ == PL2303_TYPE_HXN);
@@ -260,40 +264,15 @@ bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool 
         encode_baud_divisor(line_coding, baud);
       }
 
-      // Stop bits: 0=1, 1=1.5, 2=2
-      switch (channel->get_stop_bits()) {
-        case 2:
-          line_coding[4] = 2;
-          break;
-        default:
-          line_coding[4] = 0;
-          break;
-      }
+      line_coding[4] = static_cast<uint8_t>(channel->line_stop_bits_());
 
-      // Parity: 0=none, 1=odd, 2=even, 3=mark, 4=space
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_ODD:
-          line_coding[5] = 1;
-          break;
-        case UART_CONFIG_PARITY_EVEN:
-          line_coding[5] = 2;
-          break;
-        case UART_CONFIG_PARITY_MARK:
-          line_coding[5] = 3;
-          break;
-        case UART_CONFIG_PARITY_SPACE:
-          line_coding[5] = 4;
-          break;
-        default:
-          line_coding[5] = 0;
-          break;
-      }
+      line_coding[5] = static_cast<uint8_t>(channel->line_parity_());
 
       // Data bits
       line_coding[6] = channel->get_data_bits();
 
-      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%u stop=%u parity=%u data=%u", baud, line_coding[4], line_coding[5],
-               line_coding[6]);
+      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%" PRIu32 " stop=%u parity=%u data=%u", baud, line_coding[4],
+               line_coding[5], line_coding[6]);
 
       std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);
       this->config_transfer_(SET_LINE_REQUEST_TYPE, SET_LINE_REQUEST, 0, iface, lc_vec);
@@ -303,11 +282,17 @@ bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool 
       // Assert DTR + RTS (init only)
       if (reload)
         return false;
-      this->config_transfer_(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, CONTROL_DTR | CONTROL_RTS, iface);
+      this->modem_control_transfer(channel);
       return true;
     default:
       return false;
   }
+}
+
+void USBUartTypePL2303::modem_control_transfer(USBUartChannelBase *channel) {
+  const uint16_t value = (channel->dtr_ ? CONTROL_DTR : 0) | (channel->rts_ ? CONTROL_RTS : 0);
+  ESP_LOGD(TAG, "PL2303: SET_CONTROL_REQUEST DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  this->config_transfer_(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, value, channel->cdc_dev_.bulk_interface_number);
 }
 
 }  // namespace esphome::usb_uart

@@ -5,13 +5,10 @@
 
 namespace esphome::kamstrup_kmp {
 
-static const char *const TAG = "kamstrup_kmp";
+ESPHOME_LOG_TAG(TAG, "kamstrup_kmp");
 
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Heat Energy", this->heat_energy_sensor_);
@@ -26,8 +23,6 @@ void KamstrupKMPComponent::dump_config() {
     LOG_SENSOR("  ", "Custom Sensor", this->custom_sensors_[i]);
     ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom_commands_[i]);
   }
-
-  this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
 void KamstrupKMPComponent::update() {
@@ -147,6 +142,9 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
       if (data > -1) {
         if (data == 0x40) {  // start of message
           buffer_len = 0;
+        } else if (buffer_len == 0) {
+          // Ignore request echoes until the response starts.
+          continue;
         }
         buffer[buffer_len++] = (uint8_t) data;
         if (data == 0x0D) {
@@ -166,12 +164,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
     return;
   }
 
-  // Validate message (prefix and suffix)
-  if (buffer[0] != 0x40) {
-    ESP_LOGE(TAG, "Received invalid message (prefix mismatch received 0x%02X, expected 0x40)", buffer[0]);
-    return;
-  }
-
+  // Only bytes from the 0x40 start byte on are stored, so just the end of the message needs checking
   if (buffer[buffer_len - 1] != 0x0D) {
     ESP_LOGE(TAG, "Received invalid message (EOM mismatch received 0x%02X, expected 0x0D)", buffer[buffer_len - 1]);
     return;
@@ -180,7 +173,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   // Decode
   uint8_t msg[20] = {0};
   int msg_len = 0;
-  for (size_t i = 1; i < buffer_len - 1; i++) {
+  for (size_t i = 1; i < buffer_len - 1 && msg_len < (int) sizeof(msg); i++) {
     if (buffer[i] == 0x1B) {
       msg[msg_len++] = buffer[i + 1] ^ 0xFF;
       i++;
@@ -189,8 +182,8 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
     }
   }
 
-  // Validate CRC
-  if (crc16be(msg, msg_len - 2) != encode_uint16(msg[msg_len - 2], msg[msg_len - 1])) {
+  // Validate CRC; a frame shorter than the CRC itself has nothing to check
+  if (msg_len < 2 || crc16be(msg, msg_len - 2) != encode_uint16(msg[msg_len - 2], msg[msg_len - 1])) {
     ESP_LOGE(TAG, "Received invalid message (CRC mismatch)");
     return;
   }

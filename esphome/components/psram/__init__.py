@@ -129,7 +129,7 @@ def validate_task_stack_in_psram(value: Any) -> bool:
     return value
 
 
-def validate_psram_mode(config):
+def validate_psram_mode(config: ConfigType) -> ConfigType:
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if config[CONF_SPEED] == "120MHZ":
         if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
@@ -203,7 +203,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _store_psram_guaranteed(config):
+def _store_psram_guaranteed(config: ConfigType) -> ConfigType:
     """Store PSRAM guaranteed status in CORE.data for other components.
 
     PSRAM is "guaranteed" when it will fail if not found, ensuring safe use
@@ -220,7 +220,7 @@ def _store_psram_guaranteed(config):
 FINAL_VALIDATE_SCHEMA = cv.All(validate_psram_mode, _store_psram_guaranteed)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED]:
         return
     if CORE.using_arduino:

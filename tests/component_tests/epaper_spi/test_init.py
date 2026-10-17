@@ -13,7 +13,12 @@ from esphome.components.epaper_spi.display import (
     FINAL_VALIDATE_SCHEMA,
     MODELS,
 )
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    VARIANT_ESP32S3,
+)
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
@@ -312,6 +317,66 @@ def test_model_with_full_update_every(
     )
 
 
+def test_update_interval_below_model_minimum_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """update_interval faster than the model's minimum_update_interval is rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="at least"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1677",
+                "dc_pin": 21,
+                "busy_pin": 22,
+                "reset_pin": 23,
+                "cs_pin": 5,
+                "dimensions": {
+                    "width": 200,
+                    "height": 200,
+                },
+                "update_interval": "500ms",
+            }
+        )
+
+
+def test_reset_duration_over_max_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """reset_duration over the 500ms cap is rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="at most"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1677",
+                "dc_pin": 21,
+                "busy_pin": 22,
+                "reset_pin": 23,
+                "cs_pin": 5,
+                "dimensions": {
+                    "width": 200,
+                    "height": 200,
+                },
+                "reset_duration": "600ms",
+            }
+        )
+
+
 def test_busy_pin_input_mode_ssd1677(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
@@ -439,6 +504,157 @@ def test_enable_pin_multiple(
     assert all(pin["mode"]["output"] is True for pin in enable_pins)
 
 
+def test_uc8179_e1001_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that the reTerminal E1001 model generates the UC8179 driver and init sequence."""
+    main_cpp = generate_main(component_config_path("uc8179_e1001_test.yaml"))
+
+    # The model must instantiate the UC8179 driver class with the panel dimensions
+    assert "epaper_spi::EPaperUC8179" in main_cpp
+    assert re.search(r'"SEEED-RETERMINAL-E1001",\s*800,\s*480', main_cpp)
+
+    # The generated init sequence must contain the UC8179 resolution setting
+    # for 800x480: command 0x61, 4 data bytes 0x03 0x20 0x01 0xE0
+    # (rendered as decimal in the generated array)
+    assert "97, 4, 3, 32, 1, 224" in main_cpp
+
+
+def test_uc8279_width_must_be_a_multiple_of_8(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The UC8279 takes whole bytes of sources, so the width is a multiple of 8."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="multiple of 8"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "uc8279",
+                "dc_pin": 21,
+                "dimensions": {"width": 804, "height": 480},
+            }
+        )
+
+
+def test_uc8279_x4pro_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Xteink X4 Pro generates the UC8279 driver with the panel's gate offset and gate count."""
+    main_cpp = generate_main(component_config_path("uc8279_x4pro_test.yaml"))
+
+    assert "epaper_spi::EPaperUC8279" in main_cpp
+    # 800 sources, 480 rows, and the panel on the last 480 of 600 gates
+    assert re.search(
+        r'"XTEINK-X4PRO-UC8279",\s*800,\s*480,.*?,\s*120\)', main_cpp, re.DOTALL
+    )
+    resolution = next(
+        cmd
+        for cmd in MODELS["XTEINK-X4PRO-UC8279"].get_init_sequence({})
+        if cmd[0] == 0x61
+    )
+    assert resolution == (0x61, 0x03, 0x20, 0x02, 0x58)
+
+
+def test_uc8279_offset_height_configurable(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The generic uc8279 model takes offset_height under dimensions, reaching the constructor and gate count."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    config = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "uc8279",
+            "dc_pin": 21,
+            "dimensions": {"width": 16, "height": 2, "offset_height": 8},
+        }
+    )
+    model = MODELS["UC8279"]
+    assert model.get_constructor_args(config) == (8,)
+    resolution = next(cmd for cmd in model.get_init_sequence(config) if cmd[0] == 0x61)
+    # 16 sources, and 8 + 2 = 10 gates
+    assert resolution == (0x61, 0x00, 0x10, 0x00, 0x0A)
+
+
+def test_uc8279_offset_height_plus_height_must_fit_16_bits(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """offset_height plus the panel height is the gate count, which the controller holds in 16 bits."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="must not exceed"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "uc8279",
+                "dc_pin": 21,
+                "dimensions": {"width": 16, "height": 2, "offset_height": 0xFFFF},
+            }
+        )
+
+
+def test_uc8279_x4pro_explicit_dimensions_keep_the_model_offset(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Writing out the X4 Pro's dimensions without offset_height keeps the panel's offset of 120."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 12, "mosi_pin": 11})
+
+    config = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "xteink-x4pro-uc8279",
+            "dimensions": {"width": 800, "height": 480},
+        }
+    )
+    assert MODELS["XTEINK-X4PRO-UC8279"].get_constructor_args(config) == (120,)
+
+
+def test_offset_height_rejected_by_models_without_it(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """A model that does not use offset_height rejects it rather than ignoring it."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="offset_height"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1677",
+                "dc_pin": 21,
+                "dimensions": {"width": 200, "height": 200, "offset_height": 8},
+            }
+        )
+
+
 def test_enable_pin_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -464,6 +680,26 @@ def test_enable_pin_code_generation(
     assert f"set_enable_pins({{{pin_25}, {pin_26}}});" in main_cpp
 
 
+def test_full_update_next_action_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The epaper_spi.full_update_next action targets the configured display."""
+    main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
+
+    assert "epaper_display->request_full_update();" in main_cpp
+
+
+def test_is_updating_condition_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The epaper_spi.is_updating condition checks the configured display."""
+    main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
+
+    assert "epaper_display->is_updating()" in main_cpp
+
+
 def test_model_with_no_default_init_sequence_generates(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -483,3 +719,15 @@ def test_model_with_no_default_init_sequence_generates(
     # init_sequence_length, ...); a length of 0 confirms the empty init
     # sequence array was generated instead of raising during code generation.
     assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0\);", main_cpp)
+
+
+def test_test_card_overrides_update_interval(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """With nothing else to draw, update_interval is not left at never for the test card."""
+    main_cpp = generate_main(component_config_path("test_card_update_interval.yaml"))
+
+    match = re.search(r"epaper_display->set_update_interval\((\d+)\);", main_cpp)
+    assert match is not None
+    assert int(match.group(1)) != 4294967295

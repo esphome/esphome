@@ -5,11 +5,11 @@ users to lose stored preferences (calibration values, restore states, etc.) on
 firmware upgrades, or break entity state routing to API clients.
 
 Two algorithms are locked here (see https://github.com/esphome/backlog/issues/85):
-1. `fnv1_hash_object_id(name)` - the LEGACY hash (snake_case + sanitize, then FNV-1).
-   Existing devices have preferences stored under keys derived from it; slot-based
-   backends (ESP8266, RP2040) keep using it, and key-lookup backends migrate FROM it.
-2. `fnv1_hash_name(name)` - the entity key (FNV-1 over the raw UTF-8 name bytes).
-   Sent to API clients and used as the preference key base on key-lookup backends.
+1. `fnv1_hash_object_id(name)` - the object_id hash (snake_case + sanitize, then FNV-1).
+   The entity key sent to API clients and the base of every stored preference key.
+2. `fnv1_hash_name(name)` - FNV-1 over the raw UTF-8 name bytes. 2026.8 beta
+   firmware stored preferences under keys derived from it; a future key migration
+   must reconstruct those keys to recover that data.
 
 DO NOT CHANGE THE EXPECTED VALUES - if tests fail after modifying a hash algorithm,
 the change breaks backward compatibility and will cause data loss.
@@ -124,8 +124,9 @@ def test_entity_object_id_hash_stability(
     """Verify fnv1_hash_object_id produces stable hashes for entity names.
 
     CRITICAL: These expected values MUST NOT CHANGE. Existing devices have
-    preferences stored under keys derived from this legacy hash; changing it
-    breaks the old-to-new key migration and loses stored preferences.
+    preferences stored under keys derived from this hash, and it is the entity
+    key sent to API clients; changing it loses stored preferences and breaks
+    entity state routing.
     """
     actual = fnv1_hash_object_id(entity_name)
     assert actual == expected_object_id_hash, (
@@ -144,9 +145,8 @@ def compute_legacy_preference_key(
 ) -> int:
     """Compute the legacy preference key: (object_id_hash ^ device_id) ^ version.
 
-    This is the key existing devices have data stored under. Slot-based backends
-    (ESP8266, RP2040) still use it directly; key-lookup backends compute it as the
-    migration source in EntityBase::make_entity_preference_() (entity_base.cpp).
+    This is the key EntityBase::make_entity_preference_() (entity_base.cpp)
+    stores every entity preference under.
     """
     object_id_hash = fnv1_hash_object_id(entity_name)
     preference_hash = object_id_hash ^ device_id
@@ -179,8 +179,8 @@ def test_legacy_preference_key_computation(
 ) -> None:
     """Verify legacy preference key computation matches expected values.
 
-    This test ensures the formula doesn't change, which would break both slot-based
-    preference storage and the migration source keys on key-lookup backends.
+    This test ensures the formula doesn't change, which would lose stored
+    preferences on every platform.
     """
     actual_key = compute_legacy_preference_key(entity_name, version, device_id)
 
@@ -215,12 +215,12 @@ def test_legacy_preference_key_computation(
     ],
 )
 def test_entity_key_hash_stability(entity_name: str, expected_key: int) -> None:
-    """Verify fnv1_hash_name produces stable entity keys.
+    """Verify fnv1_hash_name produces stable raw-name hashes.
 
-    CRITICAL: These expected values MUST NOT CHANGE. The entity key is sent to
-    API clients and is the new preference key base; changing the algorithm
-    would break state routing and lose stored preferences.
-    Must match C++ fnv1_hash_bytes() in esphome/core/helpers.h.
+    CRITICAL: These expected values MUST NOT CHANGE. 2026.8 beta firmware stored
+    preferences under keys derived from this hash; a future key migration must
+    reconstruct those keys, and changing the algorithm would strand that data.
+    Matched C++ fnv1_hash_bytes() (2026.8 beta), which the unrevert restores.
     """
     actual = fnv1_hash_name(entity_name)
     assert actual == expected_key, (

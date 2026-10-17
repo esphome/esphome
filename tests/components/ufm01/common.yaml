@@ -28,3 +28,17 @@ binary_sensor:
     flow_rate_out_of_range:
       id: flow_rate_out_of_range
       name: "Flow rate out of range"
+
+text_sensor:
+  - platform: ufm01
+    meter_id:
+      id: ufm01_meter_id
+      name: "Meter ID"
+    software_version:
+      id: ufm01_software_version
+      name: "Software version"
+
+script:
+  - id: ufm01_clear_accumulated_flow
+    then:
+      - ufm01.clear_accumulated_flow: ufm01_component
