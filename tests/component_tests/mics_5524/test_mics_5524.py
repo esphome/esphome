@@ -125,9 +125,9 @@ def test_datasheet_conversion_uses_the_shipped_coefficients(
     """One conversion model per sensor, and the coefficients of CO are the shipped ones."""
     main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
-    # a = 6.3, b = -1.1, range 0 .. 2000 ppm.
+    # a = 1.0, b = -1.2, the 1 ppm floor of the data sheet and the configured 2000 ppm ceiling.
     co = _gas_arguments(main_cpp, "mics_5524_co_ds")
-    assert _gas_constants(co) == [6.3, -1.1, 0.0, 2000.0]
+    assert _gas_constants(co) == [1.0, -1.2, 1.0, 2000.0]
     assert "mics_5524_pin->register_gas_sensor(mics_5524_co_ds);" in main_cpp
     assert (
         "mics_5524_pin->set_conversion(mics_5524::micsmath::CONVERSION_MODEL_DATASHEET);"
@@ -156,6 +156,10 @@ def test_pin_creates_an_internal_adc(
     main_cpp = generate_main(component_config_path("mics_5524.yaml"))
 
     assert "new(mics_5524_pin_adc) adc::ADCSensor();" in main_cpp
+    # Without `adc_attenuation:` an ESP32 gets 12 dB, since the 0 dB default clips at about 1 V.
+    assert (
+        "mics_5524_pin_adc->set_attenuation(adc::ADC_ATTEN_DB_12_COMPAT);" in main_cpp
+    )
     assert (
         "new(mics_5524_pin) mics_5524::MiCS5524Component(mics_5524_pin_adc);"
         in main_cpp
@@ -465,6 +469,33 @@ def test_datasheet_rejects_half_a_fit() -> None:
         )
 
 
+def test_datasheet_rejects_a_flat_or_rising_fit() -> None:
+    """A fit whose reading does not rise as the resistance falls reads saturation as no gas."""
+    for b in (0.0, 0.8):
+        with pytest.raises(cv.Invalid, match="'coefficient_b:' must be negative"):
+            CONFIG_SCHEMA(
+                _hub(
+                    air_reference=None,
+                    conversion="datasheet",
+                    r0=10.0,
+                    hydrogen={
+                        "name": f"MiCS-5524 H2 (fit b={b})",
+                        "coefficient_a": 12.0,
+                        "coefficient_b": b,
+                    },
+                )
+            )
+
+
+def test_datasheet_min_ppm_defaults_to_the_shipped_floor_only() -> None:
+    """The shipped CO fit reads 0 below the 1 ppm of the data sheet; a user fit has no floor."""
+    from esphome.components.mics_5524.coefficients import resolve_gas
+
+    assert resolve_gas("carbon_monoxide", "datasheet").min_ppm == 1.0
+    assert resolve_gas("carbon_monoxide", "datasheet", a=2.0, b=-1.0).min_ppm == 0.0
+    assert resolve_gas("carbon_monoxide", "datasheet", min_ppm=5.0).min_ppm == 5.0
+
+
 def test_datasheet_rejects_a_non_positive_coefficient() -> None:
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA(
@@ -508,7 +539,7 @@ def test_vendor_table_is_the_datasheet_one() -> None:
     expected = {
         CONF_CARBON_MONOXIDE: GasDefinition(
             vendor=VendorCurve("CO", 0.425, 0.000405, 1.0, 1000.0),
-            datasheet=DatasheetCurve(6.3, -1.1, 1000.0),
+            datasheet=DatasheetCurve(1.0, -1.2, 1.0, 1000.0),
         ),
         CONF_HYDROGEN: GasDefinition(
             VendorCurve("H2", 0.279, 0.00026, 1.0, 1000.0), None

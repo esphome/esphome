@@ -88,7 +88,8 @@ class MiCS5524Component : public PollingComponent {
   void process_calibration_();
   void finish_calibration_();
   void schedule_calibration_retry_();
-  void save_reference_();
+  /// True when the reference reached the storage.
+  bool save_reference_();
   bool load_reference_();
   bool is_vendor_model_() const { return this->conversion_ == micsmath::CONVERSION_MODEL_DFROBOT; }
   bool has_reference_() const { return this->reference_ > 0.0f; }

@@ -123,8 +123,8 @@ TEST(MicsMath, SaturatedDatasheetSensorReadsTheTopOfTheRange) {
   // vendor model, rather than unknown with a wiring warning.
   const float ratio = ratio_from_rs(rs_from_voltage(5.0f, 5.0f, 10.0f), 10.0f);
   EXPECT_FLOAT_EQ(0.0f, ratio);
-  EXPECT_TRUE(std::isinf(ppm_from_power_law(6.3f, -1.1f, ratio)));
-  EXPECT_FLOAT_EQ(1000.0f, clamp_ppm(ppm_from_power_law(6.3f, -1.1f, ratio), 0.0f, 1000.0f));
+  EXPECT_TRUE(std::isinf(ppm_from_power_law(1.0f, -1.2f, ratio)));
+  EXPECT_FLOAT_EQ(1000.0f, clamp_ppm(ppm_from_power_law(1.0f, -1.2f, ratio), 1.0f, 1000.0f));
   // Without a ceiling there is nothing to report.
   EXPECT_TRUE(std::isnan(clamp_ppm(INFINITY, 0.0f, INFINITY)));
 }
@@ -139,19 +139,18 @@ TEST(MicsMath, DatasheetRatioNeedsAReference) {
 }
 
 TEST(MicsMath, DatasheetCurveFollowsTheShippedCoefficients) {
-  // The CO fit shipped in `coefficients.py`: a = 6.3, b = -1.1, 1000 ppm at RS/R0 = 0.01 and
-  // about 10 ppm at RS/R0 = 0.65.
-  EXPECT_NEAR(10.1f, ppm_from_power_law(6.3f, -1.1f, 0.65f), 0.05f);
-  EXPECT_NEAR(13.5f, ppm_from_power_law(6.3f, -1.1f, 0.5f), 0.05f);
-  EXPECT_NEAR(998.5f, ppm_from_power_law(6.3f, -1.1f, 0.01f), 0.5f);
-  // Clean air (RS == R0) reads the coefficient itself.
-  EXPECT_NEAR(6.3f, ppm_from_power_law(6.3f, -1.1f, 1.0f), 0.001f);
+  // The CO fit shipped in `coefficients.py`, a = 1.0 and b = -1.2, follows the data sheet
+  // graph with R0 at clean air: 1 ppm at RS/R0 = 1, 60 ppm at about 0.033 (a sensitivity
+  // factor of 30, inside the 1.2 - 50 the data sheet gives) and 1000 ppm at about 0.0032.
+  EXPECT_FLOAT_EQ(1.0f, ppm_from_power_law(1.0f, -1.2f, 1.0f));
+  EXPECT_NEAR(60.0f, ppm_from_power_law(1.0f, -1.2f, 0.0329f), 0.5f);
+  EXPECT_NEAR(1000.0f, ppm_from_power_law(1.0f, -1.2f, 0.00316f), 5.0f);
   // A ratio outside what the fit can express is unusable, not a huge number.
-  EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, -0.1f)));
-  EXPECT_TRUE(std::isnan(ppm_from_power_law(6.3f, -1.1f, NAN)));
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(1.0f, -1.2f, -0.1f)));
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(1.0f, -1.2f, NAN)));
   // A non-positive fit cannot produce a reading either.
-  EXPECT_TRUE(std::isnan(ppm_from_power_law(0.0f, -1.1f, 0.5f)));
-  EXPECT_TRUE(std::isnan(ppm_from_power_law(-6.3f, -1.1f, 0.5f)));
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(0.0f, -1.2f, 0.5f)));
+  EXPECT_TRUE(std::isnan(ppm_from_power_law(-1.0f, -1.2f, 0.5f)));
 }
 
 TEST(MicsMath, ClampingKeepsZeroAndCapsTheRange) {
@@ -166,14 +165,16 @@ TEST(MicsMath, ClampingKeepsZeroAndCapsTheRange) {
 
 TEST(MicsMath, DatasheetModelEndToEnd) {
   // 2.5 V across a 10k load resistor is RS = 10 kOhm, which is also R0 when the sensor
-  // is in clean air: the reading is then the coefficient `a` of the gas.
+  // is in clean air: the reading is then the 1 ppm floor of the data sheet.
   const float rs = rs_from_voltage(2.5f, 5.0f, 10.0f);
   const float ratio = ratio_from_rs(rs, 10.0f);
 
   EXPECT_FLOAT_EQ(1.0f, ratio);
-  EXPECT_NEAR(6.3f, ppm_from_power_law(6.3f, -1.1f, ratio), 0.001f);
-  // Twice the resistance is ratio 2, below clean air, so the fit reads less gas.
-  EXPECT_NEAR(2.94f, ppm_from_power_law(6.3f, -1.1f, ratio_from_rs(20.0f, 10.0f)), 0.05f);
+  EXPECT_FLOAT_EQ(1.0f, clamp_ppm(ppm_from_power_law(1.0f, -1.2f, ratio), 1.0f, 1000.0f));
+  // Twice the resistance is cleaner than the reference air, below the floor, so no gas.
+  EXPECT_FLOAT_EQ(0.0f, clamp_ppm(ppm_from_power_law(1.0f, -1.2f, ratio_from_rs(20.0f, 10.0f)), 1.0f, 1000.0f));
+  // Half the resistance is ratio 0.5: 2^1.2 = 2.3 ppm.
+  EXPECT_NEAR(2.30f, ppm_from_power_law(1.0f, -1.2f, ratio_from_rs(5.0f, 10.0f)), 0.01f);
 }
 
 }  // namespace esphome::mics_5524::testing

@@ -27,10 +27,11 @@ class VendorCurve:
 
 @dataclass(frozen=True)
 class DatasheetCurve:
-    """Coefficients of the datasheet fit ppm = a * ratio^b."""
+    """Coefficients of the datasheet fit ppm = a * ratio^b and its detection range."""
 
     a: float
     b: float
+    min_ppm: float  # bottom of the detection range, read as 0 below it
     max_ppm: float
 
 
@@ -42,13 +43,16 @@ class GasDefinition:
     datasheet: DatasheetCurve | None
 
 
-# DFRobot_MICS getGasData() thresholds and gains with the vendor measuring ranges; the CO
-# datasheet fit is the community one (1000 ppm at RS/R0 = 0.01, about 10 ppm at RS/R0 = 0.65;
-# clean air, RS/R0 = 1, reads the 6.3 ppm of `a`).
+# DFRobot_MICS getGasData() thresholds and gains with the vendor measuring ranges. The CO
+# datasheet fit is read off the sensitivity graph of SGX data sheet 1084 rev 8: RS/R0 falls
+# from about 3.5 at 1 ppm to about 0.011 at 1000 ppm, a slope of -0.83 per decade. R0 here is
+# the resistance in clean air, where the sensor sits at the 1 ppm bottom of its detection
+# range, so the ratio is 1 there and ppm = ratio^-1.2. The data sheet calls its own curve
+# indicative: the sensitivity factor RS(air) / RS(60 ppm CO) spans 1.2 to 50 between units.
 GASES: dict[str, GasDefinition] = {
     CONF_CARBON_MONOXIDE: GasDefinition(
         vendor=VendorCurve("CO", 0.425, 0.000405, 1.0, 1000.0),
-        datasheet=DatasheetCurve(6.3, -1.1, 1000.0),
+        datasheet=DatasheetCurve(1.0, -1.2, 1.0, 1000.0),
     ),
     CONF_HYDROGEN: GasDefinition(
         vendor=VendorCurve("H2", 0.279, 0.00026, 1.0, 1000.0),
@@ -153,12 +157,22 @@ def resolve_gas(
             f"'coefficient_a:' must be positive, got {resolved_a:g} - "
             "a non-positive fit cannot produce a reading"
         )
+    # The resistance of a MOS sensor falls as a reducing gas rises; a flat or rising fit
+    # would read a saturated sensor (ratio 0) as no gas.
+    if resolved_b >= 0.0:
+        raise ValueError(
+            f"'coefficient_b:' must be negative, got {resolved_b:g} - "
+            "the sensor resistance falls as the gas concentration rises"
+        )
+    if min_ppm is None:
+        # A user fit has no published floor; the shipped one reads 0 below its range.
+        min_ppm = fitted.min_ppm if a is None and fitted is not None else 0.0
     return ResolvedGas(
         label=curve.label,
         conversion=conversion,
         p0=resolved_a,
         p1=resolved_b,
-        min_ppm=float(0.0 if min_ppm is None else min_ppm),
+        min_ppm=float(min_ppm),
         # A user fit without a published range falls back to the vendor range of the gas.
         max_ppm=float(
             (fitted.max_ppm if fitted is not None else curve.max_ppm)

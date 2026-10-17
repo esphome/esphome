@@ -41,8 +41,9 @@ void MiCS5524GasSensor::publish_ratio(float ratio, micsmath::ConversionModel mod
 
 void MiCS5524Component::setup() {
   if (this->persist_) {
+    // Written once per calibration, so flash rather than the RTC memory an ESP8266 loses at power off
     this->reference_pref_ = global_preferences->make_preference<float>(
-        this->preference_key_ ^ (REFERENCE_PREFERENCE_VERSION + this->conversion_));
+        this->preference_key_ ^ (REFERENCE_PREFERENCE_VERSION + this->conversion_), true);
   }
 
   if (this->enable_pin_ != nullptr) {
@@ -307,15 +308,14 @@ void MiCS5524Component::finish_calibration_() {
 
   this->reference_ = reference;
   this->status_clear_warning();
-  if (this->persist_)
-    this->save_reference_();
+  const bool stored = this->persist_ && this->save_reference_();
 
   const ModelStrings strings = model_strings(this->conversion_);
   ESP_LOGI(TAG,
            "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)%s\n"
            "  hard-code '%s: %.4f' to skip the calibration at boot",
            LOG_STR_ARG(strings.reference), this->reference_, valid, attempts,
-           this->persist_ ? LOG_STR_LITERAL(", stored in flash") : LOG_STR_LITERAL(""), LOG_STR_ARG(strings.key),
+           stored ? LOG_STR_LITERAL(", stored in flash") : LOG_STR_LITERAL(""), LOG_STR_ARG(strings.key),
            this->reference_);
 }
 
@@ -328,12 +328,13 @@ void MiCS5524Component::schedule_calibration_retry_() {
   ESP_LOGW(TAG, "retrying the calibration in %" PRIu32 " s", delay / 1000);
 }
 
-void MiCS5524Component::save_reference_() {
+bool MiCS5524Component::save_reference_() {
   if (!this->reference_pref_.save(&this->reference_)) {
     ESP_LOGW(TAG, "could not store the %s in flash", LOG_STR_ARG(model_strings(this->conversion_).reference));
-    return;
+    return false;
   }
   ESP_LOGD(TAG, "%s %.4f saved", LOG_STR_ARG(model_strings(this->conversion_).reference), this->reference_);
+  return true;
 }
 
 bool MiCS5524Component::load_reference_() {

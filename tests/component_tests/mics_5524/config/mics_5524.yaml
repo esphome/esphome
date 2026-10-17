@@ -45,7 +45,6 @@ sensor:
       r1: 10000
       r2: 20000
     adc_input_max: 3.34
-    adc_attenuation: 12db
     conversion: datasheet
     r0: 10.0
     # Diagnostics of this reading, declared by the hub itself.
