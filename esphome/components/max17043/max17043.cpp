@@ -31,7 +31,9 @@ static constexpr float MAX17048_CRATE_LSB = 0.208f;  // %/hr
 
 void MAX17043Component::update() {
   if (!this->configured_ && !this->configure_()) {
-    this->status_set_warning(LOG_STR("Gauge did not answer"));
+    // A wrong CONFIG value has already failed the component with its own reason
+    if (!this->is_failed())
+      this->status_set_warning(LOG_STR("Gauge did not answer"));
     return;
   }
 
@@ -40,8 +42,13 @@ void MAX17043Component::update() {
 
   if (this->voltage_sensor_ != nullptr) {
     if (this->read_byte_16(MAX17043_VCELL, &raw)) {
-      // 12-bit reading in the top bits on both models (MAX17048 LSb 78.125uV = 1.25mV / 16).
-      this->voltage_sensor_->publish_state((raw >> 4) * 1.25e-3f);
+      // MAX17043: 12 bits in the top of the word at 1.25 mV; MAX17048: 16 bits at 78.125 uV
+      float voltage = (raw >> 4) * 1.25e-3f;
+#ifdef USE_MAX17048
+      if (this->is_max17048_())
+        voltage = raw * 78.125e-6f;
+#endif
+      this->voltage_sensor_->publish_state(voltage);
     } else {
       ok = false;
     }
@@ -116,8 +123,10 @@ void MAX17043Component::sleep_mode() {
   }
   // The deferred configuration clears the sleep bit, so it has to run before the gauge is put to sleep
   if (!this->configured_ && !this->configure_()) {
-    ESP_LOGW(TAG, "Gauge did not answer, not putting it to sleep");
-    this->status_set_warning(LOG_STR("Gauge did not answer"));
+    if (!this->is_failed()) {
+      ESP_LOGW(TAG, "Gauge did not answer, not putting it to sleep");
+      this->status_set_warning(LOG_STR("Gauge did not answer"));
+    }
     return;
   }
 
