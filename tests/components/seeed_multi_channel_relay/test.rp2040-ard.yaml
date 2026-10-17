@@ -1,0 +1,5 @@
+substitutions:
+  scl_pin: "5"
+  sda_pin: "4"
+
+<<: !include common.yaml
