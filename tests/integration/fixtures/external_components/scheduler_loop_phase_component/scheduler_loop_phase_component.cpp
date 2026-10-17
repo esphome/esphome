@@ -7,6 +7,8 @@ namespace esphome::scheduler_loop_phase_component {
 static const char *const TAG = "scheduler_loop_phase_component";
 
 void SchedulerLoopPhaseComponent::loop() {
+  // There might be additional wakeups after the first loop phase because the test harness is connecting.
+  // The second component phase runs about 5s after boot, so the timeout is queued just before a long sleep.
   if (++this->loop_count_ != 2)
     return;
 

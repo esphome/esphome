@@ -37,9 +37,9 @@ async def test_scheduler_loop_phase_timeout(
 
     async with run_binary(binary_path, line_callback=on_log_line):
         try:
-            elapsed = await asyncio.wait_for(timeout_result, timeout=10.0)
+            elapsed = await asyncio.wait_for(timeout_result, timeout=15.0)
         except TimeoutError:
-            pytest.fail("loop-phase timeout did not fire within 10 seconds")
+            pytest.fail("loop-phase timeout did not fire within 15 seconds")
 
         assert elapsed < 1000, (
             f"loop-phase timeout should interrupt the five-second sleep, but fired after {elapsed}ms"
