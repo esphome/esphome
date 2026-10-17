@@ -1,10 +1,12 @@
 esphome:
-  on_loop:
+  on_boot:
     then:
       - hx711.power_down
       - hx711.power_up
       - hx711.set_gain:
-          gain: 128
+          gain: 64
+      - hx711.set_gain:
+          gain: !lambda "return hx711::HX711_GAIN_128;"
 
 sensor:
   - platform: hx711
