@@ -381,6 +381,10 @@ cover:
       - lambda: |-
           id(template_cover_actions).tilt = tilt;
           id(template_cover_actions).publish_state();
+    stop_tilt_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
     on_idle:
       # position only
       - cover.control:
@@ -399,9 +403,14 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop: true
+      # stop tilt
+      - cover.control:
+          id: template_cover_actions
+          stop_tilt: true
       - cover.open: template_cover_actions
       - cover.close: template_cover_actions
       - cover.stop: template_cover_actions
+      - cover.stop_tilt: template_cover_actions
       - cover.toggle: template_cover_actions
       # CONF_STATE alias for position
       - cover.control:
