@@ -12,12 +12,37 @@ if mode == "bigbuf":
 cseq = 0
 
 
+buf = b""
+
+
+def read_response() -> bytes:
+    """One complete RTSP response: headers through the blank line plus a Content-Length body."""
+    global buf  # noqa: PLW0603
+    while (end := buf.find(b"\r\n\r\n")) < 0:
+        chunk = s.recv(4096)
+        if not chunk:
+            raise ConnectionError("closed")
+        buf += chunk
+    head = buf[:end].decode(errors="replace")
+    body_len = 0
+    for line in head.split("\r\n"):
+        if line.lower().startswith("content-length:"):
+            body_len = int(line.split(":", 1)[1])
+    while len(buf) < end + 4 + body_len:
+        chunk = s.recv(4096)
+        if not chunk:
+            raise ConnectionError("closed")
+        buf += chunk
+    resp, buf = buf[: end + 4 + body_len], buf[end + 4 + body_len :]
+    return resp
+
+
 def req(m, extra="", wait=True):
     global cseq  # noqa: PLW0603
     cseq += 1
     url = f"rtsp://{IP}:554/trackID=0" if m == "SETUP" else f"rtsp://{IP}:554/"
     s.sendall(f"{m} {url} RTSP/1.0\r\nCSeq: {cseq}\r\n{extra}\r\n".encode())
-    return s.recv(4096) if wait else b""
+    return read_response() if wait else b""
 
 
 req("OPTIONS")

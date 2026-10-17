@@ -11,14 +11,17 @@ PY=${PYTHON:-python3}
 [ -f "$LOG" ] || { echo "device capture not found: $LOG"; exit 1; }
 rtt=$(ping -c 10 -i 0.2 $IP 2>&1 | tail -1 | awk -F/ '{print $5}')
 stall0=$(grep -a -c "stalled" $LOG)
-f1=$(timeout 40 ffmpeg -hide_banner -rtsp_transport tcp -i rtsp://$IP:554/ -t 12 -f null - 2>&1 | grep -o "frame= *[0-9]*" | tail -1 | tr -dc 0-9); sleep 2
-f2=$(timeout 40 ffmpeg -hide_banner -rtsp_transport tcp -i rtsp://$IP:554/ -t 12 -f null - 2>&1 | grep -o "frame= *[0-9]*" | tail -1 | tr -dc 0-9); sleep 2
+frames() {  # OUTFILE RC: the frame count of a run that finished on its own, nothing for a failed or killed one
+  [ "$2" = 0 ] && grep -o 'frame= *[0-9]*' $1 | tail -1 | tr -dc 0-9
+}
+timeout 40 ffmpeg -hide_banner -rtsp_transport tcp -i rtsp://$IP:554/ -t 12 -f null - > $S/m-f1.txt 2>&1; f1=$(frames $S/m-f1.txt $?); sleep 2
+timeout 40 ffmpeg -hide_banner -rtsp_transport tcp -i rtsp://$IP:554/ -t 12 -f null - > $S/m-f2.txt 2>&1; f2=$(frames $S/m-f2.txt $?); sleep 2
 timeout 40 ffmpeg -hide_banner -rtsp_transport tcp -i rtsp://$IP:554/ -t 12 -f null - > $S/m-twoA.txt 2>&1 & A=$!; sleep 1
 timeout 40 ffmpeg -hide_banner -rtsp_transport tcp -i rtsp://$IP:554/ -t 12 -f null - > $S/m-twoB.txt 2>&1 & B=$!
-wait $A $B
-fa=$(grep -o 'frame= *[0-9]*' $S/m-twoA.txt | tail -1 | tr -dc 0-9); fb=$(grep -o 'frame= *[0-9]*' $S/m-twoB.txt | tail -1 | tr -dc 0-9); sleep 2
-raw=$(timeout 40 $PY $D/rawrate2.py $IP quiet 2>&1 | grep -o "[0-9.]* KiB/s" | head -1); sleep 2
-raw2=$(timeout 40 $PY $D/rawrate2.py $IP bigbuf 2>&1 | grep -o "[0-9.]* KiB/s" | head -1); sleep 1
+wait $A; ra=$?; wait $B; rb=$?
+fa=$(frames $S/m-twoA.txt $ra); fb=$(frames $S/m-twoB.txt $rb); sleep 2
+timeout 40 $PY $D/rawrate2.py $IP quiet > $S/m-raw.txt 2>&1 && raw=$(grep -o "[0-9.]* KiB/s" $S/m-raw.txt | head -1); sleep 2
+timeout 40 $PY $D/rawrate2.py $IP bigbuf > $S/m-raw2.txt 2>&1 && raw2=$(grep -o "[0-9.]* KiB/s" $S/m-raw2.txt | head -1); sleep 1
 stall1=$(grep -a -c "stalled" $LOG)
 bad=0
 for v in rtt f1 f2 fa fb raw raw2; do

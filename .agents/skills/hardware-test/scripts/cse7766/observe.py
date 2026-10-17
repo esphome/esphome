@@ -17,6 +17,9 @@ from aioesphomeapi import APIClient, LogLevel
 
 IP, SECS, OUT = sys.argv[1], float(sys.argv[2]), sys.argv[3]
 FILTER = sys.argv[4] if len(sys.argv) > 4 else ""
+# ESPHome LOG_SECRET span; one cut off before its end marker is secret to the end of the line
+SECRET = re.compile(r"\x1b\[8m.*?(?:\x1b\[28m|$)", re.DOTALL)
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
 async def main() -> None:
@@ -46,7 +49,7 @@ async def main() -> None:
                 if isinstance(msg.message, bytes)
                 else msg.message
             )
-            line = re.sub(r"\x1b\[[0-9;]*m", "", line)
+            line = ANSI.sub("", SECRET.sub("<secret>", line))
             out.write(f"[{time.monotonic() - t0:6.1f}] LOG {line}\n")
             out.flush()
             if "[W]" in line or "[E]" in line or "Invalid" in line:

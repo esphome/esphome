@@ -10,7 +10,8 @@ SDK_NRF=${SDK_NRF:-$(ls -d ~/Library/Caches/esphome/sdk-nrf ~/.cache/esphome/sdk
 [ -n "$SDK_NRF" ] || { echo "sdk-nrf not found, set SDK_NRF"; exit 1; }
 F=$(ls -d $SDK_NRF/frameworks/v*/zephyr/scripts/coredump 2>/dev/null | tail -1)
 PY=${PYTHON:-$(ls $SDK_NRF/penvs/*/bin/python 2>/dev/null | head -1)}
-GDB=$(ls $SDK_NRF/toolchains/*/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb 2>/dev/null | tail -1)
+# SDK 0.x keeps the tools under arm-zephyr-eabi/, SDK 1.0+ under gnu/arm-zephyr-eabi/
+GDB=$(ls $SDK_NRF/toolchains/*/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb $SDK_NRF/toolchains/*/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb 2>/dev/null | tail -1)
 for v in F PY GDB; do
   [ -n "${(P)v}" ] || { echo "$v not found under $SDK_NRF"; exit 1; }
 done
