@@ -423,21 +423,6 @@ void Nextion::process_pending_in_queue_() {
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-void Nextion::enqueue_sent_(NextionQueue *item) {
-#ifdef USE_NEXTION_COMMAND_SPACING
-  // The command is already on the wire, so it will be answered before anything
-  // still waiting to be sent. Keeping the queue in transmit order is what makes
-  // front() the right entry to match a response against.
-  auto it = this->nextion_queue_.begin();
-  while (it != this->nextion_queue_.end() && (*it == nullptr || (*it)->pending_command.empty())) {
-    ++it;
-  }
-  this->nextion_queue_.insert(it, item);
-#else   // USE_NEXTION_COMMAND_SPACING
-  this->nextion_queue_.push_back(item);
-#endif  // USE_NEXTION_COMMAND_SPACING
-}
-
 bool Nextion::remove_from_q_(bool report_empty) {
   if (this->nextion_queue_.empty()) {
     if (report_empty) {
@@ -461,7 +446,8 @@ bool Nextion::remove_from_q_(bool report_empty) {
   if (!nb->pending_command.empty()) {
     // Not sent yet, so this response cannot belong to it. Dropping the
     // response leaves the command queued instead of losing it.
-    ESP_LOGW(TAG, "Response for a command not yet sent, ignoring");
+    ESP_LOGW(TAG, "Response for unsent cmd '%s' (queue %zu), ignoring", component->get_variable_name().c_str(),
+             this->nextion_queue_.size());
     return false;
   }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -1160,7 +1146,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
   auto *nextion_queue = this->make_no_result_entry_(variable_name);
   if (nextion_queue == nullptr)
     return;
-  this->enqueue_sent_(nextion_queue);
+  this->nextion_queue_.push_back(nextion_queue);
   ESP_LOGN(TAG, "Queue NORESULT: %s", variable_name.c_str());
 }
 
@@ -1172,8 +1158,8 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
  * (e.g. add_no_result_to_queue_with_ignore_sleep_printf_()) are explicitly
  * sleep-safe and must bypass it.
  *
- * If USE_NEXTION_COMMAND_SPACING is enabled and the pacer is not ready,
- * the command is saved in the queue entry for retry rather than dropped.
+ * If USE_NEXTION_COMMAND_SPACING is enabled and the command cannot go out right
+ * away, it is saved in the queue entry for retry rather than dropped.
  *
  * @param variable_name Name of the variable or component associated with the command.
  * @param command       The raw command string to send.
@@ -1181,6 +1167,15 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || command.empty())
     return;
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Sending now would overtake commands that are still waiting, so only send when
+  // nothing is waiting. process_pending_in_queue_() transmits the rest in order.
+  if (this->has_unsent_commands_()) {
+    this->add_no_result_to_queue_with_pending_command_(variable_name, command);
+    return;
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
 
   if (this->send_command_(command)) {
     this->add_no_result_to_queue_(variable_name);
@@ -1342,15 +1337,13 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   std::string command = "get " + component->get_variable_name_to_send();
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Store the command for retry if spacing blocks it; process_pending_in_queue_()
-  // will transmit it when the pacer allows. A command that goes out right away is
-  // placed ahead of the entries still waiting, so the queue keeps transmit order.
-  if (this->send_command_(command)) {
-    this->enqueue_sent_(nextion_queue);
-  } else {
-    nextion_queue->pending_command = command;
-    this->nextion_queue_.push_back(nextion_queue);
+  // Only send right away when nothing is waiting, otherwise this command would
+  // overtake the ones still queued. Anything not sent here keeps its command for
+  // process_pending_in_queue_() to transmit in order.
+  if (this->has_unsent_commands_() || !this->send_command_(command)) {
+    nextion_queue->pending_command = std::move(command);
   }
+  this->nextion_queue_.push_back(nextion_queue);
 #else   // USE_NEXTION_COMMAND_SPACING
   if (this->send_command_(command)) {
     this->nextion_queue_.push_back(nextion_queue);
