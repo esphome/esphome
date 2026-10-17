@@ -166,6 +166,13 @@ class EPaperBase : public Display,
   virtual void power_off() = 0;
 
   /**
+   * Called after the refresh, before power off, repeatedly until it returns true.
+   * Lets a driver do extra work spread over several loops, such as rewriting the previous image.
+   * @return true when done, false to be called again next loop
+   */
+  virtual bool after_refresh() { return true; }
+
+  /**
    * Place the display into deep sleep
    */
   virtual void deep_sleep() = 0;
@@ -199,6 +206,7 @@ class EPaperBase : public Display,
   uint8_t effective_transform_{};
   uint8_t update_count_{};
   bool full_update_requested_{};
+  bool partial_{};  // the update in progress is a partial one; set when UPDATE moves to RESET
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};
