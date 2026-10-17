@@ -19,11 +19,9 @@ MAX44009Sensor = max44009_ns.class_(
 )
 
 MAX44009Mode = max44009_ns.enum("MAX44009Mode")
-MODE_OPTIONS = {
-    "auto": MAX44009Mode.MAX44009_MODE_AUTO,
-    "low_power": MAX44009Mode.MAX44009_MODE_LOW_POWER,
-    "continuous": MAX44009Mode.MAX44009_MODE_CONTINUOUS,
-}
+MODE_OPTIONS = MAX44009Mode.options(
+    "auto", "low_power", "continuous", prefix="MAX44009_MODE_"
+)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(

@@ -96,6 +96,9 @@ class RuntimeImage : public image::Image {
    */
   bool is_decode_finished() const;
 
+  /// True while decoding and the decoder can tell a complete image from a cut-off one
+  bool decoder_knows_end() const;
+
   /**
    * @brief Check if an image is currently loaded.
    */
