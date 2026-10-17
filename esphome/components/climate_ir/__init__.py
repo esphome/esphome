@@ -33,9 +33,11 @@ ClimateIR = climate_ir_ns.class_(
 
 def climate_ir_schema(
     class_: MockObjClass,
+    *,
+    temperature_unit: bool | str = False,
 ) -> cv.Schema:
     return (
-        climate.climate_schema(class_)
+        climate.climate_schema(class_, temperature_unit=temperature_unit)
         .extend(
             {
                 cv.Optional(CONF_SUPPORTS_COOL, default=True): cv.boolean,
@@ -52,8 +54,10 @@ def climate_ir_schema(
 
 def climate_ir_with_receiver_schema(
     class_: MockObjClass,
+    *,
+    temperature_unit: bool | str = False,
 ) -> cv.Schema:
-    return climate_ir_schema(class_).extend(
+    return climate_ir_schema(class_, temperature_unit=temperature_unit).extend(
         {
             cv.Optional(remote_base.CONF_RECEIVER_ID): cv.use_id(
                 remote_base.RemoteReceiverBase

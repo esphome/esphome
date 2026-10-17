@@ -2,6 +2,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/climate/climate.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -22,6 +23,12 @@ class TemplateClimate final : public climate::Climate, public Component {
   climate::ClimateTraits traits() override { return this->traits_; }
 
   void add_feature_flags(uint32_t flags) { this->traits_.add_feature_flags(flags); }
+  void set_temperature_unit(TemperatureUnit unit) {
+    this->traits_.set_temperature_unit(unit);
+    // Keep the traits' default range in the chosen unit; visual overrides still apply on top
+    this->traits_.set_visual_min_temperature(celsius_to(climate::ClimateTraits::DEFAULT_VISUAL_MIN_TEMPERATURE, unit));
+    this->traits_.set_visual_max_temperature(celsius_to(climate::ClimateTraits::DEFAULT_VISUAL_MAX_TEMPERATURE, unit));
+  }
 
 #ifdef USE_SENSOR
   // The matching feature flag is added from codegen, so the configuration alone decides it.
@@ -66,6 +73,15 @@ class TemplateClimate final : public climate::Climate, public Component {
 
  protected:
   void control(const climate::ClimateCall &call) override;
+
+  static constexpr float CELSIUS_TO_KELVIN = 273.15f;
+  static constexpr float celsius_to(float celsius, TemperatureUnit unit) {
+    if (unit == TemperatureUnit::FAHRENHEIT)
+      return celsius_to_fahrenheit(celsius);
+    if (unit == TemperatureUnit::KELVIN)
+      return celsius + CELSIUS_TO_KELVIN;
+    return celsius;
+  }
 
   climate::ClimateTraits traits_;
   bool optimistic_{false};

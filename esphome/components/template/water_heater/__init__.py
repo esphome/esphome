@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE,
 )
 from esphome.core import ID
+from esphome.core.entity_helpers import entity_temperature_unit_of_id
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
@@ -37,7 +38,7 @@ RESTORE_MODES = TemplateWaterHeaterRestoreMode.options(
 )
 
 CONFIG_SCHEMA = (
-    water_heater.water_heater_schema(TemplateWaterHeater)
+    water_heater.water_heater_schema(TemplateWaterHeater, temperature_unit=True)
     .extend(
         {
             cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
@@ -123,8 +124,12 @@ async def to_code(config: ConfigType) -> None:
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(TemplateWaterHeater),
-            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(cv.temperature),
-            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
+            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(
+                cv.temperature_with_unit
+            ),
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(
+                cv.temperature_with_unit
+            ),
             cv.Optional(CONF_MODE): cv.templatable(
                 water_heater.validate_water_heater_mode
             ),
@@ -143,13 +148,17 @@ async def water_heater_template_publish_to_code(
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    if current_temp := config.get(CONF_CURRENT_TEMPERATURE):
-        template_ = await cg.templatable(current_temp, args, cg.float_)
-        cg.add(var.set_current_temperature(template_))
-
-    if target_temp := config.get(CONF_TARGET_TEMPERATURE):
-        template_ = await cg.templatable(target_temp, args, cg.float_)
-        cg.add(var.set_target_temperature(template_))
+    for key, setter in (
+        (CONF_CURRENT_TEMPERATURE, var.set_current_temperature),
+        (CONF_TARGET_TEMPERATURE, var.set_target_temperature),
+    ):
+        if (value := config.get(key)) is None:
+            continue
+        if isinstance(value, tuple):
+            value = cv.convert_temperature(
+                *value, entity_temperature_unit_of_id(config[CONF_ID])
+            )
+        cg.add(setter(await cg.templatable(value, args, cg.float_)))
 
     if mode := config.get(CONF_MODE):
         template_ = await cg.templatable(mode, args, water_heater.WaterHeaterMode)

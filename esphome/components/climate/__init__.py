@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 from esphome import automation
@@ -46,14 +48,19 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC,
     CONF_TARGET_TEMPERATURE_STATE_TOPIC,
     CONF_TEMPERATURE_STEP,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
     CONF_WEB_SERVER,
+    UNIT_KELVIN,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    convert_visual_temperatures,
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
+    setup_entity_temperature_unit,
+    temperature_in_entity_unit,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
@@ -138,15 +145,16 @@ CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
 
-visual_temperature = cv.float_with_unit("visual_temperature", "(°|(° ?)?[CKF])?")
-
-
 VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_TARGET_TEMPERATURE): visual_temperature,
-        cv.Required(CONF_CURRENT_TEMPERATURE): visual_temperature,
+        cv.Required(CONF_TARGET_TEMPERATURE): cv.temperature_with_unit,
+        cv.Required(CONF_CURRENT_TEMPERATURE): cv.temperature_with_unit,
     }
 )
+
+
+# Remove before 2027.5.0: external components imported it before temperature_with_unit replaced it
+visual_temperature = cv.float_with_unit("visual_temperature", "(°|(° ?)?[CKF])?")
 
 
 def visual_temperature_step(value: Any) -> ConfigType:
@@ -155,13 +163,18 @@ def visual_temperature_step(value: Any) -> ConfigType:
         return VISUAL_TEMPERATURE_STEP_SCHEMA(value)
 
     # Otherwise, use the single value for both properties
-    value = visual_temperature(value)
-    return VISUAL_TEMPERATURE_STEP_SCHEMA(
-        {
-            CONF_TARGET_TEMPERATURE: value,
-            CONF_CURRENT_TEMPERATURE: value,
-        }
-    )
+    value = cv.temperature_with_unit(value)
+    return {CONF_TARGET_TEMPERATURE: value, CONF_CURRENT_TEMPERATURE: value}
+
+
+templatable_temperature = cv.templatable(cv.temperature_with_unit)
+
+
+_visual_temperatures_in_entity_unit = partial(
+    convert_visual_temperatures,
+    delta_keys=(CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE),
+    delta_section=CONF_TEMPERATURE_STEP,
+)
 
 
 _CLIMATE_SCHEMA = (
@@ -172,8 +185,8 @@ _CLIMATE_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
             cv.Optional(CONF_VISUAL, default={}): cv.Schema(
                 {
-                    cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
-                    cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
+                    cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature_with_unit,
+                    cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature_with_unit,
                     cv.Optional(CONF_TEMPERATURE_STEP): visual_temperature_step,
                     cv.Optional(CONF_MIN_HUMIDITY): cv.percentage_int,
                     cv.Optional(CONF_MAX_HUMIDITY): cv.percentage_int,
@@ -250,6 +263,14 @@ _CLIMATE_SCHEMA = (
 
 
 _CLIMATE_SCHEMA.add_extra(entity_duplicate_validator("climate"))
+_CLIMATE_SCHEMA.add_extra(_visual_temperatures_in_entity_unit)
+
+
+def _unit_mqtt_can_report(value: str) -> str:
+    # MQTT discovery only knows °C and °F
+    if value == UNIT_KELVIN and "mqtt" in CORE.loaded_integrations:
+        raise cv.Invalid("MQTT reports climate temperatures in °C or °F only")
+    return value
 
 
 def climate_schema(
@@ -257,10 +278,18 @@ def climate_schema(
     *,
     entity_category: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
+    temperature_unit: bool | str = False,
 ) -> cv.Schema:
+    """``temperature_unit=True`` adds ``unit_of_measurement`` for a platform whose temperatures are
+    all in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
+    A unit instead of ``True`` is for a device that reports in that unit only, set by its traits."""
     schema = {
         cv.GenerateID(): cv.declare_id(class_),
     }
+    if temperature_unit is True:
+        schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT)] = cv.All(
+            cv.temperature_unit, _unit_mqtt_can_report
+        )
 
     for key, default, validator in [
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
@@ -269,7 +298,19 @@ def climate_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    return _CLIMATE_SCHEMA.extend(schema)
+    extended = _CLIMATE_SCHEMA.extend(schema)
+    if temperature_unit and temperature_unit is not True:
+        # Stamped before the visual conversion runs, with no option for the user
+        extended.prepend_extra(_fixed_temperature_unit(temperature_unit))
+    return extended
+
+
+def _fixed_temperature_unit(unit: str) -> Callable[[ConfigType], ConfigType]:
+    def stamp(config: ConfigType) -> ConfigType:
+        config[CONF_UNIT_OF_MEASUREMENT] = cv.FixedTemperatureUnitValue(unit)
+        return config
+
+    return stamp
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -305,6 +346,7 @@ async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
     if (max_humidity := visual.get(CONF_MAX_HUMIDITY)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_humidity_override(max_humidity))
+    setup_entity_temperature_unit(var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -461,9 +503,9 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Climate),
         cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
-        cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
-        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
-        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
+        cv.Optional(CONF_TARGET_TEMPERATURE): templatable_temperature,
+        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): templatable_temperature,
+        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): templatable_temperature,
         cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
         cv.Optional(CONF_AWAY): cv.invalid("Use preset instead"),
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
@@ -479,17 +521,21 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
+# The target temperatures of climate.control and climate.template.publish, in the entity's unit
+TARGET_TEMPERATURE_APPLY_FIELDS = tuple(
+    automation.ApplyField(key, setter, cg.float_, temperature_in_entity_unit)
+    for key, setter in (
+        (CONF_TARGET_TEMPERATURE, "set_target_temperature"),
+        (CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low"),
+        (CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high"),
+    )
+)
+
 automation.register_apply_action(
     "climate.control",
     CLIMATE_CONTROL_ACTION_SCHEMA,
     automation.ApplyField(CONF_MODE, "set_mode", ClimateMode),
-    automation.ApplyField(CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
-    automation.ApplyField(
-        CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_
-    ),
-    automation.ApplyField(
-        CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_
-    ),
+    *TARGET_TEMPERATURE_APPLY_FIELDS,
     automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
     automation.ApplyField(CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
     automation.ApplyField(

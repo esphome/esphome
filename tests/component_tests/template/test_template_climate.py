@@ -24,6 +24,8 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_HIGH,
     CONF_TARGET_TEMPERATURE_LOW,
+    CONF_UNIT_OF_MEASUREMENT,
+    UNIT_FAHRENHEIT,
 )
 from esphome.types import ConfigType
 
@@ -143,3 +145,14 @@ def test_initial_state_matching_two_point_accepted() -> None:
         },
     }
     assert _validate_initial_state(config) is config
+
+
+def test_initial_state_temperature_follows_unit_of_measurement() -> None:
+    config: ConfigType = {
+        CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT),
+        CONF_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE: False,
+        CONF_SUPPORTS_TARGET_HUMIDITY: False,
+        CONF_INITIAL_STATE: {CONF_TARGET_TEMPERATURE: (21.0, "°C")},
+    }
+    _validate_initial_state(config)
+    assert config[CONF_INITIAL_STATE][CONF_TARGET_TEMPERATURE] == pytest.approx(69.8)

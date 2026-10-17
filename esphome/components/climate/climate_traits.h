@@ -74,6 +74,10 @@ class ClimateTraits {
   friend class Climate;  // Allow Climate to access protected find methods
 
  public:
+  // The visual range a platform starts from, in °C
+  static constexpr float DEFAULT_VISUAL_MIN_TEMPERATURE = 10.0f;
+  static constexpr float DEFAULT_VISUAL_MAX_TEMPERATURE = 30.0f;
+
   /// Get/set feature flags (see ClimateFeatures enum in climate_mode.h)
   uint32_t get_feature_flags() const { return this->feature_flags_; }
   void add_feature_flags(uint32_t feature_flags) { this->feature_flags_ |= feature_flags; }
@@ -266,8 +270,8 @@ class ClimateTraits {
   }
 
   uint32_t feature_flags_{0};
-  float visual_min_temperature_{10};
-  float visual_max_temperature_{30};
+  float visual_min_temperature_{DEFAULT_VISUAL_MIN_TEMPERATURE};
+  float visual_max_temperature_{DEFAULT_VISUAL_MAX_TEMPERATURE};
   float visual_target_temperature_step_{0.1};
   float visual_current_temperature_step_{0.1};
   float visual_min_humidity_{30};

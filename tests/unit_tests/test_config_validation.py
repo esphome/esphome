@@ -51,6 +51,9 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
     Framework,
     Toolchain,
 )
@@ -2155,6 +2158,65 @@ def test_temperature_delta_fahrenheit() -> None:
 def test_temperature_delta_invalid() -> None:
     with pytest.raises(Invalid, match="Invalid temperature suffix"):
         cv.temperature_delta("5x")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("100°F", (100.0, UNIT_FAHRENHEIT)),
+        ("100 °F", (100.0, UNIT_FAHRENHEIT)),
+        ("100F", (100.0, UNIT_FAHRENHEIT)),
+        ("25°C", (25.0, UNIT_CELSIUS)),
+        ("25C", (25.0, UNIT_CELSIUS)),
+        ("300K", (300.0, UNIT_KELVIN)),
+        ("300°K", (300.0, UNIT_KELVIN)),
+        ("25", (25.0, None)),
+        ("25°", (25.0, None)),
+        (25, (25.0, None)),
+    ],
+)
+def test_temperature_with_unit(
+    value: str | int, expected: tuple[float, str | None]
+) -> None:
+    assert cv.temperature_with_unit(value) == expected
+
+
+@pytest.mark.parametrize("value", ["5x", "abc°F", None])
+def test_temperature_with_unit__invalid(value: str | None) -> None:
+    with pytest.raises(Invalid):
+        cv.temperature_with_unit(value)
+
+
+def test_temperature_unit() -> None:
+    assert cv.temperature_unit("°F") == UNIT_FAHRENHEIT
+    with pytest.raises(Invalid):
+        cv.temperature_unit("F")
+
+
+@pytest.mark.parametrize(
+    ("value", "unit", "to_unit", "delta", "expected"),
+    [
+        (60.0, None, UNIT_FAHRENHEIT, False, 60.0),
+        (30.0, UNIT_CELSIUS, UNIT_FAHRENHEIT, False, 86.0),
+        (212.0, UNIT_FAHRENHEIT, UNIT_CELSIUS, False, 100.0),
+        (300.0, UNIT_KELVIN, UNIT_FAHRENHEIT, False, 80.33),
+        (86.0, UNIT_FAHRENHEIT, UNIT_KELVIN, False, 303.15),
+        (0.5, UNIT_CELSIUS, UNIT_FAHRENHEIT, True, 0.9),
+        (9.0, UNIT_FAHRENHEIT, UNIT_CELSIUS, True, 5.0),
+        (1.0, UNIT_KELVIN, UNIT_CELSIUS, True, 1.0),
+    ],
+)
+def test_convert_temperature(
+    value: float, unit: str | None, to_unit: str, delta: bool, expected: float
+) -> None:
+    assert cv.convert_temperature(value, unit, to_unit, delta=delta) == pytest.approx(
+        expected
+    )
+
+
+def test_convert_temperature_rejects_unknown_unit() -> None:
+    with pytest.raises(KeyError):
+        cv.convert_temperature(1.0, "R", UNIT_CELSIUS)
 
 
 def test_color_temperature_mireds() -> None:
