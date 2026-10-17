@@ -293,6 +293,12 @@ void SEN6XComponent::update() {
   // Polling uses chained timeouts to guarantee each I2C operation completes
   // before the next begins. The flow is:
   //
+  //   if any status binary sensor: read_device_status_()
+  //     -> write_command (read and clear device status)
+  //     -> timeout I2C_READ_DELAY
+  //       -> parse_and_publish_device_status_()
+  //         -> poll_data_ready_() (also on any status failure)
+  //
   //   poll_data_ready_()
   //     -> write_command (data ready status)
   //     -> timeout I2C_READ_DELAY
