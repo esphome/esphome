@@ -134,6 +134,9 @@ async def to_code(config: ConfigType) -> None:
     if CORE.using_zephyr:
         zephyr_add_prj_conf("UART_LINE_CTRL", True)
         zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+        # Every CDC ACM instance (the logger's and any the board tree adds) holds a transfer
+        # slot per endpoint; the default of 4 leaves a third instance without any
+        zephyr_add_prj_conf("USB_MAX_NUM_TRANSFERS", 8)
         cg.add_define("ESPHOME_CDC_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE])
         cg.add_define("ESPHOME_CDC_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE])
     else:

@@ -89,6 +89,9 @@ void USBCDCACMInstance::setup() {
   usb_enable(nullptr);
   ring_buf_init(&this->rx_ringbuf_, ESPHOME_CDC_RX_RING_BUFFER_SIZE, this->rx_ringbuf_data_);
   ring_buf_init(&this->tx_ringbuf_, ESPHOME_CDC_TX_RING_BUFFER_SIZE, this->tx_ringbuf_data_);
+  // The driver only reports the bit rate; the frame format is fixed on USB
+  this->data_bits_ = 8;
+  this->stop_bits_ = 1;
 #if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
   zephyr::global_cdc_acm->add_on_rate_callback([this](const device *dev, uint32_t bit_rate) {
     if (dev == this->uart_dev_) {
