@@ -1,6 +1,7 @@
 #ifdef USE_LIBRETINY
 
 #include "preferences.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
@@ -110,9 +111,10 @@ ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_
   if (in_flash)
     return this->make_preference(length, type);
   auto *pref = new LibreTinyPreferenceBackend(this->make_backend_(type));  // NOLINT(cppcoreguidelines-owning-memory)
-  // The value from before a hard reset goes here, once, in setup; save only touches flash to retry a failed discard
+  // The value from before a hard reset goes here, once, in setup; save only touches flash to retry a failed
+  // discard. A preference made again after setup (wifi.enable remakes its own) holds this boot's value, so it stays
   static const bool kept = boot_kept_rtc_preferences();
-  if (!kept) {
+  if (!kept && !App.is_setup_complete()) {
     char key_str[UINT32_MAX_STR_SIZE];
     uint32_to_str(key_str, type);
     const fdb_err_t err = fdb_kv_del(&this->db, key_str);
