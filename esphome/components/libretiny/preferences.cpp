@@ -16,6 +16,9 @@ struct NVSData {
   SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
   bool rtc;
+  bool is_rtc() const { return this->rtc; }
+#else
+  static constexpr bool is_rtc() { return false; }
 #endif
 };
 
@@ -86,6 +89,11 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  // A discard that failed at open leaves old rtc values in flash; they count as nothing stored this boot
+  if (this->is_rtc() && get_preferences()->rtc_discard_failed())
+    return false;
+#endif
   char key_str[KEY_NAME_SIZE];
   key_name(key_str, this->key, this->is_rtc());
   fdb_blob_make(this->blob, data, len);
@@ -120,30 +128,32 @@ ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_
   return ESPPreferenceObject(new LibreTinyPreferenceBackend(backend));  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
-// Every entry with the rtc prefix goes; the iteration restarts after each delete, so the walk stays valid
+// Every entry with the rtc prefix goes. The walk restarts after each delete so it never depends on
+// FlashDB tolerating a delete mid-iteration; an entry whose delete fails is passed over, and the walk ends
+// once a pass deletes nothing. This runs before the logger exists, so it logs through LibreTiny.
 void LibreTinyPreferences::discard_rtc_entries_() {
   uint16_t discarded = 0;
   fdb_kv_iterator iterator;
-  for (;;) {
+  bool deleted = true;
+  while (deleted) {
+    deleted = false;
     fdb_kv_iterator_init(&iterator);
-    bool found = false;
     while (fdb_kv_iterate(&this->db, &iterator)) {
-      if (iterator.curr_kv.name[0] == RTC_KEY_PREFIX) {
-        found = true;
-        break;
+      if (iterator.curr_kv.name[0] != RTC_KEY_PREFIX)
+        continue;
+      const fdb_err_t err = fdb_kv_del(&this->db, iterator.curr_kv.name);
+      if (err != FDB_NO_ERR) {
+        LT_E("Failed to discard rtc preference %s: %d", iterator.curr_kv.name, err);
+        this->rtc_discard_failed_ = true;
+        continue;
       }
-    }
-    if (!found)
+      discarded++;
+      deleted = true;
       break;
-    const fdb_err_t err = fdb_kv_del(&this->db, iterator.curr_kv.name);
-    if (err != FDB_NO_ERR) {
-      ESP_LOGE(TAG, "Failed to discard rtc preference %s: %d", iterator.curr_kv.name, err);
-      return;
     }
-    discarded++;
   }
   if (discarded != 0) {
-    ESP_LOGD(TAG, "Discarded %u rtc preferences after a hard reset", discarded);
+    LT_D("Discarded %u rtc preferences after a hard reset", discarded);
   }
 }
 #endif
@@ -177,11 +187,7 @@ bool LibreTinyPreferences::sync() {
 
   for (const auto &save : s_pending_save) {
     char key_str[KEY_NAME_SIZE];
-#ifdef USE_LIBRETINY_RTC_PREFERENCES
-    key_name(key_str, save.key, save.rtc);
-#else
-    key_name(key_str, save.key, false);
-#endif
+    key_name(key_str, save.key, save.is_rtc());
     ESP_LOGVV(TAG, "Checking if FDB data %s has changed", key_str);
     if (this->is_changed_(&this->db, save, key_str)) {
       ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.data.size());
