@@ -168,9 +168,7 @@ for _name, _call in (
 async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL]]
     cg.add_define(f"USE_TAS58XX_{config[CONF_MODEL].upper()}")
-    var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(f"&{model.model_info}"))
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config, cg.RawExpression(f"&{model.model_info}"))
 
     cg.add(var.set_analog_gain(config[CONF_ANALOG_GAIN]))
     cg.add(var.set_dac_mode(config[CONF_DAC_MODE]))
