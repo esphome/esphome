@@ -26,6 +26,7 @@ enum class Sen6xStatus : uint8_t {
 struct StatusSensor {
   binary_sensor::BinarySensor *sensor;
   Sen6xStatus status;
+  uint8_t bit;  // of the status register, set at setup once the variant is known
 };
 #endif
 
@@ -115,7 +116,7 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   }
 #ifdef SEN6X_STATUS_SENSOR_COUNT
   void add_status_binary_sensor(binary_sensor::BinarySensor *sensor, Sen6xStatus status) {
-    this->status_sensors_.push_back({sensor, status});
+    this->status_sensors_.push_back({sensor, status, 0});
   }
 #endif
   void set_automatic_self_calibration(bool enabled) { this->co2_asc_ = enabled; }

@@ -1,5 +1,4 @@
 #include "sen6x.h"
-#include <algorithm>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
@@ -9,6 +8,29 @@
 namespace esphome::sen6x {
 
 ESPHOME_LOG_TAG(TAG, "sen6x");
+
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+// Bit of the status register behind each kind; the CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C
+static uint8_t status_bit(Sen6xStatus status, SEN6XComponent::Sen6xType type) {
+  switch (status) {
+    case Sen6xStatus::SEN6X_STATUS_FAN_ERROR:
+      return 4;
+    case Sen6xStatus::SEN6X_STATUS_FAN_SPEED_WARNING:
+      return 21;
+    case Sen6xStatus::SEN6X_STATUS_RHT_ERROR:
+      return 6;
+    case Sen6xStatus::SEN6X_STATUS_GAS_ERROR:
+      return 7;
+    case Sen6xStatus::SEN6X_STATUS_CO2_ERROR:
+      return type == SEN6XComponent::SEN66 ? 9 : 12;
+    case Sen6xStatus::SEN6X_STATUS_HCHO_ERROR:
+      return 10;
+    case Sen6xStatus::SEN6X_STATUS_PM_ERROR:
+      return 11;
+  }
+  return 0;
+}
+#endif
 
 static constexpr uint8_t POLL_RETRIES = 24;     // 24 attempts
 static constexpr uint32_t I2C_READ_DELAY = 20;  // 20 ms to wait for I2C read to complete
@@ -161,20 +183,20 @@ void SEN6XComponent::setup() {
           this->hcho_sensor_ = nullptr;
         }
 #ifdef SEN6X_STATUS_SENSOR_COUNT
-        // A status sensor for a feature this variant lacks is dropped like the measurement sensor above;
-        // an empty table then skips the status read altogether
-        auto *const kept = std::remove_if(
-            this->status_sensors_.begin(), this->status_sensors_.end(),
-            [has_voc_nox, has_co2, has_hcho](const StatusSensor &entry) {
-              const bool supported = (entry.status != Sen6xStatus::SEN6X_STATUS_GAS_ERROR || has_voc_nox) &&
-                                     (entry.status != Sen6xStatus::SEN6X_STATUS_CO2_ERROR || has_co2) &&
-                                     (entry.status != Sen6xStatus::SEN6X_STATUS_HCHO_ERROR || has_hcho);
-              if (!supported) {
-                ESP_LOGE(TAG, "'%s' needs a variant with that feature", entry.sensor->get_name().c_str());
-              }
-              return !supported;
-            });
-        this->status_sensors_.resize(kept - this->status_sensors_.begin());
+        // A status sensor for a feature this variant lacks is dropped like the measurement sensors above, so
+        // an empty table skips the status read; the kept ones learn their register bit here
+        size_t kept = 0;
+        for (auto entry : this->status_sensors_) {
+          if ((entry.status == Sen6xStatus::SEN6X_STATUS_GAS_ERROR && !has_voc_nox) ||
+              (entry.status == Sen6xStatus::SEN6X_STATUS_CO2_ERROR && !has_co2) ||
+              (entry.status == Sen6xStatus::SEN6X_STATUS_HCHO_ERROR && !has_hcho)) {
+            ESP_LOGE(TAG, "'%s' needs a variant with that feature", entry.sensor->get_name().c_str());
+            continue;
+          }
+          entry.bit = status_bit(entry.status, this->sen6x_type_);
+          this->status_sensors_[kept++] = entry;
+        }
+        this->status_sensors_.resize(kept);
 #endif
 
         // Step 3: Read firmware version and start measurements in next loop iteration
@@ -622,33 +644,12 @@ void SEN6XComponent::read_device_status_() {
 }
 
 #ifdef SEN6X_STATUS_SENSOR_COUNT
-// Bit of the status register behind each kind; the CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C
-static uint8_t status_bit(Sen6xStatus status, SEN6XComponent::Sen6xType type) {
-  switch (status) {
-    case Sen6xStatus::SEN6X_STATUS_FAN_ERROR:
-      return 4;
-    case Sen6xStatus::SEN6X_STATUS_FAN_SPEED_WARNING:
-      return 21;
-    case Sen6xStatus::SEN6X_STATUS_RHT_ERROR:
-      return 6;
-    case Sen6xStatus::SEN6X_STATUS_GAS_ERROR:
-      return 7;
-    case Sen6xStatus::SEN6X_STATUS_CO2_ERROR:
-      return type == SEN6XComponent::SEN66 ? 9 : 12;
-    case Sen6xStatus::SEN6X_STATUS_HCHO_ERROR:
-      return 10;
-    case Sen6xStatus::SEN6X_STATUS_PM_ERROR:
-      return 11;
-  }
-  return 0;
-}
-
 void SEN6XComponent::parse_and_publish_device_status_() {
   uint16_t words[2];
   if (this->read_data(words, 2)) {
     const uint32_t status = (static_cast<uint32_t>(words[0]) << 16) | words[1];
     for (const auto &entry : this->status_sensors_)
-      entry.sensor->publish_state(((status >> status_bit(entry.status, this->sen6x_type_)) & 1) != 0);
+      entry.sensor->publish_state(((status >> entry.bit) & 1) != 0);
   } else {
     ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
   }
