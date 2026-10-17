@@ -48,6 +48,16 @@ def test_device_defaults_to_pca9554() -> None:
     assert hub["pin_count"] == 8
 
 
+@pytest.mark.parametrize(
+    ("device", "address"),
+    [("PCA9554", 0x20), ("PCA9554A", 0x38), ("PCA9536", 0x41), ("PCAL9538", 0x70)],
+)
+def test_address_defaults_to_the_device_base(device: str, address: int) -> None:
+    hub = CONFIG_SCHEMA({"id": "hub", "device": device})
+    assert hub["address"] == address
+    assert _hub(device=device, address=0x27)["address"] == 0x27
+
+
 def test_pin_number_follows_the_device() -> None:
     with pytest.raises(cv.Invalid, match="range 0-3"):
         pca9554_pin_final_validate(_pin(4, {"input": True}), _hub(device="PCA9536"))
@@ -70,7 +80,7 @@ def test_drive_strength_is_rejected_on_a_plain_part() -> None:
 
 
 def test_pcal_input_with_interrupt_pin_needs_no_extra_keys() -> None:
-    """The hub unmasks every input itself, so a plain input pin is enough."""
+    """A PCAL hub with an interrupt pin accepts a plain input pin; there is no per-pin interrupt key."""
     # The final validation only looks at the keys, so the hub config can stay a plain dict
     hub = {"device": "PCAL9538", "pin_count": 8, "interrupt_pin": {"number": 4}}
     pca9554_pin_final_validate(_pin(1, {"input": True}), hub)

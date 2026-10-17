@@ -4,6 +4,7 @@ from esphome.components import i2c
 from esphome.components.gpio_expander import validate_interrupt_pin
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
     CONF_DEVICE,
     CONF_ID,
     CONF_INPUT,
@@ -45,6 +46,16 @@ DEVICES: dict[str, int] = {
     "PCAL9538": 8,
     "PCAL9555": 16,
 }
+# Lowest I2C address of each model, with all address pins low
+DEFAULT_ADDRESSES: dict[str, int] = {
+    "PCA9536": 0x41,
+    "PCA9554": 0x20,
+    "PCA9554A": 0x38,
+    "PCA9535": 0x20,
+    "PCA9555": 0x20,
+    "PCAL9538": 0x70,
+    "PCAL9555": 0x20,
+}
 PCAL_DEVICES = frozenset({"PCAL9538", "PCAL9555"})
 PCAL_ONLY_MODES = (CONF_PULLUP, CONF_PULLDOWN, CONF_LATCH)
 # The device a legacy `pin_count:` stands for
@@ -62,6 +73,7 @@ def _validate_hub(config: ConfigType) -> ConfigType:
             f"pins of device {device}; remove '{CONF_PIN_COUNT}'"
         )
     config[CONF_PIN_COUNT] = DEVICES[device]
+    config.setdefault(CONF_ADDRESS, DEFAULT_ADDRESSES[device])
     return config
 
 
@@ -75,8 +87,9 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    # 0x20 for the non-A parts; the PCA9554A parts start at 0x38
-    .extend(i2c.i2c_device_schema(0x20)),
+    .extend(
+        i2c.i2c_device_schema(None).extend({cv.Optional(CONF_ADDRESS): cv.i2c_address})
+    ),
     _validate_hub,
 )
 
