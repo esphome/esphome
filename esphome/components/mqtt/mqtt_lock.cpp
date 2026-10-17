@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.lock";
+ESPHOME_LOG_TAG(TAG, "mqtt.lock");
 
 using namespace esphome::lock;
 
@@ -25,10 +25,11 @@ void MQTTLockComponent::setup() {
       this->lock_->open();
     } else {
       ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
-      this->status_momentary_warning("state", 5000);
+      this->status_momentary_warning(5000);
     }
   });
-  this->lock_->add_on_state_callback([this]() { this->defer("send", [this]() { this->publish_state(); }); });
+  this->lock_->add_on_state_callback(
+      [this](LockState /*state*/) { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
 void MQTTLockComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Lock '%s': ", this->lock_->get_name().c_str());
@@ -49,14 +50,8 @@ bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
 bool MQTTLockComponent::publish_state() {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  char buf[LOCK_STATE_STR_SIZE];
-  strncpy_P(buf, (PGM_P) lock_state_to_string(this->lock_->state), sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
-  return this->publish(this->get_state_topic_to_(topic_buf), buf);
-#else
-  return this->publish(this->get_state_topic_to_(topic_buf), LOG_STR_ARG(lock_state_to_string(this->lock_->state)));
-#endif
+  return this->publish(this->get_state_topic_to_(topic_buf),
+                       reinterpret_cast<ProgmemStr>(lock_state_to_string(this->lock_->state)));
 }
 
 }  // namespace esphome::mqtt

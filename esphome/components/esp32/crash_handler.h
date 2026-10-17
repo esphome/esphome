@@ -4,13 +4,17 @@
 
 namespace esphome::esp32 {
 
-/// Read crash data from NOINIT memory and clear the magic marker.
-void crash_handler_read_and_clear();
+/// The tag the crash record is logged under, so a client can check the level in force for it
+inline constexpr const char *CRASH_LOG_TAG = "esp32.crash";
 
 /// Log crash data if a crash was detected on previous boot.
 void crash_handler_log();
 
-/// Returns true if crash data was found this boot.
+/// Clear the magic marker and mark crash data as consumed.
+/// Call after the data has been delivered to an API client.
+void crash_handler_clear();
+
+/// Returns true if crash data was found this boot, reading it first if needed.
 bool crash_handler_has_data();
 
 }  // namespace esphome::esp32

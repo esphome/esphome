@@ -41,7 +41,6 @@ function hasCoreChanges(changedFiles) {
  */
 function hasDashboardChanges(changedFiles) {
   return changedFiles.some(file =>
-    file.startsWith('esphome/dashboard/') ||
     file.startsWith('esphome/components/dashboard_import/')
   );
 }

@@ -4,10 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ina260 {
+namespace esphome::ina260 {
 
-class INA260Component : public PollingComponent, public i2c::I2CDevice {
+class INA260Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -24,14 +23,6 @@ class INA260Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *bus_voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
-
-  enum ErrorCode {
-    NONE,
-    COMMUNICATION_FAILED,
-    DEVICE_RESET_FAILED,
-    FAILED_TO_UPDATE_CONFIGURATION,
-  } error_code_{NONE};
 };
 
-}  // namespace ina260
-}  // namespace esphome
+}  // namespace esphome::ina260

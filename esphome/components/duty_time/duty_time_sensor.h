@@ -2,7 +2,6 @@
 
 #include <cinttypes>
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/sensor/sensor.h"
@@ -10,10 +9,9 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace duty_time_sensor {
+namespace esphome::duty_time_sensor {
 
-class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
+class DutyTimeSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void setup() override;
   void update() override;
@@ -48,28 +46,4 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
   bool restore_;
 };
 
-template<typename... Ts> class BaseAction : public Action<Ts...>, public Parented<DutyTimeSensor> {};
-
-template<typename... Ts> class StartAction : public BaseAction<Ts...> {
-  void play(const Ts &...x) override { this->parent_->start(); }
-};
-
-template<typename... Ts> class StopAction : public BaseAction<Ts...> {
-  void play(const Ts &...x) override { this->parent_->stop(); }
-};
-
-template<typename... Ts> class ResetAction : public BaseAction<Ts...> {
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
-template<typename... Ts> class RunningCondition : public Condition<Ts...>, public Parented<DutyTimeSensor> {
- public:
-  explicit RunningCondition(DutyTimeSensor *parent, bool state) : Parented(parent), state_(state) {}
-
- protected:
-  bool check(const Ts &...x) override { return this->parent_->is_running() == this->state_; }
-  bool state_;
-};
-
-}  // namespace duty_time_sensor
-}  // namespace esphome
+}  // namespace esphome::duty_time_sensor

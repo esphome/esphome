@@ -14,7 +14,7 @@
 
 namespace esphome::libretiny {
 
-class LTComponent : public Component {
+class LTComponent final : public Component {
  public:
   float get_setup_priority() const override;
   void dump_config() override;

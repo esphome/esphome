@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace hx711 {
+namespace esphome::hx711 {
 
 /// @brief Available HX711 gain settings.
 enum class HX711Gain : uint8_t {
@@ -17,7 +16,7 @@ enum class HX711Gain : uint8_t {
   HX711_GAIN_64 = 3,   ///< 64x gain, channel A
 };
 
-class HX711Sensor : public sensor::Sensor, public PollingComponent {
+class HX711Sensor final : public sensor::Sensor, public PollingComponent {
  public:
   void set_dout_pin(GPIOPin *dout_pin) { this->dout_pin_ = dout_pin; }
   void set_sck_pin(GPIOPin *sck_pin) { this->sck_pin_ = sck_pin; }
@@ -295,5 +294,4 @@ template<typename... Ts> class SetGainAction : public HX711SensorActionBase<Ts..
   }
 };
 
-}  // namespace hx711
-}  // namespace esphome
+}  // namespace esphome::hx711

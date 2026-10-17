@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import audio, esp32, socket, speaker
+from esphome.components import audio, psram, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -13,19 +13,21 @@ from esphome.const import (
     PLATFORM_ESP32,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
+
+from .. import CONF_TAPS, resampler_ns, validate_taps
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
 
-resampler_ns = cg.esphome_ns.namespace("resampler")
 ResamplerSpeaker = resampler_ns.class_(
     "ResamplerSpeaker", cg.Component, speaker.Speaker
 )
 
-CONF_TAPS = "taps"
+PASSTHROUGH = "passthrough"
 
 
-def _set_stream_limits(config):
+def _set_stream_limits(config: ConfigType) -> ConfigType:
     audio.set_stream_limits(
         min_bits_per_sample=16,
         max_bits_per_sample=32,
@@ -34,25 +36,25 @@ def _set_stream_limits(config):
     return config
 
 
-def _validate_audio_compatibility(config):
-    inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER)(config)
+def _validate_audio_compatibility(config: ConfigType) -> None:
     inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_SAMPLE_RATE, CONF_OUTPUT_SPEAKER)(config)
+
+    # In passthrough mode the output bits per sample is determined at runtime from the input stream, so there is
+    # nothing to inherit or validate against the output speaker.
+    passthrough = config.get(CONF_BITS_PER_SAMPLE) == PASSTHROUGH
+    if not passthrough:
+        inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER)(config)
 
     audio.final_validate_audio_schema(
         "source_speaker",
         audio_device=CONF_OUTPUT_SPEAKER,
-        bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
+        bits_per_sample=cv.UNDEFINED
+        if passthrough
+        else config.get(CONF_BITS_PER_SAMPLE),
         channels=config.get(CONF_NUM_CHANNELS),
         sample_rate=config.get(CONF_SAMPLE_RATE),
     )(config)
-
-
-def _validate_taps(taps):
-    value = cv.int_range(min=16, max=128)(taps)
-    if value % 4 != 0:
-        raise cv.Invalid("Number of taps must be divisible by 4")
-    return value
 
 
 CONFIG_SCHEMA = cv.All(
@@ -60,12 +62,15 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ResamplerSpeaker),
             cv.Required(CONF_OUTPUT_SPEAKER): cv.use_id(speaker.Speaker),
+            cv.Optional(CONF_BITS_PER_SAMPLE, default=PASSTHROUGH): cv.Any(
+                cv.one_of(PASSTHROUGH, lower=True), cv.int_range(8, 32)
+            ),
             cv.Optional(
                 CONF_BUFFER_DURATION, default="100ms"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_FILTERS, default=16): cv.int_range(min=2, max=1024),
-            cv.Optional(CONF_TAPS, default=16): _validate_taps,
+            cv.Optional(CONF_TAPS, default=16): validate_taps,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32]),
@@ -76,10 +81,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = _validate_audio_compatibility
 
 
-async def to_code(config):
-    # Enable wake_loop_threadsafe for immediate command processing from other tasks
-    socket.require_wake_loop_threadsafe()
-
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await speaker.register_speaker(var, config)
@@ -91,11 +93,12 @@ async def to_code(config):
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-        )
+        psram.request_external_task_stack()
 
-    cg.add(var.set_target_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
+    if config[CONF_BITS_PER_SAMPLE] == PASSTHROUGH:
+        cg.add(var.set_passthrough_bits_per_sample(True))
+    else:
+        cg.add(var.set_target_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
     cg.add(var.set_target_sample_rate(config[CONF_SAMPLE_RATE]))
 
     cg.add(var.set_filters(config[CONF_FILTERS]))

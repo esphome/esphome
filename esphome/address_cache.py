@@ -101,6 +101,17 @@ class AddressCache:
         """Check if any cache entries exist."""
         return bool(self.mdns_cache or self.dns_cache)
 
+    def add_mdns_addresses(self, hostname: str, addresses: list[str]) -> None:
+        """Store resolved mDNS addresses for ``hostname`` in the cache.
+
+        Callers that discover ``.local`` hosts (e.g. via mDNS browse) can use
+        this to avoid a second resolution round-trip during the upload path.
+        No-op when ``addresses`` is empty.
+        """
+        if not addresses:
+            return
+        self.mdns_cache[normalize_hostname(hostname)] = addresses
+
     @classmethod
     def from_cli_args(
         cls, mdns_args: Iterable[str], dns_args: Iterable[str]
@@ -137,6 +148,13 @@ class AddressCache:
                 continue
             hostname, ips = arg.split("=", 1)
             # Normalize hostname for consistent lookups
-            normalized = normalize_hostname(hostname)
-            cache[normalized] = [ip.strip() for ip in ips.split(",")]
+            normalized = normalize_hostname(hostname.strip())
+            addresses = [ip for value in ips.split(",") if (ip := value.strip())]
+            if not normalized or not addresses:
+                _LOGGER.warning(
+                    "Invalid cache entry: %s (hostname and at least one address are required)",
+                    arg,
+                )
+                continue
+            cache[normalized] = addresses
         return cache

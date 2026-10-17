@@ -1,8 +1,6 @@
 #ifdef USE_ZEPHYR
 
 #include <zephyr/kernel.h>
-#include <zephyr/drivers/watchdog.h>
-#include <zephyr/sys/reboot.h>
 #include <zephyr/random/random.h>
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -10,55 +8,7 @@
 
 namespace esphome {
 
-#ifdef CONFIG_WATCHDOG
-static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
-#endif
-
-void yield() { ::k_yield(); }
-uint32_t millis() { return static_cast<uint32_t>(millis_64()); }
-uint64_t millis_64() { return static_cast<uint64_t>(k_uptime_get()); }
-uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
-void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
-void delay(uint32_t ms) { ::k_msleep(ms); }
-
-void arch_init() {
-#ifdef CONFIG_WATCHDOG
-  if (device_is_ready(WDT)) {
-    static wdt_timeout_cfg wdt_config{};
-    wdt_config.flags = WDT_FLAG_RESET_SOC;
-#ifdef USE_ZIGBEE
-    // zboss thread use a lot of cpu cycles during start
-    wdt_config.window.max = 10000;
-#else
-    wdt_config.window.max = 2000;
-#endif
-    wdt_channel_id = wdt_install_timeout(WDT, &wdt_config);
-    if (wdt_channel_id >= 0) {
-      uint8_t options = 0;
-#ifdef USE_DEBUG
-      options |= WDT_OPT_PAUSE_HALTED_BY_DBG;
-#endif
-#ifdef USE_DEEP_SLEEP
-      options |= WDT_OPT_PAUSE_IN_SLEEP;
-#endif
-      wdt_setup(WDT, options);
-    }
-  }
-#endif
-}
-
-void arch_feed_wdt() {
-#ifdef CONFIG_WATCHDOG
-  if (wdt_channel_id >= 0) {
-    wdt_feed(WDT, wdt_channel_id);
-  }
-#endif
-}
-
-void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
-uint32_t arch_get_cpu_cycle_count() { return k_cycle_get_32(); }
-uint32_t arch_get_cpu_freq_hz() { return sys_clock_hw_cycles_per_sec(); }
+// HAL functions live in hal.cpp.
 
 Mutex::Mutex() {
   auto *mutex = new k_mutex();
@@ -99,7 +49,6 @@ int main() {
   setup();
   while (true) {
     loop();
-    esphome::yield();
   }
   return 0;
 }

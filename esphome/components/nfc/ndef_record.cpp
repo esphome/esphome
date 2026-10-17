@@ -1,9 +1,8 @@
 #include "ndef_record.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
-static const char *const TAG = "nfc.ndef_record";
+ESPHOME_LOG_TAG(TAG, "nfc.ndef_record");
 
 NdefRecord::NdefRecord(std::vector<uint8_t> payload_data) {
   this->payload_ = std::string(payload_data.begin(), payload_data.end());
@@ -61,5 +60,4 @@ uint8_t NdefRecord::create_flag_byte(bool first, bool last, size_t payload_size)
   return value;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace as7341 {
+namespace esphome::as7341 {
 
-static const char *const TAG = "as7341";
+ESPHOME_LOG_TAG(TAG, "as7341");
 
 void AS7341Component::setup() {
   LOG_I2C_DEVICE(this);
@@ -15,14 +14,13 @@ void AS7341Component::setup() {
   this->read_byte(AS7341_ID, &id);
   ESP_LOGCONFIG(TAG, "  Read ID: 0x%X", id);
   if ((id & 0xFC) != (AS7341_CHIP_ID << 2)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
   // Power on (enter IDLE state)
   if (!this->enable_power(true)) {
-    ESP_LOGE(TAG, "  Power on failed!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Power on failed"));
     return;
   }
 
@@ -36,9 +34,6 @@ void AS7341Component::setup() {
 void AS7341Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AS7341:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
                 "  Gain: %u\n"
@@ -266,5 +261,4 @@ bool AS7341Component::clear_register_bit(uint8_t address, uint8_t bit_position) 
 
 uint16_t AS7341Component::swap_bytes(uint16_t data) { return (data >> 8) | (data << 8); }
 
-}  // namespace as7341
-}  // namespace esphome
+}  // namespace esphome::as7341

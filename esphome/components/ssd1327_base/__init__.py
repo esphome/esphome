@@ -3,8 +3,11 @@ import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
 from esphome.const import CONF_BRIGHTNESS, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "ssd1327_base"
 
 ssd1327_base_ns = cg.esphome_ns.namespace("ssd1327_base")
 SSD1327 = ssd1327_base_ns.class_("SSD1327", cg.PollingComponent, display.DisplayBuffer)
@@ -25,7 +28,7 @@ SSD1327_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_ssd1327(var, config):
+async def setup_ssd1327(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))

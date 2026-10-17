@@ -1,0 +1,15 @@
+esphome:
+  name: test
+  project:
+    name: project_manufacturer.project_model
+    version: 9.9.9
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+sendspin:

@@ -4,10 +4,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace media_player {
+namespace esphome::media_player {
 
-static const char *const TAG = "media_player";
+ESPHOME_LOG_TAG(TAG, "media_player");
 
 const char *media_player_state_to_string(MediaPlayerState state) {
   switch (state) {
@@ -123,7 +122,7 @@ void MediaPlayerCall::perform() {
     ESP_LOGV(TAG, "  Volume: %.2f", this->volume_.value());
   }
   if (this->announcement_.has_value()) {
-    ESP_LOGV(TAG, " Announcement: %s", this->announcement_.value() ? "yes" : "no");
+    ESP_LOGV(TAG, " Announcement: %s", this->announcement_.value() ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
   }
   this->parent_->control(*this);
 }
@@ -199,11 +198,10 @@ MediaPlayerCall &MediaPlayerCall::set_announcement(bool announce) {
 }
 
 void MediaPlayer::publish_state() {
-  this->state_callback_.call();
+  this->state_callback_.call(this->state);
 #if defined(USE_MEDIA_PLAYER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_media_player_update(this);
 #endif
 }
 
-}  // namespace media_player
-}  // namespace esphome
+}  // namespace esphome::media_player

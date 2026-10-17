@@ -9,6 +9,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_GRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 absolute_humidity_ns = cg.esphome_ns.namespace("absolute_humidity")
 AbsoluteHumidityComponent = absolute_humidity_ns.class_(
@@ -18,11 +19,7 @@ AbsoluteHumidityComponent = absolute_humidity_ns.class_(
 SaturationVaporPressureEquation = absolute_humidity_ns.enum(
     "SaturationVaporPressureEquation"
 )
-EQUATION = {
-    "BUCK": SaturationVaporPressureEquation.BUCK,
-    "TETENS": SaturationVaporPressureEquation.TETENS,
-    "WOBUS": SaturationVaporPressureEquation.WOBUS,
-}
+EQUATION = SaturationVaporPressureEquation.options("BUCK", "TETENS", "WOBUS")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -43,7 +40,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

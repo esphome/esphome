@@ -41,7 +41,7 @@ enum HlkFm22xNoteType {
 };
 
 enum HlkFm22xResult {
-  SUCCESS = 0x00,
+  SUCCEEDED = 0x00,
   REJECTED = 0x01,
   ABORTED = 0x02,
   FAILED4_CAMERA = 0x04,
@@ -71,7 +71,7 @@ enum HlkFm22xFaceDirection {
   FACE_DIRECTION_UP = 0x10,
 };
 
-class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
+class HlkFm22xComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
   void update() override;
@@ -139,89 +139,6 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   CallbackManager<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> face_info_callback_;
   CallbackManager<void(int16_t, uint8_t)> enrollment_done_callback_;
   CallbackManager<void(uint8_t)> enrollment_failed_callback_;
-};
-
-class FaceScanMatchedTrigger : public Trigger<int16_t, std::string> {
- public:
-  explicit FaceScanMatchedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_matched_callback(
-        [this](int16_t face_id, const std::string &name) { this->trigger(face_id, name); });
-  }
-};
-
-class FaceScanUnmatchedTrigger : public Trigger<> {
- public:
-  explicit FaceScanUnmatchedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_unmatched_callback([this]() { this->trigger(); });
-  }
-};
-
-class FaceScanInvalidTrigger : public Trigger<uint8_t> {
- public:
-  explicit FaceScanInvalidTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_invalid_callback([this](uint8_t error) { this->trigger(error); });
-  }
-};
-
-class FaceInfoTrigger : public Trigger<int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t> {
- public:
-  explicit FaceInfoTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_info_callback(
-        [this](int16_t status, int16_t left, int16_t top, int16_t right, int16_t bottom, int16_t yaw, int16_t pitch,
-               int16_t roll) { this->trigger(status, left, top, right, bottom, yaw, pitch, roll); });
-  }
-};
-
-class EnrollmentDoneTrigger : public Trigger<int16_t, uint8_t> {
- public:
-  explicit EnrollmentDoneTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_enrollment_done_callback(
-        [this](int16_t face_id, uint8_t direction) { this->trigger(face_id, direction); });
-  }
-};
-
-class EnrollmentFailedTrigger : public Trigger<uint8_t> {
- public:
-  explicit EnrollmentFailedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_enrollment_failed_callback([this](uint8_t error) { this->trigger(error); });
-  }
-};
-
-template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(std::string, name)
-  TEMPLATABLE_VALUE(uint8_t, direction)
-
-  void play(const Ts &...x) override {
-    auto name = this->name_.value(x...);
-    auto direction = (HlkFm22xFaceDirection) this->direction_.value(x...);
-    this->parent_->enroll_face(name, direction);
-  }
-};
-
-template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(int16_t, face_id)
-
-  void play(const Ts &...x) override {
-    auto face_id = this->face_id_.value(x...);
-    this->parent_->delete_face(face_id);
-  }
-};
-
-template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->delete_all_faces(); }
-};
-
-template<typename... Ts> class ScanAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->scan_face(); }
-};
-
-template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
 }  // namespace esphome::hlk_fm22x

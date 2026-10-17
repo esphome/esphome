@@ -145,6 +145,12 @@ bool ListEntitiesIterator::on_infrared(infrared::Infrared *obj) {
   return true;
 }
 #endif
+#ifdef USE_RADIO_FREQUENCY
+bool ListEntitiesIterator::on_radio_frequency(radio_frequency::RadioFrequency *obj) {
+  this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::radio_frequency_all_json_generator);
+  return true;
+}
+#endif
 
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *obj) {
@@ -159,6 +165,10 @@ bool ListEntitiesIterator::on_update(update::UpdateEntity *obj) {
   this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::update_all_json_generator);
   return true;
 }
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+bool ListEntitiesIterator::on_media_player(media_player::MediaPlayer *obj) { return true; }
 #endif
 
 }  // namespace esphome::web_server

@@ -3,8 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace key_provider {
+namespace esphome::key_provider {
 
 /// interface for components that provide keypresses
 class KeyProvider {
@@ -17,5 +16,4 @@ class KeyProvider {
   CallbackManager<void(uint8_t)> key_callback_{};
 };
 
-}  // namespace key_provider
-}  // namespace esphome
+}  // namespace esphome::key_provider

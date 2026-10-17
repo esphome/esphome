@@ -6,13 +6,14 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@B48D81EFCC"]
 
 sensor_ns = cg.esphome_ns.namespace("bh1900nux")
 BH1900NUXSensor = sensor_ns.class_(
-    "BH1900NUXSensor", cg.PollingComponent, i2c.I2CDevice
+    "BH1900NUXSensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = (
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

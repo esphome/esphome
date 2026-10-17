@@ -1,0 +1,2 @@
+packages:
+  sendspin: !include common.yaml

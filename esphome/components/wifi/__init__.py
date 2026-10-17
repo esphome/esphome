@@ -1,19 +1,26 @@
 import logging
 import math
+from typing import Any
 
-from esphome import automation
+from esphome import automation, preferences
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.const import CONF_ENABLED, CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
     get_esp32_variant,
     only_on_variant,
+    request_wifi,
+    require_mbedtls_tls,
+    require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
-    has_high_performance_networking,
+    add_use_address,
+    get_network_priority,
+    has_high_performance_wifi,
     ip_address_literal,
+    require_high_performance_wifi,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
@@ -24,6 +31,7 @@ from esphome.const import (
     CONF_CERTIFICATE,
     CONF_CERTIFICATE_AUTHORITY,
     CONF_CHANNEL,
+    CONF_CHANNELS,
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
@@ -49,15 +57,24 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
     CONF_SSID,
     CONF_STATIC_IP,
+    CONF_STORAGE,
     CONF_SUBNET,
     CONF_TIMEOUT,
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    PLACEHOLDER_WIFI_SSID,
+    Framework,
     Platform,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeError,
+    HexInt,
+    coroutine_with_priority,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -66,14 +83,91 @@ from . import wpa2_eap
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
+DOMAIN = "wifi"
 
-_LOGGER = logging.getLogger(__name__)
+NO_WIFI_VARIANTS = [
+    const.VARIANT_ESP32H2,
+    const.VARIANT_ESP32H4,
+    const.VARIANT_ESP32H21,
+    const.VARIANT_ESP32P4,
+]
 
-NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
+
+def variant_has_wifi(variant: str) -> bool:
+    """Return True if *variant* has a native WiFi PHY.
+
+    Variants without a native PHY (see ``NO_WIFI_VARIANTS`` — currently
+    ESP32-H2, ESP32-H4, ESP32-H21, ESP32-P4) need the ``esp32_hosted``
+    co-processor to use ``wifi:``.
+
+    Case-insensitive on *variant* so external callers can pass either
+    the upstream uppercase form (e.g. ``"ESP32H2"`` from
+    ``const.VARIANT_ESP32H2``) or a lowercase form their own enum
+    surfaces (e.g. ``"esp32h2"`` from device-builder's
+    ``Esp32Variant``). Both classify identically.
+
+    Used by device-builder (esphome/device-builder) to decide whether
+    its basic-setup wizard emits a ``wifi:`` block — please keep the
+    signature stable.
+    """
+    return variant.upper() not in NO_WIFI_VARIANTS
+
+
+_WIFI_FIRST_PLATFORMS: frozenset[str] = frozenset(
+    {
+        Platform.ESP8266,
+        Platform.BK72XX,
+        Platform.RTL87XX,
+        Platform.LN882X,
+        # Legacy umbrella key for the LibreTiny families (bk72xx /
+        # rtl87xx / ln882x); still produced by older configs that
+        # haven't migrated to the per-family keys.
+        Platform.LIBRETINY_OLDSTYLE,
+    }
+)
+
+
+def has_native_wifi(
+    *, platform: str, board: str | None = None, variant: str | None = None
+) -> bool:
+    """Return True when the given platform/board/variant has native WiFi.
+
+    Single dispatch entry point for tooling that needs to decide
+    whether emitting a ``wifi:`` block produces a compilable
+    config. Caller passes whichever platform-relevant fields they
+    have (``variant`` for ESP32, ``board`` for RP2040), and this
+    function routes to the right per-platform check internally.
+
+    Allowlist-based: unknown / Wi-Fi-less platforms (``host``,
+    ``nrf52``) return False so a future platform added to ESPHome
+    fails closed in external tooling rather than silently emitting
+    a ``wifi:`` block the new platform's component would reject.
+
+    Used by device-builder (esphome/device-builder)'s basic-setup
+    wizard. Centralised here so callers don't have to special-case
+    each platform — as ESPHome adds new platforms, this dispatcher
+    is the one place to teach them about Wi-Fi capability.
+    """
+    if platform == Platform.ESP32:
+        return variant_has_wifi(variant) if variant else True
+    if platform == Platform.RP2:
+        from esphome.components.rp2 import board_id_has_wifi
+
+        return board_id_has_wifi(board) if board else True
+    return platform in _WIFI_FIRST_PLATFORMS
+
+
 CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
+CONF_DEVICE_INFO = "device_info"
+CONF_DPP = "dpp"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_ON_DPP_URI = "on_dpp_uri"
+CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
+CONF_PRIVATE_KEY = "private_key"
+CONF_AP_MODE = "ap_mode"
+CONF_DNS_SERVERS = "dns_servers"
 
 # Maximum number of WiFi networks that can be configured
 # Limited to 127 because selected_sta_index_ is int8_t in C++
@@ -84,6 +178,14 @@ MAX_WIFI_NETWORKS = 127
 # get best-effort connection attempts. Longer timeout ensures we exhaust all options
 # before falling back to AP mode. Aligned with improv wifi_timeout default.
 DEFAULT_AP_TIMEOUT = "90s"
+DEFAULT_AP_TIMEOUT_PERIOD = cv.time_period(DEFAULT_AP_TIMEOUT)
+DEFAULT_REBOOT_TIMEOUT = "15min"
+# Both defaults also match the C++ initializers in wifi_component.h; codegen skips
+# the setter when the config equals them.
+
+# Similar to AP timeout, but reduced to allow repetitive enrollment attempts
+# in the case of failure. Does not affect AP or scanning.
+DEFAULT_DPP_TIMEOUT = "1min"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -92,11 +194,9 @@ WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")
 
 WiFiPowerSaveMode = wifi_ns.enum("WiFiPowerSaveMode")
-WIFI_POWER_SAVE_MODES = {
-    "NONE": WiFiPowerSaveMode.WIFI_POWER_SAVE_NONE,
-    "LIGHT": WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
-    "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
-}
+WIFI_POWER_SAVE_MODES = WiFiPowerSaveMode.options(
+    "NONE", "LIGHT", "HIGH", prefix="WIFI_POWER_SAVE_"
+)
 
 WiFiBandMode = cg.global_ns.enum("wifi_band_mode_t")
 WIFI_BAND_MODES = {
@@ -106,20 +206,58 @@ WIFI_BAND_MODES = {
 }
 
 WifiMinAuthMode = wifi_ns.enum("WifiMinAuthMode")
-WIFI_MIN_AUTH_MODES = {
-    "WPA": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA,
-    "WPA2": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA2,
-    "WPA3": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA3,
-}
+WIFI_MIN_AUTH_MODES = WifiMinAuthMode.options(
+    "WPA", "WPA2", "WPA3", prefix="WIFI_MIN_AUTH_MODE_"
+)
 VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
+
+WiFi8266PhyMode = wifi_ns.enum("WiFi8266PhyMode")
+WIFI_8266_PHY_MODES = WiFi8266PhyMode.options(
+    "AUTO", "11B", "11G", "11N", prefix="WIFI_8266_PHY_MODE_"
+)
+
+WIFI_AP_MODE_FALLBACK = "FALLBACK"
+WIFI_AP_MODE_WISP = "WISP"
+
+
+def _validate_ap_mode(value: str) -> str:
+    value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
+    if value == WIFI_AP_MODE_WISP:
+        # esp_netif_napt_enable() exists from ESP-IDF 5.1
+        cv.require_framework_version(
+            esp_idf=cv.Version(5, 1, 0), extra_message="WISP mode routes through NAT"
+        )(value)
+    return value
+
+
+def _validate_dns_servers(value: list) -> list:
+    if any(ip.is_unspecified for ip in value):
+        raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
+    if len(value) > 1:
+        cv.require_framework_version(
+            esp_idf=cv.Version(6, 0, 0),
+            extra_message="The access point offers a second DNS server from ESP-IDF 6.0",
+        )(value)
+    return value
+
+
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
+WiFiRoamAction = wifi_ns.class_("WiFiRoamAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
     "WiFiConfigureAction", automation.Action, cg.Component
 )
+
+
+def _validate_dpp_device_info(value: object) -> str:
+    """The supplicant puts the text on a space separated command line and reads it up to the next space."""
+    value = cv.string_strict(value)
+    if any(c.isspace() for c in value):
+        raise cv.Invalid("device_info cannot contain whitespace")
+    return value
 
 
 def validate_password(value):
@@ -171,7 +309,7 @@ EAP_AUTH_SCHEMA = cv.All(
         {
             cv.Optional(CONF_IDENTITY): cv.string_strict,
             cv.Optional(CONF_USERNAME): cv.string_strict,
-            cv.Optional(CONF_PASSWORD): cv.string_strict,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(cv.string_strict),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
             cv.SplitDefault(CONF_TTLS_PHASE_2, esp32="mschapv2"): cv.All(
                 cv.enum(TTLS_PHASE_2), cv.only_on_esp32
@@ -188,13 +326,35 @@ EAP_AUTH_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_IDENTITY, CONF_CERTIFICATE),
 )
 
+# Wi-Fi Easy Connect (DPP) enrollee; the ESP-IDF supplicant supports the QR code method
+DPP_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(cv.string_strict),
+        cv.Optional(CONF_DEVICE_INFO): _validate_dpp_device_info,
+        cv.Optional(CONF_CHANNELS, default=[6]): cv.ensure_list(
+            cv.int_range(min=1, max=14)
+        ),
+        cv.Optional(
+            CONF_TIMEOUT, default=DEFAULT_DPP_TIMEOUT
+        ): cv.positive_time_period_milliseconds,
+    }
+)
+
+
+def _dpp_schema(value: ConfigType | None) -> ConfigType:
+    # A bare `dpp:` takes every default
+    return DPP_SCHEMA({} if value is None else value)
+
+
 WIFI_NETWORK_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WiFiAP),
-        cv.Optional(CONF_SSID): cv.ssid,
-        cv.Optional(CONF_PASSWORD): validate_password,
+        cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
+        cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
         cv.Optional(CONF_CHANNEL): validate_channel,
-        cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+        cv.Optional(
+            CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
+        ): STA_MANUAL_IP_SCHEMA,
     }
 )
 
@@ -204,6 +364,12 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
         cv.Optional(
             CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_AP_MODE, default=WIFI_AP_MODE_FALLBACK): _validate_ap_mode,
+        cv.Optional(CONF_DNS_SERVERS): cv.All(
+            cv.ensure_list(cv.ipv4address),
+            cv.Length(min=1, max=2),
+            _validate_dns_servers,
+        ),
     }
 )
 
@@ -212,7 +378,20 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
-    if CONF_MANUAL_IP in config and CORE.is_rp2040:
+    if config[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
+        if not config.get(CONF_PASSWORD):
+            raise cv.Invalid(
+                "WISP mode requires a password for the access point",
+                path=[CONF_PASSWORD],
+            )
+        if config[CONF_AP_TIMEOUT].total_milliseconds == 0:
+            raise cv.Invalid(
+                "ap_timeout is how long the bridge waits before a failed start is tried again; it cannot be 0",
+                path=[CONF_AP_TIMEOUT],
+            )
+    elif CONF_DNS_SERVERS in config:
+        raise cv.Invalid("dns_servers requires ap_mode: WISP", path=[CONF_DNS_SERVERS])
+    if CONF_MANUAL_IP in config and CORE.is_rp2:
         raise cv.Invalid(
             "Manual AP IP configuration is not supported on RP2040. "
             "The AP uses the default IP 192.168.4.1"
@@ -235,8 +414,8 @@ def validate_variant(_):
         variant = get_esp32_variant()
         if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
             raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
-    if CORE.is_rp2040:
-        from esphome.components.rp2040 import board_has_wifi, get_board
+    if CORE.is_rp2:
+        from esphome.components.rp2 import board_has_wifi, get_board
 
         if not board_has_wifi():
             raise cv.Invalid(
@@ -245,56 +424,81 @@ def validate_variant(_):
             )
 
 
+def _validate_min_auth_mode(value: str) -> str:
+    if value == "WPA3" and CORE.is_esp8266:
+        raise cv.Invalid("ESP8266 does not support WPA3; use WPA or WPA2 instead")
+    return value
+
+
 def _apply_min_auth_mode_default(config):
-    """Apply platform-specific default for min_auth_mode and warn ESP8266 users."""
-    # Only apply defaults for platforms that support min_auth_mode
+    """Apply platform-specific default for min_auth_mode."""
     if CONF_MIN_AUTH_MODE not in config and (CORE.is_esp8266 or CORE.is_esp32):
-        if CORE.is_esp8266:
-            _LOGGER.warning(
-                "The minimum WiFi authentication mode (wifi -> min_auth_mode) is not set. "
-                "This controls the weakest encryption your device will accept when connecting to WiFi. "
-                "Currently defaults to WPA (less secure), but will change to WPA2 (more secure) in 2026.6.0. "
-                "WPA uses TKIP encryption which has known security vulnerabilities and should be avoided. "
-                "WPA2 uses AES encryption which is significantly more secure. "
-                "To silence this warning, explicitly set min_auth_mode under 'wifi:'. "
-                "If your router supports WPA2 or WPA3, set 'min_auth_mode: WPA2'. "
-                "If your router only supports WPA, set 'min_auth_mode: WPA'."
-            )
-            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA")
-        elif CORE.is_esp32:
-            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
+        config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
     return config
 
 
 def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
+    has_dpp = CONF_DPP in config
     full_config = fv.full_config.get()
-    has_improv = "esp32_improv" in full_config
+    has_improv = "improv_ble" in full_config
     has_improv_serial = "improv_serial" in full_config
     has_captive_portal = "captive_portal" in full_config
     has_web_server = "web_server" in full_config
-    if not (has_sta or has_ap or has_improv or has_improv_serial):
+    if not (has_sta or has_ap or has_dpp or has_improv or has_improv_serial):
         raise cv.Invalid(
-            "Please specify at least an SSID or an Access Point to create."
+            "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
-    if has_ap and not has_captive_portal and not has_web_server:
+    if CONF_ON_DPP_URI in config and not has_dpp:
+        raise cv.Invalid(f"'{CONF_ON_DPP_URI}' requires '{CONF_DPP}'")
+
+    ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
+    if ap_is_wisp:
+        if not has_sta:
+            raise cv.Invalid(
+                "WISP mode requires at least one STA network (wifi.ssid or wifi.networks)"
+            )
+        if has_captive_portal:
+            raise cv.Invalid(
+                "captive_portal is not supported together with ap_mode: WISP"
+            )
+        # Every client packet passes through the WiFi driver, none through the device's own sockets
+        require_high_performance_wifi()
+        if CONF_DNS_SERVERS not in config[CONF_AP]:
+            # The access point passes the station's resolvers on, which a static address has to name
+            for network in [config, *config.get(CONF_NETWORKS, [])]:
+                static = network.get(CONF_MANUAL_IP)
+                if static and static[CONF_DNS1].is_unspecified:
+                    raise cv.Invalid(
+                        "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
+                        path=[CONF_MANUAL_IP, CONF_DNS1],
+                    )
+
+    if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
             "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
             "The AP will not be usable for configuration or monitoring. "
             "Add 'captive_portal:' or 'web_server:' to your configuration."
+        )
+    if "esp32_hosted" in full_config and any(
+        CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
+    ):
+        _LOGGER.warning(
+            "WPA2 Enterprise ('eap:') is not supported by the esp32_hosted coprocessor "
+            "firmware ESPHome provides"
         )
 
 
 def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
     """Register UDP PCBs used internally by lwIP for DHCP and DNS.
 
-    Only needed on LibreTiny where we directly set MEMP_NUM_UDP_PCB (the raw
-    PCB pool shared by both application sockets and lwIP internals like DHCP/DNS).
-    On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket layer —
-    DHCP/DNS use raw udp_new() which bypasses it entirely.
+    Needed on LibreTiny and RP2040 where we directly set MEMP_NUM_UDP_PCB (the
+    raw PCB pool shared by both application sockets and lwIP internals like
+    DHCP/DNS). On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket
+    layer — DHCP/DNS use raw udp_new() which bypasses it entirely.
     """
-    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x):
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x or CORE.is_rp2):
         return config
     from esphome.components import socket
 
@@ -360,7 +564,76 @@ def _validate(config):
     return config
 
 
+def _report_provisioning_credentials(config):
+    """Report baked-in STA credentials to the provisioning component (if used).
+
+    `_validate` has already folded any ``ssid``/``password`` into ``networks``, so a
+    non-empty list means credentials are set in the config. `provisioning:` warns
+    about this, since a device that uses a provisioning window should get its
+    credentials on first connection instead.
+    """
+    from esphome.components import provisioning
+
+    if config.get(CONF_NETWORKS):
+        provisioning.report_hardcoded_credentials("wifi")
+    elif CONF_AP in config:
+        # An access point with no station credentials: the AP shuts down when the
+        # provisioning window closes, so `provisioning:` warns that the device may
+        # become unreachable until power-cycled.
+        provisioning.report_ap_without_sta()
+    return config
+
+
 CONF_PASSIVE_SCAN = "passive_scan"
+
+FAST_CONNECT_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+        **preferences.storage_schema(),
+    }
+)
+
+
+def _fast_connect_schema(value: Any) -> ConfigType:
+    """Accept the historic plain boolean (including boolean-like strings from
+    substitutions) or a dict with enabled/storage keys."""
+    if not isinstance(value, dict):
+        value = {CONF_ENABLED: value}
+    return FAST_CONNECT_SCHEMA(value)
+
+
+CONF_LEASE_CACHE = "lease_cache"
+CONF_MAX_AGE = "max_age"
+
+LEASE_CACHE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+        # Defaults to RTC in _lease_cache_schema; flash wears and must be opted into.
+        cv.Optional(CONF_STORAGE): preferences.validate_storage,
+        cv.Optional(CONF_MAX_AGE): cv.positive_time_period_seconds,
+    }
+)
+
+
+def _lease_cache_schema(value: Any) -> ConfigType:
+    """Accept a plain boolean shorthand or a dict with enabled/storage/max_age keys."""
+    if not isinstance(value, dict):
+        value = {CONF_ENABLED: value}
+    value = LEASE_CACHE_SCHEMA(value)
+    if value[CONF_ENABLED]:
+        cv.only_on_esp32(value)
+        cv.only_with_framework(Framework.ESP_IDF)(value)
+        if CONF_STORAGE not in value:
+            if not preferences.rtc_supported():
+                raise cv.Invalid(
+                    "This ESP32 variant has no RTC memory; set 'storage: flash' to "
+                    "cache the lease in flash",
+                    path=[CONF_STORAGE],
+                )
+            value[CONF_STORAGE] = preferences.STORAGE_RTC
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -368,29 +641,34 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_NETWORKS): cv.All(
                 cv.ensure_list(WIFI_NETWORK_STA), cv.Length(max=MAX_WIFI_NETWORKS)
             ),
-            cv.Optional(CONF_SSID): cv.ssid,
-            cv.Optional(CONF_PASSWORD): validate_password,
-            cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+            cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
+            cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
+            cv.Optional(
+                CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
+            ): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
+            cv.Optional(CONF_DPP): cv.All(cv.only_on_esp32, _dpp_schema),
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
-                CONF_REBOOT_TIMEOUT, default="15min"
+                CONF_REBOOT_TIMEOUT, default=DEFAULT_REBOOT_TIMEOUT
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(
                 CONF_POWER_SAVE_MODE,
                 esp8266="none",
                 esp32="light",
-                rp2040="light",
+                rp2="light",
                 bk72xx="none",
                 rtl87xx="none",
-                ln882x="light",
+                ln882x="none",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
-            cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
+            cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
+            cv.Optional(CONF_LEASE_CACHE, default=False): _lease_cache_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
                 VALIDATE_WIFI_MIN_AUTH_MODE,
                 cv.only_on([Platform.ESP32, Platform.ESP8266]),
+                _validate_min_auth_mode,
             ),
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
@@ -406,6 +684,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_on_esp32,
                 only_on_variant(supported=[const.VARIANT_ESP32C5]),
             ),
+            cv.Optional(CONF_PHY_MODE): cv.All(
+                cv.enum(WIFI_8266_PHY_MODES, upper=True),
+                cv.only_on_esp8266,
+            ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
@@ -413,6 +695,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(CONF_ON_DPP_URI): automation.validate_automation(single=True),
             cv.Optional(CONF_USE_PSRAM): cv.All(
                 cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
             ),
@@ -420,6 +703,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _apply_min_auth_mode_default,
     _validate,
+    _report_provisioning_credentials,
 )
 
 
@@ -480,7 +764,8 @@ def wifi_network(config, ap, static_ip):
         cg.add(ap.set_channel(config[CONF_CHANNEL]))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
-    if CONF_PRIORITY in config:
+    # priority_ is 0 in C++; skip the setter when the config matches it.
+    if config.get(CONF_PRIORITY, 0) != 0:
         cg.add(ap.set_priority(config[CONF_PRIORITY]))
 
     return ap
@@ -489,7 +774,11 @@ def wifi_network(config, ap, static_ip):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+
+    prio = get_network_priority("wifi")
+    if prio is not None:
+        cg.set_setup_priority(var, prio)
+    add_use_address(var, config[CONF_USE_ADDRESS])
 
     # Track if any network uses Enterprise authentication
     has_eap = False
@@ -500,6 +789,9 @@ async def to_code(config):
     networks = config.get(CONF_NETWORKS, [])
     if networks:
         cg.add(var.init_sta(len(networks)))
+        if len(networks) > 1:
+            # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
+            cg.add_define("USE_WIFI_MULTI_SSID")
 
         def add_sta(ap: cg.MockObj, network: dict) -> None:
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
@@ -522,26 +814,97 @@ async def to_code(config):
             WiFiAP(),
             lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
         )
-        cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
+        # Skip the setter when the config matches the C++ initializer.
+        if (ap_timeout := conf[CONF_AP_TIMEOUT]) != DEFAULT_AP_TIMEOUT_PERIOD:
+            cg.add(var.set_ap_timeout(ap_timeout))
+        if conf[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
+            cg.add_define("USE_WIFI_AP_WISP")
+            add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+            if dns_servers := conf.get(CONF_DNS_SERVERS):
+                cg.add_define("USE_WIFI_AP_WISP_STATIC_DNS")
+                # As lwIP stores an IPv4 address: the four bytes read as one little-endian word
+                for i, ip in enumerate(dns_servers):
+                    cg.add_define(
+                        f"WIFI_AP_WISP_DNS_{i}", int.from_bytes(ip.packed, "little")
+                    )
         cg.add_define("USE_WIFI_AP")
-    elif CORE.is_esp32 and not CORE.using_arduino:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
-        add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
+        # The LN882H radio cannot run the AP and STA together; the fallback AP
+        # takes turns with the networks instead.
+        if CORE.is_ln882x:
+            cg.add_define("USE_WIFI_AP_EXCLUSIVE")
+        # The Pico W driver drops the AP station events; wifi_component_pico_w.cpp counts them
+        if CORE.is_rp2:
+            cg.add_build_flag("-Wl,--wrap=cyw43_cb_process_async_event")
+
+    # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
+    # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
+    if CORE.is_esp32:
+        request_wifi(ap=CONF_AP in config)
+
+    if (dpp := config.get(CONF_DPP)) is not None:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_DPP", True)
+        if (key := dpp.get(CONF_PRIVATE_KEY)) is not None:
+            cg.add(var.set_dpp_key(key))
+        if (info := dpp.get(CONF_DEVICE_INFO)) is not None:
+            cg.add(var.set_dpp_device_info(info))
+        cg.add(var.set_dpp_channels(",".join(str(c) for c in dpp[CONF_CHANNELS])))
+        if (timeout := dpp[CONF_TIMEOUT]) != cv.time_period(DEFAULT_DPP_TIMEOUT):
+            cg.add(var.set_dpp_timeout(timeout))
+        cg.add_define("USE_WIFI_DPP")
 
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
+        if has_eap:
+            # The supplicant's Kconfig select cannot override the IDF 5 TLS
+            # role choice; the EAP client talks to mbedTLS directly (no
+            # esp-tls) and needs every trimmed extra.
+            require_mbedtls_tls()
+            require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
     if has_manual_ip:
         cg.add_define("USE_WIFI_MANUAL_IP")
 
-    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
-    if CONF_MIN_AUTH_MODE in config:
-        cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
-    if config[CONF_FAST_CONNECT]:
+    # The C++ initializers are DEFAULT_REBOOT_TIMEOUT, power save NONE and minimum
+    # auth WPA2; skip the setters when the config matches them.
+    if (reboot_timeout := config[CONF_REBOOT_TIMEOUT]) != cv.time_period(
+        DEFAULT_REBOOT_TIMEOUT
+    ):
+        cg.add(var.set_reboot_timeout(reboot_timeout))
+    if (power_save_mode := config[CONF_POWER_SAVE_MODE]) != "NONE":
+        if reasons := CORE.data.get(POWER_SAVE_OFF_REASONS_KEY):
+            _LOGGER.warning(
+                "power_save_mode %s is not applied: %s",
+                power_save_mode,
+                "; ".join(reasons),
+            )
+        else:
+            cg.add(var.set_power_save_mode(power_save_mode))
+    # From here on force_power_save_off() can no longer take effect
+    CORE.data[POWER_SAVE_APPLIED_KEY] = True
+    if (
+        min_auth_mode := config.get(CONF_MIN_AUTH_MODE)
+    ) is not None and min_auth_mode != "WPA2":
+        cg.add(var.set_min_auth_mode(min_auth_mode))
+    fast_connect = config[CONF_FAST_CONNECT]
+    if fast_connect[CONF_ENABLED]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
+        # The storage default preserves this preference's historic location:
+        # ESP8266 has always used RTC memory; every other platform effectively
+        # used flash (the in_flash flag was previously ignored outside ESP8266).
+        if preferences.is_in_flash(fast_connect[CONF_STORAGE]):
+            cg.add_define("USE_WIFI_FAST_CONNECT_IN_FLASH")
+    lease_cache = config[CONF_LEASE_CACHE]
+    if lease_cache[CONF_ENABLED]:
+        cg.add_define("USE_WIFI_LEASE_CACHE")
+        # is_in_flash() also emits USE_ESP32_RTC_PREFERENCES when rtc is chosen.
+        if preferences.is_in_flash(lease_cache[CONF_STORAGE]):
+            cg.add_define("USE_WIFI_LEASE_CACHE_IN_FLASH")
+        if (max_age := lease_cache.get(CONF_MAX_AGE)) is not None:
+            cg.add(var.set_lease_cache_max_age(int(max_age.total_seconds)))
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))
@@ -558,6 +921,10 @@ async def to_code(config):
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
 
+    # LN882x: hand the SDK the BSSID LibreTiny 1.13 drops (see wifi_component_libretiny.cpp); remove once fixed upstream.
+    if CORE.is_ln882x:
+        cg.add_build_flag("-Wl,--wrap=wifi_sta_connect")
+
     # post_connect_roaming defaults to true in C++ - disable if user disabled it
     # or if 802.11k/v is enabled (driver handles roaming natively)
     if (
@@ -569,7 +936,10 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
-    elif CORE.is_rp2040:
+        if CONF_PHY_MODE in config:
+            cg.add_define("USE_WIFI_PHY_MODE")
+            cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
+    elif CORE.is_rp2:
         cg.add_library("WiFi", None)
 
     if CORE.is_esp32:
@@ -586,8 +956,8 @@ async def to_code(config):
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
-    # Apply high performance WiFi settings if high performance networking is enabled
-    if CORE.is_esp32 and has_high_performance_networking():
+    # Apply high performance WiFi settings if a component asked for them
+    if CORE.is_esp32 and has_high_performance_wifi():
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
 
@@ -599,7 +969,7 @@ async def to_code(config):
                 "Applying high-performance WiFi settings (PSRAM guaranteed): 512 RX buffers, 32 TX buffers"
             )
             # PSRAM is guaranteed - use aggressive settings
-            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true in networking component
+            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE may be set to true in networking component
             # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
 
             # Large dynamic RX buffers (requires PSRAM)
@@ -654,45 +1024,71 @@ async def to_code(config):
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
 
+    if (on_dpp_uri := config.get(CONF_ON_DPP_URI)) is not None:
+        cg.add_define("USE_WIFI_DPP_URI_TRIGGER")
+        await automation.build_callback_automation(
+            var, "add_on_dpp_uri_callback", [(cg.const_char_ptr, "uri")], on_dpp_uri
+        )
+
     CORE.add_job(final_step)
 
 
-@automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
-async def wifi_connected_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_condition("wifi.enabled", WiFiEnabledCondition, cv.Schema({}))
-async def wifi_enabled_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_condition("wifi.ap_active", WiFiAPActiveCondition, cv.Schema({}))
-async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_action(
-    "wifi.enable", WiFiEnableAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "wifi.connected",
+    WiFiConnectedCondition,
+    cv.Schema({}),
 )
-async def wifi_enable_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action(
-    "wifi.disable", WiFiDisableAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "wifi.enabled",
+    WiFiEnabledCondition,
+    cv.Schema({}),
 )
-async def wifi_disable_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
+
+
+automation.register_bare_condition(
+    "wifi.ap_active",
+    WiFiAPActiveCondition,
+    cv.Schema({}),
+)
+
+
+automation.register_bare_action(
+    "wifi.enable",
+    WiFiEnableAction,
+    cv.Schema({}),
+    synchronous=True,
+)
+
+
+automation.register_bare_action(
+    "wifi.disable",
+    WiFiDisableAction,
+    cv.Schema({}),
+    synchronous=True,
+)
+
+
+automation.register_bare_action(
+    "wifi.roam",
+    WiFiRoamAction,
+    cv.Schema({}),
+    synchronous=True,
+)
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
 RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
+POWER_SAVE_OFF_REASONS_KEY = "wifi_power_save_off_reasons"
+POWER_SAVE_APPLIED_KEY = "wifi_power_save_applied"
+RUNTIME_ROAMING_SUPPRESSION_KEY = "wifi_runtime_roaming_suppression"
 # Keys for listener counts
 IP_STATE_LISTENERS_KEY = "wifi_ip_state_listeners"
 SCAN_RESULTS_LISTENERS_KEY = "wifi_scan_results_listeners"
 CONNECT_STATE_LISTENERS_KEY = "wifi_connect_state_listeners"
 POWER_SAVE_LISTENERS_KEY = "wifi_power_save_listeners"
+SCAN_RESULTS_LOCK_KEY = "wifi_scan_results_lock"
 
 
 def request_wifi_scan_results():
@@ -703,6 +1099,38 @@ def request_wifi_scan_results():
     freeing scan result memory after successful connection.
     """
     CORE.data[KEEP_SCAN_RESULTS_KEY] = True
+
+
+def request_wifi_scan_results_lock() -> None:
+    """Request that scan results be guarded by a lock for cross-task readers.
+
+    Components that read WiFi scan results from a task other than the main loop
+    (for example a web server handler) must call this function during their code
+    generation, and their C++ code must hold a wifi::ScanResultsLock while
+    iterating get_scan_result(). On multi-threaded platforms this compiles in a
+    lock that scan result writers hold; on single-threaded platforms it compiles
+    to nothing.
+    """
+    CORE.data[SCAN_RESULTS_LOCK_KEY] = True
+
+
+def force_power_save_off(reason: str) -> None:
+    """Keep the station out of WiFi power save regardless of power_save_mode.
+
+    Components whose platform cannot run power save safely call this from their
+    final validation (FINAL_VALIDATE_SCHEMA), which always runs before any code
+    generation. Every distinct reason is kept; when the configured mode is not
+    NONE, wifi's code generation logs them and skips the mode. Calling it once
+    wifi has generated its code is too late and raises.
+    """
+    if POWER_SAVE_APPLIED_KEY in CORE.data:
+        raise EsphomeError(
+            "wifi.force_power_save_off() must be called from final validation, "
+            "before wifi generates its code"
+        )
+    reasons: list[str] = CORE.data.setdefault(POWER_SAVE_OFF_REASONS_KEY, [])
+    if reason not in reasons:
+        reasons.append(reason)
 
 
 def enable_runtime_power_save_control():
@@ -716,6 +1144,19 @@ def enable_runtime_power_save_control():
     Only supported on ESP32.
     """
     CORE.data[RUNTIME_POWER_SAVE_KEY] = True
+
+
+def enable_runtime_roaming_suppression() -> None:
+    """Enable runtime suppression of post-connect roaming scans.
+
+    Components that are disrupted by the radio briefly going off-channel during a
+    roaming scan (e.g., audio playback) should call this function during their code
+    generation. This enables the request_roaming_suppression() and
+    release_roaming_suppression() APIs, which pause periodic roaming scans while active.
+
+    Only supported on ESP32.
+    """
+    CORE.data[RUNTIME_ROAMING_SUPPRESSION_KEY] = True
 
 
 def request_wifi_ip_state_listener() -> None:
@@ -751,6 +1192,10 @@ async def final_step():
         )
     if CORE.data.get(RUNTIME_POWER_SAVE_KEY, False):
         cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
+    if CORE.data.get(RUNTIME_ROAMING_SUPPRESSION_KEY, False):
+        cg.add_define("USE_WIFI_RUNTIME_ROAMING_SUPPRESSION")
+    if CORE.data.get(SCAN_RESULTS_LOCK_KEY):
+        cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)
@@ -777,8 +1222,8 @@ async def final_step():
     WiFiConfigureAction,
     cv.Schema(
         {
-            cv.Required(CONF_SSID): cv.templatable(cv.ssid),
-            cv.Required(CONF_PASSWORD): cv.templatable(validate_password),
+            cv.Required(CONF_SSID): cv.sensitive(cv.templatable(cv.ssid)),
+            cv.Required(CONF_PASSWORD): cv.sensitive(cv.templatable(validate_password)),
             cv.Optional(CONF_SAVE, default=True): cv.templatable(cv.boolean),
             cv.Optional(CONF_TIMEOUT, default="30000ms"): cv.templatable(
                 cv.positive_time_period_milliseconds
@@ -821,6 +1266,48 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "wifi_component_pico_w.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "wifi_component_pico_w.cpp": {PlatformFramework.RP2_ARDUINO},
     }
 )
+
+
+def _placeholder_wifi_credentials(config: ConfigType) -> list[str]:
+    """Return human-readable locations where the dashboard's placeholder wifi
+    values still appear. Empty list means no placeholders were found.
+    """
+    placeholders: list[str] = []
+    wifi_conf = config.get(DOMAIN)
+    if not wifi_conf:
+        return placeholders
+
+    for idx, network in enumerate(wifi_conf.get(CONF_NETWORKS, [])):
+        ssid = network.get(CONF_SSID)
+        if isinstance(ssid, str) and ssid == PLACEHOLDER_WIFI_SSID:
+            placeholders.append(f"wifi.networks[{idx}].ssid")
+
+    ap_conf = wifi_conf.get(CONF_AP)
+    if ap_conf:
+        ap_ssid = ap_conf.get(CONF_SSID)
+        if isinstance(ap_ssid, str) and ap_ssid == PLACEHOLDER_WIFI_SSID:
+            placeholders.append("wifi.ap.ssid")
+
+    return placeholders
+
+
+def check_placeholder_credentials(config: ConfigType) -> None:
+    """Raise EsphomeError if any wifi credential is the dashboard placeholder.
+
+    Call only at compile time. NEVER from CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA,
+    or any path reached by `esphome config`; device-builder relies on
+    validation passing with the placeholders still in place.
+    """
+    locations = _placeholder_wifi_credentials(config)
+    if not locations:
+        return
+    formatted = ", ".join(locations)
+    raise EsphomeError(
+        f"wifi configuration still contains the dashboard placeholder value "
+        f"'{PLACEHOLDER_WIFI_SSID}' at: {formatted}. "
+        f"Open secrets.yaml and replace 'wifi_ssid' (and 'wifi_password') "
+        f"with your real wifi credentials before flashing."
+    )

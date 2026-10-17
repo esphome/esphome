@@ -19,7 +19,7 @@ static void Encode_SensorStateResponse(benchmark::State &state) {
   msg.state = 23.5f;
   msg.missing_state = false;
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -60,7 +60,7 @@ static void CalcAndEncode_SensorStateResponse(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }
@@ -84,7 +84,7 @@ static void CalcAndEncode_SensorStateResponse_Fresh(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
       benchmark::DoNotOptimize(buffer.data());
@@ -103,7 +103,7 @@ static void Encode_BinarySensorStateResponse(benchmark::State &state) {
   msg.state = true;
   msg.missing_state = false;
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -126,7 +126,7 @@ static void Encode_HelloResponse(benchmark::State &state) {
   msg.server_info = StringRef::from_lit("esphome v2026.3.0");
   msg.name = StringRef::from_lit("living-room-sensor");
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -158,7 +158,7 @@ static void Encode_LightStateResponse(benchmark::State &state) {
   msg.warm_white = 0.0f;
   msg.effect = StringRef::from_lit("rainbow");
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -243,7 +243,7 @@ static void Encode_DeviceInfoResponse(benchmark::State &state) {
   auto msg = make_device_info_response();
   APIBuffer buffer;
   uint32_t total_size = msg.calculate_size();
-  buffer.resize(total_size);
+  (void) buffer.resize(total_size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -264,7 +264,7 @@ static void CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }
@@ -285,7 +285,7 @@ static void CalcAndEncode_DeviceInfoResponse_Fresh(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
       benchmark::DoNotOptimize(buffer.data());
@@ -294,5 +294,94 @@ static void CalcAndEncode_DeviceInfoResponse_Fresh(benchmark::State &state) {
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalcAndEncode_DeviceInfoResponse_Fresh);
+
+// --- BluetoothLERawAdvertisementsResponse (12 adverts, highest-volume BLE message) ---
+
+#ifdef USE_BLUETOOTH_PROXY
+
+static BluetoothLERawAdvertisementsResponse make_ble_raw_advs_12() {
+  static const uint8_t fake_adv_data[] = {
+      0x02, 0x01, 0x06, 0x03, 0x03, 0x9F, 0xFE, 0x17, 0x16, 0x9F, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  BluetoothLERawAdvertisementsResponse msg;
+  msg.advertisements_len = 12;
+  for (int i = 0; i < 12; i++) {
+    auto &adv = msg.advertisements[i];
+    adv.address = 0xAABBCCDD0000ULL + i;
+    adv.rssi = -60 - i;
+    adv.address_type = 1;
+    memcpy(adv.data, fake_adv_data, sizeof(fake_adv_data));
+    adv.data_len = sizeof(fake_adv_data);
+  }
+  return msg;
+}
+
+static void CalculateSize_BLERawAdvs12(benchmark::State &state) {
+  auto msg = make_ble_raw_advs_12();
+
+  for (auto _ : state) {
+    uint32_t result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += msg.calculate_size();
+    }
+    benchmark::DoNotOptimize(result);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(CalculateSize_BLERawAdvs12);
+
+static void Encode_BLERawAdvs12(benchmark::State &state) {
+  auto msg = make_ble_raw_advs_12();
+  APIBuffer buffer;
+  uint32_t total_size = msg.calculate_size();
+  (void) buffer.resize(total_size);
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
+    benchmark::DoNotOptimize(buffer.data());
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Encode_BLERawAdvs12);
+
+static void CalcAndEncode_BLERawAdvs12(benchmark::State &state) {
+  auto msg = make_ble_raw_advs_12();
+  APIBuffer buffer;
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      uint32_t size = msg.calculate_size();
+      (void) buffer.resize(size);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
+    benchmark::DoNotOptimize(buffer.data());
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(CalcAndEncode_BLERawAdvs12);
+
+static void CalcAndEncode_BLERawAdvs12_Fresh(benchmark::State &state) {
+  auto msg = make_ble_raw_advs_12();
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      APIBuffer buffer;
+      uint32_t size = msg.calculate_size();
+      (void) buffer.resize(size);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+      benchmark::DoNotOptimize(buffer.data());
+    }
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(CalcAndEncode_BLERawAdvs12_Fresh);
+
+#endif  // USE_BLUETOOTH_PROXY
 
 }  // namespace esphome::api::benchmarks

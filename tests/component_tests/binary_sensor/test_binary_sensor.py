@@ -31,7 +31,7 @@ def test_binary_sensor_sets_mandatory_fields(generate_main):
     )
 
     # Then
-    assert 'bs_1->configure_entity_("test bs1",' in main_cpp
+    assert 'App.register_binary_sensor(bs_1, "test bs1",' in main_cpp
     assert "bs_1->set_pin(" in main_cpp
 
 

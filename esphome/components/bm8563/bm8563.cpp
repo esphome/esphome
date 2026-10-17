@@ -1,9 +1,12 @@
 #include "bm8563.h"
+
+#include <cinttypes>
+
 #include "esphome/core/log.h"
 
 namespace esphome::bm8563 {
 
-static const char *const TAG = "bm8563";
+ESPHOME_LOG_TAG(TAG, "bm8563");
 
 static constexpr uint8_t CONTROL_STATUS_1_REG = 0x00;
 static constexpr uint8_t CONTROL_STATUS_2_REG = 0x01;
@@ -18,7 +21,7 @@ static constexpr uint32_t MAX_TIMER_DURATION_S = 255 * 60;
 
 void BM8563::setup() {
   if (!this->write_byte_16(CONTROL_STATUS_1_REG, 0)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -28,9 +31,6 @@ void BM8563::update() { this->read_time(); }
 void BM8563::dump_config() {
   ESP_LOGCONFIG(TAG, "BM8563:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void BM8563::start_timer(uint32_t duration_s) {
@@ -60,7 +60,7 @@ void BM8563::read_time() {
            rtc_time.day_of_week, rtc_time.hour, rtc_time.minute, rtc_time.second);
 
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid()) {
+  if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
   }
@@ -97,7 +97,8 @@ void BM8563::get_date_(ESPTime &time) {
   this->read_register(DATE_FIRST_REG, buf, sizeof(buf));
 
   time.day_of_month = this->bcd2_to_byte_(buf[0] & 0x3f);
-  time.day_of_week = this->bcd2_to_byte_(buf[1] & 0x07);
+  // The chip counts weekdays 0-6 from Sunday (not BCD), ESPTime counts 1-7
+  time.day_of_week = (buf[1] & 0x07) + 1;
   time.month = this->bcd2_to_byte_(buf[2] & 0x1f);
 
   uint8_t year_byte = this->bcd2_to_byte_(buf[3] & 0xff);
@@ -112,7 +113,7 @@ void BM8563::get_date_(ESPTime &time) {
 void BM8563::set_date_(const ESPTime &time) {
   uint8_t buf[4] = {
       this->byte_to_bcd2_(time.day_of_month),
-      this->byte_to_bcd2_(time.day_of_week),
+      static_cast<uint8_t>(time.day_of_week - 1),
       this->byte_to_bcd2_(time.month),
       this->byte_to_bcd2_(time.year % 100),
   };
@@ -146,10 +147,10 @@ optional<uint8_t> BM8563::read_register_(uint8_t reg) {
 }
 
 void BM8563::set_timer_irq_(uint32_t duration_s) {
-  ESP_LOGI(TAG, "Timer Duration: %u s", duration_s);
+  ESP_LOGI(TAG, "Timer Duration: %" PRIu32 " s", duration_s);
 
   if (duration_s > MAX_TIMER_DURATION_S) {
-    ESP_LOGW(TAG, "Timer duration %u s exceeds maximum %u s", duration_s, MAX_TIMER_DURATION_S);
+    ESP_LOGW(TAG, "Timer duration %" PRIu32 " s exceeds maximum %" PRIu32 " s", duration_s, MAX_TIMER_DURATION_S);
     return;
   }
 

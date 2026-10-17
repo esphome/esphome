@@ -7,12 +7,14 @@ from esphome.const import (
     CONF_PIN,
     CONF_WIND_DIRECTION_DEGREES,
     CONF_WIND_SPEED,
+    DEVICE_CLASS_WIND_SPEED,
     ICON_SIGN_DIRECTION,
     ICON_WEATHER_WINDY,
     STATE_CLASS_MEASUREMENT,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
 )
+from esphome.types import ConfigType
 
 tx20_ns = cg.esphome_ns.namespace("tx20")
 Tx20Component = tx20_ns.class_("Tx20Component", cg.Component)
@@ -24,31 +26,27 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
             icon=ICON_WEATHER_WINDY,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_WIND_SPEED,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_WIND_DIRECTION_DEGREES): sensor.sensor_schema(
             unit_of_measurement=UNIT_DEGREES,
             icon=ICON_SIGN_DIRECTION,
             accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CONF_WIND_SPEED in config:
-        conf = config[CONF_WIND_SPEED]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_wind_speed_sensor(sens))
-
-    if CONF_WIND_DIRECTION_DEGREES in config:
-        conf = config[CONF_WIND_DIRECTION_DEGREES]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_wind_direction_degrees_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_WIND_SPEED, var.set_wind_speed_sensor)
+    await sensors(CONF_WIND_DIRECTION_DEGREES, var.set_wind_direction_degrees_sensor)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))

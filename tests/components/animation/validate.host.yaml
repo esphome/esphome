@@ -1,0 +1,16 @@
+# Legacy top-level `animation:` form (deprecated; migrates to
+# `platform: animation`). Config-only test exercising the deprecation path.
+display:
+  - platform: sdl
+    id: animation_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+animation:
+  - id: legacy_animation
+    file: $component_dir/anim.gif
+    type: RGB565
+    transparency: opaque
+    resize: 50x50

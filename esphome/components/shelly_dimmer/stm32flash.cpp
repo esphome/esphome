@@ -108,17 +108,16 @@ constexpr uint8_t STM_OBL_LAUNCH_CODE[] = {
 
 constexpr uint32_t STM_OBL_LAUNCH_CODE_SIZE = sizeof(STM_OBL_LAUNCH_CODE);
 
-constexpr char TAG[] = "stm32flash";
+ESPHOME_LOG_TAG(TAG, "stm32flash");
 
 }  // Anonymous namespace
 
-namespace esphome {
-namespace shelly_dimmer {
+namespace esphome::shelly_dimmer {
 
 namespace {
 
 int flash_addr_to_page_ceil(const stm32_unique_ptr &stm, uint32_t addr) {
-  if (!(addr >= stm->dev->fl_start && addr <= stm->dev->fl_end))
+  if (addr < stm->dev->fl_start || addr > stm->dev->fl_end)
     return 0;
 
   int page = 0;
@@ -487,12 +486,6 @@ template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
 
 }  // Anonymous namespace
 
-}  // namespace shelly_dimmer
-}  // namespace esphome
-
-namespace esphome {
-namespace shelly_dimmer {
-
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
@@ -636,8 +629,9 @@ stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const
   stm->pid = (buf[1] << 8) | buf[2];
   if (returned > 2) {
     ESP_LOGD(TAG, "This bootloader returns %d extra bytes in PID:", returned);
-    for (auto i = 2; i <= returned; i++)
+    for (auto i = 2; i <= returned; i++) {
       ESP_LOGD(TAG, " %02x", buf[i]);
+    }
   }
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
     return make_stm32_with_deletor(nullptr);
@@ -735,7 +729,7 @@ stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address, co
   uint8_t buf[256 + 2];
 
   buf[0] = aligned_len - 1;
-  for (auto i = 0; i < len; i++) {
+  for (unsigned int i = 0; i < len; i++) {
     cs ^= data[i];
     buf[i + 1] = data[i];
   }
@@ -1059,7 +1053,6 @@ stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uin
   return STM32_ERR_OK;
 }
 
-}  // namespace shelly_dimmer
-}  // namespace esphome
+}  // namespace esphome::shelly_dimmer
 
 #endif  // USE_SHD_FIRMWARE_DATA

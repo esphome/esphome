@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTNumberComponent : public mqtt::MQTTComponent {
+class MQTTNumberComponent final : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTNumberComponent instance with the provided friendly_name and number
    *

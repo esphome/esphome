@@ -3,10 +3,9 @@
 #include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace pzem004t {
+namespace esphome::pzem004t {
 
-static const char *const TAG = "pzem004t";
+ESPHOME_LOG_TAG(TAG, "pzem004t");
 
 void PZEM004T::setup() {
   // Clear UART buffer
@@ -35,9 +34,7 @@ void PZEM004T::loop() {
     // 1-5: data
     // 6: checksum (sum of other bytes)
     // see https://github.com/olehs/PZEM004T
-    uint8_t sum = 0;
-    for (int i = 0; i < 6; i++)
-      sum += resp[i];
+    const uint8_t sum = sum_bytes(resp.data(), 6);
 
     if (sum != resp[6]) {
       ESP_LOGV(TAG, "PZEM004T invalid checksum! 0x%02X != 0x%02X", sum, resp[6]);
@@ -126,5 +123,4 @@ void PZEM004T::dump_config() {
   LOG_SENSOR("", "Power", this->power_sensor_);
 }
 
-}  // namespace pzem004t
-}  // namespace esphome
+}  // namespace esphome::pzem004t

@@ -71,13 +71,17 @@ struct ESPTime {
    * @warning This method can return "ERROR" when the underlying strftime() call fails or when the
    * output exceeds STRFTIME_BUFFER_SIZE bytes.
    */
-  std::string strftime(const std::string &format);
+  std::string strftime(const std::string &format) { return this->strftime(format.c_str()); }
 
   /// @copydoc strftime(const std::string &format)
   std::string strftime(const char *format);
 
-  /// Check if this ESPTime is valid (all fields in range and year is greater than or equal to 2019)
-  bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
+  /// Check if this ESPTime is valid (year >= 2019 and the requested fields are in range).
+  /// @param check_day_of_week validate day_of_week (not always available when constructing from date/time fields)
+  /// @param check_day_of_year validate day_of_year (not always available when constructing from date/time fields)
+  bool is_valid(bool check_day_of_week = true, bool check_day_of_year = true) const {
+    return this->year >= 2019 && this->fields_in_range(check_day_of_week, check_day_of_year);
+  }
 
   /// Check if time fields are in range.
   /// @param check_day_of_week validate day_of_week (not always available when constructing from date/time fields)

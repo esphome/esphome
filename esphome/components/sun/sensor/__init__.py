@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_TYPE, ICON_WEATHER_SUNSET, UNIT_DEGREES
+from esphome.const import (
+    CONF_TYPE,
+    ICON_WEATHER_SUNSET,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_DEGREES,
+)
+from esphome.types import ConfigType
 
 from .. import CONF_SUN_ID, Sun, sun_ns
 
@@ -9,10 +15,7 @@ DEPENDENCIES = ["sun"]
 
 SunSensor = sun_ns.class_("SunSensor", sensor.Sensor, cg.PollingComponent)
 SensorType = sun_ns.enum("SensorType")
-TYPES = {
-    "elevation": SensorType.SUN_SENSOR_ELEVATION,
-    "azimuth": SensorType.SUN_SENSOR_AZIMUTH,
-}
+TYPES = SensorType.options("elevation", "azimuth", prefix="SUN_SENSOR_")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -20,6 +23,7 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_DEGREES,
         icon=ICON_WEATHER_SUNSET,
         accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
@@ -31,7 +35,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

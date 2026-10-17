@@ -5,7 +5,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.mono";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.mono");
 
 void EPaperMono::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen");
@@ -14,8 +14,11 @@ void EPaperMono::refresh_screen(bool partial) {
 }
 
 void EPaperMono::deep_sleep() {
-  ESP_LOGV(TAG, "Deep sleep");
-  this->command(0x10);
+  // Deep sleep loses RAM so cannot be used with partial update
+  if (!this->is_using_partial_update_()) {
+    ESP_LOGV(TAG, "Deep sleep");
+    this->cmd_data(0x10, {0x03});  // deep sleep
+  }
 }
 
 bool EPaperMono::reset() {
@@ -27,6 +30,14 @@ bool EPaperMono::reset() {
 }
 
 void EPaperMono::set_window() {
+  // if not using partial update, the display will go into deep sleep, so must rewrite entire
+  // buffer since the display RAM will not retain contents
+  if (!this->is_using_partial_update_()) {
+    this->x_low_ = 0;
+    this->x_high_ = this->width_;
+    this->y_low_ = 0;
+    this->y_high_ = this->height_;
+  }
   // round x-coordinates to byte boundaries
   this->x_low_ &= ~7;
   this->x_high_ += 7;

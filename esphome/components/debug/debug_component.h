@@ -13,8 +13,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static constexpr size_t DEVICE_INFO_BUFFER_SIZE = 256;
 static constexpr size_t RESET_REASON_BUFFER_SIZE = 128;
@@ -22,7 +21,7 @@ static constexpr size_t WAKEUP_CAUSE_BUFFER_SIZE = 128;
 
 // buf_append_printf is now provided by esphome/core/helpers.h
 
-class DebugComponent : public PollingComponent {
+class DebugComponent final : public PollingComponent {
  public:
   void loop() override;
   void update() override;
@@ -36,7 +35,7 @@ class DebugComponent : public PollingComponent {
 #ifdef USE_SENSOR
   void set_free_sensor(sensor::Sensor *free_sensor) { free_sensor_ = free_sensor; }
   void set_block_sensor(sensor::Sensor *block_sensor) { block_sensor_ = block_sensor; }
-#if (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_ESP32)
   void set_fragmentation_sensor(sensor::Sensor *fragmentation_sensor) { fragmentation_sensor_ = fragmentation_sensor; }
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
@@ -62,7 +61,7 @@ class DebugComponent : public PollingComponent {
 
   sensor::Sensor *free_sensor_{nullptr};
   sensor::Sensor *block_sensor_{nullptr};
-#if (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_ESP32)
   sensor::Sensor *fragmentation_sensor_{nullptr};
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
@@ -101,5 +100,4 @@ class DebugComponent : public PollingComponent {
   void update_platform_();
 };
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug

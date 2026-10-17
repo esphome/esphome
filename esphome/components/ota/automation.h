@@ -4,8 +4,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 class OTAStateChangeTrigger final : public Trigger<OTAState>, public OTAStateListener {
  public:
@@ -67,6 +66,5 @@ class OTAErrorTrigger final : public Trigger<uint8_t>, public OTAStateListener {
   OTAComponent *parent_;
 };
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif

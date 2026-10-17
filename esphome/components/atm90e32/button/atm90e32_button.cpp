@@ -2,10 +2,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace atm90e32 {
+namespace esphome::atm90e32 {
 
-static const char *const TAG = "atm90e32.button";
+ESPHOME_LOG_TAG(TAG, "atm90e32.button");
 
 void ATM90E32GainCalibrationButton::press_action() {
   if (this->parent_ == nullptr) {
@@ -75,5 +74,4 @@ void ATM90E32ClearPowerOffsetCalibrationButton::press_action() {
   this->parent_->clear_power_offset_calibrations();
 }
 
-}  // namespace atm90e32
-}  // namespace esphome
+}  // namespace esphome::atm90e32

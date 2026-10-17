@@ -8,70 +8,38 @@ namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
-template<typename... Ts> class ToggleAction : public Action<Ts...> {
+template<bool HasTransitionLength, typename... Ts> class ToggleAction final : public Action<Ts...> {
  public:
   explicit ToggleAction(LightState *state) : state_(state) {}
 
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
+  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
+    this->transition_length_ = value;
+  }
 
   void play(const Ts &...x) override {
     auto call = this->state_->toggle();
-    call.set_transition_length(this->transition_length_.optional_value(x...));
+    if constexpr (HasTransitionLength) {
+      call.set_transition_length(this->transition_length_.optional_value(x...));
+    }
     call.perform();
   }
 
  protected:
   LightState *state_;
+  struct NoTransition {};
+  [[no_unique_address]] std::conditional_t<HasTransitionLength, TemplatableFn<uint32_t, Ts...>, NoTransition>
+      transition_length_{};
 };
 
-template<typename... Ts> class LightControlAction : public Action<Ts...> {
- public:
-  explicit LightControlAction(LightState *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(ColorMode, color_mode)
-  TEMPLATABLE_VALUE(bool, state)
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
-  TEMPLATABLE_VALUE(uint32_t, flash_length)
-  TEMPLATABLE_VALUE(float, brightness)
-  TEMPLATABLE_VALUE(float, color_brightness)
-  TEMPLATABLE_VALUE(float, red)
-  TEMPLATABLE_VALUE(float, green)
-  TEMPLATABLE_VALUE(float, blue)
-  TEMPLATABLE_VALUE(float, white)
-  TEMPLATABLE_VALUE(float, color_temperature)
-  TEMPLATABLE_VALUE(float, cold_white)
-  TEMPLATABLE_VALUE(float, warm_white)
-  TEMPLATABLE_VALUE(uint32_t, effect)
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-    call.set_color_mode(this->color_mode_.optional_value(x...));
-    call.set_state(this->state_.optional_value(x...));
-    call.set_brightness(this->brightness_.optional_value(x...));
-    call.set_color_brightness(this->color_brightness_.optional_value(x...));
-    call.set_red(this->red_.optional_value(x...));
-    call.set_green(this->green_.optional_value(x...));
-    call.set_blue(this->blue_.optional_value(x...));
-    call.set_white(this->white_.optional_value(x...));
-    call.set_color_temperature(this->color_temperature_.optional_value(x...));
-    call.set_cold_white(this->cold_white_.optional_value(x...));
-    call.set_warm_white(this->warm_white_.optional_value(x...));
-    call.set_effect(this->effect_.optional_value(x...));
-    call.set_flash_length(this->flash_length_.optional_value(x...));
-    call.set_transition_length(this->transition_length_.optional_value(x...));
-    call.perform();
-  }
-
- protected:
-  LightState *parent_;
-};
-
-template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
+template<bool HasTransitionLength, typename... Ts> class DimRelativeAction final : public Action<Ts...> {
  public:
   explicit DimRelativeAction(LightState *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(float, relative_brightness)
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
+
+  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
+    this->transition_length_ = value;
+  }
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
@@ -85,7 +53,9 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
     call.set_state(new_brightness != 0.0f);
     call.set_brightness(new_brightness);
 
-    call.set_transition_length(this->transition_length_.optional_value(x...));
+    if constexpr (HasTransitionLength) {
+      call.set_transition_length(this->transition_length_.optional_value(x...));
+    }
     call.perform();
   }
 
@@ -101,26 +71,53 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
   float min_brightness_{0.0};
   float max_brightness_{1.0};
   LimitMode limit_mode_{LimitMode::CLAMP};
+  struct NoTransition {};
+  [[no_unique_address]] std::conditional_t<HasTransitionLength, TemplatableFn<uint32_t, Ts...>, NoTransition>
+      transition_length_{};
 };
 
-template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
+// Cycle through the light's configured effects. `Forward` selects direction
+// at compile time so the chosen branch is the only one that gets instantiated
+// per action site. `include_none` is runtime so a single set of templates
+// covers both the "wrap through None" and "skip None" variants.
+template<bool Forward, typename... Ts> class LightEffectCycleAction final : public Action<Ts...> {
  public:
-  explicit LightIsOnCondition(LightState *state) : state_(state) {}
-  bool check(const Ts &...x) override { return this->state_->current_values.is_on(); }
+  explicit LightEffectCycleAction(LightState *parent) : parent_(parent) {}
+
+  void set_include_none(bool include_none) { this->include_none_ = include_none; }
+
+  void play(const Ts &...) override {
+    size_t count = this->parent_->get_effect_count();
+    if (count == 0) {
+      return;
+    }
+    uint32_t current = this->parent_->get_current_effect_index();
+    uint32_t next;
+    if (this->include_none_) {
+      uint32_t total = static_cast<uint32_t>(count) + 1;
+      if constexpr (Forward) {
+        next = (current + 1) % total;
+      } else {
+        next = (current + total - 1) % total;
+      }
+    } else {
+      if constexpr (Forward) {
+        next = (current % static_cast<uint32_t>(count)) + 1;
+      } else {
+        next = (current <= 1) ? static_cast<uint32_t>(count) : current - 1;
+      }
+    }
+    auto call = this->parent_->turn_on();
+    call.set_effect(next);
+    call.perform();
+  }
 
  protected:
-  LightState *state_;
-};
-template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
- public:
-  explicit LightIsOffCondition(LightState *state) : state_(state) {}
-  bool check(const Ts &...x) override { return !this->state_->current_values.is_on(); }
-
- protected:
-  LightState *state_;
+  LightState *parent_;
+  bool include_none_{false};
 };
 
-class LightTurnOnTrigger : public Trigger<>, public LightRemoteValuesListener {
+class LightTurnOnTrigger final : public Trigger<>, public LightRemoteValuesListener {
  public:
   explicit LightTurnOnTrigger(LightState *a_light) : light_(a_light) {
     a_light->add_remote_values_listener(this);
@@ -145,7 +142,7 @@ class LightTurnOnTrigger : public Trigger<>, public LightRemoteValuesListener {
   bool last_on_;
 };
 
-class LightTurnOffTrigger : public Trigger<>, public LightTargetStateReachedListener {
+class LightTurnOffTrigger final : public Trigger<>, public LightTargetStateReachedListener {
  public:
   explicit LightTurnOffTrigger(LightState *a_light) : light_(a_light) {
     a_light->add_target_state_reached_listener(this);
@@ -163,7 +160,7 @@ class LightTurnOffTrigger : public Trigger<>, public LightTargetStateReachedList
   LightState *light_;
 };
 
-class LightStateTrigger : public Trigger<>, public LightRemoteValuesListener {
+class LightStateTrigger final : public Trigger<>, public LightRemoteValuesListener {
  public:
   explicit LightStateTrigger(LightState *a_light) { a_light->add_remote_values_listener(this); }
 
@@ -174,7 +171,7 @@ class LightStateTrigger : public Trigger<>, public LightRemoteValuesListener {
 // due to the template. It's just a temporary warning anyway.
 void addressableset_warn_about_scale(const char *field);
 
-template<typename... Ts> class AddressableSet : public Action<Ts...> {
+template<typename... Ts> class AddressableSet final : public Action<Ts...> {
  public:
   explicit AddressableSet(LightState *parent) : parent_(parent) {}
 

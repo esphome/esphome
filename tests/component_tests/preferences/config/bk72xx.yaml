@@ -1,0 +1,5 @@
+esphome:
+  name: preftest
+
+bk72xx:
+  board: generic-bk7252
