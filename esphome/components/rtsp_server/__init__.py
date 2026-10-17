@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import socket
+from esphome.components.const import CONF_ALLOWED_IPS
 from esphome.components.esp32_camera import (
     CONF_JPEG_QUALITY,
     CONF_PIXEL_FORMAT,
@@ -35,6 +36,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(RTSPServer),
             cv.Optional(CONF_PORT, default=554): cv.port,
             cv.Optional(CONF_MAX_CONNECTIONS, default=2): cv.int_range(min=1, max=4),
+            cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _consume_rtsp_server_sockets,
@@ -77,3 +79,4 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT])
     await cg.register_component(var, config)
     cg.add_define("MAX_RTSP_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
+    socket.add_ipv4_allow(var.set_allow, config.get(CONF_ALLOWED_IPS), config[CONF_ID])
