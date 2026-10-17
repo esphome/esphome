@@ -151,8 +151,8 @@ void MT6701I2CComponent::apply_config_() {
       ok &= this->update_register_(CONFIG_REGS[i], masks[i], values[i]);
   }
   if (!ok) {
-    // The chip may be half-configured; an error, so a later run of read errors cannot clear it
-    this->status_set_error(LOG_STR("configuration register write failed"));
+    // A half-configured chip must not be sampled or have its EEPROM saved
+    this->mark_failed(LOG_STR("configuration register write failed"));
   }
 }
 

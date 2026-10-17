@@ -12,21 +12,22 @@ static constexpr uint8_t CRC6_AS_CRC8_POLY = 0x0C;
 
 void MT6701SPIComponent::setup() {
   this->spi_setup();
-  // Noise passes the 6-bit CRC 1 time in 64 and a stuck-low data line reads all-zero
-  // frames that pass it too, so a present encoder must send 3 valid frames, one non-zero.
+  // Noise passes the 6-bit CRC 1 time in 64, so a present encoder must send 3 valid frames. A
+  // stuck-low data line reads all-zero frames that pass too; that only gets a warning, since a
+  // real encoder resting at count 0 with no flags set looks the same and must keep working.
   uint8_t valid = 0;
   bool nonzero = false;
   for (uint8_t i = 0; i < 10 && (valid < 3 || !nonzero); i++) {
     uint16_t count;
     if (this->read_count(count)) {
       valid++;
-      if (count != 0)
-        nonzero = true;
+      nonzero |= count != 0 || this->status_ != 0;
     }
   }
-  if (valid < 3 || !nonzero) {
-    ESP_LOGE(TAG, "No valid MT6701 frame received (check wiring / CS pin)");
-    this->mark_failed();
+  if (valid < 3) {
+    this->mark_failed(LOG_STR("no valid frame received, check the wiring and CS pin"));
+  } else if (!nonzero) {
+    ESP_LOGW(TAG, "Every frame read zero: the data line may be stuck low");
   }
 }
 

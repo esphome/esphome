@@ -35,6 +35,11 @@ CONFIG_SCHEMA = (
     )
 )
 
+# SSI only reads, so the bus needs its input line
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "mt6701_spi", require_mosi=False, require_miso=True
+)
+
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
