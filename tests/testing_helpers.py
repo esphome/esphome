@@ -61,8 +61,9 @@ class ComponentManifestOverride:
         object.__getattribute__(self, "_extra_resources").extend(resources)
 
     def restore(self) -> None:
-        """Clear all overrides, reverting to the wrapped manifest's values."""
+        """Clear all overrides and added resources, reverting to the wrapped manifest's values."""
         object.__getattribute__(self, "_overrides").clear()
+        object.__getattribute__(self, "_extra_resources").clear()
 
 
 def set_testing_manifest(domain: str, manifest: ComponentManifestOverride) -> None:
