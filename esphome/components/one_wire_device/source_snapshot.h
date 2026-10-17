@@ -4,7 +4,7 @@
 
 namespace esphome::one_wire_device {
 // Each supported model consumes one atomic source word. Capture before validating;
-// never check one load and then narrow a different load into the protocol model.
+// validate and decode this snapshot, never a later atomic load.
 struct SourceSnapshot {
   int32_t temperature;
   uint32_t pio;
