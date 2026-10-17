@@ -1,3 +1,4 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
@@ -23,6 +24,7 @@ MULTI_CONF = True
 CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
+CONF_RESTORE_BAUD_RATE = "restore_baud_rate"
 
 weikai_ns = cg.esphome_ns.namespace("weikai")
 WeikaiComponent = weikai_ns.class_("WeikaiComponent", cg.Component)
@@ -67,10 +69,26 @@ WKBASE_SCHEMA = cv.Schema(
                 cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
                     uart.UART_PARITY_OPTIONS, upper=True
                 ),
+                cv.Optional(CONF_RESTORE_BAUD_RATE, default=False): cv.boolean,
             }
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+CHANGE_BAUD_RATE_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(WeikaiChannel),
+        cv.Required(CONF_BAUD_RATE): cv.templatable(cv.int_range(min=1)),
+    },
+    key=CONF_BAUD_RATE,
+)
+
+automation.register_apply_action(
+    "weikai.change_baud_rate",
+    CHANGE_BAUD_RATE_ACTION_SCHEMA,
+    automation.ApplyField(CONF_BAUD_RATE, "change_baud_rate", cg.uint32),
+)
 
 
 async def register_weikai(var: MockObj, config: ConfigType) -> None:
@@ -86,6 +104,9 @@ async def register_weikai(var: MockObj, config: ConfigType) -> None:
         cg.add(chan.set_baud_rate(uart_elem[CONF_BAUD_RATE]))
         cg.add(chan.set_stop_bits(uart_elem[CONF_STOP_BITS]))
         cg.add(chan.set_parity(uart_elem[CONF_PARITY]))
+        if uart_elem[CONF_RESTORE_BAUD_RATE]:
+            cg.add_define("USE_WEIKAI_RESTORE_BAUD_RATE")
+            cg.add(chan.set_restore_baud_rate(True))
 
 
 def validate_pin_mode(value: ConfigType) -> ConfigType:

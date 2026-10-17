@@ -8,9 +8,16 @@
 ///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
 #pragma once
-#include <memory>
+#include <algorithm>
+#include <array>
 #include <cinttypes>
+#include <memory>
+#include <string>
+#include <vector>
 #include "esphome/core/component.h"
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+#include "esphome/core/preferences.h"
+#endif
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
 
@@ -57,6 +64,9 @@ constexpr size_t RING_BUFFER_SIZE = FIFO_SIZE;
 /// locally.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename T, size_t SIZE> class WKRingBuffer {
+  static_assert(SIZE > 0 && (SIZE & (SIZE - 1)) == 0, "WKRingBuffer SIZE must be a power of two");
+  static_assert(SIZE <= 0x8000, "WKRingBuffer SIZE too large for 16 bit indexes");
+
  public:
   /// @brief pushes an item at the tail of the fifo
   /// @param item item to push
@@ -65,7 +75,7 @@ template<typename T, size_t SIZE> class WKRingBuffer {
     if (is_full())
       return false;
     this->rb_[this->head_] = item;
-    this->head_ = (this->head_ + 1) % SIZE;
+    this->head_ = (this->head_ + 1) & MASK;
     this->count_++;
     return true;
   }
@@ -77,46 +87,87 @@ template<typename T, size_t SIZE> class WKRingBuffer {
     if (is_empty())
       return false;
     item = this->rb_[this->tail_];
-    this->tail_ = (this->tail_ + 1) % SIZE;
-    this->count_--;
+    this->tail_ = (this->tail_ + 1) & MASK;
+    if (--this->count_ == 0)
+      this->head_ = this->tail_ = 0;  // empty: restart at the beginning so that bulk writes stay contiguous
     return true;
+  }
+
+  /// @brief removes up to n items from the buffer and copies them to dst (at most two contiguous copies)
+  /// @param dst destination array
+  /// @param n maximum number of items to retrieve
+  /// @return number of items actually retrieved
+  size_t pop_bulk(T *dst, size_t n) {
+    n = std::min<size_t>(n, this->count_);
+    size_t const first = std::min<size_t>(n, SIZE - this->tail_);
+    std::copy_n(this->rb_.data() + this->tail_, first, dst);
+    std::copy_n(this->rb_.data(), n - first, dst + first);
+    this->tail_ = (this->tail_ + n) & MASK;
+    this->count_ -= n;
+    if (this->count_ == 0)
+      this->head_ = this->tail_ = 0;  // empty: restart at the beginning so that bulk writes stay contiguous
+    return n;
   }
 
   /// @brief return the value of the item at fifo's head without removing it
   /// @param item pointer to item to return
   /// @return true if item has been retrieved, false il no item available (buffer empty)
-  bool peek(T &item) {
+  bool peek(T &item) const {
     if (is_empty())
       return false;
     item = this->rb_[this->tail_];
     return true;
   }
 
+  /// @brief pointer to the next free slot. Up to contiguous_free() items can be written there directly
+  /// (for example by a bus read) and then validated with commit().
+  inline T *write_ptr() { return this->rb_.data() + this->head_; }
+
+  /// @brief number of free slots that can be written starting at write_ptr() without wrapping around
+  inline size_t contiguous_free() const { return std::min<size_t>(SIZE - this->count_, SIZE - this->head_); }
+
+  /// @brief validate n items that have been written directly at write_ptr()
+  /// @param n number of items written (must be <= contiguous_free())
+  inline void commit(size_t n) {
+    this->head_ = (this->head_ + n) & MASK;
+    this->count_ += n;
+  }
+
   /// @brief test is the Ring Buffer is empty ?
   /// @return true if empty
-  inline bool is_empty() { return (this->count_ == 0); }
+  inline bool is_empty() const { return (this->count_ == 0); }
 
   /// @brief test is the ring buffer is full ?
   /// @return true if full
-  inline bool is_full() { return (this->count_ == SIZE); }
+  inline bool is_full() const { return (this->count_ == SIZE); }
 
   /// @brief return the number of item in the ring buffer
   /// @return the number of items
-  inline size_t count() { return this->count_; }
+  inline size_t count() const { return this->count_; }
 
   /// @brief returns the number of free positions in the buffer
   /// @return how many items can be added
-  inline size_t free() { return SIZE - this->count_; }
+  inline size_t free() const { return SIZE - this->count_; }
 
   /// @brief clear the buffer content
   inline void clear() { this->head_ = this->tail_ = this->count_ = 0; }
 
  protected:
-  std::array<T, SIZE> rb_{0};  ///< the ring buffer
-  int tail_{0};                ///< position of the next element to read
-  int head_{0};                ///< position of the next element to write
-  size_t count_{0};            ///< count number of element in the buffer
+  static constexpr uint16_t MASK = SIZE - 1;
+  std::array<T, SIZE> rb_{};  ///< the ring buffer
+  uint16_t tail_{0};          ///< position of the next element to read
+  uint16_t head_{0};          ///< position of the next element to write
+  uint16_t count_{0};         ///< count number of element in the buffer
 };
+
+/// @brief Converts the parity enum value to a C string (shared by the SPI/I2C variants)
+const char *p2s(uart::UARTParityOptions parity);
+
+/// @brief Converts a register address to a C string (used in log messages)
+const char *reg_to_str(int reg, bool page1);
+
+/// @brief Displays a buffer in hexadecimal format (32 hex values / line) at VERY_VERBOSE level
+void print_buffer(const uint8_t *data, size_t length);
 
 class WeikaiComponent;
 // class WeikaiComponentSPI;
@@ -172,12 +223,12 @@ class WeikaiRegister {
 
   /// @brief read an array of bytes from the receiver fifo
   /// @param data pointer to data buffer
-  /// @param length number of bytes to read
+  /// @param length number of bytes to read (at most XFER_MAX_SIZE)
   virtual void read_fifo(uint8_t *data, size_t length) const = 0;
 
   /// @brief write an array of bytes to the transmitter fifo
   /// @param data pointer to data buffer
-  /// @param length number of bytes to write
+  /// @param length number of bytes to write (at most XFER_MAX_SIZE)
   virtual void write_fifo(uint8_t *data, size_t length) = 0;
 
   WeikaiComponent *const comp_;  ///< pointer to our parent (aggregation)
@@ -206,12 +257,13 @@ class WeikaiComponent : public Component {
   void set_test_mode(int test_mode) { this->test_mode_ = test_mode; }
 
   /// @brief store the name for the component
-  /// @param name the name as defined by the python code generator
-  void set_name(std::string &&name) { this->name_ = std::move(name); }
+  /// @param name the name as defined by the python code generator (must have static storage duration:
+  /// the code generator always passes a string literal)
+  void set_name(const char *name) { this->name_ = name; }
 
   /// @brief Get the name of the component
   /// @return the name
-  const char *get_name() { return this->name_.c_str(); }
+  const char *get_name() const { return this->name_; }
 
   /// @brief override the Component loop()
   void loop() override;
@@ -260,7 +312,7 @@ class WeikaiComponent : public Component {
   int test_mode_;                            ///< test mode value (0 -> no tests)
   bool page1_{false};                        ///< set to true when in "page1 mode"
   std::vector<WeikaiChannel *> children_{};  ///< the list of WeikaiChannel UART children
-  std::string name_;                         ///< name of entity
+  const char *name_{""};                     ///< name of entity (string literal, no heap allocation)
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -308,14 +360,25 @@ class WeikaiChannel final : public uart::UARTComponent {
 
   /// @brief The name as generated by the Python code generator
   /// @param name of the channel
-  void set_channel_name(std::string &&name) { this->name_ = std::move(name); }
+  void set_channel_name(const char *name) { this->name_ = name; }
 
   /// @brief Get the channel name
   /// @return the name
-  const char *get_channel_name() { return this->name_.c_str(); }
+  const char *get_channel_name() const { return this->name_; }
 
   /// @brief Setup the channel
   void setup_channel();
+
+  /// @brief Change the baud rate while the component is running. Only this channel is affected.
+  /// Waits for the transmit FIFO to empty and drops what was received at the old baud rate.
+  /// @param baud_rate the new baud rate
+  /// @return true if the baud rate has been changed (or was already the requested one)
+  bool change_baud_rate(uint32_t baud_rate);
+
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+  /// @brief Keep the baud rate chosen at run time over restarts
+  void set_restore_baud_rate(bool restore) { this->restore_baud_rate_ = restore; }
+#endif
 
   /// @brief dump channel information
   void dump_channel();
@@ -405,6 +468,12 @@ class WeikaiChannel final : public uart::UARTComponent {
   /// @brief set the baud rate
   void set_baudrate_();
 
+  /// @brief Reads the FIFO status register (FSR) of the channel.
+  /// @details Reading FSR clears the RFOE (receive overflow) flag in the chip, so every FSR read goes through this
+  /// method which remembers the flag until rx_in_fifo_() has reported it.
+  /// @return the value of the FSR register
+  uint8_t read_fsr_();
+
   /// @brief Returns the number of bytes in the receive fifo
   /// @return the number of bytes in the fifo
   size_t rx_in_fifo_();
@@ -413,12 +482,20 @@ class WeikaiChannel final : public uart::UARTComponent {
   /// @return the number of bytes in the fifo
   size_t tx_in_fifo_();
 
+  /// @brief number of bytes that can still be written to the transmit FIFO
+  size_t tx_room_();
+
+  /// @brief time in ms needed to send 'bytes' bytes with the current line settings (rounded down)
+  uint32_t tx_time_ms_(size_t bytes) const;
+
   /// @brief test if transmit buffer is not empty in the status register (optimization)
   /// @return true if not emptygroup test_
   bool tx_fifo_is_not_empty_();
 
   /// @brief transfer bytes from the weikai internal FIFO to the buffer (if any)
   /// @return number of bytes transferred
+  /// @details The FIFO content is read directly into the ring buffer (no intermediate copy). The receive FIFO
+  /// is polled only once per call: bytes received in the meantime are picked up by the next call.
   size_t xfer_fifo_to_buffer_();
 
   /// @brief check if channel is alive
@@ -444,8 +521,16 @@ class WeikaiChannel final : public uart::UARTComponent {
   WKRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
   WeikaiComponent *parent_;  ///< our WK2168component parent
   uint8_t channel_;          ///< our Channel number
-  uint8_t data_;             ///< a one byte buffer for register read storage
-  std::string name_;         ///< name of the entity
+  const char *name_{""};     ///< name of the entity (string literal, no heap allocation)
+  /// Lower bound of the free room in the transmit FIFO: the chip only empties it, only we fill it.
+  /// Saves reading the room before every write.
+  uint16_t tx_room_estimate_{0};
+  bool rfoe_latched_{false};  ///< RFOE seen by an FSR read that was not made by rx_in_fifo_()
+#ifdef USE_WEIKAI_RESTORE_BAUD_RATE
+  ESPPreferenceObject pref_;
+  uint32_t config_baud_rate_{0};  ///< baud rate given in the configuration
+  bool restore_baud_rate_{false};
+#endif
 };
 
 }  // namespace esphome::weikai

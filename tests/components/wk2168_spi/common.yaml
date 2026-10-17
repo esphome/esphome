@@ -9,6 +9,7 @@ wk2168_spi:
         baud_rate: 115200
         stop_bits: 1
         parity: none
+        restore_baud_rate: true
       - id: wk2168_spi_uart1
         channel: 1
         baud_rate: 115200
@@ -60,3 +61,14 @@ switch:
       mode:
         output: true
       inverted: true
+
+button:
+  - platform: template
+    name: "change_baud_rate"
+    on_press:
+      - weikai.change_baud_rate:
+          id: wk2168_spi_uart0
+          baud_rate: 9600
+      - weikai.change_baud_rate:
+          id: wk2168_spi_uart1
+          baud_rate: !lambda "return 19200;"
