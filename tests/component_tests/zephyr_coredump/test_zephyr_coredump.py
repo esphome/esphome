@@ -80,6 +80,8 @@ def test_mcumgr_slot_ends_below_partition(
 ) -> None:
     """The OTA image slot1 must end at or before the coredump partition."""
     generate_main(component_config_path("mcumgr_adafruit.yaml"))
+    # The logger's crash handler hooks are compiled in for the dump
+    assert any(d.name == "USE_CRASH_HANDLER" for d in CORE.defines)
     sections = {s.name: s for s in zephyr_data()[KEY_PM_STATIC]}
     coredump = sections["coredump_partition"]
     assert coredump.address == 0xEC000

@@ -1,5 +1,6 @@
 #ifdef USE_ZEPHYR
 #include "coredump.h"
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -13,15 +14,24 @@ namespace esphome::zephyr_coredump {
 
 ESPHOME_LOG_TAG(TAG, "zephyr_coredump");
 
-// 64 bytes per line (128 hex characters) in the "#CD:" format that Zephyr's coredump_serial_log_parser.py reads
-static constexpr size_t CHUNK_SIZE = 64;
+// Lines in the "#CD:" format that Zephyr's coredump_serial_log_parser.py reads: the log header (time, level,
+// tag, line number and colour codes, under 64 characters), "#CD:" and two hex characters per byte must fit the
+// logger's line buffer, so a small buffer gets shorter lines
+static constexpr size_t LINE_OVERHEAD = 64;
+static constexpr size_t CHUNK_SIZE =
+    std::min<size_t>(64, (ESPHOME_LOGGER_TX_BUFFER_SIZE - LINE_OVERHEAD) / 2 / 16 * 16);
+static_assert(CHUNK_SIZE >= 16, "logger line buffer too small for a coredump line");
 // A USB host starts reading the port only some 100 ms after opening it; until then the CDC driver discards output
 static constexpr uint32_t START_DELAY_MS = 1000;
 static constexpr uint32_t START_DELAY_ID = 0;
+// Between lines, so a loop that runs faster than usual (a stepper moving) cannot overrun the USB CDC ring buffer
+static constexpr uint32_t LINE_INTERVAL_MS = 10;
 
 // On a UART the logger reports the reader before this component exists, so the flag outlives the pointer
 static Coredump *global_coredump = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool reader_present = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+bool coredump_pending() { return global_coredump != nullptr && global_coredump->stored_; }
 
 void print_coredump() {
   reader_present = true;
@@ -38,32 +48,40 @@ void stop_coredump() {
 void Coredump::setup() {
   global_coredump = this;
   this->disable_loop();
-  if (coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) != 1) {
+  // The size comes from the header alone; "has stored dump" also checks the checksum and would hide a
+  // corrupt dump instead of letting it be reported and erased
+  const int size = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
+  if (size <= 0) {
     return;
   }
-  // A bad dump is reported and erased from loop() like a good one, once somebody can read the message
   this->stored_ = true;
+  this->total_ = size;
+  // A bad dump is reported and erased from loop() like a good one, once somebody can read the message
   this->verify_ = coredump_cmd(COREDUMP_CMD_VERIFY_STORED_DUMP, nullptr);
-  this->total_ = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
   if (reader_present)
     this->start_print_();
 }
 
 // A new reader gets the whole dump: a print cut short by the port closing starts over
 void Coredump::start_print_() {
-  if (!this->stored_)
+  if (!this->stored_ || this->printing_)
     return;
+  this->printing_ = true;
   this->offset_ = 0;
-  this->disable_loop();
   this->set_timeout(START_DELAY_ID, START_DELAY_MS, [this]() { this->enable_loop(); });
 }
 
 void Coredump::stop_print_() {
+  this->printing_ = false;
   this->cancel_timeout(START_DELAY_ID);
   this->disable_loop();
 }
 
 void Coredump::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_line_ms_ < LINE_INTERVAL_MS)
+    return;
+  this->last_line_ms_ = now;
   if (this->verify_ != 1) {
     ESP_LOGE(TAG, "Stored coredump verification failed: %d", this->verify_);
     this->finish_(0);
@@ -98,6 +116,7 @@ void Coredump::finish_(int err) {
     ESP_LOGE(TAG, "Failed to erase coredump: %d", erase);
   }
   this->stored_ = false;
+  this->printing_ = false;
   this->disable_loop();
 }
 
@@ -137,9 +156,16 @@ void __wrap_z_arm_fault(uint32_t msp, uint32_t psp, uint32_t exc_return, _callee
   __real_z_arm_fault(msp, psp, exc_return, callee_regs);
 }
 
+// Faults from z_arm_fault() come here with the frame z_arm_fault() saved; a spurious interrupt has none.
+// Software fatal errors (k_panic, k_oops) reach z_arm_fatal_error() inside its own object, which --wrap cannot
+// intercept, so their dumps keep Zephyr's stack pointer.
 void __real_z_arm_fatal_error(unsigned int reason, const esf_t *esf);
 void __wrap_z_arm_fatal_error(unsigned int reason, const esf_t *esf) {
 #if defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE) || defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+  if (esf == nullptr) {
+    __real_z_arm_fatal_error(reason, esf);
+    return;
+  }
   z_arm_coredump_fault_sp += sizeof(esf->basic);
 #if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
   // The thread used the FP registers, so the frame also holds them

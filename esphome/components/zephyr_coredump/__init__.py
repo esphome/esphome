@@ -20,6 +20,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@tomaszduda23"]
+DEPENDENCIES = ["logger"]
 DOMAIN = "zephyr_coredump"
 
 Coredump = cg.esphome_ns.namespace(DOMAIN).class_("Coredump", cg.Component)
@@ -76,6 +77,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 # Runs before zephyr_mcumgr OTA (OTA_UPDATES), which sizes its image slots below this partition
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def to_code(config: ConfigType) -> None:
+    # The logger's crash handler hooks: the dump reaches serial, API and MQTT log clients
+    cg.add_define("USE_CRASH_HANDLER")
     zephyr_add_prj_conf("DEBUG_COREDUMP", True)
     zephyr_add_prj_conf("DEBUG_COREDUMP_BACKEND_FLASH_PARTITION", True)
     framework_ver = _framework_version()
