@@ -21,7 +21,6 @@ class EPaperWeAct3C : public EPaperBase {
       : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY, 1, 2) {}
 
   void fill(Color color) override;
-  void clear() override;
 
  protected:
   void set_window_();

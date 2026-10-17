@@ -25,11 +25,6 @@ void EPaper4bpp::fill(Color color) {
   this->y_high_ = this->height_;
 }
 
-void EPaper4bpp::clear() {
-  // clear buffer to white, just like real paper.
-  this->fill(COLOR_ON);
-}
-
 void HOT EPaper4bpp::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
