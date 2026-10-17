@@ -23,6 +23,8 @@
 namespace esphome::usb_cdc_acm {
 
 static const uint8_t EVENT_QUEUE_SIZE = 12;
+// Minimum interval between repeated warnings while a host stall persists
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 
 #ifndef USE_ZEPHYR
 // Drain up to out_buf_sz bytes from a byte ring buffer, handling FreeRTOS's wrapped
@@ -103,6 +105,9 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 #ifdef USE_ZEPHYR
   explicit USBCDCACMInstance(const device *uart_dev) : uart_dev_(uart_dev) {}
 #else
+  static void usb_tx_task_fn(void *arg);
+  void usb_tx_task();
+
   // Ring buffer accessors for bridge components
   RingbufHandle_t get_tx_ringbuf() const { return this->usb_tx_ringbuf_; }
   RingbufHandle_t get_rx_ringbuf() const { return this->usb_rx_ringbuf_; }
@@ -119,9 +124,6 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   void queue_line_coding_event(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
   void queue_line_state_event(bool dtr, bool rts);
 
-  static void usb_tx_task_fn(void *arg);
-  void usb_tx_task();
-
   // UARTComponent interface implementation
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
@@ -136,22 +138,43 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 #endif
 
  protected:
-  void check_logger_conflict() override;
+  // A logger on the same port is rejected at validation by the Zephyr claim registry
+  void check_logger_conflict() override {}
 
   // Process queued events and invoke callbacks (called from main loop)
   void process_events_();
+  // Count dropped TX bytes and log a throttled warning
+  void record_tx_drop_(size_t dropped);
+  // Hand a pending peeked byte to read_array(); true when nothing remains to read
+  bool consume_peek_(uint8_t *&data, size_t &len);
+  // Report bytes to the UART debugger; no-ops without USE_UART_DEBUGGER
+  void report_rx_debug_(const uint8_t *data, size_t len) {
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++) {
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+    }
+#endif
+  }
+  void report_tx_debug_(const uint8_t *data, size_t len) {
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++) {
+      this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
+    }
+#endif
+  }
 #ifdef USE_ZEPHYR
   static void uart_irq_handler(const device *dev, void *instance);
   void uart_rx_process_();
   void uart_tx_process_();
 
   const device *uart_dev_;
-  uint32_t dtr_{0};
-  uint32_t rts_{0};
+  uint32_t last_line_poll_ms_{0};
   std::atomic<bool> rx_irq_disabled_{false};
   std::atomic<bool> tx_irq_disabled_{false};
   // Set by the IRQ handler when our TX ring buffer and the driver's are both empty
   std::atomic<bool> tx_drained_{false};
+  bool dtr_{false};
+  bool rts_{false};
   ring_buf rx_ringbuf_;
   ring_buf tx_ringbuf_;
   uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];
@@ -178,7 +201,7 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   // Running total of bytes dropped by write_array() (never reset), and the timestamp
   // of the last "buffer full" log line (throttled so a sustained host stall doesn't
   // flood the log).
-  uint32_t tx_dropped_bytes_{0};
+  size_t tx_dropped_bytes_{0};
   uint32_t tx_dropped_log_ms_{0};
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};

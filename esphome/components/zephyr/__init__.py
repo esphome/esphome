@@ -270,16 +270,19 @@ def _cdc_acm_add_ports() -> None:
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
-    for id in sorted(users):
-        zephyr_add_overlay(
-            f"""
-                &zephyr_udc0 {{
-                    cdc_acm_uart{id}: cdc_acm_uart{id} {{
-                        compatible = "zephyr,cdc-acm-uart";
-                    }};
-                }};
-            """
-        )
+    nodes = "".join(
+        f"""
+                cdc_acm_uart{id}: cdc_acm_uart{id} {{
+                    compatible = "zephyr,cdc-acm-uart";
+                }};"""
+        for id in sorted(users)
+    )
+    zephyr_add_overlay(
+        f"""
+            &zephyr_udc0 {{{nodes}
+            }};
+        """
+    )
 
 
 def zephyr_add_kconfig(kconfig: str) -> None:

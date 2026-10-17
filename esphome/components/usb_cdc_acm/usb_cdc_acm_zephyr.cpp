@@ -1,5 +1,6 @@
 #if defined(USE_ZEPHYR)
 #include "usb_cdc_acm.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <zephyr/usb/usb_device.h>
 #include <zephyr/drivers/uart.h>
@@ -17,8 +18,7 @@ namespace esphome::usb_cdc_acm {
 
 ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 500;
-// Minimum interval between repeated "buffer full" warnings
-static constexpr uint32_t LOG_THROTTLE_MS = 1000;
+static constexpr uint32_t LINE_STATE_POLL_MS = 100;
 
 void USBCDCACMInstance::uart_tx_process_() {
   uint8_t *data;
@@ -50,23 +50,19 @@ void USBCDCACMInstance::uart_tx_process_() {
 
 void USBCDCACMInstance::uart_rx_process_() {
   uint8_t *data;
-
-  uint32_t total_size = 0;
   uint32_t recv_len = ring_buf_put_claim(&this->rx_ringbuf_, &data, UINT32_MAX);
-  if (recv_len) {
-    int rx = uart_fifo_read(this->uart_dev_, data, recv_len);
-    if (rx < 0) {
-      ESP_LOGE(TAG, "Failed to read UART FIFO, err %d", rx);
-    } else {
-      total_size += rx;
-    }
-  } else {
-    // Ring buffer full: disable RX IRQ so the ISR stops firing. loop() will
-    // re-enable it once the consumer has freed space.
+  if (recv_len == 0) {
+    // Ring buffer full: disable RX IRQ so the ISR stops firing. read_array() re-enables it
+    // once it has freed space.
     uart_irq_rx_disable(this->uart_dev_);
     this->rx_irq_disabled_ = true;
+    return;
   }
-  ring_buf_put_finish(&this->rx_ringbuf_, total_size);
+  int rx = uart_fifo_read(this->uart_dev_, data, recv_len);
+  if (rx < 0) {
+    ESP_LOGE(TAG, "Failed to read UART FIFO, err %d", rx);
+  }
+  ring_buf_put_finish(&this->rx_ringbuf_, rx > 0 ? rx : 0);
 }
 
 void USBCDCACMInstance::uart_irq_handler(const device *dev, void *instance) {
@@ -107,31 +103,35 @@ void USBCDCACMInstance::setup() {
 }
 
 void USBCDCACMInstance::loop() {
-  if (this->rx_irq_disabled_ && ring_buf_space_get(&this->rx_ringbuf_) > 0) {
-    this->rx_irq_disabled_ = false;
-    uart_irq_rx_enable(this->uart_dev_);
-  }
   // Retry TX stopped by uart_tx_process_() (e.g. after the host resumes from suspend)
   if (this->tx_irq_disabled_ && !ring_buf_is_empty(&this->tx_ringbuf_)) {
     this->tx_irq_disabled_ = false;
     uart_irq_tx_enable(this->uart_dev_);
   }
-  uint32_t dtr = 0;
-  uint32_t rts = 0;
-  uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
-  uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_RTS, &rts);
-  if (dtr != this->dtr_) {
-    ESP_LOGD(TAG, "UART Bus %s: %s", this->uart_dev_->name,
-             dtr ? LOG_STR_LITERAL("Opened") : LOG_STR_LITERAL("Closed"));
+  // Line state is polled here on the main loop, so it needs no event queue
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_line_poll_ms_ >= LINE_STATE_POLL_MS) {
+    this->last_line_poll_ms_ = now;
+    uint32_t dtr_val = 0;
+    uint32_t rts_val = 0;
+    uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr_val);
+    uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_RTS, &rts_val);
+    const bool dtr = dtr_val != 0;
+    const bool rts = rts_val != 0;
+    if (dtr != this->dtr_) {
+      ESP_LOGD(TAG, "UART Bus %s: %s", this->uart_dev_->name,
+               dtr ? LOG_STR_LITERAL("Opened") : LOG_STR_LITERAL("Closed"));
+    }
+    if (dtr != this->dtr_ || rts != this->rts_) {
+      ESP_LOGV(TAG, "Line state device %s: DTR=%d, RTS=%d", this->uart_dev_->name, dtr, rts);
+      this->dtr_ = dtr;
+      this->rts_ = rts;
+      if (this->line_state_callback_ != nullptr) {
+        this->line_state_callback_(dtr, rts);
+      }
+    }
   }
-  if (dtr != this->dtr_ || rts != this->rts_) {
-    ESP_LOGV(TAG, "Line state device %s: DTR=%" PRIu32 ", RTS=%" PRIu32, this->uart_dev_->name, dtr, rts);
-    this->dtr_ = dtr;
-    this->rts_ = rts;
-    // Queue event for processing in main loop
-    this->queue_line_state_event(dtr != 0, rts != 0);
-  }
-  // Process events from the lock-free queue
+  // Line coding changes arrive from the USB thread through the event queue
   this->process_events_();
 }
 
@@ -147,9 +147,6 @@ void USBCDCACMInstance::dump_config() {
                 LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
 }
 
-// A logger on the same port is rejected during config validation (zephyr_claim_cdc_acm())
-void USBCDCACMInstance::check_logger_conflict() {}
-
 size_t USBCDCACMInstance::available() {
   uint32_t size = ring_buf_size_get(&this->rx_ringbuf_) + (this->has_peek_ ? 1 : 0);
   ESP_LOGVV(TAG, "UART Bus %s: available %" PRIu32, this->uart_dev_->name, size);
@@ -164,34 +161,26 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
     return false;
   }
 
-  // First, use the peek buffer if available
-  if (this->has_peek_) {
-    data[0] = this->peek_buffer_;
-    this->has_peek_ = false;
-    // No debug callback here: peek_byte() read this byte through read_array(), which already reported it
-    data++;
-    if (--len == 0) {  // Decrement len first, then check it...
-      return true;     // No more to read
-    }
+  if (this->consume_peek_(data, len)) {
+    return true;
   }
-  if (ring_buf_get(&this->rx_ringbuf_, data, len) != len) {
+  const uint32_t got = ring_buf_get(&this->rx_ringbuf_, data, len);
+  // Space is free again: resume RX stopped by uart_rx_process_()
+  if (got > 0 && this->rx_irq_disabled_.exchange(false)) {
+    uart_irq_rx_enable(this->uart_dev_);
+  }
+  if (got != len) {
     ESP_LOGE(TAG, "UART CDC unexpected size");
     return false;
   }
-#ifdef USE_UART_DEBUGGER
-  for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
-  }
-#endif
+  this->report_rx_debug_(data, len);
   return true;
 }
 
 uart::UARTFlushResult USBCDCACMInstance::flush() {
   // The driver only moves data while the host reads the port. With no host listening (DTR off)
   // the data cannot drain, so do not stall the caller waiting for it.
-  uint32_t dtr = 0;
-  uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
-  if (dtr == 0) {
+  if (!this->dtr_) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
   // flush() and write_array() both run on the main loop, so nothing is added while we wait.
@@ -224,22 +213,11 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   }
   uint32_t recv_len = ring_buf_put(&this->tx_ringbuf_, data, len);
   if (recv_len < len) {
-    // Throttled like the ESP32 version: the buffer stays full for as long as the host stalls
-    const bool first_drop = this->tx_dropped_bytes_ == 0;
-    this->tx_dropped_bytes_ += len - recv_len;
-    const uint32_t now = millis();
-    if (first_drop || (now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
-      this->tx_dropped_log_ms_ = now;
-      ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %" PRIu32 " bytes dropped total", this->itf_, this->tx_dropped_bytes_);
-    }
+    this->record_tx_drop_(len - recv_len);
   }
   uart_irq_tx_enable(this->uart_dev_);
-#ifdef USE_UART_DEBUGGER
   // Only report the bytes that were queued, not the dropped ones
-  for (size_t i = 0; i < recv_len; i++) {
-    this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
-  }
-#endif
+  this->report_tx_debug_(data, recv_len);
 }
 
 }  // namespace esphome::usb_cdc_acm

@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 import esphome.codegen as cg
 from esphome.components import esp32, uart
 from esphome.components.esp32 import (
@@ -51,8 +53,14 @@ INTERFACE_SCHEMA = cv.Schema(
 )
 
 
+def _enabled_interfaces(config: ConfigType) -> Iterator[tuple[int, ConfigType]]:
+    for index, conf in enumerate(config[CONF_INTERFACES]):
+        if not conf.get(CONF_DISABLED, False):
+            yield index, conf
+
+
 def _validate_any_interface_enabled(config: ConfigType) -> ConfigType:
-    if all(conf.get(CONF_DISABLED, False) for conf in config[CONF_INTERFACES]):
+    if next(_enabled_interfaces(config), None) is None:
         raise cv.Invalid("At least one interface must be enabled")
     return config
 
@@ -96,9 +104,8 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config: ConfigType) -> None:
     if not CORE.using_zephyr:
         return
-    for interface_index, interface_conf in enumerate(config[CONF_INTERFACES]):
-        if not interface_conf.get(CONF_DISABLED, False):
-            zephyr_claim_cdc_acm(interface_index, DOMAIN)
+    for index, _ in _enabled_interfaces(config):
+        zephyr_claim_cdc_acm(index, DOMAIN)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -110,37 +117,25 @@ async def to_code(config: ConfigType) -> None:
 
     num_interfaces = len(config[CONF_INTERFACES])
     cg.add_define("ESPHOME_MAX_USB_CDC_INSTANCES", num_interfaces)
-    any_port_enabled = False
     # Create and register interface instances
-    for interface_index, interface_conf in enumerate(config[CONF_INTERFACES]):
-        if interface_conf.get(CONF_DISABLED, False):
-            continue
-        any_port_enabled = True
-        interface = None
-        if CORE.using_zephyr:
-            port = f"cdc_acm_uart{interface_index}"
-            interface = cg.new_Pvariable(
-                interface_conf[CONF_ID],
-                MockObj(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({port}))"),
-            )
-        else:
-            interface = cg.new_Pvariable(interface_conf[CONF_ID])
+    for index, conf in _enabled_interfaces(config):
+        args = (
+            (MockObj(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart{index}))"),)
+            if CORE.using_zephyr
+            else ()
+        )
+        interface = cg.new_Pvariable(conf[CONF_ID], *args)
         await cg.register_parented(interface, var)
-        cg.add(interface.set_interface_number(interface_index))
+        cg.add(interface.set_interface_number(index))
         cg.add(var.add_interface(interface))
-        if CONF_DEBUG in interface_conf:
+        if (debug := conf.get(CONF_DEBUG)) is not None:
             cg.add_global(uart_ns.using)
-            await debug_to_code(interface_conf[CONF_DEBUG], interface)
+            await debug_to_code(debug, interface)
     if CORE.using_zephyr:
-        if any_port_enabled:
-            zephyr_add_prj_conf("UART_LINE_CTRL", True)
-            zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-            cg.add_define(
-                "ESPHOME_CDC_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE]
-            )
-            cg.add_define(
-                "ESPHOME_CDC_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE]
-            )
+        zephyr_add_prj_conf("UART_LINE_CTRL", True)
+        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+        cg.add_define("ESPHOME_CDC_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE])
+        cg.add_define("ESPHOME_CDC_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE])
     else:
         # Configure TinyUSB with the correct number of CDC interfaces
         add_idf_sdkconfig_option("CONFIG_TINYUSB_CDC_ENABLED", True)

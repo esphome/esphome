@@ -165,7 +165,6 @@ async def to_code(config: ConfigType) -> None:
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
-        # A CDC ACM port is set up by zephyr_to_code() from the claim in _final_validate()
         uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)

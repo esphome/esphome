@@ -2,6 +2,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4) || defined(USE_ZEPHYR)
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 namespace esphome::usb_cdc_acm {
@@ -128,6 +129,29 @@ bool USBCDCACMInstance::peek_byte(uint8_t *data) {
   }
 
   return false;
+}
+
+bool USBCDCACMInstance::consume_peek_(uint8_t *&data, size_t &len) {
+  if (!this->has_peek_) {
+    return false;
+  }
+  // No debug callback here: peek_byte() read this byte through read_array(), which already reported it
+  *data++ = this->peek_buffer_;
+  this->has_peek_ = false;
+  return --len == 0;
+}
+
+void USBCDCACMInstance::record_tx_drop_(size_t dropped) {
+  // During a sustained host stall the buffer stays full, so this runs for every write; throttle the
+  // warning. The total is never reset, so each line accounts for every byte dropped so far and the
+  // first drop since boot is logged unthrottled.
+  const bool first_drop = this->tx_dropped_bytes_ == 0;
+  this->tx_dropped_bytes_ += dropped;
+  const uint32_t now = millis();
+  if (first_drop || (now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
+    this->tx_dropped_log_ms_ = now;
+    ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %zu bytes dropped total", this->itf_, this->tx_dropped_bytes_);
+  }
 }
 
 //==============================================================================
