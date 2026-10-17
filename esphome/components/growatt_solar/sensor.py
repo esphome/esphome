@@ -100,10 +100,7 @@ PV_SCHEMA = cv.Schema(
 )
 
 GrowattProtocolVersion = growatt_solar_ns.enum("GrowattProtocolVersion")
-PROTOCOL_VERSIONS = {
-    "RTU": GrowattProtocolVersion.RTU,
-    "RTU2": GrowattProtocolVersion.RTU2,
-}
+PROTOCOL_VERSIONS = GrowattProtocolVersion.options("RTU", "RTU2")
 
 
 CONFIG_SCHEMA = (

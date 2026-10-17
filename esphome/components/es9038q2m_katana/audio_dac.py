@@ -42,12 +42,9 @@ FILTER_SHAPES = {
 }
 
 DeemphasisMode = es9038q2m_katana_ns.enum("DeemphasisMode")
-DEEMPHASIS_MODES = {
-    "bypass": DeemphasisMode.DEEMPHASIS_BYPASS,
-    "32khz": DeemphasisMode.DEEMPHASIS_32KHZ,
-    "44_1khz": DeemphasisMode.DEEMPHASIS_44_1KHZ,
-    "48khz": DeemphasisMode.DEEMPHASIS_48KHZ,
-}
+DEEMPHASIS_MODES = DeemphasisMode.options(
+    "bypass", "32khz", "44_1khz", "48khz", prefix="DEEMPHASIS_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
