@@ -36,6 +36,7 @@ class EPaperUC8179 final : public EPaperBase {
 
  protected:
   bool initialise(bool partial) override;
+  void setup() override;
   bool transfer_data() override;
   void refresh_screen(bool partial) override;
   void power_on() override;
