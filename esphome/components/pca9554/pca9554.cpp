@@ -131,20 +131,10 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (this->pcal_) {
     const uint16_t bit = 1U << pin;
     // A masked pin never asserts INT, so only inputs are unmasked
-    this->interrupt_mask_ = (this->interrupt_mask_ & ~bit) | (this->config_mask_ & bit);
-    this->write_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_);
-    if (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
-      this->pupd_enable_ |= bit;
-    } else {
-      this->pupd_enable_ &= ~bit;
-    }
-    if (flags & gpio::FLAG_PULLUP) {
-      this->pupd_select_ |= bit;
-    } else {
-      this->pupd_select_ &= ~bit;
-    }
-    this->write_pcal_register_(PUPD_SEL, this->pupd_select_);
-    this->write_pcal_register_(PUPD_ENABLE, this->pupd_enable_);
+    this->update_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_, bit, this->config_mask_ & bit);
+    this->update_pcal_register_(PUPD_SEL, this->pupd_select_, bit, (flags & gpio::FLAG_PULLUP) ? bit : 0);
+    this->update_pcal_register_(PUPD_ENABLE, this->pupd_enable_, bit,
+                                (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) ? bit : 0);
   }
 #endif
 }
@@ -189,6 +179,15 @@ bool PCA9554Component::write_address_(uint8_t address, uint16_t value) {
 #ifdef USE_PCA9554_PCAL
 bool PCA9554Component::write_pcal_register_(uint8_t reg, uint16_t value) {
   return this->write_address_(PCAL_BASE + reg * this->reg_width_, value);
+}
+
+void PCA9554Component::update_pcal_register_(uint8_t reg, uint16_t &shadow, uint16_t mask, uint16_t value) {
+  const uint16_t updated = (shadow & ~mask) | (value & mask);
+  // setup() wrote every shadow, so an unchanged value is already on the chip
+  if (updated == shadow)
+    return;
+  shadow = updated;
+  this->write_pcal_register_(reg, shadow);
 }
 
 void PCA9554Component::set_drive_strength(uint8_t pin, uint8_t strength) {

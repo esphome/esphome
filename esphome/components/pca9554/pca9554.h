@@ -42,6 +42,8 @@ class PCA9554Component final : public Component,
   bool write_address_(uint8_t address, uint16_t value);
 #ifdef USE_PCA9554_PCAL
   bool write_pcal_register_(uint8_t reg, uint16_t value);
+  /// Changes the masked bits of a shadow and writes the register only when it changed.
+  void update_pcal_register_(uint8_t reg, uint16_t &shadow, uint16_t mask, uint16_t value);
 #endif
 
   // Virtual methods from CachedGpioExpander
