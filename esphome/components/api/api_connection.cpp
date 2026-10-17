@@ -2133,6 +2133,19 @@ bool APIConnection::send_device_capabilities_response_() {
   resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
   resp.sendspin.client_id = sendspin_::global_sendspin_hub->get_client_id();
 #endif
+  switch (network::get_network_type()) {
+    case network::NetworkType::NETWORK_TYPE_ETHERNET:
+      resp.network_type = enums::NETWORK_TYPE_ETHERNET;
+      break;
+    case network::NetworkType::NETWORK_TYPE_WIFI:
+      resp.network_type = enums::NETWORK_TYPE_WIFI;
+      break;
+    case network::NetworkType::NETWORK_TYPE_THREAD:
+      resp.network_type = enums::NETWORK_TYPE_THREAD;
+      break;
+    case network::NetworkType::NETWORK_TYPE_NONE:
+      break;
+  }
   return this->send_message(resp);
 }
 void APIConnection::on_hello_request(const HelloRequest &msg) {

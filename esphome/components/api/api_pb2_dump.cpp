@@ -168,6 +168,20 @@ template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::S
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::NetworkType>(enums::NetworkType value) {
+  switch (value) {
+    case enums::NETWORK_TYPE_UNKNOWN:
+      return ESPHOME_PSTR("NETWORK_TYPE_UNKNOWN");
+    case enums::NETWORK_TYPE_WIFI:
+      return ESPHOME_PSTR("NETWORK_TYPE_WIFI");
+    case enums::NETWORK_TYPE_ETHERNET:
+      return ESPHOME_PSTR("NETWORK_TYPE_ETHERNET");
+    case enums::NETWORK_TYPE_THREAD:
+      return ESPHOME_PSTR("NETWORK_TYPE_THREAD");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
@@ -1165,6 +1179,7 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   this->sendspin.dump_to(out);
   out.append("\n");
 #endif
+  dump_field(out, ESPHOME_PSTR("network_type"), static_cast<enums::NetworkType>(this->network_type));
   return out.c_str();
 }
 #ifdef USE_API_WIZARD

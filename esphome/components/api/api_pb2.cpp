@@ -343,6 +343,7 @@ uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__res
 #ifdef USE_SENDSPIN
   pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.sendspin);
 #endif
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(msg.network_type));
   return pos;
 }
 uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
@@ -368,6 +369,7 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
 #ifdef USE_SENDSPIN
   size += ProtoSize::calc_message(1, msg.sendspin.calculate_size());
 #endif
+  size += msg.network_type ? 2 : 0;
   return size;
 }
 #ifdef USE_API_WIZARD

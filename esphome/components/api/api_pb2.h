@@ -25,6 +25,12 @@ enum SerialProxyPortType : uint32_t {
   SERIAL_PROXY_PORT_TYPE_RS485 = 2,
   SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3,
 };
+enum NetworkType : uint32_t {
+  NETWORK_TYPE_UNKNOWN = 0,
+  NETWORK_TYPE_WIFI = 1,
+  NETWORK_TYPE_ETHERNET = 2,
+  NETWORK_TYPE_THREAD = 3,
+};
 enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -767,7 +773,7 @@ class SendspinCapabilities final : public ProtoMessage {
 class DeviceCapabilitiesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 150;
-  static constexpr uint8_t ESTIMATED_SIZE = 136;
+  static constexpr uint8_t ESTIMATED_SIZE = 138;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_capabilities_response"); }
 #endif
@@ -789,6 +795,7 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 #ifdef USE_SENDSPIN
   SendspinCapabilities sendspin{};
 #endif
+  enums::NetworkType network_type{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
