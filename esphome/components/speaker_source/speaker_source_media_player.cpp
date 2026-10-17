@@ -56,8 +56,8 @@ void SpeakerSourceMediaPlayer::dump_config() {
                 "  Volume Min: %.2f\n"
                 "  Volume Max: %.2f",
                 this->volume_increment_, this->volume_min_, this->volume_max_);
-  if (!std::isnan(this->announcement_volume_)) {
-    ESP_LOGCONFIG(TAG, "  Announcement Volume: %.2f", this->announcement_volume_);
+  if (this->announcement_volume_.is_configured()) {
+    ESP_LOGCONFIG(TAG, "  Announcement Volume: %.2f", this->announcement_volume_.get_volume());
   }
 }
 
@@ -374,10 +374,10 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
     return false;  // Speaker not ready yet, retry later
   }
 
-  // A new announcement only uses the announcement volume when it does not play over media or another announcement
-  if (pipeline == ANNOUNCEMENT_PIPELINE && this->state != media_player::MEDIA_PLAYER_STATE_ANNOUNCING &&
-      !this->is_media_playing_()) {
-    this->begin_announcement_volume_();
+  // Without a media pipeline, media also plays on the announcement pipeline and must keep the media volume
+  if (pipeline == ANNOUNCEMENT_PIPELINE && this->pipelines_[MEDIA_PIPELINE].is_configured()) {
+    this->begin_announcement_volume_(this->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING ||
+                                     this->is_media_playing_());
   }
 
   // Set pending source so handle_media_state_changed_ can recognize it when the source transitions to PLAYING
@@ -838,7 +838,7 @@ void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state, bool publish) {
 
 void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
   // A volume change made while an announcement uses the announcement volume applies right away
-  this->announcement_volume_active_ = false;
+  this->announcement_volume_.cancel();
   this->apply_speaker_volume_(volume);
 
   if (publish) {
@@ -875,28 +875,23 @@ void SpeakerSourceMediaPlayer::apply_speaker_volume_(float volume) {
 
 // THREAD CONTEXT: Called from main loop via automation commands (direct)
 void SpeakerSourceMediaPlayer::set_announcement_volume(float announcement_volume) {
-  this->announcement_volume_ = announcement_volume;
-  if (this->announcement_volume_active_) {
+  if (this->announcement_volume_.set_volume(announcement_volume)) {
     this->apply_speaker_volume_(announcement_volume);
   }
 }
 
-void SpeakerSourceMediaPlayer::begin_announcement_volume_() {
-  if (this->announcement_volume_active_ || std::isnan(this->announcement_volume_)) {
-    return;
+void SpeakerSourceMediaPlayer::begin_announcement_volume_(bool other_audio_playing) {
+  if (this->announcement_volume_.begin(other_audio_playing)) {
+    ESP_LOGD(TAG, "Using announcement volume %.2f", this->announcement_volume_.get_volume());
+    this->apply_speaker_volume_(this->announcement_volume_.get_volume());
   }
-  ESP_LOGD(TAG, "Using announcement volume %.2f", this->announcement_volume_);
-  this->announcement_volume_active_ = true;
-  this->apply_speaker_volume_(this->announcement_volume_);
 }
 
 void SpeakerSourceMediaPlayer::end_announcement_volume_() {
-  if (!this->announcement_volume_active_) {
-    return;
+  if (this->announcement_volume_.end()) {
+    ESP_LOGD(TAG, "Restoring volume %.2f", this->volume);
+    this->apply_speaker_volume_(this->volume);
   }
-  ESP_LOGD(TAG, "Restoring volume %.2f", this->volume);
-  this->announcement_volume_active_ = false;
-  this->apply_speaker_volume_(this->volume);
 }
 
 size_t SpeakerSourceMediaPlayer::get_playlist_position_(uint8_t pipeline) const {

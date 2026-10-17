@@ -7,6 +7,7 @@
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/media_source/media_source.h"
 #include "esphome/components/media_player/media_player.h"
+#include "esphome/components/speaker/announcement_volume.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/automation.h"
@@ -15,7 +16,6 @@
 
 #include <array>
 #include <atomic>
-#include <cmath>
 #include <memory>
 #include <vector>
 #include <freertos/FreeRTOS.h>
@@ -209,8 +209,8 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
   /// @brief Remaps a volume to the configured limits and sends it to the speakers.
   void apply_speaker_volume_(float volume);
 
-  /// @brief Switches the speakers to the announcement volume, if one is configured.
-  void begin_announcement_volume_();
+  /// @brief Switches the speakers to the announcement volume, if one is configured and nothing else is playing.
+  void begin_announcement_volume_(bool other_audio_playing);
   /// @brief Switches the speakers back to the media player volume.
   void end_announcement_volume_();
 
@@ -271,9 +271,7 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
   float volume_max_;
   float volume_min_;
 
-  // Volume for announcements that start while nothing else is playing; NAN when not configured
-  float announcement_volume_{NAN};
-  bool announcement_volume_active_{false};
+  speaker::AnnouncementVolume announcement_volume_;
 
   bool is_muted_{false};
 };
