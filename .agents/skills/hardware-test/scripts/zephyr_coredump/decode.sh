@@ -33,6 +33,6 @@ G=$!
 sleep 3
 if ! kill -0 $G 2>/dev/null; then echo "gdbserver exited:"; tail -5 $OUT-gdbserver.log; exit 1; fi
 $GDB -q -batch -ex "target remote :$PORT" -ex "bt" -ex "info threads" "$ELF" 2>&1 | grep -v "^warning\|Reading symbols\|^$" | head -40
-status=$pipestatus[1]
+rc=$pipestatus[1]
 kill $G 2>/dev/null
-exit $status
+exit $rc

@@ -25,6 +25,8 @@ async def main():
         print("single image bytes:", n)
     except TimeoutError:
         print("no image within 10 s")
+        await c.disconnect()
+        sys.exit(1)
     await c.disconnect()
 
 
