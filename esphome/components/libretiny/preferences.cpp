@@ -1,7 +1,6 @@
 #ifdef USE_LIBRETINY
 
 #include "preferences.h"
-#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
@@ -17,6 +16,24 @@ struct NVSData {
 };
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+// The rtc keys already dealt with this boot. A preference made again later (wifi.enable remakes its own)
+// keeps this boot's value and takes over a discard that is still pending
+struct DiscardedKey {
+  uint32_t key;
+  bool stale;
+};
+static std::vector<DiscardedKey> s_discarded;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static DiscardedKey *find_discarded(uint32_t key) {
+  for (auto &entry : s_discarded) {
+    if (entry.key == key)
+      return &entry;
+  }
+  return nullptr;
+}
+#endif  // USE_LIBRETINY_RTC_PREFERENCES
 
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
 // Whether this boot followed a reset that RTC memory survives on ESP32 and ESP8266. LibreTiny chips
@@ -46,6 +63,8 @@ bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
     const fdb_err_t err = fdb_kv_del(this->db, key_str);
     if (err == FDB_NO_ERR || err == FDB_KV_NAME_ERR) {
       this->stale = false;
+      if (auto *entry = find_discarded(this->key); entry != nullptr)
+        entry->stale = false;
     } else {
       ESP_LOGW(TAG, "Failed to discard rtc preference %s again: %d", key_str, err);
     }
@@ -111,10 +130,14 @@ ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_
   if (in_flash)
     return this->make_preference(length, type);
   auto *pref = new LibreTinyPreferenceBackend(this->make_backend_(type));  // NOLINT(cppcoreguidelines-owning-memory)
-  // The value from before a hard reset goes here, once, in setup; save only touches flash to retry a failed
-  // discard. A preference made again after setup (wifi.enable remakes its own) holds this boot's value, so it stays
+  // The value from before a hard reset goes the first time a key is made this boot; save only touches flash
+  // to retry a failed discard
   static const bool BOOT_KEPT_RTC = boot_kept_rtc_preferences();
-  if (!BOOT_KEPT_RTC && !App.is_setup_complete()) {
+  if (!BOOT_KEPT_RTC) {
+    if (auto *entry = find_discarded(type); entry != nullptr) {
+      pref->stale = entry->stale;
+      return ESPPreferenceObject(pref);
+    }
     char key_str[UINT32_MAX_STR_SIZE];
     uint32_to_str(key_str, type);
     const fdb_err_t err = fdb_kv_del(&this->db, key_str);
@@ -124,6 +147,7 @@ ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_
       ESP_LOGW(TAG, "Failed to discard rtc preference %s: %d", key_str, err);
       pref->stale = true;
     }
+    s_discarded.push_back({type, pref->stale});
   }
   return ESPPreferenceObject(pref);
 }
