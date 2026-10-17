@@ -110,10 +110,10 @@ inline float r0_from_clean_air(float rs_air, float ratio_in_clean_air, float cor
 }
 
 /// ratio (+ a, b) -> PPM, MQUnifiedsensor::readSensorR0Rs().
-/// FLT_MAX signals "out of range / not evaluable" so the caller can clamp it:
-/// a ratio of exactly 0 is RS at 0 (V_AO at VCC), the output of a saturated
-/// sensor, and must never be read as clean air. NaN stays NaN, so the caller
-/// publishes `unknown`.
+/// FLT_MAX signals "out of range" so the caller can clamp it: a ratio of
+/// exactly 0 is RS at 0 (V_AO at VCC), the output of a saturated sensor, and
+/// must never be read as clean air. A NaN stays NaN, so the caller publishes
+/// `unknown`.
 inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod method) {
   if (!std::isfinite(ratio))
     return NAN;
@@ -139,7 +139,9 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
     ppm = safe_pow(10.0, log_ppm);
   }
 
-  if (std::isnan(ppm) || std::isinf(ppm))
+  if (std::isnan(ppm))
+    return NAN;
+  if (std::isinf(ppm))
     ppm = static_cast<double>(FLT_MAX);
   if (ppm < 0.0)
     ppm = 0.0;
