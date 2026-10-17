@@ -1,0 +1,2225 @@
+sensor:
+  - platform: toptronic
+    name: aktuelle Energie (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 0
+    id: MWA_20_1_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 0
+    id: MWA_20_2_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 0
+    id: MWA_20_3_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 0
+    id: MWA_20_4_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 0
+    id: MWA_20_5_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 0
+    id: MWA_20_6_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 0
+    id: MWA_20_7_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 0
+    id: MWA_20_8_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 0
+    id: MWA_20_9_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 0
+    id: MWA_20_10_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 0
+    id: MWA_20_11_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 0
+    id: MWA_20_12_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 0
+    id: MWA_20_13_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 0
+    id: MWA_20_14_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 0
+    id: MWA_20_15_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Energie (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 0
+    id: MWA_20_16_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 1
+    id: MWA_20_1_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 1
+    id: MWA_20_2_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 1
+    id: MWA_20_3_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 1
+    id: MWA_20_4_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 1
+    id: MWA_20_5_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 1
+    id: MWA_20_6_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 1
+    id: MWA_20_7_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 1
+    id: MWA_20_8_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 1
+    id: MWA_20_9_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 1
+    id: MWA_20_10_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 1
+    id: MWA_20_11_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 1
+    id: MWA_20_12_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 1
+    id: MWA_20_13_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 1
+    id: MWA_20_14_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 1
+    id: MWA_20_15_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Leistung (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 1
+    id: MWA_20_16_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelles Volumen (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 3
+    id: MWA_20_1_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 2
+    id: MWA_20_1_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 4
+    id: MWA_20_1_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (2)"
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 5
+    id: MWA_20_1_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 6
+    id: MWA_20_1_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 7
+    id: MWA_20_1_7
+    type: U32
+  - platform: toptronic
+    name: Strom (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 11
+    id: MWA_20_1_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 12
+    id: MWA_20_1_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 13
+    id: MWA_20_1_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 3
+    id: MWA_20_2_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 2
+    id: MWA_20_2_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 4
+    id: MWA_20_2_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (3)"
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 5
+    id: MWA_20_2_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 6
+    id: MWA_20_2_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 7
+    id: MWA_20_2_7
+    type: U32
+  - platform: toptronic
+    name: Strom (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 11
+    id: MWA_20_2_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 12
+    id: MWA_20_2_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 13
+    id: MWA_20_2_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 3
+    id: MWA_20_3_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 2
+    id: MWA_20_3_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 4
+    id: MWA_20_3_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (4)"
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 5
+    id: MWA_20_3_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 6
+    id: MWA_20_3_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 7
+    id: MWA_20_3_7
+    type: U32
+  - platform: toptronic
+    name: Strom (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 11
+    id: MWA_20_3_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 12
+    id: MWA_20_3_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 13
+    id: MWA_20_3_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 3
+    id: MWA_20_4_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 2
+    id: MWA_20_4_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 4
+    id: MWA_20_4_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (5)"
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 5
+    id: MWA_20_4_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 6
+    id: MWA_20_4_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 7
+    id: MWA_20_4_7
+    type: U32
+  - platform: toptronic
+    name: Strom (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 11
+    id: MWA_20_4_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 12
+    id: MWA_20_4_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 13
+    id: MWA_20_4_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 3
+    id: MWA_20_5_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 2
+    id: MWA_20_5_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 4
+    id: MWA_20_5_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (6)"
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 5
+    id: MWA_20_5_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 6
+    id: MWA_20_5_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 7
+    id: MWA_20_5_7
+    type: U32
+  - platform: toptronic
+    name: Strom (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 11
+    id: MWA_20_5_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 12
+    id: MWA_20_5_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 13
+    id: MWA_20_5_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 3
+    id: MWA_20_6_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 2
+    id: MWA_20_6_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 4
+    id: MWA_20_6_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (7)"
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 5
+    id: MWA_20_6_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 6
+    id: MWA_20_6_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 7
+    id: MWA_20_6_7
+    type: U32
+  - platform: toptronic
+    name: Strom (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 11
+    id: MWA_20_6_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 12
+    id: MWA_20_6_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 13
+    id: MWA_20_6_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 3
+    id: MWA_20_7_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 2
+    id: MWA_20_7_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 4
+    id: MWA_20_7_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (8)"
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 5
+    id: MWA_20_7_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 6
+    id: MWA_20_7_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 7
+    id: MWA_20_7_7
+    type: U32
+  - platform: toptronic
+    name: Strom (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 11
+    id: MWA_20_7_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 12
+    id: MWA_20_7_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 13
+    id: MWA_20_7_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 3
+    id: MWA_20_8_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 2
+    id: MWA_20_8_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 4
+    id: MWA_20_8_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (9)"
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 5
+    id: MWA_20_8_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 6
+    id: MWA_20_8_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 7
+    id: MWA_20_8_7
+    type: U32
+  - platform: toptronic
+    name: Strom (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 11
+    id: MWA_20_8_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 12
+    id: MWA_20_8_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 13
+    id: MWA_20_8_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 3
+    id: MWA_20_9_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 2
+    id: MWA_20_9_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 4
+    id: MWA_20_9_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (10)"
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 5
+    id: MWA_20_9_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 6
+    id: MWA_20_9_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 7
+    id: MWA_20_9_7
+    type: U32
+  - platform: toptronic
+    name: Strom (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 11
+    id: MWA_20_9_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 12
+    id: MWA_20_9_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 13
+    id: MWA_20_9_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 3
+    id: MWA_20_10_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 2
+    id: MWA_20_10_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 4
+    id: MWA_20_10_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (11)"
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 5
+    id: MWA_20_10_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 6
+    id: MWA_20_10_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 7
+    id: MWA_20_10_7
+    type: U32
+  - platform: toptronic
+    name: Strom (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 11
+    id: MWA_20_10_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 12
+    id: MWA_20_10_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 13
+    id: MWA_20_10_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 3
+    id: MWA_20_11_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 2
+    id: MWA_20_11_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 4
+    id: MWA_20_11_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (12)"
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 5
+    id: MWA_20_11_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 6
+    id: MWA_20_11_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 7
+    id: MWA_20_11_7
+    type: U32
+  - platform: toptronic
+    name: Strom (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 11
+    id: MWA_20_11_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 12
+    id: MWA_20_11_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 13
+    id: MWA_20_11_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 3
+    id: MWA_20_12_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 2
+    id: MWA_20_12_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 4
+    id: MWA_20_12_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (13)"
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 5
+    id: MWA_20_12_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 6
+    id: MWA_20_12_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 7
+    id: MWA_20_12_7
+    type: U32
+  - platform: toptronic
+    name: Strom (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 11
+    id: MWA_20_12_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 12
+    id: MWA_20_12_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 13
+    id: MWA_20_12_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 3
+    id: MWA_20_13_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 2
+    id: MWA_20_13_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 4
+    id: MWA_20_13_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (14)"
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 5
+    id: MWA_20_13_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 6
+    id: MWA_20_13_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 7
+    id: MWA_20_13_7
+    type: U32
+  - platform: toptronic
+    name: Strom (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 11
+    id: MWA_20_13_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 12
+    id: MWA_20_13_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 13
+    id: MWA_20_13_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 3
+    id: MWA_20_14_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 2
+    id: MWA_20_14_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 4
+    id: MWA_20_14_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (15)"
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 5
+    id: MWA_20_14_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 6
+    id: MWA_20_14_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 7
+    id: MWA_20_14_7
+    type: U32
+  - platform: toptronic
+    name: Strom (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 11
+    id: MWA_20_14_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 12
+    id: MWA_20_14_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 13
+    id: MWA_20_14_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 3
+    id: MWA_20_15_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 2
+    id: MWA_20_15_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 4
+    id: MWA_20_15_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (16)"
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 5
+    id: MWA_20_15_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 6
+    id: MWA_20_15_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 7
+    id: MWA_20_15_7
+    type: U32
+  - platform: toptronic
+    name: Strom (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 11
+    id: MWA_20_15_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 12
+    id: MWA_20_15_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 13
+    id: MWA_20_15_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: aktuelles Volumen (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 3
+    id: MWA_20_16_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: aktueller Durchfluss (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 2
+    id: MWA_20_16_2
+    type: U32
+  - platform: toptronic
+    name: aktuelle Vorlauftemperatur (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 4
+    id: MWA_20_16_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "aktuelle R\xFCcklauftemperatur  (17)"
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 5
+    id: MWA_20_16_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: aktuelle Differenztemperatur (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 6
+    id: MWA_20_16_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Seriennummer (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 7
+    id: MWA_20_16_7
+    type: U32
+  - platform: toptronic
+    name: Strom (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 11
+    id: MWA_20_16_11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Spannung (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 12
+    id: MWA_20_16_12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cosphi (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 13
+    id: MWA_20_16_13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
