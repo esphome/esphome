@@ -107,7 +107,7 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
   (exit 2: a precondition was missed, the stimulus was insufficient, or a capture did not last the run)
   or exits 1 when a build, flash or port step failed.
 
-Per-topic scripts, each described in the matching `reference/recipes.md` section: `online_image/`
+Per-topic scripts, each described in the matching `reference/recipes/<component>.md`: `online_image/`
 (server, image generator, API driver), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
@@ -120,7 +120,7 @@ Zephyr tools), `libretiny_prefs/` (rtc preference harness header).
 - `client-wifisave.yaml` (package): joins that AP, posts N bogus `/wifisave` requests, then the real
   credentials from `!secret`. `example-client.yaml` is the per-run file. `bogus_saves: "1"` gives a
   plain provisioning check.
-- Per-topic device configs, each described in `reference/recipes.md`: `online-image-dut.yaml`,
+- Per-topic device configs, each described in `reference/recipes/<component>.md`: `online-image-dut.yaml`,
   `usb-cdc-acm-dongle-dut.yaml`, `nrf52-preferences-dut.yaml`, `rtsp-waveshare-s3-eth-dut.yaml`,
   `waveshare-s3-eth-camdiag.yaml`, `s31-cse7766-dut.yaml`, `nrf52-coredump-crash-dut.yaml`,
   `bk72xx-rtc-prefs-dut.yaml`, `dut-ap-only-wipe-once-bk72xx.yaml`.
@@ -140,5 +140,5 @@ Zephyr tools), `libretiny_prefs/` (rtc preference harness header).
 - `api:` reboots a board after 15 min without a client: `reboot_timeout: 0s` on `api:` and `mqtt:` for
   soak tests.
 
-`reference/boards.md` has per-chip facts and crash decoding; `reference/recipes.md` has the proven
+`reference/boards.md` has per-chip facts and crash decoding; `reference/recipes/` has the proven
 flows. Add new findings there.

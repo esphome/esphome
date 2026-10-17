@@ -137,7 +137,7 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   an I/O error as the board reboots, which is normal). Reboot a running `dfu: true` app with a 2001 bps touch.
 - The PCA10059 board DTS already defines a `cdc_acm_uart` node, so every ESPHome CDC port is one USB port
   later than its number (log on `cdc_acm_uart0` is the second port). A third CDC instance needs
-  `CONFIG_USB_MAX_NUM_TRANSFERS` above 4 or it never moves data (see recipes, usb_cdc_acm).
+  `CONFIG_USB_MAX_NUM_TRANSFERS` above 4 or it never moves data (see `recipes/usb_cdc_acm.md`).
 - USB CDC boot output: the Zephyr legacy stack's `cdc_acm` TX ring is 1 KB and `uart_poll_out` drops when it
   is full, so anything printed in one burst beyond about 1 KB (a coredump, a long table) is lost even with
   the port open, and the logger warns `logger took a long time`. Print one line per `loop()` instead.
