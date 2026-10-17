@@ -25,10 +25,9 @@ DEPENDENCIES = ["i2c"]
 lc709203f_ns = cg.esphome_ns.namespace("lc709203f")
 
 LC709203FBatteryVoltage = lc709203f_ns.enum("LC709203FBatteryVoltage")
-BATTERY_VOLTAGE_OPTIONS = {
-    "3.7": LC709203FBatteryVoltage.LC709203F_BATTERY_VOLTAGE_3_7,
-    "3.8": LC709203FBatteryVoltage.LC709203F_BATTERY_VOLTAGE_3_8,
-}
+BATTERY_VOLTAGE_OPTIONS = LC709203FBatteryVoltage.options(
+    "3.7", "3.8", prefix="LC709203F_BATTERY_VOLTAGE_"
+)
 
 lc709203f = lc709203f_ns.class_("Lc709203f", cg.PollingComponent, i2c.I2CDevice)
 

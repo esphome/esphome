@@ -124,13 +124,6 @@ class BMP3XXComponent : public PollingComponent {
   OperationMode operation_mode_{FORCED_MODE};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    ERROR_COMMUNICATION_FAILED,
-    ERROR_WRONG_CHIP_ID,
-    ERROR_SENSOR_STATUS,
-    ERROR_SENSOR_RESET,
-  } error_code_{NONE};
 
   struct {  // The BMP388 compensation trim parameters (coefficients)
     uint16_t param_T1;

@@ -355,9 +355,6 @@ void AS734XComponent::dump_config() {
 #ifdef USE_AS734X_RGB
   LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_sensor_);
 #endif
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void AS734XComponent::enable_led(bool enable) {

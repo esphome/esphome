@@ -29,13 +29,6 @@ class SCD30Component final : public Component, public sensirion_common::Sensirio
  protected:
   bool is_data_ready_();
 
-  enum ErrorCode {
-    COMMUNICATION_FAILED,
-    FIRMWARE_IDENTIFICATION_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    FORCE_RECALIBRATION_FAILED,
-    UNKNOWN
-  } error_code_{UNKNOWN};
   bool enable_asc_{true};
   uint16_t altitude_compensation_{0xFFFF};
   uint16_t ambient_pressure_compensation_{0x0000};
