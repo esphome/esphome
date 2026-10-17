@@ -26,6 +26,11 @@ from esphome.const import (
     CONF_PM_2_5,
     CONF_PM_4_0,
     CONF_PM_10_0,
+    CONF_PMC_0_5,
+    CONF_PMC_1_0,
+    CONF_PMC_2_5,
+    CONF_PMC_4_0,
+    CONF_PMC_10_0,
     CONF_STARTUP_DELAY,
     CONF_STD_INITIAL,
     CONF_TEMPERATURE,
@@ -40,12 +45,14 @@ from esphome.const import (
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_TEMPERATURE,
     ICON_CHEMICAL_WEAPON,
+    ICON_COUNTER,
     ICON_MOLECULE_CO2,
     ICON_RADIATOR,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_COUNTS_PER_CUBIC_CENTIMETER,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
@@ -70,6 +77,15 @@ AUTO_LOAD = ["sensirion_common"]
 sen6x_ns = cg.esphome_ns.namespace("sen6x")
 SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+)
+
+
+_PMC_KEYS = (CONF_PMC_0_5, CONF_PMC_1_0, CONF_PMC_2_5, CONF_PMC_4_0, CONF_PMC_10_0)
+_PMC_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
+    icon=ICON_COUNTER,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 
 
@@ -147,6 +163,11 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_PMC_0_5): _PMC_SCHEMA,
+            cv.Optional(CONF_PMC_1_0): _PMC_SCHEMA,
+            cv.Optional(CONF_PMC_2_5): _PMC_SCHEMA,
+            cv.Optional(CONF_PMC_4_0): _PMC_SCHEMA,
+            cv.Optional(CONF_PMC_10_0): _PMC_SCHEMA,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,
@@ -236,6 +257,11 @@ SENSOR_MAP = {
     CONF_PM_2_5: "set_pm_2_5_sensor",
     CONF_PM_4_0: "set_pm_4_0_sensor",
     CONF_PM_10_0: "set_pm_10_0_sensor",
+    CONF_PMC_0_5: "set_pmc_0_5_sensor",
+    CONF_PMC_1_0: "set_pmc_1_0_sensor",
+    CONF_PMC_2_5: "set_pmc_2_5_sensor",
+    CONF_PMC_4_0: "set_pmc_4_0_sensor",
+    CONF_PMC_10_0: "set_pmc_10_0_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
     CONF_VOC_INDEX: "set_voc_sensor",
@@ -250,6 +276,9 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_TYPE in config:
         cg.add(var.set_type(config[CONF_TYPE]))
+    # The number concentration read and its sensors compile in only when one is configured
+    if any(key in config for key in _PMC_KEYS):
+        cg.add_define("USE_SEN6X_NUMBER_CONCENTRATION")
 
     cg.add(var.set_startup_delay(config[CONF_STARTUP_DELAY]))
 
