@@ -296,10 +296,6 @@ NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
 
-BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
-BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
-BLEDisableAction = esp32_ble_ns.class_("BLEDisableAction", automation.Action)
-
 IoCapability = esp32_ble_ns.enum("IoCapability")
 IO_CAPABILITY = {
     "none": IoCapability.IO_CAP_NONE,
@@ -310,16 +306,17 @@ IO_CAPABILITY = {
 }
 
 AuthReqMode = esp32_ble_ns.enum("AuthReqMode")
-AUTH_REQ_MODE = {
-    "no_bond": AuthReqMode.AUTH_REQ_NO_BOND,
-    "bond": AuthReqMode.AUTH_REQ_BOND,
-    "mitm": AuthReqMode.AUTH_REQ_MITM,
-    "bond_mitm": AuthReqMode.AUTH_REQ_BOND_MITM,
-    "sc_only": AuthReqMode.AUTH_REQ_SC_ONLY,
-    "sc_bond": AuthReqMode.AUTH_REQ_SC_BOND,
-    "sc_mitm": AuthReqMode.AUTH_REQ_SC_MITM,
-    "sc_mitm_bond": AuthReqMode.AUTH_REQ_SC_MITM_BOND,
-}
+AUTH_REQ_MODE = AuthReqMode.options(
+    "no_bond",
+    "bond",
+    "mitm",
+    "bond_mitm",
+    "sc_only",
+    "sc_bond",
+    "sc_mitm",
+    "sc_mitm_bond",
+    prefix="AUTH_REQ_",
+)
 
 esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
 
@@ -612,27 +609,14 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_UUID")
 
 
-automation.register_bare_condition(
-    "ble.enabled",
-    BLEEnabledCondition,
-    cv.Schema({}),
-)
+BLE_AUTOMATION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(ESP32BLE)})
 
+automation.register_apply_condition("ble.enabled", BLE_AUTOMATION_SCHEMA, "is_active()")
 
-automation.register_bare_action(
-    "ble.enable",
-    BLEEnableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "ble.disable",
-    BLEDisableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
+for _name, _call in (("ble.enable", "enable()"), ("ble.disable", "disable()")):
+    automation.register_apply_action(
+        _name, BLE_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
