@@ -82,6 +82,7 @@
   X(MQTT_DEVICE_SUGGESTED_AREA, "sa", "suggested_area") \
   X(MQTT_DEVICE_SW_VERSION, "sw", "sw_version") \
   X(MQTT_DEVICE_HW_VERSION, "hw", "hw_version") \
+  X(MQTT_DEVICE_VIA_DEVICE, "via_device", "via_device") \
   X(MQTT_DIRECTION_COMMAND_TOPIC, "dir_cmd_t", "direction_command_topic") \
   X(MQTT_DIRECTION_STATE_TOPIC, "dir_stat_t", "direction_state_topic") \
   X(MQTT_DOCKED_TEMPLATE, "dock_tpl", "docked_template") \
