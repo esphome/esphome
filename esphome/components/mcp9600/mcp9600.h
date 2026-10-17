@@ -36,12 +36,6 @@ class MCP9600Component final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *cold_junction_sensor_{nullptr};
 
   MCP9600ThermocoupleType thermocouple_type_{MCP9600_THERMOCOUPLE_TYPE_K};
-
-  enum ErrorCode {
-    NONE,
-    COMMUNICATION_FAILED,
-    FAILED_TO_UPDATE_CONFIGURATION,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::mcp9600

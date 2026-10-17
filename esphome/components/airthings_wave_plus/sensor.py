@@ -29,10 +29,7 @@ AirthingsWavePlus = airthings_wave_plus_ns.class_(
 
 CONF_DEVICE_TYPE = "device_type"
 WaveDeviceType = airthings_wave_plus_ns.enum("WaveDeviceType")
-DEVICE_TYPES = {
-    "WAVE_PLUS": WaveDeviceType.WAVE_PLUS,
-    "WAVE_GEN2": WaveDeviceType.WAVE_GEN2,
-}
+DEVICE_TYPES = WaveDeviceType.options("WAVE_PLUS", "WAVE_GEN2")
 
 
 def validate_wave_gen2_config(config: ConfigType) -> ConfigType:

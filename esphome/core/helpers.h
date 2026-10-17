@@ -576,6 +576,14 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   ConstIterator begin() const { return ConstIterator(this, 0); }
   ConstIterator end() const { return ConstIterator(this, this->count_); }
 
+  /// The element `pos` places after the oldest one; the sum is widened so a small index type cannot truncate it
+  const T &operator[](index_type pos) const {
+    size_t index = static_cast<size_t>(this->head_) + pos;
+    if (index >= this->capacity_)
+      index -= this->capacity_;
+    return this->data_[index];
+  }
+
  protected:
   T *data_{nullptr};
   index_type head_{0};
@@ -887,6 +895,16 @@ constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
   return std::accumulate(data, data + len, sum);
 }
 
+/// Add up the bytes of \p data with size \p len, truncated to 16 bits.
+constexpr uint16_t sum16_bytes(const uint8_t *data, size_t len, uint16_t sum = 0) {
+  return std::accumulate(data, data + len, sum);
+}
+
+/// XOR the bytes of \p data with size \p len, starting from \p init.
+constexpr uint8_t xor_bytes(const uint8_t *data, size_t len, uint8_t init = 0) {
+  return std::accumulate(data, data + len, init, std::bit_xor<>());
+}
+
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
@@ -988,6 +1006,12 @@ constexpr uint32_t encode_uint24(uint8_t byte1, uint8_t byte2, uint8_t byte3) {
 constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4) {
   return (static_cast<uint32_t>(byte1) << 24) | (static_cast<uint32_t>(byte2) << 16) |
          (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
+}
+
+/// Sign-extend the low \p BITS bits of \p value, e.g. sign_extend<24>(0xFFFFFE) == -2. Higher bits are ignored.
+template<unsigned BITS> constexpr int32_t sign_extend(uint32_t value) {
+  static_assert(BITS > 0 && BITS <= 32, "BITS must be 1 to 32");
+  return static_cast<int32_t>(value << (32 - BITS)) >> (32 - BITS);
 }
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).

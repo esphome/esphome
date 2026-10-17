@@ -90,7 +90,9 @@ bool EPaperBase::is_idle_() const {
   return !this->busy_pin_->digital_read();
 }
 
-bool EPaperBase::reset() {
+bool EPaperBase::reset() { return this->hardware_reset_(); }
+
+bool EPaperBase::hardware_reset_() {
   if (this->reset_pin_ != nullptr) {
     if (this->state_ == EPaperState::RESET) {
       this->reset_pin_->digital_write(false);
@@ -225,10 +227,12 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
+      // A full update resets update_count_ to zero, so a non-zero count marks a partial one
+      this->partial_ = this->update_count_ != 0;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
-      if (!this->initialise(this->update_count_ != 0)) {
+      if (!this->initialise(this->partial_)) {
         return;  // Not done yet, come back next loop
       }
       this->set_state_(EPaperState::TRANSFER_DATA);
@@ -248,11 +252,14 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::REFRESH_SCREEN);
       break;
     case EPaperState::REFRESH_SCREEN:
-      this->refresh_screen(this->update_count_ != 0);
+      this->refresh_screen(this->partial_);
       this->update_count_ = (this->update_count_ + 1) % this->full_update_every_;
       this->set_state_(EPaperState::POWER_OFF);
       break;
     case EPaperState::POWER_OFF:
+      if (!this->after_refresh()) {
+        return;  // Not done yet, come back next loop
+      }
       this->power_off();
       this->set_state_(EPaperState::DEEP_SLEEP);
       break;
@@ -399,7 +406,7 @@ void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, size_t row_widt
 // Each source column maps to one buffer coordinate and each source row to the other, each moving by 1 per pixel, so
 // the visible part of a block and its dirty area are worked out once for the whole block.
 void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr,
-                                        ColorOrder order, bool big_endian, int x_offset, int y_offset, int x_pad) {
+                                        bool big_endian, int x_offset, int y_offset, int x_pad) {
   const bool swap = this->effective_transform_ & SWAP_XY;
   const bool mirror_x = this->effective_transform_ & MIRROR_X;
   const bool mirror_y = this->effective_transform_ & MIRROR_Y;
@@ -432,7 +439,7 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
   const int x_high = x_low + (swap ? rows : columns);
   const int y_high = y_low + (swap ? columns : rows);
 
-  const Rgb565ToMono to_mono(order);
+  const Rgb565ToMono to_mono;
   const size_t line_stride = x_offset + w + x_pad;
   const size_t row_width = this->row_width_;
   const int step = column_mirrored ? -1 : 1;
@@ -464,16 +471,17 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
 
 // Writes an RGB565 block of pixels, as LVGL sends them, straight into a 1 bit per pixel buffer that is one block (the
 // usual case): the same result as draw_pixel_at() for each pixel. Anything else goes through draw_pixel_at().
-void HOT EPaperBase::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                    ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void HOT EPaperBase::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                          ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                          int x_pad) {
   size_t contiguous_length;
   uint8_t *contiguous = this->buffer_.get_span(0, contiguous_length);
   if (!this->buffer_is_mono_() || this->get_clipping().is_set() || bitness != COLOR_BITNESS_565 ||
       contiguous_length != this->buffer_length_) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
-  this->draw_rgb565_block_(contiguous, x_start, y_start, w, h, ptr, order, big_endian, x_offset, y_offset, x_pad);
+  this->draw_rgb565_block_(contiguous, x_start, y_start, w, h, ptr, big_endian, x_offset, y_offset, x_pad);
 }
 
 void EPaperBase::dump_config() {

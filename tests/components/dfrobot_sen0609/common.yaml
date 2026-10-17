@@ -49,3 +49,13 @@ select:
     dfrobot_sen0609_id: sen0609_presence
     out_pin_level:
       name: Out Pin Level
+
+button:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_presence
+    factory_reset:
+      name: Factory Reset
+    query_params:
+      name: Query Params
+    restart:
+      name: Restart

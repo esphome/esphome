@@ -544,9 +544,7 @@ void ToshibaClimate::transmit_generic_() {
   }
 
   // The last byte is the xor of all bytes from [4]
-  for (uint8_t i = 4; i < message_length - 1; i++) {
-    message[message_length - 1] ^= message[i];
-  }
+  message[message_length - 1] = xor_bytes(message + 4, message_length - 5);
 
   // Transmit
   auto transmit = this->transmitter_->transmit();
@@ -1335,13 +1333,10 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
     // Generic (old) Toshiba packet
     default:
-      uint8_t checksum = 0;
       // Add back the length of the header (we pruned it above)
       message_length += TOSHIBA_HEADER_LENGTH;
       // Validate the second checksum before trusting any more of the message
-      for (uint8_t i = TOSHIBA_HEADER_LENGTH; i < message_length - 1; i++) {
-        checksum ^= message[i];
-      }
+      const uint8_t checksum = xor_bytes(message + TOSHIBA_HEADER_LENGTH, message_length - 1 - TOSHIBA_HEADER_LENGTH);
       // Did our computed checksum and the provided checksum match?
       if (checksum != message[message_length - 1]) {
         return false;

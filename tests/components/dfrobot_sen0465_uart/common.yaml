@@ -1,0 +1,14 @@
+sensor:
+  - platform: dfrobot_sen0465_uart
+    id: dfrobot_sen0466_uart_co
+    uart_id: uart_bus
+    model: SEN0466
+    temperature_compensation: true
+    alarm:
+      threshold: 35
+      type: high
+    update_interval: 30s
+    concentration:
+      name: CO Concentration
+    temperature:
+      name: CO Sensor Temperature

@@ -42,10 +42,9 @@ MediaPlayerSupportedFormat = media_player_ns.struct("MediaPlayerSupportedFormat"
 MediaPlayerFormatPurpose = media_player_ns.enum(
     "MediaPlayerFormatPurpose", is_class=True
 )
-MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
-    "default": MediaPlayerFormatPurpose.PURPOSE_DEFAULT,
-    "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
-}
+MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = MediaPlayerFormatPurpose.options(
+    "default", "announcement", prefix="PURPOSE_"
+)
 
 # Public API for external components. Do not remove.
 FORMAT_MAPPING = {

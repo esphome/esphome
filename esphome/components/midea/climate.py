@@ -86,11 +86,9 @@ CUSTOM_PRESETS = {
 }
 
 # How midea_ac.display_toggle reaches the appliance; see do_display_toggle() for the AUTO rules
-DISPLAY_CONTROLS = {
-    "UART": DisplayControl.DISPLAY_CONTROL_UART,
-    "AUTO": DisplayControl.DISPLAY_CONTROL_AUTO,
-    "IR": DisplayControl.DISPLAY_CONTROL_IR,
-}
+DISPLAY_CONTROLS = DisplayControl.options(
+    "UART", "AUTO", "IR", prefix="DISPLAY_CONTROL_"
+)
 
 validate_modes = cv.enum(ALLOWED_CLIMATE_MODES, upper=True)
 validate_presets = cv.enum(ALLOWED_CLIMATE_PRESETS, upper=True)
