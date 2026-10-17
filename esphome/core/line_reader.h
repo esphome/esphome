@@ -4,18 +4,18 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace esphome::uart {
+namespace esphome {
 
 /// Logs the shared "line dropped" warning; out of line to keep each caller small.
 void log_line_dropped(const char *tag, size_t max_len);
 
-/// Collects bytes into NUL terminated lines of up to N - 1 characters; IGNORE bytes are skipped and an
+/// Collects bytes into NUL terminated lines of up to N - 1 characters; IGNORE_CHAR bytes are skipped and an
 /// overlong line is dropped up to its terminator.
-template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader {
+template<size_t N, char TERMINATOR_CHAR = '\n', char IGNORE_CHAR = '\r'> class LineReader {
   // pos_ is the length so far; N means "overflowed on this byte", N + 1 "dropping up to the terminator"
   using pos_t = std::conditional_t<(N < 0xFE), uint8_t, uint16_t>;
   static_assert(N >= 2 && N < 0xFFFE, "LineReader size out of range");
-  static_assert(TERMINATOR != IGNORE, "LineReader terminator and ignore byte must differ");
+  static_assert(TERMINATOR_CHAR != IGNORE_CHAR, "LineReader terminator and ignore byte must differ");
 
  public:
   /// Feed one byte; returns the completed line (empty lines included), valid until the next call, or nullptr.
@@ -30,10 +30,10 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
     if (pos == N) {
       this->pos_ = pos = N + 1;
     }
-    if (c == static_cast<uint8_t>(IGNORE)) {
+    if (c == static_cast<uint8_t>(IGNORE_CHAR)) {
       return nullptr;
     }
-    if (c == static_cast<uint8_t>(TERMINATOR)) {
+    if (c == static_cast<uint8_t>(TERMINATOR_CHAR)) {
       this->pos_ = 0;
       if (pos > N) {
         return nullptr;
@@ -74,7 +74,7 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
   /// Forget the partial line and start a new one with the next byte.
   void reset() { this->pos_ = 0; }
 
-  /// Start a new line with c, e.g. the byte that overflowed; c must not be TERMINATOR or IGNORE.
+  /// Start a new line with c, e.g. the byte that overflowed; c must not be TERMINATOR_CHAR or IGNORE_CHAR.
   void restart_with(uint8_t c) {
     this->buf_[0] = static_cast<char>(c);
     this->pos_ = 1;
@@ -95,4 +95,4 @@ template<size_t N, char TERMINATOR = '\n', char IGNORE = '\r'> class LineReader 
   pos_t pos_{0};
 };
 
-}  // namespace esphome::uart
+}  // namespace esphome
