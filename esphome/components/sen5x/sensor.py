@@ -219,9 +219,7 @@ SETTING_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     for key, funcName in SETTING_MAP.items():
         if cfg := config.get(key):
