@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>
-#include "esphome/components/uart/line_reader.h"
+#include "esphome/core/line_reader.h"
 
-namespace esphome::uart::testing {
+namespace esphome::core::testing {
 
 using Lines = std::vector<std::string>;
 
@@ -22,6 +22,9 @@ template<typename R> static Lines feed_all(R &reader, const std::string &input) 
 
 static_assert(sizeof(LineReader<80>) == 81);
 static_assert(sizeof(LineReader<1025>) == 1028);
+// 0xFD is the largest size with a one byte index; 0xFE switches to two bytes
+static_assert(sizeof(LineReader<0xFD>) == 0xFE);
+static_assert(sizeof(LineReader<0xFE>) == 0x100);
 
 TEST(LineReaderTest, CrLfLines) {
   LineReader<16> reader;
@@ -67,6 +70,25 @@ TEST(LineReaderTest, OverlongLineIsDroppedUpToTerminator) {
       EXPECT_STREQ(reader.partial(), "12345");
       EXPECT_EQ(reader.length(), 0u);
       reader.log_if_overflowed("line_reader_test");
+    }
+    if (line != nullptr)
+      lines.emplace_back(line);
+  }
+  EXPECT_EQ(overflow_count, 1);
+  EXPECT_EQ(lines, (Lines{"ok"}));
+}
+
+TEST(LineReaderTest, SixteenBitIndexOverflowAndRecovery) {
+  LineReader<300> reader;
+  const std::string full(299, 'a');
+  EXPECT_EQ(feed_all(reader, full + "\n"), (Lines{full}));
+  int overflow_count = 0;
+  Lines lines;
+  for (char c : full + "bcd\r\nok\n") {
+    const char *line = reader.feed(c);
+    if (reader.overflowed()) {
+      overflow_count++;
+      EXPECT_EQ(std::string(reader.partial()), full);
     }
     if (line != nullptr)
       lines.emplace_back(line);
@@ -155,4 +177,4 @@ TEST(LineReaderTest, LineIsWritable) {
   EXPECT_STREQ(line, "a");
 }
 
-}  // namespace esphome::uart::testing
+}  // namespace esphome::core::testing
