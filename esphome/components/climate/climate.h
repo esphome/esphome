@@ -246,26 +246,34 @@ class Climate : public EntityBase {
   }
 #endif
 
-  /// Set the supported custom fan modes (stored on Climate, referenced by ClimateTraits).
+  /// Set the supported custom fan modes; the list is copied (stored on Climate, referenced by ClimateTraits).
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
-    this->ensure_custom_fan_modes_().assign(modes.begin(), modes.end());
+    this->supported_custom_fan_modes_.assign_copy(modes.begin(), modes.size());
   }
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
-    this->ensure_custom_fan_modes_() = modes;
+    this->supported_custom_fan_modes_.assign_copy(modes.data(), modes.size());
   }
   template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
-    this->ensure_custom_fan_modes_().assign(modes, modes + N);
+    this->supported_custom_fan_modes_.assign_copy(modes, N);
+  }
+  /// Points at a static table that outlives the climate (codegen); call before any runtime copy.
+  void set_supported_custom_fan_modes_static(const char *const *modes, size_t count) {
+    this->supported_custom_fan_modes_.assign_static(modes, count);
   }
 
-  /// Set the supported custom presets (stored on Climate, referenced by ClimateTraits).
+  /// Set the supported custom presets; the list is copied (stored on Climate, referenced by ClimateTraits).
   void set_supported_custom_presets(std::initializer_list<const char *> presets) {
-    this->ensure_custom_presets_().assign(presets.begin(), presets.end());
+    this->supported_custom_presets_.assign_copy(presets.begin(), presets.size());
   }
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
-    this->ensure_custom_presets_() = presets;
+    this->supported_custom_presets_.assign_copy(presets.data(), presets.size());
   }
   template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
-    this->ensure_custom_presets_().assign(presets, presets + N);
+    this->supported_custom_presets_.assign_copy(presets, N);
+  }
+  /// Points at a static table that outlives the climate (codegen); call before any runtime copy.
+  void set_supported_custom_presets_static(const char *const *presets, size_t count) {
+    this->supported_custom_presets_.assign_static(presets, count);
   }
 
   /// Check if a custom fan mode is currently active.
@@ -388,22 +396,8 @@ class Climate : public EntityBase {
 #endif
 
  private:
-  /// Lazy-allocate custom mode vectors (never freed — entity lives forever).
-  std::vector<const char *> &ensure_custom_fan_modes_() {
-    if (!this->supported_custom_fan_modes_) {
-      this->supported_custom_fan_modes_ = new std::vector<const char *>();  // NOLINT
-    }
-    return *this->supported_custom_fan_modes_;
-  }
-  std::vector<const char *> &ensure_custom_presets_() {
-    if (!this->supported_custom_presets_) {
-      this->supported_custom_presets_ = new std::vector<const char *>();  // NOLINT
-    }
-    return *this->supported_custom_presets_;
-  }
-
-  std::vector<const char *> *supported_custom_fan_modes_{nullptr};
-  std::vector<const char *> *supported_custom_presets_{nullptr};
+  ClimateCustomModes supported_custom_fan_modes_;
+  ClimateCustomModes supported_custom_presets_;
 
   /** The active custom fan mode (private - enforces use of safe setters).
    *
