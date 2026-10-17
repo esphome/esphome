@@ -3,7 +3,6 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
@@ -45,14 +44,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature(sens))
-
-    if humidity_config := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity_config)
-        cg.add(var.set_humidity(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_HUMIDITY, var.set_humidity)

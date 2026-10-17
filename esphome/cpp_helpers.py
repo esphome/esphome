@@ -1,8 +1,10 @@
-from collections.abc import Callable, Hashable
+from collections.abc import Awaitable, Callable, Hashable
 from dataclasses import dataclass, field
 import logging
+from typing import Any
 
 from esphome.const import (
+    CONF_ID,
     CONF_SAFE_MODE,
     CONF_SETUP_PRIORITY,
     CONF_TYPE_ID,
@@ -12,11 +14,13 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import (
+    MockObj,
     RawStatement,
     add,
     add_define,
     add_global,
     get_variable,
+    new_Pvariable,
 )
 from esphome.cpp_types import App
 from esphome.helpers import cpp_string_escape
@@ -291,6 +295,22 @@ async def register_component(var, config):
     comp_entries = CORE.data.setdefault("looping_component_entries", [])
     comp_entries.append(str(var.base.type))
 
+    return var
+
+
+async def new_bus_component(
+    register_device: Callable[[MockObj, ConfigType], Awaitable[None]],
+    config: ConfigType,
+    *args: Any,
+) -> MockObj:
+    """Create a component, register it and attach it to its bus.
+
+    Extra args go to the constructor. Bus wrappers must be plain functions
+    returning this coroutine, so the component source stays their caller.
+    """
+    var = new_Pvariable(config[CONF_ID], *args)
+    await register_component(var, config)
+    await register_device(var, config)
     return var
 
 

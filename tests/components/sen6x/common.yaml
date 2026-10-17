@@ -1,4 +1,8 @@
 sensor:
+  - platform: template
+    id: pressure_source
+    name: Pressure Source
+    unit_of_measurement: hPa
   # Test with explicit type parameter
   - platform: sen6x
     id: sen6x_sensor
@@ -45,6 +49,24 @@ sensor:
         gain_factor: 180
     co2:
       name: Carbon Dioxide
+      automatic_self_calibration: true
+      altitude_compensation: 100
+      ambient_pressure_compensation: 1013
+      ambient_pressure_compensation_source: pressure_source
     formaldehyde:
       name: Formaldehyde
     address: 0x6B
+
+button:
+  - platform: template
+    name: Fan Cleaning
+    on_press:
+      - sen6x.stop_measurement: sen6x_sensor
+      - delay: 2s
+      - sen6x.start_fan_cleaning: sen6x_sensor
+      - delay: 11s
+      - sen6x.start_measurement: sen6x_sensor
+  - platform: template
+    name: SHT Heater
+    on_press:
+      - sen6x.activate_sht_heater: sen6x_sensor

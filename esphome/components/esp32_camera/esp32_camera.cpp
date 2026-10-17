@@ -9,7 +9,7 @@
 
 namespace esphome::esp32_camera {
 
-static const char *const TAG = "esp32_camera";
+ESPHOME_LOG_TAG(TAG, "esp32_camera");
 static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 #if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
@@ -282,7 +282,7 @@ void ESP32Camera::loop() {
   }
   this->frame_count_++;
   if (now - this->last_log_time_ >= FRAME_LOG_INTERVAL_MS) {
-    ESP_LOGD(TAG, "Received %u images in last %us", this->frame_count_, FRAME_LOG_INTERVAL_MS / 1000);
+    ESP_LOGD(TAG, "Received %u images in last %" PRIu32 "s", this->frame_count_, FRAME_LOG_INTERVAL_MS / 1000);
     this->last_log_time_ = now;
     this->frame_count_ = 0;
   }

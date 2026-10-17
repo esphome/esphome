@@ -11,7 +11,7 @@
 
 namespace esphome::water_heater {
 
-static const char *const TAG = "water_heater";
+ESPHOME_LOG_TAG(TAG, "water_heater");
 
 void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj) {
   if (obj != nullptr) {
@@ -161,6 +161,7 @@ void WaterHeaterCall::validate_() {
 }
 
 void WaterHeater::publish_state() {
+  this->set_has_state(true);
   auto traits = this->get_traits();
   ESP_LOGV(TAG,
            "'%s' >>\n"

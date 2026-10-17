@@ -1,0 +1,11 @@
+button:
+  - platform: template
+    name: SCD4x Actions
+    on_press:
+      - scd4x.perform_forced_calibration:
+          id: scd40
+          value: 419
+      - scd4x.perform_forced_calibration:
+          id: scd40
+          value: !lambda return 420;
+      - scd4x.factory_reset: scd40
