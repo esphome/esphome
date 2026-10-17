@@ -286,7 +286,8 @@ def load_test_manifest_overrides(
     the override (e.g. ``manifest.enable_codegen()``).
     """
     for comp_name in components:
-        override = _wrap_manifest(comp_name)
+        # tests/components/core holds the core tests; its manifest is "esphome"
+        override = _wrap_manifest("esphome" if comp_name == "core" else comp_name)
         if override is None:
             continue
 
