@@ -130,13 +130,14 @@ APPLY_ENTITY = ApplyEntity(
     ApplySelect,
     ((SelectPtr, "entity"), (cg.size_t, "index")),
     "entity->publish_state(index);",
+    (("option", "const char *option = entity->option_at(index);"),),
 )
 
 
 def sub_selects(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_select; ``apply`` statements can use ``entity`` and ``index``."""
+    """Return a SubEntities bound to new_select; ``apply`` statements can use ``entity``, ``index`` and ``option``."""
     return SubEntities(new_select, config, parent, APPLY_ENTITY)
 
 
