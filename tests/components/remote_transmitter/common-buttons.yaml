@@ -386,6 +386,17 @@ button:
         suffix: 0x00
         suffix_bits: 8
   - platform: template
+    name: KeeLoq TDEF group
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x1234500
+        command: 0x8
+        code: 0xF94A09F2
+        group: 0x0F
+        repeat:
+          times: 2
+          wait_time: 0ms
+  - platform: template
     name: KeeLoq lambda with repeat
     on_press:
       remote_transmitter.transmit_keeloq:
