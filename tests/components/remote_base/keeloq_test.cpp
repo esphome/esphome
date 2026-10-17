@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <vector>
 #include "esphome/components/remote_base/keeloq_protocol.h"
 
 namespace esphome::remote_base::testing {
@@ -40,6 +41,21 @@ RawTimings as_received(RawTimings timings, bool drop_tail = false) {
     merged.pop_back();
   }
   return merged;
+}
+
+// The data bits after the 10-bit-time header: a 1-bit-time mark is a 1, a 2-bit-time mark a 0.
+std::vector<bool> sent_bits(const RawTimings &timings) {
+  std::vector<bool> bits;
+  size_t i = 0;
+  while (i < timings.size() && timings[i] != -static_cast<int32_t>(10 * BIT_US)) {
+    i++;
+  }
+  for (i++; i < timings.size(); i++) {
+    if (timings[i] > 0) {
+      bits.push_back(timings[i] == static_cast<int32_t>(BIT_US));
+    }
+  }
+  return bits;
 }
 
 optional<KeeloqData> decode(const RawTimings &timings) {
@@ -146,7 +162,7 @@ TEST(KeeloqProtocolTest, ASpaceThatIsNeitherDataNorAGapDropsTheSuffix) {
 }
 
 TEST(KeeloqProtocolTest, ASuffixFollowsARepeatBitOfZero) {
-  // The encoder always sends the repeat bit as 1. Turn it into a 0 bit, with and without a suffix.
+  // frame() sends the repeat bit as 1. Turn it into a 0 bit, with and without a suffix.
   for (uint8_t suffix_bits : {0, 8}) {
     RawTimings timings = as_received(encode(frame(suffix_bits > 0 ? 0xA5 : 0, suffix_bits)));
     const size_t repeat = timings.size() - 2 * suffix_bits - 2;
@@ -171,6 +187,28 @@ TEST(KeeloqProtocolTest, ASuffixEndsAtAGap) {
   if (decoded.has_value()) {
     EXPECT_EQ(decoded->suffix, 0x5);
     EXPECT_EQ(decoded->suffix_bits, 3);
+  }
+}
+
+TEST(KeeloqProtocolTest, HcsWordStillEndsWithRepeatOne) {
+  // 32 code bits, 28 address bits, 4 command bits, vlow, repeat.
+  std::vector<bool> bits = sent_bits(encode(frame(0, 0)));
+  ASSERT_EQ(bits.size(), 66u);
+  EXPECT_FALSE(bits[64]);
+  EXPECT_TRUE(bits[65]);
+}
+
+TEST(KeeloqProtocolTest, AReceivedRepeatBitOfZeroIsSentAgainAsZero) {
+  KeeloqData received = frame(0, 0);
+  received.repeat = false;
+  std::vector<bool> bits = sent_bits(encode(received));
+  ASSERT_EQ(bits.size(), 66u);
+  EXPECT_FALSE(bits[65]);
+
+  auto decoded = decode(as_received(encode(received)));
+  ASSERT_TRUE(decoded.has_value());
+  if (decoded.has_value()) {
+    EXPECT_FALSE(decoded->repeat);
   }
 }
 

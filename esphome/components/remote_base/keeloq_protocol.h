@@ -9,7 +9,7 @@ struct KeeloqData {
   uint32_t encrypted;  // 32 bit encrypted field
   uint32_t address;    // 28 bit serial number
   uint8_t command;     // Button Status S2-S1-S0-S3
-  bool repeat;         // Repeated command bit
+  bool repeat{true};   // Repeated command bit
   bool vlow;           // Battery status bit
   uint16_t suffix{0};  // Optional bits after the 66-bit HCS301 word
   uint8_t suffix_bits{0};
