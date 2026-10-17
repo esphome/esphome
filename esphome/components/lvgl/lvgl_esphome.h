@@ -62,6 +62,10 @@ lv_obj_t *lv_obj_get_child_by_path(lv_obj_t *obj, std::initializer_list<int32_t>
 void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
                             lv_color_t color_end, int width, bool local);
 #endif
+#ifdef USE_LVGL_TABLE
+uint32_t lv_table_get_selected_row(lv_obj_t *obj);
+uint32_t lv_table_get_selected_column(lv_obj_t *obj);
+#endif
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -143,6 +147,12 @@ lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index);
 lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
 #endif  // USE_LVGL_GRADIENT
 
+#ifdef USE_LVGL_MENU
+// True if `e` is a click on `menu`'s back button while already at the root page -- the one
+// case LVGL's own docs say the app must handle itself (there is no default behavior).
+bool lv_menu_back_button_is_root_click(lv_obj_t *menu, lv_event_t *e);
+#endif  // USE_LVGL_MENU
+
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
@@ -214,7 +224,7 @@ enum class Orientation : uint8_t {
 };
 
 class LvglComponent final : public PollingComponent {
-  constexpr static const char *const TAG = "lvgl";
+  constexpr static const char *const TAG = "lvgl";  // NOLINT: lvgl does not build for ESP8266
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
@@ -268,6 +278,9 @@ class LvglComponent final : public PollingComponent {
                            void *user_data = nullptr);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3, void *user_data = nullptr);
+
+  // Set or clear LV_OBJ_FLAG_LAYOUT_2, LV_OBJ_FLAG_WIDGET_1 or LV_OBJ_FLAG_WIDGET_2, which have no setter in LVGL 9.6
+  static void lv_obj_set_custom_flag(lv_obj_t *obj, lv_obj_flag_t flag, bool value);
 
   // change the state of a widget and fire an event if changed (only needed for CHECKED)
 
@@ -515,6 +528,27 @@ class LvLineType : public LvCompound {
   FixedVector<lv_point_precise_t> points_{};
 };
 #endif
+#ifdef USE_LVGL_TABLE
+// Unlike most size properties, lv_table_set_column_width() only accepts a literal pixel
+// count, so percentage column widths must be recomputed by hand whenever the table's own
+// content width changes.
+class LvTableType : public LvCompound {
+ public:
+  void set_obj(lv_obj_t *lv_obj) override;
+  // count is the number of percentage-width columns, known at code-generation time.
+  void init_column_pct(size_t count) { this->column_pct_.init(count); }
+  void add_column_width_pct(uint32_t col, uint8_t pct);
+
+ protected:
+  void update_column_widths_();
+
+  struct ColumnPct {
+    uint32_t col;
+    uint8_t pct;
+  };
+  FixedVector<ColumnPct> column_pct_{};
+};
+#endif  // USE_LVGL_TABLE
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 class LvSelectable : public LvCompound {
  public:
@@ -522,12 +556,12 @@ class LvSelectable : public LvCompound {
   virtual void set_selected_index(size_t index, lv_anim_enable_t anim) = 0;
   void set_selected_text(const std::string &text, lv_anim_enable_t anim);
   std::string get_selected_text();
-  const std::vector<std::string> &get_options() { return this->options_; }
-  void set_options(std::vector<std::string> options);
+  const FixedVector<const char *> &get_options() { return this->options_; }
+  void set_options(FixedVector<const char *> options);
 
  protected:
   virtual void set_option_string(const char *options) = 0;
-  std::vector<std::string> options_{};
+  FixedVector<const char *> options_{};
 };
 
 #ifdef USE_LVGL_DROPDOWN

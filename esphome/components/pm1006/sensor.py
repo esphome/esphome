@@ -48,6 +48,9 @@ def validate_interval_uart(config: ConfigType) -> None:
         baud_rate=9600,
         require_rx=True,
         require_tx=interval.total_milliseconds != SCHEDULER_DONT_RUN,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
     )(config)
 
 
@@ -59,6 +62,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)

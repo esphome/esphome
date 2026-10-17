@@ -1,19 +1,17 @@
-import base64
 from pathlib import Path
 import re
-import secrets
 from typing import Any
 
-import requests
 from ruamel.yaml import YAML
 
 from esphome import git
 import esphome.codegen as cg
+from esphome.components.noise import generate_encryption_key
 from esphome.components.packages import validate_source_shorthand
 import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, CONF_PROJECT, CONF_REF, CONF_WIFI
 import esphome.final_validate as fv
-from esphome.happy_eyeballs import ensure_happy_eyeballs
+from esphome.net_retry import fetch_with_retry, http_request
 from esphome.types import ConfigType
 from esphome.yaml_util import dump
 
@@ -23,6 +21,7 @@ dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
 # is enabled
 DEPENDENCIES = ["api"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "dashboard_import"
 
 
 def validate_import_url(value: Any) -> str:
@@ -111,14 +110,20 @@ def import_config(
 
     if git_file.query and "full_config" in git_file.query:
         url = git_file.raw_url
-        try:
-            ensure_happy_eyeballs()
-            req = requests.get(url, timeout=30)
+
+        # Deferred so config-time imports of this component stay light;
+        # http_request does the lazy import for the request itself.
+        import requests
+
+        def _fetch() -> str:
+            req = http_request("GET", url, timeout=30)
             req.raise_for_status()
+            return req.text
+
+        try:
+            contents = fetch_with_retry(url, _fetch, what="Import")
         except requests.exceptions.RequestException as e:
             raise ValueError(f"Error while fetching {url}: {e}") from e
-
-        contents = req.text
         yaml = YAML()
         loaded_yaml = yaml.load(contents)
         if (
@@ -169,8 +174,7 @@ def import_config(
             "esphome": esphome_core,
         }
         if encryption:
-            noise_psk = secrets.token_bytes(32)
-            key = base64.b64encode(noise_psk).decode()
+            key = generate_encryption_key()
             config["api"] = {"encryption": {"key": key}}
 
         output = dump(config)

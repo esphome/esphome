@@ -6,6 +6,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kroimon"]
+DOMAIN = "uponor_smatrix"
 
 DEPENDENCIES = ["uart"]
 
@@ -50,7 +51,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     require_tx=True,
     require_rx=True,
     data_bits=8,
-    parity=None,
+    parity="NONE",
     stop_bits=1,
 )
 

@@ -1,4 +1,4 @@
-"""Retry policy for HTTP downloads.
+"""Retry policy and raw HTTP entry point for downloads.
 
 Kept import-light on purpose: this module is imported at config time, so it
 must not pull in requests (a heavy import, ~85ms) at module scope.
@@ -9,6 +9,12 @@ from __future__ import annotations
 from collections.abc import Callable
 import logging
 import time
+from typing import TYPE_CHECKING, Literal
+
+from esphome.happy_eyeballs import ensure_happy_eyeballs
+
+if TYPE_CHECKING:
+    import requests
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -112,3 +118,34 @@ def fetch_with_retry[T](url: str, fetch: Callable[[], T], what: str = "Download"
             )
             time.sleep(delay)
     return fetch()
+
+
+def http_request(
+    method: Literal["GET", "HEAD"],
+    url: str,
+    *,
+    timeout: float | tuple[float, float],
+    stream: bool = False,
+    headers: dict[str, str] | None = None,
+    allow_redirects: bool = True,
+) -> requests.Response:
+    """Perform one HTTP request with the Happy Eyeballs patch in place.
+
+    Every ESPHome file download funnels through here so the urllib3 patch
+    and the lazy requests import live in exactly one place. Status handling,
+    retries and streaming stay with the caller. The web server OTA and log
+    clients bypass this on purpose: they iterate already-resolved device
+    addresses themselves, so the patch buys them nothing.
+    """
+    import requests
+
+    ensure_happy_eyeballs()
+    # Dispatched through requests.get/head/... (not requests.request) so
+    # tests patching those entry points keep working.
+    return getattr(requests, method.lower())(
+        url,
+        timeout=timeout,
+        stream=stream,
+        headers=headers or {},
+        allow_redirects=allow_redirects,
+    )

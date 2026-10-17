@@ -26,7 +26,7 @@
 
 namespace esphome::am2315c {
 
-static const char *const TAG = "am2315c";
+ESPHOME_LOG_TAG(TAG, "am2315c");
 
 bool AM2315C::reset_register_(uint8_t reg) {
   //  code based on demo code sent by www.aosong.com
@@ -42,21 +42,18 @@ bool AM2315C::reset_register_(uint8_t reg) {
   data[2] = 0;
   ESP_LOGD(TAG, "Reset register: 0x%02x", reg);
   if (this->write(data, 3) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Write failed!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   delay(5);
   if (this->read(data, 3) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Read failed!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   delay(10);
   data[0] = 0xB0 | reg;
   if (this->write(data, 3) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Write failed!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   delay(5);
@@ -76,8 +73,7 @@ void AM2315C::setup() {
   // get status
   uint8_t status = 0;
   if (this->read(&status, 1) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Read failed!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -86,18 +82,9 @@ void AM2315C::setup() {
   // never required during testing
   if ((status & 0x18) != 0x18) {
     ESP_LOGD(TAG, "Resetting AM2315C registers");
-    if (!this->reset_register_(0x1B)) {
-      this->mark_failed();
+    // reset_register_() marks the component failed with its own reason
+    if (!this->reset_register_(0x1B) || !this->reset_register_(0x1C) || !this->reset_register_(0x1E))
       return;
-    }
-    if (!this->reset_register_(0x1C)) {
-      this->mark_failed();
-      return;
-    }
-    if (!this->reset_register_(0x1E)) {
-      this->mark_failed();
-      return;
-    }
   }
 }
 
@@ -168,9 +155,6 @@ void AM2315C::update() {
 void AM2315C::dump_config() {
   ESP_LOGCONFIG(TAG, "AM2315C:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }

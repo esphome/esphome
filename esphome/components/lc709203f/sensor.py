@@ -25,10 +25,9 @@ DEPENDENCIES = ["i2c"]
 lc709203f_ns = cg.esphome_ns.namespace("lc709203f")
 
 LC709203FBatteryVoltage = lc709203f_ns.enum("LC709203FBatteryVoltage")
-BATTERY_VOLTAGE_OPTIONS = {
-    "3.7": LC709203FBatteryVoltage.LC709203F_BATTERY_VOLTAGE_3_7,
-    "3.8": LC709203FBatteryVoltage.LC709203F_BATTERY_VOLTAGE_3_8,
-}
+BATTERY_VOLTAGE_OPTIONS = LC709203FBatteryVoltage.options(
+    "3.7", "3.8", prefix="LC709203F_BATTERY_VOLTAGE_"
+)
 
 lc709203f = lc709203f_ns.class_("Lc709203f", cg.PollingComponent, i2c.I2CDevice)
 
@@ -79,15 +78,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pack_size(config.get(CONF_SIZE)))
     cg.add(var.set_pack_voltage(BATTERY_VOLTAGE_OPTIONS[config[CONF_VOLTAGE]]))
 
-    if voltage_config := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_remaining_sensor)
 
-    if level_config := config.get(CONF_BATTERY_LEVEL):
-        sens = await sensor.new_sensor(level_config)
-        cg.add(var.set_battery_remaining_sensor(sens))
-
-    if temp_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temp_config)
-        cg.add(var.set_temperature_sensor(sens))
-        cg.add(var.set_thermistor_b_constant(temp_config[CONF_B_CONSTANT]))
+    if await sensors(CONF_TEMPERATURE, var.set_temperature_sensor):
+        b_constant = config[CONF_TEMPERATURE][CONF_B_CONSTANT]
+        cg.add(var.set_thermistor_b_constant(b_constant))

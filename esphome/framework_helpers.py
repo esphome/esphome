@@ -15,11 +15,15 @@ import threading
 import time
 from typing import IO, TYPE_CHECKING
 
-from esphome.happy_eyeballs import ensure_happy_eyeballs
-from esphome.helpers import ProgressBar, rmtree
-from esphome.net_retry import NETWORK_MAX_ATTEMPTS, is_transient_download_error
+from esphome.helpers import ProgressBar, get_usable_cpu_count, rmtree
+from esphome.net_retry import (
+    NETWORK_MAX_ATTEMPTS,
+    http_request,
+    is_transient_download_error,
+)
 
 if TYPE_CHECKING:
+    from filelock import FileLock
     import requests
 
 PathType = str | os.PathLike
@@ -201,6 +205,30 @@ def run_command(
         return False, None, None
 
 
+def tool_version_runs(binary: str, warning: str) -> bool:
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+
+    ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
+    shims, stale package-manager shims).
+    """
+    try:
+        subprocess.run(
+            [binary, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            # Repo-wide convention (posix_spawn fast path)
+            close_fds=False,
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        # The cause (permission denied, missing DLL, timeout) is the one
+        # detail the user needs to fix it
+        _LOGGER.warning("%s (%s)", warning % binary, err)
+        return False
+    return True
+
+
 def run_command_ok(*args, **kwargs) -> bool:
     """
     Execute a command and return only the success status.
@@ -260,10 +288,25 @@ def _detect_archive_root(names: Iterable[str]) -> str | None:
     return root if has_descendant else None
 
 
+def _resolve_progress(
+    progress: Callable[[float], None] | None,
+    progress_header: str | None,
+    has_work: bool,
+) -> Callable[[float], None] | None:
+    """Fraction reporter for an extractor: the caller's callback wins over a
+    private ``progress_header`` bar."""
+    if progress is not None:
+        return progress
+    if progress_header and has_work:
+        return ProgressBar(progress_header).update
+    return None
+
+
 def _tar_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a TAR archive to the specified directory.
@@ -278,6 +321,7 @@ def _tar_extract_all(
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
     """
     import tarfile
 
@@ -336,21 +380,23 @@ def _tar_extract_all(
             safe_members.append(member)
 
         total = len(safe_members)
-        progress = (
-            ProgressBar(progress_header) if progress_header and total > 0 else None
-        )
+        report = _resolve_progress(progress, progress_header, total > 0)
         for i, member in enumerate(safe_members, 1):
-            tar_ref.extract(member, abs_dest)
-            if progress is not None:
-                progress.update(i / total)
-        if progress is not None:
-            progress.update(1)
+            # Named: the default is fully_trusted on 3.12/3.13, data on
+            # 3.14. The pre-pass drops unsafe members; an escape past it
+            # gains nothing, since the build runs what these archives hold.
+            tar_ref.extract(member, abs_dest, filter="fully_trusted")
+            if report is not None:
+                report(i / total)
+        if report is not None:
+            report(1)
 
 
 def _zip_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a ZIP archive to the specified directory.
@@ -359,6 +405,7 @@ def _zip_extract_all(
         data: File-like object containing the ZIP archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
     """
     import zipfile
 
@@ -375,9 +422,7 @@ def _zip_extract_all(
         strip_prefix = f"{strip_root}/" if strip_root is not None else None
 
         total = len(all_members)
-        progress = (
-            ProgressBar(progress_header) if progress_header and total > 0 else None
-        )
+        report = _resolve_progress(progress, progress_header, total > 0)
 
         for i, member in enumerate(all_members, 1):
             # 1. Normalize name
@@ -410,13 +455,13 @@ def _zip_extract_all(
             # 6. Extract
             zip_ref.extract(member, extract_dir)
 
-            if progress is not None:
-                progress.update(i / total)
-        if progress is not None:
-            progress.update(1)
+            if report is not None:
+                report(i / total)
+        if report is not None:
+            report(1)
 
 
-def _rename_with_retry(
+def rename_with_retry(
     src: Path, dst: Path, attempts: int = 5, overwrite: bool = False
 ) -> None:
     """Rename ``src`` to ``dst`` with backoff retries on Windows sharing violations.
@@ -444,6 +489,7 @@ def _7z_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a 7z archive to the specified directory.
@@ -458,6 +504,7 @@ def _7z_extract_all(
         data: File-like object containing the 7z archive (must be seekable)
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: called with 1.0 on completion; overrides progress_header
     """
     import py7zr
 
@@ -496,19 +543,15 @@ def _7z_extract_all(
                     continue
                 safe_targets.append(raw)
 
-            progress = (
-                ProgressBar(progress_header)
-                if progress_header and safe_targets
-                else None
-            )
+            report = _resolve_progress(progress, progress_header, bool(safe_targets))
 
             if len(safe_targets) == len(all_names):
                 z.extractall(path=staging)
             else:
                 z.extract(path=staging, targets=safe_targets)
 
-            if progress is not None:
-                progress.update(1)
+            if report is not None:
+                report(1)
 
         src_root = staging / strip_root if strip_root else staging
         for item in src_root.iterdir():
@@ -518,7 +561,7 @@ def _7z_extract_all(
                     rmtree(dest)
                 else:
                     dest.unlink()
-            _rename_with_retry(item, dest)
+            rename_with_retry(item, dest)
     finally:
         # staging is created before the try, so it always exists here; the
         # guard is defensive cleanup and its False branch is unreachable.
@@ -539,6 +582,7 @@ def archive_extract_all(
     archive: PathType | io.RawIOBase | IO[bytes],
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract an archive file to the specified directory.
@@ -547,6 +591,7 @@ def archive_extract_all(
         archive: Path to archive file or file-like object
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
 
     Raises:
         TypeError: If archive is not a valid type
@@ -577,7 +622,9 @@ def archive_extract_all(
                 break
         if matched_fct is None:
             raise ValueError("Unsupported archive format")
-        matched_fct(archive_ref, extract_dir, progress_header=progress_header)
+        matched_fct(
+            archive_ref, extract_dir, progress_header=progress_header, progress=progress
+        )
 
 
 def _open_ranged(
@@ -600,12 +647,10 @@ def _open_ranged(
     Raises on connect errors and HTTP error statuses; the response is closed
     on failure.
     """
-    import requests
-
     headers = {"Range": f"bytes={offset}-"} if offset else {}
     if offset and validator:
         headers["If-Range"] = validator
-    resp = requests.get(url, stream=True, timeout=timeout, headers=headers)
+    resp = http_request("GET", url, stream=True, timeout=timeout, headers=headers)
     if offset and resp.status_code == 416:
         resp.close()
         return None, offset
@@ -676,7 +721,7 @@ def _write_download_meta(
         _LOGGER.debug("Could not update download metadata %s: %s", meta, e)
 
 
-def _content_length(resp: "requests.Response") -> int:
+def content_length(resp: "requests.Response") -> int:
     """Return the response's Content-Length, or 0 when absent or malformed.
 
     0 means "unknown", which downstream disables the progress bar and the
@@ -719,7 +764,7 @@ def _stream_response_to_file(
     """
     f.seek(offset)
     f.truncate(offset)
-    total_size = size or offset + _content_length(resp)
+    total_size = size or offset + content_length(resp)
     downloaded = offset
     own_bar: ProgressBar | None = None
     if progress is None:
@@ -743,13 +788,23 @@ def _stream_response_to_file(
 # hammering the host or the mirrors.
 BATCH_DOWNLOAD_WORKERS = 4
 
+# Measured: gz peaks near 2 workers (8 is slower than serial), xz
+# plateaus by 4 and holds ~50 MB of dictionary per worker.
+BATCH_EXTRACT_WORKERS = 4
+
+
+def extract_workers(jobs: int | None = None) -> int:
+    """Worker count for an extraction batch of ``jobs`` archives."""
+    workers = min(get_usable_cpu_count(), BATCH_EXTRACT_WORKERS)
+    return workers if jobs is None else min(workers, jobs)
+
 
 def run_batch_downloads(
     header: str,
     jobs: list[tuple[str, int, Callable[[Callable[[int], None]], None]]],
     max_workers: int = BATCH_DOWNLOAD_WORKERS,
 ) -> list[tuple[str, BaseException]]:
-    """Run ``(name, size, fetch)`` download jobs concurrently under one bar.
+    """Run ``(name, size, fetch)`` jobs concurrently under one bar.
 
     Each ``fetch(tracker)`` reports absolute byte counts; the bar total is
     the sum of the sizes. Failures are returned after the bar is done so
@@ -884,6 +939,74 @@ def _part_path(dest: Path) -> Path:
     return dest.with_name(dest.name + ".part")
 
 
+def downloaded_bytes(dest: Path, size: int | None = None) -> int:
+    """Bytes of ``dest`` on disk (its ``.part`` while streaming), capped at ``size``."""
+    done = 0
+    for candidate in (_part_path(dest), dest):
+        try:
+            done = candidate.stat().st_size
+            break
+        except FileNotFoundError:
+            continue
+    return done if size is None else min(done, size)
+
+
+# Short lock-acquire slices so a waiting worker still observes Ctrl-C
+_DOWNLOAD_LOCK_POLL = 1
+
+# Waiting on another process's download; past this the caller leaves the
+# file to its holder (the later sequential install waits on the same lock)
+DOWNLOAD_LOCK_TIMEOUT = 60
+
+
+class DownloadLockUnavailable(OSError):
+    """The lock file cannot be used at all (a lock-less filesystem)."""
+
+
+def wait_for_download_lock(
+    lock: "FileLock",
+    tracker: Callable[[int], None],
+    on_disk: Callable[[], int],
+    name: str,
+) -> None:
+    """Acquire ``lock``, reporting ``on_disk()`` to ``tracker`` each poll so the
+    bar follows the holder's download. Raises filelock's ``Timeout`` once
+    ``DOWNLOAD_LOCK_TIMEOUT`` seconds pass."""
+    from filelock import Timeout
+
+    deadline = time.monotonic() + DOWNLOAD_LOCK_TIMEOUT
+    waiting = False
+    while True:
+        try:
+            lock.acquire(timeout=_DOWNLOAD_LOCK_POLL)
+            return
+        except Timeout:
+            pass
+        except OSError as err:
+            # Distinct from an OSError out of on_disk(), which must not
+            # read as "locks unsupported"
+            raise DownloadLockUnavailable(*err.args) from err
+        if not waiting:
+            waiting = True
+            _LOGGER.info("Waiting for another process downloading %s", name)
+        tracker(on_disk())  # raises when the batch is cancelled
+        if time.monotonic() >= deadline:
+            raise Timeout(lock.lock_file)
+
+
+def discard_partial_download(dest: Path) -> None:
+    """Remove ``dest`` and the resume sidecars of an abandoned download."""
+    part = _part_path(dest)
+    for stale in (dest, part, part.with_name(part.name + ".meta")):
+        try:
+            stale.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError as err:
+            # The caller's cache is never pruned; leave a trace
+            _LOGGER.debug("Could not remove %s: %s", stale, err)
+
+
 def _cancellable_sleep(
     delay: float, progress: Callable[[int], None] | None, done: int
 ) -> None:
@@ -895,6 +1018,42 @@ def _cancellable_sleep(
     while (remaining := end - time.monotonic()) > 0:
         progress(done)  # raises when the batch was cancelled
         time.sleep(min(0.5, remaining))
+
+
+def resume_fetch_job(
+    url: str, dest: PathType, **kwargs
+) -> Callable[[Callable[[int], None]], None]:
+    """A ``run_batch_downloads`` job callable wrapping ``download_with_resume``.
+
+    Forwards the runner's positional tracker as the ``progress`` keyword.
+    """
+
+    def fetch(tracker: Callable[[int], None]) -> None:
+        download_with_resume(url, dest, progress=tracker, **kwargs)
+
+    return fetch
+
+
+def is_expected_fetch_error(err: BaseException) -> bool:
+    """Download failures the callers degrade on, vs programming errors."""
+    from esphome.core import EsphomeError  # local import avoids circular dependency
+
+    return isinstance(err, (EsphomeError, OSError))
+
+
+def warn_batch_failures(
+    failures: list[tuple[str, BaseException]],
+    message: str,
+) -> None:
+    """Warn per failed batch job, keeping the traceback of unexpected errors."""
+    for name, err in failures:
+        # failure_reason: a message-less exception must not log blank
+        if is_expected_fetch_error(err):
+            _LOGGER.warning(message, name, failure_reason(err))
+            _LOGGER.debug("Failure detail", exc_info=err)
+        else:
+            # A programming error must not be reduced to a bare message
+            _LOGGER.warning(message, name, failure_reason(err), exc_info=err)
 
 
 def download_with_resume(
@@ -940,8 +1099,6 @@ def download_with_resume(
     import requests
 
     from esphome.core import EsphomeError
-
-    ensure_happy_eyeballs()
 
     dest = Path(dest)
     part = _part_path(dest)
@@ -999,7 +1156,7 @@ def download_with_resume(
                         streamed = True
                         if offset == 0:
                             validator = _response_validator(resp)
-                            expected_total = _content_length(resp)
+                            expected_total = content_length(resp)
                             # Recorded so a later run can prove an If-Range
                             # resume of this part file safe.
                             _write_download_meta(meta, url, validator, expected_total)
@@ -1036,7 +1193,7 @@ def download_with_resume(
             # retries fail, keep the verified part so the next attempt (or
             # run) only has to redo the rename, not the download.
             try:
-                _rename_with_retry(part, dest, overwrite=True)
+                rename_with_retry(part, dest, overwrite=True)
             except PermissionError as e:
                 _LOGGER.debug("Could not move %s into place: %s", part, e)
                 last_error = e
@@ -1078,20 +1235,9 @@ def failure_reason(e: BaseException) -> str:
     return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
-def _spent_attempts_error(e: Exception, attempts: int) -> Exception:
-    """Wrap a failure whose mirror already consumed download attempts, so
-    the sweep classifies it as permanent."""
-    from esphome.core import EsphomeError
-
-    err = EsphomeError(f"failed after {attempts} attempts: {failure_reason(e)}")
-    err.__cause__ = e
-    return err
-
-
 def _try_mirrors_once(
     urls: list[str],
-    path_target: Path | None,
-    f: IO[bytes] | None,
+    path_target: Path,
     timeout: int,
     failures: list[tuple[str, Exception]],
     progress: Callable[[int], None] | None = None,
@@ -1110,109 +1256,73 @@ def _try_mirrors_once(
     for url in urls:
         _LOGGER.debug("Trying to download from %s", url)
 
-        # Path targets delegate to download_with_resume so a partial
-        # download persists (and resumes) across esphome runs.
-        if path_target is not None:
-            try:
-                download_with_resume(
-                    url,
-                    path_target,
-                    attempts=_MIRROR_ATTEMPTS,
-                    timeout=timeout,
-                    # Pre-body failures (connect/HTTP errors) fall to the
-                    # next mirror immediately; only mid-stream drops
-                    # retry-with-resume on the same URL.
-                    retry_connect_errors=False,
-                    progress=progress,
-                )
-                return url
-            except (requests.RequestException, OSError, EsphomeError) as e:
-                # Everything download_with_resume classifies as a download
-                # failure; programming errors propagate.
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append((url, e))
-                continue
-
-        # File-like targets download here; mid-stream failures retry the
-        # same mirror with resume (see download_with_resume) instead of
-        # starting over. There is no checksum to verify a resumed file
-        # against, so a stitch is only trusted when the server proves
-        # consistency: the If-Range validator guarantees 206 only for
-        # unchanged content, and the expected total length (when the first
-        # response carried one) guards against short or shifted bodies.
-        # Without a validator the retry restarts from zero.
-        offset = 0
-        expected_total = 0
-        validator = None
-        for attempt in range(_MIRROR_ATTEMPTS):
-            try:
-                resp, offset = _open_ranged(url, offset, timeout, validator)
-            except (requests.RequestException, OSError) as e:
-                # Connect/HTTP error, no bytes flowed — next mirror. Wrap
-                # when earlier attempts were already spent on this mirror.
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append(
-                    (url, _spent_attempts_error(e, attempt + 1) if attempt else e)
-                )
-                break
-
-            try:
-                # A None response means HTTP 416: the file already holds
-                # every byte the server has (a drop after the last byte);
-                # only the length check below remains.
-                if resp is not None:
-                    with resp:
-                        if offset == 0:
-                            validator = _response_validator(resp)
-                            expected_total = _content_length(resp)
-                        _stream_response_to_file(resp, f, offset, progress=progress)
-
-                if expected_total and f.tell() != expected_total:
-                    raise EsphomeError(
-                        f"size mismatch: expected {expected_total}, got {f.tell()}"
-                    )
-                if not expected_total:
-                    # Same trust decision as download_with_resume's
-                    # unverifiable promotion; surface it at the same level.
-                    _LOGGER.debug(
-                        "Downloaded %s without any way to verify completeness",
-                        url,
-                    )
-
-                _LOGGER.debug("Downloaded successfully from: %s", url)
-
-                # Reset file pointer and return
-                f.seek(0)
-                return url
-
-            except (requests.RequestException, OSError, EsphomeError) as e:
-                # Mid-stream drop: keep the received bytes and retry this
-                # mirror from the current position — but only when the
-                # server gave a validator to resume against safely AND a
-                # total length to prove the stitched file complete (the
-                # length check above is the only verification here).
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                if validator and expected_total:
-                    offset = f.tell()
-                else:
-                    _LOGGER.debug(
-                        "Restarting %s from zero: cannot prove a "
-                        "resumed file complete (validator=%s, total=%s)",
-                        url,
-                        validator is not None,
-                        expected_total,
-                    )
-                    offset = 0
-                if attempt == _MIRROR_ATTEMPTS - 1:
-                    failures.append((url, _spent_attempts_error(e, _MIRROR_ATTEMPTS)))
+        # Delegate to download_with_resume so a partial download persists
+        # (and resumes) across esphome runs.
+        try:
+            download_with_resume(
+                url,
+                path_target,
+                attempts=_MIRROR_ATTEMPTS,
+                timeout=timeout,
+                # Pre-body failures (connect/HTTP errors) fall to the
+                # next mirror immediately; only mid-stream drops
+                # retry-with-resume on the same URL.
+                retry_connect_errors=False,
+                progress=progress,
+            )
+            return url
+        except (requests.RequestException, OSError, EsphomeError) as e:
+            # Everything download_with_resume classifies as a download
+            # failure; programming errors propagate.
+            _LOGGER.debug("Failed to download %s: %s", url, str(e))
+            failures.append((url, e))
 
     return None
+
+
+def download_and_extract(
+    mirrors: list[str],
+    substitutions: dict[str, str],
+    archive_path: PathType,
+    extract_dir: PathType,
+    timeout: int = 30,
+    progress_header: str | None = None,
+    progress: Callable[[int], None] | None = None,
+) -> str:
+    """Download an archive from ``mirrors`` to ``archive_path``, extract it
+    into ``extract_dir``, and delete the archive.
+
+    The archive should live next to its destination (not in a temp dir) so
+    an interrupted download's ``.part`` file resumes on the next run. The
+    archive is deleted whether extraction succeeds or fails: a
+    complete-but-corrupt file (e.g. torn by an unclean shutdown) must not
+    poison the next run, and without a checksum only a failed extraction
+    can expose it.
+
+    Returns the source URL the download came from.
+    """
+    archive_path = Path(archive_path)
+    url = download_from_mirrors(
+        mirrors, substitutions, archive_path, timeout=timeout, progress=progress
+    )
+    try:
+        archive_extract_all(archive_path, extract_dir, progress_header=progress_header)
+    finally:
+        # Best-effort: an AV handle on the just-written archive (Windows)
+        # must not replace the real extraction error or fail a successful
+        # extraction. A surviving archive is harmless; download_with_resume
+        # re-verifies or re-downloads it next run.
+        try:
+            archive_path.unlink(missing_ok=True)
+        except OSError as err:
+            _LOGGER.debug("Could not remove archive %s: %s", archive_path, err)
+    return url
 
 
 def download_from_mirrors(
     mirrors: list[str],
     substitutions: dict[str, str],
-    target: io.RawIOBase | IO[bytes] | PathType,
+    target: PathType,
     timeout: int = 30,
     progress: Callable[[int], None] | None = None,
 ) -> str:
@@ -1222,7 +1332,7 @@ def download_from_mirrors(
     Args:
         mirrors: list of mirror URLs
         substitutions: Dictionary of substitutions to apply to URLs
-        target: Target file path or file-like object
+        target: Target file path
         timeout: Download timeout in seconds
         progress: Passed through to the download (see ``download_with_resume``);
             replaces the built-in per-file bar
@@ -1234,9 +1344,8 @@ def download_from_mirrors(
     ``substitutions`` are skipped, so callers can offer templates that only
     apply to some downloads.
 
-    A path target downloads through ``download_with_resume``, so an
-    interrupted download resumes on the next esphome run; a file-like target
-    only resumes mid-stream drops within this call.
+    The target downloads through ``download_with_resume``, so an
+    interrupted download resumes on the next esphome run.
 
     When every mirror fails and at least one failure is transient (dropped
     connection, timeout, HTTP 429/5xx), the whole list is retried with a
@@ -1250,21 +1359,11 @@ def download_from_mirrors(
     """
     from esphome.core import EsphomeError
 
-    ensure_happy_eyeballs()
+    if not isinstance(target, (str, os.PathLike)):
+        raise TypeError(f"target must be a str or Path: {type(target)}")
+    path_target = Path(target)
 
-    # 1. Classify the target: filesystem path or open file object
-    path_target: Path | None = None
-    f: IO[bytes] | None = None
-    if isinstance(target, (str, os.PathLike)):
-        path_target = Path(target)
-    elif isinstance(target, (io.RawIOBase, io.IOBase)):
-        f = target
-    else:
-        raise TypeError(
-            f"target must be str, Path, or file-like object: {type(target)}"
-        )
-
-    # 2. Resolve the mirror templates (invariant across retry sweeps)
+    # 1. Resolve the mirror templates (invariant across retry sweeps)
     urls: list[str] = []
     skipped: list[tuple[str, str]] = []
     for mirror in mirrors:
@@ -1283,7 +1382,7 @@ def download_from_mirrors(
             _LOGGER.warning("Skipping malformed mirror URL template %s: %r", mirror, e)
             skipped.append((mirror, f"skipped ({e!r})"))
 
-    # 3. Sweep the mirror list, retrying transient failures with backoff:
+    # 2. Sweep the mirror list, retrying transient failures with backoff:
     # a single pass keeps mirror failover fast, re-sweeping keeps one
     # network blip from failing the build when only one mirror applies.
     failures: list[tuple[str, Exception]] = []
@@ -1291,7 +1390,7 @@ def download_from_mirrors(
         sweep_failures: list[tuple[str, Exception]] = []
         if (
             url := _try_mirrors_once(
-                urls, path_target, f, timeout, sweep_failures, progress
+                urls, path_target, timeout, sweep_failures, progress
             )
         ) is not None:
             return url
@@ -1316,16 +1415,10 @@ def download_from_mirrors(
             )
             # Tick with the bytes already on disk so a combined bar holds
             # steady during the backoff instead of rewinding to zero
-            done = 0
-            if progress is not None:
-                if f is not None:
-                    done = f.tell()
-                else:
-                    part = _part_path(path_target)
-                    done = part.stat().st_size if part.is_file() else 0
+            done = downloaded_bytes(path_target) if progress is not None else 0
             _cancellable_sleep(delay, progress, done)
 
-    # 4. Report every attempted URL if all mirrors failed. failures spans
+    # 3. Report every attempted URL if all mirrors failed. failures spans
     # all sweeps (deduplicated by URL and reason), so neither an early
     # mirror's failure nor an earlier sweep's failure mode is hidden.
     if failures:
@@ -1346,3 +1439,37 @@ def download_from_mirrors(
             f"No mirror URL template matched the provided substitutions:{details}"
         )
     raise ValueError("download_from_mirrors called with an empty mirrors list")
+
+
+def strip_win_long_path_prefix(path: str) -> str:
+    r"""Strip the Windows extended-length path prefix from ``path``.
+
+    Handles both forms documented at
+    https://learn.microsoft.com/windows/win32/fileio/naming-a-file:
+
+    * ``\\?\C:\path\to\file`` -> ``C:\path\to\file``
+    * ``\\?\UNC\server\share\path`` -> ``\\server\share\path``
+
+    The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
+    ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
+    into PlatformIO's ``$PYTHONEXE`` (PlatformIO reads ``PYTHONEXEPATH`` from
+    the environment, falling back to ``os.path.normpath(sys.executable)``)
+    and ends up baked into SCons-emitted command lines for build steps such
+    as the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand
+    the ``\\?\`` prefix, so the build fails with
+    "The system cannot find the path specified." Stripping the prefix early
+    keeps the path shell-quotable.
+
+    Also applied to the ccache path exported by the ccache helpers, which
+    ``shutil.which`` can return with the same prefix.
+
+    No-op on non-Windows platforms.
+    """
+    if sys.platform != "win32":
+        return path
+    if path.startswith("\\\\?\\UNC\\"):
+        # \\?\UNC\server\share\... -> \\server\share\...
+        return "\\\\" + path[len("\\\\?\\UNC\\") :]
+    if path.startswith("\\\\?\\"):
+        return path[len("\\\\?\\") :]
+    return path

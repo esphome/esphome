@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "vbus"
 
 DEPENDENCIES = ["uart"]
 
@@ -27,6 +28,14 @@ CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(VBus),
     }
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "vbus",
+    baud_rate=9600,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 

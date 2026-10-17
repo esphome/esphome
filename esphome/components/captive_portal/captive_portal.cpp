@@ -10,7 +10,7 @@
 
 namespace esphome::captive_portal {
 
-static const char *const TAG = "captive_portal";
+ESPHOME_LOG_TAG(TAG, "captive_portal");
 
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
@@ -80,22 +80,15 @@ void CaptivePortal::setup() {
   this->disable_loop();
 }
 void CaptivePortal::start() {
+  // Each start takes a web server reference that end() returns once
+  if (this->active_)
+    return;
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler_without_auth(this);
   }
 
-  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-
-#if defined(USE_ESP32)
-  // Create DNS server instance for ESP-IDF
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->start(ip);
-#elif defined(USE_ARDUINO)
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  this->dns_server_->start(53, ESPHOME_F("*"), ip);
-#endif
+  this->dns_.start(wifi::global_wifi_component->wifi_soft_ap_ip());
 
   this->initialized_ = true;
   this->active_ = true;

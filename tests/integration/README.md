@@ -21,6 +21,13 @@ The `yaml_config` fixture automatically loads YAML configurations based on the t
 - The fixture file must exist or the test will fail with a clear error message
 - The fixture automatically injects a dynamic port number into the API configuration
 
+Tests marked `@pytest.mark.shared_yaml("name")` load `fixtures/name.yaml` instead
+of the test-named file and compile it in a shared, hash-keyed build directory, so
+the whole group pays one full compile and each test only a relink. The marker
+argument must be a single-line string literal (CI test selection maps fixtures to
+test files by scanning for it), and marked tests must hand the `yaml_config`
+content to `run_compiled` unmodified.
+
 ### Key Fixtures
 
 - `run_compiled` - Combines write, compile, and run operations into a single context manager

@@ -16,7 +16,7 @@
 
 namespace esphome::ble_device_base {
 
-static const char *const TAG = "ble_device_base";
+ESPHOME_LOG_TAG(TAG, "ble_device_base");
 
 // Longest advertisement payload worth hex-dumping at VERY_VERBOSE
 // (legacy advertising: 31-byte adv + 31-byte scan response).

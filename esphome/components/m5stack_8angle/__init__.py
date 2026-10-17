@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@rnauber"]
+DOMAIN = "m5stack_8angle"
 MULTI_CONF = True
 
 CONF_M5STACK_8ANGLE_ID = "m5stack_8angle_id"
