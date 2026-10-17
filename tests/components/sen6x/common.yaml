@@ -10,14 +10,14 @@ sensor:
     i2c_id: i2c_bus
     startup_delay: 30s
     temperature_compensation:
-      offset: 0
-      normalized_offset_slope: 0
-      time_constant: 0
+      offset: -2.5
+      normalized_offset_slope: 0.01
+      time_constant: 60
     temperature_acceleration:
-      k: 20.0
-      p: 20.0
-      t1: 100.0
-      t2: 300.0
+      k: 25.0
+      p: 15.0
+      t1: 120.0
+      t2: 240.0
     temperature:
       name: Temperature
       accuracy_decimals: 1

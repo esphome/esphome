@@ -238,18 +238,6 @@ void SEN6XComponent::run_next_setup_step_() {
   this->set_timeout(TIMEOUT_SETUP_STEP, CMD_EXEC_DELAY, [this]() { this->run_next_setup_step_(); });
 }
 
-void SEN6XComponent::set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant) {
-  this->temperature_compensation_ =
-      TemperatureCompensation{static_cast<int16_t>(lroundf(offset * 200.0f)),
-                              static_cast<int16_t>(lroundf(normalized_offset_slope * 10000.0f)), time_constant};
-}
-
-void SEN6XComponent::set_temperature_acceleration(float k, float p, float t1, float t2) {
-  this->temperature_acceleration_ =
-      TemperatureAcceleration{static_cast<uint16_t>(lroundf(k * 10.0f)), static_cast<uint16_t>(lroundf(p * 10.0f)),
-                              static_cast<uint16_t>(lroundf(t1 * 10.0f)), static_cast<uint16_t>(lroundf(t2 * 10.0f))};
-}
-
 bool SEN6XComponent::write_temperature_compensation_(const TemperatureCompensation &compensation) {
   // Word 4 selects compensation slot 0; other slots are not exposed
   uint16_t params[4] = {static_cast<uint16_t>(compensation.offset),

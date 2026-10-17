@@ -58,6 +58,11 @@ CONF_P = "p"
 CONF_T1 = "t1"
 CONF_T2 = "t2"
 
+# The device takes these as fixed-point words: offset x200, slope x10000, acceleration x10
+TEMPERATURE_OFFSET_SCALE = 200
+TEMPERATURE_SLOPE_SCALE = 10000
+TEMPERATURE_ACCELERATION_SCALE = 10
+
 CODEOWNERS = ["@martgras", "@mebner86", "@tuct"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -103,6 +108,8 @@ def _gas_index_schema(
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend({cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(tuning_schema)})
 
+
+_acceleration_parameter = cv.float_range(min=0.1, max=6553.5)
 
 CONFIG_SCHEMA = cv.All(
     cv.rename_key(CONF_VOC, CONF_VOC_INDEX, removed_in="2027.2.0", component="sen6x"),
@@ -209,18 +216,10 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
                 {
-                    cv.Optional(CONF_K, default=20.0): cv.float_range(
-                        min=0.1, max=6553.5
-                    ),
-                    cv.Optional(CONF_P, default=20.0): cv.float_range(
-                        min=0.1, max=6553.5
-                    ),
-                    cv.Optional(CONF_T1, default=100.0): cv.float_range(
-                        min=0.1, max=6553.5
-                    ),
-                    cv.Optional(CONF_T2, default=300.0): cv.float_range(
-                        min=0.1, max=6553.5
-                    ),
+                    cv.Optional(CONF_K, default=20.0): _acceleration_parameter,
+                    cv.Optional(CONF_P, default=20.0): _acceleration_parameter,
+                    cv.Optional(CONF_T1, default=100.0): _acceleration_parameter,
+                    cv.Optional(CONF_T2, default=300.0): _acceleration_parameter,
                 }
             ),
         }
@@ -254,18 +253,18 @@ async def to_code(config: ConfigType) -> None:
     if (comp := config.get(CONF_TEMPERATURE_COMPENSATION)) is not None:
         cg.add(
             var.set_temperature_compensation(
-                comp[CONF_OFFSET],
-                comp[CONF_NORMALIZED_OFFSET_SLOPE],
+                round(comp[CONF_OFFSET] * TEMPERATURE_OFFSET_SCALE),
+                round(comp[CONF_NORMALIZED_OFFSET_SLOPE] * TEMPERATURE_SLOPE_SCALE),
                 comp[CONF_TIME_CONSTANT],
             )
         )
     if (accel := config.get(CONF_TEMPERATURE_ACCELERATION)) is not None:
         cg.add(
             var.set_temperature_acceleration(
-                accel[CONF_K],
-                accel[CONF_P],
-                accel[CONF_T1],
-                accel[CONF_T2],
+                *(
+                    round(accel[key] * TEMPERATURE_ACCELERATION_SCALE)
+                    for key in (CONF_K, CONF_P, CONF_T1, CONF_T2)
+                )
             )
         )
 

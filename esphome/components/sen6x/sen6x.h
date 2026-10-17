@@ -74,8 +74,12 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
                                          gain_factor};
   }
   void set_startup_delay(uint32_t delay_ms) { this->startup_delay_ms_ = delay_ms; }
-  void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant);
-  void set_temperature_acceleration(float k, float p, float t1, float t2);
+  void set_temperature_compensation(int16_t offset, int16_t normalized_offset_slope, uint16_t time_constant) {
+    this->temperature_compensation_ = TemperatureCompensation{offset, normalized_offset_slope, time_constant};
+  }
+  void set_temperature_acceleration(uint16_t k, uint16_t p, uint16_t t1, uint16_t t2) {
+    this->temperature_acceleration_ = TemperatureAcceleration{k, p, t1, t2};
+  }
   void set_automatic_self_calibration(bool enabled) { this->co2_asc_ = enabled; }
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(uint16_t pressure_hpa) { this->ambient_pressure_ = pressure_hpa; }
@@ -108,6 +112,7 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureAcceleration> temperature_acceleration_;
   optional<TemperatureCompensation> temperature_compensation_;
+  uint16_t read_cmd_{0};
   sensor::Sensor *ambient_pressure_source_{nullptr};
   uint32_t startup_delay_ms_{60000};
   Sen6xType sen6x_type_{UNKNOWN};
@@ -120,7 +125,6 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   uint32_t command_wait_{0};
   uint32_t co2_started_at_{0};
   uint32_t co2_wait_{0};
-  uint16_t read_cmd_{0};
   optional<bool> co2_asc_;
   uint8_t setup_step_index_{0};
   uint8_t firmware_version_major_{0};
