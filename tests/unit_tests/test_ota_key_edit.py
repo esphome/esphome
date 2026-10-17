@@ -729,6 +729,28 @@ def test_shared_secret_scan_covers_yml_and_skips_unreadable_files(
     assert [e.shared_with for e in edits] == [[tmp_path.resolve() / "other.yml"]]
 
 
+def test_shared_include_with_a_hash_in_its_quoted_name_is_reported(
+    tmp_path: Path,
+) -> None:
+    """A `#` inside a quoted include path is part of the name, not a comment."""
+    (tmp_path / "shared # ota.yaml").write_bytes(
+        f'encryption:\n  key: "{OLD_KEY}"\n'.encode()
+    )
+    (tmp_path / "other.yaml").write_bytes(
+        b'api: !include "shared # ota.yaml"  # the device next door\n'
+    )
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\napi: !include 'shared # ota.yaml'\n\n"
+        "ota:\n  - platform: esphome\n    encryption:\n",
+    )
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
+    assert [(e.path.name, e.shared_with) for e in edits] == [
+        ("shared # ota.yaml", [tmp_path.resolve() / "other.yaml"])
+    ]
+
+
 def test_literal_key_in_a_shared_include_is_reported(tmp_path: Path) -> None:
     """Another configuration including the file that holds the key is
     listed, like a shared secret."""

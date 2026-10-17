@@ -67,7 +67,6 @@ _INDENT_RE = re.compile(r"\s*")
 _KEY_FIELD_RE = re.compile(rf"^\s*{CONF_KEY}\s*:")
 _BARE_BLOCK_RE = re.compile(rf"^\s*{CONF_ENCRYPTION}\s*:\s*(#.*)?$")
 _YAML_SUFFIXES = (".yaml", ".yml")
-_COMMENT_RE = re.compile(r"(?:^|\s)#.*$")
 _INCLUDE_DIR_RE = re.compile(r"!include_dir_\w+\s+(?P<dir>[^\s#]+)")
 # An include or package file whose path holds a substitution
 _SUBSTITUTED_INCLUDE_RE = re.compile(
@@ -100,8 +99,18 @@ def _indent(text: str) -> str:
 
 
 def _without_comment(text: str) -> str:
-    """The line up to its comment, which starts at a `#` after whitespace."""
-    return _COMMENT_RE.sub("", text)
+    """The line up to its comment: a `#` after whitespace that is not inside
+    a quoted scalar, so `!include "shared # ota.yaml"` keeps its name."""
+    quote = ""
+    for i, char in enumerate(text):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+        elif char == "#" and (i == 0 or text[i - 1].isspace()):
+            return text[:i]
+    return text
 
 
 def _file_use_re(file_name: str) -> re.Pattern[str]:
