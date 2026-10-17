@@ -73,6 +73,13 @@ void PylontechComponent::loop() {
       const char *line = this->line_reader_.feed(buf[i]);
       if (line != nullptr) {
         this->process_line_(line);
+      } else if (this->line_reader_.overflowed()) {
+        this->line_reader_.log_if_overflowed(TAG);
+        // Tlow.Id sits near the start, so a too long header still sets the column layout
+        const char *partial = this->line_reader_.partial();
+        if (strncmp(partial, "Power", 5) == 0) {
+          this->parse_header_(partial);
+        }
       }
     }
 #endif
@@ -96,6 +103,12 @@ void PylontechComponent::dispatch_one_() {
     }
     return;
   }
+}
+
+void PylontechComponent::parse_header_(const char *buffer) {
+  this->has_tlow_id_ = strstr(buffer, "Tlow.Id") != nullptr;
+  ESP_LOGV(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id_ ? LOG_STR_LITERAL("with") : LOG_STR_LITERAL("without"),
+           buffer);
 }
 
 // Runs while the UART drains: no logging above VERBOSE and no publishing here
@@ -142,9 +155,7 @@ void PylontechComponent::process_line_(const char *buffer) {
   if (!bat.has_value()) {
     if (strcmp(token_buf, "Power") == 0) {
       // header line i.e. "Power Volt   Curr" and so on
-      this->has_tlow_id_ = strstr(buffer, "Tlow.Id") != nullptr;
-      ESP_LOGV(TAG, "header line %s Tlow.Id: %s",
-               this->has_tlow_id_ ? LOG_STR_LITERAL("with") : LOG_STR_LITERAL("without"), buffer);
+      this->parse_header_(buffer);
     } else {
       ESP_LOGV(TAG, "unknown line %s", buffer);
     }

@@ -59,6 +59,7 @@ class PylontechComponent final : public PollingComponent, public uart::UARTDevic
 
  protected:
   void process_line_(const char *buffer);
+  void parse_header_(const char *buffer);
   void dispatch_one_();
 
   // The longest line, the newer firmware header, is 182 characters

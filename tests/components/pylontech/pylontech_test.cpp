@@ -168,6 +168,31 @@ TEST_F(PylontechTest, NewerFirmwareSkipsIdColumns) {
   EXPECT_EQ(b1.mostempr, 16600);
 }
 
+TEST_F(PylontechTest, OverlongHeaderStillSetsTheColumnLayout) {
+  // Past the 199 character line limit: the line is dropped but its start still selects the layout
+  const std::string pad(40, ' ');
+  std::string new_header(NEW_HEADER);
+  new_header.insert(new_header.size() - 2, pad + "Extra.St");
+  ASSERT_GT(new_header.size(), 201u);
+  this->uart_.push_rx({new_header, NEW_BAT1});
+  this->hub_.loop();
+  this->hub_.loop();
+  ASSERT_EQ(this->published_().size(), 1u);
+  EXPECT_EQ(this->published_()[0].thigh, 14500);
+  EXPECT_EQ(this->published_()[0].mostempr, 16600);
+
+  // An overlong older header switches back
+  std::string old_header(HEADER);
+  old_header.insert(old_header.size() - 2, pad + pad + "Extra.St");
+  ASSERT_GT(old_header.size(), 201u);
+  this->uart_.push_rx({old_header, BAT1});
+  this->hub_.loop();
+  this->hub_.loop();
+  ASSERT_EQ(this->published_().size(), 2u);
+  EXPECT_EQ(this->published_()[1].thigh, 25000);
+  EXPECT_EQ(this->published_()[1].mostempr, 22700);
+}
+
 TEST_F(PylontechTest, BatteryWithoutListenerIsIgnored) {
   this->uart_.push_rx({HEADER, bat_line(5, 49000), bat_line(17, 49000), bat_line(0, 49000), BAT1, BAT2});
   for (int i = 0; i < 4; i++) {
