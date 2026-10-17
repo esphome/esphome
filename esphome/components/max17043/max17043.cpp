@@ -106,9 +106,11 @@ bool MAX17043Component::configure_() {
 }
 
 void MAX17043Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MAX17043:");
+  ESP_LOGCONFIG(TAG,
+                "MAX17043:\n"
+                "  Model: %s",
+                LOG_STR_ARG(this->model_name_()));
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", LOG_STR_ARG(this->model_name_()));
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Battery Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Battery Level", this->battery_remaining_sensor_);
