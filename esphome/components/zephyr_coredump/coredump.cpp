@@ -1,5 +1,5 @@
 #include "coredump.h"
-#include "esphome/core/hal.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <zephyr/version.h>
@@ -12,47 +12,77 @@ namespace esphome::zephyr_coredump {
 
 ESPHOME_LOG_TAG(TAG, "zephyr_coredump");
 
+// 64 bytes per line (128 hex characters) in the "#CD:" format that Zephyr's coredump_serial_log_parser.py reads
 static constexpr size_t CHUNK_SIZE = 64;
+// A USB host starts reading the port only some 100 ms after opening it; until then the CDC driver discards output
+static constexpr uint32_t START_DELAY_MS = 1000;
+static constexpr uint32_t START_DELAY_ID = 0;
 
-// The "#CD:" prefix and BEGIN/END markers are what Zephyr's coredump_serial_log_parser.py looks for
-static void print_stored_dump() {
+// On a UART the logger reports the reader before this component exists, so the flag outlives the pointer
+static Coredump *global_coredump = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool reader_present = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+void print_coredump() {
+  reader_present = true;
+  if (global_coredump != nullptr)
+    global_coredump->start_print_();
+}
+
+void Coredump::setup() {
+  global_coredump = this;
+  if (coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) != 1) {
+    this->disable_loop();
+    return;
+  }
+  const int ret = coredump_cmd(COREDUMP_CMD_VERIFY_STORED_DUMP, nullptr);
+  if (ret != 1) {
+    ESP_LOGE(TAG, "Stored coredump verification failed: %d", ret);
+    this->finish_(0);
+    return;
+  }
+  this->total_ = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
+  this->disable_loop();
+  if (reader_present)
+    this->start_print_();
+}
+
+void Coredump::start_print_() {
+  if (this->total_ != 0)
+    this->set_timeout(START_DELAY_ID, START_DELAY_MS, [this]() { this->enable_loop(); });
+}
+
+void Coredump::loop() {
+  if (this->offset_ == 0) {
+    ESP_LOGE(TAG, "#CD:BEGIN#");
+  }
   uint8_t buf[CHUNK_SIZE];
   char hex[format_hex_size(CHUNK_SIZE)];
-  const size_t total = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
-  ESP_LOGE(TAG, "#CD:BEGIN#");
-  int ret = 0;
-  for (size_t offset = 0; offset < total; offset += CHUNK_SIZE) {
-    coredump_cmd_copy_arg arg{static_cast<off_t>(offset), buf, std::min(CHUNK_SIZE, total - offset)};
-    ret = coredump_cmd(COREDUMP_CMD_COPY_STORED_DUMP, &arg);
-    if (ret <= 0)
-      break;
-    arch_feed_wdt();
+  coredump_cmd_copy_arg arg{static_cast<off_t>(this->offset_), buf,
+                            std::min<size_t>(CHUNK_SIZE, this->total_ - this->offset_)};
+  const int ret = coredump_cmd(COREDUMP_CMD_COPY_STORED_DUMP, &arg);
+  if (ret > 0) {
     ESP_LOGE(TAG, "#CD:%s", format_hex_to(hex, buf, ret));
+    this->offset_ += ret;
   }
-  ESP_LOGE(TAG, "#CD:END#");
-  if (ret < 0) {
-    ESP_LOGE(TAG, "Failed to copy coredump: %d", ret);
+  if (ret <= 0 || this->offset_ >= this->total_) {
+    ESP_LOGE(TAG, "#CD:END#");
+    this->finish_(ret < 0 ? ret : 0);
   }
 }
 
-void print_coredump() {
-  if (coredump_query(COREDUMP_QUERY_HAS_STORED_DUMP, nullptr) != 1)
-    return;
-  const int ret = coredump_cmd(COREDUMP_CMD_VERIFY_STORED_DUMP, nullptr);
-  if (ret == 1) {
-    print_stored_dump();
-  } else {
-    ESP_LOGE(TAG, "Stored coredump verification failed: %d", ret);
+// Erase so the dump is not reported again; the next crash writes a new one. Erasing the partition halts the
+// CPU for about 85 ms per 4 KB page, so this one call takes most of a second
+void Coredump::finish_(int err) {
+  if (err < 0) {
+    ESP_LOGE(TAG, "Failed to copy coredump: %d", err);
   }
-  // Erase so the dump is not reported again on the next boot
   const int erase = coredump_cmd(COREDUMP_CMD_ERASE_STORED_DUMP, nullptr);
   if (erase < 0) {
     ESP_LOGE(TAG, "Failed to erase coredump: %d", erase);
   }
+  this->total_ = 0;
+  this->disable_loop();
 }
-
-// Prints when the logger has no early messages; otherwise the logger already printed and erased it
-void Coredump::setup() { print_coredump(); }
 
 void Coredump::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -67,9 +97,9 @@ void Coredump::dump_config() {
 
 }  // namespace esphome::zephyr_coredump
 
-#if KERNEL_VERSION_MAJOR < 4
 // Backport of https://github.com/zephyrproject-rtos/zephyr/pull/79622 (Zephyr 4.0): give GDB the stack
-// pointer from before the exception frame so it can unwind
+// pointer from before the exception frame so it can unwind. The Python side links it in with --wrap.
+#ifdef USE_ZEPHYR_COREDUMP_SP_FIX
 extern "C" {
 
 #if KERNEL_VERSION_NUMBER >= 0x030700

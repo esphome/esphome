@@ -55,6 +55,8 @@ void Logger::cdc_loop_() {
 
   if (!opened) {
     App.schedule_dump_config();
+    // The new reader also gets a coredump stored by the last crash
+    zephyr_coredump::print_coredump();
   }
   opened = !opened;
 }
@@ -103,8 +105,13 @@ void Logger::pre_setup() {
   const char *reset_reason = zephyr::get_reset_reason(std::span<char, zephyr::RESET_REASON_BUFFER_SIZE>(reason_buffer));
   ESP_LOGI(TAG, "Reset reason: %s", reset_reason);
   dump_crash_();
-  zephyr_coredump::print_coredump();
 #endif
+#ifdef USE_LOGGER_UART_SELECTION_USB_CDC
+  // Nobody reads a USB port this early; cdc_loop_() reports the dump once the port is opened
+  if (this->uart_ == UART_SELECTION_USB_CDC)
+    return;
+#endif
+  zephyr_coredump::print_coredump();
 }
 
 void HOT Logger::write_msg_(const char *msg, uint16_t len) {
