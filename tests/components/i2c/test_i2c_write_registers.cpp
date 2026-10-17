@@ -8,7 +8,7 @@
 
 namespace esphome::i2c::testing {
 
-class RecordingBus : public I2CBus {
+class RegTableBus : public I2CBus {
  public:
   ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
                         size_t read_count) override {
@@ -35,7 +35,7 @@ class I2CWriteRegistersTest : public ::testing::Test {
     this->device_.set_i2c_bus(&this->bus_);
     this->device_.set_i2c_address(0x18);
   }
-  RecordingBus bus_;
+  RegTableBus bus_;
   I2CDevice device_;
 };
 

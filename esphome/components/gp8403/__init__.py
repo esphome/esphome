@@ -17,15 +17,9 @@ GP8403Model = gp8403_ns.enum("GP8403Model")
 
 CONF_GP8403_ID = "gp8403_id"
 
-MODELS = {
-    "GP8403": GP8403Model.GP8403,
-    "GP8413": GP8403Model.GP8413,
-}
+MODELS = GP8403Model.options("GP8403", "GP8413")
 
-VOLTAGES = {
-    "5V": GP8403Voltage.GP8403_VOLTAGE_5V,
-    "10V": GP8403Voltage.GP8403_VOLTAGE_10V,
-}
+VOLTAGES = GP8403Voltage.options("5V", "10V", prefix="GP8403_VOLTAGE_")
 
 CONFIG_SCHEMA = (
     cv.Schema(

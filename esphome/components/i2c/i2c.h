@@ -2,7 +2,9 @@
 
 #include <array>
 #include <vector>
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 #include "i2c_bus.h"
 
@@ -18,6 +20,9 @@ struct I2CRegValue {
   uint8_t value;
 };
 static_assert(sizeof(I2CRegValue) == 2, "each entry is sent to the bus as is");
+
+/// Out of line so each check_chip_id() caller only pays for a call.
+void log_wrong_chip_id(uint8_t id, uint8_t expected);
 
 /// @brief This class is used to create I2CRegister objects that act as proxies to read/write internal registers on an
 /// I2C device.
@@ -222,6 +227,19 @@ class I2CDevice {
     return this->write_registers(table, N);
   }
 
+  /// Read the 8-bit ID at \p a_register and accept it when it matches \p expected in the bits set in \p mask.
+  /// Otherwise mark \p component failed and return false.
+  bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected, uint8_t mask = 0xFF) {
+    uint8_t id;
+    const ErrorCode err = this->read_register(a_register, &id, 1);
+    if (err == ERROR_OK && (id & mask) == (expected & mask))
+      return true;
+    if (err == ERROR_OK)
+      log_wrong_chip_id(id, expected & mask);
+    component->mark_failed(err == ERROR_OK ? LOG_STR("Wrong chip ID") : LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+
   ///
   /// Compat APIs
   /// All methods below have been added for compatibility reasons. They do not bring any functionality and therefore on
@@ -278,7 +296,7 @@ class I2CDevice {
 
   bool write_byte(uint8_t a_register, uint8_t data) const { return write_bytes(a_register, &data, 1); }
 
-  bool write_byte_16(uint8_t a_register, uint16_t data) const { return write_bytes_16(a_register, &data, 1); }
+  bool write_byte_16(uint8_t a_register, uint16_t data) const;
 
  protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus
