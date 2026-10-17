@@ -339,10 +339,15 @@ class AsyncEventSourceResponse {
   };
   void process_close_();
   static void close_session_work(void *arg);
+  void refresh_lru_();
+  static void refresh_lru_work(void *arg);
+  // httpd frees a session before closing its socket, so the fd may already belong to a new client
+  bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
 
-  // Deletable only after destroy() zeroed fd_ and no queued HTTPD close work still references this object.
+  // Deletable only after destroy() zeroed fd_ and no queued HTTPD work still references this object.
   bool safe_to_delete_() const {
-    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire);
+    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
+           !this->lru_work_queued_.load(std::memory_order_acquire);
   }
 
   static void destroy(void *p);
@@ -357,11 +362,13 @@ class AsyncEventSourceResponse {
   RAMUniquePtr<uint8_t[]> tail_;
   uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
   uint32_t next_close_attempt_ms_{0};
+  uint32_t last_lru_refresh_ms_{0};
   uint16_t tail_cap_{0};
   uint16_t tail_len_{0};  // Zero means nothing pending
   uint16_t tail_sent_{0};
   // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
   std::atomic<bool> close_work_queued_{false};
+  std::atomic<bool> lru_work_queued_{false};
   // Main-loop only; the HTTPD task never reads or writes these flags.
   bool close_requested_{false};
   bool close_retry_warning_logged_{false};
@@ -383,6 +390,7 @@ class AsyncEventSourceResponse {
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
+  static constexpr uint32_t LRU_REFRESH_INTERVAL_MS = 1000;
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;

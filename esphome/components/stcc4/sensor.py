@@ -36,10 +36,7 @@ STCC4Component = stcc4_ns.class_(
 
 MeasurementMode = stcc4_ns.enum("MeasurementMode", is_class=True)
 
-MEASUREMENT_MODE_OPTIONS = {
-    "continuous": MeasurementMode.CONTINUOUS,
-    "single_shot": MeasurementMode.SINGLE_SHOT,
-}
+MEASUREMENT_MODE_OPTIONS = MeasurementMode.options("continuous", "single_shot")
 
 
 def validate_config(config: ConfigType) -> ConfigType:

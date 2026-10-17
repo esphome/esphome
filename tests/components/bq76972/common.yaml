@@ -1,5 +1,6 @@
 bq76972:
   id: bq76972_id
+  i2c_id: i2c_bus
   address: 0x08
   crc_enabled: true
   reg_disabled: true

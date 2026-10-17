@@ -483,12 +483,9 @@ def has_ota() -> bool:
 
 def has_native_ota() -> bool:
     """Check if native API OTA upload is available (``platform: esphome``)."""
-    if CONF_OTA not in CORE.config:
-        return False
-    return any(
-        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
-        for ota_item in CORE.config[CONF_OTA]
-    )
+    from esphome.espota2 import esphome_ota_items
+
+    return bool(esphome_ota_items(CORE.config))
 
 
 def has_web_server_ota() -> bool:
@@ -1359,14 +1356,17 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     return CONF_WEB_SERVER
 
 
+def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
+    """The validated esphome OTA platform block, if configured."""
+    from esphome.espota2 import esphome_ota_items
+
+    return next(iter(esphome_ota_items(config)), None)
+
+
 def _upload_via_native_api(
     config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
-    ota_conf: ConfigType = {}
-    for ota_item in config.get(CONF_OTA, []):
-        if ota_item.get(CONF_PLATFORM) == CONF_ESPHOME:
-            ota_conf = ota_item
-            break
+    ota_conf = _esphome_ota_conf(config) or {}
 
     from esphome import espota2
     from esphome.components.noise import static_encryption_key
@@ -1457,10 +1457,8 @@ def _old_key_notice(config: ConfigType) -> None:
     `upload` may send a stale image that still carries the previous key."""
     from esphome import espota2
 
-    for item in config.get(CONF_OTA, []):
-        if item.get(CONF_PLATFORM) == CONF_ESPHOME and (
-            item.get(CONF_ENCRYPTION) or {}
-        ).get(espota2.CONF_OLD_KEY):
+    for item in espota2.esphome_ota_items(config):
+        if (item.get(CONF_ENCRYPTION) or {}).get(espota2.CONF_OLD_KEY):
             _LOGGER.warning(espota2.OLD_KEY_REMOVE_NOTICE)
 
 
@@ -1468,12 +1466,12 @@ def _upload_via_web_server(
     config: ConfigType, network_devices: list[str], binary: Path
 ) -> tuple[int, str | None]:
     from esphome import web_server_ota
+    from esphome.espota2 import esphome_ota_items
     from esphome.web_server_helpers import get_web_server_connection
 
     if any(
-        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
-        and ota_item.get(CONF_ENCRYPTION) is not None
-        for ota_item in config.get(CONF_OTA, [])
+        ota_item.get(CONF_ENCRYPTION) is not None
+        for ota_item in esphome_ota_items(config)
     ):
         _LOGGER.warning(
             "This config has OTA encryption, but the web_server OTA path sends "

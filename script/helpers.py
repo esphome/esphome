@@ -884,10 +884,6 @@ def load_idedata(environment: str) -> dict[str, Any]:
             ["pio", "run", "-t", "idedata", "-e", environment]
         )
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
-        if match is None:
-            raise RuntimeError(
-                f"Could not find idedata JSON in 'pio run -t idedata -e {environment}' output"
-            )
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     update_cache(temp_hash, key)
