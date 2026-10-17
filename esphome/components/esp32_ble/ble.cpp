@@ -30,15 +30,78 @@ extern "C" {
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
 
+#include <cstring>
+
 #ifdef USE_ARDUINO
 // Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
 // Without this, esp_bt_controller_init() fails with ESP_ERR_INVALID_STATE.
 extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-naming)
 #endif
 
+#if !defined(CONFIG_BT_CONTROLLER_DISABLED) && \
+    (defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32S3))
+// The ESP32-C3 and ESP32-S3 share one controller (lib_esp32c3_family, RivieraWaves link layer).
+#define USE_ESP32_BLE_TERMINATE_PATCH
+// Controller internals, reached through r_ip_funcs_p: a table btdm_controller_init() copies into RAM.
+extern "C" {
+extern void *r_ip_funcs_p;
+const char *btdm_controller_get_compile_version();
+uint8_t r_lld_con_terminate_max_evt_update(uint8_t link_id, uint8_t acked);
+uint8_t *r_lld_con_cntl_pkt_info_get();
+}
+#endif
+
 namespace esphome::esp32_ble {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble");
+
+#ifdef USE_ESP32_BLE_TERMINATE_PATCH
+// The controller ends its terminate procedure after 6 connection events without an acknowledgement and reports
+// the link closed. A peer using peripheral latency listens only every (latency + 1) events, so it can miss all
+// six LL_TERMINATE_IND: it keeps the link and searches for the central at full receive current until its own
+// supervision timeout. The Core spec keeps the procedure going until the acknowledgement or the supervision
+// timeout; this does that, by holding the controller's no-acknowledgement count below its limit. A peer that
+// never answers still ends the link at the supervision timeout.
+static constexpr size_t TERMINATE_MAX_EVT_SLOT = 0x7dc / sizeof(void *);
+static constexpr uint8_t TERMINATE_MAX_EVT = 5;  // the controller gives up once its count exceeds this
+
+static uint8_t IRAM_ATTR terminate_until_acked(uint8_t link_id, uint8_t acked) {
+  // Per link: [2] terminate in progress, [3] connection events without an acknowledgement.
+  uint8_t *info = r_lld_con_cntl_pkt_info_get() + link_id * 4;
+  if (!acked && info[2] != 0 && info[3] >= TERMINATE_MAX_EVT)
+    info[3] = TERMINATE_MAX_EVT - 1;
+  return r_lld_con_terminate_max_evt_update(link_id, acked);
+}
+
+// The controller builds whose r_lld_con_terminate_max_evt_update and r_lld_con_cntl_pkt_info_get the wrapper was
+// checked against. The table slot alone does not prove the pkt_info layout, so an unknown build is left alone.
+// btdm_controller_get_compile_version() is what ESP-IDF logs at init as "BT controller compile version [...]".
+static const char *const TERMINATE_PATCH_CONTROLLER_BUILDS[] = {
+    "51d9dfd",  // ESP-IDF 5.5.5, Arduino 3.3.12
+    "b7de11e",  // ESP-IDF 5.5.4, Arduino 3.3.8-3.3.11: both functions identical to 51d9dfd's
+};
+
+static void patch_terminate_until_acked() {
+  auto **table = static_cast<void **>(r_ip_funcs_p);
+  if (table == nullptr) {
+    ESP_LOGW(TAG, "Controller layout not recognised; disconnects keep the controller's 6-event limit");
+    return;
+  }
+  if (table[TERMINATE_MAX_EVT_SLOT] == reinterpret_cast<void *>(&terminate_until_acked))
+    return;  // already patched: the controller stayed enabled across a setup
+  const char *build = btdm_controller_get_compile_version();
+  bool known_build = false;
+  for (const char *known : TERMINATE_PATCH_CONTROLLER_BUILDS)
+    known_build = known_build || strcmp(build, known) == 0;
+  if (!known_build || table[TERMINATE_MAX_EVT_SLOT] != reinterpret_cast<void *>(&r_lld_con_terminate_max_evt_update)) {
+    ESP_LOGW(TAG,
+             "Controller build %s not checked for the terminate patch; disconnects keep the controller's 6-event limit",
+             build);
+    return;
+  }
+  table[TERMINATE_MAX_EVT_SLOT] = reinterpret_cast<void *>(&terminate_until_acked);
+}
+#endif
 
 #ifdef CONFIG_BT_CONTROLLER_DISABLED
 // Bringing up the remote BT controller issues synchronous RPCs to the
@@ -228,6 +291,9 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+#ifdef USE_ESP32_BLE_TERMINATE_PATCH
+  patch_terminate_until_acked();
+#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
