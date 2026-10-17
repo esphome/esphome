@@ -354,11 +354,8 @@ void ImprovBLEComponent::process_incoming_data_() {
     return;
   uint8_t length = this->incoming_data_[1];
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(IMPROV_MAX_LOG_BYTES)];
-  ESP_LOGV(TAG, "Processing bytes - %s",
-           format_hex_pretty_to(hex_buf, this->incoming_data_.data(), this->incoming_data_.size()));
-#endif
+  ESP_LOGV_HEX(TAG, this->incoming_data_.data(), this->incoming_data_.size(), IMPROV_MAX_LOG_BYTES,
+               "Processing bytes - %s");
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);
