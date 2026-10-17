@@ -1,7 +1,9 @@
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
+from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -589,6 +591,16 @@ async def register_uart_device(var, config):
     """
     parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))
+
+
+def new_uart_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on a UART bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_uart_device, config, *args)
 
 
 @automation.register_action(
