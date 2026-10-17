@@ -109,6 +109,7 @@ class AirtonClimate : public climate_ir::ClimateIR {
   void publish_settings_();
   void save_settings_();
   void sync_swing_mode_();
+  bool sleep_mode_allowed_() const;
 
   void transmit_state() override;
   uint8_t operation_mode_();

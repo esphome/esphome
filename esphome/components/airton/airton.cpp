@@ -45,41 +45,52 @@ void AirtonClimate::sync_swing_mode_() {
                          : climate::CLIMATE_SWING_OFF;
 }
 
+// The unit has no sleep mode while it only fans or picks the mode itself
+bool AirtonClimate::sleep_mode_allowed_() const {
+  return this->mode != climate::CLIMATE_MODE_FAN_ONLY && this->mode != climate::CLIMATE_MODE_HEAT_COOL;
+}
+
+// Each setter stores and saves before it publishes: an automation on the entity runs inside
+// publish_state() and may set the value again, which must not be undone afterwards
 bool AirtonClimate::set_sleep_mode_state(bool state) {
+  state = state && this->sleep_mode_allowed_();
+  const bool changed = state != this->settings_.sleep_state;
+  if (changed) {
+    this->settings_.sleep_state = state;
+    this->save_settings_();
+  }
 #ifdef USE_SWITCH
   if (this->sleep_mode_switch_ != nullptr)
     this->sleep_mode_switch_->publish_state(state);
 #endif
-  if (state == this->settings_.sleep_state)
-    return false;
-  this->settings_.sleep_state = state;
-  this->save_settings_();
-  return true;
+  return changed;
 }
 
 bool AirtonClimate::set_display_state(bool state) {
+  const bool changed = state != this->settings_.display_state;
+  if (changed) {
+    this->settings_.display_state = state;
+    this->save_settings_();
+  }
 #ifdef USE_SWITCH
   if (this->display_switch_ != nullptr)
     this->display_switch_->publish_state(state);
 #endif
-  if (state == this->settings_.display_state)
-    return false;
-  this->settings_.display_state = state;
-  this->save_settings_();
-  return true;
+  return changed;
 }
 
 bool AirtonClimate::set_vertical_direction_state(VerticalDirection direction) {
+  const bool changed = direction != this->settings_.vertical_direction;
+  if (changed) {
+    this->settings_.vertical_direction = direction;
+    this->sync_swing_mode_();
+    this->save_settings_();
+  }
 #ifdef USE_SELECT
   if (this->vertical_direction_select_ != nullptr)
     this->vertical_direction_select_->publish_state(static_cast<size_t>(direction));
 #endif
-  if (direction == this->settings_.vertical_direction)
-    return false;
-  this->settings_.vertical_direction = direction;
-  this->sync_swing_mode_();
-  this->save_settings_();
-  return true;
+  return changed;
 }
 
 void AirtonClimate::send_settings() {
@@ -98,6 +109,9 @@ void AirtonClimate::control(const climate::ClimateCall &call) {
 }
 
 void AirtonClimate::transmit_state() {
+  // Entering fan-only or automatic mode drops sleep mode, as the remote does
+  if (!this->sleep_mode_allowed_())
+    this->set_sleep_mode_state(false);
   // Sampled valid state
   // Power: On, Mode: 2 (Dry), Fan: 1 (Quiet), Temp: 20C, Swing(V): On, Econo: Off, Turbo: Off, Light: On, Health: On,
   // Sleep: Off. 0x74C461041A11D3
@@ -203,7 +217,10 @@ uint8_t AirtonClimate::operation_settings_() {
   if (this->settings_.sleep_state) {
     settings |= (1 << 1);
   }
-  settings |= 0b01000100;  // Set Health and NotAutoOn bits as per default
+  settings |= 0b01000000;  // Health, as the remote always sends it
+  if (this->mode != climate::CLIMATE_MODE_HEAT_COOL) {
+    settings |= 0b00000100;  // NotAutoOn: clear only while the unit picks the mode itself
+  }
   return settings;
 }
 
