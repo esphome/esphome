@@ -203,6 +203,7 @@ def _final_validate(config) -> None:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
             config[CONF_SHOW_TEST_CARD] = True
+            config[CONF_UPDATE_INTERVAL] = update_interval("1min")
     elif CONF_UPDATE_INTERVAL not in config:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")
 

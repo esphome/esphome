@@ -887,6 +887,16 @@ constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
   return std::accumulate(data, data + len, sum);
 }
 
+/// Add up the bytes of \p data with size \p len, truncated to 16 bits.
+constexpr uint16_t sum16_bytes(const uint8_t *data, size_t len, uint16_t sum = 0) {
+  return std::accumulate(data, data + len, sum);
+}
+
+/// XOR the bytes of \p data with size \p len, starting from \p init.
+constexpr uint8_t xor_bytes(const uint8_t *data, size_t len, uint8_t init = 0) {
+  return std::accumulate(data, data + len, init, std::bit_xor<>());
+}
+
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
@@ -988,6 +998,12 @@ constexpr uint32_t encode_uint24(uint8_t byte1, uint8_t byte2, uint8_t byte3) {
 constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4) {
   return (static_cast<uint32_t>(byte1) << 24) | (static_cast<uint32_t>(byte2) << 16) |
          (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
+}
+
+/// Sign-extend the low \p BITS bits of \p value, e.g. sign_extend<24>(0xFFFFFE) == -2. Higher bits are ignored.
+template<unsigned BITS> constexpr int32_t sign_extend(uint32_t value) {
+  static_assert(BITS > 0 && BITS <= 32, "BITS must be 1 to 32");
+  return static_cast<int32_t>(value << (32 - BITS)) >> (32 - BITS);
 }
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
@@ -1445,8 +1461,8 @@ inline char *buf_append_sep_str(char *buf, size_t remaining, char separator, con
   return buf;
 }
 
-/// Return 10^n for small non-negative n (0-3) as uint32_t, avoiding float.
-inline uint32_t small_pow10(int8_t n) { return n == 3 ? 1000 : n == 2 ? 100 : n == 1 ? 10 : 1; }
+/// Return 10^n for small non-negative n (0-4) as uint32_t, avoiding float.
+inline uint32_t small_pow10(int8_t n) { return n == 4 ? 10000 : n == 3 ? 1000 : n == 2 ? 100 : n == 1 ? 10 : 1; }
 
 /// Minimum buffer size for uint32_to_str: 10 digits + null terminator.
 static constexpr size_t UINT32_MAX_STR_SIZE = 11;
@@ -1725,7 +1741,8 @@ enum class TemperatureUnit : uint8_t {
 /// No null check, no exceptions, no heap allocation for small trivially-copyable callables.
 ///
 /// With C++20 if constexpr, automatically detects [this] lambdas (sizeof <= sizeof(void*),
-/// trivially copyable) and stores them inline. Larger callables are heap-allocated.
+/// trivially copyable, callable as const) and stores them inline. Larger callables, and mutable
+/// ones whose state must survive between calls, are heap-allocated.
 template<typename... X> struct Callback;
 
 template<typename... Ts> struct Callback<void(Ts...)> {
@@ -1740,11 +1757,19 @@ template<typename... Ts> struct Callback<void(Ts...)> {
   /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
   void call(Ts... args) const { this->fn_(this->ctx_, std::forward<Ts>(args)...); }
 
+  /// Whether create() stores F inline in the ctx pointer. The inline path invokes a copy, so a
+  /// callable that mutates its captures (a mutable lambda) is kept whole on the heap instead.
+  template<typename F> static constexpr bool fits_inline() {
+    using DecayF = std::decay_t<F>;
+    return sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF> &&
+           std::is_invocable_v<const DecayF &, Ts...>;
+  }
+
   /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
   /// are stored inline in the ctx pointer without heap allocation.
   template<typename F> static Callback create(F &&callable) {
     using DecayF = std::decay_t<F>;
-    if constexpr (sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF>) {
+    if constexpr (fits_inline<F>()) {
       // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
       // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
       // creates objects of implicit-lifetime types (trivially copyable qualifies).
@@ -1766,6 +1791,28 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       auto *stored = new DecayF(std::forward<F>(callable));
       return {[](void *c, Ts... args) { (*static_cast<DecayF *>(c))(args...); }, static_cast<void *>(stored)};
     }
+  }
+
+  /// Heap home of a callable stored by create_boxed(); the header knows how to free it.
+  struct Box {
+    void (*free)(Box *box);
+  };
+
+  /// Store any callable on the heap with a deleter, for an owner that can later free_boxed() it.
+  template<typename F> static Callback create_boxed(F &&callable) {
+    struct Boxed : Box {
+      std::decay_t<F> fn;
+    };
+    auto *box = new Boxed{{[](Box *b) { delete static_cast<Boxed *>(b); }},  // NOLINT(cppcoreguidelines-owning-memory)
+                          std::forward<F>(callable)};
+    return {[](void *c, Ts... args) { static_cast<Boxed *>(static_cast<Box *>(c))->fn(args...); },
+            static_cast<Box *>(box)};
+  }
+
+  /// Free the callable of a Callback made by create_boxed(); the Callback must not be called afterwards.
+  void free_boxed() const {
+    auto *box = static_cast<Box *>(this->ctx_);
+    box->free(box);
   }
 };
 

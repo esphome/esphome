@@ -84,10 +84,6 @@ class MPR121Component final : public Component, public i2c::I2CDevice {
   uint8_t touch_threshold_{};
   uint8_t release_threshold_{};
   uint8_t max_touch_channel_{3};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-  } error_code_{NONE};
 
   bool flush_gpio_();
 
