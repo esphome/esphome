@@ -38,8 +38,7 @@ void ICM20689Component::setup() {
   this->spi_setup();
 
   if (!this->spi_is_ready()) {
-    ESP_LOGE(TAG, "SPI device is not ready");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("SPI device is not ready"));
     return;
   }
 
@@ -61,7 +60,7 @@ void ICM20689Component::setup() {
 
   if (who_am_i != ICM20689_WHO_AM_I_VALUE) {
     ESP_LOGE(TAG, "Unexpected WHO_AM_I 0x%02X (expected 0x%02X) -- check wiring/CS", who_am_i, ICM20689_WHO_AM_I_VALUE);
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
@@ -77,10 +76,8 @@ void ICM20689Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ICM20689 IMU:");
   LOG_PIN("  CS Pin: ", this->cs_);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  " ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Accel range: ±%dg", 2 << static_cast<uint8_t>(this->accel_range_));
   ESP_LOGCONFIG(TAG, "  Gyro range: ±%d°/s", 250 << static_cast<uint8_t>(this->gyro_range_));

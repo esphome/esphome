@@ -57,10 +57,7 @@ SpeakerMediaPlayer = speaker_ns.class_(
 
 AudioPipeline = speaker_ns.class_("AudioPipeline")
 AudioPipelineType = speaker_ns.enum("AudioPipelineType", is_class=True)
-AUDIO_PIPELINE_TYPE_ENUM = {
-    "MEDIA": AudioPipelineType.MEDIA,
-    "ANNOUNCEMENT": AudioPipelineType.ANNOUNCEMENT,
-}
+AUDIO_PIPELINE_TYPE_ENUM = AudioPipelineType.options("MEDIA", "ANNOUNCEMENT")
 
 StopStreamAction = speaker_ns.class_(
     "StopStreamAction", automation.Action, cg.Parented.template(SpeakerMediaPlayer)

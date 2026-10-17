@@ -52,8 +52,7 @@ void AHT10Component::setup() {
       break;
   }
   if (error_code != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   uint8_t cal_attempts = 0;
@@ -61,20 +60,17 @@ void AHT10Component::setup() {
   while (data & AHT10_STATUS_BUSY) {
     delay(AHT10_DEFAULT_DELAY);
     if (this->read(&data, 1) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
     ++cal_attempts;
     if (cal_attempts > AHT10_INIT_ATTEMPTS) {
-      ESP_LOGE(TAG, "Initialization timed out");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Initialization timed out"));
       return;
     }
   }
   if ((data & 0x68) != 0x08) {  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
-    ESP_LOGE(TAG, "Initialization failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Initialization failed"));
     return;
   }
 }
@@ -152,9 +148,6 @@ void AHT10Component::update() {
 void AHT10Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AHT10:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }

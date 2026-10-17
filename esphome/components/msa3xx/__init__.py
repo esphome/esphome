@@ -48,12 +48,7 @@ MSA_MODELS = {
 }
 
 MSARange = msa3xx_ns.enum("Range", True)
-MSA_RANGES = {
-    "2G": MSARange.RANGE_2G,
-    "4G": MSARange.RANGE_4G,
-    "8G": MSARange.RANGE_8G,
-    "16G": MSARange.RANGE_16G,
-}
+MSA_RANGES = MSARange.options("2G", "4G", "8G", "16G", prefix="RANGE_")
 
 MSAResolution = msa3xx_ns.enum("Resolution", True)
 RESOLUTIONS_MSA301 = {
