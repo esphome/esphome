@@ -990,6 +990,12 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
          (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
 }
 
+/// Sign-extend the low \p BITS bits of \p value, e.g. sign_extend<24>(0xFFFFFE) == -2. Higher bits are ignored.
+template<unsigned BITS> constexpr int32_t sign_extend(uint32_t value) {
+  static_assert(BITS > 0 && BITS <= 32, "BITS must be 1 to 32");
+  return static_cast<int32_t>(value << (32 - BITS)) >> (32 - BITS);
+}
+
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
   T val = 0;
