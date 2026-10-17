@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import pathlib
 import pty
 
 import pytest
@@ -34,7 +35,11 @@ async def test_uart_terminal_menu(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     controller_fd, device_fd = pty.openpty()
-    yaml_config = yaml_config.replace("UART_PORT", os.ttyname(device_fd))
+    # The uart port validator takes paths of the /dev/ttyUSB0 shape; a pty sits at /dev/pts/N on Linux,
+    # so the device end is reached through a short symlink
+    port = f"/tmp/esphome-uart-terminal-{os.getpid()}"
+    pathlib.Path(port).symlink_to(os.ttyname(device_fd))
+    yaml_config = yaml_config.replace("UART_PORT", port)
     os.set_blocking(controller_fd, False)
     received = bytearray()
 
@@ -80,3 +85,4 @@ async def test_uart_terminal_menu(
         loop.remove_reader(controller_fd)
         os.close(controller_fd)
         os.close(device_fd)
+        pathlib.Path(port).unlink()
