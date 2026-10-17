@@ -60,6 +60,15 @@ SEN6XComponent = sen6x_ns.class_(
 )
 
 
+_PMC_KEYS = (CONF_PMC_0_5, CONF_PMC_1_0, CONF_PMC_2_5, CONF_PMC_4_0, CONF_PMC_10_0)
+_PMC_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
+    icon=ICON_COUNTER,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+
+
 def _gas_index_schema(
     *,
     index_offset: int,
@@ -132,36 +141,11 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_4_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_CUBIC_CENTIMETER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_PMC_0_5): _PMC_SCHEMA,
+            cv.Optional(CONF_PMC_1_0): _PMC_SCHEMA,
+            cv.Optional(CONF_PMC_2_5): _PMC_SCHEMA,
+            cv.Optional(CONF_PMC_4_0): _PMC_SCHEMA,
+            cv.Optional(CONF_PMC_10_0): _PMC_SCHEMA,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,
@@ -229,6 +213,9 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_TYPE in config:
         cg.add(var.set_type(config[CONF_TYPE]))
+    # The number concentration read and its sensors compile in only when one is configured
+    if any(key in config for key in _PMC_KEYS):
+        cg.add_define("USE_SEN6X_NUMBER_CONCENTRATION")
 
     for key, func_name in SENSOR_MAP.items():
         if cfg := config.get(key):
