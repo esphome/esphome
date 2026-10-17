@@ -251,9 +251,24 @@ void DaikinMadoka::process_incoming_chunk_(std::span<const uint8_t> chunk) {
 }
 
 void DaikinMadoka::enqueue_query_(uint16_t cmd, std::span<const uint8_t> args) {
-  // A command queued again keeps its one entry with the newest values, so the backlog stays bounded
+  Query *same = nullptr;
+  Query *mode_behind = nullptr;
   for (Query &queued : this->query_queue_) {
-    if (queued.cmd == cmd && merge_args(queued.args, args))
+    if (queued.cmd == cmd) {
+      same = &queued;
+    } else if (cmd == CMD_SET_SETTING_STATUS && queued.cmd == CMD_SET_OPERATION_MODE && same != nullptr) {
+      mode_behind = &queued;
+    }
+  }
+  // A command queued again keeps its one entry with the newest values, so the backlog stays bounded
+  if (same != nullptr) {
+    // Power-on has to follow the mode queued with it, so a mode queued behind an older status
+    // entry takes that entry's place
+    if (mode_behind != nullptr) {
+      std::swap(*same, *mode_behind);
+      same = mode_behind;
+    }
+    if (merge_args(same->args, args))
       return;
   }
   Query query{.cmd = cmd, .args = {}};

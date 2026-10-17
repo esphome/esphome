@@ -126,7 +126,7 @@ inline bool merge_args(QueryArgs &args, std::span<const uint8_t> incoming) {
       std::copy(value.begin(), value.end(), merged.begin() + j + 2);
       continue;
     }
-    if (merged.size() + 2 + len > merged.capacity())
+    if (merged.size() + 2 + len > QueryArgs::capacity())
       return false;
     merged.push_back(id);
     merged.push_back(len);
