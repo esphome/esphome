@@ -42,10 +42,11 @@ def test_packet_data_length_limit() -> None:
 
 
 def test_payload_length_limit() -> None:
-    """payload_length goes into an 8 bit register, so 256 is rejected."""
+    """payload_length allows up to 1024 for FSK/OOK long-packet RX; LoRa's 8 bit
+    register limit (255) is enforced separately in validate_config()."""
     validator = next(
         v for k, v in CONFIG_SCHEMA.schema.items() if str(k) == "payload_length"
     )
-    assert validator(255) == 255
+    assert validator(1024) == 1024
     with pytest.raises(cv.Invalid):
-        validator(256)
+        validator(1025)
