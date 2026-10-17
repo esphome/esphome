@@ -7,19 +7,26 @@ namespace esphome::uart_terminal {
 ESPHOME_LOG_TAG(TAG, "uart_terminal");
 
 static constexpr uint8_t CRLF[] = {'\r', '\n'};
+// Unchanged frames are skipped, but a terminal attached later must still get the screen: every so many
+// updates the frame goes out again, with the screen cleared first
+static constexpr uint8_t FULL_REDRAW_INTERVAL = 10;
 
 void HOT Terminal::display() {
   const size_t size = this->rows_ * this->columns_;
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < size; i++)
     hash = fnv1a_hash_extend(hash, this->buffer_[i]);
-  if (this->shown_ && hash == this->last_frame_hash_)
+  const bool full = this->updates_until_redraw_ == 0;
+  if (!full && hash == this->last_frame_hash_) {
+    this->updates_until_redraw_--;
     return;
+  }
   this->last_frame_hash_ = hash;
-  this->shown_ = true;
+  this->updates_until_redraw_ = FULL_REDRAW_INTERVAL;
 
-  // Move the cursor home; every cell is rewritten, so no clear is needed
-  this->write_str("\x1B[H");
+  // Clear the screen on a full redraw, so text outside the grid goes; otherwise only move the cursor home,
+  // since every cell is rewritten
+  this->write_str(full ? "\x1B[2J\x1B[H" : "\x1B[H");
   for (uint8_t row = 0; row < this->rows_; row++) {
     this->write_array(&this->buffer_[row * this->columns_], this->columns_);
     if (row + 1 < this->rows_)

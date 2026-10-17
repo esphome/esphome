@@ -21,7 +21,7 @@ class Terminal final : public text_display::TextDisplay, public uart::UARTDevice
   void call_writer() override { this->writer_(*this); }
   terminal_writer_t writer_;
   uint32_t last_frame_hash_{0};
-  bool shown_{false};
+  uint8_t updates_until_redraw_{0};  // 0 forces the next frame out with a cleared screen
 };
 
 }  // namespace esphome::uart_terminal

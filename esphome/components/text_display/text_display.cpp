@@ -23,6 +23,9 @@ void TextDisplay::setup() {
 }
 
 void TextDisplay::update() {
+  // A menu calls this directly, so the failed allocation is checked here too
+  if (this->buffer_ == nullptr)
+    return;
   this->clear();
   this->call_writer();
   this->display();
@@ -31,6 +34,8 @@ void TextDisplay::update() {
 void TextDisplay::clear() { memset(this->buffer_, ' ', this->rows_ * this->columns_); }
 
 void TextDisplay::print(uint8_t column, uint8_t row, const char *str) {
+  if (this->buffer_ == nullptr)
+    return;
   const uint16_t size = this->rows_ * this->columns_;
   uint16_t pos = column + row * this->columns_;
   for (; *str != '\0'; str++) {
