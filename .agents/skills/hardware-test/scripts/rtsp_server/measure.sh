@@ -3,7 +3,8 @@
 # Runs the fixed RTSP measurement set against one build and appends a result line to OUTDIR/results.txt:
 # ping RTT, two 12 s ffmpeg runs, two concurrent ffmpeg clients, and the raw receive rate with the default
 # and a 1 MiB socket buffer. LOGFILE is the device capture, used to count "stalled" drops during the run.
-# Needs ffmpeg and a python with the rtsp scripts' dependencies (PYTHON, default python3).
+# A measurement that produced nothing is written as ERR and the script exits 1, so a broken run never looks
+# like a measured one. Needs ffmpeg and a python with the rtsp scripts' dependencies (PYTHON, default python3).
 D=${0:A:h}
 IP=$1; LABEL=$2; LOG=$3; S=${4:-.}
 PY=${PYTHON:-python3}
@@ -18,5 +19,10 @@ fa=$(grep -o 'frame= *[0-9]*' $S/m-twoA.txt | tail -1 | tr -dc 0-9); fb=$(grep -
 raw=$(timeout 40 $PY $D/rawrate2.py $IP quiet 2>&1 | grep -o "[0-9.]* KiB/s" | head -1); sleep 2
 raw2=$(timeout 40 $PY $D/rawrate2.py $IP bigbuf 2>&1 | grep -o "[0-9.]* KiB/s" | head -1); sleep 1
 stall1=$(grep -a -c "stalled" $LOG)
+bad=0
+for v in rtt f1 f2 fa fb raw raw2; do
+  if [ -z "${(P)v}" ]; then eval "$v=ERR"; bad=1; fi
+done
 line="$LABEL | rtt avg ${rtt} ms | ffmpeg single 12 s: ${f1}, ${f2} frames | two clients: ${fa} + ${fb} | python raw: ${raw} (1 MiB rcvbuf ${raw2}) | stalls logged: $((stall1 - stall0))"
 echo "$line" | tee -a $S/results.txt
+if [ $bad = 1 ]; then echo "one or more measurements failed (ERR above)"; exit 1; fi

@@ -6,7 +6,7 @@ import re
 import sys
 import time
 
-from aioesphomeapi import APIClient
+from aioesphomeapi import APIClient, APIConnectionError
 
 HOST, KEY, CAPTURE, BASE, MODE = sys.argv[1:6]
 CAP_S = 45
@@ -92,13 +92,18 @@ async def connect() -> tuple[APIClient, dict, int]:
         try:
             c = APIClient(HOST, 6053, None, noise_psk=KEY)
             await c.connect(login=True)
-            _, services = await c.list_entities_services()
-            ents, _ = await c.list_entities_services()
-            btn = next(e.key for e in ents if getattr(e, "object_id", "") == "reboot")
-            return c, {s.name: s for s in services}, btn
-        except Exception as exc:  # noqa: BLE001
+            ents, services = await c.list_entities_services()
+        except (APIConnectionError, OSError) as exc:
+            # only connection trouble is retried; a wrong key or a missing button must fail at once
             print(f"connect: {exc}", flush=True)
             await asyncio.sleep(3)
+            continue
+        btn = next(
+            (e.key for e in ents if getattr(e, "object_id", "") == "reboot"), None
+        )
+        if btn is None:
+            raise SystemExit("the config has no reboot button")
+        return c, {s.name: s for s in services}, btn
     raise SystemExit("API never connected")
 
 
@@ -160,6 +165,8 @@ async def main() -> None:
         else "MISMATCHES: " + ", ".join(r[0] for r in rows if not r[5]),
         flush=True,
     )
+    if not all(r[5] for r in rows):
+        sys.exit(1)
 
 
 asyncio.run(main())

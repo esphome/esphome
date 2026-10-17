@@ -309,12 +309,17 @@ for case in cases:
         elif case == "timeout":
             c = Client(timeout=70)
             setup_play(c)
-            c.s.settimeout(None)
+            c.s.settimeout(
+                2
+            )  # a server that stops sending but never closes must not hang the run
             t0 = time.monotonic()
             dead = False
             try:
                 while time.monotonic() - t0 < 68:
-                    d = c.s.recv(65536)
+                    try:
+                        d = c.s.recv(65536)
+                    except TimeoutError:
+                        continue
                     if not d:
                         dead = True
                         break
@@ -337,3 +342,4 @@ print(
     sum(1 for r in results if not r[1]),
     "fail",
 )
+sys.exit(1 if any(not r[1] for r in results) else 0)

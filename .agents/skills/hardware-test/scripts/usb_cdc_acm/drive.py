@@ -129,7 +129,6 @@ for case in cases:
         s.close()
         expect = bytes((ord("a") + (i % 26)) for i in range(200))
         say(case, got == expect, f"{len(got)}/200 bytes, flush result in device log")
-        # flush with the port closed (DTR off): device must return FAILED at once, see log
         time.sleep(0.5)
     elif case == "peek":
         s = open_port()
@@ -149,19 +148,15 @@ for case in cases:
             time.sleep(0.4)
             s.close()
             time.sleep(0.3)
-        say(
-            case, True, "opened at 9600, 115200, 921600; device log must show each baud"
-        )
+        info(case, "opened at 9600, 115200, 921600; the device log must show each baud")
     elif case == "dtr":
         for _i in range(5):
             s = open_port()
             time.sleep(0.3)
             s.close()
             time.sleep(0.3)
-        say(
-            case,
-            True,
-            "5 open/close cycles; device log must show 5 Opened and 5 Closed",
+        info(
+            case, "5 open/close cycles; the device log must show 5 Opened and 5 Closed"
         )
     elif case == "stream":
         # device streams 100 x 100 byte lines over 10 s; close the port for 3 s in the middle
@@ -195,7 +190,7 @@ for case in cases:
         cmd(s, b"C")
         time.sleep(0.3)
         s.close()
-        say(case, True, "counters in device log")
+        info(case, "counters are in the device log")
     time.sleep(0.5)
 
 print(
@@ -205,3 +200,4 @@ print(
     sum(1 for r in results if not r[1]),
     "fail",
 )
+sys.exit(1 if any(not r[1] for r in results) else 0)
