@@ -36,22 +36,37 @@ CONFIG_SCHEMA = (
 )
 
 
-def _no_duplicate_pattern_on_a_bus(config: ConfigType) -> ConfigType:
-    """The first matching sensor takes the bytes, so a second one with the same pattern would never fire."""
+def _one_hub_per_bus(config: ConfigType) -> ConfigType:
+    """The first matching sensor takes the bytes, so a pattern that ends another on the same bus
+    would leave one of them dead; and the sensors of a bus share one hub, so they cannot name
+    different ones."""
+    data = bytes(config[CONF_DATA])
     for other in fv.full_config.get().get("binary_sensor", []):
         if (
-            other.get("platform") == "uart"
-            and other is not config
-            and other[CONF_UART_ID] == config[CONF_UART_ID]
-            and bytes(other[CONF_DATA]) == bytes(config[CONF_DATA])
+            other.get("platform") != "uart"
+            or other is config
+            or other[CONF_UART_ID] != config[CONF_UART_ID]
+        ):
+            continue
+        other_data = bytes(other[CONF_DATA])
+        if other_data.endswith(data) or data.endswith(other_data):
+            raise cv.Invalid(
+                f"Another uart binary_sensor on '{config[CONF_UART_ID]}' has data this pattern "
+                "would match as well"
+            )
+        if (
+            config[CONF_HUB_ID].is_manual
+            and other[CONF_HUB_ID].is_manual
+            and other[CONF_HUB_ID] != config[CONF_HUB_ID]
         ):
             raise cv.Invalid(
-                f"Another uart binary_sensor on '{config[CONF_UART_ID]}' already matches this data"
+                f"The uart binary_sensors on '{config[CONF_UART_ID]}' share one hub; "
+                f"only one hub_id can be set"
             )
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _no_duplicate_pattern_on_a_bus
+FINAL_VALIDATE_SCHEMA = _one_hub_per_bus
 
 
 def _hubs() -> dict[ID, cg.MockObj]:
