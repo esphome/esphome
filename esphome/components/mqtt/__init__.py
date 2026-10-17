@@ -6,6 +6,7 @@ from esphome.components.esp32 import (
     idf_version,
     include_builtin_idf_component,
     request_tls,
+    require_certificate_bundle,
 )
 from esphome.config_helpers import (
     filter_source_files_from_defines,
@@ -61,6 +62,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
+    Framework,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -78,6 +80,12 @@ def AUTO_LOAD():
 
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_TRANSPORT = "transport"
+CONF_WS_PATH = "ws_path"
+
+MQTT_TRANSPORT_TCP = "tcp"
+MQTT_TRANSPORT_WS = "ws"
+MQTT_TRANSPORT_WSS = "wss"
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
@@ -155,8 +163,54 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
     "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
+# Only ESP-IDF's esp-mqtt implements MQTT over WebSocket
+MQTTTransport = mqtt_ns.enum("MQTTTransport", is_class=True)
+MQTT_TRANSPORT_OPTIONS = {
+    MQTT_TRANSPORT_TCP: MQTTTransport.MQTT_TRANSPORT_TCP,
+    MQTT_TRANSPORT_WS: MQTTTransport.MQTT_TRANSPORT_WS,
+    MQTT_TRANSPORT_WSS: MQTTTransport.MQTT_TRANSPORT_WSS,
+}
+
+
+def _validate_transport(value: str) -> str:
+    value = cv.enum(MQTT_TRANSPORT_OPTIONS, lower=True)(value)
+    if value in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
+        if not CORE.is_esp32:
+            raise cv.Invalid(
+                f"transport '{value}' is currently only supported on ESP32"
+            )
+        if CORE.target_framework != Framework.ESP_IDF:
+            raise cv.Invalid(f"transport '{value}' requires the esp-idf framework")
+    return value
+
 
 def validate_config(value):
+    transport = value.get(CONF_TRANSPORT)
+    # A certificate with plain ws is almost certainly a typo for wss
+    if transport == MQTT_TRANSPORT_WS and (
+        CONF_CERTIFICATE_AUTHORITY in value or CONF_CLIENT_CERTIFICATE in value
+    ):
+        raise cv.Invalid(
+            "transport 'ws' is unencrypted; remove the certificate options "
+            "or switch to transport 'wss'"
+        )
+    # TLS runs only with a CA or over wss, so a client certificate needs one of them
+    if (
+        CONF_CLIENT_CERTIFICATE in value
+        and CONF_CERTIFICATE_AUTHORITY not in value
+        and transport != MQTT_TRANSPORT_WSS
+    ):
+        raise cv.Invalid(
+            "'client_certificate' requires 'certificate_authority' or transport 'wss'"
+        )
+    if (
+        transport not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
+        and CONF_WS_PATH in value
+    ):
+        raise cv.Invalid(
+            f"'{CONF_WS_PATH}' is only valid when 'transport' is 'ws' or 'wss'"
+        )
+
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
@@ -232,6 +286,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
+            cv.Optional(
+                CONF_TRANSPORT, default=MQTT_TRANSPORT_TCP
+            ): _validate_transport,
+            cv.Optional(CONF_WS_PATH): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
@@ -436,12 +494,23 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
-    if CONF_CERTIFICATE_AUTHORITY in config:
-        cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
+    transport = config.get(CONF_TRANSPORT)
+    if (ca := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
+        cg.add(var.set_ca_certificate(ca))
+    if ca is not None or transport == MQTT_TRANSPORT_WSS:
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
-        if CONF_CLIENT_CERTIFICATE in config:
-            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+        if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
+            cg.add(var.set_cl_certificate(client_certificate))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
+
+    if CORE.is_esp32:
+        if transport != MQTT_TRANSPORT_TCP:
+            cg.add(var.set_transport(transport))
+        if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
+            cg.add(var.set_ws_path(config.get(CONF_WS_PATH, "/mqtt")))
+        # wss without an explicit CA verifies the broker against the bundled roots
+        if transport == MQTT_TRANSPORT_WSS and ca is None:
+            require_certificate_bundle()
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
