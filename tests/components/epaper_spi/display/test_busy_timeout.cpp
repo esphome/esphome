@@ -85,7 +85,7 @@ TEST(EPaperBusyTimeout, StuckBusyPinAbandonsTheUpdateAndRecovers) {
 
 class TestableT133A01 : public EPaperT133A01 {
  public:
-  TestableT133A01() : EPaperT133A01("test", 8, 2, nullptr, 0) {}
+  TestableT133A01() : EPaperT133A01("test", 8, 2, nullptr, 0, true) {}
 
   void install(spi::SPIDelegate *delegate) {
     this->delegate_ = delegate;
@@ -98,6 +98,10 @@ class TestableT133A01 : public EPaperT133A01 {
 
   void start_transfer() { this->set_state_(EPaperState::TRANSFER_DATA); }
   EPaperState state() const { return this->state_; }
+
+  using EPaperT133A01::transfer_sub_;
+  using EPaperT133A01::TRF_PARTIAL_WAIT_M;
+  using EPaperT133A01::waiting_for_idle_;
 
   RecordingPin dc, cs, cs1;
   SwitchableBusyPin busy;
@@ -122,6 +126,26 @@ TEST(EPaperBusyTimeout, AbandonedT133A01TransferReleasesTheBus) {
   EXPECT_EQ(delegate.begin_count, delegate.end_count) << "SPI transaction left open";
   EXPECT_TRUE(display.cs.level) << "CS left asserted";
   EXPECT_TRUE(display.cs1.level) << "CS1 left asserted";
+}
+
+/// A partial update waits for the busy pin between its two halves. That wait must use the same timeout as every other
+/// wait, so a stuck pin abandons the update instead of leaving the display busy for ever and refusing every later
+/// update.
+TEST(EPaperBusyTimeout, StuckBusyPinDuringPartialUpdateAbandonsIt) {
+  TestableT133A01 display;
+  TimedSPIDelegate delegate(0);
+  display.install(&delegate);
+
+  // The first half of a partial update has been sent and the transfer is waiting for the panel. The wait on
+  // entering TRANSFER_DATA is long over, so the stuck pin is first seen by the partial path's own wait.
+  display.start_transfer();
+  display.waiting_for_idle_ = false;
+  display.transfer_sub_ = TestableT133A01::TRF_PARTIAL_WAIT_M;
+  display.busy.busy = true;
+
+  loop_until_idle(display);
+
+  EXPECT_EQ(display.state(), EPaperState::IDLE) << "a stuck busy pin during a partial update was never given up on";
 }
 
 /// Abandoning an update powers the panel off, so it is not left with its high-voltage drivers enabled.

@@ -8,7 +8,7 @@ namespace esphome::epaper_spi::testing {
 /// Exposes the protected transfer machinery so the yield behaviour can be driven directly.
 class TestableT133A01 : public EPaperT133A01 {
  public:
-  TestableT133A01(uint16_t width, uint16_t height) : EPaperT133A01("test", width, height, nullptr, 0) {}
+  TestableT133A01(uint16_t width, uint16_t height) : EPaperT133A01("test", width, height, nullptr, 0, true) {}
 
   void install(spi::SPIDelegate *delegate) {
     this->delegate_ = delegate;
@@ -18,6 +18,9 @@ class TestableT133A01 : public EPaperT133A01 {
   }
 
   using EPaperT133A01::transfer_data;
+  using EPaperT133A01::state_;
+  using EPaperT133A01::transfer_sub_;
+  using EPaperT133A01::TRF_PARTIAL_DATA_M;
 
   RecordingPin dc, cs, cs1;
 };
@@ -72,6 +75,26 @@ TEST(EPaperT133A01, TransferReportsDoneOnlyAfterReleasingTheBus) {
   EXPECT_TRUE(display.cs1.level) << "transfer reported done with CS1 still asserted";
   EXPECT_EQ(delegate.begin_count, delegate.end_count)
       << "transfer reported done with an SPI transaction still open -- the next enable() would deadlock";
+}
+
+/// A polling `update()` that arrives while a partial update is still transferring must be
+/// ignored. If it switches the transfer back to the full-frame path, the next `transfer_data()`
+/// call starts a full frame while the partial transfer still holds the SPI transaction open,
+/// and the nested `enable()` deadlocks (the same failure as issue #17668).
+TEST(EPaperT133A01, UpdateDuringPartialTransferDoesNotChangeTransferPath) {
+  TestableT133A01 display(8, 2);
+  TimedSPIDelegate delegate(0);
+  display.install(&delegate);
+
+  // Put the display in the middle of a partial update's data phase.
+  display.state_ = EPaperState::TRANSFER_DATA;
+  display.transfer_sub_ = TestableT133A01::TRF_PARTIAL_DATA_M;
+
+  display.update();
+
+  EXPECT_EQ(display.state_, EPaperState::TRANSFER_DATA) << "update() must not restart a busy display";
+  EXPECT_EQ(display.transfer_sub_, TestableT133A01::TRF_PARTIAL_DATA_M)
+      << "update() switched an in-flight partial transfer to the full-frame path";
 }
 
 }  // namespace esphome::epaper_spi::testing
