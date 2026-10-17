@@ -3,13 +3,14 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cstring>
+#include <limits>
 
 // Helper macros
 #define PARSE_INT(field, field_name) \
   { \
     get_token(token_buf); \
     auto val = parse_number<int>(token_buf); \
-    if (val.has_value()) { \
+    if (val.has_value() && in_range<decltype(field)>(*val)) { \
       (field) = val.value(); \
     } else { \
       ESP_LOGV(TAG, "invalid " field_name " in line %s", buffer); \
@@ -29,6 +30,15 @@
 namespace esphome::pylontech {
 
 ESPHOME_LOG_TAG(TAG, "pylontech");
+
+// Rejects values that would wrap in a narrowed field
+template<typename T> static bool in_range(int value) {
+  if constexpr (sizeof(T) >= sizeof(int)) {
+    return true;
+  } else {
+    return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
+  }
+}
 
 PylontechComponent::PylontechComponent() {}
 
@@ -209,7 +219,7 @@ void PylontechComponent::process_line_(const char *buffer) {
       }
     }
     auto coul_val = parse_number<int>(token_buf);
-    if (coul_val.has_value()) {
+    if (coul_val.has_value() && in_range<decltype(l.coulomb)>(*coul_val)) {
       l.coulomb = coul_val.value();
     } else {
       ESP_LOGV(TAG, "invalid Coulomb in line %s", buffer);

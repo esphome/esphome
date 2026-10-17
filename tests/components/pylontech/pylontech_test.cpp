@@ -204,6 +204,15 @@ TEST_F(PylontechTest, BatteryWithoutListenerIsIgnored) {
   EXPECT_EQ(this->published_()[1].bat_num, 2);
 }
 
+TEST_F(PylontechTest, OutOfRangeValueRejectsTheLine) {
+  this->uart_.push_rx({HEADER, bat_line(1, -1), bat_line(1, 70000), BAT2});
+  for (int i = 0; i < 3; i++) {
+    this->hub_.loop();
+  }
+  ASSERT_EQ(this->published_().size(), 1u);
+  EXPECT_EQ(this->published_()[0].bat_num, 2);
+}
+
 TEST_F(PylontechTest, InvalidAndUnknownLinesAreSkipped) {
   this->uart_.push_rx({"pwr\r\n@\r\n", HEADER, "1     abc\r\n", BAT2, "$$\r\n"});
   for (int i = 0; i < 3; i++) {
