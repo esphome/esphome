@@ -8,7 +8,9 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
+from esphome.const import CONF_TIMEOUT
 from esphome.core import CORE, ID
+from esphome.core.config import CONF_LOOP_INTERVAL, get_loop_interval
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -219,6 +221,23 @@ def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
         return consume_sockets(1, component)(config)
 
     return validator
+
+
+def final_validate_idle_timeout(config: ConfigType) -> ConfigType:
+    """A link timeout of 0s is off; any other value lasts at least one loop pass."""
+    timeout = config[CONF_TIMEOUT]
+    if timeout.total_milliseconds == 0:
+        return config
+    loop_interval = get_loop_interval()
+    if timeout.total_milliseconds < loop_interval.total_milliseconds:
+        raise cv.Invalid(
+            f"{CONF_TIMEOUT} of {timeout} is shorter than one main loop pass "
+            f"({CONF_LOOP_INTERVAL} of {loop_interval}) and would close the link "
+            "between polls. Use 0s to turn the timeout off, or at least "
+            f"{loop_interval}.",
+            path=[CONF_TIMEOUT],
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.Schema(

@@ -8,6 +8,7 @@ uart_tcp:
     uart_id: uart_bus
     host: 127.0.0.1
     port: 44502
+    timeout: 30s
     connected:
       name: UART TCP Connected
     disconnects:
