@@ -19,6 +19,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import EsphomeError
 
@@ -59,6 +60,10 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
     PLATFORM_RP2: {
         "state_markers": ["CRASH DETECTED ON PREVIOUS BOOT"],
         "addresses": ["PC:  0x10001234 (fault location)"],
+    },
+    PLATFORM_BK72XX: {
+        "state_markers": ["CRASH DETECTED ON PREVIOUS BOOT"],
+        "addresses": ["PC:  0x0001614A  (fault location)"],
     },
     PLATFORM_NRF52: {
         "state_markers": ["Last crash:"],
@@ -168,6 +173,7 @@ FIRMWARE_MARKER_SOURCES = {
         "esphome/components/esp32/crash_handler.cpp",
         "esphome/components/esp8266/crash_handler.cpp",
         "esphome/components/rp2/crash_handler.cpp",
+        "esphome/components/libretiny/crash_handler.cpp",
     ),
     "Last crash:": ("esphome/components/logger/logger_zephyr.cpp",),
 }
@@ -222,7 +228,8 @@ DECODER_PATTERNS: dict[str, list[str]] = {
         "STACKTRACE_BAD_ALLOC_RE",
         "STACKTRACE_ESP8266_BACKTRACE_PC_RE",
     ],
-    PLATFORM_RP2: ["_CRASH_RE", "_CRASH_ADDR_RE"],
+    PLATFORM_RP2: ["CRASH_HANDLER_RE", "CRASH_HANDLER_ADDR_RE"],
+    PLATFORM_BK72XX: ["CRASH_HANDLER_RE", "CRASH_HANDLER_ADDR_RE"],
     PLATFORM_NRF52: ["STACKTRACE_NRF52_PC_LR_RE"],
 }
 
@@ -533,7 +540,7 @@ def test_processor_registry_miss_disables_at_construction(
     caplog.set_level("INFO", logger="esphome.platform_hooks")
 
     with patch.object(stacktrace.platform_hooks, "import_module") as mock_import:
-        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_BK72XX)
+        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_RTL87XX)
         processor.process_line("PC: 0x40104960")
 
     mock_import.assert_not_called()

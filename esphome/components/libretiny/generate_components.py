@@ -146,6 +146,19 @@ COMPONENT_CODEOWNERS = {
     "ln882x": ["@lamauny"],
 }
 
+# Extra import lines per component. The CLI finds a platform's process_stacktrace
+# hook on the platform package (esphome/platform_hooks.py); BK72xx has a crash
+# handler whose report the shared decoder reads.
+COMPONENT_EXTRA_IMPORTS = {
+    "bk72xx": (
+        "from esphome.stacktrace import (  # noqa: F401\n"
+        "    CRASH_HANDLER_ADDR_RE,\n"
+        "    CRASH_HANDLER_RE,\n"
+        "    process_crash_handler_line as process_stacktrace,\n"
+        ")"
+    ),
+}
+
 
 def subst(code: str, key: str, value: str) -> str:
     return code.replace(f"{{{key}}}", value)
@@ -222,6 +235,8 @@ def write_component_code(
     import_lines = "\n".join(
         f"from .{m} import {', '.join(sorted(v))}" for m, v in imports.items() if v
     )
+    if extra := COMPONENT_EXTRA_IMPORTS.get(component):
+        import_lines = f"{extra}\n{import_lines}"
     code = subst_many(
         code,
         ("IMPORTS", import_lines),

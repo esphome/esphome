@@ -8,7 +8,9 @@ or any platform package.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import re
+import subprocess
 from typing import TYPE_CHECKING
 
 from esphome import platform_hooks
@@ -122,3 +124,54 @@ class LogLineProcessor:
                     self._platform,
                     detail,
                 )
+
+
+# The crash handler report (rp2/crash_handler.cpp, libretiny/crash_handler.cpp)
+# prints one address per line so this decoder works on a streaming log.
+CRASH_HANDLER_RE = re.compile(r"CRASH DETECTED ON PREVIOUS BOOT")
+CRASH_HANDLER_ADDR_RE = re.compile(
+    r"(?:PC|LR|BT\d):\s+(0x[0-9a-fA-F]{8})\s+\((?:fault location|return address|stack backtrace)\)"
+)
+
+
+def _addr2line(tool: str, elf: Path, addr: str) -> str:
+    try:
+        result = subprocess.run(
+            [tool, "-pfiaC", "-e", str(elf), addr],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return f"{addr} (decode failed)"
+
+
+def process_crash_handler_line(
+    config: ConfigType, line: str, backtrace_state: bool
+) -> bool:
+    """Decode a crash handler report with addr2line.
+
+    Platforms whose firmware prints that report expose this as their
+    ``process_stacktrace`` hook.
+    """
+    if CRASH_HANDLER_RE.search(line):
+        _LOGGER.error("Crash detected - decoding addresses")
+        return True
+
+    if backtrace_state:
+        if match := CRASH_HANDLER_ADDR_RE.search(line):
+            from esphome.platformio.toolchain import get_idedata
+
+            idedata = get_idedata(config)
+            if idedata.addr2line_path:
+                elf = idedata.firmware_elf_path
+                if elf.exists():
+                    decoded = _addr2line(idedata.addr2line_path, elf, match.group(1))
+                    _LOGGER.error("  %s => %s", match.group(1), decoded)
+
+        # The addr2line hint is the last line of the report
+        if "addr2line" in line:
+            return False
+
+    return backtrace_state

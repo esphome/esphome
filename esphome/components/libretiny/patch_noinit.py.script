@@ -1,0 +1,62 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import os
+import re
+
+# Adds a .noinit output section to the BK7238 / BK7231N linker script for the
+# crash handler's record (crash_handler.cpp). It goes into the ITCM region
+# right after the SDK's own ITCM code: the bootloader clears the first
+# ~144 KB of SRAM on every boot (measured on a BK7238) and rewrites the SDK's
+# saved-register area, while ITCM keeps its content across the watchdog reset
+# that follows a crash and the SDK startup only copies .itcm.code there.
+#
+# LibreTiny renders bk7238_bsp.template.ld / bk7231n_bsp.template.ld into
+# $BUILD_DIR; both place ".itcm.code ... } > itcm AT>flash" first, and the new
+# section follows it. The LMA stays in ITCM so no flash is used. The BK7231T,
+# BK7231Q and BK7251 script has no ITCM region, so this script is only loaded
+# for the two families above (libretiny/__init__.py).
+
+_MARKER = "/* esphome .noinit */"
+_ITCM_CODE_END = re.compile(r"(\}\s*>\s*itcm\s+AT\s*>\s*flash[^\n]*\n)")
+_NOINIT_BLOCK = (
+    "\t.noinit (NOLOAD) : " + _MARKER + "\n"
+    "\t{\n"
+    "\t\t. = ALIGN(8);\n"
+    "\t\tKEEP(*(.noinit .noinit.*))\n"
+    "\t} > itcm AT> itcm\n"
+)
+
+
+def _pre_link(target, source, env):
+    build_dir = env.subst("$BUILD_DIR")
+    found = False
+    for name in os.listdir(build_dir):
+        if not name.endswith(".ld"):
+            continue
+        path = os.path.join(build_dir, name)
+        with open(path, "r", encoding="utf-8") as fh:
+            content = fh.read()
+        if _MARKER in content:
+            found = True
+            continue
+        new_content = _ITCM_CODE_END.sub(
+            lambda m: m.group(1) + _NOINIT_BLOCK, content, count=1
+        )
+        if new_content == content:
+            continue
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(new_content)
+        print("ESPHome: patched {} (.noinit section)".format(name))
+        found = True
+    if not found:
+        raise RuntimeError(
+            "ESPHome: no .ld in {} got the .noinit section; the crash record "
+            "would not survive a reboot. Update the regex in "
+            "patch_noinit.py.script for this LibreTiny version.".format(build_dir)
+        )
+
+
+# LibreTiny writes the rendered .ld into $BUILD_DIR during its own builder
+# setup, which may run after this script, so patch right before the link.
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)
