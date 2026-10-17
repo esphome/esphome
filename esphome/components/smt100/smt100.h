@@ -8,7 +8,7 @@
 namespace esphome::smt100 {
 
 class SMT100Component final : public PollingComponent, public uart::UARTDevice {
-  // Holds the longest line, "15000,80.00,100.00,-20.00,12.00" (31 characters), plus the NUL
+  // 33 characters plus the NUL; the longest line, "15000,80.00,100.00,-20.00,12.00", is 31
   static constexpr uint16_t LINE_BUFFER_SIZE = 34;
 
  public:
