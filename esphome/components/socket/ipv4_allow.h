@@ -59,7 +59,7 @@ class Ipv4Allow {
     return e;
   }
 
- private:
+ protected:
   static constexpr uint32_t REJECT_LOG_INTERVAL_MS = 5000;
 
   const Ipv4AllowEntry *entries_{nullptr};
