@@ -160,7 +160,7 @@ def normalize_type(value: str) -> str:
 
 
 def normalize_gas(value: str) -> str:
-    """``"h2"`` / ``"H-2"`` -> ``"H2"``; ``"ethyl alcohol"`` -> ``"ETHYL_ALCOHOL"``."""
+    """``"h2"`` -> ``"H2"``; ``"ethyl alcohol"`` -> ``"ETHYL_ALCOHOL"``."""
     return str(value).strip().upper().replace("-", "_").replace(" ", "_")
 
 

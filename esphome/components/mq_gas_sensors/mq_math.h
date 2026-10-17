@@ -171,7 +171,9 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
 
   double ppm;
   if (will_overflow(log_ppm)) {
-    ppm = (std::isnan(log_ppm) || log_ppm > 0.0) ? static_cast<double>(FLT_MAX) : 0.0;
+    // `will_overflow()` is false for NaN, so a NaN `log_ppm` reaches `safe_pow()` and
+    // comes back as NaN, which is returned as unknown below.
+    ppm = log_ppm > 0.0 ? static_cast<double>(FLT_MAX) : 0.0;
   } else {
     ppm = safe_pow(10.0, log_ppm);
   }
