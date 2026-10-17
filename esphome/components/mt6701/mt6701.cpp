@@ -9,8 +9,11 @@ bool MT6701Component::read_encoder() {
 
   uint16_t count;
   if (!this->read_count(count)) {
-    if (this->consecutive_errors_ < MAX_CONSECUTIVE_ERRORS && ++this->consecutive_errors_ == MAX_CONSECUTIVE_ERRORS)
-      this->status_set_warning(LOG_STR("repeated read/CRC errors"));
+    if (this->consecutive_errors_ < MAX_CONSECUTIVE_ERRORS) {
+      this->consecutive_errors_++;
+      if (this->consecutive_errors_ == MAX_CONSECUTIVE_ERRORS)
+        this->status_set_warning(LOG_STR("repeated read/CRC errors"));
+    }
     return false;
   }
   if (this->consecutive_errors_ != 0) {

@@ -10,6 +10,10 @@ namespace esphome::mt6701_spi {
 /// SSI is read-only: it cannot write configuration registers, but every frame
 /// carries the magnetic-field status, push button and track-loss flags that the
 /// I2C interface does not expose. Each 24-bit frame is CRC-checked.
+///
+/// The chip shifts data out on the rising clock edge, so it is sampled on the falling edge
+/// with the clock idle low: the 24 bits then line up without the extra leading bit that a
+/// clock idling high would read.
 class MT6701SPIComponent final : public mt6701::MT6701Component,
                                  public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                        spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {

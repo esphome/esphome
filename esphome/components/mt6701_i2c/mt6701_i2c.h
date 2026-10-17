@@ -2,7 +2,6 @@
 
 #include "esphome/components/mt6701/mt6701.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome::mt6701_i2c {
 
@@ -67,18 +66,22 @@ class MT6701I2CComponent final : public mt6701::MT6701Component, public i2c::I2C
   /// Read-modify-write the given bits of a register, preserving the others.
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
-  optional<uint8_t> direction_;
-  optional<uint16_t> zero_offset_;
-  optional<uint8_t> hysteresis_;
-  optional<uint8_t> output_mode_;
-  optional<uint16_t> abz_pulses_per_revolution_;
-  optional<uint8_t> z_pulse_width_;
-  optional<uint8_t> uvw_pole_pairs_;
-  optional<uint8_t> out_pin_mode_;
-  optional<uint8_t> pwm_frequency_;
-  optional<uint8_t> pwm_polarity_;
-  optional<uint16_t> analog_start_;
-  optional<uint16_t> analog_stop_;
+  // Every option is above its field's range when unset, so no option needs an optional
+  static constexpr uint16_t UNSET_U16 = 0xFFFF;
+  static constexpr uint8_t UNSET_U8 = 0xFF;
+
+  uint16_t zero_offset_{UNSET_U16};
+  uint16_t abz_pulses_per_revolution_{UNSET_U16};
+  uint16_t analog_start_{UNSET_U16};
+  uint16_t analog_stop_{UNSET_U16};
+  uint8_t direction_{UNSET_U8};
+  uint8_t hysteresis_{UNSET_U8};
+  uint8_t output_mode_{UNSET_U8};
+  uint8_t z_pulse_width_{UNSET_U8};
+  uint8_t uvw_pole_pairs_{UNSET_U8};
+  uint8_t out_pin_mode_{UNSET_U8};
+  uint8_t pwm_frequency_{UNSET_U8};
+  uint8_t pwm_polarity_{UNSET_U8};
 };
 
 }  // namespace esphome::mt6701_i2c
