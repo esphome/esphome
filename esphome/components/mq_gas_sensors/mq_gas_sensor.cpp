@@ -1,5 +1,6 @@
 #include "mq_gas_sensor.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 #include "esphome/core/application.h"
@@ -107,8 +108,10 @@ void MQGasSensor::update() {
   if (!this->has_r0()) {
     if (!this->warned_no_r0_) {
       this->warned_no_r0_ = true;
-      ESP_LOGW(TAG, "'%s %s': R0 unknown - set 'r0:' or 'calibration:' in the configuration", this->type_.c_str(),
-               this->gas_.c_str());
+      ESP_LOGW(TAG, "'%s %s': R0 unknown - %s", this->type_.c_str(), this->gas_.c_str(),
+               this->calibration_enabled_
+                   ? LOG_STR_LITERAL("the clean-air calibration did not complete, check the AO wiring and the supply")
+                   : LOG_STR_LITERAL("set 'r0:' or 'calibration:' in the configuration"));
     }
     this->publish_state(NAN);
     return;
@@ -205,12 +208,17 @@ void MQGasSensor::finish_calibration_() {
 
   const uint32_t attempts = this->calibration_attempts_;
   const uint32_t valid = this->calibration_count_;
+  // Every reading uses this R0, so a lucky minority of samples must not define it: at
+  // least half of the attempts has to have produced one, and at least two samples - or
+  // every sample, when the run took fewer than two.
+  const uint32_t required = std::min<uint32_t>(std::max<uint32_t>((attempts + 1) / 2, 2), attempts);
 
-  if (valid == 0) {
+  if (valid < required) {
     ESP_LOGE(TAG,
-             "'%s %s': calibration failed, none of the %" PRIu32 " samples produced a valid RS - check the AO "
-             "wiring and the supply",
-             this->type_.c_str(), this->gas_.c_str(), attempts);
+             "'%s %s': calibration failed, %" PRIu32 " of %" PRIu32
+             " samples produced a valid RS - check the AO wiring and the supply",
+             this->type_.c_str(), this->gas_.c_str(), valid, attempts);
+    this->status_set_warning(LOG_STR("clean-air calibration failed"));
     return;
   }
 
