@@ -292,8 +292,10 @@ void SpeakerSourceMediaPlayer::loop() {
     this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
   }
 
+  // After the source goes idle the speaker still plays its buffered audio, so also wait until it has stopped
   if (this->is_media_playing_() ||
-      (ann_ps.active_source == nullptr && ann_ps.pending_source == nullptr && !announcement_playlist_active)) {
+      (ann_ps.is_configured() && ann_ps.active_source == nullptr && ann_ps.pending_source == nullptr &&
+       !announcement_playlist_active && ann_ps.speaker->is_stopped())) {
     this->end_announcement_volume_();
   }
 
