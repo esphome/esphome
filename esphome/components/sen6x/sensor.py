@@ -19,7 +19,9 @@ from esphome.const import (
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
+    CONF_NORMALIZED_OFFSET_SLOPE,
     CONF_NOX,
+    CONF_OFFSET,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_4_0,
@@ -29,8 +31,11 @@ from esphome.const import (
     CONF_PMC_2_5,
     CONF_PMC_4_0,
     CONF_PMC_10_0,
+    CONF_STARTUP_DELAY,
     CONF_STD_INITIAL,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_COMPENSATION,
+    CONF_TIME_CONSTANT,
     CONF_TYPE,
     CONF_VOC,
     DEVICE_CLASS_CARBON_DIOXIDE,
@@ -53,6 +58,17 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 from esphome.types import ConfigType
+
+CONF_TEMPERATURE_ACCELERATION = "temperature_acceleration"
+CONF_K = "k"
+CONF_P = "p"
+CONF_T1 = "t1"
+CONF_T2 = "t2"
+
+# The device takes these as fixed-point words: offset x200, slope x10000, acceleration x10
+TEMPERATURE_OFFSET_SCALE = 200
+TEMPERATURE_SLOPE_SCALE = 10000
+TEMPERATURE_ACCELERATION_SCALE = 10
 
 CODEOWNERS = ["@martgras", "@mebner86", "@tuct"]
 DEPENDENCIES = ["i2c"]
@@ -108,6 +124,8 @@ def _gas_index_schema(
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend({cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(tuning_schema)})
 
+
+_acceleration_parameter = cv.float_range(min=0.1, max=6553.5)
 
 CONFIG_SCHEMA = cv.All(
     cv.rename_key(CONF_VOC, CONF_VOC_INDEX, removed_in="2027.2.0", component="sen6x"),
@@ -203,6 +221,31 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_STARTUP_DELAY, default="60s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(hours=1)),
+            ),
+            cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
+                {
+                    cv.Optional(CONF_OFFSET, default=0): cv.float_range(
+                        min=-163.84, max=163.835
+                    ),
+                    cv.Optional(
+                        CONF_NORMALIZED_OFFSET_SLOPE, default=0
+                    ): cv.float_range(min=-3.2768, max=3.2767),
+                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(
+                        min=0, max=65535
+                    ),
+                }
+            ),
+            cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
+                {
+                    cv.Optional(CONF_K, default=20.0): _acceleration_parameter,
+                    cv.Optional(CONF_P, default=20.0): _acceleration_parameter,
+                    cv.Optional(CONF_T1, default=100.0): _acceleration_parameter,
+                    cv.Optional(CONF_T2, default=300.0): _acceleration_parameter,
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -236,6 +279,26 @@ async def to_code(config: ConfigType) -> None:
     # The number concentration read and its sensors compile in only when one is configured
     if any(key in config for key in _PMC_KEYS):
         cg.add_define("USE_SEN6X_NUMBER_CONCENTRATION")
+
+    cg.add(var.set_startup_delay(config[CONF_STARTUP_DELAY]))
+
+    if (comp := config.get(CONF_TEMPERATURE_COMPENSATION)) is not None:
+        cg.add(
+            var.set_temperature_compensation(
+                round(comp[CONF_OFFSET] * TEMPERATURE_OFFSET_SCALE),
+                round(comp[CONF_NORMALIZED_OFFSET_SLOPE] * TEMPERATURE_SLOPE_SCALE),
+                comp[CONF_TIME_CONSTANT],
+            )
+        )
+    if (accel := config.get(CONF_TEMPERATURE_ACCELERATION)) is not None:
+        cg.add(
+            var.set_temperature_acceleration(
+                *(
+                    round(accel[key] * TEMPERATURE_ACCELERATION_SCALE)
+                    for key in (CONF_K, CONF_P, CONF_T1, CONF_T2)
+                )
+            )
+        )
 
     for key, func_name in SENSOR_MAP.items():
         if cfg := config.get(key):
