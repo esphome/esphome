@@ -155,6 +155,12 @@ def validate_wakeup_pin(
     return processed_pins
 
 
+_WAKEUP_PIN_MODE_BOTH_LEVELS = (
+    "Specify 'wakeup_pin_mode' either at the top level under 'deep_sleep' "
+    "or under the pin entry, not both"
+)
+
+
 def validate_config(config: ConfigType) -> ConfigType:
     wakeup_pins = config.get(CONF_WAKEUP_PIN)
     has_pin_mode = CONF_WAKEUP_PIN_MODE in config
@@ -173,8 +179,7 @@ def validate_config(config: ConfigType) -> ConfigType:
         if wakeup_pins and CONF_WAKEUP_PIN_MODE in (pin := wakeup_pins[0]):
             if has_pin_mode:
                 raise cv.Invalid(
-                    "Specify 'wakeup_pin_mode' either at the top level under 'deep_sleep' "
-                    "or under the pin entry, not both",
+                    _WAKEUP_PIN_MODE_BOTH_LEVELS,
                     path=[CONF_WAKEUP_PIN, 0, CONF_WAKEUP_PIN_MODE],
                 )
             # ESP32 has one global mode, which to_code() reads from the top level
@@ -187,8 +192,7 @@ def validate_config(config: ConfigType) -> ConfigType:
             )
         if CONF_WAKEUP_PIN_MODE in (pin := wakeup_pins[0]):
             raise cv.Invalid(
-                "Specify 'wakeup_pin_mode' either at the top level under 'deep_sleep' "
-                "or under the pin entry, not both",
+                _WAKEUP_PIN_MODE_BOTH_LEVELS,
                 path=[CONF_WAKEUP_PIN, 0, CONF_WAKEUP_PIN_MODE],
             )
         # Move the global mode into the single pin entry, which to_code() reads

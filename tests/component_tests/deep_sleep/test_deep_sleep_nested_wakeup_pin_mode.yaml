@@ -9,5 +9,5 @@ deep_sleep:
   id: deepsleep
   sleep_duration: 1min
   wakeup_pin:
-    - pin: GPIO12
+    - pin: GPIO4
       wakeup_pin_mode: KEEP_AWAKE

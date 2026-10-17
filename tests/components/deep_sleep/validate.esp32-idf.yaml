@@ -1,11 +1,9 @@
 substitutions:
-  wakeup_pin: GPIO12
+  wakeup_pin: GPIO4
 
 <<: !include common.yaml
 
-# Exercises the nested-list form of wakeup_pin on ESP32: the per-pin
-# wakeup_pin_mode is hoisted to the top level by validate_config so it
-# actually takes effect rather than being silently dropped.
+# Nested per-pin wakeup_pin_mode on ESP32 is hoisted to the top level
 deep_sleep:
   id: deep_sleep_1
   run_duration: 10s
