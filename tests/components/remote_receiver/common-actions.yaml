@@ -187,6 +187,11 @@ on_toto:
     - logger.log:
         format: "on_toto: %u %u %u"
         args: ["x.rc_code_1", "x.rc_code_2", "x.command"]
+on_aok:
+  then:
+    - logger.log:
+        format: "on_aok: %u %u %u"
+        args: ["x.remote_id", "x.channels", "x.command"]
 on_hob2hood:
   then:
     - logger.log:
