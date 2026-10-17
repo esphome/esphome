@@ -10,8 +10,8 @@ namespace esphome::fujitsu_general {
 constexpr uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
 constexpr uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
 
-// Util messages carry one command byte and no state; the button platform sends these.
-constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_OFF = 0x02;
+// Stateless util commands the button platform sends; OFF is a util message too but changes the
+// climate state, so it stays with transmit_state() in the .cpp
 constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY = 0x09;
 constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_VERTICAL = 0x6C;
 constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_HORIZONTAL = 0x79;
@@ -89,6 +89,7 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
                    climate::CLIMATE_SWING_BOTH}) {}
 
   /// Transmit via IR a util command.
+  /// Send a util message that does not change the climate state (the button commands above)
   void transmit_util(uint8_t command);
 
  protected:

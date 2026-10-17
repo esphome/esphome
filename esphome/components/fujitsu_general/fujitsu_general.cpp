@@ -19,6 +19,8 @@ constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_STATE = 0xFE;
 
 // Util messages - off & eco etc.
 constexpr uint8_t FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH = 7;
+// Turns the unit off; a util message, but transmit_state() owns it because it changes the climate state
+constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_OFF = 0x02;
 
 // State header
 constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE0 = 0x09;
