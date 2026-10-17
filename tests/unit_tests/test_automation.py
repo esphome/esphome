@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from esphome.automation import (
+    IN_RANGE_CHECK,
+    IN_RANGE_DEFAULTS,
     ApplyAction,
     ApplyCall,
     ApplyCondition,
@@ -1608,3 +1610,25 @@ async def test_nested_repeat_lambda_parameters_are_distinct() -> None:
         in text
     )
     assert "uint32_t iteration, uint32_t iteration)" not in text
+
+
+def _render_in_range(config: dict) -> tuple[str, str]:
+    config = {**IN_RANGE_DEFAULTS, **config}
+    (above_key, _, low), (below_key, _, high) = IN_RANGE_CHECK.members
+    return low(config, config[above_key]), high(config, config[below_key])
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({"above": 10.0}, ("10.0f", "INFINITY")),
+        ({"below": 30.0}, ("-INFINITY", "30.0f")),
+        ({"above": 10.0, "below": 30.0}, ("10.0f", "30.0f")),
+        # A NaN bound counted as unset before; with no lower bound a NaN upper bound stays false.
+        ({"above": float("nan"), "below": 30.0}, ("-INFINITY", "30.0f")),
+        ({"above": 10.0, "below": float("nan")}, ("10.0f", "INFINITY")),
+        ({"above": float("nan"), "below": float("nan")}, ("-INFINITY", "NAN")),
+    ],
+)
+def test_in_range_check_renders_bounds(config: dict, expected: tuple[str, str]) -> None:
+    assert _render_in_range(config) == expected

@@ -1,15 +1,18 @@
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 import logging
+import math
 import string
 from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ABOVE,
     CONF_ALL,
     CONF_ANY,
     CONF_AUTOMATION_ID,
+    CONF_BELOW,
     CONF_CONDITION,
     CONF_COUNT,
     CONF_ELSE,
@@ -352,6 +355,25 @@ class ApplyField:
         return ApplyCall(target, ((self.conf_key, self.type_, self.const_fn),))
 
 
+def _in_range_low(config: ConfigType, value: float) -> str:
+    return "-INFINITY" if math.isnan(value) else str(cg.safe_exp(value))
+
+
+def _in_range_high(config: ConfigType, value: float) -> str:
+    # With no lower bound, an unset upper bound stays NaN so the check is false, as before.
+    if math.isnan(value):
+        return "NAN" if math.isnan(config[CONF_ABOVE]) else "INFINITY"
+    return str(cg.safe_exp(value))
+
+
+# ``above <= state <= below`` on the parent's float ``state``; register with ``IN_RANGE_DEFAULTS``.
+IN_RANGE_CHECK = ApplyCall(
+    "state >= {} && {parent}->state <= {}",
+    ((CONF_ABOVE, cg.float_, _in_range_low), (CONF_BELOW, cg.float_, _in_range_high)),
+)
+IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
+
+
 def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
     if isinstance(key, str):
         return config.get(key)
@@ -570,7 +592,11 @@ async def _render_check(
 
 
 def register_apply_condition(
-    name: str, schema: cv.Schema, check: str | ApplyCall, id_key: str = CONF_ID
+    name: str,
+    schema: cv.Schema,
+    check: str | ApplyCall,
+    id_key: str = CONF_ID,
+    defaults: ConfigType | None = None,
 ) -> None:
     """Register a condition that is one expression on its parent, with no C++ class.
 
@@ -579,6 +605,7 @@ def register_apply_condition(
     against config values, all of which must be present. Write ``== false`` to negate.
     A ``cg.std_string`` constant stays in flash on ESP8266 and supports only ``==`` or ``!=``
     against a ``std::string`` or ``StringRef`` member; other string types are plain literals.
+    ``defaults`` fills absent keys at code generation only, so the validated config is unchanged.
     Generates one static predicate and an ``ApplyCondition`` templated on it.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
@@ -593,6 +620,8 @@ def register_apply_condition(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
+        if defaults:
+            config = {**defaults, **config}
         parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         values = _apply_values(config, members)
