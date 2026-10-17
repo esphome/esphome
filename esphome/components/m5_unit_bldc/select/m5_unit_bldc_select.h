@@ -9,7 +9,7 @@ namespace esphome::m5_unit_bldc {
 /// A `select` entity for the motor's rotation direction ("Forward"/"Backward").
 class M5UnitBldcDirectionSelect : public select::Select, public Parented<M5UnitBldc> {
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 };
 
 }  // namespace esphome::m5_unit_bldc

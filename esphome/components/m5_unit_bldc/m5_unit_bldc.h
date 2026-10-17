@@ -24,10 +24,10 @@ enum : uint8_t {
   REG_FIRMWARE_VERSION = 0xFE,
 };
 
-enum class ControlMode : uint8_t { OPEN_LOOP = 0, CLOSED_LOOP = 1 };
-enum class Direction : uint8_t { FORWARD = 0, BACKWARD = 1 };
-enum class MotorModel : uint8_t { LOW_SPEED = 0, HIGH_SPEED = 1 };
-enum class MotorStatus : uint8_t { STANDBY = 0, RUNNING = 1, ERROR = 2 };
+enum class ControlMode : uint8_t { CONTROL_MODE_OPEN_LOOP = 0, CONTROL_MODE_CLOSED_LOOP = 1 };
+enum class Direction : uint8_t { DIRECTION_FORWARD = 0, DIRECTION_BACKWARD = 1 };
+enum class MotorModel : uint8_t { MOTOR_MODEL_LOW_SPEED = 0, MOTOR_MODEL_HIGH_SPEED = 1 };
+enum class MotorStatus : uint8_t { MOTOR_STATUS_STANDBY = 0, MOTOR_STATUS_RUNNING = 1, MOTOR_STATUS_ERROR = 2 };
 
 /// Hub component for a single M5Stack M5Unit-BLDC brushless DC motor driver. Add `number`/`select`
 /// sub-platforms to drive it, and `sensor`/`text_sensor` sub-platforms to read it back.
@@ -36,8 +36,6 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   void setup() override;
   void update() override;
   void dump_config() override;
-
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_control_mode(ControlMode mode) { this->control_mode_ = mode; }
   void set_initial_direction(Direction direction) { this->initial_direction_ = direction; }
@@ -58,21 +56,23 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   }
   void set_direction_select(select::Select *direction_select) { this->direction_select_ = direction_select; }
 
-  // Called by the `number`/`select` sub-platforms to drive the motor.
-  void write_pwm(uint16_t duty);
-  void write_target_rpm(float rpm);
-  void write_direction(Direction direction);
+  // Called by the `number`/`select` sub-platforms to drive the motor. Return whether the I2C
+  // write that defines the new state succeeded, so callers can skip publishing an entity state
+  // that the device never actually accepted.
+  bool write_pwm(uint16_t duty);
+  bool write_target_rpm(float rpm);
+  bool write_direction(Direction direction);
 
  protected:
   static constexpr uint32_t DIRECTION_CHANGE_TIMEOUT_ID = 0;
 
   bool write_float_(uint8_t reg, float value);
   bool read_float_(uint8_t reg, float *value);
-  void write_pwm_raw_(uint16_t duty);
+  bool write_pwm_raw_(uint16_t duty);
 
-  ControlMode control_mode_{ControlMode::OPEN_LOOP};
-  Direction initial_direction_{Direction::FORWARD};
-  MotorModel motor_model_{MotorModel::LOW_SPEED};
+  ControlMode control_mode_{ControlMode::CONTROL_MODE_OPEN_LOOP};
+  Direction initial_direction_{Direction::DIRECTION_FORWARD};
+  MotorModel motor_model_{MotorModel::MOTOR_MODEL_LOW_SPEED};
   uint8_t pole_pairs_{1};
   bool has_pid_{false};
   float p_{0}, i_{0}, d_{0};
@@ -83,6 +83,12 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   // note "[1] Change direction").
   uint16_t last_pwm_{0};
   float last_target_rpm_{0};
+
+  // Set for the duration of the zero-then-restore cycle in `write_direction()`. While set, new
+  // PWM/RPM commands only update `last_pwm_`/`last_target_rpm_`; they are not written to the
+  // device until the pending restore fires, so a command arriving mid-cycle cannot make the motor
+  // resume before it has actually stopped and the new direction has latched.
+  bool direction_change_pending_{false};
 
   sensor::Sensor *rpm_sensor_{nullptr};
   sensor::Sensor *frequency_sensor_{nullptr};

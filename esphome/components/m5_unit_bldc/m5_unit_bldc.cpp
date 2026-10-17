@@ -1,5 +1,6 @@
 #include "m5_unit_bldc.h"
 
+#include <cmath>
 #include <cstring>
 
 #include "esphome/core/log.h"
@@ -27,34 +28,61 @@ void M5UnitBldc::setup() {
 
   uint8_t mode = static_cast<uint8_t>(this->control_mode_);
   if (this->write_register(REG_MODE, &mode, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to write control mode"));
     return;
   }
 
   uint8_t direction = static_cast<uint8_t>(this->initial_direction_);
-  this->write_register(REG_DIRECTION, &direction, 1);
+  if (this->write_register(REG_DIRECTION, &direction, 1) != i2c::ERROR_OK) {
+    this->mark_failed(LOG_STR("Failed to write initial direction"));
+    return;
+  }
 
   if (this->direction_select_ != nullptr) {
-    this->direction_select_->publish_state(this->initial_direction_ == Direction::BACKWARD ? "Backward" : "Forward");
+    this->direction_select_->publish_state(this->initial_direction_ == Direction::DIRECTION_BACKWARD ? "Backward"
+                                                                                                     : "Forward");
   }
 
   uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
-  this->write_register(REG_MOTOR_CONFIG, motor_config, 2);
+  if (this->write_register(REG_MOTOR_CONFIG, motor_config, 2) != i2c::ERROR_OK) {
+    this->mark_failed(LOG_STR("Failed to write motor model/pole pairs"));
+    return;
+  }
 
+  uint8_t pid[12];
   if (this->has_pid_) {
-    uint8_t pid[12];
-    int32_t p_int = static_cast<int32_t>(this->p_ * 100);
-    int32_t i_int = static_cast<int32_t>(this->i_ * 100);
-    int32_t d_int = static_cast<int32_t>(this->d_ * 100);
+    int32_t p_int = lroundf(this->p_ * 100);
+    int32_t i_int = lroundf(this->i_ * 100);
+    int32_t d_int = lroundf(this->d_ * 100);
     std::memcpy(pid, &p_int, 4);
     std::memcpy(pid + 4, &i_int, 4);
     std::memcpy(pid + 8, &d_int, 4);
-    this->write_register(REG_PID, pid, 12);
+    if (this->write_register(REG_PID, pid, 12) != i2c::ERROR_OK) {
+      this->mark_failed(LOG_STR("Failed to write PID gains"));
+      return;
+    }
   }
 
   if (this->save_to_flash_) {
-    uint8_t save = 1;
-    this->write_register(REG_SAVE_TO_FLASH, &save, 1);
+    // The device only has a limited number of flash erase/write cycles, so only persist when the
+    // values on the device actually differ from the ones just written above; otherwise every ESP
+    // reboot, OTA or crash loop would needlessly wear out the unit's flash.
+    bool needs_save = true;
+    uint8_t current_motor_config[2];
+    if (this->read_register(REG_MOTOR_CONFIG, current_motor_config, 2) == i2c::ERROR_OK &&
+        std::memcmp(current_motor_config, motor_config, 2) == 0) {
+      needs_save = false;
+      if (this->has_pid_) {
+        uint8_t current_pid[12];
+        needs_save =
+            this->read_register(REG_PID, current_pid, 12) != i2c::ERROR_OK || std::memcmp(current_pid, pid, 12) != 0;
+      }
+    }
+
+    if (needs_save) {
+      uint8_t save = 1;
+      this->write_register(REG_SAVE_TO_FLASH, &save, 1);
+    }
   }
 }
 
@@ -76,13 +104,13 @@ void M5UnitBldc::update() {
     if (this->read_register(REG_MOTOR_STATUS, &status, 1) == i2c::ERROR_OK) {
       const char *status_str;
       switch (static_cast<MotorStatus>(status)) {
-        case MotorStatus::STANDBY:
+        case MotorStatus::MOTOR_STATUS_STANDBY:
           status_str = "Standby";
           break;
-        case MotorStatus::RUNNING:
+        case MotorStatus::MOTOR_STATUS_RUNNING:
           status_str = "Running";
           break;
-        case MotorStatus::ERROR:
+        case MotorStatus::MOTOR_STATUS_ERROR:
           status_str = "Error";
           break;
         default:
@@ -97,59 +125,72 @@ void M5UnitBldc::update() {
 void M5UnitBldc::dump_config() {
   ESP_LOGCONFIG(TAG, "M5Unit-BLDC:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(
-      TAG, "  Control mode: %s",
-      this->control_mode_ == ControlMode::CLOSED_LOOP ? LOG_STR_LITERAL("closed loop") : LOG_STR_LITERAL("open loop"));
-  ESP_LOGCONFIG(
-      TAG, "  Direction: %s",
-      this->initial_direction_ == Direction::BACKWARD ? LOG_STR_LITERAL("backward") : LOG_STR_LITERAL("forward"));
-  ESP_LOGCONFIG(
-      TAG, "  Motor model: %s",
-      this->motor_model_ == MotorModel::HIGH_SPEED ? LOG_STR_LITERAL("high speed") : LOG_STR_LITERAL("low speed"));
+  ESP_LOGCONFIG(TAG, "  Control mode: %s",
+                this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP ? LOG_STR_LITERAL("closed loop")
+                                                                             : LOG_STR_LITERAL("open loop"));
+  ESP_LOGCONFIG(TAG, "  Direction: %s",
+                this->initial_direction_ == Direction::DIRECTION_BACKWARD ? LOG_STR_LITERAL("backward")
+                                                                          : LOG_STR_LITERAL("forward"));
+  ESP_LOGCONFIG(TAG, "  Motor model: %s",
+                this->motor_model_ == MotorModel::MOTOR_MODEL_HIGH_SPEED ? LOG_STR_LITERAL("high speed")
+                                                                         : LOG_STR_LITERAL("low speed"));
   ESP_LOGCONFIG(TAG, "  Pole pairs: %u", this->pole_pairs_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with M5Unit-BLDC failed");
   }
 }
 
-void M5UnitBldc::write_pwm_raw_(uint16_t duty) {
+bool M5UnitBldc::write_pwm_raw_(uint16_t duty) {
   uint8_t buf[2];
   std::memcpy(buf, &duty, 2);
-  this->write_register(REG_PWM, buf, 2);
+  return this->write_register(REG_PWM, buf, 2) == i2c::ERROR_OK;
 }
 
-void M5UnitBldc::write_pwm(uint16_t duty) {
+bool M5UnitBldc::write_pwm(uint16_t duty) {
   this->last_pwm_ = duty;
-  this->write_pwm_raw_(duty);
+  if (this->direction_change_pending_)
+    return true;
+  return this->write_pwm_raw_(duty);
 }
 
-void M5UnitBldc::write_target_rpm(float rpm) {
+bool M5UnitBldc::write_target_rpm(float rpm) {
   this->last_target_rpm_ = rpm;
-  this->write_float_(REG_SET_RPM, rpm);
+  if (this->direction_change_pending_)
+    return true;
+  return this->write_float_(REG_SET_RPM, rpm);
 }
 
-void M5UnitBldc::write_direction(Direction direction) {
+bool M5UnitBldc::write_direction(Direction direction) {
   uint8_t value = static_cast<uint8_t>(direction);
-  this->write_register(REG_DIRECTION, &value, 1);
+  if (this->write_register(REG_DIRECTION, &value, 1) != i2c::ERROR_OK)
+    return false;
 
   // The device only latches a new direction once the motor has actually spun down to a stop --
   // zeroing and immediately restoring the PWM/RPM register isn't enough, it needs real time to
   // decelerate first (datasheet note "[1] Change direction": setup direction, zero, then
   // non-zero once stopped). 800ms comfortably covers spin-down for the small motors this driver
   // targets; restoring is deferred via a named timeout so repeated direction changes replace any
-  // still-pending restore instead of stacking.
-  if (this->control_mode_ == ControlMode::CLOSED_LOOP) {
+  // still-pending restore instead of stacking. While a reversal is pending, `write_pwm()` and
+  // `write_target_rpm()` only cache the latest request instead of writing it, so a command
+  // arriving mid-cycle cannot make the motor resume before the stop interval ends.
+  this->direction_change_pending_ = true;
+  if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP) {
     this->write_float_(REG_SET_RPM, 0.0f);
-    if (this->last_target_rpm_ != 0.0f) {
-      this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, 800,
-                        [this]() { this->write_float_(REG_SET_RPM, this->last_target_rpm_); });
-    }
   } else {
     this->write_pwm_raw_(0);
-    if (this->last_pwm_ != 0) {
-      this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, 800, [this]() { this->write_pwm_raw_(this->last_pwm_); });
-    }
   }
+
+  this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, 800, [this]() {
+    this->direction_change_pending_ = false;
+    if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP) {
+      if (this->last_target_rpm_ != 0.0f)
+        this->write_float_(REG_SET_RPM, this->last_target_rpm_);
+    } else {
+      if (this->last_pwm_ != 0)
+        this->write_pwm_raw_(this->last_pwm_);
+    }
+  });
+  return true;
 }
 
 }  // namespace esphome::m5_unit_bldc

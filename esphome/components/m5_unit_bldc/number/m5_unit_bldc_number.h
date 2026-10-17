@@ -6,7 +6,7 @@
 
 namespace esphome::m5_unit_bldc {
 
-enum class NumberType : uint8_t { PWM, TARGET_RPM };
+enum class NumberType : uint8_t { NUMBER_TYPE_PWM, NUMBER_TYPE_TARGET_RPM };
 
 /// A `number` entity driving either the open-loop PWM duty or the closed-loop target RPM of an
 /// M5Unit-BLDC. Which register it writes to is fixed at construction time by `type`.

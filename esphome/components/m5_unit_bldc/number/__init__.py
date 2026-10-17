@@ -34,14 +34,14 @@ async def to_code(config):
 
     if pwm_config := config.get(CONF_PWM):
         num = await number.new_number(
-            pwm_config, NumberType.PWM, min_value=0, max_value=2047, step=1
+            pwm_config, NumberType.NUMBER_TYPE_PWM, min_value=0, max_value=2047, step=1
         )
         await cg.register_parented(num, parent)
 
     if target_rpm_config := config.get(CONF_TARGET_RPM):
         num = await number.new_number(
             target_rpm_config,
-            NumberType.TARGET_RPM,
+            NumberType.NUMBER_TYPE_TARGET_RPM,
             min_value=0,
             max_value=20000,
             step=1,

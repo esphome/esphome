@@ -3,15 +3,20 @@
 namespace esphome::m5_unit_bldc {
 
 void M5UnitBldcNumber::control(float value) {
-  this->publish_state(value);
+  bool success;
   switch (this->type_) {
-    case NumberType::PWM:
-      this->parent_->write_pwm(static_cast<uint16_t>(value));
+    case NumberType::NUMBER_TYPE_PWM:
+      success = this->parent_->write_pwm(static_cast<uint16_t>(value));
       break;
-    case NumberType::TARGET_RPM:
-      this->parent_->write_target_rpm(value);
+    case NumberType::NUMBER_TYPE_TARGET_RPM:
+      success = this->parent_->write_target_rpm(value);
+      break;
+    default:
+      success = false;
       break;
   }
+  if (success)
+    this->publish_state(value);
 }
 
 }  // namespace esphome::m5_unit_bldc
