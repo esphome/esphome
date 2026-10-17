@@ -452,12 +452,15 @@ bool Nextion::remove_from_q_(bool report_empty) {
   return true;
 }
 
-void Nextion::deliver_queue_response_(const char *response_name, const NextionQueueResponse &resp) {
+void Nextion::deliver_queue_response_(const LogString *response_name, const NextionQueueResponse &resp) {
   auto it = this->nextion_queue_.begin();
   while (it != this->nextion_queue_.end()) {
     NextionQueue *nb = *it;
     if (nb == nullptr || nb->component == nullptr) {
-      delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+      ESP_LOGE(TAG, "Invalid queue entry");
+      if (nb != nullptr) {
+        this->release_queue_entry_(nb);
+      }
       it = this->nextion_queue_.erase(it);
       continue;
     }
@@ -465,59 +468,53 @@ void Nextion::deliver_queue_response_(const char *response_name, const NextionQu
     NextionQueueType qtype = component->get_queue_type();
 
     if (!nb->pending_command.empty()) {
-      ESP_LOGV(TAG, "%s: skipping unsent '%s'", response_name, component->get_variable_name().c_str());
+      ESP_LOGV(TAG, "%s: skipping unsent '%s'", LOG_STR_ARG(response_name), component->get_variable_name().c_str());
       ++it;
       continue;
     }
 
     if (qtype == NextionQueueType::NO_RESULT) {
       // Leave in queue -- its 0x01 ACK will remove it via remove_from_q_().
-      ESP_LOGV(TAG, "%s: skipping NO_RESULT '%s'", response_name, component->get_variable_name().c_str());
+      ESP_LOGV(TAG, "%s: skipping NO_RESULT '%s'", LOG_STR_ARG(response_name), component->get_variable_name().c_str());
       ++it;
       continue;
     }
 
-    bool delivered = false;
+    // The display answers queries in order, so the response belongs to this query even when the type does
+    // not match. Consume only this entry and never hand the value to a later query.
     if (!resp.is_string && (qtype == NextionQueueType::SENSOR || qtype == NextionQueueType::BINARY_SENSOR ||
                             qtype == NextionQueueType::SWITCH)) {
       ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(), qtype,
                component->get_queue_type_string(), resp.int_value);
       component->set_state_from_int(resp.int_value, true, false);
-      delivered = true;
     } else if (resp.is_string && qtype == NextionQueueType::TEXT_SENSOR) {
       ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", resp.str_value->c_str(),
                component->get_variable_name().c_str(), component->get_queue_type_string());
       component->set_state_from_string(*resp.str_value, true, false);
-      delivered = true;
+    } else {
+      ESP_LOGE(TAG, "%s but '%s' invalid type %d", LOG_STR_ARG(response_name), component->get_variable_name().c_str(),
+               qtype);
     }
 
-    if (delivered) {
-      delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-      this->nextion_queue_.erase(it);
-      return;
-    }
-
-    // Consume the mismatched response without assigning it to a later query.
-    ESP_LOGE(TAG, "%s but '%s' invalid type %d", response_name, component->get_variable_name().c_str(), qtype);
     this->release_queue_entry_(nb);
     this->nextion_queue_.erase(it);
     return;
   }
-  ESP_LOGE(TAG, "%s but no matching entry found after skipping NO_RESULT", response_name);
+  ESP_LOGE(TAG, "%s but no sent query in queue", LOG_STR_ARG(response_name));
 }
 
 void Nextion::set_numeric_return_(int value) {
   NextionQueueResponse resp{};
   resp.is_string = false;
   resp.int_value = value;
-  this->deliver_queue_response_("Numeric return", resp);
+  this->deliver_queue_response_(LOG_STR("Numeric return"), resp);
 }
 
 void Nextion::set_string_return_(const std::string &value) {
   NextionQueueResponse resp{};
   resp.is_string = true;
   resp.str_value = &value;
-  this->deliver_queue_response_("String return", resp);
+  this->deliver_queue_response_(LOG_STR("String return"), resp);
 }
 
 void Nextion::process_serial_() {

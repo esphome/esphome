@@ -1457,12 +1457,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
- public:
   std::list<NextionQueue *> nextion_queue_;
-  inline void set_numeric_return(int value) { this->set_numeric_return_(value); }
-  inline void set_string_return(const std::string &value) { this->set_string_return_(value); }
-
- protected:
 #ifdef USE_NEXTION_WAVEFORM
   /// Fixed-size ring buffer for waveform queue. Nextion supports at most 4 waveform
   /// channels (IDs 0-3), so 4 entries is both the correct maximum and a safe default.
@@ -1481,10 +1476,11 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
     int int_value;
     const std::string *str_value;
   };
-  /// Scan the queue for the first entry matching resp's type (SENSOR/BINARY_SENSOR/SWITCH for
-  /// numeric, TEXT_SENSOR for string), skipping NO_RESULT entries ahead of it (those are consumed
-  /// by their own 0x01 ACK) and discarding any stale/invalid entries encountered along the way.
-  void deliver_queue_response_(const char *response_name, const NextionQueueResponse &resp);
+  /// Deliver a 0x70/0x71 response to the first query in the queue that was sent and expects a value, then
+  /// remove that query. NO_RESULT entries are skipped (their own 0x01 ACK removes them), as are entries whose
+  /// command is still waiting to be sent. Invalid entries are dropped. If the first query has the wrong type
+  /// (for example a numeric return for a TEXT_SENSOR), it is removed without a state update.
+  void deliver_queue_response_(const LogString *response_name, const NextionQueueResponse &resp);
   void set_numeric_return_(int value);
   void set_string_return_(const std::string &value);
 
