@@ -1253,11 +1253,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // NAPT needs the interface up, so it cannot be part of the setup
     if (esp_err_t err = esp_netif_napt_enable(s_ap_netif); err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to enable NAT: %s", esp_err_to_name(err));
-#ifdef USE_WIFI_AP_WISP
       // Without it the clients have no way out, so the AP goes down and its setup runs again, which brings it
       // back up through this event
       this->fail_bridge_();
-#endif
     }
 #endif
 
@@ -1479,6 +1477,12 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
   if (err != ESP_OK || !this->write_ap_dns_())
     return false;
+#ifndef USE_WIFI_AP_WISP_STATIC_DNS
+  // Clients that join while there is no upstream resolver to offer are handed the AP's own address. apply_ap_dns_()
+  // uses the flag to drop them once the station has one, so they rejoin and pick it up instead of keeping the dead
+  // one for the whole lease.
+  this->ap_dns_pending_ = !this->ap_dns_known_();
+#endif
 #endif
 
   err = esp_netif_dhcps_start(s_ap_netif);
@@ -1698,14 +1702,22 @@ void WiFiComponent::apply_ap_dns_() {
   }
   if (!changed)
     return;
-    // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
+  // A client that joined before the station had a resolver was handed the AP's own address. wifi_ap_ip_config_() below
+  // now offers a real one, so drop the clients to rejoin and pick it up; a resolver that later changes is left to the
+  // next lease, since by then the offered address at least works.
+  const bool dns_was_missing = this->ap_dns_pending_;
+  // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
 #ifdef USE_WIFI_MANUAL_IP
   const bool ok = this->wifi_ap_ip_config_(this->ap_.get_manual_ip());
 #else
   const bool ok = this->wifi_ap_ip_config_({});
 #endif
-  if (!ok)
+  if (!ok) {
     this->fail_bridge_();
+    return;
+  }
+  if (dns_was_missing && esp_wifi_deauth_sta(0) != ESP_OK)
+    ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the station's resolver");
 }
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS
 #endif  // USE_WIFI_AP_WISP || USE_WIFI_AP_NAPT

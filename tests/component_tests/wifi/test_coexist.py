@@ -223,3 +223,52 @@ def test_invalid_combinations(
     )
     with pytest.raises(cv.Invalid, match=match):
         _validate(wifi)
+
+
+@pytest.mark.parametrize(
+    ("framework_version", "valid"),
+    [
+        # esp_netif_napt_enable() is missing before ESP-IDF 5.1.
+        (cv.Version(5, 0, 9), False),
+        (cv.Version(5, 1, 0), True),
+    ],
+)
+def test_napt_requires_idf_5_1(
+    set_core_config: SetCoreConfigCallable,
+    framework_version: cv.Version,
+    valid: bool,
+) -> None:
+    """The routed AP needs ``esp_netif_napt_enable()``, missing before ESP-IDF 5.1."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        core_data={KEY_FRAMEWORK_VERSION: framework_version},
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    wifi = {
+        "networks": [_STA_NETWORK],
+        "post_connect_roaming": False,
+        "ap": {"ssid": "fallback", "coexist": True, "napt": True},
+    }
+    if valid:
+        _validate(wifi)
+    else:
+        with pytest.raises(cv.Invalid, match="5.1.0"):
+            _validate(wifi)
+
+
+def test_coexist_without_napt_accepts_idf_5_0(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Plain coexistence uses no NAPT hook, so IDF 5.0 still accepts it."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 0, 9)},
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    _validate(
+        {
+            "networks": [_STA_NETWORK],
+            "post_connect_roaming": False,
+            "ap": {"ssid": "fallback", "coexist": True},
+        }
+    )

@@ -1159,6 +1159,11 @@ class WiFiComponent final : public Component {
   uint8_t ap_start_failures_{0};
 #endif
 #endif  // USE_WIFI_AP
+#if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+  // The AP DHCP server had no upstream resolver to offer, so clients that joined hold the AP's own address;
+  // apply_ap_dns_() drops them once the station has one
+  bool ap_dns_pending_{false};
+#endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT

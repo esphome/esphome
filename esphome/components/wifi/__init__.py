@@ -466,6 +466,12 @@ def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
             raise cv.Invalid(
                 "AP+STA coexistence (coexist: true) is only supported on ESP32 (ESP-IDF)."
             )
+        if napt:
+            # esp_netif_napt_enable() exists from ESP-IDF 5.1
+            cv.require_framework_version(
+                esp_idf=cv.Version(5, 1, 0),
+                extra_message="NAPT routes through NAT",
+            )(napt)
         if not config.get(CONF_NETWORKS):
             raise cv.Invalid(
                 "AP+STA coexistence (coexist: true) requires at least one STA network configured."

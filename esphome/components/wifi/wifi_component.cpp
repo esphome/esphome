@@ -971,7 +971,10 @@ void WiFiComponent::loop() {
         this->setup_ap_config_();
         if (!this->ap_setup_) {
           ESP_LOGW(TAG, "Coexist AP start failed; retrying");
-        } else {
+        } else if (!this->is_connected()) {
+          // The portal follows the station: a retry that lands after the station
+          // connected must not reopen the unauthenticated portal on the AP, which
+          // nothing would close again.
           this->start_ap_portal_();
         }
       }
@@ -1191,6 +1194,9 @@ void WiFiComponent::pause_exclusive_ap_() {
 
 #if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
 void WiFiComponent::fail_bridge_() {
+  // End the portal before the AP goes away, as disable_ap_() does: it is served on the AP's address, and the retry
+  // in loop() must not leave an unauthenticated portal answering with its AP down
+  this->end_ap_portal_();
   this->ap_setup_ = false;
   this->ap_clients_ = 0;  // dropped with the AP, without a disconnect event for each
   this->wifi_mode_({}, false);
