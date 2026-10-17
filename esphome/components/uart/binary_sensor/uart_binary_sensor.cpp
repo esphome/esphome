@@ -6,17 +6,18 @@ namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart.binary_sensor");
 
-void UARTBinarySensor::dump_config() {
+void UARTBinarySensorHub::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Binary Sensor:");
   for (const auto &matcher : this->matchers_) {
     LOG_BINARY_SENSOR("  ", "Pattern", matcher.sensor);
   }
 }
 
-void UARTBinarySensor::loop() {
+void UARTBinarySensorHub::loop() {
   while (this->available()) {
     uint8_t byte;
-    this->read_byte(&byte);
+    if (!this->read_byte(&byte))
+      break;
     this->buffer_.push_overwrite(byte);
     for (const auto &matcher : this->matchers_) {
       // The byte just read has to be the pattern's last one before the rest is compared
@@ -33,7 +34,7 @@ void UARTBinarySensor::loop() {
 }
 
 // Whether the pattern, apart from its last byte, ends the buffer
-bool UARTBinarySensor::matches_(const EventMatcher &matcher) const {
+bool UARTBinarySensorHub::matches_(const EventMatcher &matcher) const {
   if (this->buffer_.size() < matcher.data_len) {
     return false;
   }

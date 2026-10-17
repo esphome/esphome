@@ -4,6 +4,7 @@ from esphome.components import binary_sensor, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_UART_ID
 from esphome.core import CORE, ID
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import uart_ns, validate_raw_data
@@ -13,7 +14,9 @@ DOMAIN = "uart_binary_sensor"
 
 CONF_HUB_ID = "hub_id"
 
-UARTBinarySensor = uart_ns.class_("UARTBinarySensor", uart.UARTDevice, cg.Component)
+UARTBinarySensorHub = uart_ns.class_(
+    "UARTBinarySensorHub", uart.UARTDevice, cg.Component
+)
 
 # Every sensor on a bus is one matcher of that bus's hub; the define is the largest hub
 _request_matcher_slot = cg.slot_counter("UART_BINARY_SENSOR_COUNT")
@@ -22,7 +25,7 @@ CONFIG_SCHEMA = (
     binary_sensor.binary_sensor_schema()
     .extend(
         {
-            cv.GenerateID(CONF_HUB_ID): cv.declare_id(UARTBinarySensor),
+            cv.GenerateID(CONF_HUB_ID): cv.declare_id(UARTBinarySensorHub),
             # An empty pattern would match every byte; the hub's buffer index is a byte
             cv.Required(CONF_DATA): cv.All(
                 validate_raw_data, cv.Length(min=1, max=255)
@@ -31,6 +34,24 @@ CONFIG_SCHEMA = (
     )
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+
+
+def _no_duplicate_pattern_on_a_bus(config: ConfigType) -> ConfigType:
+    """The first matching sensor takes the bytes, so a second one with the same pattern would never fire."""
+    for other in fv.full_config.get().get("binary_sensor", []):
+        if (
+            other.get("platform") == "uart"
+            and other is not config
+            and other[CONF_UART_ID] == config[CONF_UART_ID]
+            and bytes(other[CONF_DATA]) == bytes(config[CONF_DATA])
+        ):
+            raise cv.Invalid(
+                f"Another uart binary_sensor on '{config[CONF_UART_ID]}' already matches this data"
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _no_duplicate_pattern_on_a_bus
 
 
 def _hubs() -> dict[ID, cg.MockObj]:

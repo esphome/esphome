@@ -8,7 +8,7 @@
 namespace esphome::uart {
 
 // One per bus: reads the bytes once and presses each sensor whose pattern ends the stream
-class UARTBinarySensor : public UARTDevice, public Component {
+class UARTBinarySensorHub : public UARTDevice, public Component {
  public:
   void setup() override { this->buffer_.init(this->max_len_); }
   void loop() override;
