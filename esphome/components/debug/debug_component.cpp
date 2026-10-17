@@ -35,8 +35,13 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
 
   uint32_t uptime = static_cast<uint32_t>(millis_64() / 1000);
-  ESP_LOGD(TAG, "Uptime: %" PRIu32 "d %02" PRIu32 "h %02" PRIu32 "m %02" PRIu32 "s", uptime / 86400,
-           (uptime / 3600) % 24, (uptime / 60) % 60, uptime % 60);
+  uint32_t days = uptime / 86400;
+  uptime -= days * 86400;
+  uint32_t hours = uptime / 3600;
+  uptime -= hours * 3600;
+  uint32_t minutes = uptime / 60;
+  uptime -= minutes * 60;
+  ESP_LOGD(TAG, "Uptime: %" PRIu32 "d %02" PRIu32 "h %02" PRIu32 "m %02" PRIu32 "s", days, hours, minutes, uptime);
 
   pos = get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>(device_info_buffer), pos);
 
