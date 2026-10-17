@@ -1386,6 +1386,46 @@ async def test_sub_entities_apply_generates_function(
     assert setup_test_environment == ["hub->set_bt_switch(bt_sw)"]
 
 
+_SELECT_APPLY = entity_helpers.ApplyEntity(
+    cg.esphome_ns.namespace("select").class_("ApplySelect"),
+    ((RawExpression("select::Select *"), "entity"), (RawExpression("size_t"), "index")),
+    "entity->publish_state(index);",
+    (("option", "const char *option = entity->option_at(index);"),),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("apply", "body"),
+    [
+        (
+            "set_mode(option)",
+            (
+                "const char *option = entity->option_at(index);\n"
+                "::hub->set_mode(option);\nentity->publish_state(index);"
+            ),
+        ),
+        (
+            "set_mode(index, options_)",
+            "::hub->set_mode(index, options_);\nentity->publish_state(index);",
+        ),
+    ],
+)
+async def test_sub_entities_apply_locals(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    apply: str,
+    body: str,
+) -> None:
+    """A local is declared only when the body names it as a whole identifier."""
+    conf = _apply_conf("m_sel", _SELECT_APPLY.cls)
+    sub = _apply_sub([], {"m": conf}, _SELECT_APPLY)
+    await sub("m", None, apply=apply, publish="after")
+    assert apply_functions == [
+        ("esphome__m_sel__fn", "select::Select * entity, size_t index", body)
+    ]
+
+
 @pytest.mark.asyncio
 async def test_sub_entities_apply_shares_equal_functions(
     setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
