@@ -19,9 +19,8 @@ constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_STATE = 0xFE;
 
 // Util messages - off & eco etc.
 constexpr uint8_t FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH = 7;
+// Turns the unit off; a util message, but transmit_state() owns it because it changes the climate state
 constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_OFF = 0x02;
-constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY = 0x09;
-constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE = 0x6C;
 
 // State header
 constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE0 = 0x09;
@@ -77,7 +76,9 @@ constexpr uint32_t FUJITSU_GENERAL_CARRIER_FREQUENCY = 38000;
 
 void FujitsuGeneralClimate::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_OFF) {
-    this->transmit_off_();
+    ESP_LOGV(TAG, "Transmit off");
+    this->transmit_util(FUJITSU_GENERAL_MESSAGE_TYPE_OFF);
+    this->power_ = false;
     return;
   }
 
@@ -176,9 +177,7 @@ void FujitsuGeneralClimate::transmit_state() {
   this->power_ = true;
 }
 
-void FujitsuGeneralClimate::transmit_off_() {
-  ESP_LOGV(TAG, "Transmit off");
-
+void FujitsuGeneralClimate::transmit_util(uint8_t command) {
   uint8_t remote_state[FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH] = {0};
 
   remote_state[0] = FUJITSU_GENERAL_COMMON_BYTE0;
@@ -186,12 +185,10 @@ void FujitsuGeneralClimate::transmit_off_() {
   remote_state[2] = FUJITSU_GENERAL_COMMON_BYTE2;
   remote_state[3] = FUJITSU_GENERAL_COMMON_BYTE3;
   remote_state[4] = FUJITSU_GENERAL_COMMON_BYTE4;
-  remote_state[5] = FUJITSU_GENERAL_MESSAGE_TYPE_OFF;
+  remote_state[5] = command;
   remote_state[6] = this->checksum_util_(remote_state);
 
   this->transmit_(remote_state, FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH);
-
-  this->power_ = false;
 }
 
 void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
@@ -309,7 +306,8 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
     case FUJITSU_GENERAL_MESSAGE_TYPE_OFF:
     case FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY:
-    case FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE:
+    case FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_HORIZONTAL:
+    case FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_VERTICAL:
       ESP_LOGV(TAG, "Received util message");
       recv_message_length = FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH;
       break;
