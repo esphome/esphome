@@ -22,9 +22,7 @@ async def test_reset_configuration(options: dict, expected: bool) -> None:
     assert config[CONF_RESET] is expected
     var = Mock()
     with (
-        patch.object(pcf8574.cg, "new_Pvariable", return_value=var),
-        patch.object(pcf8574.cg, "register_component", new_callable=AsyncMock),
-        patch.object(pcf8574.i2c, "register_i2c_device", new_callable=AsyncMock),
+        patch.object(pcf8574.i2c, "new_i2c_component", AsyncMock(return_value=var)),
         patch.object(pcf8574.cg, "add"),
     ):
         await pcf8574.to_code(config)

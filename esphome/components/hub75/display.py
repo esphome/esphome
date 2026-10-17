@@ -97,37 +97,32 @@ CONF_MIN_REFRESH_RATE = "min_refresh_rate"
 
 # Map to hub75 library enums (in global namespace)
 Hub75ShiftDriver = cg.global_ns.enum("Hub75ShiftDriver", is_class=True)
-SHIFT_DRIVERS = {
-    "GENERIC": Hub75ShiftDriver.GENERIC,
-    "FM6126A": Hub75ShiftDriver.FM6126A,
-    "ICN2038S": Hub75ShiftDriver.ICN2038S,
-    "FM6124": Hub75ShiftDriver.FM6124,
-    "MBI5124": Hub75ShiftDriver.MBI5124,
-    "DP3246": Hub75ShiftDriver.DP3246,
-}
+SHIFT_DRIVERS = Hub75ShiftDriver.options(
+    "GENERIC", "FM6126A", "ICN2038S", "FM6124", "MBI5124", "DP3246"
+)
 
 Hub75PanelLayout = cg.global_ns.enum("Hub75PanelLayout", is_class=True)
-PANEL_LAYOUTS = {
-    "HORIZONTAL": Hub75PanelLayout.HORIZONTAL,
-    "TOP_LEFT_DOWN": Hub75PanelLayout.TOP_LEFT_DOWN,
-    "TOP_RIGHT_DOWN": Hub75PanelLayout.TOP_RIGHT_DOWN,
-    "BOTTOM_LEFT_UP": Hub75PanelLayout.BOTTOM_LEFT_UP,
-    "BOTTOM_RIGHT_UP": Hub75PanelLayout.BOTTOM_RIGHT_UP,
-    "TOP_LEFT_DOWN_ZIGZAG": Hub75PanelLayout.TOP_LEFT_DOWN_ZIGZAG,
-    "TOP_RIGHT_DOWN_ZIGZAG": Hub75PanelLayout.TOP_RIGHT_DOWN_ZIGZAG,
-    "BOTTOM_LEFT_UP_ZIGZAG": Hub75PanelLayout.BOTTOM_LEFT_UP_ZIGZAG,
-    "BOTTOM_RIGHT_UP_ZIGZAG": Hub75PanelLayout.BOTTOM_RIGHT_UP_ZIGZAG,
-}
+PANEL_LAYOUTS = Hub75PanelLayout.options(
+    "HORIZONTAL",
+    "TOP_LEFT_DOWN",
+    "TOP_RIGHT_DOWN",
+    "BOTTOM_LEFT_UP",
+    "BOTTOM_RIGHT_UP",
+    "TOP_LEFT_DOWN_ZIGZAG",
+    "TOP_RIGHT_DOWN_ZIGZAG",
+    "BOTTOM_LEFT_UP_ZIGZAG",
+    "BOTTOM_RIGHT_UP_ZIGZAG",
+)
 
 Hub75ScanWiring = cg.global_ns.enum("Hub75ScanWiring", is_class=True)
-SCAN_WIRINGS = {
-    "STANDARD_TWO_SCAN": Hub75ScanWiring.STANDARD_TWO_SCAN,
-    "SCAN_1_4_16PX_HIGH": Hub75ScanWiring.SCAN_1_4_16PX_HIGH,
-    "SCAN_1_8_32PX_HIGH": Hub75ScanWiring.SCAN_1_8_32PX_HIGH,
-    "SCAN_1_8_32PX_FULL": Hub75ScanWiring.SCAN_1_8_32PX_FULL,
-    "SCAN_1_8_40PX_HIGH": Hub75ScanWiring.SCAN_1_8_40PX_HIGH,
-    "SCAN_1_8_64PX_HIGH": Hub75ScanWiring.SCAN_1_8_64PX_HIGH,
-}
+SCAN_WIRINGS = Hub75ScanWiring.options(
+    "STANDARD_TWO_SCAN",
+    "SCAN_1_4_16PX_HIGH",
+    "SCAN_1_8_32PX_HIGH",
+    "SCAN_1_8_32PX_FULL",
+    "SCAN_1_8_40PX_HIGH",
+    "SCAN_1_8_64PX_HIGH",
+)
 
 
 def _validate_scan_wiring(value: Any) -> str:

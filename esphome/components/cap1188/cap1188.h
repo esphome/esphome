@@ -59,11 +59,6 @@ class CAP1188Component final : public Component, public i2c::I2CDevice {
   uint8_t cap1188_product_id_{0};
   uint8_t cap1188_manufacture_id_{0};
   uint8_t cap1188_revision_{0};
-
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::cap1188

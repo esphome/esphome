@@ -221,7 +221,7 @@ void MicroWakeWord::inference_task(void *params) {
           xEventGroupClearBits(this_mww->event_group_, EventGroupBits::COMMAND_RESET_RING_BUFFER);
         }
 
-        audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS), false);
+        audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS));
 
         // The frontend buffers samples internally and only emits a feature once it has a full window, so we can
         // hand it whatever the source exposes. The frontend consumes at least one sample per call, so available()

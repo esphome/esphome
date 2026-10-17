@@ -20,6 +20,7 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_I2S_AUDIO_ID,
+    CONF_I2S_COMM_FMT,
     CONF_I2S_DOUT_PIN,
     CONF_I2S_MODE,
     CONF_LEFT,
@@ -27,6 +28,7 @@ from .. import (
     CONF_MONO,
     CONF_PRIMARY,
     CONF_RIGHT,
+    CONF_SPDIF_MODE,
     CONF_STEREO,
     CONF_USE_APLL,
     I2SAudioOut,
@@ -46,11 +48,9 @@ I2SAudioSpeakerBase = i2s_audio_ns.class_(
 I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
 
 CONF_DAC_TYPE = "dac_type"
-CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_KEEP_ALIVE = "keep_alive"
-CONF_SPDIF_MODE = "spdif_mode"
-CONF_ON_AUDIO_START = "on_audio_start"
 CONF_ON_AUDIO_END = "on_audio_end"
+CONF_ON_AUDIO_START = "on_audio_start"
 
 I2SAudioSpeakerBase = i2s_audio_ns.class_(
     "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
@@ -70,18 +70,19 @@ INTERNAL_DAC_OPTIONS = {
 }
 
 i2s_comm_format_t = cg.global_ns.enum("i2s_comm_format_t")
-I2C_COMM_FMT_OPTIONS = {
-    "stand_i2s": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_I2S,
-    "stand_msb": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_MSB,
-    "stand_pcm_short": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_PCM_SHORT,
-    "stand_pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_PCM_LONG,
-    "stand_max": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_MAX,
-    "i2s_msb": i2s_comm_format_t.I2S_COMM_FORMAT_I2S_MSB,
-    "i2s_lsb": i2s_comm_format_t.I2S_COMM_FORMAT_I2S_LSB,
-    "pcm": i2s_comm_format_t.I2S_COMM_FORMAT_PCM,
-    "pcm_short": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_SHORT,
-    "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG,
-}
+I2C_COMM_FMT_OPTIONS = i2s_comm_format_t.options(
+    "stand_i2s",
+    "stand_msb",
+    "stand_pcm_short",
+    "stand_pcm_long",
+    "stand_max",
+    "i2s_msb",
+    "i2s_lsb",
+    "pcm",
+    "pcm_short",
+    "pcm_long",
+    prefix="I2S_COMM_FORMAT_",
+)
 
 INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32]
 
