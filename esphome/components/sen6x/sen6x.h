@@ -131,6 +131,7 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void read_measurements_();
   void parse_and_publish_measurements_();
 #ifdef USE_SEN6X_NUMBER_CONCENTRATION
+  bool has_number_concentration_sensor_() const;
   void read_number_concentration_();
   void parse_and_publish_number_concentration_();
 #endif

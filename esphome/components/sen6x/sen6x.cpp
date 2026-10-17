@@ -560,14 +560,21 @@ void SEN6XComponent::parse_and_publish_measurements_() {
     this->co2_sensor_->publish_state(co2);
 
 #ifdef USE_SEN6X_NUMBER_CONCENTRATION
-  // The chain ends with the number concentration read, which clears the warning
-  this->read_number_concentration_();
-#else
-  this->status_clear_warning();
+  // The define says some device in the build has pmc sensors; this one may not
+  if (this->has_number_concentration_sensor_()) {
+    this->read_number_concentration_();  // the chain ends there, with the warning cleared
+    return;
+  }
 #endif
+  this->status_clear_warning();
 }
 
 #ifdef USE_SEN6X_NUMBER_CONCENTRATION
+bool SEN6XComponent::has_number_concentration_sensor_() const {
+  return this->pmc_0_5_sensor_ != nullptr || this->pmc_1_0_sensor_ != nullptr || this->pmc_2_5_sensor_ != nullptr ||
+         this->pmc_4_0_sensor_ != nullptr || this->pmc_10_0_sensor_ != nullptr;
+}
+
 void SEN6XComponent::read_number_concentration_() {
   if (!this->write_command(SEN6X_CMD_READ_NUMBER_CONCENTRATION)) {
     this->status_set_warning();
