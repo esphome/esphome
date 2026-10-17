@@ -1,46 +1,53 @@
 #pragma once
 
 #include <cmath>
+#include <utility>
 
 namespace esphome::speaker {
 
 /// Tracks a separate volume for announcements that start while nothing else is playing.
-/// Each method that returns true means the caller must send a new volume to its speakers: get_volume() while
-/// is_active(), otherwise the media player volume.
+/// The methods that change the volume take `apply`, called with the volume the speakers must switch to.
 class AnnouncementVolume {
  public:
-  /// Stores a new announcement volume. Returns true if it is in use and must be applied right away.
-  bool set_volume(float volume) {
+  /// Stores a new announcement volume and applies it right away if it is in use.
+  template<typename F> void set_volume(float volume, F &&apply) {
     this->volume_ = volume;
-    return this->active_;
+    if (this->active_) {
+      std::forward<F>(apply)(volume);
+    }
   }
   float get_volume() const { return this->volume_; }
   bool is_configured() const { return !std::isnan(this->volume_); }
   bool is_active() const { return this->active_; }
 
-  /// Called when an announcement starts. Returns true if the speakers must switch to the announcement volume.
+  /// Called when an announcement starts. Switches to the announcement volume unless other audio is playing.
   /// @param other_audio_playing Media, or an announcement that does not use the announcement volume, is playing
-  bool begin(bool other_audio_playing) {
+  template<typename F> void begin(bool other_audio_playing, F &&apply) {
     if (this->active_ || other_audio_playing || !this->is_configured()) {
-      return false;
+      return;
     }
     this->active_ = true;
-    return true;
+    this->log_begin_();
+    std::forward<F>(apply)(this->volume_);
   }
 
-  /// Returns true if the speakers must switch back to the media player volume.
-  bool end() {
+  /// Switches back to the media player volume if the announcement volume is in use.
+  template<typename F> void end(float media_volume, F &&apply) {
     if (!this->active_) {
-      return false;
+      return;
     }
     this->active_ = false;
-    return true;
+    this->log_end_(media_volume);
+    std::forward<F>(apply)(media_volume);
   }
 
   /// The media player volume was set and already sent to the speakers; it applies until the next announcement.
   void cancel() { this->active_ = false; }
 
  protected:
+  void log_begin_() const;
+  void log_end_(float media_volume) const;
+
   float volume_{NAN};
   bool active_{false};
 };

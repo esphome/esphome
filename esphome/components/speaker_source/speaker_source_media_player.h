@@ -29,8 +29,8 @@ namespace esphome::speaker_source {
 //
 // - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
 //   handle_volume_request_(), handle_mute_request_(), handle_play_uri_request_(),
-//   set_volume_(), apply_speaker_volume_(), set_announcement_volume(), begin_announcement_volume_(),
-//   end_announcement_volume_(), is_media_playing_(), set_mute_state_(), control(), get_source_state_(),
+//   set_volume_(), apply_speaker_volume_(), set_announcement_volume(), is_media_playing_(), set_mute_state_(),
+//   control(), get_source_state_(),
 //   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
 //   process_control_queue_(), handle_player_command_(), queue_command_(), queue_play_current_()
 //
@@ -209,10 +209,10 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
   /// @brief Remaps a volume to the configured limits and sends it to the speakers.
   void apply_speaker_volume_(float volume);
 
-  /// @brief Switches the speakers to the announcement volume, if one is configured and nothing else is playing.
-  void begin_announcement_volume_(bool other_audio_playing);
-  /// @brief Switches the speakers back to the media player volume.
-  void end_announcement_volume_();
+  /// @brief Returns a callable that sends a volume to the speakers, for announcement_volume_ to apply its changes.
+  auto speaker_volume_applier_() {
+    return [this](float volume) { this->apply_speaker_volume_(volume); };
+  }
 
   /// @brief Whether the media pipeline's active source is playing.
   bool is_media_playing_() const;

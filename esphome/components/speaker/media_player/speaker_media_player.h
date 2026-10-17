@@ -38,6 +38,7 @@ struct MediaCallCommand {
 struct PlaylistItem {
   optional<std::string> url;
   optional<const audio::AudioFile *> file;
+  bool is_announcement{false};
 };
 
 struct VolumeRestoreState {
@@ -108,10 +109,10 @@ class SpeakerMediaPlayer final : public Component,
   /// @brief Remaps a volume to the configured limits and sends it to the speakers.
   void apply_speaker_volume_(float volume);
 
-  /// @brief Switches the speakers to the announcement volume, if one is configured and nothing else is playing.
-  void begin_announcement_volume_(bool other_audio_playing);
-  /// @brief Switches the speakers back to the media player volume.
-  void end_announcement_volume_();
+  /// @brief Returns a callable that sends a volume to the speakers, for announcement_volume_ to apply its changes.
+  auto speaker_volume_applier_() {
+    return [this](float volume) { this->apply_speaker_volume_(volume); };
+  }
 
   /// @brief Sets the mute state. Restores previous volume if unmuting. Always saves volume/mute state to flash for
   /// restoration.

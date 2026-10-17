@@ -296,7 +296,7 @@ void SpeakerSourceMediaPlayer::loop() {
   if (this->is_media_playing_() ||
       (ann_ps.is_configured() && ann_ps.active_source == nullptr && ann_ps.pending_source == nullptr &&
        !announcement_playlist_active && ann_ps.speaker->is_stopped())) {
-    this->end_announcement_volume_();
+    this->announcement_volume_.end(this->volume, this->speaker_volume_applier_());
   }
 
   if (this->state != old_state) {
@@ -378,8 +378,9 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
 
   // Without a media pipeline, media also plays on the announcement pipeline and must keep the media volume
   if (pipeline == ANNOUNCEMENT_PIPELINE && this->pipelines_[MEDIA_PIPELINE].is_configured()) {
-    this->begin_announcement_volume_(this->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING ||
-                                     this->is_media_playing_());
+    this->announcement_volume_.begin(
+        this->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING || this->is_media_playing_(),
+        this->speaker_volume_applier_());
   }
 
   // Set pending source so handle_media_state_changed_ can recognize it when the source transitions to PLAYING
@@ -877,23 +878,7 @@ void SpeakerSourceMediaPlayer::apply_speaker_volume_(float volume) {
 
 // THREAD CONTEXT: Called from main loop via automation commands (direct)
 void SpeakerSourceMediaPlayer::set_announcement_volume(float announcement_volume) {
-  if (this->announcement_volume_.set_volume(announcement_volume)) {
-    this->apply_speaker_volume_(announcement_volume);
-  }
-}
-
-void SpeakerSourceMediaPlayer::begin_announcement_volume_(bool other_audio_playing) {
-  if (this->announcement_volume_.begin(other_audio_playing)) {
-    ESP_LOGD(TAG, "Using announcement volume %.2f", this->announcement_volume_.get_volume());
-    this->apply_speaker_volume_(this->announcement_volume_.get_volume());
-  }
-}
-
-void SpeakerSourceMediaPlayer::end_announcement_volume_() {
-  if (this->announcement_volume_.end()) {
-    ESP_LOGD(TAG, "Restoring volume %.2f", this->volume);
-    this->apply_speaker_volume_(this->volume);
-  }
+  this->announcement_volume_.set_volume(announcement_volume, this->speaker_volume_applier_());
 }
 
 size_t SpeakerSourceMediaPlayer::get_playlist_position_(uint8_t pipeline) const {

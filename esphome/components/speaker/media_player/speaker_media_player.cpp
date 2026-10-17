@@ -153,13 +153,16 @@ void SpeakerMediaPlayer::watch_media_commands_() {
       if (media_command.file.has_value()) {
         playlist_item.file = media_command.file;
       }
+      playlist_item.is_announcement = media_command.is_announcement;
 
       if (media_command.is_announcement) {
-        this->begin_announcement_volume_(this->media_pipeline_state_ == AudioPipelineState::PLAYING ||
-                                         this->announcement_pipeline_state_ != AudioPipelineState::STOPPED);
-      } else if (this->single_pipeline_()) {
-        // Media joins the announcement playlist. With two pipelines, loop() switches back once the media plays.
-        this->end_announcement_volume_();
+        this->announcement_volume_.begin(this->media_pipeline_state_ == AudioPipelineState::PLAYING ||
+                                             this->announcement_pipeline_state_ != AudioPipelineState::STOPPED,
+                                         this->speaker_volume_applier_());
+      } else if (this->single_pipeline_() && !enqueue) {
+        // Media replaces the announcement playlist. Enqueued media switches back in loop() once it starts, and with
+        // two pipelines loop() switches back once the media plays.
+        this->announcement_volume_.end(this->volume, this->speaker_volume_applier_());
       }
 
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
@@ -410,6 +413,10 @@ void SpeakerMediaPlayer::loop() {
       if (!this->announcement_playlist_.empty()) {
         // Start the next announcement file
         PlaylistItem playlist_item = this->announcement_playlist_.front();
+        if (!playlist_item.is_announcement) {
+          // Only in single-pipeline mode: media queued behind an announcement plays at the media volume
+          this->announcement_volume_.end(this->volume, this->speaker_volume_applier_());
+        }
         if (playlist_item.url.has_value()) {
           this->announcement_pipeline_->start_url(playlist_item.url.value());
         } else if (playlist_item.file.has_value()) {
@@ -489,7 +496,7 @@ void SpeakerMediaPlayer::loop() {
 
   if (this->media_pipeline_state_ == AudioPipelineState::PLAYING ||
       (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED && this->announcement_playlist_.empty())) {
-    this->end_announcement_volume_();
+    this->announcement_volume_.end(this->volume, this->speaker_volume_applier_());
   }
 
   if (this->state != old_state) {
@@ -667,23 +674,7 @@ void SpeakerMediaPlayer::apply_speaker_volume_(float volume) {
 }
 
 void SpeakerMediaPlayer::set_announcement_volume(float announcement_volume) {
-  if (this->announcement_volume_.set_volume(announcement_volume)) {
-    this->apply_speaker_volume_(announcement_volume);
-  }
-}
-
-void SpeakerMediaPlayer::begin_announcement_volume_(bool other_audio_playing) {
-  if (this->announcement_volume_.begin(other_audio_playing)) {
-    ESP_LOGD(TAG, "Using announcement volume %.2f", this->announcement_volume_.get_volume());
-    this->apply_speaker_volume_(this->announcement_volume_.get_volume());
-  }
-}
-
-void SpeakerMediaPlayer::end_announcement_volume_() {
-  if (this->announcement_volume_.end()) {
-    ESP_LOGD(TAG, "Restoring volume %.2f", this->volume);
-    this->apply_speaker_volume_(this->volume);
-  }
+  this->announcement_volume_.set_volume(announcement_volume, this->speaker_volume_applier_());
 }
 
 }  // namespace esphome::speaker
