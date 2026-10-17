@@ -6,8 +6,8 @@ namespace esphome::gree {
 ESPHOME_LOG_TAG(TAG, "gree.climate");
 
 void GreeClimate::set_model(Model model) {
-  if (model == GREE_YAN) {
-    // YAN only has a vertical vane; the horizontal swing IR bytes are not defined for this model.
+  if (model == GREE_YAN || model == GREE_YX1FF) {
+    // These models only expose vertical swing; horizontal swing is not encoded on the wire.
     this->swing_modes_.erase(climate::CLIMATE_SWING_HORIZONTAL);
     this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
   }
@@ -45,6 +45,17 @@ void GreeClimate::transmit_state() {
     remote_state[2] = 0x60;
     remote_state[3] = 0x50;
     remote_state[4] = this->vertical_swing_();
+
+    if (model == GREE_YX1FF) {
+      // ModelA is set only when powered on.
+      if (this->mode == climate::CLIMATE_MODE_OFF)
+        remote_state[2] &= ~0x40;
+      // YX1FF requires the swing flag and 0x11 in the vane-position byte.
+      if (this->vertical_swing_() == GREE_VDIR_SWING) {
+        remote_state[0] |= (1 << 6);
+        remote_state[4] |= GREE_HDIR_SWING << 4;
+      }
+    }
   }
 
   if (model == GREE_YAG) {
@@ -54,6 +65,9 @@ void GreeClimate::transmit_state() {
       remote_state[0] |= (1 << 6);
     }
   }
+
+  if (model == GREE_YAC)
+    remote_state[4] = this->vertical_swing_();
 
   if (model == GREE_YAC || model == GREE_YAG) {
     remote_state[4] |= (this->horizontal_swing_() << 4);
@@ -77,7 +91,7 @@ void GreeClimate::transmit_state() {
   }
 
   if (model == GREE_YX1FF) {
-    if (this->fan_speed_() == GREE_FAN_TURBO) {
+    if (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO) == climate::CLIMATE_FAN_HIGH) {
       remote_state[2] |= GREE_FAN_TURBO_BIT;
     }
 
@@ -87,7 +101,7 @@ void GreeClimate::transmit_state() {
   }
 
   // Calculate the checksum
-  if (model == GREE_YAN || model == GREE_YX1FF) {
+  if (model == GREE_YAN) {
     remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
   } else {
     remote_state[7] =
@@ -181,9 +195,9 @@ uint8_t GreeClimate::fan_speed_() {
       case climate::CLIMATE_FAN_LOW:
         return GREE_FAN_2;
       case climate::CLIMATE_FAN_MEDIUM:
-        return GREE_FAN_3;
       case climate::CLIMATE_FAN_HIGH:
-        return GREE_FAN_TURBO;
+        // HIGH additionally sets the separate Turbo bit in byte 2.
+        return GREE_FAN_3;
       case climate::CLIMATE_FAN_AUTO:
       default:
         return GREE_FAN_AUTO;
