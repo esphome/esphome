@@ -11,6 +11,7 @@ from esphome import pins
 from esphome.build_helpers import pch
 from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.zephyr import (
     Section,
     add_extra_script,
@@ -322,6 +323,8 @@ CONFIG_SCHEMA = cv.All(
     _default_self_reset_pin,
     _resolve_toolchain,
     set_framework,
+    network.require_ipv6(PLATFORM_NRF52),
+    network.request_ipv4_off(PLATFORM_NRF52),
 )
 
 

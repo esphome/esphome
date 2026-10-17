@@ -9,6 +9,7 @@ from esphome.components.network import (
     get_network_priority,
     get_priority_interfaces_from_full_config,
     ip_address_literal,
+    require_ipv4,
 )
 from esphome.config_helpers import (
     filter_source_files_from_defines,
@@ -23,6 +24,7 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_ON_BOOT,
+    CONF_ETHERNET,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -561,6 +563,7 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
     ),
     _validate,
+    require_ipv4(CONF_ETHERNET),
 )
 
 

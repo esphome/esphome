@@ -8,7 +8,7 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
-from esphome.components.network import DOMAIN as NETWORK_DOMAIN
+from esphome.components.network import require_ipv4, require_ipv6
 
 # ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
 # components and downstream consumers that import them from api
@@ -29,7 +29,6 @@ from esphome.const import (
     CONF_DATA,
     CONF_DATA_TEMPLATE,
     CONF_DELAY,
-    CONF_ENABLE_IPV6,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -53,7 +52,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import Expression, MockObj, TemplateArgsType
-import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
@@ -340,7 +338,10 @@ def _validate_outgoing_host(value: str) -> IPv4Address | IPv6Address:
                 "give the address without the '%' part"
             )
         if (mapped := address.ipv4_mapped) is not None:
-            return mapped
+            address = mapped
+    # The build must carry the host's address family for the dial to work
+    require = require_ipv6 if isinstance(address, IPv6Address) else require_ipv4
+    require("api.outgoing_connection")(value)
     return address
 
 
@@ -481,31 +482,12 @@ def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
     return strings
 
 
-def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
-    """An IPv6 host can never be parsed, so never dialed, without IPv6."""
-    if (
-        (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None
-        or (host := outgoing.get(CONF_HOST)) is None
-        or host.version != 6
-    ):
-        return config
-    network_conf = fv.full_config.get().get(NETWORK_DOMAIN) or {}
-    if not network_conf.get(CONF_ENABLE_IPV6):
-        raise cv.Invalid(
-            "outgoing_connection host is an IPv6 address but IPv6 is not "
-            "enabled; set 'network: enable_ipv6: true'",
-            path=[CONF_OUTGOING_CONNECTION, CONF_HOST],
-        )
-    return config
-
-
 def _validate_wizard(config: ConfigType) -> ConfigType:
     wizard.final_validate(config)
     return config
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
-    _validate_outgoing_host_ipv6,
     _validate_wizard,
 )
 
