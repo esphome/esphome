@@ -729,13 +729,9 @@ ZIGBEE_MAX_EP_NUMBER = 239
 
 _zigbee_ns = cg.esphome_ns.namespace("zigbee")
 _ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
-_zigbee_report = _zigbee_ns.enum("ZigbeeReportT")
-ZIGBEE_REPORT = {
-    "coordinator": _zigbee_report.ZIGBEE_REPORT_COORDINATOR,
-    "enable": _zigbee_report.ZIGBEE_REPORT_ENABLE,
-    "force": _zigbee_report.ZIGBEE_REPORT_FORCE,
-    "default": _zigbee_report.ZIGBEE_REPORT_DEFAULT,
-}
+ZIGBEE_REPORT = _zigbee_ns.enum("ZigbeeReportT").options(
+    "coordinator", "enable", "force", "default", prefix="ZIGBEE_REPORT_"
+)
 
 
 def _check_report_deprecation(value: str) -> str:

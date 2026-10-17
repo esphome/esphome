@@ -32,19 +32,12 @@ tas58xx_ns = cg.esphome_ns.namespace("tas58xx")
 TAS58xx = tas58xx_ns.class_("TAS58xx", AudioDac, cg.PollingComponent, i2c.I2CDevice)
 
 DacMode = tas58xx_ns.enum("DacMode")
-DAC_MODES = {
-    "btl": DacMode.DAC_MODE_BTL,
-    "pbtl": DacMode.DAC_MODE_PBTL,
-}
+DAC_MODES = DacMode.options("btl", "pbtl", prefix="DAC_MODE_")
 
 MixerMode = tas58xx_ns.enum("MixerMode")
-MIXER_MODES = {
-    "stereo": MixerMode.MIXER_MODE_STEREO,
-    "stereo_inverse": MixerMode.MIXER_MODE_STEREO_INVERSE,
-    "mono": MixerMode.MIXER_MODE_MONO,
-    "left": MixerMode.MIXER_MODE_LEFT,
-    "right": MixerMode.MIXER_MODE_RIGHT,
-}
+MIXER_MODES = MixerMode.options(
+    "stereo", "stereo_inverse", "mono", "left", "right", prefix="MIXER_MODE_"
+)
 
 
 @dataclass(frozen=True)

@@ -19,10 +19,7 @@ CONF_SUPPLY_VOLTAGE = "supply_voltage"
 bme680_bsec_ns = cg.esphome_ns.namespace("bme680_bsec")
 
 IAQMode = bme680_bsec_ns.enum("IAQMode")
-IAQ_MODE_OPTIONS = {
-    "STATIC": IAQMode.IAQ_MODE_STATIC,
-    "MOBILE": IAQMode.IAQ_MODE_MOBILE,
-}
+IAQ_MODE_OPTIONS = IAQMode.options("STATIC", "MOBILE", prefix="IAQ_MODE_")
 
 SupplyVoltage = bme680_bsec_ns.enum("SupplyVoltage")
 SUPPLY_VOLTAGE_OPTIONS = {
@@ -31,10 +28,7 @@ SUPPLY_VOLTAGE_OPTIONS = {
 }
 
 SampleRate = bme680_bsec_ns.enum("SampleRate")
-SAMPLE_RATE_OPTIONS = {
-    "LP": SampleRate.SAMPLE_RATE_LP,
-    "ULP": SampleRate.SAMPLE_RATE_ULP,
-}
+SAMPLE_RATE_OPTIONS = SampleRate.options("LP", "ULP", prefix="SAMPLE_RATE_")
 
 BME680BSECComponent = bme680_bsec_ns.class_(
     "BME680BSECComponent", cg.Component, i2c.I2CDevice
