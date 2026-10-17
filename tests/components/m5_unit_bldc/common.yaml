@@ -16,8 +16,6 @@ number:
     m5_unit_bldc_id: bldc_hub
     pwm:
       name: Motor PWM
-    target_rpm:
-      name: Motor Target RPM
 
 select:
   - platform: m5_unit_bldc

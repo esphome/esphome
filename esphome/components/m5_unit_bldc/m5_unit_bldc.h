@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/number/number.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -55,6 +56,8 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
     this->status_text_sensor_ = status_text_sensor;
   }
   void set_direction_select(select::Select *direction_select) { this->direction_select_ = direction_select; }
+  void set_pwm_number(number::Number *pwm_number) { this->pwm_number_ = pwm_number; }
+  void set_target_rpm_number(number::Number *target_rpm_number) { this->target_rpm_number_ = target_rpm_number; }
 
   // Called by the `number`/`select` sub-platforms to drive the motor. Return whether the I2C
   // write that defines the new state succeeded, so callers can skip publishing an entity state
@@ -69,6 +72,7 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool write_float_(uint8_t reg, float value);
   bool read_float_(uint8_t reg, float *value);
   bool write_pwm_raw_(uint16_t duty);
+  bool read_pwm_raw_(uint16_t *duty);
 
   ControlMode control_mode_{ControlMode::CONTROL_MODE_OPEN_LOOP};
   Direction initial_direction_{Direction::DIRECTION_FORWARD};
@@ -94,6 +98,8 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   sensor::Sensor *frequency_sensor_{nullptr};
   text_sensor::TextSensor *status_text_sensor_{nullptr};
   select::Select *direction_select_{nullptr};
+  number::Number *pwm_number_{nullptr};
+  number::Number *target_rpm_number_{nullptr};
 };
 
 }  // namespace esphome::m5_unit_bldc

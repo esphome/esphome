@@ -9,7 +9,7 @@ from esphome.const import (
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
 
-AUTO_LOAD = ["select", "sensor", "text_sensor"]
+AUTO_LOAD = ["number", "select", "sensor", "text_sensor"]
 CODEOWNERS = ["@lboue"]
 DEPENDENCIES = ["i2c"]
 DOMAIN = "m5_unit_bldc"

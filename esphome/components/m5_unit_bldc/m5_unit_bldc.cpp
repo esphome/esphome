@@ -49,6 +49,25 @@ void M5UnitBldc::setup() {
     return;
   }
 
+  // The device's own MCU keeps running -- and keeps driving whatever PWM/RPM it was last given --
+  // across an ESP reboot. Read that back so `last_pwm_`/`last_target_rpm_` reflect reality (instead
+  // of restarting a reversal from a stale zero) and so the `number` entities come up showing the
+  // motor's actual command instead of unknown. A failed read is not fatal: it just leaves the
+  // entity unpublished, same as any other runtime read failure.
+  uint16_t pwm_raw;
+  if (this->read_pwm_raw_(&pwm_raw)) {
+    this->last_pwm_ = pwm_raw;
+    if (this->pwm_number_ != nullptr)
+      this->pwm_number_->publish_state(pwm_raw);
+  }
+
+  float target_rpm;
+  if (this->read_float_(REG_SET_RPM, &target_rpm)) {
+    this->last_target_rpm_ = target_rpm;
+    if (this->target_rpm_number_ != nullptr)
+      this->target_rpm_number_->publish_state(target_rpm);
+  }
+
   uint8_t pid[12];
   if (this->has_pid_) {
     int32_t p_int = lroundf(this->p_ * 100);
@@ -144,6 +163,14 @@ bool M5UnitBldc::write_pwm_raw_(uint16_t duty) {
   uint8_t buf[2];
   std::memcpy(buf, &duty, 2);
   return this->write_register(REG_PWM, buf, 2) == i2c::ERROR_OK;
+}
+
+bool M5UnitBldc::read_pwm_raw_(uint16_t *duty) {
+  uint8_t buf[2];
+  if (this->read_register(REG_PWM, buf, 2) != i2c::ERROR_OK)
+    return false;
+  std::memcpy(duty, buf, 2);
+  return true;
 }
 
 bool M5UnitBldc::write_pwm(uint16_t duty) {
