@@ -11,6 +11,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@habbie"]
 DEPENDENCIES = ["uart"]
@@ -40,24 +41,26 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_interval_uart(config):
+def validate_interval_uart(config: ConfigType) -> None:
     interval = config.get(CONF_UPDATE_INTERVAL)
     uart.final_validate_device_schema(
         "pm1006",
         baud_rate=9600,
         require_rx=True,
         require_tx=interval.total_milliseconds != SCHEDULER_DONT_RUN,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
     )(config)
 
 
 FINAL_VALIDATE_SCHEMA = validate_interval_uart
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)

@@ -2,6 +2,6 @@ esphome:
   name: docker-test-ln882x-arduino
 
 ln882x:
-  board: generic-ln882hki
+  board: generic-ln882h
 
 logger:

@@ -3,7 +3,7 @@
 
 namespace esphome::as3935_i2c {
 
-static const char *const TAG = "as3935_i2c";
+ESPHOME_LOG_TAG(TAG, "as3935_i2c");
 
 void I2CAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_pos) {
   uint8_t write_reg;
@@ -24,11 +24,7 @@ void I2CAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits,
 
 uint8_t I2CAS3935Component::read_register(uint8_t reg) {
   uint8_t value;
-  if (write(&reg, 1) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Writing register failed!");
-    return 0;
-  }
-  if (read(&value, 1) != i2c::ERROR_OK) {
+  if (!this->read_byte(reg, &value)) {
     ESP_LOGW(TAG, "Reading register failed!");
     return 0;
   }

@@ -5,7 +5,7 @@
 
 namespace esphome::ina226 {
 
-static const char *const TAG = "ina226";
+ESPHOME_LOG_TAG(TAG, "ina226");
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -40,7 +40,7 @@ void INA226Component::setup() {
 
   config.reset = 1;
   if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(1);
@@ -61,7 +61,7 @@ void INA226Component::setup() {
   config.mode = 0b111;
 
   if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -70,12 +70,12 @@ void INA226Component::setup() {
 
   this->calibration_lsb_ = lsb;
 
-  auto calibration = uint32_t(0.00512 / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
+  auto calibration = uint32_t(0.00512f / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
 
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
 
   if (!this->write_byte_16(INA226_REGISTER_CALIBRATION, calibration)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -84,10 +84,8 @@ void INA226Component::dump_config() {
   ESP_LOGCONFIG(TAG, "INA226:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
   LOG_UPDATE_INTERVAL(this);
 
   ESP_LOGCONFIG(TAG,

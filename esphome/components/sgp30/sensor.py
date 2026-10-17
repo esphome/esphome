@@ -1,11 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.const import CONF_HUMIDITY_SOURCE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BASELINE,
     CONF_COMPENSATION,
     CONF_ECO2,
-    CONF_ID,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
     CONF_TVOC,
@@ -18,6 +18,7 @@ from esphome.const import (
     UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -30,7 +31,6 @@ SGP30Component = sgp30_ns.class_(
 CONF_ECO2_BASELINE = "eco2_baseline"
 CONF_TVOC_BASELINE = "tvoc_baseline"
 CONF_UPTIME = "uptime"
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
 
 CONFIG_SCHEMA = (
@@ -81,26 +81,14 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
-    if eco2_config := config.get(CONF_ECO2):
-        sens = await sensor.new_sensor(eco2_config)
-        cg.add(var.set_eco2_sensor(sens))
-
-    if tvoc_config := config.get(CONF_TVOC):
-        sens = await sensor.new_sensor(tvoc_config)
-        cg.add(var.set_tvoc_sensor(sens))
-
-    if eco2_baseline_config := config.get(CONF_ECO2_BASELINE):
-        sens = await sensor.new_sensor(eco2_baseline_config)
-        cg.add(var.set_eco2_baseline_sensor(sens))
-
-    if tvoc_baseline_config := config.get(CONF_TVOC_BASELINE):
-        sens = await sensor.new_sensor(tvoc_baseline_config)
-        cg.add(var.set_tvoc_baseline_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ECO2, var.set_eco2_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
+    await sensors(CONF_ECO2_BASELINE, var.set_eco2_baseline_sensor)
+    await sensors(CONF_TVOC_BASELINE, var.set_tvoc_baseline_sensor)
 
     if (store_baseline := config.get(CONF_STORE_BASELINE)) is not None:
         cg.add(var.set_store_baseline(store_baseline))

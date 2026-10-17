@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import climate
 import esphome.config_validation as cv
 from esphome.const import CONF_HEAT_MODE, CONF_TEMPERATURE_SOURCE
+from esphome.types import ConfigType
 
 from .. import BEDJET_CLIENT_SCHEMA, bedjet_ns, register_bedjet_child
 
@@ -11,14 +12,10 @@ DEPENDENCIES = ["bedjet"]
 BedJetClimate = bedjet_ns.class_("BedJetClimate", climate.Climate, cg.PollingComponent)
 BedjetHeatMode = bedjet_ns.enum("BedjetHeatMode")
 BedjetTemperatureSource = bedjet_ns.enum("BedjetTemperatureSource")
-BEDJET_HEAT_MODES = {
-    "heat": BedjetHeatMode.HEAT_MODE_HEAT,
-    "extended": BedjetHeatMode.HEAT_MODE_EXTENDED,
-}
-BEDJET_TEMPERATURE_SOURCES = {
-    "outlet": BedjetTemperatureSource.TEMPERATURE_SOURCE_OUTLET,
-    "ambient": BedjetTemperatureSource.TEMPERATURE_SOURCE_AMBIENT,
-}
+BEDJET_HEAT_MODES = BedjetHeatMode.options("heat", "extended", prefix="HEAT_MODE_")
+BEDJET_TEMPERATURE_SOURCES = BedjetTemperatureSource.options(
+    "outlet", "ambient", prefix="TEMPERATURE_SOURCE_"
+)
 
 CONFIG_SCHEMA = (
     climate.climate_schema(BedJetClimate)
@@ -37,7 +34,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await register_bedjet_child(var, config)

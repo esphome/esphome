@@ -3,7 +3,7 @@
 
 namespace esphome::bh1900nux {
 
-static const char *const TAG = "bh1900nux.sensor";
+ESPHOME_LOG_TAG(TAG, "bh1900nux.sensor");
 
 // I2C Registers
 static const uint8_t TEMPERATURE_REG = 0x00;

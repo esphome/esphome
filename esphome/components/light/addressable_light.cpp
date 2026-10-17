@@ -3,7 +3,7 @@
 
 namespace esphome::light {
 
-static const char *const TAG = "light.addressable";
+ESPHOME_LOG_TAG(TAG, "light.addressable");
 
 void AddressableLight::call_setup() {
   this->setup();

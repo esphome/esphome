@@ -32,6 +32,23 @@ text_sensor:
     filters:
       - map:
           - ON -> Active
+    # text_sensor.state with a constant and with a lambda, inside a trigger
+    # whose argument is a std::string.
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: test_substitute_single
+              state: Error
+          then:
+            - logger.log: substitute reports an error
+      - if:
+          condition:
+            text_sensor.state:
+              id: test_substitute_single
+              state: !lambda return x;
+          then:
+            - logger.log: substitute matches the mapped value
 
   - platform: template
     name: "Test Map Multiple"
@@ -77,3 +94,14 @@ text_sensor:
             return {x.substr(0, 10) + "..."};
           }
           return {x};
+
+  - platform: template
+    name: "Test Publish Action"
+    id: test_publish_action
+    on_value:
+      - text_sensor.template.publish:
+          id: test_map_single
+          state: "ON"
+      - text_sensor.template.publish:
+          id: test_map_single
+          state: !lambda 'return x + " again";'

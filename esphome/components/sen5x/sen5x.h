@@ -8,15 +8,6 @@
 
 namespace esphome::sen5x {
 
-enum ERRORCODE : uint8_t {
-  COMMUNICATION_FAILED,
-  SERIAL_NUMBER_IDENTIFICATION_FAILED,
-  MEASUREMENT_INIT_FAILED,
-  PRODUCT_NAME_FAILED,
-  FIRMWARE_FAILED,
-  UNKNOWN
-};
-
 enum RhtAccelerationMode : uint16_t {
   LOW_ACCELERATION = 0,
   MEDIUM_ACCELERATION = 1,
@@ -95,6 +86,7 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
     temp_comp.time_constant = time_constant;
     this->temperature_compensation_ = temp_comp;
   }
+  void set_model(Sen5xType model) { this->model_override_ = model; }
   bool start_fan_cleaning();
 
  protected:
@@ -106,7 +98,6 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
   uint32_t voc_baseline_time_{0};
   uint16_t firmware_version_{0};
   Sen5xType type_{Sen5xType::UNKNOWN};
-  ERRORCODE error_code_{ERRORCODE::UNKNOWN};
   bool initialized_{false};
   bool store_baseline_{false};
 
@@ -126,6 +117,7 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
+  optional<Sen5xType> model_override_;
   ESPPreferenceObject pref_;
 };
 

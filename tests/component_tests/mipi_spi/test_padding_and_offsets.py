@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -222,6 +223,7 @@ class TestNewModelVariants:
     def test_m5core2_with_native_dimensions(
         self,
         set_core_config: SetCoreConfigCallable,
+        set_component_config: Callable[[str, Any], None],
     ) -> None:
         """Test M5CORE2 variant with reset native_width and native_height."""
         set_core_config(
@@ -231,6 +233,8 @@ class TestNewModelVariants:
                 KEY_VARIANT: VARIANT_ESP32S3,
             },
         )
+        # M5CORE2 has PSRAM on board and requires it to be configured
+        set_component_config("psram", True)
 
         # M5CORE2 should validate successfully
         config = validated_config({"model": "M5CORE2"})

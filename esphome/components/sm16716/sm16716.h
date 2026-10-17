@@ -7,7 +7,7 @@
 
 namespace esphome::sm16716 {
 
-class SM16716 : public Component {
+class SM16716 final : public Component {
  public:
   class Channel;
 
@@ -25,7 +25,7 @@ class SM16716 : public Component {
   /// Send new values if they were updated.
   void loop() override;
 
-  class Channel : public output::FloatOutput {
+  class Channel final : public output::FloatOutput {
    public:
     void set_parent(SM16716 *parent) { parent_ = parent; }
     void set_channel(uint8_t channel) { channel_ = channel; }

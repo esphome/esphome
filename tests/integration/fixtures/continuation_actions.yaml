@@ -5,7 +5,7 @@ host:
 
 api:
   actions:
-    # Test 1: IfAction with ContinuationAction (then/else branches)
+    # Test 1: IfAction with then/else branches
     - action: test_if_action
       variables:
         condition: bool
@@ -27,7 +27,7 @@ api:
                   args: ['value']
         - logger.log: "if completed"
 
-    # Test 2: Nested IfAction (multiple ContinuationAction instances)
+    # Test 2: Nested IfAction
     - action: test_nested_if
       variables:
         outer: bool
@@ -51,7 +51,7 @@ api:
               - logger.log: "nested-outer-false"
         - logger.log: "nested if completed"
 
-    # Test 3: WhileAction with WhileLoopContinuation
+    # Test 3: WhileAction
     - action: test_while_action
       variables:
         max_count: int
@@ -74,7 +74,7 @@ api:
                   value: !lambda 'return id(continuation_test_counter) + 1;'
         - logger.log: "while completed"
 
-    # Test 4: RepeatAction with RepeatLoopContinuation
+    # Test 4: RepeatAction
     - action: test_repeat_action
       variables:
         count: int
@@ -90,7 +90,7 @@ api:
                   args: ['iteration']
         - logger.log: "repeat completed"
 
-    # Test 5: Combined continuations (if + while + repeat)
+    # Test 5: Combined if + while + repeat
     - action: test_combined
       variables:
         do_loop: bool
@@ -123,7 +123,7 @@ api:
               - logger.log: "combined-skipped"
         - logger.log: "combined completed"
 
-    # Test 6: Rapid triggers to verify memory efficiency
+    # Test 6: Rapid triggers
     - action: test_rapid_if
       then:
         - logger.log: "=== Rapid if test start ==="
@@ -153,7 +153,7 @@ globals:
     restore_value: false
     initial_value: '0'
 
-# Sensor to test rapid automation triggers with if/else (ContinuationAction)
+# Sensor to test rapid automation triggers with if/else
 sensor:
   - platform: template
     id: rapid_sensor

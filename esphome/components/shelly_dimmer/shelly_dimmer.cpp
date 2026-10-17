@@ -19,7 +19,7 @@
 
 namespace {
 
-constexpr char TAG[] = "shelly_dimmer";
+ESPHOME_LOG_TAG(TAG, "shelly_dimmer");
 
 constexpr uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
 constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
@@ -207,7 +207,7 @@ bool ShellyDimmer::upgrade_firmware_() {
 
 uint16_t ShellyDimmer::convert_brightness_(float brightness) {
   // Special case for zero as only zero means turn off completely.
-  if (brightness == 0.0) {
+  if (brightness == 0.0f) {
     return 0;
   }
 
