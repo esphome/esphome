@@ -17,8 +17,11 @@ display:
     id: terminal
     dimensions: 12x2
     update_interval: 100ms
+    lambda: |-
+      id(terminal_menu).draw();
 
 lcd_menu:
+  id: terminal_menu
   display_id: terminal
   active: true
   mode: joystick

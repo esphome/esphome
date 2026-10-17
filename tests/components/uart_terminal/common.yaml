@@ -3,8 +3,9 @@ display:
     id: terminal
     dimensions: 20x4
     lambda: |-
-      it.print("Uart terminal");
-      it.printf(0, 1, "Row %d", 2);
+      id(terminal_menu).draw();
+      if (!id(terminal_menu).is_active())
+        it.print("Uart terminal");
 
 lcd_menu:
   id: terminal_menu
