@@ -50,5 +50,14 @@ ADC_LIMITS_V = {
     PLATFORM_RP2: (3.3, 3.6),
 }
 
+# Largest input each ESP32 attenuation measures, in volts; 12 dB matches ADC_LIMITS_V.
+ESP32_ATTENUATION_INPUT_MAX_V = {
+    "0db": 1.1,
+    "2.5db": 1.5,
+    "6db": 2.2,
+    "11db": 3.3,
+    "12db": 3.3,
+}
+
 # Guard margin (V): the 3.3333 V of a 10k/20k divider still passes adc_input_max: 3.33.
 ADC_LIMIT_MARGIN_V = 0.01

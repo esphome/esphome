@@ -315,8 +315,10 @@ void MiCS5524Component::finish_calibration_() {
            "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)%s\n"
            "  hard-code '%s: %.4f' to skip the calibration at boot",
            LOG_STR_ARG(strings.reference), this->reference_, valid, attempts,
-           stored ? LOG_STR_LITERAL(", stored in flash") : LOG_STR_LITERAL(""), LOG_STR_ARG(strings.key),
-           this->reference_);
+           stored           ? LOG_STR_LITERAL(", stored in flash")
+           : this->persist_ ? LOG_STR_LITERAL("")
+                            : LOG_STR_LITERAL(", kept until reboot"),
+           LOG_STR_ARG(strings.key), this->reference_);
 }
 
 void MiCS5524Component::schedule_calibration_retry_() {
@@ -341,8 +343,11 @@ bool MiCS5524Component::load_reference_() {
   float stored = 0.0f;
   if (!this->reference_pref_.load(&stored))
     return false;
-  if (!std::isfinite(stored) || stored <= 0.0f)
+  if (!std::isfinite(stored) || stored <= 0.0f) {
+    ESP_LOGW(TAG, "ignoring the stored %s %.4f, calibrating again",
+             LOG_STR_ARG(model_strings(this->conversion_).reference), stored);
     return false;
+  }
   this->reference_ = stored;
   return true;
 }

@@ -7,6 +7,7 @@ import re
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 from esphome.components.mics_5524.coefficients import (
     GASES,
     DatasheetCurve,
@@ -327,6 +328,65 @@ def test_voltage_divider_above_the_adc_limit_is_rejected(
         CONFIG_SCHEMA(_hub(voltage_divider={"r1": 10000.0, "r2": 20000.0}))
 
 
+def test_pin_source_must_be_scaled_into_the_adc_range(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A 5 V sensor straight on an ESP32 pin clips; a divider or multiplier that fits passes."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    with pytest.raises(cv.Invalid, match="5 V supply reaches the pin unscaled"):
+        CONFIG_SCHEMA(_hub(voltage=None, pin=34))
+    # Each hub needs its own entity names
+    CONFIG_SCHEMA(
+        _hub(
+            voltage=None,
+            pin=34,
+            voltage_multiplier=1.5,
+            adc_input_max=3.34,
+            hydrogen={"name": "H2 behind a multiplier"},
+        )
+    )
+    CONFIG_SCHEMA(
+        _hub(
+            voltage=None,
+            pin=34,
+            voltage_divider={"r1": 10000.0, "r2": 20000.0},
+            adc_input_max=3.34,
+            hydrogen={"name": "H2 behind a divider"},
+        )
+    )
+
+
+def test_pin_source_range_follows_the_attenuation(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """At 6 dB the ESP32 ADC measures about 2.2 V, so 3.33 V on the pin is rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    with pytest.raises(cv.Invalid, match="above the 2.2 V measuring range"):
+        CONFIG_SCHEMA(
+            _hub(voltage=None, pin=34, voltage_multiplier=1.5, adc_attenuation="6db")
+        )
+    CONFIG_SCHEMA(
+        _hub(
+            voltage=None,
+            pin=34,
+            voltage_multiplier=2.5,
+            adc_attenuation="6db",
+            hydrogen={"name": "H2 at 6 dB"},
+        )
+    )
+
+
+def test_min_ppm_zero_disables_the_floor() -> None:
+    config = CONFIG_SCHEMA(_hub(hydrogen={"name": "MiCS-5524 H2", "min_ppm": 0.0}))
+    assert config["hydrogen"]["min_ppm"] == 0.0
+
+
 def test_voltage_divider_limits_follow_the_esp8266_adc(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
@@ -382,7 +442,10 @@ def test_voltage_divider_on_an_unknown_platform_needs_declared_limits(
 @pytest.mark.parametrize("key", ["adc_input_max", "adc_pin_max"])
 def test_adc_limits_without_a_divider_are_rejected(key: str) -> None:
     """The limits only check a divider, so without one they would be silently ignored."""
-    with pytest.raises(cv.Invalid, match=f"'{key}:' only checks a 'voltage_divider:'"):
+    with pytest.raises(
+        cv.Invalid,
+        match=f"'{key}:' only checks a 'pin:' source or a 'voltage_divider:'",
+    ):
         CONFIG_SCHEMA(_hub(**{key: 3.34}))
 
 

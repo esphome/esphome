@@ -57,6 +57,7 @@ from . import (
     CONF_VOLTAGE_MULTIPLIER,
     CONF_VOLTAGE_SENSOR,
     CONVERSION_MODELS,
+    ESP32_ATTENUATION_INPUT_MAX_V,
     MiCS5524Component,
     MiCS5524GasSensor,
 )
@@ -145,11 +146,12 @@ def _preference_key(config: ConfigType) -> int:
 
 def _validate_adc_keys(config: ConfigType) -> ConfigType:
     """Reject the ADC keys where they would be accepted and ignored."""
-    if CONF_VOLTAGE_DIVIDER not in config:
+    if CONF_VOLTAGE_DIVIDER not in config and CONF_PIN not in config:
         for key in (CONF_ADC_INPUT_MAX, CONF_ADC_PIN_MAX):
             if key in config:
                 raise cv.Invalid(
-                    f"'{key}:' only checks a 'voltage_divider:', so it has no effect here",
+                    f"'{key}:' only checks a 'pin:' source or a 'voltage_divider:', "
+                    "so it has no effect here",
                     path=[key],
                 )
     if CONF_ADC_ATTENUATION in config and CONF_PIN not in config:
@@ -161,34 +163,55 @@ def _validate_adc_keys(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_divider(config: ConfigType) -> ConfigType:
-    """Reject a divider that puts the supply, the largest possible reading, past the sampler limits."""
-    if (divider := config.get(CONF_VOLTAGE_DIVIDER)) is None:
+def _validate_adc_range(config: ConfigType) -> ConfigType:
+    """Reject wiring that puts the supply, the largest possible reading, past the sampler limits.
+
+    A ``pin:`` source is always checked; a ``voltage:`` source only through its ``voltage_divider:``,
+    since the scaling of an external sampler is not known here.
+    """
+    divider = config.get(CONF_VOLTAGE_DIVIDER)
+    if divider is None and CONF_PIN not in config:
         return config
 
     supply = config[CONF_VCC]
-    pin_voltage = supply * divider[CONF_R2] / (divider[CONF_R1] + divider[CONF_R2])
+    pin_voltage = supply / _voltage_multiplier(config)
     if (limits := ADC_LIMITS_V.get(CORE.target_platform)) is None:
         if CONF_ADC_INPUT_MAX not in config or CONF_ADC_PIN_MAX not in config:
             raise cv.Invalid(
                 f"no built-in ADC limits for {CORE.target_platform}: declare "
-                "'adc_input_max:' and 'adc_pin_max:' so the divider can be checked"
+                "'adc_input_max:' and 'adc_pin_max:' so the wiring can be checked"
             )
         limits = (config[CONF_ADC_INPUT_MAX], config[CONF_ADC_PIN_MAX])
     default_input_max, default_pin_max = limits
+    if CONF_PIN in config and CORE.is_esp32:
+        # The attenuation picks the measuring range of the internal ADC
+        default_input_max = ESP32_ATTENUATION_INPUT_MAX_V[
+            config.get(CONF_ADC_ATTENUATION, "12db")
+        ]
     pin_max = config.get(CONF_ADC_PIN_MAX, default_pin_max)
     input_max = config.get(CONF_ADC_INPUT_MAX, default_input_max)
+    if divider is not None:
+        wiring = (
+            f"the divider brings {supply:g} V down to {pin_voltage:.4g} V on the pin"
+        )
+        remedy = "raise r1/r2"
+    elif CONF_VOLTAGE_MULTIPLIER in config:
+        wiring = f"{supply:g} V scaled by 1/{config[CONF_VOLTAGE_MULTIPLIER]:g} is {pin_voltage:.4g} V on the pin"
+        remedy = "raise 'voltage_multiplier:' to match the wiring"
+    else:
+        wiring = f"the {supply:g} V supply reaches the pin unscaled"
+        remedy = (
+            "add a 'voltage_divider:' (or 'voltage_multiplier:' for one already wired)"
+        )
     if pin_voltage > pin_max + ADC_LIMIT_MARGIN_V:
         raise cv.Invalid(
-            f"the divider brings {supply:g} V down to {pin_voltage:.4g} V on the pin, "
-            f"above the {pin_max:g} V the ADC tolerates - raise r1/r2, or "
+            f"{wiring}, above the {pin_max:g} V the ADC tolerates - {remedy}, or "
             "declare 'adc_pin_max:' for a sampler that takes more"
         )
     if pin_voltage > input_max + ADC_LIMIT_MARGIN_V:
         raise cv.Invalid(
-            f"the divider brings {supply:g} V down to {pin_voltage:.4g} V on the pin, "
-            f"above the {input_max:g} V measuring range of the sampler - "
-            "raise r1/r2, or declare 'adc_input_max:' for a sampler with a wider range"
+            f"{wiring}, above the {input_max:g} V measuring range of the sampler - {remedy}, "
+            "or declare 'adc_input_max:' for a sampler with a wider range"
         )
     return config
 
@@ -205,7 +228,7 @@ def _gas_schema(gas_key: str) -> cv.Schema:
         {
             # No default: each conversion model has its own ceiling, resolved in resolve_gas.
             cv.Optional(CONF_MAX_PPM): cv.positive_not_null_float,
-            cv.Optional(CONF_MIN_PPM): cv.positive_not_null_float,
+            cv.Optional(CONF_MIN_PPM): cv.positive_float,
             cv.Inclusive(
                 CONF_COEFFICIENT_A, "coefficients"
             ): cv.positive_not_null_float,
@@ -382,7 +405,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(*GASES),
     cv.has_at_most_one_key(CONF_AIR_REFERENCE, CONF_R0, CONF_CALIBRATION),
     _validate_adc_keys,
-    _validate_divider,
+    _validate_adc_range,
     _validate_config,
     _validate_enable_pin,
     _build_pin_source,
