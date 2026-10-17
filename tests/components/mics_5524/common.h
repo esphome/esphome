@@ -10,8 +10,12 @@ namespace esphome::mics_5524::testing {
 
 using micsmath::air_value_from_voltage;
 using micsmath::calibration_is_stable;
+using micsmath::clamp_ppm;
+using micsmath::ppm_from_power_law;
 using micsmath::ppm_from_vendor_curve;
 using micsmath::ratio_from_air_value;
+using micsmath::ratio_from_rs;
+using micsmath::rs_from_voltage;
 
 // Independent copy of the DFRobot table; the Python tests pin coefficients.py itself.
 constexpr micsmath::VendorCurve CO{0.425f, 0.000405f, 1.0f, 1000.0f};

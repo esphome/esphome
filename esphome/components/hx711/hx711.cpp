@@ -67,9 +67,7 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
 
   this->status_clear_warning();
 
-  if (data & 0x800000ULL) {
-    data |= 0xFF000000ULL;
-  }
+  data = static_cast<uint32_t>(sign_extend<24>(data));
 
   if (result != nullptr)
     *result = data;
