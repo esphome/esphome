@@ -14,18 +14,14 @@ CONF_DAC_OUTPUT = "dac_output"
 CONF_ADC_INPUT_MIC = "adc_input_mic"
 
 DacOutputLine = es8388_ns.enum("DacOutputLine")
-DAC_OUTPUT_OPTIONS = {
-    "LINE1": DacOutputLine.DAC_OUTPUT_LINE1,
-    "LINE2": DacOutputLine.DAC_OUTPUT_LINE2,
-    "BOTH": DacOutputLine.DAC_OUTPUT_BOTH,
-}
+DAC_OUTPUT_OPTIONS = DacOutputLine.options(
+    "LINE1", "LINE2", "BOTH", prefix="DAC_OUTPUT_"
+)
 DAC_OUTPUT_OPTION_NAMES = list(DAC_OUTPUT_OPTIONS)
 AdcInputMicLine = es8388_ns.enum("AdcInputMicLine")
-ADC_INPUT_MIC_OPTIONS = {
-    "LINE1": AdcInputMicLine.ADC_INPUT_MIC_LINE1,
-    "LINE2": AdcInputMicLine.ADC_INPUT_MIC_LINE2,
-    "DIFFERENCE": AdcInputMicLine.ADC_INPUT_MIC_DIFFERENCE,
-}
+ADC_INPUT_MIC_OPTIONS = AdcInputMicLine.options(
+    "LINE1", "LINE2", "DIFFERENCE", prefix="ADC_INPUT_MIC_"
+)
 ADC_INPUT_MIC_OPTION_NAMES = list(ADC_INPUT_MIC_OPTIONS)
 
 DacOutputSelect = es8388_ns.class_("DacOutputSelect", select.Select)

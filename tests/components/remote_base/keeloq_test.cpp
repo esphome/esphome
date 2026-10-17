@@ -249,4 +249,18 @@ TEST(KeeloqProtocolTest, TdefGroupRoundTrips) {
   }
 }
 
+TEST(KeeloqProtocolTest, AReceivedRepeatBitOfZeroIsSentAgainAsZero) {
+  KeeloqData received = frame(0, 0);
+  received.repeat = false;
+  std::vector<bool> bits = sent_bits(encode(received));
+  ASSERT_EQ(bits.size(), 66u);
+  EXPECT_FALSE(bits[65]);
+
+  auto decoded = decode(as_received(encode(received)));
+  ASSERT_TRUE(decoded.has_value());
+  if (decoded.has_value()) {
+    EXPECT_FALSE(decoded->repeat);
+  }
+}
+
 }  // namespace esphome::remote_base::testing

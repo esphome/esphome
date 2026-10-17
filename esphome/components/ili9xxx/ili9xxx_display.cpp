@@ -162,7 +162,7 @@ void ILI9XXXDisplay::fill(Color color) {
       }
       return;
     default:
-      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+      new_color = display::ColorUtil::color_to_332(color);
       break;
   }
   memset(this->buffer_, (uint8_t) new_color, this->get_buffer_length_());
@@ -183,7 +183,7 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
       break;
     case BITS_16:
       pos = pos * 2;
-      new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
+      new_color = display::ColorUtil::color_to_565(color);
       if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
         this->buffer_[pos] = (uint8_t) (new_color >> 8);
         updated = true;
@@ -192,7 +192,7 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
       new_color = new_color & 0xFF;
       break;
     default:
-      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+      new_color = display::ColorUtil::color_to_332(color);
       break;
   }
 
@@ -315,19 +315,17 @@ void ILI9XXXDisplay::display_() {
 
 // Outside update() this bypasses the buffer and writes directly to the display. Inside it the block goes into the
 // buffer, or the flush at the end of update() would paint the old buffer contents over it.
-void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
-                                    display::ColorOrder order, display::ColorBitness bitness, bool big_endian,
-                                    int x_offset, int y_offset, int x_pad) {
+void ILI9XXXDisplay::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                          display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                          int x_pad) {
   if (w <= 0 || h <= 0)
     return;
   // if color mapping or software rotation is required, hand this off to the parent implementation. This will
   // do color conversion pixel-by-pixel into the buffer and draw it later. If this is happening the user has not
   // configured the renderer well.
   if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || !big_endian ||
-      order != display::COLOR_ORDER_RGB || this->is_clipping() ||
-      (this->prossing_update_ && this->buffer_color_mode_ != BITS_16)) {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                     x_pad);
+      this->is_clipping() || (this->prossing_update_ && this->buffer_color_mode_ != BITS_16)) {
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
