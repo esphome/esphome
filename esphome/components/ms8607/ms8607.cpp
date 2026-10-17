@@ -88,6 +88,8 @@ void MS8607Component::try_reset_() {
       this->status_set_error();
       return;
     }
+    // The retries set the error flag without a reason; clear it so mark_failed() can record one
+    this->status_clear_error();
     if (!pt_successful && !h_successful) {
       this->mark_failed(LOG_STR("Temperature/Pressure and Humidity reset failed"));
     } else if (!pt_successful) {
