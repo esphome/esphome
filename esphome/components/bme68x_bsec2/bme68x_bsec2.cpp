@@ -232,7 +232,7 @@ void BME68xBSEC2Component::run_() {
   this->bsec_status_ = bsec_sensor_control_m(&this->bsec_instance_, curr_time_ns, &this->bsec_settings_);
   if (this->bsec_status_ < BSEC_OK) {
     ESP_LOGW(TAG, "Fetching control settings failed (BSEC2 error code %d)", this->bsec_status_);
-    this->status_set_error();
+    this->check_status_();
     // schedule next run after short delay
     this->set_timeout(RUN_TIMEOUT_ID, 50, [this]() { this->run_(); });
     return;
