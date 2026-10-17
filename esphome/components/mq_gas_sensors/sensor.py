@@ -11,6 +11,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, text_sensor, voltage_sampler
+from esphome.components.esp32 import get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ATTENUATION,
@@ -27,6 +28,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 from . import (
@@ -63,6 +65,7 @@ from . import (
     RATIO_MODES,
     REGRESSION_METHODS,
     MQGasSensor,
+    esp32_attenuation_input_max,
 )
 from .coefficients import (
     SENSOR_TYPES,
@@ -248,7 +251,13 @@ def _validate_config(config: ConfigType) -> ConfigType:
     # the limits were declared for an external sampler (e.g. an ADS1115).
     if CONF_PIN in config or CONF_ADC_INPUT_MAX in config or CONF_ADC_PIN_MAX in config:
         multiplier = _voltage_multiplier(config)
-        input_max = float(config.get(CONF_ADC_INPUT_MAX, ESP32_ADC_INPUT_MAX_V))
+        default_input_max = ESP32_ADC_INPUT_MAX_V
+        if CONF_PIN in config and CORE.is_esp32:
+            # The configured attenuation sets the measuring range of the internal ADC.
+            default_input_max = esp32_attenuation_input_max(
+                get_esp32_variant(), config.get(CONF_ADC_ATTENUATION, "12db")
+            )
+        input_max = float(config.get(CONF_ADC_INPUT_MAX, default_input_max))
         pin_max = float(config.get(CONF_ADC_PIN_MAX, ESP32_ADC_PIN_MAX_V))
         expected_max = float(resolved.vcc) / multiplier
         if expected_max > pin_max + ADC_LIMIT_MARGIN_V:

@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    VARIANT_ESP32S3,
+)
+from esphome.components.mq_gas_sensors import esp32_attenuation_input_max
 from esphome.components.mq_gas_sensors.coefficients import (
     SENSOR_TYPES,
     requires_coefficients,
@@ -147,6 +153,37 @@ def test_pin_creates_an_internal_adc(
     assert "new(mq8_pin) mq_gas_sensors::MQGasSensor(mq8_pin_adc);" in main_cpp
     # The 10k/20k divider derives the multiplier from the wiring.
     assert "mq8_pin->set_voltage_multiplier(1.5f);" in main_cpp
+
+
+def test_esp32_attenuation_ranges_follow_the_variant() -> None:
+    """Each variant uses its documented measuring range and `auto` the widest."""
+    assert esp32_attenuation_input_max(VARIANT_ESP32, "6db") == pytest.approx(1.75)
+    assert esp32_attenuation_input_max(VARIANT_ESP32S3, "12db") == pytest.approx(3.1)
+    assert esp32_attenuation_input_max(VARIANT_ESP32, "11db") == pytest.approx(2.45)
+    assert esp32_attenuation_input_max(VARIANT_ESP32, "auto") == pytest.approx(2.45)
+    # A variant without its own row falls back to the classic ESP32 range.
+    assert esp32_attenuation_input_max("ESP32P4", "12db") == pytest.approx(2.45)
+
+
+def test_pin_range_follows_the_attenuation(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The divider guard measures against the range of the configured attenuation."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    config = {
+        "id": "mq8",
+        "name": "MQ-8",
+        "sensor_type": "MQ-8",
+        "pin": 34,
+        "voltage_divider": {"r1": 10.0, "r2": 20.0},
+        "vcc": 5.0,
+        "adc_attenuation": "6db",
+    }
+    # 5 V through the divider is 3.33 V on the pin, above the 1.75 V a classic
+    # ESP32 measures at 6 dB: the top of the range clips.
+    with caplog.at_level("WARNING"):
+        CONFIG_SCHEMA(dict(config))
+    assert "above 'adc_input_max' (1.75 V)" in caplog.text
 
 
 def test_diagnostics_and_log_are_wired(

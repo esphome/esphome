@@ -11,6 +11,13 @@ creates a hidden, internal ``adc`` sensor for you).
 
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 
 CODEOWNERS = ["@nliaudat"]
 DOMAIN = "mq_gas_sensors"
@@ -72,12 +79,36 @@ RATIO_MODES = {
     "r0_rs": 1,  # MQUnifiedsensor readSensorR0Rs() convention
 }
 
-# Default ADC input limits for the classic ESP32, used by the divider guard:
+# Default ADC input limits used by the divider guard when the attenuation of an
+# owned ESP32 pin does not apply (an external sampler, or a non-ESP32 target):
 # the recommended maximum input voltage (VDD) and the datasheet's absolute
 # maximum (VDD + 0.3 V). Override them per sensor for other samplers, e.g.
 # `adc_input_max: 6.144` / `adc_pin_max: 6.144` for an ADS1115 at the widest gain.
 ESP32_ADC_INPUT_MAX_V = 3.3
 ESP32_ADC_PIN_MAX_V = 3.6
+
+# Top of the recommended input range of each ESP32 ADC attenuation, in volts, from
+# the ESP-IDF ADC calibration documentation; above it the reading flattens. The
+# ESP32 row stands in for the variants without their own row, and "auto" ends up
+# at the widest range.
+_ESP32_ATTENUATION_INPUT_MAX_V = {
+    VARIANT_ESP32: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 2.45},
+    VARIANT_ESP32S2: {"0db": 0.75, "2.5db": 1.05, "6db": 1.3, "12db": 2.5},
+    VARIANT_ESP32S3: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 3.1},
+    VARIANT_ESP32C3: {"0db": 0.75, "2.5db": 1.05, "6db": 1.3, "12db": 2.5},
+    VARIANT_ESP32C6: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 3.3},
+}
+
+
+def esp32_attenuation_input_max(variant: str, attenuation: str) -> float:
+    """Largest input the internal ADC measures at the attenuation, for the variant."""
+    table = _ESP32_ATTENUATION_INPUT_MAX_V.get(
+        variant, _ESP32_ATTENUATION_INPUT_MAX_V[VARIANT_ESP32]
+    )
+    if attenuation in ("11db", "auto"):
+        attenuation = "12db"
+    return table[attenuation]
+
 
 #: Comparison margin of the divider guard (V): a declared limit is honoured even
 #: when the divider arithmetic lands a few millivolts above it, so that
