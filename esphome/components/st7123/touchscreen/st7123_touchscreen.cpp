@@ -5,7 +5,7 @@
 
 namespace esphome::st7123 {
 
-static const char *const TAG = "st7123.touchscreen";
+ESPHOME_LOG_TAG(TAG, "st7123.touchscreen");
 
 void ST7123Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {

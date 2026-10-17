@@ -17,10 +17,7 @@ CONF_CONFIGURATION = "configuration"
 CONF_RESISTOR = "resistor"
 
 ResistanceConfiguration = resistance_ns.enum("ResistanceConfiguration")
-CONFIGURATIONS = {
-    "DOWNSTREAM": ResistanceConfiguration.DOWNSTREAM,
-    "UPSTREAM": ResistanceConfiguration.UPSTREAM,
-}
+CONFIGURATIONS = ResistanceConfiguration.options("DOWNSTREAM", "UPSTREAM")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(

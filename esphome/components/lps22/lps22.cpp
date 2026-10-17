@@ -2,7 +2,7 @@
 
 namespace esphome::lps22 {
 
-static constexpr const char *const TAG = "lps22";
+ESPHOME_LOG_TAG(TAG, "lps22");
 
 static constexpr uint8_t WHO_AM_I = 0x0F;
 static constexpr uint8_t LPS22HB_ID = 0xB1;

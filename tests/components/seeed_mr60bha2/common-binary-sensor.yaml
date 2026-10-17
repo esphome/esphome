@@ -1,0 +1,9 @@
+# The hub with only the presence binary sensor, which nests a USE_SENSOR guard in process_frame_()
+seeed_mr60bha2:
+  id: my_seeed_mr60bha2_binary_sensor
+
+binary_sensor:
+  - platform: seeed_mr60bha2
+    mr60bha2_id: my_seeed_mr60bha2_binary_sensor
+    has_target:
+      name: "Person Information Only"

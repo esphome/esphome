@@ -25,11 +25,8 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    LD2420_component = await cg.get_variable(config[CONF_LD2420_ID])
-    if operating_mode_config := config.get(CONF_OPERATING_MODE):
-        sel = await select.new_select(
-            operating_mode_config,
-            options=CONF_SELECTS,
-        )
-        await cg.register_parented(sel, config[CONF_LD2420_ID])
-        cg.add(LD2420_component.set_operating_mode_select(sel))
+    hub = await cg.get_variable(config[CONF_LD2420_ID])
+    selects = select.sub_selects(config, parent=hub)
+    await selects(
+        CONF_OPERATING_MODE, hub.set_operating_mode_select, options=CONF_SELECTS
+    )

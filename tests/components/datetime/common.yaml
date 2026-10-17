@@ -1,3 +1,43 @@
+esphome:
+  on_boot:
+    then:
+      - datetime.date.set:
+          id: datetime_test_date
+          date:
+            year: 2021
+            month: 1
+            day: 1
+      - datetime.date.set:
+          id: datetime_test_date
+          date: !lambda "return {.day_of_month = 1, .month = 1, .year = 2021};"
+      - datetime.time.set:
+          id: datetime_test_time
+          time: "12:34:56"
+      - datetime.time.set:
+          id: datetime_test_time
+          time: !lambda "return {.second = 56, .minute = 34, .hour = 12};"
+      - datetime.datetime.set:
+          id: datetime_test_datetime
+          datetime: "2021-01-01 12:34:56"
+      - datetime.datetime.set:
+          id: datetime_test_datetime
+          datetime: !lambda "return {.second = 56, .minute = 34, .hour = 12, .day_of_month = 1, .month = 1, .year = 2021};"
+
 datetime:
+  - platform: template
+    name: Datetime Test Date
+    id: datetime_test_date
+    type: date
+    optimistic: true
+  - platform: template
+    name: Datetime Test Time
+    id: datetime_test_time
+    type: time
+    optimistic: true
+  - platform: template
+    name: Datetime Test DateTime
+    id: datetime_test_datetime
+    type: datetime
+    optimistic: true
 
 time:

@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 import re
 from typing import Any
 
@@ -18,6 +19,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     only_on_variant,
 )
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -44,6 +46,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
+DOMAIN = "spi"
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 QuadSPIComponent = spi_ns.class_("QuadSPIComponent", cg.Component)
@@ -157,7 +160,7 @@ def _validate_psram_dma(value: Any) -> bool:
             msg_prefix="PSRAM DMA",
         ),
         cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
-        cv.requires_component("psram"),
+        cv.requires_component(PSRAM_DOMAIN),
     )(value)
 
 
@@ -500,6 +503,17 @@ async def register_spi_device(
     if psram_dma := config.get(CONF_PSRAM_DMA):
         cg.add_define("USE_SPI_PSRAM_DMA")
         cg.add(var.set_psram_dma(psram_dma))
+
+
+def new_spi_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on an SPI bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor. Write-only devices call register_spi_device
+    themselves with write_only=True.
+    """
+    return cg.new_bus_component(register_spi_device, config, *args)
 
 
 def final_validate_device_schema(

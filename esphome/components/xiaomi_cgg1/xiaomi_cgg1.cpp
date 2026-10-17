@@ -4,7 +4,7 @@
 
 namespace esphome::xiaomi_cgg1 {
 
-static const char *const TAG = "xiaomi_cgg1";
+ESPHOME_LOG_TAG(TAG, "xiaomi_cgg1");
 
 static constexpr size_t CGG1_BINDKEY_SIZE = 16;
 
