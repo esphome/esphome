@@ -126,6 +126,13 @@ TEST(MS8607Test, Category2PressureCompensationMath) {
     EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
   }
 
+  // Top of the data sheet range at Reference Temp (2000 mbar @ 20°C)
+  {
+    float const pressure =
+        test_pressure_helper(8500494, calibration_values.reference_temperature << 8, calibration_values);
+    EXPECT_NEAR(pressure, 2000.00f, 1e-2f);
+  }
+
   // Lowest Pressure at Lowest Temperature (10 mbar @ -40°C)
   {
     float const pressure = test_pressure_helper(3991039, 6537387, calibration_values);
@@ -260,15 +267,15 @@ TEST(MS8607Test, Category4MathematicalEdgeCases) {
     EXPECT_EQ(actual_crc, bytes[2]);
   }
 
-  // Maximum values accepted by read_* methods
+  // Maximum values accepted by read_* methods (100°C and 2000 mbar, the PRESSURE_UPPER_LIMIT)
   {
     // these values are above what the data sheet accepts, but should avoid Undefined Behavior
     auto temp_res = compensated_temperature(10491904, calibration_values);
-    float const pressure = compensated_pressure(6857823, calibration_values, temp_res);
+    float const pressure = compensated_pressure(7815674, calibration_values, temp_res);
     float const hum = compensated_humidity(0xFFFC, temp_res.temperature_float);
 
     EXPECT_NEAR(temp_res.temperature_float, 100.0f, 1e-2f);
-    EXPECT_NEAR(pressure, 1500.0f, 1e-2f);
+    EXPECT_NEAR(pressure, 2000.0f, 1e-2f);
     EXPECT_NEAR(hum, 133.39f, 1e-2f);
   }
 
