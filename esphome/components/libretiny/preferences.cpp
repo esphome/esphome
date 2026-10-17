@@ -19,12 +19,15 @@ static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-n
 
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
 // The rtc keys already dealt with this boot. A preference made again later (wifi.enable remakes its own)
-// keeps this boot's value and takes over a discard that is still pending
+// keeps this boot's value and takes over a discard that is still pending. A key past the table's end is
+// not remembered, so making it again discards again, as before the table existed.
 struct DiscardedKey {
   uint32_t key;
   bool stale;
 };
-static std::vector<DiscardedKey> s_discarded;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static constexpr size_t MAX_DISCARDED_KEYS = 8;
+static StaticVector<DiscardedKey, MAX_DISCARDED_KEYS>
+    s_discarded;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static DiscardedKey *find_discarded(uint32_t key) {
   for (auto &entry : s_discarded) {
