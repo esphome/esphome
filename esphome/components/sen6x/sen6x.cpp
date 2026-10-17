@@ -606,6 +606,11 @@ void SEN6XComponent::parse_and_publish_measurements_() {
 void SEN6XComponent::read_device_status_() {
 #ifdef SEN6X_STATUS_SENSOR_COUNT
   if (!this->status_sensors_.empty()) {
+    // The pressure write in update() may still be executing; the device rejects commands until it is done
+    if (const uint32_t wait = this->command_wait_remaining_(); wait != 0) {
+      this->set_timeout(TIMEOUT_POLL, wait, [this]() { this->read_device_status_(); });
+      return;
+    }
     if (this->write_command(SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS)) {
       this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_device_status_(); });
       return;
