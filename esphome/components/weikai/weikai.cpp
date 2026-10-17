@@ -491,10 +491,11 @@ uart::UARTFlushResult WeikaiChannel::flush() {
     }
     // let the bytes still in the FIFO leave before reading the chip again
     uint32_t const wait_ms = this->tx_time_ms_(this->tx_in_fifo_());
-    if (wait_ms > 0)
+    if (wait_ms > 0) {
       delay(wait_ms);
-    else
+    } else {
       yield();  // reschedule our thread to avoid blocking
+    }
   }
   return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
