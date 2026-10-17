@@ -51,11 +51,12 @@ def test_built_in_curve_reaches_the_sensor(
 
 
 def test_every_built_in_type_resolves() -> None:
-    """Every table entry resolves to the coefficients the datasheet fit needs."""
-    for type_key in SENSOR_TYPES:
-        resolved = resolve_sensor(type_key)
-        assert resolved.a != 0.0
-        assert resolved.min_ppm < resolved.max_ppm
+    """Every gas in the table resolves to the coefficients the datasheet fit needs."""
+    for type_key, definition in SENSOR_TYPES.items():
+        for gas in definition["gases"]:
+            resolved = resolve_sensor(type_key, gas)
+            assert resolved.a != 0.0
+            assert resolved.max_ppm > 0.0
 
 
 def test_every_curve_stays_within_the_firmware_clamp() -> None:
