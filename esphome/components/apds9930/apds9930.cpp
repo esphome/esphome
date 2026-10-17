@@ -64,16 +64,8 @@ static constexpr uint16_t ALS_SATURATION = 1024 * (256 - APDS9930_ATIME_VALUE);
 bool APDS9930Component::write_reg_(uint8_t reg, uint8_t value) { return this->write_byte(reg | APDS9930_CMD, value); }
 
 void APDS9930Component::setup() {
-  uint8_t id;
-  if (!this->read_byte(APDS9930_ID | APDS9930_CMD, &id)) {
-    this->mark_failed(LOG_STR("Communication failed"));
+  if (!this->check_chip_id(this, APDS9930_ID | APDS9930_CMD, APDS9930_CHIP_ID))
     return;
-  }
-  if (id != APDS9930_CHIP_ID) {
-    ESP_LOGE(TAG, "Wrong ID 0x%02X (expected 0x%02X)", id, APDS9930_CHIP_ID);
-    this->mark_failed(LOG_STR("Wrong chip ID"));
-    return;
-  }
 
   const uint8_t control =
       (this->led_drive_ & 0b11) << CONTROL_PDRIVE_SHIFT | CONTROL_PDIODE_CH1 << CONTROL_PDIODE_SHIFT |

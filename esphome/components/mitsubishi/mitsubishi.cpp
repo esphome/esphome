@@ -387,10 +387,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MITSUBISHI_FRAME_SIZE)];
-#endif
-  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty_to(hex_buf, state_frame, MITSUBISHI_FRAME_SIZE));
+  ESP_LOGV_HEX(TAG, state_frame, MITSUBISHI_FRAME_SIZE, MITSUBISHI_FRAME_SIZE, "Receiving: %s");
 
   this->publish_state();
   return true;

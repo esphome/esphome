@@ -85,11 +85,6 @@ class BMP280Component : public PollingComponent {
   BMP280IIRFilter iir_filter_{BMP280_IIR_FILTER_OFF};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_CHIP_ID,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::bmp280_base

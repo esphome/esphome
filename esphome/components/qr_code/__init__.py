@@ -16,12 +16,9 @@ qr_code_ns = cg.esphome_ns.namespace("qr_code")
 QRCode = qr_code_ns.class_("QrCode", cg.Component)
 
 qrcodegen_Ecc = cg.esphome_ns.enum("qrcodegen_Ecc")
-ECC = {
-    "LOW": qrcodegen_Ecc.qrcodegen_Ecc_LOW,
-    "MEDIUM": qrcodegen_Ecc.qrcodegen_Ecc_MEDIUM,
-    "QUARTILE": qrcodegen_Ecc.qrcodegen_Ecc_QUARTILE,
-    "HIGH": qrcodegen_Ecc.qrcodegen_Ecc_HIGH,
-}
+ECC = qrcodegen_Ecc.options(
+    "LOW", "MEDIUM", "QUARTILE", "HIGH", prefix="qrcodegen_Ecc_"
+)
 
 CONFIG_SCHEMA = cv.ensure_list(
     cv.Schema(

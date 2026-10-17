@@ -127,8 +127,7 @@ i2c::ErrorCode XDB401Component::read_pressure_(float &pressure) {
   format_hex_pretty_to(pressure_buf, sizeof(pressure_buf), p_data, 3);
   ESP_LOGV(TAG, "Got pressure data: %s", pressure_buf);
 
-  // Sign-extend 24-bit big-endian pressure value to int32_t.
-  int32_t raw_pressure = static_cast<int32_t>(encode_uint24(p_data[0], p_data[1], p_data[2]) << 8) >> 8;
+  int32_t raw_pressure = sign_extend<24>(encode_uint24(p_data[0], p_data[1], p_data[2]));
   ESP_LOGD(TAG, "Pressure data raw %" PRId32, raw_pressure);
 
   pressure = (static_cast<float>(raw_pressure) / CONVERT_PRESSURE) *

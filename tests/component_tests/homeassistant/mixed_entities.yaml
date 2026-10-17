@@ -1,0 +1,65 @@
+esphome:
+  name: test-mixed-ha
+
+esp32:
+  variant: esp32
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+logger:
+
+api:
+
+sensor:
+  - platform: homeassistant
+    id: ha_sensor_1
+    name: HA Sensor 1
+    entity_id: sensor.temp_1
+  - platform: homeassistant
+    id: ha_sensor_2
+    name: HA Sensor 2
+    entity_id: sensor.temp_2
+
+binary_sensor:
+  - platform: homeassistant
+    id: ha_binary_sensor
+    name: HA Binary Sensor
+    entity_id: binary_sensor.motion
+
+text_sensor:
+  - platform: homeassistant
+    id: ha_text_sensor
+    name: HA Text Sensor
+    entity_id: sensor.status_text
+
+switch:
+  - platform: homeassistant
+    id: ha_switch
+    name: HA Switch
+    entity_id: switch.relay
+
+select:
+  - platform: homeassistant
+    id: ha_select
+    name: HA Select
+    entity_id: select.mode
+
+number:
+  - platform: homeassistant
+    id: ha_number
+    name: HA Number
+    entity_id: number.target_temp
+
+text:
+  - platform: homeassistant
+    id: ha_text
+    name: HA Text
+    entity_id: text.custom_note
+
+button:
+  - platform: homeassistant
+    id: ha_button
+    name: HA Button
+    entity_id: button.restart

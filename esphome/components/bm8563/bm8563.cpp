@@ -21,7 +21,7 @@ static constexpr uint32_t MAX_TIMER_DURATION_S = 255 * 60;
 
 void BM8563::setup() {
   if (!this->write_byte_16(CONTROL_STATUS_1_REG, 0)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -31,9 +31,6 @@ void BM8563::update() { this->read_time(); }
 void BM8563::dump_config() {
   ESP_LOGCONFIG(TAG, "BM8563:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void BM8563::start_timer(uint32_t duration_s) {
