@@ -375,6 +375,19 @@ TEST_F(PylontechCellTest, CellPollingCanBeTurnedOffAtAnyReplyEnd) {
   EXPECT_EQ(this->uart_.tx, "bat 1\n");
   ASSERT_EQ(published_cells.size(), 1u);
   EXPECT_EQ(published_cells[0].bat_num, 1);
+
+  // Turned off during the pause before bat 1: the queued command is dropped and the next pwr lines are
+  // battery lines
+  this->hub_.set_cell_polling_enabled(true);
+  this->uart_.push_rx({HEADER, BAT1, REPLY_END});
+  this->hub_.loop();
+  this->hub_.set_cell_polling_enabled(false);
+  this->let_pause_pass_();
+  EXPECT_EQ(this->uart_.tx, "bat 1\n");
+  this->uart_.push_rx({HEADER, BAT2, REPLY_END});
+  this->drain_and_publish_();
+  ASSERT_EQ(this->published_().size(), 4u);
+  EXPECT_EQ(this->published_()[3].bat_num, 2);
 }
 
 TEST_F(PylontechCellTest, UpdateAbandonsAnUnansweredBatReply) {

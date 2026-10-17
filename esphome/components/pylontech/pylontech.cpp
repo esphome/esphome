@@ -123,9 +123,13 @@ void PylontechComponent::loop() {
     if (this->bat_command_due_ &&
         static_cast<int32_t>(App.get_loop_component_start_time() - this->bat_command_at_) >= 0) {
       this->bat_command_due_ = false;
-      char cmd[8];  // "bat 16\n"
-      snprintf(cmd, sizeof(cmd), "bat %u\n", this->bat_reply_);
-      this->write_str(cmd);
+      if (this->cell_polling_enabled_) {
+        char cmd[8];  // "bat 16\n"
+        snprintf(cmd, sizeof(cmd), "bat %u\n", this->bat_reply_);
+        this->write_str(cmd);
+      } else {
+        this->bat_reply_ = 0;  // turned off during the pause: nothing is coming
+      }
     }
 #endif
     this->dispatch_one_();
