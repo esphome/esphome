@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
@@ -27,9 +28,12 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
+
+_LOGGER = logging.getLogger(__name__)
 
 display_ns = cg.esphome_ns.namespace("display")
 Display = display_ns.class_("Display", cg.PollingComponent)
@@ -72,13 +76,19 @@ BASIC_DISPLAY_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-def _validate_test_card(config):
+def _validate_test_card(config: ConfigType) -> ConfigType:
     if (
         config.get(CONF_SHOW_TEST_CARD, False)
-        and config.get(CONF_UPDATE_INTERVAL, False) == SCHEDULER_DONT_RUN
+        and (update_interval := config.get(CONF_UPDATE_INTERVAL)) is not None
+        and update_interval.total_milliseconds == SCHEDULER_DONT_RUN
     ):
-        raise cv.Invalid(
-            f"`{CONF_SHOW_TEST_CARD}: True` cannot be used with `{CONF_UPDATE_INTERVAL}: never` because this combination will not show a test_card."
+        # Only a warning: something else can still update the display, for example
+        # component.update, and the test card is drawn then.
+        _LOGGER.warning(
+            "`%s: True` is used with `%s: never`, so the test card is only drawn "
+            "when something updates the display (for example component.update)",
+            CONF_SHOW_TEST_CARD,
+            CONF_UPDATE_INTERVAL,
         )
     return config
 
