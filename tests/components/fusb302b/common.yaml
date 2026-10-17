@@ -1,5 +1,6 @@
 fusb302b:
   id: pd
+  i2c_id: i2c_bus
   interrupt_pin: ${interrupt_pin}
   request_voltage: 20
   contract:

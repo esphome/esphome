@@ -407,6 +407,23 @@ button:
           times: 3
           wait_time: 10ms
   - platform: template
+    name: A-OK
+    on_press:
+      remote_transmitter.transmit_aok:
+        remote_id: 0x123456
+        channels: 0x00A1
+        command: 0x0B
+  - platform: template
+    name: A-OK lambda with repeat
+    on_press:
+      remote_transmitter.transmit_aok:
+        remote_id: 0x123456
+        channels: !lambda return 0x1000;
+        command: 0x43
+        repeat:
+          times: 8
+          wait_time: 5ms
+  - platform: template
     name: Toto with repeat
     on_press:
       remote_transmitter.transmit_toto:

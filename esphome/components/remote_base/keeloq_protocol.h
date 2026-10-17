@@ -21,7 +21,7 @@ struct KeeloqData {
     this->suffix = group >> 2;
     this->suffix_bits = 6;
   }
-  // Valid when suffix_bits is 6.
+  // Only a Jarolift TDEF frame (suffix_bits == 6) carries a group; check suffix_bits before using it.
   uint8_t group() const { return static_cast<uint8_t>((this->suffix << 2) | (this->repeat << 1) | this->vlow); }
 
   bool operator==(const KeeloqData &rhs) const {

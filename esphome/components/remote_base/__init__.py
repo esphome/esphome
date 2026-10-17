@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_BUTTON,
     CONF_CARRIER_FREQUENCY,
     CONF_CHANNEL,
+    CONF_CHANNELS,
     CONF_CHECK,
     CONF_CODE,
     CONF_COMMAND,
@@ -71,6 +72,7 @@ CONF_CONTROL = "control"
 CONF_CONTROL_IN_KEY = "control_in_key"
 CONF_ROLLING_CODE = "rolling_code"
 CONF_EXTENSION = "extension"
+CONF_REMOTE_ID = "remote_id"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -2582,15 +2584,16 @@ register_protocol_action(
 ) = declare_protocol("Hob2Hood")
 
 Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
-HOB2HOOD_COMMAND_OPTIONS = {
-    "light_off": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_OFF,
-    "light_on": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_ON,
-    "fan_off": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_OFF,
-    "fan_low": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_LOW,
-    "fan_medium": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MEDIUM,
-    "fan_high": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_HIGH,
-    "fan_max": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MAX,
-}
+HOB2HOOD_COMMAND_OPTIONS = Hob2HoodCommand.options(
+    "light_off",
+    "light_on",
+    "fan_off",
+    "fan_low",
+    "fan_medium",
+    "fan_high",
+    "fan_max",
+    prefix="HOB2HOOD_COMMAND_",
+)
 
 HOB2HOOD_SCHEMA = cv.Schema(
     {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS, lower=True)}
@@ -2858,29 +2861,19 @@ register_protocol_action(
 ) = declare_protocol("IRA211")
 
 IRA211CommandEnum = ns.enum("IRA211Command", is_class=True)
-IRA211_COMMANDS = {
-    "TEMP_UP": IRA211CommandEnum.IRA211_COMMAND_TEMP_UP,
-    "TEMP_DOWN": IRA211CommandEnum.IRA211_COMMAND_TEMP_DOWN,
-    "MODE": IRA211CommandEnum.IRA211_COMMAND_MODE,
-    "FAN": IRA211CommandEnum.IRA211_COMMAND_FAN,
-    "POWER": IRA211CommandEnum.IRA211_COMMAND_POWER,
-    "SYNC": IRA211CommandEnum.IRA211_COMMAND_SYNC,
-}
+IRA211_COMMANDS = IRA211CommandEnum.options(
+    "TEMP_UP", "TEMP_DOWN", "MODE", "FAN", "POWER", "SYNC", prefix="IRA211_COMMAND_"
+)
 
 IRA211ModeEnum = ns.enum("IRA211Mode", is_class=True)
-IRA211_MODES = {
-    "PROTECTION": IRA211ModeEnum.IRA211_MODE_PROTECTION,
-    "TIMER": IRA211ModeEnum.IRA211_MODE_TIMER,
-    "COMFORT": IRA211ModeEnum.IRA211_MODE_COMFORT,
-}
+IRA211_MODES = IRA211ModeEnum.options(
+    "PROTECTION", "TIMER", "COMFORT", prefix="IRA211_MODE_"
+)
 
 IRA211FanEnum = ns.enum("IRA211Fan", is_class=True)
-IRA211_FAN_SPEEDS = {
-    "AUTO": IRA211FanEnum.IRA211_FAN_AUTO,
-    "LOW": IRA211FanEnum.IRA211_FAN_LOW,
-    "MEDIUM": IRA211FanEnum.IRA211_FAN_MEDIUM,
-    "HIGH": IRA211FanEnum.IRA211_FAN_HIGH,
-}
+IRA211_FAN_SPEEDS = IRA211FanEnum.options(
+    "AUTO", "LOW", "MEDIUM", "HIGH", prefix="IRA211_FAN_"
+)
 
 
 def _half_degree_step(value: float) -> float:
@@ -2936,4 +2929,56 @@ register_protocol_action(
     automation.ApplyField(CONF_TEMPERATURE, "data.set_temperature({})", cg.float_),
     (CONF_MODE, "mode", IRA211ModeEnum),
     (CONF_FAN_MODE, "fan", IRA211FanEnum),
+)
+
+
+# A-OK
+(
+    AOKData,
+    AOKBinarySensor,
+    AOKTrigger,
+    _,
+    AOKDumper,
+) = declare_protocol("AOK")
+
+AOK_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_REMOTE_ID): cv.hex_int_range(0, 0xFFFFFF),
+        cv.Required(CONF_CHANNELS): cv.hex_uint16_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("aok", AOKBinarySensor, AOK_SCHEMA)
+def aok_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                AOKData,
+                ("remote_id", config[CONF_REMOTE_ID]),
+                ("channels", config[CONF_CHANNELS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("aok", AOKTrigger, AOKData)
+def aok_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("aok", AOKDumper)
+def aok_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "aok",
+    "AOK",
+    AOK_SCHEMA,
+    (CONF_REMOTE_ID, "remote_id", cg.uint32),
+    (CONF_CHANNELS, "channels", cg.uint16),
+    (CONF_COMMAND, "command", cg.uint8),
 )
