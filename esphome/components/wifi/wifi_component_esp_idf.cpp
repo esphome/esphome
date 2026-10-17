@@ -1716,8 +1716,9 @@ void WiFiComponent::apply_ap_dns_() {
     this->fail_bridge_();
     return;
   }
-  if (dns_was_missing && esp_wifi_deauth_sta(0) != ESP_OK)
+  if (dns_was_missing && esp_wifi_deauth_sta(0) != ESP_OK) {
     ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the station's resolver");
+  }
 }
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS
 #endif  // USE_WIFI_AP_WISP || USE_WIFI_AP_NAPT
