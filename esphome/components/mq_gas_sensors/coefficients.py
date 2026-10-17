@@ -16,6 +16,7 @@ import math
 MQ_MAX_A = 1e30
 MQ_MAX_B = 100.0
 
+
 @dataclass(frozen=True)
 class ResolvedSensor:
     """Fully resolved sensor configuration handed to the C++ component."""
