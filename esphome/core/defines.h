@@ -338,6 +338,7 @@
 #define USE_MD5
 #define USE_NOISE
 #define USE_NOISE_SPARE_EPHEMERAL
+#define USE_NOISE_STREAM
 #define USE_SHA256
 #if !defined(USE_RP2) && !defined(USE_HOST)  // no MQTT backend or esp_wireguard library on RP2 and host
 #define USE_MQTT
