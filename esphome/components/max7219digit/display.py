@@ -28,16 +28,10 @@ CONF_CHIP_LINES_STYLE = "chip_lines_style"
 
 integration_ns = cg.esphome_ns.namespace("max7219digit")
 ChipLinesStyle = integration_ns.enum("ChipLinesStyle")
-CHIP_LINES_STYLE = {
-    "ZIGZAG": ChipLinesStyle.ZIGZAG,
-    "SNAKE": ChipLinesStyle.SNAKE,
-}
+CHIP_LINES_STYLE = ChipLinesStyle.options("ZIGZAG", "SNAKE")
 
 ScrollMode = integration_ns.enum("ScrollMode")
-SCROLL_MODES = {
-    "CONTINUOUS": ScrollMode.CONTINUOUS,
-    "STOP": ScrollMode.STOP,
-}
+SCROLL_MODES = ScrollMode.options("CONTINUOUS", "STOP")
 
 CHIP_MODES = {
     "0": 0,

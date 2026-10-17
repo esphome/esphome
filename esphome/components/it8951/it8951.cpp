@@ -351,6 +351,12 @@ void IT8951Display::on_safe_shutdown() {
   this->spi_cmd_(TCON_SLEEP);
 }
 
+void IT8951Display::on_powerdown() {
+  for (auto *pin : this->enable_pins_) {
+    pin->digital_write(false);
+  }
+}
+
 // --- Init op enqueuers -------------------------------------------------------
 
 void IT8951Display::enqueue_init_reset_() {
@@ -885,12 +891,10 @@ static uint8_t color_to_nibble(const Color &color) {
   if (color.raw_32 == 0xFFFFFFFF)
     return 0x0F;  // white
 
-  // Derive luma from RGB using Rec.601 weights (0.299/0.587/0.114, scaled by
-  // 256). Rec.601 is the standard for converting SDR images to grayscale and
-  // spreads saturated colours across the mid-range; Rec.709 instead crams them
-  // against white/black where the 16 panel levels are hard to tell apart.
-  auto luma = static_cast<uint8_t>((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
-  return quantize_8bit_to_nibble(luma);
+  // Rec.601 luma is the standard for converting SDR images to grayscale and spreads saturated colours
+  // across the mid-range; Rec.709 instead crams them against white/black where the 16 panel levels are
+  // hard to tell apart.
+  return quantize_8bit_to_nibble(display::rec601_luma(color));
 }
 
 // 4x4 ordered (Bayer) dither threshold over the weighted-luma range (0..65535).
@@ -955,8 +959,9 @@ void HOT IT8951Display::write_pixel_native_(uint16_t x, uint16_t y, const Color 
   }
 }
 
-void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                       ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void HOT IT8951Display::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                             int x_pad) {
   // A writer (e.g. LVGL) may push pixels before the framebuffer is ready or
   // after an allocation failure; ignore those rather than dereferencing null.
   if (this->buffer_ == nullptr)
@@ -964,7 +969,7 @@ void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, c
   // A clipping rectangle would need a per-pixel test; that's rare for the bulk
   // blit callers (LVGL, images), so fall back to the base per-pixel path then.
   if (this->get_clipping().is_set()) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
 
@@ -983,10 +988,7 @@ void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, c
         }
         case COLOR_BITNESS_888: {
           const size_t i = source_idx * 3;
-          color_value =
-              big_endian
-                  ? (static_cast<uint32_t>(ptr[i]) << 16) | (static_cast<uint32_t>(ptr[i + 1]) << 8) | ptr[i + 2]
-                  : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8) | (static_cast<uint32_t>(ptr[i + 2]) << 16);
+          color_value = ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8) | (static_cast<uint32_t>(ptr[i + 2]) << 16);
           break;
         }
         default:
@@ -999,7 +1001,7 @@ void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, c
       if (nx < 0 || ny < 0 || nx >= this->width_ || ny >= this->height_)
         continue;
       this->write_pixel_native_(static_cast<uint16_t>(nx), static_cast<uint16_t>(ny),
-                                ColorUtil::to_color(color_value, order, bitness));
+                                ColorUtil::to_color(color_value, bitness));
     }
   }
 

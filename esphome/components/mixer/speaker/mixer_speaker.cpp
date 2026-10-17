@@ -302,7 +302,7 @@ size_t SourceSpeaker::process_data_from_source(std::shared_ptr<audio::RingBuffer
     return 0;
   }
 
-  size_t bytes_read = audio_source->fill(ticks_to_wait, false);
+  size_t bytes_read = audio_source->fill(ticks_to_wait);
 
   uint32_t samples_to_duck = this->audio_stream_info_.bytes_to_samples(bytes_read);
   if (samples_to_duck > 0) {
@@ -359,7 +359,7 @@ void MixerSpeaker::loop() {
         xEventGroupClearBits(this->event_group_, MIXER_TASK_COMMAND_START);
       } else {
         ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
-        this->status_momentary_error("failure", 1000);
+        this->status_momentary_error(1000);
         return;
       }
     }

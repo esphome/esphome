@@ -41,7 +41,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -71,6 +71,7 @@ from .types import (  # noqa: F401
     ChannelColors,
     ColorMode,
     GammaTable,
+    LightEffect,
     LightOutput,
     LightState,
     LightStateRTCState,
@@ -519,6 +520,17 @@ def validate_color_temperature_channels(value):
     return value
 
 
+def _effects_table(effects: list[MockObj]) -> MockObj:
+    """Emit the flash table of a light's effect pointers; each must be a static address."""
+    return cg.shared_progmem_array(
+        "light_effects",
+        LightEffect.operator("ptr"),
+        cg.ArrayInitializer(*effects),
+        share=False,
+        constexpr=False,
+    )
+
+
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
     # All 8 legacy restore_mode values, and the restore_state key, are just different
@@ -586,7 +598,7 @@ async def setup_light_core_(light_var, config, output_var):
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     if effects:
-        cg.add(light_var.add_effects(effects))
+        cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)

@@ -1,9 +1,15 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
+    CONF_ALTITUDE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
+    CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
     CONF_FORMALDEHYDE,
     CONF_GAIN_FACTOR,
@@ -13,13 +19,18 @@ from esphome.const import (
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
+    CONF_NORMALIZED_OFFSET_SLOPE,
     CONF_NOX,
+    CONF_OFFSET,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_4_0,
     CONF_PM_10_0,
+    CONF_STARTUP_DELAY,
     CONF_STD_INITIAL,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_COMPENSATION,
+    CONF_TIME_CONSTANT,
     CONF_TYPE,
     CONF_VOC,
     DEVICE_CLASS_CARBON_DIOXIDE,
@@ -40,6 +51,17 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 from esphome.types import ConfigType
+
+CONF_TEMPERATURE_ACCELERATION = "temperature_acceleration"
+CONF_K = "k"
+CONF_P = "p"
+CONF_T1 = "t1"
+CONF_T2 = "t2"
+
+# The device takes these as fixed-point words: offset x200, slope x10000, acceleration x10
+TEMPERATURE_OFFSET_SCALE = 200
+TEMPERATURE_SLOPE_SCALE = 10000
+TEMPERATURE_ACCELERATION_SCALE = 10
 
 CODEOWNERS = ["@martgras", "@mebner86", "@tuct"]
 DEPENDENCIES = ["i2c"]
@@ -86,6 +108,8 @@ def _gas_index_schema(
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend({cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(tuning_schema)})
 
+
+_acceleration_parameter = cv.float_range(min=0.1, max=6553.5)
 
 CONFIG_SCHEMA = cv.All(
     cv.rename_key(CONF_VOC, CONF_VOC_INDEX, removed_in="2027.2.0", component="sen6x"),
@@ -153,12 +177,53 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION): cv.boolean,
+                    cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(
+                        cv.float_with_unit(
+                            "altitude", "(m|m a.s.l.|MAMSL|MASL)", optional_unit=True
+                        ),
+                        cv.int_range(min=0, max=3000),
+                    ),
+                    cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.int_range(
+                        min=700, max=1200
+                    ),
+                    cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
+                        sensor.Sensor
+                    ),
+                }
             ),
             cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 unit_of_measurement="ppb",
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_STARTUP_DELAY, default="60s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(hours=1)),
+            ),
+            cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
+                {
+                    cv.Optional(CONF_OFFSET, default=0): cv.float_range(
+                        min=-163.84, max=163.835
+                    ),
+                    cv.Optional(
+                        CONF_NORMALIZED_OFFSET_SLOPE, default=0
+                    ): cv.float_range(min=-3.2768, max=3.2767),
+                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(
+                        min=0, max=65535
+                    ),
+                }
+            ),
+            cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
+                {
+                    cv.Optional(CONF_K, default=20.0): _acceleration_parameter,
+                    cv.Optional(CONF_P, default=20.0): _acceleration_parameter,
+                    cv.Optional(CONF_T1, default=100.0): _acceleration_parameter,
+                    cv.Optional(CONF_T2, default=300.0): _acceleration_parameter,
+                }
             ),
         }
     )
@@ -181,12 +246,30 @@ SENSOR_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if CONF_TYPE in config:
         cg.add(var.set_type(config[CONF_TYPE]))
+
+    cg.add(var.set_startup_delay(config[CONF_STARTUP_DELAY]))
+
+    if (comp := config.get(CONF_TEMPERATURE_COMPENSATION)) is not None:
+        cg.add(
+            var.set_temperature_compensation(
+                round(comp[CONF_OFFSET] * TEMPERATURE_OFFSET_SCALE),
+                round(comp[CONF_NORMALIZED_OFFSET_SLOPE] * TEMPERATURE_SLOPE_SCALE),
+                comp[CONF_TIME_CONSTANT],
+            )
+        )
+    if (accel := config.get(CONF_TEMPERATURE_ACCELERATION)) is not None:
+        cg.add(
+            var.set_temperature_acceleration(
+                *(
+                    round(accel[key] * TEMPERATURE_ACCELERATION_SCALE)
+                    for key in (CONF_K, CONF_P, CONF_T1, CONF_T2)
+                )
+            )
+        )
 
     for key, func_name in SENSOR_MAP.items():
         if cfg := config.get(key):
@@ -209,3 +292,33 @@ async def to_code(config: ConfigType) -> None:
                 args.append(std_initial)
             args.append(tuning[CONF_GAIN_FACTOR])
             cg.add(getattr(var, setter)(*args))
+    if co2_cfg := config.get(CONF_CO2):
+        if (asc := co2_cfg.get(CONF_AUTOMATIC_SELF_CALIBRATION)) is not None:
+            cg.add(var.set_automatic_self_calibration(asc))
+        if (altitude := co2_cfg.get(CONF_ALTITUDE_COMPENSATION)) is not None:
+            cg.add(var.set_altitude_compensation(altitude))
+        if (pressure := co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION)) is not None:
+            cg.add(var.set_ambient_pressure_compensation(pressure))
+        if (
+            source := co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE)
+        ) is not None:
+            sens = await cg.get_variable(source)
+            cg.add(var.set_ambient_pressure_source(sens))
+
+
+SEN6X_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
+    }
+)
+
+
+for _name, _call in (
+    ("sen6x.start_measurement", "start_measurement()"),
+    ("sen6x.stop_measurement", "stop_measurement()"),
+    ("sen6x.start_fan_cleaning", "start_fan_cleaning()"),
+    ("sen6x.activate_sht_heater", "activate_sht_heater()"),
+):
+    automation.register_apply_action(
+        _name, SEN6X_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )

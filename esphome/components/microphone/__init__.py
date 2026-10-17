@@ -12,7 +12,6 @@ from esphome.const import (
     CONF_ID,
     CONF_MICROPHONE,
     CONF_ON_DATA,
-    CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
@@ -30,17 +29,12 @@ microphone_ns = cg.esphome_ns.namespace("microphone")
 Microphone = microphone_ns.class_("Microphone")
 MicrophoneSource = microphone_ns.class_("MicrophoneSource")
 
-DataTrigger = microphone_ns.class_(
-    "DataTrigger",
-    automation.Trigger.template(cg.std_vector.template(cg.uint8).operator("ref")),
-)
-
 
 async def setup_microphone_core_(var: MockObj, config: ConfigType) -> None:
     for conf in config.get(CONF_ON_DATA, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger,
+        await automation.build_callback_automation(
+            var,
+            "add_data_callback",
             [(cg.std_vector.template(cg.uint8).operator("ref").operator("const"), "x")],
             conf,
         )
@@ -54,11 +48,7 @@ async def register_microphone(var: MockObj, config: ConfigType) -> None:
 
 MICROPHONE_SCHEMA = cv.Schema.extend(audio.AUDIO_COMPONENT_SCHEMA).extend(
     {
-        cv.Optional(CONF_ON_DATA): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DataTrigger),
-            }
-        ),
+        cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
     }
 )
 

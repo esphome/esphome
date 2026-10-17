@@ -1,0 +1,12 @@
+wifi:
+  dpp:
+    channels: [1, 6, 11]
+    device_info: ESPHome
+    timeout: 30s
+  on_dpp_uri:
+    - logger.log:
+        format: "DPP URI %s"
+        args: [uri]
+
+packages:
+  wifi: !include common.yaml

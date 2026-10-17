@@ -79,6 +79,11 @@ void FeedbackCover::dump_config() {
   if (this->acceleration_wait_time_) {
     ESP_LOGCONFIG(TAG, "  Acceleration wait time: %.1fs", this->acceleration_wait_time_ / 1e3f);
   }
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+  if (this->overshoot_duration_) {
+    ESP_LOGCONFIG(TAG, "  Overshoot duration: %.1fs", this->overshoot_duration_ / 1e3f);
+  }
+#endif
 #ifdef USE_BINARY_SENSOR
   if (this->obstacle_rollback_ && (this->open_obstacle_ != nullptr || this->close_obstacle_ != nullptr)) {
     ESP_LOGCONFIG(TAG, "  Obstacle rollback: %.1f%%", this->obstacle_rollback_ * 100);
@@ -234,10 +239,22 @@ void FeedbackCover::loop() {
   // (stoping from endstop sensor is handled in callback)
   if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
     if (this->is_at_target_()) {
-      if (this->has_built_in_endstop_ &&
-          (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)) {
+      const bool at_end = this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED;
+      if (this->has_built_in_endstop_ && at_end) {
         // Don't trigger stop, let the cover stop by itself.
         this->set_current_operation_(COVER_OPERATION_IDLE, true);
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+      } else if (at_end && this->overshoot_duration_) {
+        // The define is global, so a cover without the option still lands here with a zero duration
+        // Keep driving past the end position for a while so accumulated timing error is squeezed out
+        if (!this->start_overshoot_time_) {
+          this->start_overshoot_time_ = now;
+        } else if (now - this->start_overshoot_time_ > this->overshoot_duration_ ||
+                   now - this->start_dir_time_ > this->max_duration_) {
+          ESP_LOGD(TAG, "'%s' - Overshoot duration reached. Stopping cover.", this->name_.c_str());
+          this->start_direction_(COVER_OPERATION_IDLE);
+        }
+#endif
       } else {
         this->start_direction_(COVER_OPERATION_IDLE);
       }
@@ -338,6 +355,11 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
 
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *obstacle{nullptr};
+#endif
+
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+  // Any new command ends a running overshoot
+  this->start_overshoot_time_ = 0;
 #endif
 
   switch (dir) {
