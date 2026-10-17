@@ -3,7 +3,7 @@
 
 namespace esphome::pm1006 {
 
-static const char *const TAG = "pm1006";
+ESPHOME_LOG_TAG(TAG, "pm1006");
 
 static const uint8_t PM1006_RESPONSE_HEADER[] = {0x16, 0x11, 0x0B};
 static const uint8_t PM1006_REQUEST[] = {0x11, 0x02, 0x0B, 0x01, 0xE1};
@@ -43,11 +43,7 @@ void PM1006Component::loop() {
 }
 
 uint8_t PM1006Component::pm1006_checksum_(const uint8_t *command_data, uint8_t length) const {
-  uint8_t sum = 0;
-  for (uint8_t i = 0; i < length; i++) {
-    sum += command_data[i];
-  }
-  return sum;
+  return sum_bytes(command_data, length);
 }
 
 optional<bool> PM1006Component::check_byte_() const {

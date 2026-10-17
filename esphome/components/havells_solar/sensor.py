@@ -229,65 +229,24 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)
 
-    if CONF_FREQUENCY in config:
-        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
-        cg.add(var.set_frequency_sensor(sens))
-
-    if CONF_ACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_ACTIVE_POWER])
-        cg.add(var.set_active_power_sensor(sens))
-
-    if CONF_REACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_REACTIVE_POWER])
-        cg.add(var.set_reactive_power_sensor(sens))
-
-    if CONF_ENERGY_PRODUCTION_DAY in config:
-        sens = await sensor.new_sensor(config[CONF_ENERGY_PRODUCTION_DAY])
-        cg.add(var.set_today_production_sensor(sens))
-
-    if CONF_TOTAL_ENERGY_PRODUCTION in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_ENERGY_PRODUCTION])
-        cg.add(var.set_total_energy_production_sensor(sens))
-
-    if CONF_TOTAL_GENERATION_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_GENERATION_TIME])
-        cg.add(var.set_total_generation_time_sensor(sens))
-
-    if CONF_TODAY_GENERATION_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_TODAY_GENERATION_TIME])
-        cg.add(var.set_today_generation_time_sensor(sens))
-
-    if CONF_INVERTER_MODULE_TEMP in config:
-        sens = await sensor.new_sensor(config[CONF_INVERTER_MODULE_TEMP])
-        cg.add(var.set_inverter_module_temp_sensor(sens))
-
-    if CONF_INVERTER_INNER_TEMP in config:
-        sens = await sensor.new_sensor(config[CONF_INVERTER_INNER_TEMP])
-        cg.add(var.set_inverter_inner_temp_sensor(sens))
-
-    if CONF_INVERTER_BUS_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_INVERTER_BUS_VOLTAGE])
-        cg.add(var.set_inverter_bus_voltage_sensor(sens))
-
-    if CONF_INSULATION_OF_PV_N_TO_GROUND in config:
-        sens = await sensor.new_sensor(config[CONF_INSULATION_OF_PV_N_TO_GROUND])
-        cg.add(var.set_insulation_pv_n_to_ground_sensor(sens))
-
-    if CONF_GFCI_VALUE in config:
-        sens = await sensor.new_sensor(config[CONF_GFCI_VALUE])
-        cg.add(var.set_gfci_value_sensor(sens))
-
-    if CONF_DCI_OF_R in config:
-        sens = await sensor.new_sensor(config[CONF_DCI_OF_R])
-        cg.add(var.set_dci_of_r_sensor(sens))
-
-    if CONF_DCI_OF_S in config:
-        sens = await sensor.new_sensor(config[CONF_DCI_OF_S])
-        cg.add(var.set_dci_of_s_sensor(sens))
-
-    if CONF_DCI_OF_T in config:
-        sens = await sensor.new_sensor(config[CONF_DCI_OF_T])
-        cg.add(var.set_dci_of_t_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
+    await sensors(CONF_ACTIVE_POWER, var.set_active_power_sensor)
+    await sensors(CONF_REACTIVE_POWER, var.set_reactive_power_sensor)
+    await sensors(CONF_ENERGY_PRODUCTION_DAY, var.set_today_production_sensor)
+    await sensors(CONF_TOTAL_ENERGY_PRODUCTION, var.set_total_energy_production_sensor)
+    await sensors(CONF_TOTAL_GENERATION_TIME, var.set_total_generation_time_sensor)
+    await sensors(CONF_TODAY_GENERATION_TIME, var.set_today_generation_time_sensor)
+    await sensors(CONF_INVERTER_MODULE_TEMP, var.set_inverter_module_temp_sensor)
+    await sensors(CONF_INVERTER_INNER_TEMP, var.set_inverter_inner_temp_sensor)
+    await sensors(CONF_INVERTER_BUS_VOLTAGE, var.set_inverter_bus_voltage_sensor)
+    await sensors(
+        CONF_INSULATION_OF_PV_N_TO_GROUND, var.set_insulation_pv_n_to_ground_sensor
+    )
+    await sensors(CONF_GFCI_VALUE, var.set_gfci_value_sensor)
+    await sensors(CONF_DCI_OF_R, var.set_dci_of_r_sensor)
+    await sensors(CONF_DCI_OF_S, var.set_dci_of_s_sensor)
+    await sensors(CONF_DCI_OF_T, var.set_dci_of_t_sensor)
 
     for i, phase in enumerate([CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]):
         if phase not in config:

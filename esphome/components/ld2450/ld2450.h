@@ -24,6 +24,10 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
+#ifdef LD2450_POLYGON_ZONE_COUNT
+#include "polygon_zone.h"
+#endif
+
 #include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/helpers.h"
@@ -138,6 +142,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_zone_still_target_count_sensor(uint8_t zone, sensor::Sensor *s);
   void set_zone_moving_target_count_sensor(uint8_t zone, sensor::Sensor *s);
 #endif
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  void register_polygon_zone(PolygonZone *zone) { this->polygon_zones_.push_back(zone); }
+#endif
   void reset_radar_zone();
   void set_radar_zone(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2, int32_t zone1_y2,
                       int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
@@ -167,7 +174,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
-  uint32_t timeout_ = 5;
+  uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
@@ -176,6 +183,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool bluetooth_on_{false};
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
+#ifdef USE_TEXT_SENSOR
+  // Byte aligned, so it packs after zone_config_ instead of padding before data_callback_
+  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
+#endif
 
 #ifdef USE_NUMBER
   ESPPreferenceObject pref_;  // only used when numbers are in use
@@ -194,7 +205,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
-  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
+#endif
+
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  StaticVector<PolygonZone *, LD2450_POLYGON_ZONE_COUNT> polygon_zones_;
 #endif
 
   LazyCallbackManager<void()> data_callback_;

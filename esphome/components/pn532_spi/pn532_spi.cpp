@@ -11,7 +11,7 @@
 
 namespace esphome::pn532_spi {
 
-static const char *const TAG = "pn532_spi";
+ESPHOME_LOG_TAG(TAG, "pn532_spi");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t PN532_MAX_LOG_BYTES = 64;
@@ -38,10 +38,7 @@ bool PN532Spi::write_data(const std::span<const uint8_t> data) {
   delay(2);
   // First byte, communication mode: Write data
   this->write_byte(0x01);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGV(TAG, "Writing data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+  ESP_LOGV_HEX(TAG, data.data(), data.size(), PN532_MAX_LOG_BYTES, "Writing data: %s");
   this->write_array(data.data(), data.size());
   this->disable();
 
@@ -65,10 +62,7 @@ bool PN532Spi::read_data(pn532::PN532Frame &data, size_t len) {
   data[0] = 0x01;
   this->read_array(data.data() + 1, len);
   this->disable();
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGV(TAG, "Read data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+  ESP_LOGV_HEX(TAG, data.data(), data.size(), PN532_MAX_LOG_BYTES, "Read data: %s");
   return true;
 }
 
@@ -127,12 +121,8 @@ bool PN532Spi::read_response(uint8_t command, pn532::PN532Frame &data) {
 
   ESP_LOGV(TAG, "Response data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
 
-  uint8_t checksum = header[5] + header[6];  // TFI + Command response code
-  for (int i = 0; i < len - 1; i++) {
-    uint8_t dat = data[i];
-    checksum += dat;
-  }
-  checksum = ~checksum + 1;
+  // TFI + Command response code + data
+  const uint8_t checksum = -sum_bytes(data.data(), len - 1, header[5] + header[6]);
 
   if (data[len - 1] != checksum) {
     ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[len - 1], checksum);

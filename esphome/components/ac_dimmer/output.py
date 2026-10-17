@@ -14,11 +14,9 @@ ac_dimmer_ns = cg.esphome_ns.namespace("ac_dimmer")
 AcDimmer = ac_dimmer_ns.class_("AcDimmer", output.FloatOutput, cg.Component)
 
 DimMethod = ac_dimmer_ns.enum("DimMethod")
-DIM_METHODS = {
-    "LEADING_PULSE": DimMethod.DIM_METHOD_LEADING_PULSE,
-    "LEADING": DimMethod.DIM_METHOD_LEADING,
-    "TRAILING": DimMethod.DIM_METHOD_TRAILING,
-}
+DIM_METHODS = DimMethod.options(
+    "LEADING_PULSE", "LEADING", "TRAILING", prefix="DIM_METHOD_"
+)
 
 ZC_INTERRUPT_TYPES = {
     "RISING": gpio_ns.INTERRUPT_RISING_EDGE,

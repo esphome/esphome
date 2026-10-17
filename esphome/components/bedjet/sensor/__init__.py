@@ -44,10 +44,6 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await register_bedjet_child(var, config)
 
-    if outlet_temperature_sensor := config.get(CONF_OUTLET_TEMPERATURE):
-        sensor_var = await sensor.new_sensor(outlet_temperature_sensor)
-        cg.add(var.set_outlet_temperature_sensor(sensor_var))
-
-    if ambient_temperature_sensor := config.get(CONF_AMBIENT_TEMPERATURE):
-        sensor_var = await sensor.new_sensor(ambient_temperature_sensor)
-        cg.add(var.set_ambient_temperature_sensor(sensor_var))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_OUTLET_TEMPERATURE, var.set_outlet_temperature_sensor)
+    await sensors(CONF_AMBIENT_TEMPERATURE, var.set_ambient_temperature_sensor)

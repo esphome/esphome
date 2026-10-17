@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "mcp23016"
 MULTI_CONF = True
 
 mcp23016_ns = cg.esphome_ns.namespace("mcp23016")
@@ -36,9 +37,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
@@ -60,7 +59,7 @@ MCP23016_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_MCP23016): cv.use_id(MCP23016),
+        cv.Required(CONF_MCP23016): pins.use_id_or_address(MCP23016),
     }
 )
 
