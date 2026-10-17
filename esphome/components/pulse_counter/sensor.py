@@ -28,11 +28,9 @@ CONF_USE_PCNT = "use_pcnt"
 
 pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
 PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
-COUNT_MODES = {
-    "DISABLE": PulseCounterCountMode.PULSE_COUNTER_DISABLE,
-    "INCREMENT": PulseCounterCountMode.PULSE_COUNTER_INCREMENT,
-    "DECREMENT": PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
-}
+COUNT_MODES = PulseCounterCountMode.options(
+    "DISABLE", "INCREMENT", "DECREMENT", prefix="PULSE_COUNTER_"
+)
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 
@@ -140,9 +138,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
 
-    if CONF_TOTAL in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL])
-        cg.add(var.set_total_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TOTAL, var.set_total_sensor)
 
 
 automation.register_apply_action(

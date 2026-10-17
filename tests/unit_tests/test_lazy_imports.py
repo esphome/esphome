@@ -192,7 +192,9 @@ def test_native_upload_fast_path_does_not_import_heavy_modules(
         fixture_path,
         probe_env,
         "native_upload_fast_path.py",
-        extra=("esphome.components.esp8266",),
+        # The cache-hit modules guard the espidf toolchain import chain:
+        # a top-level yaml import there would tax every upload subprocess.
+        extra=("esphome.components.esp8266", *CACHE_HIT_HEAVY_MODULES),
     )
     assert not leaked, (
         f"native upload_using_esptool pulls in heavy modules: {leaked}. "

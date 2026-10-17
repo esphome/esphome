@@ -2,6 +2,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
@@ -24,8 +25,6 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
-CONF_ADC_AVERAGING = "adc_averaging"
-CONF_ADC_TIME = "adc_time"
 
 ina226_ns = cg.esphome_ns.namespace("ina226")
 INA226Component = ina226_ns.class_(

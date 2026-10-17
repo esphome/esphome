@@ -355,6 +355,31 @@ def test_run_platformio_cli_exports_the_pch_ccache_settings(
 
 
 @pytest.mark.parametrize(
+    ("value", "expected"), [("yes", "1"), ("0", "0"), (None, None)]
+)
+def test_run_platformio_cli_normalizes_a_forced_pch_for_the_script(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    value: str | None,
+    expected: str | None,
+) -> None:
+    """The script cannot import the knob parser, so it only reads a ``1``."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    env_vars = {} if value is None else {"ESPHOME_PCH_ENABLE": value}
+    with patch.dict(os.environ, env_vars, clear=True):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+    env = mock_run_external_process.call_args[1]["env"]
+    assert env.get("ESPHOME_PCH_ENABLE") == expected
+
+
+@pytest.mark.parametrize(
     ("platform", "framework", "expected"),
     [
         ("esp32", "arduino", "1"),

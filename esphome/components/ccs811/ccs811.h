@@ -31,15 +31,6 @@ class CCS811Component final : public PollingComponent, public i2c::I2CDevice {
   bool status_has_data_() { return this->read_status_().value_or(0) & (1 << 3); }
   void send_env_data_();
 
-  enum ErrorCode {
-    UNKNOWN,
-    COMMUNICATION_FAILED,
-    INVALID_ID,
-    SENSOR_REPORTED_ERROR,
-    APP_INVALID,
-    APP_START_FAILED,
-  } error_code_{UNKNOWN};
-
   sensor::Sensor *co2_{nullptr};
   sensor::Sensor *tvoc_{nullptr};
   text_sensor::TextSensor *version_{nullptr};

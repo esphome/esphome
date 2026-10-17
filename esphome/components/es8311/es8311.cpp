@@ -6,12 +6,12 @@
 
 namespace esphome::es8311 {
 
-static const char *const TAG = "es8311";
+ESPHOME_LOG_TAG(TAG, "es8311");
 
 // Mark the component as failed; use only in setup
 #define ES8311_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 // Return false; use outside of setup
@@ -56,11 +56,6 @@ void ES8311::dump_config() {
                 "  DAC Bits per Sample: %" PRIu8 "\n"
                 "  Sample Rate: %" PRIu32,
                 YESNO(this->use_mclk_), YESNO(this->use_mic_), this->resolution_out_, this->sample_frequency_);
-
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  Failed to initialize!");
-    return;
-  }
 }
 
 bool ES8311::set_volume(float volume) {
@@ -87,6 +82,21 @@ uint8_t ES8311::calculate_resolution_value(ES8311Resolution resolution) {
       return (0 << 2);
     case ES8311_RESOLUTION_32:
       return (4 << 2);
+    default:
+      return 0;
+  }
+}
+
+/// Encodes the MCLK pre-multiplier for REG02 bits 3-4. The coefficient table stores the multiplier as the factor
+/// itself (1, 2, 4 or 8), while the register takes 0, 1, 2 or 3 (ES8311 datasheet, register 0x02 MULT_PRE).
+static uint8_t encode_pre_mult(uint8_t pre_mult) {
+  switch (pre_mult) {
+    case 2:
+      return 1;
+    case 4:
+      return 2;
+    case 8:
+      return 3;
     default:
       return 0;
   }
@@ -127,7 +137,7 @@ bool ES8311::configure_clock_() {
   ES8311_ERROR_CHECK(this->read_byte(ES8311_REG02_CLK_MANAGER, &reg02));
   reg02 &= 0x07;
   reg02 |= (coefficient->pre_div - 1) << 5;
-  reg02 |= coefficient->pre_mult << 3;
+  reg02 |= encode_pre_mult(coefficient->pre_mult) << 3;
   ES8311_ERROR_CHECK(this->write_byte(ES8311_REG02_CLK_MANAGER, reg02));
 
   // Register 0x03

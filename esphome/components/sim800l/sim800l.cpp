@@ -5,7 +5,7 @@
 
 namespace esphome::sim800l {
 
-static const char *const TAG = "sim800l";
+ESPHOME_LOG_TAG(TAG, "sim800l");
 
 const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
@@ -426,26 +426,20 @@ void Sim800LComponent::loop() {
     uint8_t byte;
     this->read_byte(&byte);
 
-    if (this->read_pos_ == SIM800L_READ_BUFFER_LENGTH)
-      this->read_pos_ = 0;
+    ESP_LOGVV(TAG, "Buffer pos: %u %d", this->line_reader_.length(), byte);  // NOLINT
 
-    ESP_LOGVV(TAG, "Buffer pos: %u %d", this->read_pos_, byte);  // NOLINT
-
-    if (byte == ASCII_CR)
-      continue;
     if (byte >= 0x7F)
       byte = '?';  // need to be valid utf8 string for log functions.
-    this->read_buffer_[this->read_pos_] = byte;
-
-    if (this->state_ == STATE_SENDING_SMS_2 && this->read_pos_ == 0 && byte == '>')
-      this->read_buffer_[++this->read_pos_] = ASCII_LF;
-
-    if (this->read_buffer_[this->read_pos_] == ASCII_LF) {
-      this->read_buffer_[this->read_pos_] = 0;
-      this->read_pos_ = 0;
-      this->parse_cmd_(this->read_buffer_);
+    const char *line = this->line_reader_.feed(byte);
+    if (line == nullptr && this->state_ == STATE_SENDING_SMS_2 && byte == '>' && this->line_reader_.length() == 1) {
+      // The send prompt has no line end
+      line = this->line_reader_.partial();
+      this->line_reader_.reset();
+    }
+    if (line != nullptr) {
+      this->parse_cmd_(line);
     } else {
-      this->read_pos_++;
+      this->line_reader_.log_if_overflowed(TAG);
     }
   }
   if (state_ == STATE_INIT && this->registered_ &&

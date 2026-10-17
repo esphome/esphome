@@ -11,10 +11,12 @@ from esphome.const import (
     CONF_REPEAT,
     CONF_WRITE_PIN,
 )
+from esphome.core import CORE
 from esphome.cpp_helpers import gpio_pin_expression
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@max246"]
+DOMAIN = "lightwaverf"
 
 lightwaverf_ns = cg.esphome_ns.namespace("lightwaverf")
 
@@ -64,6 +66,10 @@ automation.register_apply_action(
 
 
 async def to_code(config: ConfigType) -> None:
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import use_timer1
+
+        use_timer1(DOMAIN)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

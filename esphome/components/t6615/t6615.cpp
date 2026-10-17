@@ -4,7 +4,7 @@
 
 namespace esphome::t6615 {
 
-static const char *const TAG = "t6615";
+ESPHOME_LOG_TAG(TAG, "t6615");
 
 static const uint32_t T6615_TIMEOUT = 1000;
 static const uint8_t T6615_MAGIC = 0xFF;

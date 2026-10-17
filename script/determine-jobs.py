@@ -31,7 +31,7 @@ The CI workflow uses this information to:
 - Skip or run integration tests
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
-- Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
+- Skip or run pylint
 - Skip or run downstream esphome/device-builder tests against the PR's Python code
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
@@ -49,6 +49,7 @@ Options:
 from __future__ import annotations
 
 import argparse
+import ast
 from collections import Counter
 from collections.abc import Callable
 from enum import StrEnum
@@ -58,6 +59,7 @@ import math
 import os
 from pathlib import Path
 import statistics
+import subprocess
 import sys
 from typing import Any
 
@@ -69,6 +71,7 @@ from clang_tidy_hash import (
 )
 from helpers import (
     CPP_FILE_EXTENSIONS,
+    ESPHOME_COMPONENTS_PATH,
     ESPHOME_TESTS_COMPONENTS_PATH,
     INTEGRATION_TESTS_PATH,
     PYTHON_FILE_EXTENSIONS,
@@ -98,10 +101,6 @@ from split_components_for_ci import create_intelligent_batches
 # For small PRs (< 65 files), use nosplit for faster CI
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
-
-# Component test batch size (weighted)
-# Isolated components count as 10x, groupable components count as 1x
-COMPONENT_TEST_BATCH_SIZE = 40
 
 # Above the threshold, fan out across up to this many jobs, balanced by the
 # recorded per-file durations. The target is serial junit-time weight per
@@ -407,21 +406,33 @@ def should_run_clang_format(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, CPP_FILE_EXTENSIONS)
 
 
+# Linter pins, dependencies and linter config can change findings without a .py change.
+PYTHON_LINTERS_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "pyproject.toml",
+    }
+)
+
+
 def should_run_python_linters(branch: str | None = None) -> bool:
-    """Determine if Python linters (ruff, flake8, pylint, pyupgrade) should run based on changed files.
+    """Determine if the pylint job should run based on changed files.
 
-    This function is used by the CI workflow to skip Python linting checks when no Python files
-    have changed, saving CI time and resources.
-
-    Python linters will run when any Python source files have changed.
+    The CI workflow skips pylint unless a Python file or a file in
+    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff, flake8 and pyupgrade run in
+    lint-format, which this flag does not gate.
 
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        True if Python linters should run, False otherwise.
+        True if pylint should run, False otherwise.
     """
-    return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
+    return any(
+        file.endswith(PYTHON_FILE_EXTENSIONS) or file in PYTHON_LINTERS_TRIGGER_FILES
+        for file in changed_files(branch)
+    )
 
 
 # Files outside esphome/**/*.py whose changes can affect `import esphome.__main__`
@@ -592,10 +603,17 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     )
 
 
+# Checks the native ESP-IDF build in CI but does not shape it, so it is kept
+# out of ESP_IDF_INFRA_TRIGGER_FILES (hashed into the clang-tidy cache key).
+_ESP_IDF_CHECK_TRIGGER_FILES = frozenset({"script/check_idf_py_equivalence.py"})
+
+
 def _esp_idf_infra_changed(files: list[str]) -> bool:
     """Whether any changed file is ESP-IDF build/runner infrastructure."""
     return _path_or_file_trigger(
-        files, ESP_IDF_INFRA_TRIGGER_FILES, ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES
+        files,
+        ESP_IDF_INFRA_TRIGGER_FILES | _ESP_IDF_CHECK_TRIGGER_FILES,
+        ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
     )
 
 
@@ -790,6 +808,9 @@ def determine_cpp_unit_tests(
 # Paths within tests/benchmarks/ that contain component benchmark files
 BENCHMARKS_COMPONENTS_PATH = "tests/benchmarks/components"
 
+# The Python benchmark that imports components; its COMPONENTS tuple says which ones
+PYTHON_IMPORT_BENCHMARK_FILE = "tests/benchmarks/python/test_component_import_bench.py"
+
 # Files that, when changed, should trigger benchmark runs
 BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
     {
@@ -798,6 +819,53 @@ BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
         "script/setup_codspeed_lib.py",
     }
 )
+
+
+def _benchmark_components_tuple(path: Path) -> frozenset[str]:
+    """Return the benchmark file's ``COMPONENTS`` tuple.
+
+    Raises when the file has none, so renaming it fails CI instead of quietly
+    turning the trigger off.
+    """
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "COMPONENTS" for t in node.targets
+        ):
+            return frozenset(ast.literal_eval(node.value))
+    raise RuntimeError(f"{PYTHON_IMPORT_BENCHMARK_FILE} has no COMPONENTS tuple")
+
+
+# Imports the given components and prints every component whose module got loaded
+_IMPORT_PROBE = (
+    "import importlib, sys\n"
+    "for c in sys.argv[1:]: importlib.import_module('esphome.components.' + c)\n"
+    "print(*{n.split('.')[2] for n in sys.modules if n.startswith('esphome.components.')})"
+)
+
+
+def python_import_benchmarked_components() -> frozenset[str] | None:
+    """Return the components loaded by importing the benchmark's ``COMPONENTS``.
+
+    Imported in a fresh interpreter from the checkout, so the set is exactly what
+    the benchmark times. None when the import fails.
+    """
+    path = Path(root_path) / PYTHON_IMPORT_BENCHMARK_FILE
+    if not path.is_file():
+        return frozenset()
+    result = subprocess.run(
+        [sys.executable, "-c", _IMPORT_PROBE, *_benchmark_components_tuple(path)],
+        cwd=root_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            f"Benchmark import probe failed, running benchmarks:\n{result.stderr}",
+            file=sys.stderr,
+        )
+        return None
+    return frozenset(result.stdout.split())
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:
@@ -816,6 +884,8 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     4. A directly changed component has benchmark files (no dependency expansion)
     5. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
+    6. A Python file changed in a component that importing the Python import
+       benchmark's ``COMPONENTS`` loads, even if it has no C++ benchmark
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
     Changing ``sensor`` does not trigger ``api`` benchmarks just because
@@ -846,6 +916,19 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
         for f in files
     ):
         return True
+
+    # The Python import benchmark times importing its components and what they pull
+    # in, so their Python sources move its numbers even without a C++ benchmark.
+    # A failed import runs the benchmarks rather than risk skipping them.
+    changed_python = {
+        get_component_from_path(f)
+        for f in files
+        if f.startswith(ESPHOME_COMPONENTS_PATH) and f.endswith(PYTHON_FILE_EXTENSIONS)
+    }
+    if changed_python:
+        loaded = python_import_benchmarked_components()
+        if loaded is None or changed_python & loaded:
+            return True
 
     # Check if any directly changed component has benchmarks
     benchmarks_dir = Path(root_path) / BENCHMARKS_COMPONENTS_PATH
@@ -1527,25 +1610,39 @@ def main() -> None:
         batches, _ = create_intelligent_batches(
             components=changed_components_with_tests,
             tests_dir=tests_dir,
-            batch_size=COMPONENT_TEST_BATCH_SIZE,
             directly_changed=batch_directly_changed,
         )
         # Convert batches to CI matrix entries: the component list plus which
         # native toolchain installs the batch's test platforms need, so the
         # workflow only restores the matching multi-GB toolchain caches.
+        # The idf.py check does not depend on the components, so it runs once
+        # per workflow, in the first batch that compiles an esp32 test (a
+        # validate-only component is never compiled).
+        idf_py_check_assigned = False
+        skip_compile = set(validate_only_components)
         for batch in batches:
             platforms: set[str] = set()
+            compiled_platforms: set[str] = set()
             for component in batch:
                 # Variants included: the compile stage builds them, so a
                 # component tested only by test-<variant>.<platform>.yaml
                 # still needs that platform's toolchain
-                platforms.update(
-                    get_component_test_platforms(component, base_only=False)
+                component_platforms = get_component_test_platforms(
+                    component, base_only=False
                 )
+                platforms.update(component_platforms)
+                if component not in skip_compile:
+                    compiled_platforms.update(component_platforms)
+            needs_idf = any(p.startswith("esp32") for p in platforms)
+            check_idf_py = not idf_py_check_assigned and any(
+                p.startswith("esp32") for p in compiled_platforms
+            )
+            idf_py_check_assigned |= check_idf_py
             component_test_batches.append(
                 {
                     "components": " ".join(batch),
-                    "needs_idf": any(p.startswith("esp32") for p in platforms),
+                    "needs_idf": needs_idf,
+                    "check_idf_py": check_idf_py,
                     "needs_nrf": any(p.startswith("nrf52") for p in platforms),
                     "needs_arduino8266": any(
                         p.startswith("esp8266") for p in platforms

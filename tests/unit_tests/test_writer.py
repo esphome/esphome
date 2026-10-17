@@ -22,7 +22,9 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.core import EsphomeError
+from esphome.core import DocumentLocation, EsphomeError, line_directive
+from esphome.cpp_generator import LambdaExpression
+from esphome.helpers import indent
 from esphome.storage_json import StorageJSON
 from esphome.writer import (
     CPP_AUTO_GENERATE_BEGIN,
@@ -684,11 +686,17 @@ def test_clean_build_partial_removes_pch_artifacts(
 ) -> None:
     """The PlatformIO pch sidecars live at the project root and must go in
     a partial clean, like the native backend's under .pioenvs."""
-    from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES as names
+    from esphome.build_helpers.pch import (
+        PCH_ARTIFACT_DIRS as dirs,
+        PCH_ARTIFACT_NAMES as names,
+    )
 
     assert "esphome_pch.h.gch" in names
     for name in names:
         (tmp_path / name).write_text("x")
+    for name in dirs:
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "cc1plus").write_text("x")
     mock_core.relative_pioenvs_path.return_value = tmp_path / ".pioenvs"
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
@@ -696,7 +704,7 @@ def test_clean_build_partial_removes_pch_artifacts(
 
     clean_build()
 
-    for name in names:
+    for name in (*names, *dirs):
         assert not (tmp_path / name).exists()
 
 
@@ -957,6 +965,32 @@ def test_write_cpp_creates_new_file(
     assert "void loop()" in written_content
     assert "App.setup();" in written_content
     assert "App.loop();" in written_content
+
+
+@pytest.mark.usefixtures("mock_copy_src_tree")
+@patch("esphome.writer.write_file_if_changed")
+@patch("esphome.writer.CORE")
+def test_write_cpp_resets_line_after_lambda(
+    mock_core: MagicMock,
+    mock_write_file: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The code after a YAML lambda is reported against main.cpp again."""
+    main_cpp = tmp_path / "main.cpp"
+    mock_core.relative_src_path.return_value = main_cpp
+    mock_core.cpp_global_section = ""
+    lambda_ = LambdaExpression(
+        ("foo();",), (), source=DocumentLocation("test.yaml", 4, 0)
+    )
+
+    write_cpp(indent(f"bar({lambda_});\nbaz();") + "\n")
+
+    lines = mock_write_file.call_args[0][1].split("\n")
+    closing = lines.index("  });")
+    assert lines[closing - 3].strip() == '#line 5 "test.yaml"'
+    # The directive names the line after it, which is closing + 1 (1-based)
+    assert lines[closing - 1].strip() == line_directive(str(main_cpp), closing + 1)
+    assert lines[closing + 1] == "  baz();"
 
 
 @pytest.mark.usefixtures("mock_copy_src_tree")

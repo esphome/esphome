@@ -20,21 +20,41 @@ DOMAIN = "lvgl"
 KEY_COLOR_FORMATS = "color_formats"
 KEY_ESPHOME_FONTS_USED = "esphome_fonts_used"
 KEY_FOCUSED_WIDGETS = "focused_widgets"
+KEY_LIST_TRIGGERS = "list_triggers"
 KEY_LV_DEFINES = "lv_defines"
 KEY_LV_FONTS_USED = "lv_fonts_used"
 KEY_LV_IMAGES_USED = "lv_images_used"
 KEY_LV_USES = "lv_uses"
+KEY_MENU_SET_PAGE_ACTIONS = "menu_set_page_actions"
 KEY_NAMED_STYLES = "named_styles"
+KEY_OPTIONS = "options"
 KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
 KEY_STYLES_USED = "styles_used"
 KEY_THEME_UPDATE_REQUESTS = "theme_update_requests"
-KEY_THEME_WIDGET_MAP = "theme_widget_map"
+KEY_THEME_STYLES = "theme_styles"
 KEY_UPDATED_WIDGETS = "updated_widgets"
-KEY_WIDGET_MAP = "widget_map"
-KEY_WIDGETS_COMPLETED = "widgets_completed"
-KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
+KEY_WIDGET_MAP = "widget_map"
+KEY_WIDGET_THEME_STYLES = "widget_theme_styles"
+KEY_DEBUG_OUTLINE_COUNT = "debug_outline_count"
+
+# Colours for the debug outline, in (red, green, blue) order. They are picked to stay
+# distinct from each other and to show up on both light and dark backgrounds.
+DEBUG_OUTLINE_COLORS = (
+    (255, 0, 0),
+    (0, 160, 0),
+    (0, 0, 255),
+    (255, 140, 0),
+    (200, 0, 200),
+    (0, 190, 190),
+    (160, 100, 0),
+    (255, 0, 120),
+    (110, 110, 110),
+    (140, 200, 0),
+    (0, 110, 255),
+    (130, 0, 255),
+)
 
 # Initial set of LVGL features that are always enabled.
 _INITIAL_LV_USES = frozenset(
@@ -102,6 +122,15 @@ def get_options() -> dict[str, Any]:
     return _get_data(KEY_OPTIONS, {})
 
 
+def next_debug_outline_color() -> tuple[int, int, int]:
+    """Return the next debug outline colour, cycling through the palette."""
+    # A one-element list so that the count can be updated in place.
+    count = _get_data(KEY_DEBUG_OUTLINE_COUNT, [0])
+    color = DEBUG_OUTLINE_COLORS[count[0] % len(DEBUG_OUTLINE_COLORS)]
+    count[0] += 1
+    return color
+
+
 def get_defines() -> dict[str, str]:
     return _get_data(KEY_LV_DEFINES, {})
 
@@ -110,8 +139,14 @@ def get_updated_widgets() -> dict:
     return _get_data(KEY_UPDATED_WIDGETS, {})
 
 
-def get_theme_widget_map() -> dict[str, Any]:
-    return _get_data(KEY_THEME_WIDGET_MAP, {})
+def get_theme_styles() -> dict[str, MockObj]:
+    """Get a map of already created theme style names to their corresponding style IDs."""
+    return _get_data(KEY_THEME_STYLES, {})
+
+
+def get_widget_theme_style_data() -> dict[str, list[tuple[MockObj, str, str]]]:
+    """Get the map of widget type names to the list of (style variable, part, state)"""
+    return _get_data(KEY_WIDGET_THEME_STYLES, {})
 
 
 def get_theme_update_requests() -> dict[str, dict[tuple[str, str], None]]:
@@ -130,26 +165,20 @@ def get_widget_map() -> dict[str, Any]:
     return _get_data(KEY_WIDGET_MAP, {})
 
 
-def get_widgets_completed() -> bool:
-    # ``[value]`` rather than the bare value so that we can mutate the
-    # entry in place; ``CORE.data`` is reset for us between runs.
-    return _get_data(KEY_WIDGETS_COMPLETED, [False])[0]
-
-
-def set_widgets_completed(value: bool) -> None:
-    _get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
-
-
-def is_widget_completed(name: ID) -> bool:
-    return name in get_widget_map()
-
-
 def get_focused_widgets() -> set:
     return _get_data(KEY_FOCUSED_WIDGETS, set())
 
 
 def get_refreshed_widgets() -> set:
     return _get_data(KEY_REFRESHED_WIDGETS, set())
+
+
+def get_menu_set_page_actions() -> list:
+    return _get_data(KEY_MENU_SET_PAGE_ACTIONS, [])
+
+
+def get_list_triggers() -> dict:
+    return _get_data(KEY_LIST_TRIGGERS, {})
 
 
 def add_define(macro: str, value="1"):
@@ -453,6 +482,16 @@ LV_LOG_LEVELS = {
     "NONE": "NONE",
 }
 
+# Log output for failed LVGL argument checks, chosen from the LVGL log level
+LV_CHECK_ARG_LOG_MODES = {
+    "VERBOSE": "VERBOSE",
+    "DEBUG": "VERBOSE",
+    "INFO": "MINIMAL",
+    "WARN": "MINIMAL",
+    "ERROR": "NONE",
+    "NONE": "NONE",
+}
+
 LV_LONG_MODES = LvConstant(
     "LV_LABEL_LONG_",
     "WRAP",
@@ -582,13 +621,20 @@ OBJ_FLAGS = (
     "ignore_layout",
     "floating",
     "overflow_visible",
+    "send_draw_task_events",
+    "event_trickle",
+    "state_trickle",
+    "radio_button",
+    "flex_in_new_track",
     "layout_1",
     "layout_2",
-    "send_draw_task_events",
     "widget_1",
     "widget_2",
 )
-LV_OBJ_FLAG = LvConstant("LV_OBJ_FLAG_", *OBJ_FLAGS)
+# Flags whose lv_obj_set_<flag>() setter has a different name
+FLAG_SETTER_ALIASES = {"layout_1": "flex_in_new_track"}
+# Custom flags that have no lv_obj_set_<flag>() setter
+CUSTOM_FLAGS = ("layout_2", "widget_1", "widget_2")
 
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
@@ -641,6 +687,12 @@ LV_MENU_MODES = LvConstant(
     "BOTTOM_FIXED",
 )
 
+LV_MENU_ROOT_BACK_BUTTON_MODES = LvConstant(
+    "LV_MENU_ROOT_BACK_BUTTON_",
+    "DISABLED",
+    "ENABLED",
+)
+
 LV_CHART_TYPES = (
     "NONE",
     "LINE",
@@ -679,11 +731,14 @@ CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
 CONF_BUTTONS = "buttons"
 CONF_CHANGE_RATE = "change_rate"
+CONF_CLICKABLE = "clickable"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_END = "color_end"
+CONF_COLOR_PICKER = "color_picker"
 CONF_COLOR_START = "color_start"
 CONF_CONTAINER = "container"
 CONF_CONTROL = "control"
+CONF_DEBUG_OUTLINE = "debug_outline"
 CONF_DEFAULT_FONT = "default_font"
 CONF_DEFAULT_GROUP = "default_group"
 CONF_DIR = "dir"
@@ -702,6 +757,7 @@ CONF_FLEX_ALIGN_CROSS = "flex_align_cross"
 CONF_FLEX_ALIGN_TRACK = "flex_align_track"
 CONF_FLEX_GROW = "flex_grow"
 CONF_FREEZE = "freeze"
+CONF_CHECK_ARGS = "check_args"
 CONF_DARK_MODE = "dark_mode"
 CONF_FULL_REFRESH = "full_refresh"
 CONF_GRADIENTS = "gradients"
@@ -717,6 +773,7 @@ CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
+CONF_HEADER_STYLE = "header_style"
 CONF_HOME = "home"
 CONF_IMAGE = "image"
 CONF_INDICATORS = "indicators"
@@ -733,6 +790,7 @@ CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
 CONF_MAPPING = "mapping"
+CONF_MENU = "menu"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
@@ -743,8 +801,8 @@ CONF_ON_LANDSCAPE = "on_landscape"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
+CONF_ON_ROOT_BACK_BUTTON_CLICK = "on_root_back_button_click"
 CONF_ON_SELECT = "on_select"
-CONF_ON_STOP = "on_stop"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
@@ -766,15 +824,20 @@ CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
+CONF_ROOT_PAGE = "root_page"
 CONF_SCALE = "scale"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SCROLL_DIR = "scroll_dir"
+CONF_SCROLLABLE = "scrollable"
 CONF_SCROLL_SNAP_X = "scroll_snap_x"
 CONF_SCROLL_SNAP_Y = "scroll_snap_y"
+CONF_SECTIONS = "sections"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
+CONF_SIDEBAR_PAGE = "sidebar_page"
+CONF_SIDEBAR_HEADER_STYLE = "sidebar_header_style"
 CONF_SPIN_TIME = "spin_time"
 CONF_SRC = "src"
 CONF_START_ANGLE = "start_angle"
@@ -841,7 +904,7 @@ LV_SCALE_MODE = LvConstant(
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 
 
-def join_enums(enums, prefix=""):
+def join_enums(enums: tuple[str], prefix: str = "") -> MockObj:
     enums = list(enums)
     enums.sort()
     # If a prefix is provided, prepend each constant with the prefix, and assume that all the constants are within the
@@ -851,9 +914,23 @@ def join_enums(enums, prefix=""):
     return literal("|".join(f"(int){e.upper()}" for e in enums))
 
 
+def get_part_state_selector(part: str, state: str) -> MockObj:
+    """Combine a part and state into a single selector value, e.g. LV_PART_KNOB | LV_STATE_PRESSED."""
+    state = "LV_STATE_" + state.removeprefix("LV_STATE_").upper()
+    part = "LV_PART_" + part.removeprefix("LV_PART_").upper()
+    if state == "LV_STATE_DEFAULT":
+        return literal(part)
+    if part == "LV_PART_MAIN":
+        return literal(state)
+    return MockObj(
+        StaticCastExpression("lv_style_selector_t", literal(state))
+    ) | MockObj(StaticCastExpression("lv_style_selector_t", literal(part)))
+
+
 # fmt: off
 LV_COLOR_FORMATS = (
-    "RGB565", "SWAPPED", "RGB565A8", "RGB888", "XRGB8888", "ARGB8888", "PREMULTIPLIED", "L8", "AL88", "A8", "I1",
+    "RGB565", "RGB565_SWAPPED", "RGB565A8", "RGB888", "XRGB8888", "ARGB8888", "ARGB8888_PREMULTIPLIED", "L8", "AL88",
+    "A8", "I1",
 )
 
 LV_DEFINES = (
