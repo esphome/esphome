@@ -13,12 +13,12 @@ namespace esphome::mq_gas_sensors {
 ESPHOME_LOG_TAG(TAG, "mq_gas_sensors");
 
 /// Human readable name of a `mqmath::RegressionMethod` value.
-static const char *regression_method_name(uint8_t method) {
+static const LogString *regression_method_name(uint8_t method) {
   if (method == mqmath::REGRESSION_LINEAR)
-    return "linear";
+    return LOG_STR("linear");
   if (method == mqmath::REGRESSION_INVERSE)
-    return "inverse";
-  return "exponential";
+    return LOG_STR("inverse");
+  return LOG_STR("exponential");
 }
 
 void MQGasSensor::publish_log_(LogSeverity level, const char *message) {
@@ -100,8 +100,8 @@ void MQGasSensor::dump_config() {
   LOG_SENSOR("", "MQ gas sensor", this);
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Type: %s, target gas: %s", this->type_.c_str(), this->gas_.c_str());
-  ESP_LOGCONFIG(TAG, "  Curve: %s (a=%.6g, b=%.6g)", regression_method_name(this->regression_method_), this->a_,
-                this->b_);
+  ESP_LOGCONFIG(TAG, "  Curve: %s (a=%.6g, b=%.6g)", LOG_STR_ARG(regression_method_name(this->regression_method_)),
+                this->a_, this->b_);
   ESP_LOGCONFIG(TAG, "  VCC: %.2f V, RL: %.2f kOhm, AO multiplier: x%.3f, range: %.1f - %.1f ppm", this->vcc_,
                 this->rl_, this->voltage_multiplier_, this->min_ppm_, this->max_ppm_);
   ESP_LOGCONFIG(TAG, "  RS/R0 in clean air: %.2f", this->ratio_in_clean_air_);
