@@ -9,8 +9,13 @@ pca9554:
     address: 0x3E
     interrupt_pin: ${interrupt_pin}
   - id: pcal9538
+    i2c_id: i2c_bus
     address: 0x70
     device: PCAL9538
+  - id: pcal9555
+    i2c_id: i2c_bus
+    address: 0x71
+    device: PCAL9555
 
 binary_sensor:
   - platform: gpio
@@ -36,6 +41,13 @@ binary_sensor:
       mode:
         input: true
         pullup: true
-        pulldown: false
-        latch: false
+        latch: true
         interrupt: true
+  # A pin on the second port of a 16 bit PCAL part, with a non-default drive strength
+  - platform: gpio
+    id: pcal9555_output
+    pin:
+      pca9554: pcal9555
+      number: 12
+      mode: OUTPUT
+      drive_strength: 1

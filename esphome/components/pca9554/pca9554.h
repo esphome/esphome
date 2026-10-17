@@ -18,11 +18,6 @@ class PCA9554Component final : public Component,
   void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
-  void set_latch(uint8_t pin, bool latch_state);
-  void set_interrupt(uint8_t pin, bool interrupt_state);
-  void set_drive_strength(uint8_t pin, uint16_t strength_to_set);
-  void set_open_drain(uint8_t bank_to_set, bool state_open_drain);
-  uint16_t get_interrupt_status();
 
   float get_setup_priority() const override;
 
@@ -30,16 +25,28 @@ class PCA9554Component final : public Component,
 
   void set_pin_count(size_t pin_count) { this->pin_count_ = pin_count; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
-  void set_capability(uint8_t capability) { this->capability_ = capability; }
+#ifdef USE_PCA9554_PCAL
+  /// The PCAL parts add pull resistors, input latches, an interrupt mask and drive strength.
+  void set_pcal(bool pcal) { this->pcal_ = pcal; }
+  void set_latch(uint8_t pin, bool latch);
+  /// A masked pin never asserts INT; the register powers up with every pin masked.
+  void set_interrupt(uint8_t pin, bool enabled);
+  /// 0 is a quarter of the full drive strength, 3 the full strength.
+  void set_drive_strength(uint8_t pin, uint8_t strength);
+#endif
 
  protected:
   static void IRAM_ATTR gpio_intr(PCA9554Component *arg);
 
   bool read_inputs_();
-  uint8_t get_register_address_(uint8_t reg);
   bool write_register_(uint8_t reg, uint16_t value);
-  bool read_register_(uint8_t reg, uint16_t &register_value);
+#ifdef USE_PCA9554_PCAL
+  bool read_register_(uint8_t reg, uint16_t &value);
+  /// Read-modify-write of one bit; only the PCAL registers, written once at setup, go through here.
   bool set_register_bit_(uint8_t reg, uint8_t bit, bool value);
+  /// Writes the power-on defaults, which only a power cycle restores on the chip itself.
+  void reset_pcal_registers_();
+#endif
 
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
@@ -50,13 +57,18 @@ class PCA9554Component final : public Component,
   size_t pin_count_{8};
   /// width of registers
   size_t reg_width_{1};
-  /// The state of the actual pins - 1 means HIGH, 0 means LOW
-  uint16_t input_states_{0x00};
+  /// Mask for the pin config - 1 means OUTPUT, 0 means INPUT
+  uint16_t config_mask_{0x00};
+  /// The mask to write as output state - 1 means HIGH, 0 means LOW
+  uint16_t output_mask_{0x00};
+  /// The state of the actual input pins - 1 means HIGH, 0 means LOW
+  uint16_t input_mask_{0x00};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
   InternalGPIOPin *interrupt_pin_{nullptr};
-
-  uint8_t capability_{0};
+#ifdef USE_PCA9554_PCAL
+  bool pcal_{false};
+#endif
 };
 
 /// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
@@ -75,9 +87,11 @@ class PCA9554GPIOPin final : public GPIOPin {
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
+#ifdef USE_PCA9554_PCAL
   void set_latch(bool latch) { this->latch_ = latch; }
   void set_interrupt(bool interrupt) { this->interrupt_ = interrupt; }
   void set_drive_strength(uint8_t drive_strength) { this->drive_strength_ = drive_strength; }
+#endif
 
   gpio::Flags get_flags() const override { return this->flags_; }
 
@@ -85,10 +99,12 @@ class PCA9554GPIOPin final : public GPIOPin {
   PCA9554Component *parent_{nullptr};
   uint8_t pin_{0};
   bool inverted_{false};
+  gpio::Flags flags_{};
+#ifdef USE_PCA9554_PCAL
   bool latch_{false};
   bool interrupt_{false};
-  gpio::Flags flags_{};
-  uint8_t drive_strength_;
+  uint8_t drive_strength_{3};
+#endif
 };
 
 }  // namespace esphome::pca9554

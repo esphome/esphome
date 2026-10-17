@@ -1,0 +1,39 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  id: i2c_bus
+  sda: GPIO21
+  scl: GPIO22
+
+pca9554:
+  - id: plain_hub
+    address: 0x20
+    device: PCA9554
+  - id: pcal_hub
+    address: 0x70
+    device: PCAL9555
+
+binary_sensor:
+  - platform: gpio
+    id: plain_input
+    name: Plain input
+    pin:
+      pca9554: plain_hub
+      number: 1
+      mode: INPUT
+  - platform: gpio
+    id: pcal_input
+    name: PCAL input
+    pin:
+      pca9554: pcal_hub
+      number: 9
+      mode:
+        input: true
+        pullup: true
+        latch: true
+        interrupt: true
+      drive_strength: 2
