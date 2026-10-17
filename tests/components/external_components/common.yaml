@@ -3,6 +3,7 @@ external_components:
     source: github://esphome/esphome@dev
     refresh: 1d
     components: [bh1750]
+    doc_url: https://esphome.io
   - id: my_local
     source: ../../../esphome/components
     components: [sntp]

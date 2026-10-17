@@ -18,6 +18,7 @@ from esphome.loader import (
     _replace_component_manifest,
     get_alias_metadata,
     get_component,
+    register_external_component_doc_url,
 )
 from tests.testing_helpers import ComponentManifestOverride
 
@@ -32,6 +33,61 @@ def _make_manifest(*, to_code=None, dependencies=None) -> ComponentManifest:
     mod.to_code = to_code
     mod.DEPENDENCIES = dependencies or []
     return ComponentManifest(mod)
+
+
+def _make_named_manifest(
+    module_name: str, *, doc_url_override=None
+) -> ComponentManifest:
+    """Return a ComponentManifest backed by a mock module with a real `__name__`."""
+    mod = MagicMock()
+    mod.__name__ = module_name
+    mod.DOC_URL = doc_url_override
+    return ComponentManifest(mod)
+
+
+def test_doc_url_none_when_not_registered() -> None:
+    """No `external_components:` source registered a doc URL -> None."""
+    manifest = _make_named_manifest("esphome.components.foo")
+    assert manifest.doc_url is None
+
+
+def test_doc_url_plain_component() -> None:
+    """A plain (non-platform) component links to components/<name>/."""
+    register_external_component_doc_url("foo", "https://example.com/docs")
+    manifest = _make_named_manifest("esphome.components.foo")
+    assert manifest.doc_url == "https://example.com/docs/components/foo/"
+
+
+def test_doc_url_platform_component() -> None:
+    """A platform component (esphome.components.<name>.<platform>) links to
+    components/<platform>/<name>/, mirroring esphome.io's own doc layout."""
+    register_external_component_doc_url("foo", "https://example.com/docs")
+    manifest = _make_named_manifest("esphome.components.foo.switch")
+    assert manifest.doc_url == "https://example.com/docs/components/switch/foo/"
+
+
+def test_doc_url_module_override_takes_precedence() -> None:
+    """A component-declared DOC_URL wins over the source-level computed URL."""
+    register_external_component_doc_url("foo", "https://example.com/docs")
+    manifest = _make_named_manifest(
+        "esphome.components.foo", doc_url_override="https://custom.example/foo"
+    )
+    assert manifest.doc_url == "https://custom.example/foo"
+
+
+def test_doc_url_none_for_shallow_module_name() -> None:
+    """A module name with fewer than 3 dotted parts (e.g. the "esphome" pseudo-component)
+    can't be resolved back to a component name -> None, even with a source registered."""
+    register_external_component_doc_url("foo", "https://example.com/docs")
+    manifest = _make_named_manifest("esphome.core")
+    assert manifest.doc_url is None
+
+
+def test_doc_url_none_when_component_not_in_registered_source() -> None:
+    """A source was registered, but for a different component name -> None."""
+    register_external_component_doc_url("bar", "https://example.com/docs")
+    manifest = _make_named_manifest("esphome.components.foo")
+    assert manifest.doc_url is None
 
 
 def test_testing_manifest_delegates_to_wrapped() -> None:
