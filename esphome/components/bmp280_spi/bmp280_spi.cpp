@@ -3,6 +3,7 @@
 
 #include "bmp280_spi.h"
 #include <esphome/components/bmp280_base/bmp280_base.h>
+#include "esphome/core/helpers.h"
 
 namespace esphome::bmp280_spi {
 
