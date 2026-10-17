@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import socket
+from esphome.components import network, socket
 from esphome.components.const import CONF_ALLOWED_IPS
 from esphome.components.esp32_camera import (
     CONF_JPEG_QUALITY,
@@ -27,6 +27,9 @@ RTSPServer = rtsp_server_ns.class_("RTSPServer", cg.Component)
 def _consume_rtsp_server_sockets(config: ConfigType) -> ConfigType:
     socket.consume_sockets(config[CONF_MAX_CONNECTIONS], DOMAIN)(config)
     socket.consume_sockets(1, DOMAIN, socket.SocketType.TCP_LISTEN)(config)
+    # A 13 KB frame fills the default 5.7 KB TCP send buffer four segments at a time; over Wi-Fi
+    # that is about 1 fps, so ask for the larger buffers (network: enable_high_performance: false undoes it)
+    network.require_high_performance_networking()
     return config
 
 
