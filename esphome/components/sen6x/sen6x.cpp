@@ -14,6 +14,18 @@ static constexpr uint32_t POLL_INTERVAL = 50;   // 50 ms between poll attempts
 // Numeric timeout IDs. Each chain is sequential, so only one timeout per ID is active at a time.
 static constexpr uint32_t TIMEOUT_POLL = 1;
 static constexpr uint32_t TIMEOUT_SETUP_STEP = 2;
+static constexpr uint32_t TIMEOUT_STARTUP = 3;
+// Post-command wait times from the datasheet: start execution (4.8.1), stop execution (4.8.2),
+// fan cleaning (4.8.22), SHT heater (4.8.23), CO2 conditioning after start on SEN63C/SEN69C (4.8.1)
+static constexpr uint32_t START_MEASUREMENT_DELAY = 50;
+static constexpr uint32_t STOP_MEASUREMENT_DELAY = 1400;
+static constexpr uint32_t FAN_CLEANING_DELAY = 10000;
+static constexpr uint32_t SHT_HEATER_DELAY = 20000;
+static constexpr uint32_t CO2_CONDITIONING_DELAY = 24000;
+// Accepted range of a runtime pressure source, the same as the schema's ambient_pressure_compensation
+static constexpr float AMBIENT_PRESSURE_MIN_HPA = 700.0f;
+static constexpr float AMBIENT_PRESSURE_MAX_HPA = 1200.0f;
+static constexpr uint32_t STARTUP_DELAY = 60000;  // ms before published values are considered valid
 static constexpr uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
 static constexpr uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
 static constexpr uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
@@ -27,9 +39,15 @@ static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
 
 static constexpr uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
+static constexpr uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
+static constexpr uint16_t SEN6X_CMD_START_FAN_CLEANING = 0x5607;
+static constexpr uint16_t SEN6X_CMD_ACTIVATE_SHT_HEATER = 0x6765;
 static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
 static constexpr uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
 static constexpr uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
+static constexpr uint16_t SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL = 0x6711;
+static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
+static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
 
 static inline void set_read_command_and_words(SEN6XComponent::Sen6xType type, uint16_t &read_cmd, uint8_t &read_words) {
   read_cmd = SEN6X_CMD_READ_MEASUREMENT;
@@ -156,32 +174,54 @@ void SEN6XComponent::setup() {
   });
 }
 
-// One configuration write per invocation, spaced by CMD_EXEC_DELAY. Cases without a
-// configured value fall through; each taken case must advance setup_step_index_ so the
-// next invocation resumes at the following step. These writes are optional, so a failure
-// only warns and the chain continues to the mandatory start-measurements write.
+// One configuration write per invocation, spaced by CMD_EXEC_DELAY, then the start command.
+// These writes are optional, so a failure only warns and the chain carries on.
 void SEN6XComponent::run_next_setup_step_() {
-  switch (this->setup_step_index_) {
-    // Tuning writes are skipped when setup() disabled the sensor for this variant
-    case 0:
-      this->setup_step_index_++;
-      if (this->voc_sensor_ != nullptr && this->voc_tuning_params_.has_value()) {
-        this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
-        break;
-      }
-      [[fallthrough]];
-    case 1:
-      this->setup_step_index_++;
-      if (this->nox_sensor_ != nullptr && this->nox_tuning_params_.has_value()) {
-        this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
-        break;
-      }
-      [[fallthrough]];
-    default:
-      this->finish_setup_();
+  while (this->setup_step_index_ < SETUP_STEP_COUNT) {
+    if (this->write_setup_step_(static_cast<SetupStep>(this->setup_step_index_++))) {
+      this->set_timeout(TIMEOUT_SETUP_STEP, CMD_EXEC_DELAY, [this]() { this->run_next_setup_step_(); });
       return;
+    }
   }
-  this->set_timeout(TIMEOUT_SETUP_STEP, CMD_EXEC_DELAY, [this]() { this->run_next_setup_step_(); });
+  this->finish_setup_();
+}
+
+// Returns false when the step has nothing to write: the setting is not configured, or setup()
+// disabled its sensor for this variant
+bool SEN6XComponent::write_setup_step_(SetupStep step) {
+  switch (step) {
+    case SETUP_STEP_VOC_TUNING:
+      if (this->voc_sensor_ == nullptr || !this->voc_tuning_params_.has_value())
+        return false;
+      this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
+      return true;
+    case SETUP_STEP_NOX_TUNING:
+      if (this->nox_sensor_ == nullptr || !this->nox_tuning_params_.has_value())
+        return false;
+      this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
+      return true;
+    case SETUP_STEP_CO2_ASC:
+      if (this->co2_sensor_ == nullptr || !this->co2_asc_.has_value())
+        return false;
+      this->write_setup_register_(SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL, this->co2_asc_.value() ? 1 : 0);
+      return true;
+    case SETUP_STEP_ALTITUDE:
+      if (this->co2_sensor_ == nullptr || this->altitude_compensation_ == ALTITUDE_UNSET)
+        return false;
+      this->write_setup_register_(SEN6X_CMD_SENSOR_ALTITUDE, this->altitude_compensation_);
+      return true;
+    case SETUP_STEP_AMBIENT_PRESSURE:
+      if (this->co2_sensor_ == nullptr || this->ambient_pressure_ == PRESSURE_UNSET)
+        return false;
+      this->write_ambient_pressure_(this->ambient_pressure_);
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool SEN6XComponent::write_setup_register_(uint16_t i2c_command, uint16_t value) {
+  return this->write_config_words_(i2c_command, &value, 1);
 }
 
 void SEN6XComponent::finish_setup_() {
@@ -191,19 +231,20 @@ void SEN6XComponent::finish_setup_() {
     return;
   }
 
-  this->set_timeout(60000, [this]() { this->startup_complete_ = true; });
+  this->on_measurement_started_();
   this->initialized_ = true;
   ESP_LOGD(TAG, "Initialized");
 }
 
-// Writes one optional configuration command. A failure warns and returns false, but does
-// not stop setup: the sensor still measures with that setting left at its default.
+// Writes one optional configuration command and reserves its execution time. A failure warns and
+// returns false, but does not stop setup: the sensor still measures with that setting left at its default.
 bool SEN6XComponent::write_config_words_(uint16_t i2c_command, const uint16_t *data, uint8_t len) {
   if (!this->write_command(i2c_command, data, len)) {
     ESP_LOGE(TAG, "Write 0x%04X failed, error %d", i2c_command, this->last_error_);
     this->status_set_warning();
     return false;
   }
+  this->set_command_wait_(CMD_EXEC_DELAY);
   return true;
 }
 
@@ -227,6 +268,22 @@ void SEN6XComponent::dump_config() {
                 this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
                 this->firmware_version_minor_, this->address_);
   LOG_UPDATE_INTERVAL(this);
+  // setup() clears co2_sensor_ once it detects a variant without CO2
+  if (this->co2_sensor_ != nullptr) {
+    if (this->co2_asc_.has_value()) {
+      ESP_LOGCONFIG(TAG, "  CO2 automatic self-calibration: %s", ONOFF(this->co2_asc_.value()));
+    }
+    if (this->altitude_compensation_ != ALTITUDE_UNSET) {
+      ESP_LOGCONFIG(TAG, "  Altitude compensation: %u m", this->altitude_compensation_);
+    }
+    if (this->ambient_pressure_ != PRESSURE_UNSET) {
+      ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %u hPa", this->ambient_pressure_);
+    }
+    if (this->ambient_pressure_source_ != nullptr) {
+      ESP_LOGCONFIG(TAG, "  Ambient pressure compensation source: %s",
+                    this->ambient_pressure_source_->get_name().c_str());
+    }
+  }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
@@ -240,12 +297,20 @@ void SEN6XComponent::dump_config() {
 }
 
 void SEN6XComponent::update() {
-  if (!this->initialized_) {
+  if (!this->initialized_ || !this->measuring_) {
+    return;
+  }
+  // Cancel any in-flight polling from a previous update() cycle before touching the bus.
+  this->cancel_timeout(TIMEOUT_POLL);
+  // A command is still executing (an action moments ago): run this cycle once its window has passed
+  if (const uint32_t wait = this->command_wait_remaining_(); wait != 0) {
+    this->set_timeout(TIMEOUT_POLL, wait, [this]() { this->update(); });
     return;
   }
 
-  // Cancel any in-flight polling from a previous update() cycle.
-  this->cancel_timeout(TIMEOUT_POLL);
+  if (this->ambient_pressure_source_ != nullptr && this->co2_sensor_ != nullptr) {
+    this->update_ambient_pressure_compensation_(this->ambient_pressure_source_->state);
+  }
 
   set_read_command_and_words(this->sen6x_type_, this->read_cmd_, this->read_words_);
 
@@ -272,6 +337,11 @@ void SEN6XComponent::poll_data_ready_() {
   if (this->poll_retries_remaining_ == 0) {
     this->status_set_warning();
     ESP_LOGD(TAG, "Data not ready");
+    return;
+  }
+  // A set command (the pressure write above all) gets its execution time before the chain writes again
+  if (const uint32_t wait = this->command_wait_remaining_(); wait != 0) {
+    this->set_timeout(TIMEOUT_POLL, wait, [this]() { this->poll_data_ready_(); });
     return;
   }
   ESP_LOGV(TAG, "Data ready polling attempt %u",
@@ -440,6 +510,128 @@ void SEN6XComponent::parse_and_publish_measurements_() {
     this->co2_sensor_->publish_state(co2);
 
   this->status_clear_warning();
+}
+
+void SEN6XComponent::write_ambient_pressure_(uint16_t pressure_hpa) {
+  if (this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, pressure_hpa))
+    this->last_ambient_pressure_ = pressure_hpa;
+}
+
+void SEN6XComponent::update_ambient_pressure_compensation_(float pressure_hpa) {
+  if (std::isnan(pressure_hpa))
+    return;
+  // Range-check before narrowing so out-of-unit sources (e.g. Pa) can't wrap into range
+  if (pressure_hpa < AMBIENT_PRESSURE_MIN_HPA || pressure_hpa > AMBIENT_PRESSURE_MAX_HPA) {
+    if (!this->pressure_range_warned_) {
+      ESP_LOGW(TAG, "Ambient pressure out of range: %.0f hPa", pressure_hpa);
+      this->pressure_range_warned_ = true;
+    }
+    return;
+  }
+  this->pressure_range_warned_ = false;
+  const auto value = static_cast<uint16_t>(lroundf(pressure_hpa));
+  if (value != this->last_ambient_pressure_)
+    this->write_ambient_pressure_(value);
+}
+
+// Time left in the previous command's execution or settling window, 0 once it has passed
+uint32_t SEN6XComponent::command_wait_remaining_() const {
+  const uint32_t elapsed = millis() - this->command_started_at_;
+  return elapsed < this->command_wait_ ? this->command_wait_ - elapsed : 0;
+}
+
+bool SEN6XComponent::command_blocked_() const { return this->command_wait_remaining_() != 0; }
+
+void SEN6XComponent::set_command_wait_(uint32_t wait_ms) {
+  this->command_started_at_ = millis();
+  this->command_wait_ = wait_ms;
+}
+
+void SEN6XComponent::on_measurement_started_() {
+  this->measuring_ = true;
+  this->set_command_wait_(START_MEASUREMENT_DELAY);
+  // SEN63C/SEN69C condition the CO2 sensor for 24 s after a start; block restarts until then
+  if (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN69C) {
+    this->co2_started_at_ = millis();
+    this->co2_wait_ = CO2_CONDITIONING_DELAY;
+  }
+  // Values need the warm-up period again after every start
+  this->startup_complete_ = false;
+  this->set_timeout(TIMEOUT_STARTUP, STARTUP_DELAY, [this]() { this->startup_complete_ = true; });
+}
+
+void SEN6XComponent::start_measurement() {
+  if (!this->initialized_ || this->measuring_)
+    return;
+  // The CO2 conditioning window only blocks restarting, not other commands
+  if (this->command_blocked_() || millis() - this->co2_started_at_ < this->co2_wait_) {
+    ESP_LOGW(TAG, "Device busy");
+    return;
+  }
+  if (!this->write_command(SEN6X_CMD_START_MEASUREMENTS)) {
+    this->status_set_warning();
+    ESP_LOGW(TAG, "Start measurement failed (%d)", this->last_error_);
+    return;
+  }
+  this->on_measurement_started_();
+}
+
+void SEN6XComponent::stop_measurement() {
+  if (!this->initialized_ || !this->measuring_)
+    return;
+  if (this->command_blocked_()) {
+    ESP_LOGW(TAG, "Device busy");
+    return;
+  }
+  // Stop any in-flight polling before the device goes idle
+  this->cancel_timeout(TIMEOUT_POLL);
+  if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
+    this->status_set_warning();
+    ESP_LOGW(TAG, "Stop measurement failed (%d)", this->last_error_);
+    return;
+  }
+  this->measuring_ = false;
+  this->set_command_wait_(STOP_MEASUREMENT_DELAY);
+}
+
+void SEN6XComponent::start_fan_cleaning() {
+  if (!this->initialized_)
+    return;
+  // The device only accepts this command in idle mode (datasheet section 4.8.22)
+  if (this->measuring_) {
+    ESP_LOGW(TAG, "Fan cleaning requires idle mode; stop the measurement first");
+    return;
+  }
+  if (this->command_blocked_()) {
+    ESP_LOGW(TAG, "Device busy");
+    return;
+  }
+  if (!this->write_command(SEN6X_CMD_START_FAN_CLEANING)) {
+    this->status_set_warning();
+    ESP_LOGW(TAG, "Fan cleaning failed (%d)", this->last_error_);
+    return;
+  }
+  this->set_command_wait_(FAN_CLEANING_DELAY);
+}
+
+void SEN6XComponent::activate_sht_heater() {
+  if (!this->initialized_)
+    return;
+  // The device only accepts this command in idle mode (datasheet section 4.8.23)
+  if (this->measuring_) {
+    ESP_LOGW(TAG, "SHT heater requires idle mode; stop the measurement first");
+    return;
+  }
+  if (this->command_blocked_()) {
+    ESP_LOGW(TAG, "Device busy");
+    return;
+  }
+  if (!this->write_command(SEN6X_CMD_ACTIVATE_SHT_HEATER)) {
+    this->status_set_warning();
+    ESP_LOGW(TAG, "SHT heater failed (%d)", this->last_error_);
+    return;
+  }
+  this->set_command_wait_(SHT_HEATER_DELAY);
 }
 
 SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {

@@ -23,11 +23,9 @@ ExponentialMovingAverageSensor = exponential_moving_average_ns.class_(
 )
 
 TimeWeighting = exponential_moving_average_ns.enum("TimeWeighting")
-TIME_WEIGHTINGS: dict[str, cg.MockObj] = {
-    "new": TimeWeighting.TIME_WEIGHTING_NEW,
-    "previous": TimeWeighting.TIME_WEIGHTING_PREVIOUS,
-    "linear": TimeWeighting.TIME_WEIGHTING_LINEAR,
-}
+TIME_WEIGHTINGS: dict[str, cg.MockObj] = TimeWeighting.options(
+    "new", "previous", "linear", prefix="TIME_WEIGHTING_"
+)
 
 CONF_TIME_WEIGHTING: str = "time_weighting"
 

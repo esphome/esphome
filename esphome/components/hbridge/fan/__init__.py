@@ -22,10 +22,7 @@ CODEOWNERS = ["@WeekendWarrior"]
 HBridgeFan = hbridge_ns.class_("HBridgeFan", cg.Component, fan.Fan)
 
 DecayMode = hbridge_ns.enum("DecayMode")
-DECAY_MODE_OPTIONS = {
-    "SLOW": DecayMode.DECAY_MODE_SLOW,
-    "FAST": DecayMode.DECAY_MODE_FAST,
-}
+DECAY_MODE_OPTIONS = DecayMode.options("SLOW", "FAST", prefix="DECAY_MODE_")
 
 CONFIG_SCHEMA = (
     fan.fan_schema(HBridgeFan)
