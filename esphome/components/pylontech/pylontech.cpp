@@ -2,6 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 
@@ -20,13 +21,13 @@
 
 #define PARSE_INT(field, field_name) \
   { \
-    get_token(token_buf); \
+    get_token(cursor, token_buf); \
     PARSE_TOKEN_INT(field, field_name) \
   }
 
 #define PARSE_STR(field, field_name) \
   { \
-    get_token(field); \
+    get_token(cursor, field); \
     if (strlen(field) < 2) { \
       ESP_LOGV(TAG, "too short " field_name " in line %s", buffer); \
       this->reject_line_(); \
@@ -46,6 +47,37 @@ template<typename T> static bool in_range(int value) {
     return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
   }
 }
+
+#ifdef PYLONTECH_LISTENER_COUNT
+// Copies the next whitespace separated token, at most TEXT_SENSOR_MAX_LEN - 1 characters, and moves cursor past it
+static void get_token(const char *&cursor, char *token_buf) {
+  // Skip leading whitespace
+  while (*cursor == ' ' || *cursor == '\t') {
+    cursor++;
+  }
+
+  if (*cursor == '\0') {
+    token_buf[0] = 0;
+    return;
+  }
+
+  const char *start = cursor;
+
+  // Find end of field
+  while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t') {
+    cursor++;
+  }
+
+  size_t token_len = std::min(static_cast<size_t>(cursor - start), static_cast<size_t>(TEXT_SENSOR_MAX_LEN - 1));
+  memcpy(token_buf, start, token_len);
+  token_buf[token_len] = 0;
+}
+
+// Slots are kept in battery order, so a battery's slot index is the number of lower batteries in the mask
+static uint8_t slot_index(battery_mask_t batteries, uint8_t bat_index) {
+  return __builtin_popcount(batteries & ((1u << bat_index) - 1u));
+}
+#endif
 
 PylontechComponent::PylontechComponent() {}
 
@@ -67,7 +99,13 @@ void PylontechComponent::setup() {
   }
 }
 
-void PylontechComponent::update() { this->write_str("pwr\n"); }
+void PylontechComponent::update() {
+  this->write_str("pwr\n");
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+  // A "bat N" reply that never finished must not swallow the "pwr" lines
+  this->bat_reply_ = 0;
+#endif
+}
 
 void PylontechComponent::loop() {
   // Drain the UART quickly; pylontech sends large bursts. Logging and publishing wait until it is idle.
@@ -120,6 +158,20 @@ void PylontechComponent::dispatch_one_() {
     }
     return;
   }
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+  if (this->cells_pending_ != 0) {
+    const uint8_t bat_index = __builtin_ctz(this->cells_pending_);
+    this->cells_pending_ &= ~(1u << bat_index);
+    const uint8_t slot = slot_index(this->cell_batteries_, bat_index);
+    ESP_LOGV(TAG, "Publishing cells of battery %u", bat_index + 1);
+    for (PylontechListener *listener : this->listeners_) {
+      if (listener->get_battery() == bat_index + 1) {
+        listener->on_cells_read(this->cell_slots_[slot], this->cells_read_[slot]);
+      }
+    }
+    return;
+  }
+#endif
   if (this->rejected_ != 0) {
     ESP_LOGW(TAG, "Rejected %u malformed battery lines", this->rejected_);
     this->rejected_ = 0;
@@ -134,6 +186,20 @@ void PylontechComponent::parse_header_(const char *buffer) {
 
 // Runs while the UART drains: no logging above VERBOSE and no publishing here
 void PylontechComponent::process_line_(const char *buffer) {
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+  if (strcmp(buffer, "$$") == 0) {
+    // Every reply ends with "$$"; after the "pwr" reply one "bat N" follows per battery with cell sensors
+    if (this->bat_reply_ != 0) {
+      this->cells_pending_ |= 1u << (this->bat_reply_ - 1);
+    }
+    this->send_next_bat_();
+    return;
+  }
+  if (this->bat_reply_ != 0) {
+    this->parse_cell_line_(buffer);
+    return;
+  }
+#endif
   // clang-format off
   // example lines to parse:
   // Power Volt   Curr   Tempr  Tlow   Thigh  Vlow   Vhigh  Base.St  Volt.St  Curr.St  Temp.St  Coulomb  Time                 B.V.St   B.T.St   MosTempr M.T.St
@@ -147,31 +213,7 @@ void PylontechComponent::process_line_(const char *buffer) {
   const char *cursor = buffer;
   char token_buf[TEXT_SENSOR_MAX_LEN] = {0};
 
-  // Helper Lambda to extract tokens
-  auto get_token = [&](char *token_buf) -> void {
-    // Skip leading whitespace
-    while (*cursor == ' ' || *cursor == '\t') {
-      cursor++;
-    }
-
-    if (*cursor == '\0') {
-      token_buf[0] = 0;
-      return;
-    }
-
-    const char *start = cursor;
-
-    // Find end of field
-    while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t') {
-      cursor++;
-    }
-
-    size_t token_len = std::min(static_cast<size_t>(cursor - start), static_cast<size_t>(TEXT_SENSOR_MAX_LEN - 1));
-    memcpy(token_buf, start, token_len);
-    token_buf[token_len] = 0;
-  };
-
-  get_token(token_buf);
+  get_token(cursor, token_buf);
   auto bat = parse_number<int>(token_buf);
   if (!bat.has_value()) {
     if (strcmp(token_buf, "Power") == 0) {
@@ -186,16 +228,10 @@ void PylontechComponent::process_line_(const char *buffer) {
   if (bat_index >= MAX_BATTERIES || (this->batteries_ & (1u << bat_index)) == 0) {
     return;  // no listener for this battery
   }
-  const battery_mask_t bat_bit = 1u << bat_index;
-  // The slot index is the number of listened batteries below this one
-  uint8_t slot = 0;
-  for (battery_mask_t below = this->batteries_ & (bat_bit - 1); below != 0; below &= below - 1) {
-    slot++;
-  }
-  const battery_mask_t slot_bit = 1u << slot;
+  const battery_mask_t slot_bit = 1u << slot_index(this->batteries_, bat_index);
   // Cleared until the whole line parses, so a bad line never publishes a half written slot
   this->pending_ &= ~slot_bit;
-  PylontechListener::LineContents &l = this->slots_[slot];
+  PylontechListener::LineContents &l = this->slots_[__builtin_ctz(slot_bit)];
   l.bat_num = *bat;
 
   PARSE_INT(l.volt, "Volt");
@@ -203,40 +239,99 @@ void PylontechComponent::process_line_(const char *buffer) {
   PARSE_INT(l.tempr, "Tempr");
   PARSE_INT(l.tlow, "Tlow");
   if (this->has_tlow_id_) {
-    get_token(token_buf);  // Skip Tlow.Id
+    get_token(cursor, token_buf);  // Skip Tlow.Id
   }
   PARSE_INT(l.thigh, "Thigh");
   if (this->has_tlow_id_) {
-    get_token(token_buf);  // Skip Thigh.Id
+    get_token(cursor, token_buf);  // Skip Thigh.Id
   }
   PARSE_INT(l.vlow, "Vlow");
   if (this->has_tlow_id_) {
-    get_token(token_buf);  // Skip Vlow.Id
+    get_token(cursor, token_buf);  // Skip Vlow.Id
   }
   PARSE_INT(l.vhigh, "Vhigh");
   if (this->has_tlow_id_) {
-    get_token(token_buf);  // Skip Vhigh.Id
+    get_token(cursor, token_buf);  // Skip Vhigh.Id
   }
   PARSE_STR(l.base_st, "Base.St");
   PARSE_STR(l.volt_st, "Volt.St");
   PARSE_STR(l.curr_st, "Curr.St");
   PARSE_STR(l.temp_st, "Temp.St");
-  get_token(token_buf);
+  get_token(cursor, token_buf);
   if (char *pct = strchr(token_buf, '%')) {
     *pct = '\0';
   }
   PARSE_TOKEN_INT(l.coulomb, "Coulomb");
-  get_token(token_buf);  // Skip Date
-  get_token(token_buf);  // Skip Time
-  get_token(token_buf);  // Skip B.V.St
-  get_token(token_buf);  // Skip B.T.St
+  get_token(cursor, token_buf);  // Skip Date
+  get_token(cursor, token_buf);  // Skip Time
+  get_token(cursor, token_buf);  // Skip B.V.St
+  get_token(cursor, token_buf);  // Skip B.T.St
   PARSE_INT(l.mostempr, "Mostempr");
 
   this->pending_ |= slot_bit;
 }
+
+#ifdef PYLONTECH_CELL_BATTERY_COUNT
+// Sends "bat N" for the first cell battery above the one just read; the cycle ends when none is left
+void PylontechComponent::send_next_bat_() {
+  if (this->bat_reply_ == 0 && !this->cell_polling_enabled_) {
+    return;
+  }
+  // Battery n is bit n - 1, so clearing the low bat_reply_ bits leaves the batteries above it
+  const battery_mask_t remaining =
+      this->cell_batteries_ & static_cast<battery_mask_t>(~((1u << this->bat_reply_) - 1u));
+  if (remaining == 0) {
+    this->bat_reply_ = 0;
+    return;
+  }
+  const uint8_t bat_index = __builtin_ctz(remaining);
+  this->bat_reply_ = bat_index + 1;
+  this->cells_read_[slot_index(this->cell_batteries_, bat_index)] = 0;
+  char cmd[8];  // "bat 16\n"
+  snprintf(cmd, sizeof(cmd), "bat %u\n", this->bat_reply_);
+  this->write_str(cmd);
+}
+
+// Runs while the UART drains, like process_line_
+void PylontechComponent::parse_cell_line_(const char *buffer) {
+  // clang-format off
+  // example lines to parse, the reply to "bat N":
+  // Battery  Volt     Curr     Tempr    Base State   Volt. State  Curr. State  Temp. State  SOC          Coulomb      BAL
+  // 0        3308     -914     18300    Dischg       Normal       Normal       Normal       70%          34015 mAH    N
+  // clang-format on
+
+  const char *cursor = buffer;
+  char token_buf[TEXT_SENSOR_MAX_LEN] = {0};
+
+  get_token(cursor, token_buf);
+  auto cell = parse_number<int>(token_buf);
+  if (!cell.has_value() || *cell < 0 || *cell >= MAX_CELLS) {
+    // the header, the echoed command or "Command completed successfully"
+    ESP_LOGV(TAG, "unknown line %s", buffer);
+    return;
+  }
+  PylontechListener::CellContents c{};
+  PARSE_INT(c.volt, "Volt");
+  get_token(cursor, token_buf);  // Skip Curr
+  int32_t tempr;                 // m°C
+  PARSE_INT(tempr, "Tempr");
+  tempr /= 10;
+  if (!in_range<int16_t>(tempr)) {
+    ESP_LOGV(TAG, "invalid Tempr in line %s", buffer);
+    this->reject_line_();
+    return;
+  }
+  c.tempr = tempr;
+
+  const uint8_t slot = slot_index(this->cell_batteries_, this->bat_reply_ - 1);
+  this->cell_slots_[slot][*cell] = c;
+  this->cells_read_[slot] |= 1u << *cell;
+}
+#endif
 #endif
 
 }  // namespace esphome::pylontech
 
+#undef PARSE_TOKEN_INT
 #undef PARSE_INT
 #undef PARSE_STR
