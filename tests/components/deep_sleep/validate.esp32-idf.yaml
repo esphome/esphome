@@ -1,7 +1,8 @@
 substitutions:
   wakeup_pin: GPIO4
 
-<<: !include common.yaml
+packages:
+  deep_sleep: !include common.yaml
 
 # Nested per-pin wakeup_pin_mode on ESP32 is hoisted to the top level
 deep_sleep:
