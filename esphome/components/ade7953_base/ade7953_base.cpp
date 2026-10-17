@@ -5,7 +5,7 @@
 
 namespace esphome::ade7953_base {
 
-static const char *const TAG = "ade7953";
+ESPHOME_LOG_TAG(TAG, "ade7953");
 
 constexpr uint16_t CONFIG_DEFAULT = 0x8004u;
 constexpr uint16_t CONFIG_LOCK_BIT = 0x8000u;

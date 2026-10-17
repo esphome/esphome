@@ -38,14 +38,4 @@ template<typename... Ts> class PlayAction final : public Action<Ts...>, public P
   } data_;
 };
 
-template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<Speaker> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_running(); }
-};
-
-template<typename... Ts> class IsStoppedCondition final : public Condition<Ts...>, public Parented<Speaker> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_stopped(); }
-};
-
 }  // namespace esphome::speaker

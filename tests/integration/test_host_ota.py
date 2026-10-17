@@ -15,6 +15,7 @@ from dataclasses import dataclass
 import functools
 from pathlib import Path
 import socket
+import zlib
 
 import pytest
 
@@ -34,6 +35,59 @@ from .types import APIClientConnectedFactory, CompileFunction, ConfigWriter
 
 DEVICE_NAME = "host-ota-test"
 API_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+
+
+_REAL_COMPRESS = zlib.compress
+
+
+def _corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+    """Reserved block type in the first header: rejected by the decoder on
+    every build, unlike a flipped data bit that may only fail the MD5."""
+    out = bytearray(_REAL_COMPRESS(data, *args, **kwargs))
+    out[0] |= 0x06
+    return bytes(out)
+
+
+@contextmanager
+def _udp_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    force: bool = True,
+    loss: float = 0.0,
+    blocked: bool = False,
+) -> Generator[list[bool]]:
+    """Force the UDP data phase (unless force is False) and drop datagrams both
+    ways; yields one entry per upload, True when it used UDP."""
+    import random
+
+    rng = random.Random(1)
+    used: list[bool] = []
+    real_start = espota2._start_udp
+    real_send = espota2.UdpChannel._send
+    real_ack = espota2.UdpChannel._handle_ack
+
+    def start(*args: object) -> espota2.UdpChannel | None:
+        channel = real_start(*args)
+        used.append(channel is not None)
+        return channel
+
+    def send(self: espota2.UdpChannel, *args: object) -> None:
+        if not blocked and rng.random() >= loss:
+            real_send(self, *args)
+
+    def ack(self: espota2.UdpChannel, data: bytes) -> None:
+        if rng.random() >= loss:
+            real_ack(self, data)
+
+    with monkeypatch.context() as m:
+        if force:
+            m.setattr(espota2, "UDP_SLOW_EXCHANGE", -1.0)
+        if blocked:
+            # Nothing answers, so do not wait the full probe
+            m.setattr(espota2, "UDP_PROBE_TIMEOUT", 1.0)
+        m.setattr(espota2, "_start_udp", start)
+        m.setattr(espota2.UdpChannel, "_send", send)
+        m.setattr(espota2.UdpChannel, "_handle_ack", ack)
+        yield used
 
 
 @contextmanager
@@ -123,6 +177,7 @@ class _Device:
     binary_path: Path
     proc: asyncio.subprocess.Process | None = None
     reboots: int = 0
+    inflates: int = 0
 
     def __post_init__(self) -> None:
         self._rebooted = asyncio.Event()
@@ -131,6 +186,8 @@ class _Device:
         if "Rebooting safely" in line:
             self.reboots += 1
             self._rebooted.set()
+        if "Inflated " in line and " bytes from " in line:
+            self.inflates += 1
 
     async def wait_reboot(self, count: int, timeout: float = 10.0) -> None:
         async with asyncio.timeout(timeout):
@@ -165,6 +222,33 @@ class _Device:
         assert rc == 1, msg
         await asyncio.sleep(0.5)
         assert self.proc.returncode is None, "process died on rejected OTA"
+
+
+def _handshake_then_close(port: int, noise_psk: str) -> None:
+    """Negotiate and complete the Noise handshake like a key probe, then
+    hang up without sending an OTA type."""
+    with socket.create_connection((LOCALHOST, port), timeout=5.0) as sock:
+        espota2.send_check(sock, espota2.MAGIC_BYTES, "magic bytes")
+        _, version = espota2.receive_exactly(sock, 2, "version", espota2.RESPONSE_OK)
+        features_to_send = (
+            espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+            | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
+            | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+            | espota2.CLIENT_FEATURE_SUPPORTS_NOISE
+        )
+        espota2.send_check(sock, features_to_send, "features")
+        espota2.receive_exactly(sock, 1, "features", espota2.RESPONSE_FEATURE_FLAGS)
+        (features,) = espota2.receive_exactly(sock, 1, "feature flags", None)
+        assert features & espota2.SERVER_FEATURE_SUPPORTS_NOISE
+        prologue = (
+            espota2.NOISE_PROLOGUE_INIT
+            + bytes(espota2.MAGIC_BYTES)
+            + bytes([espota2.RESPONSE_OK, version, features_to_send])
+            + bytes([espota2.RESPONSE_FEATURE_FLAGS, features])
+        )
+        noise = espota2.NoiseSocketWrapper(sock, noise_psk, prologue)
+        noise.do_handshake()
+        espota2.receive_exactly(noise, 1, "auth", espota2.RESPONSE_AUTH_OK)
 
 
 async def _provision_key(
@@ -215,26 +299,127 @@ async def test_host_ota_self_update(
 
 
 @pytest.mark.asyncio
+async def test_host_ota_deflate(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deflate is negotiated by default, an old client gets an uncompressed
+    upload, and a corrupt stream is rejected without taking the device down."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    errors: list[str] = []
+
+    def on_log(line: str) -> None:
+        # A corrupt stream is caught by the decoder, by the size check or by
+        # the MD5 at the end, depending on where the damage lands
+        if any(
+            text in line
+            for text in ("Inflate err", "Inflate overrun", "End update err")
+        ):
+            errors.append(line)
+        dev.on_log(line)
+
+    def overlong_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+        """A stream that inflates past the size the client announced."""
+        return _REAL_COMPRESS(data + bytes(8192), *args, **kwargs)
+
+    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+
+        # Default: the host backend cannot store gzip, so the CLI sends deflate
+        await dev.ota(None, None, "deflate upload failed")
+        assert dev.inflates == 1, "device did not inflate the upload"
+
+        # A client that does not offer deflate is served uncompressed
+        with monkeypatch.context() as m:
+            m.setattr(espota2, "CLIENT_FEATURE_SUPPORTS_DEFLATE", 0)
+            await dev.ota(None, None, "uncompressed upload failed")
+        assert dev.inflates == 1, "device inflated without a client offer"
+
+        # A corrupt stream fails the upload and leaves the device running
+        with monkeypatch.context() as m:
+            m.setattr(zlib, "compress", _corrupt_compress)
+            await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
+        assert errors, "device did not report the corrupt stream"
+
+        # So does a stream that inflates past the announced image size
+        errors.clear()
+        with monkeypatch.context() as m:
+            m.setattr(zlib, "compress", overlong_compress)
+            await dev.refused_ota(None, None, "overlong deflate stream was accepted")
+        assert any("Inflate overrun" in line for line in errors), (
+            "device wrote past the announced size"
+        )
+
+        # and it still takes a good upload afterwards
+        await dev.ota(None, None, "upload after a rejected stream failed")
+        assert dev.inflates == 2
+
+        # Localhost is clean, so the client stays on TCP
+        with _udp_mode(monkeypatch, force=False) as used:
+            await dev.ota(None, None, "TCP upload failed")
+        assert used == [False], "a clean link asked for UDP"
+
+        # A lossy link moves the data phase to UDP and completes through loss
+        with _udp_mode(monkeypatch, loss=0.2) as used:
+            await dev.ota(None, None, "UDP upload with loss failed")
+        assert used == [True], "the upload did not use UDP"
+        assert dev.inflates == 4
+
+        # Blocked UDP falls back to TCP
+        with _udp_mode(monkeypatch, blocked=True) as used:
+            await dev.ota(None, None, "fallback to TCP failed")
+        assert used == [False], "blocked UDP did not fall back to TCP"
+
+        # A device error mid upload surfaces at once, not as a 160 s timeout
+        with _udp_mode(monkeypatch) as used, monkeypatch.context() as m:
+            m.setattr(zlib, "compress", _corrupt_compress)
+            async with asyncio.timeout(30):
+                await dev.refused_ota(None, None, "corrupt stream over UDP accepted")
+        assert used == [True]
+
+
+@pytest.mark.asyncio
 async def test_host_ota_encrypted(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Encrypted self-OTA succeeds; a plaintext upload to the same device fails."""
+    """A client that leaves right after the handshake, as a key probe does,
+    is a clean close, not an OTA error; a plaintext upload is refused; an
+    encrypted self-OTA succeeds."""
     pytest.importorskip("aioesphomeapi.noise")
     dev = _Device(
         *await _build(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, _lines):
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+        await asyncio.get_running_loop().run_in_executor(
+            None, _handshake_then_close, dev.ota_port, API_KEY
+        )
+        # The error path logs its warning instead of this line, never after it
+        await _wait_for_line(lines, "Client left after the handshake")
+        assert not [line for line in lines if "[W][esphome.ota" in line]
         await dev.refused_ota(
             None, None, "plaintext upload to an encrypted device must fail"
         )
         await dev.ota(None, API_KEY, "encrypted OTA reported failure")
+        # Noise frames ride the UDP stream unchanged, through loss
+        with _udp_mode(monkeypatch, loss=0.2) as used:
+            await dev.ota(None, API_KEY, "encrypted UDP upload failed")
+        assert used == [True]
 
 
 @pytest.mark.asyncio

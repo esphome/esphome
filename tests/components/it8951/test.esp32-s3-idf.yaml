@@ -59,6 +59,7 @@ display:
   - platform: it8951
     spi_id: spi_bus
     model: seeed-reterminal-e1003
+    update_mode: DEFAULT
     cs_pin:
       allow_other_uses: true
       number: GPIO5

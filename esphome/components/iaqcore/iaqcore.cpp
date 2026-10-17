@@ -5,7 +5,7 @@
 
 namespace esphome::iaqcore {
 
-static const char *const TAG = "iaqcore";
+ESPHOME_LOG_TAG(TAG, "iaqcore");
 
 enum IAQCoreErrorCode : uint8_t { ERROR_OK = 0, ERROR_RUNIN = 0x10, ERROR_BUSY = 0x01, ERROR_ERROR = 0x80 };
 
@@ -27,8 +27,7 @@ struct SensorData {
 
 void IAQCore::setup() {
   if (this->write(nullptr, 0) != i2c::ERROR_OK) {
-    ESP_LOGD(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -89,9 +88,6 @@ void IAQCore::dump_config() {
   ESP_LOGCONFIG(TAG, "AMS iAQ Core:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "CO2", this->co2_);
   LOG_SENSOR("  ", "TVOC", this->tvoc_);
 }

@@ -12,13 +12,15 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet", "@ximex"]
+DOMAIN = "rtttl"
 CONF_RTTTL = "rtttl"
+# The player keeps the song length in 16 bits
+MAX_SONG_LENGTH = 65535
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
 rtttl_ns = cg.esphome_ns.namespace("rtttl")
 
 Rtttl = rtttl_ns.class_("Rtttl", cg.Component)
-IsPlayingCondition = rtttl_ns.class_("IsPlayingCondition", automation.Condition)
 
 MULTI_CONF = True
 
@@ -97,16 +99,23 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
+def _static_song(config: ConfigType, value: str) -> str:
+    # A constant song plays straight from static storage, flash on ESP8266, with no copy per play
+    return f"esphome::rtttl::StaticSong{{{cg.FlashStringLiteral(value)}}}"
+
+
 automation.register_apply_action(
     "rtttl.play",
     cv.maybe_simple_value(
         {
             cv.GenerateID(CONF_ID): cv.use_id(Rtttl),
-            cv.Required(CONF_RTTTL): cv.templatable(cv.string),
+            cv.Required(CONF_RTTTL): cv.templatable(
+                cv.All(cv.string, cv.ByteLength(max=MAX_SONG_LENGTH))
+            ),
         },
         key=CONF_RTTTL,
     ),
-    automation.ApplyField(CONF_RTTTL, "play", cg.std_string),
+    automation.ApplyField(CONF_RTTTL, "play", cg.std_string, const_fn=_static_song),
 )
 
 automation.register_apply_action(
@@ -120,12 +129,12 @@ automation.register_apply_action(
 )
 
 
-automation.register_parented_condition(
+automation.register_apply_condition(
     "rtttl.is_playing",
-    IsPlayingCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(Rtttl),
         }
     ),
+    "is_playing()",
 )

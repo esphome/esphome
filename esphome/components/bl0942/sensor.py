@@ -101,21 +101,12 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_config := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(current_config)
-        cg.add(var.set_current_sensor(sens))
-    if power_config := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(power_config)
-        cg.add(var.set_power_sensor(sens))
-    if energy_config := config.get(CONF_ENERGY):
-        sens = await sensor.new_sensor(energy_config)
-        cg.add(var.set_energy_sensor(sens))
-    if frequency_config := config.get(CONF_FREQUENCY):
-        sens = await sensor.new_sensor(frequency_config)
-        cg.add(var.set_frequency_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor)
+    await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(var.set_reset(config[CONF_RESET]))

@@ -6,13 +6,6 @@
 
 namespace esphome::number {
 
-class NumberStateTrigger final : public Trigger<float> {
- public:
-  explicit NumberStateTrigger(Number *parent) {
-    parent->add_on_state_callback([this](float value) { this->trigger(value); });
-  }
-};
-
 class ValueRangeTrigger final : public Trigger<float>, public Component {
  public:
   explicit ValueRangeTrigger(Number *parent) : parent_(parent) {}

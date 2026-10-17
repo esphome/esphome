@@ -55,10 +55,9 @@ TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Comp
 TemplateClimateRestoreMode = template_ns.enum(
     "TemplateClimateRestoreMode", is_class=True
 )
-CLIMATE_RESTORE_MODES = {
-    "NO_RESTORE": TemplateClimateRestoreMode.TEMPLATE_CLIMATE_RESTORE_MODE_NO_RESTORE,
-    "RESTORE": TemplateClimateRestoreMode.TEMPLATE_CLIMATE_RESTORE_MODE_RESTORE,
-}
+CLIMATE_RESTORE_MODES = TemplateClimateRestoreMode.options(
+    "NO_RESTORE", "RESTORE", prefix="TEMPLATE_CLIMATE_RESTORE_MODE_"
+)
 
 # Per-field actions that forward a requested value on. The third item is the type of `x`.
 SET_ACTIONS = (
@@ -374,6 +373,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_preset(v))
         if (v := initial_state.get(CONF_CUSTOM_PRESET)) is not None:
             cg.add(var.set_custom_preset(v))
+        cg.add(var.set_has_state(True))
 
 
 CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(

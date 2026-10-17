@@ -5,7 +5,7 @@
 
 namespace esphome::restart {
 
-static const char *const TAG = "restart.button";
+ESPHOME_LOG_TAG(TAG, "restart.button");
 
 void RestartButton::press_action() {
   ESP_LOGI(TAG, "Restarting device");

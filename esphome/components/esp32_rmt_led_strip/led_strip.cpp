@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_rmt_led_strip {
 
-static const char *const TAG = "esp32_rmt_led_strip";
+ESPHOME_LOG_TAG(TAG, "esp32_rmt_led_strip");
 
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
 
