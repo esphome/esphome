@@ -270,8 +270,9 @@ void SEN6XComponent::dump_config() {
                 this->firmware_version_minor_, this->address_);
   LOG_UPDATE_INTERVAL(this);
   // Gate on the variant, not co2_sensor_: dump_config can run before the async setup
-  // chain identifies the device and disables unsupported sensors
-  const bool co2_supported = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C;
+  // chain identifies the device, so an auto-detected type may still be UNKNOWN here
+  const bool co2_supported = this->sen6x_type_ == UNKNOWN || this->sen6x_type_ == SEN63C ||
+                             this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C;
   if (co2_supported) {
     if (this->co2_asc_.has_value()) {
       ESP_LOGCONFIG(TAG, "  CO2 automatic self-calibration: %s", ONOFF(this->co2_asc_.value()));
@@ -279,11 +280,12 @@ void SEN6XComponent::dump_config() {
     if (this->altitude_compensation_.has_value()) {
       ESP_LOGCONFIG(TAG, "  Altitude compensation: %u m", this->altitude_compensation_.value());
     }
+    if (this->ambient_pressure_.has_value()) {
+      ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %u hPa", this->ambient_pressure_.value());
+    }
     if (this->ambient_pressure_source_ != nullptr) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation source: %s",
                     this->ambient_pressure_source_->get_name().c_str());
-    } else if (this->ambient_pressure_.has_value()) {
-      ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %u hPa", this->ambient_pressure_.value());
     }
   }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
