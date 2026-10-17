@@ -17,7 +17,7 @@
 
 namespace esphome::d01 {
 
-static const char *const TAG = "d01";
+ESPHOME_LOG_TAG(TAG, "d01");
 
 static const uint8_t D01_FRAME_HEADER = 0xA5;
 

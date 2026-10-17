@@ -101,11 +101,6 @@ class BME280Component : public PollingComponent {
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_CHIP_ID,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::bme280_base

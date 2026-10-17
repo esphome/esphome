@@ -9,7 +9,9 @@
 
 namespace esphome::remote_transmitter {
 
-static const char *const TAG = "remote_transmitter";
+ESPHOME_LOG_TAG(TAG, "remote_transmitter");
+
+static constexpr uint32_t COMPLETE_TIMEOUT_ID = 0;
 
 // Maximum RMT symbol duration (15-bit field)
 static constexpr uint32_t RMT_SYMBOL_DURATION_MAX = 0x7FFF;
@@ -200,25 +202,35 @@ void RemoteTransmitterComponent::wait_for_rmt_() {
     this->status_set_warning();
   }
 
-  this->complete_trigger_.trigger();
+  this->fire_complete_(error == ESP_OK);
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+void RemoteTransmitterComponent::flush_pending_completion() {
+  // a frame still on the wire is waited out, and its completion reported, before the next one
+  if (this->non_blocking_ && this->cancel_timeout(COMPLETE_TIMEOUT_ID)) {
+    this->wait_for_rmt_();
+  }
+}
+
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   uint64_t total_duration = 0;
 
   if (this->is_failed()) {
+    // both triggers still fire, so a paced API client or on_complete automation is not left waiting
+    this->transmit_trigger_.trigger();
+    this->fire_complete_(false);
     return;
-  }
-
-  // if the timeout was cancelled, block until the tx is complete
-  if (this->non_blocking_ && this->cancel_timeout("complete")) {
-    this->wait_for_rmt_();
   }
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
     this->configure_rmt_();
+    if (this->is_failed()) {  // the carrier change failed, there is no channel to send on
+      this->transmit_trigger_.trigger();
+      this->fire_complete_(false);
+      return;
+    }
   }
 
   this->rmt_temp_.clear();
@@ -258,6 +270,8 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.size() <= offset) {
     ESP_LOGE(TAG, "Empty data");
+    this->transmit_trigger_.trigger();
+    this->fire_complete_(false);
     return;
   }
 
@@ -273,24 +287,36 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (error != ESP_OK) {
     ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
     this->status_set_warning();
-  } else {
-    this->status_clear_warning();
+    // nothing was queued, so there is no frame to wait for
+    this->fire_complete_(false);
+    return;
   }
+  this->status_clear_warning();
 
   if (this->non_blocking_) {
-    this->set_timeout("complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
+    this->set_timeout(COMPLETE_TIMEOUT_ID, total_duration / 1000, [this]() { this->wait_for_rmt_(); });
   } else {
     this->wait_for_rmt_();
   }
 }
 #else
+void RemoteTransmitterComponent::flush_pending_completion() {}
+
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
-  if (this->is_failed())
+  if (this->is_failed()) {
+    this->transmit_trigger_.trigger();
+    this->fire_complete_(false);
     return;
+  }
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
     this->configure_rmt_();
+    if (this->is_failed()) {  // the carrier change failed, there is no channel to send on
+      this->transmit_trigger_.trigger();
+      this->fire_complete_(false);
+      return;
+    }
   }
 
   this->rmt_temp_.clear();
@@ -328,9 +354,12 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.empty()) {
     ESP_LOGE(TAG, "Empty data");
+    this->transmit_trigger_.trigger();
+    this->fire_complete_(false);
     return;
   }
   this->transmit_trigger_.trigger();
+  bool sent = send_times != 0;  // same answer as the ISR backend for a frame sent zero times
   for (uint32_t i = 0; i < send_times; i++) {
     rmt_transmit_config_t config;
     memset(&config, 0, sizeof(config));
@@ -340,18 +369,21 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
       this->status_set_warning();
-    } else {
-      this->status_clear_warning();
+      sent = false;
     }
     error = rmt_tx_wait_all_done(this->channel_, -1);
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "rmt_tx_wait_all_done failed: %s", esp_err_to_name(error));
       this->status_set_warning();
+      sent = false;
     }
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
   }
-  this->complete_trigger_.trigger();
+  // a later repeat must not clear the warning a failed one raised
+  if (sent)
+    this->status_clear_warning();
+  this->fire_complete_(sent);
 }
 #endif
 

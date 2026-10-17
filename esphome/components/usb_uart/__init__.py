@@ -1,12 +1,19 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
-from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
+from esphome.components.uart import (
+    CONF_DEBUG_PREFIX,
+    CONF_FLUSH_TIMEOUT,
+    UARTComponent,
+    UARTParityOptions,
+    mark_unclocked,
+)
 from esphome.components.usb_host import (
     get_max_packet_size,
     register_usb_client,
     usb_device_schema,
 )
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -15,19 +22,29 @@ from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
+    CONF_TYPE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "usb_uart"
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 
-UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
+
+def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
+    return any(
+        channel[CONF_ID] == uart_id
+        for device in full_config.get(DOMAIN) or []
+        for channel in device[CONF_CHANNELS]
+    )
+
+
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
     "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
@@ -37,11 +54,9 @@ UART_PARITY_OPTIONS = {
 }
 
 UARTStopBitsOptions = usb_uart_ns.enum("UARTStopBitsOptions")
-UART_STOP_BITS_OPTIONS = {
-    "1": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_1,
-    "1.5": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_1_5,
-    "2": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_2,
-}
+UART_STOP_BITS_OPTIONS = UARTStopBitsOptions.options(
+    "1", "1.5", "2", prefix="UART_CONFIG_STOP_BITS_"
+)
 
 DEFAULT_BAUD_RATE = 9600
 CONF_CLAIM_COMM_INTERFACE = "claim_comm_interface"
@@ -64,6 +79,8 @@ class Type:
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
+        # CDC ACM lives in usb_uart.cpp; each vendor driver has its own <cls>.cpp
+        self.driver = None if cls == "CdcAcm" else cls
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
         self.max_baud = max_baud
@@ -121,6 +138,21 @@ uart_types = (
     ),
 )
 
+_TYPES_BY_NAME = {it.name: it for it in uart_types}
+
+
+def _driver_define(driver: str) -> str:
+    return f"USE_USB_UART_{driver}"
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        f"{it.driver.lower()}.cpp": _driver_define(it.driver)
+        for it in uart_types
+        if it.driver is not None
+    }
+)
+
 
 def channel_schema(type_: "Type") -> cv.Schema:
     schema = cv.Schema(
@@ -129,7 +161,9 @@ def channel_schema(type_: "Type") -> cv.Schema:
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.All(
+                                cv.declare_id(USBUartChannel), mark_unclocked
+                            ),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
@@ -211,6 +245,8 @@ async def to_code(config: list[ConfigType]) -> None:
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
+        if (driver := _TYPES_BY_NAME[device[CONF_TYPE]].driver) is not None:
+            cg.add_define(_driver_define(driver))
         var = await register_usb_client(device)
         # The C++ default is true; only emit the override
         if not device.get(CONF_CLAIM_COMM_INTERFACE, True):

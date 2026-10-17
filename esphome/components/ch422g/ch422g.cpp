@@ -10,7 +10,7 @@ static const uint8_t CH422G_REG_IN = 0x26;           // read reg for input bits
 static const uint8_t CH422G_REG_OUT = 0x38;          // write reg for output bits 0-7
 static const uint8_t CH422G_REG_OUT_UPPER = 0x23;    // write reg for output bits 8-11
 
-static const char *const TAG = "ch422g";
+ESPHOME_LOG_TAG(TAG, "ch422g");
 
 void CH422GComponent::setup() {
   // set outputs before mode
@@ -18,7 +18,7 @@ void CH422GComponent::setup() {
   // Set mode and check for errors
   if (!this->set_mode_(this->mode_value_) || !this->read_inputs_()) {
     ESP_LOGE(TAG, "CH422G not detected at 0x%02X", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -34,9 +34,6 @@ void CH422GComponent::loop() {
 void CH422GComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "CH422G:");
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void CH422GComponent::pin_mode(uint8_t pin, gpio::Flags flags) {

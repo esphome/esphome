@@ -3,7 +3,7 @@
 
 namespace esphome::bl0940 {
 
-static const char *const TAG = "bl0940.number";
+ESPHOME_LOG_TAG(TAG, "bl0940.number");
 
 void CalibrationNumber::setup() {
   float value = 0.0f;

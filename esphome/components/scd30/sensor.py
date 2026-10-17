@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_OFFSET,
     CONF_UPDATE_INTERVAL,
@@ -22,8 +21,6 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -32,11 +29,6 @@ AUTO_LOAD = ["sensirion_common"]
 scd30_ns = cg.esphome_ns.namespace("scd30")
 SCD30Component = scd30_ns.class_(
     "SCD30Component", cg.Component, sensirion_common.SensirionI2CDevice
-)
-
-# Actions
-ForceRecalibrationWithReference = scd30_ns.class_(
-    "ForceRecalibrationWithReference", automation.Action
 )
 
 CONFIG_SCHEMA = (
@@ -86,9 +78,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_automatic_self_calibration(config[CONF_AUTOMATIC_SELF_CALIBRATION]))
     if CONF_ALTITUDE_COMPENSATION in config:
@@ -106,22 +96,14 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
-    if CONF_CO2 in config:
-        sens = await sensor.new_sensor(config[CONF_CO2])
-        cg.add(var.set_co2_sensor(sens))
-
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity_sensor(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "scd30.force_recalibration_with_reference",
-    ForceRecalibrationWithReference,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(SCD30Component),
@@ -131,16 +113,5 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_VALUE,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "force_recalibration_with_reference", cg.uint16),
 )
-async def scd30_force_recalibration_with_reference_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
-    cg.add(var.set_value(template_))
-    return var

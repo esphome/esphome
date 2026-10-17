@@ -1,7 +1,6 @@
 #pragma once
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -50,6 +49,8 @@ class TinyUSB final : public Component {
   void set_usb_desc_serial(const char *usb_desc_serial) { this->string_descriptor_[SERIAL_NUMBER] = usb_desc_serial; }
   /// Self-powered device: watch VBUS on this GPIO so a cable pull becomes a detach.
   void set_vbus_monitor_pin(int pin) { this->vbus_monitor_pin_ = static_cast<int8_t>(pin); }
+  /// Configuration descriptor from a class component that esp_tinyusb has no built-in default for (HID).
+  void set_full_speed_config(const uint8_t *descriptor) { this->tusb_cfg_.descriptor.full_speed_config = descriptor; }
 
  protected:
   char usb_desc_lang_id_[2] = {0x09, 0x04};  // defaults to english
@@ -85,15 +86,6 @@ class TinyUSB final : public Component {
       .iSerialNumber = 3,
       .bNumConfigurations = 1,
   };
-};
-
-template<typename... Ts> class IsMountedCondition final : public Condition<Ts...> {
- public:
-  explicit IsMountedCondition(TinyUSB *parent) : parent_(parent) {}
-  bool check(const Ts &...) override { return this->parent_->is_mounted(); }
-
- protected:
-  TinyUSB *parent_;
 };
 
 }  // namespace esphome::tinyusb

@@ -4,7 +4,7 @@ namespace esphome::ld2412 {
 
 void GateThresholdNumber::control(float value) {
   this->publish_state(value);
-  this->parent_->set_gate_threshold();
+  this->parent_->set_gate_threshold(this);
 }
 
 }  // namespace esphome::ld2412

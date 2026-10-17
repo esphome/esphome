@@ -1,0 +1,40 @@
+esphome:
+  name: host-write-after-close
+
+host:
+
+api:
+  actions:
+    - action: write_after_close
+      variables:
+        port: int
+      then:
+        - lambda: |-
+            // A second connection to the test server carries the go signal.
+            auto sync = socket::socket(AF_INET, SOCK_STREAM, 0);
+            struct sockaddr_storage addr;
+            socklen_t len = socket::set_sockaddr(reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr), "127.0.0.1", port);
+            struct timeval timeout = {10, 0};
+            sync->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+            uint8_t go;
+            // The loop stays blocked, so the link cannot read the close before the writes.
+            if (sync->connect(reinterpret_cast<struct sockaddr *>(&addr), len) != 0 || sync->read(&go, 1) != 1) {
+              ESP_LOGE("test", "No go signal");
+              return;
+            }
+            // The first write draws a reset from the closed peer, a later one fails with EPIPE.
+            uint32_t start = millis();
+            while (id(tcp_uart_1).is_connected() && millis() - start < 5000) {
+              id(tcp_uart_1).write_byte('b');
+              id(tcp_uart_1).flush();
+              delay(1);
+            }
+
+logger:
+  level: INFO
+
+tcp_uart:
+  - id: tcp_uart_1
+    host: 127.0.0.1
+    port: 18126
+    reconnect_interval: 60s

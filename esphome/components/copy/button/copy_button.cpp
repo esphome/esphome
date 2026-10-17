@@ -3,7 +3,7 @@
 
 namespace esphome::copy {
 
-static const char *const TAG = "copy.button";
+ESPHOME_LOG_TAG(TAG, "copy.button");
 
 void CopyButton::dump_config() { LOG_BUTTON("", "Copy Button", this); }
 
