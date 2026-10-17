@@ -27,8 +27,9 @@ class FakeChip {
       return !this->ready_;
     if (this->edges_ <= 24)
       return (this->value_ >> (24 - this->edges_)) & 1;
-    return true;
+    return !this->stuck_low;  // a healthy chip raises DOUT after the gain pulses
   }
+  bool stuck_low{false};
   void sck(bool level) {
     if (level && !this->sck_)
       this->edges_++;
@@ -198,6 +199,38 @@ TEST_F(HX711Test, ReadyTimeoutWarnsAndTheNextUpdateRecovers) {
   this->tick_();
   ASSERT_EQ(this->a_values_.size(), 2u);
   EXPECT_EQ(this->a_values_[1], 42.0f);
+}
+
+TEST_F(HX711Test, FailedChannelBReadPublishesNanOnlyToChannelB) {
+  this->hx_.set_channel_b_sensor(&this->channel_b_);
+  this->start_();
+  this->read_(100);
+  ASSERT_EQ(this->a_values_.size(), 1u);
+  this->settle_();
+  this->tick_();
+  this->chip_.stuck_low = true;
+  this->chip_.convert(5);
+  this->tick_();
+  EXPECT_EQ(this->a_values_.size(), 1u);
+  ASSERT_EQ(this->b_values_.size(), 1u);
+  EXPECT_TRUE(std::isnan(this->b_values_[0]));
+  EXPECT_TRUE(this->hx_.status_has_warning());
+  EXPECT_TRUE(this->chip_.powered_down());
+  EXPECT_TRUE(this->hx_.is_idle());
+
+  this->chip_.stuck_low = false;
+  this->hx_.update();
+  EXPECT_FALSE(this->chip_.powered_down());
+  this->tick_();
+  this->chip_.convert(0);
+  this->tick_();
+  this->settle_();
+  EXPECT_FALSE(this->hx_.status_has_warning());
+  this->tick_();
+  this->chip_.convert(7);
+  this->tick_();
+  ASSERT_EQ(this->a_values_.size(), 2u);
+  EXPECT_EQ(this->a_values_[1], 7.0f);
 }
 
 TEST_F(HX711Test, GainChangeDiscardsOneConversionAndSettles) {
