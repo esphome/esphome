@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/gpio.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/ld600x/ld600x_frame.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -270,16 +271,12 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void press_button(ButtonType type);
 
  protected:
-  enum class ParseState : uint8_t { SOF, HEADER, HCK, DATA, DCK, DISCARD };
-
   struct PendingCommand {
     uint16_t type{0};
     uint8_t len{0};
     std::array<uint8_t, CMD_MAX_DATA_LEN> data{};
   };
 
-  void parse_byte_(uint8_t byte);
-  void reset_parser_();
   void handle_frame_(uint16_t type, const uint8_t *data, uint16_t len);
   void handle_target_report_(const uint8_t *data, uint16_t len);
   void handle_point_cloud_(const uint8_t *data, uint16_t len);
@@ -328,14 +325,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void send_z_range_();
   void apply_area_config_();
   void wake_();
-
-  static uint16_t read_u16_be(const uint8_t *data);
-  static uint32_t read_u32_le(const uint8_t *data);
-  static int32_t read_int32_le(const uint8_t *data);
-  static float read_f32_le(const uint8_t *data);
-  static void write_u32_le(uint8_t *data, uint32_t value);
-  static void write_int32_le(uint8_t *data, int32_t value);
-  static void write_f32_le(uint8_t *data, float value);
 
 #ifdef USE_SENSOR
   std::array<TargetSensors, MAX_TARGETS> targets_{};
@@ -386,16 +375,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint32_t wakeup_pulse_ms_{50};
   bool auto_wake_{true};
 
-  ParseState parse_state_{ParseState::SOF};
-  uint8_t header_pos_{0};
-  uint8_t header_xor_{0};
-  uint16_t data_len_{0};
-  uint16_t frame_type_{0};
-  uint16_t frame_id_{0};
-  uint16_t data_pos_{0};
-  uint8_t data_xor_{0};
-  uint32_t discard_remaining_{0};
-  bool frame_oversize_{false};
+  ld600x::FrameParser parser_;
   size_t max_data_len_{0};
   uint8_t *data_buf_{nullptr};
   uint16_t next_frame_id_{0};
