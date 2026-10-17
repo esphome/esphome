@@ -358,6 +358,9 @@ esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr501/* @latonita
 esphome/components/ltr_als_ps/* @latonita
 esphome/components/lvgl/* @clydebarrow
+esphome/components/m5pm1/* @parker-int64
+esphome/components/m5pm1/binary_sensor/* @m5stack
+esphome/components/m5pm1/event/* @m5stack
 esphome/components/m5stack_8angle/* @rnauber
 esphome/components/mapping/* @clydebarrow
 esphome/components/matrix_keypad/* @ssieb
