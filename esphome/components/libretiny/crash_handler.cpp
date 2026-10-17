@@ -65,9 +65,13 @@ static constexpr size_t MAX_BACKTRACE = 8;
 // Words scanned above the faulting context's stack pointer for return addresses.
 static constexpr size_t STACK_SCAN_WORDS = 64;
 
-// SRAM range a task stack can be in (the largest BK72xx has 256 KB).
+// SRAM range a task stack can be in: 192 KB on the BK7231N, 256 KB on the BK7238.
 static constexpr uint32_t SRAM_START = 0x00400000;
+#ifdef USE_LIBRETINY_VARIANT_BK7231N
+static constexpr uint32_t SRAM_END = 0x00430000;
+#else
 static constexpr uint32_t SRAM_END = 0x00440000;
+#endif
 
 static constexpr uint32_t CPSR_MODE_MASK = 0x1F;
 static constexpr uint32_t CPSR_MODE_USR = 0x10;

@@ -74,7 +74,7 @@ const LogString *Logger::get_uart_selection_() {
   }
 }
 
-#ifdef USE_CRASH_HANDLER
+#ifdef USE_LIBRETINY_CRASH_HANDLER
 bool crash_log_pending() { return libretiny::crash_handler_has_data(); }
 void log_crash_to_client() { libretiny::crash_handler_log(); }
 #endif
