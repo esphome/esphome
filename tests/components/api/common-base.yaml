@@ -67,6 +67,7 @@ api:
           type: string
           description: Name to greet
           example: World
+          default: World
       then:
         - logger.log:
             format: Hello World %s!
