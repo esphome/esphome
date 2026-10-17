@@ -11,18 +11,17 @@ from esphome.components.pca9554 import (
     PCA9554_PIN_SCHEMA,
     pca9554_pin_final_validate,
 )
+from esphome.types import ConfigType
 
 
-def _hub(**overrides: object) -> dict:
-    config: dict = {"id": "hub", "address": 0x20}
-    config.update(overrides)
-    return CONFIG_SCHEMA(config)
+def _hub(**overrides: object) -> ConfigType:
+    return CONFIG_SCHEMA({"id": "hub", **overrides})
 
 
-def _pin(number: int, mode: dict, **extra: object) -> dict:
-    config: dict = {"pca9554": "hub", "number": number, "mode": mode}
-    config.update(extra)
-    return PCA9554_PIN_SCHEMA(config)
+def _pin(number: int, mode: dict, **overrides: object) -> ConfigType:
+    return PCA9554_PIN_SCHEMA(
+        {"pca9554": "hub", "number": number, "mode": mode, **overrides}
+    )
 
 
 def test_pin_count_must_match_the_device() -> None:
@@ -34,27 +33,30 @@ def test_pin_count_must_match_the_device() -> None:
 
 
 @pytest.mark.parametrize(
-    ("pin_count", "device"), [(4, "PCA9536"), (8, "PCA9554"), (16, "PCA9555")]
+    ("overrides", "device"),
+    [
+        ({}, "PCA9554"),
+        ({"pin_count": 4}, "PCA9536"),
+        ({"pin_count": 8}, "PCA9554"),
+        ({"pin_count": 16}, "PCA9555"),
+    ],
 )
-def test_legacy_pin_count_maps_to_a_device(pin_count: int, device: str) -> None:
-    hub = _hub(pin_count=pin_count)
-    assert hub["device"] == device
-    assert hub["pin_count"] == pin_count
-
-
-def test_device_defaults_to_pca9554() -> None:
-    hub = _hub()
-    assert hub["device"] == "PCA9554"
-    assert hub["pin_count"] == 8
+def test_legacy_pin_count_maps_to_a_device(overrides: dict, device: str) -> None:
+    assert _hub(**overrides)["device"] == device
 
 
 @pytest.mark.parametrize(
     ("device", "address"),
-    [("PCA9554", 0x20), ("PCA9554A", 0x38), ("PCA9536", 0x41), ("PCAL9538", 0x70)],
+    [
+        ("PCA9554", 0x20),
+        ("PCA9554A", 0x38),
+        ("PCA9536", 0x41),
+        ("PCA9538", 0x70),
+        ("PCAL9538", 0x70),
+    ],
 )
 def test_address_defaults_to_the_device_base(device: str, address: int) -> None:
-    hub = CONFIG_SCHEMA({"id": "hub", "device": device})
-    assert hub["address"] == address
+    assert _hub(device=device)["address"] == address
     assert _hub(device=device, address=0x27)["address"] == 0x27
 
 
@@ -64,26 +66,35 @@ def test_pin_number_follows_the_device() -> None:
     pca9554_pin_final_validate(_pin(15, {"input": True}), _hub(device="PCAL9555"))
 
 
-def test_pcal_modes_are_rejected_on_a_plain_part() -> None:
-    with pytest.raises(cv.Invalid, match="'pullup' is not valid for device PCA9554"):
+@pytest.mark.parametrize(
+    ("mode", "overrides", "message"),
+    [
+        ({"input": True, "pullup": True}, {}, "Pin mode 'pullup' is not valid"),
+        ({"input": True, "pulldown": True}, {}, "Pin mode 'pulldown' is not valid"),
+        ({"input": True}, {"latch": True}, "'latch' is not supported"),
+        ({"output": True}, {"drive_strength": "100%"}, "'drive_strength' is not"),
+    ],
+)
+def test_pcal_only_settings_are_rejected_on_a_plain_part(
+    mode: dict, overrides: dict, message: str
+) -> None:
+    pin = _pin(1, mode, **overrides)
+    with pytest.raises(cv.Invalid, match=f"{message}.*device PCA9554"):
+        pca9554_pin_final_validate(pin, _hub(device="PCA9554"))
+    pca9554_pin_final_validate(pin, _hub(device="PCAL9538"))
+
+
+def test_outputs_cannot_be_latched() -> None:
+    with pytest.raises(cv.Invalid, match="'latch' is not valid for an output pin"):
         pca9554_pin_final_validate(
-            _pin(1, {"input": True, "pullup": True}), _hub(device="PCA9554")
+            _pin(1, {"output": True}, latch=True), _hub(device="PCAL9538")
         )
 
 
-def test_drive_strength_is_rejected_on_a_plain_part() -> None:
-    with pytest.raises(cv.Invalid, match="'drive_strength' is not supported"):
-        pca9554_pin_final_validate(
-            _pin(1, {"output": True}, drive_strength=3), _hub(device="PCA9554")
-        )
-    pca9554_pin_final_validate(_pin(1, {"output": True}), _hub(device="PCA9554"))
-
-
-def test_pcal_input_with_interrupt_pin_needs_no_extra_keys() -> None:
-    """A PCAL hub with an interrupt pin accepts a plain input pin; there is no per-pin interrupt key."""
-    # The final validation only looks at the keys, so the hub config can stay a plain dict
-    hub = {"device": "PCAL9538", "pin_count": 8, "interrupt_pin": {"number": 4}}
-    pca9554_pin_final_validate(_pin(1, {"input": True}), hub)
+@pytest.mark.parametrize("value", ["30%", "0%", 2])
+def test_drive_strength_must_be_a_datasheet_level(value: object) -> None:
+    with pytest.raises(cv.Invalid):
+        _pin(1, {"output": True}, drive_strength=value)
 
 
 def test_pcal_code_is_only_generated_for_pcal_hubs(
@@ -94,10 +105,15 @@ def test_pcal_code_is_only_generated_for_pcal_hubs(
     main_cpp = generate_main(component_config_path("pca9554.yaml"))
 
     for call in (
-        "pcal_hub->set_pcal(true);",
+        "pcal_hub->set_pcal();",
         "pcal_hub->set_latch(9);",
         "pcal_hub->set_drive_strength(9, 2);",
+        "pcal_hub->set_drive_strength(10, 0);",
+        "pcal_hub->set_drive_strength(11, 3);",
     ):
         assert main_cpp.count(call) == 1
     for call in ("set_pcal(", "set_latch(", "set_drive_strength("):
         assert f"plain_hub->{call}" not in main_cpp
+        assert f"pca9538_hub->{call}" not in main_cpp
+    # 0x70, the PCA9538 default
+    assert "pca9538_hub->set_i2c_address(112);" in main_cpp

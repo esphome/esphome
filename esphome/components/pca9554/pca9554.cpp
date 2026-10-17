@@ -23,7 +23,6 @@ static constexpr uint8_t INTERRUPT_MASK = 5;
 ESPHOME_LOG_TAG(TAG, "pca9554");
 
 void PCA9554Component::setup() {
-  this->reg_width_ = (this->pin_count_ + 7) / 8;
   // Test to see if device exists
   if (!this->read_inputs_()) {
     ESP_LOGE(TAG, "PCA95xx not detected at 0x%02X", this->address_);
@@ -105,7 +104,12 @@ void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   } else {
     this->output_mask_ &= ~(1 << pin);
   }
+#ifdef USE_PCA9554_PCAL
+  if (this->write_register_(OUTPUT_REG, this->output_mask_))
+    this->retry_pcal_shadows_();  // an output-only hub never reads, so it retries here
+#else
   this->write_register_(OUTPUT_REG, this->output_mask_);
+#endif
 }
 
 void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
@@ -128,9 +132,11 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     const uint16_t bit = 1U << pin;
     // A masked pin never asserts INT, so only inputs are unmasked
     this->update_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_, bit, this->config_mask_ & bit);
-    this->update_pcal_register_(PUPD_SEL, this->pupd_select_, bit, (flags & gpio::FLAG_PULLUP) ? bit : 0);
-    this->update_pcal_register_(PUPD_ENABLE, this->pupd_enable_, bit,
-                                (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) ? bit : 0);
+    const bool pull = flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN);
+    // The select bit means nothing while the pull is disabled
+    if (pull)
+      this->update_pcal_register_(PUPD_SEL, this->pupd_select_, bit, (flags & gpio::FLAG_PULLUP) ? bit : 0);
+    this->update_pcal_register_(PUPD_ENABLE, this->pupd_enable_, bit, pull ? bit : 0);
   }
 #endif
 }
@@ -156,8 +162,7 @@ bool PCA9554Component::read_inputs_() {
   }
 #ifdef USE_PCA9554_PCAL
   // The bus answers again, so retry the settings a failed write left off the chip
-  if (this->pcal_dirty_)
-    this->write_pcal_shadows_();
+  this->retry_pcal_shadows_();
 #endif
   return true;
 }
@@ -169,7 +174,7 @@ bool PCA9554Component::write_address_(uint8_t address, uint16_t value) {
   const i2c::ErrorCode err = this->write_register(address, outputs, this->reg_width_);
   if (err != i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) err);
+    ESP_LOGE(TAG, "write_register(): I2C I/O error: %d", (int) err);
     return false;
   }
 
@@ -192,8 +197,8 @@ bool PCA9554Component::write_pcal_shadows_() {
   ok &= this->write_pcal_register_(PUPD_SEL, this->pupd_select_);
   ok &= this->write_pcal_register_(INPUT_LATCH, this->latch_);
   ok &= this->write_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_);
-  ok &= this->write_pcal_register_(OUTPUT_DRIVE_0, this->drive_0_);
-  ok &= this->write_pcal_register_(OUTPUT_DRIVE_1, this->drive_1_);
+  ok &= this->write_pcal_register_(OUTPUT_DRIVE_0, static_cast<uint16_t>(this->drive_));
+  ok &= this->write_pcal_register_(OUTPUT_DRIVE_1, static_cast<uint16_t>(this->drive_ >> (8 * this->reg_width_)));
   return ok;
 }
 
@@ -204,14 +209,6 @@ void PCA9554Component::update_pcal_register_(uint8_t reg, uint16_t &shadow, uint
     return;
   shadow = updated;
   this->write_pcal_register_(reg, shadow);
-}
-
-void PCA9554Component::set_drive_strength(uint8_t pin, uint8_t strength) {
-  // Two bits per pin: a one byte register holds four pins, a two byte one holds eight
-  const uint8_t pins_per_register = this->pin_count_ > 8 ? 8 : 4;
-  uint16_t &drive = pin < pins_per_register ? this->drive_0_ : this->drive_1_;
-  const uint8_t shift = 2 * (pin % pins_per_register);
-  drive = (drive & ~(3U << shift)) | ((strength & 3U) << shift);
 }
 #endif
 

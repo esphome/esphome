@@ -1,11 +1,15 @@
+from typing import NamedTuple
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_DRIVE_STRENGTH
 from esphome.components.gpio_expander import validate_interrupt_pin
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_DEVICE,
+    CONF_I2C_ID,
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT_PIN,
@@ -25,7 +29,6 @@ DEPENDENCIES = ["i2c"]
 DOMAIN = "pca9554"
 MULTI_CONF = True
 
-CONF_DRIVE_STRENGTH = "drive_strength"
 CONF_LATCH = "latch"
 CONF_PCA9554 = "pca9554"
 CONF_PIN_COUNT = "pin_count"
@@ -36,44 +39,46 @@ PCA9554GPIOPin = pca9554_ns.class_(
     "PCA9554GPIOPin", cg.GPIOPin, cg.Parented.template(PCA9554Component)
 )
 
-# Pin count of each supported model
-DEVICES: dict[str, int] = {
-    "PCA9536": 4,
-    "PCA9554": 8,
-    "PCA9554A": 8,
-    "PCA9535": 16,
-    "PCA9555": 16,
-    "PCAL9538": 8,
-    "PCAL9555": 16,
+
+class _Device(NamedTuple):
+    pins: int
+    # Lowest I2C address, with all address pins low
+    address: int
+    # Has the PCAL registers: pull resistors, input latch, drive strength, interrupt mask
+    pcal: bool = False
+
+
+DEVICES: dict[str, _Device] = {
+    "PCA9536": _Device(4, 0x41),
+    "PCA9534": _Device(8, 0x20),
+    "PCA9534A": _Device(8, 0x38),
+    "PCA9538": _Device(8, 0x70),
+    "PCA9554": _Device(8, 0x20),
+    "PCA9554A": _Device(8, 0x38),
+    "TCA9554": _Device(8, 0x20),
+    "PCA9535": _Device(16, 0x20),
+    "PCA9555": _Device(16, 0x20),
+    "TCA9535": _Device(16, 0x20),
+    "TCA9555": _Device(16, 0x20),
+    "PCAL9538": _Device(8, 0x70, True),
+    "PCAL9555": _Device(16, 0x20, True),
 }
-# Lowest I2C address of each model, with all address pins low
-DEFAULT_ADDRESSES: dict[str, int] = {
-    "PCA9536": 0x41,
-    "PCA9554": 0x20,
-    "PCA9554A": 0x38,
-    "PCA9535": 0x20,
-    "PCA9555": 0x20,
-    "PCAL9538": 0x70,
-    "PCAL9555": 0x20,
-}
-PCAL_DEVICES = frozenset({"PCAL9538", "PCAL9555"})
-PCAL_ONLY_MODES = (CONF_PULLUP, CONF_PULLDOWN, CONF_LATCH)
 # The device a legacy `pin_count:` stands for
 _LEGACY_DEVICES = {4: "PCA9536", 8: "PCA9554", 16: "PCA9555"}
+# Datasheet drive levels and their register codes
+DRIVE_STRENGTHS = {0.25: 0, 0.5: 1, 0.75: 2, 1.0: 3}
 
 
 def _validate_hub(config: ConfigType) -> ConfigType:
     count = config.get(CONF_PIN_COUNT)
     if (device := config.get(CONF_DEVICE)) is None:
-        device = _LEGACY_DEVICES[count] if count is not None else "PCA9554"
-        config[CONF_DEVICE] = device
-    elif count is not None and count != DEVICES[device]:
+        device = config[CONF_DEVICE] = _LEGACY_DEVICES[config.get(CONF_PIN_COUNT, 8)]
+    elif count is not None and count != DEVICES[device].pins:
         raise cv.Invalid(
-            f"'{CONF_PIN_COUNT}' ({count}) does not match the {DEVICES[device]} "
+            f"'{CONF_PIN_COUNT}' ({count}) does not match the {DEVICES[device].pins} "
             f"pins of device {device}; remove '{CONF_PIN_COUNT}'"
         )
-    config[CONF_PIN_COUNT] = DEVICES[device]
-    config.setdefault(CONF_ADDRESS, DEFAULT_ADDRESSES[device])
+    config.setdefault(CONF_ADDRESS, DEVICES[device].address)
     return config
 
 
@@ -81,26 +86,26 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(PCA9554Component),
+            cv.GenerateID(CONF_I2C_ID): cv.use_id(i2c.I2CBus),
+            # The default depends on the device, so _validate_hub fills it in
+            cv.Optional(CONF_ADDRESS): cv.i2c_address,
             cv.Optional(CONF_DEVICE): cv.one_of(*DEVICES, upper=True),
             cv.Optional(CONF_PIN_COUNT): cv.one_of(4, 8, 16),
             cv.Optional(CONF_INTERRUPT_PIN): validate_interrupt_pin,
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(
-        i2c.i2c_device_schema(None).extend({cv.Optional(CONF_ADDRESS): cv.i2c_address})
-    ),
+    ).extend(cv.COMPONENT_SCHEMA),
     _validate_hub,
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_pin_count(config[CONF_PIN_COUNT]))
-    if config[CONF_DEVICE] in PCAL_DEVICES:
+    device = DEVICES[config[CONF_DEVICE]]
+    cg.add(var.set_pin_count(device.pins))
+    if device.pcal:
         # Only a build with a PCAL part carries the code for its extra registers
         cg.add_define("USE_PCA9554_PCAL")
-        cg.add(var.set_pcal(True))
+        cg.add(var.set_pcal())
 
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -109,25 +114,26 @@ async def to_code(config: ConfigType) -> None:
 
 
 def validate_mode(value: ConfigType) -> ConfigType:
-    """The modes have to agree with each other; whether the device offers them is checked later."""
+    """Reject contradictory modes; whether the device supports a mode is checked in final validation."""
     if value[CONF_INPUT] == value[CONF_OUTPUT]:
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_PULLDOWN] and value[CONF_PULLUP]:
-        raise cv.Invalid("Pull-up and pull-down are mutually exclusive.")
-    if value[CONF_LATCH] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Outputs cannot be latched.")
+        raise cv.Invalid("Pull-up and pull-down are mutually exclusive")
     return value
 
 
 PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
     PCA9554GPIOPin,
     cv.int_range(min=0, max=15),
-    modes=[CONF_INPUT, CONF_OUTPUT, *PCAL_ONLY_MODES],
+    modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP, CONF_PULLDOWN],
     mode_validator=validate_mode,
 ).extend(
     {
         cv.Required(CONF_PCA9554): pins.use_id_or_address(PCA9554Component),
-        cv.Optional(CONF_DRIVE_STRENGTH): cv.int_range(min=0, max=3),
+        cv.Optional(CONF_LATCH, default=False): cv.boolean,
+        cv.Optional(CONF_DRIVE_STRENGTH): cv.All(
+            cv.percentage, cv.one_of(*DRIVE_STRENGTHS)
+        ),
     }
 )
 
@@ -135,19 +141,22 @@ PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
 def pca9554_pin_final_validate(
     pin_config: ConfigType, parent_config: ConfigType
 ) -> None:
-    count = parent_config[CONF_PIN_COUNT]
-    if pin_config[CONF_NUMBER] >= count:
-        raise cv.Invalid(f"Pin number must be in range 0-{count - 1}")
+    device_name = parent_config[CONF_DEVICE]
+    device = DEVICES[device_name]
+    if pin_config[CONF_NUMBER] >= device.pins:
+        raise cv.Invalid(f"Pin number must be in range 0-{device.pins - 1}")
 
-    device = parent_config[CONF_DEVICE]
-    if device in PCAL_DEVICES:
-        return
     mode = pin_config[CONF_MODE]
-    for name in PCAL_ONLY_MODES:
+    if pin_config[CONF_LATCH] and mode[CONF_OUTPUT]:
+        raise cv.Invalid(f"'{CONF_LATCH}' is not valid for an output pin")
+    if device.pcal:
+        return
+    for name in (CONF_PULLUP, CONF_PULLDOWN):
         if mode[name]:
-            raise cv.Invalid(f"Pin mode '{name}' is not valid for device {device}.")
-    if CONF_DRIVE_STRENGTH in pin_config:
-        raise cv.Invalid(f"'{CONF_DRIVE_STRENGTH}' is not supported by device {device}")
+            raise cv.Invalid(f"Pin mode '{name}' is not valid for device {device_name}")
+    for key in (CONF_LATCH, CONF_DRIVE_STRENGTH):
+        if pin_config.get(key):
+            raise cv.Invalid(f"'{key}' is not supported by device {device_name}")
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(
@@ -164,8 +173,8 @@ async def pca9554_pin_to_code(config: ConfigType) -> MockObj:
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     # Final validation only lets these through on a PCAL hub
-    if config[CONF_MODE][CONF_LATCH]:
+    if config[CONF_LATCH]:
         cg.add(parent.set_latch(num))
     if (drive_strength := config.get(CONF_DRIVE_STRENGTH)) is not None:
-        cg.add(parent.set_drive_strength(num, drive_strength))
+        cg.add(parent.set_drive_strength(num, DRIVE_STRENGTHS[drive_strength]))
     return var

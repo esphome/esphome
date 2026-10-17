@@ -16,6 +16,8 @@ pca9554:
   - id: pcal_hub
     address: 0x70
     device: PCAL9555
+  - id: pca9538_hub
+    device: PCA9538
 
 binary_sensor:
   - platform: gpio
@@ -34,5 +36,27 @@ binary_sensor:
       mode:
         input: true
         pullup: true
-        latch: true
-      drive_strength: 2
+      latch: true
+      drive_strength: 75%
+
+switch:
+  - platform: gpio
+    id: pcal_weak_output
+    pin:
+      pca9554: pcal_hub
+      number: 10
+      mode: OUTPUT
+      drive_strength: 25%
+  - platform: gpio
+    id: pcal_full_output
+    pin:
+      pca9554: pcal_hub
+      number: 11
+      mode: OUTPUT
+      drive_strength: 100%
+  - platform: gpio
+    id: pca9538_output
+    pin:
+      pca9554: pca9538_hub
+      number: 7
+      mode: OUTPUT
