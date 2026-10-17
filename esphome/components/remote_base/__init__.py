@@ -1044,6 +1044,21 @@ KEELOQ_SCHEMA = cv.Schema(
 )
 
 
+def _keeloq_group_alone(config: ConfigType) -> ConfigType:
+    # The group bits take the places of level and the suffix.
+    if CONF_GROUP not in config:
+        return config
+    if CONF_SUFFIX in config or CONF_SUFFIX_BITS in config:
+        raise cv.Invalid(
+            "group cannot be combined with suffix or suffix_bits", [CONF_GROUP]
+        )
+    if config[CONF_LEVEL] is not False:
+        raise cv.Invalid(
+            "group sets the bit that level sends; remove level", [CONF_LEVEL]
+        )
+    return config
+
+
 def _keeloq_suffix_fits(config: ConfigType) -> ConfigType:
     # A lambda is only known on the device. A plain value has to fit the width.
     suffix = config.get(CONF_SUFFIX, 0)
@@ -1060,6 +1075,7 @@ KEELOQ_ACTION_SCHEMA = KEELOQ_SCHEMA.extend(
         # No defaults: an absent key leaves the data at 0 and emits nothing.
         cv.Optional(CONF_SUFFIX): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
         cv.Optional(CONF_SUFFIX_BITS): cv.int_range(min=0, max=16),
+        cv.Optional(CONF_GROUP): cv.hex_uint8_t,
     }
 )
 
@@ -1097,7 +1113,8 @@ register_protocol_action(
     (CONF_LEVEL, "vlow", cg.bool_),
     (CONF_SUFFIX, "suffix", cg.uint16),
     (CONF_SUFFIX_BITS, "suffix_bits", cg.uint8),
-    validate=_keeloq_suffix_fits,
+    automation.ApplyField(CONF_GROUP, "data.set_group", cg.uint8),
+    validate=cv.All(_keeloq_group_alone, _keeloq_suffix_fits),
 )
 
 
