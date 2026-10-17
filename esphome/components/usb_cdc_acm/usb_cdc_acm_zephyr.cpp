@@ -157,7 +157,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   if (len == 0) {
     return true;
   }
-  if (available() < len) {
+  if (this->available() < len) {
     return false;
   }
 
