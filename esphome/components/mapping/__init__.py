@@ -14,6 +14,7 @@ from esphome.cpp_generator import (
     add_global,
 )
 from esphome.loader import get_component
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
@@ -126,7 +127,18 @@ def add_metadata(
     get_all_mapping_metadata()[mapping_id.id] = MappingMetaData(from_, to_)
 
 
+_EXTRACT_SCHEMA = BASE_SCHEMA.extend(
+    {
+        cv.Required(CONF_ENTRIES): cv.Schema({cv.string: cv.valid}),
+        cv.Optional(CONF_DEFAULT_VALUE): cv.valid,
+    }
+)
+
+
+@schema_extractor("schema")
 def map_schema(config: ConfigType) -> ConfigType:
+    if config is SCHEMA_EXTRACT:
+        return _EXTRACT_SCHEMA
     config = BASE_SCHEMA(config)
     if CONF_ENTRIES not in config or not isinstance(config[CONF_ENTRIES], dict):
         raise cv.Invalid("an entries dictionary is required for a mapping")

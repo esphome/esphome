@@ -368,3 +368,69 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
 
     _count(lvgl_schema)
     assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for keys the dumper used to drop.
+# ---------------------------------------------------------------------------
+
+
+def _config_vars(schema_dir: Path, file: str, top: str, name: str = "CONFIG_SCHEMA"):
+    doc = json.loads((schema_dir / f"{file}.json").read_text())
+    return doc[top]["schemas"][name]["schema"]["config_vars"]
+
+
+def test_child_of_empty_base_schema_keeps_config_vars(
+    language_schema_dir: Path,
+) -> None:
+    """Extending an empty cv.Schema({}) must not erase the child's own keys."""
+    config_vars = _config_vars(language_schema_dir, "sendspin", "sendspin.media_source")
+    assert "fixed_delay" in config_vars
+    assert "decode_memory" in config_vars
+
+
+def test_uart_debug_schema_is_walked(language_schema_dir: Path) -> None:
+    debug = _config_vars(language_schema_dir, "uart", "uart")["debug"]
+    assert debug["type"] == "schema"
+    after = debug["schema"]["config_vars"]["after"]
+    assert "delimiter" in after["schema"]["config_vars"]
+
+
+def test_mapping_entries_exposed(language_schema_dir: Path) -> None:
+    doc = json.loads((language_schema_dir / "mapping.json").read_text())
+    config_schema = doc["mapping"]["schemas"]["CONFIG_SCHEMA"]
+    assert config_schema["is_list"] is True
+    config_vars = config_schema["schema"]["config_vars"]
+    assert config_vars["entries"]["key"] == "String"
+    assert "default_value" in config_vars
+
+
+def test_neopixelbus_method_is_typed(language_schema_dir: Path) -> None:
+    method = _config_vars(language_schema_dir, "neopixelbus", "neopixelbus.light")[
+        "method"
+    ]
+    assert method["type"] == "typed"
+    assert "channel" in method["types"]["esp32_rmt"]["config_vars"]
+    assert "speed" in method["types"]["spi"]["config_vars"]
+
+
+def test_dotted_registry_names_land_in_their_own_domain(
+    language_schema_dir: Path,
+) -> None:
+    ble_server = json.loads((language_schema_dir / "ble_server.json").read_text())
+    assert "characteristic.set_value" in ble_server["ble_server"]["action"]
+    router = json.loads((language_schema_dir / "router.json").read_text())
+    assert "speaker.switch_output" in router["router"]["action"]
+    lvgl = json.loads((language_schema_dir / "lvgl.json").read_text())
+    assert "matrix.button.update" in lvgl["lvgl"]["action"]
+
+
+def test_registry_entry_not_overwritten_by_following_entry(
+    language_schema_dir: Path,
+) -> None:
+    """An unresolved dotted name used to be written over the previous entry."""
+    pzemdc = json.loads((language_schema_dir / "pzemdc.json").read_text())
+    reset_energy = pzemdc["pzemdc"]["action"]["reset_energy"]
+    assert (
+        reset_energy["schema"]["config_vars"]["id"]["use_id_type"] == "pzemdc::PZEMDC"
+    )
