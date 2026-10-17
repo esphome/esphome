@@ -53,6 +53,17 @@ const char *find_request_end(const char *buf, size_t len) {
   return nullptr;
 }
 
+/// Bounded substring search; StringRef::find() uses strstr and could run past the header value.
+bool contains(const StringRef &hay, const StringRef &needle) {
+  if (needle.size() > hay.size())
+    return false;
+  for (size_t i = 0; i + needle.size() <= hay.size(); i++) {
+    if (std::memcmp(hay.c_str() + i, needle.c_str(), needle.size()) == 0)
+      return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 /// Scans JPEG marker segments (SOF0/1, DQT, SOS) for the dimensions, quantization tables and the start of
@@ -365,7 +376,7 @@ void RTSPSession::queue_response_(uint16_t code, const char *reason, const char 
 }
 
 void RTSPSession::handle_setup_(StringRef transport_header) {
-  if (transport_header.find("RTP/AVP/TCP") == std::string::npos) {
+  if (!contains(transport_header, StringRef::from_lit("RTP/AVP/TCP"))) {
     this->queue_response_(461, "Unsupported Transport");
     return;
   }

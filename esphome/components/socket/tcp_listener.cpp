@@ -54,13 +54,13 @@ void TcpListener::accept_(TcpClientLink &link) {
     return;
   }
   const auto *sa = reinterpret_cast<const struct sockaddr *>(&peer);
-  char text[SOCKADDR_STR_LEN];
-  format_sockaddr_to(sa, peer_len, std::span<char, SOCKADDR_STR_LEN>(text));
 #ifdef USE_SOCKET_IPV4_ALLOW
   if (!this->allow_.admit(sa, peer_len, this->tag_, App.get_loop_component_start_time())) {
     return;
   }
 #endif
+  char text[SOCKADDR_STR_LEN];
+  format_sockaddr_to(sa, peer_len, std::span<char, SOCKADDR_STR_LEN>(text));
   link.adopt(std::move(client));
   ESP_LOGI(this->tag_, "Client connected from %s", text);
 }

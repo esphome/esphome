@@ -9,8 +9,8 @@
 
 namespace esphome::socket::testing {
 
-// The size_t count packs into the pointer's padding; no RAM over a uint8_t.
-static_assert(sizeof(Ipv4Allow) == 2 * sizeof(void *), "unexpected padding in Ipv4Allow");
+// Entries pointer, count and the reject-log timestamp; nothing else may creep in.
+static_assert(sizeof(Ipv4Allow) <= 3 * sizeof(void *), "unexpected padding in Ipv4Allow");
 
 // 192.168.175.20/32 and 192.168.175.0/24, network order, host bits cleared,
 // mirroring what add_ipv4_allow emits.
@@ -24,6 +24,27 @@ static bool allows_peer(const Ipv4Allow &list, const char *ip) {
   struct sockaddr_storage peer {};
   EXPECT_NE(set_sockaddr(reinterpret_cast<struct sockaddr *>(&peer), sizeof(peer), ip, 0), 0);
   return list.allows(reinterpret_cast<const struct sockaddr *>(&peer));
+}
+
+// admit() with the same production parser; the log line is the only side effect.
+static bool admits_peer(Ipv4Allow &list, const char *ip, uint32_t now) {
+  struct sockaddr_storage peer {};
+  socklen_t len = set_sockaddr(reinterpret_cast<struct sockaddr *>(&peer), sizeof(peer), ip, 0);
+  EXPECT_NE(len, 0);
+  return list.admit(reinterpret_cast<const struct sockaddr *>(&peer), len, "test", now);
+}
+
+TEST(Ipv4Allow, AdmitFollowsAllowsAndKeepsWorkingWhileThrottled) {
+  Ipv4Allow list;
+  list.set(ENTRIES, std::size(ENTRIES));
+  EXPECT_TRUE(admits_peer(list, "192.168.175.66", 1000));
+  EXPECT_TRUE(admits_peer(list, "::ffff:192.168.175.20", 1000));
+  // Rejections inside and past the log interval both refuse the peer.
+  EXPECT_FALSE(admits_peer(list, "10.0.0.1", 1000));
+  EXPECT_FALSE(admits_peer(list, "10.0.0.2", 1001));
+  EXPECT_FALSE(admits_peer(list, "10.0.0.3", 7000));
+  EXPECT_TRUE(admits_peer(list, "192.168.175.1", 7001));
+  list.dump_config("test");
 }
 
 TEST(Ipv4Allow, EmptyAllowsEveryPeer) {
