@@ -1,11 +1,11 @@
 esphome:
   on_boot:
     then:
-      - climate_ir.airton.display_on: airton_climate
-      - climate_ir.airton.display_off:
+      - climate.airton.display_on: airton_climate
+      - climate.airton.display_off:
           id: airton_climate
-      - climate_ir.airton.sleep_on: airton_climate
-      - climate_ir.airton.sleep_off: airton_climate
+      - climate.airton.sleep_on: airton_climate
+      - climate.airton.sleep_off: airton_climate
 
 sensor:
   - platform: template

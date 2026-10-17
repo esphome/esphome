@@ -209,6 +209,8 @@ uint8_t AirtonClimate::operation_settings_() {
 
 void AirtonClimate::parse_state_frame_(const uint8_t *frame) {
   uint8_t mode = frame[2];
+  // A later "off" repeats the mode the remote last sent, as the remote itself does
+  this->previous_mode_ = mode & 0b00001111;
   if (mode & 0b00001000) {  // The power bit
     switch (mode & 0b00000111) {
       case AIRTON_MODE_COOL:
