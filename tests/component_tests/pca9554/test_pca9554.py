@@ -91,6 +91,13 @@ def test_outputs_cannot_be_latched() -> None:
         )
 
 
+def test_inputs_take_no_drive_strength() -> None:
+    with pytest.raises(cv.Invalid, match="'drive_strength' is not valid for an input"):
+        pca9554_pin_final_validate(
+            _pin(1, {"input": True}, drive_strength="50%"), _hub(device="PCAL9538")
+        )
+
+
 @pytest.mark.parametrize("value", ["30%", "0%", 2])
 def test_drive_strength_must_be_a_datasheet_level(value: object) -> None:
     with pytest.raises(cv.Invalid):
@@ -107,7 +114,7 @@ def test_pcal_code_is_only_generated_for_pcal_hubs(
     for call in (
         "pcal_hub->set_pcal();",
         "pcal_hub->set_latch(9);",
-        "pcal_hub->set_drive_strength(9, 2);",
+        "pcal_hub->set_drive_strength(12, 2);",
         "pcal_hub->set_drive_strength(10, 0);",
         "pcal_hub->set_drive_strength(11, 3);",
     ):

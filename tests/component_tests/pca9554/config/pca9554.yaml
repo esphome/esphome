@@ -37,7 +37,6 @@ binary_sensor:
         input: true
         pullup: true
       latch: true
-      drive_strength: 75%
 
 switch:
   - platform: gpio
@@ -54,6 +53,13 @@ switch:
       number: 11
       mode: OUTPUT
       drive_strength: 100%
+  - platform: gpio
+    id: pcal_mid_output
+    pin:
+      pca9554: pcal_hub
+      number: 12
+      mode: OUTPUT
+      drive_strength: 75%
   - platform: gpio
     id: pca9538_output
     pin:

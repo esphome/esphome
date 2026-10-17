@@ -149,6 +149,8 @@ def pca9554_pin_final_validate(
     mode = pin_config[CONF_MODE]
     if pin_config[CONF_LATCH] and mode[CONF_OUTPUT]:
         raise cv.Invalid(f"'{CONF_LATCH}' is not valid for an output pin")
+    if CONF_DRIVE_STRENGTH in pin_config and mode[CONF_INPUT]:
+        raise cv.Invalid(f"'{CONF_DRIVE_STRENGTH}' is not valid for an input pin")
     if device.pcal:
         return
     for name in (CONF_PULLUP, CONF_PULLDOWN):
