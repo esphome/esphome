@@ -256,6 +256,10 @@ class APIServerConnectionBase {
 #ifdef USE_SENDSPIN
   void on_sendspin_pairing_token_request(){};
 #endif
+
+#ifdef USE_STORE_YAML
+  void on_get_yaml_request(){};
+#endif
 };
 
 }  // namespace esphome::api
