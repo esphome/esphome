@@ -43,7 +43,7 @@ static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
 static constexpr uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
 static constexpr uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
 static constexpr uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
-static constexpr uint16_t SEN6X_CMD_RHT_ACCELERATION_MODE = 0x6100;
+static constexpr uint16_t SEN6X_CMD_TEMPERATURE_ACCELERATION = 0x6100;
 static constexpr uint16_t SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL = 0x6711;
 static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
 static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
@@ -259,7 +259,7 @@ bool SEN6XComponent::write_temperature_compensation_(const TemperatureCompensati
 
 bool SEN6XComponent::write_temperature_acceleration_(const TemperatureAcceleration &acceleration) {
   uint16_t params[4] = {acceleration.k, acceleration.p, acceleration.t1, acceleration.t2};
-  return this->write_config_words_(SEN6X_CMD_RHT_ACCELERATION_MODE, params, 4);
+  return this->write_config_words_(SEN6X_CMD_TEMPERATURE_ACCELERATION, params, 4);
 }
 
 bool SEN6XComponent::write_setup_register_(uint16_t i2c_command, uint16_t value) {
@@ -305,11 +305,11 @@ void SEN6XComponent::dump_config() {
                 "  Product: %s\n"
                 "  Serial: %s\n"
                 "  Firmware: %u.%u\n"
-                "  Address: 0x%02X",
+                "  Address: 0x%02X\n"
+                "  Startup delay: %" PRIu32 " ms",
                 this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
-                this->firmware_version_minor_, this->address_);
+                this->firmware_version_minor_, this->address_, this->startup_delay_ms_);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Startup delay: %" PRIu32 " ms", this->startup_delay_ms_);
   if (this->temperature_compensation_.has_value()) {
     const auto &comp = this->temperature_compensation_.value();
     ESP_LOGCONFIG(TAG, "  Temperature compensation: offset=%.2f slope=%.4f time_constant=%us", comp.offset / 200.0f,
