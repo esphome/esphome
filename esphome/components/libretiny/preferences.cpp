@@ -29,6 +29,9 @@ static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-n
 static constexpr size_t KEY_NAME_SIZE = UINT32_MAX_STR_SIZE + 1;
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
 static constexpr char RTC_KEY_PREFIX = 'r';
+// Written when a discard could not delete an entry; an rtc name itself, so a complete pass removes it and
+// an incomplete one is retried at the next boot of any kind
+static constexpr const char *RTC_DISCARD_PENDING_KEY = "r!";
 static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool rtc) {
   char *digits = buf;
   if (rtc)
@@ -90,7 +93,8 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
   }
 
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
-  // A discard that failed at open leaves old rtc values in flash; they count as nothing stored this boot
+  // A discard that failed at open leaves old rtc values in flash; every rtc key then counts as nothing stored
+  // for this boot, including one saved and synced since, and the discard runs again at the next boot
   if (this->is_rtc() && get_preferences()->rtc_discard_failed())
     return false;
 #endif
@@ -116,7 +120,8 @@ void LibreTinyPreferences::open() {
   }
   LT_I("Preferences initialized");
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
-  if (!boot_kept_rtc_preferences())
+  struct fdb_kv kv;
+  if (!boot_kept_rtc_preferences() || fdb_kv_get_obj(&this->db, RTC_DISCARD_PENDING_KEY, &kv) != nullptr)
     this->discard_rtc_entries_();
 #endif
 }
@@ -151,6 +156,11 @@ void LibreTinyPreferences::discard_rtc_entries_() {
       deleted = true;
       break;
     }
+  }
+  if (this->rtc_discard_failed_) {
+    static constexpr uint8_t PENDING = 1;
+    fdb_blob_make(&this->blob, &PENDING, sizeof(PENDING));
+    fdb_kv_set_blob(&this->db, RTC_DISCARD_PENDING_KEY, &this->blob);
   }
   if (discarded != 0) {
     LT_D("Discarded %u rtc preferences after a hard reset", discarded);
