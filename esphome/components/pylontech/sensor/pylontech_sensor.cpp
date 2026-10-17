@@ -6,12 +6,10 @@ namespace esphome::pylontech {
 
 ESPHOME_LOG_TAG(TAG, "pylontech.sensor");
 
-PylontechSensor::PylontechSensor(int8_t bat_num) { this->bat_num_ = bat_num; }
-
 void PylontechSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Pylontech Sensor:\n"
-                " Battery %d",
+                " Battery %u",
                 this->bat_num_);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
@@ -25,9 +23,6 @@ void PylontechSensor::dump_config() {
 }
 
 void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
-  if (this->bat_num_ != line->bat_num) {
-    return;
-  }
   if (this->voltage_sensor_ != nullptr) {
     this->voltage_sensor_->publish_state(((float) line->volt) / 1000.0f);
   }

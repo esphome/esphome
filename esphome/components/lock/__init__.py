@@ -36,15 +36,16 @@ LockStateForwarder = lock_ns.class_("LockStateForwarder")
 
 LockState = lock_ns.enum("LockState")
 
-LOCK_STATES = {
-    "OPEN": LockState.LOCK_STATE_OPEN,
-    "LOCKED": LockState.LOCK_STATE_LOCKED,
-    "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
-    "JAMMED": LockState.LOCK_STATE_JAMMED,
-    "OPENING": LockState.LOCK_STATE_OPENING,
-    "LOCKING": LockState.LOCK_STATE_LOCKING,
-    "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
-}
+LOCK_STATES = LockState.options(
+    "OPEN",
+    "LOCKED",
+    "UNLOCKED",
+    "JAMMED",
+    "OPENING",
+    "LOCKING",
+    "UNLOCKING",
+    prefix="LOCK_STATE_",
+)
 
 validate_lock_state = cv.enum(LOCK_STATES, upper=True)
 

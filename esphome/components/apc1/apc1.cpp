@@ -28,15 +28,6 @@ static constexpr uint32_t APC1_NO_DATA_TIMEOUT_MS = 15000;
 // Drop a partial frame when the bytes stop mid-way
 static constexpr uint32_t APC1_RX_IDLE_TIMEOUT_MS = 200;
 
-// Frames and commands end with the 16-bit sum of every byte before it
-static uint16_t apc1_checksum(const uint8_t *data, size_t len) {
-  uint16_t sum = 0;
-  for (size_t i = 0; i < len; i++) {
-    sum += data[i];
-  }
-  return sum;
-}
-
 void APC1Component::setup() {
   if (this->set_pin_ != nullptr) {
     this->set_pin_->setup();
@@ -157,7 +148,7 @@ void APC1Component::loop() {
 
 void APC1Component::parse_frame_(uint16_t total_len) {
   uint16_t expected_checksum = encode_uint16(this->rx_buffer_[total_len - 2], this->rx_buffer_[total_len - 1]);
-  uint16_t calculated_checksum = apc1_checksum(this->rx_buffer_.data(), total_len - 2);
+  uint16_t calculated_checksum = sum16_bytes(this->rx_buffer_.data(), total_len - 2);
   if (expected_checksum != calculated_checksum) {
     ESP_LOGW(TAG, "APC1 checksum mismatch: calculated 0x%04X != expected 0x%04X", calculated_checksum,
              expected_checksum);
@@ -343,7 +334,7 @@ void APC1Component::send_command_(APC1Command cmd, uint16_t data) {
       0,
       0,
   };
-  uint16_t checksum = apc1_checksum(buf.data(), 5);
+  uint16_t checksum = sum16_bytes(buf.data(), 5);
   buf[5] = static_cast<uint8_t>((checksum >> 8) & 0xFF);
   buf[6] = static_cast<uint8_t>(checksum & 0xFF);
   this->write_array(buf);
