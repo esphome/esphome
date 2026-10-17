@@ -21,16 +21,17 @@ CONF_K_VALUE = "k_value"
 
 xgzp68xx_ns = cg.esphome_ns.namespace("xgzp68xx")
 XGZP68XXOversampling = xgzp68xx_ns.enum("XGZP68XXOversampling")
-OVERSAMPLING_OPTIONS = {
-    "256X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_256X,
-    "512X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_512X,
-    "1024X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_1024X,
-    "2048X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_2048X,
-    "4096X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_4096X,
-    "8192X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_8192X,
-    "16384X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_16384X,
-    "32768X": XGZP68XXOversampling.XGZP68XX_OVERSAMPLING_32768X,
-}
+OVERSAMPLING_OPTIONS = XGZP68XXOversampling.options(
+    "256X",
+    "512X",
+    "1024X",
+    "2048X",
+    "4096X",
+    "8192X",
+    "16384X",
+    "32768X",
+    prefix="XGZP68XX_OVERSAMPLING_",
+)
 XGZP68XXComponent = xgzp68xx_ns.class_(
     "XGZP68XXComponent", cg.PollingComponent, i2c.I2CDevice
 )
