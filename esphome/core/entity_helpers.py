@@ -23,7 +23,13 @@ from esphome.core.config import (
     ICON_MAX_LENGTH,
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
-from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
+from esphome.cpp_generator import (
+    MockObj,
+    RawExpression,
+    RawStatement,
+    add,
+    get_variable,
+)
 from esphome.cpp_types import App
 import esphome.final_validate as fv
 from esphome.helpers import (
@@ -306,7 +312,9 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
     standalone ``var->configure_entity_(name, hash, packed)``.
     """
-    entity_name = config[_KEY_ENTITY_NAME]
+    entity_name = RawExpression(
+        f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
+    )
     object_id_hash = config[_KEY_OBJECT_ID_HASH]
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)

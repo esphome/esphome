@@ -38,11 +38,8 @@ from esphome.helpers import fnv1_hash, sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
-# Matches: .configure_entity_("name", ...) or .set_name("name", ...)
-ENTITY_NAME_PATTERN = re.compile(
-    r'\.(?:configure_entity_|set_name)\(["\']([^"\']*)["\']'
-)
+# Extracts the name from .configure_entity_(ESPHOME_PSTR("name"), ...)
+ENTITY_NAME_PATTERN = re.compile(r'\.configure_entity_\(ESPHOME_PSTR\("([^"]*)"')
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -1076,6 +1073,8 @@ async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
     packed = _extract_packed_value(added_expressions)
     assert packed == 0
     assert "//" not in added_expressions[0]
+    # Names go through ESPHOME_PSTR so they stay in flash on ESP8266
+    assert 'ESPHOME_PSTR("Test")' in added_expressions[0]
 
 
 @pytest.mark.asyncio
