@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 #include <cmath>
+#include <iterator>
 
 namespace esphome::sen6x {
 
@@ -38,6 +39,9 @@ static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
 
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+static constexpr uint16_t SEN6X_CMD_READ_NUMBER_CONCENTRATION = 0x0316;
+#endif
 static constexpr uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
 static constexpr uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
 static constexpr uint16_t SEN6X_CMD_START_FAN_CLEANING = 0x5607;
@@ -323,6 +327,13 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+  LOG_SENSOR("  ", "PMC  0.5", this->pmc_0_5_sensor_);
+  LOG_SENSOR("  ", "PMC  1.0", this->pmc_1_0_sensor_);
+  LOG_SENSOR("  ", "PMC  2.5", this->pmc_2_5_sensor_);
+  LOG_SENSOR("  ", "PMC  4.0", this->pmc_4_0_sensor_);
+  LOG_SENSOR("  ", "PMC 10.0", this->pmc_10_0_sensor_);
+#endif
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "VOC", this->voc_sensor_);
@@ -361,6 +372,10 @@ void SEN6XComponent::update() {
   //                      -> write_command (read measurement)
   //                      -> timeout I2C_READ_DELAY
   //                        -> parse_and_publish_measurements_()
+  //                          -> with pmc_* sensors: read_number_concentration_()
+  //                               -> write_command (read number concentration)
+  //                               -> timeout I2C_READ_DELAY
+  //                                 -> parse_and_publish_number_concentration_()
   //
   // All timeouts share a single ID (TIMEOUT_POLL) since only one is active
   // at a time. cancel_timeout in update() stops any in-flight chain.
@@ -544,8 +559,50 @@ void SEN6XComponent::parse_and_publish_measurements_() {
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(co2);
 
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+  // The define says some device in the build has pmc sensors; this one may not
+  if (this->has_number_concentration_sensor_()) {
+    this->read_number_concentration_();  // the chain ends there, with the warning cleared
+    return;
+  }
+#endif
   this->status_clear_warning();
 }
+
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+bool SEN6XComponent::has_number_concentration_sensor_() const {
+  return this->pmc_0_5_sensor_ != nullptr || this->pmc_1_0_sensor_ != nullptr || this->pmc_2_5_sensor_ != nullptr ||
+         this->pmc_4_0_sensor_ != nullptr || this->pmc_10_0_sensor_ != nullptr;
+}
+
+void SEN6XComponent::read_number_concentration_() {
+  if (!this->write_command(SEN6X_CMD_READ_NUMBER_CONCENTRATION)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read number concentration failed (%d)", this->last_error_);
+    return;
+  }
+
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_number_concentration_(); });
+}
+
+void SEN6XComponent::parse_and_publish_number_concentration_() {
+  sensor::Sensor *sensors[] = {this->pmc_0_5_sensor_, this->pmc_1_0_sensor_, this->pmc_2_5_sensor_,
+                               this->pmc_4_0_sensor_, this->pmc_10_0_sensor_};
+  uint16_t measurements[std::size(sensors)];
+
+  if (!this->read_data(measurements, std::size(measurements))) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
+    return;
+  }
+
+  for (size_t i = 0; i < std::size(sensors); i++) {
+    if (sensors[i] != nullptr)
+      sensors[i]->publish_state(measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
+  }
+  this->status_clear_warning();
+}
+#endif
 
 void SEN6XComponent::write_ambient_pressure_(uint16_t pressure_hpa) {
   if (this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, pressure_hpa))
