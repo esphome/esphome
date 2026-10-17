@@ -19,6 +19,8 @@ logger:
 @pytest.mark.parametrize(
     ("fragment", "message"),
     [
+        ("one_wire_device:\n  pin: GPIO4\n  timing_scale: 1\n", "timing_scale"),
+        ("one_wire_device:\n  pin: GPIO4\n  interrupt_mode: true\n", "interrupt_mode"),
         (
             "one_wire_device:\n  pin: GPIO4\n  type: DS2401\n  value: 2\n",
             "no value channels",

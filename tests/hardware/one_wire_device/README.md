@@ -34,6 +34,14 @@ The checked-in controller fixtures describe the development rig: classic ESP32, 
 
 The configuration CLI tests in `tests/component_tests/one_wire_device/test_values.py` reject unsupported channel names, ambiguous multi-value actions, identity-only value assignments and invalid digital literals. The protocol model itself is unchanged by this interface extension.
 
-Use the ESPHome checkout containing the candidate for compile, upload and logs. Require a verified flash hash, the `one-wire-models-v3` startup marker and the fixture's device-type marker before interpreting any capture. Save complete logs from both endpoints, source/firmware identity, duration and parsed outcomes.
+## Review correction checks
+
+`snapshot_test.cpp` uses the production source-capture helper and the real bit-slot model. It invalidates or recovers the underlying atomics between capture and check/use, verifying that availability and the value passed to Convert T belong to the same captured word. Compile it like `protocol_test.cpp`, replacing that test filename. `selected_model_test.cpp` builds with `-DONE_WIRE_DEVICE_SELECTED_MODEL -DUSE_ONE_WIRE_DEVICE_<model>` for each selected model and checks that unrelated function protocols are unavailable; normal native builds enable all models.
+
+`pio-validity.yaml` with `controller-pio-stream.yaml` holds one continuous PIO read request across valid, invalid and recovered source intervals. Require valid initial status, all-FF unavailable bytes after invalidation, and correct recovered status only after the controller issues a new reset; an already-latched byte may finish. This catches retained input bits incorrectly reported as new valid status.
+
+The `setup-failure`, `mac-error`, `teardown-error`, `binding-error` and `warning-ownership` fixtures deliberately exercise failure handling. They are bench-only, never ordinary operating configurations. The MAC/free/IPC errors are targeted linker-injected SDK failures, not claims that the hardware naturally failed. The teardown fixture records callback observations atomically and logs them from the caller, not from the blocked cross-core callback. Verify specific error codes, retained handles on retry, rejected bindings never executing, warning ownership and normal recovery. Restore `final-bench.yaml` and the original bridge-controller image afterwards.
+
+Use the ESPHome checkout containing the candidate for compile, upload and logs. Require a verified flash hash, the fixture's `HIL_IMAGE`/run marker and declared device type before interpreting any capture. Save complete logs from both endpoints, source/firmware identity, duration and parsed outcomes.
 
 The temperature profiles deliberately test unavailable input; do not classify those expected warnings as transport failures or hide failures outside that window. A successful firmware build or native test does not establish physical behavior. These bounded serial/bridge checks are not Wi-Fi-load or long-duration production qualification. Copy/Recall remain RAM-only; overdrive, parasite power and multiple virtual devices per output are unsupported.

@@ -24,8 +24,6 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@tomtom13"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "one_wire_device"
-CONF_INTERRUPT_MODE = "interrupt_mode"
-CONF_TIMING_SCALE = "timing_scale"
 CONF_VALUES = "values"
 FAMILIES = {
     "DS18B20": 0x28,
@@ -165,8 +163,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VALUES): cv.Schema(
                 {cv.string_strict: cv.templatable(cv.float_)}
             ),
-            cv.Optional(CONF_TIMING_SCALE): cv.All(cv.int_, cv.Range(min=1, max=1)),
-            cv.Optional(CONF_INTERRUPT_MODE): cv.All(cv.boolean, cv.one_of(True)),
         }
     ).extend(cv.polling_component_schema("1s")),
     esp32.only_on_variant(supported=[esp32.VARIANT_ESP32]),
@@ -181,7 +177,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_pin(await cg.gpio_pin_expression(config[CONF_PIN])))
     cg.add(var.set_address(config[CONF_ADDRESS]))
-    cg.add(var.set_family(FAMILIES[config[CONF_TYPE]]))
+    cg.add_define(f"USE_ONE_WIRE_DEVICE_{config[CONF_TYPE]}")
+    cg.add(var.set_family(getattr(ns, f"FAMILY_{config[CONF_TYPE]}")))
     for name, value in config[CONF_VALUES].items():
         channel = CHANNELS[config[CONF_TYPE]][name]
         if isinstance(value, Lambda):
