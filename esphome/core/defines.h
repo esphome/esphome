@@ -431,6 +431,7 @@
 #ifndef USE_HOST  // web_server, captive_portal: no ESPAsyncWebServer on host
 #define USE_CAPTIVE_PORTAL
 #endif
+#define USE_ESP32_LOG_V2
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_ESP32_BLE
 #define USE_ESP32_BLE_MAX_CONNECTIONS 3
