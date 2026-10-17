@@ -564,8 +564,7 @@ void SEN6XComponent::update_ambient_pressure_compensation_(float pressure_hpa) {
     return;
   }
   this->pressure_range_warned_ = false;
-  // In range and positive, so this rounds without a libm call
-  const auto value = static_cast<uint16_t>(pressure_hpa + 0.5f);
+  const auto value = static_cast<uint16_t>(lroundf(pressure_hpa));
   if (value != this->last_ambient_pressure_)
     this->write_ambient_pressure_(value);
 }
