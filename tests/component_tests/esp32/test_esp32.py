@@ -1016,7 +1016,7 @@ def _tls_compiled_out(sdkconfig: dict[str, Any]) -> bool:
             "exclusion_reincludes_nextion.yaml", False, False, False, id="nextion"
         ),
         pytest.param("mbedtls_tls_wifi_eap.yaml", False, False, True, id="wifi_eap"),
-        # zigbee does not requests ECP for the esp-zigbee-lib blobs, without TLS.
+        # zigbee needs neither TLS nor ECP
         pytest.param("tls_zigbee_c6.yaml", True, True, True, id="zigbee"),
         # A raw bundle keeps the TLS role but no longer compiles esp-tls.
         pytest.param(
