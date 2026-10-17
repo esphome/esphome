@@ -31,15 +31,20 @@ void TextDisplay::update() {
   this->display();
 }
 
-void TextDisplay::clear() { memset(this->buffer_, ' ', this->rows_ * this->columns_); }
+void TextDisplay::clear() {
+  if (this->buffer_ == nullptr)
+    return;
+  memset(this->buffer_, ' ', this->rows_ * this->columns_);
+}
 
 void TextDisplay::print(uint8_t column, uint8_t row, const char *str) {
   if (this->buffer_ == nullptr)
     return;
-  const uint16_t size = this->rows_ * this->columns_;
-  uint16_t pos = column + row * this->columns_;
+  const uint32_t size = this->rows_ * this->columns_;
+  uint32_t pos = column + row * this->columns_;
   for (; *str != '\0'; str++) {
     if (*str == '\n') {
+      // 32 bits wide, so a run of newlines cannot wrap the position back into range
       pos = ((pos / this->columns_) + 1) * this->columns_;
       continue;
     }

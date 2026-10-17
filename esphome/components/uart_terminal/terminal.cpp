@@ -22,7 +22,7 @@ void HOT Terminal::display() {
     return;
   }
   this->last_frame_hash_ = hash;
-  this->updates_until_redraw_ = FULL_REDRAW_INTERVAL;
+  this->updates_until_redraw_ = FULL_REDRAW_INTERVAL - 1;  // this frame counts as the first of the interval
 
   // Clear the screen on a full redraw, so text outside the grid goes; otherwise only move the cursor home,
   // since every cell is rewritten

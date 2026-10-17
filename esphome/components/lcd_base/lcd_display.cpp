@@ -30,6 +30,8 @@ static const uint8_t LCD_DISPLAY_FUNCTION_5X10_DOTS = 0x04;
 
 void LCDDisplay::setup() {
   TextDisplay::setup();
+  if (this->is_failed())
+    return;
 
   uint8_t display_function = 0;
 
