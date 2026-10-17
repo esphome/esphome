@@ -42,6 +42,27 @@ RawTimings as_received(RawTimings timings, bool drop_tail = false) {
   return merged;
 }
 
+// A Jarolift frame as other implementations send it: 1150 us of carrier joined to the first of 13
+// preamble marks, a 3880 us header, then 72 bits with 400/800 us marks. Values from a published test
+// vector: code 0xF94A09F2, address 0x1234500, command 0x8, group 0x0F.
+RawTimings jarolift_emulator_frame() {
+  RawTimings timings{1150 + 400, -380};
+  for (uint8_t i = 0; i < 12; i++) {
+    timings.push_back(400);
+    timings.push_back(-380);
+  }
+  timings.back() = -3880;
+  const uint64_t word = (uint64_t{0x8} << 60) | (uint64_t{0x1234500} << 32) | 0xF94A09F2;
+  const uint8_t group = 0x0F;
+  for (uint8_t i = 0; i < 72; i++) {
+    const bool one = i < 64 ? (word >> i) & 1 : (group >> (i - 64)) & 1;
+    timings.push_back(one ? 400 : 800);
+    timings.push_back(one ? -800 : -400);
+  }
+  timings.pop_back();  // the last space is the gap before the next frame
+  return timings;
+}
+
 optional<KeeloqData> decode(const RawTimings &timings) {
   return KeeloqProtocol().decode(RemoteReceiveData(timings, 25, TOLERANCE_MODE_PERCENTAGE));
 }
@@ -172,6 +193,28 @@ TEST(KeeloqProtocolTest, ASuffixEndsAtAGap) {
     EXPECT_EQ(decoded->suffix, 0x5);
     EXPECT_EQ(decoded->suffix_bits, 3);
   }
+}
+
+TEST(KeeloqProtocolTest, DecodesAFrameWithLeadingCarrier) {
+  auto decoded = decode(jarolift_emulator_frame());
+  ASSERT_TRUE(decoded.has_value());
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->encrypted, 0xF94A09F2u);
+    EXPECT_EQ(decoded->address, 0x1234500u);
+    EXPECT_EQ(decoded->command, 0x8);
+    // The 8 bits after the 64-bit word: 0x0F arrives as vlow 1, repeat 1 and suffix 0x03.
+    EXPECT_TRUE(decoded->vlow);
+    EXPECT_TRUE(decoded->repeat);
+    EXPECT_EQ(decoded->suffix, 0x03);
+    EXPECT_EQ(decoded->suffix_bits, 6);
+  }
+}
+
+TEST(KeeloqProtocolTest, LeadingCarrierNeedsTheFullPreamble) {
+  // Without one of the 12 preamble marks after the burst there is no frame.
+  RawTimings timings = jarolift_emulator_frame();
+  timings.erase(timings.begin() + 2, timings.begin() + 4);
+  EXPECT_FALSE(decode(timings).has_value());
 }
 
 }  // namespace esphome::remote_base::testing
