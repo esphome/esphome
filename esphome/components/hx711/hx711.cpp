@@ -7,6 +7,9 @@ namespace esphome::hx711 {
 
 ESPHOME_LOG_TAG(TAG, "hx711");
 
+// PD_SCK has to stay high for more than 60us to power the chip down
+static constexpr uint32_t POWER_DOWN_HOLD_US = 80;
+
 static constexpr unsigned gain_value(HX711Gain gain) {
   switch (gain) {
     case HX711_GAIN_32:
@@ -21,6 +24,8 @@ static constexpr unsigned gain_value(HX711Gain gain) {
 void HX711Sensor::setup() {
   this->sck_pin_->setup();
   this->dout_pin_->setup();
+  // Reset a chip left mid-cycle by an MCU reboot before powering it on
+  this->sck_pin_->digital_write(true);
   this->power_on_();
 }
 
@@ -177,8 +182,8 @@ void HX711Sensor::power_down() {
 }
 
 void HX711Sensor::power_on_() {
-  // PD_SCK must stay high for 60us to power the chip down; cover a power_down() followed at once by power_up()
-  delayMicroseconds(60);
+  // Covers a power_down() followed at once by power_up(), and the reset in setup()
+  delayMicroseconds(POWER_DOWN_HOLD_US);
   // Power-up resets the chip to channel A, gain 128.
   this->sck_pin_->digital_write(false);
   this->last_gain_ = HX711_GAIN_128;

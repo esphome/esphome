@@ -27,6 +27,10 @@ _milliseconds_uint16 = cv.All(
     cv.positive_time_period_milliseconds,
     cv.Range(max=cv.TimePeriod(milliseconds=65535)),
 )
+# A conversion takes 100 ms at the chip's lower data rate, so a shorter wait would fail every update
+_measurement_ready_timeout = cv.All(
+    _milliseconds_uint16, cv.Range(min=cv.TimePeriod(milliseconds=100))
+)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -42,7 +46,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAIN, default=128): cv.enum(GAINS, int=True),
             cv.Optional(
                 CONF_MEASUREMENT_READY_TIMEOUT, default="2000ms"
-            ): _milliseconds_uint16,
+            ): _measurement_ready_timeout,
             cv.Optional(CONF_SETTLING_TIME, default="400ms"): _milliseconds_uint16,
             cv.Optional(CONF_POWER_DOWN_AFTER_READING, default=False): cv.boolean,
             cv.Optional(CONF_CHANNEL_B): sensor.sensor_schema(
