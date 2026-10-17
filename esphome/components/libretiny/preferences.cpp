@@ -17,7 +17,43 @@ struct NVSData {
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+// Whether this boot followed a reset that RTC memory survives on ESP32 and ESP8266. LibreTiny chips
+// have no such memory, so storage: rtc keeps preferences in flash and uses this to forget them.
+static bool boot_kept_rtc_preferences() {
+  switch (lt_get_reboot_reason()) {
+    case REBOOT_REASON_SOFTWARE:
+    case REBOOT_REASON_WATCHDOG:
+    case REBOOT_REASON_CRASH:
+    case REBOOT_REASON_SLEEP_GPIO:
+    case REBOOT_REASON_SLEEP_RTC:
+    case REBOOT_REASON_SLEEP_USB:
+      return true;
+    default:  // power-on, brown-out, reset pin, debugger, unknown
+      return false;
+  }
+}
+
+bool LibreTinyPreferenceBackend::discard_if_stale_() {
+  // Runs once per preference, on its first save or load: only the value saved before this boot is
+  // discarded, never one this boot saved.
+  if (!this->discard_after_hard_reset)
+    return false;
+  this->discard_after_hard_reset = false;
+  if (boot_kept_rtc_preferences())
+    return false;
+  char key_str[UINT32_MAX_STR_SIZE];
+  uint32_to_str(key_str, this->key);
+  fdb_kv_del(this->db, key_str);
+  ESP_LOGD(TAG, "Discarded rtc preference %s after a hard reset", key_str);
+  return true;
+}
+#endif  // USE_LIBRETINY_RTC_PREFERENCES
+
 bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  this->discard_if_stale_();
+#endif
   // try find in pending saves and update that
   for (auto &obj : s_pending_save) {
     if (obj.key == this->key) {
@@ -48,6 +84,10 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
 
   char key_str[UINT32_MAX_STR_SIZE];
   uint32_to_str(key_str, this->key);
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  if (this->discard_if_stale_())
+    return false;
+#endif
   fdb_blob_make(this->blob, data, len);
   size_t actual_len = fdb_kv_get_blob(this->db, key_str, this->blob);
   if (actual_len != len) {
@@ -68,6 +108,17 @@ void LibreTinyPreferences::open() {
     LT_I("Preferences initialized");
   }
 }
+
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {
+  if (!in_flash) {
+    auto *pref = new LibreTinyPreferenceBackend(this->make_backend_(type));  // NOLINT(cppcoreguidelines-owning-memory)
+    pref->discard_after_hard_reset = true;
+    return ESPPreferenceObject(pref);
+  }
+  return this->make_preference(length, type);
+}
+#endif
 
 ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_t type) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)

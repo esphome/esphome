@@ -1,0 +1,20 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+switch:
+  - {platform: template, id: keep_rtc, optimistic: true, initial_state: ON, restore_state: {state: KEEP, storage: rtc}}
+  - {platform: template, id: keep_flash, optimistic: true, restore_state: {state: KEEP, storage: flash}}
+  - {platform: template, id: keep_short, optimistic: true, restore_state: KEEP}
+  - {platform: template, id: all_short, optimistic: true, restore_state: ALL}
+  - {platform: template, id: invert_on, optimistic: true, initial_state: ON, restore_state: {state: INVERT}}
+  - {platform: template, id: initial_on, optimistic: true, initial_state: ON, restore_state: {state: INITIAL}}
+  - {platform: template, id: none_on, optimistic: true, initial_state: ON, restore_state: NONE}
+  - {platform: template, id: initial_only, optimistic: true, initial_state: ON}
+  - {platform: template, id: legacy, optimistic: true, restore_mode: RESTORE_DEFAULT_OFF}
+  - {platform: template, id: plain, optimistic: true}
