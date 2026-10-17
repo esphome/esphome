@@ -19,9 +19,9 @@ namespace esphome::daikin_madoka {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-// Deepest backlog is one poll (5) plus two control() bursts (4 each); the readback poll is only
-// queued once they have drained, and a second request while one waits is folded into it
-static constexpr uint8_t QUERY_QUEUE_SIZE = 14;
+// Deepest backlog is one poll (5) plus each SET command once (4): a command queued again replaces
+// its queued entry, and the readback poll is only queued once the queue has drained
+static constexpr uint8_t QUERY_QUEUE_SIZE = 9;
 
 // BLE service and characteristic UUIDs
 static const espbt::ESPBTUUID MADOKA_SERVICE_UUID = espbt::ESPBTUUID::from_raw("2141e110-213a-11e6-b67b-9e71128cae77");
@@ -32,8 +32,7 @@ static const espbt::ESPBTUUID WWR_CHARACTERISTIC_UUID =
 
 struct Query {
   uint16_t cmd;
-  uint8_t len;
-  std::array<uint8_t, MAX_QUERY_ARGS> args;
+  QueryArgs args;
 };
 
 class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {

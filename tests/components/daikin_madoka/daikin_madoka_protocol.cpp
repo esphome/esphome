@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cmath>
 #include <vector>
 
@@ -127,6 +128,37 @@ TEST(DaikinMadokaFindArg, MessageValidation) {
   auto msg = make_message(0x0020, {0x20, 0x01, 0x01});
   msg[0]++;
   EXPECT_FALSE(is_valid_message(msg));
+}
+
+static std::span<const uint8_t> as_span(const QueryArgs &args) { return {args.begin(), args.size()}; }
+
+TEST(DaikinMadokaMergeArgs, ReplacesAndAppendsRecords) {
+  // A call that only sets the low setpoint joins a queued high one, and a newer high replaces it
+  QueryArgs args;
+  append_setpoint(args, 0x20, 24.0f);
+  QueryArgs low;
+  append_setpoint(low, 0x21, 20.0f);
+  EXPECT_TRUE(merge_args(args, as_span(low)));
+  EXPECT_EQ(args.size(), 8u);
+  QueryArgs high;
+  append_setpoint(high, 0x20, 26.0f);
+  EXPECT_TRUE(merge_args(args, as_span(high)));
+  EXPECT_EQ(args.size(), 8u);
+  EXPECT_FLOAT_EQ(26.0f, decode_setpoint(as_span(args).subspan(2, 2)));
+  EXPECT_FLOAT_EQ(20.0f, decode_setpoint(as_span(args).subspan(6, 2)));
+}
+
+TEST(DaikinMadokaMergeArgs, LeavesArgsAloneWhenARecordDoesNotFit) {
+  QueryArgs args;
+  append_setpoint(args, 0x20, 24.0f);
+  append_setpoint(args, 0x21, 20.0f);
+  const std::array<uint8_t, 3> extra{0x22, 0x01, 0x00};
+  EXPECT_FALSE(merge_args(args, extra));
+  EXPECT_EQ(args.size(), 8u);
+  // A record of another length for the same id is not merged either
+  const std::array<uint8_t, 3> short_high{0x20, 0x01, 0x00};
+  EXPECT_FALSE(merge_args(args, short_high));
+  EXPECT_EQ(args[1], 2u);
 }
 
 TEST(DaikinMadokaSetpoint, RoundTrip) {

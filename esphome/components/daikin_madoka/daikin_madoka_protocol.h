@@ -101,8 +101,44 @@ inline std::span<const uint8_t> find_arg(std::span<const uint8_t> msg, uint8_t i
   return {};
 }
 
+using QueryArgs = StaticVector<uint8_t, MAX_QUERY_ARGS>;
+
+/// Merges the records {id, len, value...} of `incoming` into `args`: a record whose id is already
+/// present is replaced in place, a new one is appended. False, with `args` unchanged, when a record
+/// does not fit or the two records of one id differ in length.
+inline bool merge_args(QueryArgs &args, std::span<const uint8_t> incoming) {
+  QueryArgs merged = args;
+  size_t i = 0;
+  while (i + 2 <= incoming.size()) {
+    const uint8_t id = incoming[i];
+    const uint8_t len = incoming[i + 1];
+    i += 2;
+    if (len > incoming.size() - i)
+      return false;
+    const auto value = incoming.subspan(i, len);
+    i += len;
+    size_t j = 0;
+    while (j + 2 <= merged.size() && merged[j] != id)
+      j += 2 + merged[j + 1];
+    if (j + 2 <= merged.size()) {
+      if (merged[j + 1] != len)
+        return false;
+      std::copy(value.begin(), value.end(), merged.begin() + j + 2);
+      continue;
+    }
+    if (merged.size() + 2 + len > merged.capacity())
+      return false;
+    merged.push_back(id);
+    merged.push_back(len);
+    for (uint8_t byte : value)
+      merged.push_back(byte);
+  }
+  args = merged;
+  return true;
+}
+
 /// Appends a setpoint record {id, 2, msb, lsb}, clamped to the supported range.
-inline void append_setpoint(StaticVector<uint8_t, MAX_QUERY_ARGS> &args, uint8_t id, float temperature) {
+inline void append_setpoint(QueryArgs &args, uint8_t id, float temperature) {
   const auto value = static_cast<uint16_t>(std::clamp(temperature, MIN_TEMP, MAX_TEMP) * SETPOINT_SCALE);
   const auto bytes = decode_value<uint16_t>(value);
   args.push_back(id);

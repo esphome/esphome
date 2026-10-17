@@ -78,7 +78,7 @@ void DaikinMadoka::control(const ClimateCall &call) {
       }
     }
   }
-  StaticVector<uint8_t, MAX_QUERY_ARGS> setpoint_args;
+  QueryArgs setpoint_args;
   if (auto high = call.get_target_temperature_high(); high.has_value()) {
     append_setpoint(setpoint_args, 0x20, *high);
   }
@@ -251,7 +251,13 @@ void DaikinMadoka::process_incoming_chunk_(std::span<const uint8_t> chunk) {
 }
 
 void DaikinMadoka::enqueue_query_(uint16_t cmd, std::span<const uint8_t> args) {
-  Query query{.cmd = cmd, .len = static_cast<uint8_t>(args.size()), .args = {}};
+  // A command queued again keeps its one entry with the newest values, so the backlog stays bounded
+  for (Query &queued : this->query_queue_) {
+    if (queued.cmd == cmd && merge_args(queued.args, args))
+      return;
+  }
+  Query query{.cmd = cmd, .args = {}};
+  query.args.resize(args.size());
   std::copy(args.begin(), args.end(), query.args.begin());
   if (!this->query_queue_.push(query)) {
     ESP_LOGW(TAG, "Query queue full, dropping command 0x%04X", cmd);
@@ -283,14 +289,14 @@ bool DaikinMadoka::write_query_(const Query &query) {
   static_assert(MAX_QUERY_ARGS + MESSAGE_HEADER_SIZE <= MAX_CHUNK_SIZE - 1, "A query must fit in one chunk");
   // Chunk id 0, then the message: length, reserved byte, command, args
   std::array<uint8_t, MAX_CHUNK_SIZE> frame;
-  const uint8_t msg_len = MESSAGE_HEADER_SIZE + query.len;
+  const uint8_t msg_len = MESSAGE_HEADER_SIZE + query.args.size();
   const auto cmd = decode_value<uint16_t>(query.cmd);
   frame[0] = 0;
   frame[1] = msg_len;
   frame[2] = 0;
   frame[3] = cmd[0];
   frame[4] = cmd[1];
-  std::copy_n(query.args.begin(), query.len, frame.begin() + 1 + MESSAGE_HEADER_SIZE);
+  std::copy(query.args.begin(), query.args.end(), frame.begin() + 1 + MESSAGE_HEADER_SIZE);
   esp_err_t err =
       esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
                                msg_len + 1, frame.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
