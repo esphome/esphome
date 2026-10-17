@@ -308,6 +308,8 @@ def test_add_resources_reads_component_resources_lazily() -> None:
     override.add_resources(FileResource("pkg", "extra.c"))
     inner.resources = [FileResource("pkg", "a.cpp"), FileResource("pkg", "b.cpp")]
     assert [r.resource for r in override.resources] == ["a.cpp", "b.cpp", "extra.c"]
+    override.restore()
+    assert [r.resource for r in override.resources] == ["a.cpp", "b.cpp"]
 
 
 def test_load_wraps_platform_component(tmp_path: Path) -> None:
