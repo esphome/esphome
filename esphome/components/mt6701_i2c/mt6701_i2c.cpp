@@ -1,4 +1,5 @@
 #include "mt6701_i2c.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mt6701_i2c {
@@ -6,17 +7,16 @@ namespace esphome::mt6701_i2c {
 ESPHOME_LOG_TAG(TAG, "mt6701_i2c");
 
 // Registers touched by apply_config_(), each read-modify-written at most once.
-static const uint8_t CONFIG_REGS[] = {
+static const uint8_t CONFIG_REGS[] PROGMEM = {
     REG_ABZ_MUX_DIR, REG_RES_H, REG_ABZ_RES_L, REG_CONFIG_H,  REG_ZERO_L,
     REG_HYST_L,      REG_OUT,   REG_A_HIGH,    REG_A_START_L, REG_A_STOP_L,
 };
-static const uint8_t CONFIG_REG_COUNT = sizeof(CONFIG_REGS);
+static constexpr uint8_t CONFIG_REG_COUNT = sizeof(CONFIG_REGS);
 
 void MT6701I2CComponent::setup() {
   uint16_t count;
   if (!this->read_count(count)) {
-    ESP_LOGE(TAG, "MT6701 not responding on I2C");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("not responding on I2C"));
     return;
   }
   this->apply_config_();
@@ -98,7 +98,7 @@ void MT6701I2CComponent::apply_config_() {
   uint8_t values[CONFIG_REG_COUNT] = {};
   auto add = [&masks, &values](uint8_t reg, uint8_t mask, uint8_t value) {
     for (uint8_t i = 0; i < CONFIG_REG_COUNT; i++) {
-      if (CONFIG_REGS[i] == reg) {
+      if (progmem_read_byte(&CONFIG_REGS[i]) == reg) {
         masks[i] |= mask;
         values[i] |= value & mask;
         return;
@@ -148,7 +148,7 @@ void MT6701I2CComponent::apply_config_() {
   bool ok = true;
   for (uint8_t i = 0; i < CONFIG_REG_COUNT; i++) {
     if (masks[i] != 0)
-      ok &= this->update_register_(CONFIG_REGS[i], masks[i], values[i]);
+      ok &= this->update_register_(progmem_read_byte(&CONFIG_REGS[i]), masks[i], values[i]);
   }
   if (!ok) {
     // A half-configured chip must not be sampled or have its EEPROM saved
@@ -178,7 +178,8 @@ void MT6701I2CComponent::save_eeprom() {
     return;
   }
 
-  this->set_timeout("eeprom", EEPROM_PROGRAM_DELAY_MS, [this]() {
+  // suspend_sampling_ already keeps a second save from being queued, so the timer needs no name
+  this->set_timeout(EEPROM_PROGRAM_DELAY_MS, [this]() {
     this->suspend_sampling_ = false;
     // The datasheet verifies programming only after a power cycle, which this
     // component cannot do.
