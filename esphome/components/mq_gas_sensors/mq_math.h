@@ -142,7 +142,9 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
     ppm = safe_pow(10.0, log_ppm);
   }
 
-  if (std::isnan(ppm) || std::isinf(ppm))
+  if (std::isnan(ppm))
+    return NAN;
+  if (std::isinf(ppm))
     ppm = static_cast<double>(FLT_MAX);
   if (ppm < 0.0)
     ppm = 0.0;
