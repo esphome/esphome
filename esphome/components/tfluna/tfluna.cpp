@@ -86,10 +86,10 @@ bool TFLuna::read_data_() {
   // Layout:
   // buf[0..1] = distance (LE), buf[2..3] = signal (LE),
   // buf[4..5] = temperature (LE), buf[6..7] = timestamp (LE)
-  uint16_t distance = encode_uint16(buf[1], buf[0]);
-  uint16_t signal_strength = encode_uint16(buf[3], buf[2]);
-  int16_t temperature_raw = encode_uint16(buf[5], buf[4]);
-  uint16_t timestamp = encode_uint16(buf[7], buf[6]);
+  uint16_t distance = encode_value_le<uint16_t>(buf);
+  uint16_t signal_strength = encode_value_le<uint16_t>(&buf[2]);
+  int16_t temperature_raw = encode_value_le<int16_t>(&buf[4]);
+  uint16_t timestamp = encode_value_le<uint16_t>(&buf[6]);
 
   if (timestamp == this->previous_timestamp_) {
     return false;

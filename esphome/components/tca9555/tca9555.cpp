@@ -67,12 +67,12 @@ void TCA9555Component::loop() {
 bool TCA9555Component::read_gpio_outputs_() {
   if (this->is_failed())
     return false;
-  uint8_t data[2];
-  if (!this->read_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2)) {
+  uint16_t value;
+  if (!this->read_byte_16_le(TCA9555_OUTPUT_PORT_REGISTER_0, &value)) {
     this->status_set_warning(LOG_STR("Failed to read output register"));
     return false;
   }
-  this->output_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
+  this->output_mask_ = value;
   this->status_clear_warning();
   return true;
 }
@@ -80,13 +80,12 @@ bool TCA9555Component::read_gpio_outputs_() {
 bool TCA9555Component::read_gpio_modes_() {
   if (this->is_failed())
     return false;
-  uint8_t data[2];
-  bool success = this->read_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2);
-  if (!success) {
+  uint16_t value;
+  if (!this->read_byte_16_le(TCA9555_CONFIGURATION_PORT_0, &value)) {
     this->status_set_warning(LOG_STR("Failed to read mode register"));
     return false;
   }
-  this->mode_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
+  this->mode_mask_ = value;
 
   this->status_clear_warning();
   return true;
@@ -123,10 +122,7 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
     this->output_mask_ &= ~(1 << pin);
   }
 
-  uint8_t data[2];
-  data[0] = this->output_mask_;
-  data[1] = this->output_mask_ >> 8;
-  if (!this->write_bytes(TCA9555_OUTPUT_PORT_REGISTER_0, data, 2)) {
+  if (!this->write_byte_16_le(TCA9555_OUTPUT_PORT_REGISTER_0, this->output_mask_)) {
     this->status_set_warning(LOG_STR("Failed to write output register"));
     return;
   }
@@ -137,11 +133,7 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
 bool TCA9555Component::write_gpio_modes_() {
   if (this->is_failed())
     return false;
-  uint8_t data[2];
-
-  data[0] = this->mode_mask_;
-  data[1] = this->mode_mask_ >> 8;
-  if (!this->write_bytes(TCA9555_CONFIGURATION_PORT_0, data, 2)) {
+  if (!this->write_byte_16_le(TCA9555_CONFIGURATION_PORT_0, this->mode_mask_)) {
     this->status_set_warning(LOG_STR("Failed to write mode register"));
     return false;
   }

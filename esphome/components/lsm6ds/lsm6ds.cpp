@@ -166,9 +166,9 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   };
   float gyro_scale = GYRO_SCALE[this->gyro_range_];
 
-  data.angular_rate[motion::X_AXIS] = (int16_t) ((raw[1] << 8) | raw[0]) * gyro_scale;
-  data.angular_rate[motion::Y_AXIS] = (int16_t) ((raw[3] << 8) | raw[2]) * gyro_scale;
-  data.angular_rate[motion::Z_AXIS] = (int16_t) ((raw[5] << 8) | raw[4]) * gyro_scale;
+  data.angular_rate[motion::X_AXIS] = encode_value_le<int16_t>(raw) * gyro_scale;
+  data.angular_rate[motion::Y_AXIS] = encode_value_le<int16_t>(&raw[2]) * gyro_scale;
+  data.angular_rate[motion::Z_AXIS] = encode_value_le<int16_t>(&raw[4]) * gyro_scale;
 
   //  Accelerometer
   // Sensitivity (mg/LSB) from datasheet Table 3.
@@ -182,12 +182,9 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   };
   float accel_scale = ACCEL_SCALE[this->accel_range_];
 
-  data.acceleration[motion::X_AXIS] =
-      (int16_t) ((raw[LSM6DS_ACCEL_OFFSET + 1] << 8) | raw[LSM6DS_ACCEL_OFFSET + 0]) * accel_scale;
-  data.acceleration[motion::Y_AXIS] =
-      (int16_t) ((raw[LSM6DS_ACCEL_OFFSET + 3] << 8) | raw[LSM6DS_ACCEL_OFFSET + 2]) * accel_scale;
-  data.acceleration[motion::Z_AXIS] =
-      (int16_t) ((raw[LSM6DS_ACCEL_OFFSET + 5] << 8) | raw[LSM6DS_ACCEL_OFFSET + 4]) * accel_scale;
+  data.acceleration[motion::X_AXIS] = encode_value_le<int16_t>(&raw[LSM6DS_ACCEL_OFFSET]) * accel_scale;
+  data.acceleration[motion::Y_AXIS] = encode_value_le<int16_t>(&raw[LSM6DS_ACCEL_OFFSET + 2]) * accel_scale;
+  data.acceleration[motion::Z_AXIS] = encode_value_le<int16_t>(&raw[LSM6DS_ACCEL_OFFSET + 4]) * accel_scale;
 
   //  Temperature (lazy — only read if a listener is registered)
   // Kept as a separate 2-byte read to avoid extending the burst to 14 bytes when
@@ -196,7 +193,7 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   if (!this->temperature_callback_.empty()) {
     uint8_t raw_t[2];
     if (this->read_bytes(LSM6DS_REG_OUT_TEMP_L, raw_t, 2)) {
-      int16_t temp_raw = (int16_t) ((raw_t[1] << 8) | raw_t[0]);
+      int16_t temp_raw = encode_value_le<int16_t>(raw_t);
       float temperature = temp_raw / static_cast<float>(this->temperature_sensitivity_) + 25.0f;
       this->temperature_callback_.call(temperature);
     }

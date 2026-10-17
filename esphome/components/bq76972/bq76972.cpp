@@ -80,11 +80,10 @@ bool BQ76972Component::write_block_(uint8_t start_register, const uint8_t *data,
 }
 
 bool BQ76972Component::read_words_(uint8_t start_register, uint16_t *data, size_t num_words) {
-  std::array<uint8_t, BQ76972_MAX_TRANSFER / 2> bytes;
-  if (num_words * 2 > bytes.size() || !this->read_block_(start_register, bytes.data(), num_words * 2))
+  if (!this->read_block_(start_register, reinterpret_cast<uint8_t *>(data), num_words * 2))
     return false;
   for (size_t i = 0; i < num_words; i++)
-    data[i] = encode_uint16(bytes[2 * i + 1], bytes[2 * i]);
+    data[i] = convert_little_endian(data[i]);
   return true;
 }
 

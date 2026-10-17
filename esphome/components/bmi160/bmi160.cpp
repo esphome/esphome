@@ -196,19 +196,6 @@ void BMI160Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-i2c::ErrorCode BMI160Component::read_le_int16_(uint8_t reg, int16_t *value, uint8_t len) {
-  uint8_t raw_data[len * 2];
-  // read using read_register because we have little-endian data, and read_bytes_16 will swap it
-  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2);
-  if (err != i2c::ERROR_OK) {
-    return err;
-  }
-  for (int i = 0; i < len; i++) {
-    value[i] = (int16_t) ((uint16_t) raw_data[i * 2] | ((uint16_t) raw_data[i * 2 + 1] << 8));
-  }
-  return err;
-}
-
 void BMI160Component::update() {
   if (!this->setup_complete_) {
     return;
@@ -216,7 +203,7 @@ void BMI160Component::update() {
 
   ESP_LOGV(TAG, "    Updating BMI160");
   int16_t data[6];
-  if (this->read_le_int16_(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6) != i2c::ERROR_OK) {
+  if (!this->read_bytes_16_le(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6)) {
     this->status_set_warning();
     return;
   }
@@ -229,7 +216,7 @@ void BMI160Component::update() {
   float accel_z = (float) data[5] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
 
   int16_t raw_temperature;
-  if (this->read_le_int16_(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1) != i2c::ERROR_OK) {
+  if (!this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)) {
     this->status_set_warning();
     return;
   }
