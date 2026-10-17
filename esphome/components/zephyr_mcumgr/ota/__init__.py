@@ -1,13 +1,13 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components.nrf52.boards import MCUMGR_OTA_BOOTLOADERS
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
     HexValue,
-    zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
     zephyr_data,
 )
 from esphome.components.zephyr.const import (
@@ -102,7 +102,7 @@ def _validate_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         return
-    if bootloader not in BOOTLOADER_CONFIG:
+    if bootloader not in MCUMGR_OTA_BOOTLOADERS:
         raise cv.Invalid(f"{bootloader} does not support OTA")
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(2, 9, 2):
@@ -114,6 +114,11 @@ def _validate_bootloader(config: ConfigType) -> None:
 def _final_validate(config: ConfigType) -> None:
     _validate_ble_server(config)
     _validate_bootloader(config)
+    if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
+        cdc_id = UARTS[uart][1]
+        if cdc_id >= 0:
+            # SMP frames are marked, so log text from the logger on the same port is skipped
+            zephyr_claim_cdc_acm(cdc_id, "zephyr_mcumgr", allow_write_only=True)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -160,11 +165,7 @@ async def to_code(config: ConfigType) -> None:
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
-        uart = UARTS[transport[CONF_HARDWARE_UART]]
-        uart_name = uart[0]
-        cdc_id = uart[1]
-        if cdc_id >= 0:
-            zephyr_add_cdc_acm(config, cdc_id)
+        uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)

@@ -1,20 +1,13 @@
 #include "daikin.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::daikin {
 
 ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
 static constexpr uint32_t BOOST_TIMEOUT_ID = 0;
-
-static uint8_t sum_bytes(const uint8_t *data, size_t len) {
-  uint8_t sum = 0;
-  for (size_t i = 0; i < len; i++) {
-    sum += data[i];
-  }
-  return sum;
-}
 
 void DaikinClimate::setup() {
   climate_ir::ClimateIR::setup();
@@ -266,9 +259,10 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   // Comfort lives in the first frame, recorded as pending until this frame proves the transmission valid
   // A comfort frame whose own state frame never came must not attach to a later transmission
   const uint32_t now = App.get_loop_component_start_time();
-  const PendingComfort comfort =
-      now - this->pending_comfort_at_ <= DAIKIN_TRANSMISSION_MS ? this->pending_comfort_ : PendingComfort::UNKNOWN;
-  this->pending_comfort_ = PendingComfort::UNKNOWN;
+  const PendingComfort comfort = now - this->pending_comfort_at_ <= DAIKIN_TRANSMISSION_MS
+                                     ? this->pending_comfort_
+                                     : PendingComfort::PENDING_COMFORT_UNKNOWN;
+  this->pending_comfort_ = PendingComfort::PENDING_COMFORT_UNKNOWN;
   if (frame[13] & DAIKIN_PRESET_POWERFUL_ON) {
     this->preset = climate::CLIMATE_PRESET_BOOST;
   } else if (frame[13] & DAIKIN_PRESET_QUIET_ON) {
@@ -277,9 +271,9 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
     this->preset = climate::CLIMATE_PRESET_ECO;
   } else if (frame[16] & DAIKIN_PRESET_SENSOR_ON) {
     this->preset = climate::CLIMATE_PRESET_ACTIVITY;
-  } else if (comfort == PendingComfort::ON) {
+  } else if (comfort == PendingComfort::PENDING_COMFORT_ON) {
     this->preset = climate::CLIMATE_PRESET_COMFORT;
-  } else if (comfort == PendingComfort::OFF || this->preset != climate::CLIMATE_PRESET_COMFORT) {
+  } else if (comfort == PendingComfort::PENDING_COMFORT_OFF || this->preset != climate::CLIMATE_PRESET_COMFORT) {
     // Without a comfort frame in this transmission a current comfort preset is left alone
     this->preset = climate::CLIMATE_PRESET_NONE;
   }
@@ -337,7 +331,8 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   if (frame_size == DAIKIN_COMFORT_FRAME_SIZE) {
     // Nothing changes yet: the state frame that follows applies it once it has passed its own checksum
-    this->pending_comfort_ = (frame[6] & DAIKIN_PRESET_COMFORT_ON) ? PendingComfort::ON : PendingComfort::OFF;
+    this->pending_comfort_ = (frame[6] & DAIKIN_PRESET_COMFORT_ON) ? PendingComfort::PENDING_COMFORT_ON
+                                                                   : PendingComfort::PENDING_COMFORT_OFF;
     this->pending_comfort_at_ = App.get_loop_component_start_time();
     return true;
   }

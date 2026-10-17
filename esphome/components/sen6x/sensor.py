@@ -1,3 +1,5 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
@@ -198,9 +200,7 @@ SENSOR_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if CONF_TYPE in config:
         cg.add(var.set_type(config[CONF_TYPE]))
@@ -238,3 +238,21 @@ async def to_code(config: ConfigType) -> None:
         ) is not None:
             sens = await cg.get_variable(source)
             cg.add(var.set_ambient_pressure_source(sens))
+
+
+SEN6X_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
+    }
+)
+
+
+for _name, _call in (
+    ("sen6x.start_measurement", "start_measurement()"),
+    ("sen6x.stop_measurement", "stop_measurement()"),
+    ("sen6x.start_fan_cleaning", "start_fan_cleaning()"),
+    ("sen6x.activate_sht_heater", "activate_sht_heater()"),
+):
+    automation.register_apply_action(
+        _name, SEN6X_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )

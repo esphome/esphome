@@ -1,0 +1,41 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+remote_transmitter:
+  pin: GPIO4
+  carrier_duty_percent: 50%
+
+button:
+  - platform: template
+    name: Toto default repeat
+    on_press:
+      - remote_transmitter.transmit_toto:
+          command: 0xEC
+          rc_code_1: 0x0D
+          rc_code_2: 0x0D
+  - platform: template
+    name: Toto explicit repeat
+    on_press:
+      - remote_transmitter.transmit_toto:
+          command: 0xEC
+          rc_code_1: 0x0D
+          rc_code_2: 0x0D
+          repeat:
+            times: 2
+            wait_time: 20ms
+  - platform: template
+    name: NEC default wait
+    on_press:
+      - remote_transmitter.transmit_nec:
+          address: 0x4242
+          command: 0x8484
+          repeat: 4
+  - platform: template
+    name: NEC once
+    on_press:
+      - remote_transmitter.transmit_nec:
+          address: 0x4242
+          command: 0x8484
