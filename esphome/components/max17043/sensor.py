@@ -32,14 +32,11 @@ MAX17043Component = max17043_ns.class_(
 )
 
 MAX17043Model = max17043_ns.enum("MAX17043Model", is_class=True)
-MODELS = {
-    MODEL_MAX17043: MAX17043Model.MAX17043_MODEL_MAX17043,
-    MODEL_MAX17048: MAX17043Model.MAX17043_MODEL_MAX17048,
-}
+MODELS = MAX17043Model.options(MODEL_MAX17043, MODEL_MAX17048, prefix="MAX17043_MODEL_")
 
 
 def _validate_model_features(config: ConfigType) -> ConfigType:
-    # The CRATE register (0x16) only exists on the MAX17048/MAX17049.
+    """Reject battery_charge_rate unless the model has the CRATE register."""
     if CONF_BATTERY_CHARGE_RATE in config and config[CONF_MODEL] != MODEL_MAX17048:
         raise cv.Invalid(
             f"{CONF_BATTERY_CHARGE_RATE} is only supported by model {MODEL_MAX17048}",
@@ -89,6 +86,8 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
+    if config[CONF_MODEL] == MODEL_MAX17048:
+        cg.add_define("USE_MAX17048")
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
