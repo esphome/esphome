@@ -287,7 +287,7 @@ def load_test_manifest_overrides(
     """
     for comp_name in components:
         # tests/components/core holds the core tests; its manifest is "esphome"
-        override = _wrap_manifest("esphome" if comp_name == "core" else comp_name)
+        override = _wrap_manifest(ESPHOME_KEY if comp_name == "core" else comp_name)
         if override is None:
             continue
 
