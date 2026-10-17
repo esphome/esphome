@@ -1,4 +1,5 @@
 #include "sen6x.h"
+#include <algorithm>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
@@ -160,16 +161,20 @@ void SEN6XComponent::setup() {
           this->hcho_sensor_ = nullptr;
         }
 #ifdef SEN6X_STATUS_SENSOR_COUNT
-        // A status sensor for a feature this variant lacks is dropped like the measurement sensor above
-        for (auto &entry : this->status_sensors_) {
-          const bool supported = (entry.status != Sen6xStatus::SEN6X_STATUS_GAS_ERROR || has_voc_nox) &&
-                                 (entry.status != Sen6xStatus::SEN6X_STATUS_CO2_ERROR || has_co2) &&
-                                 (entry.status != Sen6xStatus::SEN6X_STATUS_HCHO_ERROR || has_hcho);
-          if (!supported) {
-            ESP_LOGE(TAG, "'%s' needs a variant with that feature", entry.sensor->get_name().c_str());
-            entry.sensor = nullptr;
-          }
-        }
+        // A status sensor for a feature this variant lacks is dropped like the measurement sensor above;
+        // an empty table then skips the status read altogether
+        const auto kept = std::remove_if(
+            this->status_sensors_.begin(), this->status_sensors_.end(),
+            [has_voc_nox, has_co2, has_hcho](const StatusSensor &entry) {
+              const bool supported = (entry.status != Sen6xStatus::SEN6X_STATUS_GAS_ERROR || has_voc_nox) &&
+                                     (entry.status != Sen6xStatus::SEN6X_STATUS_CO2_ERROR || has_co2) &&
+                                     (entry.status != Sen6xStatus::SEN6X_STATUS_HCHO_ERROR || has_hcho);
+              if (!supported) {
+                ESP_LOGE(TAG, "'%s' needs a variant with that feature", entry.sensor->get_name().c_str());
+              }
+              return !supported;
+            });
+        this->status_sensors_.resize(kept - this->status_sensors_.begin());
 #endif
 
         // Step 3: Read firmware version and start measurements in next loop iteration
@@ -637,10 +642,8 @@ void SEN6XComponent::parse_and_publish_device_status_() {
   uint16_t words[2];
   if (this->read_data(words, 2)) {
     const uint32_t status = (static_cast<uint32_t>(words[0]) << 16) | words[1];
-    for (const auto &entry : this->status_sensors_) {
-      if (entry.sensor != nullptr)
-        entry.sensor->publish_state(((status >> status_bit(entry.status, this->sen6x_type_)) & 1) != 0);
-    }
+    for (const auto &entry : this->status_sensors_)
+      entry.sensor->publish_state(((status >> status_bit(entry.status, this->sen6x_type_)) & 1) != 0);
   } else {
     ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
   }
