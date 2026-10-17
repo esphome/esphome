@@ -54,6 +54,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }
   void set_timeout(uint32_t ms) { this->timeout_ = ms; }
+  void set_keep_alive(bool keep_alive) { this->keep_alive_ = keep_alive; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = (gpio_num_t) pin; }
 
   /// @brief Get the I2S TX channel handle
@@ -126,8 +127,26 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   esp_err_t init_i2s_channel_(const i2s_chan_config_t &chan_cfg, const i2s_std_config_t &std_cfg,
                               size_t event_queue_size);
 
-  /// @brief Stops the I2S driver and unlocks the I2S port
-  void stop_i2s_driver_();
+  /// @brief Creates the lockstep queues unless they exist already.
+  /// @param event_queue_size Size of each queue
+  /// @return ESP_OK if successful, or ESP_ERR_NO_MEM
+  esp_err_t prepare_event_queues_(size_t event_queue_size);
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  /// @brief Takes the TX channel of the parent's full duplex pair and prepares the event queues.
+  /// @param event_queue_size Size of the event queue
+  /// @return ESP_OK if successful, or an error code. On failure, hands the channel back to the parent.
+  esp_err_t acquire_full_duplex_channel_(size_t event_queue_size);
+#endif
+
+  /// @brief Stops the I2S driver and unlocks the I2S port; keep_channel leaves the disabled channel allocated
+  void stop_i2s_driver_(bool keep_channel);
+
+  /// @brief Detaches dout from the I2S signal and drives it low
+  void park_dout_pin_();
+
+  /// @brief Deletes the I2S channel and parks dout; the caller holds the bus lock
+  void delete_channel_();
 
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
@@ -153,9 +172,13 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @param bytes_read Number of bytes of audio data
   void apply_software_volume_(uint8_t *data, size_t bytes_read);
 
+  /// @brief Whether 16-bit mono samples in this format need the ESP32 (non-variant) pair swap.
+  static bool esp32_mono_swap_needed(const audio::AudioStreamInfo &stream_info);
+  /// @brief Whether the output is 16-bit mono on the original ESP32, which sends each pair of samples swapped.
+  bool esp32_mono_swap_needed_() const { return esp32_mono_swap_needed(this->output_stream_info_); }
+
   /// @brief Swap adjacent 16-bit mono samples for ESP32 (non-variant) hardware quirk.
-  /// Only applies when running on original ESP32 with 16-bit mono output. Operates on the data that is
-  /// handed to the I2S peripheral, so the check uses the output (post-narrowing) stream info.
+  /// Only applies when esp32_mono_swap_needed_() is true. `data` must start on a DMA word and hold whole pairs.
   /// @param data Pointer to audio sample data (modified in place)
   /// @param bytes_read Number of bytes of audio data
   void swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read);
@@ -173,7 +196,11 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   optional<uint32_t> timeout_;
 
+  // A format start_i2s_driver() refused. Those checks compare against fixed settings, so it can never start.
+  optional<audio::AudioStreamInfo> rejected_stream_info_;
+
   bool pause_state_{false};
+  bool keep_alive_{false};
 
   // Smooths software gain changes. The main loop posts targets, the speaker task processes;
   // GainRamp's mailbox makes that safe. The main loop is the only poster.

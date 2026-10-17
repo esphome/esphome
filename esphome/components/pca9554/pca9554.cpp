@@ -25,14 +25,14 @@ const uint8_t CAPABILITY_LATCH = 0x08U;
 const uint8_t CAPABILITY_INTERRUPT = 0x10U;
 const uint8_t CAPABILITY_DRIVE_STRENGTH = 0x20U;
 
-static const char *const TAG = "pca9554";
+ESPHOME_LOG_TAG(TAG, "pca9554");
 
 void PCA9554Component::setup() {
   this->reg_width_ = (this->pin_count_ + 7) / 8;
   // Test to see if device exists
   if (!this->read_inputs_()) {
     ESP_LOGE(TAG, "PCA95xx not detected at 0x%02X", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -80,9 +80,6 @@ void PCA9554Component::dump_config() {
                 this->pin_count_, this->capability_);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 bool PCA9554Component::digital_read_hw(uint8_t pin) {

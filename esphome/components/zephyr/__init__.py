@@ -26,6 +26,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@tomaszduda23"]
+DOMAIN = "zephyr"
 
 
 class HexValue:

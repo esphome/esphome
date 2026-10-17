@@ -10,6 +10,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "pylontech"
 MULTI_CONF = True
 
 CONF_PYLONTECH_ID = "pylontech_id"

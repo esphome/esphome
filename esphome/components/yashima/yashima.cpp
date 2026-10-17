@@ -3,7 +3,7 @@
 
 namespace esphome::yashima {
 
-static const char *const TAG = "yashima.climate";
+ESPHOME_LOG_TAG(TAG, "yashima.climate");
 
 const uint16_t YASHIMA_STATE_LENGTH = 9;
 const uint16_t YASHIMA_BITS = YASHIMA_STATE_LENGTH * 8;

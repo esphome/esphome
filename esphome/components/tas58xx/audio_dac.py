@@ -11,6 +11,8 @@ from esphome.const import CONF_ENABLE_PIN, CONF_ID, CONF_MODEL
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
+
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["i2c"]
@@ -23,23 +25,19 @@ CONF_VOLUME_MIN_DB = "volume_min_db"
 CONF_VOLUME_MAX_DB = "volume_max_db"
 CONF_TAS58XX_ID = "tas58xx_id"
 
+DAC_TAS5805M = "tas5805m"
+DAC_TAS5825M = "tas5825m"
+
 tas58xx_ns = cg.esphome_ns.namespace("tas58xx")
 TAS58xx = tas58xx_ns.class_("TAS58xx", AudioDac, cg.PollingComponent, i2c.I2CDevice)
 
 DacMode = tas58xx_ns.enum("DacMode")
-DAC_MODES = {
-    "btl": DacMode.DAC_MODE_BTL,
-    "pbtl": DacMode.DAC_MODE_PBTL,
-}
+DAC_MODES = DacMode.options("btl", "pbtl", prefix="DAC_MODE_")
 
 MixerMode = tas58xx_ns.enum("MixerMode")
-MIXER_MODES = {
-    "stereo": MixerMode.MIXER_MODE_STEREO,
-    "stereo_inverse": MixerMode.MIXER_MODE_STEREO_INVERSE,
-    "mono": MixerMode.MIXER_MODE_MONO,
-    "left": MixerMode.MIXER_MODE_LEFT,
-    "right": MixerMode.MIXER_MODE_RIGHT,
-}
+MIXER_MODES = MixerMode.options(
+    "stereo", "stereo_inverse", "mono", "left", "right", prefix="MIXER_MODE_"
+)
 
 
 @dataclass(frozen=True)
@@ -54,12 +52,19 @@ class Model:
 
 
 MODELS: dict[str, Model] = {
-    "tas5805m": Model(
+    DAC_TAS5805M: Model(
         model_info=tas58xx_ns.TAS5805M_MODEL,
         analog_gain_min_db=-15.5,
         volume_min_db=-103.0,
         volume_max_db=24.0,
         default_address=0x2D,
+    ),
+    DAC_TAS5825M: Model(
+        model_info=tas58xx_ns.TAS5825M_MODEL,
+        analog_gain_min_db=-15.5,
+        volume_min_db=-103.0,
+        volume_max_db=24.0,
+        default_address=0x4C,
     ),
 }
 
@@ -162,6 +167,7 @@ for _name, _call in (
 
 async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL]]
+    cg.add_define(f"USE_TAS58XX_{config[CONF_MODEL].upper()}")
     var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(f"&{model.model_info}"))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

@@ -11,7 +11,7 @@
 
 namespace esphome::pn532_i2c {
 
-static const char *const TAG = "pn532_i2c";
+ESPHOME_LOG_TAG(TAG, "pn532_i2c");
 
 bool PN532I2C::is_read_ready() {
   uint8_t status;
@@ -71,11 +71,7 @@ bool PN532I2C::read_response(uint8_t command, pn532::PN532Frame &data) {
 
   // frame: status, preamble, start code (2), LEN, LCS, TFI, command response code, data, DCS, postamble
   constexpr size_t tfi_offset = 6;
-  uint8_t checksum = 0;
-  for (size_t i = 0; i < len + 1U; i++) {
-    checksum += data[tfi_offset + i];
-  }
-  checksum = ~checksum + 1;
+  const uint8_t checksum = -sum_bytes(data.data() + tfi_offset, len + 1U);
 
   if (data[tfi_offset + len + 1] != checksum) {
     ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[tfi_offset + len + 1], checksum);

@@ -33,15 +33,18 @@ from esphome.const import (
     UNIT_WATT,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
 AUTO_LOAD = ["sensor"]
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
+CONF_DISPLAY_CONTROL = "display_control"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
 Capabilities = midea_ac_ns.namespace("Constants")
+DisplayControl = midea_ac_ns.enum("DisplayControl", is_class=True)
 
 
 def templatize(value):
@@ -82,11 +85,27 @@ CUSTOM_PRESETS = {
     "FREEZE_PROTECTION": Capabilities.FREEZE_PROTECTION,
 }
 
+# How midea_ac.display_toggle reaches the appliance; see do_display_toggle() for the AUTO rules
+DISPLAY_CONTROLS = DisplayControl.options(
+    "UART", "AUTO", "IR", prefix="DISPLAY_CONTROL_"
+)
+
 validate_modes = cv.enum(ALLOWED_CLIMATE_MODES, upper=True)
 validate_presets = cv.enum(ALLOWED_CLIMATE_PRESETS, upper=True)
 validate_swing_modes = cv.enum(ALLOWED_CLIMATE_SWING_MODES, upper=True)
 validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 validate_custom_presets = cv.enum(CUSTOM_PRESETS, upper=True)
+validate_display_control = cv.enum(DISPLAY_CONTROLS, upper=True)
+
+
+def validate_display_control_with_transmitter(config: ConfigType) -> ConfigType:
+    """`display_control: IR` needs a `remote_transmitter` to send through; UART and AUTO do not."""
+    if config.get(CONF_DISPLAY_CONTROL) == "IR" and CONF_TRANSMITTER_ID not in config:
+        raise cv.Invalid(
+            f"'{CONF_DISPLAY_CONTROL}: IR' requires '{CONF_TRANSMITTER_ID}' to be set"
+        )
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(AirConditioner)
@@ -100,6 +119,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
             cv.Optional(CONF_AUTOCONF, default=True): cv.boolean,
+            cv.Optional(CONF_DISPLAY_CONTROL, default="AUTO"): validate_display_control,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(validate_modes),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
                 validate_swing_modes
@@ -134,6 +154,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
+    validate_display_control_with_transmitter,
     cv.only_on(
         [
             PLATFORM_ESP32,
@@ -204,6 +225,7 @@ async def to_code(config):
         cg.add(var.set_transmitter(transmitter_))
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
+    cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
     if CONF_SUPPORTED_SWING_MODES in config:
@@ -214,15 +236,10 @@ async def to_code(config):
         cg.add(var.set_custom_presets(config[CONF_CUSTOM_PRESETS]))
     if CONF_CUSTOM_FAN_MODES in config:
         cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
-    if CONF_OUTDOOR_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
-        cg.add(var.set_outdoor_temperature_sensor(sens))
-    if CONF_POWER_USAGE in config:
-        sens = await sensor.new_sensor(config[CONF_POWER_USAGE])
-        cg.add(var.set_power_sensor(sens))
-    if CONF_HUMIDITY_SETPOINT in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
-        cg.add(var.set_humidity_setpoint_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_OUTDOOR_TEMPERATURE, var.set_outdoor_temperature_sensor)
+    await sensors(CONF_POWER_USAGE, var.set_power_sensor)
+    await sensors(CONF_HUMIDITY_SETPOINT, var.set_humidity_setpoint_sensor)
     # MideaUART uses the Arduino WiFi API for the network-notify frame
     # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
     # library talks to esp_wifi directly, so no library entry is needed.

@@ -5,13 +5,10 @@
 
 namespace esphome::kamstrup_kmp {
 
-static const char *const TAG = "kamstrup_kmp";
+ESPHOME_LOG_TAG(TAG, "kamstrup_kmp");
 
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Heat Energy", this->heat_energy_sensor_);

@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_HARDWARE_UART,
     CONF_ID,
     CONF_LEVEL,
-    CONF_LOGGER,
     CONF_LOGS,
     CONF_ON_MESSAGE,
     CONF_TAG,
@@ -235,6 +234,15 @@ def warn_ram_log_strings(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_task_log_buffer_alignment(value: int) -> int:
+    # ESP-IDF rejects a no-split ring buffer whose size is not a multiple of 4
+    if CORE.is_esp32 and value % 4:
+        raise cv.Invalid(
+            f"{CONF_TASK_LOG_BUFFER_SIZE} must be a multiple of 4 on ESP32"
+        )
+    return value
+
+
 def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
     if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
         raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
@@ -282,6 +290,7 @@ CONFIG_SCHEMA = cv.All(
                         max=32768,  # Max: Depends on message sizes, typically ~300 messages with default size
                     ),
                 ),
+                validate_task_log_buffer_alignment,
             ),
             cv.SplitDefault(
                 CONF_HARDWARE_UART,
@@ -355,7 +364,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
-    CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
+    CORE.data.setdefault(DOMAIN, {})[CONF_LEVEL] = level
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     # Determine task log buffer size. The buffer is a direct member of Logger

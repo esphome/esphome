@@ -551,6 +551,16 @@ def test_full_update_next_action_code_generation(
     assert "epaper_display->request_full_update();" in main_cpp
 
 
+def test_is_updating_condition_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The epaper_spi.is_updating condition checks the configured display."""
+    main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
+
+    assert "epaper_display->is_updating()" in main_cpp
+
+
 def test_model_with_no_default_init_sequence_generates(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -570,3 +580,15 @@ def test_model_with_no_default_init_sequence_generates(
     # init_sequence_length, ...); a length of 0 confirms the empty init
     # sequence array was generated instead of raising during code generation.
     assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0\);", main_cpp)
+
+
+def test_test_card_overrides_update_interval(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """With nothing else to draw, update_interval is not left at never for the test card."""
+    main_cpp = generate_main(component_config_path("test_card_update_interval.yaml"))
+
+    match = re.search(r"epaper_display->set_update_interval\((\d+)\);", main_cpp)
+    assert match is not None
+    assert int(match.group(1)) != 4294967295

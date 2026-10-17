@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_SWITCH)
 
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/switch/switch.h"
@@ -10,7 +10,19 @@
 namespace esphome::sendspin_ {
 
 /// @brief Switch that starts and stops the Sendspin client through the hub (see SendspinHub::set_enabled()).
-class SendspinSwitch final : public switch_::Switch, public SendspinChild {
+class SendspinEnabledSwitch final : public switch_::Switch, public SendspinChild {
+ public:
+  void setup() override;
+  void dump_config() override;
+
+ protected:
+  void write_state(bool state) override;
+};
+
+/// @brief Switch that turns unpaired (Sentinel) access on and off through the hub (see
+/// SendspinHub::set_unpaired_access_enabled()). The library does not persist the setting, so the switch's restore
+/// mode does.
+class SendspinUnpairedAccessSwitch final : public switch_::Switch, public SendspinChild {
  public:
   void setup() override;
   void dump_config() override;
@@ -21,4 +33,4 @@ class SendspinSwitch final : public switch_::Switch, public SendspinChild {
 
 }  // namespace esphome::sendspin_
 
-#endif  // USE_ESP32
+#endif

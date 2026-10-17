@@ -17,6 +17,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["binary_sensor", "nfc"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
+DOMAIN = "pn71xx"
 
 CONF_EMULATION_MESSAGE = "emulation_message"
 CONF_INCLUDE_ANDROID_APP_RECORD = "include_android_app_record"

@@ -32,9 +32,7 @@ class EPaperUC8179 final : public EPaperBase {
  public:
   EPaperUC8179(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                size_t init_sequence_length)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY) {
-    this->buffer_length_ = this->row_width_ * height;
-  }
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY) {}
 
  protected:
   bool initialise(bool partial) override;

@@ -8,6 +8,10 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, esp32_ble, ota
 from esphome.components.ble_device_base import CONF_CONNECTION_SCAN_WINDOW
+from esphome.components.ble_device_base.automation import (
+    MAC_FILTER_LIST,
+    mac_filter_table,
+)
 from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
@@ -277,7 +281,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         ESPBTAdvertiseTrigger
                     ),
-                    cv.Optional(CONF_MAC_ADDRESS): cv.ensure_list(cv.mac_address),
+                    cv.Optional(CONF_MAC_ADDRESS): MAC_FILTER_LIST,
                 }
             ),
             cv.Optional(
@@ -381,9 +385,8 @@ async def to_code(config: ConfigType) -> None:
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         _request_listener_slot()
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        if CONF_MAC_ADDRESS in conf:
-            addr_list = [it.as_hex for it in conf[CONF_MAC_ADDRESS]]
-            cg.add(trigger.set_addresses(addr_list))
+        if macs := conf.get(CONF_MAC_ADDRESS):
+            cg.add(trigger.set_addresses(mac_filter_table(macs)))
         await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
     for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
         _request_listener_slot()
@@ -436,6 +439,25 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_SOFTWARE_COEXISTENCE")
 
 
+# First tagged release per series with espressif/esp-idf@82e71c1767 (see bluedroid_stubs.cpp).
+# A series without an entry keeps the guard until a fixed release is tagged; the guard is
+# harmless on fixed sources. The 5.4, 5.5 and 6.1 branches carry the fix but have no tag yet.
+DIRECT_CONN_FIX_VERSIONS = {
+    (5, 2): cv.Version(5, 2, 8),
+    (5, 3): cv.Version(5, 3, 6),
+    (6, 0): cv.Version(6, 0, 3),
+}
+DIRECT_CONN_FIX_ALL_FROM = cv.Version(6, 2, 0)
+
+
+def _needs_direct_conn_guard() -> bool:
+    ver = idf_version()
+    if ver >= DIRECT_CONN_FIX_ALL_FROM:
+        return False
+    fixed = DIRECT_CONN_FIX_VERSIONS.get((ver.major, ver.minor))
+    return fixed is None or ver < fixed
+
+
 # This needs to be run as a job with very low priority so that all components have
 # chance to call register_ble_tracker and register_client before the list is checked
 # and added to the global defines list.
@@ -452,6 +474,11 @@ async def _add_ble_features() -> None:
     if BLEFeatures.ESP_BT_DEVICE in required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
         cg.add_define("USE_ESP32_BLE_UUID")
+    if cg.get_slot_count(CLIENT_COUNT_DEFINE) and _needs_direct_conn_guard():
+        # --undefined keeps the wrapper, libsrc.a is scanned before the IDF libraries
+        cg.add_define("USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD")
+        cg.add_build_flag("-Wl,--wrap=l2cble_init_direct_conn")
+        cg.add_build_flag("-Wl,--undefined=__wrap_l2cble_init_direct_conn")
 
 
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(

@@ -3,7 +3,7 @@
 
 namespace esphome::dew_point {
 
-static const char *const TAG = "dew_point.sensor";
+ESPHOME_LOG_TAG(TAG, "dew_point.sensor");
 
 void DewPointComponent::setup() {
   // Register callbacks for sensor updates

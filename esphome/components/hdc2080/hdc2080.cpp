@@ -4,7 +4,7 @@
 
 namespace esphome::hdc2080 {
 
-static const char *const TAG = "hdc2080";
+ESPHOME_LOG_TAG(TAG, "hdc2080");
 
 // Register map (Table 8-6)
 static constexpr uint8_t REG_TEMPERATURE_LOW = 0x00;      // Temperature [7:0]
@@ -33,9 +33,6 @@ void HDC2080Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void HDC2080Component::update() {

@@ -4,6 +4,7 @@
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#include "esphome/components/web_server_base/captive_dns.h"
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
@@ -65,7 +66,8 @@ struct UrlMatch {
 #ifdef USE_DEVICES
   StringRef device_name;  ///< Device name within URL, empty for main device
 #endif
-  bool valid{false};  ///< Whether this match is valid
+  bool valid{false};             ///< Whether this match is valid
+  bool include_internal{false};  ///< Whether internal entities may match, the web server's include_internal
 
   // Helper methods for string comparisons
   bool domain_equals(const char *str) const { return this->domain == str; }
@@ -77,7 +79,7 @@ struct UrlMatch {
   bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
 #endif
 
-  /// Match entity by name
+  /// Match entity by name; internal entities match only if include_internal is set
   /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
 };
@@ -254,9 +256,9 @@ class WebServer final : public Component, public AsyncWebHandler {
    *
    * This list is also used to authorize Private Network Access requests when that feature is enabled.
    *
-   * @param origins The list of allowed origins.
+   * @param origins nullptr-terminated table of allowed origins; must outlive the server.
    */
-  void set_allowed_origins(std::initializer_list<const char *> origins) { this->allowed_origins_ = origins; }
+  void set_allowed_origins(const char *const *origins) { this->allowed_origins_ = origins; }
 #endif
 
   // ========== INTERNAL METHODS ==========
@@ -276,6 +278,14 @@ class WebServer final : public Component, public AsyncWebHandler {
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
+
+#ifdef USE_WEBSERVER_CAPTIVE
+  /// AP mode: DNS answers every name with the AP address and unknown URLs redirect to the interface.
+  /// wifi calls start before setup(), so it may touch nothing but dns_ (enable_loop is a no-op then).
+  void start_captive();
+  void end_captive();
+  bool is_captive() const { return this->dns_.is_running(); }
+#endif
 
   /// Return the webserver configuration as JSON.
   json::SerializationBuffer<> get_config_json();
@@ -531,6 +541,9 @@ class WebServer final : public Component, public AsyncWebHandler {
   bool include_internal_{false};
 
  protected:
+  // Declared here so it packs into the padding after include_internal_
+  bool expose_log_{true};
+
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
 
 #ifdef USE_LIGHT
@@ -603,6 +616,10 @@ class WebServer final : public Component, public AsyncWebHandler {
 #elif USE_ARDUINO
   DeferredUpdateEventSourceList events_;
 #endif
+#ifdef USE_WEBSERVER_CAPTIVE
+  void handle_not_found_(AsyncWebServerRequest *request);
+  web_server_base::CaptiveDNS dns_;
+#endif
 
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
@@ -614,11 +631,10 @@ class WebServer final : public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool expose_log_{true};
 #ifdef USE_WEBSERVER_ALLOWED_ORIGINS
   // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
   // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
-  FixedVector<const char *> allowed_origins_;
+  const char *const *allowed_origins_{nullptr};
 #endif
 
   /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
@@ -701,6 +717,10 @@ class WebServer final : public Component, public AsyncWebHandler {
   void update_json_(update::UpdateEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 };
+
+#ifdef USE_WEBSERVER_CAPTIVE
+extern WebServer *global_web_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
 }  // namespace esphome::web_server
 #endif

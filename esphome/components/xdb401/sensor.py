@@ -56,10 +56,6 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_pressure_range_bar(config[CONF_PRESSURE_RANGE_BAR]))
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
-
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_PRESSURE, var.set_pressure_sensor)
