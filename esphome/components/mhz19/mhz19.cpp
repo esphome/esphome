@@ -5,7 +5,7 @@
 
 namespace esphome::mhz19 {
 
-static const char *const TAG = "mhz19";
+ESPHOME_LOG_TAG(TAG, "mhz19");
 static const uint8_t MHZ19_REQUEST_LENGTH = 8;
 static const uint8_t MHZ19_RESPONSE_LENGTH = 9;
 static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -31,13 +31,7 @@ static const LogString *detection_range_to_log_string(MHZ19DetectionRange range)
 }
 #endif
 
-uint8_t mhz19_checksum(const uint8_t *command) {
-  uint8_t sum = 0;
-  for (uint8_t i = 1; i < MHZ19_REQUEST_LENGTH; i++) {
-    sum += command[i];
-  }
-  return 0xFF - sum + 0x01;
-}
+uint8_t mhz19_checksum(const uint8_t *command) { return -sum_bytes(command + 1, MHZ19_REQUEST_LENGTH - 1); }
 
 void MHZ19Component::setup() {
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {

@@ -74,26 +74,10 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)
 
-    if flow_config := config.get(CONF_FLOW):
-        sens = await sensor.new_sensor(flow_config)
-        cg.add(var.set_flow_sensor(sens))
-
-    if head_config := config.get(CONF_HEAD):
-        sens = await sensor.new_sensor(head_config)
-        cg.add(var.set_head_sensor(sens))
-
-    if power_config := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(power_config)
-        cg.add(var.set_power_sensor(sens))
-
-    if current_config := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(current_config)
-        cg.add(var.set_current_sensor(sens))
-
-    if speed_config := config.get(CONF_SPEED):
-        sens = await sensor.new_sensor(speed_config)
-        cg.add(var.set_speed_sensor(sens))
-
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FLOW, var.set_flow_sensor)
+    await sensors(CONF_HEAD, var.set_head_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_SPEED, var.set_speed_sensor)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

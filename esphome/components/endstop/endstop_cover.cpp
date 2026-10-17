@@ -5,7 +5,7 @@
 
 namespace esphome::endstop {
 
-static const char *const TAG = "endstop.cover";
+ESPHOME_LOG_TAG(TAG, "endstop.cover");
 
 using namespace esphome::cover;
 

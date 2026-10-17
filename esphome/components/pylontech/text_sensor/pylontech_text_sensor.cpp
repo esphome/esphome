@@ -4,7 +4,7 @@
 
 namespace esphome::pylontech {
 
-static const char *const TAG = "pylontech.textsensor";
+ESPHOME_LOG_TAG(TAG, "pylontech.textsensor");
 
 PylontechTextSensor::PylontechTextSensor(int8_t bat_num) { this->bat_num_ = bat_num; }
 

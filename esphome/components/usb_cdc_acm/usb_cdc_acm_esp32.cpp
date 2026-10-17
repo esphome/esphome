@@ -17,7 +17,7 @@
 
 namespace esphome::usb_cdc_acm {
 
-static const char *const TAG = "usb_cdc_acm";
+ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 
 // Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t USB_CDC_MAX_LOG_BYTES = 168;
@@ -28,9 +28,6 @@ static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
 // Upper bound on how long flush() may block in total: the TX ring buffer drain and
 // the final TinyUSB flush share this budget.
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 100;
-
-// Minimum interval between repeated warnings while a host stall persists.
-static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 
 static USBCDCACMInstance *get_instance_by_itf(int itf) {
   if (global_usb_cdc_component == nullptr) {
@@ -104,30 +101,6 @@ static void tinyusb_cdc_line_coding_changed_callback(int itf, cdcacm_event_t *ev
   instance->queue_line_coding_event(bit_rate, stop_bits, parity, data_bits);
 }
 
-static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
-                                    TickType_t x_ticks_to_wait) {
-  size_t read_sz;
-  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, x_ticks_to_wait, out_buf_sz));
-
-  if (buf == nullptr) {
-    return ESP_FAIL;
-  }
-
-  memcpy(out_buf, buf, read_sz);
-  vRingbufferReturnItem(ring_buf, (void *) buf);
-  *rx_data_size = read_sz;
-
-  // Buffer's data can be wrapped, in which case we should perform another read
-  buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, 0, out_buf_sz - *rx_data_size));
-  if (buf != nullptr) {
-    memcpy(out_buf + *rx_data_size, buf, read_sz);
-    vRingbufferReturnItem(ring_buf, (void *) buf);
-    *rx_data_size += read_sz;
-  }
-
-  return ESP_OK;
-}
-
 //==============================================================================
 // USBCDCACMInstance Implementation
 //==============================================================================
@@ -192,7 +165,7 @@ void USBCDCACMInstance::usb_tx_task_fn(void *arg) {
 }
 
 void USBCDCACMInstance::usb_tx_task() {
-  uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
+  uint8_t *data = this->usb_tx_staging_.data();
   size_t tx_data_size = 0;
   // Back-dated so a stall within the first LOG_THROTTLE_MS of uptime still logs
   // immediately (unsigned arithmetic keeps this wrap-safe).
@@ -302,41 +275,15 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   // Write data to TX ring buffer
   BaseType_t send_res = xRingbufferSend(this->usb_tx_ringbuf_, data, len, 0);
   if (send_res != pdTRUE) {
-    // During a sustained host stall the ring buffer stays full (that is the intended
-    // backpressure), so this path runs for every write; throttle the warning so the
-    // log stays readable. The counter is a running total that is never reset: each
-    // line reports all bytes dropped so far, so bytes dropped in the tail of one
-    // stall are still accounted for by the next line, whenever that is. It also makes
-    // the very first drop since boot detectable, which is logged unthrottled.
-    const bool first_drop = this->tx_dropped_bytes_ == 0;
-    this->tx_dropped_bytes_ += len;
-    const uint32_t now = millis();
-    if (first_drop || (now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
-      this->tx_dropped_log_ms_ = now;
-      ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %" PRIu32 " bytes dropped total", this->itf_, this->tx_dropped_bytes_);
-    }
+    // A full ring buffer is the intended backpressure during a host stall
+    this->record_tx_drop_(len);
     return;
   }
-
   // Notify TX task that data is available
   if (this->usb_tx_task_handle_ != nullptr) {
     xTaskNotifyGive(this->usb_tx_task_handle_);
   }
-}
-
-bool USBCDCACMInstance::peek_byte(uint8_t *data) {
-  if (this->has_peek_) {
-    *data = this->peek_buffer_;
-    return true;
-  }
-
-  if (this->read_byte(&this->peek_buffer_)) {
-    *data = this->peek_buffer_;
-    this->has_peek_ = true;
-    return true;
-  }
-
-  return false;
+  this->report_tx_debug_(data, len);
 }
 
 bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
@@ -344,19 +291,11 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
     return true;
   }
 
+  if (this->consume_peek_(data, len)) {
+    return true;
+  }
   size_t original_len = len;
   size_t bytes_read = 0;
-
-  // First, use the peek buffer if available
-  if (this->has_peek_) {
-    data[0] = this->peek_buffer_;
-    this->has_peek_ = false;
-    bytes_read = 1;
-    data++;
-    if (--len == 0) {  // Decrement len first, then check it...
-      return true;     // No more to read
-    }
-  }
 
   // Read remaining bytes from RX ring buffer
   size_t rx_size = 0;
@@ -367,6 +306,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 
   memcpy(data, buf, rx_size);
   vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+  this->report_rx_debug_(data, rx_size);
   bytes_read += rx_size;
   data += rx_size;
   len -= rx_size;
@@ -382,6 +322,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 
   memcpy(data, buf, rx_size);
   vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+  this->report_rx_debug_(data, rx_size);
   bytes_read += rx_size;
 
   return bytes_read == original_len;
@@ -444,8 +385,6 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
       return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
 }
-
-void USBCDCACMInstance::check_logger_conflict() {}
 
 }  // namespace esphome::usb_cdc_acm
 #endif

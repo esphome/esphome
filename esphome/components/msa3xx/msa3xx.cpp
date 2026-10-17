@@ -5,7 +5,7 @@
 
 namespace esphome::msa3xx {
 
-static const char *const TAG = "msa3xx";
+ESPHOME_LOG_TAG(TAG, "msa3xx");
 
 const uint8_t MSA_3XX_PART_ID = 0x13;
 
@@ -118,9 +118,13 @@ const char *orientation_z_to_string(bool orientation) { return orientation ? "Do
 
 void MSA3xxComponent::setup() {
   uint8_t part_id{0xff};
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id) || (part_id != MSA_3XX_PART_ID)) {
-    ESP_LOGE(TAG, "Part ID is wrong or missing. Got 0x%02X", part_id);
-    this->mark_failed();
+  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  if (part_id != MSA_3XX_PART_ID) {
+    ESP_LOGE(TAG, "Part ID is wrong. Got 0x%02X", part_id);
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
@@ -137,8 +141,7 @@ void MSA3xxComponent::setup() {
     this->device_params_.accel_data_width = 12;
     this->device_params_.scale_factor_exp = static_cast<uint8_t>(this->range_) - 10;
   } else {
-    ESP_LOGE(TAG, "Unknown model");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unknown model"));
     return;
   }
 
@@ -155,9 +158,6 @@ void MSA3xxComponent::setup() {
 void MSA3xxComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MSA3xx:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG,
                 "  Model: %s\n"
                 "  Power Mode: %s\n"

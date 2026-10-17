@@ -21,7 +21,7 @@ static const uint32_t DECODE_TASK_STACK_SIZE = 3 * 1024;
 
 static const uint32_t INFO_ERROR_QUEUE_COUNT = 5;
 
-static const char *const TAG = "speaker_media_player.pipeline";
+ESPHOME_LOG_TAG(TAG, "speaker_media_player.pipeline");
 
 enum EventGroupBits : uint32_t {
   // MESSAGE_* bits are only set by their respective tasks
@@ -66,7 +66,7 @@ void AudioPipeline::start_url(const std::string &uri) {
   this->pending_url_ = true;
 }
 
-void AudioPipeline::start_file(audio::AudioFile *audio_file) {
+void AudioPipeline::start_file(const audio::AudioFile *audio_file) {
   if (this->is_playing_) {
     xEventGroupSetBits(this->event_group_, PIPELINE_COMMAND_STOP);
   }
@@ -202,8 +202,15 @@ AudioPipelineState AudioPipeline::process_state() {
     if (!this->is_playing_) {
       // The tasks have been stopped for two ``process_state`` calls in a row, so delete the tasks
       if (this->read_task_.is_created() || this->decode_task_.is_created()) {
-        this->read_task_.deallocate();
-        this->decode_task_.deallocate();
+        // Both are attempted every time; a task that is still running on the other core is freed by a
+        // subsequent call, and freeing an already freed task succeeds without doing anything
+        bool read_task_freed = this->read_task_.deallocate();
+        bool decode_task_freed = this->decode_task_.deallocate();
+        if (!read_task_freed || !decode_task_freed) {
+          // A task is still running on the other core, so keep the pipeline in its current state and try
+          // again on the next call
+          return AudioPipelineState::PLAYING;
+        }
         if (this->hard_stop_) {
           // Stop command was sent, so immediately end the playback
           this->speaker_->stop();
@@ -315,17 +322,17 @@ void AudioPipeline::read_task(void *params) {
       if (err == ESP_OK) {
         size_t file_ring_buffer_size = this_pipeline->buffer_size_;
 
-        std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer;
+        std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
 
-        if (!this_pipeline->raw_file_ring_buffer_.use_count()) {
+        if (temp_ring_buffer == nullptr) {
           temp_ring_buffer = ring_buffer::RingBuffer::create(file_ring_buffer_size);
           this_pipeline->raw_file_ring_buffer_ = temp_ring_buffer;
         }
 
-        if (!this_pipeline->raw_file_ring_buffer_.use_count()) {
+        if (temp_ring_buffer == nullptr) {
           err = ESP_ERR_NO_MEM;
         } else {
-          reader->add_sink(this_pipeline->raw_file_ring_buffer_);
+          err = reader->add_sink(temp_ring_buffer);
         }
       }
 
@@ -396,7 +403,9 @@ void AudioPipeline::decode_task(void *params) {
           make_unique<audio::AudioDecoder>(this_pipeline->transfer_buffer_size_, this_pipeline->transfer_buffer_size_);
 
       esp_err_t err = decoder->start(this_pipeline->current_audio_file_type_);
-      decoder->add_source(this_pipeline->raw_file_ring_buffer_);
+      if (err == ESP_OK) {
+        err = decoder->add_source(this_pipeline->raw_file_ring_buffer_);
+      }
 
       if (err != ESP_OK) {
         // Send specific error message

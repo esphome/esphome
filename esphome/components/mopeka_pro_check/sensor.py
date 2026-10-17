@@ -159,21 +159,10 @@ async def to_code(config: ConfigType) -> None:
     ) is not None:
         cg.add(var.set_min_signal_quality(minimum_signal_quality))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_LEVEL])
-        cg.add(var.set_level(sens))
-    if CONF_DISTANCE in config:
-        sens = await sensor.new_sensor(config[CONF_DISTANCE])
-        cg.add(var.set_distance(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
-    if CONF_SIGNAL_QUALITY in config:
-        sens = await sensor.new_sensor(config[CONF_SIGNAL_QUALITY])
-        cg.add(var.set_signal_quality(sens))
-    if CONF_IGNORED_READS in config:
-        sens = await sensor.new_sensor(config[CONF_IGNORED_READS])
-        cg.add(var.set_ignored_reads(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_LEVEL, var.set_level)
+    await sensors(CONF_DISTANCE, var.set_distance)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_SIGNAL_QUALITY, var.set_signal_quality)
+    await sensors(CONF_IGNORED_READS, var.set_ignored_reads)

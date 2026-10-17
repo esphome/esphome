@@ -2,6 +2,8 @@
 
 #if defined(USE_ARDUINO) && !defined(USE_ESP32) && !defined(USE_LIBRETINY)
 
+#include <cstring>
+
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
 
@@ -16,18 +18,18 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request";
+ESPHOME_LOG_TAG(TAG, "http_request");
 #ifdef USE_ESP8266
 // ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
 static constexpr int ESP8266_SSL_ERR_OOM = -1000;
 #endif
 
-std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
-                                                           const std::string &body,
+std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, const char *method, const std::string &body,
                                                            const std::vector<Header> &request_headers,
-                                                           const std::vector<std::string> &lower_case_collect_headers) {
+                                                           const std::vector<std::string> &lower_case_collect_headers,
+                                                           uint32_t timeout_ms) {
   if (!network::is_connected()) {
-    this->status_momentary_error("failed", 1000);
+    this->status_momentary_error(1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
     return nullptr;
   }
@@ -37,10 +39,11 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 
   const uint32_t start = millis();
 
-  bool secure = url.find("https:") != std::string::npos;
+  bool secure = strstr(url, "https:") != nullptr;
   container->set_secure(secure);
+  container->set_watchdog_timeout(this->get_watchdog_timeout(timeout_ms));
 
-  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(container->get_watchdog_timeout());
 
   if (this->follow_redirects_) {
     container->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
@@ -70,26 +73,26 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   stream_ptr = std::make_unique<WiFiClient>();
 #endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 
-  bool status = container->client_.begin(*stream_ptr, url.c_str());
+  bool status = container->client_.begin(*stream_ptr, url);
 
 #elif defined(USE_RP2)
   if (secure) {
     container->client_.setInsecure();
   }
-  bool status = container->client_.begin(url.c_str());
+  bool status = container->client_.begin(url);
 #endif
 
   App.feed_wdt();
 
   if (!status) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s", url.c_str());
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s", url);
     container->end();
-    this->status_momentary_error("failed", 1000);
+    this->status_momentary_error(1000);
     return nullptr;
   }
 
   container->client_.setReuse(true);
-  container->client_.setTimeout(this->timeout_);
+  container->client_.setTimeout(timeout_ms);
 
   if (this->useragent_ != nullptr) {
     container->client_.setUserAgent(this->useragent_);
@@ -107,7 +110,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   container->client_.collectHeaders(header_keys, index);
 
   App.feed_wdt();
-  container->status_code = container->client_.sendRequest(method.c_str(), body.c_str());
+  container->status_code = container->client_.sendRequest(method, body.c_str());
   App.feed_wdt();
   if (container->status_code < 0) {
 #if defined(USE_ESP8266) && defined(USE_HTTP_REQUEST_ESP8266_HTTPS)
@@ -139,16 +142,16 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     }
 #endif
 
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url.c_str(),
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url,
              HTTPClient::errorToString(container->status_code).c_str());
 
-    this->status_momentary_error("failed", 1000);
+    this->status_momentary_error(1000);
     container->end();
     return nullptr;
   }
   if (!is_success(container->status_code)) {
-    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
-    this->status_momentary_error("failed", 1000);
+    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url, container->status_code);
+    this->status_momentary_error(1000);
     // Still return the container, so it can be used to get the status code and error message
   }
 
@@ -202,7 +205,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 // and sets content_length = bytes_read_ so is_read_complete() returns true.
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
@@ -397,7 +400,7 @@ int HttpContainerArduino::read_chunked_(uint8_t *buf, size_t max_len, WiFiClient
 }
 
 void HttpContainerArduino::end() {
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
   this->client_.end();
 }
 

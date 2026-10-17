@@ -1,9 +1,10 @@
 #include "delonghi.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::delonghi {
 
-static const char *const TAG = "delonghi.climate";
+ESPHOME_LOG_TAG(TAG, "delonghi.climate");
 
 void DelonghiClimate::transmit_state() {
   uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE] = {0};
@@ -102,10 +103,7 @@ uint8_t DelonghiClimate::temperature_() {
 }
 
 bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DELONGHI_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DELONGHI_STATE_FRAME_SIZE - 1);
   if (frame[DELONGHI_STATE_FRAME_SIZE - 1] != checksum) {
     return false;
   }
