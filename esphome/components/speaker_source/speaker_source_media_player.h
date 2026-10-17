@@ -28,8 +28,8 @@ namespace esphome::speaker_source {
 //
 // - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
 //   handle_volume_request_(), handle_mute_request_(), handle_play_uri_request_(),
-//   set_volume_(), set_mute_state_(), control(), get_source_state_(),
-//   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
+//   set_volume_(), set_mute_state_(), control(), get_source_state_(), get_media_state_(),
+//   turn_on_(), find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
 //   process_control_queue_(), handle_player_command_(), queue_command_(), queue_play_current_()
 //
 // - Media source task(s): handle_media_output_() via SourceBinding::write_audio().
@@ -182,6 +182,10 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
 
   void set_playlist_delay_ms(uint8_t pipeline, uint32_t delay_ms);
 
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+  void set_on_off_enabled(bool on_off_enabled) { this->on_off_enabled_ = on_off_enabled; }
+#endif
+
  protected:
   // Callbacks from source bindings (pipeline index is captured at binding creation time)
   size_t handle_media_output_(uint8_t pipeline, media_source::MediaSource *source, const uint8_t *data, size_t length,
@@ -216,6 +220,13 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
   /// @return The appropriate MediaPlayerState
   media_player::MediaPlayerState get_source_state_(media_source::MediaSource *media_source, bool playlist_active,
                                                    media_player::MediaPlayerState old_state) const;
+  /// @brief get_source_state_() with on/off applied
+  media_player::MediaPlayerState get_media_state_(media_source::MediaSource *media_source, bool playlist_active,
+                                                  media_player::MediaPlayerState old_state);
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+  /// @brief Also cancels a pending turn-off
+  void turn_on_();
+#endif
 
   void process_control_queue_();
   void handle_player_command_(media_player::MediaPlayerCommand player_command, uint8_t pipeline);
@@ -256,6 +267,11 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
   float volume_min_;
 
   bool is_muted_{false};
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+  // Per instance: the define covers every player in the build
+  bool on_off_enabled_{false};
+  bool is_turn_off_{false};
+#endif
 };
 
 }  // namespace esphome::speaker_source

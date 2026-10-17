@@ -60,6 +60,11 @@ void SpeakerSourceMediaPlayer::dump_config() {
 
 void SpeakerSourceMediaPlayer::setup() {
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+  if (this->on_off_enabled_) {
+    this->state = media_player::MEDIA_PLAYER_STATE_OFF;
+  }
+#endif
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaPlayerControlCommand));
 
@@ -219,6 +224,51 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
 }
 
 // THREAD CONTEXT: Called from main loop (loop)
+media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_media_state_(media_source::MediaSource *source,
+                                                                          bool playlist_active,
+                                                                          media_player::MediaPlayerState old_state) {
+  media_player::MediaPlayerState state = this->get_source_state_(source, playlist_active, old_state);
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+  if (!this->on_off_enabled_) {
+    return state;
+  }
+  if (state == media_player::MEDIA_PLAYER_STATE_PLAYING) {
+    // Pass through ON so on_turn_on fires for a source that starts playing without a player command
+    if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+      this->turn_on_();
+    }
+    return state;
+  }
+  if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+    return media_player::MEDIA_PLAYER_STATE_OFF;
+  }
+  if (this->is_turn_off_) {
+    this->is_turn_off_ = false;
+    // Pass through IDLE so on_idle fires before on_turn_off
+    if (this->state != media_player::MEDIA_PLAYER_STATE_IDLE) {
+      this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+      this->publish_state();
+      ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+    }
+    return media_player::MEDIA_PLAYER_STATE_OFF;
+  }
+#endif
+  return state;
+}
+
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+// THREAD CONTEXT: Called from main loop (process_control_queue_, handle_player_command_, get_media_state_)
+void SpeakerSourceMediaPlayer::turn_on_() {
+  this->is_turn_off_ = false;
+  if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+    this->state = media_player::MEDIA_PLAYER_STATE_ON;
+    this->publish_state();
+    ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+  }
+}
+#endif
+
+// THREAD CONTEXT: Called from main loop (loop)
 media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_source_state_(
     media_source::MediaSource *source, bool playlist_active, media_player::MediaPlayerState old_state) const {
   if (source != nullptr) {
@@ -273,20 +323,20 @@ void SpeakerSourceMediaPlayer::loop() {
         case media_source::MediaSourceState::ERROR:
           ESP_LOGE(TAG, "Announcement source error");
           // Fall through to media pipeline state
-          this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+          this->state = this->get_media_state_(media_ps.active_source, media_playlist_active, old_state);
           break;
         default:
           break;
       }
     } else {
       // Announcement source is idle, fall through to media pipeline
-      this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+      this->state = this->get_media_state_(media_ps.active_source, media_playlist_active, old_state);
     }
   } else if (announcement_playlist_active && old_state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
     this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
   } else {
     // No active announcement, check media pipeline
-    this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+    this->state = this->get_media_state_(media_ps.active_source, media_playlist_active, old_state);
   }
 
   if (this->state != old_state) {
@@ -423,6 +473,10 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
 
   switch (control_command.type) {
     case MediaPlayerControlCommand::PLAY_URI: {
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+      // A TURN_OFF queued before this request must not apply to the new playback
+      this->turn_on_();
+#endif
       // Always use our local playlist to start playback
       this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
       ps.playlist.clear();
@@ -437,6 +491,9 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
     }
 
     case MediaPlayerControlCommand::ENQUEUE_URI: {
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+      this->turn_on_();
+#endif
       // Always add to our local playlist
       ps.playlist.push_back(*control_command.data.uri);
 
@@ -528,25 +585,16 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
         if (target_source != nullptr) {
           target_source->handle_command(media_source::MediaSourceCommand::PAUSE);
         }
-      } else if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
-        bool last_has_internal_playlist = (ps.last_source != nullptr) && ps.last_source->has_internal_playlist();
-        if (last_has_internal_playlist) {
-          ps.last_source->handle_command(media_source::MediaSourceCommand::PLAY);
-        } else {
-          if (ps.playlist_index >= ps.playlist.size()) {
-            ps.playlist_index = 0;
-          }
-          this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
-        }
       } else {
-        if (target_source != nullptr) {
-          target_source->handle_command(media_source::MediaSourceCommand::PLAY);
-        }
+        this->handle_player_command_(media_player::MEDIA_PLAYER_COMMAND_PLAY, pipeline);
       }
       break;
     }
 
     case media_player::MEDIA_PLAYER_COMMAND_PLAY: {
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+      this->turn_on_();
+#endif
       if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
         bool last_has_internal_playlist = (ps.last_source != nullptr) && ps.last_source->has_internal_playlist();
         if (last_has_internal_playlist) {
@@ -569,6 +617,23 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
       }
       break;
     }
+
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+    case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF: {
+      if (!this->on_off_enabled_) {
+        break;
+      }
+      if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
+        this->is_turn_off_ = true;
+      }
+      // Also stops a running announcement
+      const uint8_t other_pipeline = (pipeline == MEDIA_PIPELINE) ? ANNOUNCEMENT_PIPELINE : MEDIA_PIPELINE;
+      if (this->pipelines_[other_pipeline].is_configured()) {
+        this->handle_player_command_(media_player::MEDIA_PLAYER_COMMAND_STOP, other_pipeline);
+      }
+    }
+      [[fallthrough]];
+#endif
 
     case media_player::MEDIA_PLAYER_COMMAND_STOP: {
       if (!has_internal_playlist) {
@@ -674,8 +739,14 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
       }
       break;
 
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+    case media_player::MEDIA_PLAYER_COMMAND_TURN_ON:
+      this->turn_on_();
+      break;
+#endif
+
     default:
-      // TURN_ON, TURN_OFF, ENQUEUE (handled separately with URL) are no-ops
+      // TURN_ON, TURN_OFF without on/off support, ENQUEUE (handled separately with URL) are no-ops
       break;
   }
 }
@@ -769,6 +840,9 @@ media_player::MediaPlayerTraits SpeakerSourceMediaPlayer::get_traits() {
   // supported by our player.
   auto traits = media_player::MediaPlayerTraits();
   traits.set_supports_pause(true);
+#ifdef USE_SPEAKER_SOURCE_MEDIA_PLAYER_ON_OFF
+  traits.set_supports_turn_off_on(this->on_off_enabled_);
+#endif
 
   for (const auto &ps : this->pipelines_) {
     if (ps.format.has_value()) {
