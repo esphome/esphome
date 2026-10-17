@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import socket
 from esphome.components.esp32_camera import (
+    CONF_JPEG_QUALITY,
     CONF_PIXEL_FORMAT,
     DOMAIN as ESP32_CAMERA_DOMAIN,
     FRAME_SIZES,
@@ -46,10 +47,18 @@ def _final_validate(config: ConfigType) -> None:
         raise cv.Invalid(
             f"{DOMAIN} requires a camera, add an '{ESP32_CAMERA_DOMAIN}:' block"
         )
-    if camera[CONF_PIXEL_FORMAT] != "JPEG":
+    pixel_format = camera[CONF_PIXEL_FORMAT]
+    # A GRAYSCALE frame converts to a one-component JPEG, which RTP/JPEG cannot carry.
+    if pixel_format == "GRAYSCALE":
         raise cv.Invalid(
-            f"{DOMAIN} streams JPEG frames only, set '{CONF_PIXEL_FORMAT}: JPEG' "
-            f"in '{ESP32_CAMERA_DOMAIN}:'"
+            f"{DOMAIN} cannot stream '{CONF_PIXEL_FORMAT}: GRAYSCALE', use a color "
+            f"format in '{ESP32_CAMERA_DOMAIN}:'"
+        )
+    # Other formats are converted to JPEG only when jpeg_quality is set.
+    if pixel_format != "JPEG" and camera[CONF_JPEG_QUALITY] == 0:
+        raise cv.Invalid(
+            f"{DOMAIN} streams JPEG frames, set '{CONF_JPEG_QUALITY}' in "
+            f"'{ESP32_CAMERA_DOMAIN}:' to convert '{CONF_PIXEL_FORMAT}: {pixel_format}'"
         )
     resolution = camera[CONF_RESOLUTION]
     # The enum names end in the frame size, e.g. ESP32_CAMERA_SIZE_2560X1440

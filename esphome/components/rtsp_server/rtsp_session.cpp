@@ -7,6 +7,7 @@
 #include <cinttypes>
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 #include <utility>
 
 #include "esphome/core/helpers.h"
@@ -19,6 +20,9 @@ ESPHOME_LOG_TAG(TAG, "rtsp_server");
 static constexpr uint8_t RTP_PAYLOAD_TYPE_JPEG = 26;
 static constexpr uint32_t RTP_CLOCK_RATE = 90000;
 static constexpr uint32_t SESSION_TIMEOUT_MS = 60000;
+static constexpr char REQUEST_END[] = "\r\n\r\n";
+static constexpr size_t REQUEST_END_LEN = sizeof(REQUEST_END) - 1;
+static constexpr uint8_t ZERO_FILL[64]{};
 static constexpr char SDP_BODY[] = "v=0\r\n"
                                    "o=- 0 0 IN IP4 0.0.0.0\r\n"
                                    "s=ESPHome RTSP\r\n"
@@ -41,11 +45,20 @@ StringRef trim(const StringRef &s) {
   return {start, len};
 }
 
+const char *find_request_end(const char *buf, size_t len) {
+  for (size_t i = 0; i + REQUEST_END_LEN <= len; i++) {
+    if (std::memcmp(buf + i, REQUEST_END, REQUEST_END_LEN) == 0)
+      return buf + i;
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 /// Scans JPEG marker segments (SOF0/1, DQT, SOS) for the dimensions, quantization tables and the start of
 /// the entropy-coded scan data. Assumes the standard Huffman tables (true for esp32-camera), so DHT segments
-/// are not parsed; receivers rebuild them per RFC 2435. Restart intervals (DRI) are not handled.
+/// are not parsed; receivers rebuild them per RFC 2435. Only three-component 4:2:2 or 4:2:0 frames without
+/// restart markers (DRI) can be carried as RFC 2435 types 0 and 1; anything else returns false.
 bool parse_jpeg_info(const uint8_t *data, size_t len, JpegInfo &out) {
   if (len < 4 || data[0] != 0xFF || data[1] != 0xD8)
     return false;  // no SOI
@@ -75,15 +88,20 @@ bool parse_jpeg_info(const uint8_t *data, size_t len, JpegInfo &out) {
     size_t seg_end = seg_start + (seg_len - 2);
 
     if (marker == 0xC0 || marker == 0xC1) {  // SOF0 / SOF1
-      if (seg_len < 8)
-        return false;
+      if (seg_len < 8 + 3 * 3 || data[seg_start + 5] != 3)
+        return false;  // not three components
       out.height = encode_uint16(data[seg_start + 1], data[seg_start + 2]);
       out.width = encode_uint16(data[seg_start + 3], data[seg_start + 4]);
-      uint8_t num_components = data[seg_start + 5];
-      if (num_components >= 1 && seg_start + 7 < seg_end) {
-        uint8_t sampling = data[seg_start + 7];  // Y component H/V sampling factors
-        out.type = (sampling == 0x22) ? 1 : 0;   // 2x2 -> 4:2:0, otherwise assume 4:2:2
+      const uint8_t sampling = data[seg_start + 7];  // Y component H/V sampling factors
+      if (sampling == 0x21) {
+        out.type = 0;  // 4:2:2
+      } else if (sampling == 0x22) {
+        out.type = 1;  // 4:2:0
+      } else {
+        return false;
       }
+    } else if (marker == 0xDD) {  // DRI
+      return false;
     } else if (marker == 0xDB) {  // DQT, one or more tables back to back
       size_t p = seg_start;
       while (p < seg_end) {
@@ -119,13 +137,20 @@ bool parse_jpeg_info(const uint8_t *data, size_t len, JpegInfo &out) {
 void RTSPSession::open(std::unique_ptr<socket::Socket> socket, uint32_t now) {
   this->socket_ = std::move(socket);
   this->socket_->setblocking(false);
+  int enable = 1;
+  this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable));
   this->should_close_ = false;
   this->close_after_send_ = false;
+  this->read_pending_ = false;
   this->request_len_ = 0;
+  this->skip_len_ = 0;
+  this->filler_len_ = 0;
   this->cseq_ = 0;
   this->last_frame_ms_ = 0;
   this->last_activity_ms_ = now;
   this->ssrc_ = random_uint32();
+  this->sequence_number_ = static_cast<uint16_t>(random_uint32());
+  this->rtp_timestamp_ = random_uint32();
   format_hex_to(this->session_id_, random_uint32());
 }
 
@@ -135,6 +160,7 @@ void RTSPSession::close_() {
   this->state_ = State::INIT;
   this->iov_pos_ = 0;
   this->iov_count_ = 0;
+  this->filler_len_ = 0;
 }
 
 void RTSPSession::loop(uint32_t now, uint16_t port) {
@@ -151,6 +177,10 @@ void RTSPSession::loop(uint32_t now, uint16_t port) {
 }
 
 void RTSPSession::service_(uint32_t now, uint16_t port) {
+  if (this->frame_ != nullptr && now - this->frame_progress_ms_ > FRAME_STALL_MS) {
+    ESP_LOGV(TAG, "Session %s stalled, dropping frame", this->session_id_);
+    this->drop_frame_();
+  }
   if (!this->flush_(now))
     return;
   if (!this->close_after_send_)
@@ -167,43 +197,73 @@ void RTSPSession::service_(uint32_t now, uint16_t port) {
 }
 
 void RTSPSession::read_requests_(uint32_t now, uint16_t port) {
-  if (!this->socket_->ready())
+  // A pipelined request may already be buffered; it is handled once the previous response is written.
+  if (this->process_input_(port))
     return;
+  if (!this->read_pending_ && !this->socket_->ready())
+    return;
+  this->read_pending_ = false;
 
-  const size_t buf_capacity = this->request_buf_.size() - 1;
   while (true) {
-    if (this->request_len_ >= buf_capacity) {
+    if (this->request_len_ >= this->request_buf_.size()) {
       ESP_LOGW(TAG, "Request too large, closing session");
       this->should_close_ = true;
       return;
     }
-    ssize_t n = this->socket_->read(this->request_buf_.data() + this->request_len_, buf_capacity - this->request_len_);
+    ssize_t n = this->socket_->read(this->request_buf_.data() + this->request_len_,
+                                    this->request_buf_.size() - this->request_len_);
     if (n > 0) {
       this->request_len_ += static_cast<uint16_t>(n);
       this->last_activity_ms_ = now;
+      if (this->process_input_(port)) {
+        this->read_pending_ = true;  // stopped before EAGAIN, so ready() may not report what is left
+        return;
+      }
       continue;
     }
     if (n == 0) {
       this->should_close_ = true;
       return;
     }
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      break;
+    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      ESP_LOGW(TAG, "Read failed: errno %d", errno);
+      this->should_close_ = true;
     }
-    ESP_LOGW(TAG, "Read failed: errno %d", errno);
-    this->should_close_ = true;
     return;
   }
+}
 
-  this->request_buf_[this->request_len_] = '\0';
-  StringRef buf(this->request_buf_.data(), this->request_len_);
-  size_t terminator = buf.find("\r\n\r\n");
-  if (terminator == std::string::npos)
-    return;  // wait for the rest of the request
+bool RTSPSession::process_input_(uint16_t port) {
+  while (this->request_len_ > 0) {
+    if (this->skip_len_ > 0) {
+      const size_t len = std::min<size_t>(this->skip_len_, this->request_len_);
+      this->consume_input_(len);
+      this->skip_len_ -= len;
+      continue;
+    }
+    char *buf = this->request_buf_.data();
+    if (buf[0] == '$') {  // interleaved packet: '$', channel, 16-bit length, payload
+      if (this->request_len_ < INTERLEAVED_HEADER_LEN)
+        return false;
+      this->skip_len_ =
+          INTERLEAVED_HEADER_LEN + encode_uint16(static_cast<uint8_t>(buf[2]), static_cast<uint8_t>(buf[3]));
+      continue;
+    }
+    const char *end = find_request_end(buf, this->request_len_);
+    if (end == nullptr)
+      return false;  // wait for the rest of the request
+    const size_t len = end - buf;
+    buf[len] = '\0';  // over the terminator's first CR
+    this->handle_request_(StringRef(buf, len), port);
+    this->consume_input_(len + REQUEST_END_LEN);
+    return true;
+  }
+  return false;
+}
 
-  this->handle_request_(StringRef(buf.c_str(), terminator), port);
-  // Bytes pipelined after this request are discarded; RTSP clients wait for each response.
-  this->request_len_ = 0;
+void RTSPSession::consume_input_(size_t len) {
+  this->request_len_ -= len;
+  std::memmove(this->request_buf_.data(), this->request_buf_.data() + len, this->request_len_);
 }
 
 void RTSPSession::handle_request_(StringRef request, uint16_t port) {
@@ -247,11 +307,13 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
   } else if (str_equals_case_insensitive(method, StringRef::from_lit("DESCRIBE"))) {
     char addr_buf[socket::SOCKADDR_STR_LEN];
     this->socket_->getsockname_to(addr_buf);
+    const bool ipv6 = std::strchr(addr_buf, ':') != nullptr;
     this->queue_response_(200, "OK",
-                          "Content-Base: rtsp://%s:%u/\r\n"
+                          "Content-Base: rtsp://%s%s%s:%u/\r\n"
                           "Content-Type: application/sdp\r\n"
                           "Content-Length: %u\r\n",
-                          addr_buf, port, static_cast<unsigned>(sizeof(SDP_BODY) - 1));
+                          ipv6 ? "[" : "", addr_buf, ipv6 ? "]" : "", port,
+                          static_cast<unsigned>(sizeof(SDP_BODY) - 1));
     this->iov_[this->iov_count_++] = {const_cast<char *>(SDP_BODY), sizeof(SDP_BODY) - 1};
   } else if (str_equals_case_insensitive(method, StringRef::from_lit("SETUP"))) {
     this->handle_setup_(transport);
@@ -286,6 +348,7 @@ void RTSPSession::queue_response_(uint16_t code, const char *reason, const char 
   this->iov_[0] = {buf, std::min(pos, size - 1)};
   this->iov_pos_ = 0;
   this->iov_count_ = 1;
+  this->sending_packet_ = false;
 }
 
 void RTSPSession::handle_setup_(StringRef transport_header) {
@@ -305,8 +368,6 @@ void RTSPSession::handle_play_() {
     return;
   }
   this->state_ = State::PLAYING;
-  this->sequence_number_ = static_cast<uint16_t>(random_uint32());
-  this->rtp_timestamp_ = random_uint32();
   this->frame_.reset();  // a repeated PLAY may arrive mid-frame
   this->queue_response_(200, "OK", "Range: npt=0.000-\r\n");
 }
@@ -322,6 +383,7 @@ void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image
   this->frame_ = image;
   this->jpeg_ = jpeg;
   this->frame_sent_ = 0;
+  this->frame_progress_ms_ = now;
 
   uint32_t elapsed_ms = this->last_frame_ms_ == 0 ? 0 : now - this->last_frame_ms_;
   this->rtp_timestamp_ += static_cast<uint32_t>((static_cast<uint64_t>(elapsed_ms) * RTP_CLOCK_RATE) / 1000);
@@ -393,14 +455,41 @@ bool RTSPSession::queue_next_packet_() {
   this->iov_[count++] = {const_cast<uint8_t *>(this->jpeg_.scan_data + this->frame_sent_), payload_len};
   this->iov_pos_ = 0;
   this->iov_count_ = count;
+  this->sending_packet_ = true;
   this->frame_sent_ += payload_len;
   return true;
+}
+
+void RTSPSession::drop_frame_() {
+  this->frame_.reset();
+  if (!this->sending_packet_ || this->iov_pos_ >= this->iov_count_)
+    return;
+  if (this->iov_pos_ == 0 && this->iov_[0].iov_base == this->send_buf_.data()) {
+    this->iov_count_ = 0;  // nothing written yet; the receiver sees a lost packet
+    return;
+  }
+  // Entries after the header point into the frame.
+  for (uint8_t i = std::max<uint8_t>(this->iov_pos_, 1); i < this->iov_count_; i++)
+    this->filler_len_ += this->iov_[i].iov_len;
+  this->iov_count_ = std::max<uint8_t>(this->iov_pos_, 1);
+  this->sending_packet_ = false;
 }
 
 bool RTSPSession::flush_(uint32_t now) {
   if (this->should_close_)
     return false;
-  while (this->iov_pos_ < this->iov_count_) {
+  while (true) {
+    if (this->iov_pos_ >= this->iov_count_) {
+      if (this->filler_len_ == 0)
+        return true;
+      this->iov_pos_ = 0;
+      this->iov_count_ = 0;
+      while (this->filler_len_ > 0 && this->iov_count_ < this->iov_.size()) {
+        const size_t len = std::min<size_t>(this->filler_len_, sizeof(ZERO_FILL));
+        this->iov_[this->iov_count_++] = {const_cast<uint8_t *>(ZERO_FILL), len};
+        this->filler_len_ -= len;
+      }
+    }
     ssize_t written = this->socket_->writev(&this->iov_[this->iov_pos_], this->iov_count_ - this->iov_pos_);
     if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
       return false;  // retry next loop
@@ -412,6 +501,7 @@ bool RTSPSession::flush_(uint32_t now) {
       return false;
     }
     this->last_activity_ms_ = now;
+    this->frame_progress_ms_ = now;
     // Step over what was written; a partial write leaves the rest of the current entry pending.
     auto remaining = static_cast<size_t>(written);
     while (remaining > 0) {
@@ -425,7 +515,6 @@ bool RTSPSession::flush_(uint32_t now) {
       this->iov_pos_++;
     }
   }
-  return true;
 }
 
 }  // namespace esphome::rtsp_server

@@ -108,7 +108,9 @@ void RTSPServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &ima
       jpeg.width > RTP_JPEG_MAX_DIMENSION || jpeg.height > RTP_JPEG_MAX_DIMENSION) {
     if (!this->frame_warned_) {
       this->frame_warned_ = true;
-      ESP_LOGW(TAG, "Dropping frame %" PRIu16 "x%" PRIu16 ": not a baseline JPEG of at most %" PRIu16 " px per side",
+      ESP_LOGW(TAG,
+               "Dropping frame %" PRIu16 "x%" PRIu16 ": not a baseline 4:2:2/4:2:0 JPEG without restart markers"
+               " of at most %" PRIu16 " px per side",
                jpeg.width, jpeg.height, RTP_JPEG_MAX_DIMENSION);
     }
     return;
