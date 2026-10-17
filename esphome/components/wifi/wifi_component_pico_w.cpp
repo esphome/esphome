@@ -18,7 +18,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_pico_w";
+ESPHOME_LOG_TAG(TAG, "wifi_pico_w");
 
 // Check if STA is fully connected (WiFi joined + has IP address).
 // Do NOT use WiFi.status() or WiFi.connected() for this — in AP-only mode they
@@ -59,6 +59,11 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
     if (ap.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
     } else {
+#ifdef USE_WIFI_AP
+      // Takes down the Arduino AP interface and its DHCP server; a later beginAP() is refused
+      // while they are still up
+      WiFi.disconnectAP();
+#endif
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, false, CYW43_COUNTRY_WORLDWIDE);
     }
     this->ap_started_ = ap.value();
@@ -190,12 +195,16 @@ void WiFiComponent::wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *r
   std::copy(result->bssid, result->bssid + 6, bssid.begin());
   WiFiScanResult res(bssid, ssid_buf, len, result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN,
                      len == 0);
+  // Compiles to nothing here; kept so every scan_result_ mutation holds the lock
+  ScanResultsLock lock(this);
   if (std::find(this->scan_result_.begin(), this->scan_result_.end(), res) == this->scan_result_.end()) {
     this->scan_result_.push_back(res);
   }
 }
 
 bool WiFiComponent::wifi_scan_start_(bool passive) {
+  // Compiles to nothing here; kept so every scan_result_ mutation holds the lock
+  ScanResultsLock lock(this);
   this->scan_result_.clear();
   this->scan_done_ = false;
   s_scan_result_count = 0;
@@ -234,12 +243,16 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   // Pass nullptr for empty password — CYW43 uses the password pointer (not length)
   // to choose between OPEN and WPA2 auth mode.
   const char *ap_password = ap.password_.empty() ? nullptr : ap.password_.c_str();
-  WiFi.beginAP(ap.ssid_.c_str(), ap_password, ap.has_channel() ? ap.get_channel() : 1);
+  if (WiFi.beginAP(ap.ssid_.c_str(), ap_password, ap.has_channel() ? ap.get_channel() : 1) != WL_CONNECTED) {
+    ESP_LOGW(TAG, "beginAP failed");
+    return false;
+  }
 
   return true;
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.softAPIP()}; }
+
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
@@ -261,7 +274,6 @@ bssid_t WiFiComponent::wifi_bssid() {
     bssid[i] = raw_bssid[i];
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   // TODO: Find direct CYW43 API to avoid Arduino String allocation
   String ssid = WiFi.SSID();
@@ -369,5 +381,36 @@ bool WiFiComponent::wifi_loop_() {
 void WiFiComponent::wifi_pre_setup_() {}
 
 }  // namespace esphome::wifi
+
+#ifdef USE_WIFI_AP
+// Firmware event ids the driver header leaves out
+static constexpr uint32_t AP_STATION_ASSOC_IND = 8;
+
+// The driver hands every firmware event to cyw43_cb_process_async_event and ignores the AP station
+// ones, so they are counted here before it sees them. Runs in the driver's context. Verified with
+// arduino-pico 6.1.1 on a Pico 2W: a join gives AUTH_IND then ASSOC_IND, a leave gives DISASSOC_IND.
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+// Names are mandated by the --wrap linker mechanism.
+extern "C" void __real_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev) {
+  if (ev->interface == CYW43_ITF_AP) {
+    switch (ev->event_type) {
+      case AP_STATION_ASSOC_IND:
+        // A refused association carries its status here and has no leave event to balance it. A
+        // reassociation comes from a station that is already counted, whether or not its leave was seen.
+        if (ev->status == CYW43_STATUS_SUCCESS)
+          esphome::wifi::global_wifi_component->ap_clients_++;
+        break;
+      case CYW43_EV_DISASSOC_IND:
+      case CYW43_EV_DEAUTH_IND:
+        if (esphome::wifi::global_wifi_component->ap_clients_ > 0)
+          esphome::wifi::global_wifi_component->ap_clients_--;
+        break;
+    }
+  }
+  __real_cyw43_cb_process_async_event(cb_data, ev);
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif  // USE_WIFI_AP
 #endif
 #endif

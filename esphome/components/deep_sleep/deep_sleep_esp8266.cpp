@@ -11,7 +11,7 @@ extern "C" {
 
 namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
 #ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {

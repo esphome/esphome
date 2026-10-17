@@ -7,7 +7,8 @@ namespace esphome::ld2450 {
 
 class BaudRateSelect : public select::Select, public Parented<LD2450Component> {
  public:
-  BaudRateSelect() = default;
+  // User provided, not "= default": `new(p) BaudRateSelect()` would zero-fill .bss that is already zero.
+  BaudRateSelect() {}
 
  protected:
   void control(size_t index) override;

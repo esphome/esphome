@@ -5,7 +5,7 @@
 
 namespace esphome::hdc2010 {
 
-static const char *const TAG = "hdc2010";
+ESPHOME_LOG_TAG(TAG, "hdc2010");
 
 // Register addresses
 static constexpr uint8_t REG_TEMPERATURE_LOW = 0x00;
@@ -42,9 +42,6 @@ void HDC2010Component::setup() {
 void HDC2010Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HDC2010:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

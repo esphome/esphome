@@ -1,5 +1,8 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
@@ -18,11 +21,10 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
-CONF_ADC_AVERAGING = "adc_averaging"
-CONF_ADC_TIME = "adc_time"
 
 ina226_ns = cg.esphome_ns.namespace("ina226")
 INA226Component = ina226_ns.class_(
@@ -54,7 +56,7 @@ ADC_AVG_SAMPLES = {
 }
 
 
-def validate_adc_time(value):
+def validate_adc_time(value: Any) -> int:
     value = cv.positive_time_period_microseconds(value).total_microseconds
     return cv.enum(ADC_TIMES, int=True)(value)
 
@@ -112,7 +114,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -130,18 +132,8 @@ async def to_code(config):
 
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
 
-    if CONF_BUS_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_BUS_VOLTAGE])
-        cg.add(var.set_bus_voltage_sensor(sens))
-
-    if CONF_SHUNT_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_SHUNT_VOLTAGE])
-        cg.add(var.set_shunt_voltage_sensor(sens))
-
-    if CONF_CURRENT in config:
-        sens = await sensor.new_sensor(config[CONF_CURRENT])
-        cg.add(var.set_current_sensor(sens))
-
-    if CONF_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_POWER])
-        cg.add(var.set_power_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BUS_VOLTAGE, var.set_bus_voltage_sensor)
+    await sensors(CONF_SHUNT_VOLTAGE, var.set_shunt_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)

@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@berfenger"]
 DEPENDENCIES = ["i2c"]
@@ -18,11 +19,9 @@ MAX44009Sensor = max44009_ns.class_(
 )
 
 MAX44009Mode = max44009_ns.enum("MAX44009Mode")
-MODE_OPTIONS = {
-    "auto": MAX44009Mode.MAX44009_MODE_AUTO,
-    "low_power": MAX44009Mode.MAX44009_MODE_LOW_POWER,
-    "continuous": MAX44009Mode.MAX44009_MODE_CONTINUOUS,
-}
+MODE_OPTIONS = MAX44009Mode.options(
+    "auto", "low_power", "continuous", prefix="MAX44009_MODE_"
+)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -44,7 +43,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

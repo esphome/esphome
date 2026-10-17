@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import climate, remote_transmitter, sensor, uart
+from esphome.components import climate, remote_base, remote_transmitter, sensor, uart
 from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
@@ -32,16 +32,19 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT,
 )
-from esphome.core import CORE, coroutine
+from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
 AUTO_LOAD = ["sensor"]
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
+CONF_DISPLAY_CONTROL = "display_control"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
 Capabilities = midea_ac_ns.namespace("Constants")
+DisplayControl = midea_ac_ns.enum("DisplayControl", is_class=True)
 
 
 def templatize(value):
@@ -51,25 +54,6 @@ def templatize(value):
     for key, val in value.items():
         ret[key] = cv.templatable(val)
     return cv.Schema(ret)
-
-
-def register_action(name, type_, schema):
-    validator = templatize(schema).extend(MIDEA_ACTION_BASE_SCHEMA)
-    registerer = automation.register_action(
-        f"midea_ac.{name}", type_, validator, synchronous=True
-    )
-
-    def decorator(func):
-        async def new_func(config, action_id, template_arg, args):
-            ac_ = await cg.get_variable(config[CONF_ID])
-            var = cg.new_Pvariable(action_id, template_arg)
-            cg.add(var.set_parent(ac_))
-            await coroutine(func)(var, config, args)
-            return var
-
-        return registerer(new_func)
-
-    return decorator
 
 
 ALLOWED_CLIMATE_MODES = {
@@ -101,11 +85,27 @@ CUSTOM_PRESETS = {
     "FREEZE_PROTECTION": Capabilities.FREEZE_PROTECTION,
 }
 
+# How midea_ac.display_toggle reaches the appliance; see do_display_toggle() for the AUTO rules
+DISPLAY_CONTROLS = DisplayControl.options(
+    "UART", "AUTO", "IR", prefix="DISPLAY_CONTROL_"
+)
+
 validate_modes = cv.enum(ALLOWED_CLIMATE_MODES, upper=True)
 validate_presets = cv.enum(ALLOWED_CLIMATE_PRESETS, upper=True)
 validate_swing_modes = cv.enum(ALLOWED_CLIMATE_SWING_MODES, upper=True)
 validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 validate_custom_presets = cv.enum(CUSTOM_PRESETS, upper=True)
+validate_display_control = cv.enum(DISPLAY_CONTROLS, upper=True)
+
+
+def validate_display_control_with_transmitter(config: ConfigType) -> ConfigType:
+    """`display_control: IR` needs a `remote_transmitter` to send through; UART and AUTO do not."""
+    if config.get(CONF_DISPLAY_CONTROL) == "IR" and CONF_TRANSMITTER_ID not in config:
+        raise cv.Invalid(
+            f"'{CONF_DISPLAY_CONTROL}: IR' requires '{CONF_TRANSMITTER_ID}' to be set"
+        )
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(AirConditioner)
@@ -119,6 +119,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
             cv.Optional(CONF_AUTOCONF, default=True): cv.boolean,
+            cv.Optional(CONF_DISPLAY_CONTROL, default="AUTO"): validate_display_control,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(validate_modes),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
                 validate_swing_modes
@@ -153,7 +154,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
+    validate_display_control_with_transmitter,
     cv.only_on(
         [
             PLATFORM_ESP32,
@@ -161,16 +162,6 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
 )
-
-# Actions
-FollowMeAction = midea_ac_ns.class_("FollowMeAction", automation.Action)
-DisplayToggleAction = midea_ac_ns.class_("DisplayToggleAction", automation.Action)
-SwingStepAction = midea_ac_ns.class_("SwingStepAction", automation.Action)
-BeeperOnAction = midea_ac_ns.class_("BeeperOnAction", automation.Action)
-BeeperOffAction = midea_ac_ns.class_("BeeperOffAction", automation.Action)
-PowerOnAction = midea_ac_ns.class_("PowerOnAction", automation.Action)
-PowerOffAction = midea_ac_ns.class_("PowerOffAction", automation.Action)
-PowerToggleAction = midea_ac_ns.class_("PowerToggleAction", automation.Action)
 
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
@@ -188,84 +179,31 @@ MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
 )
 
 
-@register_action("follow_me", FollowMeAction, MIDEA_FOLLOW_ME_SCHEMA)
-async def follow_me_to_code(var, config, args):
-    template_ = await cg.templatable(config[CONF_BEEPER], args, cg.bool_)
-    cg.add(var.set_beeper(template_))
-    template_ = await cg.templatable(config[CONF_USE_FAHRENHEIT], args, cg.bool_)
-    cg.add(var.set_use_fahrenheit(template_))
-    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
-    cg.add(var.set_temperature(template_))
-
-
-# Toggle Display action
-@register_action(
-    "display_toggle",
-    DisplayToggleAction,
-    cv.Schema({}),
+automation.register_apply_action(
+    "midea_ac.follow_me",
+    templatize(MIDEA_FOLLOW_ME_SCHEMA).extend(MIDEA_ACTION_BASE_SCHEMA),
+    automation.ApplyCall(
+        "do_follow_me({}, {}, {})",
+        (
+            (CONF_TEMPERATURE, cg.float_),
+            (CONF_USE_FAHRENHEIT, cg.bool_),
+            (CONF_BEEPER, cg.bool_),
+        ),
+    ),
 )
-async def display_toggle_to_code(var, config, args):
-    pass
 
-
-# Swing Step action
-@register_action(
-    "swing_step",
-    SwingStepAction,
-    cv.Schema({}),
-)
-async def swing_step_to_code(var, config, args):
-    pass
-
-
-# Beeper On action
-@register_action(
-    "beeper_on",
-    BeeperOnAction,
-    cv.Schema({}),
-)
-async def beeper_on_to_code(var, config, args):
-    pass
-
-
-# Beeper Off action
-@register_action(
-    "beeper_off",
-    BeeperOffAction,
-    cv.Schema({}),
-)
-async def beeper_off_to_code(var, config, args):
-    pass
-
-
-# Power On action
-@register_action(
-    "power_on",
-    PowerOnAction,
-    cv.Schema({}),
-)
-async def power_on_to_code(var, config, args):
-    pass
-
-
-# Power Off action
-@register_action(
-    "power_off",
-    PowerOffAction,
-    cv.Schema({}),
-)
-async def power_off_to_code(var, config, args):
-    pass
-
-
-# Power Toggle action
-@register_action(
-    "power_toggle",
-    PowerToggleAction,
-    cv.Schema({}),
-)
-async def power_inv_to_code(var, config, args):
-    pass
+for _name, _call in (
+    ("midea_ac.display_toggle", "do_display_toggle()"),
+    ("midea_ac.swing_step", "do_swing_step()"),
+    ("midea_ac.beeper_on", "do_beeper_on()"),
+    ("midea_ac.beeper_off", "do_beeper_off()"),
+    ("midea_ac.power_on", "do_power_on()"),
+    ("midea_ac.power_off", "do_power_off()"),
+    ("midea_ac.power_toggle", "do_power_toggle()"),
+):
+    automation.register_apply_action(
+        _name, MIDEA_ACTION_BASE_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
@@ -281,11 +219,13 @@ async def to_code(config):
     cg.add(var.set_response_timeout(config[CONF_TIMEOUT].total_milliseconds))
     cg.add(var.set_request_attempts(config[CONF_NUM_ATTEMPTS]))
     if CONF_TRANSMITTER_ID in config:
+        remote_base.request_protocol("midea")  # ir_transmitter.h uses it from C++
         cg.add_define("USE_REMOTE_TRANSMITTER")
         transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
         cg.add(var.set_transmitter(transmitter_))
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
+    cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
     if CONF_SUPPORTED_SWING_MODES in config:
@@ -296,16 +236,18 @@ async def to_code(config):
         cg.add(var.set_custom_presets(config[CONF_CUSTOM_PRESETS]))
     if CONF_CUSTOM_FAN_MODES in config:
         cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
-    if CONF_OUTDOOR_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
-        cg.add(var.set_outdoor_temperature_sensor(sens))
-    if CONF_POWER_USAGE in config:
-        sens = await sensor.new_sensor(config[CONF_POWER_USAGE])
-        cg.add(var.set_power_sensor(sens))
-    if CONF_HUMIDITY_SETPOINT in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
-        cg.add(var.set_humidity_setpoint_sensor(sens))
-    # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
-    if CORE.is_esp32:
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_OUTDOOR_TEMPERATURE, var.set_outdoor_temperature_sensor)
+    await sensors(CONF_POWER_USAGE, var.set_power_sensor)
+    await sensors(CONF_HUMIDITY_SETPOINT, var.set_humidity_setpoint_sensor)
+    # MideaUART uses the Arduino WiFi API for the network-notify frame
+    # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
+    # library talks to esp_wifi directly, so no library entry is needed.
+    if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
-    cg.add_library("dudanov/MideaUART", "1.1.9")
+    # Using the repository until a release containing ESP-IDF support is published
+    cg.add_library(
+        name="MideaUART",
+        version=None,
+        repository="https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815",
+    )

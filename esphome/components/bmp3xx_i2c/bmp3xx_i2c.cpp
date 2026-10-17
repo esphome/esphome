@@ -4,7 +4,7 @@
 
 namespace esphome::bmp3xx_i2c {
 
-static const char *const TAG = "bmp3xx_i2c.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp3xx_i2c.sensor");
 
 bool BMP3XXI2CComponent::read_byte(uint8_t a_register, uint8_t *data) {
   return I2CDevice::read_byte(a_register, data);

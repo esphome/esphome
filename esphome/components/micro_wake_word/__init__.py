@@ -2,16 +2,18 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import re
 from urllib.parse import urljoin
 
 from esphome import automation, external_files, git
-from esphome.automation import register_action, register_condition
 from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
 from esphome.components import esp32, microphone, ota, psram
+from esphome.components.http_request import validate_url
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
+    CONF_FRAMEWORK,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MICROPHONE,
@@ -25,10 +27,12 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
     CONF_USERNAME,
+    PLATFORM_ESP32,
     TYPE_GIT,
     TYPE_LOCAL,
 )
 from esphome.core import CORE, HexInt
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,9 +44,12 @@ DEPENDENCIES = ["microphone"]
 DOMAIN = "micro_wake_word"
 
 
+CONF_TASK_CORE = "task_core"
+
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
 CONF_MODELS = "models"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+CONF_PREFER_INTERNAL_RAM = "prefer_internal_ram"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
 CONF_SLIDING_WINDOW_AVERAGE_SIZE = "sliding_window_average_size"
 CONF_SLIDING_WINDOW_SIZE = "sliding_window_size"
@@ -56,17 +63,6 @@ micro_wake_word_ns = cg.esphome_ns.namespace("micro_wake_word")
 
 MicroWakeWord = micro_wake_word_ns.class_("MicroWakeWord", cg.Component)
 
-DisableModelAction = micro_wake_word_ns.class_("DisableModelAction", automation.Action)
-EnableModelAction = micro_wake_word_ns.class_("EnableModelAction", automation.Action)
-StartAction = micro_wake_word_ns.class_("StartAction", automation.Action)
-StopAction = micro_wake_word_ns.class_("StopAction", automation.Action)
-
-ModelIsEnabledCondition = micro_wake_word_ns.class_(
-    "ModelIsEnabledCondition", automation.Condition
-)
-IsRunningCondition = micro_wake_word_ns.class_(
-    "IsRunningCondition", automation.Condition
-)
 
 WakeWordModel = micro_wake_word_ns.class_("WakeWordModel")
 
@@ -164,12 +160,7 @@ MANIFEST_SCHEMA_V2 = cv.Schema(
 
 
 def _compute_local_file_path(config: dict) -> Path:
-    url = config[CONF_URL]
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, config[CONF_URL])
 
 
 def _convert_manifest_v1_to_v2(v1_manifest):
@@ -209,33 +200,13 @@ def _validate_manifest_version(manifest_data):
         raise cv.Invalid("Invalid manifest file, missing 'version' key")
 
 
-def _process_http_source(config):
-    url = config[CONF_URL]
-    path = _compute_local_file_path(config)
-
-    json_path = path / "manifest.json"
-
-    json_contents = external_files.download_content(url, json_path)
-
-    manifest_data = json.loads(json_contents)
-    if not isinstance(manifest_data, dict):
-        raise cv.Invalid("Manifest file must contain a JSON object")
-
-    model = manifest_data[CONF_MODEL]
-    model_url = urljoin(url, model)
-
-    model_path = path / model
-
-    external_files.download_content(str(model_url), model_path)
-
-    return config
-
-
-HTTP_SCHEMA = cv.All(
+HTTP_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_URL): cv.url,
-    },
-    _process_http_source,
+        # validate_url only accepts http(s); the shorthand validator relies
+        # on this branch rejecting git shorthands ("github://...") so they
+        # fall through to the git branch.
+        cv.Required(CONF_URL): validate_url,
+    }
 )
 
 
@@ -280,12 +251,22 @@ LOCAL_SCHEMA = cv.All(
 )
 
 
+# Bare model names in the official model repository ("okay_nabu"). Must not
+# overlap with local paths, http(s) urls, or git shorthands
+# ("github://user/repo/file.json@ref"), which the shorthand validator tries
+# next; anything containing "/", ":" or "@" is not a model name.
+_MODEL_NAME_RE = re.compile(r"[A-Za-z0-9_.-]+")
+
+
 def _validate_source_model_name(value):
     if not isinstance(value, str):
         raise cv.Invalid("Model name must be a string")
 
     if value.endswith(".json"):
         raise cv.Invalid("Model name must not end with .json")
+
+    if not _MODEL_NAME_RE.fullmatch(value):
+        raise cv.Invalid("Model name may only contain letters, numbers, . _ -")
 
     return MODEL_SOURCE_SCHEMA(
         {
@@ -376,6 +357,82 @@ def _maybe_empty_vad_schema(value):
     return VAD_MODEL_SCHEMA(value)
 
 
+def _download_http_models(config: ConfigType) -> ConfigType:
+    """Download every http-sourced manifest and model file in two concurrent
+    batches (all manifests, then all model files).
+
+    The model file's URL only becomes known once its manifest has been
+    fetched and parsed, so the two stages cannot be merged into one batch.
+    """
+    model_parameters = [*config[CONF_MODELS]]
+    if vad := config.get(CONF_VAD):
+        model_parameters.append(vad)
+    # Keyed by cache path so a URL referenced twice is fetched and parsed once
+    http_models: dict[Path, str] = {
+        _compute_local_file_path(model_config): model_config[CONF_URL]
+        for parameters in model_parameters
+        if (model_config := parameters.get(CONF_MODEL)) is not None
+        and model_config.get(CONF_TYPE) == TYPE_HTTP
+    }
+    if not http_models:
+        return config
+
+    external_files.download_content_many(
+        (
+            external_files.RemoteFile(url, path / "manifest.json")
+            for path, url in http_models.items()
+        ),
+        description="wake word manifest(s)",
+    )
+
+    model_files: list[external_files.RemoteFile] = []
+    errors: list[cv.Invalid] = []
+    for path, url in http_models.items():
+        try:
+            manifest_data = json.loads((path / "manifest.json").read_bytes())
+        except (OSError, ValueError) as e:
+            errors.append(cv.Invalid(f"Invalid manifest file at {url}: {e}"))
+            continue
+        if not isinstance(manifest_data, dict):
+            errors.append(
+                cv.Invalid(f"Manifest file at {url} must contain a JSON object")
+            )
+            continue
+        model = manifest_data.get(CONF_MODEL)
+        if not isinstance(model, str):
+            errors.append(
+                cv.Invalid(f"Manifest file at {url} is missing the 'model' key")
+            )
+            continue
+        model_files.append(external_files.RemoteFile(urljoin(url, model), path / model))
+    if errors:
+        raise cv.MultipleInvalid(errors)
+
+    external_files.download_content_many(model_files, description="wake word model(s)")
+    return config
+
+
+def _validate_task_core(config: ConfigType) -> ConfigType:
+    if config[CONF_TASK_CORE] != 1:
+        return config
+    esp32.only_on_variant(
+        supported=[
+            esp32.VARIANT_ESP32,
+            esp32.VARIANT_ESP32S3,
+            esp32.VARIANT_ESP32P4,
+            esp32.VARIANT_ESP32H4,
+            esp32.VARIANT_ESP32S31,
+        ],
+        msg_prefix="micro_wake_word task_core: 1",
+    )(config)
+    sdkconfig = fv.full_config.get()[PLATFORM_ESP32][CONF_FRAMEWORK][
+        esp32.CONF_SDKCONFIG_OPTIONS
+    ]
+    if sdkconfig.get("CONFIG_FREERTOS_UNICORE") == "y":
+        raise cv.Invalid("task_core: 1 requires FreeRTOS dual-core mode")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -388,7 +445,7 @@ CONFIG_SCHEMA = cv.All(
                 min_channels=1,
                 max_channels=1,
             ),
-            cv.Required(CONF_MODELS): cv.ensure_list(
+            cv.Optional(CONF_MODELS, default=[]): cv.ensure_list(
                 cv.maybe_simple_value(MODEL_SCHEMA, key=CONF_MODEL)
             ),
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
@@ -396,6 +453,8 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VAD): _maybe_empty_vad_schema,
             cv.Optional(CONF_STOP_AFTER_DETECTION, default=True): cv.boolean,
+            cv.Optional(CONF_TASK_CORE, default=-1): cv.int_range(min=-1, max=1),
+            cv.Optional(CONF_PREFER_INTERNAL_RAM, default=False): cv.boolean,
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_MODEL): cv.invalid(
                 f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
@@ -409,6 +468,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
+    _download_http_models,
 )
 
 
@@ -476,6 +536,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         },
         extra=cv.ALLOW_EXTRA,
     ),
+    _validate_task_core,
     _feature_step_size_validate,
 )
 
@@ -488,6 +549,14 @@ async def to_code(config):
     cg.add(var.set_microphone_source(mic_source))
 
     cg.add_define("USE_MICRO_WAKE_WORD")
+    cg.add_define(
+        "MICRO_WAKE_WORD_TASK_CORE",
+        cg.RawExpression("tskNO_AFFINITY")
+        if config[CONF_TASK_CORE] == -1
+        else config[CONF_TASK_CORE],
+    )
+    if config[CONF_PREFER_INTERNAL_RAM]:
+        cg.add_define("USE_MICRO_WAKE_WORD_INTERNAL_RAM")
     ota.request_ota_state_listeners()
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
@@ -510,6 +579,9 @@ async def to_code(config):
         # Use the general model loading code for the VAD codegen
         config[CONF_MODELS].append(vad_model)
 
+    # Default feature step size for runtime models
+    feature_step_size = 10
+
     for i, model_parameters in enumerate(config[CONF_MODELS]):
         model_config = model_parameters.get(CONF_MODEL)
         data = []
@@ -528,10 +600,14 @@ async def to_code(config):
             manifest[KEY_MICRO][CONF_SLIDING_WINDOW_SIZE],
         )
 
+        # Update feature step size from manifest
+        feature_step_size = manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]
+
         if manifest[KEY_WAKE_WORD] == "vad":
             cg.add(
                 var.add_vad_model(
                     prog_arr,
+                    len(data),
                     quantized_probability_cutoff,
                     sliding_window_size,
                     manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE],
@@ -544,6 +620,7 @@ async def to_code(config):
                 model_parameters[CONF_ID],
                 str(model_parameters[CONF_ID]),
                 prog_arr,
+                len(data),
                 quantized_probability_cutoff,
                 sliding_window_size,
                 manifest[KEY_WAKE_WORD],
@@ -557,7 +634,7 @@ async def to_code(config):
 
             cg.add(var.add_wake_word_model(wake_word_model))
 
-    cg.add(var.set_features_step_size(manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]))
+    cg.add(var.set_features_step_size(feature_step_size))
     cg.add(var.set_stop_after_detection(config[CONF_STOP_AFTER_DETECTION]))
 
     if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
@@ -570,23 +647,19 @@ async def to_code(config):
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
 
-
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.start",
-    StartAction,
     MICRO_WAKE_WORD_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("start()"),
 )
-@register_action(
-    "micro_wake_word.stop", StopAction, MICRO_WAKE_WORD_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "micro_wake_word.stop",
+    MICRO_WAKE_WORD_ACTION_SCHEMA,
+    automation.ApplyCall("stop()"),
 )
-@register_condition(
-    "micro_wake_word.is_running", IsRunningCondition, MICRO_WAKE_WORD_ACTION_SCHEMA
+automation.register_apply_condition(
+    "micro_wake_word.is_running", MICRO_WAKE_WORD_ACTION_SCHEMA, "is_running()"
 )
-async def micro_wake_word_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -595,24 +668,18 @@ MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.enable_model",
-    EnableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("enable()"),
 )
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.disable_model",
-    DisableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("disable()"),
 )
-@register_condition(
+automation.register_apply_condition(
     "micro_wake_word.model_is_enabled",
-    ModelIsEnabledCondition,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
+    "is_enabled()",
 )
-async def model_action(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)

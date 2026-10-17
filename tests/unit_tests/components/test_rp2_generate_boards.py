@@ -8,7 +8,11 @@ import textwrap
 
 import pytest
 
-from esphome.components.rp2.generate_boards import load_boards, parse_variant_pins
+from esphome.components.rp2.generate_boards import (
+    generate,
+    load_boards,
+    parse_variant_pins,
+)
 
 PICO_PINS_HEADER = textwrap.dedent("""\
     #pragma once
@@ -151,6 +155,8 @@ def test_load_basic_board(arduino_pico: Path) -> None:
     assert boards["rpipico"]["name"] == "Raspberry Pi Pico"
     assert boards["rpipico"]["mcu"] == "rp2040"
     assert boards["rpipico"]["max_pin"] == 29
+    # The die key only applies to the RP2350, which ships as more than one die
+    assert "die" not in boards["rpipico"]
 
     assert "rpipico" in board_pins
     assert board_pins["rpipico"]["LED"] == 25
@@ -158,19 +164,195 @@ def test_load_basic_board(arduino_pico: Path) -> None:
 
 
 def test_load_rp2350_board(arduino_pico: Path) -> None:
+    """The Pico 2 uses the RP2350A die, which only exposes GPIO 0-29."""
     _add_board(
         arduino_pico,
         "rpipico2",
         mcu="rp2350",
         vendor="Raspberry Pi",
         name="Pico 2",
-        pins_header=PICO_PINS_HEADER,
+        pins_header="#define PICO_RP2350A 1\n" + PICO_PINS_HEADER,
     )
 
     _, boards = load_boards(arduino_pico)
 
     assert boards["rpipico2"]["mcu"] == "rp2350"
-    assert boards["rpipico2"]["max_pin"] == 47
+    assert boards["rpipico2"]["max_pin"] == 29
+    assert boards["rpipico2"]["die"] == "A"
+
+
+def test_rp2350_missing_die_define_raises(arduino_pico: Path) -> None:
+    """A variant without PICO_RP2350A cannot be classified; fail loudly."""
+    _add_board(
+        arduino_pico,
+        "no_die_define",
+        mcu="rp2350",
+        pins_header=PICO_PINS_HEADER,
+    )
+
+    with pytest.raises(ValueError, match="no PICO_RP2350A define"):
+        load_boards(arduino_pico)
+
+
+def test_rp2350_unrecognized_die_define_raises(arduino_pico: Path) -> None:
+    """An unparseable PICO_RP2350A value must not silently widen to B-die."""
+    _add_board(
+        arduino_pico,
+        "hex_die_define",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A 0x1\n" + PICO_PINS_HEADER,
+    )
+
+    with pytest.raises(ValueError, match="unrecognized PICO_RP2350A value"):
+        load_boards(arduino_pico)
+
+
+def test_rp2350_unknown_die_define_raises(arduino_pico: Path) -> None:
+    """A third die breaks the "not A means B" reading, so stop rather than guess."""
+    _add_board(
+        arduino_pico,
+        "future_die",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A 0\n#define PICO_RP2350C 1\n"
+        + PICO_PINS_HEADER,
+    )
+
+    with pytest.raises(ValueError, match="found a PICO_RP2350C define"):
+        load_boards(arduino_pico)
+
+
+def test_rp2350_silicon_revision_define_ignored(arduino_pico: Path) -> None:
+    """PICO_RP2350_A2_SUPPORTED is a silicon revision, not a die letter."""
+    _add_board(
+        arduino_pico,
+        "revision_define",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A 1\n#define PICO_RP2350_A2_SUPPORTED 1\n"
+        + PICO_PINS_HEADER,
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert boards["revision_define"]["die"] == "A"
+
+
+def test_rp2350a_parenthesized_die_define(arduino_pico: Path) -> None:
+    """Literal forms like (1u) classify the same as bare 1."""
+    _add_board(
+        arduino_pico,
+        "paren_die",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A (1u)\n" + PICO_PINS_HEADER,
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert boards["paren_die"]["max_pin"] == 29
+    assert boards["paren_die"]["die"] == "A"
+
+
+def test_rp2350b_board_keeps_max_pin_47(arduino_pico: Path) -> None:
+    """A variant declaring the RP2350B die keeps the full GPIO 0-47 range.
+
+    The define uses extra whitespace, matching real variant headers.
+    """
+    _add_board(
+        arduino_pico,
+        "weact_rp2350b",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A   0 // RP2350B\n" + PICO_PINS_HEADER,
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert boards["weact_rp2350b"]["max_pin"] == 47
+    assert boards["weact_rp2350b"]["die"] == "B"
+
+
+def test_rp2350_menu_selectable_die_keeps_max_pin_47(arduino_pico: Path) -> None:
+    """Generic boards leave the die a build-time choice; stay permissive.
+
+    The permissive range is a fallback, so the die must be recorded as unknown
+    rather than as the B die.
+    """
+    _add_board(
+        arduino_pico,
+        "generic_rp2350",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A __PICO_RP2350A\n" + PICO_PINS_HEADER,
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert boards["generic_rp2350"]["max_pin"] == 47
+    assert boards["generic_rp2350"]["die"] is None
+
+
+def test_generated_output_records_die(arduino_pico: Path) -> None:
+    """The rendered boards.py carries the die on every RP2350 entry."""
+    _add_board(
+        arduino_pico,
+        "rpipico",
+        pins_header=PICO_PINS_HEADER,
+    )
+    _add_board(
+        arduino_pico,
+        "a_die",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A 1\n" + PICO_PINS_HEADER,
+    )
+    _add_board(
+        arduino_pico,
+        "b_die",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A 0\n" + PICO_PINS_HEADER,
+    )
+    _add_board(
+        arduino_pico,
+        "menu_die",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A __PICO_RP2350A\n" + PICO_PINS_HEADER,
+    )
+
+    namespace: dict = {}
+    exec(compile(generate(arduino_pico), "boards.py", "exec"), namespace)
+
+    boards = namespace["BOARDS"]
+    assert boards["a_die"]["die"] == "A"
+    assert boards["b_die"]["die"] == "B"
+    assert boards["menu_die"]["die"] is None
+    assert "die" not in boards["rpipico"]
+
+
+def test_rp2350a_pins_above_29_filtered(arduino_pico: Path) -> None:
+    """Pin defines beyond the A-die range are dropped from the pin map."""
+    header = textwrap.dedent("""\
+        #define PICO_RP2350A 1
+        #define PIN_LED        (25u)
+        #define PIN_SPI0_MISO  (40u)
+    """)
+    _add_board(arduino_pico, "a_die", mcu="rp2350", pins_header=header)
+
+    board_pins, _ = load_boards(arduino_pico)
+
+    assert board_pins["a_die"]["LED"] == 25
+    assert "MISO" not in board_pins["a_die"]
+
+
+def test_rp2350a_board_keeps_cyw43_virtual_pins(arduino_pico: Path) -> None:
+    """A-die narrowing must not filter CYW43 virtual pins (64-66)."""
+    _add_board(
+        arduino_pico,
+        "rpipico2w",
+        mcu="rp2350",
+        pins_header="#define PICO_RP2350A 1\n" + PICOW_PINS_HEADER,
+    )
+
+    board_pins, boards = load_boards(arduino_pico)
+
+    assert boards["rpipico2w"]["max_pin"] == 29
+    assert boards["rpipico2w"]["max_virtual_pin"] == 64
+    assert board_pins["rpipico2w"]["LED"] == 64
 
 
 def test_cyw43_board_has_max_virtual_pin(arduino_pico: Path) -> None:

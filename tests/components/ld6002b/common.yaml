@@ -1,0 +1,167 @@
+ld6002b:
+  id: ld6002b_radar
+  wakeup_pin: GPIO14
+
+sensor:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    target_count:
+      name: Target Count
+    point_count:
+      name: Point Count
+    target_1:
+      x:
+        name: Target-1 X
+      y:
+        name: Target-1 Y
+      z:
+        name: Target-1 Z
+      doppler_index:
+        name: Target-1 Dop
+      cluster_id:
+        name: Target-1 Cluster
+    target_2:
+      x:
+        name: Target-2 X
+      y:
+        name: Target-2 Y
+      z:
+        name: Target-2 Z
+      doppler_index:
+        name: Target-2 Dop
+      cluster_id:
+        name: Target-2 Cluster
+    target_3:
+      x:
+        name: Target-3 X
+      y:
+        name: Target-3 Y
+      z:
+        name: Target-3 Z
+      doppler_index:
+        name: Target-3 Dop
+      cluster_id:
+        name: Target-3 Cluster
+    interference_area_0:
+      x_min:
+        name: Interference-0 X Min
+      x_max:
+        name: Interference-0 X Max
+      y_min:
+        name: Interference-0 Y Min
+      y_max:
+        name: Interference-0 Y Max
+      z_min:
+        name: Interference-0 Z Min
+      z_max:
+        name: Interference-0 Z Max
+    detection_area_0:
+      x_min:
+        name: Detection-0 X Min
+      x_max:
+        name: Detection-0 X Max
+      y_min:
+        name: Detection-0 Y Min
+      y_max:
+        name: Detection-0 Y Max
+      z_min:
+        name: Detection-0 Z Min
+      z_max:
+        name: Detection-0 Z Max
+
+binary_sensor:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    target:
+      name: Presence
+    target_1:
+      name: Target-1 Presence
+    detection_area_0:
+      name: Detection Area-0 Presence
+
+text_sensor:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    work_mode:
+      name: Work Mode
+    ota_version:
+      name: OTA Version
+
+number:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    hold_delay:
+      name: Hold Delay
+    z_min:
+      name: Z Min
+    z_max:
+      name: Z Max
+    low_power_sleep_time:
+      name: Low Power Sleep
+    area_config:
+      x_min:
+        name: Area X Min
+      x_max:
+        name: Area X Max
+      y_min:
+        name: Area Y Min
+      y_max:
+        name: Area Y Max
+      z_min:
+        name: Area Z Min
+      z_max:
+        name: Area Z Max
+
+select:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    sensitivity:
+      name: Sensitivity
+    trigger_speed:
+      name: Trigger Speed
+    installation_mode:
+      name: Installation
+    area_id:
+      name: Area ID
+
+switch:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    low_power:
+      name: Low Power
+    point_cloud:
+      name: Point Cloud
+    target_display:
+      name: Target Display
+
+button:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    apply_area:
+      name: Apply Area
+    auto_interference:
+      name: Auto Interference
+    get_areas:
+      name: Get Areas
+    clear_interference:
+      name: Clear Interference
+    reset_detection_area:
+      name: Reset Detection
+    get_delay:
+      name: Get Delay
+    get_sensitivity:
+      name: Get Sensitivity
+    get_trigger_speed:
+      name: Get Trigger Speed
+    get_z_range:
+      name: Get Z Range
+    get_installation:
+      name: Get Installation
+    get_low_power_mode:
+      name: Get Low Power Mode
+    get_low_power_sleep_time:
+      name: Get Low Power Sleep
+    reset_unattended:
+      name: Reset Unattended
+    wake:
+      name: Wake

@@ -16,9 +16,11 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_TYPE,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "msa3xx"
 
 MULTI_CONF = True
 
@@ -46,12 +48,7 @@ MSA_MODELS = {
 }
 
 MSARange = msa3xx_ns.enum("Range", True)
-MSA_RANGES = {
-    "2G": MSARange.RANGE_2G,
-    "4G": MSARange.RANGE_4G,
-    "8G": MSARange.RANGE_8G,
-    "16G": MSARange.RANGE_16G,
-}
+MSA_RANGES = MSARange.options("2G", "4G", "8G", "16G", prefix="RANGE_")
 
 MSAResolution = msa3xx_ns.enum("Resolution", True)
 RESOLUTIONS_MSA301 = {
@@ -123,7 +120,7 @@ MSA_SENSOR_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

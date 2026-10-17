@@ -29,7 +29,18 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
 
   void set_pdm(bool pdm) { this->pdm_ = pdm; }
 
+#if SOC_I2S_SUPPORTS_PDM_RX
+  void set_pdm_dsr(i2s_pdm_dsr_t pdm_dsr) { this->pdm_dsr_ = pdm_dsr; }
+#endif
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  void build_full_duplex_config(i2s_std_config_t &std_cfg) override;
+#endif
+
  protected:
+  /// @brief Builds the standard (non-PDM) mode configuration from the configured settings.
+  void build_std_config_(i2s_std_config_t &std_cfg) const;
+
   /// @brief Starts the I2S driver. Updates the ``audio_stream_info_`` member variable with the current setttings.
   /// @return True if succesful, false otherwise
   bool start_driver_();
@@ -42,7 +53,7 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   /// @param data
   void fix_dc_offset_(std::vector<uint8_t> &data);
 
-  size_t read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait);
+  size_t read_(uint8_t *buf, size_t len, uint32_t timeout_ms);
 
   /// @brief Sets the Microphone ``audio_stream_info_`` member variable to the configured I2S settings.
   void configure_stream_settings_();
@@ -55,9 +66,12 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   TaskHandle_t task_handle_{nullptr};
 
   gpio_num_t din_pin_{I2S_GPIO_UNUSED};
-  i2s_chan_handle_t rx_handle_;
-  bool pdm_{false};
+  i2s_chan_handle_t rx_handle_{nullptr};
+#if SOC_I2S_SUPPORTS_PDM_RX
+  i2s_pdm_dsr_t pdm_dsr_{I2S_PDM_DSR_8S};
+#endif
 
+  bool pdm_{false};
   bool correct_dc_offset_;
   bool locked_driver_{false};
   int32_t dc_offset_prev_input_{0};

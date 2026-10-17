@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
@@ -26,26 +27,21 @@ SHT4XComponent = sht4x_ns.class_(
 
 CONF_PRECISION = "precision"
 SHT4XPRECISION = sht4x_ns.enum("SHT4XPRECISION")
-PRECISION_OPTIONS = {
-    "High": SHT4XPRECISION.SHT4X_PRECISION_HIGH,
-    "Med": SHT4XPRECISION.SHT4X_PRECISION_MED,
-    "Low": SHT4XPRECISION.SHT4X_PRECISION_LOW,
-}
+PRECISION_OPTIONS = SHT4XPRECISION.options(
+    "High", "Med", "Low", prefix="SHT4X_PRECISION_"
+)
 
 CONF_HEATER_POWER = "heater_power"
 SHT4XHEATERPOWER = sht4x_ns.enum("SHT4XHEATERPOWER")
-HEATER_POWER_OPTIONS = {
-    "High": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_HIGH,
-    "Med": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_MED,
-    "Low": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_LOW,
-}
+HEATER_POWER_OPTIONS = SHT4XHEATERPOWER.options(
+    "High", "Med", "Low", prefix="SHT4X_HEATERPOWER_"
+)
 
 CONF_HEATER_TIME = "heater_time"
 SHT4XHEATERTIME = sht4x_ns.enum("SHT4XHEATERTIME")
-HEATER_TIME_OPTIONS = {
-    "Long": SHT4XHEATERTIME.SHT4X_HEATERTIME_LONG,
-    "Short": SHT4XHEATERTIME.SHT4X_HEATERTIME_SHORT,
-}
+HEATER_TIME_OPTIONS = SHT4XHEATERTIME.options(
+    "Long", "Short", prefix="SHT4X_HEATERTIME_"
+)
 
 CONF_HEATER_MAX_DUTY = "heater_max_duty"
 
@@ -87,7 +83,7 @@ TYPES = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

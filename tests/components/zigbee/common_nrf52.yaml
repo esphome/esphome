@@ -3,10 +3,12 @@ packages:
 
 zigbee:
   model: zigbee_test
+  manufacturer: test
+  version: 1
   wipe_on_boot: true
   on_join:
     then:
       - logger.log: "Joined network"
-
-time:
-  - platform: zigbee
+  on_start:
+    then:
+      - logger.log: "Started zigbee stack"

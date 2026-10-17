@@ -6,11 +6,11 @@
 
 namespace esphome::pcf85063 {
 
-static const char *const TAG = "pcf85063";
+ESPHOME_LOG_TAG(TAG, "pcf85063");
 
 void PCF85063Component::setup() {
   if (!this->read_rtc_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
@@ -19,9 +19,6 @@ void PCF85063Component::update() { this->read_time(); }
 void PCF85063Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCF85063:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   RealTimeClock::dump_config();
 }
 
@@ -37,7 +34,8 @@ void PCF85063Component::read_time() {
       .second = uint8_t(pcf85063_.reg.second + 10 * pcf85063_.reg.second_10),
       .minute = uint8_t(pcf85063_.reg.minute + 10u * pcf85063_.reg.minute_10),
       .hour = uint8_t(pcf85063_.reg.hour + 10u * pcf85063_.reg.hour_10),
-      .day_of_week = uint8_t(pcf85063_.reg.weekday),
+      // The chip counts weekdays 0-6 from Sunday, ESPTime counts 1-7
+      .day_of_week = uint8_t(this->pcf85063_.reg.weekday + 1),
       .day_of_month = uint8_t(pcf85063_.reg.day + 10u * pcf85063_.reg.day_10),
       .month = uint8_t(pcf85063_.reg.month + 10u * pcf85063_.reg.month_10),
       .year = uint16_t(pcf85063_.reg.year + 10u * pcf85063_.reg.year_10 + 2000),
@@ -62,7 +60,7 @@ void PCF85063Component::write_time() {
   pcf85063_.reg.month_10 = now.month / 10;
   pcf85063_.reg.day = now.day_of_month % 10;
   pcf85063_.reg.day_10 = now.day_of_month / 10;
-  pcf85063_.reg.weekday = now.day_of_week;
+  this->pcf85063_.reg.weekday = now.day_of_week - 1;
   pcf85063_.reg.hour = now.hour % 10;
   pcf85063_.reg.hour_10 = now.hour / 10;
   pcf85063_.reg.minute = now.minute % 10;

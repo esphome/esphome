@@ -12,7 +12,9 @@
 
 namespace esphome::ens210 {
 
-static const char *const TAG = "ens210";
+ESPHOME_LOG_TAG(TAG, "ens210");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 // ENS210 chip constants
 static const uint8_t ENS210_BOOTING_MS = 2;  // Booting time in ms (also after reset, or going to high power)
@@ -53,8 +55,6 @@ static const LogString *ens210_status_to_human(int status) {
       return LOG_STR("Invalid data");
     case ENS210Component::ENS210_STATUS_OK:
       return LOG_STR("Status OK");
-    case ENS210Component::ENS210_WRONG_CHIP_ID:
-      return LOG_STR("ENS210 has wrong chip ID! Is it a ENS210?");
     default:
       return LOG_STR("Unknown");
   }
@@ -91,8 +91,7 @@ void ENS210Component::setup() {
   // Reset
   if (!this->write_byte(ENS210_REGISTER_SYS_CTRL, 0x80)) {
     this->write_byte(ENS210_REGISTER_SYS_CTRL, 0x80);
-    this->error_code_ = ENS210_STATUS_I2C_ERROR;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // Wait to boot after reset
@@ -101,24 +100,24 @@ void ENS210Component::setup() {
   if (!set_low_power_(false)) {
     // Try to go back to default mode (low power enabled)
     set_low_power_(true);
-    this->error_code_ = ENS210_STATUS_I2C_ERROR;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // Read the PART_ID
   if (!this->read_bytes(ENS210_REGISTER_PART_ID, data, 2)) {
     // Try to go back to default mode (low power enabled)
     set_low_power_(true);
-    this->error_code_ = ENS210_STATUS_I2C_ERROR;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // Pack bytes into partid
   part_id = data[1] * 256U + data[0] * 1U;
   // Check expected part id of the ENS210
   if (part_id != ENS210_PART_ID) {
-    this->error_code_ = ENS210_WRONG_CHIP_ID;
-    this->mark_failed();
+    // Try to go back to default mode (low power enabled)
+    set_low_power_(true);
+    this->mark_failed(LOG_STR("Wrong chip ID"));
+    return;
   }
   // Set default power mode (low power enabled)
   set_low_power_(true);
@@ -127,9 +126,6 @@ void ENS210Component::setup() {
 void ENS210Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ENS210:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "%s", LOG_STR_ARG(ens210_status_to_human(this->error_code_)));
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -149,7 +145,7 @@ void ENS210Component::update() {
     return;
   }
   // Wait for measurement to complete
-  this->set_timeout("data", uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
     int temperature_data, temperature_status, humidity_data, humidity_status;
     uint8_t data[6];
     uint32_t h_val_data, t_val_data;
@@ -216,7 +212,7 @@ void ENS210Component::extract_measurement_(uint32_t val, int *data, int *status)
 // Sets ENS210 to low (true) or high (false) power. Returns false on I2C problems.
 bool ENS210Component::set_low_power_(bool enable) {
   uint8_t low_power_cmd = enable ? 0x01 : 0x00;
-  ESP_LOGD(TAG, "Enable low power: %s", enable ? "true" : "false");
+  ESP_LOGD(TAG, "Enable low power: %s", enable ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
   bool result = this->write_byte(ENS210_REGISTER_SYS_CTRL, low_power_cmd);
   delay(ENS210_BOOTING_MS);
   return result;

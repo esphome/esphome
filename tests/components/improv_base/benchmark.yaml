@@ -1,0 +1,6 @@
+# The builder test compares against the Improv library's build_rpc_response,
+# so the library must be part of the unit test build.
+# Keep the version in sync with the pin in esphome/components/improv_base/__init__.py.
+esphome:
+  libraries:
+    - improv/Improv@1.2.7

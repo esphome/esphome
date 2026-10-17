@@ -7,7 +7,7 @@
 
 namespace esphome::ina2xx_base {
 
-static const char *const TAG = "ina2xx";
+ESPHOME_LOG_TAG(TAG, "ina2xx");
 
 #define OKFAILED(b) ((b) ? "OK" : "FAILED")
 
@@ -50,15 +50,13 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 
 void INA2XX::setup() {
   if (!this->reset_config_()) {
-    ESP_LOGE(TAG, "Reset failed, check connection");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Reset failed, check connection"));
     return;
   }
   delay(2);
 
   if (!this->check_device_model_()) {
-    ESP_LOGE(TAG, "Device not supported or model selected improperly in yaml file");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Device not supported or model selected improperly in yaml file"));
     return;
   }
   delay(1);
@@ -197,9 +195,6 @@ void INA2XX::dump_config() {
     ESP_LOGE(TAG, "  Device model mismatch. Found device with ID = %x. Please check your configuration.",
              this->dev_id_);
   }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
                 "  Shunt resistance = %f Ohm\n"
@@ -209,7 +204,8 @@ void INA2XX::dump_config() {
                 "  CURRENT_LSB = %f\n"
                 "  SHUNT_CAL = %d",
                 this->shunt_resistance_ohm_, this->max_current_a_, this->shunt_tempco_ppm_c_,
-                (uint8_t) this->adc_range_, this->adc_range_ ? "±40.96 mV" : "±163.84 mV", this->current_lsb_,
+                (uint8_t) this->adc_range_,
+                this->adc_range_ ? LOG_STR_LITERAL("±40.96 mV") : LOG_STR_LITERAL("±163.84 mV"), this->current_lsb_,
                 this->shunt_cal_);
 
   ESP_LOGCONFIG(TAG, "  ADC Samples = %d; ADC times: Bus = %d μs, Shunt = %d μs, Temp = %d μs",

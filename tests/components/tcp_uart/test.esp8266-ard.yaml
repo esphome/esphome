@@ -1,0 +1,10 @@
+packages:
+  tcp_uart: !include common.yaml
+
+# load_settings() exists on ESP8266 and ESP32 only; both overloads must resolve.
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          id(tcp_uart_server).load_settings();
+          id(tcp_uart_server).load_settings(false);

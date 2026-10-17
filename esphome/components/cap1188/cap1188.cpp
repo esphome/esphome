@@ -4,7 +4,7 @@
 
 namespace esphome::cap1188 {
 
-static const char *const TAG = "cap1188";
+ESPHOME_LOG_TAG(TAG, "cap1188");
 
 void CAP1188Component::setup() {
   this->disable_loop();
@@ -37,8 +37,7 @@ void CAP1188Component::finish_setup_() {
   this->read_byte(CAP1188_REVISION, &this->cap1188_revision_);
 
   if ((this->cap1188_product_id_ != 0x50) || (this->cap1188_manufacture_id_ != 0x5D)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Product ID or Manufacture ID of the connected device does not match a known CAP1188"));
     return;
   }
 
@@ -70,15 +69,6 @@ void CAP1188Component::dump_config() {
                 this->cap1188_product_id_, this->cap1188_manufacture_id_, this->cap1188_revision_);
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Product ID or Manufacture ID of the connected device does not match a known CAP1188.");
-      break;
-    case NONE:
-    default:
-      break;
-  }
 }
 
 void CAP1188Component::loop() {

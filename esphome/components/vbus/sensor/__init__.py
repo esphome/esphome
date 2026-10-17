@@ -29,6 +29,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_DELTASOL_BS2,
@@ -650,272 +651,121 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    sensors = sensor.sub_sensors(config)
 
     if config[CONF_MODEL] == CONF_DELTASOL_BS_PLUS:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x4221))
         cg.add(var.set_dest(0x0010))
-        if CONF_TEMPERATURE_1 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_1])
-            cg.add(var.set_temperature1_sensor(sens))
-        if CONF_TEMPERATURE_2 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_2])
-            cg.add(var.set_temperature2_sensor(sens))
-        if CONF_TEMPERATURE_3 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_3])
-            cg.add(var.set_temperature3_sensor(sens))
-        if CONF_TEMPERATURE_4 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_4])
-            cg.add(var.set_temperature4_sensor(sens))
-        if CONF_PUMP_SPEED_1 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_1])
-            cg.add(var.set_pump_speed1_sensor(sens))
-        if CONF_PUMP_SPEED_2 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_2])
-            cg.add(var.set_pump_speed2_sensor(sens))
-        if CONF_OPERATING_HOURS_1 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_1])
-            cg.add(var.set_operating_hours1_sensor(sens))
-        if CONF_OPERATING_HOURS_2 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_2])
-            cg.add(var.set_operating_hours2_sensor(sens))
-        if CONF_HEAT_QUANTITY in config:
-            sens = await sensor.new_sensor(config[CONF_HEAT_QUANTITY])
-            cg.add(var.set_heat_quantity_sensor(sens))
-        if CONF_TIME in config:
-            sens = await sensor.new_sensor(config[CONF_TIME])
-            cg.add(var.set_time_sensor(sens))
-        if CONF_VERSION in config:
-            sens = await sensor.new_sensor(config[CONF_VERSION])
-            cg.add(var.set_version_sensor(sens))
+        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
+        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
+        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
+        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
+        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
+        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
+        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
+        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
+        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
+        await sensors(CONF_TIME, var.set_time_sensor)
+        await sensors(CONF_VERSION, var.set_version_sensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_BS_2009:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x427B))
         cg.add(var.set_dest(0x0010))
-        if CONF_TEMPERATURE_1 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_1])
-            cg.add(var.set_temperature1_sensor(sens))
-        if CONF_TEMPERATURE_2 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_2])
-            cg.add(var.set_temperature2_sensor(sens))
-        if CONF_TEMPERATURE_3 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_3])
-            cg.add(var.set_temperature3_sensor(sens))
-        if CONF_TEMPERATURE_4 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_4])
-            cg.add(var.set_temperature4_sensor(sens))
-        if CONF_PUMP_SPEED_1 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_1])
-            cg.add(var.set_pump_speed1_sensor(sens))
-        if CONF_PUMP_SPEED_2 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_2])
-            cg.add(var.set_pump_speed2_sensor(sens))
-        if CONF_OPERATING_HOURS_1 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_1])
-            cg.add(var.set_operating_hours1_sensor(sens))
-        if CONF_OPERATING_HOURS_2 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_2])
-            cg.add(var.set_operating_hours2_sensor(sens))
-        if CONF_HEAT_QUANTITY in config:
-            sens = await sensor.new_sensor(config[CONF_HEAT_QUANTITY])
-            cg.add(var.set_heat_quantity_sensor(sens))
-        if CONF_TIME in config:
-            sens = await sensor.new_sensor(config[CONF_TIME])
-            cg.add(var.set_time_sensor(sens))
-        if CONF_VERSION in config:
-            sens = await sensor.new_sensor(config[CONF_VERSION])
-            cg.add(var.set_version_sensor(sens))
+        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
+        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
+        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
+        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
+        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
+        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
+        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
+        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
+        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
+        await sensors(CONF_TIME, var.set_time_sensor)
+        await sensors(CONF_VERSION, var.set_version_sensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_BS2:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x4278))
         cg.add(var.set_dest(0x0010))
-        if CONF_TEMPERATURE_1 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_1])
-            cg.add(var.set_temperature1_sensor(sens))
-        if CONF_TEMPERATURE_2 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_2])
-            cg.add(var.set_temperature2_sensor(sens))
-        if CONF_TEMPERATURE_3 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_3])
-            cg.add(var.set_temperature3_sensor(sens))
-        if CONF_TEMPERATURE_4 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_4])
-            cg.add(var.set_temperature4_sensor(sens))
-        if CONF_PUMP_SPEED_1 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_1])
-            cg.add(var.set_pump_speed1_sensor(sens))
-        if CONF_PUMP_SPEED_2 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_2])
-            cg.add(var.set_pump_speed2_sensor(sens))
-        if CONF_OPERATING_HOURS_1 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_1])
-            cg.add(var.set_operating_hours1_sensor(sens))
-        if CONF_OPERATING_HOURS_2 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_2])
-            cg.add(var.set_operating_hours2_sensor(sens))
-        if CONF_HEAT_QUANTITY in config:
-            sens = await sensor.new_sensor(config[CONF_HEAT_QUANTITY])
-            cg.add(var.set_heat_quantity_sensor(sens))
-        if CONF_VERSION in config:
-            sens = await sensor.new_sensor(config[CONF_VERSION])
-            cg.add(var.set_version_sensor(sens))
+        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
+        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
+        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
+        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
+        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
+        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
+        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
+        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
+        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
+        await sensors(CONF_VERSION, var.set_version_sensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_C:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x4212))
         cg.add(var.set_dest(0x0010))
-        if CONF_TEMPERATURE_1 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_1])
-            cg.add(var.set_temperature1_sensor(sens))
-        if CONF_TEMPERATURE_2 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_2])
-            cg.add(var.set_temperature2_sensor(sens))
-        if CONF_TEMPERATURE_3 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_3])
-            cg.add(var.set_temperature3_sensor(sens))
-        if CONF_TEMPERATURE_4 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_4])
-            cg.add(var.set_temperature4_sensor(sens))
-        if CONF_PUMP_SPEED_1 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_1])
-            cg.add(var.set_pump_speed1_sensor(sens))
-        if CONF_PUMP_SPEED_2 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_2])
-            cg.add(var.set_pump_speed2_sensor(sens))
-        if CONF_OPERATING_HOURS_1 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_1])
-            cg.add(var.set_operating_hours1_sensor(sens))
-        if CONF_OPERATING_HOURS_2 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_2])
-            cg.add(var.set_operating_hours2_sensor(sens))
-        if CONF_HEAT_QUANTITY in config:
-            sens = await sensor.new_sensor(config[CONF_HEAT_QUANTITY])
-            cg.add(var.set_heat_quantity_sensor(sens))
-        if CONF_TIME in config:
-            sens = await sensor.new_sensor(config[CONF_TIME])
-            cg.add(var.set_time_sensor(sens))
+        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
+        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
+        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
+        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
+        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
+        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
+        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
+        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
+        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
+        await sensors(CONF_TIME, var.set_time_sensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_CS2:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x1121))
         cg.add(var.set_dest(0x0010))
-        if CONF_TEMPERATURE_1 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_1])
-            cg.add(var.set_temperature1_sensor(sens))
-        if CONF_TEMPERATURE_2 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_2])
-            cg.add(var.set_temperature2_sensor(sens))
-        if CONF_TEMPERATURE_3 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_3])
-            cg.add(var.set_temperature3_sensor(sens))
-        if CONF_TEMPERATURE_4 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_4])
-            cg.add(var.set_temperature4_sensor(sens))
-        if CONF_PUMP_SPEED in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED])
-            cg.add(var.set_pump_speed_sensor(sens))
-        if CONF_OPERATING_HOURS in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS])
-            cg.add(var.set_operating_hours_sensor(sens))
-        if CONF_HEAT_QUANTITY in config:
-            sens = await sensor.new_sensor(config[CONF_HEAT_QUANTITY])
-            cg.add(var.set_heat_quantity_sensor(sens))
-        if CONF_VERSION in config:
-            sens = await sensor.new_sensor(config[CONF_VERSION])
-            cg.add(var.set_version_sensor(sens))
+        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
+        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
+        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
+        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
+        await sensors(CONF_PUMP_SPEED, var.set_pump_speed_sensor)
+        await sensors(CONF_OPERATING_HOURS, var.set_operating_hours_sensor)
+        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
+        await sensors(CONF_VERSION, var.set_version_sensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_CS4:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x1122))
         cg.add(var.set_dest(0x0010))
-        if CONF_TEMPERATURE_1 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_1])
-            cg.add(var.set_temperature1_sensor(sens))
-        if CONF_TEMPERATURE_2 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_2])
-            cg.add(var.set_temperature2_sensor(sens))
-        if CONF_TEMPERATURE_3 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_3])
-            cg.add(var.set_temperature3_sensor(sens))
-        if CONF_TEMPERATURE_4 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_4])
-            cg.add(var.set_temperature4_sensor(sens))
-        if CONF_TEMPERATURE_5 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_5])
-            cg.add(var.set_temperature5_sensor(sens))
-        if CONF_PUMP_SPEED_1 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_1])
-            cg.add(var.set_pump_speed1_sensor(sens))
-        if CONF_PUMP_SPEED_2 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_2])
-            cg.add(var.set_pump_speed2_sensor(sens))
-        if CONF_OPERATING_HOURS_1 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_1])
-            cg.add(var.set_operating_hours1_sensor(sens))
-        if CONF_OPERATING_HOURS_2 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_2])
-            cg.add(var.set_operating_hours2_sensor(sens))
-        if CONF_HEAT_QUANTITY in config:
-            sens = await sensor.new_sensor(config[CONF_HEAT_QUANTITY])
-            cg.add(var.set_heat_quantity_sensor(sens))
-        if CONF_TIME in config:
-            sens = await sensor.new_sensor(config[CONF_TIME])
-            cg.add(var.set_time_sensor(sens))
-        if CONF_VERSION in config:
-            sens = await sensor.new_sensor(config[CONF_VERSION])
-            cg.add(var.set_version_sensor(sens))
-        if CONF_FLOW_RATE in config:
-            sens = await sensor.new_sensor(config[CONF_FLOW_RATE])
-            cg.add(var.set_flow_rate_sensor(sens))
+        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
+        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
+        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
+        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
+        await sensors(CONF_TEMPERATURE_5, var.set_temperature5_sensor)
+        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
+        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
+        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
+        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
+        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
+        await sensors(CONF_TIME, var.set_time_sensor)
+        await sensors(CONF_VERSION, var.set_version_sensor)
+        await sensors(CONF_FLOW_RATE, var.set_flow_rate_sensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_CS_PLUS:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x2211))
         cg.add(var.set_dest(0x0010))
-        if CONF_TEMPERATURE_1 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_1])
-            cg.add(var.set_temperature1_sensor(sens))
-        if CONF_TEMPERATURE_2 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_2])
-            cg.add(var.set_temperature2_sensor(sens))
-        if CONF_TEMPERATURE_3 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_3])
-            cg.add(var.set_temperature3_sensor(sens))
-        if CONF_TEMPERATURE_4 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_4])
-            cg.add(var.set_temperature4_sensor(sens))
-        if CONF_TEMPERATURE_5 in config:
-            sens = await sensor.new_sensor(config[CONF_TEMPERATURE_5])
-            cg.add(var.set_temperature5_sensor(sens))
-        if CONF_PUMP_SPEED_1 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_1])
-            cg.add(var.set_pump_speed1_sensor(sens))
-        if CONF_PUMP_SPEED_2 in config:
-            sens = await sensor.new_sensor(config[CONF_PUMP_SPEED_2])
-            cg.add(var.set_pump_speed2_sensor(sens))
-        if CONF_OPERATING_HOURS_1 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_1])
-            cg.add(var.set_operating_hours1_sensor(sens))
-        if CONF_OPERATING_HOURS_2 in config:
-            sens = await sensor.new_sensor(config[CONF_OPERATING_HOURS_2])
-            cg.add(var.set_operating_hours2_sensor(sens))
-        if CONF_HEAT_QUANTITY in config:
-            sens = await sensor.new_sensor(config[CONF_HEAT_QUANTITY])
-            cg.add(var.set_heat_quantity_sensor(sens))
-        if CONF_TIME in config:
-            sens = await sensor.new_sensor(config[CONF_TIME])
-            cg.add(var.set_time_sensor(sens))
-        if CONF_VERSION in config:
-            sens = await sensor.new_sensor(config[CONF_VERSION])
-            cg.add(var.set_version_sensor(sens))
-        if CONF_FLOW_RATE in config:
-            sens = await sensor.new_sensor(config[CONF_FLOW_RATE])
-            cg.add(var.set_flow_rate_sensor(sens))
+        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
+        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
+        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
+        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
+        await sensors(CONF_TEMPERATURE_5, var.set_temperature5_sensor)
+        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
+        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
+        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
+        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
+        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
+        await sensors(CONF_TIME, var.set_time_sensor)
+        await sensors(CONF_VERSION, var.set_version_sensor)
+        await sensors(CONF_FLOW_RATE, var.set_flow_rate_sensor)
 
     elif config[CONF_MODEL] == CONF_CUSTOM:
         if CONF_COMMAND in config:
@@ -924,7 +774,7 @@ async def to_code(config):
             cg.add(var.set_source(config[CONF_SOURCE]))
         if CONF_DEST in config:
             cg.add(var.set_dest(config[CONF_DEST]))
-        sensors = []
+        custom_sensors = []
         for conf in config[CONF_SENSORS]:
             sens = await sensor.new_sensor(conf)
             lambda_ = await cg.process_lambda(
@@ -933,8 +783,8 @@ async def to_code(config):
                 return_type=cg.float_,
             )
             cg.add(sens.set_message_parser(lambda_))
-            sensors.append(sens)
-        cg.add(var.set_sensors(sensors))
+            custom_sensors.append(sens)
+        cg.add(var.set_sensors(custom_sensors))
 
     vbus = await cg.get_variable(config[CONF_VBUS_ID])
     cg.add(vbus.register_listener(var))
