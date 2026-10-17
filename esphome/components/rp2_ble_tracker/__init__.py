@@ -33,6 +33,7 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["rp2"]
 AUTO_LOAD = ["ble_device_base", "rp2040_ble"]
 CODEOWNERS = ["@bdraco"]
+DOMAIN = "rp2_ble_tracker"
 
 ble_device_base.register_hub_provider("rp2_ble_tracker")
 

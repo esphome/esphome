@@ -46,6 +46,8 @@ EXIT_SKIPPED = 1
 EXIT_COMPILE_ERROR = 2
 EXIT_CONFIG_ERROR = 3
 EXIT_NO_EXECUTABLE = 4
+# A test folder with this name would be synced into src/esphome and swept away with the core tree
+CORE_TREE_DIR = "esphome"
 
 # Name of the per-component YAML config file in benchmark directories
 BENCHMARK_YAML_FILENAME = "benchmark.yaml"
@@ -283,10 +285,15 @@ def load_test_manifest_overrides(
     defines ``override_manifest(manifest)``, it is called to customise
     the override (e.g. ``manifest.enable_codegen()``).
     """
+    wrapped: dict[str, ComponentManifestOverride] = {}
     for comp_name in components:
-        override = _wrap_manifest(comp_name)
+        # tests/components/core and tests/components/esphome both override the
+        # "esphome" core manifest, so they share one wrapper
+        manifest_name = ESPHOME_KEY if comp_name == "core" else comp_name
+        override = wrapped.get(manifest_name) or _wrap_manifest(manifest_name)
         if override is None:
             continue
+        wrapped[manifest_name] = override
 
         if "." in comp_name:
             domain, component = comp_name.split(".", maxsplit=1)
@@ -465,8 +472,19 @@ def build_and_run(
 
     components = sorted(components)
 
-    # Build include list: main entry point + component folders + extra dirs
-    includes: list[str] = [main_entry] + components
+    # Build include list: main entry point + component folders + extra dirs. The core tree
+    # folder is listed file by file, nested files included, since a folder include would
+    # land in src/esphome (see CORE_TREE_DIR)
+    includes: list[str] = [main_entry]
+    for component in components:
+        if component != CORE_TREE_DIR:
+            includes.append(component)
+            continue
+        includes.extend(
+            str(path.relative_to(tests_dir))
+            for path in sorted((tests_dir / component).rglob("*"))
+            if path.suffix in (".cpp", ".h")
+        )
     if extra_include_dirs:
         for d in extra_include_dirs:
             if d.is_dir() and (any(d.glob("*.cpp")) or any(d.glob("*.h"))):

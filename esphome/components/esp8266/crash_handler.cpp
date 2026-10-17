@@ -4,6 +4,7 @@
 #ifdef USE_ESP8266_CRASH_HANDLER
 
 #include "crash_handler.h"
+#include "rtc_layout.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -46,11 +47,8 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
 // Recover the actual code address from a windowed-ABI return address on the stack.
 static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
 
-// RTC user memory layout for crash backtrace data.
-// User-accessible RTC memory: blocks 64-191 (each block = 4 bytes).
-// We use blocks 174-191 (last 18 blocks, 72 bytes) to minimize conflicts.
+// Crash data lives in the last esphome::esp8266::RTC_CRASH_WORDS of user RTC memory (rtc_layout.h).
 // Store 16 raw candidates, filter to real return addresses at log time.
-static constexpr uint8_t RTC_CRASH_BASE = 174;
 static constexpr size_t MAX_BACKTRACE = 16;
 
 // Magic word packs sentinel, version, and count into one uint32_t:
@@ -78,11 +76,11 @@ struct RtcCrashData {
   uint32_t backtrace[MAX_BACKTRACE];
   uint32_t epc1;  // Fault PC, used to filter duplicates
 };
-static_assert(sizeof(RtcCrashData) == 72, "RtcCrashData must fit in 18 RTC blocks");
+static_assert(sizeof(RtcCrashData) == esphome::esp8266::RTC_CRASH_WORDS * 4, "RtcCrashData must fill its RTC words");
 
 namespace esphome::esp8266 {
 
-static const char *const TAG = "esp8266";
+ESPHOME_LOG_TAG(TAG, "esp8266");
 
 static inline bool is_crash_reason(uint32_t reason) {
   return reason == REASON_WDT_RST || reason == REASON_EXCEPTION_RST || reason == REASON_SOFT_WDT_RST;
@@ -129,7 +127,7 @@ static const LogString *get_reset_reason(uint32_t reason) {
 // Returns the number of valid backtrace entries (0 if no data found).
 static uint8_t read_rtc_backtrace(uint32_t *backtrace, size_t max_entries) {
   RtcCrashData rtc_data;
-  if (!system_rtc_mem_read(RTC_CRASH_BASE, &rtc_data, sizeof(rtc_data)))
+  if (!system_rtc_mem_read(esphome::esp8266::RTC_CRASH_BASE, &rtc_data, sizeof(rtc_data)))
     return 0;
   uint32_t magic = rtc_data.magic;
   if ((magic & CRASH_SENTINEL_MASK) != CRASH_SENTINEL || (magic & CRASH_VERSION_MASK) != CRASH_VERSION)
@@ -233,7 +231,7 @@ extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info *rst_info, uint3
   data.epc1 = epc1;
   data.magic = CRASH_SENTINEL | CRASH_VERSION | count;
 
-  system_rtc_mem_write(RTC_CRASH_BASE, &data, sizeof(data));
+  system_rtc_mem_write(esphome::esp8266::RTC_CRASH_BASE, &data, sizeof(data));
 }
 
 #endif  // USE_ESP8266_CRASH_HANDLER

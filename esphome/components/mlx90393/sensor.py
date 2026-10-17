@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILTER,
     CONF_GAIN,
-    CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
@@ -129,9 +128,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
@@ -139,21 +136,14 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_temperature_compensation(config[CONF_TEMPERATURE_COMPENSATION]))
     cg.add(var.set_hallconf(config[CONF_HALLCONF]))
 
-    if CONF_X_AXIS in config:
-        sens = await sensor.new_sensor(config[CONF_X_AXIS])
-        cg.add(var.set_x_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_X_AXIS, var.set_x_sensor):
         cg.add(var.set_resolution(0, RESOLUTION[config[CONF_X_AXIS][CONF_RESOLUTION]]))
-    if CONF_Y_AXIS in config:
-        sens = await sensor.new_sensor(config[CONF_Y_AXIS])
-        cg.add(var.set_y_sensor(sens))
+    if await sensors(CONF_Y_AXIS, var.set_y_sensor):
         cg.add(var.set_resolution(1, RESOLUTION[config[CONF_Y_AXIS][CONF_RESOLUTION]]))
-    if CONF_Z_AXIS in config:
-        sens = await sensor.new_sensor(config[CONF_Z_AXIS])
-        cg.add(var.set_z_sensor(sens))
+    if await sensors(CONF_Z_AXIS, var.set_z_sensor):
         cg.add(var.set_resolution(2, RESOLUTION[config[CONF_Z_AXIS][CONF_RESOLUTION]]))
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_t_sensor(sens))
+    if await sensors(CONF_TEMPERATURE, var.set_t_sensor):
         cg.add(var.set_t_oversampling(config[CONF_TEMPERATURE][CONF_OVERSAMPLING]))
     if CONF_DRDY_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])

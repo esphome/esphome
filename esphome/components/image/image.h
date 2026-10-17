@@ -13,6 +13,7 @@ enum ImageType {
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB = 2,
   IMAGE_TYPE_RGB565 = 3,
+  IMAGE_TYPE_RGB111 = 4,  // one bit per channel plus an optional alpha bit, for colour e-paper
 };
 
 enum Transparency {
@@ -23,7 +24,9 @@ enum Transparency {
 
 class Image : public display::BaseImage {
  public:
-  Image(const uint8_t *data_start, int width, int height, ImageType type, Transparency transparency);
+  /// big_endian is the RGB565 byte order; codegen writes little endian unless configured otherwise.
+  Image(const uint8_t *data_start, int width, int height, ImageType type, Transparency transparency,
+        bool big_endian = false);
   Color get_pixel(int x, int y, Color color_on = display::COLOR_ON, Color color_off = display::COLOR_OFF) const;
   int get_width() const override;
   int get_height() const override;
@@ -43,7 +46,12 @@ class Image : public display::BaseImage {
   lv_image_dsc_t *get_lv_image_dsc();
 #endif
  protected:
+  /// Per-pixel draw of the clipped range, rows (true) or columns (false) outer.
+  template<bool ROWS_OUTER>
+  void draw_(int x, int y, display::Display *display, Color color_on, Color color_off, int x_start, int x_end,
+             int y_start, int y_end);
   bool get_binary_pixel_(int x, int y) const;
+  Color get_rgb111_pixel_(int x, int y) const;
   Color get_rgb_pixel_(int x, int y) const;
   Color get_rgb565_pixel_(int x, int y) const;
   Color get_grayscale_pixel_(int x, int y) const;
@@ -53,7 +61,8 @@ class Image : public display::BaseImage {
   ImageType type_;
   const uint8_t *data_start_;
   Transparency transparency_;
-  size_t bpp_{};
+  bool big_endian_;
+  uint8_t bpp_{};
 #ifdef USE_LVGL
   lv_img_dsc_t dsc_{};
 #endif

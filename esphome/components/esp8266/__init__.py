@@ -53,9 +53,15 @@ from .const import (
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
+    PREFERENCES_RTC_EBOOT_WORDS,
+    PREFERENCES_RTC_NORMAL_WORDS,
+    THROW_STUBS_HEADER,
+    check_preferences_fit,
+    check_timer1_users,
     enable_serial,
     enable_serial1,
     esp8266_ns,
+    preferences_flash_words,
 )
 from .gpio import PinInitialState, add_pin_initial_states_array
 
@@ -70,6 +76,7 @@ CONF_ENABLE_SCANF_FLOAT = "enable_scanf_float"
 _SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "esp8266"
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
@@ -114,9 +121,37 @@ _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 _resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.ARDUINO)
 
 
+# Known boards keyed by spelling with case and "-" / "_" folded away
+_FOLDED_BOARDS = {board.lower().replace("-", "_"): board for board in BOARDS}
+
+
+def _resolve_board(config: ConfigType) -> ConfigType:
+    """Fix a misspelled board, else build an unknown one with PlatformIO."""
+    board = config[CONF_BOARD]
+    if board in BOARDS:
+        return config
+    if canonical := _FOLDED_BOARDS.get(board.lower().replace("-", "_")):
+        _LOGGER.warning(
+            "Board '%s' is not a known ESP8266 board; using '%s'", board, canonical
+        )
+        return {**config, CONF_BOARD: canonical}
+    if CORE.toolchain is None and CONF_TOOLCHAIN not in config:
+        return {**config, CONF_TOOLCHAIN: Toolchain.PLATFORMIO}
+    return config
+
+
 def _warn_platformio_toolchain(config: ConfigType) -> ConfigType:
     # Remove before 2027.4.0
-    if CORE.using_toolchain_platformio:
+    if not CORE.using_toolchain_platformio:
+        return config
+    if config[CONF_BOARD] not in BOARDS:
+        _LOGGER.warning(
+            "Board '%s' is not supported by the native 'arduino' toolchain, so it "
+            "builds with the deprecated 'platformio' toolchain, which will be "
+            "removed in ESPHome 2027.4.0",
+            config[CONF_BOARD],
+        )
+    else:
         _LOGGER.warning(
             "The 'platformio' toolchain for ESP8266 is deprecated and will be "
             "removed in ESPHome 2027.4.0; the native 'arduino' toolchain is the "
@@ -329,6 +364,7 @@ CONFIG_SCHEMA = cv.All(
             ): _validate_toolchain,
         }
     ),
+    _resolve_board,
     _resolve_toolchain,
     _warn_platformio_toolchain,
     _validate_native_toolchain,
@@ -385,6 +421,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
     cg.add_define("USE_ESP8266_CRASH_HANDLER")
+    cg.add_define("USE_CRASH_HANDLER")
 
     enable_scanf_float = config.get(CONF_ENABLE_SCANF_FLOAT)
     if enable_scanf_float is None and lambdas_use_scanf_float(CORE.config):
@@ -413,6 +450,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
     cg.add_build_flag("-Wno-nonnull-compare")
+    # .rodata is linked into RAM on ESP8266; keep switch lookup tables (CSWTCH) out of it
+    cg.add_build_flag("-fno-tree-switch-conversion")
     if use_platformio:
         cg.add_platformio_option("framework", "arduino")
         cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
@@ -434,6 +473,12 @@ async def to_code(config: ConfigType) -> None:
     # Other projects like Tasmota & ESPEasy also use this
     cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
 
+    cg.add_define("ESP8266_PREFERENCES_RTC_NORMAL_WORDS", PREFERENCES_RTC_NORMAL_WORDS)
+    cg.add_define("ESP8266_PREFERENCES_RTC_EBOOT_WORDS", PREFERENCES_RTC_EBOOT_WORDS)
+    cg.add_define(
+        "ESP8266_PREFERENCES_FLASH_WORDS",
+        preferences_flash_words(config[CONF_RESTORE_FROM_FLASH]),
+    )
     if config[CONF_RESTORE_FROM_FLASH]:
         cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
 
@@ -448,11 +493,9 @@ async def to_code(config: ConfigType) -> None:
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
-    # See throw_stubs.h. Unconditional: the native build generator reads
-    # the same option, keeping one source of truth.
-    cg.add_platformio_option(
-        "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
-    )
+    # See throw_stubs.h. The native build generator reads this option, also
+    # passes it to the core and libraries, and drops it with exceptions on.
+    cg.add_platformio_option("build_src_flags", f"-include {THROW_STUBS_HEADER}")
 
     # In testing mode, fake larger memory to allow linking grouped component tests
     # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
@@ -497,6 +540,8 @@ async def to_code(config: ConfigType) -> None:
     CORE.add_job(add_pin_initial_states_array)
     CORE.add_job(finalize_waveform_config)
     CORE.add_job(finalize_serial_config)
+    CORE.add_job(check_preferences_fit)
+    CORE.add_job(check_timer1_users)
 
 
 @coroutine_with_priority(CoroPriority.WORKAROUNDS)

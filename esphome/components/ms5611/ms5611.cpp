@@ -4,7 +4,10 @@
 
 namespace esphome::ms5611 {
 
-static const char *const TAG = "ms5611";
+ESPHOME_LOG_TAG(TAG, "ms5611");
+
+static constexpr uint32_t TEMPERATURE_TIMEOUT_ID = 0;
+static constexpr uint32_t PRESSURE_TIMEOUT_ID = 1;
 
 static const uint8_t MS5611_ADDRESS = 0x77;
 static const uint8_t MS5611_CMD_ADC_READ = 0x00;
@@ -15,13 +18,13 @@ static const uint8_t MS5611_CMD_READ_PROM = 0xA2;
 
 void MS5611Component::setup() {
   if (!this->write_bytes(MS5611_CMD_RESET, nullptr, 0)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->set_timeout(100, [this]() {
     for (uint8_t offset = 0; offset < 6; offset++) {
       if (!this->read_byte_16(MS5611_CMD_READ_PROM + (offset * 2), &this->prom_[offset])) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
     }
@@ -30,9 +33,6 @@ void MS5611Component::setup() {
 void MS5611Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS5611:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
@@ -44,7 +44,7 @@ void MS5611Component::update() {
     return;
   }
 
-  this->set_timeout("temperature", 10, [this]() { this->read_temperature_(); });
+  this->set_timeout(TEMPERATURE_TIMEOUT_ID, 10, [this]() { this->read_temperature_(); });
 }
 void MS5611Component::read_temperature_() {
   uint8_t bytes[3];
@@ -60,7 +60,7 @@ void MS5611Component::read_temperature_() {
     return;
   }
 
-  this->set_timeout("pressure", 10, [this, raw_temperature]() { this->read_pressure_(raw_temperature); });
+  this->set_timeout(PRESSURE_TIMEOUT_ID, 10, [this, raw_temperature]() { this->read_pressure_(raw_temperature); });
 }
 void MS5611Component::read_pressure_(uint32_t raw_temperature) {
   uint8_t bytes[3];

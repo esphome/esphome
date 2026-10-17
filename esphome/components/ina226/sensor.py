@@ -2,11 +2,11 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
-    CONF_ID,
     CONF_MAX_CURRENT,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
@@ -24,8 +24,6 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
-CONF_ADC_AVERAGING = "adc_averaging"
-CONF_ADC_TIME = "adc_time"
 
 ina226_ns = cg.esphome_ns.namespace("ina226")
 INA226Component = ina226_ns.class_(
@@ -116,9 +114,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))

@@ -11,7 +11,7 @@ static constexpr uint8_t RX8025T_REG_FLAG = 0x0E;
 static constexpr uint8_t RX8025T_FLAG_VDET = 0x01;
 static constexpr uint8_t RX8025T_FLAG_VLF = 0x02;
 
-static const char *const TAG = "rx8025t";
+ESPHOME_LOG_TAG(TAG, "rx8025t");
 
 constexpr uint8_t bcd2dec(uint8_t val) { return (val >> 4) * 10 + (val & 0x0f); }
 constexpr uint8_t dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); }
@@ -19,7 +19,7 @@ constexpr uint8_t dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); 
 void RX8025TComponent::setup() {
   uint8_t flags;
   if (!this->read_flags_(&flags)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -33,9 +33,6 @@ void RX8025TComponent::update() { this->read_time(); }
 void RX8025TComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8025T:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   time::RealTimeClock::dump_config();
 }
 

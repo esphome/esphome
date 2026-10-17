@@ -15,6 +15,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@looping40"]
+DOMAIN = "max6956"
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
@@ -29,10 +30,7 @@ MAX6956 = max6956_ns.class_("MAX6956", cg.Component, i2c.I2CDevice)
 MAX6956GPIOPin = max6956_ns.class_("MAX6956GPIOPin", cg.GPIOPin)
 
 MAX6956_CURRENTMODE = max6956_ns.enum("MAX6956CURRENTMODE")
-CURRENT_MODES = {
-    "global": MAX6956_CURRENTMODE.GLOBAL,
-    "segment": MAX6956_CURRENTMODE.SEGMENT,
-}
+CURRENT_MODES = MAX6956_CURRENTMODE.options("global", "segment")
 
 
 CONFIG_SCHEMA = (
@@ -53,9 +51,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_brightness_mode(config[CONF_BRIGHTNESS_MODE]))
     cg.add(var.set_brightness_global(config[CONF_BRIGHTNESS_GLOBAL]))
 
@@ -79,7 +75,7 @@ MAX6956_PIN_SCHEMA = pins.gpio_base_schema(
     mode_validator=validate_mode,
 ).extend(
     {
-        cv.Required(CONF_MAX6956): cv.use_id(MAX6956),
+        cv.Required(CONF_MAX6956): pins.use_id_or_address(MAX6956),
     }
 )
 

@@ -24,19 +24,15 @@ def test_defaults_are_emitted_in_the_string_table(
     """Each argument gains a trailing default slot; optional flags travel as one mask."""
     main_cpp = generate_main(CONFIG)
 
-    assert 'static constexpr char api_action_str4[] PROGMEM = "5";' in main_cpp
-    assert 'static constexpr char api_action_str6[] PROGMEM = "100";' in main_cpp
-    assert 'static constexpr char api_action_str8[] PROGMEM = "true";' in main_cpp
     assert (
         "static constexpr const char * api_action0_strings[] PROGMEM = {"
-        "api_action_str0, api_action_str1, nullptr, api_action_str2, nullptr, "
-        "api_action_str3, api_action_str4, api_action_str5, api_action_str6, "
-        "api_action_str7, api_action_str8};" in main_cpp
+        '"play_buzzer", "song_str", nullptr, "notes", nullptr, "octave", "5", '
+        '"bpm", "100", "loud", "true"};' in main_cpp
     )
     # An all-required action still carries the default slots (as nullptr)
     assert (
         "static constexpr const char * api_action1_strings[] PROGMEM = {"
-        "api_action_str9, api_action_str10, nullptr};" in main_cpp
+        '"plain_action", "value", nullptr};' in main_cpp
     )
     # All five variables of play_buzzer are optional; plain_action emits no mask
     assert main_cpp.count("set_optional_args_mask(") == 1
