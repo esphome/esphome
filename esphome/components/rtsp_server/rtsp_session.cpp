@@ -271,15 +271,9 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
   StringRef first_line = line_end == std::string::npos ? request : StringRef(request.c_str(), line_end);
 
   this->cseq_ = 0;
-  size_t sp1 = first_line.find(' ');
-  size_t sp2 = sp1 == std::string::npos ? std::string::npos : first_line.find(' ', sp1 + 1);
-  if (sp1 == std::string::npos || sp2 == std::string::npos) {
-    this->queue_response_(400, "Bad Request");
-    return;
-  }
-  StringRef method(first_line.c_str(), sp1);
   StringRef transport;
 
+  // Headers first: even a 400 reply has to echo the request's CSeq
   size_t pos = line_end == std::string::npos ? request.size() : line_end + 2;
   while (pos < request.size()) {
     size_t next = request.find("\r\n", pos);
@@ -301,6 +295,14 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
       break;
     pos = next + 2;
   }
+
+  size_t sp1 = first_line.find(' ');
+  size_t sp2 = sp1 == std::string::npos ? std::string::npos : first_line.find(' ', sp1 + 1);
+  if (sp1 == std::string::npos || sp2 == std::string::npos) {
+    this->queue_response_(400, "Bad Request");
+    return;
+  }
+  StringRef method(first_line.c_str(), sp1);
 
   if (str_equals_case_insensitive(method, StringRef::from_lit("OPTIONS"))) {
     this->queue_response_(200, "OK", "Public: OPTIONS, DESCRIBE, SETUP, PLAY, TEARDOWN, GET_PARAMETER\r\n");

@@ -142,6 +142,14 @@ TEST_F(RTSPSessionTest, InterleavedPacketSplitAcrossReads) {
   EXPECT_TRUE(this->session_.is_active());
 }
 
+TEST_F(RTSPSessionTest, MalformedRequestLineEchoesCSeq) {
+  this->send("OPTIONS\r\nCSeq: 9\r\n\r\n");
+  this->loops(1);
+  std::string out = this->receive();
+  EXPECT_EQ(out.rfind("RTSP/1.0 400 Bad Request\r\nCSeq: 9\r\n", 0), 0u) << out;
+  EXPECT_TRUE(this->session_.is_active());
+}
+
 TEST_F(RTSPSessionTest, PipelinedRequestsBothAnswered) {
   this->send(request("OPTIONS", 1) + request("GET_PARAMETER", 2));
   this->loops(3);
