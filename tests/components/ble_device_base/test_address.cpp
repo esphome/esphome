@@ -50,4 +50,18 @@ TEST(BleDeviceAddress, MacLsbFirstToUint64AgreesWithParsedDevice) {
   EXPECT_EQ(mac_lsb_first_to_uint64(MAC_LSB_FIRST), device.address_uint64());
 }
 
+// uint64_to_mac_msb_first() is the inverse: unpacking the wire value yields
+// printable (MSB-first) order, and round-tripping through the LSB-first
+// packer restores the original value.
+TEST(BleDeviceAddress, Uint64ToMacMsbFirstRoundTrip) {
+  uint8_t msb_first[6];
+  uint64_to_mac_msb_first(0xAABBCCDDEEFFULL, msb_first);
+  EXPECT_EQ(msb_first[0], 0xaa);
+  EXPECT_EQ(msb_first[5], 0xff);
+  uint8_t lsb_first[6];
+  for (int i = 0; i < 6; i++)
+    lsb_first[i] = msb_first[5 - i];
+  EXPECT_EQ(mac_lsb_first_to_uint64(lsb_first), 0xAABBCCDDEEFFULL);
+}
+
 }  // namespace esphome::ble_device_base::testing

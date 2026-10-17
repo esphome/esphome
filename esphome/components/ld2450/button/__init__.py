@@ -11,6 +11,7 @@ from esphome.const import (
     ICON_RESTART,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns
 
@@ -35,13 +36,8 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
-    ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
-    if factory_reset_config := config.get(CONF_FACTORY_RESET):
-        b = await button.new_button(factory_reset_config)
-        await cg.register_parented(b, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_factory_reset_button(b))
-    if restart_config := config.get(CONF_RESTART):
-        b = await button.new_button(restart_config)
-        await cg.register_parented(b, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_restart_button(b))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
+    buttons = button.sub_buttons(config, parent=hub)
+    await buttons(CONF_FACTORY_RESET, hub.set_factory_reset_button)
+    await buttons(CONF_RESTART, hub.set_restart_button)

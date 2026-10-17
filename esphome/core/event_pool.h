@@ -1,6 +1,7 @@
 #pragma once
 
-#if defined(USE_ESP32) || defined(USE_ZEPHYR) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ZEPHYR) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_HOST) || \
+    defined(USE_ESP8266)
 
 #include <atomic>
 #include <cstddef>
@@ -10,7 +11,8 @@
 namespace esphome {
 
 // Event Pool - On-demand pool of objects to avoid heap fragmentation
-// Events are allocated on first use and reused thereafter, growing to peak usage
+// Events are allocated on first use and reused thereafter, growing to peak
+// usage; warm() pre-creates every entry up front for malloc-free producers
 // @tparam T The type of objects managed by the pool (must have a release() method)
 // @tparam SIZE The maximum number of objects in the pool (1-254, limited by uint8_t and the +1 free-list slot)
 //
@@ -53,26 +55,8 @@ template<class T, uint8_t SIZE> class EventPool {
     T *event = this->free_list_.pop();
     if (event != nullptr)
       return event;
-
     // Need to create a new event
-    if (this->total_created_ >= SIZE) {
-      // Pool is at capacity
-      return nullptr;
-    }
-
-    // Use internal RAM for better performance
-    RAMAllocator<T> allocator(RAMAllocator<T>::ALLOC_INTERNAL);
-    event = allocator.allocate(1);
-
-    if (event == nullptr) {
-      // Memory allocation failed
-      return nullptr;
-    }
-
-    // Placement new to construct the object
-    new (event) T();
-    this->total_created_++;
-    return event;
+    return this->create_();
   }
 
   // Return an event to the pool for reuse
@@ -84,7 +68,45 @@ template<class T, uint8_t SIZE> class EventPool {
     }
   }
 
+  // Pre-create every pool entry so allocate() is always a free-list pop
+  // (for producers that must never malloc, e.g. IRQ-context handlers).
+  // Call from setup(); on false the heap could not supply every entry and
+  // the caller should mark_failed() — an incomplete warm puts malloc()
+  // back on the producer path. Tops the pool up from any quiescent state
+  // (entries that already exist are counted, not re-created); must not run
+  // concurrently with allocate()/release().
+  bool warm() {
+    // NOLINTNEXTLINE(clang-analyzer-unix.Malloc) -- ownership transfers to the free list
+    while (this->total_created_ < SIZE) {
+      T *event = this->create_();
+      if (event == nullptr)
+        return false;
+      this->free_list_.push(event);
+    }
+    return true;
+  }
+
  private:
+  // Create and count one new object (shared by allocate() and warm()).
+  // Returns nullptr at capacity or when the heap is exhausted.
+  T *create_() {
+    if (this->total_created_ >= SIZE) {
+      // Pool is at capacity
+      return nullptr;
+    }
+    // Use internal RAM for better performance
+    RAMAllocator<T> allocator(RAMAllocator<T>::ALLOC_INTERNAL);
+    T *event = allocator.allocate(1);
+    if (event == nullptr) {
+      // Memory allocation failed
+      return nullptr;
+    }
+    // Placement new to construct the object
+    new (event) T();
+    this->total_created_++;
+    return event;
+  }
+
   // SIZE + 1 slots so all SIZE objects fit when the pool is fully drained
   // (the ring reserves one slot); otherwise the last release() of a
   // completely returned pool would drop, permanently orphaning one object.

@@ -24,16 +24,11 @@ from esphome.core import EsphomeError
 
 CONFIG = {"esphome": {"name": "test"}}
 
-# Real dump lines per registered platform. "addresses" are gate-firing
-# dump lines (registers, backtraces, the exception header); the gate
-# must fire on each or that platform's decoding silently never starts.
-# "state_markers" are the address-free lines that set backtrace_state;
-# the gate matches them directly so their decoders never miss the line
-# that opens their dump region. "extra_triggers" are gate-firing lines
-# no decoder pattern consumes, like the stored-dump banner that lets
-# the decoder resolve at a dump's first line. A new decoder must
-# declare its lines here so all are pinned instead of discovered in
-# the field.
+# Real dump lines per registered platform; the gate must fire on each.
+# "addresses" are decoder-consumed dump lines, "state_markers" open a
+# decoder's dump region, and "extra_triggers" fire the gate without a
+# decoder pattern (the stored-dump banner). A new decoder declares its
+# lines here so drift fails in CI instead of in the field.
 CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
     PLATFORM_ESP32: {
         "state_markers": [],
@@ -68,10 +63,9 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
     PLATFORM_NRF52: {
         "state_markers": ["Last crash:"],
         "addresses": [
-            # The zephyr logger prints both registers with %08x, so even
-            # a vector-table PC pads past the decoder's {3,} bound.
+            # %08x zero-pads even a vector-table PC past the {3,} bound.
             "PC=0x00000050 LR=0x00000000",
-            # Synthetic short form; keeps the bound's lower edge pinned.
+            # Synthetic short form; pins the bound's lower edge.
             "PC=0x27a1c LR=0x1e33",
         ],
     },
@@ -86,11 +80,9 @@ BENIGN_LINES = [
     "[V][esp-idf:000]: I (40219876) wifi: connected",
     "[D][api:102]: Client connected (40123456)",
     "[D][sensor:093]: 'Water meter': Sending state 12345678.00000 L",
-    # A 32-hex hash has no internal word boundary, so the exactly-8
-    # bare-hex branch must not fire anywhere inside it.
+    # No internal word boundary; the bare-8-hex branch must not fire.
     "[I][ota:117]: MD5 of binary: d41d8cd98f00b204e9800998ecf8427e",
-    # Short 0x tokens are everywhere (BLE handles, flags); the pointer
-    # branch's 3-digit minimum exists to keep them out.
+    # Short 0x tokens (BLE handles); the 3-digit minimum keeps them out.
     "[D][ble:200]: Connection handle 0x1F, MTU 23",
     "[C][network:600]:   IPv6: fe80::1a2b:3c4d:5e6f:7a8b",
     "[C][ota:097]:   Version: 2026.7.0",
@@ -115,11 +107,7 @@ def test_platform_gate(platform: str, line: str, should_fire: bool) -> None:
 
 
 def test_gates_are_platform_scoped() -> None:
-    """A session only pays for its own platform's trigger language.
-
-    Another platform's marker on an esp32 session must not cost the
-    one-time import; the platform is known when the session starts.
-    """
+    """Another platform's markers must not fire an esp32 session's gate."""
     esp32_gate = re.compile(stacktrace.platform_hooks.STACKTRACE_GATES[PLATFORM_ESP32])
     for line in (
         ">>>stack>>>",
@@ -159,11 +147,8 @@ def _top_level_branches(pattern: str) -> list[str]:
 
 @pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
 def test_every_gate_branch_is_exercised(platform: str) -> None:
-    """A typoed or dead gate branch cannot hide behind the others.
-
-    The superset checks stay green when a branch matches nothing, so a
-    broken alternation would silently stop resolving the decoder on the
-    lines it was added for; every branch must be hit by a sample.
+    """Every gate branch must be hit by a sample; the superset checks
+    stay green when a typoed alternation matches nothing.
     """
     samples = CRASH_SAMPLES[platform]
     lines = [line for kind in samples for line in samples[kind]]
@@ -176,9 +161,8 @@ def test_every_gate_branch_is_exercised(platform: str) -> None:
         )
 
 
-# The in-tree sources that print each marker literal the gates key on.
-# esp8266's >>>stack>>> comes from the Arduino core's postmortem
-# handler, outside this tree; its decoder source is the nearest pin.
+# In-tree sources that print each marker literal the gates key on;
+# esp8266's >>>stack>>> comes from the Arduino core, outside this tree.
 FIRMWARE_MARKER_SOURCES = {
     "CRASH DETECTED ON PREVIOUS BOOT": (
         "esphome/components/esp32/crash_handler.cpp",
@@ -190,11 +174,8 @@ FIRMWARE_MARKER_SOURCES = {
 
 
 def test_gate_markers_match_firmware_output() -> None:
-    """The marker literals must stay what the firmware prints.
-
-    A reworded crash banner would keep every regex-level guard green
-    while the gate silently stops resolving the decoder at a stored
-    dump's first line; pin the literals to the sources that print them.
+    """A reworded firmware banner must fail here, not in the field;
+    every regex-level guard stays green when the C++ side drifts.
     """
     root = Path(__file__).parents[2]
     for marker, sources in FIRMWARE_MARKER_SOURCES.items():
@@ -207,11 +188,7 @@ def test_gate_markers_match_firmware_output() -> None:
 
 
 def test_crash_samples_cover_registry() -> None:
-    """A newly registered decoder must come with a non-empty gate sample.
-
-    The gate table and the hook registry cannot drift; the registry
-    entry is derived from the gate table's keys.
-    """
+    """A newly registered decoder must come with a non-empty gate sample."""
     assert set(CRASH_SAMPLES) == set(stacktrace.platform_hooks.STACKTRACE_GATES)
     assert set(stacktrace.platform_hooks.STACKTRACE_GATES) == set(
         stacktrace.platform_hooks.PLATFORM_HOOKS["process_stacktrace"]
@@ -263,27 +240,17 @@ GATE_EXEMPT_PATTERNS = {
 def test_platform_declarations_match_decoder(platform: str) -> None:
     r"""Samples, declared patterns, and the decoder must agree.
 
-    Directions checked: every declared pattern exists; every address
-    sample matches a declared pattern; every declared pattern is
-    exercised by a sample; no stacktrace pattern exists undeclared; each
-    declared state marker behaviourally opens the decoder's dump region;
-    and a decoder that sets state must declare a marker.
+    Checks: declared patterns exist, samples and patterns cover each
+    other, no stacktrace pattern is undeclared, markers open the dump
+    region, and a state-setting decoder declares a marker.
 
-    Known blind spots: the esp32/esp8266 catch-all backtrace patterns
-    can satisfy the sample-matches-a-pattern direction on their own; the
-    undeclared-pattern sweep keys off naming, so a differently-named
-    constant or a function-local re.search literal is invisible to it;
-    the state-gated detection rests on a textual heuristic (every
-    such decoder today spells it as ``return True`` or
-    ``backtrace_state = True``, and the declared-markers direction
-    pins the heuristic against a silent respelling); a decoder that
-    gains a second opening marker alongside a declared one passes
-    unnoticed, since the declared marker already satisfies both the
-    marker-opens-region check and the non-empty ``state_markers``
-    requirement; and the generative guard draws full matches only, so
-    a decoder match glued to trailing word characters that defeat the
-    pointer branch's ``\b`` is invisible to it (today's crash
-    handlers always delimit addresses).
+    Known blind spots: the catch-all backtrace patterns can satisfy the
+    sample direction alone; the undeclared sweep keys off naming; the
+    state-gating check is a textual heuristic (pinned against
+    respelling by the declared-markers direction); a second opening
+    marker beside a declared one passes unnoticed; and the generative
+    guard draws full matches, so trailing word characters defeating the
+    pointer branch's ``\b`` are invisible to it.
     """
     module = importlib.import_module(f"esphome.components.{platform}")
     patterns: dict[str, re.Pattern] = {}
@@ -362,12 +329,8 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
 def test_address_gate_covers_decoder_pattern_languages(
     platform: str, name: str, data
 ) -> None:
-    """Each platform's gate must be a superset of its decoder patterns.
-
-    The sample table only pins finite literals; a decoder regex that
-    widens would keep every sample green while the gate misses the new
-    form. Generating inputs from the decoder regex itself closes that
-    direction.
+    """Each platform's gate must be a superset of its decoder patterns;
+    generated inputs catch a widened decoder the finite samples miss.
     """
     pattern = getattr(importlib.import_module(f"esphome.components.{platform}"), name)
     example = data.draw(from_regex(pattern, fullmatch=True))
@@ -402,12 +365,8 @@ def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
 
 
 def test_decoder_contains_failures_and_short_circuits() -> None:
-    """One decode failure is contained and never retried.
-
-    aioesphomeapi isolates exceptions raised by log handlers, so an
-    escaping one logs a full traceback for every line it fires on; and
-    _decode_pc shells out to the toolchain, so retrying it per backtrace
-    line would stall streaming.
+    """One decode failure is contained and never retried; a retry per
+    backtrace line would stall streaming on a failing subprocess.
     """
     handler = Mock(side_effect=EsphomeError("no idedata"))
     processor = _run(
@@ -421,11 +380,8 @@ def test_decoder_contains_failures_and_short_circuits() -> None:
 def test_decoder_swallows_os_error_with_remediation_hint(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Decoding failures that aren't EsphomeError must be contained too.
-
-    A missing build directory surfaces as an OSError; that is the
-    user's environment, not a decoder bug, so it disables decoding
-    like an EsphomeError does and keeps the recompile hint.
+    """An OSError (missing build tree) is the user's environment, not a
+    decoder bug; it must keep the recompile hint.
     """
     handler = Mock(
         side_effect=FileNotFoundError(2, "No such file or directory", "/build")
@@ -442,11 +398,7 @@ def test_decoder_swallows_os_error_with_remediation_hint(
 def test_decoder_warning_uses_fallback_for_empty_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A message-less EsphomeError must show a useful explanation.
-
-    Defensive: the in-tree idedata raise sites all carry a message now,
-    but a bare EsphomeError from elsewhere must not render as parens.
-    """
+    """A bare EsphomeError must not render as empty parens."""
     _run(Mock(side_effect=EsphomeError()))
 
     warnings = _warnings(caplog)
@@ -457,11 +409,8 @@ def test_decoder_warning_uses_fallback_for_empty_error(
 def test_decoder_bug_with_empty_message_names_the_type(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A zero-message decoder bug must not masquerade as missing artifacts.
-
-    The recompile hint is only right for EsphomeError from _run_idedata;
-    anything else is ESPHome's own bug and says so instead of sending
-    the user down a dead-end remediation path.
+    """A decoder bug says so instead of sending the user down the
+    dead-end recompile path.
     """
     _run(Mock(side_effect=IndexError()))
 
@@ -483,10 +432,8 @@ def test_decoder_bug_warning_keeps_the_type_with_a_message(
 
 
 def test_marker_then_address_threads_state() -> None:
-    """A state marker resolves the decoder and threads state onward.
-
-    esp8266's ``>>>stack>>>`` fires the gate itself, so the decoder sees
-    it live and the following stack words decode inside the region.
+    """A state marker resolves the decoder live and threads state to
+    the following stack words.
     """
     handler = Mock(side_effect=[True, True])
     processor = _run(
@@ -505,9 +452,7 @@ def test_marker_then_address_threads_state() -> None:
 
 
 def test_lines_before_the_gate_never_reach_the_decoder() -> None:
-    """Benign lines are dropped, not buffered: the gate is a superset of
-    the decoder languages, so a line that fails it cannot decode.
-    """
+    """Benign lines are dropped, not buffered."""
     handler = Mock(return_value=False)
     quiet = tuple(f"quiet line {n}" for n in range(12))
     _run(handler, lines=quiet + ("PC: 0x4010496e",))
@@ -599,11 +544,8 @@ def test_processor_registry_miss_disables_at_construction(
 def test_external_platform_resolves_at_construction(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """External platforms resolve eagerly, like before the registry.
-
-    The address gate's grammar derives from the in-tree decoders, so it
-    cannot speak for an external decoder; resolving up front keeps the
-    import off the streaming callback and the notice at session start.
+    """External platforms resolve eagerly; the gates cannot speak for an
+    external decoder and the import belongs off the streaming callback.
     """
     caplog.set_level("INFO", logger="esphome.platform_hooks")
     module = type("ExternalPlatform", (), {})  # no process_stacktrace

@@ -99,10 +99,10 @@
 //     ESP32-C3/C6/H2) cross-core visibility is not an issue.
 //
 //   FreeRTOS task notification value:
-//     Written by TCP/IP thread (xTaskNotifyGive in callback) and background tasks
-//     (xTaskNotifyGive in wake_main_loop). Read by main loop (ulTaskNotifyTake).
+//     Written by TCP/IP thread (esphome_main_task_notify in callback) and background tasks
+//     (esphome_main_task_notify in wake_main_loop). Read by main loop (esphome_main_task_wait).
 //     Safe: FreeRTOS notification APIs are thread-safe by design (use internal
-//     critical sections). Multiple concurrent xTaskNotifyGive calls are safe —
+//     critical sections). Multiple concurrent notify calls are safe —
 //     the notification count simply increments.
 
 // USE_LWIP_FAST_SELECT is set via -D build flag (not cg.add_define) so it is
@@ -178,7 +178,7 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // s_original_callback is always valid here: hook_socket() sets it before swapping
   // the callback pointer, so this wrapper cannot run until it's initialized.
   s_original_callback(conn, evt, len);
-  // Wake the main loop task if sleeping in ulTaskNotifyTake().
+  // Wake the main loop task if sleeping in esphome_main_task_wait().
   // Only notify on receive events to avoid spurious wakeups from send-ready events.
   // NETCONN_EVT_ERROR is deliberately omitted: LwIP signals errors via RCVPLUS
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
@@ -186,7 +186,7 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   if (evt == NETCONN_EVT_RCVPLUS) {
 #ifdef USE_OTA_PLATFORM_ESPHOME
     // Mark OTA pending-enable only for events on its listen socket. MUST happen
-    // before xTaskNotifyGive so the flags are visible when the main task wakes.
+    // before the main task is notified so the flags are visible when it wakes.
     if (conn == s_ota_listener_conn) {
       esphome_wake_ota_component_any_context();
     }

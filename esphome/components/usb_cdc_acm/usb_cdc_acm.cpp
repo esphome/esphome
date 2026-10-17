@@ -6,7 +6,7 @@
 #include "esphome/core/log.h"
 namespace esphome::usb_cdc_acm {
 
-static const char *const TAG = "usb_cdc_acm";
+ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 
 // Global component instance for managing USB device
 USBCDCACMComponent *global_usb_cdc_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -1,0 +1,4 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  udp: !include common.yaml
+  udp_ipv6: !include common-ipv6.yaml

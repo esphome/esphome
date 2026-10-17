@@ -3,6 +3,7 @@ from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID, CONF_MIC_GAIN, CONF_SAMPLE_RATE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kroimon", "@kahrendt"]
 DEPENDENCIES = ["i2c"]
@@ -21,16 +22,17 @@ ES8311_BITS_PER_SAMPLE_ENUM = {
 }
 
 es8311_mic_gain = es8311_ns.enum("ES8311MicGain")
-ES8311_MIC_GAIN_ENUM = {
-    "0DB": es8311_mic_gain.ES8311_MIC_GAIN_0DB,
-    "6DB": es8311_mic_gain.ES8311_MIC_GAIN_6DB,
-    "12DB": es8311_mic_gain.ES8311_MIC_GAIN_12DB,
-    "18DB": es8311_mic_gain.ES8311_MIC_GAIN_18DB,
-    "24DB": es8311_mic_gain.ES8311_MIC_GAIN_24DB,
-    "30DB": es8311_mic_gain.ES8311_MIC_GAIN_30DB,
-    "36DB": es8311_mic_gain.ES8311_MIC_GAIN_36DB,
-    "42DB": es8311_mic_gain.ES8311_MIC_GAIN_42DB,
-}
+ES8311_MIC_GAIN_ENUM = es8311_mic_gain.options(
+    "0DB",
+    "6DB",
+    "12DB",
+    "18DB",
+    "24DB",
+    "30DB",
+    "36DB",
+    "42DB",
+    prefix="ES8311_MIC_GAIN_",
+)
 
 
 _validate_bits = cv.float_with_unit("bits", "bit")
@@ -55,7 +57,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

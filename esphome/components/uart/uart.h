@@ -3,6 +3,7 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
@@ -24,6 +25,7 @@ class UARTDevice {
   size_t get_rx_timeout() { return this->parent_->get_rx_timeout(); }
 
   void write_array(const uint8_t *data, size_t len) { this->parent_->write_array(data, len); }
+  void write_array_progmem(const uint8_t *data, size_t len) { this->parent_->write_array_progmem(data, len); }
   void write_array(const std::vector<uint8_t> &data) { this->parent_->write_array(data); }
   template<size_t N> void write_array(const std::array<uint8_t, N> &data) {
     this->parent_->write_array(data.data(), data.size());
@@ -36,9 +38,10 @@ class UARTDevice {
 
   bool read_array(uint8_t *data, size_t len) { return this->parent_->read_array(data, len); }
   template<size_t N> optional<std::array<uint8_t, N>> read_array() {  // NOLINT
-    std::array<uint8_t, N> res;
-    if (!this->read_array(res.data(), N)) {
-      return {};
+    // One object returned on both paths; a separate empty optional trips GCC's -Wmaybe-uninitialized.
+    optional<std::array<uint8_t, N>> res(std::in_place);
+    if (!this->read_array(res->data(), N)) {
+      res.reset();
     }
     return res;
   }
@@ -66,6 +69,7 @@ class UARTDevice {
   }
 
   /// Check that the configuration of the UART bus matches the provided values and otherwise print a warning
+  ESPDEPRECATED("Use uart.final_validate_device_schema() in Python instead. Removed in 2027.3.0", "2026.9.0")
   void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1,
                            UARTParityOptions parity = UART_CONFIG_PARITY_NONE, uint8_t data_bits = 8);
 

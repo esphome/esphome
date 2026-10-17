@@ -1,6 +1,15 @@
 pn532_spi:
   id: pn532_nfcc_spi
   cs_pin: ${cs_pin}
+  on_tag:
+    then:
+      - delay: 10ms
+      - lambda: |-
+          ESP_LOGD("test", "%s %zu %d %d", tag.get_tag_type().c_str(), tag.get_uid().size(), tag.has_ndef_message(),
+                   nfc::has_ha_tag_ndef(tag));
+  on_tag_removed:
+    then:
+      - lambda: ESP_LOGD("test", "%s", tag.get_tag_type().c_str());
 
 binary_sensor:
   - platform: pn532

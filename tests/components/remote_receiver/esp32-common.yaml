@@ -15,3 +15,54 @@ binary_sensor:
     panasonic:
       address: 0x4004
       command: 0x100BCBD
+  - platform: remote_receiver
+    name: RC5X Remote Input
+    rc5x:
+      address: 0x00
+      command: 0x0D
+      extension: 0x03
+  - platform: remote_receiver
+    name: Drayton Thermostat On
+    drayton:
+      address: 0x6180
+      data: 0x8
+  - platform: remote_receiver
+    name: Drayton Thermostat On Legacy
+    drayton:
+      address: 0x6180
+      channel: 0x12
+      command: 0x41
+  - platform: remote_receiver
+    name: Panasonic 56 bit Remote Input
+    panasonic:
+      nbits: 56
+      address: 0x4004
+      address_2: 0x12
+      command: 0x100BCBD
+  - platform: remote_receiver
+    name: Hob2Hood Light On
+    hob2hood:
+      command: light_on
+  - platform: remote_receiver
+    name: IRA211 Sync
+    ira211:
+      command: sync
+      temperature: 21.5
+      mode: comfort
+      fan_mode: low
+  - platform: remote_receiver
+    name: MagiQuest Wand
+    magiquest:
+      wand_id: 0x0F1E2D3C
+  - platform: remote_receiver
+    name: MagiQuest Any Wand
+    magiquest: {}
+  - platform: remote_receiver
+    name: Nexus Sensor
+    nexus:
+      channel: 1
+      address: 0x42
+  - platform: remote_receiver
+    name: PD Pioneer Cool
+    pd_pioneer:
+      code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]

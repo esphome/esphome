@@ -1,45 +1,51 @@
 // Platform-neutral BLE advertisement triggers: ESPBTDeviceListener subclasses
 // registered on a BLEHub, exposed by each tracker under its own automation
 // names. parse_device()'s return feeds the "Found device" suppression.
+// Constructors are templated on the hub type so this header also builds with
+// no tracker present (host unit tests).
 
 #pragma once
 
 #include "ble_device.h"
-#include "ble_hub.h"
 
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-#include <algorithm>
-#include <initializer_list>
-
 namespace esphome::ble_device_base {
+
+/// True if `address` is in `table`, a list of MACs ended by 0.
+inline bool mac_in_table(const uint64_t *table, uint64_t address) {
+  for (; *table != 0; table++) {
+    if (*table == address)
+      return true;
+  }
+  return false;
+}
 
 // on_ble_advertise: fires on every BLE advertisement, optionally filtered to one or more MACs.
 class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public ESPBTDeviceListener {
  public:
-  explicit ESPBTAdvertiseTrigger(BLEHub *parent) { parent->register_listener(this); }
+  template<typename Hub> explicit ESPBTAdvertiseTrigger(Hub *parent) { parent->register_listener(this); }
 
-  void set_addresses(std::initializer_list<uint64_t> addresses) { this->addresses_ = addresses; }
+  /// Table of MACs ended by 0; must outlive the trigger.
+  void set_addresses(const uint64_t *addresses) { this->addresses_ = addresses; }
 
   bool parse_device(const ESPBTDevice &device) override {
-    if (!this->addresses_.empty() && std::find(this->addresses_.begin(), this->addresses_.end(),
-                                               device.address_uint64()) == this->addresses_.end()) {
+    if (this->addresses_ != nullptr && !mac_in_table(this->addresses_, device.address_uint64()))
       return false;
-    }
     this->trigger(device);
     return true;
   }
 
  protected:
-  FixedVector<uint64_t> addresses_;
+  const uint64_t *addresses_{nullptr};
 };
 
 // on_ble_service_data_advertise: fires when an advertisement contains service
 // data for the given UUID. Optional single-MAC filter.
 class BLEServiceDataAdvertiseTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
  public:
-  explicit BLEServiceDataAdvertiseTrigger(BLEHub *parent) { parent->register_listener(this); }
+  template<typename Hub> explicit BLEServiceDataAdvertiseTrigger(Hub *parent) { parent->register_listener(this); }
 
   void set_service_uuid16(uint64_t uuid) { this->uuid_ = ESPBTUUID::from_uint16(static_cast<uint16_t>(uuid)); }
   void set_service_uuid32(uint64_t uuid) { this->uuid_ = ESPBTUUID::from_uint32(static_cast<uint32_t>(uuid)); }
@@ -73,7 +79,7 @@ class BLEServiceDataAdvertiseTrigger final : public Trigger<const adv_data_t &>,
 // manufacturer data for the given ID. Optional single-MAC filter.
 class BLEManufacturerDataAdvertiseTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
  public:
-  explicit BLEManufacturerDataAdvertiseTrigger(BLEHub *parent) { parent->register_listener(this); }
+  template<typename Hub> explicit BLEManufacturerDataAdvertiseTrigger(Hub *parent) { parent->register_listener(this); }
 
   void set_manufacturer_uuid16(uint64_t uuid) { this->uuid_ = ESPBTUUID::from_uint16(static_cast<uint16_t>(uuid)); }
   void set_manufacturer_uuid32(uint64_t uuid) { this->uuid_ = ESPBTUUID::from_uint32(static_cast<uint32_t>(uuid)); }
@@ -108,7 +114,7 @@ class BLEManufacturerDataAdvertiseTrigger final : public Trigger<const adv_data_
 // claims devices (parse_device always returns false).
 class BLEEndOfScanTrigger final : public Trigger<>, public ESPBTDeviceListener {
  public:
-  explicit BLEEndOfScanTrigger(BLEHub *parent) { parent->register_listener(this); }
+  template<typename Hub> explicit BLEEndOfScanTrigger(Hub *parent) { parent->register_listener(this); }
 
   bool parse_device(const ESPBTDevice &device) override { return false; }
   void on_scan_end() override { this->trigger(); }

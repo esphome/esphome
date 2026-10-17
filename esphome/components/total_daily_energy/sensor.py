@@ -13,27 +13,26 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["time"]
 
 CONF_POWER_ID = "power_id"
 total_daily_energy_ns = cg.esphome_ns.namespace("total_daily_energy")
 TotalDailyEnergyMethod = total_daily_energy_ns.enum("TotalDailyEnergyMethod")
-TOTAL_DAILY_ENERGY_METHODS = {
-    "trapezoid": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_TRAPEZOID,
-    "left": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_LEFT,
-    "right": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_RIGHT,
-}
+TOTAL_DAILY_ENERGY_METHODS = TotalDailyEnergyMethod.options(
+    "trapezoid", "left", "right", prefix="TOTAL_DAILY_ENERGY_METHOD_"
+)
 TotalDailyEnergy = total_daily_energy_ns.class_(
     "TotalDailyEnergy", sensor.Sensor, cg.Component
 )
 
 
-def inherit_unit_of_measurement(uom, config):
+def inherit_unit_of_measurement(uom: str, config: ConfigType) -> str:
     return uom + "h"
 
 
-def inherit_accuracy_decimals(decimals, config):
+def inherit_accuracy_decimals(decimals: int, config: ConfigType) -> int:
     return decimals + 2
 
 
@@ -80,7 +79,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

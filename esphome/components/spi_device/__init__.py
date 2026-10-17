@@ -2,9 +2,11 @@ import esphome.codegen as cg
 from esphome.components import spi
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "spi_device"
 
 MULTI_CONF = True
 spi_device_ns = cg.esphome_ns.namespace("spi_device")
@@ -12,10 +14,7 @@ spi_device_ns = cg.esphome_ns.namespace("spi_device")
 spi_device = spi_device_ns.class_("SPIDeviceComponent", cg.Component, spi.SPIDevice)
 
 BitOrder = spi.spi_ns.enum("SPIBitOrder")
-ORDERS = {
-    "msb_first": BitOrder.BIT_ORDER_MSB_FIRST,
-    "lsb_first": BitOrder.BIT_ORDER_LSB_FIRST,
-}
+ORDERS = BitOrder.options("msb_first", "lsb_first", prefix="BIT_ORDER_")
 CONF_BIT_ORDER = "bit_order"
 
 CONFIG_SCHEMA = cv.Schema(
@@ -29,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(spi.spi_device_schema(False, "1MHz"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_bit_order(config[CONF_BIT_ORDER]))

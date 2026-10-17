@@ -51,8 +51,8 @@ on_dooya:
 on_drayton:
   then:
     - logger.log:
-        format: "on_drayton: %u %u %u"
-        args: ["x.address", "x.channel", "x.command"]
+        format: "on_drayton: %u %u %u %u"
+        args: ["x.address", "x.channel", "x.command", "x.data"]
 on_dyson:
   then:
     - logger.log:
@@ -71,8 +71,8 @@ on_jvc:
 on_keeloq:
   then:
     - logger.log:
-        format: "on_keeloq: %lu %lu %u"
-        args: ["long(x.encrypted)", "long(x.address)", "x.command"]
+        format: "on_keeloq: %lu %lu %u %u %u"
+        args: ["long(x.encrypted)", "long(x.address)", "x.command", "x.suffix", "x.suffix_bits"]
 on_haier:
   then:
     - logger.log:
@@ -103,11 +103,21 @@ on_nexa:
     - logger.log:
         format: "on_nexa: %lu %u %u %u %u"
         args: ["long(x.device)", "x.group", "x.state", "x.channel", "x.level"]
+on_nexus:
+  then:
+    - logger.log:
+        format: "on_nexus: %u %u %.1f %u %d %d"
+        args: ["x.channel", "x.address", "x.temperature", "x.humidity", "x.battery_level", "x.force_update"]
+on_onkyori:
+  then:
+    - logger.log:
+        format: "on_onkyori: 0x%03X"
+        args: ["x.data"]
 on_panasonic:
   then:
     - logger.log:
-        format: "on_panasonic: %u %lu"
-        args: ["x.address", "long(x.command)"]
+        format: "on_panasonic: %u %u %u %lu"
+        args: ["x.nbits", "x.address", "x.address_2", "long(x.command)"]
 on_pioneer:
   then:
     - logger.log:
@@ -128,6 +138,11 @@ on_rc5:
     - logger.log:
         format: "on_rc5: %u %u"
         args: ["x.address", "x.command"]
+on_rc5x:
+  then:
+    - logger.log:
+        format: "on_rc5x: %u %u %u"
+        args: ["x.address", "x.command", "x.extension"]
 on_rc6:
   then:
     - logger.log:
@@ -172,3 +187,18 @@ on_toto:
     - logger.log:
         format: "on_toto: %u %u %u"
         args: ["x.rc_code_1", "x.rc_code_2", "x.command"]
+on_hob2hood:
+  then:
+    - logger.log:
+        format: "on_hob2hood: %u"
+        args: ["x.command"]
+on_pd_pioneer:
+  then:
+    - logger.log:
+        format: "on_pd_pioneer: burst %u power %u"
+        args: ["x[3]", "x[5]"]
+on_ira211:
+  then:
+    - logger.log:
+        format: "on_ira211: %u %.1f"
+        args: ["static_cast<uint8_t>(x.command)", "x.get_temperature()"]
