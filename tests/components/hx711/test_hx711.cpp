@@ -83,12 +83,12 @@ class HX711Test : public ::testing::Test {
     this->hx_.loop();
   }
   // setup(), the first conversion and settling, ending idle with the loop disabled.
-  void start_() {
+  void start_(unsigned gain_pulses = 1) {
     this->hx_.setup();
     this->tick_();
     this->chip_.convert(0);
     this->tick_();
-    EXPECT_EQ(this->chip_.gain_pulses(), 1u);
+    EXPECT_EQ(this->chip_.gain_pulses(), gain_pulses);
     this->settle_();
     this->tick_();
     ASSERT_TRUE(this->hx_.is_idle());
@@ -180,7 +180,8 @@ TEST_F(HX711Test, ReadyTimeoutWarnsAndTheNextUpdateRecovers) {
   this->tick_();
   ASSERT_EQ(this->a_values_.size(), 1u);
   EXPECT_TRUE(std::isnan(this->a_values_[0]));
-  EXPECT_TRUE(this->b_values_.empty());
+  ASSERT_EQ(this->b_values_.size(), 1u);
+  EXPECT_TRUE(std::isnan(this->b_values_[0]));
   EXPECT_TRUE(this->hx_.status_has_warning());
   EXPECT_TRUE(this->chip_.powered_down());
   EXPECT_TRUE(this->hx_.is_idle());
@@ -233,6 +234,44 @@ TEST_F(HX711Test, UpdateIsSkippedWhilePoweredDown) {
   this->read_(5);
   ASSERT_EQ(this->a_values_.size(), 1u);
   EXPECT_EQ(this->a_values_[0], 5.0f);
+}
+
+TEST_F(HX711Test, Gain32WithoutChannelBSensorCompletesTheUpdate) {
+  this->hx_.set_gain(HX711_GAIN_32);
+  this->start_(2);
+  this->read_(9);
+  ASSERT_EQ(this->a_values_.size(), 1u);
+  EXPECT_EQ(this->a_values_[0], 9.0f);
+  EXPECT_EQ(this->chip_.gain_pulses(), 2u);
+  this->tick_();
+  EXPECT_TRUE(this->hx_.is_idle());
+}
+
+TEST_F(HX711Test, Gain32MirrorsTheReadingToChannelB) {
+  this->hx_.set_channel_b_sensor(&this->channel_b_);
+  this->hx_.set_gain(HX711_GAIN_32);
+  this->start_(2);
+  this->read_(9);
+  ASSERT_EQ(this->a_values_.size(), 1u);
+  ASSERT_EQ(this->b_values_.size(), 1u);
+  EXPECT_EQ(this->b_values_[0], 9.0f);
+  this->tick_();
+  EXPECT_TRUE(this->hx_.is_idle());
+}
+
+TEST_F(HX711Test, PowerDownFromAnOnValueCallbackIsKept) {
+  this->hx_.add_on_state_callback([this](float) { this->hx_.power_down(); });
+  this->start_();
+  this->read_(3);
+  ASSERT_EQ(this->a_values_.size(), 1u);
+  EXPECT_TRUE(this->chip_.powered_down());
+  this->tick_();
+  this->hx_.update();
+  this->tick_();
+  this->chip_.convert(4);
+  this->tick_(TIMEOUT_MS);
+  EXPECT_EQ(this->a_values_.size(), 1u);
+  EXPECT_TRUE(this->chip_.powered_down());
 }
 
 }  // namespace esphome::hx711::testing

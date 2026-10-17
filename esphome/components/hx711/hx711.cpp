@@ -105,18 +105,22 @@ void HX711Sensor::loop() {
     return;
   }
 
+  const HX711Gain conversion_gain = this->last_gain_;
 #ifdef USE_HX711_CHANNEL_B_SENSOR
   const bool channel_b = this->channel_b_pending_;
 #else
   constexpr bool channel_b = false;
 #endif
-  const HX711Gain conversion_gain = this->last_gain_;
   // After set_gain() the waiting conversion still used the old gain: discard it and settle.
   const bool discard = !channel_b && conversion_gain != this->gain_;
   HX711Gain next_gain = this->gain_;
 #ifdef USE_HX711_CHANNEL_B_SENSOR
-  if (!channel_b && !discard && this->channel_b_sensor_ != nullptr)
+  // A channel A reading is followed by one on channel B; with gain 32 the main sensor already reads channel B
+  const bool schedule_b = !channel_b && !discard && this->channel_b_sensor_ != nullptr && this->gain_ != HX711_GAIN_32;
+  if (schedule_b)
     next_gain = HX711_GAIN_32;
+#else
+  constexpr bool schedule_b = false;
 #endif
 
   int32_t value;
@@ -125,35 +129,36 @@ void HX711Sensor::loop() {
     return;
   }
 
+  sensor::Sensor *target = nullptr;
   if (!discard) {
-    sensor::Sensor *target = this;
+    target = this;
 #ifdef USE_HX711_CHANNEL_B_SENSOR
     if (channel_b)
       target = this->channel_b_sensor_;
-    this->channel_b_pending_ = next_gain == HX711_GAIN_32;
+    this->channel_b_pending_ = schedule_b;
 #endif
-    ESP_LOGD(TAG, "'%s': Got value %" PRId32 " (gain x%u)", target->get_name().c_str(), value,
-             gain_value(conversion_gain));
-    target->publish_state(value);
-
-#ifdef USE_HX711_CHANNEL_B_SENSOR
-    if (!this->channel_b_pending_)
-#endif
-    {
-      this->update_pending_ = false;
-      if (this->power_down_after_reading_) {
-        this->power_off_(Phase::POWERED_DOWN);
-        return;
-      }
-    }
   }
-
-  if (next_gain != conversion_gain) {
+  // Finish the phase change before publishing: an on_value automation may call power_down()
+  const bool done = !discard && !schedule_b;
+  if (done)
+    this->update_pending_ = false;
+  if (done && this->power_down_after_reading_) {
+    this->power_off_(Phase::POWERED_DOWN);
+  } else if (next_gain != conversion_gain) {
     this->phase_ = Phase::SETTLING;
     this->phase_start_ = now;
   } else {
     this->phase_ = Phase::IDLE;
   }
+  if (target == nullptr)
+    return;
+  ESP_LOGD(TAG, "'%s': Got value %" PRId32 " (gain x%u)", target->get_name().c_str(), value,
+           gain_value(conversion_gain));
+  target->publish_state(value);
+#ifdef USE_HX711_CHANNEL_B_SENSOR
+  if (!channel_b && conversion_gain == HX711_GAIN_32 && this->channel_b_sensor_ != nullptr)
+    this->channel_b_sensor_->publish_state(value);
+#endif
 }
 
 void HX711Sensor::power_up() {
@@ -172,6 +177,8 @@ void HX711Sensor::power_down() {
 }
 
 void HX711Sensor::power_on_() {
+  // PD_SCK must stay high for 60us to power the chip down; cover a power_down() followed at once by power_up()
+  delayMicroseconds(60);
   // Power-up resets the chip to channel A, gain 128.
   this->sck_pin_->digital_write(false);
   this->last_gain_ = HX711_GAIN_128;
@@ -180,7 +187,6 @@ void HX711Sensor::power_on_() {
 }
 
 void HX711Sensor::power_off_(Phase phase) {
-  // PD_SCK high for more than 60us powers the chip down; the next power_on_() is always a later loop pass.
   this->sck_pin_->digital_write(true);
   this->update_pending_ = false;
 #ifdef USE_HX711_CHANNEL_B_SENSOR
@@ -191,16 +197,20 @@ void HX711Sensor::power_off_(Phase phase) {
 }
 
 void HX711Sensor::fail_update_(const LogString *reason) {
-  bool channel_b = false;
+  // Note what is still owed and finish the power change first: an on_value automation may call power_down()
+  bool owe_a = this->update_pending_;
 #ifdef USE_HX711_CHANNEL_B_SENSOR
-  channel_b = this->channel_b_pending_;
-  if (channel_b)
-    this->channel_b_sensor_->publish_state(NAN);
+  owe_a = owe_a && !this->channel_b_pending_;
+  const bool owe_b = this->update_pending_ && this->channel_b_sensor_ != nullptr;
 #endif
-  if (this->update_pending_ && !channel_b)
-    this->publish_state(NAN);
   this->status_set_warning(reason);
   this->power_off_(Phase::POWERED_DOWN);
+  if (owe_a)
+    this->publish_state(NAN);
+#ifdef USE_HX711_CHANNEL_B_SENSOR
+  if (owe_b)
+    this->channel_b_sensor_->publish_state(NAN);
+#endif
 }
 
 bool HX711Sensor::read_raw_(int32_t &value, HX711Gain next_gain) {
