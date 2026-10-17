@@ -32,6 +32,15 @@ sensor types using the one-segment 33 %/85 % variant are listed.
 """
 
 from dataclasses import dataclass
+import math
+
+#: Upper clamp of the magnitude of ``a`` / ``b`` in the firmware, mirroring
+#: MQUnifiedsensor's ``MQ_MAX_A`` / ``MQ_MAX_B`` (``mqmath::clamp_a()`` /
+#: ``mqmath::clamp_b()``). A coefficient outside this range would be silently
+#: clamped on the device, so it is clamped here too: the firmware then evaluates
+#: exactly what :func:`resolve_sensor` returns.
+MQ_MAX_A = 1e30
+MQ_MAX_B = 100.0
 
 CUSTOM_TYPE = "CUSTOM"
 
@@ -383,6 +392,13 @@ SENSOR_TYPES: dict[str, dict] = {
 }
 
 
+def _clamp_coefficient(value: float, limit: float) -> float:
+    """Clamp a coefficient to the range the firmware can evaluate (see `MQ_MAX_A`)."""
+    if not math.isfinite(value):
+        return 0.0
+    return max(-limit, min(limit, value))
+
+
 def resolve_sensor(
     type_key: str,
     gas: str | None = None,
@@ -459,8 +475,8 @@ def resolve_sensor(
         label=definition["label"],
         gas=gas_key,
         method=resolved_method,
-        a=float(a),
-        b=float(b),
+        a=_clamp_coefficient(float(a), MQ_MAX_A),
+        b=_clamp_coefficient(float(b), MQ_MAX_B),
         ratio_in_clean_air=float(
             definition["ratio_in_clean_air"]
             if ratio_in_clean_air is None

@@ -383,9 +383,10 @@ void MQGasSensor::finish_calibration_() {
 
   const uint32_t attempts = this->calibration_attempts_;
   const uint32_t valid = this->calibration_count_;
-  // Every reading uses this R0, so a lucky minority of samples must not define it:
-  // a majority of the attempts has to have produced one, two samples at least.
-  const uint32_t required = std::max<uint32_t>((attempts + 1) / 2, 2);
+  // Every reading uses this R0, so a lucky minority of samples must not define it: at
+  // least half of the attempts has to have produced one, and at least two samples - or
+  // every sample, when the run took fewer than two.
+  const uint32_t required = std::min<uint32_t>(std::max<uint32_t>((attempts + 1) / 2, 2), attempts);
 
   if (valid < required) {
     this->log_message_(LOG_SEVERITY_ERROR,
