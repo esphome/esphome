@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
+#include <string>
 #include <vector>
 
 #include "esphome/components/pylontech/pylontech.h"
@@ -18,9 +19,9 @@ class MockUARTComponent : public uart::UARTComponent {
  public:
   std::vector<uint8_t> rx;
 
-  void push_rx(std::initializer_list<const char *> lines) {
-    for (const char *line : lines) {
-      this->rx.insert(this->rx.end(), line, line + strlen(line));
+  void push_rx(std::initializer_list<std::string> lines) {
+    for (const std::string &line : lines) {
+      this->rx.insert(this->rx.end(), line.begin(), line.end());
     }
   }
 
@@ -43,11 +44,17 @@ class MockUARTComponent : public uart::UARTComponent {
 #endif
 };
 
+// Every record any listener gets, in publish order
+std::vector<PylontechListener::LineContents> published;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 class TestListener final : public PylontechListener {
  public:
-  void on_line_read(LineContents *line) override { this->lines.push_back(*line); }
+  explicit TestListener(uint8_t bat_num) : PylontechListener(bat_num) {}
+  void on_line_read(LineContents *line) override {
+    EXPECT_EQ(line->bat_num, this->bat_num_);
+    published.push_back(*line);
+  }
   void dump_config() override {}
-  std::vector<LineContents> lines;
 };
 
 // clang-format off
@@ -60,12 +67,6 @@ constexpr const char *BAT1 =
 constexpr const char *BAT2 =
     "2     46012  -1255  9100   5300   5500   3047   3091   SysError Low      Normal   Normal   4%       "
     "2025-11-28 17:56:33  Low      Normal  7800     Normal\r\n";
-constexpr const char *BAT3 =
-    "3     49000  0      17000  16000  18000  3200   3300   Idle     Normal   Normal   Normal   50%      "
-    "2025-11-28 17:56:33  Normal   Normal  16000    Normal\r\n";
-constexpr const char *BAT5 =
-    "5     49000  0      17000  16000  18000  3200   3300   Idle     Normal   Normal   Normal   50%      "
-    "2025-11-28 17:56:33  Normal   Normal  16000    Normal\r\n";
 constexpr const char *NEW_HEADER =
     "Power Volt Curr Tempr Tlow Tlow.Id Thigh Thigh.Id Vlow Vlow.Id Vhigh Vhigh.Id Base.St Volt.St Curr.St Temp.St "
     "Coulomb Time                B.V.St B.T.St MosTempr M.T.St SysAlarm.St\r\n";
@@ -74,20 +75,28 @@ constexpr const char *NEW_BAT1 =
     "60%     2025-12-05 00:53:41 Normal Normal 16600    Normal Normal\r\n";
 // clang-format on
 
+// An older firmware line for battery bat with pack voltage volt (mV)
+std::string bat_line(int bat, int volt) {
+  return std::to_string(bat) + "     " + std::to_string(volt) +
+         "  0      17000  16000  18000  3200   3300   Idle     Normal   Normal   Normal   50%      "
+         "2025-11-28 17:56:33  Normal   Normal  16000    Normal\r\n";
+}
+
 class PylontechTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    published.clear();
     this->hub_.set_uart_parent(&this->uart_);
-    this->hub_.register_listener(&this->listeners_[0], 1);
-    this->hub_.register_listener(&this->listeners_[1], 2);
-    this->hub_.register_listener(&this->listeners_[2], 3);
+    for (TestListener &listener : this->listeners_) {
+      this->hub_.register_listener(&listener);
+    }
   }
 
-  std::vector<PylontechListener::LineContents> &published_() { return this->listeners_[0].lines; }
+  std::vector<PylontechListener::LineContents> &published_() { return published; }
 
   MockUARTComponent uart_;
   PylontechComponent hub_;
-  TestListener listeners_[3];
+  TestListener listeners_[3]{TestListener(1), TestListener(2), TestListener(3)};
 };
 
 }  // namespace
@@ -126,10 +135,6 @@ TEST_F(PylontechTest, BurstIsPublishedAfterTheDrainOnePerLoop) {
   EXPECT_STREQ(b2.volt_st, "Low");
   EXPECT_EQ(b2.coulomb, 4);
   EXPECT_EQ(b2.mostempr, 7800);
-
-  // Every listener gets every record and filters by battery itself
-  EXPECT_EQ(this->listeners_[1].lines.size(), 2u);
-  EXPECT_EQ(this->listeners_[2].lines.size(), 2u);
 }
 
 TEST_F(PylontechTest, NothingIsPublishedWhileBytesKeepArriving) {
@@ -159,9 +164,8 @@ TEST_F(PylontechTest, NewerFirmwareSkipsIdColumns) {
   EXPECT_EQ(b1.mostempr, 16600);
 }
 
-TEST_F(PylontechTest, BatteryWithoutListenerIsNotQueued) {
-  // Battery 5 would otherwise take a queue slot and push out battery 2
-  this->uart_.push_rx({HEADER, BAT5, BAT1, BAT2});
+TEST_F(PylontechTest, BatteryWithoutListenerIsIgnored) {
+  this->uart_.push_rx({HEADER, bat_line(5, 49000), bat_line(17, 49000), bat_line(0, 49000), BAT1, BAT2});
   for (int i = 0; i < 4; i++) {
     this->hub_.loop();
   }
@@ -179,22 +183,31 @@ TEST_F(PylontechTest, InvalidAndUnknownLinesAreSkipped) {
   EXPECT_EQ(this->published_()[0].bat_num, 2);
 }
 
-TEST_F(PylontechTest, FullQueueDropsLinesAndRecovers) {
-  // The queue holds two records; the third battery of the burst is dropped
-  this->uart_.push_rx({HEADER, BAT1, BAT2, BAT3});
+TEST_F(PylontechTest, RepeatedBatteryLineOverwrites) {
+  this->uart_.push_rx({HEADER, bat_line(3, 49000), BAT1, bat_line(3, 49500)});
   for (int i = 0; i < 4; i++) {
     this->hub_.loop();
   }
   ASSERT_EQ(this->published_().size(), 2u);
   EXPECT_EQ(this->published_()[0].bat_num, 1);
-  EXPECT_EQ(this->published_()[1].bat_num, 2);
+  EXPECT_EQ(this->published_()[1].bat_num, 3);
+  EXPECT_EQ(this->published_()[1].volt, 49500);
 
-  // The next reply starts from an empty queue
-  this->uart_.push_rx({HEADER, BAT3});
+  // The next reply fills the slot again
+  this->uart_.push_rx({HEADER, bat_line(3, 48000)});
   this->hub_.loop();
   this->hub_.loop();
   ASSERT_EQ(this->published_().size(), 3u);
-  EXPECT_EQ(this->published_()[2].bat_num, 3);
+  EXPECT_EQ(this->published_()[2].volt, 48000);
+}
+
+TEST_F(PylontechTest, BadLineClearsTheBatteryPendingRecord) {
+  this->uart_.push_rx({HEADER, BAT1, "1     abc\r\n", BAT2});
+  for (int i = 0; i < 3; i++) {
+    this->hub_.loop();
+  }
+  ASSERT_EQ(this->published_().size(), 1u);
+  EXPECT_EQ(this->published_()[0].bat_num, 2);
 }
 
 }  // namespace esphome::pylontech::testing

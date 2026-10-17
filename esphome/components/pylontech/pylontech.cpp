@@ -81,21 +81,20 @@ void PylontechComponent::loop() {
 
 #ifdef PYLONTECH_LISTENER_COUNT
 void PylontechComponent::dispatch_one_() {
-  if (this->dispatched_ == this->queue_.size()) {
-    return;
-  }
-  PylontechListener::LineContents *l = &this->queue_[this->dispatched_++];
-  ESP_LOGV(TAG, "Publishing battery %d", l->bat_num);
-  for (PylontechListener *listener : this->listeners_) {
-    listener->on_line_read(l);
-  }
-  if (this->dispatched_ == this->queue_.size()) {
-    this->queue_.clear();
-    this->dispatched_ = 0;
-    if (this->dropped_ != 0) {
-      ESP_LOGW(TAG, "Queue full, dropped %u lines", this->dropped_);
-      this->dropped_ = 0;
+  for (uint8_t i = 0; i < PYLONTECH_BATTERY_COUNT; i++) {
+    const battery_mask_t bit = 1u << i;
+    if ((this->pending_ & bit) == 0) {
+      continue;
     }
+    this->pending_ &= ~bit;
+    PylontechListener::LineContents *l = &this->slots_[i];
+    ESP_LOGV(TAG, "Publishing battery %u", l->bat_num);
+    for (PylontechListener *listener : this->listeners_) {
+      if (listener->get_battery() == l->bat_num) {
+        listener->on_line_read(l);
+      }
+    }
+    return;
   }
 }
 
@@ -110,8 +109,6 @@ void PylontechComponent::process_line_(const char *buffer) {
   // Power Volt Curr Tempr Tlow Tlow.Id Thigh Thigh.Id Vlow Vlow.Id Vhigh Vhigh.Id Base.St Volt.St Curr.St Temp.St Coulomb Time                B.V.St B.T.St MosTempr M.T.St SysAlarm.St
   // 1     49405 0   17600 13700 8      14500 0        3293 2       3294   0       Idle    Normal  Normal  Normal  60%     2025-12-05 00:53:41 Normal Normal 16600    Normal Normal
   // clang-format on
-
-  PylontechListener::LineContents l{};
 
   const char *cursor = buffer;
   char token_buf[TEXT_SENSOR_MAX_LEN] = {0};
@@ -140,25 +137,35 @@ void PylontechComponent::process_line_(const char *buffer) {
     token_buf[token_len] = 0;
   };
 
-  {
-    get_token(token_buf);
-    auto val = parse_number<int>(token_buf);
-    if (val.has_value() && val.value() > 0) {
-      l.bat_num = val.value();
-      if (l.bat_num > 16 || (this->batteries_ & (1u << (l.bat_num - 1))) == 0) {
-        return;  // no listener for this battery
-      }
-    } else if (strcmp(token_buf, "Power") == 0) {
+  get_token(token_buf);
+  auto bat = parse_number<int>(token_buf);
+  if (!bat.has_value()) {
+    if (strcmp(token_buf, "Power") == 0) {
       // header line i.e. "Power Volt   Curr" and so on
       this->has_tlow_id_ = strstr(buffer, "Tlow.Id") != nullptr;
       ESP_LOGV(TAG, "header line %s Tlow.Id: %s",
                this->has_tlow_id_ ? LOG_STR_LITERAL("with") : LOG_STR_LITERAL("without"), buffer);
-      return;
     } else {
       ESP_LOGV(TAG, "unknown line %s", buffer);
-      return;
     }
+    return;
   }
+  const unsigned bat_index = *bat - 1;
+  if (bat_index >= MAX_BATTERIES || (this->batteries_ & (1u << bat_index)) == 0) {
+    return;  // no listener for this battery
+  }
+  const battery_mask_t bat_bit = 1u << bat_index;
+  // The slot index is the number of listened batteries below this one
+  uint8_t slot = 0;
+  for (battery_mask_t below = this->batteries_ & (bat_bit - 1); below != 0; below &= below - 1) {
+    slot++;
+  }
+  const battery_mask_t slot_bit = 1u << slot;
+  // Cleared until the whole line parses, so a bad line never publishes a half written slot
+  this->pending_ &= ~slot_bit;
+  PylontechListener::LineContents &l = this->slots_[slot];
+  l.bat_num = *bat;
+
   PARSE_INT(l.volt, "Volt");
   PARSE_INT(l.curr, "Curr");
   PARSE_INT(l.tempr, "Tempr");
@@ -204,13 +211,7 @@ void PylontechComponent::process_line_(const char *buffer) {
   get_token(token_buf);  // Skip B.T.St
   PARSE_INT(l.mostempr, "Mostempr");
 
-  if (this->queue_.size() == PYLONTECH_BATTERY_COUNT) {
-    if (this->dropped_ != UINT8_MAX) {
-      this->dropped_++;
-    }
-    return;
-  }
-  this->queue_.push_back(l);
+  this->pending_ |= slot_bit;
 }
 #endif
 

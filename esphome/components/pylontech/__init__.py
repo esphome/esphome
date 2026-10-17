@@ -36,16 +36,22 @@ class PylontechData:
     batteries: set[tuple[str, int]] = field(default_factory=set)
 
 
+def _get_data() -> PylontechData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = PylontechData()
+    return CORE.data[DOMAIN]
+
+
 async def register_listener(config: ConfigType, listener: MockObj) -> None:
-    """Register a battery listener; the line queue holds one record per distinct battery."""
+    """Register a battery listener; the hub keeps one line slot per distinct battery."""
     hub = await cg.get_variable(config[CONF_PYLONTECH_ID])
     battery = config[CONF_BATTERY]
     _request_listener_slot(str(hub))
-    data = CORE.data.setdefault(DOMAIN, PylontechData())
+    data = _get_data()
     if (key := (str(hub), battery)) not in data.batteries:
         data.batteries.add(key)
         _request_battery_slot(str(hub))
-    cg.add(hub.register_listener(listener, battery))
+    cg.add(hub.register_listener(listener))
 
 
 PYLONTECH_COMPONENT_SCHEMA = cv.Schema(
