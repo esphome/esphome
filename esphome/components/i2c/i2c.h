@@ -14,6 +14,13 @@ namespace esphome::i2c {
 
 class I2CDevice;  // forward declaration
 
+/// One register write for I2CDevice::write_registers(); tables of these may live in PROGMEM.
+struct I2CRegValue {
+  uint8_t reg;
+  uint8_t value;
+};
+static_assert(sizeof(I2CRegValue) == 2, "each entry is sent to the bus as is");
+
 /// Out of line so each check_chip_id() caller only pays for a call.
 void log_wrong_chip_id(uint8_t id, uint8_t expected);
 
@@ -212,6 +219,13 @@ class I2CDevice {
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
   ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
+
+  /// Write each register and value of \p table in order, stopping at the first failure.
+  /// The table may be in PROGMEM.
+  bool write_registers(const I2CRegValue *table, size_t count) const;
+  template<size_t N> bool write_registers(const I2CRegValue (&table)[N]) const {
+    return this->write_registers(table, N);
+  }
 
   /// Read the 8-bit ID at \p a_register and accept it when it matches \p expected in the bits set in \p mask.
   /// Otherwise mark \p component failed and return false.

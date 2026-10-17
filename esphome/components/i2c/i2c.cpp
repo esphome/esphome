@@ -53,6 +53,20 @@ ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, 
   return this->bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
 }
 
+bool I2CDevice::write_registers(const I2CRegValue *table, size_t count) const {
+  for (size_t i = 0; i < count; i++) {
+    I2CRegValue entry;
+    progmem_memcpy(&entry, &table[i], sizeof(entry));
+    if (this->bus_->write_readv(this->address_, reinterpret_cast<const uint8_t *>(&entry), sizeof(entry), nullptr, 0) !=
+        ERROR_OK) {
+      ESP_LOGW(TAG, "Writing register 0x%02X (table entry %u) to 0x%02X failed", entry.reg, static_cast<unsigned>(i),
+               this->address_);
+      return false;
+    }
+  }
+  return true;
+}
+
 bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
   if (read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
     return false;
