@@ -213,6 +213,13 @@ void MQTTClientComponent::dump_config() {
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
   // clang-format on
+#if defined(USE_MQTT_CERT_BUNDLE)
+  ESP_LOGCONFIG(TAG, "  TLS: certificate bundle");
+#elif defined(USE_MQTT_TLS_INSECURE)
+  ESP_LOGCONFIG(TAG, "  TLS: no verification");
+#elif defined(USE_MQTT_TLS)
+  ESP_LOGCONFIG(TAG, "  TLS: CA certificate");
+#endif
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
