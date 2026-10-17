@@ -17,6 +17,7 @@ class OneWireDeviceComponent final : public PollingComponent {
  public:
   void setup() override;
   void update() override;
+  void loop() override;
   void dump_config() override;
   void on_shutdown() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -51,7 +52,8 @@ class OneWireDeviceComponent final : public PollingComponent {
   DeviceModel model_;
   bool awaiting_release_{false}, active_session_{false};
   uint32_t falling_us_{0};
-  bool value_warning_{false}, configuration_warning_{false};
+  bool value_warning_{false}, value_unavailable_{false}, configuration_warning_{false};
+  const LogString *value_warning_message_{nullptr};
   std::function<float()> value_functions_[3];
 };
 template<typename... Ts> class SetValueAction final : public Action<Ts...> {

@@ -18,14 +18,32 @@ static_assert(std::atomic<int32_t>::is_always_lock_free);
 static_assert(std::atomic<uint32_t>::is_always_lock_free);
 
 void OneWireDeviceComponent::raise_value_warning_(const LogString *message) {
-  // Do not claim a warning flag which was already raised by another condition.
-  if (!this->status_has_warning())
+  if (!this->value_unavailable_ || this->value_warning_message_ != message) {
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
+  }
+  this->value_unavailable_ = true;
+  this->value_warning_message_ = message;
+  this->enable_loop();
+  this->loop();
+}
+void OneWireDeviceComponent::loop() {
+  if (!this->value_unavailable_ && !this->configuration_warning_) {
+    this->disable_loop();
+    return;
+  }
+  if (this->status_has_warning())
+    return;
+  if (this->configuration_warning_) {
+    this->status_set_warning(LOG_STR("Invalid value channel configuration"));
+  } else {
     this->value_warning_ = true;
-  this->status_set_warning(message);
+    this->status_set_warning(this->value_warning_message_);
+  }
 }
 bool OneWireDeviceComponent::set_value(uint8_t channel, float value) {
   if (!this->value_channel_supported_(channel)) {
     this->configuration_warning_ = true;
+    this->enable_loop();
     ESP_LOGW(TAG, "Value channel %u is not supported by family 0x%02X", channel, this->family_);
     this->status_set_warning(LOG_STR("Invalid value channel configuration"));
     return false;
@@ -48,10 +66,13 @@ bool OneWireDeviceComponent::set_value(uint8_t channel, float value) {
     }
     this->temperature_.store(static_cast<int32_t>(std::lroundf(value * 16)), std::memory_order_relaxed);
   }
-  if (this->value_warning_ && this->available_()) {
-    this->value_warning_ = false;
-    if (!this->configuration_warning_)
+  if (this->value_unavailable_ && this->available_()) {
+    this->value_unavailable_ = false;
+    if (this->value_warning_ && !this->configuration_warning_)
       this->status_clear_warning();
+    this->value_warning_ = false;
+    if (!this->configuration_warning_ && this->is_in_loop_state())
+      this->disable_loop();
   }
   return true;
 }
@@ -65,6 +86,7 @@ void OneWireDeviceComponent::set_value_function(uint8_t channel, std::function<f
   if (!this->value_channel_supported_(channel)) {
     ESP_LOGW(TAG, "Unsupported value binding channel %u for family 0x%02X", channel, this->family_);
     this->configuration_warning_ = true;
+    this->enable_loop();
     this->status_set_warning(LOG_STR("Invalid value binding channel"));
     return;
   }
@@ -82,10 +104,9 @@ bool IRAM_ATTR OneWireDeviceComponent::available_() const {
 }
 void OneWireDeviceComponent::setup() {
 #if CONFIG_FREERTOS_UNICORE
-  ESP_LOGE(TAG, "A dual-core ESP32 is required");
-  this->mark_failed();
+  this->mark_failed(LOG_STR("A dual-core ESP32 is required"));
   return;
-#endif
+#else
   if (this->pin_ == nullptr) {
     this->mark_failed(LOG_STR("Missing 1-Wire DQ pin"));
     return;
@@ -124,11 +145,17 @@ void OneWireDeviceComponent::setup() {
   // Keep ESPHome's shared GPIO service untouched. The opposite core owns this interrupt.
   this->interrupt_core_ = 1 - xPortGetCoreID();
   esp_err_t error = esp_ipc_call_blocking(this->interrupt_core_, &OneWireDeviceComponent::install_interrupt, this);
-  if (error != ESP_OK || this->interrupt_error_ != ESP_OK) {
-    ESP_LOGE(TAG, "Unable to allocate dedicated GPIO ISR");
-    this->mark_failed();
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "GPIO ISR setup IPC failed: %s", esp_err_to_name(error));
+    this->mark_failed(LOG_STR("GPIO ISR setup IPC failed"));
     return;
   }
+  if (this->interrupt_error_ != ESP_OK) {
+    ESP_LOGE(TAG, "GPIO ISR allocation failed: %s", esp_err_to_name(this->interrupt_error_));
+    this->mark_failed(LOG_STR("GPIO ISR allocation failed"));
+    return;
+  }
+#endif
 }
 void OneWireDeviceComponent::install_interrupt(void *arg) {
   auto *self = static_cast<OneWireDeviceComponent *>(arg);
@@ -148,6 +175,7 @@ void OneWireDeviceComponent::free_interrupt(void *arg) {
 }
 void OneWireDeviceComponent::on_shutdown() {
   this->stopping_.store(true, std::memory_order_release);
+#if !CONFIG_FREERTOS_UNICORE
   if (this->interrupt_handle_ != nullptr) {
     gpio_ll_intr_disable(&GPIO, this->pin_number_);
     const esp_err_t disable_error = esp_intr_disable(this->interrupt_handle_);
@@ -164,6 +192,7 @@ void OneWireDeviceComponent::on_shutdown() {
     this->release_();
     gpio_set_direction(static_cast<gpio_num_t>(this->pin_number_), GPIO_MODE_INPUT);
   }
+#endif
 }
 void OneWireDeviceComponent::dump_config() {
   LOG_PIN("1-Wire emulation pin: ", this->pin_);

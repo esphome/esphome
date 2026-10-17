@@ -4,13 +4,10 @@ These fixtures are intentionally outside grouped component builds. They exercise
 
 ## Native protocol check
 
-Compile the actual GPIO-independent C++ model with the test program:
+Run the actual GPIO-independent C++ model and snapshot checks through the same gtest runner used by CI:
 
 ```sh
-g++ -std=c++20 -Wall -Wextra -Werror -I . \
-  tests/hardware/one_wire_device/protocol_test.cpp \
-  esphome/components/one_wire_device/device_model.cpp -o /path/to/model-test
-/path/to/model-test
+python script/cpp_unit_test.py one_wire_device
 ```
 
 This covers thermometer encodings/CRC, signed DS18S20 interpolation and alarms, Read ROM followed by a function, ready polling, RAM Copy/Recall, ROM-only isolation, and DS2413 read/write status plus invalid-complement rejection. It is not an electrical timing test.
@@ -36,11 +33,11 @@ The configuration CLI tests in `tests/component_tests/one_wire_device/test_value
 
 ## Review correction checks
 
-`snapshot_test.cpp` uses the production source-capture helper and the real bit-slot model. It invalidates or recovers the underlying atomics between capture and check/use, verifying that availability and the value passed to Convert T belong to the same captured word. Compile it like `protocol_test.cpp`, replacing that test filename. `selected_model_test.cpp` builds with `-DONE_WIRE_DEVICE_SELECTED_MODEL -DUSE_ONE_WIRE_DEVICE_<model>` for each selected model and checks that unrelated function protocols are unavailable; normal native builds enable all models.
+`tests/components/one_wire_device/test_snapshot.cpp` uses the production source-capture helper and the real bit-slot model. It invalidates or recovers the underlying atomics between capture and check/use, verifying that availability and the value passed to Convert T belong to the same captured word. It runs in the normal gtest CI job alongside `test_protocol.cpp`. `selected_model_test.cpp` builds with `-DONE_WIRE_DEVICE_SELECTED_MODEL -DUSE_ONE_WIRE_DEVICE_<model>` for each selected model and checks that unrelated function protocols are unavailable; normal native builds enable all models.
 
 `pio-validity.yaml` with `controller-pio-stream.yaml` holds one continuous PIO read request across valid, invalid and recovered source intervals. Require valid initial status, all-FF unavailable bytes after invalidation, and correct recovered status only after the controller issues a new reset; an already-latched byte may finish. This catches retained input bits incorrectly reported as new valid status.
 
-The `setup-failure`, `mac-error`, `teardown-error`, `binding-error` and `warning-ownership` fixtures deliberately exercise failure handling. They are bench-only, never ordinary operating configurations. The MAC/free/IPC errors are targeted linker-injected SDK failures, not claims that the hardware naturally failed. The teardown fixture records callback observations atomically and logs them from the caller, not from the blocked cross-core callback. Verify specific error codes, retained handles on retry, rejected bindings never executing, warning ownership and normal recovery. Restore `final-bench.yaml` and the original bridge-controller image afterwards.
+The `install-error`, `unicore-error`, `setup-failure`, `mac-error`, `teardown-error`, `binding-error` and `warning-ownership` fixtures deliberately exercise failure handling. They are bench-only, never ordinary operating configurations. The MAC/free/IPC errors are targeted linker-injected SDK failures, not claims that the hardware naturally failed. The teardown fixture records callback observations atomically and logs them from the caller, not from the blocked cross-core callback. Verify specific error codes, retained handles on retry, rejected bindings never executing, warning ownership and normal recovery. Restore `final-bench.yaml` and the original bridge-controller image afterwards.
 
 Use the ESPHome checkout containing the candidate for compile, upload and logs. Require a verified flash hash, the fixture's `HIL_IMAGE`/run marker and declared device type before interpreting any capture. Save complete logs from both endpoints, source/firmware identity, duration and parsed outcomes.
 
