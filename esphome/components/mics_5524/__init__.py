@@ -2,6 +2,13 @@
 
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 from esphome.const import PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2
 
 CODEOWNERS = ["@nliaudat"]
@@ -50,14 +57,27 @@ ADC_LIMITS_V = {
     PLATFORM_RP2: (3.3, 3.6),
 }
 
-# Largest input each ESP32 attenuation measures, in volts; 12 dB matches ADC_LIMITS_V.
-ESP32_ATTENUATION_INPUT_MAX_V = {
-    "0db": 1.1,
-    "2.5db": 1.5,
-    "6db": 2.2,
-    "11db": 3.3,
-    "12db": 3.3,
+# Top of the recommended input range of each ESP32 ADC attenuation, in volts, from the ESP-IDF ADC
+# calibration documentation; above it the reading flattens. The ESP32 row is the most conservative
+# and stands in for variants without their own row. "auto" ends up at the widest range.
+_ESP32_ATTENUATION_INPUT_MAX_V = {
+    VARIANT_ESP32: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 2.45},
+    VARIANT_ESP32S2: {"0db": 0.75, "2.5db": 1.05, "6db": 1.3, "12db": 2.5},
+    VARIANT_ESP32S3: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 3.1},
+    VARIANT_ESP32C3: {"0db": 0.75, "2.5db": 1.05, "6db": 1.3, "12db": 2.5},
+    VARIANT_ESP32C6: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 3.3},
 }
+
+
+def esp32_attenuation_input_max(variant: str, attenuation: str) -> float:
+    """Largest input the internal ADC measures at the attenuation, for the variant."""
+    table = _ESP32_ATTENUATION_INPUT_MAX_V.get(
+        variant, _ESP32_ATTENUATION_INPUT_MAX_V[VARIANT_ESP32]
+    )
+    if attenuation in ("11db", "auto"):
+        attenuation = "12db"
+    return table[attenuation]
+
 
 # Guard margin (V): the 3.3333 V of a 10k/20k divider still passes adc_input_max: 3.33.
 ADC_LIMIT_MARGIN_V = 0.01

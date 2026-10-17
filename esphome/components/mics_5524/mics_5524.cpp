@@ -335,6 +335,8 @@ bool MiCS5524Component::save_reference_() {
     ESP_LOGW(TAG, "could not store the %s in flash", LOG_STR_ARG(model_strings(this->conversion_).reference));
     return false;
   }
+  // Once per calibration, so write it out now rather than at the next preferences sync
+  global_preferences->sync();
   ESP_LOGD(TAG, "%s %.4f saved", LOG_STR_ARG(model_strings(this->conversion_).reference), this->reference_);
   return true;
 }

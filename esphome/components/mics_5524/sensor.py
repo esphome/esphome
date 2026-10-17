@@ -6,6 +6,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.adc import ATTENUATION_MODES
+from esphome.components.esp32 import get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ATTENUATION,
@@ -57,9 +58,9 @@ from . import (
     CONF_VOLTAGE_MULTIPLIER,
     CONF_VOLTAGE_SENSOR,
     CONVERSION_MODELS,
-    ESP32_ATTENUATION_INPUT_MAX_V,
     MiCS5524Component,
     MiCS5524GasSensor,
+    esp32_attenuation_input_max,
 )
 from .coefficients import (
     CONVERSION_DATASHEET,
@@ -185,9 +186,9 @@ def _validate_adc_range(config: ConfigType) -> ConfigType:
     default_input_max, default_pin_max = limits
     if CONF_PIN in config and CORE.is_esp32:
         # The attenuation picks the measuring range of the internal ADC
-        default_input_max = ESP32_ATTENUATION_INPUT_MAX_V[
-            config.get(CONF_ADC_ATTENUATION, "12db")
-        ]
+        default_input_max = esp32_attenuation_input_max(
+            get_esp32_variant(), config.get(CONF_ADC_ATTENUATION, "12db")
+        )
     pin_max = config.get(CONF_ADC_PIN_MAX, default_pin_max)
     input_max = config.get(CONF_ADC_INPUT_MAX, default_input_max)
     if divider is not None:

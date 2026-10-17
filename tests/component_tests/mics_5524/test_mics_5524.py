@@ -362,12 +362,12 @@ def test_pin_source_must_be_scaled_into_the_adc_range(
 def test_pin_source_range_follows_the_attenuation(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """At 6 dB the ESP32 ADC measures about 2.2 V, so 3.33 V on the pin is rejected."""
+    """At 6 dB a classic ESP32 measures up to 1.75 V, so 3.33 V on the pin is rejected."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
     )
-    with pytest.raises(cv.Invalid, match="above the 2.2 V measuring range"):
+    with pytest.raises(cv.Invalid, match="above the 1.75 V measuring range"):
         CONFIG_SCHEMA(
             _hub(voltage=None, pin=34, voltage_multiplier=1.5, adc_attenuation="6db")
         )
@@ -375,11 +375,22 @@ def test_pin_source_range_follows_the_attenuation(
         _hub(
             voltage=None,
             pin=34,
-            voltage_multiplier=2.5,
+            voltage_multiplier=3.0,
             adc_attenuation="6db",
             hydrogen={"name": "H2 at 6 dB"},
         )
     )
+    # auto picks the widest range, 2.45 V on a classic ESP32
+    with pytest.raises(cv.Invalid, match="above the 2.45 V measuring range"):
+        CONFIG_SCHEMA(
+            _hub(
+                voltage=None,
+                pin=34,
+                voltage_multiplier=1.5,
+                adc_attenuation="auto",
+                hydrogen={"name": "H2 auto"},
+            )
+        )
 
 
 def test_min_ppm_zero_disables_the_floor() -> None:
