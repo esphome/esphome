@@ -279,6 +279,10 @@ void SEN6XComponent::update() {
   //                      -> write_command (read measurement)
   //                      -> timeout I2C_READ_DELAY
   //                        -> parse_and_publish_measurements_()
+  //                          -> if any pmc_* sensor: read_number_concentration_()
+  //                               -> write_command (read number concentration)
+  //                               -> timeout I2C_READ_DELAY
+  //                                 -> parse_and_publish_number_concentration_()
   //
   // All timeouts share a single ID (TIMEOUT_POLL) since only one is active
   // at a time. cancel_timeout in update() stops any in-flight chain.
