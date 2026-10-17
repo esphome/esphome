@@ -1702,11 +1702,16 @@ def test_start_udp_falls_back_when_blocked(mock_socket: Mock) -> None:
     ]
 
 
-def test_start_udp_declined(mock_socket: Mock) -> None:
+def test_start_udp_declined(
+    mock_socket: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
     """A zero token means the device could not open UDP; nothing is probed."""
     mock_socket.recv.side_effect = [b"\x00", b"\x00\x00\x00"]
-    assert espota2._start_udp(mock_socket, mock_socket, "lossy") is None
+    with caplog.at_level(logging.INFO, logger=espota2.__name__):
+        assert espota2._start_udp(mock_socket, mock_socket, "lossy") is None
     assert mock_socket.sendall.call_args_list == [call(espota2.UDP_REQUEST)]
+    assert "Link is lossy (lossy), trying UDP" in caplog.text
+    assert "Device declined UDP, using TCP" in caplog.text
 
 
 def test_start_udp_clean_link_stays_on_tcp(mock_socket: Mock) -> None:
