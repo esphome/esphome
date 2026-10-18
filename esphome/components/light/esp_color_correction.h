@@ -1,9 +1,10 @@
 #pragma once
 
 #include "esphome/core/color.h"
-#include <algorithm>
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+
+#include <algorithm>
 
 namespace esphome::light {
 
@@ -83,6 +84,8 @@ class ESPColorCorrection {
   }
   /// Forward gamma: read uint16 PROGMEM table, convert to uint8
   uint8_t gamma_correct_(uint8_t value) const;
+  /// Reverse gamma and limit for one stored level
+  uint8_t uncorrect_level_(uint8_t value) const;
   /// Reverse gamma: binary search the forward PROGMEM table
   uint8_t gamma_uncorrect_(uint8_t value) const;
   /// Shared body of color_uncorrect_{red,green,blue,white}. Kept out-of-line

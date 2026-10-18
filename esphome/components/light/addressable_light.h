@@ -10,6 +10,8 @@
 #include "light_state.h"
 #include "light_transformer.h"
 
+#include <cmath>
+
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
 #endif
@@ -26,10 +28,22 @@ class AddressableLightState final : public LightState {
 
  public:
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  float get_estimated_current_ma();
+  float get_estimated_current_ma() const;
   void loop() override;
 #endif
 };
+
+#ifdef USE_LIGHT_POWER_ESTIMATION
+// Allocated only for a strip with power_estimation configured
+struct PowerEstimation {
+  float ma_per_level[4];
+  float idle_ma_per_led;
+  float max_current_ma{NAN};
+  // Set by call_setup() once size() is known; the budget is what is left for the pixels, NAN for no limit
+  float idle_ma{0.0f};
+  float budget_ma{NAN};
+};
+#endif
 
 class AddressableLight : public LightOutput, public Component {
  public:
@@ -72,18 +86,21 @@ class AddressableLight : public LightOutput, public Component {
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  // Per-channel draw at full level, idle draw per LED, and the budget (0 for no limit)
-  void set_power_estimation(float ma_red, float ma_green, float ma_blue, float ma_white, float idle_ma_per_led,
-                            float max_current_ma) {
-    this->ma_per_level_[0] = ma_red / 255.0f;
-    this->ma_per_level_[1] = ma_green / 255.0f;
-    this->ma_per_level_[2] = ma_blue / 255.0f;
-    this->ma_per_level_[3] = ma_white / 255.0f;
-    this->idle_ma_per_led_ = idle_ma_per_led;
-    this->max_current_ma_ = max_current_ma;
-    this->power_estimation_ = true;
+  // Per-channel draw at full level and idle draw per LED
+  void set_power_estimation(float ma_red, float ma_green, float ma_blue, float ma_white, float idle_ma_per_led) {
+    if (this->power_estimation_ == nullptr)
+      this->power_estimation_ = new PowerEstimation();  // NOLINT(cppcoreguidelines-owning-memory)
+    auto *power = this->power_estimation_;
+    power->ma_per_level[0] = ma_red / 255.0f;
+    power->ma_per_level[1] = ma_green / 255.0f;
+    power->ma_per_level[2] = ma_blue / 255.0f;
+    power->ma_per_level[3] = ma_white / 255.0f;
+    power->idle_ma_per_led = idle_ma_per_led;
   }
-  float get_estimated_current_ma() const { return this->estimated_ma_; }
+  // Called after set_power_estimation()
+  void set_max_current_ma(float max_current_ma) { this->power_estimation_->max_current_ma = max_current_ma; }
+  // The draw of the frame in the buffer, NAN without power_estimation
+  float get_estimated_current_ma() const;
 #endif
   void setup_state(LightState *state) override {
 #ifdef USE_LIGHT_GAMMA_LUT
@@ -120,26 +137,19 @@ class AddressableLight : public LightOutput, public Component {
   friend class AddressableLightState;
   // Run by the light state before each frame goes out
   void limit_power_();
-  void sum_channels_(uint32_t sums[4]);
-  float draw_ma_(const uint32_t sums[4]) const;
+  void setup_power_budget_();
+  float frame_ma_() const;
 #endif
 
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  float ma_per_level_[4]{};
-  float idle_ma_per_led_{};
-  float max_current_ma_{};
-  float estimated_ma_{};
+  PowerEstimation *power_estimation_{nullptr};
 #endif
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
   bool effect_active_{false};
-#ifdef USE_LIGHT_POWER_ESTIMATION
-  bool power_estimation_{false};
-  bool budget_warned_{false};
-#endif
 };
 
 class AddressableLightTransformer : public LightTransformer {

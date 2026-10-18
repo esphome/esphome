@@ -84,21 +84,12 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
             ),
             cv.Length(min=1),
         ),
+        cv.Optional(light.CONF_POWER_ESTIMATION): cv.invalid(
+            "power_estimation belongs on the strip a partition draws from; "
+            "the strip's limit covers every partition on it"
+        ),
     }
 )
-
-
-def _no_power_estimation(config: ConfigType) -> ConfigType:
-    if light.CONF_POWER_ESTIMATION in config:
-        raise cv.Invalid(
-            "power_estimation belongs on the strip a partition draws from; "
-            "the strip's limit covers every partition on it",
-            [light.CONF_POWER_ESTIMATION],
-        )
-    return config
-
-
-CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _no_power_estimation)
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(
     {

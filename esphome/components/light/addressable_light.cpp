@@ -8,8 +8,8 @@ namespace esphome::light {
 ESPHOME_LOG_TAG(TAG, "light.addressable");
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
-float AddressableLightState::get_estimated_current_ma() {
-  return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
+float AddressableLightState::get_estimated_current_ma() const {
+  return static_cast<const AddressableLight *>(this->output_)->get_estimated_current_ma();
 }
 
 void AddressableLightState::loop() {
@@ -19,22 +19,38 @@ void AddressableLightState::loop() {
   this->write_if_pending_();
 }
 
-void AddressableLight::sum_channels_(uint32_t sums[4]) {
-  for (size_t channel = 0; channel < 4; channel++)
-    sums[channel] = 0;
-  for (const auto &c : *this) {
-    sums[0] += c.get_red_raw();
-    sums[1] += c.get_green_raw();
-    sums[2] += c.get_blue_raw();
-    sums[3] += c.get_white_raw();
-  }
+float AddressableLight::get_estimated_current_ma() const {
+  return this->power_estimation_ == nullptr ? NAN : this->frame_ma_();
 }
 
-float AddressableLight::draw_ma_(const uint32_t sums[4]) const {
-  float ma = this->size() * this->idle_ma_per_led_;
+// Idle draw plus the weighted levels in the buffer
+float AddressableLight::frame_ma_() const {
+  uint32_t sums[4]{};
+  const int32_t count = this->size();
+  for (int32_t i = 0; i < count; i++) {
+    const auto view = this->get_view_internal(i);
+    sums[0] += view.get_red_raw();
+    sums[1] += view.get_green_raw();
+    sums[2] += view.get_blue_raw();
+    sums[3] += view.get_white_raw();
+  }
+  const auto &power = *this->power_estimation_;
+  float ma = power.idle_ma;
   for (size_t channel = 0; channel < 4; channel++)
-    ma += sums[channel] * this->ma_per_level_[channel];
+    ma += sums[channel] * power.ma_per_level[channel];
   return ma;
+}
+
+void AddressableLight::setup_power_budget_() {
+  auto &power = *this->power_estimation_;
+  power.idle_ma = this->size() * power.idle_ma_per_led;
+  if (std::isnan(power.max_current_ma))
+    return;
+  power.budget_ma = power.max_current_ma - power.idle_ma;
+  if (power.budget_ma <= 0.0f) {
+    ESP_LOGW(TAG, "max_current_ma %.0f leaves nothing for the pixels after the idle draw of %.0f mA",
+             power.max_current_ma, power.idle_ma);
+  }
 }
 
 // Rounded up on the way down so a lit channel stays lit, down on the way up so a level does not creep
@@ -48,42 +64,36 @@ static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
 
 // The frame is moved to the new scale before it goes out, so every write path is limited
 void AddressableLight::limit_power_() {
-  if (!this->power_estimation_)
+  const auto *power = this->power_estimation_;
+  if (power == nullptr || std::isnan(power->budget_ma))
     return;
-  uint32_t sums[4];
-  this->sum_channels_(sums);
-  this->estimated_ma_ = this->draw_ma_(sums);
-  if (this->max_current_ma_ <= 0.0f)
-    return;
-  const float idle_ma = this->size() * this->idle_ma_per_led_;
-  const float budget_ma = this->max_current_ma_ - idle_ma;
-  if (budget_ma <= 0.0f && !this->budget_warned_) {
-    this->budget_warned_ = true;
-    ESP_LOGW(TAG, "max_current_ma %.0f leaves nothing for the pixels after the idle draw of %.0f mA",
-             this->max_current_ma_, idle_ma);
-  }
-  // The raw sums already carry the limit in force; the scale comes from the draw the frame asked for
+  // The stored levels already carry the limit in force; the scale comes from the draw the frame asked for
   const uint8_t previous = this->correction_.get_power_brightness();
-  const float intended_ma = (this->estimated_ma_ - idle_ma) * 255.0f / previous;
+  const float intended_ma = (this->frame_ma_() - power->idle_ma) * 255.0f / previous;
   // Never 0, which would black the strip out and swing the next estimate back to full
-  const uint8_t scale =
-      intended_ma <= budget_ma ? 255 : static_cast<uint8_t>(std::max(budget_ma / intended_ma * 255.0f, 1.0f));
+  const uint8_t scale = intended_ma <= power->budget_ma
+                            ? 255
+                            : static_cast<uint8_t>(std::max(power->budget_ma / intended_ma * 255.0f, 1.0f));
   if (scale == previous)
     return;
   this->correction_.set_power_brightness(scale);
-  for (auto view : *this) {
-    view.set_raw(
-        rescale_level(view.get_red_raw(), scale, previous), rescale_level(view.get_green_raw(), scale, previous),
-        rescale_level(view.get_blue_raw(), scale, previous), rescale_level(view.get_white_raw(), scale, previous));
-  }
-  this->sum_channels_(sums);
-  this->estimated_ma_ = this->draw_ma_(sums);
+  // One divide per level instead of one per channel; ESP8266 has no hardware divide
+  uint8_t map[256];
+  for (size_t level = 0; level < 256; level++)
+    map[level] = rescale_level(level, scale, previous);
+  for (auto view : *this)
+    view.set_raw(map[view.get_red_raw()], map[view.get_green_raw()], map[view.get_blue_raw()],
+                 map[view.get_white_raw()]);
 }
 
 #endif
 
 void AddressableLight::call_setup() {
   this->setup();
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  if (this->power_estimation_ != nullptr)
+    this->setup_power_budget_();
+#endif
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   this->set_interval(5000, [this]() {
