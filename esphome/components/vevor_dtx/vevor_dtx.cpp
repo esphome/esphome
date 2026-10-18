@@ -1,5 +1,6 @@
 #include "vevor_dtx.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdlib>
 
@@ -14,7 +15,7 @@ ESPHOME_LOG_TAG(TAG, "vevor_dtx");
 static constexpr uint64_t SYNC_AND_HEADER = 0xAAAACACA54AA00ULL;
 static constexpr uint64_t SYNC_AND_HEADER_MASK = (1ULL << 56) - 1;
 static constexpr uint8_t HEADER_SIZE = 2;
-// Wind arrives in 1/8.333 km/h and 1.25 km/h units; both are published in m/s
+// Wind arrives in 1/8.333 km/h steps and gust in 1/1.25 km/h (0.8 km/h) steps; both are published in m/s
 static constexpr float WIND_SPEED_MS_PER_RAW = 1.0f / (8.333f * 3.6f);
 static constexpr float WIND_GUST_MS_PER_RAW = 1.0f / (1.25f * 3.6f);
 static constexpr float RAIN_MM_PER_RAW = 0.233f;
@@ -62,19 +63,16 @@ bool VevorDtxComponent::on_receive(remote_base::RemoteReceiveData data) {
 
 // The frame is NRZ at a fixed bit time: a high run of n bit times is n one bits. The bits are shifted
 // through a register until the sync word appears, then the payload is collected and its checksum tested.
+// A run is never treated as a gap, since a payload may hold long runs of zeros; a gap simply shifts zeros
+// through the register, and one longer than a frame is cut to a frame's worth, which has the same effect.
 bool VevorDtxComponent::decode_timings_(const remote_base::RawTimings &timings, Payload &payload) const {
   uint64_t stream = 0;
   uint16_t collected = 0;  // payload bits gathered since the sync word, 0 while still searching for it
 
   for (const int32_t timing : timings) {
     const uint32_t duration = std::abs(timing);
-    const uint32_t cells = std::max<uint32_t>((duration + this->bit_time_us_ / 2) / this->bit_time_us_, 1);
-    if (cells > MAX_RUN_CELLS) {
-      // The gap before or after a frame; a payload cut short is dropped
-      stream = 0;
-      collected = 0;
-      continue;
-    }
+    const uint32_t cells =
+        std::clamp<uint32_t>((duration + this->bit_time_us_ / 2) / this->bit_time_us_, 1, FRAME_BITS);
     const uint64_t bit = timing > 0 ? 1 : 0;
     for (uint32_t i = 0; i < cells; i++) {
       stream = (stream << 1) | bit;
@@ -88,7 +86,7 @@ bool VevorDtxComponent::decode_timings_(const remote_base::RawTimings &timings, 
         continue;
       }
       payload[collected / 8] = uint8_t((payload[collected / 8] << 1) | bit);
-      if (++collected < PAYLOAD_SIZE * 8) {
+      if (++collected < FRAME_BITS) {
         continue;
       }
       if (sum_bytes(payload.data(), CHECKSUM_INDEX) == payload[CHECKSUM_INDEX]) {
@@ -122,9 +120,9 @@ bool VevorDtxComponent::publish_(const Payload &payload) {
 
   ESP_LOGD(TAG,
            "Vevor DTX id=0x%04X status=0x%02X temp=%.1fC hum=%u%% wind=%.1fm/s gust=%.1fm/s dir=%.0f "
-           "rain=%.1f uv=%d raw=0x%02X lux=%.0f raw=0x%04X tx=%u/%u",
+           "rain=%.1f uv=%d raw=0x%02X lux=%.0f raw=0x%04X tx=%u",
            sensor_id, payload[4], temperature, humidity, wind_speed, wind_gust, wind_direction, rain, uv_index,
-           payload[15], illuminance, lux_raw, tx_counter, payload[20]);
+           payload[15], illuminance, lux_raw, tx_counter);
 
 #ifdef USE_SENSOR
   const auto publish = [](sensor::Sensor *sensor, float value) {

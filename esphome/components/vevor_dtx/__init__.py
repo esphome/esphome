@@ -9,6 +9,7 @@ AUTO_LOAD = ["remote_base"]
 CODEOWNERS = ["@Bofr5555"]
 DEPENDENCIES = ["remote_receiver"]
 DOMAIN = "vevor_dtx"
+MULTI_CONF = True
 
 CONF_BIT_TIME = "bit_time"
 CONF_STATION_ID = "station_id"

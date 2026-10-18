@@ -77,6 +77,44 @@ TEST(VevorDtxTest, DecodesFrameAtEveryBitOffset) {
   }
 }
 
+// A payload may hold a run of zeros longer than any inter-bit gap; it must not be taken for a frame gap
+TEST(VevorDtxTest, DecodesAFrameWithALongZeroRun) {
+  auto payload = sample_payload(0);
+  payload[7] = 49;
+  payload[16] = 0x02;
+  payload[17] = 0x00;
+  payload[20] = 1;
+  payload[19] = sum_bytes(payload.data(), 19);
+  ASSERT_EQ(payload[19], 0);  // 32 zero bits in a row across bytes 17 to 20
+  VevorDtxUnderTest hub;
+  VevorDtxUnderTest::Payload decoded{};
+  ASSERT_TRUE(hub.decode_timings_(timings(payload), decoded));
+  EXPECT_EQ(decoded[7], 49);
+  EXPECT_EQ(decoded[19], 0);
+}
+
+// The receiver ends its capture at idle, so the frame's trailing low bits merge into one long gap
+TEST(VevorDtxTest, DecodesAFrameWhoseTailMergesIntoTheIdleGap) {
+  // A counter value whose checksum ends in zero bits, so the frame's last bits are low
+  auto payload = sample_payload();
+  for (uint8_t tx = 0;; tx++) {
+    payload[18] = tx;
+    payload[19] = sum_bytes(payload.data(), 19);
+    if ((payload[19] & 0x0F) == 0)
+      break;
+  }
+  auto raw = timings(payload);
+  // Drop the trailing zero run and the gap, and end the capture in one idle entry instead
+  raw.pop_back();
+  if (raw.back() < 0)
+    raw.pop_back();
+  raw.push_back(FRAME_GAP_US);
+  VevorDtxUnderTest hub;
+  VevorDtxUnderTest::Payload decoded{};
+  ASSERT_TRUE(hub.decode_timings_(raw, decoded));
+  EXPECT_EQ(decoded[19], payload[19]);
+}
+
 TEST(VevorDtxTest, RejectsBadChecksum) {
   VevorDtxUnderTest hub;
   auto corrupted = sample_payload();

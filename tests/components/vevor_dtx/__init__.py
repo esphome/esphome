@@ -12,3 +12,5 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.to_code = to_code_testing
     # The frames come from the test, not from a receiver on a GPIO
     manifest.dependencies = ["remote_base", "sensor", "binary_sensor", "text_sensor"]
+    # The host test config holds one plain hub entry; a multi-instance component would get an empty list
+    manifest.multi_conf = False
