@@ -158,7 +158,7 @@ void MitsubishiCN105Climate::apply_values_() {
   Action action = climate::CLIMATE_ACTION_IDLE;
   if (!status.power_on) {
     action = climate::CLIMATE_ACTION_OFF;
-  } else if (status.operating) {
+  } else if (status.operating || status.mode == MitsubishiCN105::Mode::FAN_ONLY) {
     switch (status.mode) {
       case MitsubishiCN105::Mode::DRY:
         action = climate::CLIMATE_ACTION_DRYING;
