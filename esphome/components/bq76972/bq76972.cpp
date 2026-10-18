@@ -172,10 +172,12 @@ const LogString *BQ76972Component::configure_() {
   const bool write_regs = !regs_disabled;
 
   bool write_thermistors = false;
+#ifdef USE_SENSOR
   for (size_t i = 1; i < BQ76972_NUM_TEMPERATURES; i++) {
     if (i != BQ76972_TS1_INDEX && this->temperature_sensors_[i] != nullptr)
       write_thermistors = true;
   }
+#endif
 
   if (write_regs || write_thermistors) {
     if (!this->enter_cfg_update_())
@@ -201,12 +203,14 @@ const LogString *BQ76972Component::write_config_(bool write_regs) {
         !this->write_subcommand_(BQ76972_MEM_REG0_CONFIG, &zero, 1))
       return LOG_STR("Writing regulator config failed");
   }
+#ifdef USE_SENSOR
   for (size_t i = 1; i < BQ76972_NUM_TEMPERATURES; i++) {
     if (i == BQ76972_TS1_INDEX || this->temperature_sensors_[i] == nullptr)
       continue;
     if (!this->write_subcommand_(BQ76972_MEM_TEMP_PIN_CONFIG_BASE + i, &BQ76972_PIN_CONFIG_THERMISTOR, 1))
       return LOG_STR("Writing thermistor pin config failed");
   }
+#endif
   return nullptr;
 }
 
@@ -248,6 +252,7 @@ void BQ76972Component::program_i2c_address(uint8_t address) {
   ESP_LOGI(TAG, "I2C address set to 0x%02X", address);
 }
 
+#ifdef USE_SENSOR
 template<size_t N> static bool any_set(const std::array<sensor::Sensor *, N> &sensors) {
   for (auto *sensor : sensors) {
     if (sensor != nullptr)
@@ -294,5 +299,8 @@ void BQ76972Component::update() {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
+#else
+void BQ76972Component::update() {}
+#endif
 
 }  // namespace esphome::bq76972
