@@ -15,7 +15,8 @@ static constexpr size_t LENGTH_SIZE = 2;
 // The peer is gone when nothing has been received for this many keep-alive intervals
 static constexpr uint32_t KEEP_ALIVE_MISSES = 3;
 
-TcpPacketInterface::TcpPacketInterface(uint8_t *rx_buffer) : rx_buffer_(rx_buffer) {
+TcpPacketInterface::TcpPacketInterface(std::span<uint8_t> rx_buffer)
+    : packet_interface::PacketInterface(rx_buffer.size()), rx_buffer_(rx_buffer) {
   this->capabilities_ = packet_interface::CAPABILITY_RELIABILITY | packet_interface::CAPABILITY_SESSION |
                         packet_interface::CAPABILITY_ADDRESSING;
 }
@@ -107,7 +108,7 @@ void TcpPacketInterface::read_() {
     if (this->rx_have_ < LENGTH_SIZE) {
       count = this->link_.read(this->rx_header_ + this->rx_have_, LENGTH_SIZE - this->rx_have_);
     } else {
-      count = this->link_.read(this->rx_buffer_ + this->rx_have_ - LENGTH_SIZE,
+      count = this->link_.read(this->rx_buffer_.data() + this->rx_have_ - LENGTH_SIZE,
                                this->rx_length_ + LENGTH_SIZE - this->rx_have_);
     }
     // Nothing more for now; a dropped link is seen on the next loop
@@ -133,7 +134,7 @@ void TcpPacketInterface::read_() {
       this->rx_have_ = 0;
       // A zero length packet is a keep-alive
       if (this->rx_length_ != 0)
-        this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_, this->rx_length_), {});
+        this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_.data(), this->rx_length_), {});
     }
   }
 }

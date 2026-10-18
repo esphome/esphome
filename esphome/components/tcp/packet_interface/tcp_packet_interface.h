@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 
 #include "esphome/components/packet_interface/packet_interface.h"
 #include "esphome/components/socket/tcp_client_link.h"
@@ -30,8 +31,8 @@ namespace esphome::tcp {
  */
 class TcpPacketInterface : public packet_interface::PacketInterface {
  public:
-  /// @param rx_buffer Holds max_packet_size bytes of the packet being received; must outlive the link
-  explicit TcpPacketInterface(uint8_t *rx_buffer);
+  /// @param rx_buffer Holds the packet being received; its size is the largest packet, and it must outlive the link
+  explicit TcpPacketInterface(std::span<uint8_t> rx_buffer);
 
   void setup() override;
   void loop() override;
@@ -69,7 +70,7 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
 #endif
-  uint8_t *const rx_buffer_;
+  const std::span<uint8_t> rx_buffer_;
   uint32_t keep_alive_ms_{10000};
   uint32_t last_rx_ms_{0};
   uint32_t last_tx_ms_{0};

@@ -27,23 +27,26 @@ using packet_interface::PacketBuffer;
 using packet_interface::PacketMetaData;
 using Packet = std::vector<uint8_t>;
 
-class TestTcp : public TcpPacketInterface {
+// The receive buffer is a base, so it is set up before the link's constructor sees it
+struct TcpBufferStorage {
+  uint8_t rx_buffer_storage[64]{};
+};
+
+class TestTcp : public TcpBufferStorage, public TcpPacketInterface {
  public:
   TestTcp() : TcpPacketInterface(this->rx_buffer_storage) {
-    this->set_max_packet_size(64);
     this->set_host("peer");
     this->set_port(1);
   }
   socket::TcpClientLink &link() { return this->link_; }
-
-  // The base class only keeps the pointer, so the storage can be a member set up after it
-  uint8_t rx_buffer_storage[64]{};
 };
 
 // A layer stacked on the link, to check that the session state reaches it
 class UpperLayer : public packet_interface::PacketInterface {
  public:
-  explicit UpperLayer(PacketInterface *lower) { this->stack_on_(lower, packet_interface::CAPABILITY_ENCRYPTION); }
+  explicit UpperLayer(PacketInterface *lower) : packet_interface::PacketInterface(lower->get_max_packet_size()) {
+    this->stack_on_(lower, packet_interface::CAPABILITY_ENCRYPTION);
+  }
   bool send_to_interface(const PacketBuffer &, const PacketMetaData &) override { return true; }
 };
 
