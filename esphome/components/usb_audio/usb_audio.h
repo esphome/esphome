@@ -71,8 +71,9 @@ struct USBAudioEvent {
   Type type{Type::CONNECTED};
   Endpoint endpoint{Endpoint::SPEAKER};
   bool ok{false};
-  // STARTED: the device does not support the configured format.
-  bool format_rejected{false};
+  // STARTED: the start will fail the same way until the device reconnects: the device does not support the configured
+  // format, or the host cannot allocate its pipe.
+  bool rejected{false};
 };
 
 class USBAudioComponent : public Component {
@@ -114,8 +115,8 @@ class USBAudioComponent : public Component {
     bool stream_started{false};
     // The platform asked for the stream and has not stopped it.
     bool active{false};
-    // The connected device rejected the configured format; cleared when it is closed.
-    bool format_rejected{false};
+    // Starting the connected device failed for good (see USBAudioEvent::rejected); cleared when it is closed.
+    bool start_rejected{false};
     // An open or start is queued on the worker; its result event clears it.
     bool open_pending{false};
     bool start_pending{false};
@@ -189,7 +190,7 @@ class USBAudioComponent : public Component {
   void lock_driver_();
   void unlock_driver_();
   bool populate_stream_config_(Endpoint endpoint, uac_host_device_handle_t handle,
-                               uac_host_stream_config_t &stream_config, bool &format_rejected);
+                               uac_host_stream_config_t &stream_config, bool &rejected);
   /// Send pending volume and mute; returns true when one should be retried later.
   bool apply_pending_speaker_controls_();
   bool apply_control_(ControlState &control, esp_err_t err, const LogString *name);

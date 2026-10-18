@@ -170,7 +170,7 @@ void USBAudioComponent::resume(Endpoint endpoint) {
     return;
   }
   if (!ep.stream_started) {
-    if (ep.format_rejected) {
+    if (ep.start_rejected) {
       // Already probed and logged for this device; a retrying caller must not flood the log.
       this->stream_failed_(endpoint);
       return;
@@ -395,7 +395,7 @@ void USBAudioComponent::on_started_(const USBAudioEvent &event) {
     return;
   }
   if (!event.ok) {
-    ep.format_rejected = event.format_rejected;
+    ep.start_rejected = event.rejected;
     if (ep.active) {
       this->stream_failed_(event.endpoint);
     }
@@ -544,7 +544,7 @@ void USBAudioComponent::on_closed_(const USBAudioEvent &event, uint32_t now) {
   ep.close_attempts = 0;
   ep.closing = nullptr;
   ep.stream_started = false;
-  ep.format_rejected = false;
+  ep.start_rejected = false;
   ep.start_pending = false;
   if (ep.connect_deferred) {
     // The device came back while its old handle was closing.
@@ -624,10 +624,12 @@ void USBAudioComponent::run_op_(const Op &op) {
     case Op::Type::START: {
       result.type = USBAudioEvent::Type::STARTED;
       uac_host_stream_config_t stm_cfg{};
-      if (this->populate_stream_config_(op.endpoint, op.handle, stm_cfg, result.format_rejected)) {
+      if (this->populate_stream_config_(op.endpoint, op.handle, stm_cfg, result.rejected)) {
         esp_err_t err = uac_host_device_start(op.handle, &stm_cfg);
         // Already started or active is ESP_OK; ESP_ERR_INVALID_STATE means the interface is not ready.
         result.ok = err == ESP_OK;
+        // The host cannot allocate the endpoint's pipe, for example when its max packet size exceeds the USB FIFO.
+        result.rejected = err == ESP_ERR_NOT_SUPPORTED;
         if (!result.ok) {
           ESP_LOGW(TAG, "Failed to start %s stream: %s", LOG_STR_ARG(name), esp_err_to_name(err));
         }
@@ -696,7 +698,7 @@ void USBAudioComponent::run_op_(const Op &op) {
 }
 
 bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_device_handle_t handle,
-                                                uac_host_stream_config_t &stream_config, bool &format_rejected) {
+                                                uac_host_stream_config_t &stream_config, bool &rejected) {
   const LogString *name = endpoint_name(endpoint);
   const audio::AudioStreamInfo info = this->endpoint_(endpoint).platform->get_usb_stream_info();
   const uint8_t channels = info.get_channels();
@@ -737,7 +739,7 @@ bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_devi
     return true;
   }
 
-  format_rejected = true;
+  rejected = true;
   if (selected_alt != 0) {
     ESP_LOGW(TAG, "%s interface %u would stream alt %u with %u-bit samples padded to %u bytes, which is not supported",
              LOG_STR_ARG(name), dev_info.iface_num, selected_alt, bits, selected_subframe);
@@ -759,7 +761,11 @@ bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_devi
              alt_param.bit_resolution, alt_param.subframe_size);
     const uint8_t count = discrete_rate_count(alt_param);
     for (uint8_t i = 0; i < count; i++) {
-      ESP_LOGI(TAG, "    %" PRIu32 " Hz", alt_param.sample_freq[i]);
+      // Some devices list a rate more than once.
+      if (std::find(alt_param.sample_freq, alt_param.sample_freq + i, alt_param.sample_freq[i]) ==
+          alt_param.sample_freq + i) {
+        ESP_LOGI(TAG, "    %" PRIu32 " Hz", alt_param.sample_freq[i]);
+      }
     }
   }
   return false;
