@@ -10,7 +10,7 @@ from esphome.components.const import (
     CONF_STOP_BITS,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_PORT
+from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_MAX_CONNECTIONS, CONF_PORT
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
@@ -20,6 +20,7 @@ DOMAIN = "tcp_uart"
 MULTI_CONF = True
 
 CONF_TCP_UART_ID = "tcp_uart_id"
+CONF_TURN_TIMEOUT = "turn_timeout"
 
 tcp_uart_ns = cg.esphome_ns.namespace("tcp_uart")
 TcpUart = tcp_uart_ns.class_("TcpUart", uart.UARTComponent, cg.Component)
@@ -41,6 +42,15 @@ BASE_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
+def _validate_turn_timeout(config: ConfigType) -> ConfigType:
+    if CONF_TURN_TIMEOUT in config and config.get(CONF_MAX_CONNECTIONS, 1) == 1:
+        raise cv.Invalid(
+            "turn_timeout needs max_connections of 2 or more", [CONF_TURN_TIMEOUT]
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -52,6 +62,12 @@ CONFIG_SCHEMA = cv.All(
             "server": BASE_SCHEMA.extend(
                 {
                     cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA,
+                    cv.Optional(CONF_MAX_CONNECTIONS, default=1): cv.int_range(
+                        min=1, max=8
+                    ),
+                    cv.Optional(
+                        CONF_TURN_TIMEOUT
+                    ): cv.positive_time_period_milliseconds,
                 }
             ),
         },
@@ -59,7 +75,8 @@ CONFIG_SCHEMA = cv.All(
         default_type="client",
         lower=True,
     ),
-    socket.consume_role_sockets("tcp_uart"),
+    _validate_turn_timeout,
+    socket.consume_role_sockets("tcp_uart", CONF_MAX_CONNECTIONS),
 )
 
 
@@ -72,6 +89,11 @@ async def to_code(config: ConfigType) -> None:
         socket.add_ipv4_allow(
             var.set_allow, config.get(CONF_ALLOWED_IPS), config[CONF_ID]
         )
+        if (connections := config[CONF_MAX_CONNECTIONS]) > 1:
+            cg.add_define("USE_TCP_UART_MAX_CONNECTIONS")
+            cg.add(var.set_max_connections(connections))
+            if (turn_timeout := config.get(CONF_TURN_TIMEOUT)) is not None:
+                cg.add(var.set_turn_timeout(turn_timeout))
     else:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
