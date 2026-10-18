@@ -197,6 +197,14 @@ async def test_api_homeassistant_light(
         ha.report(None, "off")
         await ha.next_state(lambda s: not s.state)
 
+        # The fallback also drops the levels of the unsent change: the light keeps the brightness
+        # Home Assistant reported last, which a later turn_on without a brightness would send
+        ha.client.light_command(ha.key, state=True, brightness=0.4)
+        call = await ha.next_call()
+        assert call.data["brightness"] == "102"
+        state = await ha.next_state(lambda s: not s.state)
+        assert state.brightness == pytest.approx(200 / 255)
+
         # An automation changing the light while a report is applied is a local change too
         await ha.client.execute_service(set_force_off, {"value": True})
         ha.report(None, "on")
@@ -218,7 +226,7 @@ async def test_api_homeassistant_light(
         await ha.next_state(lambda s: not s.state)
         assert (
             sum("did not report the change back" in line for line in ha.waiter.lines)
-            == 2
+            == 3
         )
 
         # A report that arrives during a flash is applied when the flash ends instead of being undone

@@ -225,32 +225,32 @@ void HomeassistantLight::apply_imported_() {
   if (!this->imported_.state.has_value() || this->echo_pending_) {
     return;
   }
-  // Attributes Home Assistant has not reported keep what the light has
+  // Attributes Home Assistant has not reported keep what the light has. An "off" report carries
+  // no levels, so the ones reported last stay with the light: a turn_on without a brightness
+  // then sends what Home Assistant last had, not a level that never reached it
   const Attributes &imported = this->imported_;
   LightColorValues values = this->state_->remote_values;
   values.set_state(*imported.state);
-  if (*imported.state) {
-    if (imported.color_mode != ColorMode::UNKNOWN) {
-      values.set_color_mode(imported.color_mode);
+  if (imported.color_mode != ColorMode::UNKNOWN) {
+    values.set_color_mode(imported.color_mode);
+  }
+  if (imported.brightness != 0) {
+    values.set_brightness(imported.brightness / 255.0f);
+  }
+  // Home Assistant reports rgb_color in every mode and keeps the attributes of the other
+  // modes, so only the ones of the mode it reports are taken over
+  const ColorMode mode = values.get_color_mode();
+  if (mode == ColorMode::COLOR_TEMPERATURE) {
+    values.set_color_temperature_kelvin(imported.color_temp_kelvin);  // ignores an unreported 0
+  } else if (mode == ColorMode::RGB) {
+    if (imported.has_rgb) {
+      values.set_red(imported.rgb[0] / 255.0f);
+      values.set_green(imported.rgb[1] / 255.0f);
+      values.set_blue(imported.rgb[2] / 255.0f);
     }
-    if (imported.brightness != 0) {
-      values.set_brightness(imported.brightness / 255.0f);
-    }
-    // Home Assistant reports rgb_color in every mode and keeps the attributes of the other
-    // modes, so only the ones of the mode it reports are taken over
-    const ColorMode mode = values.get_color_mode();
-    if (mode == ColorMode::COLOR_TEMPERATURE) {
-      values.set_color_temperature_kelvin(imported.color_temp_kelvin);  // ignores an unreported 0
-    } else if (mode == ColorMode::RGB) {
-      if (imported.has_rgb) {
-        values.set_red(imported.rgb[0] / 255.0f);
-        values.set_green(imported.rgb[1] / 255.0f);
-        values.set_blue(imported.rgb[2] / 255.0f);
-      }
-      values.set_color_brightness(1.0f);  // brightness is the only level Home Assistant has
-    } else if (mode == ColorMode::WHITE) {
-      values.set_white(1.0f);
-    }
+    values.set_color_brightness(1.0f);  // brightness is the only level Home Assistant has
+  } else if (mode == ColorMode::WHITE) {
+    values.set_white(1.0f);
   }
   if (!this->state_->set_external_state(values)) {
     // A report that changed something during a transition or flash is applied once it ends, in
@@ -281,6 +281,14 @@ uint32_t HomeassistantLight::state_hash(const LightColorValues &values) {
 }
 
 void HomeassistantLight::update_state(LightState *state) {
+  // The light core's setup performs one call for the initial state; a second one before the first
+  // write (an on_boot automation) is a local change merged into that write, so it must be sent
+  if (this->initial_write_) {
+    if (this->initial_seen_) {
+      this->initial_write_ = false;
+    }
+    this->initial_seen_ = true;
+  }
   // A call without a transition replaces whatever ran, so a report held for it is older than the call
   if (!state->is_transitioning()) {
     this->report_held_ = false;
