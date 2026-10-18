@@ -213,10 +213,10 @@ class EntityBase {
   void set_device_(Device *device) { this->device_ = device; }
 #endif
 
-  /// Non-template helper for make_entity_preference() to avoid code bloat.
-  /// When the preference hash algorithm changes, migration logic goes here.
+  /// Non-template helpers for make_entity_preference() to avoid code bloat.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version, bool in_flash);
+  /// The preference key both helpers use. When the preference hash algorithm changes, migration logic goes here.
   uint32_t entity_preference_key_(uint32_t version);
 
   void calc_object_id_();
