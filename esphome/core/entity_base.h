@@ -190,6 +190,13 @@ class EntityBase {
     return this->make_entity_preference_(sizeof(T), version);
   }
 
+  /// As make_entity_preference(), but choosing flash (survives power loss) or RTC memory (survives only
+  /// soft resets) on platforms whose preferences backend honors in_flash.
+  template<typename T> ESPPreferenceObject make_entity_preference(uint32_t version, bool in_flash) {
+    static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
+    return this->make_entity_preference_(sizeof(T), version, in_flash);
+  }
+
  protected:
   friend void ::setup();
   friend void ::original_setup();
@@ -209,6 +216,8 @@ class EntityBase {
   /// Non-template helper for make_entity_preference() to avoid code bloat.
   /// When the preference hash algorithm changes, migration logic goes here.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
+  ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version, bool in_flash);
+  uint32_t entity_preference_key_(uint32_t version);
 
   void calc_object_id_();
 
