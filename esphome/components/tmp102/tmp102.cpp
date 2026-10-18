@@ -96,7 +96,7 @@ void TMP102Component::setup_configured_() {
 #endif
   if (!this->write_configuration_()) {
     this->publish_threshold_status_(TMP102_THRESHOLD_STATUS_SETUP_FAILED);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 #ifdef USE_TMP102_NUMBER
@@ -123,9 +123,6 @@ void TMP102Component::setup_configured_() {
 void TMP102Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TMP102:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this);
 #ifdef USE_TMP102_BINARY_SENSOR

@@ -529,9 +529,7 @@ async def to_code(config: ConfigType) -> None:
 async def _dfu_to_code(dfu_config):
     cg.add_define("USE_NRF52_DFU")
     var = cg.new_Pvariable(dfu_config[CONF_ID])
-    if CONF_RESET_PIN in dfu_config:
-        pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(pin))
+    await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
     # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)

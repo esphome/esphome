@@ -247,8 +247,8 @@ uint8_t BMP280Component::read_u8_(uint8_t a_register) {
 }
 uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
-  this->bmp_read_byte_16(a_register, &data);
-  return (data >> 8) | (data << 8);
+  this->bmp_read_byte_16_le(a_register, &data);
+  return data;
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 

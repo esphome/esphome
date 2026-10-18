@@ -42,16 +42,6 @@ class SPS30Component final : public PollingComponent, public sensirion_common::S
 
   bool start_continuous_measurement_();
 
-  enum ErrorCode : uint8_t {
-    COMMUNICATION_FAILED,
-    FIRMWARE_VERSION_REQUEST_FAILED,
-    FIRMWARE_VERSION_READ_FAILED,
-    SERIAL_NUMBER_REQUEST_FAILED,
-    SERIAL_NUMBER_READ_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    UNKNOWN
-  } error_code_{UNKNOWN};
-
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_4_0_sensor_{nullptr};

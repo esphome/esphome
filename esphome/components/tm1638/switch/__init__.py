@@ -25,5 +25,4 @@ async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
     cg.add(var.set_lednum(config[CONF_LED]))
-    hub = await cg.get_variable(config[CONF_TM1638_ID])
-    cg.add(var.set_tm1638(hub))
+    await cg.add_variable(var.set_tm1638, config[CONF_TM1638_ID])
