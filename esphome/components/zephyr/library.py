@@ -150,21 +150,23 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
             *[f"  {_escape(p)}" for p in include_dirs],
             ")",
         ]
+    # Project-wide -D/-W flags (cg.add_build_flag()), set by the app CMakeLists --
+    # PlatformIO's build_flags reach libraries too, and components rely on that to
+    # configure them (e.g. canopen-stack's CO_* sizes). The library's own flags
+    # follow, so they win on a clash, as with PlatformIO and ESP-IDF. Read from a
+    # variable rather than inlined so this file stays project-independent in the
+    # shared cache.
+    lines += [
+        f"if({LIBRARY_COMPILE_OPTIONS_VAR})",
+        f"  zephyr_library_compile_options(${{{LIBRARY_COMPILE_OPTIONS_VAR}}})",
+        "endif()",
+    ]
     if build_flags:
         lines += [
             "zephyr_library_compile_options(",
             *[f"  {_escape(f)}" for f in build_flags],
             ")",
         ]
-    # Project-wide -D/-W flags (cg.add_build_flag()), set by the app CMakeLists --
-    # PlatformIO's build_flags reach libraries too, and components rely on that to
-    # configure them (e.g. canopen-stack's CO_* sizes). Read from a variable rather
-    # than inlined so this file stays project-independent in the shared cache.
-    lines += [
-        f"if({LIBRARY_COMPILE_OPTIONS_VAR})",
-        f"  zephyr_library_compile_options(${{{LIBRARY_COMPILE_OPTIONS_VAR}}})",
-        "endif()",
-    ]
     # Best-effort link wiring; most Zephyr-portable libraries don't need it.
     link_flags = [f"-L{d}" for d in link_directories] + [
         f"-l{lib}" for lib in link_libraries

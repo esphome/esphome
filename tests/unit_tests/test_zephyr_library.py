@@ -99,16 +99,18 @@ def test_generate_cmakelists_txt_lexes_spaced_flags(tmp_path):
 def test_generate_cmakelists_txt_applies_project_compile_options(tmp_path):
     """Project-wide build flags reach the library through a variable the app
     CMakeLists sets, like PlatformIO's build_flags -- and the generated file
-    stays project-independent (no flags inlined) for the shared cache."""
+    stays project-independent (no flags inlined) for the shared cache. The
+    library's own flags come after them, so they win on a clash."""
     c = _make_component(tmp_path)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "a.c").write_text("")
-    c.data = {}
+    c.data = {"build": {"flags": ["-DLIB_FLAG"]}}
 
     out = generate_cmakelists_txt(c)
 
     assert f"if({LIBRARY_COMPILE_OPTIONS_VAR})" in out
     assert f"zephyr_library_compile_options(${{{LIBRARY_COMPILE_OPTIONS_VAR}}})" in out
+    assert out.index(f"${{{LIBRARY_COMPILE_OPTIONS_VAR}}}") < out.index('"-DLIB_FLAG"')
 
 
 def test_library_compile_options_cmake():
