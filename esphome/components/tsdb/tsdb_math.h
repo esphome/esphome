@@ -31,8 +31,7 @@ static constexpr uint32_t HEADER_BYTES = 584;
 static constexpr uint32_t TIMESTAMP_BYTES = 4;
 static constexpr uint32_t COLUMN_BYTES = 2;
 static constexpr uint32_t INDEX_ENTRY_BYTES = 8;
-// New files place the sparse index at 1024, after the 584-byte header (legacy
-// files started it at 512); the data blocks follow it.
+// New files put the sparse index at 1024, after the 584-byte header; data blocks follow.
 static constexpr uint32_t INDEX_OFFSET = 1024;
 static constexpr uint32_t INDEX_DEFAULT_STRIDE = 380;  // mirrors TSDB_DEFAULT_INDEX_STRIDE in __init__.py
 static constexpr uint32_t MAX_RECORDS_RESERVE = 2048;
@@ -77,7 +76,6 @@ constexpr uint32_t max_records_for_bytes(uint64_t bytes, uint32_t columns) {
   return static_cast<uint32_t>((bytes - MAX_RECORDS_RESERVE) / record);
 }
 
-// Complete on-disk layout, mirroring esp_tsdb's own sizing arithmetic.
 constexpr uint64_t file_bytes_for(uint32_t records, uint32_t columns, uint32_t index_stride = INDEX_DEFAULT_STRIDE) {
   if (records == 0 || columns == 0 || index_stride == 0)
     return 0;
@@ -89,9 +87,7 @@ constexpr uint64_t file_bytes_for(uint32_t records, uint32_t columns, uint32_t i
   return INDEX_OFFSET + blocks * BLOCK_SIZE + index_entries * INDEX_ENTRY_BYTES;
 }
 
-// Largest capacity whose complete layout fits the budget. A binary search, not a
-// greedy shrink: when index entries cost more per record than the record bytes do
-// (a small index_stride), the shrink can skip past zero.
+// Largest capacity that fits the budget: binary search, since a greedy shrink can skip past zero.
 constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t index_stride = INDEX_DEFAULT_STRIDE) {
   if (columns == 0 || index_stride == 0 || records_per_block(columns) == 0)
     return 0;
@@ -108,9 +104,7 @@ constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t
   return low;
 }
 
-// raw = round(value * scale + offset), clamped to int16.
-// *saturated reports a value that fell outside int16 and was clamped, so a
-// scale_factor too small for the sensor's range does not pass silently.
+// raw = round(value * scale + offset), clamped to int16; *saturated reports a clamp.
 inline int16_t encode(double value, double scale, double offset = 0.0, bool *saturated = nullptr) {
   if (saturated != nullptr)
     *saturated = false;

@@ -82,8 +82,11 @@ static bool partition_is_blank(const esp_partition_t *partition) {
   for (uint32_t offset = 0; offset < partition->size; offset += CHUNK) {
     const size_t remaining = static_cast<size_t>(partition->size) - offset;
     const size_t length = remaining < CHUNK ? remaining : CHUNK;
-    if (esp_partition_read(partition, offset, buffer, length) != ESP_OK)
+    const esp_err_t err = esp_partition_read(partition, offset, buffer, length);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "partition read at offset %" PRIu32 " failed: %s", offset, esp_err_to_name(err));
       return false;
+    }
     for (size_t index = 0; index < length; index++) {
       if (buffer[index] != 0xFF)
         return false;
@@ -262,7 +265,6 @@ void TsdbComponent::log_init_failure_() {
            static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL)));
 }
 
-// A failed or shut-down database must not leave the VFS mount behind.
 void TsdbComponent::unmount_filesystem_() {
   if (!this->mounted_)
     return;
@@ -324,19 +326,18 @@ bool TsdbComponent::open_database_() {
     return false;
   }
 
-  // An existing file keeps its capacity and index stride it was created with.
   tsdb_stats_t stats = {};
   if (tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) != ESP_OK) {
     // The newest stored timestamp seeds the ordering guard and is only available here.
     this->invalidate_database_(LOG_STR("the stored statistics could not be read - no record can be ordered"));
     return true;
   }
-  // A reopen must not lower the guard: the saved header is only as new as the last sync.
+  // A reopen must not lower the guard: the engine's header may lag the newest record.
   this->last_timestamp_ = std::max(this->last_timestamp_, stats.newest_timestamp);
   this->uptime_offset_ = this->last_timestamp_ + 1 - static_cast<uint32_t>(::time(nullptr));
   this->sync_failed_ = false;
   uint32_t saved_stride = 0;
-  const bool have_stride = this->read_saved_index_stride_(&saved_stride) && saved_stride > 0;
+  const bool have_stride = this->read_saved_index_stride_(&saved_stride);
   const uint32_t records = stats.max_records > 0 ? stats.max_records : max_records;
   const uint32_t stride = have_stride ? saved_stride : this->index_stride_;
   const uint64_t bytes = tsdbmath::file_bytes_for(records, columns, stride);
@@ -366,9 +367,9 @@ bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
   const bool ok = file != nullptr && fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
   if (file != nullptr)
     fclose(file);
-  if (!ok) {
-    ESP_LOGW(TAG, "%s: reading the saved index stride failed - using the configured %" PRIu32, this->file_.c_str(),
-             this->index_stride_);
+  if (!ok || value == 0) {
+    ESP_LOGW(TAG, "%s: saved index stride %s - using the configured %" PRIu32, this->file_.c_str(),
+             ok ? LOG_STR_LITERAL("is 0") : LOG_STR_LITERAL("could not be read"), this->index_stride_);
     return false;
   }
   *stride = value;
@@ -404,7 +405,6 @@ void TsdbComponent::reopen_if_lost_() {
   if (this->last_reopen_ != 0 && now - this->last_reopen_ < REOPEN_RETRY_MS)
     return;
   this->last_reopen_ = now == 0 ? 1 : now;
-  // A handle that lost its statistics is dropped again, so it counts as a failed reopen.
   if (!this->open_database_() || this->db_ == nullptr) {
     this->reopen_errors_++;
     return;
@@ -432,7 +432,6 @@ uint64_t TsdbComponent::free_space_probe() {
 
 void TsdbComponent::update() {
   if (this->db_ == nullptr) {
-    // Count the skipped interval, so an outage is visible instead of a flat count.
     if (this->db_lost_) {
       this->dropped_++;
       this->publish_errors_();
@@ -660,8 +659,7 @@ void TsdbComponent::flush_(bool force) {
     return;
   this->last_sync_ = now == 0 ? 1 : now;
 
-  // The sync copy-on-writes to end of file (3.7-5.1 s for a 192-268 KB file), stalling the
-  // loop; records reach the disk as written, so sync_interval only trades a staler header.
+  // The sync copy-on-writes to end of file (3.7-5.1 s) and stalls the loop; the sidecar header holds the count.
   const esp_err_t err = tsdb_sync_h(static_cast<tsdb_t *>(this->db_));
   if (err != ESP_OK) {
     this->write_errors_++;

@@ -122,43 +122,44 @@ class TsdbComponent : public PollingComponent {
   uint32_t wall_clock_() const;
   static uint64_t free_space_probe();
 
-  StringRef file_{"history.tsdb"};
-  StringRef mount_point_{"/littlefs"};
-  StringRef partition_label_{"littlefs"};
-  uint32_t partition_size_{512 * 1024};
-  bool format_on_first_boot_{true};
-  bool recreate_on_schema_change_{false};
-  uint32_t max_file_size_{384 * 1024};
-  uint32_t index_stride_{tsdbmath::INDEX_DEFAULT_STRIDE};
-  uint32_t buffer_pool_size_{4096};
-  tsdbmath::MemoryMode memory_mode_{tsdbmath::MEMORY_AUTO};
-  bool paged_allocation_{false};
-  uint32_t page_size_{2048};
-  uint32_t sync_interval_{60000};
-  uint32_t min_free_bytes_{32768};
-  bool require_time_{true};
-  tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
-  uint32_t aggregate_window_{3600};
-  uint32_t aggregate_interval_{300000};
-  uint32_t dump_rows_{60};
   // Sized by TSDB_COLUMN_COUNT, emitted by the Python config; defines.h covers static analysis.
   StaticVector<TsdbColumn, TSDB_COLUMN_COUNT> columns_;
   StaticVector<int16_t, TSDB_COLUMN_COUNT> values_;
-#ifdef USE_TIME
-  time::RealTimeClock *time_{nullptr};
-#endif
 #ifdef USE_SENSOR
   std::array<TsdbAggregateSensors, TSDB_COLUMN_COUNT> aggregates_{};
+#endif
+  StringRef file_{"history.tsdb"};
+  StringRef mount_point_{"/littlefs"};
+  StringRef partition_label_{"littlefs"};
+#ifdef USE_TIME
+  time::RealTimeClock *time_{nullptr};
 #endif
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *log_sensor_{nullptr};
 #endif
-
   void *db_{nullptr};
-  bool mounted_{false};
-  // A handle esp_tsdb invalidated; reopened on a later interval.
-  bool db_lost_{false};
+
+  uint32_t partition_size_{512 * 1024};
+  uint32_t max_file_size_{384 * 1024};
+  uint32_t index_stride_{tsdbmath::INDEX_DEFAULT_STRIDE};
+  uint32_t buffer_pool_size_{4096};
+  uint32_t page_size_{2048};
+  uint32_t sync_interval_{60000};
+  uint32_t min_free_bytes_{32768};
+  uint32_t aggregate_window_{3600};
+  uint32_t aggregate_interval_{300000};
+  uint32_t dump_rows_{60};
+  tsdbmath::MemoryMode memory_mode_{tsdbmath::MEMORY_AUTO};
+  tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   uint32_t last_reopen_{0};
+  uint32_t last_sync_{0};
+  uint32_t last_timestamp_{0};
+  // Added to an uptime timestamp so the series continues after the newest stored record.
+  uint32_t uptime_offset_{0};
+  uint32_t last_aggregate_{0};
+  uint32_t last_stats_{0};
+  uint32_t records_{0};
+  uint32_t dump_requested_{0};
   uint32_t writes_{0};
   uint32_t write_errors_{0};
   // Apart from write_errors_: a database that never returns is not a write failure.
@@ -168,24 +169,24 @@ class TsdbComponent : public PollingComponent {
   uint32_t saturated_{0};
   uint32_t held_{0};
   uint32_t sentinel_{0};
-  uint32_t last_sync_{0};
-  uint32_t last_timestamp_{0};
-  // Added to an uptime timestamp so the series continues after the newest stored record.
-  uint32_t uptime_offset_{0};
+  esp_err_t mount_error_{ESP_OK};
+  esp_err_t format_error_{ESP_OK};
+
+  bool format_on_first_boot_{true};
+  bool recreate_on_schema_change_{false};
+  bool require_time_{true};
+  bool paged_allocation_{false};
+  bool mounted_{false};
+  // A handle esp_tsdb invalidated; reopened on a later interval.
+  bool db_lost_{false};
   bool dirty_{false};
-  uint32_t last_aggregate_{0};
-  uint32_t last_stats_{0};
-  uint32_t records_{0};
   bool flush_requested_{false};
-  uint32_t dump_requested_{0};
   bool clear_requested_{false};
+  bool format_attempted_{false};
   bool warned_time_{false};
   bool warned_backwards_{false};
   // Raised by a failed sync and cleared by the next one, never by a successful write.
   bool sync_failed_{false};
-  esp_err_t mount_error_{ESP_OK};
-  bool format_attempted_{false};
-  esp_err_t format_error_{ESP_OK};
 };
 
 }  // namespace esphome::tsdb
