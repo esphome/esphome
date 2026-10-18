@@ -296,6 +296,10 @@ void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index,
 void ResolDeltaSolCSPlus::loop() {
   if (this->stopped_)
     return;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->phase_ == Phase::PHASE_IDLE && this->context_refresh_pending_)
+    this->start_scan();
+#endif
 #ifdef USE_VBUS_CS_PLUS_ENTITIES
   if (this->notify_position_ < this->setting_listeners_.size()) {
     this->setting_listeners_[this->notify_position_++]->on_setting_snapshot();
@@ -309,8 +313,14 @@ void ResolDeltaSolCSPlus::loop() {
     }
   }
 #endif
-  if (this->phase_ == Phase::PHASE_IDLE)
+  if (this->phase_ == Phase::PHASE_IDLE) {
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+    if (this->notify_position_ < this->setting_listeners_.size())
+      return;
+#endif
+    this->disable_loop();
     return;
+  }
 #ifdef USE_VBUS_CS_PLUS_WRITE
   if (this->write_phase_ != WritePhase::IDLE &&
       App.get_loop_component_start_time() - this->write_started_at_ >= GROUP_TIMEOUT_MS) {

@@ -2137,7 +2137,7 @@ TEST_F(CSPlusSettingWriteTest, EnumContextRefreshBypassesThePeriodicLimitOnceAnd
   EXPECT_FALSE(this->controller_.has_fresh_snapshot());
   EXPECT_TRUE(this->controller_.has_recent_snapshot());
   this->source_values_[55] = 4;
-  this->controller_.update();
+  this->tick_();
   ASSERT_TRUE(this->controller_.is_scanning());
   this->complete_();
   EXPECT_TRUE(this->controller_.has_fresh_snapshot());
@@ -2153,7 +2153,7 @@ TEST_F(CSPlusSettingWriteTest, UncertainWriteRequestsAReadOnlyRefreshWithoutWait
   EXPECT_FALSE(this->controller_.has_fresh_snapshot());
   EXPECT_TRUE(this->controller_.has_recent_snapshot());
   this->source_values_[48] = 40;
-  this->controller_.update();
+  this->tick_();
   ASSERT_TRUE(this->controller_.is_scanning());
   this->complete_();
   int32_t value = 0;
@@ -2272,6 +2272,20 @@ TEST_F(CSPlusNumberTest, ContextRefreshAfterAnEnumWriteKeepsConfirmedNumbersAvai
   EXPECT_TRUE(this->minimum_.has_state());
   EXPECT_EQ(this->number_updates_, 1u);
   EXPECT_EQ(this->controller_.metadata_revision(), revision);
+}
+
+TEST_F(CSPlusNumberTest, FailedContextRefreshDoesNotDisablePendingAvailabilityNotifications) {
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  this->message_();
+  this->message_(112);
+  EXPECT_FALSE(this->minimum_.has_state());
+  EXPECT_TRUE(this->delta_.has_state());
+  EXPECT_FALSE(this->controller_.is_idle());
+  this->tick_();
+  EXPECT_FALSE(this->delta_.has_state());
+  EXPECT_TRUE(this->controller_.is_idle());
 }
 
 TEST_F(CSPlusNumberTest, MetadataChangesOnceAfterAllBoundedEntityNotificationsComplete) {
