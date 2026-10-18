@@ -1,13 +1,14 @@
 #include "lps22.h"
+#include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace lps22 {
+namespace esphome::lps22 {
 
-static constexpr const char *const TAG = "lps22";
+ESPHOME_LOG_TAG(TAG, "lps22");
 
 static constexpr uint8_t WHO_AM_I = 0x0F;
 static constexpr uint8_t LPS22HB_ID = 0xB1;
 static constexpr uint8_t LPS22HH_ID = 0xB3;
+static constexpr uint8_t LPS22DF_ID = 0xB4;
 static constexpr uint8_t CTRL_REG2 = 0x11;
 static constexpr uint8_t CTRL_REG2_ONE_SHOT_MASK = 0b1;
 static constexpr uint8_t STATUS = 0x27;
@@ -24,8 +25,8 @@ static constexpr float TEMPERATURE_SCALE = 0.01f;
 void LPS22Component::setup() {
   uint8_t value = 0x00;
   this->read_register(WHO_AM_I, &value, 1);
-  if (value != LPS22HB_ID && value != LPS22HH_ID) {
-    ESP_LOGW(TAG, "device IDs as %02x, which isn't a known LPS22HB or LPS22HH ID", value);
+  if (value != LPS22HB_ID && value != LPS22HH_ID && value != LPS22DF_ID) {
+    ESP_LOGW(TAG, "device IDs as %02x, which isn't a known LPS22HB/HH/DF ID", value);
     this->mark_failed();
   }
 }
@@ -65,7 +66,7 @@ void LPS22Component::try_read_() {
   if (this->temperature_sensor_ != nullptr) {
     uint8_t t_buf[2]{0};
     this->read_register(TEMP_L, t_buf, 2);
-    int16_t encoded = static_cast<int16_t>(encode_uint16(t_buf[1], t_buf[0]));
+    int16_t encoded = encode_value_le<int16_t>(t_buf);
     float temp = TEMPERATURE_SCALE * static_cast<float>(encoded);
     this->temperature_sensor_->publish_state(temp);
   }
@@ -77,5 +78,4 @@ void LPS22Component::try_read_() {
   }
 }
 
-}  // namespace lps22
-}  // namespace esphome
+}  // namespace esphome::lps22

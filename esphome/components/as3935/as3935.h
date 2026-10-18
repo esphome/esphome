@@ -10,8 +10,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace as3935 {
+namespace esphome::as3935 {
 
 static const uint8_t DIRECT_COMMAND = 0x96;
 static const uint8_t ANTFREQ = 3;
@@ -41,7 +40,7 @@ enum AS3935RegisterMasks {
   INT_MASK = 0xF0,
   THRESH_MASK = 0x0F,
   R_SPIKE_MASK = 0xF0,
-  ENERGY_MASK = 0xF0,
+  ENERGY_MASK = 0xE0,
   CAP_MASK = 0xF0,
   LIGHT_MASK = 0xCF,
   DISTURB_MASK = 0xDF,
@@ -127,5 +126,4 @@ class AS3935Component : public Component {
   bool calibration_;
 };
 
-}  // namespace as3935
-}  // namespace esphome
+}  // namespace esphome::as3935

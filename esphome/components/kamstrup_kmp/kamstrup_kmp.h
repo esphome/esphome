@@ -1,11 +1,11 @@
 #pragma once
 
+#include <queue>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace kamstrup_kmp {
+namespace esphome::kamstrup_kmp {
 
 /*
     ===========================================================================
@@ -73,7 +73,7 @@ static const char *const UNITS[] = {
     "mm:dd", "",     "bar",  "RTC",   "ASCII",   "m3 x 10", "ton x 10", "GJ x 10",  "minutes",  "Bitfield",
     "s",     "ms",   "days", "RTC-Q", "Datetime"};
 
-class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
+class KamstrupKMPComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_heat_energy_sensor(sensor::Sensor *sensor) { this->heat_energy_sensor_ = sensor; }
   void set_power_sensor(sensor::Sensor *sensor) { this->power_sensor_ = sensor; }
@@ -114,7 +114,6 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   // Sends a message to the meter. A prefix/suffix and CRC are added
   void send_message_(const uint8_t *msg, int msg_len);
   // Clears and data that might be in the UART Rx buffer
-  void clear_uart_rx_buffer_();
   // Reads and validates the response to a send command
   void read_command_(uint16_t command);
   // Parses a received message
@@ -123,8 +122,4 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   void set_sensor_value_(uint16_t command, float value, uint8_t unit_idx);
 };
 
-// "true" CCITT CRC-16
-uint16_t crc16_ccitt(const uint8_t *buffer, int len);
-
-}  // namespace kamstrup_kmp
-}  // namespace esphome
+}  // namespace esphome::kamstrup_kmp

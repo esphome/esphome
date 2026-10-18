@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+globals:
+  - id: my_global_int
+    type: int
+    initial_value: "42"
+  - id: my_global_float
+    type: float
+    initial_value: "1.5"
+  - id: my_global_bool
+    type: bool
+    initial_value: "true"

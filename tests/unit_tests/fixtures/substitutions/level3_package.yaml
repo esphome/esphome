@@ -1,0 +1,16 @@
+# this file is included by level2_package.yaml
+defaults:
+  i: 30
+level3:
+  a: ${a}  # top-level substitution
+  b: ${b}  # top-level substitution
+  c: ${c}  # visible from level1 vars
+  d: ${d}  # visible from level1 vars
+  e: ${e}  # visible from level2 vars
+  f: ${f}  # visible from level2 vars
+  g: ${g}  # from vars when including
+  h: ${h}  # from vars when including
+  i: ${i}  # Should take the default value of 30
+  j: ${undefined_variable}  # Does not exist, should be output as-is
+  x: ${x}  # from vars when including, calculated
+  y: ${y}  # from vars when including, calculated

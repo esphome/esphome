@@ -1,30 +1,20 @@
 #include "ttp229_lsf.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ttp229_lsf {
+namespace esphome::ttp229_lsf {
 
-static const char *const TAG = "ttp229_lsf";
+ESPHOME_LOG_TAG(TAG, "ttp229_lsf");
 
 void TTP229LSFComponent::setup() {
   uint8_t data[2];
   if (this->read(data, 2) != i2c::ERROR_OK) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
 void TTP229LSFComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "ttp229:");
   LOG_I2C_DEVICE(this);
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case NONE:
-    default:
-      break;
-  }
 }
 void TTP229LSFComponent::loop() {
   uint16_t touched = 0;
@@ -40,5 +30,4 @@ void TTP229LSFComponent::loop() {
   }
 }
 
-}  // namespace ttp229_lsf
-}  // namespace esphome
+}  // namespace esphome::ttp229_lsf

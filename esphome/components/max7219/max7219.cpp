@@ -5,7 +5,7 @@
 
 namespace esphome::max7219 {
 
-static const char *const TAG = "max7219";
+ESPHOME_LOG_TAG(TAG, "max7219");
 
 static const uint8_t MAX7219_REGISTER_NOOP = 0x00;
 static const uint8_t MAX7219_REGISTER_DECODE_MODE = 0x09;
@@ -15,7 +15,7 @@ static const uint8_t MAX7219_REGISTER_SHUTDOWN = 0x0C;
 static const uint8_t MAX7219_REGISTER_TEST = 0x0F;
 static const uint8_t MAX7219_UNKNOWN_CHAR = 0b11111111;
 
-const uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
+constexpr uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
     0b00000000,            // ' ', ord 0x20
     0b10110000,            // '!', ord 0x21
     0b00100010,            // '"', ord 0x22

@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.fan";
+ESPHOME_LOG_TAG(TAG, "mqtt.fan");
 
 using namespace esphome::fan;
 
@@ -46,7 +46,7 @@ void MQTTFanComponent::setup() {
       case PARSE_NONE:
       default:
         ESP_LOGW(TAG, "Unknown state payload %s", payload.c_str());
-        this->status_momentary_warning("state", 5000);
+        this->status_momentary_warning(5000);
         break;
     }
   });
@@ -71,7 +71,7 @@ void MQTTFanComponent::setup() {
           break;
         case PARSE_NONE:
           ESP_LOGW(TAG, "Unknown direction Payload %s", payload.c_str());
-          this->status_momentary_warning("direction", 5000);
+          this->status_momentary_warning(5000);
           break;
       }
     });
@@ -95,7 +95,7 @@ void MQTTFanComponent::setup() {
                           break;
                         case PARSE_NONE:
                           ESP_LOGW(TAG, "Unknown Oscillation Payload %s", payload.c_str());
-                          this->status_momentary_warning("oscillation", 5000);
+                          this->status_momentary_warning(5000);
                           break;
                       }
                     });
@@ -112,17 +112,16 @@ void MQTTFanComponent::setup() {
                           this->state_->make_call().set_speed(speed_level).perform();
                         } else {
                           ESP_LOGW(TAG, "Invalid speed level %d", speed_level);
-                          this->status_momentary_warning("speed", 5000);
+                          this->status_momentary_warning(5000);
                         }
                       } else {
                         ESP_LOGW(TAG, "Invalid speed level %s (int expected)", payload.c_str());
-                        this->status_momentary_warning("speed", 5000);
+                        this->status_momentary_warning(5000);
                       }
                     });
   }
 
-  auto f = std::bind(&MQTTFanComponent::publish_state, this);
-  this->state_->add_on_state_callback([this, f]() { this->defer("send", f); });
+  this->state_->add_on_state_callback([this]() { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
 
 void MQTTFanComponent::dump_config() {
@@ -173,19 +172,20 @@ bool MQTTFanComponent::publish_state() {
   this->publish(this->get_state_topic_to_(topic_buf), state_s);
   bool failed = false;
   if (this->state_->get_traits().supports_direction()) {
-    bool success = this->publish(this->get_direction_state_topic(), fan_direction_to_mqtt_str(this->state_->direction));
+    bool success = this->publish(this->get_direction_state_topic_to(topic_buf),
+                                 fan_direction_to_mqtt_str(this->state_->direction));
     failed = failed || !success;
   }
   if (this->state_->get_traits().supports_oscillation()) {
-    bool success =
-        this->publish(this->get_oscillation_state_topic(), fan_oscillation_to_mqtt_str(this->state_->oscillating));
+    bool success = this->publish(this->get_oscillation_state_topic_to(topic_buf),
+                                 fan_oscillation_to_mqtt_str(this->state_->oscillating));
     failed = failed || !success;
   }
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
     char buf[12];
     size_t len = buf_append_printf(buf, sizeof(buf), 0, "%d", this->state_->speed);
-    bool success = this->publish(this->get_speed_level_state_topic(), buf, len);
+    bool success = this->publish(this->get_speed_level_state_topic_to(topic_buf), buf, len);
     failed = failed || !success;
   }
   return !failed;

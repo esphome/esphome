@@ -5,10 +5,11 @@
 
 #include <utility>
 
-namespace esphome {
-namespace seeed_mr24hpc1 {
+namespace esphome::seeed_mr24hpc1 {
 
-static const char *const TAG = "seeed_mr24hpc1";
+ESPHOME_LOG_TAG(TAG, "seeed_mr24hpc1");
+
+static constexpr uint32_t STARTUP_DELAY_MS = 1000;
 
 // Prints the component's configuration data. dump_config() prints all of the component's configuration
 // items in an easy-to-read format, including the configuration key-value pairs.
@@ -62,8 +63,6 @@ void MR24HPC1Component::dump_config() {
 
 // Initialisation functions
 void MR24HPC1Component::setup() {
-  this->check_uart_settings(115200);
-
 #ifdef USE_NUMBER
   if (this->custom_mode_number_ != nullptr) {
     this->custom_mode_number_->publish_state(0);  // Zero out the custom mode
@@ -79,8 +78,7 @@ void MR24HPC1Component::setup() {
     this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
   }
 #endif
-  this->set_custom_end_mode();
-  this->poll_time_base_func_check_ = true;
+  this->poll_time_base_func_check_ = false;
   this->check_dev_inf_sign_ = true;
   this->sg_start_query_data_ = STANDARD_FUNCTION_QUERY_PRODUCT_MODE;
   this->sg_data_len_ = 0;
@@ -95,7 +93,13 @@ void MR24HPC1Component::setup() {
   memset(this->sg_frame_prase_buf_, 0, FRAME_BUF_MAX_SIZE);
   memset(this->sg_frame_buf_, 0, FRAME_BUF_MAX_SIZE);
 
-  this->set_interval(8000, [this]() { this->update_(); });
+  // The module locks up when queried during its own boot, so hold all TX for a second
+  this->set_timeout(STARTUP_DELAY_MS, [this]() {
+    this->module_ready_ = true;
+    this->set_custom_end_mode();
+    this->poll_time_base_func_check_ = true;
+    this->set_interval(8000, [this]() { this->update_(); });
+  });
 }
 
 // Timed polling of radar data
@@ -107,10 +111,10 @@ void MR24HPC1Component::update_() {
 // main loop
 void MR24HPC1Component::loop() {
   // Read all available bytes in batches to reduce UART call overhead.
-  int avail = this->available();
+  size_t avail = this->available();
   uint8_t buf[64];
   while (avail > 0) {
-    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    size_t to_read = std::min(avail, sizeof(buf));
     if (!this->read_array(buf, to_read)) {
       break;
     }
@@ -254,17 +258,11 @@ void MR24HPC1Component::loop() {
   }
 }
 
-// Calculate CRC check digit
-static uint8_t get_frame_crc_sum(const uint8_t *data, int len) {
-  unsigned int crc_sum = 0;
-  for (int i = 0; i < len - 3; i++) {
-    crc_sum += data[i];
-  }
-  return crc_sum & 0xff;
-}
+// Frames are at least 10 bytes, so the three trailing bytes can always be left out
+static uint8_t get_frame_crc_sum(const uint8_t *data, size_t len) { return sum_bytes(data, len - 3); }
 
 // Check that the check digit is correct
-static int get_frame_check_status(uint8_t *data, int len) {
+static int get_frame_check_status(const uint8_t *data, size_t len) {
   uint8_t crc_sum = get_frame_crc_sum(data, len);
   uint8_t verified = data[len - 3];
   return (verified == crc_sum) ? 1 : 0;
@@ -297,19 +295,17 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
       this->sg_recv_data_state_ = FRAME_DATA_LEN_H;
       break;
     case FRAME_DATA_LEN_H:
-      if (value <= 4) {
-        this->sg_data_len_ = value * 256;
+      if (value == 0) {
         this->sg_frame_buf_[4] = value;
         this->sg_recv_data_state_ = FRAME_DATA_LEN_L;
       } else {
-        this->sg_data_len_ = 0;
         this->sg_recv_data_state_ = FRAME_IDLE;
         ESP_LOGD(TAG, "FRAME_DATA_LEN_H ERROR value:%x", value);
       }
       break;
     case FRAME_DATA_LEN_L:
-      this->sg_data_len_ += value;
-      if (this->sg_data_len_ > 32) {
+      this->sg_data_len_ = value;
+      if (this->sg_data_len_ == 0 || this->sg_data_len_ > 32) {
         ESP_LOGD(TAG, "len=%d, FRAME_DATA_LEN_L ERROR value:%x", this->sg_data_len_, value);
         this->sg_data_len_ = 0;
         this->sg_recv_data_state_ = FRAME_IDLE;
@@ -320,9 +316,8 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
       }
       break;
     case FRAME_DATA_BYTES:
-      this->sg_data_len_ -= 1;
       this->sg_frame_buf_[this->sg_frame_len_++] = value;
-      if (this->sg_data_len_ <= 0) {
+      if (--this->sg_data_len_ == 0) {
         this->sg_recv_data_state_ = FRAME_DATA_CRC;
       }
       break;
@@ -452,7 +447,8 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       }
       break;
     case 0x83:
-      if (this->custom_presence_of_detection_sensor_ != nullptr) {
+      if (this->custom_presence_of_detection_sensor_ != nullptr &&
+          data[FRAME_DATA_INDEX] < std::size(S_PRESENCE_OF_DETECTION_RANGE_STR)) {
         this->custom_presence_of_detection_sensor_->publish_state(
             S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
       }
@@ -646,7 +642,7 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
 #ifdef USE_BINARY_SENSOR
     case 0x01:
     case 0x81:
-      if (this->has_target_binary_sensor_ != nullptr) {
+      if (this->has_target_binary_sensor_ != nullptr && data[FRAME_DATA_INDEX] < std::size(S_SOMEONE_EXISTS_STR)) {
         this->has_target_binary_sensor_->publish_state(S_SOMEONE_EXISTS_STR[data[FRAME_DATA_INDEX]]);
       }
       break;
@@ -691,6 +687,8 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
 
 // Sending data frames
 void MR24HPC1Component::send_query_(const uint8_t *query, size_t string_length) {
+  if (!this->module_ready_)
+    return;
   this->write_array(query, string_length);
 }
 
@@ -1006,5 +1004,4 @@ void MR24HPC1Component::set_custom_unman_time(uint16_t value) {
   this->get_custom_unman_time();
 }
 
-}  // namespace seeed_mr24hpc1
-}  // namespace esphome
+}  // namespace esphome::seeed_mr24hpc1

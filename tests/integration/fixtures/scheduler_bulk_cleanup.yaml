@@ -1,4 +1,5 @@
 esphome:
+  debug_scheduler: true  # Enable scheduler leak detection
   name: scheduler-bulk-cleanup
 
 external_components:

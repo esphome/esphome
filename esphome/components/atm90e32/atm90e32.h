@@ -11,12 +11,45 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace atm90e32 {
+namespace esphome::atm90e32 {
 
-class ATM90E32Component : public PollingComponent,
-                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
+inline bool offset_register_value_matches(uint16_t actual, int16_t expected) {
+  return actual == static_cast<uint16_t>(expected);
+}
+
+struct OffsetCalibration {
+  int16_t first_offset{0};
+  int16_t second_offset{0};
+};
+
+static_assert(sizeof(OffsetCalibration[3]) == 12, "Offset calibration preference layout must remain compatible");
+
+enum class OffsetCalibrationType : uint8_t {
+  OFFSET_CALIBRATION_TYPE_VOLTAGE_CURRENT,
+  OFFSET_CALIBRATION_TYPE_POWER,
+};
+
+struct OffsetRestoreState {
+  bool restored;
+  bool values_verified;
+};
+
+inline OffsetRestoreState resolve_offset_restore_state(bool has_stored_values, bool initial_values_verified,
+                                                       bool fallback_values_verified) {
+  if (initial_values_verified)
+    return {has_stored_values, true};
+  return {false, fallback_values_verified};
+}
+
+inline void prepare_offset_rollback(const OffsetCalibration (&previous)[3], bool had_stored_values,
+                                    OffsetCalibration (&rollback)[3]) {
+  for (uint8_t phase = 0; phase < 3; phase++)
+    rollback[phase] = had_stored_values ? previous[phase] : OffsetCalibration{};
+}
+
+class ATM90E32Component final : public PollingComponent,
+                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                      spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   static const uint8_t PHASEA = 0;
   static const uint8_t PHASEB = 1;
@@ -72,19 +105,19 @@ class ATM90E32Component : public PollingComponent,
     this->has_config_current_gain_[phase] = true;
   }
   void set_voltage_offset(uint8_t phase, int16_t offset) {
-    this->offset_phase_[phase].voltage_offset_ = offset;
+    this->offset_phase_[phase].first_offset = offset;
     this->has_config_voltage_offset_[phase] = true;
   }
   void set_current_offset(uint8_t phase, int16_t offset) {
-    this->offset_phase_[phase].current_offset_ = offset;
+    this->offset_phase_[phase].second_offset = offset;
     this->has_config_current_offset_[phase] = true;
   }
   void set_active_power_offset(uint8_t phase, int16_t offset) {
-    this->power_offset_phase_[phase].active_power_offset = offset;
+    this->power_offset_phase_[phase].first_offset = offset;
     this->has_config_active_power_offset_[phase] = true;
   }
   void set_reactive_power_offset(uint8_t phase, int16_t offset) {
-    this->power_offset_phase_[phase].reactive_power_offset = offset;
+    this->power_offset_phase_[phase].second_offset = offset;
     this->has_config_reactive_power_offset_[phase] = true;
   }
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
@@ -102,6 +135,7 @@ class ATM90E32Component : public PollingComponent,
   void clear_gain_calibrations();
   void set_enable_offset_calibration(bool flag) { enable_offset_calibration_ = flag; }
   void set_enable_gain_calibration(bool flag) { enable_gain_calibration_ = flag; }
+  void set_instance_id(const char *id) { instance_id_ = id; }
   int16_t calibrate_offset(uint8_t phase, bool voltage);
   int16_t calibrate_power_offset(uint8_t phase, bool reactive);
   void run_gain_calibrations();
@@ -111,14 +145,14 @@ class ATM90E32Component : public PollingComponent,
 #endif
   float get_reference_voltage(uint8_t phase) {
 #ifdef USE_NUMBER
-    return (phase >= 0 && phase < 3 && ref_voltages_[phase]) ? ref_voltages_[phase]->state : 120.0;  // Default voltage
+    return (phase < 3 && ref_voltages_[phase]) ? ref_voltages_[phase]->state : 120.0;  // Default voltage
 #else
     return 120.0;  // Default voltage
 #endif
   }
   float get_reference_current(uint8_t phase) {
 #ifdef USE_NUMBER
-    return (phase >= 0 && phase < 3 && ref_currents_[phase]) ? ref_currents_[phase]->state : 5.0f;  // Default current
+    return (phase < 3 && ref_currents_[phase]) ? ref_currents_[phase]->state : 5.0f;  // Default current
 #else
     return 5.0f;   // Default current
 #endif
@@ -134,7 +168,6 @@ class ATM90E32Component : public PollingComponent,
   void set_freq_status_text_sensor(text_sensor::TextSensor *sensor) { this->freq_status_text_sensor_ = sensor; }
 #endif
   uint16_t calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier);
-  int32_t last_periodic_millis = millis();
 
  protected:
 #ifdef USE_NUMBER
@@ -172,18 +205,19 @@ class ATM90E32Component : public PollingComponent,
   float get_chip_temperature_();
   bool get_publish_interval_flag_() { return publish_interval_flag_; };
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
-  void restore_offset_calibrations_();
-  void restore_power_offset_calibrations_();
+  void restore_offset_calibrations_(OffsetCalibrationType type);
   void restore_gain_calibrations_();
-  void save_offset_calibration_to_memory_();
   void save_gain_calibration_to_memory_();
-  void save_power_offset_calibration_to_memory_();
-  void write_offsets_to_registers_(uint8_t phase, int16_t voltage_offset, int16_t current_offset);
-  void write_power_offsets_to_registers_(uint8_t phase, int16_t p_offset, int16_t q_offset);
+  void finish_offset_calibration_(const OffsetCalibration (&previous)[3], bool previous_restored,
+                                  bool previous_using_saved, OffsetCalibrationType type);
+  void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
+                                   OffsetCalibrationType type);
   void write_gains_to_registers_();
   bool verify_gain_writes_();
+  bool verify_offset_writes_(OffsetCalibrationType type);
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
+  const char *get_calibration_id_();
   void get_cs_summary_(std::span<char, GPIO_SUMMARY_MAX_LEN> buffer);
 
   struct ATM90E32Phase {
@@ -219,19 +253,10 @@ class ATM90E32Component : public PollingComponent,
     uint32_t cumulative_reverse_active_energy_{0};
   } phase_[3];
 
-  struct OffsetCalibration {
-    int16_t voltage_offset_{0};
-    int16_t current_offset_{0};
-  } offset_phase_[3];
-
+  OffsetCalibration offset_phase_[3];
   OffsetCalibration config_offset_phase_[3];
-
-  struct PowerOffsetCalibration {
-    int16_t active_power_offset{0};
-    int16_t reactive_power_offset{0};
-  } power_offset_phase_[3];
-
-  PowerOffsetCalibration config_power_offset_phase_[3];
+  OffsetCalibration power_offset_phase_[3];
+  OffsetCalibration config_power_offset_phase_[3];
 
   struct GainCalibration {
     uint16_t voltage_gain{1};
@@ -264,6 +289,9 @@ class ATM90E32Component : public PollingComponent,
   bool peak_current_signed_{false};
   bool enable_offset_calibration_{false};
   bool enable_gain_calibration_{false};
+  const char *instance_id_{nullptr};
+  bool has_stored_offset_calibration_{false};
+  bool has_stored_power_offset_calibration_{false};
   bool restored_offset_calibration_{false};
   bool restored_power_offset_calibration_{false};
   bool restored_gain_calibration_{false};
@@ -273,5 +301,4 @@ class ATM90E32Component : public PollingComponent,
   bool gain_calibration_mismatch_[3]{false, false, false};
 };
 
-}  // namespace atm90e32
-}  // namespace esphome
+}  // namespace esphome::atm90e32

@@ -10,7 +10,50 @@ tuya:
     - sensor_datapoint: 6
       datapoint_type: raw
       then:
-        - logger.log: Datapoint 6 updated
+        - logger.log:
+            format: "Datapoint 6 updated, %u bytes"
+            args: [x.size()]
+    - sensor_datapoint: 1
+      then:
+        - logger.log:
+            format: "Datapoint %u updated"
+            args: [x.id]
+    - sensor_datapoint: 1
+      datapoint_type: bool
+      then:
+        - logger.log:
+            format: "Datapoint 1 is %s"
+            args: ['x ? "on" : "off"']
+    - sensor_datapoint: 3
+      datapoint_type: int
+      then:
+        - logger.log:
+            format: "Datapoint 3 is %d"
+            args: [x]
+    - sensor_datapoint: 3
+      datapoint_type: uint
+      then:
+        - logger.log:
+            format: "Datapoint 3 is %u"
+            args: [x]
+    - sensor_datapoint: 7
+      datapoint_type: string
+      then:
+        - logger.log:
+            format: "Datapoint 7 is %s"
+            args: [x.c_str()]
+    - sensor_datapoint: 8
+      datapoint_type: enum
+      then:
+        - logger.log:
+            format: "Datapoint 8 is %u"
+            args: [x]
+    - sensor_datapoint: 9
+      datapoint_type: bitmask
+      then:
+        - logger.log:
+            format: "Datapoint 9 is %u"
+            args: [x]
 
 binary_sensor:
   - platform: tuya
@@ -80,3 +123,24 @@ switch:
   - platform: tuya
     id: tuya_switch
     switch_datapoint: 1
+
+water_heater:
+  - platform: tuya
+    id: tuya_water_heater
+    name: Tuya Water Heater
+    switch_datapoint: 1
+    current_temperature_datapoint: 3
+    target_temperature_datapoint: 2
+    current_temperature_multiplier: 0.5
+    target_temperature_multiplier: 0.5
+    mode_datapoint: 4
+    eco_value: 0
+    electric_value: 2
+    supported_modes:
+      - "OFF"
+      - ECO
+      - ELECTRIC
+    visual:
+      min_temperature: 30
+      max_temperature: 75
+      target_temperature_step: 1

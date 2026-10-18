@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include <cstring>
 
-namespace esphome {
-namespace am43 {
+namespace esphome::am43 {
 
 const uint8_t START_PACKET[5] = {0x00, 0xff, 0x00, 0x00, 0x9a};
 
@@ -134,5 +133,4 @@ void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
   }
 };
 
-}  // namespace am43
-}  // namespace esphome
+}  // namespace esphome::am43

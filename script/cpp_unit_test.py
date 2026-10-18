@@ -1,150 +1,97 @@
 #!/usr/bin/env python3
 import argparse
-import hashlib
+from functools import partial
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
-from helpers import get_all_components, get_all_dependencies, root_path
+from build_helpers import (
+    PLATFORMIO_GOOGLE_TEST_LIB,
+    build_and_run,
+    load_test_manifest_overrides,
+)
+from helpers import get_all_components, root_path
 
-from esphome.__main__ import command_compile, parse_args
-from esphome.config import validate_config
-from esphome.core import CORE
-from esphome.platformio_api import get_idedata
-
-# This must coincide with the version in /platformio.ini
-PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
+from esphome.core import EsphomeError
+from esphome.host.toolchain import find_compilers
 
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 
+BUILD_FLAGS = [
+    "-Og",  # optimize for debug
+    "-g3",  # max debug info
+    "-ggdb3",
+    "-DESPHOME_DEBUG",  # enable debug assertions
+    "-fno-omit-frame-pointer",
+]
+SANITIZER_FLAGS = ["-fsanitize=address", "-fsanitize=undefined"]
 
-def hash_components(components: list[str]) -> str:
-    key = ",".join(components)
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
 
-
-def filter_components_without_tests(components: list[str]) -> list[str]:
-    """Filter out components that do not have a corresponding test file.
-
-    This is done by checking if the component's directory contains at
-    least a .cpp file.
+def sanitizer_flags() -> list[str]:
+    """The sanitizer flags to build with: all of them, except on macOS the ones whose runtime
+    does not start. Apple clang 15's AddressSanitizer aborts before main() on macOS 26, which
+    would fail every test for a toolchain problem, so each flag is tried on an empty program
+    first. A compiler that cannot build the empty program is an error, not a dropped flag.
+    CI keeps every flag.
     """
-    filtered_components: list[str] = []
-    for component in components:
-        test_dir = COMPONENTS_TESTS_DIR / component
-        if test_dir.is_dir() and any(test_dir.glob("*.cpp")):
-            filtered_components.append(component)
-        else:
+    if sys.platform != "darwin":
+        return SANITIZER_FLAGS
+    try:
+        cxx = find_compilers().cxx
+    except EsphomeError as err:
+        sys.exit(str(err))
+    flags: list[str] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        program = Path(tmp) / "probe"
+        for flag in SANITIZER_FLAGS:
+            compiled = subprocess.run(
+                [*cxx, flag, "-x", "c++", "-", "-o", program],
+                check=False,
+                input=b"int main() { return 0; }",
+                capture_output=True,
+            )
+            if compiled.returncode != 0:
+                sys.exit(
+                    f"{cxx[0]} cannot build an empty program with {flag}:\n"
+                    f"{compiled.stderr.decode(errors='replace').strip()}"
+                )
+            ran = subprocess.run([program], check=False, capture_output=True)
+            if ran.returncode == 0:
+                flags.append(flag)
+                continue
+            lines = [
+                line
+                for line in ran.stderr.decode(errors="replace").splitlines()
+                if line.strip()
+            ]
             print(
-                f"WARNING: No tests found for component '{component}', skipping.",
+                f"{flag} aborts at start with {cxx[0]}: "
+                f"{lines[0] if lines else f'exit code {ran.returncode}'}\n"
+                "  building the tests without it; set CXX to a compiler whose runtime works to keep it",
                 file=sys.stderr,
             )
-    return filtered_components
-
-
-def create_test_config(config_name: str, includes: list[str]) -> dict:
-    """Create ESPHome test configuration for C++ unit tests.
-
-    Args:
-        config_name: Unique name for this test configuration
-        includes: List of include folders for the test build
-
-    Returns:
-        Configuration dict for ESPHome
-    """
-    return {
-        "esphome": {
-            "name": config_name,
-            "friendly_name": "CPP Unit Tests",
-            "libraries": PLATFORMIO_GOOGLE_TEST_LIB,
-            "platformio_options": {
-                "build_type": "debug",
-                "build_unflags": [
-                    "-Os",  # remove size-opt flag
-                ],
-                "build_flags": [
-                    "-Og",  # optimize for debug
-                ],
-                "debug_build_flags": [  # only for debug builds
-                    "-g3",  # max debug info
-                    "-ggdb3",
-                ],
-            },
-            "includes": includes,
-        },
-        "host": {},
-        "logger": {"level": "DEBUG"},
-    }
+    return flags
 
 
 def run_tests(selected_components: list[str]) -> int:
-    # Skip tests on Windows
-    if os.name == "nt":
-        print("Skipping esphome tests on Windows", file=sys.stderr)
-        return 1
-
-    # Remove components that do not have tests
-    components = filter_components_without_tests(selected_components)
-
-    if len(components) == 0:
-        print(
-            "No components specified or no tests found for the specified components.",
-            file=sys.stderr,
-        )
-        return 0
-
-    components = sorted(components)
-
-    # Obtain possible dependencies for the requested components:
-    components_with_dependencies = sorted(get_all_dependencies(set(components)))
-
-    # Build a list of include folders, one folder per component containing tests.
-    # A special replacement main.cpp is located in /tests/components/main.cpp
-    includes: list[str] = ["main.cpp"] + components
-
-    # Create a unique name for this config based on the actual components being tested
-    # to maximize cache during testing
-    config_name: str = "cpptests-" + hash_components(components)
-
-    config = create_test_config(config_name, includes)
-
-    CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
-    CORE.dashboard = None
-
-    # Validate config will expand the above with defaults:
-    config = validate_config(config, {})
-
-    # Add all components and dependencies to the base configuration after validation, so their files
-    # are added to the build.
-    config.update({key: {} for key in components_with_dependencies})
-
-    print(f"Testing components: {', '.join(components)}")
-    CORE.config = config
-    args = parse_args(["program", "compile", str(CORE.config_path)])
-    try:
-        exit_code: int = command_compile(args, config)
-
-        if exit_code != 0:
-            print(f"Error compiling unit tests for {', '.join(components)}")
-            return exit_code
-    except Exception as e:
-        print(
-            f"Error compiling unit tests for {', '.join(components)}. Check path. : {e}"
-        )
-        return 2
-
-    # After a successful compilation, locate the executable and run it:
-    idedata = get_idedata(config)
-    if idedata is None:
-        print("Cannot find executable")
-        return 1
-
-    program_path: str = idedata.raw["prog_path"]
-    run_cmd: list[str] = [program_path]
-    run_proc = subprocess.run(run_cmd, check=False)
-    return run_proc.returncode
+    # allocator_may_return_null: an oversized request must come back empty, not abort the run
+    os.environ["ASAN_OPTIONS"] = "detect_leaks=0:allocator_may_return_null=1"
+    return build_and_run(
+        selected_components=selected_components,
+        tests_dir=COMPONENTS_TESTS_DIR,
+        manifest_override_loader=partial(
+            load_test_manifest_overrides, tests_dir=COMPONENTS_TESTS_DIR
+        ),
+        config_prefix="cpptests",
+        friendly_name="CPP Unit Tests",
+        libraries=PLATFORMIO_GOOGLE_TEST_LIB,
+        build_flags=BUILD_FLAGS + sanitizer_flags(),
+        main_entry="main.cpp",
+        label="unit tests",
+    )
 
 
 def main() -> None:

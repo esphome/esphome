@@ -4,11 +4,14 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cstring>
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+#include <esp_memory_utils.h>
+#endif
 
-static const char *const TAG = "micro_wake_word";
+ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 void WakeWordModel::log_model_config() {
   ESP_LOGCONFIG(TAG,
@@ -27,15 +30,12 @@ void VADModel::log_model_config() {
 }
 
 bool StreamingModel::load_model_() {
-  RAMAllocator<uint8_t> arena_allocator;
-
-  if (this->tensor_arena_ == nullptr) {
-    this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
-    if (this->tensor_arena_ == nullptr) {
-      ESP_LOGE(TAG, "Could not allocate the streaming model's tensor arena.");
-      return false;
-    }
+  if (this->model_start_ == nullptr) {
+    ESP_LOGE(TAG, "Streaming model has no data to load");
+    return false;
   }
+
+  RAMAllocator<uint8_t> arena_allocator;
 
   if (this->var_arena_ == nullptr) {
     this->var_arena_ = arena_allocator.allocate(STREAMING_MODEL_VARIABLE_ARENA_SIZE);
@@ -53,9 +53,56 @@ bool StreamingModel::load_model_() {
     return false;
   }
 
+  // Probe for the actual required tensor arena size if not yet determined
+  if (!this->tensor_arena_size_probed_) {
+    size_t probed_size = this->probe_arena_size_();
+    if (probed_size > 0) {
+      ESP_LOGD(TAG, "Probed tensor arena size: %zu bytes", probed_size);
+      this->tensor_arena_size_ = probed_size;
+    } else {
+      ESP_LOGW(TAG, "Arena size probe failed, using manifest size: %zu bytes", this->tensor_arena_size_);
+    }
+    this->tensor_arena_size_probed_ = true;
+  }
+
+  if (this->tensor_arena_ == nullptr) {
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+    RAMAllocator<uint8_t> preferred_allocator(RAMAllocator<uint8_t>::PREFER_INTERNAL);
+    this->tensor_arena_ = preferred_allocator.allocate(this->tensor_arena_size_);
+    if (this->tensor_arena_ != nullptr && !esp_ptr_internal(this->tensor_arena_)) {
+      ESP_LOGW(TAG, "Could not allocate %zu bytes of internal RAM for tensor arena; using default memory",
+               this->tensor_arena_size_);
+    }
+#else
+    this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
+#endif
+    if (this->tensor_arena_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate the streaming model's tensor arena.");
+      return false;
+    }
+  }
+
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+  if (!esp_ptr_internal(this->model_start_) && this->model_copy_ == nullptr) {
+    RAMAllocator<uint8_t> internal_allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+    this->model_copy_ = internal_allocator.make_unique_array_for_overwrite(this->model_size_);
+    if (this->model_copy_ == nullptr) {
+      ESP_LOGW(TAG, "Could not allocate %zu bytes of internal RAM for model; using original model data",
+               this->model_size_);
+    } else {
+      std::memcpy(this->model_copy_.get(), this->model_start_, this->model_size_);
+    }
+  }
+#endif
+
   if (this->interpreter_ == nullptr) {
+    const uint8_t *model_data = this->model_start_;
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+    if (this->model_copy_ != nullptr)
+      model_data = this->model_copy_.get();
+#endif
     this->interpreter_ =
-        make_unique<tflite::MicroInterpreter>(tflite::GetModel(this->model_start_), this->streaming_op_resolver_,
+        make_unique<tflite::MicroInterpreter>(tflite::GetModel(model_data), this->streaming_op_resolver_,
                                               this->tensor_arena_, this->tensor_arena_size_, this->mrv_);
     if (this->interpreter_->AllocateTensors() != kTfLiteOk) {
       ESP_LOGE(TAG, "Failed to allocate tensors for the streaming model");
@@ -80,6 +127,7 @@ bool StreamingModel::load_model_() {
     TfLiteTensor *output = this->interpreter_->output(0);
     if ((output->dims->size != 2) || (output->dims->data[0] != 1) || (output->dims->data[1] != 1)) {
       ESP_LOGE(TAG, "Streaming model tensor output dimension is not 1x1.");
+      return false;
     }
 
     if (output->type != kTfLiteUInt8) {
@@ -93,8 +141,75 @@ bool StreamingModel::load_model_() {
   return true;
 }
 
+size_t StreamingModel::probe_arena_size_() {
+  RAMAllocator<uint8_t> arena_allocator;
+
+  // Try with the manifest size first, then escalates to 1.5, then 2x if it fails. Different platforms and different
+  // versions of the esp-nn library require different amounts of memory, so the manifest size may not always be correct,
+  // and probing allows us to find the actual required size for the current build and platform. Aligns test sizes to 16
+  // bytes.
+  size_t attempt_sizes[] = {(this->tensor_arena_size_ + 15) & ~15, (this->tensor_arena_size_ * 3 / 2 + 15) & ~15,
+                            (this->tensor_arena_size_ * 2 + 15) & ~15};
+
+  for (size_t attempt_size : attempt_sizes) {
+    uint8_t *probe_arena = arena_allocator.allocate(attempt_size);
+    if (probe_arena == nullptr) {
+      continue;
+    }
+
+    // Verify the model works at all with this arena size
+    auto probe_interpreter = make_unique<tflite::MicroInterpreter>(
+        tflite::GetModel(this->model_start_), this->streaming_op_resolver_, probe_arena, attempt_size, this->mrv_);
+
+    if (probe_interpreter->AllocateTensors() != kTfLiteOk) {
+      probe_interpreter.reset();
+      arena_allocator.deallocate(probe_arena, attempt_size);
+      this->ma_ = tflite::MicroAllocator::Create(this->var_arena_, STREAMING_MODEL_VARIABLE_ARENA_SIZE);
+      this->mrv_ = tflite::MicroResourceVariables::Create(this->ma_, 20);
+      continue;
+    }
+
+    // Try to shrink the arena. Start with arena_used_bytes() + 16 (rounded to 16-byte alignment).
+    // If that works, use it. Otherwise, try midpoints between that and the full size until one succeeds.
+    size_t lower = (probe_interpreter->arena_used_bytes() + 16 + 15) & ~15;
+    probe_interpreter.reset();
+    this->ma_ = tflite::MicroAllocator::Create(this->var_arena_, STREAMING_MODEL_VARIABLE_ARENA_SIZE);
+    this->mrv_ = tflite::MicroResourceVariables::Create(this->ma_, 20);
+
+    size_t upper = attempt_size;
+
+    while (lower < upper) {
+      auto test_interpreter = make_unique<tflite::MicroInterpreter>(
+          tflite::GetModel(this->model_start_), this->streaming_op_resolver_, probe_arena, lower, this->mrv_);
+
+      bool ok = test_interpreter->AllocateTensors() == kTfLiteOk;
+
+      test_interpreter.reset();
+      this->ma_ = tflite::MicroAllocator::Create(this->var_arena_, STREAMING_MODEL_VARIABLE_ARENA_SIZE);
+      this->mrv_ = tflite::MicroResourceVariables::Create(this->ma_, 20);
+
+      if (ok) {
+        // Found a working size smaller than the full arena
+        upper = lower + 16;  // Pad by 16 bytes to be safe for future allocations
+        break;
+      }
+
+      // Try the midpoint between current attempt and full size
+      lower = ((lower + upper) / 2 + 15) & ~15;
+    }
+
+    arena_allocator.deallocate(probe_arena, attempt_size);
+    return upper;
+  }
+
+  return 0;
+}
+
 void StreamingModel::unload_model() {
   this->interpreter_.reset();
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+  this->model_copy_.reset();
+#endif
 
   RAMAllocator<uint8_t> arena_allocator;
 
@@ -112,6 +227,13 @@ void StreamingModel::unload_model() {
 }
 
 bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
+  if (this->model_start_ == nullptr) {
+    // No usable model data, and that cannot change for this object. Skip the model instead of reporting a
+    // failure, because a false return here stops the inference task for every other model too.
+    this->enabled_ = false;
+    return true;
+  }
+
   if (this->enabled_ && !this->loaded_) {
     // Model is enabled but isn't loaded
     if (!this->load_model_()) {
@@ -167,11 +289,15 @@ void StreamingModel::reset_probabilities() {
   this->ignore_windows_ = -MIN_SLICES_BEFORE_DETECTION;
 }
 
-WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t default_probability_cutoff,
-                             size_t sliding_window_average_size, const std::string &wake_word, size_t tensor_arena_size,
-                             bool default_enabled, bool internal_only) {
+WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, size_t model_size,
+                             uint8_t default_probability_cutoff, size_t sliding_window_average_size,
+                             const std::string &wake_word, size_t tensor_arena_size, bool default_enabled,
+                             bool internal_only) {
   this->id_ = id;
   this->model_start_ = model_start;
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+  this->model_size_ = model_size;
+#endif
   this->default_probability_cutoff_ = default_probability_cutoff;
   this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_average_size;
@@ -190,6 +316,44 @@ WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, 
   } else {
     // If no state saved, then use the default
     this->enabled_ = default_enabled;
+  }
+};
+
+WakeWordModel::WakeWordModel(const std::string &id, std::shared_ptr<ModelData> model_data,
+                             uint8_t default_probability_cutoff, size_t sliding_window_average_size,
+                             const std::string &wake_word, std::vector<std::string> trained_languages,
+                             size_t tensor_arena_size) {
+  this->id_ = id;
+  this->model_data_ = std::move(model_data);
+  // Callers are expected to pass a validated buffer, so this is normally the stable model pointer. Tolerate a
+  // null or unvalidated handle rather than dereferencing it blindly: model_start_ stays null and the model is
+  // never loaded.
+  this->model_start_ = this->model_data_ ? this->model_data_->get_model_pointer() : nullptr;
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+  this->model_size_ = this->model_data_ ? this->model_data_->size() : 0;
+#endif
+  if (this->model_start_ == nullptr) {
+    ESP_LOGE(TAG, "Model '%s' has no valid data and will not be loaded", id.c_str());
+  }
+  this->default_probability_cutoff_ = default_probability_cutoff;
+  this->probability_cutoff_ = default_probability_cutoff;
+  this->sliding_window_size_ = sliding_window_average_size;
+  this->recent_streaming_probabilities_.resize(sliding_window_average_size, 0);
+  this->wake_word_ = wake_word;
+  this->trained_languages_ = std::move(trained_languages);
+  this->tensor_arena_size_ = tensor_arena_size;
+  this->register_streaming_ops_(this->streaming_op_resolver_);
+  this->current_stride_step_ = 0;
+  this->internal_only_ = false;  // Runtime models are always exposed to Home Assistant
+
+  this->pref_ = global_preferences->make_preference<bool>(fnv1_hash(id));
+  bool enabled;
+  if (this->pref_.load(&enabled)) {
+    // Use the enabled state loaded from flash
+    this->enabled_ = enabled;
+  } else {
+    // No saved state: stay disabled. The activation flow calls enable() explicitly after adding.
+    this->enabled_ = false;
   }
 };
 
@@ -231,9 +395,12 @@ DetectionEvent WakeWordModel::determine_detected() {
   return detection_event;
 }
 
-VADModel::VADModel(const uint8_t *model_start, uint8_t default_probability_cutoff, size_t sliding_window_size,
-                   size_t tensor_arena_size) {
+VADModel::VADModel(const uint8_t *model_start, size_t model_size, uint8_t default_probability_cutoff,
+                   size_t sliding_window_size, size_t tensor_arena_size) {
   this->model_start_ = model_start;
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+  this->model_size_ = model_size;
+#endif
   this->default_probability_cutoff_ = default_probability_cutoff;
   this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_size;
@@ -310,7 +477,6 @@ bool StreamingModel::register_streaming_ops_(tflite::MicroMutableOpResolver<20> 
   return true;
 }
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
 #endif

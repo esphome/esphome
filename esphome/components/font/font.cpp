@@ -3,19 +3,93 @@
 #include "esphome/core/color.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/components/unicode/unicode.h"
 
-namespace esphome {
-namespace font {
-static const char *const TAG = "font";
+namespace esphome::font {
+ESPHOME_LOG_TAG(TAG, "font");
 
 #ifdef USE_LVGL_FONT
-const uint8_t *Font::get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter) {
-  auto *fe = (Font *) font->dsc;
-  const auto *gd = fe->get_glyph_data_(unicode_letter);
+static const uint8_t OPA4_TABLE[16] = {0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255};
+
+static const uint8_t OPA2_TABLE[4] = {0, 85, 170, 255};
+
+const void *Font::get_glyph_bitmap(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw_buf) {
+  const auto *font = dsc->resolved_font;
+  auto *const fe = (Font *) font->dsc;
+
+  const auto *gd = fe->get_glyph_data_(dsc->gid.index);
   if (gd == nullptr) {
     return nullptr;
   }
-  return gd->data;
+
+  const uint8_t *bitmap_in = gd->data;
+  uint8_t *bitmap_out_tmp = draw_buf->data;
+  int32_t i = 0;
+  int32_t x, y;
+  uint32_t stride = lv_draw_buf_width_to_stride(gd->width, LV_COLOR_FORMAT_A8);
+
+  switch (fe->get_bpp()) {
+    case 1: {
+      uint8_t mask = 0;
+      uint8_t byte = 0;
+      for (y = 0; y != gd->height; y++) {
+        for (x = 0; x != gd->width; x++) {
+          if (mask == 0) {
+            mask = 0x80;
+            byte = *bitmap_in++;
+          }
+          bitmap_out_tmp[x] = byte & mask ? 255 : 0;
+          mask >>= 1;
+        }
+        bitmap_out_tmp += stride;
+      }
+    } break;
+
+    case 2:
+      for (y = 0; y != gd->height; y++) {
+        for (x = 0; x != gd->width; x++, i++) {
+          switch (i & 0x3) {
+            default:
+              bitmap_out_tmp[x] = OPA2_TABLE[(*bitmap_in) >> 6];
+              break;
+            case 1:
+              bitmap_out_tmp[x] = OPA2_TABLE[((*bitmap_in) >> 4) & 0x3];
+              break;
+            case 2:
+              bitmap_out_tmp[x] = OPA2_TABLE[((*bitmap_in) >> 2) & 0x3];
+              break;
+            case 3:
+              bitmap_out_tmp[x] = OPA2_TABLE[((*bitmap_in) >> 0) & 0x3];
+              bitmap_in++;
+          }
+        }
+        bitmap_out_tmp += stride;
+      }
+      break;
+
+    case 4:
+      for (y = 0; y != gd->height; y++) {
+        for (x = 0; x != gd->width; x++, i++) {
+          i = i & 0x1;
+          if (i == 0) {
+            bitmap_out_tmp[x] = OPA4_TABLE[(*bitmap_in) >> 4];
+          } else if (i == 1) {
+            bitmap_out_tmp[x] = OPA4_TABLE[(*bitmap_in) & 0xF];
+            bitmap_in++;
+          }
+        }
+        bitmap_out_tmp += stride;
+      }
+      break;
+
+    case 8:
+      memcpy(bitmap_out_tmp, bitmap_in, gd->width * gd->height);
+      break;
+    default:
+      ESP_LOGD(TAG, "Unknown bpp: %d", fe->get_bpp());
+      break;
+  }
+  return draw_buf;
 }
 
 bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next) {
@@ -30,7 +104,8 @@ bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uin
   dsc->box_w = gd->width;
   dsc->box_h = gd->height;
   dsc->is_placeholder = 0;
-  dsc->bpp = fe->get_bpp();
+  dsc->format = (lv_font_glyph_format_t) fe->get_bpp();
+  dsc->gid.index = unicode_letter;
   return true;
 }
 
@@ -46,108 +121,6 @@ const Glyph *Font::get_glyph_data_(uint32_t unicode_letter) {
   return glyph;
 }
 #endif
-
-/**
- *  Attempt to extract a 32 bit Unicode codepoint from a UTF-8 string.
- *  If successful, return the codepoint and set the length to the number of bytes read.
- *  If the end of the string has been reached and a valid codepoint has not been found, return 0 and set the length to
- * 0.
- *
- * @param utf8_str The input string
- * @param length Pointer to length storage
- * @return The extracted code point
- */
-static uint32_t extract_unicode_codepoint(const char *utf8_str, size_t *length) {
-  // Safely cast to uint8_t* for correct bitwise operations on bytes
-  const uint8_t *current = reinterpret_cast<const uint8_t *>(utf8_str);
-  uint32_t code_point = 0;
-  uint8_t c1 = *current++;
-
-  // check for end of string
-  if (c1 == 0) {
-    *length = 0;
-    return 0;
-  }
-
-  // --- 1-Byte Sequence: 0xxxxxxx (ASCII) ---
-  if (c1 < 0x80) {
-    // Valid ASCII byte.
-    code_point = c1;
-    // Optimization: No need to check for continuation bytes.
-  }
-  // --- 2-Byte Sequence: 110xxxxx 10xxxxxx ---
-  else if ((c1 & 0xE0) == 0xC0) {
-    uint8_t c2 = *current++;
-
-    // Error Check 1: Check if c2 is a valid continuation byte (10xxxxxx)
-    if ((c2 & 0xC0) != 0x80) {
-      *length = 0;
-      return 0;
-    }
-
-    code_point = (c1 & 0x1F) << 6;
-    code_point |= (c2 & 0x3F);
-
-    // Error Check 2: Overlong check (2-byte must be > 0x7F)
-    if (code_point <= 0x7F) {
-      *length = 0;
-      return 0;
-    }
-  }
-  // --- 3-Byte Sequence: 1110xxxx 10xxxxxx 10xxxxxx ---
-  else if ((c1 & 0xF0) == 0xE0) {
-    uint8_t c2 = *current++;
-    uint8_t c3 = *current++;
-
-    // Error Check 1: Check continuation bytes
-    if (((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
-      *length = 0;
-      return 0;
-    }
-
-    code_point = (c1 & 0x0F) << 12;
-    code_point |= (c2 & 0x3F) << 6;
-    code_point |= (c3 & 0x3F);
-
-    // Error Check 2: Overlong check (3-byte must be > 0x7FF)
-    // Also check for surrogates (0xD800-0xDFFF)
-    if (code_point <= 0x7FF || (code_point >= 0xD800 && code_point <= 0xDFFF)) {
-      *length = 0;
-      return 0;
-    }
-  }
-  // --- 4-Byte Sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx ---
-  else if ((c1 & 0xF8) == 0xF0) {
-    uint8_t c2 = *current++;
-    uint8_t c3 = *current++;
-    uint8_t c4 = *current++;
-
-    // Error Check 1: Check continuation bytes
-    if (((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80) || ((c4 & 0xC0) != 0x80)) {
-      *length = 0;
-      return 0;
-    }
-
-    code_point = (c1 & 0x07) << 18;
-    code_point |= (c2 & 0x3F) << 12;
-    code_point |= (c3 & 0x3F) << 6;
-    code_point |= (c4 & 0x3F);
-
-    // Error Check 2: Overlong check (4-byte must be > 0xFFFF)
-    // Also check for valid Unicode range (must be <= 0x10FFFF)
-    if (code_point <= 0xFFFF || code_point > 0x10FFFF) {
-      *length = 0;
-      return 0;
-    }
-  }
-  // --- Invalid leading byte (e.g., 10xxxxxx or 11111xxx) ---
-  else {
-    *length = 0;
-    return 0;
-  }
-  *length = current - reinterpret_cast<const uint8_t *>(utf8_str);
-  return code_point;
-}
 
 Font::Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
            uint8_t bpp)
@@ -197,7 +170,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   int x = 0;
   for (;;) {
     size_t length;
-    auto code_point = extract_unicode_codepoint(str, &length);
+    auto code_point = unicode::extract_unicode_codepoint(str, &length);
     if (length == 0)
       break;
     str += length;
@@ -226,7 +199,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
   int x_at = x_start;
   for (;;) {
     size_t length;
-    auto code_point = extract_unicode_codepoint(text, &length);
+    auto code_point = unicode::extract_unicode_codepoint(text, &length);
     if (length == 0)
       break;
     text += length;
@@ -235,7 +208,8 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
       // Unknown char, skip
       ESP_LOGW(TAG, "Codepoint 0x%08" PRIx32 " not found in font", code_point);
       if (!this->glyphs_.empty()) {
-        uint8_t glyph_width = this->glyphs_[0].advance;
+        // Full-width read: a narrowing byte load would fault on a PROGMEM table on ESP8266.
+        int glyph_width = this->glyphs_[0].advance;
         display->rectangle(x_at, y_start, glyph_width, this->height_, color);
         x_at += glyph_width;
       }
@@ -284,5 +258,4 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
   }
 }
 #endif
-}  // namespace font
-}  // namespace esphome
+}  // namespace esphome::font

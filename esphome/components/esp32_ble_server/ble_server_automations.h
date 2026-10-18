@@ -11,12 +11,20 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
 // Interface to interact with ESPHome actions and triggers
-namespace esp32_ble_server_automations {
+namespace esphome::esp32_ble_server::esp32_ble_server_automations {
 
 using namespace esp32_ble;
+
+/// Sets a characteristic or descriptor value from a constant flash table or a lambda's vector.
+// Not TemplatableBytes::visit, which would copy the lambda's vector instead of moving it into the value.
+template<typename T, typename V, typename... Xs> void apply_value(T *target, const V &value, Xs &&...x) {
+  if (value.is_static()) {
+    target->set_value(value.data(), value.size());
+  } else {
+    target->set_value(value.value(x...));
+  }
+}
 
 class BLETriggers {
  public:
@@ -66,25 +74,26 @@ class BLECharacteristicSetValueActionManager {
   void remove_listener_(BLECharacteristic *characteristic);
 };
 
-template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
+template<typename... Ts> class BLECharacteristicSetValueAction final : public Action<Ts...> {
  public:
   BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
-  void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
+  TEMPLATABLE_BYTES(buffer)
   void play(const Ts &...x) override {
     // If the listener is already set, do nothing
     if (BLECharacteristicSetValueActionManager::get_instance()->has_listener(this->parent_))
       return;
     // Set initial value
-    this->parent_->set_value(this->buffer_.value(x...));
+    apply_value(this->parent_, this->buffer_, x...);
     // Set the listener for read events
-    this->parent_->on_read([this, x...](uint16_t id) {
+    // ``mutable`` keeps by-copy captures non-const for triggers passing args by reference
+    // (e.g. climate on_control's ClimateCall&). See #17142.
+    this->parent_->on_read([this, x...](uint16_t id) mutable {
       // Set the value of the characteristic every time it is read
-      this->parent_->set_value(this->buffer_.value(x...));
+      apply_value(this->parent_, this->buffer_, x...);
     });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
     BLECharacteristicSetValueActionManager::get_instance()->set_listener(
-        this->parent_, [this, x...]() { this->parent_->set_value(this->buffer_.value(x...)); });
+        this->parent_, [this, x...]() mutable { apply_value(this->parent_, this->buffer_, x...); });
   }
 
  protected:
@@ -93,7 +102,7 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
 #endif  // USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 
 #ifdef USE_ESP32_BLE_SERVER_NOTIFY_ACTION
-template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts...> {
+template<typename... Ts> class BLECharacteristicNotifyAction final : public Action<Ts...> {
  public:
   BLECharacteristicNotifyAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
   void play(const Ts &...x) override {
@@ -111,20 +120,17 @@ template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts.
 #endif  // USE_ESP32_BLE_SERVER_NOTIFY_ACTION
 
 #ifdef USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
-template<typename... Ts> class BLEDescriptorSetValueAction : public Action<Ts...> {
+template<typename... Ts> class BLEDescriptorSetValueAction final : public Action<Ts...> {
  public:
   BLEDescriptorSetValueAction(BLEDescriptor *descriptor) : parent_(descriptor) {}
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
-  void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
-  void play(const Ts &...x) override { this->parent_->set_value(this->buffer_.value(x...)); }
+  TEMPLATABLE_BYTES(buffer)
+  void play(const Ts &...x) override { apply_value(this->parent_, this->buffer_, x...); }
 
  protected:
   BLEDescriptor *parent_;
 };
 #endif  // USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
 
-}  // namespace esp32_ble_server_automations
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server::esp32_ble_server_automations
 
 #endif

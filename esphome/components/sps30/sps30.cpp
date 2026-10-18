@@ -2,10 +2,11 @@
 #include "esphome/core/log.h"
 #include "sps30.h"
 
-namespace esphome {
-namespace sps30 {
+#include <cinttypes>
 
-static const char *const TAG = "sps30";
+namespace esphome::sps30 {
+
+ESPHOME_LOG_TAG(TAG, "sps30");
 
 static const uint16_t SPS30_CMD_GET_ARTICLE_CODE = 0xD025;
 static const uint16_t SPS30_CMD_GET_SERIAL_NUMBER = 0xD033;
@@ -28,15 +29,13 @@ void SPS30Component::setup() {
   this->set_timeout(500, [this]() {
     /// Firmware version identification
     if (!this->get_register(SPS30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version_, 1)) {
-      this->error_code_ = FIRMWARE_VERSION_READ_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Unable to read firmware version"));
       return;
     }
     /// Serial number identification
     uint16_t raw_serial_number[8];
     if (!this->get_register(SPS30_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 1)) {
-      this->error_code_ = SERIAL_NUMBER_READ_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Unable to read serial number"));
       return;
     }
 
@@ -74,38 +73,13 @@ void SPS30Component::setup() {
 void SPS30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SPS30:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed");
-        break;
-      case SERIAL_NUMBER_REQUEST_FAILED:
-        ESP_LOGW(TAG, "Unable to request serial number");
-        break;
-      case SERIAL_NUMBER_READ_FAILED:
-        ESP_LOGW(TAG, "Unable to read serial number");
-        break;
-      case FIRMWARE_VERSION_REQUEST_FAILED:
-        ESP_LOGW(TAG, "Unable to request firmware version");
-        break;
-      case FIRMWARE_VERSION_READ_FAILED:
-        ESP_LOGW(TAG, "Unable to read firmware version");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error");
-        break;
-    }
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
                 "  Serial number: %s\n"
                 "  Firmware version v%0d.%0d",
                 this->serial_number_, this->raw_firmware_version_ >> 8, this->raw_firmware_version_ & 0xFF);
   if (this->idle_interval_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Idle interval: %us", this->idle_interval_.value() / 1000);
+    ESP_LOGCONFIG(TAG, "  Idle interval: %" PRIu32 "s", this->idle_interval_.value() / 1000);
   }
   LOG_SENSOR("  ", "PM1.0 Weight Concentration", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5 Weight Concentration", this->pm_2_5_sensor_);
@@ -142,8 +116,8 @@ void SPS30Component::update() {
   // If its not time to take an action, do nothing.
   const uint32_t update_start_ms = millis();
   if (this->next_state_ != NONE && (int32_t) (this->next_state_ms_ - update_start_ms) > 0) {
-    ESP_LOGD(TAG, "Sensor waiting for %ums before transitioning to state %d.", (this->next_state_ms_ - update_start_ms),
-             this->next_state_);
+    ESP_LOGD(TAG, "Sensor waiting for %" PRIu32 "ms before transitioning to state %d.",
+             (this->next_state_ms_ - update_start_ms), this->next_state_);
     return;
   }
 
@@ -289,5 +263,4 @@ bool SPS30Component::start_fan_cleaning() {
   return true;
 }
 
-}  // namespace sps30
-}  // namespace esphome
+}  // namespace esphome::sps30

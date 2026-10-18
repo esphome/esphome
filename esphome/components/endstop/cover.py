@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_OPEN_ENDSTOP,
     CONF_STOP_ACTION,
 )
+from esphome.types import ConfigType
 
 endstop_ns = cg.esphome_ns.namespace("endstop")
 EndstopCover = endstop_ns.class_("EndstopCover", cover.Cover, cg.Component)
@@ -34,7 +35,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
 
@@ -42,15 +43,13 @@ async def to_code(config):
         var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
     )
 
-    bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
-    cg.add(var.set_open_endstop(bin))
+    await cg.add_variable(var.set_open_endstop, config[CONF_OPEN_ENDSTOP])
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     await automation.build_automation(
         var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
     )
 
-    bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
-    cg.add(var.set_close_endstop(bin))
+    await cg.add_variable(var.set_close_endstop, config[CONF_CLOSE_ENDSTOP])
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     await automation.build_automation(
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]

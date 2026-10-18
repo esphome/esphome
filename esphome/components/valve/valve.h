@@ -7,8 +7,7 @@
 #include "esphome/core/preferences.h"
 #include "valve_traits.h"
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 const extern float VALVE_OPEN;
 const extern float VALVE_CLOSED;
@@ -48,7 +47,7 @@ class ValveCall {
   void perform();
 
   const optional<float> &get_position() const;
-  bool get_stop() const;
+  bool get_stop() const { return this->stop_; }
   const optional<bool> &get_toggle() const;
 
  protected:
@@ -101,7 +100,7 @@ const LogString *valve_operation_to_str(ValveOperation op);
  * to control all values of the valve. Also implement get_traits() to return what operations
  * the valve supports.
  */
-class Valve : public EntityBase, public EntityBase_DeviceClass {
+class Valve : public EntityBase {
  public:
   explicit Valve();
 
@@ -115,9 +114,9 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
   float position;
 
   /// Construct a new valve call used to control the valve.
-  ValveCall make_call();
+  ValveCall make_call() { return {this}; }
 
-  void add_on_state_callback(std::function<void()> &&f);
+  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
   /** Publish the current state of the valve.
    *
@@ -131,9 +130,9 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
   virtual ValveTraits get_traits() = 0;
 
   /// Helper method to check if the valve is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
+  bool is_fully_open() const { return this->position == VALVE_OPEN; }
   /// Helper method to check if the valve is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
+  bool is_fully_closed() const { return this->position == VALVE_CLOSED; }
 
  protected:
   friend ValveCall;
@@ -147,5 +146,4 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
   ESPPreferenceObject rtc_;
 };
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

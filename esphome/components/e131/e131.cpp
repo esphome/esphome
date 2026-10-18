@@ -1,14 +1,14 @@
 #include "e131.h"
 #ifdef USE_NETWORK
 #include "e131_addressable_light_effect.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
-static const char *const TAG = "e131";
+ESPHOME_LOG_TAG(TAG, "e131");
 static const int PORT = 5568;
 
 E131Component::E131Component() {}
@@ -20,7 +20,12 @@ E131Component::~E131Component() {
 }
 
 void E131Component::setup() {
-  this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+  this->socket_ = socket::socket_ip_udp(IPPROTO_IP);
+  if (!this->socket_) {
+    ESP_LOGW(TAG, "Could not create socket: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
 
   int enable = 1;
   int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
@@ -55,22 +60,25 @@ void E131Component::setup() {
 }
 
 void E131Component::loop() {
+  if (this->igmp_join_pending_ && network::is_connected())
+    this->join_igmp_groups_();
   E131Packet packet;
   int universe = 0;
   uint8_t buf[1460];
+  ssize_t len;
 
-  ssize_t len = this->socket_->read(buf, sizeof(buf));
-  if (len == -1) {
-    return;
-  }
+  // Drain all queued packets so multi-universe frames are applied
+  // atomically before the light writes. Without this, each universe
+  // packet would trigger a separate full-strip write causing tearing.
+  while ((len = this->socket_->read(buf, sizeof(buf))) > 0) {
+    if (!this->packet_(buf, (size_t) len, universe, packet)) {
+      ESP_LOGV(TAG, "Invalid packet received of size %d.", (int) len);
+      continue;
+    }
 
-  if (!this->packet_(buf, (size_t) len, universe, packet)) {
-    ESP_LOGV(TAG, "Invalid packet received of size %zd.", len);
-    return;
-  }
-
-  if (!this->process_(universe, packet)) {
-    ESP_LOGV(TAG, "Ignored packet for %d universe of size %d.", universe, packet.count);
+    if (!this->process_(universe, packet)) {
+      ESP_LOGV(TAG, "Ignored packet for %d universe of size %d.", universe, packet.count);
+    }
   }
 }
 
@@ -121,6 +129,6 @@ bool E131Component::process_(int universe, const E131Packet &packet) {
   return handled;
 }
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

@@ -9,11 +9,11 @@
 #error This HostUartComponent implementation is not supported on this host OS
 #endif
 
-#include <stdio.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 
@@ -98,7 +98,7 @@ speed_t get_baud(int baud) {
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.host";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 HostUartComponent::~HostUartComponent() {
   if (this->file_descriptor_ != -1) {
@@ -124,17 +124,10 @@ void HostUartComponent::setup() {
   fcntl(this->file_descriptor_, F_SETFL, 0);
   struct termios options;
   tcgetattr(this->file_descriptor_, &options);
+  cfmakeraw(&options);
   options.c_cflag &= ~CRTSCTS;
   options.c_cflag |= CREAD | CLOCAL;
-  options.c_lflag &= ~ICANON;
-  options.c_lflag &= ~ECHO;
-  options.c_lflag &= ~ECHOE;
-  options.c_lflag &= ~ECHONL;
-  options.c_lflag &= ~ISIG;
-  options.c_iflag &= ~(IXON | IXOFF | IXANY);
-  options.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
-  options.c_oflag &= ~OPOST;
-  options.c_oflag &= ~ONLCR;
+  options.c_iflag &= ~(IXOFF | IXANY);
   // Set data bits
   options.c_cflag &= ~CSIZE;  // Mask the character size bits
   switch (this->data_bits_) {
@@ -164,6 +157,8 @@ void HostUartComponent::setup() {
     case UART_CONFIG_PARITY_ODD:
       options.c_cflag |= PARENB;
       options.c_cflag |= PARODD;
+      break;
+    default:
       break;
   };
   // Set stop bits
@@ -215,7 +210,6 @@ void HostUartComponent::write_array(const uint8_t *data, size_t len) {
     this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
 #endif
-  return;
 }
 
 bool HostUartComponent::peek_byte(uint8_t *data) {
@@ -242,16 +236,14 @@ bool HostUartComponent::read_array(uint8_t *data, size_t len) {
   }
   if (!this->check_read_timeout_(len))
     return false;
-  uint8_t *data_ptr = data;
   size_t length_to_read = len;
   if (this->has_peek_) {
     length_to_read--;
-    *data_ptr = this->peek_byte_;
-    data_ptr++;
+    *data = this->peek_byte_;
     this->has_peek_ = false;
   }
   if (length_to_read > 0) {
-    int sz = ::read(this->file_descriptor_, data_ptr, length_to_read);
+    int sz = ::read(this->file_descriptor_, data + (len - length_to_read), length_to_read);
     if (sz == -1) {
       this->update_error_(strerror(errno));
       return false;
@@ -265,7 +257,7 @@ bool HostUartComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-int HostUartComponent::available() {
+size_t HostUartComponent::available() {
   if (this->file_descriptor_ == -1) {
     return 0;
   }
@@ -275,17 +267,52 @@ int HostUartComponent::available() {
     this->update_error_(strerror(errno));
     return 0;
   }
+  size_t result = available;
   if (this->has_peek_)
-    available++;
-  return available;
+    result++;
+  return result;
 };
 
-void HostUartComponent::flush() {
+UARTFlushResult HostUartComponent::flush() {
   if (this->file_descriptor_ == -1) {
-    return;
+    return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
-  tcflush(this->file_descriptor_, TCIOFLUSH);
   ESP_LOGV(TAG, "    Flushing");
+  if (tcdrain(this->file_descriptor_) == -1) {
+    this->update_error_(strerror(errno));
+    return UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  }
+  return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+}
+
+bool HostUartComponent::set_modem_control(bool dtr, bool rts) {
+  if (this->file_descriptor_ == -1) {
+    return false;
+  }
+  // One TIOCMSET so the device never sees a state in between the old and the new one
+  int bits;
+  if (ioctl(this->file_descriptor_, TIOCMGET, &bits) == -1) {
+    this->update_error_(strerror(errno));
+    return false;
+  }
+  bits = (bits & ~(TIOCM_DTR | TIOCM_RTS)) | (dtr ? TIOCM_DTR : 0) | (rts ? TIOCM_RTS : 0);
+  if (ioctl(this->file_descriptor_, TIOCMSET, &bits) == -1) {
+    this->update_error_(strerror(errno));
+    return false;
+  }
+  return true;
+}
+
+bool HostUartComponent::get_dtr() const { return (this->get_modem_bits_() & TIOCM_DTR) != 0; }
+
+bool HostUartComponent::get_rts() const { return (this->get_modem_bits_() & TIOCM_RTS) != 0; }
+
+int HostUartComponent::get_modem_bits_() const {
+  int bits = 0;
+  if (this->file_descriptor_ != -1) {
+    ioctl(this->file_descriptor_, TIOCMGET, &bits);
+  }
+  return bits;
 }
 
 void HostUartComponent::update_error_(const std::string &error) {

@@ -1,65 +1,48 @@
 #ifdef USE_ESP32
 
 #include "task_log_buffer_esp32.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 
 namespace esphome::logger {
 
-TaskLogBuffer::TaskLogBuffer(size_t total_buffer_size) {
-  // Store the buffer size
-  this->size_ = total_buffer_size;
-  // Allocate memory for the ring buffer using ESPHome's RAM allocator
-  RAMAllocator<uint8_t> allocator;
-  this->storage_ = allocator.allocate(this->size_);
+TaskLogBuffer::TaskLogBuffer() {
   // Create a static ring buffer with RINGBUF_TYPE_NOSPLIT for message integrity
-  this->ring_buffer_ = xRingbufferCreateStatic(this->size_, RINGBUF_TYPE_NOSPLIT, this->storage_, &this->structure_);
+  // Storage is a member array (embedded in Logger), no heap allocation needed
+  xRingbufferCreateStatic(sizeof(this->storage_), RINGBUF_TYPE_NOSPLIT, this->storage_, &this->structure_);
 }
 
-TaskLogBuffer::~TaskLogBuffer() {
-  if (this->ring_buffer_ != nullptr) {
-    // Delete the ring buffer
-    vRingbufferDelete(this->ring_buffer_);
-    this->ring_buffer_ = nullptr;
-
-    // Free the allocated memory
-    RAMAllocator<uint8_t> allocator;
-    allocator.deallocate(this->storage_, this->size_);
-    this->storage_ = nullptr;
-  }
-}
-
-bool TaskLogBuffer::borrow_message_main_loop(LogMessage **message, const char **text, void **received_token) {
-  if (message == nullptr || text == nullptr || received_token == nullptr) {
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
+  if (this->current_token_) {
     return false;
   }
 
   size_t item_size = 0;
-  void *received_item = xRingbufferReceive(ring_buffer_, &item_size, 0);
+  void *received_item = xRingbufferReceive(this->handle_(), &item_size, 0);
   if (received_item == nullptr) {
     return false;
   }
 
   LogMessage *msg = static_cast<LogMessage *>(received_item);
-  *message = msg;
-  *text = msg->text_data();
-  *received_token = received_item;
+  message = msg;
+  text_length = msg->text_length;
+  this->current_token_ = received_item;
 
   return true;
 }
 
-void TaskLogBuffer::release_message_main_loop(void *token) {
-  if (token == nullptr) {
+void TaskLogBuffer::release_message_main_loop() {
+  if (this->current_token_ == nullptr) {
     return;
   }
-  vRingbufferReturnItem(ring_buffer_, token);
+  vRingbufferReturnItem(this->handle_(), this->current_token_);
+  this->current_token_ = nullptr;
   // Update counter to mark all messages as processed
   last_processed_counter_ = message_counter_.load(std::memory_order_relaxed);
 }
 
-bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, TaskHandle_t task_handle,
+bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                              const char *format, va_list args) {
   // First, calculate the exact length needed using a null buffer (no actual writing)
   va_list args_copy;
@@ -80,7 +63,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
 
   // Acquire memory directly from the ring buffer
   void *acquired_memory = nullptr;
-  BaseType_t result = xRingbufferSendAcquire(ring_buffer_, &acquired_memory, total_size, 0);
+  BaseType_t result = xRingbufferSendAcquire(this->handle_(), &acquired_memory, total_size, 0);
 
   if (result != pdTRUE || acquired_memory == nullptr) {
     return false;  // Failed to acquire memory
@@ -95,7 +78,6 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   // Store the thread name now instead of waiting until main loop processing
   // This avoids crashes if the task completes or is deleted between when this message
   // is enqueued and when it's processed by the main loop
-  const char *thread_name = pcTaskGetName(task_handle);
   if (thread_name != nullptr) {
     strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
     msg->thread_name[sizeof(msg->thread_name) - 1] = '\0';  // Ensure null termination
@@ -110,7 +92,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
 
   // Handle unexpected formatting error
   if (ret <= 0) {
-    vRingbufferReturnItem(ring_buffer_, acquired_memory);
+    vRingbufferReturnItem(this->handle_(), acquired_memory);
     return false;
   }
 
@@ -121,7 +103,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
 
   msg->text_length = text_length;
   // Complete the send operation with the acquired memory
-  result = xRingbufferSendComplete(ring_buffer_, acquired_memory);
+  result = xRingbufferSendComplete(this->handle_(), acquired_memory);
 
   if (result != pdTRUE) {
     return false;  // Failed to complete the message send

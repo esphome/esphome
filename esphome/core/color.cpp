@@ -6,18 +6,13 @@ namespace esphome {
 constinit const Color Color::BLACK(0, 0, 0, 0);
 constinit const Color Color::WHITE(255, 255, 255, 255);
 
-Color Color::gradient(const Color &to_color, uint8_t amnt) {
-  Color new_color;
-  float amnt_f = float(amnt) / 255.0f;
-  new_color.r = amnt_f * (to_color.r - this->r) + this->r;
-  new_color.g = amnt_f * (to_color.g - this->g) + this->g;
-  new_color.b = amnt_f * (to_color.b - this->b) + this->b;
-  new_color.w = amnt_f * (to_color.w - this->w) + this->w;
-  return new_color;
+Color Color::gradient(const Color &to_color, uint8_t amnt) const {
+  return Color(blend_channel(this->r, to_color.r, amnt), blend_channel(this->g, to_color.g, amnt),
+               blend_channel(this->b, to_color.b, amnt), blend_channel(this->w, to_color.w, amnt));
 }
 
-Color Color::fade_to_white(uint8_t amnt) { return this->gradient(Color::WHITE, amnt); }
+Color Color::fade_to_white(uint8_t amnt) const { return this->gradient(Color::WHITE, amnt); }
 
-Color Color::fade_to_black(uint8_t amnt) { return this->gradient(Color::BLACK, amnt); }
+Color Color::fade_to_black(uint8_t amnt) const { return this->gradient(Color::BLACK, amnt); }
 
 }  // namespace esphome

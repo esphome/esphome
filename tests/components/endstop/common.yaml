@@ -1,6 +1,6 @@
 binary_sensor:
   - platform: template
-    id: bin1
+    id: endstop_bin1
     lambda: |-
       if (millis() > 10000) {
         return true;
@@ -9,7 +9,7 @@ binary_sensor:
 
 switch:
   - platform: template
-    id: template_switch1
+    id: endstop_template_switch1
     optimistic: true
   - platform: template
     id: template_switch2
@@ -20,12 +20,12 @@ cover:
     id: endstop_cover
     name: Endstop Cover
     stop_action:
-      - switch.turn_on: template_switch1
-    open_endstop: bin1
+      - switch.turn_on: endstop_template_switch1
+    open_endstop: endstop_bin1
     open_action:
-      - switch.turn_on: template_switch1
+      - switch.turn_on: endstop_template_switch1
     open_duration: 5min
-    close_endstop: bin1
+    close_endstop: endstop_bin1
     close_action:
       - switch.turn_on: template_switch2
     close_duration: 4.5min

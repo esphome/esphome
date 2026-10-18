@@ -12,16 +12,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-// TODO: Migrate from legacy timer API (driver/timer.h) to GPTimer API (driver/gptimer.h)
-// The legacy timer API is deprecated in ESP-IDF 5.x. Migration would allow removing the
-// "driver" IDF component dependency. See:
-// https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/release-5.x/5.0/peripherals.html#id4
 #ifdef USE_ESP32
-#include "driver/timer.h"
+#include "driver/gptimer.h"
 #endif
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 template<class T> constexpr T read_bit(T value, uint8_t bit) { return (value >> bit) & 0x01; }
 
@@ -183,7 +178,7 @@ enum BitPositions { STOP_BIT = 33 };
 
 /**
  * Structure to hold Opentherm data packet content.
- * Use f88(), u16() or s16() functions to get appropriate value of data packet accoridng to id of message.
+ * Use get_f88(), get_u16() or get_s16() functions to get appropriate value of data packet according to id of message.
  */
 struct OpenthermData {
   uint8_t type;
@@ -196,32 +191,32 @@ struct OpenthermData {
   /**
    * @return float representation of data packet value
    */
-  float f88();
+  float get_f88();
 
   /**
    * @param float number to set as value of this data packet
    */
-  void f88(float value);
+  void set_f88(float value);
 
   /**
    * @return unsigned 16b integer representation of data packet value
    */
-  uint16_t u16();
+  uint16_t get_u16();
 
   /**
    * @param unsigned 16b integer number to set as value of this data packet
    */
-  void u16(uint16_t value);
+  void set_u16(uint16_t value);
 
   /**
    * @return signed 16b integer representation of data packet value
    */
-  int16_t s16();
+  int16_t get_s16();
 
   /**
    * @param signed 16b integer number to set as value of this data packet
    */
-  void s16(int16_t value);
+  void set_s16(int16_t value);
 };
 
 struct OpenThermError {
@@ -348,7 +343,11 @@ class OpenTherm {
   const char *operation_mode_to_str(OperationMode mode);
   const char *message_id_to_str(MessageId id);
 
+#ifdef USE_ESP32
+  static bool timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx);
+#else
   static bool timer_isr(OpenTherm *arg);
+#endif
 
 #ifdef ESP8266
   static void esp8266_timer_isr();
@@ -361,8 +360,12 @@ class OpenTherm {
   ISRInternalGPIOPin isr_out_pin_;
 
 #ifdef USE_ESP32
-  timer_group_t timer_group_;
-  timer_idx_t timer_idx_;
+  gptimer_handle_t timer_handle_{nullptr};
+  gptimer_alarm_config_t alarm_config_{
+      .alarm_count = 0,
+      .reload_count = 0,
+      .flags = {.auto_reload_on_alarm = true},
+  };
 #endif
 
   OperationMode mode_;
@@ -399,5 +402,4 @@ class OpenTherm {
 #endif
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

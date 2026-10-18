@@ -23,8 +23,8 @@ CONF_PUMP_VOLTAGE = "pump_voltage"
 CONF_LAST_VOLUME_REQUESTED = "last_volume_requested"
 CONF_MAX_FLOW_RATE = "max_flow_rate"
 
-UNIT_MILILITER = "ml"
-UNIT_MILILITERS_PER_MINUTE = "ml/min"
+UNIT_MILILITER = "mL"
+UNIT_MILILITERS_PER_MINUTE = "mL/min"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -76,28 +76,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ID])
+    hub = await cg.get_variable(config[CONF_ID])
 
-    if CONF_CURRENT_VOLUME_DOSED in config:
-        sens = await sensor.new_sensor(config[CONF_CURRENT_VOLUME_DOSED])
-        cg.add(parent.set_current_volume_dosed(sens))
-
-    if CONF_LAST_VOLUME_REQUESTED in config:
-        sens = await sensor.new_sensor(config[CONF_LAST_VOLUME_REQUESTED])
-        cg.add(parent.set_last_volume_requested(sens))
-
-    if CONF_TOTAL_VOLUME_DOSED in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_VOLUME_DOSED])
-        cg.add(parent.set_total_volume_dosed(sens))
-
-    if CONF_ABSOLUTE_TOTAL_VOLUME_DOSED in config:
-        sens = await sensor.new_sensor(config[CONF_ABSOLUTE_TOTAL_VOLUME_DOSED])
-        cg.add(parent.set_absolute_total_volume_dosed(sens))
-
-    if CONF_PUMP_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_PUMP_VOLTAGE])
-        cg.add(parent.set_pump_voltage(sens))
-
-    if CONF_MAX_FLOW_RATE in config:
-        sens = await sensor.new_sensor(config[CONF_MAX_FLOW_RATE])
-        cg.add(parent.set_max_flow_rate(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CURRENT_VOLUME_DOSED, hub.set_current_volume_dosed)
+    await sensors(CONF_LAST_VOLUME_REQUESTED, hub.set_last_volume_requested)
+    await sensors(CONF_TOTAL_VOLUME_DOSED, hub.set_total_volume_dosed)
+    await sensors(CONF_ABSOLUTE_TOTAL_VOLUME_DOSED, hub.set_absolute_total_volume_dosed)
+    await sensors(CONF_PUMP_VOLTAGE, hub.set_pump_voltage)
+    await sensors(CONF_MAX_FLOW_RATE, hub.set_max_flow_rate)

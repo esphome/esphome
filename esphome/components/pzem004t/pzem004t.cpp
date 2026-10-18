@@ -1,17 +1,15 @@
 #include "pzem004t.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace pzem004t {
+namespace esphome::pzem004t {
 
-static const char *const TAG = "pzem004t";
+ESPHOME_LOG_TAG(TAG, "pzem004t");
 
 void PZEM004T::setup() {
-  // Clear UART buffer
-  while (this->available())
-    this->read();
+  this->discard_available();
   // Set module address
   this->write_state_(SET_ADDRESS);
 }
@@ -19,22 +17,22 @@ void PZEM004T::setup() {
 void PZEM004T::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_read_ > 500 && this->available() < 7) {
-    while (this->available())
-      this->read();
+    this->discard_available();
     this->last_read_ = now;
   }
 
   // PZEM004T packet size is 7 byte
   while (this->available() >= 7) {
-    auto resp = *this->read_array<7>();
+    auto resp_opt = this->read_array<7>();
+    if (!resp_opt.has_value())
+      break;
+    auto resp = *resp_opt;
     // packet format:
     // 0: packet type
     // 1-5: data
     // 6: checksum (sum of other bytes)
     // see https://github.com/olehs/PZEM004T
-    uint8_t sum = 0;
-    for (int i = 0; i < 6; i++)
-      sum += resp[i];
+    const uint8_t sum = sum_bytes(resp.data(), 6);
 
     if (sum != resp[6]) {
       ESP_LOGV(TAG, "PZEM004T invalid checksum! 0x%02X != 0x%02X", sum, resp[6]);
@@ -74,7 +72,7 @@ void PZEM004T::loop() {
       }
 
       case 0xA3: {  // Energy Response
-        uint32_t energy = (uint32_t(resp[1]) << 16) | (uint32_t(resp[2]) << 8) | (uint32_t(resp[3]));
+        uint32_t energy = encode_uint24(resp[1], resp[2], resp[3]);
         if (this->energy_sensor_ != nullptr)
           this->energy_sensor_->publish_state(energy);
         ESP_LOGD(TAG, "Got Energy %" PRIu32 " Wh", energy);
@@ -123,5 +121,4 @@ void PZEM004T::dump_config() {
   LOG_SENSOR("", "Power", this->power_sensor_);
 }
 
-}  // namespace pzem004t
-}  // namespace esphome
+}  // namespace esphome::pzem004t

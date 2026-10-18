@@ -2,9 +2,9 @@
 #include "rpi_dpi_rgb.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
+#include <driver/gpio.h>
 
-namespace esphome {
-namespace rpi_dpi_rgb {
+namespace esphome::rpi_dpi_rgb {
 
 void RpiDpiRgb::setup() {
   this->reset_display_();
@@ -25,14 +25,14 @@ void RpiDpiRgb::setup() {
   config.clk_src = LCD_CLK_SRC_PLL160M;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
-    config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
+    config.data_gpio_nums[i] = static_cast<gpio_num_t>(this->data_pins_[i]->get_pin());
   }
   config.data_width = data_pin_count;
-  config.disp_gpio_num = -1;
-  config.hsync_gpio_num = this->hsync_pin_->get_pin();
-  config.vsync_gpio_num = this->vsync_pin_->get_pin();
-  config.de_gpio_num = this->de_pin_->get_pin();
-  config.pclk_gpio_num = this->pclk_pin_->get_pin();
+  config.disp_gpio_num = GPIO_NUM_NC;
+  config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
+  config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
+  config.de_gpio_num = static_cast<gpio_num_t>(this->de_pin_->get_pin());
+  config.pclk_gpio_num = static_cast<gpio_num_t>(this->pclk_pin_->get_pin());
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
@@ -47,16 +47,21 @@ void RpiDpiRgb::loop() {
     esp_lcd_rgb_panel_restart(this->handle_);
 }
 
-void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                               display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void RpiDpiRgb::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                     display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                     int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // if color mapping is required, pass the buck.
-  // note that endianness is not considered here - it is assumed to match!
-  if (bitness != display::COLOR_BITNESS_565) {
-    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                            x_pad);
+  if (bitness != display::COLOR_BITNESS_565 || !big_endian || this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES ||
+      this->is_clipping()) {
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+    return;
   }
+  this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+}
+
+void RpiDpiRgb::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset,
+                                  int y_offset, int x_pad) {
   x_start += this->offset_x_;
   y_start += this->offset_y_;
   esp_err_t err = ESP_OK;
@@ -74,8 +79,9 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
         break;
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 int RpiDpiRgb::get_width() {
@@ -99,7 +105,7 @@ int RpiDpiRgb::get_height() {
 }
 
 void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
@@ -120,9 +126,8 @@ void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
   }
   auto pixel = convert_big_endian(display::ColorUtil::color_to_565(color));
 
-  this->draw_pixels_at(x, y, 1, 1, (const uint8_t *) &pixel, display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, true,
-                       0, 0, 0);
-  App.feed_wdt();
+  this->write_to_display_(x, y, 1, 1, (const uint8_t *) &pixel, 0, 0, 0);
+  this->feed_wdt_per_pixel_();
 }
 
 void RpiDpiRgb::dump_config() {
@@ -159,7 +164,6 @@ void RpiDpiRgb::reset_display_() const {
   }
 }
 
-}  // namespace rpi_dpi_rgb
-}  // namespace esphome
+}  // namespace esphome::rpi_dpi_rgb
 
 #endif  // USE_ESP32_VARIANT_ESP32S3

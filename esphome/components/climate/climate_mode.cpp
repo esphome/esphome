@@ -10,8 +10,10 @@ const LogString *climate_mode_to_string(ClimateMode mode) {
   return ClimateModeStrings::get_log_str(static_cast<uint8_t>(mode), ClimateModeStrings::LAST_INDEX);
 }
 
-// Climate action strings indexed by ClimateAction enum (0,2-6): OFF, (gap), COOLING, HEATING, IDLE, DRYING, FAN
-PROGMEM_STRING_TABLE(ClimateActionStrings, "OFF", "UNKNOWN", "COOLING", "HEATING", "IDLE", "DRYING", "FAN", "UNKNOWN");
+// Climate action strings indexed by ClimateAction enum (0,2-7): OFF, (gap), COOLING, HEATING, IDLE, DRYING, FAN,
+// DEFROSTING
+PROGMEM_STRING_TABLE(ClimateActionStrings, "OFF", "UNKNOWN", "COOLING", "HEATING", "IDLE", "DRYING", "FAN",
+                     "DEFROSTING", "UNKNOWN");
 
 const LogString *climate_action_to_string(ClimateAction action) {
   return ClimateActionStrings::get_log_str(static_cast<uint8_t>(action), ClimateActionStrings::LAST_INDEX);

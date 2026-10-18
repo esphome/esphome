@@ -6,8 +6,7 @@
 #include "text_call.h"
 #include "text_traits.h"
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 #define LOG_TEXT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -24,14 +23,16 @@ class Text : public EntityBase {
   std::string state;
   TextTraits traits;
 
-  void publish_state(const std::string &state);
-  void publish_state(const char *state);
+  void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
+  void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
 
   /// Instantiate a TextCall object to modify this text component's state.
   TextCall make_call() { return TextCall(this); }
 
-  void add_on_state_callback(std::function<void(const std::string &)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   friend class TextCall;
@@ -47,5 +48,4 @@ class Text : public EntityBase {
   LazyCallbackManager<void(const std::string &)> state_callback_;
 };
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text

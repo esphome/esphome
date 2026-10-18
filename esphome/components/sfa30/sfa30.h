@@ -4,12 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace sfa30 {
+namespace esphome::sfa30 {
 
-class SFA30Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
-  enum ErrorCode { DEVICE_MARKING_READ_FAILED, MEASUREMENT_INIT_FAILED, UNKNOWN };
-
+class SFA30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -22,12 +19,9 @@ class SFA30Component : public PollingComponent, public sensirion_common::Sensiri
  protected:
   char device_marking_[32] = {0};
 
-  ErrorCode error_code_{UNKNOWN};
-
   sensor::Sensor *formaldehyde_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
 };
 
-}  // namespace sfa30
-}  // namespace esphome
+}  // namespace esphome::sfa30

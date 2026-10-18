@@ -2,18 +2,17 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
+#include <cstdint>
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ledc {
+namespace esphome::ledc {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern uint8_t next_ledc_channel;
 
-class LEDCOutput : public output::FloatOutput, public Component {
+class LEDCOutput final : public output::FloatOutput, public Component {
  public:
   explicit LEDCOutput(InternalGPIOPin *pin) : pin_(pin) { this->channel_ = next_ledc_channel++; }
 
@@ -36,27 +35,13 @@ class LEDCOutput : public output::FloatOutput, public Component {
   InternalGPIOPin *pin_;
   uint8_t channel_{};
   uint8_t bit_depth_{};
+  bool initialized_ = false;
   float phase_angle_{0.0f};
   float frequency_{};
   float duty_{0.0f};
-  bool initialized_ = false;
+  uint32_t last_duty_{UINT32_MAX};
 };
 
-template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
- public:
-  SetFrequencyAction(LEDCOutput *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, frequency);
-
-  void play(const Ts &...x) {
-    float freq = this->frequency_.value(x...);
-    this->parent_->update_frequency(freq);
-  }
-
- protected:
-  LEDCOutput *parent_;
-};
-
-}  // namespace ledc
-}  // namespace esphome
+}  // namespace esphome::ledc
 
 #endif

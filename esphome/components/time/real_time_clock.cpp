@@ -10,22 +10,46 @@
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
-#if defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_RP2) || defined(USE_ZEPHYR)
 #include <sys/time.h>
 #endif
 #include <cerrno>
-
 #include <cinttypes>
+#include <cstdlib>
 
 namespace esphome::time {
 
-static const char *const TAG = "time";
+ESPHOME_LOG_TAG(TAG, "time");
 
 RealTimeClock::RealTimeClock() = default;
 
+ESPTime __attribute__((noinline)) RealTimeClock::now() {
+#ifdef USE_TIME_TIMEZONE
+  time_t epoch = this->timestamp_now();
+  struct tm local_tm;
+  if (epoch_to_local_tm(epoch, get_global_tz(), &local_tm)) {
+    return ESPTime::from_c_tm(&local_tm, epoch);
+  }
+  // Fallback to UTC if parsing failed
+  return ESPTime::from_epoch_utc(epoch);
+#else
+  return ESPTime::from_epoch_local(this->timestamp_now());
+#endif
+}
+
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
-  ESP_LOGCONFIG(TAG, "Timezone: '%s'", this->timezone_.c_str());
+  const auto &tz = get_global_tz();
+  // POSIX offset is positive west, negate for conventional UTC+X display
+  int std_h = -tz.std_offset_seconds / 3600;
+  int std_m = (std::abs(tz.std_offset_seconds) % 3600) / 60;
+  if (tz.has_dst()) {
+    int dst_h = -tz.dst_offset_seconds / 3600;
+    int dst_m = (std::abs(tz.dst_offset_seconds) % 3600) / 60;
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d (DST UTC%+d:%02d)", std_h, std_m, dst_h, dst_m);
+  } else {
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_h, std_m);
+  }
 #endif
   auto time = this->now();
   ESP_LOGCONFIG(TAG, "Current time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
@@ -64,21 +88,16 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   struct timeval timev {
     .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
   };
+#ifdef USE_ESP8266
+  // ESP8266 settimeofday() requires tz to be nullptr
+  int ret = settimeofday(&timev, nullptr);
+#else
   struct timezone tz = {0, 0};
   int ret = settimeofday(&timev, &tz);
-  if (ret == EINVAL) {
-    // Some ESP8266 frameworks abort when timezone parameter is not NULL
-    // while ESP32 expects it not to be NULL
-    ret = settimeofday(&timev, nullptr);
-  }
-
-#ifdef USE_TIME_TIMEZONE
-  // Move timezone back to local timezone.
-  this->apply_timezone_();
 #endif
 
   if (ret != 0) {
-    ESP_LOGW(TAG, "setimeofday() failed with code %d", ret);
+    ESP_LOGW(TAG, "settimeofday() failed with code %d", ret);
   }
 #endif
   auto time = this->now();
@@ -88,11 +107,37 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   this->time_sync_callback_.call();
 }
 
-#ifdef USE_TIME_TIMEZONE
-void RealTimeClock::apply_timezone_() {
-  setenv("TZ", this->timezone_.c_str(), 1);
-  tzset();
+// Bits of each calendar byte that hold the value, byte 0 lowest; byte 3 is the one-hot weekday.
+// Packed into one constant so it stays in code rather than RAM on ESP8266.
+static constexpr uint64_t BCD_CALENDAR_MASKS = 0xFF1F3F7F3F7F7FULL;
+
+ESPTime decode_bcd_calendar(const uint8_t *raw) {
+  uint8_t value[7];
+  for (size_t i = 0; i < 7; i++)
+    value[i] = bcd_to_uint8(raw[i] & static_cast<uint8_t>(BCD_CALENDAR_MASKS >> (8 * i)));
+  const uint8_t weekday = raw[3] & static_cast<uint8_t>(BCD_CALENDAR_MASKS >> 24);
+  ESPTime time{
+      .second = value[0],
+      .minute = value[1],
+      .hour = value[2],
+      .day_of_week = static_cast<uint8_t>(weekday ? __builtin_ctz(weekday) + 1 : 1),
+      .day_of_month = value[4],
+      .day_of_year = 1,
+      .month = value[5],
+      .year = static_cast<uint16_t>(value[6] + 2000),
+      .is_dst = false,
+      .timestamp = 0,
+  };
+  time.recalc_timestamp_utc(false);
+  return time;
 }
-#endif
+
+void encode_bcd_calendar(const ESPTime &time, uint8_t *raw) {
+  const uint8_t value[7] = {
+      time.second, time.minute, time.hour, 0, time.day_of_month, time.month, static_cast<uint8_t>(time.year % 100)};
+  for (size_t i = 0; i < 7; i++)
+    raw[i] = uint8_to_bcd(value[i]);
+  raw[3] = 1 << (time.day_of_week - 1);
+}
 
 }  // namespace esphome::time

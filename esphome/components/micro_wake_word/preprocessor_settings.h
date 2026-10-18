@@ -4,8 +4,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 // Settings for controlling the spectrogram feature generation by the preprocessor.
 // These must match the settings used when training a particular model.
@@ -31,7 +30,6 @@ static const uint8_t PCAN_GAIN_CONTROL_GAIN_BITS = 21;
 
 static const bool LOG_SCALE_ENABLE_LOG = true;
 static const uint8_t LOG_SCALE_SCALE_SHIFT = 6;
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
 #endif

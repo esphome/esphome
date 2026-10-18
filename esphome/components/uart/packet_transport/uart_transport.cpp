@@ -4,7 +4,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart_transport";
+ESPHOME_LOG_TAG(TAG, "uart_transport");
 
 void UARTTransport::loop() {
   PacketTransport::loop();

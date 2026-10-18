@@ -169,14 +169,20 @@ struct Color {
     uint8_t r = rand >> 16;
     uint8_t g = rand >> 8;
     uint8_t b = rand >> 0;
-    const uint16_t max_rgb = std::max(r, std::max(g, b));
+    const uint16_t max_rgb = std::max({r, g, b});
     return Color(uint8_t((uint16_t(r) * 255U / max_rgb)), uint8_t((uint16_t(g) * 255U / max_rgb)),
                  uint8_t((uint16_t(b) * 255U / max_rgb)), w);
   }
 
-  Color gradient(const Color &to_color, uint8_t amnt);
-  Color fade_to_white(uint8_t amnt);
-  Color fade_to_black(uint8_t amnt);
+  /// One channel of gradient(): from at amnt 0 to to at amnt 255. Inline so a
+  /// per pixel loop can blend without a call; gradient() itself stays out of
+  /// line so the light effects and fade_to_*() share one copy.
+  static inline uint8_t blend_channel(uint8_t from, uint8_t to, uint8_t amnt) ESPHOME_ALWAYS_INLINE {
+    return (uint16_t(from) * (255 - amnt) + uint16_t(to) * amnt) / 255;
+  }
+  Color gradient(const Color &to_color, uint8_t amnt) const;
+  Color fade_to_white(uint8_t amnt) const;
+  Color fade_to_black(uint8_t amnt) const;
 
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }

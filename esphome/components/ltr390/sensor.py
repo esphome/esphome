@@ -1,17 +1,19 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AMBIENT_LIGHT,
     CONF_GAIN,
-    CONF_ID,
     CONF_LIGHT,
     CONF_RESOLUTION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
+    STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@sjtrny", "@latonita"]
 DEPENDENCIES = ["i2c"]
@@ -26,7 +28,6 @@ CONF_UV_INDEX = "uv_index"
 CONF_UV = "uv"
 CONF_WINDOW_CORRECTION_FACTOR = "window_correction_factor"
 
-UNIT_COUNTS = "#"
 UNIT_UVI = "UVI"
 
 LTR390GAIN = ltr390_ns.enum("LTR390GAIN")
@@ -57,24 +58,28 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AMBIENT_LIGHT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_UV_INDEX): sensor.sensor_schema(
                 unit_of_measurement=UNIT_UVI,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=5,
                 device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_UV): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_GAIN, default="X18"): cv.Any(
                 cv.enum(GAIN_OPTIONS),
@@ -112,10 +117,8 @@ TYPES = {
 }
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_wfac_value(config[CONF_WINDOW_CORRECTION_FACTOR]))
 

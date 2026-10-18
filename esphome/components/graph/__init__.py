@@ -29,8 +29,10 @@ from esphome.const import (
     CONF_X_GRID,
     CONF_Y_GRID,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@synco"]
+DOMAIN = "graph"
 
 DEPENDENCIES = ["display", "sensor"]
 MULTI_CONF = True
@@ -41,26 +43,17 @@ GraphTrace = graph_ns.class_("GraphTrace")
 GraphLegend = graph_ns.class_("GraphLegend")
 
 LineType = graph_ns.enum("LineType")
-LINE_TYPE = {
-    "SOLID": LineType.LINE_TYPE_SOLID,
-    "DOTTED": LineType.LINE_TYPE_DOTTED,
-    "DASHED": LineType.LINE_TYPE_DASHED,
-}
+LINE_TYPE = LineType.options("SOLID", "DOTTED", "DASHED", prefix="LINE_TYPE_")
 
 DirectionType = graph_ns.enum("DirectionType")
-DIRECTION_TYPE = {
-    "AUTO": DirectionType.DIRECTION_TYPE_AUTO,
-    "HORIZONTAL": DirectionType.DIRECTION_TYPE_HORIZONTAL,
-    "VERTICAL": DirectionType.DIRECTION_TYPE_VERTICAL,
-}
+DIRECTION_TYPE = DirectionType.options(
+    "AUTO", "HORIZONTAL", "VERTICAL", prefix="DIRECTION_TYPE_"
+)
 
 ValuePositionType = graph_ns.enum("ValuePositionType")
-VALUE_POSITION_TYPE = {
-    "NONE": ValuePositionType.VALUE_POSITION_TYPE_NONE,
-    "AUTO": ValuePositionType.VALUE_POSITION_TYPE_AUTO,
-    "BESIDE": ValuePositionType.VALUE_POSITION_TYPE_BESIDE,
-    "BELOW": ValuePositionType.VALUE_POSITION_TYPE_BELOW,
-}
+VALUE_POSITION_TYPE = ValuePositionType.options(
+    "NONE", "AUTO", "BESIDE", "BELOW", prefix="VALUE_POSITION_TYPE_"
+)
 
 GRAPH_TRACE_SCHEMA = cv.Schema(
     {
@@ -110,12 +103,14 @@ GRAPH_SCHEMA = cv.Schema(
         cv.Optional(CONF_MIN_RANGE): cv.float_range(min=0, min_included=False),
         cv.Optional(CONF_MAX_RANGE): cv.float_range(min=0, min_included=False),
         cv.Optional(CONF_TRACES): cv.ensure_list(GRAPH_TRACE_SCHEMA),
-        cv.Optional(CONF_LEGEND): cv.ensure_list(GRAPH_LEGEND_SCHEMA),
+        cv.Optional(CONF_LEGEND): GRAPH_LEGEND_SCHEMA,
     }
 )
 
 
-def _relocate_fields_to_subfolder(config, subfolder, subschema):
+def _relocate_fields_to_subfolder(
+    config: ConfigType, subfolder: str, subschema: cv.Schema
+) -> ConfigType:
     fields = [k.schema for k in subschema.schema]
     fields.remove(CONF_ID)
     if subfolder in config:
@@ -138,7 +133,7 @@ def _relocate_fields_to_subfolder(config, subfolder, subschema):
     return config
 
 
-def _relocate_trace(config):
+def _relocate_trace(config: ConfigType) -> ConfigType:
     return _relocate_fields_to_subfolder(config, CONF_TRACES, GRAPH_TRACE_SCHEMA)
 
 
@@ -148,7 +143,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_duration(config[CONF_DURATION]))
     cg.add(var.set_width(config[CONF_WIDTH]))
@@ -174,8 +169,7 @@ async def to_code(config):
     # Trace options
     for trace in config[CONF_TRACES]:
         tr = cg.new_Pvariable(trace[CONF_ID], GraphTrace())
-        sens = await cg.get_variable(trace[CONF_SENSOR])
-        cg.add(tr.set_sensor(sens))
+        await cg.add_variable(tr.set_sensor, trace[CONF_SENSOR])
         if CONF_NAME in trace:
             cg.add(tr.set_name(trace[CONF_NAME]))
         else:
@@ -184,22 +178,16 @@ async def to_code(config):
             cg.add(tr.set_line_thickness(trace[CONF_LINE_THICKNESS]))
         if CONF_LINE_TYPE in trace:
             cg.add(tr.set_line_type(trace[CONF_LINE_TYPE]))
-        if CONF_COLOR in trace:
-            c = await cg.get_variable(trace[CONF_COLOR])
-            cg.add(tr.set_line_color(c))
+        await cg.add_variable(tr.set_line_color, trace.get(CONF_COLOR))
         if CONF_CONTINUOUS in trace:
             cg.add(tr.set_continuous(trace[CONF_CONTINUOUS]))
         cg.add(var.add_trace(tr))
     # Add legend
     if CONF_LEGEND in config:
-        lgd = config[CONF_LEGEND][0]
+        lgd = config[CONF_LEGEND]
         legend = cg.new_Pvariable(lgd[CONF_ID], GraphLegend())
-        if CONF_NAME_FONT in lgd:
-            font = await cg.get_variable(lgd[CONF_NAME_FONT])
-            cg.add(legend.set_name_font(font))
-        if CONF_VALUE_FONT in lgd:
-            font = await cg.get_variable(lgd[CONF_VALUE_FONT])
-            cg.add(legend.set_value_font(font))
+        await cg.add_variable(legend.set_name_font, lgd.get(CONF_NAME_FONT))
+        await cg.add_variable(legend.set_value_font, lgd.get(CONF_VALUE_FONT))
         if CONF_WIDTH in lgd:
             cg.add(legend.set_width(lgd[CONF_WIDTH]))
         if CONF_HEIGHT in lgd:

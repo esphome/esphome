@@ -15,6 +15,7 @@ enum class Type : uint8_t {
   PMS5003T,
   PMS5003ST,
   PMS9003M,
+  LUFTMY,  // Luftmy LD10, LD11, LD13, LD15, LD16: standard PM + particle counts, no atmospheric PM values
 };
 
 enum class Command : uint8_t {
@@ -29,7 +30,7 @@ enum class State : uint8_t {
   WAITING,
 };
 
-class PMSX003Component : public uart::UARTDevice, public Component {
+class PMSX003Component final : public uart::UARTDevice, public Component {
  public:
   PMSX003Component() = default;
   void setup() override;

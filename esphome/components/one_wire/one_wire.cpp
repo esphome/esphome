@@ -1,17 +1,8 @@
 #include "one_wire.h"
 
-namespace esphome {
-namespace one_wire {
+namespace esphome::one_wire {
 
-static const char *const TAG = "one_wire";
-
-const std::string &OneWireDevice::get_address_name() {
-  if (this->address_name_.empty()) {
-    char hex_buf[19];  // "0x" + 16 hex chars + null
-    this->address_name_ = format_hex_prefixed_to(hex_buf, this->address_);
-  }
-  return this->address_name_;
-}
+ESPHOME_LOG_TAG(TAG, "one_wire");
 
 bool OneWireDevice::send_command_(uint8_t cmd) {
   if (!this->bus_->select(this->address_))
@@ -46,5 +37,4 @@ bool OneWireDevice::check_address_or_index_() {
   return true;
 }
 
-}  // namespace one_wire
-}  // namespace esphome
+}  // namespace esphome::one_wire

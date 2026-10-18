@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace ens160_base {
+namespace esphome::ens160_base {
 
 class ENS160Component : public PollingComponent, public sensor::Sensor {
  public:
@@ -21,16 +20,6 @@ class ENS160Component : public PollingComponent, public sensor::Sensor {
 
  protected:
   void send_env_data_();
-
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    INVALID_ID,
-    VALIDITY_INVALID,
-    READ_FAILED,
-    WRITE_FAILED,
-    STD_OPMODE_FAILED,
-  } error_code_{NONE};
 
   enum ValidityFlag {
     NORMAL_OPERATION = 0,
@@ -59,5 +48,4 @@ class ENS160Component : public PollingComponent, public sensor::Sensor {
   sensor::Sensor *temperature_{nullptr};
 };
 
-}  // namespace ens160_base
-}  // namespace esphome
+}  // namespace esphome::ens160_base

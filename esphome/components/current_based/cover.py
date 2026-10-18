@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_OPEN_DURATION,
     CONF_STOP_ACTION,
 )
+from esphome.types import ConfigType
 
 CONF_OPEN_SENSOR = "open_sensor"
 CONF_OPEN_MOVING_CURRENT_THRESHOLD = "open_moving_current_threshold"
@@ -67,7 +68,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
 
@@ -76,8 +77,7 @@ async def to_code(config):
     )
 
     # OPEN
-    bin = await cg.get_variable(config[CONF_OPEN_SENSOR])
-    cg.add(var.set_open_sensor(bin))
+    await cg.add_variable(var.set_open_sensor, config[CONF_OPEN_SENSOR])
     cg.add(
         var.set_open_moving_current_threshold(
             config[CONF_OPEN_MOVING_CURRENT_THRESHOLD]
@@ -96,8 +96,7 @@ async def to_code(config):
     )
 
     # CLOSE
-    bin = await cg.get_variable(config[CONF_CLOSE_SENSOR])
-    cg.add(var.set_close_sensor(bin))
+    await cg.add_variable(var.set_close_sensor, config[CONF_CLOSE_SENSOR])
     cg.add(
         var.set_close_moving_current_threshold(
             config[CONF_CLOSE_MOVING_CURRENT_THRESHOLD]
