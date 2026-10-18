@@ -66,7 +66,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     radio = await cg.get_variable(config[CONF_SX127X_ID])
-    var = await new_packet_interface(config, radio)
+    var = await new_packet_interface(config, radio, config[CONF_MAX_PACKET_SIZE])
     radio_config = next(
         conf for conf in CORE.config[DOMAIN] if conf[CONF_ID] == config[CONF_SX127X_ID]
     )
