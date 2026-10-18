@@ -39,6 +39,26 @@ def test_send_requires_a_grant_identifier() -> None:
         vbus.SEND_SCHEMA({"id": "bus", "command": 0x0300})
 
 
+def test_send_waits_for_a_reply_by_default() -> None:
+    conf = vbus.SEND_SCHEMA({"id": "bus", "grant_id": 1, "command": 0x0300})
+    assert conf["expect_reply"] is True
+
+
+@pytest.mark.parametrize("command", [0x0200, 0x0300, 0x0400])
+def test_standard_requests_cannot_disable_reply_waiting(command: int) -> None:
+    with pytest.raises(cv.Invalid, match="require expect_reply"):
+        vbus.SEND_SCHEMA(
+            {"id": "bus", "grant_id": 1, "command": command, "expect_reply": False}
+        )
+
+
+def test_one_way_datagram_can_disable_reply_waiting() -> None:
+    conf = vbus.SEND_SCHEMA(
+        {"id": "bus", "grant_id": 1, "command": 0x0100, "expect_reply": False}
+    )
+    assert conf["expect_reply"] is False
+
+
 def test_transmit_requires_distinct_addresses() -> None:
     with pytest.raises(cv.Invalid, match="must differ"):
         vbus.TRANSMIT_SCHEMA({"source": 0x20, "destination": 0x20})

@@ -41,8 +41,9 @@ class VBus final : public uart::UARTDevice, public Component {
   void set_transmitter(VBusTransmitter *transmitter) { this->transmitter_ = transmitter; }
   bool request_bus() { return this->transmitter_ != nullptr && this->transmitter_->request_bus(); }
   bool has_bus() const { return this->transmitter_ != nullptr && this->transmitter_->has_bus(); }
-  bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value) {
-    return this->transmitter_ != nullptr && this->transmitter_->send_datagram(grant_id, command, value_id, value);
+  bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true) {
+    return this->transmitter_ != nullptr &&
+           this->transmitter_->send_datagram(grant_id, command, value_id, value, expect_reply);
   }
   void release_bus(uint32_t grant_id) {
     if (this->transmitter_ != nullptr)

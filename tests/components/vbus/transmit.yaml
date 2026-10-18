@@ -9,6 +9,7 @@ vbus:
           command: 0x0300
           value_id: !lambda return 2;
           value: !lambda return 0;
+          expect_reply: !lambda return true;
       - delay: 100ms
       - vbus.release_bus:
           id: vbus_transmit

@@ -149,7 +149,7 @@ TEST_F(VBusTransmitTest, WaitsForContentionAndExplicitlyReleasesOnce) {
   EXPECT_EQ(this->uart_.writes.size(), 1u);
 }
 
-TEST_F(VBusTransmitTest, EncodesFullPayloadAndDoesNotRetry) {
+TEST_F(VBusTransmitTest, EncodesFullPayloadAndDoesNotRetryOrReleaseWithoutAReply) {
   this->acquire_();
   EXPECT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0900, 0x9234, 0x89abcdef));
   ASSERT_EQ(this->uart_.writes.size(), 1u);
@@ -157,9 +157,10 @@ TEST_F(VBusTransmitTest, EncodesFullPayloadAndDoesNotRetry) {
                                                          0x6f, 0x4d, 0x2b, 0x09, 0x3e, 0x0f}));
   EXPECT_FALSE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
   this->advance_(500);
-  ASSERT_EQ(this->uart_.writes.size(), 2u);
-  EXPECT_EQ(this->uart_.writes[1], wire_datagram(0x0600, 0x0020, 0x2211));
+  ASSERT_EQ(this->uart_.writes.size(), 1u);
   EXPECT_FALSE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
+  this->acquire_();
+  EXPECT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
 }
 
 TEST_F(VBusTransmitTest, SupportsMatchingEchoAndReplyForFurtherRequests) {
@@ -167,7 +168,11 @@ TEST_F(VBusTransmitTest, SupportsMatchingEchoAndReplyForFurtherRequests) {
   ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
   this->feed_(this->uart_.writes[0]);
   EXPECT_TRUE(this->bus_.has_bus());
+  this->feed_(wire_datagram(0x0100, 0x2211, 0x0020, 2, 1));
   this->advance_(20);
+  EXPECT_FALSE(this->bus_.send_datagram(this->grant_id_, 0x0300, 3, 0));
+  this->feed_(wire_datagram(0x0100, 0x2211, 0x0020, 3, 1));
+  EXPECT_FALSE(this->bus_.send_datagram(this->grant_id_, 0x0300, 3, 0));
   this->feed_(wire_datagram(0x0100, 0x2211, 0x0020, 2, 1));
   EXPECT_TRUE(this->bus_.has_bus());
   EXPECT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, 3, 0));
@@ -276,7 +281,7 @@ TEST_F(VBusTransmitTest, DelayedCallbackAndShutdownCannotTransmit) {
 
 TEST_F(VBusTransmitTest, ReleaseWaitsForWireTime) {
   this->acquire_();
-  ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
+  ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0100, 2, 0, false));
   this->bus_.release_bus(this->grant_id_);
   this->advance_(19);
   ASSERT_EQ(this->uart_.writes.size(), 1u);
@@ -355,7 +360,7 @@ TEST_F(VBusTransmitTest, EveryPayloadHighBitCombinationIsPreserved) {
     const auto byte = [septet](size_t i) -> uint32_t { return (septet & (1u << i)) ? 0xff : 0x7f; };
     const uint16_t id = byte(0) | (byte(1) << 8);
     const uint32_t value = byte(2) | (byte(3) << 8) | (byte(4) << 16) | (byte(5) << 24);
-    ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, id, value));
+    ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0100, id, value, false));
     const auto &bytes = this->uart_.writes.back();
     ASSERT_EQ(bytes.size(), 16u);
     EXPECT_EQ(bytes[14], septet);
@@ -424,13 +429,47 @@ TEST_F(VBusTransmitTest, AGrantFollowedByQueuedTrafficCannotBeClaimed) {
 TEST_F(VBusTransmitTest, LastOrdinaryFrameLeavesEnoughWireTimeForRelease) {
   this->acquire_();
   this->advance_(359);
-  ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
+  ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0100, 2, 0, false));
   this->advance_(1);
   EXPECT_FALSE(this->bus_.send_datagram(this->grant_id_, 0x0200, 2, 1));
   ASSERT_EQ(this->uart_.writes.size(), 1u);
   this->advance_(19);
   ASSERT_EQ(this->uart_.writes.size(), 2u);
   EXPECT_EQ(this->uart_.writes[1], wire_datagram(0x0600, 0x0020, 0x2211));
+}
+
+TEST_F(VBusTransmitTest, ReleaseWaitsForACompleteControllerReply) {
+  this->acquire_();
+  ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
+  this->bus_.release_bus(this->grant_id_);
+  this->advance_(40);
+  ASSERT_EQ(this->uart_.writes.size(), 1u);
+  this->feed_(wire_datagram(0x0100, 0x2211, 0x0020, 3, 1));
+  ASSERT_EQ(this->uart_.writes.size(), 1u);
+  const auto reply = wire_datagram(0x0100, 0x2211, 0x0020, 2, 1);
+  this->feed_({reply.begin(), reply.begin() + 10});
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+  this->feed_({reply.begin() + 10, reply.end()});
+  ASSERT_EQ(this->uart_.writes.size(), 2u);
+  EXPECT_EQ(this->uart_.writes[1], wire_datagram(0x0600, 0x0020, 0x2211));
+}
+
+TEST_F(VBusTransmitTest, StandardRequestsCannotDisableReplyWaitingAtRuntime) {
+  this->acquire_();
+  for (uint16_t command : {0x0200, 0x0300, 0x0400})
+    EXPECT_FALSE(this->bus_.send_datagram(this->grant_id_, command, 2, 0, false));
+  EXPECT_TRUE(this->uart_.writes.empty());
+}
+
+TEST_F(VBusTransmitTest, AReplyTooNearTheDeadlineCannotStartALateRelease) {
+  this->acquire_();
+  this->advance_(359);
+  ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
+  this->advance_(35);
+  this->feed_(wire_datagram(0x0100, 0x2211, 0x0020, 2, 1));
+  this->advance_(100);
+  ASSERT_EQ(this->uart_.writes.size(), 1u);
+  EXPECT_FALSE(this->bus_.has_bus());
 }
 
 class VBusTxGrantTest : public VBusTransmitTest, public ::testing::WithParamInterface<int> {};

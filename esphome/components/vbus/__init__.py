@@ -25,6 +25,7 @@ CONF_LEASE_DURATION = "lease_duration"
 CONF_ON_BUS_GRANT = "on_bus_grant"
 CONF_VALUE_ID = "value_id"
 CONF_GRANT_ID = "grant_id"
+CONF_EXPECT_REPLY = "expect_reply"
 
 
 def validate_address(value: object) -> int:
@@ -164,6 +165,19 @@ def validate_tx_action(config: ConfigType) -> ConfigType:
 
 TX_ID_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(VBus)})
 TX_ACTION_SCHEMA = cv.All(TX_ID_SCHEMA, validate_tx_action)
+
+
+def validate_send(config: ConfigType) -> ConfigType:
+    if (
+        config[CONF_COMMAND] in (0x0200, 0x0300, 0x0400)
+        and config[CONF_EXPECT_REPLY] is False
+    ):
+        raise cv.Invalid(
+            "Standard P2 read/write requests require expect_reply to be true"
+        )
+    return config
+
+
 SEND_SCHEMA = cv.All(
     TX_ID_SCHEMA.extend(
         {
@@ -173,8 +187,10 @@ SEND_SCHEMA = cv.All(
             cv.Required(CONF_COMMAND): cv.templatable(validate_command),
             cv.Optional(CONF_VALUE_ID, default=0): cv.templatable(cv.uint16_t),
             cv.Optional(CONF_VALUE, default=0): cv.templatable(cv.uint32_t),
+            cv.Optional(CONF_EXPECT_REPLY, default=True): cv.templatable(cv.boolean),
         }
     ),
+    validate_send,
     validate_tx_action,
 )
 
@@ -196,12 +212,13 @@ automation.register_apply_action(
     "vbus.send_datagram",
     SEND_SCHEMA,
     automation.ApplyCall(
-        "send_datagram({}, {}, {}, {})",
+        "send_datagram({}, {}, {}, {}, {})",
         (
             (CONF_GRANT_ID, cg.uint32),
             (CONF_COMMAND, cg.uint16),
             (CONF_VALUE_ID, cg.uint16),
             (CONF_VALUE, cg.uint32),
+            (CONF_EXPECT_REPLY, cg.bool_),
         ),
     ),
 )

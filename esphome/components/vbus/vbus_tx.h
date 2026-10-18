@@ -27,7 +27,7 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
 
   bool request_bus();
   bool has_bus() const;
-  bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value);
+  bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true);
   void release_bus(uint32_t grant_id);
 
   void observe_rx(size_t available);
@@ -38,7 +38,7 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
  protected:
   enum class State : uint8_t { STATE_IDLE, STATE_WAIT_GRANT, STATE_CONTEND, STATE_OWNED };
   bool can_send_() const;
-  void send_(uint16_t command, uint16_t value_id, uint32_t value);
+  void send_(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = false);
   void stop_();
 
   VBus *receiver_;
@@ -62,6 +62,7 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   bool packet_pending_{false};
   bool sent_{false};
   bool release_pending_{false};
+  bool awaiting_reply_{false};
   bool stopped_{false};
   CallbackManager<void(uint32_t)> grant_callback_;
 };

@@ -16,6 +16,8 @@ static constexpr uint32_t GRANT_WAIT_MS = 10000;
 static constexpr uint32_t FRAME_TIME_MS = 20;
 static constexpr uint32_t RELEASE_MARGIN_MS = 2 * FRAME_TIME_MS;
 
+static bool requires_reply(uint16_t command) { return command == 0x0200 || command == 0x0300 || command == 0x0400; }
+
 void VBusTransmitter::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus TX:\n  Source: 0x%04x\n  Controller: 0x%04x\n  Lease: %" PRIu32 " ms", this->source_,
                 this->destination_, this->lease_duration_ms_);
@@ -43,22 +45,23 @@ bool VBusTransmitter::has_bus() const {
 bool VBusTransmitter::can_send_() const {
   const uint32_t now = App.get_loop_component_start_time();
   return this->observed_ && now - this->observed_at_ <= MAX_RX_AGE_MS && this->rx_fresh_ && !this->packet_pending_ &&
-         this->receiver_->state_ == 0 && !this->receiver_->available() &&
+         !this->awaiting_reply_ && this->receiver_->state_ == 0 && !this->receiver_->available() &&
          (!this->sent_ || now - this->sent_at_ >= FRAME_TIME_MS) && this->parent_->is_connected() &&
          this->parent_->available_for_write() >= 16;
 }
 
-bool VBusTransmitter::send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value) {
-  if (grant_id != this->grant_id_ || (command & 0x8080) != 0 || command == 0x0500 || command == 0x0600 ||
-      !this->has_bus() || !this->can_send_()) {
-    ESP_LOGW(TAG, "Datagram not sent: invalid command/grant, no lease or busy bus");
+bool VBusTransmitter::send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value,
+                                    bool expect_reply) {
+  if ((!expect_reply && requires_reply(command)) || grant_id != this->grant_id_ || (command & 0x8080) != 0 ||
+      command == 0x0500 || command == 0x0600 || !this->has_bus() || !this->can_send_()) {
+    ESP_LOGW(TAG, "Datagram not sent: invalid command/grant/reply mode, no lease or busy bus");
     return false;
   }
-  this->send_(command, value_id, value);
+  this->send_(command, value_id, value, expect_reply);
   return true;
 }
 
-void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value) {
+void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply) {
   std::array<uint8_t, 16> bytes{0xaa,
                                 uint8_t(this->destination_),
                                 uint8_t(this->destination_ >> 8),
@@ -88,12 +91,14 @@ void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value)
   this->sent_value_id_ = value_id;
   this->sent_value_ = value;
   this->sent_ = true;
+  this->awaiting_reply_ = expect_reply;
   this->write_array(bytes);
 }
 
 void VBusTransmitter::stop_() {
   this->state_ = State::STATE_IDLE;
   this->release_pending_ = false;
+  this->awaiting_reply_ = false;
 }
 
 void VBusTransmitter::release_bus(uint32_t grant_id) {
@@ -168,6 +173,10 @@ void VBusTransmitter::on_datagram(uint16_t command, uint16_t source, uint16_t de
                                            value_id != this->sent_value_id_ || value != this->sent_value_)) ||
               command == 0x0500 || command == 0x0600)) {
     this->stop_();
+  } else if (this->state_ == State::STATE_OWNED && source == this->destination_ && destination == this->source_ &&
+             this->sent_ && now - this->sent_at_ >= FRAME_TIME_MS &&
+             (!requires_reply(this->sent_command_) || value_id == this->sent_value_id_)) {
+    this->awaiting_reply_ = false;
   }
 }
 
@@ -185,7 +194,7 @@ void VBusTransmitter::loop() {
   }
   if (this->state_ != State::STATE_CONTEND && this->state_ != State::STATE_OWNED)
     return;
-  if (now - this->granted_at_ >= this->lease_duration_ms_ || now - this->observed_at_ > MAX_RX_AGE_MS) {
+  if (now - this->granted_at_ >= this->lease_duration_ms_ - FRAME_TIME_MS || now - this->observed_at_ > MAX_RX_AGE_MS) {
     this->stop_();
     return;
   }
