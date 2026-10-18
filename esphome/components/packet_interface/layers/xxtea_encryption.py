@@ -23,7 +23,13 @@ XXTEA_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-@ENCRYPTION.register("xxtea", schema=XXTEA_SCHEMA, auto_load=lambda config: ["xxtea"])
+@ENCRYPTION.register(
+    "xxtea",
+    schema=XXTEA_SCHEMA,
+    # The rolling code accepts a packet only once the peer has sent back this device's boot number
+    needs_session=lambda config: config[CONF_ROLLING_CODE_ENABLE],
+    auto_load=lambda config: ["xxtea"],
+)
 async def build_xxtea(config: ConfigType, lower: MockObj) -> MockObj:
     cg.add_define("USE_PACKET_INTERFACE_XXTEA")
     var = cg.new_Pvariable(config[CONF_ID], lower, config[CONF_ROLLING_CODE_ENABLE])

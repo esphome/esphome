@@ -13,6 +13,7 @@ from . import layers
 from .layers import (
     PacketInterface,
     build_stack,
+    check_session,
     packet_interface_ns,
     stack_auto_load,
     stack_schema,
@@ -51,6 +52,18 @@ def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
     for interface in config:
         loads |= stack_auto_load(interface)
     return sorted(loads)
+
+
+def _final_validate(config: list[ConfigType]) -> None:
+    for index, interface in enumerate(config):
+        try:
+            check_session(interface)
+        except cv.Invalid as err:
+            err.prepend([index])
+            raise
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def packet_interface_schema(

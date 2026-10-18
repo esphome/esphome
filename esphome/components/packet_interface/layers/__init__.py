@@ -30,6 +30,10 @@ CONF_SESSION = "session"
 LayerBuilder = Callable[[ConfigType, MockObj], Awaitable[Any]]
 
 
+def _never(config: ConfigType) -> bool:
+    return False
+
+
 def _nothing(config: ConfigType) -> list[str]:
     return []
 
@@ -40,6 +44,8 @@ class LayerType:
 
     schema: Any
     build: LayerBuilder
+    # True if this configuration works only when the peer sends packets back, which a session layer makes sure of
+    needs_session: Callable[[ConfigType], bool]
     # The components this configuration needs loaded
     auto_load: Callable[[ConfigType], list[str]]
 
@@ -63,6 +69,7 @@ class LayerKind:
         name: str,
         *,
         schema: Any,
+        needs_session: Callable[[ConfigType], bool] = _never,
         auto_load: Callable[[ConfigType], list[str]] = _nothing,
     ) -> Callable[[LayerBuilder], LayerBuilder]:
         """Register a type with its schema."""
@@ -77,7 +84,7 @@ class LayerKind:
                 raise ValueError(
                     f"{self.key} layer type '{name}' is already registered"
                 )
-            self.types[name] = LayerType(schema, build, auto_load)
+            self.types[name] = LayerType(schema, build, needs_session, auto_load)
             return build
 
         return decorator
@@ -115,6 +122,21 @@ STACK_ORDER = (ENCRYPTION, RELIABILITY, SESSION)
 def stack_schema() -> dict:
     """Schema entries for the layers of one stack; call only once all layer types are registered."""
     return {cv.Optional(kind.key): kind.schema() for kind in STACK_ORDER}
+
+
+def check_session(config: ConfigType) -> None:
+    """Layers that need packets back from the peer need a session layer, whose keep-alives send them."""
+    if CONF_SESSION in config:
+        return
+    for kind in STACK_ORDER:
+        if (layer := config.get(kind.key)) is not None and kind.get_type(
+            layer
+        ).needs_session(layer):
+            raise cv.Invalid(
+                f"This '{kind.key}' needs packets from the peer, so it needs a '{CONF_SESSION}' layer, whose "
+                "keep-alives make sure they are sent",
+                path=[kind.key],
+            )
 
 
 def stack_auto_load(config: ConfigType) -> set[str]:
