@@ -280,15 +280,12 @@ async def menu_item_to_code(menu, config, parent):
     if CONF_IMMEDIATE_EDIT in config:
         cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
     if config[CONF_TYPE] == CONF_SELECT:
-        var = await cg.get_variable(config[CONF_SELECT])
-        cg.add(item.set_select_variable(var))
+        await cg.add_variable(item.set_select_variable, config[CONF_SELECT])
     if config[CONF_TYPE] == CONF_NUMBER:
-        var = await cg.get_variable(config[CONF_NUMBER])
-        cg.add(item.set_number_variable(var))
+        await cg.add_variable(item.set_number_variable, config[CONF_NUMBER])
         cg.add(item.set_format(config[CONF_FORMAT]))
     if config[CONF_TYPE] == CONF_SWITCH:
-        var = await cg.get_variable(config[CONF_SWITCH])
-        cg.add(item.set_switch_variable(var))
+        await cg.add_variable(item.set_switch_variable, config[CONF_SWITCH])
         cg.add(item.set_on_text(config[CONF_ON_TEXT]))
         cg.add(item.set_off_text(config[CONF_OFF_TEXT]))
     await _build_item_automations(item, config)
