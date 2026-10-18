@@ -408,13 +408,8 @@ async def to_code(config: ConfigType) -> None:
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
 
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
-
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc_pin = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc_pin))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))
 
     if config.get(CONF_INVERT_COLORS):
         cg.add(var.set_invert_colors(True))

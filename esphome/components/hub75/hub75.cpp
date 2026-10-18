@@ -130,8 +130,9 @@ void HOT HUB75Display::draw_pixel_at(int x, int y, Color color) {
   this->feed_wdt_per_pixel_();
 }
 
-void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void HOT HUB75Display::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                            ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                            int x_pad) {
   if (!driver_) [[unlikely]]
     return;
   if (!this->enabled_) [[unlikely]]
@@ -153,15 +154,13 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
     format = Hub75PixelFormat::RGB888_32;
     bytes_per_pixel = 4;
 
-    // Map ESPHome ColorOrder to Hub75ColorOrder
-    // ESPHome ColorOrder is typically BGR for little-endian 32-bit
-    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::RGB : Hub75ColorOrder::BGR;
+    color_order = Hub75ColorOrder::RGB;
 #elif LV_COLOR_DEPTH == 24
     // 24-bit: 3 bytes per pixel, tightly packed
     format = Hub75PixelFormat::RGB888;
     bytes_per_pixel = 3;
-    // ESPHome RGB order 888 is b,g,r in memory, which hub75 calls BGR
-    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::BGR : Hub75ColorOrder::RGB;
+    // 888 is b,g,r in memory, which hub75 calls BGR
+    color_order = Hub75ColorOrder::BGR;
 #else
     ESP_LOGE(TAG, "Unsupported LV_COLOR_DEPTH: %d", LV_COLOR_DEPTH);
     return;
@@ -170,8 +169,8 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
     // Non-LVGL mode: standard 24-bit RGB888
     format = Hub75PixelFormat::RGB888;
     bytes_per_pixel = 3;
-    // ESPHome RGB order 888 is b,g,r in memory, which hub75 calls BGR
-    color_order = (order == ColorOrder::COLOR_ORDER_RGB) ? Hub75ColorOrder::BGR : Hub75ColorOrder::RGB;
+    // 888 is b,g,r in memory, which hub75 calls BGR
+    color_order = Hub75ColorOrder::BGR;
 #endif
   } else {
     ESP_LOGE(TAG, "Unsupported bitness: %d", static_cast<int>(bitness));
