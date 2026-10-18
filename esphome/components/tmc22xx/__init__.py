@@ -242,7 +242,7 @@ def register_actions(domain: str, cls: MockObjClass) -> None:
                 ),
                 cv.Exclusive(CONF_IHOLD, "hold"): cv.templatable(cv.int_range(0, 31)),
                 cv.Optional(CONF_IHOLDDELAY): cv.templatable(cv.int_range(0, 15)),
-                cv.Optional(CONF_TPOWERDOWN): cv.templatable(cv.int_range(0, 255)),
+                cv.Optional(CONF_TPOWERDOWN): cv.templatable(cv.uint8_t),
                 cv.Optional(CONF_STANDSTILL_MODE): cv.templatable(
                     cv.enum(STANDSTILL_MODES, lower=True)
                 ),
