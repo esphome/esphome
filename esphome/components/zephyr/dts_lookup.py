@@ -967,12 +967,37 @@ def _snippet_overlay_files(snippet_dir: Path, board: str) -> list[Path]:
     return [f for f in files if f.is_file()]
 
 
+def _cpp_candidate_works(path: str) -> bool:
+    """Smoke-test a preprocessor candidate with the exact invocation
+    _preprocess_dts_file() uses. On macOS, 'cpp', 'gcc' and 'cc' are all the
+    same Apple clang driver binary, but its 'cpp' personality mishandles
+    '-x assembler-with-cpp' together with a trailing source file and fails
+    with "cc: error: no input files", even though the identical binary works
+    fine invoked as 'gcc'/'cc'. shutil.which() alone can't tell them apart."""
+    try:
+        result = subprocess.run(  # noqa: S603
+            [path, "-x", "assembler-with-cpp", "-E", "-P", "-"],
+            input="",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
 def _find_cpp() -> str | None:
-    """Return the cached path to cpp/gcc on PATH, or None if neither is
-    installed."""
+    """Return the cached path to a working cpp/gcc/cc on PATH, or None if none
+    works."""
     zd = CORE.data[KEY_ZEPHYR]
     if zd["cpp_path"] == "":
-        found = shutil.which("cpp") or shutil.which("gcc") or None
+        found = None
+        for name in ("cpp", "gcc", "cc"):
+            path = shutil.which(name)
+            if path is not None and _cpp_candidate_works(path):
+                found = path
+                break
         zd["cpp_path"] = found
     return zd["cpp_path"]
 
