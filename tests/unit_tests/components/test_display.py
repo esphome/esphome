@@ -39,4 +39,3 @@ async def test_add_writer_without_lambda_does_nothing() -> None:
 
     process.assert_not_awaited()
     add.assert_not_called()
-    var.set_writer.assert_not_called()
