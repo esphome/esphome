@@ -66,7 +66,7 @@ void USBAudioSpeaker::loop() {
     this->pad_with_silence_();
   }
   // has_buffered_data_() turns false once the queued audio, including the transfers in flight, has had time to play.
-  if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_(millis())) {
+  if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_(App.get_loop_component_start_time())) {
     this->stop_();
   }
   if (!this->finishing_) {
