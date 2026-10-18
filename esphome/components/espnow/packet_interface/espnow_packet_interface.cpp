@@ -14,8 +14,12 @@ using packet_interface::PacketMetaData;
 
 ESPHOME_LOG_TAG(TAG, "espnow.packet_interface");
 
-ESPNowPacketInterface::ESPNowPacketInterface(ESPNowComponent *parent, uint8_t *tx_buffer, peer_address_t peer_address)
-    : parent_(parent), peer_address_(peer_address), tx_buffer_(tx_buffer) {
+ESPNowPacketInterface::ESPNowPacketInterface(ESPNowComponent *parent, std::span<uint8_t> tx_buffer,
+                                             peer_address_t peer_address)
+    : packet_interface::PacketInterface(tx_buffer.size()),
+      parent_(parent),
+      peer_address_(peer_address),
+      tx_buffer_(tx_buffer) {
   if (!this->is_broadcast_())
     this->capabilities_ = packet_interface::CAPABILITY_ADDRESSING;
 }
@@ -53,8 +57,8 @@ bool ESPNowPacketInterface::send_to_interface(const PacketBuffer &data, const Pa
   if (data.is_contiguous()) {
     payload = data.as_span().data();
   } else {
-    data.copy_to(this->tx_buffer_, size);
-    payload = this->tx_buffer_;
+    data.copy_to(this->tx_buffer_.data(), size);
+    payload = this->tx_buffer_.data();
   }
   esp_err_t err = this->parent_->send(this->peer_address_.data(), payload, size);
   if (err != ESP_OK) {
