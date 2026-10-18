@@ -153,7 +153,8 @@ TEST_F(VBusTransmitTest, EncodesFullPayloadAndDoesNotRetry) {
   this->acquire_();
   EXPECT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0900, 0x9234, 0x89abcdef));
   ASSERT_EQ(this->uart_.writes.size(), 1u);
-  EXPECT_EQ(this->uart_.writes[0], wire_datagram(0x0900, 0x0020, 0x2211, 0x9234, 0x89abcdef));
+  EXPECT_EQ(this->uart_.writes[0], (std::vector<uint8_t>{0xaa, 0x11, 0x22, 0x20, 0x00, 0x20, 0x00, 0x09, 0x34, 0x12,
+                                                         0x6f, 0x4d, 0x2b, 0x09, 0x3e, 0x0f}));
   EXPECT_FALSE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
   this->advance_(500);
   ASSERT_EQ(this->uart_.writes.size(), 2u);
@@ -405,6 +406,31 @@ TEST_F(VBusTransmitTest, AGrantQueuedBeforeTheRequestCannotBeClaimed) {
   this->feed_(wire_datagram());
   this->advance_(100);
   EXPECT_EQ(this->grants_, 1u);
+}
+
+TEST_F(VBusTransmitTest, AGrantFollowedByQueuedTrafficCannotBeClaimed) {
+  EXPECT_TRUE(this->bus_.request_bus());
+  auto bytes = wire_datagram();
+  bytes.push_back(0);
+  this->feed_(bytes);
+  this->advance_(150);
+  EXPECT_EQ(this->grants_, 0u);
+  EXPECT_TRUE(this->uart_.writes.empty());
+  this->feed_(wire_datagram());
+  this->advance_(100);
+  EXPECT_EQ(this->grants_, 1u);
+}
+
+TEST_F(VBusTransmitTest, LastOrdinaryFrameLeavesEnoughWireTimeForRelease) {
+  this->acquire_();
+  this->advance_(359);
+  ASSERT_TRUE(this->bus_.send_datagram(this->grant_id_, 0x0300, 2, 0));
+  this->advance_(1);
+  EXPECT_FALSE(this->bus_.send_datagram(this->grant_id_, 0x0200, 2, 1));
+  ASSERT_EQ(this->uart_.writes.size(), 1u);
+  this->advance_(19);
+  ASSERT_EQ(this->uart_.writes.size(), 2u);
+  EXPECT_EQ(this->uart_.writes[1], wire_datagram(0x0600, 0x0020, 0x2211));
 }
 
 class VBusTxGrantTest : public VBusTransmitTest, public ::testing::WithParamInterface<int> {};

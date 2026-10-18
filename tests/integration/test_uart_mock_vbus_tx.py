@@ -21,6 +21,7 @@ async def test_uart_mock_vbus_tx(
     grants: list[str] = []
     readings: list[str] = []
     rejected: list[str] = []
+    replies: list[str] = []
     received = asyncio.Event()
 
     def on_line(line: str) -> None:
@@ -34,6 +35,8 @@ async def test_uart_mock_vbus_tx(
                 received.set()
         if "Datagram not sent" in line:
             rejected.append(line)
+        if "[vbus.reply_test:" in line:
+            replies.append(line)
 
     async with (
         run_compiled(yaml_config, line_callback=on_line),
@@ -50,6 +53,8 @@ async def test_uart_mock_vbus_tx(
         await asyncio.sleep(0.6)
         assert len(grants) == 2
         assert len(rejected) == 2
+        assert len(replies) == 2
+        assert all("value=123" in line for line in replies)
         assert len(writes) == 4
         assert "AA.11.22.20.00.20.00.03.02.00.00.00.00.00.00.07" in writes[0]
         assert "AA.11.22.20.00.20.00.06.00.00.00.00.00.00.00.06" in writes[1]

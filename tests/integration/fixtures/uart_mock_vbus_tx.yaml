@@ -32,6 +32,10 @@ uart_mock:
 vbus:
   id: bus
   uart_id: mock_uart
+  on_datagram:
+    - lambda: |-
+        if (command == 0x0100 && source == 0x2211 && destination == 0x0020 && value_id == 2)
+          ESP_LOGI("vbus.reply_test", "value=%" PRIu32, value);
   transmit:
     destination: 0x2211
     on_bus_grant:

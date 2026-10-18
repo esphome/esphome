@@ -8,10 +8,8 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
-DOMAIN = "vbus"
-
 DEPENDENCIES = ["uart"]
-
+DOMAIN = "vbus"
 MULTI_CONF = True
 FILTER_SOURCE_FILES = filter_source_files_from_defines({"vbus_tx.cpp": "USE_VBUS_TX"})
 
