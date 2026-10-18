@@ -68,12 +68,16 @@ static Packet header(uint8_t packet_type, uint32_t id) {
 class EntityTransportTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "this-device";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
-  void TearDown() override { App.~Application(); }
+  void TearDown() override {
+    App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
+  }
 
   // The sender, with a sensor and a binary sensor
   std::unique_ptr<TestTransport> make_sender_() {
