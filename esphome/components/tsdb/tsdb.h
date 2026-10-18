@@ -28,6 +28,7 @@ struct TsdbColumn {
   int16_t held{tsdbmath::RAW_UNKNOWN};
   bool hold_warned{false};
   bool sentinel_warned{false};
+  bool saturated_warned{false};
 };
 
 class TsdbComponent : public PollingComponent {

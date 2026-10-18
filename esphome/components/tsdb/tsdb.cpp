@@ -23,7 +23,6 @@ ESPHOME_LOG_TAG(TAG, "tsdb");
 // ESP_PARTITION_SUBTYPE_DATA_LITTLEFS (0x83), missing from some IDF 5.x headers.
 static constexpr uint8_t LITTLEFS_SUBTYPE = 0x83;
 static constexpr uint32_t DROP_LOG_EVERY = 10;
-static constexpr uint32_t SATURATION_LOG_EVERY = 100;
 static constexpr uint32_t REOPEN_RETRY_MS = 300000;
 
 static_assert(tsdbmath::BLOCK_SIZE == TSDB_BLOCK_SIZE, "esp_tsdb changed TSDB_BLOCK_SIZE");
@@ -343,7 +342,8 @@ bool TsdbComponent::write_record_() {
   }
 
   this->values_.clear();
-  const uint32_t degraded_before = this->saturated_ + this->held_ + this->sentinel_;
+  // The first value that needed a substitute decides the warning reason of this record.
+  const LogString *degraded = nullptr;
   for (TsdbColumn &column : this->columns_) {
     const bool has_value =
         column.source != nullptr && column.source->has_state() && !tsdbmath::is_missing(column.source->state);
@@ -353,10 +353,17 @@ bool TsdbComponent::write_record_() {
       bool saturated = false;
       column.held = tsdbmath::encode(column.source->state, column.scale, column.offset, &saturated);
       if (saturated) {
-        if (this->saturated_++ % SATURATION_LOG_EVERY == 0) {
+        this->saturated_++;
+        // Per column, so the first clamp of every column is named even when another one clamps on every record.
+        if (!column.saturated_warned) {
+          column.saturated_warned = true;
           ESP_LOGW(TAG, "%s: %s out of range for scale_factor %.6g - clamped, raise it?", this->file_.c_str(),
                    column.name.c_str(), column.scale);
         }
+        if (degraded == nullptr)
+          degraded = LOG_STR("a value was clamped");
+      } else {
+        column.saturated_warned = false;  // a value that fits re-arms the log
       }
       this->values_.push_back(column.held);
       continue;
@@ -368,6 +375,8 @@ bool TsdbComponent::write_record_() {
         column.hold_warned = true;
         ESP_LOGW(TAG, "%s: %s has no value - holding the last value", this->file_.c_str(), column.name.c_str());
       }
+      if (degraded == nullptr)
+        degraded = LOG_STR("a column holds its last value");
       this->values_.push_back(column.held);
       continue;
     }
@@ -378,6 +387,8 @@ bool TsdbComponent::write_record_() {
         column.sentinel_warned = true;
         ESP_LOGW(TAG, "%s: %s has no value - storing an unknown value", this->file_.c_str(), column.name.c_str());
       }
+      if (degraded == nullptr)
+        degraded = LOG_STR("a column is stored as unknown");
       this->values_.push_back(tsdbmath::RAW_UNKNOWN);
       continue;
     }
@@ -408,7 +419,9 @@ bool TsdbComponent::write_record_() {
   this->warned_backwards_ = false;
   this->dirty_ = true;
   // Only a clean record clears the warning: a held, sentinel or clamped value is not healthy.
-  if (!this->sync_failed_ && this->saturated_ + this->held_ + this->sentinel_ == degraded_before)
+  if (degraded != nullptr)
+    this->status_set_warning(degraded);
+  else if (!this->sync_failed_)
     this->status_clear_warning();
   return true;
 }
