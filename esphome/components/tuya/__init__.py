@@ -2,8 +2,9 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TIME_ID
+from esphome.const import CONF_SENSOR_DATAPOINT, CONF_TIME_ID
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 DOMAIN = "tuya"
@@ -13,6 +14,7 @@ CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_STATUS_PIN = "status_pin"
+CONF_FORCE_TIME_SYNC = "force_time_sync"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
@@ -43,11 +45,23 @@ DATAPOINT_TYPES = {
 
 
 CONF_TUYA_ID = "tuya_id"
-CONFIG_SCHEMA = (
+
+
+def _validate_time_options(config: ConfigType) -> ConfigType:
+    if config[CONF_FORCE_TIME_SYNC] and CONF_TIME_ID not in config:
+        raise cv.Invalid(
+            f"{CONF_FORCE_TIME_SYNC} requires {CONF_TIME_ID}",
+            path=[CONF_FORCE_TIME_SYNC],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Tuya),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+            cv.Optional(CONF_FORCE_TIME_SYNC, default=False): cv.boolean,
             cv.Optional(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS): cv.ensure_list(
                 cv.uint8_t
             ),
@@ -63,17 +77,18 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    _validate_time_options,
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
-    if CONF_TIME_ID in config:
-        time_ = await cg.get_variable(config[CONF_TIME_ID])
+    var = await uart.new_uart_component(config)
+    if (time_id := config.get(CONF_TIME_ID)) is not None:
+        time_ = await cg.get_variable(time_id)
         cg.add(var.set_time_id(time_))
+        if config[CONF_FORCE_TIME_SYNC]:
+            cg.add(var.set_force_time_sync(True))
     if CONF_STATUS_PIN in config:
         status_pin_ = await cg.gpio_pin_expression(config[CONF_STATUS_PIN])
         cg.add(var.set_status_pin(status_pin_))

@@ -30,6 +30,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    ErrorFormat,
     Toolchain,
 )
 
@@ -441,6 +442,16 @@ class ID:
         )
 
 
+# Replaced by write_cpp with a #line back into main.cpp
+LINE_DIRECTIVE_RESET = "// ESPHOME_LINE_DIRECTIVE_RESET"
+
+
+def line_directive(document: str, line: int) -> str:
+    """A #line directive naming the 1-based ``line`` of ``document``."""
+    escaped = document.replace("\\", "\\\\")
+    return f'#line {line} "{escaped}"'
+
+
 class DocumentLocation:
     def __init__(self, document: str, line: int, column: int):
         self.document: str = document
@@ -456,8 +467,7 @@ class DocumentLocation:
 
     @property
     def as_line_directive(self):
-        document_path = str(self.document).replace("\\", "\\\\")
-        return f'#line {self.line + 1} "{document_path}"'
+        return line_directive(str(self.document), self.line + 1)
 
 
 class DocumentRange:
@@ -681,6 +691,8 @@ class EsphomeCore:
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # How configuration errors are printed
+        self.error_format: ErrorFormat = ErrorFormat.YAML
         # A list of all known ID classes
         self.id_classes = {}
         # The current component being processed during validation
@@ -734,6 +746,7 @@ class EsphomeCore:
         self._config_hash = None
         self.skip_external_update = False
         self.toolchain = None
+        self.error_format = ErrorFormat.YAML
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager

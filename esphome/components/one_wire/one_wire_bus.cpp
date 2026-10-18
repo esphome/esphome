@@ -10,6 +10,7 @@ static const uint8_t DALLAS_MODEL_DS1822 = 0x22;
 static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;
 static const uint8_t DALLAS_MODEL_DS1825 = 0x3B;
 static const uint8_t DALLAS_MODEL_DS28EA00 = 0x42;
+static const uint8_t MAXIM_MODEL_MAX31888 = 0x54;
 
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
 const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
@@ -76,6 +77,8 @@ const LogString *OneWireBus::get_model_str(uint8_t model) {
       return LOG_STR("DS1825");
     case DALLAS_MODEL_DS28EA00:
       return LOG_STR("DS28EA00");
+    case MAXIM_MODEL_MAX31888:
+      return LOG_STR("MAX31888");
     default:
       return LOG_STR("Unknown");
   }

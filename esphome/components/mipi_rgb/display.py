@@ -65,7 +65,6 @@ from esphome.const import (
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_NUMBER,
     CONF_RED,
@@ -242,7 +241,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
         config[CONF_ID],
         width,
         height,
-        model.rotation_as_transform(config),
+        has_hardware_rotation=True,
         byte_order=config[CONF_BYTE_ORDER],
         has_writer=requires_buffer(config)
         or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
@@ -290,6 +289,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_init_sequence(table, len(sequence)))
 
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
+    cg.add(var.set_big_endian(config[CONF_BYTE_ORDER] == BYTE_ORDER_BIG))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
     cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
@@ -339,8 +339,4 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_vsync_pin(pin))
 
     await display.register_display(var, config)
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

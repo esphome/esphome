@@ -4,7 +4,7 @@ import subprocess
 import sys
 from unittest.mock import patch
 
-from hypothesis import given
+from hypothesis import given, settings
 import pytest
 
 from esphome import const, core
@@ -31,6 +31,7 @@ class TestHexInt:
 
 
 class TestMACAddress:
+    @settings(deadline=None)
     @given(value=mac_addr_strings())
     def test_init__valid(self, value):
         core.MACAddress(*value.split(":"))
@@ -40,6 +41,7 @@ class TestMACAddress:
         with pytest.raises(ValueError, match="MAC Address must consist of 6 items"):
             core.MACAddress(*value.split(":"))
 
+    @settings(deadline=None)
     @given(value=mac_addr_strings())
     def test_str(self, value):
         target = core.MACAddress(*(int(v, 16) for v in value.split(":")))

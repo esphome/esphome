@@ -4,7 +4,6 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
@@ -27,10 +26,7 @@ PM2005Component = pm2005_ns.class_(
 )
 
 SensorType = pm2005_ns.enum("SensorType")
-SENSOR_TYPE = {
-    "PM2005": SensorType.PM2005,
-    "PM2105": SensorType.PM2105,
-}
+SENSOR_TYPE = SensorType.options("PM2005", "PM2105")
 
 
 CONFIG_SCHEMA = cv.All(
@@ -68,9 +64,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     """Code generation entry point."""
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_sensor_type(config[CONF_TYPE]))
 

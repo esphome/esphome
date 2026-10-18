@@ -55,3 +55,21 @@ def test_collect_sources_skips_excluded_and_other_files(tmp_path: Path) -> None:
         tmp_path / "b.cpp",
         tmp_path / "sub" / "c.S",
     ]
+
+
+@pytest.mark.parametrize("ccache", ["/usr/bin/ccache", None])
+def test_compile_rule_lines_splice_the_launcher(ccache: str | None) -> None:
+    """Without ccache no command keeps a leading space, which CreateProcess
+    on Windows rejects; with it every compile rule starts with the launcher."""
+    commands = [
+        line.removeprefix("  command = ")
+        for line in ninja_gen.compile_rule_lines(ccache)
+        if line.startswith("  command = ")
+    ]
+    assert len(commands) == 4
+    for command in commands:
+        if ccache:
+            assert command.startswith("$ccache $c")
+        else:
+            assert command.startswith("$c")
+            assert "$ccache" not in command

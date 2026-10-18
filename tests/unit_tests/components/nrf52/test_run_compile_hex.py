@@ -128,3 +128,13 @@ def test_stale_merged_hex_is_removed_before_building(
     app_hex = str(build_dir / "zephyr" / "zephyr.hex")
     assert _uf2_hex(run_cmd) == app_hex
     assert _dfu_hex(run_cmd) == app_hex
+
+
+def test_sd140_v7_dfu_accepts_all_s140_7_softdevices(
+    build_dir: Path, run_cmd: Mock
+) -> None:
+    """Boards such as the Seeed XIAO nRF52840 ship S140 7.3.0, not 7.0.1."""
+    _build(build_dir, cv.Version(3, 4, 0), ["zephyr/zephyr/zephyr.hex"], run_cmd)
+    cmd = next(c.args[0] for c in run_cmd.call_args_list if "genpkg" in c.args[0])
+    sd_req = cmd[cmd.index("--sd-req") + 1].split(",")
+    assert sd_req == ["0x00CA", "0x0100", "0x0123"]
