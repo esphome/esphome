@@ -9,6 +9,13 @@
 
 namespace esphome::packet_interface::addressing_testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 using Packet = std::vector<uint8_t>;
 
 static constexpr uint16_t BROADCAST = BasicAddressing::BROADCAST_ADDRESS;
@@ -18,7 +25,7 @@ class MockLink : public PacketInterface {
  public:
   MockLink() { this->set_max_packet_size(64); }
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
-    this->sent.push_back(data.to_vector());
+    this->sent.push_back(to_vector(data));
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
@@ -31,7 +38,7 @@ struct Port {
   Port(BasicAddressing *addressing, uint16_t destination, bool only_port) {
     this->port = std::make_unique<AddressingPort>(addressing, destination, only_port);
     this->port->add_packet_interface_listener([this](const PacketBuffer &data, const PacketMetaData &meta_data) {
-      this->received.push_back(data.to_vector());
+      this->received.push_back(to_vector(data));
       this->sources.push_back(meta_data.source_address);
     });
   }
@@ -165,7 +172,7 @@ class AddressingReliabilityTest : public ::testing::Test {
 struct ReliablePort {
   explicit ReliablePort(AddressingPort *port) : hdlc(port) {
     this->hdlc.add_packet_interface_listener(
-        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(data.to_vector()); });
+        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->hdlc.setup();
   }
   void send(const Packet &data) { this->hdlc.send_to_interface(PacketBuffer(data), {}); }

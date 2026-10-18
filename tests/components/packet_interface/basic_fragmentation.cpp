@@ -8,6 +8,13 @@
 
 namespace esphome::packet_interface::fragmentation_testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 using Packet = std::vector<uint8_t>;
 
 // A link layer that records what is sent, with a limited send capacity
@@ -15,7 +22,7 @@ class MockLink : public PacketInterface {
  public:
   MockLink() { this->set_max_packet_size(12); }
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
-    this->sent.push_back(data.to_vector());
+    this->sent.push_back(to_vector(data));
     return true;
   }
   size_t get_send_capacity() const override { return this->capacity; }
@@ -32,7 +39,7 @@ class MockLink : public PacketInterface {
 struct Peer {
   explicit Peer(PacketInterface *lower) : fragmentation(lower, 100) {
     this->fragmentation.add_packet_interface_listener(
-        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(data.to_vector()); });
+        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->fragmentation.setup();
   }
   bool send(const Packet &data) { return this->fragmentation.send_to_interface(PacketBuffer(data), {}); }
@@ -183,7 +190,7 @@ TEST_F(BasicFragmentationTest, OversizedSingleFragmentDropped) {
   BasicFragmentation fragmentation(&this->link_a, 4);
   std::vector<Packet> received;
   fragmentation.add_packet_interface_listener(
-      [&received](const PacketBuffer &data, const PacketMetaData &) { received.push_back(data.to_vector()); });
+      [&received](const PacketBuffer &data, const PacketMetaData &) { received.push_back(to_vector(data)); });
   fragmentation.setup();
   this->link_a.inject({0x01, 0x80, 1, 2, 3, 4, 5});
   EXPECT_TRUE(received.empty());
