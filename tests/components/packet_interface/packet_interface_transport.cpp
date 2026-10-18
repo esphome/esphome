@@ -45,18 +45,22 @@ static Packet ping_packet(const char *hostname, uint32_t key) {
   return packet;
 }
 
-// The test main does not construct App, which the transport's setup() reads the device name from
+// Each test replaces App with a fresh one, which the transport's setup() reads the device name from
 class PacketInterfaceTransportTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "bridge-tests";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     this->bridge_.set_encryption_key(std::vector<uint8_t>(32, 0xAA));
     this->bridge_.setup();
   }
-  void TearDown() override { App.~Application(); }
+  void TearDown() override {
+    App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
+  }
 
   FakeInterface link_;
   FakeLayer layer_{&this->link_};
