@@ -1,3 +1,6 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -169,6 +172,16 @@ BLE_CLIENT_SCHEMA = cv.Schema(
 async def register_ble_node(var, config):
     parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
     cg.add(parent.register_ble_node(var))
+
+
+def new_ble_node_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on a BLE client: construct, register, attach to the client.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_ble_node, config, *args)
 
 
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(

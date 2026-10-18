@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 import logging
 from typing import Any, Literal, NamedTuple
 
@@ -388,6 +388,16 @@ async def register_modbus_client_device(var: MockObj, config: ConfigType) -> Non
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
+
+
+def new_modbus_client_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, MockObj]:
+    """Create a modbus client component: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_modbus_client_device, config, *args)
 
 
 async def register_modbus_server_device(var: MockObj, config: ConfigType) -> None:
