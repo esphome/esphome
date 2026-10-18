@@ -54,16 +54,9 @@ def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
     return sorted(loads)
 
 
-def _final_validate(config: list[ConfigType]) -> None:
-    for index, interface in enumerate(config):
-        try:
-            check_session(interface)
-        except cv.Invalid as err:
-            err.prepend([index])
-            raise
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
+def _validate_layers(config: ConfigType) -> ConfigType:
+    check_session(config)
+    return config
 
 
 def packet_interface_schema(
@@ -72,15 +65,19 @@ def packet_interface_schema(
     max_packet_size_limit: int = 4096,
 ) -> cv.Schema:
     """Schema for a link platform, with the layers that can be stacked on it."""
-    return cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(class_),
-            cv.Optional(
-                CONF_MAX_PACKET_SIZE, default=default_max_packet_size
-            ): cv.int_range(16, max_packet_size_limit),
-            **LINK_LAYER_SCHEMAS,
-        }
-    ).extend(cv.COMPONENT_SCHEMA)
+    return (
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(class_),
+                cv.Optional(
+                    CONF_MAX_PACKET_SIZE, default=default_max_packet_size
+                ): cv.int_range(16, max_packet_size_limit),
+                **LINK_LAYER_SCHEMAS,
+            }
+        )
+        .extend(cv.COMPONENT_SCHEMA)
+        .add_extra(_validate_layers)
+    )
 
 
 async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:
