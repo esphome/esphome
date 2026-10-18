@@ -294,20 +294,18 @@ void TsdbComponent::update() {
 bool TsdbComponent::write_record_() {
   // Any synced time platform also sets the system clock, so ::time() is a usable fallback.
   uint32_t timestamp = static_cast<uint32_t>(::time(nullptr));
-  // Without a clock that value counts seconds since boot and restarts at 0 on
-  // every reboot; continue after the newest stored record instead of tripping
-  // the guard below for as long as the device was previously up.
-  if (!tsdbmath::is_valid_timestamp(timestamp))
-    timestamp += this->uptime_offset_;
+  bool have_time = tsdbmath::is_valid_timestamp(timestamp);
 #ifdef USE_TIME
   if (this->time_ != nullptr) {
     const ESPTime now = this->time_->now();
-    if (now.is_valid())
+    if (now.is_valid()) {
       timestamp = static_cast<uint32_t>(now.timestamp);
+      have_time = true;
+    }
   }
 #endif
 
-  if (!tsdbmath::is_valid_timestamp(timestamp)) {
+  if (!have_time) {
     if (this->require_time_) {
       if (!this->warned_time_) {
         this->warned_time_ = true;
@@ -317,6 +315,10 @@ bool TsdbComponent::write_record_() {
       this->dropped_++;
       return false;
     }
+    // Without a clock the value counts seconds since boot and restarts at 0 on every
+    // reboot; the offset continues the series after the newest stored record. It is
+    // added only here, so it can never make an unsynced clock look like a real time.
+    timestamp += this->uptime_offset_;
     if (!this->warned_time_) {
       this->warned_time_ = true;
       ESP_LOGW(TAG, "%s: no valid time yet - storing an uptime timestamp", this->file_.c_str());
