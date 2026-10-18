@@ -118,9 +118,6 @@ ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_
   return ESPPreferenceObject(new LibreTinyPreferenceBackend(this->make_backend_(type, !in_flash)));
 }
 
-// Every entry with the rtc prefix goes. The walk restarts after each delete so it never depends on
-// FlashDB tolerating a delete mid-iteration; an entry whose delete fails is passed over, and the walk ends
-// once a pass deletes nothing. This runs before the logger exists, so it logs through LibreTiny.
 // One pass over the database deletes every rtc entry. FlashDB only marks a deleted entry's status in place
 // and its iterator steps by address, so deleting the current entry is safe. This runs before the logger
 // exists, so it logs through LibreTiny; a failed delete is a flash fault the next write will report as well.
