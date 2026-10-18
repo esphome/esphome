@@ -17,6 +17,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome import yaml_util
 from esphome.core import CORE
 from esphome.espidf import toolchain
 
@@ -47,6 +48,18 @@ def reset_core():
     """Reset CORE after each test."""
     yield
     CORE.reset()
+
+
+@pytest.fixture(autouse=True)
+def clear_yaml_secrets() -> Generator[None]:
+    """Isolate the yaml_util secrets registry between tests."""
+    yaml_util._SECRET_VALUES.clear()
+    yaml_util._SECRET_CACHE.clear()
+    yaml_util._LOADED_SECRET_NAMES.clear()
+    yield
+    yaml_util._SECRET_VALUES.clear()
+    yaml_util._SECRET_CACHE.clear()
+    yaml_util._LOADED_SECRET_NAMES.clear()
 
 
 @pytest.fixture

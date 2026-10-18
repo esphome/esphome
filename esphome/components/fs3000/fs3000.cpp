@@ -42,12 +42,7 @@ void FS3000Component::update() {
   }
 
   // checksum passes if the modulo 256 sum of the five bytes is 0
-  uint8_t checksum = 0;
-  for (uint8_t i : data) {
-    checksum += i;
-  }
-
-  if (checksum != 0) {
+  if (sum_bytes(data, sizeof(data)) != 0) {
     this->status_set_warning();
     ESP_LOGW(TAG, "Checksum failure when reading from FS3000");
     return;

@@ -242,9 +242,7 @@ void MitsubishiClimate::transmit_state() {
   }
 
   // Checksum
-  for (int i = 0; i < 17; i++) {
-    remote_state[17] += remote_state[i];
-  }
+  remote_state[17] = sum_bytes(remote_state, 17);
 
   ESP_LOGD(TAG, "sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
            remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
@@ -389,10 +387,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MITSUBISHI_FRAME_SIZE)];
-#endif
-  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty_to(hex_buf, state_frame, MITSUBISHI_FRAME_SIZE));
+  ESP_LOGV_HEX(TAG, state_frame, MITSUBISHI_FRAME_SIZE, MITSUBISHI_FRAME_SIZE, "Receiving: %s");
 
   this->publish_state();
   return true;

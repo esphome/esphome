@@ -8,20 +8,28 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from esphome.automation import (
+    CONF_CHOICE_ID,
+    CONF_CHOOSE,
     ApplyAction,
     ApplyCall,
     ApplyCondition,
     ApplyField,
     CallbackAutomation,
+    LambdaAction,
+    RepeatAction,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
+    _shadow_iteration,
+    build_action,
     build_callback_automation,
     build_callback_automations,
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
+    choose_action_to_code,
     has_non_synchronous_actions,
+    if_action_to_code,
     literal_with_length,
     maybe_simple_id,
     parent_ref,
@@ -36,12 +44,26 @@ from esphome.automation import (
     register_simple_condition,
     string_ref_literal,
     templatable_bytes,
+    validate_action,
+    validate_no_deferring_actions,
+    validate_synchronous_automation,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_AUTOMATION_ID, CONF_ID, CONF_THEN
+from esphome.const import (
+    CONF_ALL,
+    CONF_ANY,
+    CONF_AUTOMATION_ID,
+    CONF_CONDITION,
+    CONF_COUNT,
+    CONF_ELSE,
+    CONF_ID,
+    CONF_THEN,
+    CONF_TYPE_ID,
+)
 from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
+from esphome.types import ConfigType
 from esphome.util import Registry, RegistryEntry
 
 
@@ -211,6 +233,164 @@ def test_has_non_synchronous_actions_dict_input(
     """Direct dict input (single action)."""
     assert has_non_synchronous_actions({"delay": "1s"}) is True
     assert has_non_synchronous_actions({"logger.log": "hello"}) is False
+
+
+def test_has_non_synchronous_actions_option_named_like_action(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """An option that shares a name with a deferring action is not that action."""
+    actions = [{"logger.log": {"message": "hello", "delay": "1s"}}]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_nested_option_named_like_action(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Option keys in nested option dicts are not looked up as action names either."""
+    actions = [{"logger.log": {"settings": {"wait_until": {"condition": {}}}}}]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_option_named_like_action_inside_then(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    actions = [
+        {
+            "if": {
+                "condition": {},
+                "then": [{"logger.log": {"message": "hello", "delay": "1s"}}],
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_in_else(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Action lists in any option of an action are searched, not only then:."""
+    actions = [
+        {
+            "if": {
+                "condition": {},
+                "then": [{"logger.log": "hello"}],
+                "else": [{"delay": "1s"}],
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is True
+
+
+def test_has_non_synchronous_actions_automation_dict(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """A single automation, as validate_automation(single=True) returns it."""
+    assert has_non_synchronous_actions({CONF_THEN: [{"delay": "1s"}]}) is True
+    assert has_non_synchronous_actions({CONF_THEN: [{"logger.log": "hi"}]}) is False
+
+
+def test_has_non_synchronous_actions_set_playlist_delay() -> None:
+    """speaker_source.set_playlist_delay is synchronous despite its delay: option."""
+    import esphome.components.speaker_source.media_player  # noqa: F401  # registers the action
+
+    actions = [
+        {
+            "speaker_source.set_playlist_delay": {
+                CONF_ID: "player",
+                "pipeline": 0,
+                "delay": 1000,
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_validate_no_deferring_actions_accepts_synchronous(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    value = [{CONF_THEN: [{"logger.log": "hello"}]}]
+    assert validate_no_deferring_actions("on_test")(value) is value
+
+
+def test_validate_no_deferring_actions_accepts_lambda_form(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """A returning lambda has no action list, so there is nothing to reject."""
+    value = Lambda("return true;")
+    assert validate_no_deferring_actions("on_test")(value) is value
+
+
+def test_validate_no_deferring_actions_rejects_deferring(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    validator = validate_no_deferring_actions("on_test", "the test data")
+    with pytest.raises(
+        cv.Invalid,
+        match=r"not allowed in on_test: the test data is only valid while",
+    ):
+        validator([{CONF_THEN: [{"logger.log": "hello"}, {"delay": "1s"}]}])
+
+
+def test_validate_no_deferring_actions_default_data(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    with pytest.raises(cv.Invalid, match=r"on_test: the trigger data is only valid"):
+        validate_no_deferring_actions("on_test")([{CONF_THEN: [{"delay": "1s"}]}])
+
+
+def test_validate_synchronous_automation_accepts_synchronous() -> None:
+    result = validate_synchronous_automation("on_test")(
+        [{CONF_THEN: [{"lambda": Lambda('ESP_LOGD("test", "ran");')}]}]
+    )
+    assert len(result) == 1
+
+
+def test_validate_synchronous_automation_rejects_deferring() -> None:
+    with pytest.raises(cv.Invalid, match="Deferring actions"):
+        validate_synchronous_automation("on_test")([{CONF_THEN: [{"delay": "1s"}]}])
+
+
+def test_validate_synchronous_automation_rejects_nested_deferring() -> None:
+    actions = [
+        {
+            "if": {
+                "condition": {"lambda": Lambda("return true;")},
+                CONF_THEN: [{"delay": "1s"}],
+            }
+        }
+    ]
+    with pytest.raises(cv.Invalid, match="Deferring actions"):
+        validate_synchronous_automation("on_test")([{CONF_THEN: actions}])
+
+
+def test_validate_synchronous_automation_passes_options() -> None:
+    """extra_schema and single are passed through to validate_automation()."""
+    validator = validate_synchronous_automation(
+        "on_test", extra_schema={cv.Optional("retry"): cv.string}, single=True
+    )
+    result = validator(
+        {"retry": "yes", CONF_THEN: [{"lambda": Lambda('ESP_LOGD("test", "ran");')}]}
+    )
+    assert isinstance(result, dict)
+    assert result["retry"] == "yes"
+    with pytest.raises(cv.Invalid, match="Deferring actions"):
+        validator({CONF_THEN: [{"delay": "1s"}]})
+
+
+def test_validate_synchronous_automation_passes_extra_validators() -> None:
+    """extra_validators is passed through to validate_automation() and runs on each automation."""
+    seen: list[ConfigType] = []
+
+    def extra_validator(value: ConfigType) -> ConfigType:
+        seen.append(value)
+        return value
+
+    validator = validate_synchronous_automation(
+        "on_test", extra_validators=extra_validator
+    )
+    validator([{CONF_THEN: [{"lambda": Lambda('ESP_LOGD("test", "ran");')}]}])
+    assert len(seen) == 1
+    assert CONF_THEN in seen[0]
 
 
 def _build_forwarder(
@@ -1132,13 +1312,25 @@ async def test_apply_condition_compares_config_value(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
-async def test_apply_condition_string_constant_is_a_plain_literal(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+@pytest.mark.parametrize(
+    ("platform", "value", "expected"),
+    [
+        ("esp32", "two", '"two"'),
+        ("esp8266", "two", '::esphome::ProgmemStringRef{PSTR("two"), 3}'),
+        # The length is in bytes, not characters
+        ("esp8266", "é", '::esphome::ProgmemStringRef{PSTR("\\303\\251"), 2}'),
+    ],
+)
+async def test_apply_condition_string_constant(
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    platform: str,
+    value: str,
+    expected: str,
 ) -> None:
     check = ApplyCall("state == {}", (("state", cg.std_string),))
-    await _run_apply_condition(registries, check, {"state": "two"}, platform=platform)
-    assert f'return ::{PARENT_OBJ}->state == "two";' in _apply_definition(mock_cg)
+    await _run_apply_condition(registries, check, {"state": value}, platform=platform)
+    assert f"return ::{PARENT_OBJ}->state == {expected};" in _apply_definition(mock_cg)
 
 
 @pytest.mark.asyncio
@@ -1372,3 +1564,269 @@ async def test_build_callback_automation_forwarder(mock_cg: MockCodegen) -> None
     assert str(mock_cg.add.call_args.args[0]) == (
         f"parent->add_cb(TriggerForwarder<bool>{{{NEW_OBJ}}})"
     )
+
+
+def test_if_accepts_bare_condition() -> None:
+    """A single condition directly under `if:` is the same as `condition: {...}`."""
+    bare = validate_action({"if": {"or": [], CONF_THEN: [{"delay": "1s"}]}})
+    wrapped = validate_action(
+        {"if": {CONF_CONDITION: {"or": []}, CONF_THEN: [{"delay": "1s"}]}}
+    )
+    assert bare["if"][CONF_CONDITION] == wrapped["if"][CONF_CONDITION]
+    assert "or" not in bare["if"]
+
+
+@pytest.mark.parametrize("key", [CONF_ANY, CONF_ALL])
+def test_if_any_all_are_not_bare_conditions(key: str) -> None:
+    """`any:` and `all:` under `if:` are the if action's own keys, not a bare condition."""
+    result = validate_action({"if": {key: [{"or": []}], CONF_THEN: [{"delay": "1s"}]}})
+    assert key in result["if"]
+    assert CONF_CONDITION not in result["if"]
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        pytest.param(
+            {"or": [], "and": [], CONF_THEN: []},
+            "Only one condition",
+            id="two_bare",
+        ),
+        pytest.param(
+            {"or": [], CONF_CONDITION: {"and": []}, CONF_THEN: []},
+            "cannot be used with 'condition'",
+            id="bare_and_wrapped",
+        ),
+        pytest.param(
+            {"or": [], CONF_ANY: [{"and": []}], CONF_THEN: []},
+            "cannot be used with 'any'",
+            id="bare_and_any",
+        ),
+    ],
+)
+def test_if_rejects_ambiguous_bare_condition(
+    value: dict[str, object], match: str
+) -> None:
+    with pytest.raises(cv.Invalid, match=match):
+        validate_action({"if": value})
+
+
+def test_if_with_non_dict_value_is_invalid() -> None:
+    with pytest.raises(cv.Invalid, match="expected a dictionary"):
+        validate_action({"if": "not a dict"})
+
+
+CHOICE = {"if": {"and": []}, CONF_THEN: [{"delay": "1s"}]}
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        pytest.param([], "at least 1", id="empty"),
+        pytest.param([{CONF_THEN: [{"delay": "1s"}]}], "'if' is required", id="no_if"),
+        pytest.param([{"if": {"and": []}}], "'then' is required", id="no_then"),
+        pytest.param(
+            [{CONF_ELSE: [{"delay": "1s"}]}],
+            "At least one choice must have 'if' and 'then'",
+            id="only_else",
+        ),
+        pytest.param(
+            [{CONF_ELSE: [{"delay": "1s"}]}, CHOICE],
+            "Only the last choice may be 'else'",
+            id="else_not_last",
+        ),
+        pytest.param(
+            [CHOICE, {"if": {"and": []}, CONF_ELSE: []}],
+            "'if' cannot be used with 'else'",
+            id="else_with_if",
+        ),
+        pytest.param(
+            [CHOICE, {CONF_THEN: [], CONF_ELSE: []}],
+            "'then' cannot be used with 'else'",
+            id="else_with_then",
+        ),
+    ],
+)
+def test_choose_invalid(value: list[ConfigType], match: str) -> None:
+    with pytest.raises(cv.Invalid, match=match):
+        validate_action({CONF_CHOOSE: value})
+
+
+def test_choose_valid() -> None:
+    result = validate_action(
+        {
+            CONF_CHOOSE: [
+                CHOICE,
+                {"if": [{"or": []}, {"and": []}], CONF_THEN: [{"delay": "2s"}]},
+                {CONF_ELSE: [{"delay": "3s"}]},
+            ]
+        }
+    )
+
+    choices = result[CONF_CHOOSE]
+    assert len(choices) == 3
+    assert "and" in choices[1]["if"]
+    assert CONF_ELSE in choices[2]
+    assert all(CONF_CHOICE_ID in choice for choice in choices)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("has_else", [True, False])
+async def test_choose_builds_if_else_chain(has_else: bool) -> None:
+    """Each choice is an IfAction whose else branch holds the next choice, then the else actions."""
+    config: list[ConfigType] = [
+        {"if": "cond_a", CONF_THEN: "then_a", CONF_CHOICE_ID: ID("choice_a")},
+        {"if": "cond_b", CONF_THEN: "then_b", CONF_CHOICE_ID: ID("choice_b")},
+    ]
+    if has_else:
+        config.append({CONF_ELSE: "else_c", CONF_CHOICE_ID: ID("choice_c")})
+    action_id = ID("action")
+    with (
+        patch(
+            "esphome.automation.build_condition",
+            new_callable=AsyncMock,
+            side_effect=lambda conf, *_: f"built_{conf}",
+        ),
+        patch(
+            "esphome.automation.build_action_list",
+            new_callable=AsyncMock,
+            side_effect=lambda conf, *_: [MockObj(f"built_{conf}")],
+        ),
+        patch("esphome.codegen.new_Pvariable") as new_pvariable,
+        patch("esphome.codegen.add") as add,
+    ):
+        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
+        result = await choose_action_to_code(config, action_id, TEMPLATE_ARG, [])
+
+    # Built from the last choice back; the first choice takes the action's own id
+    created = [
+        (c.args[0].id, str(c.args[1]), c.args[2]) for c in new_pvariable.call_args_list
+    ]
+    assert created == [
+        ("choice_b", f"<{str(has_else).lower()}>", "built_cond_b"),
+        ("action", "<true>", "built_cond_a"),
+    ]
+    assert str(result) == "action"
+    statements = [str(c.args[0]) for c in add.call_args_list]
+    expected_b_else = (
+        ["choice_b->add_else_action(built_else_c)", "choice_b->finish_else()"]
+        if has_else
+        else []
+    )
+    assert statements == [
+        "choice_b->add_then_action(built_then_b)",
+        "choice_b->finish_then()",
+        *expected_b_else,
+        "action->add_then_action(built_then_a)",
+        "action->finish_then()",
+        "action->add_else_action(choice_b)",
+        "action->finish_else()",
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("config", "template_arg", "expected"),
+    [
+        pytest.param(
+            {CONF_CONDITION: "cond", CONF_THEN: "then", CONF_ELSE: "else"},
+            "<true>",
+            [
+                "action->add_then_action(built_then)",
+                "action->finish_then()",
+                "action->add_else_action(built_else)",
+                "action->finish_else()",
+            ],
+            id="then_and_else",
+        ),
+        pytest.param(
+            {CONF_ANY: "cond", CONF_ELSE: "else"},
+            "<true>",
+            ["action->add_else_action(built_else)", "action->finish_else()"],
+            id="only_else",
+        ),
+        pytest.param(
+            {CONF_ALL: "cond", CONF_THEN: "then"},
+            "<false>",
+            ["action->add_then_action(built_then)", "action->finish_then()"],
+            id="only_then",
+        ),
+    ],
+)
+async def test_if_adds_branches_one_action_at_a_time(
+    config: ConfigType, template_arg: str, expected: list[str]
+) -> None:
+    with (
+        patch(
+            "esphome.automation.build_condition",
+            new_callable=AsyncMock,
+            side_effect=lambda conf, *_: f"built_{conf}",
+        ),
+        patch(
+            "esphome.automation.build_action_list",
+            new_callable=AsyncMock,
+            side_effect=lambda conf, *_: [MockObj(f"built_{conf}")],
+        ),
+        patch("esphome.codegen.new_Pvariable") as new_pvariable,
+        patch("esphome.codegen.add") as add,
+    ):
+        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
+        await if_action_to_code(config, ID("action"), TEMPLATE_ARG, [])
+
+    new_pvariable.assert_called_once()
+    assert str(new_pvariable.call_args.args[1]) == template_arg
+    assert new_pvariable.call_args.args[2] == "built_cond"
+    assert [str(c.args[0]) for c in add.call_args_list] == expected
+
+
+def test_shadow_iteration_leaves_other_names() -> None:
+    args = [(cg.std_string, "prefix"), (cg.uint32, "iteration_1")]
+    assert _shadow_iteration(args) == args
+
+
+def test_shadow_iteration_renames_inherited_counter() -> None:
+    assert _shadow_iteration([(cg.uint32, "iteration"), (cg.bool_, "x")]) == [
+        (cg.uint32, "iteration_1"),
+        (cg.bool_, "x"),
+    ]
+
+
+def test_shadow_iteration_picks_first_unused_suffix() -> None:
+    """A counter keeps its suffix at deeper levels; the new one takes the next free name."""
+    args = [
+        (cg.uint32, "iteration"),
+        (cg.uint32, "iteration_1"),
+        (cg.int_, "iteration_3"),
+    ]
+    assert _shadow_iteration(args) == [
+        (cg.uint32, "iteration_2"),
+        (cg.uint32, "iteration_1"),
+        (cg.int_, "iteration_3"),
+    ]
+
+
+def _repeat_conf(id_: str, then: list[ConfigType]) -> ConfigType:
+    return {
+        "repeat": {CONF_COUNT: 2, CONF_THEN: then},
+        CONF_TYPE_ID: ID(id_, is_declaration=True, type=RepeatAction),
+    }
+
+
+@pytest.mark.asyncio
+async def test_nested_repeat_lambda_parameters_are_distinct() -> None:
+    """Each repeat level adds its own `iteration`; inherited ones are renamed, not duplicated."""
+    CORE.config = {}
+    log = {
+        "lambda": Lambda('ESP_LOGD("t", "%u", iteration);'),
+        CONF_TYPE_ID: ID("log_action", is_declaration=True, type=LambdaAction),
+    }
+    conf = _repeat_conf(
+        "outer", [_repeat_conf("middle", [_repeat_conf("inner", [log])])]
+    )
+    await build_action(conf, cg.TemplateArguments(cg.uint8), [(cg.uint8, "level")])
+    text = CORE.cpp_main_section
+    assert (
+        "(uint32_t iteration, uint32_t iteration_2, uint32_t iteration_1, uint8_t level)"
+        in text
+    )
+    assert "uint32_t iteration, uint32_t iteration)" not in text
