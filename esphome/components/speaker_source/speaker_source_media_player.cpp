@@ -306,8 +306,13 @@ void SpeakerSourceMediaPlayer::loop() {
 }
 
 bool SpeakerSourceMediaPlayer::is_media_playing_() const {
-  media_source::MediaSource *source = this->pipelines_[MEDIA_PIPELINE].active_source;
-  return source != nullptr && source->get_state() == media_source::MediaSourceState::PLAYING;
+  const PipelineContext &ps = this->pipelines_[MEDIA_PIPELINE];
+  media_source::MediaSource *source = ps.active_source;
+  if (source != nullptr) {
+    return source->get_state() == media_source::MediaSourceState::PLAYING;
+  }
+  // After the source goes idle the speaker still plays its buffered audio
+  return ps.is_configured() && !ps.speaker->is_stopped();
 }
 
 media_source::MediaSource *SpeakerSourceMediaPlayer::find_source_for_uri_(const std::string &uri, uint8_t pipeline) {

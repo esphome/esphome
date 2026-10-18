@@ -44,12 +44,33 @@ class AnnouncementVolume {
   /// The media player volume was set and already sent to the speakers; it applies until the next announcement.
   void cancel() { this->active_ = false; }
 
+  /// Called when an item starts on a playlist that holds announcements, and may hold media too.
+  /// Media switches back to the media volume. An announcement that follows media, or starts the playlist, switches to
+  /// the announcement volume unless other audio is playing. One that follows another announcement keeps the volume
+  /// that one used, including a volume change made while it played.
+  template<typename F>
+  void item_started(bool is_announcement, bool other_audio_playing, float media_volume, F &&apply) {
+    if (!is_announcement) {
+      this->end(media_volume, apply);
+    } else if (!this->last_item_announcement_) {
+      this->begin(other_audio_playing, apply);
+    }
+    this->last_item_announcement_ = is_announcement;
+  }
+
+  /// Called when the playlist that holds announcements has finished. Switches back to the media volume.
+  template<typename F> void playlist_finished(float media_volume, F &&apply) {
+    this->last_item_announcement_ = false;
+    this->end(media_volume, std::forward<F>(apply));
+  }
+
  protected:
   void log_begin_() const;
   void log_end_(float media_volume) const;
 
   float volume_{NAN};
   bool active_{false};
+  bool last_item_announcement_{false};
 };
 
 }  // namespace esphome::speaker

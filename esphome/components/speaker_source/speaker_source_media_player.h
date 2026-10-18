@@ -214,7 +214,7 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
     return [this](float volume) { this->apply_speaker_volume_(volume); };
   }
 
-  /// @brief Whether the media pipeline's active source is playing.
+  /// @brief Whether media is audible: the active source plays, or the speaker plays what an idle source left.
   bool is_media_playing_() const;
 
   /// @brief Sets the mute state.
