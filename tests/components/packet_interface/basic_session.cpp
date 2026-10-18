@@ -84,7 +84,9 @@ class BasicSessionTest : public ::testing::Test {
  protected:
   void SetUp() override {
     new (&App) Application;
-    App.pre_setup("session-tests", 10, "", 0);
+    static char name[] = "session-tests";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
   void TearDown() override { App.~Application(); }
 

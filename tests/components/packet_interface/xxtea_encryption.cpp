@@ -79,7 +79,9 @@ class XxteaEncryptionTest : public ::testing::Test {
  protected:
   void SetUp() override {
     new (&App) Application;
-    App.pre_setup("xxtea-tests", 10, "", 0);
+    static char name[] = "xxtea-tests";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
   void TearDown() override { App.~Application(); }
 };
@@ -100,10 +102,10 @@ static void round_trip_all_sizes(bool rolling_code, size_t trailer_size) {
   Peer a(0x12345678, 64, rolling_code), b(0x12345678, 64, rolling_code);
   a.introduce(b);
   std::vector<Packet> expected;
-  for (uint8_t size = 0; size <= a.encryption->get_max_packet_size(); size++) {
+  for (size_t size = 0; size <= a.encryption->get_max_packet_size(); size++) {
     Packet packet(size);
-    for (uint8_t i = 0; i != size; i++)
-      packet[i] = size + i;
+    for (size_t i = 0; i != size; i++)
+      packet[i] = static_cast<uint8_t>(size + i);
     expected.push_back(packet);
     ASSERT_TRUE(a.send(packet));
     ASSERT_EQ(a.link.sent.back().size() % 4, 0);
