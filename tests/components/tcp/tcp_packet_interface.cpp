@@ -27,12 +27,15 @@ using Packet = std::vector<uint8_t>;
 
 class TestTcp : public TcpPacketInterface {
  public:
-  TestTcp() {
+  TestTcp() : TcpPacketInterface(this->rx_buffer_storage) {
     this->set_max_packet_size(64);
     this->set_host("peer");
     this->set_port(1);
   }
   socket::TcpClientLink &link() { return this->link_; }
+
+  // The base class only keeps the pointer, so the storage can be a member set up after it
+  uint8_t rx_buffer_storage[64]{};
 };
 
 // A layer stacked on the link, to check that the session state reaches it

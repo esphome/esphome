@@ -8,6 +8,7 @@ from esphome.components.const import (
     CONF_ROLE,
 )
 from esphome.components.packet_interface import (
+    CONF_MAX_PACKET_SIZE,
     new_packet_interface,
     packet_interface_schema,
 )
@@ -81,7 +82,12 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await new_packet_interface(config)
+    # The receive buffer's size is known here, so it is a static array rather than allocated at run time
+    rx_buffer = f"{config[CONF_ID].id}__rx_buffer"
+    cg.add_global(
+        cg.RawStatement(f"static uint8_t {rx_buffer}[{config[CONF_MAX_PACKET_SIZE]}];")
+    )
+    var = await new_packet_interface(config, cg.RawExpression(rx_buffer))
     if config[CONF_ROLE] == "server":
         socket.require_tcp_listener()
         cg.add(var.set_server(True))
