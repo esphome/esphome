@@ -259,6 +259,12 @@ enum SX127xIrqFlags : uint8_t {
   CAD_DETECTED = 0x01,
 };
 
+enum SX127xModemStat : uint8_t {
+  MODEM_STAT_SIGNAL_DETECTED = 0x01,
+  MODEM_STAT_SIGNAL_SYNCHRONIZED = 0x02,
+  MODEM_STAT_HEADER_VALID = 0x08,
+};
+
 enum SX127xModemCfg1 : uint8_t {
   BW_7_8 = 0x00,
   BW_10_4 = 0x10,
