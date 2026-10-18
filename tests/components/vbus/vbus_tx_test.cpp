@@ -1982,7 +1982,7 @@ class CSPlusSettingWriteTest : public CSPlusControllerTest {
 
 TEST_F(CSPlusSettingWriteTest, PreflightThenOneWriteReadbackReleaseAndTelemetryConfirmTheChange) {
   this->preflight_();
-  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::VERIFYING);
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_VERIFYING);
   this->acquire_write_();
   this->reply_write_(60);
   EXPECT_TRUE(this->write_results_.empty());
@@ -1992,7 +1992,7 @@ TEST_F(CSPlusSettingWriteTest, PreflightThenOneWriteReadbackReleaseAndTelemetryC
   EXPECT_EQ(value, 35);
   this->message_();
   ASSERT_EQ(this->write_results_.size(), 1u);
-  EXPECT_EQ(this->write_results_[0], std::make_pair(uint16_t{48}, SettingWriteStatus::SUCCESS));
+  EXPECT_EQ(this->write_results_[0], std::make_pair(uint16_t{48}, SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS));
   EXPECT_EQ(this->controller_.writes_sent(), 1u);
   EXPECT_EQ(this->controller_.writes_verified(), 1u);
   EXPECT_TRUE(this->controller_.get_value(48, value));
@@ -2002,7 +2002,7 @@ TEST_F(CSPlusSettingWriteTest, PreflightThenOneWriteReadbackReleaseAndTelemetryC
 TEST_F(CSPlusSettingWriteTest, EqualFreshValueIsANoopAfterPreflightWithoutAnyWrite) {
   this->preflight_(48, 35);
   ASSERT_EQ(this->write_results_.size(), 1u);
-  EXPECT_EQ(this->write_results_[0].second, SettingWriteStatus::UNCHANGED);
+  EXPECT_EQ(this->write_results_[0].second, SettingWriteStatus::SETTING_WRITE_STATUS_UNCHANGED);
   EXPECT_EQ(this->controller_.writes_sent(), 0u);
   EXPECT_FALSE(this->controller_.is_scanning());
 }
@@ -2012,7 +2012,7 @@ TEST_F(CSPlusSettingWriteTest, FreshPreflightRejectsChangedLimitsAndDisabledFunc
     this->source_values_[50] = disable ? 65 : 55;
     this->source_values_[12549] = disable ? 0 : 2;
     this->preflight_();
-    EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::FAILED);
+    EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
     EXPECT_EQ(this->controller_.writes_sent(), 0u);
     EXPECT_FALSE(this->controller_.write_uncertain());
   }
@@ -2023,7 +2023,7 @@ TEST_F(CSPlusSettingWriteTest, MismatchedReadbackLocksFurtherWritesUntilAComplet
   this->acquire_write_();
   this->reply_write_(40);
   ASSERT_EQ(this->write_results_.size(), 1u);
-  EXPECT_EQ(this->write_results_[0].second, SettingWriteStatus::UNCERTAIN);
+  EXPECT_EQ(this->write_results_[0].second, SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN);
   EXPECT_TRUE(this->controller_.write_uncertain());
   this->message_();
   EXPECT_FALSE(this->controller_.request_setting(48, 60));
@@ -2038,7 +2038,7 @@ TEST_F(CSPlusSettingWriteTest, MismatchedReadbackLocksFurtherWritesUntilAComplet
 TEST_F(CSPlusSettingWriteTest, UnsentWriteExpiryDiscardsTheRequestWithoutAnUncertainLockOrRetry) {
   this->preflight_();
   this->tick_(10100);
-  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::FAILED);
+  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
   EXPECT_FALSE(this->controller_.write_uncertain());
   this->uart_.inject(wire_datagram());
   this->tick_(100);
@@ -2104,7 +2104,7 @@ TEST_F(CSPlusSettingWriteTest, MissingWriteAckIsUncertainAndNeverRetried) {
   this->acquire_write_();
   this->tick_(500);
   EXPECT_TRUE(this->controller_.write_uncertain());
-  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::UNCERTAIN);
+  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN);
   this->message_();
   this->tick_(1000);
   this->uart_.inject(wire_datagram());
@@ -2122,7 +2122,7 @@ TEST_F(CSPlusSettingWriteTest, OtaBeforeAnyWriteDisarmsAndDiscardsPreflight) {
   EXPECT_FALSE(this->controller_.writes_armed());
   EXPECT_FALSE(this->controller_.write_uncertain());
   EXPECT_EQ(this->controller_.writes_sent(), 0u);
-  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::FAILED);
+  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
   this->uart_.inject(wire_datagram());
   this->tick_(100);
   EXPECT_EQ(this->controller_.writes_sent(), 0u);

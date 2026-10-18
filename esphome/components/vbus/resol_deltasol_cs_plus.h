@@ -11,7 +11,16 @@
 namespace esphome::vbus {
 
 #ifdef USE_VBUS_CS_PLUS_WRITE
-enum class SettingWriteStatus : uint8_t { IDLE, PREFLIGHT, VERIFYING, SUCCESS, UNCHANGED, FAILED, UNCERTAIN, REJECTED };
+enum class SettingWriteStatus : uint8_t {
+  SETTING_WRITE_STATUS_IDLE,
+  SETTING_WRITE_STATUS_PREFLIGHT,
+  SETTING_WRITE_STATUS_VERIFYING,
+  SETTING_WRITE_STATUS_SUCCESS,
+  SETTING_WRITE_STATUS_UNCHANGED,
+  SETTING_WRITE_STATUS_FAILED,
+  SETTING_WRITE_STATUS_UNCERTAIN,
+  SETTING_WRITE_STATUS_REJECTED
+};
 #endif
 
 class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
@@ -70,7 +79,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   void on_write_result_(uint16_t index, uint32_t value, TransactionStatus status);
   void finish_write_(SettingWriteStatus status);
   WritePhase write_phase_{WritePhase::IDLE};
-  SettingWriteStatus write_status_{SettingWriteStatus::IDLE};
+  SettingWriteStatus write_status_{SettingWriteStatus::SETTING_WRITE_STATUS_IDLE};
   uint32_t write_arm_at_{0};
   uint32_t writes_before_{0};
   uint32_t write_started_at_{0};

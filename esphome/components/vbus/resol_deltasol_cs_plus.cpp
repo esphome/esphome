@@ -306,8 +306,9 @@ void ResolDeltaSolCSPlus::loop() {
 void ResolDeltaSolCSPlus::abort_() {
 #ifdef USE_VBUS_CS_PLUS_WRITE
   if (this->write_phase_ != WritePhase::IDLE) {
-    this->finish_write_(this->transmitter_->get_write_count() != this->writes_before_ ? SettingWriteStatus::UNCERTAIN
-                                                                                      : SettingWriteStatus::FAILED);
+    this->finish_write_(this->transmitter_->get_write_count() != this->writes_before_
+                            ? SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN
+                            : SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
     return;
   }
 #endif
