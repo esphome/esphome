@@ -4,8 +4,16 @@
 #include <string>
 #include "gpio.h"
 #include "esphome/core/defines.h"
+
 #include "esphome/core/time_64.h"
 #include "esphome/core/time_conversion.h"
+
+/// Address tables in ESP8266 flash must be constant-initialized: a runtime initializer would write to flash.
+#if defined(USE_ESP8266) && defined(__GNUC__) && !defined(__clang__)
+#define ESPHOME_FLASH_CONSTINIT constinit
+#else
+#define ESPHOME_FLASH_CONSTINIT
+#endif
 
 // Per-platform HAL bits (IRAM_ATTR / PROGMEM macros, in_isr_context(),
 // inline yield/delay/micros/millis/millis_64 wrappers, ESP8266 progmem

@@ -3,7 +3,7 @@
 
 namespace esphome::gps {
 
-static const char *const TAG = "gps";
+ESPHOME_LOG_TAG(TAG, "gps");
 
 TinyGPSPlus &GPSListener::get_tiny_gps() { return this->parent_->get_tiny_gps(); }
 

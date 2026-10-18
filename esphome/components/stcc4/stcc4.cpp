@@ -6,7 +6,7 @@
 
 namespace esphome::stcc4 {
 
-static const char *const TAG = "stcc4";
+ESPHOME_LOG_TAG(TAG, "stcc4");
 
 // I2C Commands
 static constexpr uint16_t STCC4_CMD_START_CONTINUOUS_MEASUREMENT = 0x218b;
@@ -77,8 +77,7 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
                                (uint64_t(raw_product_id[4]) << 16) | raw_product_id[5];
       ESP_LOGD(TAG, "Product ID: 0x%08" PRIX32 ", Serial: 0x%016" PRIX64, product_id, serial_number);
       if (product_id != STCC4_PRODUCT_ID) {
-        ESP_LOGE(TAG, "Unsupported product ID");
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        this->mark_failed(LOG_STR("Unsupported product ID"));
         return;
       }
 
@@ -106,8 +105,7 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
 
       // Start continuous measurement
       if (!this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT)) {
-        ESP_LOGE(TAG, "Failed to start continuous measurement");
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        this->mark_failed(LOG_STR("Failed to start continuous measurement"));
         return;
       }
       this->schedule_continuous_update_(false);
@@ -123,8 +121,7 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
     return;
   }
 
-  ESP_LOGE(TAG, "Failed to stop continuous measurements and read product ID");
-  this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  this->mark_failed(LOG_STR("Failed to stop continuous measurements and read product ID"));
 }
 
 void STCC4Component::finish_setup_() {
@@ -143,9 +140,6 @@ void STCC4Component::finish_setup_() {
 void STCC4Component::dump_config() {
   ESP_LOGCONFIG(TAG, "STCC4:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG, "  Measurement mode: %s",
                 this->measurement_mode_ == MeasurementMode::CONTINUOUS ? LOG_STR_LITERAL("Continuous (1s)")
                                                                        : LOG_STR_LITERAL("Single shot"));

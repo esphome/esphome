@@ -41,7 +41,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -71,6 +71,7 @@ from .types import (  # noqa: F401
     ChannelColors,
     ColorMode,
     GammaTable,
+    LightEffect,
     LightOutput,
     LightState,
     LightStateRTCState,
@@ -88,6 +89,25 @@ IS_PLATFORM_COMPONENT = True
 DOMAIN = "light"
 CONF_GAMMA_TABLE_ID = "gamma_table_id"
 CONF_RESUME_EFFECT = "resume_effect"
+
+CONF_POWER_ESTIMATION = "power_estimation"
+CONF_MA_PER_LED_RED = "ma_per_led_red"
+CONF_MA_PER_LED_GREEN = "ma_per_led_green"
+CONF_MA_PER_LED_BLUE = "ma_per_led_blue"
+CONF_MA_PER_LED_WHITE = "ma_per_led_white"
+CONF_IDLE_MA_PER_LED = "idle_ma_per_led"
+CONF_MAX_CURRENT_MA = "max_current_ma"
+
+POWER_ESTIMATION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_MA_PER_LED_RED, default=20.0): cv.positive_float,
+        cv.Optional(CONF_MA_PER_LED_GREEN, default=20.0): cv.positive_float,
+        cv.Optional(CONF_MA_PER_LED_BLUE, default=20.0): cv.positive_float,
+        cv.Optional(CONF_MA_PER_LED_WHITE, default=20.0): cv.positive_float,
+        cv.Optional(CONF_IDLE_MA_PER_LED, default=1.0): cv.positive_float,
+        cv.Optional(CONF_MAX_CURRENT_MA): cv.positive_not_null_float,
+    }
+)
 
 
 @dataclass
@@ -445,6 +465,7 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
             [cv.percentage], cv.Length(min=3, max=4)
         ),
         cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
+        cv.Optional(CONF_POWER_ESTIMATION): POWER_ESTIMATION_SCHEMA,
     }
 )
 
@@ -519,6 +540,17 @@ def validate_color_temperature_channels(value):
     return value
 
 
+def _effects_table(effects: list[MockObj]) -> MockObj:
+    """Emit the flash table of a light's effect pointers; each must be a static address."""
+    return cg.shared_progmem_array(
+        "light_effects",
+        LightEffect.operator("ptr"),
+        cg.ArrayInitializer(*effects),
+        share=False,
+        constexpr=False,
+    )
+
+
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
     # All 8 legacy restore_mode values, and the restore_state key, are just different
@@ -586,7 +618,7 @@ async def setup_light_core_(light_var, config, output_var):
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     if effects:
-        cg.add(light_var.add_effects(effects))
+        cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
@@ -604,6 +636,20 @@ async def setup_light_core_(light_var, config, output_var):
     if (power_supply_id := config.get(CONF_POWER_SUPPLY)) is not None:
         var_ = await cg.get_variable(power_supply_id)
         cg.add(output_var.set_power_supply(var_))
+
+    if (power_estimation := config.get(CONF_POWER_ESTIMATION)) is not None:
+        cg.add_define("USE_LIGHT_POWER_ESTIMATION")
+        cg.add(
+            output_var.set_power_estimation(
+                power_estimation[CONF_MA_PER_LED_RED],
+                power_estimation[CONF_MA_PER_LED_GREEN],
+                power_estimation[CONF_MA_PER_LED_BLUE],
+                power_estimation[CONF_MA_PER_LED_WHITE],
+                power_estimation[CONF_IDLE_MA_PER_LED],
+            )
+        )
+        if (max_current_ma := power_estimation.get(CONF_MAX_CURRENT_MA)) is not None:
+            cg.add(output_var.set_max_current_ma(max_current_ma))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, light_var)

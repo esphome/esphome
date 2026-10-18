@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_BUILD_PATH,
     CONF_DEVICES,
     CONF_ESPHOME,
+    CONF_INCLUDES,
+    CONF_INCLUDES_C,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
     KEY_CORE,
@@ -36,7 +38,7 @@ from esphome.core.config import (
     validate_hostname,
 )
 
-from .common import load_config_from_fixture
+from .common import load_config_from_fixture, load_config_from_yaml
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "config"
 
@@ -447,6 +449,85 @@ def test_device_duplicate_id(
     assert "ID duplicate_device redefined!" in captured.out
 
 
+def test_expander_pin_selected_by_address(yaml_file: Callable[[str], str]) -> None:
+    """A pin provider hub with an omitted id can be selected by its address."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    resolved = result["binary_sensor"][0]["pin"]["xl9535"]
+    assert resolved.id == "xl9535_b"
+    # Explicit selection criteria must survive strip_default_ids(), unlike a
+    # plain omitted-id auto-pick.
+    assert resolved.is_manual is True
+
+
+def test_expander_pin_selected_by_address_no_match(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Selecting an address that matches no hub of that type fails clearly."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address_no_match.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Couldn't find a 'xl9535::XL9535Component' matching address=0x21. "
+        "Are you missing a hub declaration, or is the address wrong?" in captured.out
+    )
+
+
+def test_expander_pin_selected_by_address_ambiguous(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Two hubs sharing the same address (e.g. on different buses) still need an id."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address_ambiguous.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Multiple 'xl9535::XL9535Component' instances match address=0x20: "
+        "'xl9535_a', 'xl9535_b'. You must assign an explicit ID to the one you "
+        "want to use." in captured.out
+    )
+
+
+def test_expander_pin_ambiguous_without_match_config(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Omitting both id and address with multiple hubs of the same type still
+    falls back to the original "too many candidates" error."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_ambiguous_no_address.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Too many candidates found for 'xl9535' type 'xl9535::XL9535Component' "
+        "Some are 'xl9535_a', 'xl9535_b'" in captured.out
+    )
+
+
+def test_expander_pin_reuse_detected_across_reference_syntax(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The same physical pin, reached once by explicit id and once by address,
+    must still be flagged as reused -- reuse detection keys on the resolved
+    provider id, not on which syntax was used to reference it."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_reuse_across_syntax.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "Pin 5 is used in multiple places" in captured.out
+
+
 def test_substitution_with_id(
     yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -608,6 +689,32 @@ def test_valid_include_invalid_extension(tmp_path: Path) -> None:
 
     with pytest.raises(cv.Invalid, match="Include has invalid file extension"):
         valid_include(str(invalid_file))
+
+
+def test_includes_in_a_package_resolve_next_to_the_package(
+    tmp_path: Path, yaml_file: Callable[[str], Path]
+) -> None:
+    """A package's includes resolve next to the package file (issue #14583)."""
+    package_dir = tmp_path / "packages" / "helper"
+    package_dir.mkdir(parents=True)
+    (package_dir / "my_helper.h").write_text("#pragma once\n")
+    (package_dir / "my_c_helper.h").write_text("#pragma once\n")
+    (package_dir / "helper.yaml").write_text(
+        "esphome:\n  includes:\n    - my_helper.h\n  includes_c:\n    - my_c_helper.h\n"
+    )
+
+    result = load_config_from_yaml(
+        yaml_file,
+        "esphome:\n"
+        "  name: test\n"
+        "host:\n"
+        "packages:\n"
+        "  - !include packages/helper/helper.yaml\n",
+    )
+
+    assert result is not None
+    assert result[CONF_ESPHOME][CONF_INCLUDES] == [str(package_dir / "my_helper.h")]
+    assert result[CONF_ESPHOME][CONF_INCLUDES_C] == [str(package_dir / "my_c_helper.h")]
 
 
 def test_valid_project_name_valid() -> None:

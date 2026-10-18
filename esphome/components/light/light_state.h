@@ -92,6 +92,11 @@ class LightState : public EntityBase, public Component {
   bool is_transitioning() const { return this->transformer_ != nullptr; }
   LightCall make_call();
 
+  /// Take over the state of a light mirrored from elsewhere: current and target values at once,
+  /// published but not written or saved; a running effect stops. False while a write is pending or
+  /// a transition or flash runs.
+  bool set_external_state(const LightColorValues &values);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Load state from preferences
@@ -217,10 +222,13 @@ class LightState : public EntityBase, public Component {
   bool supports_effects() const { return !this->effects_.empty(); }
 
   /// Get all effects for this light state.
-  const FixedVector<LightEffect *> &get_effects() const { return this->effects_; }
+  const ConstVector<LightEffect *> &get_effects() const { return this->effects_; }
 
-  /// Add effects for this light state.
-  void add_effects(const std::initializer_list<LightEffect *> &effects);
+  /// Codegen only: point at the generated table of this light's effects, which must outlive it.
+  /// Codegen caps the count at 65535, so an effect index always fits the uint16_t active index.
+  void add_effects(LightEffect *const *effects, size_t count) {
+    this->effects_ = ConstVector<LightEffect *>(effects, count);
+  }
 
   /// Get the total number of effects available for this light.
   size_t get_effect_count() const { return this->effects_.size(); }
@@ -305,6 +313,9 @@ class LightState : public EntityBase, public Component {
   bool is_transformer_active() const { return this->is_transformer_active_; }
 
  protected:
+  // The two halves of loop()
+  void apply_effect_and_transformer_();
+  void write_if_pending_();
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
@@ -354,7 +365,7 @@ class LightState : public EntityBase, public Component {
   /// The currently active transformer for this light (transition/flash).
   std::unique_ptr<LightTransformer> transformer_{nullptr};
   /// List of effects for this light.
-  FixedVector<LightEffect *> effects_;
+  ConstVector<LightEffect *> effects_;
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
 

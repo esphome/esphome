@@ -127,9 +127,9 @@ class Speaker {
 #endif
 
   State state_{STATE_STOPPED};
+  bool mute_state_{false};
   audio::AudioStreamInfo audio_stream_info_;
   float volume_{1.0f};
-  bool mute_state_{false};
 
 #ifdef USE_AUDIO_DAC
   audio_dac::AudioDac *audio_dac_{nullptr};

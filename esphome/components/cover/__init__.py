@@ -62,6 +62,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 ]
+DOMAIN = "cover"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,11 +80,9 @@ COVER_STATES = {
 validate_cover_state = cv.enum(COVER_STATES, upper=True)
 
 CoverOperation = cover_ns.enum("CoverOperation")
-COVER_OPERATIONS = {
-    "IDLE": CoverOperation.COVER_OPERATION_IDLE,
-    "OPENING": CoverOperation.COVER_OPERATION_OPENING,
-    "CLOSING": CoverOperation.COVER_OPERATION_CLOSING,
-}
+COVER_OPERATIONS = CoverOperation.options(
+    "IDLE", "OPENING", "CLOSING", prefix="COVER_OPERATION_"
+)
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions

@@ -8,6 +8,10 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, esp32_ble, ota
 from esphome.components.ble_device_base import CONF_CONNECTION_SCAN_WINDOW
+from esphome.components.ble_device_base.automation import (
+    MAC_FILTER_LIST,
+    mac_filter_table,
+)
 from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
@@ -277,7 +281,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         ESPBTAdvertiseTrigger
                     ),
-                    cv.Optional(CONF_MAC_ADDRESS): cv.ensure_list(cv.mac_address),
+                    cv.Optional(CONF_MAC_ADDRESS): MAC_FILTER_LIST,
                 }
             ),
             cv.Optional(
@@ -381,9 +385,8 @@ async def to_code(config: ConfigType) -> None:
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         _request_listener_slot()
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        if CONF_MAC_ADDRESS in conf:
-            addr_list = [it.as_hex for it in conf[CONF_MAC_ADDRESS]]
-            cg.add(trigger.set_addresses(addr_list))
+        if macs := conf.get(CONF_MAC_ADDRESS):
+            cg.add(trigger.set_addresses(mac_filter_table(macs)))
         await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
     for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
         _request_listener_slot()
