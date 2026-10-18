@@ -217,4 +217,6 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_writer(lambda_))
 
-    await cg.add_variable(var.set_power_supply, config.get(CONF_POWER_SUPPLY))
+    if CONF_POWER_SUPPLY in config:
+        ps = await cg.get_variable(config[CONF_POWER_SUPPLY])
+        cg.add(var.set_power_supply(ps))
