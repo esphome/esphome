@@ -15,8 +15,7 @@ void MPR121Component::setup() {
   this->write_byte(MPR121_SOFTRESET, 0x63);
   this->set_timeout(100, [this]() {
     if (!this->write_byte(MPR121_ECR, 0x0)) {
-      this->error_code_ = COMMUNICATION_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
     // set touch sensitivity for all 12 channels
@@ -70,23 +69,10 @@ void MPR121Component::set_release_debounce(uint8_t debounce) {
 void MPR121Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPR121:");
   LOG_I2C_DEVICE(this);
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case NONE:
-    default:
-      break;
-  }
 }
 void MPR121Component::loop() {
   uint16_t val = 0;
-  this->read_byte_16(MPR121_TOUCHSTATUS_L, &val);
-
-  // Flip order
-  uint8_t lsb = val >> 8;
-  uint8_t msb = val;
-  val = (uint16_t(msb) << 8) | lsb;
+  this->read_byte_16_le(MPR121_TOUCHSTATUS_L, &val);
 
   for (auto *channel : this->channels_)
     channel->process(val);

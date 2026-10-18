@@ -285,6 +285,36 @@ UARTFlushResult HostUartComponent::flush() {
   return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
+bool HostUartComponent::set_modem_control(bool dtr, bool rts) {
+  if (this->file_descriptor_ == -1) {
+    return false;
+  }
+  // One TIOCMSET so the device never sees a state in between the old and the new one
+  int bits;
+  if (ioctl(this->file_descriptor_, TIOCMGET, &bits) == -1) {
+    this->update_error_(strerror(errno));
+    return false;
+  }
+  bits = (bits & ~(TIOCM_DTR | TIOCM_RTS)) | (dtr ? TIOCM_DTR : 0) | (rts ? TIOCM_RTS : 0);
+  if (ioctl(this->file_descriptor_, TIOCMSET, &bits) == -1) {
+    this->update_error_(strerror(errno));
+    return false;
+  }
+  return true;
+}
+
+bool HostUartComponent::get_dtr() const { return (this->get_modem_bits_() & TIOCM_DTR) != 0; }
+
+bool HostUartComponent::get_rts() const { return (this->get_modem_bits_() & TIOCM_RTS) != 0; }
+
+int HostUartComponent::get_modem_bits_() const {
+  int bits = 0;
+  if (this->file_descriptor_ != -1) {
+    ioctl(this->file_descriptor_, TIOCMGET, &bits);
+  }
+  return bits;
+}
+
 void HostUartComponent::update_error_(const std::string &error) {
   if (this->first_error_.empty()) {
     this->first_error_ = error;

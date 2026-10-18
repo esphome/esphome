@@ -1,4 +1,5 @@
 #include "pzem004t.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cinttypes>
@@ -74,7 +75,7 @@ void PZEM004T::loop() {
       }
 
       case 0xA3: {  // Energy Response
-        uint32_t energy = (uint32_t(resp[1]) << 16) | (uint32_t(resp[2]) << 8) | (uint32_t(resp[3]));
+        uint32_t energy = encode_uint24(resp[1], resp[2], resp[3]);
         if (this->energy_sensor_ != nullptr)
           this->energy_sensor_->publish_state(energy);
         ESP_LOGD(TAG, "Got Energy %" PRIu32 " Wh", energy);
