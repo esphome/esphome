@@ -74,6 +74,17 @@ CONFIG_NET_SOCKETS=y
 """,
     ),
     _TidySubsystem("bluetooth", "CONFIG_BT=y\n", bluetooth_west_projects),
+    # Matches zephyr's _cdc_acm_add_ports(): usb_cdc_acm needs the legacy stack
+    _TidySubsystem(
+        "usb",
+        """\
+CONFIG_USB_DEVICE_STACK_NEXT=n
+CONFIG_USB_DEVICE_STACK=y
+CONFIG_USB_CDC_ACM=y
+CONFIG_SERIAL=y
+CONFIG_UART_LINE_CTRL=y
+""",
+    ),
     _TidySubsystem(
         "mcumgr",
         """\

@@ -18,6 +18,7 @@ adafruit_feather_nrf52840, xiao_ble) -- selected by the *board devicetree*, not 
     `adafruit_feather_nrf52840` board string with an explicit `/nrf52840/uf2` qualifier would
     too). `.boards.BOOTLOADER_CONFIG` gives the SoftDevice/bootloader
     section addresses this scheme is built from.
+  - "Open DFU" scheme: nrf52840dongle with Nordic's factory bootloader (`bootloader: nrf`).
 """
 
 from esphome.components.zephyr import Section
@@ -37,6 +38,14 @@ MCUBOOT_SIZE = 0x9000
 # board-parametrized, since it's Zephyr's own generic nrf52840 layout.
 _NATIVE_SLOT1_START = 0x82000
 _NATIVE_SLOT1_END = 0xF8000
+
+# nrf52840dongle addresses (boards/nordic/nrf52840dongle/nrf52840dongle_nrf52840.dts):
+# MBR, app from FLASH_LOAD_OFFSET 0x1000, storage_partition at 0xDC000, Open DFU bootloader
+# at 0xE0000.
+OPEN_DFU_APP_START = 0x1000
+_OPEN_DFU_SLOT1_START = 0x76000
+_OPEN_DFU_STORAGE_START = 0xDC000
+OPEN_DFU_APP_END = _OPEN_DFU_STORAGE_START - ZBOSS_TOTAL_SIZE
 
 
 def _partition(name: str, start: int, size: int, mapped: bool = False) -> str:
@@ -75,6 +84,26 @@ def native_scheme_zigbee_overlay() -> str:
 
         &flash0 {{
             partitions {{{_zboss_partitions(zboss_start, mapped=True)}
+            }};
+        }};
+    """
+
+
+def open_dfu_zigbee_overlay() -> str:
+    """nrf52840dongle (Open DFU bootloader): put zboss partitions just below storage.
+
+    The app is linked at FLASH_LOAD_OFFSET (after the MBR), not into a code partition, so
+    the caller also caps FLASH_LOAD_SIZE at OPEN_DFU_APP_END. slot1 is shrunk only so the
+    devicetree partitions don't overlap.
+    """
+    new_slot1_size = OPEN_DFU_APP_END - _OPEN_DFU_SLOT1_START
+    return f"""
+        &slot1_partition {{
+            reg = <0x{_OPEN_DFU_SLOT1_START:x} 0x{new_slot1_size:x}>;
+        }};
+
+        &flash0 {{
+            partitions {{{_zboss_partitions(OPEN_DFU_APP_END, mapped=True)}
             }};
         }};
     """

@@ -12,6 +12,7 @@ from esphome.build_helpers import pch
 from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    HexValue,
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
@@ -477,6 +478,15 @@ async def to_code(config: ConfigType) -> None:
         # in isolation.
         if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             zephyr_add_overlay(nrf52_partitions.native_scheme_zigbee_overlay())
+        elif config[KEY_BOOTLOADER] == BOOTLOADER_NRF:
+            zephyr_add_overlay(nrf52_partitions.open_dfu_zigbee_overlay())
+            zephyr_add_prj_conf(
+                "FLASH_LOAD_SIZE",
+                HexValue(
+                    nrf52_partitions.OPEN_DFU_APP_END
+                    - nrf52_partitions.OPEN_DFU_APP_START
+                ),
+            )
         elif "ota" not in CORE.loaded_integrations:
             zephyr_add_overlay(
                 nrf52_partitions.uf2_scheme_code_partition_overlay(
