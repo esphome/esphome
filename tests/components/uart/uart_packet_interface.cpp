@@ -338,6 +338,19 @@ TEST_F(UartPacketInterfaceTest, AllByteValues) {
 }
 
 // Test a packet larger than max_packet_size is not sent
+TEST_F(UartPacketInterfaceTest, ReceiveLimitedToBuffer) {
+  uint8_t small_buffer[4]{};
+  UartPacketInterface interface(small_buffer);
+  interface.set_uart_parent(&this->uart_);
+  // Raised above the buffer after code generation sized it
+  interface.set_max_packet_size(100);
+  std::vector<std::vector<uint8_t>> received;
+  interface.add_packet_interface_listener(
+      [&received](const PacketBuffer &data, const PacketMetaData &) { received.push_back(to_vector(data)); });
+  feed(this->uart_, interface, {0x7E, 1, 2, 3, 4, 5, 6, 0x7E, 7, 8, 0x7E});
+  EXPECT_EQ(received, (std::vector<std::vector<uint8_t>>{{7, 8}}));
+}
+
 TEST_F(UartPacketInterfaceTest, OversizedPacketNotSent) {
   interface_.set_max_packet_size(4);
   std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04, 0x05};

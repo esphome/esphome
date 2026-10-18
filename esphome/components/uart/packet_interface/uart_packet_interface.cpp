@@ -24,7 +24,7 @@ void UartPacketInterface::loop() {
     if (byte == FLAG_BYTE) {
       // A flag that ends a frame also starts the next, so an unfinished frame cannot hide the one after it
       if (this->rx_started_ && this->rx_length_ != 0)
-        this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_, this->rx_length_), {});
+        this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_.data(), this->rx_length_), {});
       this->rx_started_ = true;
       this->rx_length_ = 0;
       this->rx_control_ = false;
@@ -40,7 +40,7 @@ void UartPacketInterface::loop() {
       byte ^= ESCAPE_XOR;
       this->rx_control_ = false;
     }
-    if (this->rx_length_ >= this->max_packet_size_) {
+    if (this->rx_length_ >= this->max_packet_size_ || this->rx_length_ >= this->rx_buffer_.size()) {
       ESP_LOGD(TAG, "Packet too large, discarding");
       this->rx_started_ = false;
       this->rx_length_ = 0;
