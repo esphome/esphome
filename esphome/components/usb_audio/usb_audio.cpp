@@ -129,6 +129,11 @@ void USBAudioComponent::resume(Endpoint endpoint) {
     return;
   }
   if (!ep.stream_started) {
+    if (ep.format_rejected) {
+      // Already probed and logged for this device; a retrying caller must not flood the log.
+      this->stream_failed_(endpoint);
+      return;
+    }
     this->start_stream_(endpoint);
     return;
   }
@@ -236,6 +241,7 @@ void USBAudioComponent::start_stream_(Endpoint endpoint) {
   auto &ep = this->endpoint_(endpoint);
   uac_host_stream_config_t stm_cfg{};
   if (!this->populate_stream_config_(endpoint, stm_cfg)) {
+    ep.format_rejected = true;
     this->stream_failed_(endpoint);
     return;
   }
@@ -405,6 +411,7 @@ bool USBAudioComponent::finish_closes_() {
     }
     ep.closing = nullptr;
     ep.stream_started = false;
+    ep.format_rejected = false;
     if (endpoint == Endpoint::SPEAKER) {
       // A reconnected device may support different controls.
       for (ControlState *control : {&this->volume_, &this->mute_}) {

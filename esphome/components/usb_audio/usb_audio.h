@@ -77,7 +77,8 @@ class USBAudioComponent : public Component {
   void resume(Endpoint endpoint);
   void suspend(Endpoint endpoint);
 
-  // Safe from any task; the values reach the device through apply_pending_speaker_controls().
+  // Safe from any task; the values reach the device through apply_pending_speaker_controls() on the next play()
+  // call that has a time budget.
   void set_speaker_volume_level(float volume);
   void set_speaker_mute_state(bool mute_state);
   bool speaker_controls_pending() const { return this->volume_.pending || this->mute_.pending; }
@@ -101,6 +102,8 @@ class USBAudioComponent : public Component {
     bool stream_started{false};
     // The platform asked for the stream and has not stopped it.
     bool active{false};
+    // The connected device rejected the configured format; cleared when it is closed.
+    bool format_rejected{false};
   };
 
   struct ControlState {

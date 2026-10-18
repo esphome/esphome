@@ -119,7 +119,9 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
 
   // Counted before the hub's handle is read, so the hub never closes the device under this call.
   this->writes_in_flight_.fetch_add(1);
-  if (this->parent_->speaker_controls_pending()) {
+  // Control transfers can take seconds, so only a caller with a time budget (a pipeline task) sends them; a
+  // non-blocking caller on the main loop leaves them pending.
+  if (budget_ms > 0 && this->parent_->speaker_controls_pending()) {
     this->parent_->apply_pending_speaker_controls();
   }
 
