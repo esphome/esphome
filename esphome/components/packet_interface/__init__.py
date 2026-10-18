@@ -136,8 +136,12 @@ def packet_interface_schema(
     class_: MockObjClass,
     default_max_packet_size: int,
     max_packet_size_limit: int = 4096,
+    provides: tuple[str, ...] = (),
 ) -> cv.Schema:
-    """Schema for a link platform, with the layers that can be stacked on it."""
+    """Schema for a link platform; provides names the layer keys, such as reliability, that the link does itself."""
+    link_layers = {
+        key: schema for key, schema in LINK_LAYER_SCHEMAS.items() if key not in provides
+    }
     return (
         cv.Schema(
             {
@@ -145,7 +149,7 @@ def packet_interface_schema(
                 cv.Optional(
                     CONF_MAX_PACKET_SIZE, default=default_max_packet_size
                 ): cv.int_range(16, max_packet_size_limit),
-                **LINK_LAYER_SCHEMAS,
+                **link_layers,
             }
         )
         .extend(cv.COMPONENT_SCHEMA)

@@ -644,6 +644,8 @@ esphome/components/tca8418/* @zebble
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tca9555/* @mobrembski
 esphome/components/tcl112/* @glmnet
+esphome/components/tcp/* @clydebarrow
+esphome/components/tcp/packet_interface/* @clydebarrow
 esphome/components/tcp_uart/* @Bascht74
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax @FredM67
