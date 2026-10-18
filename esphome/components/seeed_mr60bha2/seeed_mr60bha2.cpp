@@ -108,10 +108,7 @@ bool MR60BHA2Component::validate_message_() {
   if (at == 7) {
     if (!validate_checksum(data, 7, header_checksum)) {
       ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", header_checksum);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
-#endif
-      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data, 8));
+      ESP_LOGV_HEX(TAG, data, 8, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
       return false;
     }
     return true;
@@ -126,10 +123,7 @@ bool MR60BHA2Component::validate_message_() {
   if (at == 8 + length) {
     if (!validate_checksum(data + 8, length, data_checksum)) {
       ESP_LOGE(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", data_checksum);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
-#endif
-      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data, 8 + length));
+      ESP_LOGV_HEX(TAG, data, 8 + length, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
       return false;
     }
   }

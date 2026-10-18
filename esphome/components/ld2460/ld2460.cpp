@@ -156,10 +156,7 @@ void LD2460Component::readline_(uint8_t readch) {
     return;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-  ESP_LOGV(TAG, "Frame: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+  ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Frame: %s");
 
   if (is_data) {
     this->handle_periodic_data_();

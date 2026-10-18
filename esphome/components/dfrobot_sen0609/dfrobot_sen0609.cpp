@@ -63,15 +63,6 @@ static bool starts_with(const char *str, ESPHOME_PGM_P prefix) {
   return ESPHOME_strncmp_P(str, prefix, ESPHOME_strlen_P(prefix)) == 0;
 }
 
-static bool contains(const char *str, ESPHOME_PGM_P needle) {
-  const size_t len = ESPHOME_strlen_P(needle);
-  for (; *str != '\0'; str++) {
-    if (ESPHOME_strncmp_P(str, needle, len) == 0)
-      return true;
-  }
-  return false;
-}
-
 // Splits "a,b,c*" in place; returns the number of fields stored in `fields`
 static uint8_t split_fields(char *str, char **fields, uint8_t max_fields) {
   uint8_t count = 0;
@@ -93,9 +84,9 @@ static uint8_t split_fields(char *str, char **fields, uint8_t max_fields) {
 static bool answer_means_done(Operation operation, const char *line) {
   switch (operation) {
     case Operation::OPERATION_STOP:
-      return contains(line, ESPHOME_PSTR("stopped already"));
+      return ESPHOME_strstr_P(line, ESPHOME_PSTR("stopped already")) != nullptr;
     case Operation::OPERATION_START:
-      return contains(line, ESPHOME_PSTR("started already"));
+      return ESPHOME_strstr_P(line, ESPHOME_PSTR("started already")) != nullptr;
     case Operation::OPERATION_SAVE:
       return starts_with(line, ESPHOME_PSTR("no parameter"));
     default:
@@ -250,11 +241,12 @@ void DFRobotSEN0609Component::handle_line_(char *line) {
     this->finish_operation_();
   } else if (starts_with(line, ESPHOME_PSTR("Response "))) {
     this->parse_response_(line + 9);
-  } else if (contains(line, ESPHOME_PSTR("not stopped"))) {
+  } else if (ESPHOME_strstr_P(line, ESPHOME_PSTR("not stopped")) != nullptr) {
     // Stop the sensor before the next attempt
     this->stopped_ = false;
     this->fail_operation_();
-  } else if (starts_with(line, ESPHOME_PSTR("Error")) || contains(line, ESPHOME_PSTR("not recognized"))) {
+  } else if (starts_with(line, ESPHOME_PSTR("Error")) ||
+             ESPHOME_strstr_P(line, ESPHOME_PSTR("not recognized")) != nullptr) {
     ESP_LOGW(TAG, "Command '%s' rejected: %s", this->command_, line);
     this->fail_operation_();
   } else {
