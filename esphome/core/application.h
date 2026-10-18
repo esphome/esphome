@@ -214,7 +214,7 @@ class Application {
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
   void set_loop_interval(uint32_t loop_interval) {
-    this->loop_interval_ = std::min(loop_interval, static_cast<uint32_t>(3600000));  // max = 1 hour
+    this->loop_interval_ = std::min(loop_interval, static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()));
   }
 
   uint32_t get_loop_interval() const { return static_cast<uint32_t>(this->loop_interval_); }
@@ -522,7 +522,6 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
-  uint32_t loop_interval_{16};  // Loop interval in ms (max 3600000ms = 1 hour)
 #if !defined(USE_ESP32) || defined(USE_WATCHDOG)
   uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
 #endif
@@ -533,6 +532,7 @@ class Application {
 
   // 2-byte members (grouped together for alignment)
   uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
+  uint16_t loop_interval_{16};                                     // Loop interval in ms (max 65535ms = 65.5 seconds)
   uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
   uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 
@@ -868,6 +868,9 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #elif defined(USE_HOST)
   // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
   // the config validator, so delay_time is already bounded by loop_interval_.
+  static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
+#elif defined(USE_ESP32) && !defined(USE_WATCHDOG)
+  // No task watchdog to feed; delay_time is already bounded by loop_interval_.
   static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
 #else
   static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;

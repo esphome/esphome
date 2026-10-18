@@ -93,11 +93,11 @@ static int draw_callback(JPEGDRAW *jpeg) {
 
   // Some very big images take too long to decode, so feed the watchdog on each callback
   // to avoid crashing if the executing task has a watchdog enabled.
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) && defined(USE_WATCHDOG)
   if (esp_task_wdt_status(nullptr) == ESP_OK) {
 #endif
     App.feed_wdt();
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) && defined(USE_WATCHDOG)
   }
 #endif
   if (decoder->uses_direct_rgb565()) {

@@ -315,10 +315,12 @@ void HttpContainerIDF::end() {
 }
 
 void HttpContainerIDF::feed_wdt() {
+#ifdef USE_WATCHDOG
   // Tests to see if the executing task has a watchdog timer attached
   if (esp_task_wdt_status(nullptr) == ESP_OK) {
     App.feed_wdt();
   }
+#endif
 }
 
 }  // namespace esphome::http_request

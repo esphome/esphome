@@ -1,0 +1,5 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+  watchdog_timeout: 0s

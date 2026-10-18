@@ -466,11 +466,15 @@ InstanceLock InstanceLock::acquire() {
       abort();
     }
     delay(10);
+#ifdef USE_WATCHDOG
     esp_task_wdt_reset();
+#endif
   }
   while (!esp_openthread_lock_acquire(100)) {
     abort_if_task_exited();
+#ifdef USE_WATCHDOG
     esp_task_wdt_reset();
+#endif
   }
   // The clean-up may have released the lock to this waiter just before deinit destroys it
   if (global_openthread_component->is_task_exited()) {

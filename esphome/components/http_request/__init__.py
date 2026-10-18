@@ -120,6 +120,9 @@ def default_watchdog_timeout(config: ConfigType) -> None:
     platform_ms = fv.full_config.get()[PLATFORM_ESP32][
         CONF_WATCHDOG_TIMEOUT
     ].total_milliseconds
+    if platform_ms == 0:
+        # The task watchdog is disabled, so there is nothing to widen
+        return
     config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
         milliseconds=max(derived_ms, platform_ms)
     )

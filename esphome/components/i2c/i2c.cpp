@@ -17,7 +17,9 @@ void I2CBus::i2c_scan_() {
       scan_results_.emplace_back(address, false);
     }
     // it takes 16sec to scan on nrf52. It prevents board reset.
+#if !defined(USE_ESP32) || defined(USE_WATCHDOG)
     arch_feed_wdt();
+#endif
   }
 }
 
