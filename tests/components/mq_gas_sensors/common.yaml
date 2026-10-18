@@ -1,0 +1,24 @@
+# MQ-8 hydrogen sensor on an external voltage sampler: the ADC entry owns the
+# pin, this sensor converts its voltage with the built-in MQ-8 H2 curve and
+# calibrates R0 at boot.
+sensor:
+  - platform: adc
+    id: mq8_adc
+    name: MQ-8 AO voltage
+    pin: ${mq_pin}
+    update_interval: 60s
+
+  - platform: mq_gas_sensors
+    id: mq8_hydrogen
+    name: MQ-8 hydrogen
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq8_adc
+    voltage_multiplier: 1.5
+    rl: 10.0
+    vcc: 5.0
+    sample_count: 4
+    calibration:
+      delay: 10s
+      sample_count: 5
+      sample_interval: 20ms
