@@ -34,6 +34,7 @@ static constexpr size_t TIME_SYNC_BODY_LEN = 15;
 static constexpr uint8_t REGISTER_BYTE_COUNT = 2;
 static constexpr uint8_t TWO_REGISTER_BYTE_COUNT = 4;
 static constexpr uint8_t CHARGING_INFO_BYTE_COUNT = 18;
+static constexpr uint8_t SERIAL_TEXT_BYTE_COUNT = 14;
 
 static constexpr uint32_t RETRANSMIT_TIMEOUT_MS = 4000;
 static constexpr uint8_t MAX_PAIRING_ATTEMPTS = 5;
@@ -309,6 +310,8 @@ void DeltaWallbox::handle_frame(const uint8_t *frame, size_t len) {
   }
 
   switch (this->state_) {
+    case DeltaState::DELTA_STATE_IDLE:
+      break;  // No command is pending; ignore the frame.
     case DeltaState::DELTA_STATE_GET_MODEL: {
       char model[MAX_FRAME_LEN];
       const size_t data_len = std::min<size_t>(frame[2], len - READ_RESPONSE_OVERHEAD);
@@ -488,23 +491,30 @@ void DeltaWallbox::handle_frame(const uint8_t *frame, size_t len) {
 
           // Query system serial number next
           this->send_frame(CMD_GET_SERIAL_NUMBER, sizeof(CMD_GET_SERIAL_NUMBER));
+        } else if (byte_count == SERIAL_TEXT_BYTE_COUNT) {
+          // Serial read (0x0109) returns 14 ASCII bytes instead of one register
+          char serial[SERIAL_TEXT_BYTE_COUNT + 1];
+          size_t serial_len = 0;
+          for (size_t i = 0; i < SERIAL_TEXT_BYTE_COUNT; i++) {
+            if (frame[3 + i] != '\0')
+              serial[serial_len++] = static_cast<char>(frame[3 + i]);
+          }
+          serial[serial_len] = '\0';
+          ESP_LOGI(TAG, "Wallbox serial text: %s", serial);
+          if (this->serial_number_sensor_ != nullptr)
+            this->serial_number_sensor_->publish_state(serial);
+
+          // Poll the error code register once, after the serial reply
+          if (this->error_code_sensor_ != nullptr && !this->error_code_sensor_->has_state()) {
+            this->send_frame(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
+          }
         } else if (byte_count == REGISTER_BYTE_COUNT) {
-          // Parsing single register responses: serial SN (0x0109) or error status (0x01B5)
+          // Error status register (0x01B5)
           uint16_t reg_val = (frame[3] << 8) | frame[4];
           char hex_str[16];
           snprintf(hex_str, sizeof(hex_str), "%04X", reg_val);
-
-          // We check which registry poll expects this value by verifying which sensor needs update
-          if (this->serial_number_sensor_ != nullptr && !this->serial_number_sensor_->has_state()) {
-            this->serial_number_sensor_->publish_state(hex_str);
-          } else if (this->error_code_sensor_ != nullptr) {
+          if (this->error_code_sensor_ != nullptr)
             this->error_code_sensor_->publish_state(hex_str);
-          }
-
-          // If there's no state updated for error code yet, poll error code register
-          if (this->error_code_sensor_ != nullptr && this->error_code_sensor_->state == "unknown") {
-            this->send_frame(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
-          }
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
         // Confirmation frame of Start/Stop write actions
