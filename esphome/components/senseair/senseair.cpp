@@ -44,13 +44,10 @@ void SenseAirComponent::update() {
 
   uint16_t calc_checksum = crc16(response, 11);
   uint16_t resp_checksum = (uint16_t(response[12]) << 8) | response[11];
-  if (resp_checksum != calc_checksum) {
+  if (!this->status_comm_result(resp_checksum == calc_checksum)) {
     ESP_LOGW(TAG, "SenseAir checksum doesn't match: 0x%02X!=0x%02X", resp_checksum, calc_checksum);
-    this->status_set_warning();
     return;
   }
-
-  this->status_clear_warning();
   const uint8_t length = response[2];
   const uint16_t status = encode_uint16(response[3], response[4]);
   const uint16_t ppm = encode_uint16(response[length + 1], response[length + 2]);

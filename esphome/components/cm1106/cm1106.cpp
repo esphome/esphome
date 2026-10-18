@@ -104,12 +104,10 @@ bool CM1106Component::send_command_expect_ack_(const uint8_t *command, size_t co
     this->status_set_warning();
     return false;
   }
-  if (memcmp(response, ack, sizeof(response)) != 0) {
+  if (!this->status_comm_result(memcmp(response, ack, sizeof(response)) == 0)) {
     ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
-    this->status_set_warning();
     return false;
   }
-  this->status_clear_warning();
   return true;
 }
 

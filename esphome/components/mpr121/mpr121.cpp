@@ -112,13 +112,7 @@ bool MPR121Component::flush_gpio_() {
   this->write_byte(MPR121_GPIOEN, this->gpio_enable_);
   this->write_byte(MPR121_GPIODIR, this->gpio_direction_);
 
-  if (!this->write_byte(MPR121_GPIODATA, this->gpio_output_)) {
-    this->status_set_warning();
-    return false;
-  }
-
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_byte(MPR121_GPIODATA, this->gpio_output_));
 }
 
 void MPR121GPIOPin::setup() { this->pin_mode(this->flags_); }

@@ -66,13 +66,10 @@ void MHZ19Component::update() {
   }
 
   uint8_t checksum = mhz19_checksum(response);
-  if (response[8] != checksum) {
+  if (!this->status_comm_result(response[8] == checksum)) {
     ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X", response[8], checksum);
-    this->status_set_warning();
     return;
   }
-
-  this->status_clear_warning();
   const uint16_t ppm = (uint16_t(response[2]) << 8) | response[3];
   const int temp = int(response[4]) - 40;
   const uint8_t status = response[5];
