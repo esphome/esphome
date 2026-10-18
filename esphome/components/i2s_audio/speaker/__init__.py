@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
     CONF_TIMEOUT,
+    CONF_TRIGGER_ID,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -46,6 +47,9 @@ I2SAudioSpeakerBase = i2s_audio_ns.class_(
     "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
 )
 I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
+I2SAudioStartTrigger = i2s_audio_ns.class_(
+    "I2SAudioStartTrigger", automation.Trigger.template()
+)
 
 CONF_DAC_TYPE = "dac_type"
 CONF_KEEP_ALIVE = "keep_alive"
@@ -180,7 +184,9 @@ BASE_SCHEMA = (
                 cv.positive_time_period_milliseconds,
                 cv.one_of(CONF_NEVER, lower=True),
             ),
-            cv.Optional(CONF_ON_AUDIO_START): automation.validate_automation({}),
+            cv.Optional(CONF_ON_AUDIO_START): automation.validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(I2SAudioStartTrigger)}
+            ),
             cv.Optional(CONF_ON_AUDIO_END): automation.validate_automation({}),
             cv.Optional(CONF_KEEP_ALIVE, default=False): cv.boolean,
         }
@@ -297,9 +303,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_keep_alive(True))
 
     for conf in config.get(CONF_ON_AUDIO_START, []):
-        await automation.build_callback_automation(
-            var, "add_on_audio_start_callback", [], conf
-        )
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_AUDIO_END, []):
         await automation.build_callback_automation(

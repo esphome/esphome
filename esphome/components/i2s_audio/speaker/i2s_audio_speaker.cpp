@@ -86,6 +86,14 @@ void I2SAudioSpeakerBase::loop() {
     event_group_bits &= ~(stop_bits | SpeakerEventGroupBits::COMMAND_START);
   }
 
+  // A delayed start automation must not unmute the codec after a hard stop or task shutdown.
+  const bool stopping = event_group_bits & (SpeakerEventGroupBits::COMMAND_STOP | SpeakerEventGroupBits::TASK_STOPPING |
+                                            SpeakerEventGroupBits::TASK_STOPPED);
+  if (stopping) {
+    for (auto *trigger : this->audio_start_triggers_)
+      trigger->stop_action();
+  }
+
   if ((event_group_bits & SpeakerEventGroupBits::COMMAND_START) && (this->state_ == speaker::STATE_STOPPED)) {
     this->state_ = speaker::STATE_STARTING;
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
@@ -106,7 +114,10 @@ void I2SAudioSpeakerBase::loop() {
       this->audio_dac_->on_audio_started();
     }
 #endif  // USE_AUDIO_DAC
-    this->audio_start_callback_.call();
+    if (!stopping) {
+      for (auto *trigger : this->audio_start_triggers_)
+        trigger->trigger();
+    }
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
@@ -143,7 +154,7 @@ void I2SAudioSpeakerBase::loop() {
       // the top of loop(): the audio source's task can raise a start at any point above, including
       // during stop_i2s_driver_(), and nothing would ever re-issue it.
       const EventBits_t bits_before_clear = xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
-      if (bits_before_clear & SpeakerEventGroupBits::COMMAND_START) {
+      if ((bits_before_clear & SpeakerEventGroupBits::COMMAND_START) && !(bits_before_clear & stop_bits)) {
         ESP_LOGD(TAG, "Start requested while stopping; keeping the request");
         xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
       }
