@@ -77,8 +77,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     # OPEN
-    bin = await cg.get_variable(config[CONF_OPEN_SENSOR])
-    cg.add(var.set_open_sensor(bin))
+    await cg.add_variable(var.set_open_sensor, config[CONF_OPEN_SENSOR])
     cg.add(
         var.set_open_moving_current_threshold(
             config[CONF_OPEN_MOVING_CURRENT_THRESHOLD]
@@ -97,8 +96,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     # CLOSE
-    bin = await cg.get_variable(config[CONF_CLOSE_SENSOR])
-    cg.add(var.set_close_sensor(bin))
+    await cg.add_variable(var.set_close_sensor, config[CONF_CLOSE_SENSOR])
     cg.add(
         var.set_close_moving_current_threshold(
             config[CONF_CLOSE_MOVING_CURRENT_THRESHOLD]
