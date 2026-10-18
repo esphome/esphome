@@ -91,6 +91,7 @@ class HdlcReliability : public PacketInterface {
   bool ack_due_{false};      // and should be sent now
   bool rej_sent_{false};
   bool peer_frame_seen_{false};  // a numbered frame has arrived since the link came up
+  bool oversize_warned_{false};
 };
 
 }  // namespace esphome::packet_interface

@@ -111,7 +111,11 @@ bool HdlcReliability::send_to_interface(const PacketBuffer &data, const PacketMe
   }
   uint8_t outstanding = this->outstanding_();
   if (outstanding >= this->max_queue_length_) {
-    ESP_LOGV(TAG, "%s: Send queue full", this->name_);
+    if (this->state_ == LinkState::LINK_STATE_CONNECTED) {
+      ESP_LOGV(TAG, "%s: Send queue full", this->name_);
+    } else {
+      ESP_LOGD(TAG, "%s: Send queue full, waiting for the peer to answer the link reset", this->name_);
+    }
     return false;
   }
   uint8_t seq = this->vs_;
@@ -181,6 +185,11 @@ void HdlcReliability::start_timer_() {
 
 void HdlcReliability::on_timeout_() {
   if (this->state_ != LinkState::LINK_STATE_CONNECTED) {
+    // Counted up to max_retries_ only, so the warning is logged once until the link comes up
+    if (this->retries_ < this->max_retries_ && ++this->retries_ == this->max_retries_) {
+      ESP_LOGW(TAG, "%s: No answer to the link reset after %u tries; check that the peer has a reliability layer",
+               this->name_, this->max_retries_);
+    }
     this->send_frame_(UNNUMBERED_SABM, nullptr, 0);
     this->start_timer_();
     return;
@@ -270,7 +279,15 @@ void HdlcReliability::receive_(const PacketBuffer &data, const PacketMetaData &m
   }
   // The peer's packets may only be larger if it has a larger max_packet_size, which the layers above cannot take
   if (length > this->max_packet_size_) {
-    ESP_LOGV(TAG, "%s: Frame of %zu bytes is larger than %zu, dropped", this->name_, length, this->max_packet_size_);
+    if (!this->oversize_warned_) {
+      this->oversize_warned_ = true;
+      ESP_LOGW(TAG,
+               "%s: Frame of %zu bytes is larger than %zu, dropped; check that both devices use the same "
+               "max_packet_size",
+               this->name_, length, this->max_packet_size_);
+    } else {
+      ESP_LOGV(TAG, "%s: Frame of %zu bytes is larger than %zu, dropped", this->name_, length, this->max_packet_size_);
+    }
     this->note_received_(false);
     return;
   }
