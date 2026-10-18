@@ -1614,7 +1614,8 @@ TEST_F(VBusTransactionTest, ExplicitCancellationNotifiesOnceAndRetiresTheLease) 
 class VBusSuspendBeforeResultTest : public VBusPollingTest {
  protected:
   void SetUp() override {
-    VBusTransactionTest::SetUp();
+    // Register the observer before polling installs its transaction callback.
+    VBusTransactionTest::SetUp();  // NOLINT(bugprone-parent-virtual-call)
     this->transactions_.add_on_result_callback(
         [this](uint32_t, uint16_t, uint16_t, uint32_t, TransactionStatus status) {
           if (status == TransactionStatus::TRANSACTION_STATUS_SUCCESS)
