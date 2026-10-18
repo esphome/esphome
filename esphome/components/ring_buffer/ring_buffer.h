@@ -66,6 +66,7 @@ class RingBuffer {
    *
    * The provided data is written to the ring buffer. If not enough space is available,
    * the function will wait up to `ticks_to_wait` FreeRTOS ticks before writing as much as possible.
+   * With partial writes enabled, a block larger than the capacity is offered as a bounded prefix.
    *
    * @param data Pointer to data for writing
    * @param len Number of bytes to write
