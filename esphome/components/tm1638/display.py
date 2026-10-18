@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_DIO_PIN,
     CONF_ID,
     CONF_INTENSITY,
-    CONF_LAMBDA,
     CONF_STB_PIN,
 )
 from esphome.types import ConfigType
@@ -42,9 +41,4 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(TM1638ComponentRef, "it")], return_type=cg.void
-        )
-
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, TM1638ComponentRef)

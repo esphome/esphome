@@ -1,12 +1,11 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import lcd_base
+from esphome.components import display, lcd_base
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DATA_PINS,
     CONF_ENABLE_PIN,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_RS_PIN,
     CONF_RW_PIN,
 )
@@ -48,10 +47,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_rs_pin, config[CONF_RS_PIN])
     await cg.add_pin(var.set_rw_pin, config.get(CONF_RW_PIN))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA],
-            [(GPIOLCDDisplay.operator("ref"), "it")],
-            return_type=cg.void,
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, GPIOLCDDisplay.operator("ref"))

@@ -52,8 +52,4 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_contrast(config[CONF_CONTRAST]))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

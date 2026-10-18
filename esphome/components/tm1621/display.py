@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA_PIN,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_READ_PIN,
     CONF_WRITE_PIN,
 )
@@ -36,8 +35,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_read_pin, config[CONF_READ_PIN])
     await cg.add_pin(var.set_write_pin, config[CONF_WRITE_PIN])
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(TM1621DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, TM1621DisplayRef)
