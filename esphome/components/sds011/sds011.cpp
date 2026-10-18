@@ -88,8 +88,8 @@ void SDS011Component::loop() {
   }
 
   this->last_transmission_ = now;
-  while (this->available() != 0) {
-    this->read_byte(&this->data_[this->data_index_]);
+  this->read_available([this](uint8_t byte) {
+    this->data_[this->data_index_] = byte;
     auto check = this->check_byte_();
     if (!check.has_value()) {
       // finished
@@ -103,7 +103,7 @@ void SDS011Component::loop() {
       // next byte
       this->data_index_++;
     }
-  }
+  });
 }
 
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {

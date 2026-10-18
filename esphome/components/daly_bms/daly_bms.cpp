@@ -44,12 +44,10 @@ void DalyBmsComponent::loop() {
   }
   if (available())
     this->last_transmission_ = now;
-  while (available()) {
-    uint8_t c;
-    read_byte(&c);
+  this->read_available([this](uint8_t c) {
     if (!this->receiving_) {
       if (c != 0xa5)
-        continue;
+        return;
       this->receiving_ = true;
     }
     this->data_.push_back(c);
@@ -60,7 +58,7 @@ void DalyBmsComponent::loop() {
       this->data_.clear();
       this->receiving_ = false;
     }
-  }
+  });
 
   if (this->trigger_next_) {
     this->trigger_next_ = false;

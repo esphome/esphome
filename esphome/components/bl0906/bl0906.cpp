@@ -167,8 +167,7 @@ void BL0906::read_data_(const uint8_t address, const float reference, sensor::Se
   }
   if (bl0906_checksum(address, &buffer) != buffer.checksum) {
     ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
-    while (read() >= 0)
-      ;
+    this->discard_available();
     return;
   }
   if (signed_result) {

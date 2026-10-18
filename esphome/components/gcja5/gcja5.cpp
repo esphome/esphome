@@ -26,9 +26,7 @@ void GCJA5Component::loop() {
 
   // There must now be data waiting
   this->last_transmission_ = now;
-  uint8_t val;
-  while (this->available() != 0) {
-    this->read_byte(&val);
+  this->read_available([this](uint8_t val) {
     this->rx_message_.push_back(val);
 
     // check if rx_message_ has 32 bytes of data
@@ -61,7 +59,7 @@ void GCJA5Component::loop() {
 
       this->rx_message_.clear();
     }
-  }
+  });
 }
 
 bool GCJA5Component::calculate_checksum_() {

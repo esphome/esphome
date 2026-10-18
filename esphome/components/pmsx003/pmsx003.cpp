@@ -104,8 +104,8 @@ void PMSX003Component::loop() {
     return;
 
   this->last_transmission_ = now;
-  while (this->available() != 0) {
-    this->read_byte(&this->data_[this->data_index_]);
+  this->read_available([this, now](uint8_t byte) {
+    this->data_[this->data_index_] = byte;
     auto check = this->check_byte_();
     if (!check.has_value()) {
       if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
@@ -120,7 +120,7 @@ void PMSX003Component::loop() {
       // next byte
       this->data_index_++;
     }
-  }
+  });
 }
 
 optional<bool> PMSX003Component::check_byte_() {

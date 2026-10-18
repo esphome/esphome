@@ -72,10 +72,7 @@ void AdalightLightEffect::apply(light::AddressableLight &it, const Color &curren
     ESP_LOGV(TAG, "Frame: Available (size=%d).", this->available());
   }
 
-  while (this->available() != 0) {
-    uint8_t data;
-    if (!this->read_byte(&data))
-      break;
+  this->read_available([this, &it, now](uint8_t data) {
     this->frame_.push_back(data);
     this->last_byte_ = now;
 
@@ -93,7 +90,7 @@ void AdalightLightEffect::apply(light::AddressableLight &it, const Color &curren
         reset_frame_(it);
         break;
     }
-  }
+  });
 }
 
 AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableLight &it) {
