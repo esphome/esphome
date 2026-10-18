@@ -105,13 +105,13 @@ TEST(PowerLimit, RescalesAFrameWrittenOutsideTheState) {
   strip.shown();
   const uint8_t scale = strip.power_brightness();
   EXPECT_NEAR(scale, 128, 2);
-  for (auto view : strip) {
+  for (const auto &view : strip) {
     EXPECT_NEAR(view.get_red_raw(), scale, 1);
     EXPECT_NEAR(view.get_red(), 255, 2);
   }
   // A single pixel rewritten by a lambda lands at the limited level straight away
   strip[1] = Color(128, 0, 0, 0);
-  EXPECT_NEAR(strip[1].get_red_raw(), 128 * scale / 255, 2);
+  EXPECT_NEAR(strip[1].get_red_raw(), (128 * scale) / 255.0f, 2);
   EXPECT_NEAR(strip[1].get_red(), 128, 2);
 }
 
