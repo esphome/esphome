@@ -111,8 +111,7 @@ void EmonTx::loop() {
     // Drop what arrived during the pause and resync at the next line start
     this->was_paused_ = false;
     uint8_t dropped = 0;
-    while (this->available() > 0 && this->read_byte(&dropped)) {
-    }
+    this->read_available([&dropped](uint8_t byte) { dropped = byte; });
     if (dropped == '\n') {
       this->line_reader_.reset();
     } else {

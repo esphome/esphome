@@ -83,8 +83,7 @@ void PMSX003Component::loop() {
         if (now - this->fan_on_time_ < STABILISING_MS)
           return;
         // consume any command responses that are in the serial buffer
-        while (this->available())
-          this->read_byte(&this->data_[0]);
+        this->discard_available();
         // Trigger a new read
         this->send_command_(Command::MANUAL_MEASUREMENT, 0);
         this->state_ = State::WAITING;
@@ -100,27 +99,30 @@ void PMSX003Component::loop() {
     this->data_index_ = 0;
   }
 
-  if (this->available() == 0)
+  const size_t avail = this->available();
+  if (avail == 0)
     return;
 
   this->last_transmission_ = now;
-  this->read_available([this, now](uint8_t byte) {
-    this->data_[this->data_index_] = byte;
-    auto check = this->check_byte_();
-    if (!check.has_value()) {
-      if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
-        this->parse_data_();
-        this->last_update_ = now;
-      }
-      this->data_index_ = 0;
-    } else if (!*check) {
-      // wrong data
-      this->data_index_ = 0;
-    } else {
-      // next byte
-      this->data_index_++;
-    }
-  });
+  this->read_available(
+      [this, now](uint8_t byte) {
+        this->data_[this->data_index_] = byte;
+        auto check = this->check_byte_();
+        if (!check.has_value()) {
+          if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
+            this->parse_data_();
+            this->last_update_ = now;
+          }
+          this->data_index_ = 0;
+        } else if (!*check) {
+          // wrong data
+          this->data_index_ = 0;
+        } else {
+          // next byte
+          this->data_index_++;
+        }
+      },
+      avail);
 }
 
 optional<bool> PMSX003Component::check_byte_() {

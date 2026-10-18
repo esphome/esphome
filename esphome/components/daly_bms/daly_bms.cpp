@@ -42,23 +42,26 @@ void DalyBmsComponent::loop() {
     this->last_transmission_ = now;
     this->trigger_next_ = true;
   }
-  if (available())
+  const size_t avail = this->available();
+  if (avail > 0)
     this->last_transmission_ = now;
-  this->read_available([this](uint8_t c) {
-    if (!this->receiving_) {
-      if (c != 0xa5)
-        return;
-      this->receiving_ = true;
-    }
-    this->data_.push_back(c);
-    if (this->data_.size() == 4)
-      this->data_count_ = c;
-    if ((this->data_.size() > 4) and (data_.size() == this->data_count_ + 5)) {
-      this->decode_data_(this->data_);
-      this->data_.clear();
-      this->receiving_ = false;
-    }
-  });
+  this->read_available(
+      [this](uint8_t c) {
+        if (!this->receiving_) {
+          if (c != 0xa5)
+            return;
+          this->receiving_ = true;
+        }
+        this->data_.push_back(c);
+        if (this->data_.size() == 4)
+          this->data_count_ = c;
+        if ((this->data_.size() > 4) and (data_.size() == this->data_count_ + 5)) {
+          this->decode_data_(this->data_);
+          this->data_.clear();
+          this->receiving_ = false;
+        }
+      },
+      avail);
 
   if (this->trigger_next_) {
     this->trigger_next_ = false;

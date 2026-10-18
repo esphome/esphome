@@ -83,27 +83,30 @@ void SDS011Component::loop() {
     this->data_index_ = 0;
   }
 
-  if (this->available() == 0) {
+  const size_t avail = this->available();
+  if (avail == 0) {
     return;
   }
 
   this->last_transmission_ = now;
-  this->read_available([this](uint8_t byte) {
-    this->data_[this->data_index_] = byte;
-    auto check = this->check_byte_();
-    if (!check.has_value()) {
-      // finished
-      this->parse_data_();
-      this->data_index_ = 0;
-    } else if (!*check) {
-      // wrong data
-      ESP_LOGV(TAG, "Byte %i of received data frame is invalid.", this->data_index_);
-      this->data_index_ = 0;
-    } else {
-      // next byte
-      this->data_index_++;
-    }
-  });
+  this->read_available(
+      [this](uint8_t byte) {
+        this->data_[this->data_index_] = byte;
+        auto check = this->check_byte_();
+        if (!check.has_value()) {
+          // finished
+          this->parse_data_();
+          this->data_index_ = 0;
+        } else if (!*check) {
+          // wrong data
+          ESP_LOGV(TAG, "Byte %i of received data frame is invalid.", this->data_index_);
+          this->data_index_ = 0;
+        } else {
+          // next byte
+          this->data_index_++;
+        }
+      },
+      avail);
 }
 
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {

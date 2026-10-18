@@ -28,9 +28,6 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
-  if (!available())
-    return;
-
   this->read_available([this](uint8_t c) {
     if (c == 0xaa) {
       this->state_ = 1;
