@@ -103,3 +103,17 @@ def test_registered_type_selectable(setup_core) -> None:
         assert RELIABILITY.get_type(config).build is build
     finally:
         del RELIABILITY.types["test"]
+
+
+def test_duplicate_layer_type_rejected(setup_core) -> None:
+    """Registering a type under a name already in use is an error, not a silent replacement."""
+
+    async def build(config: dict, lower: Any) -> Any:
+        return lower
+
+    RELIABILITY.register("test", schema=cv.Schema({}))(build)
+    try:
+        with pytest.raises(ValueError, match="already registered"):
+            RELIABILITY.register("test", schema=cv.Schema({}))(build)
+    finally:
+        del RELIABILITY.types["test"]
