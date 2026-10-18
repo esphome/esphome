@@ -169,8 +169,7 @@ async def to_code(config: ConfigType) -> None:
     # Trace options
     for trace in config[CONF_TRACES]:
         tr = cg.new_Pvariable(trace[CONF_ID], GraphTrace())
-        sens = await cg.get_variable(trace[CONF_SENSOR])
-        cg.add(tr.set_sensor(sens))
+        await cg.add_variable(tr.set_sensor, trace[CONF_SENSOR])
         if CONF_NAME in trace:
             cg.add(tr.set_name(trace[CONF_NAME]))
         else:
@@ -179,9 +178,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(tr.set_line_thickness(trace[CONF_LINE_THICKNESS]))
         if CONF_LINE_TYPE in trace:
             cg.add(tr.set_line_type(trace[CONF_LINE_TYPE]))
-        if CONF_COLOR in trace:
-            c = await cg.get_variable(trace[CONF_COLOR])
-            cg.add(tr.set_line_color(c))
+        await cg.add_variable(tr.set_line_color, trace.get(CONF_COLOR))
         if CONF_CONTINUOUS in trace:
             cg.add(tr.set_continuous(trace[CONF_CONTINUOUS]))
         cg.add(var.add_trace(tr))
@@ -189,12 +186,8 @@ async def to_code(config: ConfigType) -> None:
     if CONF_LEGEND in config:
         lgd = config[CONF_LEGEND]
         legend = cg.new_Pvariable(lgd[CONF_ID], GraphLegend())
-        if CONF_NAME_FONT in lgd:
-            font = await cg.get_variable(lgd[CONF_NAME_FONT])
-            cg.add(legend.set_name_font(font))
-        if CONF_VALUE_FONT in lgd:
-            font = await cg.get_variable(lgd[CONF_VALUE_FONT])
-            cg.add(legend.set_value_font(font))
+        await cg.add_variable(legend.set_name_font, lgd.get(CONF_NAME_FONT))
+        await cg.add_variable(legend.set_value_font, lgd.get(CONF_VALUE_FONT))
         if CONF_WIDTH in lgd:
             cg.add(legend.set_width(lgd[CONF_WIDTH]))
         if CONF_HEIGHT in lgd:
