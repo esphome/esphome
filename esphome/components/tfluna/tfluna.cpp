@@ -42,31 +42,25 @@ void TFLuna::dump_config() {
 #endif
 }
 
-void TFLuna::setup() {
+bool TFLuna::configure_() {
   uint8_t mode;
   if (!this->read_byte(MODE_REGISTER, &mode)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
-    return;
+    return false;
   }
   if (mode != MODE_TRIGGER) {
     if (!this->write_byte(MODE_REGISTER, MODE_TRIGGER)) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->mark_failed();
-      return;
+      return false;
     }
 
     if (!this->write_byte(SAVE_REGISTER, 1)) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->mark_failed();
-      return;
+      return false;
     }
   }
 
   uint8_t raw_version[3];
   if (!this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version))) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
+    return true;
   } else {
     snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
 #ifdef USE_TEXT_SENSOR
@@ -74,6 +68,20 @@ void TFLuna::setup() {
       this->version_text_sensor_->publish_state(version_);
     }
 #endif
+  }
+  return true;
+}
+
+void TFLuna::setup() {
+  if (!this->configure_()) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  }
+}
+
+void TFLuna::reconfigure_() {
+  this->reconfigure_pending_ = !this->configure_();
+  if (this->reconfigure_pending_) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
@@ -125,15 +133,24 @@ void TFLuna::read_data_timeout_() {
       this->attempt_++;
       this->set_timeout(READ_RETRY_TIMEOUT_ID, READ_RETRY_MS, [this]() { this->read_data_timeout_(); });
     } else {
-      this->status_set_warning("Hung device, restarting...");
+      this->status_set_warning(LOG_STR("Hung device, restarting..."));
       this->restart();
     }
   }
 }
 
 void TFLuna::update() {
+  if (this->is_failed()) {
+    return;
+  }
   this->cancel_timeout(READ_RETRY_TIMEOUT_ID);
   this->attempt_ = 0;
+  if (this->reconfigure_pending_) {
+    this->reconfigure_();
+    if (this->reconfigure_pending_) {
+      return;
+    }
+  }
   if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
@@ -142,17 +159,24 @@ void TFLuna::update() {
 }
 
 void TFLuna::factory_reset() {
-  if (!this->write_byte(RESTORE_FACTORY_DEFAULTS_REGISTER, 1)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed()) {
     return;
   }
-  this->status_set_warning("Factory reset issued; waiting for device to become ready");
-  this->set_timeout(SETUP_TIMEOUT_ID, 100, [this]() { this->setup(); });
+  if (!this->write_byte(RESTORE_FACTORY_DEFAULTS_REGISTER, 1)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  this->reconfigure_pending_ = false;
+  this->status_set_warning(LOG_STR("Factory reset issued; waiting for device to become ready"));
+  this->set_timeout(SETUP_TIMEOUT_ID, 100, [this]() { this->reconfigure_(); });
 }
 
 void TFLuna::restart() {
+  if (this->is_failed()) {
+    return;
+  }
   if (!this->write_byte(SHUTDOWN_REBOOT_REGISTER, 0x02)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }

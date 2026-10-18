@@ -21,6 +21,10 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 #include <array>
@@ -58,6 +62,12 @@ enum SwitchSetting : uint8_t {
   SWITCH_COUNT,
 };
 
+enum ButtonAction : uint8_t {
+  BUTTON_RESTART,
+  BUTTON_FACTORY_RESET,
+  BUTTON_QUERY_PARAMS,
+};
+
 /// Module parameters; a write or read of each is one command. Pending work runs in this order.
 enum Param : uint8_t {
   PARAM_RUN_APP,
@@ -81,6 +91,8 @@ enum class Operation : uint8_t {
   OPERATION_NONE,
   OPERATION_STOP,
   OPERATION_START,
+  OPERATION_RESTART,
+  OPERATION_FACTORY_RESET,
   OPERATION_WRITE,
   OPERATION_SAVE,
   OPERATION_READ,
@@ -102,6 +114,11 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #ifdef USE_SELECT
   SUB_SELECT(out_pin_level)
 #endif
+#ifdef USE_BUTTON
+  SUB_BUTTON(factory_reset)
+  SUB_BUTTON(query)
+  SUB_BUTTON(restart)
+#endif
 
  public:
   explicit DFRobotSEN0609Component(RunMode mode);
@@ -121,6 +138,12 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #ifdef USE_SELECT
   void control_out_pin_level(size_t index);
 #endif
+  /// Reboot the module, then apply the configuration and read the settings again.
+  void restart();
+  /// Restore the module's factory settings, then apply the configuration and read the settings again.
+  void factory_reset();
+  /// Read all settings shown by entities from the module.
+  void query_params();
 
  protected:
   void readline_(uint8_t c);
@@ -166,7 +189,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   std::array<bool, SWITCH_COUNT> switch_states_{};
 #endif
 
-  char line_[MAX_LINE_LENGTH];
+  LineReader<MAX_LINE_LENGTH> line_reader_;
   char command_[MAX_COMMAND_LENGTH]{};
   float response_[MAX_RESPONSE_VALUES]{};
   uint32_t sent_ms_{0};
@@ -188,7 +211,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   RunMode mode_;
   Operation operation_{Operation::OPERATION_NONE};
   Param param_{PARAM_COUNT};
-  uint8_t line_pos_{0};
   uint8_t response_count_{0};
   uint8_t out_pin_level_{0};
   uint8_t attempts_{0};
@@ -199,7 +221,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t led_on_{0};
   bool sent_led_on_{false};
 #endif
-  bool line_overflow_{false};
   bool read_failed_{false};
   bool bad_frame_logged_{false};
   bool echo_seen_{false};
@@ -207,6 +228,8 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   bool stopped_{false};
   bool save_pending_{false};
   bool deferred_save_{false};
+  bool restart_pending_{false};
+  bool factory_reset_pending_{false};
   bool sequence_failed_{false};
 };
 

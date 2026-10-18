@@ -20,8 +20,7 @@ void WaveshareIOCH32V003Component::setup() {
   bool step2 = this->write_gpio_outputs_();
 
   if (!step1 || !step2) {
-    ESP_LOGE(TAG, "Failed to initialize Waveshare IO expander");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to initialize Waveshare IO expander"));
     return;
   }
 
@@ -46,9 +45,6 @@ void WaveshareIOCH32V003Component::loop() { this->reset_pin_cache_(); }
 void WaveshareIOCH32V003Component::dump_config() {
   ESP_LOGCONFIG(TAG, "WaveshareIO:");
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 uint16_t WaveshareIOCH32V003Component::get_adc_value() {

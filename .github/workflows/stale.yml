@@ -27,7 +27,7 @@ jobs:
       days-before-close: 7
       stale-label: stale
       exempt-label: not-stale
-      conflict-label: needs-rebase
+      conflict-label: has-conflicts
       ignored-users: esphbot,codecov-commenter
       stale-pr-message: >
         There hasn't been any activity on this pull request recently. This

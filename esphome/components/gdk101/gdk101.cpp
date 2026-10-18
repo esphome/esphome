@@ -78,9 +78,6 @@ bool GDK101Component::try_reset_() {
 void GDK101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "GDK101:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Average Radaition Dose per 1 minute", this->rad_1m_sensor_);
   LOG_SENSOR("  ", "Average Radaition Dose per 10 minutes", this->rad_10m_sensor_);

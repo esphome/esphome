@@ -61,9 +61,6 @@ void MAX17048Component::update() {
 void MAX17048Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX17048:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
