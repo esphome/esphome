@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_USB_AUDIO_ID, USBAudioComponent, usb_audio_ns
 
@@ -14,15 +15,12 @@ USBAudioSpeaker = usb_audio_ns.class_("USBAudioSpeaker", speaker.Speaker, cg.Com
 
 CONF_WRITE_TIMEOUT = "write_timeout"
 BITS_PER_SAMPLE_OPTIONS = [8, 16, 24, 32]
+_validate_bits = cv.All(
+    cv.float_with_unit("bits", "bit"), cv.one_of(*BITS_PER_SAMPLE_OPTIONS)
+)
 
 
-def _bits_validator():
-    return cv.All(
-        cv.float_with_unit("bits", "bit"), cv.one_of(*BITS_PER_SAMPLE_OPTIONS)
-    )
-
-
-def _set_stream_limits(config):
+def _set_stream_limits(config: ConfigType) -> ConfigType:
     bits_per_sample = int(config[CONF_BITS_PER_SAMPLE])
 
     audio.set_stream_limits(
@@ -45,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_SAMPLE_RATE, default=48000): cv.int_range(
                     min=8000, max=96000
                 ),
-                cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): _bits_validator(),
+                cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): _validate_bits,
                 cv.Optional(CONF_NUM_CHANNELS, default=2): cv.int_range(min=1, max=2),
                 cv.Optional(
                     CONF_WRITE_TIMEOUT, default="20ms"
@@ -57,23 +55,21 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await speaker.register_speaker(var, config)
 
     parent = await cg.get_variable(config[CONF_USB_AUDIO_ID])
-    await cg.register_parented(var, config[CONF_USB_AUDIO_ID])
+    await cg.register_parented(var, parent)
 
-    sample_rate = int(config[CONF_SAMPLE_RATE])
+    sample_rate = config[CONF_SAMPLE_RATE]
     bits_per_sample = int(config[CONF_BITS_PER_SAMPLE])
-    channels = int(config[CONF_NUM_CHANNELS])
-    write_timeout = config[CONF_WRITE_TIMEOUT].total_milliseconds
+    channels = config[CONF_NUM_CHANNELS]
 
     cg.add(var.set_sample_rate(sample_rate))
     cg.add(var.set_bits_per_sample(bits_per_sample))
     cg.add(var.set_channels(channels))
-    cg.add(var.set_write_timeout(write_timeout))
+    cg.add(var.set_write_timeout(config[CONF_WRITE_TIMEOUT].total_milliseconds))
 
-    cg.add(parent.set_speaker(var))
     cg.add(parent.set_speaker_params(channels, bits_per_sample, sample_rate))

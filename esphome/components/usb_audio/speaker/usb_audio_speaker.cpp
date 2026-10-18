@@ -1,42 +1,54 @@
 #include "usb_audio_speaker.h"
 
-#if defined(USE_ESP32) && defined(USE_USB_AUDIO)
+#if defined(USE_ESP32) && defined(USE_USB_AUDIO) && \
+    (defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
 
 #include "../usb_audio.h"
 
 #include <algorithm>
+#include <cinttypes>
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-namespace esphome {
-namespace usb_audio {
+namespace esphome::usb_audio {
 
-static const char *const TAG_SPK = "usb_audio.spk";
+ESPHOME_LOG_TAG(TAG, "usb_audio.spk");
 
 void USBAudioSpeaker::setup() {
   this->audio_stream_info_ = audio::AudioStreamInfo(this->bits_per_sample_, this->channels_, this->sample_rate_);
 }
 
 void USBAudioSpeaker::dump_config() {
-  ESP_LOGCONFIG(TAG_SPK, "USB Speaker:");
-  ESP_LOGCONFIG(TAG_SPK, "  Sample rate: %u Hz", this->sample_rate_);
-  ESP_LOGCONFIG(TAG_SPK, "  Bits per sample: %u", this->bits_per_sample_);
-  ESP_LOGCONFIG(TAG_SPK, "  Channels: %u", this->channels_);
-  ESP_LOGCONFIG(TAG_SPK, "  Write timeout: %u ms", this->write_timeout_ms_);
-  if (this->channels_ > 2) {
-    ESP_LOGW(TAG_SPK, "USB speaker only supports mono or stereo playback; additional channels will be ignored");
-  }
+  ESP_LOGCONFIG(TAG,
+                "USB Speaker:\n"
+                "  Sample rate: %" PRIu32 " Hz\n"
+                "  Bits per sample: %u\n"
+                "  Channels: %u\n"
+                "  Write timeout: %" PRIu32 " ms",
+                this->sample_rate_, this->bits_per_sample_, this->channels_, this->write_timeout_ms_);
 }
 
 void USBAudioSpeaker::loop() {
+  const bool connected = this->parent_->speaker_connected();
+  if (!connected && this->was_connected_) {
+    // play() returns 0 without blocking until the device is back and start() succeeds.
+    this->device_lost_ = true;
+    if (this->is_running()) {
+      ESP_LOGW(TAG, "USB device disconnected, stopping playback");
+    }
+    this->stop();
+  }
+  this->was_connected_ = connected;
+
   if (this->finish_requested_) {
-    if (!this->has_buffered_data() || millis() > this->finish_deadline_ms_) {
+    const uint32_t now = App.get_loop_component_start_time();
+    if (!this->has_buffered_data() || static_cast<int32_t>(now - this->finish_deadline_ms_) >= 0) {
       this->stop();
-      this->finish_requested_ = false;
     }
   }
 }
@@ -46,10 +58,11 @@ void USBAudioSpeaker::start() {
     return;
   }
   if (!this->ensure_started_()) {
-    ESP_LOGE(TAG_SPK, "USB host not started");
+    ESP_LOGE(TAG, "USB host not started");
     this->status_set_warning();
     return;
   }
+  this->device_lost_ = false;
   this->parent_->resume_speaker();
   this->state_ = speaker::STATE_RUNNING;
   this->status_clear_warning();
@@ -97,7 +110,19 @@ size_t USBAudioSpeaker::play(const uint8_t *data, size_t length) {
   return this->play_internal_(data, length, this->write_timeout_ms_);
 }
 
+bool USBAudioSpeaker::device_unavailable_(uint32_t wait_ms) {
+  if (!this->device_lost_ || this->parent_->speaker_connected()) {
+    return false;
+  }
+  // Wait out the caller's budget so a pipeline task retrying play() does not spin.
+  vTaskDelay(pdMS_TO_TICKS(std::max<uint32_t>(wait_ms, 1)));
+  return true;
+}
+
 size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint32_t time_budget_ms) {
+  if (this->device_unavailable_(std::min(time_budget_ms, MAX_WORK_TIME_MS))) {
+    return 0;
+  }
   if (!this->is_running()) {
     this->start();
   }
@@ -113,11 +138,8 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
   size_t remaining = length;
   const uint8_t *current = data;
 
-  size_t max_chunk = this->parent_->get_speaker_buffer_size();
-  if (max_chunk == 0) {
-    max_chunk = HARD_CHUNK_CAP;
-  }
-  max_chunk = std::max(std::min(max_chunk, HARD_CHUNK_CAP), MIN_WRITE_CHUNK);
+  const size_t max_chunk =
+      std::max<size_t>(std::min<size_t>(USB_AUDIO_SPEAKER_BUFFER_SIZE, HARD_CHUNK_CAP), MIN_WRITE_CHUNK);
 
   const size_t bytes_per_frame =
       std::max<size_t>(1, static_cast<size_t>(this->channels_) * std::max<size_t>(1, this->bits_per_sample_ / 8));
@@ -152,7 +174,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     chunk_cap = std::min(chunk_cap, HARD_CHUNK_CAP);
 
     if (chunk_cap == 0) {
-      ESP_LOGW(TAG_SPK, "Chunk cap resolved to zero; aborting playback write");
+      ESP_LOGW(TAG, "Chunk cap resolved to zero; aborting playback write");
       break;
     }
 
@@ -178,7 +200,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       chunk = remaining;
     }
     if (chunk == 0) {
-      ESP_LOGW(TAG_SPK, "Chunk resolved to zero after alignment; aborting playback write");
+      ESP_LOGW(TAG, "Chunk resolved to zero after alignment; aborting playback write");
       break;
     }
 
@@ -191,8 +213,8 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       call_timeout_ms = 1;
     }
 
-    ESP_LOGV(TAG_SPK, "Attempting USB write chunk=%u remaining=%u timeout_ms=%u", (unsigned) chunk,
-             (unsigned) remaining, (unsigned) call_timeout_ms);
+    ESP_LOGV(TAG, "Attempting USB write chunk=%u remaining=%u timeout_ms=%u", (unsigned) chunk, (unsigned) remaining,
+             (unsigned) call_timeout_ms);
     esp_err_t err = this->parent_->write_speaker(current, chunk, call_timeout_ms);
 
     if (err == ESP_OK) {
@@ -202,7 +224,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       remaining -= chunk;
       this->chunk_success_streak_++;
       timeout_retry_count = 0;
-      ESP_LOGV(TAG_SPK, "Chunk write ok chunk=%u total_written=%u", (unsigned) chunk, (unsigned) total_written);
+      ESP_LOGV(TAG, "Chunk write ok chunk=%u total_written=%u", (unsigned) chunk, (unsigned) total_written);
 
       const size_t frames_written = chunk / bytes_per_frame;
       if (frames_written > 0) {
@@ -233,7 +255,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
           new_bound = aligned;
         }
         if (new_bound > this->chunk_upper_bound_) {
-          ESP_LOGD(TAG_SPK, "Increasing chunk upper bound to %u", (unsigned) new_bound);
+          ESP_LOGD(TAG, "Increasing chunk upper bound to %u", (unsigned) new_bound);
           this->chunk_upper_bound_ = new_bound;
         }
         this->chunk_success_streak_ = 0;
@@ -245,7 +267,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     this->chunk_success_streak_ = 0;
 
     if (err == ESP_ERR_TIMEOUT) {
-      ESP_LOGW(TAG_SPK, "Chunk write timeout chunk=%u", (unsigned) chunk);
+      ESP_LOGW(TAG, "Chunk write timeout chunk=%u", (unsigned) chunk);
 
       size_t new_upper = (chunk > CHUNK_GROW_STEP) ? (chunk - CHUNK_GROW_STEP) : chunk;
       new_upper = std::max(MIN_WRITE_CHUNK, std::min(new_upper, chunk_cap));
@@ -254,7 +276,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
         new_upper = aligned;
       }
       if (new_upper < this->chunk_upper_bound_) {
-        ESP_LOGD(TAG_SPK, "Reducing chunk upper bound to %u", (unsigned) new_upper);
+        ESP_LOGD(TAG, "Reducing chunk upper bound to %u", (unsigned) new_upper);
         this->chunk_upper_bound_ = new_upper;
       }
 
@@ -274,9 +296,9 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
       if (timeout_retry_count < MAX_TIMEOUT_RETRIES) {
         continue;
       }
-      ESP_LOGW(TAG_SPK, "Max timeout retries reached with chunk=%u", (unsigned) chunk);
+      ESP_LOGW(TAG, "Max timeout retries reached with chunk=%u", (unsigned) chunk);
     } else {
-      ESP_LOGW(TAG_SPK, "Write error: %s", esp_err_to_name(err));
+      ESP_LOGW(TAG, "Write error: %s", esp_err_to_name(err));
       vTaskDelay(pdMS_TO_TICKS(call_timeout_ms));
     }
 
@@ -310,7 +332,6 @@ void USBAudioSpeaker::set_mute_state(bool mute_state) {
 
 bool USBAudioSpeaker::ensure_started_() { return this->parent_->ensure_started(USBAudioComponent::Endpoint::SPEAKER); }
 
-}  // namespace usb_audio
-}  // namespace esphome
+}  // namespace esphome::usb_audio
 
-#endif  // defined(USE_ESP32) && defined(USE_USB_AUDIO)
+#endif

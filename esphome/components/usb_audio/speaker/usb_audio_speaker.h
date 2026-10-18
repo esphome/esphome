@@ -2,7 +2,8 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32) && defined(USE_USB_AUDIO)
+#if defined(USE_ESP32) && defined(USE_USB_AUDIO) && \
+    (defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
 
 #include "esphome/components/usb_audio/usb_audio.h"
 
@@ -12,8 +13,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace usb_audio {
+#include <atomic>
+
+namespace esphome::usb_audio {
 
 class USBAudioSpeaker : public speaker::Speaker, public Component, public Parented<USBAudioComponent> {
  public:
@@ -40,21 +42,23 @@ class USBAudioSpeaker : public speaker::Speaker, public Component, public Parent
  protected:
   bool ensure_started_();
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t time_budget_ms);
+  bool device_unavailable_(uint32_t wait_ms);
 
   uint32_t sample_rate_{48000};
-  uint16_t bits_per_sample_{16};
-  uint8_t channels_{2};
-
   uint32_t write_timeout_ms_{20};
   uint32_t last_write_ms_{0};
-  bool finish_requested_{false};
   uint32_t finish_deadline_ms_{0};
   size_t preferred_chunk_size_{0};
   size_t chunk_upper_bound_{0};
   size_t chunk_success_streak_{0};
+  uint16_t bits_per_sample_{16};
+  uint8_t channels_{2};
+  // Set on the main loop when the device goes away; play() runs on the caller's task.
+  std::atomic<bool> device_lost_{false};
+  bool was_connected_{false};
+  bool finish_requested_{false};
 };
 
-}  // namespace usb_audio
-}  // namespace esphome
+}  // namespace esphome::usb_audio
 
-#endif  // defined(USE_ESP32) && defined(USE_USB_AUDIO)
+#endif

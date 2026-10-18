@@ -1,6 +1,7 @@
 #include "usb_audio.h"
 
-#if defined(USE_ESP32) && defined(USE_USB_AUDIO)
+#if defined(USE_ESP32) && defined(USE_USB_AUDIO) && \
+    (defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
 
 #include <algorithm>
 #include <cinttypes>
@@ -15,17 +16,13 @@ extern "C" {
 #include "esp_intr_alloc.h"
 }
 
-namespace esphome {
-namespace usb_audio {
+namespace esphome::usb_audio {
 
-namespace {
-const char *const TAG = "usb_audio";
+ESPHOME_LOG_TAG(TAG, "usb_audio");
 
-constexpr UBaseType_t USB_HOST_TASK_PRIORITY = 8;
-constexpr uint32_t USB_HOST_TASK_STACK_SIZE = 4096;
-constexpr uint32_t EVENT_QUEUE_LENGTH = 64;
-constexpr TickType_t HOST_EVENT_TIMEOUT_TICKS = pdMS_TO_TICKS(100);
-}  // namespace
+static constexpr UBaseType_t USB_HOST_TASK_PRIORITY = 8;
+static constexpr uint32_t USB_HOST_TASK_STACK_SIZE = 4096;
+static constexpr TickType_t HOST_EVENT_TIMEOUT_TICKS = pdMS_TO_TICKS(100);
 
 void USBAudioComponent::set_microphone_params(uint8_t channels, uint16_t bits, uint32_t sample_rate) {
   this->mic_config_.channels = channels;
@@ -42,21 +39,8 @@ void USBAudioComponent::set_speaker_params(uint8_t channels, uint16_t bits, uint
 }
 
 void USBAudioComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up USB audio host");
-
-  if (this->mic_config_.buffer_size == 0) {
-    this->mic_config_.buffer_size = USB_AUDIO_DEFAULT_BUFFER_SIZE;
-  }
-  if (this->speaker_config_.buffer_size == 0) {
-    this->speaker_config_.buffer_size = USB_AUDIO_DEFAULT_BUFFER_SIZE;
-  }
-
-  this->event_queue_ = xQueueCreate(EVENT_QUEUE_LENGTH, sizeof(USBAudioEvent));
-  if (this->event_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create USB audio event queue");
-    this->mark_failed();
-    return;
-  }
+  this->event_queue_ = xQueueCreateStatic(EVENT_QUEUE_LENGTH, sizeof(USBAudioEvent), this->event_queue_storage_.data(),
+                                          &this->event_queue_struct_);
 
   usb_host_config_t host_cfg = {
       .skip_phy_setup = false,
@@ -66,10 +50,6 @@ void USBAudioComponent::setup() {
   esp_err_t err = usb_host_install(&host_cfg);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "usb_host_install failed: %s", esp_err_to_name(err));
-    if (this->event_queue_ != nullptr) {
-      vQueueDelete(this->event_queue_);
-      this->event_queue_ = nullptr;
-    }
     this->mark_failed();
     return;
   }
@@ -89,45 +69,36 @@ void USBAudioComponent::setup() {
     ESP_LOGE(TAG, "uac_host_install failed: %s", esp_err_to_name(err));
     usb_host_uninstall();
     this->host_installed_ = false;
-    if (this->event_queue_ != nullptr) {
-      vQueueDelete(this->event_queue_);
-      this->event_queue_ = nullptr;
-    }
     this->mark_failed();
     return;
   }
   this->uac_installed_ = true;
 
   this->host_task_running_ = true;
-  BaseType_t created =
-      xTaskCreatePinnedToCore(&USBAudioComponent::usb_host_task_stub, "usb_audio_host", USB_HOST_TASK_STACK_SIZE, this,
-                              USB_HOST_TASK_PRIORITY, &this->usb_host_task_handle_, 0);
-  if (created != pdPASS) {
+  this->host_task_parked_ = false;
+  if (!this->host_task_.create(&USBAudioComponent::usb_host_task_stub, "usb_audio_host", USB_HOST_TASK_STACK_SIZE, this,
+                               USB_HOST_TASK_PRIORITY, false, 0)) {
     ESP_LOGE(TAG, "Failed to create USB host event task");
     this->host_task_running_ = false;
-    this->usb_host_task_handle_ = nullptr;
+    this->host_task_parked_ = true;
     uac_host_uninstall();
     this->uac_installed_ = false;
     usb_host_uninstall();
     this->host_installed_ = false;
-    if (this->event_queue_ != nullptr) {
-      vQueueDelete(this->event_queue_);
-      this->event_queue_ = nullptr;
-    }
     this->mark_failed();
     return;
   }
 }
 
-void USBAudioComponent::loop() {
-  if (this->event_queue_ == nullptr) {
-    return;
-  }
-
+void USBAudioComponent::drain_events_() {
   USBAudioEvent event;
   while (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
     this->process_event_(event);
   }
+}
+
+void USBAudioComponent::loop() {
+  this->drain_events_();
 
   if (this->speaker_handle_ != nullptr) {
     if (this->pending_speaker_volume_) {
@@ -140,24 +111,23 @@ void USBAudioComponent::loop() {
 }
 
 void USBAudioComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "USB Audio:");
-  ESP_LOGCONFIG(TAG, "  Host installed: %s", YESNO(this->host_installed_));
-  ESP_LOGCONFIG(TAG, "  UAC driver installed: %s", YESNO(this->uac_installed_));
-  ESP_LOGCONFIG(TAG, "  Device connected: %s", YESNO(this->device_connected_));
-  ESP_LOGCONFIG(TAG, "  Microphone configured: %s", YESNO(this->mic_config_.configured));
-  ESP_LOGCONFIG(TAG, "  Microphone buffer size: %u", this->mic_config_.buffer_size);
-  ESP_LOGCONFIG(TAG, "  Speaker configured: %s", YESNO(this->speaker_config_.configured));
-  ESP_LOGCONFIG(TAG, "  Speaker buffer size: %u", this->speaker_config_.buffer_size);
-  ESP_LOGCONFIG(TAG, "  Connect timeout: %u ms", this->connect_timeout_ms_);
+  ESP_LOGCONFIG(TAG,
+                "USB Audio:\n"
+                "  Host installed: %s\n"
+                "  UAC driver installed: %s\n"
+                "  Device connected: %s\n"
+                "  Microphone configured: %s\n"
+                "  Microphone buffer size: %u\n"
+                "  Speaker configured: %s\n"
+                "  Speaker buffer size: %u\n"
+                "  Connect timeout: %" PRIu32 " ms",
+                YESNO(this->host_installed_), YESNO(this->uac_installed_), YESNO(this->device_connected_),
+                YESNO(this->mic_config_.configured), USB_AUDIO_MICROPHONE_BUFFER_SIZE,
+                YESNO(this->speaker_config_.configured), USB_AUDIO_SPEAKER_BUFFER_SIZE, this->connect_timeout_ms_);
 }
 
 bool USBAudioComponent::ensure_started(Endpoint endpoint) {
-  if (this->event_queue_ != nullptr) {
-    USBAudioEvent event;
-    while (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
-      this->process_event_(event);
-    }
-  }
+  this->drain_events_();
 
   const uint32_t start_ms = millis();
 
@@ -172,21 +142,15 @@ bool USBAudioComponent::ensure_started(Endpoint endpoint) {
 
   while (target_handle == nullptr && this->connect_timeout_ms_ != 0 &&
          (millis() - start_ms) < this->connect_timeout_ms_) {
-    if (this->event_queue_ != nullptr) {
-      USBAudioEvent event;
-      if (xQueueReceive(this->event_queue_, &event, pdMS_TO_TICKS(20)) == pdTRUE) {
-        this->process_event_(event);
-        continue;
-      }
-    } else {
-      vTaskDelay(pdMS_TO_TICKS(20));
+    USBAudioEvent event;
+    if (xQueueReceive(this->event_queue_, &event, pdMS_TO_TICKS(20)) == pdTRUE) {
+      this->process_event_(event);
     }
   }
 
-  const char *role = endpoint == Endpoint::SPEAKER ? "speaker" : "microphone";
-
   if (target_handle == nullptr) {
-    ESP_LOGW(TAG, "USB %s interface not connected", role);
+    ESP_LOGW(TAG, "USB %s interface not connected",
+             endpoint == Endpoint::SPEAKER ? LOG_STR_LITERAL("speaker") : LOG_STR_LITERAL("microphone"));
     return false;
   }
 
@@ -225,7 +189,7 @@ bool USBAudioComponent::teardown() {
     this->uac_installed_ = false;
   }
 
-  if (this->usb_host_task_handle_ != nullptr) {
+  if (!this->host_task_parked_ || !this->host_task_.deallocate()) {
     vTaskDelay(pdMS_TO_TICKS(20));
     return false;
   }
@@ -242,15 +206,7 @@ bool USBAudioComponent::teardown() {
     this->host_installed_ = false;
   }
 
-  if (this->event_queue_ != nullptr) {
-    USBAudioEvent event;
-    while (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
-      // Drain queue completely before deletion.
-    }
-    vQueueDelete(this->event_queue_);
-    this->event_queue_ = nullptr;
-  }
-
+  xQueueReset(this->event_queue_);
   return true;
 }
 
@@ -317,12 +273,7 @@ void USBAudioComponent::close_all_devices_() {
     this->handle_disconnect_(handle);
   }
 
-  if (this->event_queue_ != nullptr) {
-    USBAudioEvent pending_event;
-    while (xQueueReceive(this->event_queue_, &pending_event, 0) == pdTRUE) {
-      // Drain remaining events before deleting the queue.
-    }
-  }
+  xQueueReset(this->event_queue_);
 }
 
 esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms) {
@@ -367,8 +318,8 @@ void USBAudioComponent::process_event_(const USBAudioEvent &event) {
     case USBAudioEvent::Type::DRIVER_RX_CONNECTED:
       this->handle_driver_event_(event);
       break;
-    case USBAudioEvent::Type::DRIVER_DISCONNECTED:
-      this->handle_driver_disconnect_(event.driver.addr, event.driver.iface_num);
+    case USBAudioEvent::Type::DEVICE_DISCONNECTED:
+      this->handle_device_disconnect_(event.device.handle);
       break;
     case USBAudioEvent::Type::DEVICE_EVENT:
       this->handle_device_event_(event);
@@ -379,7 +330,8 @@ void USBAudioComponent::process_event_(const USBAudioEvent &event) {
 void USBAudioComponent::handle_driver_event_(const USBAudioEvent &event) {
   if (!this->open_stream_(event)) {
     ESP_LOGW(TAG, "Failed to open %s interface",
-             event.type == USBAudioEvent::Type::DRIVER_TX_CONNECTED ? "speaker" : "microphone");
+             event.type == USBAudioEvent::Type::DRIVER_TX_CONNECTED ? LOG_STR_LITERAL("speaker")
+                                                                    : LOG_STR_LITERAL("microphone"));
   }
 }
 
@@ -395,34 +347,28 @@ void USBAudioComponent::handle_device_event_(const USBAudioEvent &event) {
   }
 }
 
-void USBAudioComponent::handle_driver_disconnect_(uint8_t addr, uint8_t iface_num) {
-  bool handled = false;
-
-  if (this->speaker_handle_ != nullptr && this->speaker_iface_ == iface_num && this->speaker_addr_ == addr) {
-    auto handle = this->speaker_handle_;
-    ESP_LOGI(TAG, "Speaker interface %u disconnected", iface_num);
-    this->handle_disconnect_(handle);
-    handled = true;
+void USBAudioComponent::handle_device_disconnect_(uac_host_device_handle_t handle) {
+  if (handle == nullptr) {
+    return;
   }
-
-  if (this->microphone_handle_ != nullptr && this->microphone_iface_ == iface_num && this->microphone_addr_ == addr) {
-    auto handle = this->microphone_handle_;
-    ESP_LOGI(TAG, "Microphone interface %u disconnected", iface_num);
-    this->handle_disconnect_(handle);
-    handled = true;
+  if (handle == this->speaker_handle_) {
+    ESP_LOGI(TAG, "Speaker interface %u disconnected", this->speaker_iface_);
+  } else if (handle == this->microphone_handle_) {
+    ESP_LOGI(TAG, "Microphone interface %u disconnected", this->microphone_iface_);
+  } else {
+    ESP_LOGD(TAG, "Disconnect event for an interface with no active stream");
+    return;
   }
-
-  if (!handled) {
-    ESP_LOGD(TAG, "Driver disconnect event for interface %u with no active stream", iface_num);
-  }
+  this->handle_disconnect_(handle);
 }
 
 bool USBAudioComponent::open_stream_(const USBAudioEvent &event) {
   const bool is_speaker = event.type == USBAudioEvent::Type::DRIVER_TX_CONNECTED;
   AudioEndpointConfig &cfg = is_speaker ? this->speaker_config_ : this->mic_config_;
 
-  if (!this->is_ready_(cfg)) {
-    ESP_LOGW(TAG, "%s interface connected before configuration", is_speaker ? "Speaker" : "Microphone");
+  if (!cfg.configured) {
+    ESP_LOGW(TAG, "%s interface connected before configuration",
+             is_speaker ? LOG_STR_LITERAL("Speaker") : LOG_STR_LITERAL("Microphone"));
     return false;
   }
 
@@ -435,11 +381,12 @@ bool USBAudioComponent::open_stream_(const USBAudioEvent &event) {
     return true;
   }
 
+  const uint32_t buffer_size = is_speaker ? USB_AUDIO_SPEAKER_BUFFER_SIZE : USB_AUDIO_MICROPHONE_BUFFER_SIZE;
   uac_host_device_config_t dev_cfg = {
       .addr = event.driver.addr,
       .iface_num = event.driver.iface_num,
-      .buffer_size = cfg.buffer_size,
-      .buffer_threshold = std::max<uint32_t>(cfg.buffer_size / 4, 1U),
+      .buffer_size = buffer_size,
+      .buffer_threshold = std::max<uint32_t>(buffer_size / 4, 1U),
       .callback = &USBAudioComponent::device_event_stub,
       .callback_arg = this,
   };
@@ -457,6 +404,7 @@ bool USBAudioComponent::open_stream_(const USBAudioEvent &event) {
     this->speaker_addr_ = event.driver.addr;
     this->speaker_stream_started_ = false;
     this->device_connected_ = true;
+    this->speaker_connected_ = true;
     ESP_LOGI(TAG, "Speaker interface %u connected (addr=%u)", this->speaker_iface_, this->speaker_addr_);
     if (!this->start_speaker_stream_()) {
       ESP_LOGW(TAG, "Unable to start speaker stream");
@@ -477,7 +425,7 @@ bool USBAudioComponent::open_stream_(const USBAudioEvent &event) {
 }
 
 bool USBAudioComponent::start_speaker_stream_() {
-  if (this->speaker_handle_ == nullptr || !this->is_ready_(this->speaker_config_)) {
+  if (this->speaker_handle_ == nullptr || !this->speaker_config_.configured) {
     return false;
   }
 
@@ -502,7 +450,7 @@ bool USBAudioComponent::start_speaker_stream_() {
 }
 
 bool USBAudioComponent::start_microphone_stream_() {
-  if (this->microphone_handle_ == nullptr || !this->is_ready_(this->mic_config_)) {
+  if (this->microphone_handle_ == nullptr || !this->mic_config_.configured) {
     return false;
   }
 
@@ -716,6 +664,7 @@ void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
       }
     }
     this->speaker_handle_ = nullptr;
+    this->speaker_connected_ = false;
     this->speaker_stream_started_ = false;
     this->speaker_iface_ = 0;
     this->speaker_addr_ = 0;
@@ -762,9 +711,6 @@ void USBAudioComponent::driver_event_stub(uint8_t addr, uint8_t iface_num, const
     case UAC_HOST_DRIVER_EVENT_RX_CONNECTED:
       evt.type = USBAudioEvent::Type::DRIVER_RX_CONNECTED;
       break;
-    case UAC_HOST_DRIVER_EVENT_DISCONNECTED:
-      evt.type = USBAudioEvent::Type::DRIVER_DISCONNECTED;
-      break;
     default:
       return;
   }
@@ -783,12 +729,14 @@ void USBAudioComponent::device_event_stub(uac_host_device_handle_t handle, const
     return;
   }
 
-  if (event != UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR) {
+  USBAudioEvent evt;
+  if (event == UAC_HOST_DRIVER_EVENT_DISCONNECTED) {
+    evt.type = USBAudioEvent::Type::DEVICE_DISCONNECTED;
+  } else if (event == UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR) {
+    evt.type = USBAudioEvent::Type::DEVICE_EVENT;
+  } else {
     return;
   }
-
-  USBAudioEvent evt;
-  evt.type = USBAudioEvent::Type::DEVICE_EVENT;
   evt.device.handle = handle;
   evt.device.event = event;
 
@@ -798,11 +746,11 @@ void USBAudioComponent::device_event_stub(uac_host_device_handle_t handle, const
 }
 
 void USBAudioComponent::usb_host_task_stub(void *param) {
-  auto *self = static_cast<USBAudioComponent *>(param);
-  if (self != nullptr) {
-    self->usb_host_task_();
+  static_cast<USBAudioComponent *>(param)->usb_host_task_();
+  // A StaticTask must not delete itself; park until teardown() frees it.
+  while (true) {
+    vTaskSuspend(nullptr);
   }
-  vTaskDelete(nullptr);
 }
 
 void USBAudioComponent::usb_host_task_() {
@@ -821,11 +769,9 @@ void USBAudioComponent::usb_host_task_() {
     }
   }
 
-  this->host_task_running_ = false;
-  this->usb_host_task_handle_ = nullptr;
+  this->host_task_parked_ = true;
 }
 
-}  // namespace usb_audio
-}  // namespace esphome
+}  // namespace esphome::usb_audio
 
-#endif  // defined(USE_ESP32) && defined(USE_USB_AUDIO)
+#endif
