@@ -44,6 +44,10 @@ class USBAudioMicrophone : public microphone::Microphone,
   // Same limit as i2s_audio's microphone.
   static constexpr uint8_t MAX_LISTENERS = 16;
   static constexpr uint32_t READ_TIMEOUT_MS = 20;
+  // A failed start is retried while listeners are held, backing off so a device that keeps failing does not flood the
+  // log.
+  static constexpr uint32_t RETRY_MIN_MS = 1000;
+  static constexpr uint32_t RETRY_MAX_MS = 30000;
   static constexpr uint32_t MIC_TASK_STACK_SIZE = 4096;
   static constexpr UBaseType_t MIC_TASK_PRIORITY = 18;
 
@@ -61,6 +65,8 @@ class USBAudioMicrophone : public microphone::Microphone,
   std::atomic<uint8_t> listeners_{0};
   std::atomic<bool> running_{false};
   std::atomic<bool> task_idle_{true};
+  // Main loop only.
+  uint32_t retry_delay_ms_{RETRY_MIN_MS};
 };
 
 }  // namespace esphome::usb_audio

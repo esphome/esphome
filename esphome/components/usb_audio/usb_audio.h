@@ -166,18 +166,18 @@ class USBAudioComponent : public Component {
 
   EndpointState &endpoint_(Endpoint endpoint) { return this->endpoints_[static_cast<size_t>(endpoint)]; }
   const EndpointState &endpoint_(Endpoint endpoint) const { return this->endpoints_[static_cast<size_t>(endpoint)]; }
-  void process_events_();
-  void process_event_(const USBAudioEvent &event);
+  void process_events_(uint32_t now);
+  void process_event_(const USBAudioEvent &event, uint32_t now);
   void open_stream_(Endpoint endpoint, uint8_t addr, uint8_t iface_num);
   void on_opened_(const USBAudioEvent &event);
   void on_started_(const USBAudioEvent &event);
   void on_resumed_(const USBAudioEvent &event);
-  void on_closed_(const USBAudioEvent &event);
+  void on_closed_(const USBAudioEvent &event, uint32_t now);
   void start_stream_(Endpoint endpoint);
   void stream_failed_(Endpoint endpoint);
   void handle_disconnect_(uac_host_device_handle_t handle);
   void begin_close_(Endpoint endpoint);
-  bool finish_closes_();
+  bool finish_closes_(uint32_t now);
   bool queue_op_(const Op &op);
   void queue_controls_();
   void post_event_(const USBAudioEvent &event);

@@ -6,6 +6,7 @@
 #include <cinttypes>
 #include <cmath>
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -80,7 +81,7 @@ void USBAudioComponent::setup() {
 }
 
 void USBAudioComponent::loop() {
-  this->process_events_();
+  this->process_events_(App.get_loop_component_start_time());
 
   if (const uint32_t errors = this->transfer_errors_.exchange(0); errors != 0) {
     ESP_LOGW(TAG, "%" PRIu32 " USB transfer errors", errors);
@@ -94,14 +95,14 @@ void USBAudioComponent::loop() {
   this->disable_loop();
 }
 
-void USBAudioComponent::process_events_() {
-  this->finish_closes_();
+void USBAudioComponent::process_events_(uint32_t now) {
+  this->finish_closes_(now);
 
   USBAudioEvent event;
   // Only the events already queued: one posted again while this runs waits for the next loop().
   for (UBaseType_t queued = uxQueueMessagesWaiting(this->event_queue_);
        queued > 0 && xQueueReceive(this->event_queue_, &event, 0) == pdTRUE; queued--) {
-    this->process_event_(event);
+    this->process_event_(event, now);
   }
 }
 
@@ -124,8 +125,10 @@ bool USBAudioComponent::teardown() {
   // Stop the platforms first, then let the worker close each device once its platform is idle.
   this->begin_close_(Endpoint::SPEAKER);
   this->begin_close_(Endpoint::MICROPHONE);
-  this->process_events_();
-  if (!this->finish_closes_()) {
+  // The loop time does not advance while components tear down.
+  const uint32_t now = millis();
+  this->process_events_(now);
+  if (!this->finish_closes_(now)) {
     return false;
   }
   // Wait for the worker to finish whatever it was still running.
@@ -252,7 +255,7 @@ esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, u
   return err;
 }
 
-void USBAudioComponent::process_event_(const USBAudioEvent &event) {
+void USBAudioComponent::process_event_(const USBAudioEvent &event, uint32_t now) {
   switch (event.type) {
     case USBAudioEvent::Type::CONNECTED: {
       auto &ep = this->endpoint_(event.endpoint);
@@ -280,7 +283,7 @@ void USBAudioComponent::process_event_(const USBAudioEvent &event) {
       this->on_resumed_(event);
       break;
     case USBAudioEvent::Type::CLOSED:
-      this->on_closed_(event);
+      this->on_closed_(event, now);
       break;
   }
 }
@@ -325,6 +328,19 @@ void USBAudioComponent::open_stream_(Endpoint endpoint, uint8_t addr, uint8_t if
 void USBAudioComponent::on_opened_(const USBAudioEvent &event) {
   auto &ep = this->endpoint_(event.endpoint);
   ep.open_pending = false;
+  bool lost_meanwhile = false;
+  for (auto &lost : this->lost_while_opening_) {
+    if (event.ok && lost == event.handle) {
+      lost = nullptr;
+      lost_meanwhile = true;
+    }
+  }
+  if (std::none_of(this->endpoints_.begin(), this->endpoints_.end(),
+                   [](const EndpointState &other) { return other.open_pending; })) {
+    // Only a pending open can still claim an entry; a failed one reports no handle, so its entry would stay behind
+    // and could match a later device that reuses the freed handle.
+    this->lost_while_opening_.fill(nullptr);
+  }
   if (!event.ok) {
     if (ep.connect_deferred) {
       // A newer connect arrived during the failed open; try that one.
@@ -346,13 +362,10 @@ void USBAudioComponent::on_opened_(const USBAudioEvent &event) {
   ep.iface = event.iface_num;
   ESP_LOGI(TAG, "%s interface %u connected (addr=%u)", LOG_STR_ARG(endpoint_name(event.endpoint)), ep.iface,
            event.addr);
-  for (auto &lost : this->lost_while_opening_) {
-    if (lost == event.handle) {
-      // It went away while the worker was opening it; a connect deferred meanwhile is opened once it is closed.
-      lost = nullptr;
-      this->handle_disconnect_(event.handle);
-      return;
-    }
+  if (lost_meanwhile) {
+    // It went away while the worker was opening it; a connect deferred meanwhile is opened once it is closed.
+    this->handle_disconnect_(event.handle);
+    return;
   }
   // The device that was being opened is still here, so a connect deferred meanwhile was a duplicate.
   ep.connect_deferred = false;
@@ -490,7 +503,7 @@ void USBAudioComponent::begin_close_(Endpoint endpoint) {
   ep.platform->on_stream_state(StreamEvent::LOST);
 }
 
-bool USBAudioComponent::finish_closes_() {
+bool USBAudioComponent::finish_closes_(uint32_t now) {
   bool done = true;
   for (size_t i = 0; i < this->endpoints_.size(); i++) {
     auto &ep = this->endpoints_[i];
@@ -502,7 +515,7 @@ bool USBAudioComponent::finish_closes_() {
     if (ep.close_queued || !ep.platform->stream_idle()) {
       continue;
     }
-    if (ep.close_attempts > 0 && static_cast<int32_t>(millis() - ep.close_retry_ms) < 0) {
+    if (ep.close_attempts > 0 && static_cast<int32_t>(now - ep.close_retry_ms) < 0) {
       // A failed close waits a moment before it is retried.
       continue;
     }
@@ -516,12 +529,12 @@ bool USBAudioComponent::finish_closes_() {
   return done;
 }
 
-void USBAudioComponent::on_closed_(const USBAudioEvent &event) {
+void USBAudioComponent::on_closed_(const USBAudioEvent &event, uint32_t now) {
   auto &ep = this->endpoint_(event.endpoint);
   ep.close_queued = false;
   if (!event.ok && ++ep.close_attempts < MAX_CLOSE_ATTEMPTS) {
     // Keep the handle, so finish_closes_() retries the close.
-    ep.close_retry_ms = millis() + CLOSE_RETRY_MS;
+    ep.close_retry_ms = now + CLOSE_RETRY_MS;
     return;
   }
   if (!event.ok) {

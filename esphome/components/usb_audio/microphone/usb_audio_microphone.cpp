@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 extern "C" {
@@ -41,6 +42,8 @@ void USBAudioMicrophone::loop() {
   if ((commands & COMMAND_STOP) &&
       (this->state_ == microphone::STATE_STARTING || this->state_ == microphone::STATE_RUNNING)) {
     this->parent_->suspend(Endpoint::MICROPHONE);
+    this->cancel_timeout("retry_start");
+    this->retry_delay_ms_ = RETRY_MIN_MS;
     // The task notices within one read timeout; the stop finishes below once it is idle.
     this->running_ = false;
     this->state_ = microphone::STATE_STOPPING;
@@ -48,7 +51,8 @@ void USBAudioMicrophone::loop() {
   if (this->state_ == microphone::STATE_STOPPING && this->task_idle_) {
     this->state_ = microphone::STATE_STOPPED;
   }
-  if (commands & COMMAND_START) {
+  // A retry can race the last stop(), so only start while someone is still listening.
+  if ((commands & COMMAND_START) && this->listeners_ > 0) {
     if (this->state_ == microphone::STATE_STOPPED) {
       this->state_ = microphone::STATE_STARTING;
       // Answers through on_stream_state() now or once the device connects.
@@ -106,6 +110,7 @@ void USBAudioMicrophone::on_stream_state(StreamEvent event) {
         this->running_ = true;
         xTaskNotifyGive(this->mic_task_.get_handle());
         this->state_ = microphone::STATE_RUNNING;
+        this->retry_delay_ms_ = RETRY_MIN_MS;
       }
       break;
     case StreamEvent::LOST:
@@ -118,9 +123,19 @@ void USBAudioMicrophone::on_stream_state(StreamEvent event) {
       }
       break;
     case StreamEvent::FAILED:
-      // Only a start or resume fails, so the task is idle; the next start() retries.
+      // Only a start or resume fails, so the task is idle.
       if (this->state_ == microphone::STATE_STARTING) {
         this->state_ = microphone::STATE_STOPPED;
+        // A MicrophoneSource calls start() once and then waits for data, and start() only asks for the stream when
+        // the first listener arrives, so retry here for the listeners still held.
+        if (this->listeners_ > 0) {
+          this->set_timeout("retry_start", this->retry_delay_ms_, [this]() {
+            if (this->listeners_ > 0) {
+              this->request_(COMMAND_START, 0);
+            }
+          });
+          this->retry_delay_ms_ = std::min(this->retry_delay_ms_ * 2, RETRY_MAX_MS);
+        }
       }
       break;
   }
