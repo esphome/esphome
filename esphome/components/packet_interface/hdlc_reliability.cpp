@@ -30,11 +30,21 @@ static uint16_t frame_crc(uint8_t control, const uint8_t *payload, size_t length
 
 HdlcReliability::HdlcReliability(PacketInterface *lower) : lower_(lower) {
   this->stack_on_(lower, CAPABILITY_RELIABILITY);
-  this->max_packet_size_ = lower->get_max_packet_size() - FRAME_OVERHEAD;
+  size_t lower_size = lower->get_max_packet_size();
+  this->max_packet_size_ = lower_size > FRAME_OVERHEAD ? lower_size - FRAME_OVERHEAD : 0;
 }
 
 void HdlcReliability::setup() {
-  this->tx_slots_ = std::make_unique<uint8_t[]>(this->max_queue_length_ * this->max_packet_size_);
+  if (this->max_packet_size_ == 0) {
+    this->mark_failed(LOG_STR("max_packet_size too small for the configured layers"));
+    return;
+  }
+  RAMAllocator<uint8_t> allocator;
+  this->tx_slots_ = allocator.allocate(size_t{this->max_queue_length_} * this->max_packet_size_);
+  if (this->tx_slots_ == nullptr) {
+    this->mark_failed(LOG_STR("Not enough memory for the send queue"));
+    return;
+  }
   this->lower_->add_packet_interface_listener(
       [this](const PacketBuffer &data, const PacketMetaData &meta_data) { this->receive_(data, meta_data); });
 }
@@ -93,6 +103,8 @@ void HdlcReliability::ack_sent_() {
 void HdlcReliability::request_loop_() { this->enable_loop(); }
 
 bool HdlcReliability::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
+  if (this->tx_slots_ == nullptr)
+    return false;
   size_t size = data.size();
   if (size > this->max_packet_size_) {
     ESP_LOGW(TAG, "%s: Packet of %zu bytes is larger than %zu", this->name_, size, this->max_packet_size_);
@@ -176,11 +188,12 @@ void HdlcReliability::on_timeout_() {
   }
   if (this->outstanding_() == 0)
     return;
-  if (++this->retries_ > this->max_retries_) {
+  if (this->retries_ == this->max_retries_) {
     ESP_LOGW(TAG, "%s: No acknowledgement after %u retries, resetting link", this->name_, this->max_retries_);
     this->start_reset_();
     return;
   }
+  this->retries_++;
   ESP_LOGV(TAG, "%s: Timeout, resending %u frames", this->name_, this->outstanding_());
   this->resend_outstanding_();
   this->start_timer_();
@@ -252,6 +265,12 @@ void HdlcReliability::receive_(const PacketBuffer &data, const PacketMetaData &m
   uint16_t crc = frame[length + 1] | (frame[length + 2] << 8);
   if (frame_crc(control, payload, length) != crc) {
     ESP_LOGV(TAG, "%s: CRC error, frame dropped", this->name_);
+    this->note_received_(false);
+    return;
+  }
+  // The peer's packets may only be larger if it has a larger max_packet_size, which the layers above cannot take
+  if (length > this->max_packet_size_) {
+    ESP_LOGV(TAG, "%s: Frame of %zu bytes is larger than %zu, dropped", this->name_, length, this->max_packet_size_);
     this->note_received_(false);
     return;
   }

@@ -3,7 +3,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_PACKET_INTERFACE_HDLC
 #include <array>
-#include <memory>
 
 #include "packet_interface.h"
 
@@ -67,11 +66,12 @@ class HdlcReliability : public PacketInterface {
   void request_loop_();
   uint8_t outstanding_() const { return (this->vs_ - this->va_) & 7; }
   uint8_t slot_index_(uint8_t seq) const { return (this->head_ + ((seq - this->va_) & 7)) % this->max_queue_length_; }
-  uint8_t *slot_(uint8_t seq) { return this->tx_slots_.get() + this->slot_index_(seq) * this->max_packet_size_; }
+  uint8_t *slot_(uint8_t seq) { return this->tx_slots_ + this->slot_index_(seq) * this->max_packet_size_; }
 
   PacketInterface *lower_;
-  // max_queue_length_ slots of max_packet_size_ bytes, a ring starting at head_ which holds frame va_
-  std::unique_ptr<uint8_t[]> tx_slots_;
+  // max_queue_length_ slots of max_packet_size_ bytes, a ring starting at head_ which holds frame va_; allocated in
+  // setup() and never freed
+  uint8_t *tx_slots_{nullptr};
   std::array<uint16_t, MAX_WINDOW> tx_lengths_{};  // indexed like the slots
   uint32_t timeout_ms_{200};
   uint32_t ack_delay_ms_{0};

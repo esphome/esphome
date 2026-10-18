@@ -31,9 +31,11 @@ HDLC_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(HdlcReliability),
-            cv.Optional(
-                CONF_TIMEOUT, default="200ms"
-            ): cv.positive_time_period_milliseconds,
+            # Retransmitting more often than the main loop runs would exhaust the retries at once
+            cv.Optional(CONF_TIMEOUT, default="200ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=cv.TimePeriod(milliseconds=50)),
+            ),
             cv.Optional(
                 CONF_ACK_DELAY, default="0ms"
             ): cv.positive_time_period_milliseconds,

@@ -5,6 +5,7 @@
 #include <vector>
 #include "esphome/components/packet_interface/hdlc_reliability.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::packet_interface::testing {
@@ -303,6 +304,81 @@ TEST_F(HdlcReliabilityTest, AckDelayLetsReplyCarryAck) {
   b.link.sent.clear();
   b.hdlc->loop();
   EXPECT_TRUE(b.link.sent.empty());  // the RR is no longer owed
+}
+
+TEST_F(HdlcReliabilityTest, MaxRetriesOf255ResetsLink) {
+  Peer a, b;
+  a.hdlc->set_max_retries(255);
+  pump(a, b);
+  a.send({0x01});
+  a.link.sent.clear();
+  for (int i = 0; i != 255; i++) {
+    a.hdlc->on_timeout_();
+    a.link.sent.clear();
+  }
+  EXPECT_TRUE(a.states.empty());
+  a.hdlc->on_timeout_();
+  EXPECT_EQ(a.states, std::vector<bool>{false});
+}
+
+TEST_F(HdlcReliabilityTest, OversizedFrameDropped) {
+  Peer a, b;
+  pump(a, b);
+  // An I-frame, N(S) 0 and N(R) 0, one byte larger than this layer's packets
+  b.link.inject(make_frame(0x00, Frame(b.hdlc->get_max_packet_size() + 1, 0x55)));
+  EXPECT_TRUE(b.received.empty());
+  b.link.inject(make_frame(0x00, Frame(b.hdlc->get_max_packet_size(), 0x55)));
+  EXPECT_EQ(b.received.size(), 1);
+}
+
+TEST_F(HdlcReliabilityTest, LinkTooSmallFailsSetup) {
+  MockLink link;
+  link.set_max_packet_size(HdlcReliability::FRAME_OVERHEAD);
+  TestHdlc hdlc(&link);
+  EXPECT_EQ(hdlc.get_max_packet_size(), 0);
+  hdlc.setup();
+  EXPECT_TRUE(hdlc.is_failed());
+  Frame packet{1};
+  EXPECT_FALSE(hdlc.send_to_interface(PacketBuffer(packet), {}));
+}
+
+TEST_F(HdlcReliabilityTest, AckDelayTimerSendsAck) {
+  Peer a, b;
+  b.hdlc->set_ack_delay(5);
+  pump(a, b);
+  a.send({1});
+  for (auto &frame : a.link.sent)
+    b.link.inject(frame);
+  a.link.sent.clear();
+  b.hdlc->loop();
+  EXPECT_TRUE(b.link.sent.empty());
+  delay(10);
+  App.scheduler.call(millis());
+  b.hdlc->loop();
+  ASSERT_EQ(b.link.sent.size(), 1);
+  EXPECT_TRUE(is_ack(b.link.sent[0]));
+  EXPECT_EQ(b.link.sent[0][0] >> 5, 1);  // N(R) acknowledges the frame from a
+}
+
+TEST_F(HdlcReliabilityTest, RefusedRejectFallsBackToAck) {
+  Peer a, b;
+  pump(a, b);
+  a.send({1});
+  a.send({2});
+  ASSERT_EQ(a.link.sent.size(), 2);
+  // The first frame is lost, and the REJ for the gap is refused
+  b.link.budget = 0;
+  b.link.inject(a.link.sent[1]);
+  a.link.sent.clear();
+  EXPECT_EQ(b.link.refused, 1);
+  b.link.budget = SIZE_MAX;
+  b.hdlc->loop();
+  ASSERT_EQ(b.link.sent.size(), 1);
+  EXPECT_TRUE(is_ack(b.link.sent[0]));
+  EXPECT_EQ(b.link.sent[0][0] >> 5, 0);
+  a.hdlc->on_timeout_();
+  pump(a, b);
+  EXPECT_EQ(b.received, (std::vector<Frame>{{1}, {2}}));
 }
 
 }  // namespace esphome::packet_interface::testing
