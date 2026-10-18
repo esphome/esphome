@@ -32,8 +32,7 @@ from esphome.build_helpers.idedata import (
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
-# A component that needs managed IDF components whenever its sources are compiled
-# declares them under this name in its ``__init__.py`` (see _component_idf_deps).
+# A component declares the managed IDF components its sources need under this name.
 IDF_COMPONENTS_ATTRIBUTE = "IDF_COMPONENTS"
 
 # A do-nothing C++ app: just enough for IDF to configure a valid project. It's
@@ -457,9 +456,8 @@ def _generate_compile_commands(
         # libsodium clash with noise-c and ~26 unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
     else:
-        # Managed components the tsdb engine needs: tsdb adds them from
-        # to_code(), which never runs here. The arduino envs must not get them,
-        # since littlefs is one of the components they stub out.
+        # Managed components tsdb adds from to_code(), which never runs here; the
+        # arduino envs must not get them (littlefs is one they stub out).
         extra_deps.update(_component_idf_deps())
 
     # Phase 1: discover the components available for this target.

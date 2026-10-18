@@ -46,8 +46,7 @@ ESP_TSDB_VERSION = "2.4.3"
 ESP_LITTLEFS_COMPONENT = "joltwallet/littlefs"
 ESP_LITTLEFS_VERSION = "1.22.3"
 
-# Managed IDF components tsdb's C++ needs; to_code() adds them for a configured
-# build, the clang-tidy project reads this attribute instead (see clang_tidy.py).
+# Managed IDF components the C++ needs (see clang_tidy.py).
 IDF_COMPONENTS = {
     ESP_TSDB_COMPONENT: ESP_TSDB_VERSION,
     ESP_LITTLEFS_COMPONENT: ESP_LITTLEFS_VERSION,
@@ -255,7 +254,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.update_interval,
             cv.Optional(
-                CONF_SYNC_INTERVAL, default="60s"
+                CONF_SYNC_INTERVAL, default="15min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_MIN_FREE_BYTES, default="32KB"): _validate_min_free_bytes,
             cv.Optional(CONF_REQUIRE_TIME, default=True): cv.boolean,

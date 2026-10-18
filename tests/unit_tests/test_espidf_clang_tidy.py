@@ -98,10 +98,11 @@ def test_component_idf_deps_are_the_pinned_engines() -> None:
         ESP_TSDB_VERSION,
     )
 
-    assert clang_tidy._component_idf_deps() == {
-        ESP_TSDB_COMPONENT: {"version": ESP_TSDB_VERSION},
-        ESP_LITTLEFS_COMPONENT: {"version": ESP_LITTLEFS_VERSION},
-    }
+    # A subset, not equality: another component adopting the attribute must not
+    # break this test.
+    deps = clang_tidy._component_idf_deps()
+    assert deps[ESP_TSDB_COMPONENT] == {"version": ESP_TSDB_VERSION}
+    assert deps[ESP_LITTLEFS_COMPONENT] == {"version": ESP_LITTLEFS_VERSION}
 
 
 @pytest.mark.parametrize(

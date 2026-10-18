@@ -77,8 +77,7 @@ constexpr uint32_t max_records_for_bytes(uint64_t bytes, uint32_t columns) {
   return static_cast<uint32_t>((bytes - MAX_RECORDS_RESERVE) / record);
 }
 
-// Complete on-disk layout of a database with `records` slots, mirroring
-// esp_tsdb's tsdb_calc_block_offset() and its creation-time sizing.
+// Complete on-disk layout, mirroring esp_tsdb's own sizing arithmetic.
 constexpr uint64_t file_bytes_for(uint32_t records, uint32_t columns, uint32_t index_stride = INDEX_DEFAULT_STRIDE) {
   if (records == 0 || columns == 0 || index_stride == 0)
     return 0;
@@ -92,7 +91,7 @@ constexpr uint64_t file_bytes_for(uint32_t records, uint32_t columns, uint32_t i
 
 // Largest capacity whose complete layout fits the budget. A binary search, not a
 // greedy shrink: when index entries cost more per record than the record bytes do
-// (a small index_stride), subtracting over / record_bytes can skip past zero.
+// (a small index_stride), the shrink can skip past zero.
 constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t index_stride = INDEX_DEFAULT_STRIDE) {
   if (columns == 0 || index_stride == 0 || records_per_block(columns) == 0)
     return 0;
@@ -115,8 +114,7 @@ constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t
 inline int16_t encode(double value, double scale, double offset = 0.0, bool *saturated = nullptr) {
   if (saturated != nullptr)
     *saturated = false;
-  // A non-finite scale or offset (YAML .nan/.inf) would reach an undefined int16
-  // cast; treat it as unknown.
+  // A non-finite scale or offset (YAML .nan/.inf) would reach an undefined int16 cast.
   if (!std::isfinite(value) || !std::isfinite(scale) || !std::isfinite(offset) || scale == 0.0)
     return RAW_UNKNOWN;
   const double raw = std::round(value * scale + offset);
