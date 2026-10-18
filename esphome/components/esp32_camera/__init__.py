@@ -376,8 +376,7 @@ async def to_code(config: ConfigType) -> None:
     extclk = config[CONF_EXTERNAL_CLOCK]
     cg.add(var.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
     if i2c_id := config.get(CONF_I2C_ID):
-        i2c_hub = await cg.get_variable(i2c_id)
-        cg.add(var.set_i2c_id(i2c_hub))
+        await cg.add_variable(var.set_i2c_id, i2c_id)
     else:
         i2c_pins = config[CONF_I2C_PINS]
         cg.add(var.set_i2c_pins(i2c_pins[CONF_SDA], i2c_pins[CONF_SCL]))
