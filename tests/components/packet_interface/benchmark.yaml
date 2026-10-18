@@ -1,0 +1,11 @@
+uart:
+  port: /dev/ttyUSB0
+  baud_rate: 9600
+
+packet_interface:
+  - platform: uart
+    id: bridge_test_link
+
+packet_transport:
+  - platform: packet_interface
+    packet_interface: bridge_test_link
