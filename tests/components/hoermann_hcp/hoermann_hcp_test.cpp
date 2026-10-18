@@ -19,7 +19,8 @@ TEST(HoermannHcpReadWrite, EmptyPollReturnsStatusWord) {
   EXPECT_EQ(response[1], 0x0000);
 }
 
-// A bus scan (write 3 / read 5) answers with the fixed device identification block.
+// A bus scan (write 3 / read 5) answers with the connect-accept code and the fixed
+// device identification block (the official KNX gateway also answers with 0x2e).
 TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
   HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000, 0x0000})).has_value());
@@ -27,7 +28,7 @@ TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
   auto status = door.on_read_holding_registers(STATE_REG, 5, response);
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 5u);
-  EXPECT_EQ(response[1], 0x0005);
+  EXPECT_EQ(response[1], 0x002e);
   EXPECT_EQ(response[2], 0x0430);
   EXPECT_EQ(response[3], 0x10ff);
   EXPECT_EQ(response[4], 0xa845);
@@ -521,7 +522,7 @@ TEST(HoermannHcpReadWrite, CommandRegisterIsEchoedBack) {
   door.on_read_holding_registers(STATE_REG, 5, scan);
   ASSERT_EQ(scan.size(), 5u);
   EXPECT_EQ(scan[0], 0x3400);
-  EXPECT_EQ(scan[1], 0x0705);
+  EXPECT_EQ(scan[1], 0x072e);
 }
 
 // A status broadcast (function code 0x10 to 0x9D31) updates the decoded door state and position.

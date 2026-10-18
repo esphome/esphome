@@ -243,9 +243,10 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       break;
     case 5:
       // Bus scan (the bus controller discovering us, typically at startup).
+      // Answer with the connect-accept code (0x2E), like the official KNX & Loxone gateway.
       ESP_LOGD(TAG, "Bus scan received from bus controller");
       registers.push_back(counter);
-      registers.push_back(static_cast<uint16_t>(0x0005 | command));
+      registers.push_back(static_cast<uint16_t>(0x002E | command));
       registers.push_back(0x0430);
       registers.push_back(0x10FF);
       registers.push_back(0xA845);
