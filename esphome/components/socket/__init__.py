@@ -210,13 +210,21 @@ def require_tcp_listener() -> None:
     cg.add_define("USE_SOCKET_TCP_LISTENER")
 
 
-def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
-    """Socket accounting for a role keyed client or server schema."""
+def consume_role_sockets(
+    component: str, connections_key: str | None = None
+) -> Callable[[ConfigType], ConfigType]:
+    """Socket accounting for a role keyed client or server schema.
+
+    A server holds as many connections as its connections_key says, default 1.
+    """
 
     def validator(config: ConfigType) -> ConfigType:
+        count = 1
         if config[CONF_ROLE] == "server":
             consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
-        return consume_sockets(1, component)(config)
+            if connections_key is not None:
+                count = config.get(connections_key, 1)
+        return consume_sockets(count, component)(config)
 
     return validator
 
