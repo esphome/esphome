@@ -33,6 +33,10 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
+#ifdef USE_VBUS_TX
+  if (this->transmitter_ != nullptr)
+    this->transmitter_->observe_rx(this->available());
+#endif
   const uint32_t now = App.get_loop_component_start_time();
   if (!available()) {
     // Preserve queued bytes even if a delayed loop would otherwise exceed the timeout.
@@ -49,6 +53,10 @@ void VBus::loop() {
       break;
 
     this->last_rx_ms_ = now;
+#ifdef USE_VBUS_TX
+    if (this->transmitter_ != nullptr)
+      this->transmitter_->observe_byte(c);
+#endif
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
@@ -70,6 +78,10 @@ void VBus::loop() {
         this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
         this->dest_ = (this->buffer_[1] << 8) + this->buffer_[0];
         this->command_ = (this->buffer_[6] << 8) + this->buffer_[5];
+#ifdef USE_VBUS_TX
+        if (this->transmitter_ != nullptr)
+          this->transmitter_->on_header(this->protocol_, this->source_, this->dest_);
+#endif
       }
       if ((this->protocol_ == 0x20) && (this->buffer_.size() == 15)) {
         this->state_ = 0;
@@ -84,6 +96,10 @@ void VBus::loop() {
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
         uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
+#ifdef USE_VBUS_TX
+        if (this->transmitter_ != nullptr)
+          this->transmitter_->on_datagram(this->command_, this->source_, this->dest_, id, value);
+#endif
         ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
 #ifdef USE_VBUS_DATAGRAM

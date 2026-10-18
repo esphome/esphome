@@ -1,0 +1,22 @@
+vbus:
+  id: vbus_transmit
+  transmit:
+    destination: 0x2211
+    on_bus_grant:
+      - vbus.send_datagram:
+          id: vbus_transmit
+          grant_id: !lambda return grant_id;
+          command: 0x0300
+          value_id: !lambda return 2;
+          value: !lambda return 0;
+      - delay: 100ms
+      - vbus.release_bus:
+          id: vbus_transmit
+          grant_id: !lambda return grant_id;
+
+button:
+  - platform: template
+    name: VBus Request Bus
+    on_press:
+      - vbus.request_bus:
+          id: vbus_transmit
