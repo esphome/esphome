@@ -3,7 +3,7 @@
 
 namespace esphome::xiaomi_wx08zm {
 
-static const char *const TAG = "xiaomi_wx08zm";
+ESPHOME_LOG_TAG(TAG, "xiaomi_wx08zm");
 
 void XiaomiWX08ZM::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi WX08ZM");

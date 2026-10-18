@@ -8,7 +8,7 @@
 
 namespace esphome::sgp30 {
 
-static const char *const TAG = "sgp30";
+ESPHOME_LOG_TAG(TAG, "sgp30");
 
 static const uint16_t SGP30_CMD_GET_SERIAL_ID = 0x3682;
 static const uint16_t SGP30_CMD_GET_FEATURESET = 0x202f;
@@ -37,7 +37,7 @@ void SGP30Component::setup() {
   // Serial Number identification
   uint16_t raw_serial_number[3];
   if (!this->get_register(SGP30_CMD_GET_SERIAL_ID, raw_serial_number, 3)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->serial_number_ = (static_cast<uint64_t>(raw_serial_number[0]) << 32) |
@@ -48,28 +48,24 @@ void SGP30Component::setup() {
   // Featureset identification for future use
   uint16_t raw_featureset;
   if (!this->get_register(SGP30_CMD_GET_FEATURESET, raw_featureset)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->featureset_ = raw_featureset;
   if (uint16_t(this->featureset_ >> 12) != 0x0) {
     if (uint16_t(this->featureset_ >> 12) == 0x1) {
       // ID matching a different sensor: SGPC3
-      this->error_code_ = UNSUPPORTED_ID;
+      this->mark_failed(LOG_STR("Unsupported ID"));
     } else {
-      // Unknown ID
-      this->error_code_ = INVALID_ID;
+      this->mark_failed(LOG_STR("Invalid ID"));
     }
-    this->mark_failed();
     return;
   }
   ESP_LOGV(TAG, "Product version: 0x%0X", uint16_t(this->featureset_ & 0x1FF));
 
   // Sensor initialization
   if (!this->write_command(SGP30_CMD_IAQ_INIT)) {
-    ESP_LOGE(TAG, "sgp30_iaq_init failed");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Measurement initialization failed"));
     return;
   }
 
@@ -227,25 +223,7 @@ void SGP30Component::write_iaq_baseline_(uint16_t eco2_baseline, uint16_t tvoc_b
 void SGP30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SGP30:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed");
-        break;
-      case INVALID_ID:
-        ESP_LOGW(TAG, "Invalid ID");
-        break;
-      case UNSUPPORTED_ID:
-        ESP_LOGW(TAG, "Unsupported ID");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error");
-        break;
-    }
-  } else {
+  if (!this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  Serial number: %" PRIu64, this->serial_number_);
     if (this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) {
       ESP_LOGCONFIG(TAG,

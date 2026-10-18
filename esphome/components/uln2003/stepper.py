@@ -16,11 +16,9 @@ from esphome.types import ConfigType
 uln2003_ns = cg.esphome_ns.namespace("uln2003")
 ULN2003StepMode = uln2003_ns.enum("ULN2003StepMode")
 
-STEP_MODES = {
-    "FULL_STEP": ULN2003StepMode.ULN2003_STEP_MODE_FULL_STEP,
-    "HALF_STEP": ULN2003StepMode.ULN2003_STEP_MODE_HALF_STEP,
-    "WAVE_DRIVE": ULN2003StepMode.ULN2003_STEP_MODE_WAVE_DRIVE,
-}
+STEP_MODES = ULN2003StepMode.options(
+    "FULL_STEP", "HALF_STEP", "WAVE_DRIVE", prefix="ULN2003_STEP_MODE_"
+)
 
 ULN2003 = uln2003_ns.class_("ULN2003", stepper.Stepper, cg.Component)
 

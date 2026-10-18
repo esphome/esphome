@@ -4,7 +4,7 @@
 
 namespace esphome::total_daily_energy {
 
-static const char *const TAG = "total_daily_energy";
+ESPHOME_LOG_TAG(TAG, "total_daily_energy");
 static constexpr uint32_t TIMEOUT_ID_MIDNIGHT = 1;
 static constexpr uint8_t SECONDS_PER_MINUTE = 60;
 static constexpr uint8_t MINUTES_PER_HOUR = 60;

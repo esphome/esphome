@@ -4,7 +4,7 @@
 
 namespace esphome::gp8403 {
 
-static const char *const TAG = "gp8403.output";
+ESPHOME_LOG_TAG(TAG, "gp8403.output");
 
 void GP8403Output::dump_config() {
   ESP_LOGCONFIG(TAG,

@@ -4,7 +4,7 @@
 
 namespace esphome::bl0940 {
 
-static const char *const TAG = "bl0940";
+ESPHOME_LOG_TAG(TAG, "bl0940");
 
 static const uint8_t BL0940_FULL_PACKET = 0xAA;
 static const uint8_t BL0940_PACKET_HEADER = 0x55;  // 0x58 according to en doc but 0x55 in cn doc
@@ -44,13 +44,9 @@ void BL0940::loop() {
 }
 
 bool BL0940::validate_checksum_(DataPacket *data) {
-  uint8_t checksum = this->read_command_;
   // Whole package but checksum
-  uint8_t *raw = (uint8_t *) data;
-  for (uint32_t i = 0; i < sizeof(*data) - 1; i++) {
-    checksum += raw[i];
-  }
-  checksum ^= 0xFF;
+  const uint8_t checksum =
+      sum_bytes(reinterpret_cast<const uint8_t *>(data), sizeof(*data) - 1, this->read_command_) ^ 0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "Invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);
   }

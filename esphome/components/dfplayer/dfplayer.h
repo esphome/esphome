@@ -33,8 +33,13 @@ class DFPlayer final : public uart::UARTDevice, public Component {
   void play_mp3(uint16_t file);
   void play_file(uint16_t file);
   void play_file_loop(uint16_t file);
+  void play_file(uint16_t file, bool loop) { loop ? this->play_file_loop(file) : this->play_file(file); }
   void play_folder(uint16_t folder, uint16_t file);
   void play_folder_loop(uint16_t folder);
+  // The loop command plays the whole folder, so file is ignored when loop is set.
+  void play_folder(uint16_t folder, uint16_t file, bool loop) {
+    loop ? this->play_folder_loop(folder) : this->play_folder(folder, file);
+  }
   void volume_up();
   void volume_down();
   void set_device(Device device);
@@ -46,6 +51,7 @@ class DFPlayer final : public uart::UARTDevice, public Component {
   void pause();
   void stop();
   void random();
+  void set_current_track_repeat(bool enable);
 
   bool is_playing() { return is_playing_; }
   void dump_config() override;
@@ -69,105 +75,6 @@ class DFPlayer final : public uart::UARTDevice, public Component {
   bool ack_reset_is_playing_{false};
 
   CallbackManager<void()> on_finished_playback_callback_;
-};
-
-#define DFPLAYER_SIMPLE_ACTION(ACTION_CLASS, ACTION_METHOD) \
-  template<typename... Ts> \
-  class ACTION_CLASS : /* NOLINT */ \
-                       public Action<Ts...>, \
-                       public Parented<DFPlayer> { \
-    void play(const Ts &...x) override { this->parent_->ACTION_METHOD(); } \
-  };
-
-DFPLAYER_SIMPLE_ACTION(NextAction, next)
-DFPLAYER_SIMPLE_ACTION(PreviousAction, previous)
-
-template<typename... Ts> class PlayMp3Action final : public Action<Ts...>, public Parented<DFPlayer> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, file)
-
-  void play(const Ts &...x) override {
-    auto file = this->file_.value(x...);
-    this->parent_->play_mp3(file);
-  }
-};
-
-template<typename... Ts> class PlayFileAction final : public Action<Ts...>, public Parented<DFPlayer> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, file)
-  TEMPLATABLE_VALUE(bool, loop)
-
-  void play(const Ts &...x) override {
-    auto file = this->file_.value(x...);
-    auto loop = this->loop_.value(x...);
-    if (loop) {
-      this->parent_->play_file_loop(file);
-    } else {
-      this->parent_->play_file(file);
-    }
-  }
-};
-
-template<typename... Ts> class PlayFolderAction final : public Action<Ts...>, public Parented<DFPlayer> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, folder)
-  TEMPLATABLE_VALUE(uint16_t, file)
-  TEMPLATABLE_VALUE(bool, loop)
-
-  void play(const Ts &...x) override {
-    auto folder = this->folder_.value(x...);
-    auto file = this->file_.value(x...);
-    auto loop = this->loop_.value(x...);
-    if (loop) {
-      this->parent_->play_folder_loop(folder);
-    } else {
-      this->parent_->play_folder(folder, file);
-    }
-  }
-};
-
-template<typename... Ts> class SetDeviceAction final : public Action<Ts...>, public Parented<DFPlayer> {
- public:
-  TEMPLATABLE_VALUE(Device, device)
-
-  void play(const Ts &...x) override {
-    auto device = this->device_.value(x...);
-    this->parent_->set_device(device);
-  }
-};
-
-template<typename... Ts> class SetVolumeAction final : public Action<Ts...>, public Parented<DFPlayer> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, volume)
-
-  void play(const Ts &...x) override {
-    auto volume = this->volume_.value(x...);
-    this->parent_->set_volume(volume);
-  }
-};
-
-template<typename... Ts> class SetEqAction final : public Action<Ts...>, public Parented<DFPlayer> {
- public:
-  TEMPLATABLE_VALUE(EqPreset, eq)
-
-  void play(const Ts &...x) override {
-    auto eq = this->eq_.value(x...);
-    this->parent_->set_eq(eq);
-  }
-};
-
-DFPLAYER_SIMPLE_ACTION(SleepAction, sleep)
-DFPLAYER_SIMPLE_ACTION(ResetAction, reset)
-DFPLAYER_SIMPLE_ACTION(StartAction, start)
-DFPLAYER_SIMPLE_ACTION(PauseAction, pause)
-DFPLAYER_SIMPLE_ACTION(StopAction, stop)
-DFPLAYER_SIMPLE_ACTION(RandomAction, random)
-DFPLAYER_SIMPLE_ACTION(VolumeUpAction, volume_up)
-DFPLAYER_SIMPLE_ACTION(VolumeDownAction, volume_down)
-
-template<typename... Ts> class DFPlayerIsPlayingCondition final : public Condition<Ts...>, public Parented<DFPlayer> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
 }  // namespace esphome::dfplayer

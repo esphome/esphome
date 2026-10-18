@@ -14,6 +14,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
+DOMAIN = "waveshare_io_ch32v003"
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
@@ -44,9 +45,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    await i2c.new_i2c_component(config)
 
 
 def validate_mode(value: ConfigType) -> ConfigType:
