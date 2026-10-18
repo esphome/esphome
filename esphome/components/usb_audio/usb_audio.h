@@ -77,13 +77,13 @@ class USBAudioComponent : public Component {
   void resume(Endpoint endpoint);
   void suspend(Endpoint endpoint);
 
-  // Safe from any task; the values reach the device through apply_pending_speaker_controls() on the next play()
-  // call that has a time budget.
+  // Safe from any task; the values reach the device through apply_pending_speaker_controls() on the speaker's
+  // control task.
   void set_speaker_volume_level(float volume);
   void set_speaker_mute_state(bool mute_state);
   bool speaker_controls_pending() const { return this->volume_.pending || this->mute_.pending; }
   /// Send pending volume and mute to the device. These control transfers can block for seconds, so only the
-  /// speaker's write path calls this, on the caller's task.
+  /// speaker's control task calls this, never the main loop.
   void apply_pending_speaker_controls();
 
   esp_err_t read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms);
@@ -108,7 +108,7 @@ class USBAudioComponent : public Component {
 
   struct ControlState {
     std::atomic<bool> pending{false};
-    // Only touched by the speaker's write path, and reset while it is idle.
+    // Only touched by the speaker's control task, and reset while it is idle.
     bool supported{true};
     uint8_t attempts{0};
   };

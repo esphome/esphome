@@ -18,7 +18,7 @@ ESPHOME_LOG_TAG(TAG, "usb_audio");
 
 static constexpr UBaseType_t UAC_TASK_PRIORITY = 8;
 static constexpr uint32_t UAC_TASK_STACK_SIZE = 4096;
-// Volume and mute retry on later play() calls, up to this many times.
+// The speaker's control task retries volume and mute up to this many times.
 static constexpr uint8_t MAX_CONTROL_ATTEMPTS = 5;
 
 static const LogString *endpoint_name(Endpoint endpoint) {
@@ -356,7 +356,7 @@ void USBAudioComponent::apply_control_(ControlState &control, esp_err_t err, con
     control.attempts = 0;
     return;
   }
-  // Retry on the next play().
+  // The speaker's control task retries it.
   control.pending = true;
 }
 

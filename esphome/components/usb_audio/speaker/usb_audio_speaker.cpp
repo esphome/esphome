@@ -20,6 +20,11 @@ static constexpr size_t MAX_TIMEOUT_RETRIES = 4;
 void USBAudioSpeaker::setup() {
   const auto &info = this->audio_stream_info_;
   this->write_chunk_ = info.frames_to_bytes(std::max<uint32_t>(info.bytes_to_frames(this->buffer_size_ / 4), 1));
+  if (!this->control_task_.create(&USBAudioSpeaker::control_task, "usb_spk_ctrl", CONTROL_TASK_STACK_SIZE, this,
+                                  CONTROL_TASK_PRIORITY, false)) {
+    this->mark_failed(LOG_STR("Failed to create control task"));
+    return;
+  }
   // start(), stop() and finish() wake the loop.
   this->disable_loop();
 }
@@ -90,6 +95,10 @@ void USBAudioSpeaker::on_stream_state(bool running) {
     if (this->state_ == speaker::STATE_STARTING) {
       this->state_ = speaker::STATE_RUNNING;
     }
+    // A (re)started stream needs the current volume and mute.
+    if (this->control_task_.is_created()) {
+      xTaskNotifyGive(this->control_task_.get_handle());
+    }
     return;
   }
   if (this->state_ == speaker::STATE_RUNNING) {
@@ -119,11 +128,6 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
 
   // Counted before the hub's handle is read, so the hub never closes the device under this call.
   this->writes_in_flight_.fetch_add(1);
-  // Control transfers can take seconds, so only a caller with a time budget (a pipeline task) sends them; a
-  // non-blocking caller on the main loop leaves them pending.
-  if (budget_ms > 0 && this->parent_->speaker_controls_pending()) {
-    this->parent_->apply_pending_speaker_controls();
-  }
 
   // Runs on the caller's task, so the cached loop time does not apply.
   const uint32_t start_ms = millis();
@@ -180,11 +184,34 @@ bool USBAudioSpeaker::has_buffered_data() const { return this->has_buffered_data
 void USBAudioSpeaker::set_volume(float volume) {
   speaker::Speaker::set_volume(volume);
   this->parent_->set_speaker_volume_level(volume);
+  if (this->control_task_.is_created()) {
+    xTaskNotifyGive(this->control_task_.get_handle());
+  }
 }
 
 void USBAudioSpeaker::set_mute_state(bool mute_state) {
   speaker::Speaker::set_mute_state(mute_state);
   this->parent_->set_speaker_mute_state(mute_state);
+  if (this->control_task_.is_created()) {
+    xTaskNotifyGive(this->control_task_.get_handle());
+  }
+}
+
+void USBAudioSpeaker::control_task(void *param) {
+  auto *self = static_cast<USBAudioSpeaker *>(param);
+  while (true) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    // A failed transfer is marked pending again; retry it while the stream runs, up to the hub's attempt limit.
+    while (self->parent_->speaker_controls_pending() && self->state_ == speaker::STATE_RUNNING) {
+      // Counted before the hub's handle is read, so the hub never closes the device under this transfer.
+      self->writes_in_flight_.fetch_add(1);
+      self->parent_->apply_pending_speaker_controls();
+      self->writes_in_flight_.fetch_sub(1);
+      if (self->parent_->speaker_controls_pending()) {
+        vTaskDelay(pdMS_TO_TICKS(CONTROL_RETRY_MS));
+      }
+    }
+  }
 }
 
 }  // namespace esphome::usb_audio

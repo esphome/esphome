@@ -10,6 +10,7 @@
 #include "esphome/components/speaker/speaker.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/static_task.h"
 
 #include <atomic>
 
@@ -49,12 +50,19 @@ class USBAudioSpeaker : public speaker::Speaker,
   static constexpr uint8_t COMMAND_START = 1 << 0;
   static constexpr uint8_t COMMAND_STOP = 1 << 1;
   static constexpr uint8_t COMMAND_FINISH = 1 << 2;
+  static constexpr uint32_t CONTROL_TASK_STACK_SIZE = 3072;
+  static constexpr UBaseType_t CONTROL_TASK_PRIORITY = 2;
+  static constexpr uint32_t CONTROL_RETRY_MS = 100;
 
+  static void control_task(void *param);
   void request_(uint8_t set, uint8_t clear);
   void stop_();
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
   bool has_buffered_data_(uint32_t now) const;
 
+  // Sends volume and mute to the device: the control transfers can block for seconds, too long for the main loop
+  // and for play(). Created once in setup() and parked until woken.
+  StaticTask control_task_;
   uint32_t write_timeout_ms_;
   // Frame-aligned size of each driver write, set in setup().
   uint32_t write_chunk_{0};
@@ -62,7 +70,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   std::atomic<uint32_t> last_write_ms_{0};
   std::atomic<uint32_t> queued_bytes_{0};
   std::atomic<uint8_t> commands_{0};
-  // play() calls that may be using the device handle; the hub closes a lost device only at zero.
+  // play() calls and control transfers that may be using the device handle; the hub closes a lost device only at
+  // zero.
   std::atomic<uint8_t> writes_in_flight_{0};
   bool finishing_{false};
 };
