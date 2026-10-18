@@ -40,7 +40,7 @@ void UartPacketInterface::loop() {
       byte ^= ESCAPE_XOR;
       this->rx_control_ = false;
     }
-    if (this->rx_length_ >= this->max_packet_size_ || this->rx_length_ >= this->rx_buffer_.size()) {
+    if (this->rx_length_ >= this->rx_buffer_.size()) {
       ESP_LOGD(TAG, "Packet too large, discarding");
       this->rx_started_ = false;
       this->rx_length_ = 0;

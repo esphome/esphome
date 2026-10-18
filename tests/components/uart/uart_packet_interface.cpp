@@ -245,8 +245,12 @@ TEST_F(UartPacketInterfaceTest, IgnoreDataBeforeFirstFlag) {
 
 // Test oversized packet is discarded
 TEST_F(UartPacketInterfaceTest, OversizedPacketDiscarded) {
-  interface_.set_max_packet_size(10);
-  interface_.setup();
+  uint8_t small_buffer[10]{};
+  UartPacketInterface interface(small_buffer);
+  interface.set_uart_parent(&this->uart_);
+  std::vector<std::vector<uint8_t>> received;
+  interface.add_packet_interface_listener(
+      [&received](const PacketBuffer &data, const PacketMetaData &) { received.push_back(to_vector(data)); });
 
   // Create a packet larger than buffer
   std::vector<uint8_t> frame_data = {0x7E};
@@ -254,23 +258,11 @@ TEST_F(UartPacketInterfaceTest, OversizedPacketDiscarded) {
     frame_data.push_back(0xAA);
   }
   frame_data.push_back(0x7E);
-  size_t read_pos = 0;
 
-  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
-    return frame_data.size() - read_pos;
-  }));
-
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
-      return false;
-    *data = frame_data[read_pos++];
-    return true;
-  }));
-
-  interface_.loop();
+  feed(this->uart_, interface, frame_data);
 
   // Oversized packet should be discarded
-  EXPECT_EQ(received_packets_.size(), 0);
+  EXPECT_TRUE(received.empty());
 }
 
 // Test round-trip (send and receive)
@@ -337,26 +329,28 @@ TEST_F(UartPacketInterfaceTest, AllByteValues) {
   EXPECT_EQ(received_packets_[0], data);
 }
 
-// Test a packet larger than max_packet_size is not sent
+// The buffer passed to the constructor is the largest packet, for receiving and sending alike
 TEST_F(UartPacketInterfaceTest, ReceiveLimitedToBuffer) {
   uint8_t small_buffer[4]{};
   UartPacketInterface interface(small_buffer);
   interface.set_uart_parent(&this->uart_);
-  // Raised above the buffer after code generation sized it
-  interface.set_max_packet_size(100);
   std::vector<std::vector<uint8_t>> received;
   interface.add_packet_interface_listener(
       [&received](const PacketBuffer &data, const PacketMetaData &) { received.push_back(to_vector(data)); });
+  // The first packet is longer than the buffer and is dropped; the next one fits
   feed(this->uart_, interface, {0x7E, 1, 2, 3, 4, 5, 6, 0x7E, 7, 8, 0x7E});
   EXPECT_EQ(received, (std::vector<std::vector<uint8_t>>{{7, 8}}));
 }
 
+// Test a packet larger than max_packet_size is not sent
 TEST_F(UartPacketInterfaceTest, OversizedPacketNotSent) {
-  interface_.set_max_packet_size(4);
+  uint8_t small_buffer[4]{};
+  UartPacketInterface interface(small_buffer);
+  interface.set_uart_parent(&this->uart_);
   std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04, 0x05};
   PacketBuffer buffer(data);
 
-  EXPECT_FALSE(interface_.send_to_interface(buffer, {}));
+  EXPECT_FALSE(interface.send_to_interface(buffer, {}));
   EXPECT_EQ(uart_.written_data.size(), 0);
 }
 

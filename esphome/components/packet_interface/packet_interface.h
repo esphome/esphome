@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 
@@ -10,6 +11,9 @@
 #include "packet_buffer.h"
 
 namespace esphome::packet_interface {
+
+/// The room left for a packet of \p size bytes after \p used bytes, or 0 if it is too small.
+constexpr size_t remaining_packet_size(size_t size, size_t used) { return size > used ? size - used : 0; }
 
 /// What a stack of layers provides, as bits of PacketInterface::get_capabilities().
 enum Capability : uint8_t {
@@ -61,10 +65,10 @@ class PacketInterface : public Component {
    */
   virtual bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) = 0;
 
+  /// The largest packet this layer accepts; fixed when the layer is constructed.
   size_t get_max_packet_size() const { return this->max_packet_size_; }
   /// How many packets send_to_interface() would accept now, so a layer above can tell before sending a series.
   virtual size_t get_send_capacity() const { return SIZE_MAX; }
-  void set_max_packet_size(size_t size) { this->max_packet_size_ = size; }
   /// The capabilities of this layer and every layer below it.
   uint8_t get_capabilities() const { return this->capabilities_; }
   bool has_capability(Capability capability) const { return (this->capabilities_ & capability) != 0; }
@@ -101,6 +105,9 @@ class PacketInterface : public Component {
   void dump_config() override;
 
  protected:
+  /// @param max_packet_size The largest packet the layer accepts, set from the layer below or the layer's own buffer
+  explicit PacketInterface(size_t max_packet_size) : max_packet_size_(max_packet_size) {}
+
   virtual ~PacketInterface() = default;
   /**
    * This function should be called by implementing classes with received data to be passed to any listeners.
@@ -135,7 +142,7 @@ class PacketInterface : public Component {
   LazyCallbackManager<void(bool)> session_callback_;
   PacketInterface *upper_{nullptr};
   const char *name_{""};
-  size_t max_packet_size_{512};
+  const size_t max_packet_size_;
   uint8_t capabilities_{0};
   uint8_t not_understood_count_{0};
 };

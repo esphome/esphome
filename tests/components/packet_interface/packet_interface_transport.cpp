@@ -12,6 +12,7 @@ using Packet = std::vector<uint8_t>;
 // A link layer that records what is sent, and passes injected packets to its listeners
 class FakeInterface : public PacketInterface {
  public:
+  explicit FakeInterface(size_t max_packet_size = 512) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
     Packet packet(data.size());
     data.copy_to(packet.data(), packet.size());
@@ -26,7 +27,9 @@ class FakeInterface : public PacketInterface {
 // A layer stacked on a link, which the bridge must use in place of the link
 class FakeLayer : public FakeInterface {
  public:
-  explicit FakeLayer(PacketInterface *lower) { this->stack_on_(lower, CAPABILITY_ENCRYPTION); }
+  explicit FakeLayer(PacketInterface *lower) : FakeInterface(lower->get_max_packet_size()) {
+    this->stack_on_(lower, CAPABILITY_ENCRYPTION);
+  }
 };
 
 class TestBridge : public PacketInterfaceTransport {
