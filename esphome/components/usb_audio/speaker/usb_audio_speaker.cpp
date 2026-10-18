@@ -241,8 +241,11 @@ void USBAudioSpeaker::track_written_(size_t bytes, uint32_t now, bool report) {
   if (report) {
     // Reported when written, with the time the last of them finishes playing: after the audio queued ahead of them
     // and their own duration. Sendspin and the other listeners take that as when the next written audio starts.
-    const int64_t finished_at_us =
-        esp_timer_get_time() + info.frames_to_microseconds(info.bytes_to_frames(this->queued_bytes_));
+    // In 64 bits here rather than through AudioStreamInfo::frames_to_microseconds(), which wraps above 4294 frames
+    // (about 90 ms at 48 kHz) in releases before #21089.
+    const int64_t queued_us =
+        static_cast<int64_t>(info.bytes_to_frames(this->queued_bytes_)) * 1000000 / info.get_sample_rate();
+    const int64_t finished_at_us = esp_timer_get_time() + queued_us;
     this->audio_output_callback_(info.bytes_to_frames(bytes), finished_at_us);
   }
 }
