@@ -174,7 +174,8 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
-    // use ext1 wakeup for RTC pins
+    // use ext1 wakeup for RTC pins.
+    // Some variants could also use gpio wakeup instead.
     if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
       esp_sleep_enable_ext1_wakeup_io(1 << this->get_pin_num(), get_ext1_type(idf_type));
       gpio_set_intr_type(this->get_pin_num(), idf_type);
