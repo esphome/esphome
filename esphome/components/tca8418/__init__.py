@@ -5,7 +5,7 @@ import esphome.codegen as cg
 from esphome.components import gpio_expander, i2c, key_provider
 from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_ON_KEY
+from esphome.const import CONF_INTERRUPT_PIN, CONF_ON_KEY
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -131,9 +131,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if (rows := config.get(CONF_ROWS)) is not None:
         columns = config[CONF_COLUMNS]

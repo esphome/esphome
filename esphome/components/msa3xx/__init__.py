@@ -4,7 +4,6 @@ from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
-    CONF_ID,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_OFFSET_X,
@@ -121,9 +120,7 @@ MSA_SENSOR_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_model(config[CONF_TYPE]))
     cg.add(var.set_range(MSA_RANGES[config[CONF_RANGE]]))

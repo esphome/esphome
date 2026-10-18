@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_OFFSET_HEIGHT,
     CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
@@ -73,12 +74,17 @@ for module_info in pkgutil.iter_modules(models.__path__):
 
 MODELS = models.EpaperModel.models
 
-DIMENSION_SCHEMA = cv.Schema(
-    {
+
+def dimension_schema(model: models.EpaperModel) -> cv.Schema:
+    schema = {
         cv.Required(CONF_WIDTH): cv.int_,
         cv.Required(CONF_HEIGHT): cv.int_,
     }
-)
+    # Only models with an offset_height default use it, and the default must survive explicit dimensions
+    if (offset_height := model.get_default(CONF_OFFSET_HEIGHT, None)) is not None:
+        schema[cv.Optional(CONF_OFFSET_HEIGHT, default=offset_height)] = cv.positive_int
+    return cv.Schema(schema)
+
 
 TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
 
@@ -135,7 +141,7 @@ def model_schema(config):
             model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(class_name),
             cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
-            cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+            cv_dimensions(CONF_DIMENSIONS): dimension_schema(model),
             model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
             model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
                 map_sequence
