@@ -962,10 +962,11 @@ async def _run_apply_condition(
     args: list[tuple[object, str]] | None = None,
     platform: str = "esp32",
     id_key: str = CONF_ID,
+    defaults: dict[str, object] | None = None,
 ) -> RegistryEntry:
     """Register an apply condition and run its builder with the given config."""
     _, conditions = registries
-    register_apply_condition("my.check", None, check, id_key=id_key)
+    register_apply_condition("my.check", None, check, id_key=id_key, defaults=defaults)
     return await _run_entry(conditions["my.check"], config, args, platform, id_key)
 
 
@@ -1311,6 +1312,21 @@ async def test_apply_condition_compares_config_value(
 
     with pytest.raises(EsphomeError, match="needs all of"):
         await _run_apply_condition(registries, check, {})
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_defaults_fill_absent_keys(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    config = {"above": 10.0}
+    await _run_apply_condition(
+        registries, IN_RANGE_CHECK, config, defaults=IN_RANGE_DEFAULTS
+    )
+    assert (
+        f"return ::{PARENT_OBJ}->state >= 10.0f && ::{PARENT_OBJ}->state <= INFINITY;"
+        in _apply_definition(mock_cg)
+    )
+    assert config == {"above": 10.0}
 
 
 @pytest.mark.asyncio
