@@ -685,8 +685,9 @@ void TsdbComponent::dump_config() {
   ESP_LOGCONFIG(
       TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32,
       this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_);
-  if (this->reopen_errors_ > 0)
+  if (this->reopen_errors_ > 0) {
     ESP_LOGCONFIG(TAG, "  failed reopens: %" PRIu32, this->reopen_errors_);
+  }
 }
 
 void TsdbComponent::publish_aggregates_() {
