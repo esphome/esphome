@@ -30,12 +30,17 @@ static void put_uint32(uint8_t *buf, uint32_t value) {
 
 static uint32_t get_uint32(const uint8_t *buf) { return encode_uint32(buf[3], buf[2], buf[1], buf[0]); }
 
+static constexpr size_t trailer_size(bool rolling_code) {
+  return rolling_code ? ROLLING_SIZE + CHECK_SIZE : CHECK_SIZE;
+}
+
 XxteaEncryption::XxteaEncryption(PacketInterface *lower, bool rolling_code)
-    : lower_(lower), trailer_size_(rolling_code ? ROLLING_SIZE + CHECK_SIZE : CHECK_SIZE), rolling_code_(rolling_code) {
+    // XXTEA works on whole 32-bit words
+    : PacketInterface(remaining_packet_size(lower->get_max_packet_size() & ~size_t{3}, trailer_size(rolling_code))),
+      lower_(lower),
+      trailer_size_(trailer_size(rolling_code)),
+      rolling_code_(rolling_code) {
   this->stack_on_(lower, CAPABILITY_ENCRYPTION);
-  // XXTEA works on whole 32-bit words
-  size_t lower_size = lower->get_max_packet_size() & ~size_t{3};
-  this->max_packet_size_ = lower_size > this->trailer_size_ ? lower_size - this->trailer_size_ : 0;
 }
 
 void XxteaEncryption::set_key(std::initializer_list<uint32_t> key) {

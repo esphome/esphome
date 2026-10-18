@@ -19,7 +19,7 @@ using Packet = std::vector<uint8_t>;
 // A link layer that records what is sent, so a test can deliver it to the peer
 class MockLink : public PacketInterface {
  public:
-  MockLink() { this->set_max_packet_size(64); }
+  explicit MockLink(size_t max_packet_size = 64) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
     if (!this->accept)
       return false;
@@ -240,8 +240,7 @@ TEST_F(BasicSessionTest, DataLostBelowReportedAsSessionLost) {
 }
 
 TEST_F(BasicSessionTest, LinkTooSmallForKeepAliveFailsSetup) {
-  MockLink link;
-  link.set_max_packet_size(4);
+  MockLink link(4);
   TestSession session(&link);
   session.setup();
   EXPECT_TRUE(session.is_failed());

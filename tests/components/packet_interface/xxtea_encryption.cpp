@@ -20,7 +20,7 @@ using Packet = std::vector<uint8_t>;
 // A link layer that records what is sent, so a test can deliver it to the peer
 class MockLink : public PacketInterface {
  public:
-  explicit MockLink(size_t max_packet_size = 64) { this->set_max_packet_size(max_packet_size); }
+  explicit MockLink(size_t max_packet_size = 64) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
     this->sent.push_back(to_vector(data));
     return true;

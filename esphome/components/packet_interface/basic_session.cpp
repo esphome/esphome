@@ -13,10 +13,9 @@ static constexpr uint8_t PACKET_TYPE_KEEP_ALIVE = 0x01;
 // Type byte and the 32-bit boot id, little endian
 static constexpr size_t KEEP_ALIVE_SIZE = 5;
 
-BasicSession::BasicSession(PacketInterface *lower) : lower_(lower) {
+BasicSession::BasicSession(PacketInterface *lower)
+    : PacketInterface(remaining_packet_size(lower->get_max_packet_size(), HEADER_SIZE)), lower_(lower) {
   this->stack_on_(lower, CAPABILITY_SESSION);
-  size_t lower_size = lower->get_max_packet_size();
-  this->max_packet_size_ = lower_size > HEADER_SIZE ? lower_size - HEADER_SIZE : 0;
   // Data lost by a reliability layer below must be sent again, as after a restart of the peer
   if (lower->has_capability(CAPABILITY_RELIABILITY)) {
     lower->add_on_session_state_callback([this](bool connected) {
