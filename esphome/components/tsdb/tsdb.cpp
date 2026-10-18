@@ -687,9 +687,10 @@ void TsdbComponent::dump_config() {
                 LOG_STR_ARG(missing_policy_to_string(this->missing_policy_)));
   ESP_LOGCONFIG(TAG, "  aggregates: window %" PRIu32 " s, interval %" PRIu32 " ms, dump rows: %" PRIu32,
                 this->aggregate_window_, this->aggregate_interval_, this->dump_rows_);
-  ESP_LOGCONFIG(TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32,
-                " held: %" PRIu32 ", sentinel: %" PRIu32, this->writes_, this->write_errors_, this->dropped_,
-                this->saturated_, this->held_, this->sentinel_);
+  ESP_LOGCONFIG(TAG,
+                "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32
+                ", sentinel: %" PRIu32,
+                this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_, this->sentinel_);
   if (this->reopen_errors_ > 0) {
     ESP_LOGCONFIG(TAG, "  failed reopens: %" PRIu32, this->reopen_errors_);
   }
