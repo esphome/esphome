@@ -28,7 +28,7 @@ static constexpr uint8_t PACKET_REQUEST = 0x13;
 // A packet interface that records what is sent, can refuse to send, and can act as a session layer
 class MockInterface : public packet_interface::PacketInterface {
  public:
-  MockInterface() { this->set_max_packet_size(64); }
+  explicit MockInterface(size_t max_packet_size = 64) : packet_interface::PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
     if (!this->accept || this->budget == 0)
       return false;
@@ -80,8 +80,8 @@ class EntityTransportTest : public ::testing::Test {
   }
 
   // The sender, with a sensor and a binary sensor
-  std::unique_ptr<TestTransport> make_sender_() {
-    auto transport = std::make_unique<TestTransport>(&this->link_a_);
+  std::unique_ptr<TestTransport> make_sender_(MockInterface *link = nullptr) {
+    auto transport = std::make_unique<TestTransport>(link != nullptr ? link : &this->link_a_);
     transport->set_entity_count(2);
     transport->add_sensor("temp", &this->temp_);
     transport->add_binary_sensor("door", &this->door_);
@@ -148,14 +148,14 @@ TEST_F(EntityTransportTest, StatesReachRemoteEntities) {
 }
 
 TEST_F(EntityTransportTest, SplitsAcrossPackets) {
-  this->link_a_.set_max_packet_size(5 + 1 + strlen(DEVICE_NAME) + 3 + 5);
+  MockInterface link(5 + 1 + strlen(DEVICE_NAME) + 3 + 5);
   this->temp_.publish_state(1.0f);
   this->door_.publish_state(true);
-  auto sender = this->make_sender_();
+  auto sender = this->make_sender_(&link);
   auto receiver = this->make_receiver_();
   sender->loop();
-  EXPECT_EQ(this->link_a_.sent.size(), 3);  // one dictionary packet for each entity, then one data packet
-  this->link_a_.deliver_to(this->link_b_);
+  EXPECT_EQ(link.sent.size(), 3);  // one dictionary packet for each entity, then one data packet
+  link.deliver_to(this->link_b_);
   EXPECT_EQ(this->remote_temp_.get_state(), 1.0f);
   EXPECT_TRUE(this->remote_door_.state);
 }
@@ -254,21 +254,21 @@ TEST_F(EntityTransportTest, SessionConnectSendsAllAndLossClearsRemote) {
 
 TEST_F(EntityTransportTest, RefusedDictionaryPartResumes) {
   // One entity in each dictionary packet
-  this->link_a_.set_max_packet_size(5 + 1 + strlen(DEVICE_NAME) + 3 + 5);
+  MockInterface link(5 + 1 + strlen(DEVICE_NAME) + 3 + 5);
   this->temp_.publish_state(4.0f);
   this->door_.publish_state(true);
-  auto sender = this->make_sender_();
+  auto sender = this->make_sender_(&link);
   auto receiver = this->make_receiver_();
-  this->link_a_.budget = 1;
+  link.budget = 1;
   sender->loop();
-  ASSERT_EQ(this->link_a_.sent.size(), 1);
-  this->link_a_.budget = SIZE_MAX;
+  ASSERT_EQ(link.sent.size(), 1);
+  link.budget = SIZE_MAX;
   sender->loop();
   int dictionaries = 0;
-  for (auto &packet : this->link_a_.sent)
+  for (auto &packet : link.sent)
     dictionaries += packet[0] == PACKET_DICTIONARY;
   EXPECT_EQ(dictionaries, 2);  // the first part was not sent again
-  this->link_a_.deliver_to(this->link_b_);
+  link.deliver_to(this->link_b_);
   EXPECT_EQ(this->remote_temp_.get_state(), 4.0f);
   EXPECT_TRUE(this->remote_door_.state);
 }
@@ -308,10 +308,9 @@ TEST_F(EntityTransportTest, IdMatchingOnlyUpToNulNotLearnt) {
 
 TEST_F(EntityTransportTest, PacketTooSmallForIdsFailsSetup) {
   // One byte short of a dictionary packet holding the device name and a four character id
-  this->link_a_.set_max_packet_size(5 + 1 + strlen(DEVICE_NAME) + 3 + 1 + 4 - 1);
-  auto sender = this->make_sender_();
+  MockInterface small_link(5 + 1 + strlen(DEVICE_NAME) + 3 + 1 + 4 - 1);
+  auto sender = this->make_sender_(&small_link);
   EXPECT_TRUE(sender->is_failed());
-  this->link_a_.set_max_packet_size(5 + 1 + strlen(DEVICE_NAME) + 3 + 1 + 4);
   EXPECT_FALSE(this->make_sender_()->is_failed());
 }
 
