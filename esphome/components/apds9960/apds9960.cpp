@@ -11,7 +11,6 @@ ESPHOME_LOG_TAG(TAG, "apds9960");
     this->mark_failed(LOG_STR("Setting up APDS9960 registers failed")); \
     return; \
   }
-#define APDS9960_WRITE_BYTE(reg, value) APDS9960_ERROR_CHECK(this->write_byte(reg, value));
 
 static constexpr i2c::I2CRegValue APDS9960_TIMING[] PROGMEM = {
     // ATime (ADC integration time, 2.78ms increments, 0x81) -> 0xDB (103ms)
@@ -77,17 +76,16 @@ void APDS9960::setup() {
   // proximity gain (0 -> 1x, 1 -> 2X, 2 -> 4X, 3 -> 8X), ambient light gain (0 -> 1x, 1 -> 4x, 2 -> 16x, 3 -> 64x)
   APDS9960_ERROR_CHECK(this->update_register(
       0x8F, 0b11001111,
-      (this->led_drive_ & 0b11) << 6 | (this->proximity_gain_ & 0b11) << 2 | (this->ambient_gain_ & 0b11) << 0));
+      (this->led_drive_ & 0b11) << 6 | (this->proximity_gain_ & 0b11) << 2 | (this->ambient_gain_ & 0b11)));
 
   APDS9960_ERROR_CHECK(this->write_registers(APDS9960_INTERRUPT_GESTURE));
 
   // GConf 2 (0xA3): gesture gain (0 -> 1x, 1 -> 2x, 2 -> 4x, 3 -> 8x),
   // gesture led drive (0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA), gesture wait time
   // (0 -> 0ms, 1 -> 2.8ms, 2 -> 5.6ms, 3 -> 8.4ms, 4 -> 14.0ms, 5 -> 22.4 ms, 6 -> 30.8ms, 7 -> 39.2 ms)
-  APDS9960_ERROR_CHECK(this->update_register(0xA3, 0b01111111,
-                                             (this->gesture_gain_ & 0b11) << 5 |
-                                                 (this->gesture_led_drive_ & 0b11) << 3 |
-                                                 (this->gesture_wait_time_ & 0b111) << 0));
+  APDS9960_ERROR_CHECK(this->update_register(
+      0xA3, 0b01111111,
+      (this->gesture_gain_ & 0b11) << 5 | (this->gesture_led_drive_ & 0b11) << 3 | (this->gesture_wait_time_ & 0b111)));
 
   APDS9960_ERROR_CHECK(this->write_registers(APDS9960_GESTURE_OFFSETS));
 
@@ -100,7 +98,7 @@ void APDS9960::setup() {
   val |= 0b0 << 4;                                  // color interrupt disabled
   val |= 0b0 << 5;                                  // proximity interrupt disabled
   val |= (this->is_gesture_enabled_() & 0b1) << 6;  // proximity is required for gestures
-  APDS9960_WRITE_BYTE(0x80, val);
+  APDS9960_ERROR_CHECK(this->write_byte(0x80, val));
 }
 bool APDS9960::is_color_enabled_() const {
 #ifdef USE_SENSOR
