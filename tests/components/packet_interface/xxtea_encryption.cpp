@@ -74,16 +74,20 @@ struct Peer {
   std::vector<Packet> received;
 };
 
-// The test main does not construct App as generated code does
+// Each test replaces App with a fresh one
 class XxteaEncryptionTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "xxtea-tests";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
-  void TearDown() override { App.~Application(); }
+  void TearDown() override {
+    App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
+  }
 };
 
 TEST_F(XxteaEncryptionTest, MaxPacketSizeAllowsForTrailerAndWords) {

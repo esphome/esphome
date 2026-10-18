@@ -79,16 +79,20 @@ static void pump(Peer &a, Peer &b) {
   FAIL() << "Peers did not go quiet";
 }
 
-// The test main does not construct App; the keep-alive interval needs its scheduler
+// Each test replaces App with a fresh one; the keep-alive interval needs its scheduler
 class BasicSessionTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "session-tests";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
-  void TearDown() override { App.~Application(); }
+  void TearDown() override {
+    App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
+  }
 
   static void set_time(uint32_t now) { LoopBlockingGuard guard{nullptr, nullptr, now}; }
 };
