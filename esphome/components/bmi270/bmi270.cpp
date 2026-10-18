@@ -78,17 +78,8 @@ bool BMI270Component::load_config_file_() {
 void BMI270Component::setup() {
   MotionComponent::setup();
   // 1. Verify chip ID
-  uint8_t chip_id = 0;
-  if (!this->read_byte(BMI270_REG_CHIP_ID, &chip_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, BMI270_REG_CHIP_ID, BMI270_CHIP_ID_VALUE))
     return;
-  }
-  if (chip_id != BMI270_CHIP_ID_VALUE) {
-    ESP_LOGE(TAG, "Wrong chip ID: 0x%02X (expected 0x%02X)", chip_id, BMI270_CHIP_ID_VALUE);
-    this->mark_failed(LOG_STR("Wrong chip ID"));
-    return;
-  }
-  ESP_LOGD(TAG, "Chip ID: 0x%02X", chip_id);
 
   // 2. Soft-reset via CMD register (0x7E = 0xB6)
   if (!this->write_byte(BMI270_REG_CMD, BMI270_CMD_SOFT_RESET)) {

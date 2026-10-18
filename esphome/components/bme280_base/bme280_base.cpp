@@ -3,6 +3,7 @@
 
 #include "bme280_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
@@ -144,11 +145,10 @@ void BME280Component::setup() {
   this->calibration_.h1 = read_u8_(BME280_REGISTER_DIG_H1);
   this->calibration_.h2 = read_s16_le_(BME280_REGISTER_DIG_H2);
   this->calibration_.h3 = read_u8_(BME280_REGISTER_DIG_H3);
-  // h4 and h5 are signed 12-bit values; shift left then arithmetic right shift to sign-extend
-  int16_t h4_raw = read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F);
-  this->calibration_.h4 = static_cast<int16_t>(h4_raw << 4) >> 4;
-  int16_t h5_raw = read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4);
-  this->calibration_.h5 = static_cast<int16_t>(h5_raw << 4) >> 4;
+  this->calibration_.h4 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F));
+  this->calibration_.h5 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4));
   this->calibration_.h6 = read_u8_(BME280_REGISTER_DIG_H6);
 
   uint8_t humid_control_val = 0;

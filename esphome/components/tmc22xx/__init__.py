@@ -59,12 +59,13 @@ TMC22XXStepper = tmc22xx_ns.class_(
 StandstillMode = tmc22xx_ns.enum("StandstillMode")
 DriverEvent = tmc22xx_ns.enum("DriverEvent")
 
-STANDSTILL_MODES = {
-    "normal": StandstillMode.STANDSTILL_MODE_NORMAL,
-    "freewheeling": StandstillMode.STANDSTILL_MODE_FREEWHEELING,
-    "coil_short_ls": StandstillMode.STANDSTILL_MODE_COIL_SHORT_LS,
-    "coil_short_hs": StandstillMode.STANDSTILL_MODE_COIL_SHORT_HS,
-}
+STANDSTILL_MODES = StandstillMode.options(
+    "normal",
+    "freewheeling",
+    "coil_short_ls",
+    "coil_short_hs",
+    prefix="STANDSTILL_MODE_",
+)
 
 validate_microsteps = cv.one_of(1, 2, 4, 8, 16, 32, 64, 128, 256, int=True)
 validate_current = cv.All(cv.current, cv.positive_float)
@@ -161,9 +162,7 @@ def final_validate(config: ConfigType) -> ConfigType:
 
 
 async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     await stepper.register_stepper(var, config)
 
     cg.add(var.set_address(config[CONF_ADDRESS]))

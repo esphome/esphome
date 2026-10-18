@@ -57,14 +57,14 @@ Inkplate = inkplate_ns.class_(
 
 InkplateModel = inkplate_ns.enum("InkplateModel")
 
-MODELS = {
-    "inkplate_6": InkplateModel.INKPLATE_6,
-    "inkplate_10": InkplateModel.INKPLATE_10,
-    "inkplate_6_plus": InkplateModel.INKPLATE_6_PLUS,
-    "inkplate_6_v2": InkplateModel.INKPLATE_6_V2,
-    "inkplate_5": InkplateModel.INKPLATE_5,
-    "inkplate_5_v2": InkplateModel.INKPLATE_5_V2,
-}
+MODELS = InkplateModel.options(
+    "inkplate_6",
+    "inkplate_10",
+    "inkplate_6_plus",
+    "inkplate_6_v2",
+    "inkplate_5",
+    "inkplate_5_v2",
+)
 
 CONF_CUSTOM_WAVEFORM = "custom_waveform"
 

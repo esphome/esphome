@@ -439,8 +439,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
     ptr = dst;
   }
   for (auto *display : this->displays_) {
-    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, display::COLOR_ORDER_RGB, LV_BITNESS,
-                            this->big_endian_);
+    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, LV_BITNESS, this->big_endian_);
   }
 }
 

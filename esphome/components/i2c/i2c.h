@@ -2,7 +2,9 @@
 
 #include <array>
 #include <vector>
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 #include "i2c_bus.h"
 
@@ -11,6 +13,16 @@ namespace esphome::i2c {
 #define LOG_I2C_DEVICE(this) ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
 
 class I2CDevice;  // forward declaration
+
+/// One register write for I2CDevice::write_registers(); tables of these may live in PROGMEM.
+struct I2CRegValue {
+  uint8_t reg;
+  uint8_t value;
+};
+static_assert(sizeof(I2CRegValue) == 2, "each entry is sent to the bus as is");
+
+/// Out of line so each check_chip_id() caller only pays for a call.
+void log_wrong_chip_id(uint8_t id, uint8_t expected);
 
 /// @brief This class is used to create I2CRegister objects that act as proxies to read/write internal registers on an
 /// I2C device.
@@ -208,6 +220,26 @@ class I2CDevice {
   /// @return an i2c::ErrorCode
   ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
 
+  /// Write each register and value of \p table in order, stopping at the first failure.
+  /// The table may be in PROGMEM.
+  bool write_registers(const I2CRegValue *table, size_t count) const;
+  template<size_t N> bool write_registers(const I2CRegValue (&table)[N]) const {
+    return this->write_registers(table, N);
+  }
+
+  /// Read the 8-bit ID at \p a_register and accept it when it matches \p expected in the bits set in \p mask.
+  /// Otherwise mark \p component failed and return false.
+  bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected, uint8_t mask = 0xFF) {
+    uint8_t id;
+    const ErrorCode err = this->read_register(a_register, &id, 1);
+    if (err == ERROR_OK && (id & mask) == (expected & mask))
+      return true;
+    if (err == ERROR_OK)
+      log_wrong_chip_id(id, expected & mask);
+    component->mark_failed(err == ERROR_OK ? LOG_STR("Wrong chip ID") : LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+
   ///
   /// Compat APIs
   /// All methods below have been added for compatibility reasons. They do not bring any functionality and therefore on
@@ -248,6 +280,21 @@ class I2CDevice {
 
   bool read_byte_16(uint8_t a_register, uint16_t *data) { return read_bytes_16(a_register, data, 1); }
 
+  /// Read len 16-bit values stored least significant byte first; no conversion is compiled on little-endian hosts.
+  bool read_bytes_16_le(uint8_t a_register, uint16_t *data, uint8_t len) {
+    if (this->read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
+      return false;
+    for (size_t i = 0; i < len; i++)
+      data[i] = convert_little_endian(data[i]);
+    return true;
+  }
+  bool read_bytes_16_le(uint8_t a_register, int16_t *data, uint8_t len) {
+    return this->read_bytes_16_le(a_register, reinterpret_cast<uint16_t *>(data), len);
+  }
+
+  /// Read a 16-bit value stored least significant byte first.
+  bool read_byte_16_le(uint8_t a_register, uint16_t *data) { return this->read_bytes_16_le(a_register, data, 1); }
+
   bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) const {
     return write_register(a_register, data, len) == ERROR_OK;
   }
@@ -264,7 +311,15 @@ class I2CDevice {
 
   bool write_byte(uint8_t a_register, uint8_t data) const { return write_bytes(a_register, &data, 1); }
 
-  bool write_byte_16(uint8_t a_register, uint16_t data) const { return write_bytes_16(a_register, &data, 1); }
+  bool write_byte_16(uint8_t a_register, uint16_t data) const;
+
+  /// Write a 16-bit value least significant byte first.
+  bool write_byte_16_le(uint8_t a_register, uint16_t data) const;
+
+  /// Read a register, replace the bits in @p mask with those of @p value and write it back.
+  /// The write always happens; bits of @p value outside @p mask are ignored. Logs both values at VERBOSE.
+  /// @return false if the read or the write failed (nothing is written after a failed read)
+  bool update_register(uint8_t a_register, uint8_t mask, uint8_t value);
 
   /// Read a register, replace the bits in @p mask with those of @p value and write it back.
   /// The write always happens; bits of @p value outside @p mask are ignored. Logs both values at VERBOSE.

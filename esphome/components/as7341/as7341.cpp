@@ -9,14 +9,8 @@ ESPHOME_LOG_TAG(TAG, "as7341");
 void AS7341Component::setup() {
   LOG_I2C_DEVICE(this);
 
-  // Verify device ID
-  uint8_t id;
-  this->read_byte(AS7341_ID, &id);
-  ESP_LOGCONFIG(TAG, "  Read ID: 0x%X", id);
-  if ((id & 0xFC) != (AS7341_CHIP_ID << 2)) {
-    this->mark_failed(LOG_STR("Wrong chip ID"));
+  if (!this->check_chip_id(this, AS7341_ID, AS7341_CHIP_ID << 2, 0xFC))
     return;
-  }
 
   // Power on (enter IDLE state)
   if (!this->enable_power(true)) {
