@@ -6,6 +6,7 @@
 #include <cinttypes>
 #include <cmath>
 
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 extern "C" {
@@ -24,6 +25,9 @@ static constexpr uint32_t WORKER_TASK_STACK_SIZE = 4096;
 // The worker retries volume and mute up to this many times, this far apart.
 static constexpr uint8_t MAX_CONTROL_ATTEMPTS = 5;
 static constexpr uint32_t CONTROL_RETRY_MS = 100;
+// A failed close is retried up to this many times, this far apart, before the handle is given up.
+static constexpr uint8_t MAX_CLOSE_ATTEMPTS = 5;
+static constexpr uint32_t CLOSE_RETRY_MS = 500;
 
 static const LogString *endpoint_name(Endpoint endpoint) {
   return endpoint == Endpoint::SPEAKER ? LOG_STR("Speaker") : LOG_STR("Microphone");
@@ -149,6 +153,12 @@ void USBAudioComponent::resume(Endpoint endpoint) {
   ep.request_seq++;
   const uac_host_device_handle_t handle = ep.handle;
   if (handle == nullptr) {
+    if (ep.open_failed && !ep.open_pending) {
+      // The device is still plugged in but its last open failed; try again for this start.
+      ep.open_failed = false;
+      this->open_stream_(endpoint, ep.failed_addr, ep.failed_iface);
+      return;
+    }
     ESP_LOGD(TAG, "%s interface not connected yet", LOG_STR_ARG(endpoint_name(endpoint)));
     return;
   }
@@ -282,7 +292,15 @@ void USBAudioComponent::open_stream_(Endpoint endpoint, uint8_t addr, uint8_t if
     ESP_LOGD(TAG, "%s interface connected but not configured", LOG_STR_ARG(name));
     return;
   }
-  if (ep.handle.load() != nullptr || ep.open_pending) {
+  if (ep.open_pending) {
+    // Either a duplicate, or a replacement for a device that went away during the pending open; on_opened_() tells
+    // them apart and replays a replacement.
+    ep.connect_deferred = true;
+    ep.deferred_addr = addr;
+    ep.deferred_iface = iface_num;
+    return;
+  }
+  if (ep.handle.load() != nullptr) {
     ESP_LOGW(TAG, "%s interface already open, ignoring duplicate event", LOG_STR_ARG(name));
     return;
   }
@@ -308,20 +326,36 @@ void USBAudioComponent::on_opened_(const USBAudioEvent &event) {
   auto &ep = this->endpoint_(event.endpoint);
   ep.open_pending = false;
   if (!event.ok) {
+    if (ep.connect_deferred) {
+      // A newer connect arrived during the failed open; try that one.
+      ep.connect_deferred = false;
+      this->open_stream_(event.endpoint, ep.deferred_addr, ep.deferred_iface);
+      return;
+    }
+    // Keep where the device is, so the next start() retries the open without a replug.
+    ep.open_failed = true;
+    ep.failed_addr = event.addr;
+    ep.failed_iface = event.iface_num;
+    if (ep.active) {
+      this->stream_failed_(event.endpoint);
+    }
     return;
   }
+  ep.open_failed = false;
   ep.handle = event.handle;
   ep.iface = event.iface_num;
   ESP_LOGI(TAG, "%s interface %u connected (addr=%u)", LOG_STR_ARG(endpoint_name(event.endpoint)), ep.iface,
            event.addr);
   for (auto &lost : this->lost_while_opening_) {
     if (lost == event.handle) {
-      // It went away while the worker was opening it.
+      // It went away while the worker was opening it; a connect deferred meanwhile is opened once it is closed.
       lost = nullptr;
       this->handle_disconnect_(event.handle);
       return;
     }
   }
+  // The device that was being opened is still here, so a connect deferred meanwhile was a duplicate.
+  ep.connect_deferred = false;
   if (ep.active) {
     this->start_stream_(event.endpoint);
   }
@@ -468,6 +502,10 @@ bool USBAudioComponent::finish_closes_() {
     if (ep.close_queued || !ep.platform->stream_idle()) {
       continue;
     }
+    if (ep.close_attempts > 0 && static_cast<int32_t>(millis() - ep.close_retry_ms) < 0) {
+      // A failed close waits a moment before it is retried.
+      continue;
+    }
     Op op;
     op.type = Op::Type::CLOSE;
     op.endpoint = static_cast<Endpoint>(i);
@@ -480,8 +518,18 @@ bool USBAudioComponent::finish_closes_() {
 
 void USBAudioComponent::on_closed_(const USBAudioEvent &event) {
   auto &ep = this->endpoint_(event.endpoint);
-  ep.closing = nullptr;
   ep.close_queued = false;
+  if (!event.ok && ++ep.close_attempts < MAX_CLOSE_ATTEMPTS) {
+    // Keep the handle, so finish_closes_() retries the close.
+    ep.close_retry_ms = millis() + CLOSE_RETRY_MS;
+    return;
+  }
+  if (!event.ok) {
+    ESP_LOGE(TAG, "Giving up closing the %s interface after %u attempts", LOG_STR_ARG(endpoint_name(event.endpoint)),
+             ep.close_attempts);
+  }
+  ep.close_attempts = 0;
+  ep.closing = nullptr;
   ep.stream_started = false;
   ep.format_rejected = false;
   ep.start_pending = false;
@@ -565,7 +613,8 @@ void USBAudioComponent::run_op_(const Op &op) {
       uac_host_stream_config_t stm_cfg{};
       if (this->populate_stream_config_(op.endpoint, op.handle, stm_cfg, result.format_rejected)) {
         esp_err_t err = uac_host_device_start(op.handle, &stm_cfg);
-        result.ok = err == ESP_OK || err == ESP_ERR_INVALID_STATE;
+        // Already started or active is ESP_OK; ESP_ERR_INVALID_STATE means the interface is not ready.
+        result.ok = err == ESP_OK;
         if (!result.ok) {
           ESP_LOGW(TAG, "Failed to start %s stream: %s", LOG_STR_ARG(name), esp_err_to_name(err));
         }
@@ -577,7 +626,8 @@ void USBAudioComponent::run_op_(const Op &op) {
       esp_err_t err = uac_host_device_resume(op.handle);
       result.type = USBAudioEvent::Type::RESUMED;
       result.seq = op.seq;
-      result.ok = err == ESP_OK || err == ESP_ERR_INVALID_STATE;
+      // Already started or active is ESP_OK; ESP_ERR_INVALID_STATE means the interface is not ready.
+      result.ok = err == ESP_OK;
       if (!result.ok) {
         ESP_LOGW(TAG, "Failed to resume %s stream: %s", LOG_STR_ARG(name), esp_err_to_name(err));
       }
@@ -599,8 +649,13 @@ void USBAudioComponent::run_op_(const Op &op) {
         }
       }
       esp_err_t err = uac_host_device_close(op.handle);
-      if (err != ESP_OK) {
+      result.type = USBAudioEvent::Type::CLOSED;
+      result.ok = err == ESP_OK;
+      if (!result.ok) {
+        // The interface may still be held, so the main loop keeps the handle and retries.
         ESP_LOGW(TAG, "uac_host_device_close failed: %s", esp_err_to_name(err));
+        this->post_event_(result);
+        return;
       }
       if (op.endpoint == Endpoint::SPEAKER) {
         // A reconnected device may support different controls.
@@ -609,7 +664,6 @@ void USBAudioComponent::run_op_(const Op &op) {
           control->attempts = 0;
         }
       }
-      result.type = USBAudioEvent::Type::CLOSED;
       this->post_event_(result);
       return;
     }

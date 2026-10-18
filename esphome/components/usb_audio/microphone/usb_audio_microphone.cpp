@@ -69,14 +69,34 @@ void USBAudioMicrophone::request_(uint8_t set, uint8_t clear) {
   this->enable_loop_soon_any_context();
 }
 
+// Every MicrophoneSource forwards its own start() and stop(), so capture runs while any of them is listening, like
+// i2s_audio's listener count.
 void USBAudioMicrophone::start() {
   if (this->is_failed()) {
     return;
   }
-  this->request_(COMMAND_START, COMMAND_STOP);
+  uint8_t listeners = this->listeners_.load();
+  do {
+    if (listeners >= MAX_LISTENERS) {
+      return;
+    }
+  } while (!this->listeners_.compare_exchange_weak(listeners, listeners + 1));
+  if (listeners == 0) {
+    this->request_(COMMAND_START, COMMAND_STOP);
+  }
 }
 
-void USBAudioMicrophone::stop() { this->request_(COMMAND_STOP, COMMAND_START); }
+void USBAudioMicrophone::stop() {
+  uint8_t listeners = this->listeners_.load();
+  do {
+    if (listeners == 0) {
+      return;
+    }
+  } while (!this->listeners_.compare_exchange_weak(listeners, listeners - 1));
+  if (listeners == 1) {
+    this->request_(COMMAND_STOP, COMMAND_START);
+  }
+}
 
 void USBAudioMicrophone::on_stream_state(StreamEvent event) {
   switch (event) {

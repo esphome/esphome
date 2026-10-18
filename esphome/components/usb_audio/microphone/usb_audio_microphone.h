@@ -41,6 +41,8 @@ class USBAudioMicrophone : public microphone::Microphone,
  protected:
   static constexpr uint8_t COMMAND_START = 1 << 0;
   static constexpr uint8_t COMMAND_STOP = 1 << 1;
+  // Same limit as i2s_audio's microphone.
+  static constexpr uint8_t MAX_LISTENERS = 16;
   static constexpr uint32_t READ_TIMEOUT_MS = 20;
   static constexpr uint32_t MIC_TASK_STACK_SIZE = 4096;
   static constexpr UBaseType_t MIC_TASK_PRIORITY = 18;
@@ -55,6 +57,8 @@ class USBAudioMicrophone : public microphone::Microphone,
   // Created once in setup() and parked between streams.
   StaticTask mic_task_;
   std::atomic<uint8_t> commands_{0};
+  // start() calls not yet matched by a stop(); capture stops when the last listener stops.
+  std::atomic<uint8_t> listeners_{0};
   std::atomic<bool> running_{false};
   std::atomic<bool> task_idle_{true};
 };

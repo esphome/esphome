@@ -122,10 +122,17 @@ class USBAudioComponent : public Component {
     bool close_queued{false};
     // Counts resume() and suspend() calls, so a RESUMED that a later suspend overtook is ignored.
     uint8_t request_seq{0};
-    // A reconnect that arrived while the old handle was still closing; opened once it is closed.
+    // A connect that arrived while the old handle was still opening or closing; opened once that finishes.
     bool connect_deferred{false};
     uint8_t deferred_addr{0};
     uint8_t deferred_iface{0};
+    // The last open failed; the next resume() retries it at this address and interface.
+    bool open_failed{false};
+    uint8_t failed_addr{0};
+    uint8_t failed_iface{0};
+    // A failed close keeps `closing` and is retried after this time, a limited number of times.
+    uint8_t close_attempts{0};
+    uint32_t close_retry_ms{0};
   };
 
   struct ControlState {
