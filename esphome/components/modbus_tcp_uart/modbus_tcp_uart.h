@@ -16,9 +16,8 @@ namespace esphome::modbus_tcp_uart {
 /// Server: one request at a time; the reply gets its transaction id.
 class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
  public:
-  ModbusTcpUart() : VirtualUARTComponent(RTU_FRAME_SIZE) {}
+  explicit ModbusTcpUart(tcp_uart::TcpUart *parent) : VirtualUARTComponent(RTU_FRAME_SIZE), parent_(parent) {}
 
-  void set_parent(tcp_uart::TcpUart *parent) { this->parent_ = parent; }
   void set_server(bool server) { this->server_ = server; }
   void set_reply_timeout(uint32_t ms) { this->reply_timeout_ms_ = ms; }
   // Server: the units that the server devices on the hub answer.
@@ -51,7 +50,7 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   // One RTU frame.
   static constexpr uint16_t RTU_FRAME_SIZE = 256;
 
-  tcp_uart::TcpUart *parent_{nullptr};
+  tcp_uart::TcpUart *parent_;
   const uint8_t *units_{nullptr};
   // One rate limit for all drop warnings.
   uint32_t drop_log_ms_{0};

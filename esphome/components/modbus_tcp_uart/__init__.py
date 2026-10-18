@@ -99,10 +99,9 @@ def _reply_timeout_ms(full: ConfigType) -> int:
 
 async def to_code(config: ConfigType) -> None:
     uart.require_virtual_uart()
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     parent = await cg.get_variable(config[CONF_TCP_UART_ID])
-    cg.add(var.set_parent(parent))
+    var = cg.new_Pvariable(config[CONF_ID], parent)
+    await cg.register_component(var, config)
     if debug := config.get(CONF_DEBUG):
         cg.add_global(uart.uart_ns.using)
         await uart.debug_to_code(debug, var)

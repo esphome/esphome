@@ -40,7 +40,7 @@ void ModbusTcpUart::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"));
 }
 
-bool ModbusTcpUart::is_connected() { return this->parent_ != nullptr && this->parent_->is_connected(); }
+bool ModbusTcpUart::is_connected() { return this->parent_->is_connected(); }
 
 void ModbusTcpUart::clear_tx_() {
   this->tx_len_ = 0;
@@ -148,7 +148,7 @@ uart::UARTFlushResult ModbusTcpUart::flush() {
   if (this->tx_frame_len_ != 0) {
     this->send_tx_(0);
   }
-  if (this->parent_ == nullptr || this->tx_frame_len_ != 0) {
+  if (this->tx_frame_len_ != 0) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
   return this->parent_->flush();

@@ -55,7 +55,7 @@ class Pipe : public tcp_uart::TcpUart {
 
 class ClientLink : public ModbusTcpUart {
  public:
-  explicit ClientLink(Pipe *pipe) { this->set_parent(pipe); }
+  explicit ClientLink(Pipe *pipe) : ModbusTcpUart(pipe) {}
 
   void arm(uint16_t txn) {
     this->txn_ = txn;

@@ -57,9 +57,7 @@ class Pipe : public tcp_uart::TcpUart {
 
 class ServerLink : public ModbusTcpUart {
  public:
-  ServerLink() { this->set_server(true); }
-
-  void set_pipe(Pipe *pipe) { this->set_parent(pipe); }
+  explicit ServerLink(Pipe *pipe) : ModbusTcpUart(pipe) { this->set_server(true); }
 
   void push(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
@@ -99,7 +97,8 @@ const uint8_t PDU[] = {0x03, 0x00, 0x00, 0x00, 0x01};
 const uint8_t PDU_REG1[] = {0x03, 0x00, 0x01, 0x00, 0x01};
 
 TEST(ModbusTcpUartServer, UnansweredRequestIsReplacedWhenOverdue) {
-  ServerLink link;
+  Pipe pipe;
+  ServerLink link(&pipe);
   link.push(7, 1, PDU, sizeof(PDU));
   ASSERT_TRUE(link.pending());
   EXPECT_EQ(link.txn(), 7);
@@ -120,7 +119,8 @@ TEST(ModbusTcpUartServer, UnansweredRequestIsReplacedWhenOverdue) {
 }
 
 TEST(ModbusTcpUartServer, RequestWithNoReplyIsLoggedWhenReplaced) {
-  ServerLink link;
+  Pipe pipe;
+  ServerLink link(&pipe);
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
@@ -133,7 +133,8 @@ TEST(ModbusTcpUartServer, RequestWithNoReplyIsLoggedWhenReplaced) {
 }
 
 TEST(ModbusTcpUartServer, UnreadRequestIsKept) {
-  ServerLink link;
+  Pipe pipe;
+  ServerLink link(&pipe);
   link.push(7, 1, PDU, sizeof(PDU));
   uint16_t waiting = link.available();
   link.push(8, 1, PDU, sizeof(PDU));
@@ -143,7 +144,8 @@ TEST(ModbusTcpUartServer, UnreadRequestIsKept) {
 
 TEST(ModbusTcpUartServer, UnreadRequestIsReplacedWhenOverdue) {
   // No hub: nothing reads the request.
-  ServerLink link;
+  Pipe pipe;
+  ServerLink link(&pipe);
   link.push(7, 1, PDU, sizeof(PDU));
   link.expire();
   link.push(8, 1, PDU_REG1, sizeof(PDU_REG1));
@@ -157,8 +159,7 @@ TEST(ModbusTcpUartServer, UnreadRequestIsReplacedWhenOverdue) {
 
 TEST(ModbusTcpUartServer, PipelinedRequestsAreAnsweredInOrder) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   pipe.feed_mbap(0x0B01, 1, PDU, sizeof(PDU));
   pipe.feed_mbap(0x0B02, 1, PDU_REG1, sizeof(PDU_REG1));
   link.loop();
@@ -183,8 +184,7 @@ TEST(ModbusTcpUartServer, PipelinedRequestsAreAnsweredInOrder) {
 TEST(ModbusTcpUartServer, ReplyToARequestFromAClosedConnectionIsDropped) {
   // 7 = the old connection's request, 1 = the new client's first id.
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
   link.loop();
   uint8_t taken[16];
@@ -215,8 +215,7 @@ TEST(ModbusTcpUartServer, ReplyToARequestFromAClosedConnectionIsDropped) {
 TEST(ModbusTcpUartServer, RequestTheHubHasNotReadIsForgottenWhenTheConnectionCloses) {
   // 7 = the old connection's request, 1 = the new client's first id.
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
   link.loop();
 
@@ -234,8 +233,7 @@ TEST(ModbusTcpUartServer, RequestTheHubHasNotReadIsForgottenWhenTheConnectionClo
 TEST(ModbusTcpUartServer, AReplyHeldWhenTheConnectionClosesDoesNotHoldUpTheNextClient) {
   // 7 = the old connection's request, 1 = the new client's first id.
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
   link.loop();
   uint8_t taken[16];
@@ -259,8 +257,7 @@ TEST(ModbusTcpUartServer, AReplyHeldWhenTheConnectionClosesDoesNotHoldUpTheNextC
 
 TEST(ModbusTcpUartServer, OnlyAFrameFromTheRequestUnitAndFunctionIsTheReply) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   link.push(0x0C02, 4, PDU_REG1, sizeof(PDU_REG1));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
@@ -281,8 +278,7 @@ const uint8_t REPLY_1234[] = {0x01, 0x03, 0x02, 0x12, 0x34, 0xB5, 0x33};
 
 TEST(ModbusTcpUartServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
@@ -307,8 +303,7 @@ TEST(ModbusTcpUartServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
 
 TEST(ModbusTcpUartServer, PiecesOfAReplyAreJoined) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
@@ -326,8 +321,7 @@ TEST(ModbusTcpUartServer, PiecesOfAReplyAreJoined) {
 TEST(ModbusTcpUartServer, LongReplyFromAWriterThatKeepsToTheRoom) {
   // 125 registers: a 255-byte reply, written the way uart_tcp writes, at most 128 bytes and never more than the room.
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   const uint8_t read_125[] = {0x03, 0x00, 0x00, 0x00, 125};
   link.push(9, 1, read_125, sizeof(read_125));
   uint8_t taken[16];
@@ -354,8 +348,7 @@ TEST(ModbusTcpUartServer, LongReplyFromAWriterThatKeepsToTheRoom) {
 
 TEST(ModbusTcpUartServer, ReplyUsesTheRequestTransaction) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   link.push(0x1234, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
@@ -369,8 +362,7 @@ TEST(ModbusTcpUartServer, ReplyUsesTheRequestTransaction) {
 
 TEST(ModbusTcpUartServer, BroadcastIsNotAnswered) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   link.push(5, 0, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
@@ -382,7 +374,8 @@ TEST(ModbusTcpUartServer, BroadcastIsNotAnswered) {
 TEST(ModbusTcpUartServer, RequestToAUnitNoServerAnswersIsDropped) {
   static const uint8_t UNITS[] = {1};
   const uint8_t write[] = {0x06, 0x00, 0x01, 0x00, 0x55};
-  ServerLink link;
+  Pipe pipe;
+  ServerLink link(&pipe);
   link.set_units(UNITS, sizeof(UNITS));
   // A broadcast still reaches the hub.
   link.push(3, 0, write, sizeof(write));
@@ -400,8 +393,7 @@ TEST(ModbusTcpUartServer, RequestToAUnitNoServerAnswersIsDropped) {
 
 TEST(ModbusTcpUartServer, FailedReadWhileResyncingIsLogged) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   const uint8_t bad[] = {0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03};
   pipe.feed(bad, sizeof(bad));
   link.loop();
@@ -415,8 +407,7 @@ TEST(ModbusTcpUartServer, FailedReadWhileResyncingIsLogged) {
 
 TEST(ModbusTcpUartServer, BadProtocolIdSkipsOnlyThatFrame) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   // Protocol id 1 with a usable length, then a valid request in the same segment.
   const uint8_t bad[] = {0x00, 0x01, 0x00, 0x01, 0x00, 0x06, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01};
   pipe.feed(bad, sizeof(bad));
@@ -428,8 +419,7 @@ TEST(ModbusTcpUartServer, BadProtocolIdSkipsOnlyThatFrame) {
 
 TEST(ModbusTcpUartServer, BadLengthWaitsForAQuietStream) {
   Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
+  ServerLink link(&pipe);
   // Length 0x0100 is over 254, so nothing says where the frame ends.
   const uint8_t bad[] = {0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03};
   pipe.feed(bad, sizeof(bad));
