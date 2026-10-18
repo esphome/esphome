@@ -29,8 +29,8 @@ static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-n
 static constexpr size_t KEY_NAME_SIZE = UINT32_MAX_STR_SIZE + 1;
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
 static constexpr char RTC_KEY_PREFIX = 'r';
-// Written when a discard could not delete an entry; an rtc name itself, so a complete pass removes it and
-// an incomplete one is retried at the next boot of any kind
+// Marks a discard pass in progress or left incomplete, so the next boot of any kind runs it again; written
+// before the pass and removed after a complete one
 static constexpr const char *RTC_DISCARD_PENDING_KEY = "r!";
 static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool rtc) {
   char *digits = buf;
@@ -139,6 +139,13 @@ ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_
 // FlashDB tolerating a delete mid-iteration; an entry whose delete fails is passed over, and the walk ends
 // once a pass deletes nothing. This runs before the logger exists, so it logs through LibreTiny.
 void LibreTinyPreferences::discard_rtc_entries_() {
+  // The marker goes down first: a reset during the pass then leaves it behind, and the next boot resumes.
+  // A failed write is logged, since nothing would then record a pass cut short.
+  static constexpr uint8_t PENDING = 1;
+  fdb_blob_make(&this->blob, &PENDING, sizeof(PENDING));
+  if (const fdb_err_t err = fdb_kv_set_blob(&this->db, RTC_DISCARD_PENDING_KEY, &this->blob); err != FDB_NO_ERR) {
+    LT_E("Failed to record the rtc discard: %d", err);
+  }
   uint16_t discarded = 0;
   fdb_kv_iterator iterator;
   bool deleted = true;
@@ -146,11 +153,12 @@ void LibreTinyPreferences::discard_rtc_entries_() {
     deleted = false;
     fdb_kv_iterator_init(&iterator);
     while (fdb_kv_iterate(&this->db, &iterator)) {
-      if (iterator.curr_kv.name[0] != RTC_KEY_PREFIX)
+      const char *name = iterator.curr_kv.name;
+      if (name[0] != RTC_KEY_PREFIX || strcmp(name, RTC_DISCARD_PENDING_KEY) == 0)
         continue;
-      const fdb_err_t err = fdb_kv_del(&this->db, iterator.curr_kv.name);
+      const fdb_err_t err = fdb_kv_del(&this->db, name);
       if (err != FDB_NO_ERR) {
-        LT_E("Failed to discard rtc preference %s: %d", iterator.curr_kv.name, err);
+        LT_E("Failed to discard rtc preference %s: %d", name, err);
         this->rtc_discard_failed_ = true;
         continue;
       }
@@ -159,16 +167,14 @@ void LibreTinyPreferences::discard_rtc_entries_() {
       break;
     }
   }
-  if (this->rtc_discard_failed_) {
-    static constexpr uint8_t PENDING = 1;
-    fdb_blob_make(&this->blob, &PENDING, sizeof(PENDING));
-    const fdb_err_t err = fdb_kv_set_blob(&this->db, RTC_DISCARD_PENDING_KEY, &this->blob);
-    if (err != FDB_NO_ERR) {
-      LT_E("Failed to record the incomplete rtc discard: %d", err);
-    }
-  }
   if (discarded != 0) {
     LT_D("Discarded %u rtc preferences after a hard reset", discarded);
+  }
+  if (this->rtc_discard_failed_)
+    return;  // the marker stays, so the next boot tries the leftovers again
+  if (const fdb_err_t err = fdb_kv_del(&this->db, RTC_DISCARD_PENDING_KEY);
+      err != FDB_NO_ERR && err != FDB_KV_NAME_ERR) {
+    LT_E("Failed to clear the rtc discard marker: %d", err);
   }
 }
 #endif
