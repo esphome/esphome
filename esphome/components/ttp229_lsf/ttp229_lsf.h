@@ -26,10 +26,6 @@ class TTP229LSFComponent final : public Component, public i2c::I2CDevice {
 
  protected:
   std::vector<TTP229Channel *> channels_{};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::ttp229_lsf

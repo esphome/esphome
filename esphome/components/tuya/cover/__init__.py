@@ -17,11 +17,9 @@ CONF_INVERT_POSITION_REPORT = "invert_position_report"
 TuyaCover = tuya_ns.class_("TuyaCover", cover.Cover, cg.Component)
 
 TuyaCoverRestoreMode = tuya_ns.enum("TuyaCoverRestoreMode")
-RESTORE_MODES = {
-    "NO_RESTORE": TuyaCoverRestoreMode.COVER_NO_RESTORE,
-    "RESTORE": TuyaCoverRestoreMode.COVER_RESTORE,
-    "RESTORE_AND_CALL": TuyaCoverRestoreMode.COVER_RESTORE_AND_CALL,
-}
+RESTORE_MODES = TuyaCoverRestoreMode.options(
+    "NO_RESTORE", "RESTORE", "RESTORE_AND_CALL", prefix="COVER_"
+)
 
 
 def validate_range(config):
@@ -71,5 +69,4 @@ async def to_code(config):
     cg.add(var.set_invert_position(config[CONF_INVERT_POSITION]))
     cg.add(var.set_invert_position_report(config[CONF_INVERT_POSITION_REPORT]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])

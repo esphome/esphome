@@ -92,6 +92,11 @@ class LightState : public EntityBase, public Component {
   bool is_transitioning() const { return this->transformer_ != nullptr; }
   LightCall make_call();
 
+  /// Take over the state of a light mirrored from elsewhere: current and target values at once,
+  /// published but not written or saved; a running effect stops. False while a write is pending or
+  /// a transition or flash runs.
+  bool set_external_state(const LightColorValues &values);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Load state from preferences

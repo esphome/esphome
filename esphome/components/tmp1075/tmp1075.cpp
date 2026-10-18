@@ -20,7 +20,7 @@ void TMP1075Sensor::setup() {
   uint8_t cfg;
   if (!this->read_byte(REG_CFGR, &cfg)) {
     ESP_LOGE(TAG, "'%s' - unable to read", this->name_.c_str());
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -42,10 +42,8 @@ void TMP1075Sensor::update() {
 
 void TMP1075Sensor::dump_config() {
   LOG_SENSOR("", "TMP1075 Sensor", this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
   ESP_LOGCONFIG(TAG,
                 "  limit low  : %.4f °C\n"
                 "  limit high : %.4f °C\n"
