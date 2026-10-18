@@ -28,8 +28,6 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await cg.add_pin(var.set_pin, config.get(CONF_PIN))
-    if CONF_OUTPUT in config:
-        out = await cg.get_variable(config[CONF_OUTPUT])
-        cg.add(var.set_output(out))
+    await cg.add_variable(var.set_output, config.get(CONF_OUTPUT))
     await cg.register_component(var, config)
     await light.register_light(var, config)
