@@ -105,17 +105,12 @@ def RESTORE_STATE_SCHEMA(value):
         return _RESTORE_STATE_FIELDS_SCHEMA
     if isinstance(value, str):
         upper = value.strip().upper()
-        if upper == RESTORE_STATE_NONE:
-            return RESTORE_STATE_NONE
         if upper == RESTORE_STATE_ALL:
             value = {}
-        elif upper in _RESTORE_STATE_STATES:
-            value = {CONF_STATE: upper}
+        elif upper == RESTORE_STATE_NONE:
+            value = {CONF_STATE: RESTORE_STATE_INITIAL}
         else:
-            raise cv.Invalid(
-                f"Unknown restore_state '{value}'; expected KEEP, INVERT, INITIAL, ALL, "
-                "NONE or a mapping"
-            )
+            value = {CONF_STATE: upper}
     return _RESTORE_STATE_FIELDS_SCHEMA(value)
 
 
@@ -129,49 +124,47 @@ def _validate_initial_state(config: ConfigType) -> ConfigType:
     return config
 
 
-# Platform defaults that restore the state, and the restore_state they keep when only
-# initial_state is set. Every other default restores nothing, so initial_state applies at each boot.
-_RESTORING_DEFAULTS = {
-    "RESTORE_DEFAULT_OFF": RESTORE_STATE_KEEP,
-    "RESTORE_DEFAULT_ON": RESTORE_STATE_KEEP,
-    "RESTORE_INVERTED_DEFAULT_OFF": RESTORE_STATE_INVERT,
-    "RESTORE_INVERTED_DEFAULT_ON": RESTORE_STATE_INVERT,
+# (restore_state state, initial_state) -> restore mode
+_RESTORE_MODE_FOR_STATE = {
+    (RESTORE_STATE_KEEP, False): "RESTORE_DEFAULT_OFF",
+    (RESTORE_STATE_KEEP, True): "RESTORE_DEFAULT_ON",
+    (RESTORE_STATE_INVERT, False): "RESTORE_INVERTED_DEFAULT_OFF",
+    (RESTORE_STATE_INVERT, True): "RESTORE_INVERTED_DEFAULT_ON",
+    (RESTORE_STATE_INITIAL, False): "ALWAYS_OFF",
+    (RESTORE_STATE_INITIAL, True): "ALWAYS_ON",
+}
+_STATE_FOR_RESTORE_MODE = {
+    mode: state for (state, _), mode in _RESTORE_MODE_FOR_STATE.items()
 }
 
 
 def _apply_default_restore_mode(default_restore_mode: str):
     # cv.Exclusive has no default, so apply it here when no restore option is configured.
-    # With only initial_state set, keep a restoring default's restore (as light does) and
-    # let initial_state supply the state used when nothing is saved.
+    # With only initial_state set, a restoring default keeps restoring (as light does) and
+    # initial_state supplies the state used when nothing is saved.
+    default = cv.enum(RESTORE_MODES, upper=True, space="_")(default_restore_mode)
+    state = _STATE_FOR_RESTORE_MODE.get(str(default), RESTORE_STATE_INITIAL)
+
     def validator(config: ConfigType) -> ConfigType:
         if CONF_RESTORE_MODE in config or CONF_RESTORE_STATE in config:
             return config
-        default = cv.enum(RESTORE_MODES, upper=True, space="_")(default_restore_mode)
-        if CONF_INITIAL_STATE not in config:
+        if CONF_INITIAL_STATE in config:
+            config[CONF_RESTORE_STATE] = {CONF_STATE: state}
+        else:
             config[CONF_RESTORE_MODE] = default
-        elif (state := _RESTORING_DEFAULTS.get(str(default))) is not None:
-            config[CONF_RESTORE_STATE] = RESTORE_STATE_SCHEMA(state)
         return config
 
     return validator
 
 
-def _resolve_restore_mode(config: ConfigType) -> str:
+def _resolve_restore_mode(config: ConfigType) -> MockObj | str:
     """Translate `initial_state` / `restore_state` into one of the RESTORE_MODES."""
-    if CONF_RESTORE_MODE in config:
-        return str(config[CONF_RESTORE_MODE])
-    default = "ON" if config.get(CONF_INITIAL_STATE, False) else "OFF"
-    restore_state = config.get(CONF_RESTORE_STATE, RESTORE_STATE_NONE)
-    state = (
-        RESTORE_STATE_INITIAL
-        if restore_state == RESTORE_STATE_NONE
-        else restore_state[CONF_STATE]
-    )
-    if state == RESTORE_STATE_KEEP:
-        return f"RESTORE_DEFAULT_{default}"
-    if state == RESTORE_STATE_INVERT:
-        return f"RESTORE_INVERTED_DEFAULT_{default}"
-    return f"ALWAYS_{default}"
+    if (restore_mode := config.get(CONF_RESTORE_MODE)) is not None:
+        return restore_mode
+    state = config.get(CONF_RESTORE_STATE, {}).get(CONF_STATE, RESTORE_STATE_INITIAL)
+    return RESTORE_MODES[
+        _RESTORE_MODE_FOR_STATE[state, config.get(CONF_INITIAL_STATE, False)]
+    ]
 
 
 _SWITCH_SCHEMA = (
@@ -276,15 +269,10 @@ async def setup_switch_core_(var, config):
 
     setup_device_class(config)
 
-    cg.add(var.set_restore_mode(RESTORE_MODES[_resolve_restore_mode(config)]))
-    restore_state = config.get(CONF_RESTORE_STATE)
-    if isinstance(restore_state, dict) and CONF_STORAGE in restore_state:
+    cg.add(var.set_restore_mode(_resolve_restore_mode(config)))
+    if (storage := config.get(CONF_RESTORE_STATE, {}).get(CONF_STORAGE)) is not None:
         cg.add_define("USE_SWITCH_STORAGE")
-        cg.add(
-            var.set_restore_in_flash(
-                preferences.is_in_flash(restore_state[CONF_STORAGE])
-            )
-        )
+        cg.add(var.set_restore_in_flash(preferences.is_in_flash(storage)))
     await zigbee.setup_switch(var, config)
 
 

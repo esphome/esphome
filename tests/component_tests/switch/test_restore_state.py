@@ -6,6 +6,14 @@ from pathlib import Path
 import pytest
 
 from esphome.components import switch
+from esphome.components.libretiny.const import (
+    FAMILY_BK7231T,
+    FAMILY_BK7251,
+    FAMILY_LN882H,
+    FAMILY_RTL8720C,
+    KEY_FAMILY,
+    KEY_LIBRETINY,
+)
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
 from esphome.core import CORE
@@ -107,10 +115,9 @@ def test_initial_state_rejected_with_restore_mode() -> None:
 
 
 @pytest.mark.usefixtures("esp8266")
-@pytest.mark.parametrize("state", ["INITIAL"])
-def test_storage_rejected_when_nothing_is_restored(state: str) -> None:
+def test_storage_rejected_when_nothing_is_restored() -> None:
     with pytest.raises(cv.Invalid, match="only applies"):
-        _validate({"restore_state": {"state": state, "storage": "rtc"}})
+        _validate({"restore_state": {"state": "INITIAL", "storage": "rtc"}})
 
 
 @pytest.mark.usefixtures("esp8266")
@@ -121,23 +128,35 @@ def test_unsupported_restore_state_values_rejected(value: object) -> None:
 
 
 @pytest.mark.parametrize(
-    "platform",
+    ("platform", "family"),
     [
-        PlatformFramework.BK72XX_ARDUINO,
-        PlatformFramework.RTL87XX_ARDUINO,
-        PlatformFramework.LN882X_ARDUINO,
-        PlatformFramework.RP2040_ARDUINO,
-        PlatformFramework.NRF52_ZEPHYR,
-        PlatformFramework.HOST_NATIVE,
+        (PlatformFramework.BK72XX_ARDUINO, FAMILY_BK7251),
+        (PlatformFramework.RTL87XX_ARDUINO, FAMILY_RTL8720C),
+        (PlatformFramework.LN882X_ARDUINO, FAMILY_LN882H),
+        (PlatformFramework.RP2040_ARDUINO, None),
+        (PlatformFramework.NRF52_ZEPHYR, None),
+        (PlatformFramework.HOST_NATIVE, None),
     ],
 )
 def test_rtc_rejected_without_an_rtc_backend(
-    set_core_config: SetCoreConfigCallable, platform: PlatformFramework
+    set_core_config: SetCoreConfigCallable,
+    platform: PlatformFramework,
+    family: str | None,
 ) -> None:
     """These preferences backends ignore in_flash, so the state would silently stay in flash."""
     set_core_config(platform)
+    if family is not None:
+        CORE.data[KEY_LIBRETINY] = {KEY_FAMILY: family}
     with pytest.raises(cv.Invalid, match="'rtc' storage is not supported"):
         _validate({"restore_state": {"state": "KEEP", "storage": "rtc"}})
+
+
+def test_rtc_accepted_on_a_beken_chip_with_the_emulation(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    CORE.data[KEY_LIBRETINY] = {KEY_FAMILY: FAMILY_BK7231T}
+    _validate({"restore_state": {"state": "KEEP", "storage": "rtc"}})
 
 
 @pytest.mark.usefixtures("esp8266")
@@ -174,4 +193,4 @@ def test_initial_state_alone_keeps_a_restoring_platform_default(
     )
     assert "restore_mode" not in config
     assert "storage" not in config.get("restore_state", {})
-    assert switch._resolve_restore_mode(config) == expected
+    assert switch._resolve_restore_mode(config) is switch.RESTORE_MODES[expected]

@@ -1,11 +1,3 @@
 packages:
   common: !include common.yaml
-
-switch:
-  - platform: template
-    name: "RTC Storage Switch"
-    id: rtc_storage_switch
-    optimistic: true
-    initial_state: ON
-    restore_state:
-      storage: rtc
+  rtc_storage: !include rtc_storage.yaml

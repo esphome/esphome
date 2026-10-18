@@ -14,11 +14,15 @@ namespace esphome::switch_ {
  public: \
   void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
 
-// bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
+// bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled.
+// bit4: restore from flash. bit5: restore from RTC memory (neither: platform default)
 constexpr int RESTORE_MODE_ON_MASK = 0x01;
 constexpr int RESTORE_MODE_PERSISTENT_MASK = 0x02;
 constexpr int RESTORE_MODE_INVERTED_MASK = 0x04;
 constexpr int RESTORE_MODE_DISABLED_MASK = 0x08;
+constexpr int RESTORE_MODE_STORAGE_FLASH_MASK = 0x10;
+constexpr int RESTORE_MODE_STORAGE_RTC_MASK = 0x20;
+constexpr int RESTORE_MODE_STORAGE_MASK = RESTORE_MODE_STORAGE_FLASH_MASK | RESTORE_MODE_STORAGE_RTC_MASK;
 
 enum SwitchRestoreMode : uint8_t {
   SWITCH_ALWAYS_OFF = !RESTORE_MODE_ON_MASK,
@@ -54,14 +58,6 @@ class Switch : public EntityBase {
   /// The current reported state of the binary sensor.
   bool state;
 
-#ifdef USE_SWITCH_STORAGE
- protected:
-  enum SwitchStorage : uint8_t { SWITCH_STORAGE_DEFAULT, SWITCH_STORAGE_FLASH, SWITCH_STORAGE_RTC };
-  // Declared here to use the padding byte after state (before rtc_) instead of adding a word at the end
-  SwitchStorage restore_storage_{SWITCH_STORAGE_DEFAULT};
-
- public:
-#endif
   /** Control this switch using a boolean state value.
    *
    * This method provides a unified interface for setting the switch state based on a boolean parameter.
@@ -132,8 +128,11 @@ class Switch : public EntityBase {
 #ifdef USE_SWITCH_STORAGE
   /// Keep the restored state in flash (survives power loss) or RTC memory (survives only soft resets).
   /// Not calling this keeps the platform default (on ESP8266, the `restore_from_flash` setting).
+  /// Call after set_restore_mode(), which replaces these bits.
   void set_restore_in_flash(bool in_flash) {
-    this->restore_storage_ = in_flash ? SWITCH_STORAGE_FLASH : SWITCH_STORAGE_RTC;
+    this->restore_mode =
+        static_cast<SwitchRestoreMode>((this->restore_mode & ~RESTORE_MODE_STORAGE_MASK) |
+                                       (in_flash ? RESTORE_MODE_STORAGE_FLASH_MASK : RESTORE_MODE_STORAGE_RTC_MASK));
   }
 #endif
 
