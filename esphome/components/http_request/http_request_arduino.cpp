@@ -10,6 +10,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 // Include BearSSL error constants for TLS failure diagnostics
 #ifdef USE_ESP8266
@@ -39,7 +40,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
 
   const uint32_t start = millis();
 
-  bool secure = strstr(url, "https:") != nullptr;
+  bool secure = ESPHOME_strstr_P(url, ESPHOME_PSTR("https:")) != nullptr;
   container->set_secure(secure);
   container->set_watchdog_timeout(this->get_watchdog_timeout(timeout_ms));
 

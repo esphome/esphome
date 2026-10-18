@@ -6,6 +6,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType

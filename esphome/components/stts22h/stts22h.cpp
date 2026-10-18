@@ -38,9 +38,6 @@ void STTS22HComponent::dump_config() {
   LOG_SENSOR("", "STTS22H", this);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 float STTS22HComponent::read_temperature_() {

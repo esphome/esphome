@@ -316,6 +316,11 @@ class I2CDevice {
   /// Write a 16-bit value least significant byte first.
   bool write_byte_16_le(uint8_t a_register, uint16_t data) const;
 
+  /// Read a register, replace the bits in @p mask with those of @p value and write it back.
+  /// The write always happens; bits of @p value outside @p mask are ignored. Logs both values at VERBOSE.
+  /// @return false if the read or the write failed (nothing is written after a failed read)
+  bool update_register(uint8_t a_register, uint8_t mask, uint8_t value);
+
  protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus
   I2CBus *bus_{nullptr};   ///< pointer to I2CBus instance
