@@ -31,7 +31,7 @@ uint32_t AudioStreamInfo::frames_to_milliseconds_with_remainder(uint32_t *total_
   uint32_t unprocessable_frames = *total_frames % (this->sample_rate_ / this->ms_sample_rate_gcd_);
   uint32_t frames_for_ms_calculation = *total_frames - unprocessable_frames;
 
-  uint32_t playback_ms = (frames_for_ms_calculation * 1000) / this->sample_rate_;
+  uint32_t playback_ms = (static_cast<uint64_t>(frames_for_ms_calculation) * 1000) / this->sample_rate_;
   *total_frames = unprocessable_frames;
   return playback_ms;
 }
