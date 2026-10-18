@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_FULL_SPECTRUM_COUNTS,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     CONF_REPEAT,
@@ -215,9 +214,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_AMBIENT_LIGHT, var.set_ambient_light_sensor)

@@ -1,8 +1,7 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, noise, sensor, socket, uart
+from esphome.components import noise, socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
-    CONF_CONNECTED,
     CONF_DATA_BITS,
     CONF_HOST,
     CONF_PARITY,
@@ -18,21 +17,16 @@ from esphome.const import (
     CONF_KEY,
     CONF_PORT,
     CONF_TIMEOUT,
-    DEVICE_CLASS_CONNECTIVITY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_TOTAL_INCREASING,
 )
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["network"]
 DOMAIN = "tcp_uart"
-AUTO_LOAD = noise.stream_auto_load(
-    DOMAIN, ["uart", "binary_sensor", "sensor", "socket"]
-)
+AUTO_LOAD = noise.stream_auto_load(DOMAIN, ["uart", "socket"])
 MULTI_CONF = True
 
-CONF_DISCONNECTS = "disconnects"
+CONF_TCP_UART_ID = "tcp_uart_id"
 
 tcp_uart_ns = cg.esphome_ns.namespace("tcp_uart")
 TcpUart = tcp_uart_ns.class_("TcpUart", uart.UARTComponent, cg.Component)
@@ -54,15 +48,6 @@ BASE_SCHEMA = cv.Schema(
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_ENCRYPTION): noise.STREAM_ENCRYPTION_SCHEMA,
-        cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_CONNECTIVITY,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
-        cv.Optional(CONF_DISCONNECTS): sensor.sensor_schema(
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -122,7 +107,3 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_ID], encryption.get(CONF_KEY), config[CONF_ROLE] == "client"
         )
         cg.add(var.set_noise_stream(stream))
-    binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
-    sensors = sensor.sub_sensors(config)
-    await sensors(CONF_DISCONNECTS, var.set_disconnects_sensor)

@@ -48,7 +48,7 @@ void BQ27220Component::setup() {
   }
   if (device_number != DEVICE_NUMBER) {
     ESP_LOGE(TAG, "Unexpected device number 0x%04X (expected 0x%04X)", device_number, DEVICE_NUMBER);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unexpected device number"));
   }
 }
 
@@ -76,9 +76,6 @@ void BQ27220Component::update() {
 void BQ27220Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BQ27220 Battery Fuel Gauge:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);

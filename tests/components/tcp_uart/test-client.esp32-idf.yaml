@@ -10,7 +10,15 @@ tcp_uart:
     timeout: 30s
     encryption:
       key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+
+binary_sensor:
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_1
     connected:
       name: TCP UART Connected
+
+sensor:
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_1
     disconnects:
       name: TCP UART Disconnects

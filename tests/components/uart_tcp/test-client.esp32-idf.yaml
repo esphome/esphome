@@ -15,7 +15,15 @@ uart_tcp:
     timeout: 30s
     encryption:
       key: "dWFydF90Y3Agbm9pc2UgY29tcGlsZSB0ZXN0IGtleSE="
+
+binary_sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     connected:
       name: UART TCP Connected
+
+sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     disconnects:
       name: UART TCP Disconnects

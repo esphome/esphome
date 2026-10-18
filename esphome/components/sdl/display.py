@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_DIMENSIONS,
     CONF_HEIGHT,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_POSITION,
     CONF_WIDTH,
     CONF_X,
@@ -189,8 +188,4 @@ async def to_code(config: ConfigType) -> None:
             else:
                 cg.add(var.set_position(position[CONF_X], position[CONF_Y]))
 
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

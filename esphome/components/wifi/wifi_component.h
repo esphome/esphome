@@ -19,6 +19,7 @@
 #include <atomic>
 #include <limits>
 #include <span>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -486,6 +487,21 @@ class WiFiComponent final : public Component {
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
 #endif  // USE_WIFI_AP
 
+#ifdef USE_WIFI_DPP
+  // Code generation passes string literals that live in flash
+  void set_dpp_key(const char *key) { this->dpp_key_ = key; }
+  void set_dpp_device_info(const char *info) { this->dpp_device_info_ = info; }
+  void set_dpp_channels(const char *channels) { this->dpp_channels_ = channels; }
+  void set_dpp_timeout(uint32_t timeout) { this->dpp_timeout_ = timeout; }
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+  template<typename F> void add_on_dpp_uri_callback(F &&callback) {
+    this->dpp_uri_callback_.add(std::forward<F>(callback));
+  }
+#endif
+  /// The Easy Connect URI to show as a QR code, nullptr until the supplicant has generated it
+  const char *get_dpp_uri() const { return this->dpp_uri_.get(); }
+#endif
+
   void enable();
   void disable();
   bool is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_DISABLED; }
@@ -806,8 +822,6 @@ class WiFiComponent final : public Component {
     return true;
   }
 
-  void connect_soon_();
-
   bool wifi_loop_();
 #ifdef USE_ESP8266
   void process_pending_callbacks_();
@@ -851,6 +865,23 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_gateway_ip_();
   network::IPAddress wifi_dns_ip_(int num);
 
+#ifdef USE_WIFI_DPP
+  // Starts listening for a DPP configurator; the platform half reports whether the driver accepted
+  void start_dpp_listen_(uint32_t now);
+  void stop_dpp_listen_();
+#endif
+  /// Wait before the next attempt; while a configurator is waited for, the wait is its listen window
+  void start_cooldown_();
+#ifdef USE_WIFI_DPP
+  void wifi_dpp_init_();
+  bool wifi_dpp_start_listen_();
+  void wifi_dpp_stop_listen_();
+#endif
+  bool is_dpp_active_();
+  /// A portal, improv or DPP is waiting for credentials, so the retry machine must not disturb the radio
+  bool is_provisioning_active_();
+  /// The provisioning window has closed, so no new provisioning surface may start
+  bool is_provisioning_closed_();
   bool is_captive_portal_active_();
   /// captive_portal or the web_server AP mode is serving a user on the access point
   bool is_ap_portal_active_();
@@ -992,6 +1023,13 @@ class WiFiComponent final : public Component {
   // the disconnect is treated as roaming-related and the attempts counter is preserved.
   static constexpr uint32_t ROAMING_SCAN_GRACE_PERIOD = 30 * 1000;  // 30 seconds
 
+  void set_last_connected_(uint32_t now) {
+    this->last_connected_ = now;
+#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_EXCLUSIVE)
+    this->ap_start_failures_ = 0;
+#endif
+  }
+
   // 4-byte members
   float output_power_{NAN};
   uint32_t action_started_;
@@ -1008,6 +1046,17 @@ class WiFiComponent final : public Component {
   // 1-byte members so they pack into its trailing bytes instead of padding after it
   WiFiAP ap_;
 #endif  // USE_WIFI_AP
+#ifdef USE_WIFI_DPP
+  const char *dpp_key_{nullptr};
+  const char *dpp_device_info_{nullptr};
+  const char *dpp_channels_{nullptr};
+  std::unique_ptr<char[]> dpp_uri_;  // written by the event task before the URI event is queued
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+  CallbackManager<void(const char *)> dpp_uri_callback_;
+#endif
+  uint32_t dpp_timeout_{60000};  // Keep in sync with DEFAULT_DPP_TIMEOUT in __init__.py
+  uint32_t dpp_listen_started_{0};
+#endif
 
   // 1-byte enums and integers
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
@@ -1091,12 +1140,19 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
+#ifdef USE_WIFI_DPP
+  bool dpp_listening_{false};
+#endif
 #ifdef USE_WIFI_AP
   // Stations joined to the AP; they hold the reboot timeout and keep an exclusive AP from pausing.
   // Counted on the main loop on ESP32 and LibreTiny (queued events), in the SDK callback on ESP8266 and
   // in the driver's interrupt context on the Pico W. The main loop only reads the byte while the AP is up
   // and only writes it (a reset) while the AP is down, so no lock is needed.
   uint8_t ap_clients_{0};
+#ifndef USE_WIFI_AP_EXCLUSIVE
+  // Fallback AP starts that failed since the last connection; each one waits another ap_timeout
+  uint8_t ap_start_failures_{0};
+#endif
 #endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};

@@ -1,6 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #ifdef USE_NOISE_STREAM
 #include "esphome/components/noise/noise_stream.h"
 #endif
@@ -25,7 +28,6 @@ class UartTcp final : public Component, public uart::UARTDevice {
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
-  void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
   void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_NOISE_STREAM
   void set_noise_stream(noise::NoiseStream *stream) { this->noise_ = stream; }
@@ -37,6 +39,9 @@ class UartTcp final : public Component, public uart::UARTDevice {
       this->enable_loop();
     }
   }
+#endif
+#ifdef USE_BINARY_SENSOR
+  void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
 #endif
 #ifdef USE_SENSOR
   void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
@@ -89,7 +94,9 @@ class UartTcp final : public Component, public uart::UARTDevice {
 #ifdef USE_NOISE_STREAM
   noise::NoiseStream *noise_{nullptr};
 #endif
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
+#endif
   // Loop start time of the last socket-to-UART write; sizes the next paced write.
   uint32_t last_write_ms_{0};
 #ifdef USE_SENSOR

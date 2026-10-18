@@ -26,5 +26,9 @@ uart_tcp:
     role: server
     port: 6639
     encryption:
+
+binary_sensor:
+  - platform: uart_tcp
+    uart_tcp_id: runtime_key_bridge
     connected:
       name: UART TCP Runtime Key Connected

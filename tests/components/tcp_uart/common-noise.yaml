@@ -26,11 +26,17 @@ tcp_uart:
     port: 6638
     encryption:
       key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-    connected:
-      name: TCP UART Noise Connected
   - id: tcp_uart_runtime_key
     host: 192.0.2.10
     port: 6638
     encryption:
+
+binary_sensor:
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_noise_server
+    connected:
+      name: TCP UART Noise Connected
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_runtime_key
     connected:
       name: TCP UART Runtime Key Connected
