@@ -1,0 +1,35 @@
+"""Encryption layer using XXTEA, with an optional rolling code."""
+
+import hashlib
+
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_KEY
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+from . import ENCRYPTION, PacketInterface, packet_interface_ns
+
+CONF_ROLLING_CODE_ENABLE = "rolling_code_enable"
+
+XxteaEncryption = packet_interface_ns.class_("XxteaEncryption", PacketInterface)
+
+XXTEA_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(XxteaEncryption),
+        cv.Required(CONF_KEY): cv.All(cv.sensitive(cv.string), cv.Length(min=1)),
+        cv.Optional(CONF_ROLLING_CODE_ENABLE, default=False): cv.boolean,
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+@ENCRYPTION.register("xxtea", schema=XXTEA_SCHEMA, auto_load=lambda config: ["xxtea"])
+async def build_xxtea(config: ConfigType, lower: MockObj) -> MockObj:
+    cg.add_define("USE_PACKET_INTERFACE_XXTEA")
+    var = cg.new_Pvariable(config[CONF_ID], lower, config[CONF_ROLLING_CODE_ENABLE])
+    # A 256-bit key from the SHA-256 of the key text, as 32-bit words in little endian order
+    digest = hashlib.sha256(config[CONF_KEY].encode()).digest()
+    key = [int.from_bytes(digest[i : i + 4], "little") for i in range(0, 32, 4)]
+    cg.add(var.set_key(key))
+    await cg.register_component(var, config)
+    return var

@@ -1,0 +1,237 @@
+#include <gtest/gtest.h>
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <vector>
+#include "esphome/components/packet_interface/xxtea_encryption.h"
+#include "esphome/core/application.h"
+
+namespace esphome::packet_interface::encryption_testing {
+
+using Packet = std::vector<uint8_t>;
+
+// A link layer that records what is sent, so a test can deliver it to the peer
+class MockLink : public PacketInterface {
+ public:
+  explicit MockLink(size_t max_packet_size = 64) { this->set_max_packet_size(max_packet_size); }
+  bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
+    this->sent.push_back(data.to_vector());
+    return true;
+  }
+  void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
+
+  std::vector<Packet> sent;
+};
+
+static constexpr size_t ROLLING_TRAILER_SIZE = 16;
+static constexpr size_t TRAILER_SIZE = 4;
+
+class TestEncryption : public XxteaEncryption {
+ public:
+  using XxteaEncryption::XxteaEncryption;
+  uint32_t get_boot() const { return this->boot_; }
+};
+
+struct Peer {
+  explicit Peer(uint32_t key_word = 0x12345678, size_t max_packet_size = 64, bool rolling_code = true)
+      : link(max_packet_size) {
+    this->link.set_name("test_link");
+    this->encryption = std::make_unique<TestEncryption>(&this->link, rolling_code);
+    this->encryption->set_key({key_word, 2, 3, 4, 5, 6, 7, 8});
+    this->encryption->add_packet_interface_listener(
+        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(data.to_vector()); });
+    this->encryption->setup();
+  }
+  bool send(const Packet &data) { return this->encryption->send_to_interface(PacketBuffer(data), {}); }
+  // Deliver everything sent so far to the peer
+  void deliver_to(Peer &peer) {
+    for (auto &packet : this->link.sent)
+      peer.link.inject(packet);
+    this->link.sent.clear();
+  }
+  // Exchange a packet each way so that each peer echoes the other's boot number
+  void introduce(Peer &peer) {
+    this->send({});
+    this->deliver_to(peer);
+    peer.send({});
+    peer.deliver_to(*this);
+    this->send({});
+    this->deliver_to(peer);
+    this->received.clear();
+    peer.received.clear();
+  }
+
+  MockLink link;
+  std::unique_ptr<TestEncryption> encryption;
+  std::vector<Packet> received;
+};
+
+// The test main does not construct App as generated code does
+class XxteaEncryptionTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    new (&App) Application;
+    App.pre_setup("xxtea-tests", 10, "", 0);
+  }
+  void TearDown() override { App.~Application(); }
+};
+
+TEST_F(XxteaEncryptionTest, MaxPacketSizeAllowsForTrailerAndWords) {
+  Peer a;
+  EXPECT_EQ(a.encryption->get_max_packet_size(), 64 - ROLLING_TRAILER_SIZE);
+  EXPECT_EQ(a.link.top(), a.encryption.get());
+  EXPECT_TRUE(a.encryption->has_capability(CAPABILITY_ENCRYPTION));
+  EXPECT_FALSE(a.encryption->has_capability(CAPABILITY_SESSION));
+  Peer b(0x12345678, 63);
+  EXPECT_EQ(b.encryption->get_max_packet_size(), 60 - ROLLING_TRAILER_SIZE);
+  Peer c(0x12345678, 64, false);
+  EXPECT_EQ(c.encryption->get_max_packet_size(), 64 - TRAILER_SIZE);
+}
+
+static void round_trip_all_sizes(bool rolling_code, size_t trailer_size) {
+  Peer a(0x12345678, 64, rolling_code), b(0x12345678, 64, rolling_code);
+  a.introduce(b);
+  std::vector<Packet> expected;
+  for (uint8_t size = 0; size <= a.encryption->get_max_packet_size(); size++) {
+    Packet packet(size);
+    for (uint8_t i = 0; i != size; i++)
+      packet[i] = size + i;
+    expected.push_back(packet);
+    ASSERT_TRUE(a.send(packet));
+    ASSERT_EQ(a.link.sent.back().size() % 4, 0);
+    ASSERT_GE(a.link.sent.back().size(), std::max<size_t>(8, size + trailer_size));
+  }
+  a.deliver_to(b);
+  EXPECT_EQ(b.received, expected);
+}
+
+TEST_F(XxteaEncryptionTest, RoundTripAllSizes) { round_trip_all_sizes(true, ROLLING_TRAILER_SIZE); }
+
+TEST_F(XxteaEncryptionTest, RoundTripAllSizesWithoutRollingCode) { round_trip_all_sizes(false, TRAILER_SIZE); }
+
+TEST_F(XxteaEncryptionTest, WithoutRollingCodeReplayAccepted) {
+  Peer a(0x12345678, 64, false), b(0x12345678, 64, false);
+  a.send({1});
+  b.link.inject(a.link.sent[0]);
+  b.link.inject(a.link.sent[0]);
+  EXPECT_EQ(b.received, (std::vector<Packet>{{1}, {1}}));
+}
+
+TEST_F(XxteaEncryptionTest, RollingCodeSettingMustMatch) {
+  Peer a(0x12345678, 64, true), b(0x12345678, 64, false);
+  a.send({1, 2, 3, 4, 5, 6, 7, 8});
+  b.send({1, 2, 3, 4, 5, 6, 7, 8});
+  a.deliver_to(b);
+  b.deliver_to(a);
+  EXPECT_TRUE(a.received.empty());
+  EXPECT_TRUE(b.received.empty());
+}
+
+TEST_F(XxteaEncryptionTest, SamePacketEncryptsDifferently) {
+  Peer a;
+  a.send({1, 2, 3, 4});
+  a.send({1, 2, 3, 4});
+  ASSERT_EQ(a.link.sent.size(), 2);
+  EXPECT_NE(a.link.sent[0], a.link.sent[1]);
+}
+
+TEST_F(XxteaEncryptionTest, OversizedPacketRefused) {
+  Peer a;
+  EXPECT_FALSE(a.send(Packet(a.encryption->get_max_packet_size() + 1)));
+  EXPECT_TRUE(a.link.sent.empty());
+}
+
+TEST_F(XxteaEncryptionTest, WrongKeyDropped) {
+  Peer a, b(0x87654321);
+  a.send({1, 2, 3});
+  a.deliver_to(b);
+  EXPECT_TRUE(b.received.empty());
+}
+
+TEST_F(XxteaEncryptionTest, ChangedPacketDropped) {
+  Peer a, b;
+  a.send({1, 2, 3});
+  a.link.sent[0][2] ^= 0x01;
+  a.deliver_to(b);
+  EXPECT_TRUE(b.received.empty());
+}
+
+TEST_F(XxteaEncryptionTest, BadLengthDropped) {
+  Peer a, b;
+  a.send({1, 2, 3});
+  Packet packet = a.link.sent[0];
+  b.link.inject(Packet(packet.begin(), packet.end() - 1));
+  b.link.inject(Packet(8));
+  EXPECT_TRUE(b.received.empty());
+}
+
+TEST_F(XxteaEncryptionTest, ReplayDropped) {
+  Peer a, b;
+  a.introduce(b);
+  a.send({1});
+  Packet first = a.link.sent[0];
+  a.send({2});
+  a.deliver_to(b);
+  b.link.inject(first);
+  EXPECT_EQ(b.received, (std::vector<Packet>{{1}, {2}}));
+}
+
+TEST_F(XxteaEncryptionTest, OlderPacketDropped) {
+  Peer a, b;
+  a.introduce(b);
+  a.send({1});
+  a.send({2});
+  b.link.inject(a.link.sent[1]);
+  b.link.inject(a.link.sent[0]);
+  EXPECT_EQ(b.received, (std::vector<Packet>{{2}}));
+}
+
+TEST_F(XxteaEncryptionTest, BootNumberIncreasesAndPeerRestartAccepted) {
+  Peer b;
+  auto a = std::make_unique<Peer>();
+  uint32_t boot = a->encryption->get_boot();
+  a->introduce(b);
+  a->send({1});
+  a->send({2});
+  a->deliver_to(b);
+  EXPECT_EQ(b.received, (std::vector<Packet>{{1}, {2}}));
+  a = std::make_unique<Peer>();  // the peer restarts, and its counter starts again from 0
+  EXPECT_EQ(a->encryption->get_boot(), boot + 1);
+  a->introduce(b);
+  a->send({3});
+  a->deliver_to(b);
+  EXPECT_EQ(b.received, std::vector<Packet>{{3}});
+}
+
+TEST_F(XxteaEncryptionTest, FirstPacketsDroppedUntilEchoed) {
+  Peer a, b;
+  a.send({1});
+  a.deliver_to(b);
+  EXPECT_TRUE(b.received.empty());  // a does not know b's boot number yet
+  b.send({2});
+  b.deliver_to(a);
+  EXPECT_EQ(a.received, std::vector<Packet>{{2}});  // b learnt a's from the dropped packet
+  a.send({3});
+  a.deliver_to(b);
+  EXPECT_EQ(b.received, std::vector<Packet>{{3}});
+}
+
+TEST_F(XxteaEncryptionTest, PacketsFromBeforeRestartDropped) {
+  Peer a;
+  auto b = std::make_unique<Peer>();
+  a.introduce(*b);
+  a.send({1});
+  a.send({2});
+  std::vector<Packet> recorded = a.link.sent;
+  a.link.sent.clear();
+  b = std::make_unique<Peer>();  // b restarts and forgets a's counter
+  for (auto &packet : recorded)
+    b->link.inject(packet);
+  EXPECT_TRUE(b->received.empty());
+  a.introduce(*b);
+  a.send({3});
+  a.deliver_to(*b);
+  EXPECT_EQ(b->received, std::vector<Packet>{{3}});
+}
+
+}  // namespace esphome::packet_interface::encryption_testing

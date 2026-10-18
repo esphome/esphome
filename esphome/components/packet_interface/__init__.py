@@ -10,7 +10,13 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 from . import layers
-from .layers import PacketInterface, build_stack, packet_interface_ns, stack_schema
+from .layers import (
+    PacketInterface,
+    build_stack,
+    packet_interface_ns,
+    stack_auto_load,
+    stack_schema,
+)
 
 CODEOWNERS = ["@clydebarrow"]
 DOMAIN = "packet_interface"
@@ -32,6 +38,19 @@ __all__ = [
     "packet_interface_ns",
     "packet_interface_schema",
 ]
+
+
+def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
+    """Load only what the configured layers use.
+
+    Without a config, as tooling that lists dependencies calls it, everything a layer could load.
+    """
+    if config is None:
+        return ["binary_sensor", "xxtea"]
+    loads: set[str] = set()
+    for interface in config:
+        loads |= stack_auto_load(interface)
+    return sorted(loads)
 
 
 def packet_interface_schema(
