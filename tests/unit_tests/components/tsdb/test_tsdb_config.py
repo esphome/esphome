@@ -7,14 +7,12 @@ import pytest
 from esphome.components.tsdb import (
     CONF_COLUMNS,
     CONF_MAX_FILE_SIZE,
-    CONF_MIN_FREE_BYTES,
     CONF_NAME,
     CONF_OFFSET,
     CONF_PARTITION_SIZE,
     CONF_SCALE_FACTOR,
     _validate_config,
     _validate_file_name,
-    _validate_min_free_bytes,
     _validate_mount_point,
     _validate_partition_size,
     _validate_size,
@@ -98,11 +96,6 @@ def test_validate_file_name_accepts_plain() -> None:
     assert _validate_file_name("history.tsdb") == "history.tsdb"
 
 
-def test_validate_min_free_bytes_allows_zero() -> None:
-    assert _validate_min_free_bytes(0) == 0
-    assert _validate_min_free_bytes("32KB") == 32 * 1024
-
-
 def _column(
     name: str = "temperature", scale_factor: float = 1.0, offset: float = 0.0
 ) -> dict:
@@ -118,7 +111,6 @@ def _config(columns: list[dict] | None = None, **overrides: int) -> dict:
         CONF_COLUMNS: [_column()] if columns is None else columns,
         CONF_PARTITION_SIZE: 512 * 1024,
         CONF_MAX_FILE_SIZE: 384 * 1024,
-        CONF_MIN_FREE_BYTES: 32 * 1024,
     }
     config.update(overrides)
     return config
@@ -153,19 +145,9 @@ def test_validate_config_accepts_finite_boundaries() -> None:
     assert _validate_config(config) is config
 
 
-def test_validate_config_rejects_min_free_above_partition() -> None:
-    with pytest.raises(cv.Invalid, match="min_free_bytes must stay below"):
-        _validate_config(_config(min_free_bytes=512 * 1024))
-
-
-def test_validate_config_rejects_budget_over_partition() -> None:
-    with pytest.raises(cv.Invalid, match="do not fit into partition_size"):
-        _validate_config(_config(max_file_size=500 * 1024))
-
-
 def test_validate_config_reserves_room_for_filesystem_metadata() -> None:
-    # 480KB + 32KB exactly fills a 512KB partition, which LittleFS cannot write
-    # to because it needs blocks for its own metadata.
-    with pytest.raises(cv.Invalid, match="filesystem metadata"):
-        _validate_config(_config(max_file_size=480 * 1024))
+    # A budget within LITTLEFS_RESERVED_BYTES of the partition leaves LittleFS
+    # no blocks for its own metadata.
+    with pytest.raises(cv.Invalid, match="leaves no room for the filesystem metadata"):
+        _validate_config(_config(max_file_size=500 * 1024))
     assert _validate_config(_config())[CONF_MAX_FILE_SIZE] == 384 * 1024

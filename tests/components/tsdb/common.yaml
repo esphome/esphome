@@ -19,10 +19,6 @@ tsdb:
       offset: 0.0
 
 sensor:
-  - platform: tsdb
-    tsdb_id: tsdb_test
-    errors:
-      name: TSDB errors
   - platform: template
     id: tsdb_temperature
     name: TSDB temperature

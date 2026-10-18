@@ -30,10 +30,6 @@ struct TsdbColumn {
 };
 
 class TsdbComponent : public PollingComponent {
-#ifdef USE_SENSOR
-  SUB_SENSOR(errors)
-#endif
-
  public:
   void setup() override;
   void update() override;
@@ -49,7 +45,6 @@ class TsdbComponent : public PollingComponent {
   void set_index_stride(uint32_t stride) { this->index_stride_ = stride; }
   void set_buffer_pool_size(uint32_t bytes) { this->buffer_pool_size_ = bytes; }
   void set_sync_interval(uint32_t ms) { this->sync_interval_ = ms; }
-  void set_min_free_bytes(uint32_t bytes) { this->min_free_bytes_ = bytes; }
   void set_require_time(bool require) { this->require_time_ = require; }
   void set_missing_policy(tsdbmath::MissingPolicy policy) { this->missing_policy_ = policy; }
 #ifdef USE_TIME
@@ -65,16 +60,12 @@ class TsdbComponent : public PollingComponent {
   bool mount_filesystem_();
   void unmount_filesystem_();
   bool open_database_();
-  void log_init_failure_();
-  void fail_setup_(const LogString *reason);
   void close_database_();
   void invalidate_database_(const LogString *reason);
   void reopen_if_lost_();
   bool read_saved_index_stride_(uint32_t *stride) const;
   bool write_record_();
-  void publish_errors_();
   void flush_(bool force);
-  static uint64_t free_space_probe();
 
   StringRef file_{"history.tsdb"};
   StringRef mount_point_{"/littlefs"};
@@ -85,7 +76,6 @@ class TsdbComponent : public PollingComponent {
   uint32_t index_stride_{tsdbmath::INDEX_DEFAULT_STRIDE};
   uint32_t buffer_pool_size_{4096};
   uint32_t sync_interval_{60000};
-  uint32_t min_free_bytes_{32768};
   bool require_time_{true};
   tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   std::vector<TsdbColumn> columns_{};
@@ -96,8 +86,7 @@ class TsdbComponent : public PollingComponent {
 
   void *db_{nullptr};
   bool mounted_{false};
-  // A handle esp_tsdb invalidated (a failed sync fclose/reopen); reopened on a
-  // later interval instead of failing every write until reboot.
+  // A handle esp_tsdb invalidated; reopened on a later interval.
   bool db_lost_{false};
   uint32_t last_reopen_{0};
   uint32_t writes_{0};
@@ -111,9 +100,6 @@ class TsdbComponent : public PollingComponent {
   bool dirty_{false};
   bool warned_time_{false};
   bool warned_backwards_{false};
-  esp_err_t mount_error_{ESP_OK};
-  bool format_attempted_{false};
-  esp_err_t format_error_{ESP_OK};
 };
 
 }  // namespace esphome::tsdb

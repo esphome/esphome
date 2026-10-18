@@ -31,7 +31,6 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "tsdb"
-AUTO_LOAD = ["sensor"]
 
 tsdb_ns = cg.esphome_ns.namespace("tsdb")
 TsdbComponent = tsdb_ns.class_("TsdbComponent", cg.PollingComponent)
@@ -44,9 +43,8 @@ ESP_TSDB_VERSION = "2.4.3"
 ESP_LITTLEFS_COMPONENT = "joltwallet/littlefs"
 ESP_LITTLEFS_VERSION = "1.22.3"
 
-# Managed IDF components tsdb's C++ needs in every build that compiles it.
-# to_code() adds them for a configured build; the clang-tidy project runs no
-# config and reads this attribute instead (see esphome/espidf/clang_tidy.py).
+# Managed IDF components tsdb's C++ needs; to_code() adds them for a configured
+# build, the clang-tidy project reads this attribute instead (see clang_tidy.py).
 IDF_COMPONENTS = {
     ESP_TSDB_COMPONENT: ESP_TSDB_VERSION,
     ESP_LITTLEFS_COMPONENT: ESP_LITTLEFS_VERSION,
@@ -55,8 +53,7 @@ IDF_COMPONENTS = {
 TSDB_MAX_BASE_PARAMS = 16
 TSDB_MAX_NAME_LENGTH = 31
 LITTLEFS_BLOCK_BYTES = 0x1000
-# LittleFS keeps its own metadata (a few 4KB blocks plus an entry per file), so a
-# budget that fills the partition exactly cannot be written to.
+# LittleFS keeps its own metadata, so a budget that fills the partition cannot be written to.
 LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 
 CONF_MOUNT_POINT = "mount_point"
@@ -67,7 +64,6 @@ CONF_MAX_FILE_SIZE = "max_file_size"
 CONF_INDEX_STRIDE = "index_stride"
 CONF_BUFFER_POOL_SIZE = "buffer_pool_size"
 CONF_SYNC_INTERVAL = "sync_interval"
-CONF_MIN_FREE_BYTES = "min_free_bytes"
 CONF_REQUIRE_TIME = "require_time"
 CONF_ON_MISSING = "on_missing"
 CONF_SCALE_FACTOR = "scale_factor"
@@ -150,10 +146,6 @@ def _validate_file_name(value: str) -> str:
     return value
 
 
-def _validate_min_free_bytes(value: object) -> int:
-    return _validate_size(value, allow_zero=True)
-
-
 def _validate_config(config: ConfigType) -> ConfigType:
     columns = config[CONF_COLUMNS]
     names = [column[CONF_NAME] for column in columns]
@@ -172,19 +164,11 @@ def _validate_config(config: ConfigType) -> ConfigType:
         if not math.isfinite(column[CONF_OFFSET]):
             raise cv.Invalid(f"'{name}': offset must be a finite number")
     partition = config[CONF_PARTITION_SIZE]
-    min_free = config[CONF_MIN_FREE_BYTES]
     max_file = config[CONF_MAX_FILE_SIZE]
-    if min_free >= partition:
-        raise cv.Invalid("min_free_bytes must stay below partition_size")
-    if max_file + min_free > partition:
+    if max_file + LITTLEFS_RESERVED_BYTES > partition:
         raise cv.Invalid(
-            "max_file_size + min_free_bytes do not fit into partition_size"
-        )
-    if max_file + min_free + LITTLEFS_RESERVED_BYTES > partition:
-        raise cv.Invalid(
-            "max_file_size + min_free_bytes leave no room for the filesystem "
-            f"metadata in partition_size (at least {LITTLEFS_RESERVED_BYTES // 1024}KB "
-            "is needed)"
+            "max_file_size leaves no room for the filesystem metadata in "
+            f"partition_size (at least {LITTLEFS_RESERVED_BYTES // 1024}KB is needed)"
         )
     return config
 
@@ -229,7 +213,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SYNC_INTERVAL, default="60s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_MIN_FREE_BYTES, default="32KB"): _validate_min_free_bytes,
             cv.Optional(CONF_REQUIRE_TIME, default=True): cv.boolean,
             cv.Optional(CONF_TIME_ID): cv.use_id(RealTimeClock),
             cv.Optional(CONF_ON_MISSING, default="skip"): cv.one_of(
@@ -266,7 +249,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_index_stride(config[CONF_INDEX_STRIDE]))
     cg.add(var.set_buffer_pool_size(config[CONF_BUFFER_POOL_SIZE]))
     cg.add(var.set_sync_interval(config[CONF_SYNC_INTERVAL]))
-    cg.add(var.set_min_free_bytes(config[CONF_MIN_FREE_BYTES]))
     cg.add(var.set_require_time(config[CONF_REQUIRE_TIME]))
     cg.add(var.set_missing_policy(MISSING_POLICIES[config[CONF_ON_MISSING]]))
     if CONF_TIME_ID in config:
