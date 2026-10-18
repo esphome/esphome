@@ -2127,6 +2127,65 @@ TEST_F(CSPlusSettingWriteTest, OtaBeforeAnyWriteDisarmsAndDiscardsPreflight) {
   this->tick_(100);
   EXPECT_EQ(this->controller_.writes_sent(), 0u);
 }
+
+TEST_F(CSPlusSettingWriteTest, EnumContextRefreshBypassesThePeriodicLimitOnceAndRetainsConfirmedData) {
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  this->source_values_[55] = 4;
+  this->controller_.update();
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  EXPECT_FALSE(this->controller_.start_scan());
+}
+
+TEST_F(CSPlusSettingWriteTest, UncertainWriteRequestsAReadOnlyRefreshWithoutWaitingAMinute) {
+  this->preflight_();
+  this->acquire_write_();
+  this->reply_write_(40);
+  EXPECT_TRUE(this->controller_.write_uncertain());
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  this->source_values_[48] = 40;
+  this->controller_.update();
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  int32_t value = 0;
+  EXPECT_TRUE(this->controller_.get_value(48, value));
+  EXPECT_EQ(value, 40);
+  EXPECT_FALSE(this->controller_.write_uncertain());
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+}
+
+TEST_F(CSPlusSettingWriteTest, RetainedContextExpiresAndCannotResurrectAfterIncompatibleFirmware) {
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  this->message_();
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  this->tick_(660001);
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+  this->message_(112);
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+}
+
+TEST_F(CSPlusSettingWriteTest, IncompatibleFirmwareDiscardsRetainedContextBeforeItsExpiry) {
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  this->message_();
+  ASSERT_TRUE(this->controller_.has_recent_snapshot());
+  this->message_(112);
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+}
 #endif
 #endif
 

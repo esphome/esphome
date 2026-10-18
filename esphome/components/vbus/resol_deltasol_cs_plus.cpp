@@ -75,8 +75,13 @@ bool ResolDeltaSolCSPlus::has_fresh_snapshot() const {
          App.get_loop_component_start_time() - this->snapshot_at_ <= SNAPSHOT_MAX_AGE_MS;
 }
 
+bool ResolDeltaSolCSPlus::has_recent_snapshot() const {
+  return this->snapshot_retained_ && this->profile_ok_ &&
+         App.get_loop_component_start_time() - this->snapshot_at_ <= SNAPSHOT_MAX_AGE_MS;
+}
+
 float ResolDeltaSolCSPlus::snapshot_age_seconds() const {
-  return this->has_snapshot_ ? (App.get_loop_component_start_time() - this->snapshot_at_) / 1000.0f : NAN;
+  return this->snapshot_retained_ ? (App.get_loop_component_start_time() - this->snapshot_at_) / 1000.0f : NAN;
 }
 
 bool ResolDeltaSolCSPlus::get_value(uint16_t index, int32_t &value) const {
@@ -96,8 +101,9 @@ bool ResolDeltaSolCSPlus::get_value(uint16_t index, int32_t &value) const {
 void ResolDeltaSolCSPlus::check_age_() {
   if (this->stopped_)
     return;
-  if (this->has_snapshot_ && App.get_loop_component_start_time() - this->snapshot_at_ > SNAPSHOT_MAX_AGE_MS) {
+  if (this->snapshot_retained_ && App.get_loop_component_start_time() - this->snapshot_at_ > SNAPSHOT_MAX_AGE_MS) {
     this->has_snapshot_ = false;
+    this->snapshot_retained_ = false;
     this->snapshot_callback_.call();
   }
 }
@@ -108,8 +114,9 @@ void ResolDeltaSolCSPlus::handle_message(std::vector<uint8_t> &message) {
   this->profile_ok_ = message[32] == 111 && message[33] == 0;
   if (!this->profile_ok_) {
     this->abort_();
-    if (this->has_snapshot_) {
+    if (this->snapshot_retained_) {
       this->has_snapshot_ = false;
+      this->snapshot_retained_ = false;
       this->snapshot_callback_.call();
     }
     return;
@@ -124,6 +131,12 @@ void ResolDeltaSolCSPlus::handle_message(std::vector<uint8_t> &message) {
 }
 
 void ResolDeltaSolCSPlus::update() {
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->context_refresh_pending_) {
+    this->start_scan();
+    return;
+  }
+#endif
   const uint32_t elapsed = App.get_loop_component_start_time() - this->attempt_at_;
   if (this->resume_pending_) {
     if (elapsed >= (this->attempted_ ? MIN_SCAN_INTERVAL_MS : 30000))
@@ -136,9 +149,17 @@ void ResolDeltaSolCSPlus::update() {
 
 bool ResolDeltaSolCSPlus::start_scan() {
   const uint32_t now = App.get_loop_component_start_time();
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  const bool refresh = this->context_refresh_pending_;
+#else
+  static constexpr bool refresh = false;
+#endif
   if (this->stopped_ || this->phase_ != Phase::PHASE_IDLE || this->polling_->is_suspended() ||
-      !this->telemetry_online() || (this->attempted_ && now - this->attempt_at_ < MIN_SCAN_INTERVAL_MS))
+      !this->telemetry_online() || (this->attempted_ && !refresh && now - this->attempt_at_ < MIN_SCAN_INTERVAL_MS))
     return false;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  this->context_refresh_pending_ = false;
+#endif
   this->attempted_ = true;
   this->resume_pending_ = false;
   this->attempt_at_ = now;
@@ -295,6 +316,7 @@ void ResolDeltaSolCSPlus::loop() {
   this->elapsed_ms_ = this->snapshot_at_ - this->attempt_at_;
   ++this->completed_scans_;
   this->has_snapshot_ = true;
+  this->snapshot_retained_ = true;
 #ifdef USE_VBUS_CS_PLUS_WRITE
   this->write_uncertain_ = false;
 #endif

@@ -34,6 +34,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   bool start_scan();
   bool is_scanning() const { return this->phase_ != Phase::PHASE_IDLE; }
   bool has_fresh_snapshot() const;
+  bool has_recent_snapshot() const;
   bool telemetry_online() const;
   float snapshot_age_seconds() const;
   bool get_value(uint16_t index, int32_t &value) const;
@@ -89,6 +90,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   bool require_write_arm_{true};
   bool write_armed_{false};
   bool write_uncertain_{false};
+  bool context_refresh_pending_{false};
   bool write_verified_{false};
   CallbackManager<void(uint16_t, SettingWriteStatus)> setting_result_callback_;
 #endif
@@ -126,6 +128,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   bool attempted_{false};
   bool profile_ok_{false};
   bool has_snapshot_{false};
+  bool snapshot_retained_{false};
   bool resumed_{false};
   bool stopped_{false};
   bool resume_pending_{false};

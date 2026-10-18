@@ -125,12 +125,16 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
       ++this->writes_verified_;
       if (spec.has_value() && spec->enum_mask != 0) {
         this->has_snapshot_ = false;
-        this->resume_pending_ = true;
+        this->context_refresh_pending_ = true;
       }
     }
     this->snapshot_callback_.call();
   } else {
     this->write_uncertain_ = status == SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN;
+    if (this->write_uncertain_) {
+      this->has_snapshot_ = false;
+      this->context_refresh_pending_ = true;
+    }
     // Reuse cancellation to discard queued writes and any pending verification.
     if (!this->polling_->is_suspended()) {
       this->polling_->suspend();
