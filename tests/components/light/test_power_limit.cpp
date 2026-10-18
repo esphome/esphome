@@ -184,4 +184,19 @@ TEST(PowerLimit, TheStateLimitsAFrameBeforeTheDriverSendsIt) {
   EXPECT_EQ(strip[0].get_red_raw(), 255);
 }
 
+TEST(PowerLimit, ALevelPastTheScaleInForceSaturatesWhenTheScaleRises) {
+  Strip strip(2);
+  strip.configure_power(20, 0, 30);  // two full red pixels would draw 40 mA
+  strip.all() = Color(255, 0, 0, 0);
+  strip.limit();
+  ASSERT_LT(strip.power_brightness(), 255);
+  // A raw write past the scale, as a lambda or a partition over another strip can make; one such pixel
+  // alone fits the budget, so the scale goes back up
+  strip[0].set_raw(255, 0, 0, 0);
+  strip[1].set_raw(0, 0, 0, 0);
+  strip.limit();
+  ASSERT_EQ(strip.power_brightness(), 255);
+  EXPECT_EQ(strip[0].get_red_raw(), 255);
+}
+
 }  // namespace esphome::light::testing

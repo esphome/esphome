@@ -59,7 +59,8 @@ static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
     return 0;
   const uint32_t scaled = static_cast<uint32_t>(level) * scale;
   const uint32_t moved = scale < previous ? (scaled + previous - 1) / previous : scaled / previous;
-  return std::max<uint32_t>(moved, 1);
+  // A level written past the scale in force (set_raw, a partition over another strip) must not wrap
+  return std::clamp<uint32_t>(moved, 1, 255);
 }
 
 // The frame is moved to the new scale before it goes out, so every write path is limited
