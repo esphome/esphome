@@ -4,6 +4,7 @@
 namespace esphome::packet_interface::lbt_testing {
 
 static constexpr uint32_t START = 10000;
+static constexpr uint32_t MAX_BUSY = ListenBeforeTalk::DEFAULT_MAX_BUSY_MS;
 
 TEST(ListenBeforeTalkTest, SendsWhenNotBusy) {
   ListenBeforeTalk lbt;
@@ -15,23 +16,37 @@ TEST(ListenBeforeTalkTest, RefusesWhileBusyUpToLimit) {
   EXPECT_FALSE(lbt.may_send(true, START));
   // Refused every 50 ms, as the reliability layer retries
   uint32_t now = START;
-  while (now - START < ListenBeforeTalk::MAX_BUSY_MS - 50) {
+  while (now - START < MAX_BUSY - 50) {
     now += 50;
     EXPECT_FALSE(lbt.may_send(true, now));
   }
   now += 50;
   EXPECT_TRUE(lbt.may_send(true, now));
-  EXPECT_EQ(lbt.busy_for(now), ListenBeforeTalk::MAX_BUSY_MS);
+  EXPECT_EQ(lbt.busy_for(now), MAX_BUSY);
 }
 
-TEST(ListenBeforeTalkTest, GapStartsNewBusyPeriod) {
+TEST(ListenBeforeTalkTest, BusyFlagThatNeverClearsReleasedForSlowSends) {
+  ListenBeforeTalk lbt;
+  // A send every 10 s, as session keep-alives, always finding the radio busy
+  EXPECT_FALSE(lbt.may_send(true, START));
+  EXPECT_TRUE(lbt.may_send(true, START + 10000));
+}
+
+TEST(ListenBeforeTalkTest, FreeRadioEndsBusyPeriod) {
   ListenBeforeTalk lbt;
   EXPECT_FALSE(lbt.may_send(true, START));
-  EXPECT_FALSE(lbt.may_send(true, START + 400));
-  EXPECT_EQ(lbt.busy_for(START + 400), 400);
-  uint32_t later = START + 400 + ListenBeforeTalk::BUSY_GAP_MS + 1;
-  EXPECT_FALSE(lbt.may_send(true, later));
-  EXPECT_EQ(lbt.busy_for(later), 0);
+  EXPECT_TRUE(lbt.may_send(false, START + 1500));
+  // A new busy period starts, so the earlier one does not count
+  EXPECT_FALSE(lbt.may_send(true, START + MAX_BUSY + 100));
+  EXPECT_EQ(lbt.busy_for(START + MAX_BUSY + 100), 0);
+}
+
+TEST(ListenBeforeTalkTest, LimitCanBeLonger) {
+  ListenBeforeTalk lbt;
+  lbt.set_max_busy(8000);
+  EXPECT_FALSE(lbt.may_send(true, START));
+  EXPECT_FALSE(lbt.may_send(true, START + 7999));
+  EXPECT_TRUE(lbt.may_send(true, START + 8000));
 }
 
 }  // namespace esphome::packet_interface::lbt_testing

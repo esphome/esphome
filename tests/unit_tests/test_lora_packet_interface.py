@@ -3,9 +3,10 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE
+from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE, radio_airtime
 from esphome.components.sx126x import packet_interface as sx126x_packet_interface
 from esphome.components.sx127x import packet_interface as sx127x_packet_interface
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -22,3 +23,108 @@ def test_max_packet_size_is_radio_limit(
     assert schema({radio_key: "radio"})[CONF_MAX_PACKET_SIZE] == 255
     with pytest.raises(cv.Invalid):
         schema({radio_key: "radio", CONF_MAX_PACKET_SIZE: 256})
+
+
+def _lora(**options: object) -> dict:
+    return {
+        "modulation": "LORA",
+        "spreading_factor": 7,
+        "bandwidth": "125_0kHz",
+        "coding_rate": "CR_4_5",
+        "preamble_size": 8,
+        "crc_enable": False,
+        **options,
+    }
+
+
+@pytest.mark.parametrize(
+    ("radio", "airtime_ms"),
+    [
+        # Worked by hand from the Semtech formula, for a 255 byte packet with an explicit header
+        (_lora(spreading_factor=7), 394.5),
+        (_lora(spreading_factor=7, crc_enable=True), 399.6),
+        (_lora(spreading_factor=10), 2254.8),
+        # A symbol takes over 16 ms, so the low data rate optimization lengthens the packet
+        (_lora(spreading_factor=12), 9019.4),
+    ],
+)
+def test_lora_airtime(radio: dict, airtime_ms: float) -> None:
+    """The airtime of the largest LoRa packet follows the Semtech formula."""
+    assert radio_airtime.packet_airtime_ms(radio, 255) == pytest.approx(
+        airtime_ms, abs=0.5
+    )
+
+
+def test_max_busy_follows_airtime() -> None:
+    """Listen before talk waits at least 2 s, and longer than the largest packet takes."""
+    assert radio_airtime.max_busy_ms(_lora(), 255) == 2000
+    assert radio_airtime.max_busy_ms(_lora(spreading_factor=12), 255) > 9019
+    fsk = {
+        "modulation": "FSK",
+        "preamble_size": 4,
+        "bitrate": 1200,
+        "sync_value": [1, 2],
+    }
+    assert radio_airtime.packet_airtime_ms(fsk, 64) == pytest.approx(
+        (4 + 2 + 1 + 64 + 2) * 8 / 1200 * 1000
+    )
+
+
+class _FullConfig(dict):
+    """Enough of the full configuration for the radio links' final validation."""
+
+    def __init__(self, domain: str, radio: dict) -> None:
+        super().__init__({domain: [radio]})
+        self.domain = domain
+
+    def get_path_for_id(self, id_: object) -> list:
+        return [self.domain, 0, "id"]
+
+    def get_config_for_path(self, path: list) -> dict:
+        return self[path[0]][path[1]]
+
+
+@pytest.mark.parametrize(
+    ("module", "domain", "radio", "link", "match"),
+    [
+        (
+            sx126x_packet_interface,
+            "sx126x",
+            {"payload_length": 10},
+            {},
+            "payload_length",
+        ),
+        (
+            sx127x_packet_interface,
+            "sx127x",
+            _lora(payload_length=10),
+            {},
+            "payload_length",
+        ),
+        (
+            sx127x_packet_interface,
+            "sx127x",
+            {"modulation": "FSK", "payload_length": 0},
+            {CONF_MAX_PACKET_SIZE: 65},
+            "at most 64",
+        ),
+    ],
+)
+def test_radio_settings_checked(
+    module: object, domain: str, radio: dict, link: dict, match: str
+) -> None:
+    """Packets vary in length, and FSK on an SX127x holds at most 64 bytes."""
+    token = fv.full_config.set(_FullConfig(domain, radio))
+    try:
+        with pytest.raises(cv.Invalid, match=match):
+            module._final_validate(
+                {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 64, **link}
+            )
+        fixed = {**radio, "payload_length": 0}
+        fv.full_config.set(_FullConfig(domain, fixed))
+        if CONF_MAX_PACKET_SIZE not in link:
+            assert module._final_validate(
+                {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 64}
+            )
+    finally:
+        fv.full_config.reset(token)
