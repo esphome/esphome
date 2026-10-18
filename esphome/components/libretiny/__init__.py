@@ -531,10 +531,8 @@ async def component_to_code(config):
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
-        # Wrap the SDK's exception handlers so the fault location is saved and
-        # the watchdog is re-armed before the SDK handler spins (crash_handler.cpp).
-        # The record needs the ITCM region only these BK chips have, see
-        # patch_noinit.py.script.
+        # Wrap the SDK's fault handlers (crash_handler.cpp); the record needs
+        # the ITCM region only these BK chips have (patch_noinit.py.script).
         cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
         for trap in ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt"):

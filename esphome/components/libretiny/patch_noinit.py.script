@@ -4,18 +4,17 @@ Import("env")  # noqa
 import os
 import re
 
-# Adds a .noinit output section to the BK7238 / BK7231N linker script for the
-# crash handler's record (crash_handler.cpp). It goes into the ITCM region
-# right after the SDK's own ITCM code: the bootloader clears the first
-# ~144 KB of SRAM on every boot (measured on a BK7238) and rewrites the SDK's
-# saved-register area, while ITCM keeps its content across the watchdog reset
-# that follows a crash and the SDK startup only copies .itcm.code there.
+# Adds a .noinit section for the crash handler's record (crash_handler.cpp)
+# to the BK7238 / BK7231N linker script, in ITCM right after .itcm.code.
+# ITCM survives the watchdog reset after a crash and the SDK startup only
+# copies .itcm.code there; the bootloader clears the first ~144 KB of SRAM
+# and rewrites the SDK's saved-register area on every boot (measured on a
+# BK7238), so SRAM is no use. The LMA stays in ITCM, no flash is used.
 #
 # LibreTiny renders bk7238_bsp.template.ld / bk7231n_bsp.template.ld into
-# $BUILD_DIR; both place ".itcm.code ... } > itcm AT>flash" first, and the new
-# section follows it. The LMA stays in ITCM so no flash is used. The BK7231T,
-# BK7231Q and BK7251 script has no ITCM region, so this script is only loaded
-# for the two families above (libretiny/__init__.py).
+# $BUILD_DIR with ".itcm.code ... } > itcm AT>flash" first. BK7231T/Q/7251
+# have no ITCM region, so libretiny/__init__.py loads this for the two
+# families only.
 
 _MARKER = "/* esphome .noinit */"
 _ITCM_CODE_END = re.compile(r"(\}\s*>\s*itcm\s+AT\s*>\s*flash[^\n]*\n)")

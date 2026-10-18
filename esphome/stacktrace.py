@@ -125,8 +125,7 @@ class LogLineProcessor:
                 )
 
 
-# The crash handler report (rp2/crash_handler.cpp, libretiny/crash_handler.cpp)
-# prints one address per line so this decoder works on a streaming log.
+# Crash handler report (rp2 and libretiny crash_handler.cpp): one address per line.
 CRASH_HANDLER_RE = re.compile(r"CRASH DETECTED ON PREVIOUS BOOT")
 CRASH_HANDLER_ADDR_RE = re.compile(
     r"(?:PC|LR|BT\d):\s+(0x[0-9a-fA-F]{8})\s+\((?:fault location|return address|stack backtrace)\)"
@@ -134,7 +133,7 @@ CRASH_HANDLER_ADDR_RE = re.compile(
 
 
 def _addr2line(tool: str, elf: Path, addr: str) -> str:
-    # Imported here: __main__ loads this module on every CLI start and subprocess is slow to import
+    # Lazy: __main__ imports this module on every CLI start
     import subprocess
 
     try:
@@ -152,11 +151,7 @@ def _addr2line(tool: str, elf: Path, addr: str) -> str:
 def process_crash_handler_line(
     config: ConfigType, line: str, backtrace_state: bool
 ) -> bool:
-    """Decode a crash handler report with addr2line.
-
-    Platforms whose firmware prints that report expose this as their
-    ``process_stacktrace`` hook.
-    """
+    """Decode a crash handler report with addr2line; the process_stacktrace hook of rp2 and bk72xx."""
     if CRASH_HANDLER_RE.search(line):
         _LOGGER.error("Crash detected - decoding addresses")
         return True

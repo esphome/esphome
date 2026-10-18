@@ -146,9 +146,8 @@ COMPONENT_CODEOWNERS = {
     "ln882x": ["@lamauny"],
 }
 
-# Extra import lines per component. The CLI finds a platform's process_stacktrace
-# hook on the platform package (esphome/platform_hooks.py); BK72xx has a crash
-# handler whose report the shared decoder reads.
+# Extra imports per component: the CLI looks up process_stacktrace on the
+# platform package (esphome/platform_hooks.py).
 COMPONENT_EXTRA_IMPORTS = {
     "bk72xx": (
         "from esphome.stacktrace import (  # noqa: F401\n"

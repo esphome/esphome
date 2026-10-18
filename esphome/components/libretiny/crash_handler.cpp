@@ -17,16 +17,12 @@ extern "C" {
 #include <intc.h>  // struct arm_registers
 }
 
-// The BK72xx SDK (driver/entry/boot_handlers.S) answers an undefined instruction, prefetch abort or
-// data abort by building a struct arm_registers frame on the exception mode's stack (PUSH_SVC_REG)
-// and branching to bk_trap_udef/pabt/dabt with a pointer to it. The SDK handler records the crash
-// type in a retention register, prints a register dump that sdk_silent hides, and spins with
-// interrupts off until the hardware watchdog resets the chip about 10 s later. The build wraps those
-// three handlers (-Wl,--wrap) so the fault location and a stack scan are saved first, in RAM that
-// survives the watchdog reset, and reported on the next boot.
+// On a fault the SDK (driver/entry/boot_handlers.S, PUSH_SVC_REG) builds a struct arm_registers frame
+// on the exception stack and branches to bk_trap_udef/pabt/dabt. Those record the crash type in a
+// retention register, print a dump that sdk_silent hides, and spin for the watchdog. The build wraps
+// them (-Wl,--wrap) so the fault location and a stack scan reach the next boot.
 //
-// sp, lr and pc in the frame belong to the exception mode. PUSH_SVC_REG stores them at these word
-// offsets, so the SDK header must keep describing that frame.
+// sp, lr and pc in the frame are the exception mode's; PUSH_SVC_REG stores them at these word offsets.
 static_assert(sizeof(arm_registers) == 18 * sizeof(uint32_t), "SDK exception frame changed size");
 static_assert(offsetof(arm_registers, sp) == 13 * 4 && offsetof(arm_registers, lr) == 14 * 4 &&
                   offsetof(arm_registers, pc) == 15 * 4 && offsetof(arm_registers, spsr) == 16 * 4 &&
@@ -59,14 +55,13 @@ static constexpr uint32_t CRASH_REASON_PREFETCH_ABORT = 2;
 static constexpr uint32_t CRASH_REASON_DATA_ABORT = 3;
 PROGMEM_STRING_TABLE(CrashReasonStrings, "Unknown", "Undefined instruction", "Prefetch abort", "Data abort");
 
-// The watchdog armed at boot stops firing once Wi-Fi is up (measured on a BK7238 and a BK7231N: any
-// spin with interrupts off, including the SDK's trap handler, hangs until power is cycled; the cause
-// is not in the open SDK sources), so the wrapper arms it again before the SDK handler spins. Long
-// enough for the SDK's register dump when sdk_silent is off.
+// Once Wi-Fi is up the watchdog armed at boot no longer fires (BK7238 and BK7231N: any spin with
+// interrupts off hangs until power is cycled; not explained by the open SDK sources), so the wrapper
+// re-arms it. Long enough for the SDK's register dump when sdk_silent is off.
 static constexpr uint32_t CRASH_REBOOT_WDT_MS = 500;
 
 static constexpr size_t MAX_BACKTRACE = 8;
-// Words scanned above the faulting context's stack pointer for return addresses.
+// Words scanned above the faulting context's sp for return addresses.
 static constexpr size_t STACK_SCAN_WORDS = 64;
 
 // SRAM range a task stack can be in: 192 KB on the BK7231N, 256 KB on the BK7238.
@@ -113,8 +108,7 @@ bool crash_handler_has_data() {
   return s_record_valid;
 }
 
-// Separate ESP_LOGE calls per line so each address is its own line on the console, partial output
-// survives a crash during boot, and the CLI's process_stacktrace decodes each address individually.
+// One ESP_LOGE per line: partial output survives a crash during boot and the CLI decodes per line.
 void crash_handler_log() {
   if (!crash_handler_has_data())
     return;
@@ -138,9 +132,8 @@ void crash_handler_log() {
   ESP_LOGE(TAG, "%s", hint);
 }
 
-// --- Crash time ---
-// Runs in the exception mode (UND or ABT) with IRQ and FIQ masked, on a stack of a few dozen bytes,
-// so it keeps locals to registers and does no printing.
+// --- Crash time: exception mode (UND or ABT), IRQ and FIQ masked, a few dozen bytes of stack, so no
+// printing and no large locals.
 
 static inline bool is_code_addr(uint32_t val) {
   uint32_t addr = val & ~1u;  // clear the Thumb bit of a return address
@@ -153,10 +146,9 @@ static inline bool is_banked_mode(uint32_t mode) {
          mode == CPSR_MODE_ABT || mode == CPSR_MODE_UND;
 }
 
-// Read the faulting context's own sp and lr from its register bank. The exception frame only holds
-// the exception mode's, so switch to that mode (interrupts stay masked) and back. msr/mrs need ARM
-// state, hence target("arm") in a Thumb build. Written in fixed registers: only r0-r3 are shared by
-// every mode, so the saved CPSR and the return address must not sit in a banked register such as lr.
+// Read the faulting context's sp and lr by switching to its mode (interrupts stay masked) and back.
+// msr/mrs need ARM state (target("arm") in a Thumb build), and only r0-r3 are shared by every mode,
+// so the saved CPSR and return address must not sit in a banked register such as lr.
 __attribute__((target("arm"), naked, noinline)) static void read_banked_sp_lr(uint32_t mode, uint32_t *sp,
                                                                               uint32_t *lr) {
   __asm__ volatile("orr r0, r0, #0xC0\n"  // keep IRQ and FIQ masked in the target mode
@@ -184,7 +176,7 @@ static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offse
   s_record.lr = lr;
   s_record.sp = sp;
 
-  // Scan up the faulting context's stack for return addresses to give a deeper backtrace.
+  // Return addresses above sp give the backtrace.
   uint32_t count = 0;
   if (sp >= SRAM_START && sp < SRAM_END && (sp & 3) == 0) {
     auto *scan = (const uint32_t *) sp;       // NOLINT(performance-no-int-to-ptr)
@@ -202,8 +194,8 @@ static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offse
   lt_wdt_enable(CRASH_REBOOT_WDT_MS);
 }
 
-// The exception LR points past the faulting instruction: by one instruction for an undefined
-// instruction, 4 bytes for a prefetch abort and 8 bytes for a data abort.
+// The exception LR is past the fault: one instruction for undefined, 4 bytes for prefetch abort,
+// 8 for data abort.
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" void __wrap_bk_trap_udef(arm_registers *regs) {
   record_crash(regs, CRASH_REASON_UNDEFINED, (regs->spsr & CPSR_THUMB) ? 2 : 4);
