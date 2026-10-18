@@ -155,7 +155,7 @@ void MitsubishiCN105Climate::apply_values_() {
 
   // the current action i.e. heating, cooling, or idle.
   using Action = climate::ClimateAction;
-  Action action = climate::CLIMATE_ACTION_IDLE;
+  std::optional<Action> action;
   if (!status.power_on) {
     action = climate::CLIMATE_ACTION_OFF;
   } else if (status.operating || status.mode == MitsubishiCN105::Mode::FAN_ONLY) {
@@ -177,13 +177,15 @@ void MitsubishiCN105Climate::apply_values_() {
           action = status.room_temperature > status.target_temperature ? climate::CLIMATE_ACTION_COOLING
                                                                        : climate::CLIMATE_ACTION_HEATING;
         }
+        // If room_temperature or target_temperature is NAN, action remains null and won't be published.
+        // I.E. guessing the action in Auto mode requires the room temperature from telemetry.
         break;
       default:
         break;
     }
   }
-  if (this->parent_->is_heatpump_polling_enabled()) {
-    this->action = action;
+  if (this->parent_->is_heatpump_polling_enabled() && action.has_value()) {
+    this->action = *action;
   }
 
   this->publish_state();
