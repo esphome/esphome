@@ -70,11 +70,7 @@ void ModbusSwitch::write_state(bool state) {
     }
     if (!data.empty()) {
       this->warn_write_buffer_deprecated_(LOG_STR("switch"), this->start_address);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(MODBUS_SWITCH_MAX_LOG_BYTES)];
-#endif
-      ESP_LOGV(TAG, "Modbus Switch write raw: %s",
-               format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+      ESP_LOGV_HEX(TAG, data.data(), data.size(), MODBUS_SWITCH_MAX_LOG_BYTES, "Modbus Switch write raw: %s");
       // The lambda filled a legacy raw frame (device address + function code + data).
       if (!this->send_raw_frame_deprecated_(data)) {
         ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());

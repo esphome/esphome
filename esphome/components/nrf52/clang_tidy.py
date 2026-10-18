@@ -124,6 +124,7 @@ CONFIG_MAIN_STACK_SIZE=4096
 """,
         openthread_west_projects,
     ),
+    _TidySubsystem("coredump", "CONFIG_DEBUG_COREDUMP=y\n"),
 )
 
 _TIDY_PRJ_CONF = "".join(

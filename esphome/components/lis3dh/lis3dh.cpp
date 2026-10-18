@@ -27,16 +27,8 @@ static const uint16_t RATE_HZ[] PROGMEM = {1, 10, 25, 50, 100, 200, 400, 1620, 1
 void LIS3DHComponent::setup() {
   MotionComponent::setup();
 
-  uint8_t who_am_i = 0;
-  if (!this->read_byte(LIS3DH_REG_WHO_AM_I, &who_am_i)) {
-    this->mark_failed(LOG_STR("Failed to read chip ID - check wiring / address"));
+  if (!this->check_chip_id(this, LIS3DH_REG_WHO_AM_I, LIS3DH_WHO_AM_I_VALUE))
     return;
-  }
-  if (who_am_i != LIS3DH_WHO_AM_I_VALUE) {
-    ESP_LOGE(TAG, "Wrong chip ID: 0x%02X (expected 0x%02X)", who_am_i, LIS3DH_WHO_AM_I_VALUE);
-    this->mark_failed(LOG_STR("Wrong chip ID"));
-    return;
-  }
 
   if (!this->setup_accelerometer_() || !this->setup_temperature_() || !this->setup_interrupt_()) {
     this->mark_failed(LOG_STR("Failed to configure sensor"));
