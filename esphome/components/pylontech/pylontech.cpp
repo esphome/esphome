@@ -99,9 +99,7 @@ void PylontechComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void PylontechComponent::setup() {
-  this->discard_available();
-}
+void PylontechComponent::setup() { this->discard_available(); }
 
 void PylontechComponent::update() {
 #ifdef PYLONTECH_CELL_BATTERY_COUNT
