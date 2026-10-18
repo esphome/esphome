@@ -27,6 +27,7 @@ struct TsdbColumn {
   double offset{0.0};
   int16_t held{tsdbmath::RAW_UNKNOWN};
   bool hold_warned{false};
+  bool sentinel_warned{false};
 };
 
 class TsdbComponent : public PollingComponent {
@@ -97,6 +98,7 @@ class TsdbComponent : public PollingComponent {
   uint32_t dropped_missing_{0};
   uint32_t saturated_{0};
   uint32_t held_{0};
+  uint32_t sentinel_{0};
   uint32_t last_sync_{0};
   uint32_t last_timestamp_{0};
   // Added to an uptime timestamp so the series continues after the newest stored record.
@@ -104,7 +106,7 @@ class TsdbComponent : public PollingComponent {
   bool dirty_{false};
   bool warned_time_{false};
   bool warned_backwards_{false};
-  // Raised by a failed sync, cleared by the next one, so a successful write cannot.
+  // Raised by a failed sync and cleared by the next one, never by a successful write.
   bool sync_failed_{false};
 };
 
