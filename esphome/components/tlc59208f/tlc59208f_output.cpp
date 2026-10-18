@@ -65,32 +65,27 @@ void TLC59208FOutput::setup() {
   // Reset all devices on the bus
   if (this->bus_->write_readv(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ, sizeof TLC59208F_SWRST_SEQ, nullptr, 0) !=
       i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "RESET failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("RESET failed"));
     return;
   }
 
   // Auto increment registers, and respond to all-call address
   if (!this->write_byte(TLC59208F_REG_MODE1, TLC59208F_MODE1_AI2 | TLC59208F_MODE1_ALLCALL)) {
-    ESP_LOGE(TAG, "MODE1 failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("MODE1 failed"));
     return;
   }
   if (!this->write_byte(TLC59208F_REG_MODE2, this->mode_)) {
-    ESP_LOGE(TAG, "MODE2 failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("MODE2 failed"));
     return;
   }
   // Set all 3 outputs to be individually controlled
   // TODO: think of a way to support group dimming
   if (!this->write_byte(TLC59208F_REG_LEDOUT0, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0))) {
-    ESP_LOGE(TAG, "LEDOUT0 failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("LEDOUT0 failed"));
     return;
   }
   if (!this->write_byte(TLC59208F_REG_LEDOUT1, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0))) {
-    ESP_LOGE(TAG, "LEDOUT1 failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("LEDOUT1 failed"));
     return;
   }
   delayMicroseconds(500);
@@ -103,10 +98,6 @@ void TLC59208FOutput::dump_config() {
                 "TLC59208F:\n"
                 "  Mode: 0x%02X",
                 this->mode_);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up TLC59208F failed!");
-  }
 }
 
 void TLC59208FOutput::loop() {

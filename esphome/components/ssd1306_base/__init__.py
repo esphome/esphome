@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_FLIP_X,
     CONF_FLIP_Y,
     CONF_INVERT,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_OFFSET_X,
     CONF_OFFSET_Y,
@@ -17,6 +16,8 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
+
+DOMAIN = "ssd1306_base"
 
 ssd1306_base_ns = cg.esphome_ns.namespace("ssd1306_base")
 SSD1306 = ssd1306_base_ns.class_("SSD1306", cg.PollingComponent, display.DisplayBuffer)
@@ -98,8 +99,4 @@ async def setup_ssd1306(var: MockObj, config: ConfigType) -> None:
         cg.add(var.init_offset_y(config[CONF_OFFSET_Y]))
     if CONF_INVERT in config:
         cg.add(var.init_invert(config[CONF_INVERT]))
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

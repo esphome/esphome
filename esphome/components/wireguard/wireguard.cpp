@@ -154,8 +154,8 @@ void Wireguard::dump_config() {
       (this->preshared_key_ != nullptr ? preshared_key_masked : LOG_STR_LITERAL("NOT IN USE")));
   // clang-format on
   ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
-  for (const AllowedIP &allowed_ip : this->allowed_ips_) {
-    ESP_LOGCONFIG(TAG, "    - %s/%s", allowed_ip.ip, allowed_ip.netmask);
+  for (const AllowedIP *it = this->allowed_ips_; it != nullptr && it->ip != nullptr; it++) {
+    ESP_LOGCONFIG(TAG, "    - %s/%s", it->ip, it->netmask);
   }
   ESP_LOGCONFIG(TAG, "  Peer Persistent Keepalive: %d%s", this->keepalive_,
                 (this->keepalive_ > 0 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(" (DISABLED)")));
@@ -249,8 +249,8 @@ void Wireguard::start_connection_() {
 
   ESP_LOGD(TAG, "Configuring allowed IPs list");
   bool allowed_ips_ok = true;
-  for (const AllowedIP &ip : this->allowed_ips_) {
-    allowed_ips_ok &= (esp_wireguard_add_allowed_ip(&(this->wg_ctx_), ip.ip, ip.netmask) == ESP_OK);
+  for (const AllowedIP *it = this->allowed_ips_; it != nullptr && it->ip != nullptr; it++) {
+    allowed_ips_ok &= (esp_wireguard_add_allowed_ip(&(this->wg_ctx_), it->ip, it->netmask) == ESP_OK);
   }
 
   if (allowed_ips_ok) {

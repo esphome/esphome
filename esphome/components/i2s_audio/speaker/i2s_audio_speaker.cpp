@@ -41,6 +41,17 @@ void I2SAudioSpeakerBase::setup() {
   this->set_volume(this->volume_);
   this->set_mute_state(this->mute_state_);
 
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  // The parent set up before us and already routed dout to the shared TX channel, which is never re-initialized.
+  // Parking would detach the pin for good. SPDIF speakers cannot use a full duplex bus.
+  if (this->parent_->is_full_duplex()) {
+    if (this->parent_->is_failed()) {
+      this->mark_failed(LOG_STR("Full duplex bus setup failed"));
+    }
+    return;
+  }
+#endif
+
   // Until the I2S driver first starts, dout sits in its reset state (often pulled high, or a JTAG
   // function on the ESP32-S3), which keeps a SPDIF optical transmitter lit. Park it low now.
   this->park_dout_pin_();
@@ -56,8 +67,9 @@ void I2SAudioSpeakerBase::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Speaker:\n"
                 "  Pin: %d\n"
-                "  Buffer duration: %" PRIu32,
-                static_cast<int8_t>(this->dout_pin_), this->buffer_duration_ms_);
+                "  Buffer duration: %" PRIu32 "\n"
+                "  Keep alive: %s",
+                static_cast<int8_t>(this->dout_pin_), this->buffer_duration_ms_, YESNO(this->keep_alive_));
   if (this->timeout_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 " ms", this->timeout_.value());
   }
@@ -105,7 +117,13 @@ void I2SAudioSpeakerBase::loop() {
     vTaskDelete(this->speaker_task_handle_);
     this->speaker_task_handle_ = nullptr;
 
-    this->stop_i2s_driver_();
+    // The task raises this bit before it exits, possibly a loop pass before TASK_STOPPED is seen, so read it
+    // live here; a channel the task could not bring up is rebuilt next time rather than kept
+    const bool task_failed = xEventGroupGetBits(this->event_group_) & SpeakerEventGroupBits::ERR_ESP_NO_MEM;
+    if (task_failed) {
+      ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
+    }
+    this->stop_i2s_driver_(this->keep_alive_ && !task_failed);
     // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
     // the top of loop(): the audio source's task can raise a start at any point above, including
     // during stop_i2s_driver_(), and nothing would ever re-issue it.
@@ -121,26 +139,35 @@ void I2SAudioSpeakerBase::loop() {
     this->state_ = speaker::STATE_STOPPED;
   }
 
-  if (event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM) {
-    ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
-  }
-
   // Handle the speaker's state
   switch (this->state_) {
-    case speaker::STATE_STARTING:
+    case speaker::STATE_STARTING: {
       if (this->status_has_error()) {
         break;
       }
 
-      // Still starting up or winding down from a previous run
-      if ((this->tx_handle_ != nullptr) || (this->speaker_task_handle_ != nullptr)) {
+      // Still winding down from a previous run
+      if (this->speaker_task_handle_ != nullptr) {
         break;
       }
 
-      if (this->start_i2s_driver(this->audio_stream_info_) != ESP_OK) {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+      if (this->parent_->is_tx_in_use()) {
+        // Another speaker on the bus is playing; wait for it to release the channel
+        break;
+      }
+#endif
+      const esp_err_t err = this->start_i2s_driver(this->audio_stream_info_);
+      if (err == ESP_ERR_NOT_SUPPORTED) {
+        // Retrying cannot help; stay stopped so the audio source gives up instead of waiting forever
+        ESP_LOGE(TAG, "Stream format not supported; not starting");
+        this->rejected_stream_info_ = this->audio_stream_info_;
+        this->state_ = speaker::STATE_STOPPED;
+        break;
+      }
+      if (err != ESP_OK) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
-        this->status_momentary_error("driver-failure", 1000);
+        this->status_momentary_error(1000);
         break;
       }
 
@@ -153,10 +180,11 @@ void I2SAudioSpeakerBase::loop() {
 
       if (this->speaker_task_handle_ == nullptr) {
         ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
-        this->status_momentary_error("task-failure", 1000);
-        this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
+        this->status_momentary_error(1000);
+        this->stop_i2s_driver_(false);  // Stops the driver to return the lock; will be reloaded in next attempt
       }
       break;
+    }
     case speaker::STATE_RUNNING:   // Intentional fallthrough
     case speaker::STATE_STOPPING:  // Intentional fallthrough
     case speaker::STATE_STOPPED:
@@ -238,6 +266,9 @@ void I2SAudioSpeakerBase::start() {
     return;
   if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING))
     return;
+  // play() calls start() on every write, so without this a rejected stream would be retried and logged nonstop
+  if (this->rejected_stream_info_.has_value() && this->rejected_stream_info_.value() == this->audio_stream_info_)
+    return;
 
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
 }
@@ -270,52 +301,89 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
   err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to initialize I2S channel");
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
+    this->delete_channel_();
     this->parent_->unlock();
     return err;
   }
 
+  err = this->prepare_event_queues_(event_queue_size);
+  if (err != ESP_OK) {
+    this->delete_channel_();
+    this->parent_->unlock();
+  }
+  return err;
+}
+
+esp_err_t I2SAudioSpeakerBase::prepare_event_queues_(size_t event_queue_size) {
+  // Both queues are drained by the speaker task before it preloads, whether the channel is new or kept
   if (this->i2s_event_queue_ == nullptr) {
     this->i2s_event_queue_ = xQueueCreate(event_queue_size, sizeof(int64_t));
-  } else {
-    // Reset queue to clear any stale events from previous task
-    xQueueReset(this->i2s_event_queue_);
   }
 
   // Lockstep records queue. One record per in-flight DMA buffer; sized to match the I2S event queue
   // so a fully-saturated DMA pipeline cannot overflow either side before drain.
   if (this->write_records_queue_ == nullptr) {
     this->write_records_queue_ = xQueueCreate(event_queue_size, sizeof(uint32_t));
-  } else {
-    xQueueReset(this->write_records_queue_);
   }
 
   if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
-    this->parent_->unlock();
     return ESP_ERR_NO_MEM;
   }
 
   return ESP_OK;
 }
 
-void I2SAudioSpeakerBase::stop_i2s_driver_() {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+esp_err_t I2SAudioSpeakerBase::acquire_full_duplex_channel_(size_t event_queue_size) {
+  this->tx_handle_ = this->parent_->acquire_tx_channel();
+  if (this->tx_handle_ == nullptr) {
+    ESP_LOGE(TAG, "Full duplex channel unavailable");
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t err = this->prepare_event_queues_(event_queue_size);
+  if (err != ESP_OK) {
+    this->parent_->release_tx_channel();
+    this->tx_handle_ = nullptr;
+  }
+  return err;
+}
+#endif
+
+void I2SAudioSpeakerBase::stop_i2s_driver_(bool keep_channel) {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex()) {
+    // The parent owns the channel pair and its pins, so only hand the TX channel back
+    if (this->tx_handle_ != nullptr) {
+      this->parent_->release_tx_channel();
+      this->tx_handle_ = nullptr;
+    }
+    return;
+  }
+#endif
+
   if (this->tx_handle_ != nullptr) {
     i2s_channel_disable(this->tx_handle_);
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
-
-    // i2s_del_channel() leaves dout wired to this port's data-out signal in the GPIO matrix: it only
-    // clears an internal reservation mask, never the esp_rom_gpio_connect_out_signal() routing that
-    // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
-    // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
-    // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
-    this->park_dout_pin_();
+    // A kept channel lets the next start skip i2s_new_channel and i2s_channel_init_std_mode, whose GPIO and
+    // clock reconfiguration is the audible pop
+    if (!keep_channel) {
+      this->delete_channel_();
+    }
   }
   this->parent_->unlock();
+}
+
+void I2SAudioSpeakerBase::delete_channel_() {
+  i2s_del_channel(this->tx_handle_);
+  this->tx_handle_ = nullptr;
+
+  // i2s_del_channel() leaves dout wired to this port's data-out signal in the GPIO matrix: it only
+  // clears an internal reservation mask, never the esp_rom_gpio_connect_out_signal() routing that
+  // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
+  // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
+  // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
+  this->park_dout_pin_();
 }
 
 bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx) {
@@ -368,10 +436,18 @@ void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_rea
                            this->current_stream_info_.bytes_to_samples(bytes_read));
 }
 
+bool I2SAudioSpeakerBase::esp32_mono_swap_needed(const audio::AudioStreamInfo &stream_info) {
+#ifdef USE_ESP32_VARIANT_ESP32
+  return stream_info.get_channels() == 1 && stream_info.get_bits_per_sample() == 16;
+#else
+  return false;
+#endif  // USE_ESP32_VARIANT_ESP32
+}
+
 void I2SAudioSpeakerBase::swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read) {
 #ifdef USE_ESP32_VARIANT_ESP32
   // For ESP32 16-bit mono mode, adjacent samples need to be swapped.
-  if (this->output_stream_info_.get_channels() == 1 && this->output_stream_info_.get_bits_per_sample() == 16) {
+  if (this->esp32_mono_swap_needed_()) {
     int16_t *samples = reinterpret_cast<int16_t *>(data);
     size_t sample_count = bytes_read / sizeof(int16_t);
     for (size_t i = 0; i + 1 < sample_count; i += 2) {

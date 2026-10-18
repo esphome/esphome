@@ -29,6 +29,7 @@ CONF_SX1509_ID = "sx1509_id"
 
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "sx1509"
 MULTI_CONF = True
 
 sx1509_ns = cg.esphome_ns.namespace("sx1509")
@@ -89,9 +90,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     if conf := config.get(CONF_KEYPAD):
         cg.add(var.set_rows_cols(conf[CONF_KEY_ROWS], conf[CONF_KEY_COLUMNS]))
         if (

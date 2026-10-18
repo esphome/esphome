@@ -1,10 +1,15 @@
 #include "qmi8658.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::qmi8658 {
 
 ESPHOME_LOG_TAG(TAG, "qmi8658");
+
+PROGMEM_STRING_TABLE(AccelRangeStrings, "±2g", "±4g", "±8g", "±16g");
+PROGMEM_STRING_TABLE(GyroRangeStrings, "±16°/s", "±32°/s", "±64°/s", "±128°/s", "±256°/s", "±512°/s", "±1024°/s",
+                     "±2048°/s");
 
 // Acceleration scale (g per LSB), indexed by accel_range_ >> 4.
 // Full-scale = range_g, mapped over a signed 16-bit value (2^15 counts).
@@ -25,21 +30,12 @@ void QMI8658Component::setup() {
   MotionComponent::setup();
 
   // 1. Verify chip ID
-  uint8_t who_am_i = 0;
-  if (!this->read_byte(QMI8658_REG_WHO_AM_I, &who_am_i)) {
-    ESP_LOGE(TAG, "Failed to read chip ID - check wiring / address");
-    this->mark_failed();
+  if (!this->check_chip_id(this, QMI8658_REG_WHO_AM_I, QMI8658_WHO_AM_I_VALUE))
     return;
-  }
-  if (who_am_i != QMI8658_WHO_AM_I_VALUE) {
-    ESP_LOGE(TAG, "Wrong chip ID: 0x%02X (expected 0x%02X)", who_am_i, QMI8658_WHO_AM_I_VALUE);
-    this->mark_failed();
-    return;
-  }
 
   // 2. Soft reset
   if (!this->write_byte(QMI8658_REG_RESET, QMI8658_RESET_CMD)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(15);  // spec: wait for reset to complete
@@ -65,7 +61,6 @@ void QMI8658Component::setup() {
   // 6. Disable the built-in low-pass filters (leave raw data to the motion pipeline)
   if (!this->write_byte(QMI8658_REG_CTRL5, 0x00)) {
     this->mark_failed(LOG_STR("Failed to write REG_CTRL5"));
-    this->mark_failed();
     return;
   }
 
@@ -81,17 +76,13 @@ void QMI8658Component::setup() {
 void QMI8658Component::dump_config() {
   ESP_LOGCONFIG(TAG, "QMI8658 IMU:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Communication failed!");
+  if (this->is_failed())
     return;
-  }
 
-  static constexpr const char *const ACCEL_RANGE_STRS[] = {"±2g", "±4g", "±8g", "±16g"};
-  static constexpr const char *const GYRO_RANGE_STRS[] = {"±16°/s",  "±32°/s",  "±64°/s",   "±128°/s",
-                                                          "±256°/s", "±512°/s", "±1024°/s", "±2048°/s"};
-
-  ESP_LOGCONFIG(TAG, "  Accel range : %s", ACCEL_RANGE_STRS[this->accel_range_ >> 4]);
-  ESP_LOGCONFIG(TAG, "  Gyro  range : %s", GYRO_RANGE_STRS[this->gyro_range_ >> 4]);
+  ESP_LOGCONFIG(TAG, "  Accel range : %s",
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_ >> 4, AccelRangeStrings::LAST_INDEX)));
+  ESP_LOGCONFIG(TAG, "  Gyro  range : %s",
+                LOG_STR_ARG(GyroRangeStrings::get_log_str(this->gyro_range_ >> 4, GyroRangeStrings::LAST_INDEX)));
   MotionComponent::dump_config();
 }
 

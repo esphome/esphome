@@ -10,6 +10,7 @@ from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
+DOMAIN = "sx127x"
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["spi"]
@@ -81,16 +82,9 @@ CODING_RATE = {
     "CR_4_8": SX127xModemCfg1.CODING_RATE_4_8,
 }
 
-MOD = {
-    "LORA": SX127xOpMode.MOD_LORA,
-    "FSK": SX127xOpMode.MOD_FSK,
-    "OOK": SX127xOpMode.MOD_OOK,
-}
+MOD = SX127xOpMode.options("LORA", "FSK", "OOK", prefix="MOD_")
 
-PA_PIN = {
-    "RFO": SX127xPaConfig.PA_PIN_RFO,
-    "BOOST": SX127xPaConfig.PA_PIN_BOOST,
-}
+PA_PIN = SX127xPaConfig.options("RFO", "BOOST", prefix="PA_PIN_")
 
 RAMP = {
     "10us": SX127xPaRamp.PA_RAMP_10,
@@ -227,9 +221,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),

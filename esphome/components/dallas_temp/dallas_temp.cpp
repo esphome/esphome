@@ -5,6 +5,8 @@ namespace esphome::dallas_temp {
 
 ESPHOME_LOG_TAG(TAG, "dallas.temp.sensor");
 
+static constexpr uint32_t CONVERSION_TIMEOUT_ID = 0;
+
 static const uint8_t DALLAS_MODEL_DS18S20 = 0x10;
 static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;
 static const uint8_t DALLAS_COMMAND_START_CONVERSION = 0x44;
@@ -44,7 +46,7 @@ void DallasTemperatureSensor::update() {
 
   this->send_command_(DALLAS_COMMAND_START_CONVERSION);
 
-  this->set_timeout(this->get_address_name().c_str(), this->millis_to_wait_for_conversion_(), [this] {
+  this->set_timeout(CONVERSION_TIMEOUT_ID, this->millis_to_wait_for_conversion_(), [this] {
     if (!this->read_scratch_pad_() || !this->check_scratch_pad_()) {
       this->publish_state(NAN);
       return;

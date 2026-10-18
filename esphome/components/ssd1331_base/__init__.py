@@ -2,11 +2,12 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
-from esphome.const import CONF_BRIGHTNESS, CONF_LAMBDA, CONF_RESET_PIN
+from esphome.const import CONF_BRIGHTNESS, CONF_RESET_PIN
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "ssd1331_base"
 
 ssd1331_base_ns = cg.esphome_ns.namespace("ssd1331_base")
 SSD1331 = ssd1331_base_ns.class_("SSD1331", cg.PollingComponent, display.DisplayBuffer)
@@ -27,8 +28,4 @@ async def setup_ssd1331(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_reset_pin(reset))
     if CONF_BRIGHTNESS in config:
         cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

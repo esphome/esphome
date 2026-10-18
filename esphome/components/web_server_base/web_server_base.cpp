@@ -1,5 +1,5 @@
 #include "web_server_base.h"
-#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
 
 namespace esphome::web_server_base {
 

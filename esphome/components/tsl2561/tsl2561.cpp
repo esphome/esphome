@@ -5,6 +5,8 @@ namespace esphome::tsl2561 {
 
 ESPHOME_LOG_TAG(TAG, "tsl2561");
 
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
+
 static const uint8_t TSL2561_COMMAND_BIT = 0x80;
 static const uint8_t TSL2561_WORD_BIT = 0x20;
 static const uint8_t TSL2561_REGISTER_CONTROL = 0x00;
@@ -16,13 +18,13 @@ static const uint8_t TSL2561_REGISTER_DATA_1 = 0x0E;
 void TSL2561Sensor::setup() {
   uint8_t id;
   if (!this->tsl2561_read_byte(TSL2561_REGISTER_ID, &id)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   uint8_t timing;
   if (!this->tsl2561_read_byte(TSL2561_REGISTER_TIMING, &timing)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -37,10 +39,6 @@ void TSL2561Sensor::setup() {
 void TSL2561Sensor::dump_config() {
   LOG_SENSOR("", "TSL2561", this);
   LOG_I2C_DEVICE(this);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 
   int gain = this->gain_ == TSL2561_GAIN_1X ? 1 : 16;
   ESP_LOGCONFIG(TAG,
@@ -60,7 +58,7 @@ void TSL2561Sensor::update() {
   // Make sure the data is there when we will read it.
   auto timeout = static_cast<uint32_t>(this->get_integration_time_ms_() + 20);
 
-  this->set_timeout("illuminance", timeout, [this]() { this->read_data_(); });
+  this->set_timeout(READ_TIMEOUT_ID, timeout, [this]() { this->read_data_(); });
 }
 
 float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {

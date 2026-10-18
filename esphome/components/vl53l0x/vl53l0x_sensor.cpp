@@ -265,7 +265,7 @@ void VL53L0XSensor::setup() {
 void VL53L0XSensor::update() {
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
     this->publish_state(NAN);
-    this->status_momentary_warning("update", 5000);
+    this->status_momentary_warning(5000);
     ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
              this->name_.c_str(), this->initiated_read_, this->waiting_for_interrupt_);
     return;

@@ -20,18 +20,16 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "mcp23xxx_base"
 
 mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
 MCP23XXXBase = mcp23xxx_base_ns.class_("MCP23XXXBase", cg.Component)
 MCP23XXXGPIOPin = mcp23xxx_base_ns.class_("MCP23XXXGPIOPin", cg.GPIOPin)
 MCP23XXXInterruptMode = mcp23xxx_base_ns.enum("MCP23XXXInterruptMode")
 
-MCP23XXX_INTERRUPT_MODES = {
-    "NO_INTERRUPT": MCP23XXXInterruptMode.MCP23XXX_NO_INTERRUPT,
-    "CHANGE": MCP23XXXInterruptMode.MCP23XXX_CHANGE,
-    "RISING": MCP23XXXInterruptMode.MCP23XXX_RISING,
-    "FALLING": MCP23XXXInterruptMode.MCP23XXX_FALLING,
-}
+MCP23XXX_INTERRUPT_MODES = MCP23XXXInterruptMode.options(
+    "NO_INTERRUPT", "CHANGE", "RISING", "FALLING", prefix="MCP23XXX_"
+)
 
 
 MCP23XXX_CONFIG_SCHEMA = cv.Schema(

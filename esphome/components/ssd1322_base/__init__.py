@@ -2,17 +2,12 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BRIGHTNESS,
-    CONF_EXTERNAL_VCC,
-    CONF_LAMBDA,
-    CONF_MODEL,
-    CONF_RESET_PIN,
-)
+from esphome.const import CONF_BRIGHTNESS, CONF_EXTERNAL_VCC, CONF_MODEL, CONF_RESET_PIN
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "ssd1322_base"
 
 ssd1322_base_ns = cg.esphome_ns.namespace("ssd1322_base")
 SSD1322 = ssd1322_base_ns.class_("SSD1322", cg.PollingComponent, display.DisplayBuffer)
@@ -45,8 +40,4 @@ async def setup_ssd1322(var: MockObj, config: ConfigType) -> None:
         cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
     if CONF_EXTERNAL_VCC in config:
         cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

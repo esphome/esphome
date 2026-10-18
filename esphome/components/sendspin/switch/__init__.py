@@ -3,8 +3,9 @@ import logging
 import esphome.codegen as cg
 from esphome.components import switch
 from esphome.components.const import CONF_ENABLED
+from esphome.components.switch import DOMAIN as SWITCH_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_PLATFORM, CONF_SWITCH, CONF_TYPE, ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_PLATFORM, CONF_TYPE, ENTITY_CATEGORY_CONFIG
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -69,7 +70,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     switch_type = config[CONF_TYPE]
     same_type = [
         conf
-        for conf in full_config.get(CONF_SWITCH, [])
+        for conf in full_config.get(SWITCH_DOMAIN, [])
         if conf.get(CONF_PLATFORM) == DOMAIN and conf.get(CONF_TYPE) == switch_type
     ]
     # Two switches of one type would each drive the same hub setting.

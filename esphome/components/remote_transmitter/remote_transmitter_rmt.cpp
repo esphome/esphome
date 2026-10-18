@@ -11,6 +11,8 @@ namespace esphome::remote_transmitter {
 
 ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 
+static constexpr uint32_t COMPLETE_TIMEOUT_ID = 0;
+
 // Maximum RMT symbol duration (15-bit field)
 static constexpr uint32_t RMT_SYMBOL_DURATION_MAX = 0x7FFF;
 
@@ -206,7 +208,7 @@ void RemoteTransmitterComponent::wait_for_rmt_() {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
 void RemoteTransmitterComponent::flush_pending_completion() {
   // a frame still on the wire is waited out, and its completion reported, before the next one
-  if (this->non_blocking_ && this->cancel_timeout("complete")) {
+  if (this->non_blocking_ && this->cancel_timeout(COMPLETE_TIMEOUT_ID)) {
     this->wait_for_rmt_();
   }
 }
@@ -292,7 +294,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->status_clear_warning();
 
   if (this->non_blocking_) {
-    this->set_timeout("complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
+    this->set_timeout(COMPLETE_TIMEOUT_ID, total_duration / 1000, [this]() { this->wait_for_rmt_(); });
   } else {
     this->wait_for_rmt_();
   }

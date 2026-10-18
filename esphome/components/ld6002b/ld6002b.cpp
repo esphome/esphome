@@ -620,7 +620,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     this->process_command_queue_();
     if (refresh_areas) {
       this->area_write_in_flight_ = false;
-      this->set_timeout(AREA_REFRESH_TIMEOUT, 50, [this]() { this->send_control_command_(CMD_GET_AREAS); });
+      this->set_timeout(AREA_REFRESH_TIMEOUT_ID, 50, [this]() { this->send_control_command_(CMD_GET_AREAS); });
     }
     return;
   }
@@ -1215,7 +1215,7 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
       std::memcpy(this->wake_scratch_.data(), data, len);
     }
     // A button pulse must not raise the pin in the middle of this one.
-    this->cancel_timeout(WAKE_BUTTON_TIMEOUT);
+    this->cancel_timeout(WAKE_BUTTON_TIMEOUT_ID);
     this->wake_pulse_pending_ = true;
     this->wakeup_pin_->digital_write(false);
     const uint8_t generation = this->send_generation_;
@@ -1256,12 +1256,8 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
   this->write_byte(static_cast<uint8_t>(~header_xor));
 
   if (len > 0 && data != nullptr) {
-    uint8_t data_xor = 0;
-    for (uint8_t i = 0; i < len; i++) {
-      this->write_byte(data[i]);
-      data_xor ^= data[i];
-    }
-    this->write_byte(static_cast<uint8_t>(~data_xor));
+    this->write_array(data, len);
+    this->write_byte(static_cast<uint8_t>(~xor_bytes(data, len)));
   }
   const uint32_t now = millis();
   if (track) {
@@ -1364,7 +1360,8 @@ void LD6002BComponent::wake_() {
   if (this->wakeup_pin_ == nullptr || this->wake_pulse_pending_)
     return;
   this->wakeup_pin_->digital_write(false);
-  this->set_timeout(WAKE_BUTTON_TIMEOUT, this->wakeup_pulse_ms_, [this]() { this->wakeup_pin_->digital_write(true); });
+  this->set_timeout(WAKE_BUTTON_TIMEOUT_ID, this->wakeup_pulse_ms_,
+                    [this]() { this->wakeup_pin_->digital_write(true); });
 }
 
 void LD6002BComponent::set_number_value(NumberType type, float value) {

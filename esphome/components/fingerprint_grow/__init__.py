@@ -26,6 +26,7 @@ from esphome.const import (
 CODEOWNERS = ["@OnFreund", "@loongyh", "@alexborro"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "sensor"]
+DOMAIN = "fingerprint_grow"
 MULTI_CONF = True
 
 CONF_FINGERPRINT_GROW_ID = "fingerprint_grow_id"
@@ -39,25 +40,14 @@ FingerprintGrowComponent = fingerprint_grow_ns.class_(
 
 
 AuraLEDState = fingerprint_grow_ns.enum("GrowAuraLEDState", True)
-AURA_LED_STATES = {
-    "BREATHING": AuraLEDState.BREATHING,
-    "FLASHING": AuraLEDState.FLASHING,
-    "ALWAYS_ON": AuraLEDState.ALWAYS_ON,
-    "ALWAYS_OFF": AuraLEDState.ALWAYS_OFF,
-    "GRADUAL_ON": AuraLEDState.GRADUAL_ON,
-    "GRADUAL_OFF": AuraLEDState.GRADUAL_OFF,
-}
+AURA_LED_STATES = AuraLEDState.options(
+    "BREATHING", "FLASHING", "ALWAYS_ON", "ALWAYS_OFF", "GRADUAL_ON", "GRADUAL_OFF"
+)
 validate_aura_led_states = cv.enum(AURA_LED_STATES, upper=True)
 AuraLEDColor = fingerprint_grow_ns.enum("GrowAuraLEDColor", True)
-AURA_LED_COLORS = {
-    "RED": AuraLEDColor.RED,
-    "BLUE": AuraLEDColor.BLUE,
-    "PURPLE": AuraLEDColor.PURPLE,
-    "GREEN": AuraLEDColor.GREEN,
-    "YELLOW": AuraLEDColor.YELLOW,
-    "CYAN": AuraLEDColor.CYAN,
-    "WHITE": AuraLEDColor.WHITE,
-}
+AURA_LED_COLORS = AuraLEDColor.options(
+    "RED", "BLUE", "PURPLE", "GREEN", "YELLOW", "CYAN", "WHITE"
+)
 validate_aura_led_colors = cv.enum(AURA_LED_COLORS, upper=True)
 
 
@@ -80,8 +70,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_IDLE_PERIOD_TO_SLEEP
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_PASSWORD): cv.uint32_t,
-            cv.Optional(CONF_NEW_PASSWORD): cv.uint32_t,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(cv.uint32_t),
+            cv.Optional(CONF_NEW_PASSWORD): cv.sensitive(cv.uint32_t),
             cv.Optional(CONF_ON_FINGER_SCAN_START): automation.validate_automation({}),
             cv.Optional(CONF_ON_FINGER_SCAN_MATCHED): automation.validate_automation(
                 {}
