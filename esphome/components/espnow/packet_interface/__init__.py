@@ -7,6 +7,7 @@ from esphome.components.packet_interface import (
 )
 from esphome.components.packet_interface.layers import CONF_ADDRESSING
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
 from esphome.core import HexInt
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -76,4 +77,9 @@ async def to_code(config: ConfigType) -> None:
     peer = [HexInt(x) for x in config[CONF_PEER_ADDRESS].parts]
     if not _is_broadcast(config):
         cg.add(parent.add_peer(peer))
-    await new_packet_interface(config, parent, peer)
+    # The copy buffer's size is known here, so it is a static array rather than allocated at run time
+    tx_buffer = f"{config[CONF_ID].id}__tx_buffer"
+    cg.add_global(
+        cg.RawStatement(f"static uint8_t {tx_buffer}[{config[CONF_MAX_PACKET_SIZE]}];")
+    )
+    await new_packet_interface(config, parent, cg.RawExpression(tx_buffer), peer)

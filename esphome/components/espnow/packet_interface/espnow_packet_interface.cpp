@@ -14,14 +14,13 @@ using packet_interface::PacketMetaData;
 
 ESPHOME_LOG_TAG(TAG, "espnow.packet_interface");
 
-ESPNowPacketInterface::ESPNowPacketInterface(ESPNowComponent *parent, peer_address_t peer_address)
-    : parent_(parent), peer_address_(peer_address) {
+ESPNowPacketInterface::ESPNowPacketInterface(ESPNowComponent *parent, uint8_t *tx_buffer, peer_address_t peer_address)
+    : parent_(parent), peer_address_(peer_address), tx_buffer_(tx_buffer) {
   if (!this->is_broadcast_())
     this->capabilities_ = packet_interface::CAPABILITY_ADDRESSING;
 }
 
 void ESPNowPacketInterface::setup() {
-  this->tx_buffer_ = std::make_unique<uint8_t[]>(this->max_packet_size_);
   // Each mode hears only its own kind of packet, so a peer link and a broadcast link can share the component
   if (!this->is_broadcast_() || !ESPNOW_REPORTS_DESTINATION)
     this->parent_->register_receive_handler(this);
@@ -54,8 +53,8 @@ bool ESPNowPacketInterface::send_to_interface(const PacketBuffer &data, const Pa
   if (data.is_contiguous()) {
     payload = data.as_span().data();
   } else {
-    data.copy_to(this->tx_buffer_.get(), size);
-    payload = this->tx_buffer_.get();
+    data.copy_to(this->tx_buffer_, size);
+    payload = this->tx_buffer_;
   }
   esp_err_t err = this->parent_->send(this->peer_address_.data(), payload, size);
   if (err != ESP_OK) {

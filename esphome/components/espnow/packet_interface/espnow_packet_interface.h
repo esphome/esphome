@@ -5,7 +5,6 @@
 #if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include <cstring>
-#include <memory>
 
 #include "esphome/components/packet_interface/packet_interface.h"
 
@@ -28,7 +27,8 @@ class ESPNowPacketInterface : public packet_interface::PacketInterface,
                               public ESPNowBroadcastHandler,
                               public ESPNowUnknownPeerHandler {
  public:
-  ESPNowPacketInterface(ESPNowComponent *parent, peer_address_t peer_address);
+  /// @param tx_buffer Holds max_packet_size bytes, for packets split across buffers; must outlive the link
+  ESPNowPacketInterface(ESPNowComponent *parent, uint8_t *tx_buffer, peer_address_t peer_address);
 
   void setup() override;
   void dump_config() override;
@@ -47,8 +47,7 @@ class ESPNowPacketInterface : public packet_interface::PacketInterface,
 
   ESPNowComponent *parent_;
   peer_address_t peer_address_;
-  // For packets split across buffers, allocated in setup()
-  std::unique_ptr<uint8_t[]> tx_buffer_;
+  uint8_t *const tx_buffer_;
 };
 
 }  // namespace esphome::espnow
