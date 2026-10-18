@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from esphome import config_validation as cv
@@ -123,10 +125,20 @@ def test_maximum_window_accepted() -> None:
     assert to_ble_units(config["window"]) == 16384
 
 
-def test_window_equal_to_interval_accepted() -> None:
-    """A deliberate 100 % duty cycle is allowed; only an accidental one is not."""
-    config = _validate(interval="100ms", window="100ms")
+def test_window_equal_to_interval_accepted_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A deliberate 100 % duty cycle is allowed, but the user is told the radio never idles."""
+    with caplog.at_level(logging.WARNING):
+        config = _validate(interval="100ms", window="100ms")
     assert to_ble_units(config["interval"]) == to_ble_units(config["window"])
+    assert "scans continuously" in caplog.text
+
+
+def test_window_below_interval_does_not_warn(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING):
+        _validate(interval="100ms", window="30ms")
+    assert "scans continuously" not in caplog.text
 
 
 def test_duration_equal_to_three_intervals_accepted() -> None:
