@@ -1,0 +1,25 @@
+# Config-only fixture: an ADC sensor that outputs raw counts instead of volts
+# cannot be named by `voltage:` - every reading would be a number of counts.
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    id: mq_raw_adc
+    name: MQ AO counts
+    pin: GPIO34
+    raw: true
+
+  - platform: mq_gas_sensors
+    id: mq_raw_source
+    name: MQ-8 H2 counts
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq_raw_adc
+    voltage_divider:
+      r1: 20.0
+      r2: 10.0
+    r0: 10.0
