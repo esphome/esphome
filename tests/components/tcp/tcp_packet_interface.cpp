@@ -14,6 +14,13 @@
 
 namespace esphome::tcp::testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 using packet_interface::PacketBuffer;
 using packet_interface::PacketMetaData;
 using Packet = std::vector<uint8_t>;
@@ -38,7 +45,7 @@ class UpperLayer : public packet_interface::PacketInterface {
 struct End {
   End() {
     this->link.add_packet_interface_listener(
-        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(data.to_vector()); });
+        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->link.add_on_session_state_callback([this](bool connected) { this->states.push_back(connected); });
     this->link.setup();
   }
