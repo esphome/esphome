@@ -183,7 +183,9 @@ async def register_ble_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj
     return var
 
 
-def new_ble_device(config: ConfigType, *args: Any) -> Coroutine[Any, Any, cg.MockObj]:
+def new_ble_device_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
     """Create an advertisement listener: construct, register, attach to the BLE hub.
 
     Extra args go to the constructor.
