@@ -392,13 +392,17 @@ void TsdbComponent::flush_(bool force) {
     return;
   this->last_sync_ = now == 0 ? 1 : now;
 
-  // esp_tsdb's only durability entry point is tsdb_sync_h(), which folds the
-  // in-file header back into the database. littlefs copy-on-writes everything
-  // from the modified offset to end of file, measured at 3.7-5.1 s for a
-  // 192-268 KB file, so this blocks the main loop for seconds once the history
-  // has grown. Records live in a sidecar until then, so sync_interval is the
-  // knob: a longer interval stalls less often, at the cost of a longer window in
-  // which records exist only in the sidecar.
+  // esp_tsdb's only durability entry point is tsdb_sync_h(), and after any write
+  // it folds the in-file header at offset 0 back into the database. littlefs
+  // copy-on-writes everything from the modified offset to end of file, which the
+  // engine measures at 3.7-5.1 s for a 192-268 KB file, so this call blocks the
+  // main loop for seconds once the history has grown. The records are already on
+  // disk: every write rewrites and fsyncs its data block and puts the header in a
+  // small sidecar file (46-56 ms), so the fold only makes the file
+  // self-contained for a reader that ignores the sidecar, and esp_tsdb 2.4.3
+  // offers no way to refresh the in-file header without it. sync_interval is
+  // therefore the knob: a longer interval stalls less often, at the cost of
+  // leaving the in-file header stale for longer after an unclean shutdown.
   const esp_err_t err = tsdb_sync_h(static_cast<tsdb_t *>(this->db_));
   if (err != ESP_OK) {
     this->write_errors_++;
