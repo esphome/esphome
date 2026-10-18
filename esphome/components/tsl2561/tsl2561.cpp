@@ -148,13 +148,7 @@ bool TSL2561Sensor::tsl2561_write_byte(uint8_t a_register, uint8_t value) {
   return this->write_byte(a_register | TSL2561_COMMAND_BIT, value);
 }
 bool TSL2561Sensor::tsl2561_read_uint(uint8_t a_register, uint16_t *value) {
-  uint8_t data[2];
-  if (!this->read_bytes(a_register | TSL2561_COMMAND_BIT, data, 2))
-    return false;
-  const uint16_t hi = data[1];
-  const uint16_t lo = data[0];
-  *value = (hi << 8) | lo;
-  return true;
+  return this->read_byte_16_le(a_register | TSL2561_COMMAND_BIT, value);
 }
 bool TSL2561Sensor::tsl2561_read_byte(uint8_t a_register, uint8_t *value) {
   return this->read_byte(a_register | TSL2561_COMMAND_BIT, value);
