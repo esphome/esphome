@@ -68,6 +68,7 @@ CONF_REQUIRE_WRITE_ARM = "require_write_arm"
 CONF_ON_SETTING_RESULT = "on_setting_result"
 CONF_CONTROLLER_ID = "controller_id"
 CONF_PARAMETER = "parameter"
+CONF_RX_DIAGNOSTICS = "rx_diagnostics"
 CS_PLUS_SETTING_COUNT = 84
 
 
@@ -212,6 +213,7 @@ CONF_DELTASOL_CS_PLUS = "deltasol_cs_plus"
 CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(VBus),
+        cv.Optional(CONF_RX_DIAGNOSTICS, default=False): cv.boolean,
         cv.Optional(CONF_ON_DATAGRAM): automation.validate_automation({}),
         cv.Optional(CONF_TRANSMIT): TRANSMIT_SCHEMA,
     }
@@ -291,6 +293,8 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
+    if config[CONF_RX_DIAGNOSTICS]:
+        cg.add_define("USE_VBUS_RX_DIAGNOSTICS")
     if datagram_automations := config.get(CONF_ON_DATAGRAM):
         cg.add_define("USE_VBUS_DATAGRAM")
         for conf in datagram_automations:
