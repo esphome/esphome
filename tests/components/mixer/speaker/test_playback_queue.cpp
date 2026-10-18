@@ -174,7 +174,7 @@ TEST(MixerPlaybackQueue, PendingNotificationCannotOverflowOnNewInput) {
 TEST(MixerPlaybackQueue, MatchesIndependentPerFrameHistory) {
   PlaybackQueue queue;
   std::deque<uint8_t> output;
-  std::mt19937 random(42);
+  std::mt19937 random(42);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   auto complete = [&](uint32_t requested) {
     std::array<uint32_t, 8> frames{}, trailing{};
     const auto count = std::min<size_t>(requested, output.size());
@@ -203,9 +203,7 @@ TEST(MixerPlaybackQueue, MatchesIndependentPerFrameHistory) {
       queue.discard_source(source);
       for (auto &mask : output)
         mask &= ~(1U << source);
-    } else if (random() % 3 == 0) {
-      complete(count);
-    } else if (queue.append(sources, count)) {
+    } else if (random() % 3 != 0 && queue.append(sources, count)) {
       for (uint32_t i = 0; i < count; ++i)
         output.push_back(sources);
     } else {
@@ -236,7 +234,7 @@ TEST(MixerPlaybackQueue, ProducerAndCompletionUseSeparateTasks) {
       }
       changed.notify_all();
     }
-    std::lock_guard lock(mutex);
+    std::scoped_lock lock(mutex);
     done = true;
     changed.notify_all();
   });
