@@ -91,12 +91,9 @@ bool TAS58xx::init_() {
   }
   delay(RESET_SETTLE_MS);
 
-  for (uint8_t i = 0; i < this->model_->startup_sequence_length; i++) {
-    const uint8_t *entry = this->model_->startup_sequence[i];
-    if (!this->write_byte(progmem_read_byte(&entry[0]), progmem_read_byte(&entry[1]))) {
-      ESP_LOGE(TAG, "I2C write failed during init");
-      return false;
-    }
+  if (!this->write_registers(this->model_->startup_sequence, this->model_->startup_sequence_length)) {
+    ESP_LOGE(TAG, "I2C write failed during init");
+    return false;
   }
 
   // Setters are public, so keep the value inside the register range
