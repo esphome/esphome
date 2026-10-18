@@ -22,3 +22,9 @@ toptronic:
     refresh_retry_interval_ms: 250ms
     write_min_interval: 3s
     reject_writes_before_read: false
+
+switch:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    debug_mode: candump
+    name: CAN dump

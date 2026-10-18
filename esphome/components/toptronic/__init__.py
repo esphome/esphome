@@ -13,7 +13,7 @@ from esphome.cpp_types import Component
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
 DOMAIN = "toptronic"
-AUTO_LOAD = ["sensor", "number", "select", "text_sensor"]
+AUTO_LOAD = ["sensor", "number", "select", "text_sensor", "button", "switch"]
 MULTI_CONF = True
 
 CONF_TOPTRONIC_ID = "toptronic_id"
@@ -38,6 +38,7 @@ CONF_REJECT_WRITES_BEFORE_READ = "reject_writes_before_read"
 
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
+
 TopTronicBase = toptronic.class_("TopTronicBase", cg.PollingComponent)
 
 TT_TYPE = toptronic.enum("TypeName")
@@ -238,6 +239,7 @@ async def _generate_entities(hub, config):
         "number": (number.CONFIG_SCHEMA, number.to_code),
         "select": (select.CONFIG_SCHEMA, select.to_code),
     }
+
     used_ids = _shared_used_ids()
     for platform_name, entity_conf in _load_entities(config["device_type"]):
         if platform_name not in platforms:
