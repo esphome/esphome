@@ -9,6 +9,7 @@ from .. import (
     apply_buffer_size,
     bytes_per_frame,
     final_validate_one_per_hub,
+    request_microphone_fifo,
     set_stream_limits,
     stream_info,
     stream_schema,
@@ -38,6 +39,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     set_stream_limits,
     validate_buffer_size,
+    request_microphone_fifo,
 )
 
 FINAL_VALIDATE_SCHEMA = final_validate_one_per_hub("microphone")
