@@ -398,6 +398,10 @@ file does, and it is the authority when they disagree. The most useful starting 
               await buttons(CONF_RESTART, var.set_restart_button)
           ```
 
+        - **Pins and referenced components:** set them with `await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])`
+          and `await cg.add_variable(var.set_bus, config[CONF_BUS_ID])`; both skip a `None` value, so pass
+          `config.get(KEY)` for an optional key, and return what they created. Use `cg.register_parented` for `set_parent`.
+
 *   **Automations (Triggers, Actions, Conditions):**
 
     Automations have three building blocks: **Triggers** (fire when something happens), **Actions** (do something), and **Conditions** (check if something is true).
