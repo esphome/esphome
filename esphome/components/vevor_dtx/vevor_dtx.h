@@ -46,9 +46,9 @@ class VevorDtxComponent : public Component, public remote_base::RemoteReceiverLi
  protected:
   static constexpr uint8_t PAYLOAD_SIZE = 21;
   static constexpr uint8_t CHECKSUM_INDEX = 19;
-  // A frame is complete at its checksum; the byte after it is not covered by it and may merge into the
-  // receiver's idle gap, so it is never waited for
-  static constexpr uint16_t FRAME_BITS = (CHECKSUM_INDEX + 1) * 8;
+  static constexpr uint8_t TX_COUNTER_INDEX = 18;
+  // Fixed bytes follow the payload in every transmission, so its last byte never merges into the idle gap
+  static constexpr uint16_t FRAME_BITS = PAYLOAD_SIZE * 8;
 
   using Payload = std::array<uint8_t, PAYLOAD_SIZE>;
 

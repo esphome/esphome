@@ -19,8 +19,8 @@ class VevorDtxUnderTest : public VevorDtxComponent {
 // Payload of one transmission: station 0x1234 with a low battery, 21.5 °C, 55 %, 9.96 km/h wind,
 // 20 km/h gust, 180°, 23.3 mm of rain, UV index 5, 1234 lx, transmission counter `tx`
 static VevorDtxUnderTest::Payload sample_payload(uint8_t tx = 7) {
-  VevorDtxUnderTest::Payload p{0xAA, 0x00, 0x12, 0x34, 0x80, 0x02, 0xCB, 55, 0x01, 0x54, 25,
-                               0x01, 0xB5, 0x01, 0x65, 6,    0x05, 0xD3, tx, 0,    0};
+  VevorDtxUnderTest::Payload p{0xAA, 0x00, 0x12, 0x34, 0x80, 0x02, 0xCB, 55, 0x01, 0x54,           25,
+                               0x01, 0xB5, 0x01, 0x65, 6,    0x05, 0xD3, tx, 0,    uint8_t(tx + 1)};
   p[19] = sum_bytes(p.data(), 19);
   return p;
 }
@@ -95,14 +95,9 @@ TEST(VevorDtxTest, DecodesAFrameWithALongZeroRun) {
 
 // The receiver ends its capture at idle, so the frame's trailing low bits merge into one long gap
 TEST(VevorDtxTest, DecodesAFrameWhoseTailMergesIntoTheIdleGap) {
-  // A counter value whose checksum ends in zero bits, so the frame's last bits are low
-  auto payload = sample_payload();
-  for (uint8_t tx = 0;; tx++) {
-    payload[18] = tx;
-    payload[19] = sum_bytes(payload.data(), 19);
-    if ((payload[19] & 0x0F) == 0)
-      break;
-  }
+  // Counter 15 is echoed as 0x10, so the frame's last four bits are low
+  const auto payload = sample_payload(15);
+  ASSERT_EQ(payload[20] & 0x0F, 0);
   auto raw = timings(payload);
   // Drop the trailing zero run and the gap, and end the capture in one idle entry instead
   raw.pop_back();
@@ -113,6 +108,15 @@ TEST(VevorDtxTest, DecodesAFrameWhoseTailMergesIntoTheIdleGap) {
   VevorDtxUnderTest::Payload decoded{};
   ASSERT_TRUE(hub.decode_timings_(raw, decoded));
   EXPECT_EQ(decoded[19], payload[19]);
+}
+
+// The byte after the checksum must echo the counter plus one; the checksum does not cover it
+TEST(VevorDtxTest, RejectsAWrongCounterEcho) {
+  auto payload = sample_payload();
+  payload[20] = payload[18] + 2;
+  VevorDtxUnderTest hub;
+  VevorDtxUnderTest::Payload decoded{};
+  EXPECT_FALSE(hub.decode_timings_(timings(payload), decoded));
 }
 
 TEST(VevorDtxTest, RejectsBadChecksum) {

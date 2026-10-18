@@ -89,11 +89,14 @@ bool VevorDtxComponent::decode_timings_(const remote_base::RawTimings &timings, 
       if (++collected < FRAME_BITS) {
         continue;
       }
-      if (sum_bytes(payload.data(), CHECKSUM_INDEX) == payload[CHECKSUM_INDEX]) {
+      // The byte after the checksum repeats the counter plus one; it rejects frames whose sum matches by chance
+      if (sum_bytes(payload.data(), CHECKSUM_INDEX) == payload[CHECKSUM_INDEX] &&
+          payload[TX_COUNTER_INDEX + 2] == uint8_t(payload[TX_COUNTER_INDEX] + 1)) {
         return true;
       }
-      ESP_LOGV(TAG, "Checksum mismatch: calculated 0x%02X, received 0x%02X", sum_bytes(payload.data(), CHECKSUM_INDEX),
-               payload[CHECKSUM_INDEX]);
+      ESP_LOGV(TAG, "Rejected frame: sum 0x%02X received 0x%02X, counter %u followed by %u",
+               sum_bytes(payload.data(), CHECKSUM_INDEX), payload[CHECKSUM_INDEX], payload[TX_COUNTER_INDEX],
+               payload[TX_COUNTER_INDEX + 2]);
       collected = 0;
     }
   }
