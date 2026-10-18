@@ -28,6 +28,7 @@ class VBusTransactions final : public Component {
   void set_response_timeout(uint32_t timeout) { this->response_timeout_ms_ = timeout; }
   bool read_value(uint32_t grant_id, uint16_t value_id) { return this->start_(grant_id, 0x0300, value_id, 0); }
   bool write_value(uint32_t grant_id, uint16_t value_id, uint32_t value, uint16_t command = 0x0200);
+  uint32_t get_response_timeout() const { return this->response_timeout_ms_; }
   bool is_busy() const { return this->phase_ != Phase::PHASE_IDLE; }
   template<typename F> void add_on_result_callback(F &&callback) {
     this->result_callback_.add(std::forward<F>(callback));
