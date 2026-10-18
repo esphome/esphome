@@ -1,4 +1,5 @@
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "hdc2010.h"
 // https://github.com/vigsterkr/homebridge-hdc2010/blob/main/src/hdc2010.js
 // https://github.com/lime-labs/HDC2080-Arduino/blob/master/src/HDC2080.cpp

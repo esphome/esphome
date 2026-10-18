@@ -1,5 +1,6 @@
 #include "hdc2080.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::hdc2080 {

@@ -1,4 +1,5 @@
 #include "lps22.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::lps22 {
 

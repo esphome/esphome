@@ -1,3 +1,4 @@
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "stts22h.h"
 
