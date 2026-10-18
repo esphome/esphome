@@ -121,11 +121,14 @@ void TsdbComponent::setup() {
     this->fail_setup_(LOG_STR("opening the database"));
     return;
   }
-  this->publish_log_("history opened");
-  // Report the diagnostics now instead of leaving them unknown until the first
-  // stats tick.
-  this->last_stats_ = millis();
-  this->publish_stats_();
+  // A handle that opened without readable statistics was already dropped again.
+  if (this->db_ != nullptr) {
+    this->publish_log_("history opened");
+    // Report the diagnostics now instead of leaving them unknown until the first
+    // stats tick.
+    this->last_stats_ = millis();
+    this->publish_stats_();
+  }
 }
 
 // Count the failed initialisation so the diagnostics sensor reports it instead
@@ -324,32 +327,29 @@ bool TsdbComponent::open_database_() {
 
   // An existing file keeps its capacity and index stride it was created with.
   tsdb_stats_t stats = {};
-  const bool have_stats = tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) == ESP_OK;
-  this->stats_unknown_ = !have_stats;
-  if (!have_stats) {
-    ESP_LOGW(TAG, "%s: reading the stored statistics failed - uptime timestamps are refused", this->file_.c_str());
+  if (tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) != ESP_OK) {
+    // The newest stored timestamp is what seeds the ordering guard and it is only
+    // available here, so an unreadable statistics block drops the handle instead.
+    this->invalidate_database_(LOG_STR("the stored statistics could not be read - no record can be ordered"));
+    return true;
   }
+  this->last_timestamp_ = stats.newest_timestamp;
+  // The offset puts the uptime already spent below the newest stored record, so a
+  // reopen partway through a boot continues the series instead of jumping ahead.
+  this->uptime_offset_ = stats.newest_timestamp + 1 - static_cast<uint32_t>(::time(nullptr));
+  this->sync_failed_ = false;
   uint32_t saved_stride = 0;
   const bool have_stride = this->read_saved_index_stride_(&saved_stride) && saved_stride > 0;
-  const uint32_t records = have_stats && stats.max_records > 0 ? stats.max_records : max_records;
+  const uint32_t records = stats.max_records > 0 ? stats.max_records : max_records;
   const uint32_t stride = have_stride ? saved_stride : this->index_stride_;
   const uint64_t bytes = tsdbmath::file_bytes_for(records, columns, stride);
   ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records (up to %" PRIu32 " KB) at %s", this->file_.c_str(),
            static_cast<uint32_t>(names.size()), records, static_cast<uint32_t>(bytes / 1024), path.c_str());
-  if (have_stats) {
-    // Seed the monotonic timestamp guard with the newest record already stored.
-    this->last_timestamp_ = stats.newest_timestamp;
-    // A reopen runs partway through a boot, where the newest record already
-    // includes this boot's uptime; adding it to the full uptime again would
-    // count that time twice, so the offset is taken from the first open only.
-    if (this->uptime_offset_ == 0)
-      this->uptime_offset_ = stats.newest_timestamp + 1;
-    if (records != max_records) {
-      ESP_LOGW(TAG,
-               "%s: saved capacity is %" PRIu32 " records, the configured budget asks for %" PRIu32
-               " - recreate the history to change it",
-               this->file_.c_str(), records, max_records);
-    }
+  if (records != max_records) {
+    ESP_LOGW(TAG,
+             "%s: saved capacity is %" PRIu32 " records, the configured budget asks for %" PRIu32
+             " - recreate the history to change it",
+             this->file_.c_str(), records, max_records);
   }
   if (have_stride && saved_stride != this->index_stride_) {
     ESP_LOGW(TAG,
@@ -370,8 +370,12 @@ bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
   uint32_t value = 0;
   const bool ok = fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
   fclose(file);
-  if (!ok)
+  if (!ok) {
+    // The configured stride is used instead, so say that the header could not be read.
+    ESP_LOGW(TAG, "%s: reading the saved index stride failed - using the configured %" PRIu32, this->file_.c_str(),
+             this->index_stride_);
     return false;
+  }
   *stride = value;
   return true;
 }
@@ -386,8 +390,7 @@ void TsdbComponent::close_database_() {
   this->db_ = nullptr;
 }
 
-// tsdb_sync_h() closes the handle when its fclose/reopen fails and every later
-// write returns ESP_ERR_INVALID_STATE, so drop it and reopen on a later interval.
+// A failed sync closes the handle and every later write returns ESP_ERR_INVALID_STATE.
 void TsdbComponent::invalidate_database_(const LogString *reason) {
   if (this->db_ == nullptr)
     return;
@@ -406,10 +409,9 @@ void TsdbComponent::reopen_if_lost_() {
   if (this->last_reopen_ != 0 && now - this->last_reopen_ < REOPEN_RETRY_MS)
     return;
   this->last_reopen_ = now == 0 ? 1 : now;
-  if (!this->open_database_()) {
-    // Count the failed retry so a database that never recovers is visible.
-    this->write_errors_++;
-    this->publish_errors_();
+  // A handle that lost its statistics is dropped again, so it counts as a failed reopen.
+  if (!this->open_database_() || this->db_ == nullptr) {
+    this->reopen_errors_++;
     return;
   }
   this->db_lost_ = false;
@@ -516,9 +518,8 @@ bool TsdbComponent::write_record_() {
 #endif
 
   if (!have_time) {
-    // Without the stored statistics the offset is unknown, so an uptime timestamp
-    // would restart near 0 and sort before the history already on disk.
-    if (this->require_time_ || this->stats_unknown_) {
+    // The uptime offset below is applied only when a real time is not required.
+    if (this->require_time_) {
       if (!this->warned_time_) {
         this->warned_time_ = true;
         ESP_LOGW(TAG, "%s: no valid time yet - no record written", this->file_.c_str());
@@ -529,10 +530,7 @@ bool TsdbComponent::write_record_() {
       this->status_set_warning(LOG_STR("no valid time yet"));
       return false;
     }
-    // Without a clock the value counts seconds since boot and restarts at 0 on every
-    // reboot; the offset continues the series after the newest stored record. It is
-    // added only after the check above, so require_time still refuses an unsynced
-    // clock, and the result is a position in the series, not a clock time.
+    // Without a clock the value is seconds since boot, so the offset continues the series.
     timestamp += this->uptime_offset_;
     if (!this->warned_time_) {
       this->warned_time_ = true;
@@ -542,8 +540,7 @@ bool TsdbComponent::write_record_() {
     this->warned_time_ = false;
   }
 
-  // Records are ordered by timestamp, so refuse one that sorts before the newest
-  // stored: an NTP correction moved back, or uptime restarting at 0 after a reboot.
+  // Records are ordered by timestamp, so refuse one that sorts before the newest stored.
   if (this->last_timestamp_ != 0 && timestamp < this->last_timestamp_) {
     if (!this->warned_backwards_) {
       this->warned_backwards_ = true;
@@ -596,6 +593,7 @@ bool TsdbComponent::write_record_() {
     } else {
       ESP_LOGD(TAG, "%s: %s has no value - record dropped", this->file_.c_str(), column.name.c_str());
     }
+    this->status_set_warning(LOG_STR("a column has no value"));
     this->publish_errors_();
     return false;
   }
@@ -615,8 +613,9 @@ bool TsdbComponent::write_record_() {
   this->last_timestamp_ = timestamp;
   this->warned_backwards_ = false;
   this->dirty_ = true;
-  // Data is flowing again; a drop or a failed write is what raises the warning.
-  this->status_clear_warning();
+  // Data is flowing again; a failed sync keeps the warning raised until a sync works.
+  if (!this->sync_failed_)
+    this->status_clear_warning();
   return true;
 }
 
@@ -641,22 +640,23 @@ void TsdbComponent::flush_(bool force) {
     return;
   this->last_sync_ = now == 0 ? 1 : now;
 
-  // tsdb_sync_h() folds the in-file header back into the database; littlefs
-  // copy-on-writes from there to end of file (3.7-5.1 s for a 192-268 KB file),
-  // so it blocks the main loop for seconds, and esp_tsdb 2.4.3 has no other way
-  // to refresh the header. Records are already on disk (each write fsyncs its
-  // block and a header sidecar), so sync_interval is the knob: a longer interval
-  // stalls less often, at the cost of a staler header after an unclean shutdown.
+  // tsdb_sync_h() folds the in-file header back into the database and littlefs
+  // copy-on-writes to end of file (3.7-5.1 s for a 192-268 KB file), stalling the loop.
+  // Records reach the disk as written, so sync_interval only trades a staler header.
   const esp_err_t err = tsdb_sync_h(static_cast<tsdb_t *>(this->db_));
   if (err != ESP_OK) {
     this->write_errors_++;
+    this->sync_failed_ = true;
     ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
+    // A later successful write must not clear this: only a sync that works may.
+    this->status_set_warning(LOG_STR("syncing the history failed"));
     // A failed sync closes the handle; reopen rather than write into a dead database.
     if (!tsdb_is_initialized_h(static_cast<tsdb_t *>(this->db_)))
       this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
     this->publish_errors_();
     return;
   }
+  this->sync_failed_ = false;
   this->dirty_ = false;
   ESP_LOGD(TAG, "%s: synced after %" PRIu32 " writes", this->file_.c_str(), this->writes_);
 }
@@ -685,6 +685,8 @@ void TsdbComponent::dump_config() {
   ESP_LOGCONFIG(
       TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32,
       this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_);
+  if (this->reopen_errors_ > 0)
+    ESP_LOGCONFIG(TAG, "  failed reopens: %" PRIu32, this->reopen_errors_);
 }
 
 void TsdbComponent::publish_aggregates_() {
