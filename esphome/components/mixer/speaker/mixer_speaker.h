@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/static_task.h"
+#include "playback_queue.h"
 
 #include <gain.h>  // esp-audio-libs
 
@@ -107,12 +108,9 @@ class SourceSpeaker final : public speaker::Speaker, public Component {
   bool stop_gracefully_{false};
 
   bool pause_state_{false};
-  std::atomic<bool> has_contributed_{false};  // Tracks if source has contributed during this session
+  uint8_t source_index_{0};
 
   esp_audio_libs::gain::GainRamp ducking_ramp_;
-
-  std::atomic<uint32_t> pending_playback_frames_{0};
-  std::atomic<uint32_t> playback_delay_frames_{0};  // Frames in output pipeline when this source started contributing
 
   EventGroupHandle_t event_group_{nullptr};
   uint32_t stopping_start_ms_{0};
@@ -125,7 +123,10 @@ class MixerSpeaker final : public Component {
   void loop() override;
 
   void init_source_speakers(size_t count) { this->source_speakers_.init(count); }
-  void add_source_speaker(SourceSpeaker *source_speaker) { this->source_speakers_.push_back(source_speaker); }
+  void add_source_speaker(SourceSpeaker *source_speaker) {
+    source_speaker->source_index_ = this->source_speakers_.size();
+    this->source_speakers_.push_back(source_speaker);
+  }
 
   /// @brief Starts the mixer task. Called by a source speaker giving the current audio stream information
   /// @param stream_info The calling source speaker's audio stream information
@@ -144,9 +145,13 @@ class MixerSpeaker final : public Component {
   speaker::Speaker *get_output_speaker() const { return this->output_speaker_; }
 
   /// @brief Returns the current number of frames in the output pipeline (written but not yet played)
-  uint32_t get_frames_in_pipeline() const { return this->frames_in_pipeline_.load(std::memory_order_acquire); }
+  uint32_t get_frames_in_pipeline() const { return this->playback_.pending_frames(); }
 
  protected:
+  friend class SourceSpeaker;
+  bool reserve_playback_(const FixedVector<SourceSpeaker *> &sources, size_t count, uint32_t frames);
+  void reset_source_playback_(SourceSpeaker *source);
+  void stop_output_();
   static void audio_mixer_task(void *params);
 
   EventGroupHandle_t event_group_{nullptr};
@@ -163,8 +168,10 @@ class MixerSpeaker final : public Component {
 
   optional<audio::AudioStreamInfo> audio_stream_info_;
 
-  std::atomic<uint32_t> frames_in_pipeline_{0};  // Frames written to output but not yet played
-  uint32_t all_stopped_since_ms_{0};             // Debounce transient all-stopped windows before stopping task
+  PlaybackQueue playback_;
+  Mutex playback_mutex_;
+  bool restarting_output_{false};
+  uint32_t all_stopped_since_ms_{0};  // Debounce transient all-stopped windows before stopping task
 };
 
 }  // namespace esphome::mixer_speaker
