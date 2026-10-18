@@ -123,9 +123,7 @@ void DlmsMeterComponent::loop() {
 }
 
 void DlmsMeterComponent::flush_rx_buffer_() {
-  while (this->available()) {
-    this->read();
-  }
+  this->discard_available();
 }
 
 void DlmsMeterComponent::read_rx_buffer_() {

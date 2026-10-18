@@ -100,9 +100,7 @@ void PylontechComponent::dump_config() {
 }
 
 void PylontechComponent::setup() {
-  while (this->available() != 0) {
-    this->read();
-  }
+  this->discard_available();
 }
 
 void PylontechComponent::update() {
