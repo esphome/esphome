@@ -30,11 +30,7 @@ CONF_COLOR_TYPE_LOWERCASE = "color_type_lowercase"
 
 TuyaColorType = tuya_ns.enum("TuyaColorType")
 
-COLOR_TYPES = {
-    "RGB": TuyaColorType.RGB,
-    "HSV": TuyaColorType.HSV,
-    "RGBHSV": TuyaColorType.RGBHSV,
-}
+COLOR_TYPES = TuyaColorType.options("RGB", "HSV", "RGBHSV")
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
 

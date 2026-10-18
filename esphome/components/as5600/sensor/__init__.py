@@ -30,10 +30,7 @@ CONF_END_POSITION = "end_position"
 CONF_OUT_OF_RANGE_MODE = "out_of_range_mode"
 
 OutOfRangeMode = as5600_ns.enum("OutRangeMode")
-OUT_OF_RANGE_MODES = {
-    "MIN_MAX": OutOfRangeMode.OUT_RANGE_MODE_MIN_MAX,
-    "NAN": OutOfRangeMode.OUT_RANGE_MODE_NAN,
-}
+OUT_OF_RANGE_MODES = OutOfRangeMode.options("MIN_MAX", "NAN", prefix="OUT_RANGE_MODE_")
 
 
 CONF_AS5600_ID = "as5600_id"

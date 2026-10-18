@@ -30,7 +30,6 @@ from esphome.const import (
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_NUMBER,
@@ -54,10 +53,7 @@ ST7701S = st7701s_ns.class_("ST7701S", display.Display, cg.Component, spi.SPIDev
 ColorOrder = display.display_ns.enum("ColorMode")
 ST7701S_DELAY_FLAG = 0xFF
 
-COLOR_ORDERS = {
-    "RGB": ColorOrder.COLOR_ORDER_RGB,
-    "BGR": ColorOrder.COLOR_ORDER_BGR,
-}
+COLOR_ORDERS = ColorOrder.options("RGB", "BGR", prefix="COLOR_ORDER_")
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 
@@ -238,11 +234,7 @@ async def to_code(config: ConfigType) -> None:
             (width, height) = dimensions
             cg.add(var.set_dimensions(width, height))
 
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
     cg.add(var.set_de_pin(pin))

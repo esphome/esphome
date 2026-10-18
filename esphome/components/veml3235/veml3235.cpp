@@ -21,16 +21,14 @@ static const uint8_t MAX_ADJUSTMENTS_PER_UPDATE = 2;
 void VEML3235Sensor::setup() {
   uint8_t device_id[] = {0, 0};
   if (!this->refresh_config_reg()) {
-    ESP_LOGE(TAG, "Unable to write configuration");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unable to write configuration"));
     return;
   }
   if ((this->read_register(ID_REG, device_id, sizeof device_id) != i2c::ERROR_OK)) {
-    ESP_LOGE(TAG, "Unable to read ID");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unable to read ID"));
   } else if (device_id[0] != DEVICE_ID) {
     ESP_LOGE(TAG, "Incorrect device ID - expected 0x%.2x, read 0x%.2x", DEVICE_ID, device_id[0]);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Incorrect device ID"));
   }
 }
 
@@ -187,9 +185,6 @@ void VEML3235Sensor::dump_config() {
 
   LOG_SENSOR("", "VEML3235", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Auto-gain enabled: %s", YESNO(this->auto_gain_));
   if (this->auto_gain_) {
