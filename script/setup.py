@@ -8,6 +8,7 @@ before any dependency has been installed.
 
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -159,19 +160,23 @@ def install_git_hooks(env: dict[str, str]) -> None:
         installed.chmod(0o755)
 
 
-SHIM_MARKER = "esphome-tree-aware-shim"
 SHIM_TEMPLATE = """#!/bin/sh
-# {marker}: run the esphome checkout the cwd is inside, if any.
+# esphome-tree-aware-shim: run the esphome checkout the cwd is inside, if any.
 root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)
 if [ -n "$root" ] && [ -f "$root/esphome/__main__.py" ]; then
-  PYTHONPATH="$root${{PYTHONPATH:+:$PYTHONPATH}}" exec "{python}" -m esphome "$@"
+  export PYTHONPATH="$root${{PYTHONPATH:+:$PYTHONPATH}}"
 fi
-exec "{dist}" "$@"
+# -P keeps the cwd off sys.path, where esphome/enum.py would shadow the stdlib.
+exec {python} -P -c '{entry_point}' "$@"
 """
+SHIM_ENTRY_POINT = (
+    "import sys; from esphome.__main__ import main; "
+    'sys.argv[0] = "esphome"; sys.exit(main())'
+)
 
 
 def install_tree_aware_shim(venv: Path) -> None:
-    """Wrap the esphome console script so it runs the checkout the cwd is in.
+    """Replace the esphome console script with one that runs the cwd's checkout.
 
     An editable install pins the tree it was installed from; without this,
     `esphome` run from another worktree silently compiles the wrong tree's code.
@@ -179,20 +184,20 @@ def install_tree_aware_shim(venv: Path) -> None:
     """
     if os.name == "nt":
         return
-    scripts = bin_dir(venv)
-    esphome_bin = scripts / "esphome"
+    esphome_bin = bin_dir(venv) / "esphome"
     if not esphome_bin.is_file():
         raise SystemExit(
             "esphome console script not found after install; "
             "cannot install the tree-aware wrapper"
         )
-    dist = scripts / "esphome-dist"
-    if SHIM_MARKER not in esphome_bin.read_text(errors="replace"):
-        esphome_bin.replace(dist)
-    esphome_bin.write_text(
-        SHIM_TEMPLATE.format(marker=SHIM_MARKER, python=venv_python(venv), dist=dist)
+    shim = esphome_bin.with_name(".esphome-shim.tmp")
+    shim.write_text(
+        SHIM_TEMPLATE.format(
+            python=shlex.quote(str(venv_python(venv))), entry_point=SHIM_ENTRY_POINT
+        )
     )
-    esphome_bin.chmod(0o755)
+    shim.chmod(0o755)
+    shim.replace(esphome_bin)
 
 
 def activate_hint() -> str:

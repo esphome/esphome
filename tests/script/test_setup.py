@@ -4,6 +4,8 @@ import importlib.util
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import runpy
+import shutil
+import subprocess
 import sys
 import sysconfig
 from types import ModuleType
@@ -450,21 +452,15 @@ def _fake_venv(script_setup: ModuleType, tmp_path: Path) -> tuple[Path, Path]:
 
 
 @pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
-def test_install_tree_aware_shim_wraps_console_script(
+def test_install_tree_aware_shim_replaces_console_script(
     script_setup: ModuleType, tmp_path: Path
 ) -> None:
     venv, esphome_bin = _fake_venv(script_setup, tmp_path)
     script_setup.install_tree_aware_shim(venv)
 
-    dist = esphome_bin.with_name("esphome-dist")
-    assert dist.read_text() == "#!/usr/bin/python\n# console script\n"
-    shim = esphome_bin.read_text()
-    assert shim.startswith("#!/bin/sh\n")
-    assert script_setup.SHIM_MARKER in shim
-    assert f'exec "{script_setup.venv_python(venv)}" -m esphome "$@"' in shim
-    assert f'exec "{dist}" "$@"' in shim
-    assert '"$root${PYTHONPATH:+:$PYTHONPATH}"' in shim
+    assert esphome_bin.read_text().startswith("#!/bin/sh\n")
     assert os.access(esphome_bin, os.X_OK)
+    assert sorted(p.name for p in esphome_bin.parent.iterdir()) == ["esphome"]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
@@ -477,9 +473,85 @@ def test_install_tree_aware_shim_is_idempotent(
     script_setup.install_tree_aware_shim(venv)
 
     assert esphome_bin.read_text() == first
-    assert esphome_bin.with_name("esphome-dist").read_text() == (
-        "#!/usr/bin/python\n# console script\n"
+
+
+_FAKE_MAIN = (
+    "import enum, sys, types\ndef main():\n    print(__file__)\n    print(sys.argv)\n"
+)
+
+
+def _fake_package(parent: Path) -> Path:
+    package = parent / "esphome"
+    (package / "components" / "esphome").mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    (package / "__main__.py").write_text(_FAKE_MAIN)
+    (package / "components" / "esphome" / "__init__.py").write_text("")
+    return package
+
+
+@pytest.fixture
+def shim_env(script_setup: ModuleType, tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Install the shim, plus a fake installed esphome and a fake checkout.
+
+    The interpreter path holds shell metacharacters to prove the shim quotes it.
+    """
+    venv, esphome_bin = _fake_venv(script_setup, tmp_path)
+    python = tmp_path / 'py $HOME `x` "q"'
+    python.write_text(f'#!/bin/sh\nexec {sys.executable} "$@"\n')
+    python.chmod(0o755)
+    with patch.object(script_setup, "venv_python", return_value=python):
+        script_setup.install_tree_aware_shim(venv)
+
+    installed = _fake_package(tmp_path / "site-packages")
+    checkout = tmp_path / "checkout"
+    package = _fake_package(checkout)
+    # Same names as stdlib modules; they break `python -m` run from this directory.
+    (package / "enum.py").write_text("raise ImportError('shadowed')\n")
+    (package / "types.py").write_text("raise ImportError('shadowed')\n")
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+    return esphome_bin, installed, checkout
+
+
+def _run_shim(esphome_bin: Path, installed: Path, cwd: Path) -> list[str]:
+    env = dict(os.environ, PYTHONPATH=str(installed.parent))
+    result = subprocess.run(
+        [str(esphome_bin), "version", "a b"],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
     )
+    return result.stdout.splitlines()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+@pytest.mark.parametrize(
+    "subdir", ["", "esphome", "esphome/components", "esphome/components/esphome"]
+)
+def test_shim_runs_checkout_containing_cwd(
+    shim_env: tuple[Path, Path, Path], subdir: str
+) -> None:
+    esphome_bin, installed, checkout = shim_env
+    lines = _run_shim(esphome_bin, installed, checkout / subdir)
+    assert lines == [
+        str(checkout / "esphome" / "__main__.py"),
+        "['esphome', 'version', 'a b']",
+    ]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_shim_outside_checkout_runs_installed_esphome(
+    shim_env: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    esphome_bin, installed, _ = shim_env
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    subprocess.run(["git", "init", "-q", str(outside)], check=True)
+    lines = _run_shim(esphome_bin, installed, outside)
+    assert lines == [str(installed / "__main__.py"), "['esphome', 'version', 'a b']"]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
