@@ -25,14 +25,11 @@ CONF_USB_AUDIO_ID = "usb_audio_id"
 BITS_PER_SAMPLE_OPTIONS = [8, 16, 24, 32]
 DEFAULT_BUFFER_SIZE = 6400
 
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(USBAudioComponent),
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_framework("esp-idf"),
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(USBAudioComponent),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def stream_schema(default_sample_rate: int, default_num_channels: int) -> cv.Schema:
