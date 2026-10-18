@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
@@ -224,8 +223,4 @@ async def to_code(config: ConfigType) -> None:
     if model.rotation_as_transform(config):
         config[CONF_ROTATION] = 0
     await display.register_display(var, config)
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

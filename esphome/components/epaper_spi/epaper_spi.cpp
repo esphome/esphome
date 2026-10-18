@@ -133,7 +133,9 @@ void EPaperBase::update() {
 }
 
 void EPaperBase::wait_for_idle_(bool should_wait) {
-  this->waiting_for_idle_start_ = millis();
+  // The wait starts when the step's delay ends, or now for a wait in the middle of a step
+  const uint32_t now = millis();
+  this->waiting_for_idle_start_ = static_cast<int32_t>(this->delay_until_ - now) > 0 ? this->delay_until_ : now;
   this->waiting_for_idle_ = should_wait;
 }
 
@@ -147,19 +149,30 @@ void EPaperBase::loop() {
   auto now = millis();
   // using modulus arithmetic to handle wrap-around
   int diff = now - this->delay_until_;
-  if (diff < 0)
+  if (diff < 0) {
+    // Running the loop continuously cannot shorten a delay longer than one loop interval
+    if (-diff > static_cast<int>(App.get_loop_interval())) {
+      this->high_frequency_loop_.stop();
+    } else {
+      this->high_frequency_loop_.start();
+    }
     return;
+  }
   if (this->waiting_for_idle_) {
     if (this->is_idle_()) {
       this->waiting_for_idle_ = false;
+      this->high_frequency_loop_.start();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
 #endif
     } else {
-      if (now - this->waiting_for_idle_start_ > this->busy_timeout_seconds_ * 1000u) {
+      const uint32_t busy_for = now - this->waiting_for_idle_start_;
+      if (busy_for > this->busy_timeout_seconds_ * 1000u) {
         this->abandon_update_();
         return;
       }
+      if (busy_for > FAST_BUSY_POLL_MS)
+        this->high_frequency_loop_.stop();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       if (now - this->waiting_for_idle_last_print_ >= 1000) {
         ESP_LOGV(TAG, "Waiting for idle in state %s", this->epaper_state_to_string_());
@@ -170,6 +183,8 @@ void EPaperBase::loop() {
     }
   }
   this->process_state_();
+  if (this->is_failed())
+    this->high_frequency_loop_.stop();
 }
 
 // The busy pin never cleared: give up on this update so later ones are not refused, and make the next one full
@@ -227,10 +242,12 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
+      // A full update resets update_count_ to zero, so a non-zero count marks a partial one
+      this->partial_ = this->update_count_ != 0;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
-      if (!this->initialise(this->update_count_ != 0)) {
+      if (!this->initialise(this->partial_)) {
         return;  // Not done yet, come back next loop
       }
       this->set_state_(EPaperState::TRANSFER_DATA);
@@ -250,11 +267,14 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::REFRESH_SCREEN);
       break;
     case EPaperState::REFRESH_SCREEN:
-      this->refresh_screen(this->update_count_ != 0);
+      this->refresh_screen(this->partial_);
       this->update_count_ = (this->update_count_ + 1) % this->full_update_every_;
       this->set_state_(EPaperState::POWER_OFF);
       break;
     case EPaperState::POWER_OFF:
+      if (!this->after_refresh()) {
+        return;  // Not done yet, come back next loop
+      }
       this->power_off();
       this->set_state_(EPaperState::DEEP_SLEEP);
       break;
@@ -270,16 +290,20 @@ void EPaperBase::process_state_() {
 void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   ESP_LOGV(TAG, "Exit state %s", this->epaper_state_to_string_());
   this->state_ = state;
-  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
   // allow subclasses to nominate delays
   if (delay == 0)
     delay = this->next_delay_;
   this->next_delay_ = 0;
   this->delay_until_ = millis() + delay;
+  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", this->epaper_state_to_string_(), delay,
            TRUEFALSE(this->waiting_for_idle_));
+  // Each step of an update otherwise waits for the next loop iteration; loop() slows down again for long waits
   if (state == EPaperState::IDLE) {
+    this->high_frequency_loop_.stop();
     this->disable_loop();
+  } else {
+    this->high_frequency_loop_.start();
   }
 }
 
