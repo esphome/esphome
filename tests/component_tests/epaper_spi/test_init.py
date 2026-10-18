@@ -143,7 +143,7 @@ def test_all_predefined_models(
 
         # Add dimensions if not provided by model
         if not model.get_default(CONF_WIDTH):
-            config[CONF_DIMENSIONS] = {CONF_HEIGHT: 240, CONF_WIDTH: 320}
+            config[CONF_DIMENSIONS] = {CONF_HEIGHT: 120, CONF_WIDTH: 120}
 
         # Add init sequence if model doesn't provide one
         if model.initsequence is None:
@@ -199,7 +199,7 @@ def test_individual_models(
         config[CONF_DC_PIN] = 21
 
     if not model.get_default(CONF_WIDTH):
-        config[CONF_DIMENSIONS] = {CONF_HEIGHT: 240, CONF_WIDTH: 320}
+        config[CONF_DIMENSIONS] = {CONF_HEIGHT: 120, CONF_WIDTH: 120}
 
     if model.initsequence is None:
         config[CONF_INIT_SEQUENCE] = [[0xA0, 0x01]]
