@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 #include <esp_idf_version.h>
 
-#include "hal/rtc_hal.h"
 namespace esphome::deep_sleep {
 
 // Deep Sleep feature support matrix for ESP32 variants:
@@ -191,6 +190,7 @@ void DeepSleepComponent::deep_sleep_() {
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
   }
 #endif
+
   esp_deep_sleep_start();
 }
 

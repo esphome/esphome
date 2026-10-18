@@ -69,7 +69,7 @@ struct ISRFuncArg {
 };
 
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
+static esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
   if (idf_type == GPIO_INTR_LOW_LEVEL)
     return ESP_EXT1_WAKEUP_ANY_LOW;
   if (idf_type == GPIO_INTR_HIGH_LEVEL)
@@ -134,9 +134,6 @@ static void IRAM_ATTR gpio_intr_(void *arg) {
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
     esp_sleep_enable_ext1_wakeup_io(1 << pin, ESP_EXT1_WAKEUP_ANY_LOW);
 #endif
-#if SOC_RTCIO_WAKE_SUPPORTED
-    // rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_LOW_LEVEL);
-#endif
     gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_LOW_LEVEL);
     if ((type == GPIO_INTR_POSEDGE) || (type == GPIO_INTR_ANYEDGE)) {
       func_arg->func(func_arg->arg);
@@ -144,9 +141,6 @@ static void IRAM_ATTR gpio_intr_(void *arg) {
   } else {
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
     esp_sleep_enable_ext1_wakeup_io(1 << pin, ESP_EXT1_WAKEUP_ANY_HIGH);
-#endif
-#if SOC_RTCIO_WAKE_SUPPORTED
-    // rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_HIGH_LEVEL);
 #endif
     gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_HIGH_LEVEL);
     if ((type == GPIO_INTR_NEGEDGE) || (type == GPIO_INTR_ANYEDGE)) {
