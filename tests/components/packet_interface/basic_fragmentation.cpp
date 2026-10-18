@@ -61,16 +61,20 @@ class TestHdlc : public HdlcReliability {
   using HdlcReliability::on_timeout_;
 };
 
-// The test main does not construct App; the reliability layer's timers need its scheduler
+// Each test replaces App with a fresh one; the reliability layer's timers need its scheduler
 class BasicFragmentationTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "fragmentation-tests";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
-  void TearDown() override { App.~Application(); }
+  void TearDown() override {
+    App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
+  }
 
   // Deliver what a has sent to b
   static void deliver(MockLink &from, MockLink &to) {

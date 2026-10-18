@@ -158,16 +158,20 @@ TEST(BasicAddressingTest, ShortPacketDropped) {
   EXPECT_TRUE(a.port().received.empty());
 }
 
-// The test main does not construct App; the reliability layer's timers need its scheduler
+// Each test replaces App with a fresh one; the reliability layer's timers need its scheduler
 class AddressingReliabilityTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "addressing-tests";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
-  void TearDown() override { App.~Application(); }
+  void TearDown() override {
+    App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
+  }
 };
 
 // A reliability layer on each port, recording what it delivers
