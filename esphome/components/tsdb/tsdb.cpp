@@ -328,15 +328,13 @@ bool TsdbComponent::open_database_() {
   // An existing file keeps its capacity and index stride it was created with.
   tsdb_stats_t stats = {};
   if (tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) != ESP_OK) {
-    // The newest stored timestamp is what seeds the ordering guard and it is only
-    // available here, so an unreadable statistics block drops the handle instead.
+    // The newest stored timestamp seeds the ordering guard and is only available here.
     this->invalidate_database_(LOG_STR("the stored statistics could not be read - no record can be ordered"));
     return true;
   }
-  this->last_timestamp_ = stats.newest_timestamp;
-  // The offset puts the uptime already spent below the newest stored record, so a
-  // reopen partway through a boot continues the series instead of jumping ahead.
-  this->uptime_offset_ = stats.newest_timestamp + 1 - static_cast<uint32_t>(::time(nullptr));
+  // A reopen must not lower the guard: the saved header is only as new as the last sync.
+  this->last_timestamp_ = std::max(this->last_timestamp_, stats.newest_timestamp);
+  this->uptime_offset_ = this->last_timestamp_ + 1 - static_cast<uint32_t>(::time(nullptr));
   this->sync_failed_ = false;
   uint32_t saved_stride = 0;
   const bool have_stride = this->read_saved_index_stride_(&saved_stride) && saved_stride > 0;
@@ -364,14 +362,12 @@ bool TsdbComponent::open_database_() {
 bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
   const std::string path = this->mount_point_ + "/" + this->file_;
   FILE *file = fopen(path.c_str(), "rb");
-  if (file == nullptr)
-    return false;
   const int32_t field = static_cast<int32_t>(offsetof(tsdb_header_t, index_stride));
   uint32_t value = 0;
-  const bool ok = fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
-  fclose(file);
+  const bool ok = file != nullptr && fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
+  if (file != nullptr)
+    fclose(file);
   if (!ok) {
-    // The configured stride is used instead, so say that the header could not be read.
     ESP_LOGW(TAG, "%s: reading the saved index stride failed - using the configured %" PRIu32, this->file_.c_str(),
              this->index_stride_);
     return false;
@@ -553,11 +549,13 @@ bool TsdbComponent::write_record_() {
   }
 
   this->values_.clear();
+  const uint32_t degraded_before = this->saturated_ + this->held_ + this->sentinel_;
   for (TsdbColumn &column : this->columns_) {
     const bool has_value =
         column.source != nullptr && column.source->has_state() && !tsdbmath::is_missing(column.source->state);
     if (has_value) {
-      column.hold_warned = false;  // so a later outage logs again
+      column.hold_warned = false;
+      column.sentinel_warned = false;  // so a later outage logs again
       bool saturated = false;
       column.held = tsdbmath::encode(column.source->state, column.scale, column.offset, &saturated);
       if (saturated) {
@@ -582,6 +580,13 @@ bool TsdbComponent::write_record_() {
       continue;
     }
     if (this->missing_policy_ == tsdbmath::MISSING_SENTINEL) {
+      // An unknown value is not a healthy one: count it and say so once per column.
+      this->sentinel_++;
+      if (!column.sentinel_warned) {
+        column.sentinel_warned = true;
+        ESP_LOGW(TAG, "%s: %s has no value - storing an unknown value", this->file_.c_str(), column.name.c_str());
+      }
+      this->publish_errors_();  // an unknown value is one of the anomalies reported
       this->values_.push_back(tsdbmath::RAW_UNKNOWN);
       continue;
     }
@@ -613,20 +618,21 @@ bool TsdbComponent::write_record_() {
   this->last_timestamp_ = timestamp;
   this->warned_backwards_ = false;
   this->dirty_ = true;
-  // Data is flowing again; a failed sync keeps the warning raised until a sync works.
-  if (!this->sync_failed_)
+  // Only a clean record clears the warning: a held, sentinel or clamped value is not healthy.
+  if (!this->sync_failed_ && this->saturated_ + this->held_ + this->sentinel_ == degraded_before)
     this->status_clear_warning();
   return true;
 }
 
 // The diagnostics sensor counts every anomaly - failed writes/syncs, dropped
-// records, clamped values and substituted stale ones - so data loss or
-// corruption is visible.
+// records, clamped values, substituted stale ones and values stored as unknown
+// - so data loss or corruption is visible.
 void TsdbComponent::publish_errors_() {
 #ifdef USE_SENSOR
   if (this->errors_sensor_ == nullptr)
     return;
-  this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_ + this->saturated_ + this->held_);
+  this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_ + this->saturated_ + this->held_ +
+                                      this->sentinel_);
 #endif
 }
 
@@ -640,9 +646,8 @@ void TsdbComponent::flush_(bool force) {
     return;
   this->last_sync_ = now == 0 ? 1 : now;
 
-  // tsdb_sync_h() folds the in-file header back into the database and littlefs
-  // copy-on-writes to end of file (3.7-5.1 s for a 192-268 KB file), stalling the loop.
-  // Records reach the disk as written, so sync_interval only trades a staler header.
+  // The sync copy-on-writes to end of file (3.7-5.1 s for a 192-268 KB file), stalling the
+  // loop; records reach the disk as written, so sync_interval only trades a staler header.
   const esp_err_t err = tsdb_sync_h(static_cast<tsdb_t *>(this->db_));
   if (err != ESP_OK) {
     this->write_errors_++;
@@ -682,9 +687,9 @@ void TsdbComponent::dump_config() {
                 LOG_STR_ARG(missing_policy_to_string(this->missing_policy_)));
   ESP_LOGCONFIG(TAG, "  aggregates: window %" PRIu32 " s, interval %" PRIu32 " ms, dump rows: %" PRIu32,
                 this->aggregate_window_, this->aggregate_interval_, this->dump_rows_);
-  ESP_LOGCONFIG(
-      TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32,
-      this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_);
+  ESP_LOGCONFIG(TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32,
+                " held: %" PRIu32 ", sentinel: %" PRIu32, this->writes_, this->write_errors_, this->dropped_,
+                this->saturated_, this->held_, this->sentinel_);
   if (this->reopen_errors_ > 0) {
     ESP_LOGCONFIG(TAG, "  failed reopens: %" PRIu32, this->reopen_errors_);
   }
