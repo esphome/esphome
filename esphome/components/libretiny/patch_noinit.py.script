@@ -3,6 +3,7 @@ Import("env")  # noqa
 
 import os
 import re
+import subprocess
 
 # Adds a .noinit section for the crash handler's record (crash_handler.cpp)
 # to the BK7238 / BK7231N linker script, in ITCM right after .itcm.code.
@@ -56,6 +57,30 @@ def _pre_link(target, source, env):
         )
 
 
+ITCM_START = 0x003F0000
+ITCM_END = 0x00400000
+
+
+def _post_link(target, source, env):
+    """Fail the build unless the linked ELF has .noinit inside ITCM: a stale
+    marker or a renamed linker script must not leave the record in SRAM."""
+    elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
+    objdump = env.subst("$CC").replace("gcc", "objdump")
+    headers = subprocess.check_output([objdump, "-h", elf], text=True)
+    for line in headers.splitlines():
+        fields = line.split()
+        if len(fields) > 3 and fields[1] == ".noinit":
+            vma = int(fields[3], 16)
+            if ITCM_START <= vma < ITCM_END:
+                return
+            raise RuntimeError(
+                "ESPHome: .noinit landed at 0x{:08x}, outside ITCM; the crash "
+                "record would not survive a reboot.".format(vma)
+            )
+    raise RuntimeError("ESPHome: the linked ELF has no .noinit section.")
+
+
 # LibreTiny writes the rendered .ld into $BUILD_DIR during its own builder
 # setup, which may run after this script, so patch right before the link.
 env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)

@@ -631,7 +631,7 @@ def test_crash_report_hint_line_closes_the_region(mock_get_idedata: Mock) -> Non
     ("addr2line", "elf", "reason"),
     [(None, True, "no addr2line"), ("addr2line", False, "missing")],
 )
-def test_crash_report_says_why_it_cannot_decode(
+def test_crash_report_warns_once_when_it_cannot_decode(
     tmp_path: Path,
     mock_get_idedata: Mock,
     caplog: pytest.LogCaptureFixture,
@@ -640,8 +640,9 @@ def test_crash_report_says_why_it_cannot_decode(
     reason: str,
 ) -> None:
     mock_get_idedata.return_value = _idedata(tmp_path, addr2line=addr2line, elf=elf)
-    assert stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, True)
-    assert reason in caplog.text
+    # One warning for the report, then its remaining lines are left alone
+    assert not stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, True)
+    assert caplog.text.count(reason) == 1
 
 
 def test_addr2line_returns_the_tool_output(tmp_path: Path) -> None:
