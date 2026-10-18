@@ -11,9 +11,7 @@ static constexpr uint32_t PAYLOAD_TIMEOUT_MS = 20;
 void HlkFm22xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-FM22X...");
   this->set_enrolling_(false);
-  while (this->available() > 0) {
-    this->read();
-  }
+  this->discard_available();
   this->defer([this]() { this->send_command_(HlkFm22xCommand::GET_STATUS); });
 }
 
@@ -85,8 +83,7 @@ void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const uint8_t *da
   }
   this->wait_cycles_ = 0;
   this->active_command_ = command;
-  while (this->available() > 0)
-    this->read();
+  this->discard_available();
   this->write((uint8_t) (START_CODE >> 8));
   this->write((uint8_t) (START_CODE & 0xFF));
   this->write((uint8_t) command);
@@ -141,9 +138,7 @@ void HlkFm22xComponent::recv_command_() {
     if (millis() - start > PAYLOAD_TIMEOUT_MS) {
       ESP_LOGE(TAG, "Timeout waiting for payload (%u bytes)", length);
       // Drain any partial payload bytes to resync the parser
-      while (this->available() > 0) {
-        this->read();
-      }
+      this->discard_available();
       return;
     }
     delay(1);
@@ -161,11 +156,8 @@ void HlkFm22xComponent::recv_command_() {
     }
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(HLK_FM22X_MAX_RESPONSE_SIZE)];
-  ESP_LOGV(TAG, "Recv type: 0x%.2X, data: %s", response_type,
-           format_hex_pretty_to(hex_buf, this->recv_buf_.data(), to_store));
-#endif
+  ESP_LOGV_HEX(TAG, this->recv_buf_.data(), to_store, HLK_FM22X_MAX_RESPONSE_SIZE, "Recv type: 0x%.2X, data: %s",
+               response_type);
 
   byte = this->read();
   if (byte != checksum) {

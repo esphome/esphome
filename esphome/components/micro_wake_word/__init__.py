@@ -48,6 +48,7 @@ CONF_TASK_CORE = "task_core"
 
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
 CONF_MODELS = "models"
+CONF_RING_BUFFER_DURATION = "ring_buffer_duration"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_PREFER_INTERNAL_RAM = "prefer_internal_ram"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
@@ -433,6 +434,11 @@ def _validate_task_core(config: ConfigType) -> ConfigType:
     return config
 
 
+# The capture buffer holds at least one feature window and at most a second of audio
+MIN_RING_BUFFER_DURATION = cv.TimePeriod(milliseconds=120)
+MAX_RING_BUFFER_DURATION = cv.TimePeriod(seconds=1)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -455,6 +461,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_STOP_AFTER_DETECTION, default=True): cv.boolean,
             cv.Optional(CONF_TASK_CORE, default=-1): cv.int_range(min=-1, max=1),
             cv.Optional(CONF_PREFER_INTERNAL_RAM, default=False): cv.boolean,
+            cv.Optional(CONF_RING_BUFFER_DURATION): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=MIN_RING_BUFFER_DURATION, max=MAX_RING_BUFFER_DURATION),
+            ),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_MODEL): cv.invalid(
                 f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
@@ -635,6 +645,8 @@ async def to_code(config):
             cg.add(var.add_wake_word_model(wake_word_model))
 
     cg.add(var.set_features_step_size(feature_step_size))
+    if (ring_buffer_duration := config.get(CONF_RING_BUFFER_DURATION)) is not None:
+        cg.add(var.set_ring_buffer_duration_ms(ring_buffer_duration.total_milliseconds))
     cg.add(var.set_stop_after_detection(config[CONF_STOP_AFTER_DETECTION]))
 
     if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):

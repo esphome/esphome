@@ -29,8 +29,7 @@ void SHTCXComponent::setup() {
 
   uint16_t device_id_register;
   if (!this->write_command(SHTCX_COMMAND_READ_ID_REGISTER) || !this->read_data(&device_id_register, 1)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -53,9 +52,6 @@ void SHTCXComponent::dump_config() {
                 "  Model: %s (%04x)",
                 LOG_STR_ARG(shtcx_type_to_string(this->type_)), this->sensor_id_);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
