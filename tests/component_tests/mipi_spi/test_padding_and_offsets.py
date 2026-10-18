@@ -601,3 +601,70 @@ class TestSwapXYNativeDimensions:
         # native_width swapped to 320 -> pad_width = 320 - 300 - 0 = 20
         assert pad_w == 20
         assert pad_h == 0
+
+
+class TestGC9107Dimensions:
+    """Test the GC9107 native size and the M5Stack AtomS3 visible area."""
+
+    @pytest.mark.parametrize(
+        "config",
+        [
+            pytest.param({"model": "M5STACK-ATOMS3"}, id="atoms3_model"),
+            pytest.param(
+                {
+                    "model": "GC9107",
+                    "dc_pin": 33,
+                    "dimensions": {
+                        "width": 128,
+                        "height": 128,
+                        "offset_width": 0,
+                        "offset_height": 32,
+                    },
+                },
+                id="gc9107_explicit_offsets",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("rotation", [0, 180])
+    def test_atoms3_offsets_and_pads(
+        self,
+        config: ConfigType,
+        rotation: int,
+        set_core_config: SetCoreConfigCallable,
+    ) -> None:
+        """Pads come from the 130x160 GC9107 memory, so rotation 180 lands on the visible area."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={
+                KEY_BOARD: "esp32-s3-devkitc-1",
+                KEY_VARIANT: VARIANT_ESP32S3,
+            },
+        )
+
+        config = validated_config({**config, "rotation": rotation})
+        _, templateargs = get_instance(config)
+
+        # WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT, PAD_WIDTH, PAD_HEIGHT
+        assert templateargs[5:11] == [128, 128, 0, 32, 2, 0]
+        # Hardware rotation swaps in the pads as offsets for rotation 180
+        assert templateargs[12] is True
+
+    def test_atoms3r_defaults_unchanged(
+        self,
+        set_core_config: SetCoreConfigCallable,
+        set_component_config: Callable[[str, Any], None],
+    ) -> None:
+        """The GC9107 native size does not change the AtomS3R model defaults."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={
+                KEY_BOARD: "esp32-s3-devkitc-1",
+                KEY_VARIANT: VARIANT_ESP32S3,
+            },
+        )
+        set_component_config("psram", True)
+
+        config = validated_config({"model": "M5STACK-ATOMS3R-GC9107"})
+        _, templateargs = get_instance(config)
+
+        assert templateargs[5:11] == [128, 128, 2, 1, 2, 1]
