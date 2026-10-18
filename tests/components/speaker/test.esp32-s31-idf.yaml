@@ -4,5 +4,4 @@ substitutions:
 packages:
   i2c: !include ../../test_build_components/common/i2c/esp32-s31-idf.yaml
   i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-s31-idf.yaml
-
-<<: !include common.yaml
+  speaker: !include common.yaml

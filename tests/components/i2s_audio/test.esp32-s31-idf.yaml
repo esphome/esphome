@@ -3,4 +3,5 @@ substitutions:
   i2s_lrclk_pin: GPIO4
   i2s_mclk_pin: GPIO15
 
-<<: !include common.yaml
+packages:
+  i2s_audio: !include common.yaml
