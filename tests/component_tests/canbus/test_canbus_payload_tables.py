@@ -25,6 +25,14 @@ def test_constant_payloads_share_progmem_tables(
     ]
     assert main_cpp.count(f"set_data_static({tables[0][0]}, 8);") == 2
     assert "set_data_template(" in main_cpp
+    for setter in (
+        "set_default_fd",
+        "set_default_bit_rate_switch",
+        "set_fd",
+        "set_bit_rate_switch",
+        "set_pad_data",
+    ):
+        assert f"->{setter}(" not in main_cpp
 
 
 @pytest.mark.parametrize("size", [8, 9])
@@ -33,7 +41,7 @@ def test_send_one_frame_limit(
     size: int, make: Callable[[int], list[int] | str]
 ) -> None:
     """Payloads up to one 8 byte CAN frame are accepted, longer ones rejected."""
-    config = {"canbus_id": "can_bus", "data": make(size)}
+    config = {"canbus_id": "can_bus", "fd": False, "data": make(size)}
     if size <= 8:
         assert len(CANBUS_SEND_ACTION_SCHEMA(config)["data"]) == size
     else:

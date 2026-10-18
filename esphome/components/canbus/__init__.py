@@ -24,6 +24,12 @@ CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
 CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
+CONF_FD = "fd"
+CONF_BIT_RATE_SWITCH = "bit_rate_switch"
+CONF_PAD_DATA = "pad_data"
+CONF_DEFAULT_FD = "default_fd"
+CONF_DEFAULT_BIT_RATE_SWITCH = "default_bit_rate_switch"
+CONF_DEFAULT_PAD_DATA = "default_pad_data"
 DEFAULT_MAX_FRAMES_PER_LOOP = 50  # Keep in sync with max_frames_per_loop_ in canbus.h
 DEFAULT_BIT_RATE = "125KBPS"  # Keep in sync with bit_rate_ in canbus.h
 
@@ -108,6 +114,9 @@ CANBUS_SCHEMA = cv.Schema(
             CAN_SPEEDS, upper=True
         ),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
+        cv.Optional(CONF_DEFAULT_FD, default=False): cv.boolean_false,
+        cv.Optional(CONF_DEFAULT_BIT_RATE_SWITCH, default=False): cv.boolean_false,
+        cv.Optional(CONF_DEFAULT_PAD_DATA, default=False): cv.boolean,
         cv.Optional(
             CONF_MAX_FRAMES_PER_LOOP, default=DEFAULT_MAX_FRAMES_PER_LOOP
         ): cv.positive_not_null_int,
@@ -134,6 +143,12 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
     cg.add(var.set_can_id(config[CONF_CAN_ID]))
     if config[CONF_USE_EXTENDED_ID]:
         cg.add(var.set_use_extended_id(True))
+    if config[CONF_DEFAULT_FD]:
+        cg.add(var.set_default_fd(True))
+    if config[CONF_DEFAULT_BIT_RATE_SWITCH]:
+        cg.add(var.set_default_bit_rate_switch(True))
+    if config[CONF_DEFAULT_PAD_DATA]:
+        cg.add(var.set_default_pad_data(True))
     if (bit_rate := config[CONF_BIT_RATE]) != DEFAULT_BIT_RATE:
         cg.add(var.set_bitrate(CAN_SPEEDS[bit_rate]))
     if (max_frames := config[CONF_MAX_FRAMES_PER_LOOP]) != DEFAULT_MAX_FRAMES_PER_LOOP:
@@ -180,6 +195,30 @@ async def register_canbus(
     await setup_canbus_core_(var, config)
 
 
+def validate_send(config: ConfigType) -> ConfigType:
+    """Reject statically invalid frames without resolving inherited or templated flags."""
+    fd = config.get(CONF_FD)
+    if fd is False and config.get(CONF_BIT_RATE_SWITCH) is True:
+        raise cv.Invalid("bit_rate_switch requires fd: true")
+    if fd is True and config[CONF_REMOTE_TRANSMISSION_REQUEST]:
+        raise cv.Invalid("remote_transmission_request cannot be used with fd: true")
+
+    data = config[CONF_DATA]
+    if cg.is_template(data):
+        return config
+    if fd is False and len(data) > 8:
+        raise cv.Invalid("Classic CAN data must be at most 8 bytes")
+    pad_data = config.get(CONF_PAD_DATA)
+    if (
+        fd is True
+        and len(data) > 8
+        and len(data) not in (12, 16, 20, 24, 32, 48, 64)
+        and pad_data is False
+    ):
+        raise cv.Invalid("CAN FD data length requires pad_data: true")
+    return config
+
+
 # Actions
 CANBUS_SEND_ACTION_SCHEMA = cv.maybe_simple_value(
     {
@@ -187,12 +226,15 @@ CANBUS_SEND_ACTION_SCHEMA = cv.maybe_simple_value(
         cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
         cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST, default=False): cv.boolean,
-        # One classic CAN frame
+        cv.Optional(CONF_FD): cv.templatable(cv.boolean),
+        cv.Optional(CONF_BIT_RATE_SWITCH): cv.templatable(cv.boolean),
+        cv.Optional(CONF_PAD_DATA): cv.templatable(cv.boolean),
         cv.Required(CONF_DATA): cv.templatable(
-            cv.All(validate_raw_data, cv.Length(max=8))
+            cv.All(validate_raw_data, cv.Length(max=64))
         ),
     },
     validate_id,
+    validate_send,
     key=CONF_DATA,
 )
 
@@ -219,6 +261,16 @@ async def canbus_action_to_code(
     cg.add(
         var.set_remote_transmission_request(config[CONF_REMOTE_TRANSMISSION_REQUEST])
     )
+    if (fd := config.get(CONF_FD)) is not None:
+        cg.add(var.set_fd(await cg.templatable(fd, args, cg.bool_)))
+    if (bit_rate_switch := config.get(CONF_BIT_RATE_SWITCH)) is not None:
+        cg.add(
+            var.set_bit_rate_switch(
+                await cg.templatable(bit_rate_switch, args, cg.bool_)
+            )
+        )
+    if (pad_data := config.get(CONF_PAD_DATA)) is not None:
+        cg.add(var.set_pad_data(await cg.templatable(pad_data, args, cg.bool_)))
 
     await automation.templatable_bytes(
         config[CONF_DATA],

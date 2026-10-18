@@ -5,6 +5,7 @@
 #include "esphome/core/optional.h"
 
 #include <cinttypes>
+#include <cstddef>
 #include <vector>
 
 namespace esphome::canbus {
@@ -183,6 +184,13 @@ class Canbus : public Component {
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
   void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
+  // Defaults apply to canbus.send actions, not the classic-only send_data() overloads or explicit CanFrames.
+  void set_default_fd(bool default_fd) { this->default_fd_ = default_fd; }
+  void set_default_bit_rate_switch(bool default_bit_rate_switch) {
+    this->default_bit_rate_switch_ = default_bit_rate_switch;
+  }
+  void set_default_pad_data(bool default_pad_data) { this->default_pad_data_ = default_pad_data; }
+  virtual bool supports_fd() const { return false; }
   virtual CanStatus get_status() { return {}; }
 
   void add_trigger(CanbusTrigger *trigger);
@@ -205,6 +213,9 @@ class Canbus : public Component {
   uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
   CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
   bool use_extended_id_{false};
+  bool default_fd_{false};
+  bool default_bit_rate_switch_{false};
+  bool default_pad_data_{false};
   uint8_t events_to_log_{0};
   bool bus_off_{false};
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
@@ -236,6 +247,9 @@ class Canbus : public Component {
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
   TEMPLATABLE_BYTES(data)
+  TEMPLATABLE_VALUE(bool, fd)
+  TEMPLATABLE_VALUE(bool, bit_rate_switch)
+  TEMPLATABLE_VALUE(bool, pad_data)
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
@@ -249,9 +263,13 @@ template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, pu
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
     auto use_extended_id =
         this->use_extended_id_.has_value() ? *this->use_extended_id_ : this->parent_->use_extended_id_;
-    this->data_.template visit<CAN_MAX_DATA_LENGTH>(
+    const bool fd = this->fd_.value_or(x..., this->parent_->default_fd_);
+    const bool bit_rate_switch = this->bit_rate_switch_.value_or(x..., fd && this->parent_->default_bit_rate_switch_);
+    const bool pad_data = this->pad_data_.value_or(x..., this->parent_->default_pad_data_);
+    this->data_.template visit<CAN_FD_MAX_DATA_LENGTH>(
         [&](const uint8_t *data, size_t len) {
-          this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len);
+          this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len, fd,
+                                   bit_rate_switch, pad_data);
         },
         x...);
   }
