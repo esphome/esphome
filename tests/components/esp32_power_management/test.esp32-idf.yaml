@@ -3,6 +3,8 @@ substitutions:
   esp32_power_management_min_frequency: 40MHZ
   esp32_power_management_power_down_peripherals: "false"
   esp32_power_management_power_down_flash: "false"
+  esp32_power_management_binary_sensor_pin: GPIO2
+  esp32_power_management_output_pin: GPIO4
 
 packages:
   esp32_power_management: !include common.yaml

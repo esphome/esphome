@@ -9,3 +9,13 @@ power_management:
     power_down_peripherals: ${esp32_power_management_power_down_peripherals}
     profiling: true
     trace: true
+
+binary_sensor:
+  - platform: gpio
+    pin: ${esp32_power_management_binary_sensor_pin}
+    id: pm_gpio_binary_sensor
+
+output:
+  - platform: gpio
+    pin: ${esp32_power_management_output_pin}
+    id: pm_gpio_output
