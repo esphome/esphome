@@ -44,9 +44,6 @@ class MockUARTComponent : public uart::UARTComponent {
 #endif  // defined(USE_ESP8266) || defined(USE_ESP32)
 };
 
-// The test main constructs App; kept because the emontx tests still call it
-inline void construct_app() {}
-
 inline void cancel_timers(EmonTx *emontx) {
   for (uint32_t id = 0; id < 3; id++)
     App.scheduler.cancel_timeout(emontx, id);

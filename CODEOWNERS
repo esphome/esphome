@@ -512,6 +512,7 @@ esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rp2_ble_tracker/* @bdraco
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
+esphome/components/rtsp_server/* @max246
 esphome/components/rtttl/* @glmnet @ximex
 esphome/components/runtime_image/* @clydebarrow @guillempages @kahrendt
 esphome/components/runtime_stats/* @bdraco
@@ -687,7 +688,7 @@ esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
-esphome/components/water_heater/* @dhoeben
+esphome/components/water_heater/* @esphome/core
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/waveshare_io_ch32v003/* @latonita
 esphome/components/web_server/ota/* @esphome/core
@@ -726,6 +727,7 @@ esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/xxtea/* @clydebarrow
 esphome/components/zephyr/* @tomaszduda23
+esphome/components/zephyr_coredump/* @tomaszduda23
 esphome/components/zephyr_mcumgr/ota/* @tomaszduda23
 esphome/components/zephyr_pwm/* @wiomoc
 esphome/components/zhlt01/* @cfeenstra1024
