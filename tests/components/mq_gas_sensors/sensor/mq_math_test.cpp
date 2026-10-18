@@ -96,4 +96,37 @@ TEST(MqMath, BelowTheNoiseFloorReadsZero) {
   EXPECT_FLOAT_EQ(500.0f, clamp_ppm(976.97f, 0.0f, 500.0f));
 }
 
+TEST(MqMath, CalibrationSamplesMustAgree) {
+  // Clean air at 10 kOhm with ADC noise: a settled reference.
+  EXPECT_TRUE(calibration_is_stable(9.8f, 10.2f, 10.0f));
+  // A sensor that is still settling or not in clean air: (19 - 1) / 10 = 1.8.
+  EXPECT_FALSE(calibration_is_stable(1.0f, 19.0f, 10.0f));
+  // The limit is inclusive: 0.25 of the mean passes, a little more does not.
+  EXPECT_TRUE(calibration_is_stable(9.0f, 11.0f, 8.0f));
+  EXPECT_FALSE(calibration_is_stable(8.9f, 11.0f, 8.0f));
+  // Unusable values are never a settled reference.
+  EXPECT_FALSE(calibration_is_stable(NAN, 10.0f, 10.0f));
+  EXPECT_FALSE(calibration_is_stable(10.0f, NAN, 10.0f));
+  EXPECT_FALSE(calibration_is_stable(10.0f, 10.0f, NAN));
+  EXPECT_FALSE(calibration_is_stable(10.0f, 10.0f, 0.0f));
+}
+
+TEST(MqMath, CorrectionFollowsTemperatureAndHumidity) {
+  // At RH 33 % and 20 C the MQ-8 model reports 0.9052.
+  EXPECT_NEAR(0.9052f, correction_coefficient(33.0f, 20.0f, MQ8_TC), 0.0001f);
+  // The inputs are clamped to the fitted domain, and a missing reading disables
+  // the correction instead of invalidating the measurement.
+  EXPECT_FLOAT_EQ(1.0f, correction_coefficient(NAN, 20.0f, MQ8_TC));
+  EXPECT_FLOAT_EQ(1.0f, correction_coefficient(33.0f, NAN, MQ8_TC));
+  EXPECT_NEAR(correction_coefficient(33.0f, 20.0f, MQ8_TC), correction_coefficient(0.0f, 20.0f, MQ8_TC), 0.0001f);
+
+  // The ratio is divided by the correction; 1.0 leaves it alone.
+  EXPECT_FLOAT_EQ(1.0f, apply_correction(2.0f, 2.0f));
+  EXPECT_FLOAT_EQ(2.0f, apply_correction(2.0f, 1.0f));
+
+  // Absolute clamps to `max_ppm`, scaled to `max_ppm * correction`.
+  EXPECT_FLOAT_EQ(1000.0f, clamp_ppm_corrected(3000.0f, 0.0f, 1000.0f, 2.0f, CLAMP_ABSOLUTE));
+  EXPECT_FLOAT_EQ(2000.0f, clamp_ppm_corrected(3000.0f, 0.0f, 1000.0f, 2.0f, CLAMP_SCALED));
+}
+
 }  // namespace esphome::mq_gas_sensors::testing

@@ -2,9 +2,11 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
+import esphome
 from esphome import config_validation as cv
 from esphome.components.esp32 import (
     KEY_BOARD,
@@ -28,7 +30,7 @@ from esphome.components.mq_gas_sensors.sensor import (
     _auto_load,
 )
 from esphome.config import read_config
-from esphome.const import PlatformFramework
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, PlatformFramework
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -59,11 +61,14 @@ def test_built_in_curve_reaches_the_sensor(
     assert 'mq8_boot->set_gas("H2");' in main_cpp
     assert "mq8_boot->set_a(976.97f);" in main_cpp
     assert "mq8_boot->set_b(-0.688f);" in main_cpp
-    assert "mq8_boot->set_regression_method(1);" in main_cpp
+    assert (
+        "mq8_boot->set_regression_method(mq_gas_sensors::mqmath::REGRESSION_EXPONENTIAL);"
+        in main_cpp
+    )
     assert "mq8_boot->set_ratio_in_clean_air(70.0f);" in main_cpp
     assert "mq8_boot->set_voltage_multiplier(3.0f);" in main_cpp
     assert "mq8_boot->set_samples(4);" in main_cpp
-    assert "mq8_boot->set_calibration(5000, 5, 20);" in main_cpp
+    assert "mq8_boot->set_calibration(true, 70.0f, 5000, 0, 5, true);" in main_cpp
     # A fixed R0 skips the boot calibration.
     assert "mq4_fixed->set_r0(10.0f);" in main_cpp
     assert "mq4_fixed->set_calibration(" not in main_cpp
@@ -320,6 +325,36 @@ def test_unknown_sensor_type_is_rejected(
         )
 
 
+def test_coefficients_the_method_cannot_use_are_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The MQ-135 linear pair has a negative `a`, which exponential cannot take."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {"id": "mq135", "name": "MQ-135", "sensor_type": "MQ-135", "voltage": "adc"}
+    with pytest.raises(
+        cv.Invalid, match="MQ-135 with 'regression_method: exponential' needs"
+    ):
+        CONFIG_SCHEMA({**base, "regression_method": "exponential"})
+
+
+def test_coefficients_matching_the_overridden_method_are_accepted(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    config = CONFIG_SCHEMA(
+        {
+            "id": "mq135",
+            "name": "MQ-135",
+            "sensor_type": "MQ-135",
+            "voltage": "adc",
+            "regression_method": "exponential",
+            "coefficient_a": 110.47,
+            "coefficient_b": -2.862,
+        }
+    )
+    assert config["regression_method"] == "exponential"
+
+
 def test_unknown_gas_for_type_is_rejected(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
@@ -336,34 +371,71 @@ def test_unknown_gas_for_type_is_rejected(
         )
 
 
-def test_r0_and_calibration_are_exclusive(
+def test_r0_and_calibration_warn_but_resolve(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """A fixed R0 and a boot calibration cannot both define the reference."""
+    """A fixed R0 wins over the calibration; the configuration stays valid."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    with pytest.raises(cv.Invalid, match="Cannot specify more than one of"):
-        CONFIG_SCHEMA(
-            {
-                "id": "mq8",
-                "name": "MQ-8",
-                "sensor_type": "MQ-8",
-                "voltage": "mq8_adc",
-                "r0": 9.5,
-                "calibration": {"delay": "5s"},
-            }
-        )
+    config = CONFIG_SCHEMA(
+        {
+            "id": "mq8",
+            "name": "MQ-8",
+            "sensor_type": "MQ-8",
+            "voltage": "mq8_adc",
+            "r0": 9.5,
+            "calibration": {"delay": "5s"},
+        }
+    )
+
+    assert config["r0"] == pytest.approx(9.5)
 
 
-def test_sample_limits_follow_the_main_loop(
+def test_pin_creates_an_internal_adc(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """`pin:` owns its sampler: the hidden ADC feeds the sensor constructor."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "new(mq8_pin) mq_gas_sensors::MQGasSensor(mq8_pin_internal_adc);" in main_cpp
+    # The 20k/10k divider derives the multiplier from the wiring.
+    assert "mq8_pin->set_voltage_multiplier(3.0f);" in main_cpp
+    # `persist:` is the last calibration argument.
+    assert "mq8_pin->set_calibration(true, 70.0f, 5000, 0, 5, true);" in main_cpp
+
+
+def test_owned_adc_keeps_the_widest_range_by_default(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """A burst longer than 16 conversions and a spacing under the loop tick are rejected."""
+    """`adc_attenuation:` is optional; without it the owned ADC is at 12 dB."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {
+        "id": "mq8",
+        "name": "MQ-8",
+        "sensor_type": "MQ-8",
+        "pin": 34,
+        "voltage_divider": {"r1": 10.0, "r2": 2.0},
+        "vcc": 5.0,
+    }
+
+    config = CONFIG_SCHEMA(dict(base))
+    assert config[_KEY_GENERATED_ADC]["attenuation"] == "12db"
+
+    config = CONFIG_SCHEMA({**base, "name": "MQ-8 at 6 dB", "adc_attenuation": "6db"})
+    assert config[_KEY_GENERATED_ADC]["attenuation"] == "6db"
+
+
+def test_adc_options_need_the_owned_pin(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """`adc_attenuation:` / `adc_samples:` describe the internal ADC of `pin:`."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     base = {"id": "mq8", "name": "MQ-8", "sensor_type": "MQ-8", "voltage": "mq8_adc"}
-    with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA({**base, "sample_count": 17})
-    with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA({**base, "calibration": {"sample_interval": "10ms"}})
+
+    with pytest.raises(cv.Invalid, match="configures the internal ADC"):
+        CONFIG_SCHEMA({**base, "adc_attenuation": "6db"})
+    with pytest.raises(cv.Invalid, match="configures the internal ADC"):
+        CONFIG_SCHEMA({**base, "name": "MQ-8 sampled", "adc_samples": 4})
 
 
 def test_internal_adc_burst_is_bounded(
@@ -391,6 +463,19 @@ def test_internal_adc_burst_is_bounded(
                 "adc_samples": 255,
             }
         )
+
+
+def test_sample_count_and_interval_stay_within_one_loop_pass(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A burst longer than a loop tick (or a shorter spacing) is rejected."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {"id": "mq8", "name": "MQ-8", "sensor_type": "MQ-8", "voltage": "mq8_adc"}
+
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({**base, "sample_count": 17})
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({**base, "name": "MQ-8 fast", "sample_interval": "10ms"})
 
 
 def test_text_sensor_is_only_loaded_for_the_log_mirror() -> None:
@@ -427,52 +512,6 @@ def test_log_mirror_define_is_absent_without_the_option(
     assert not any(
         define.name == "USE_MQ_GAS_SENSORS_LOG_SENSOR" for define in CORE.defines
     )
-
-
-def test_pin_creates_an_internal_adc(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """`pin:` owns its sampler: the hidden ADC feeds the sensor constructor."""
-    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
-
-    assert "new(mq8_pin) mq_gas_sensors::MQGasSensor(mq8_pin_internal_adc);" in main_cpp
-    # The 20k/10k divider derives the multiplier from the wiring.
-    assert "mq8_pin->set_voltage_multiplier(3.0f);" in main_cpp
-
-
-def test_owned_adc_keeps_the_widest_range_by_default(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """`adc_attenuation:` is optional; without it the owned ADC is at 12 dB."""
-    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    base = {
-        "id": "mq8",
-        "name": "MQ-8",
-        "sensor_type": "MQ-8",
-        "pin": 34,
-        "voltage_divider": {"r1": 10.0, "r2": 2.0},
-        "vcc": 5.0,
-    }
-
-    config = CONFIG_SCHEMA(dict(base))
-    assert config[_KEY_GENERATED_ADC]["attenuation"] == "12db"
-
-    config = CONFIG_SCHEMA({**base, "name": "MQ-8 at 6 dB", "adc_attenuation": "6db"})
-    assert config[_KEY_GENERATED_ADC]["attenuation"] == "6db"
-
-
-def test_adc_options_need_the_owned_pin(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """`adc_attenuation:` / `adc_samples:` describe the internal ADC of `pin:`."""
-    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    base = {"id": "mq8", "name": "MQ-8", "sensor_type": "MQ-8", "voltage": "mq8_adc"}
-
-    with pytest.raises(cv.Invalid, match="configures the internal ADC"):
-        CONFIG_SCHEMA({**base, "adc_attenuation": "6db"})
-    with pytest.raises(cv.Invalid, match="configures the internal ADC"):
-        CONFIG_SCHEMA({**base, "name": "MQ-8 sampled", "adc_samples": 4})
 
 
 def test_esp32_attenuation_ranges_follow_the_variant() -> None:
@@ -664,59 +703,120 @@ def test_raw_adc_source_is_refused(
     assert "outputs raw counts" in captured.out
 
 
-def test_diagnostics_and_log_are_wired(
+def test_diagnostics_and_log_are_owned_entities(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
+    """The mirrors of the measurement chain are created by the component itself."""
     main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    # The mirrors are child entities of the sensor - registered by the component
+    # and marked as diagnostics, not wired to `sensor:` entries of the user.
+    for entity_id, name in (
+        ("mq8_ratio", "MQ-8 ratio"),
+        ("mq8_rs", "MQ-8 RS"),
+        ("mq8_voltage", "MQ-8 voltage"),
+        ("mq8_correction", "MQ-8 T-RH correction"),
+        ("mq8_r0", "MQ-8 R0"),
+    ):
+        assert f'App.register_sensor({entity_id}, "{name}"' in main_cpp
+    assert 'App.register_text_sensor(mq8_logs, "MQ-8 logs"' in main_cpp
+    assert "// category:diagnostic" in main_cpp
+    assert "template__mq8_ratio" not in main_cpp
 
     assert "mq8_pin->set_ratio_sensor(mq8_ratio);" in main_cpp
     assert "mq8_pin->set_rs_sensor(mq8_rs);" in main_cpp
     assert "mq8_pin->set_voltage_sensor(mq8_voltage);" in main_cpp
+    assert "mq8_pin->set_correction_sensor(mq8_correction);" in main_cpp
+    assert "mq8_pin->set_r0_sensor(mq8_r0);" in main_cpp
     assert "mq8_pin->set_log_sensor(mq8_logs);" in main_cpp
     assert "mq8_pin->set_log_ppm(true);" in main_cpp
+    # The linked T/RH sensors switch the compensation on.
+    assert (
+        "mq8_pin->set_correction_mode(mq_gas_sensors::mqmath::CORRECTION_MQDATASCIENCE);"
+        in main_cpp
+    )
+    assert "mq8_pin->set_temperature_source(mq8_temperature);" in main_cpp
+    assert "mq8_pin->set_humidity_source(mq8_humidity);" in main_cpp
 
 
-def test_custom_coefficients_reach_the_sensor(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """Types without built-in curves take `coefficient_a/b` from the YAML."""
-    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
-
-    assert "mq136_custom->set_a(36.0f);" in main_cpp
-    assert "mq136_custom->set_b(-2.0f);" in main_cpp
-    assert "mq136_custom->set_regression_method(2);" in main_cpp
-    assert "mq136_custom->set_ratio_mode(1);" in main_cpp
-    assert "mq136_custom->set_min_ppm(1.0f);" in main_cpp
-    assert "mq136_custom->set_max_ppm(200.0f);" in main_cpp
-
-
-def test_coefficients_the_method_cannot_use_are_rejected(
+def test_diagnostics_default_to_the_diagnostic_category(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """The MQ-135 linear pair has a negative `a`, which exponential cannot take."""
-    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    base = {"id": "mq135", "name": "MQ-135", "sensor_type": "MQ-135", "voltage": "adc"}
-    with pytest.raises(
-        cv.Invalid, match="MQ-135 with 'regression_method: exponential' needs"
-    ):
-        CONFIG_SCHEMA({**base, "regression_method": "exponential"})
-
-
-def test_coefficients_matching_the_overridden_method_are_accepted(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
+    """A mirror is a diagnostic entity with a unit of its own, without being asked."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     config = CONFIG_SCHEMA(
         {
-            "id": "mq135",
-            "name": "MQ-135",
-            "sensor_type": "MQ-135",
-            "voltage": "adc",
-            "regression_method": "exponential",
-            "coefficient_a": 110.47,
-            "coefficient_b": -2.862,
+            "id": "mq8",
+            "name": "MQ-8",
+            "sensor_type": "MQ-8",
+            "voltage": "mq8_adc",
+            "rs_sensor": {"name": "MQ-8 RS"},
+            "log_sensor": {"name": "MQ-8 logs"},
         }
     )
-    assert config["regression_method"] == "exponential"
+
+    assert config["rs_sensor"]["entity_category"] == ENTITY_CATEGORY_DIAGNOSTIC
+    assert config["rs_sensor"]["unit_of_measurement"] == "kOhm"
+    assert config["rs_sensor"]["accuracy_decimals"] == 3
+    assert config["log_sensor"]["entity_category"] == ENTITY_CATEGORY_DIAGNOSTIC
+
+
+def test_calibration_action_reaches_the_sensor(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """`mq_gas_sensors.calibrate_r0` runs the calibration from an automation."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "::mq8_boot->start_calibration();" in main_cpp
+
+
+def test_a_bad_pin_is_reported_as_a_pin(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """`pin:` is validated before the divider guard, so the pin is what fails."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with pytest.raises(cv.Invalid, match="Cannot resolve pin name"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "pin": "NOT_A_PIN",
+            }
+        )
+
+
+def test_the_firmware_clamp_matches_the_code_generation_clamp() -> None:
+    """`mq_math.h` clamps `a` and `b` on the device with its own limits.
+
+    A table value is clamped twice, once here by `resolve_sensor()` and once on the
+    device by `mqmath::clamp_a()` / `clamp_b()`, so a change to one limit has to be
+    mirrored in the other.
+    """
+    header = (
+        Path(esphome.__file__).parent / "components" / "mq_gas_sensors" / "mq_math.h"
+    )
+    source = header.read_text(encoding="utf-8")
+
+    for name, limit in (("MQ_MAX_A", MQ_MAX_A), ("MQ_MAX_B", MQ_MAX_B)):
+        match = re.search(rf"static constexpr double {name} = ([^;]+);", source)
+        assert match is not None, f"{name} is not defined in {header.name}"
+        assert float(match.group(1)) == limit
+
+
+def test_mqdatascience_curve_reaches_the_sensor(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The alternative dataset replaces the built-in coefficients."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "mq8_curve->set_a(18391.5667f);" in main_cpp
+    assert "mq8_curve->set_b(-1.4494f);" in main_cpp
+    assert (
+        "mq8_curve->set_regression_method(mq_gas_sensors::mqmath::REGRESSION_INVERSE);"
+        in main_cpp
+    )
+    assert "mq8_curve->set_max_ppm(20000.0f);" in main_cpp
