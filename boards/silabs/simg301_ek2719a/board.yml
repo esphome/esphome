@@ -1,6 +1,0 @@
-boards:
-  - name: simg301_ek2719a
-    full_name: SixG301 Explorer Kit (BRD2719A)
-    vendor: silabs
-    socs:
-      - name: simg301m104lil
