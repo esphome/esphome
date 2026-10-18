@@ -6,7 +6,23 @@
 
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c.zephyr";
+ESPHOME_LOG_TAG(TAG, "i2c");
+
+static const char *get_speed(uint32_t dev_config) {
+  switch (I2C_SPEED_GET(dev_config)) {
+    case I2C_SPEED_STANDARD:
+      return "100 kHz";
+    case I2C_SPEED_FAST:
+      return "400 kHz";
+    case I2C_SPEED_FAST_PLUS:
+      return "1 MHz";
+    case I2C_SPEED_HIGH:
+      return "3.4 MHz";
+    case I2C_SPEED_ULTRA:
+      return "5 MHz";
+  }
+  return "unknown";
+}
 
 void ZephyrI2CBus::setup() {
   if (!device_is_ready(this->i2c_dev_)) {
@@ -31,21 +47,6 @@ void ZephyrI2CBus::setup() {
 }
 
 void ZephyrI2CBus::dump_config() {
-  auto get_speed = [](uint32_t dev_config) {
-    switch (I2C_SPEED_GET(dev_config)) {
-      case I2C_SPEED_STANDARD:
-        return "100 kHz";
-      case I2C_SPEED_FAST:
-        return "400 kHz";
-      case I2C_SPEED_FAST_PLUS:
-        return "1 MHz";
-      case I2C_SPEED_HIGH:
-        return "3.4 MHz";
-      case I2C_SPEED_ULTRA:
-        return "5 MHz";
-    }
-    return "unknown";
-  };
   ESP_LOGCONFIG(TAG,
                 "I2C Bus:\n"
                 "  SDA Pin: GPIO%u\n"
@@ -119,14 +120,33 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
   return ERROR_OK;
 }
 
-void ZephyrI2CBus::set_frequency(uint32_t frequency) {
-  this->dev_config_ &= ~I2C_SPEED_MASK;
-  if (frequency >= 400000) {
-    this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_FAST);
-  } else {
-    this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_STANDARD);
-  }
+static uint32_t speed_config(uint32_t dev_config, uint32_t frequency) {
+  const uint32_t speed = frequency >= 400000 ? I2C_SPEED_FAST : I2C_SPEED_STANDARD;
+  return (dev_config & ~I2C_SPEED_MASK) | I2C_SPEED_SET(speed);
 }
+
+void ZephyrI2CBus::set_frequency(uint32_t frequency) {
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  this->frequency_ = frequency;
+#endif
+  this->dev_config_ = speed_config(this->dev_config_, frequency);
+}
+
+#ifdef I2C_PORT_FREQUENCY_COUNT
+ErrorCode ZephyrI2CBus::switch_frequency(uint32_t frequency) {
+  if (this->frequency_ == frequency) {
+    return ERROR_OK;
+  }
+  const uint32_t dev_config = speed_config(this->dev_config_, frequency);
+  // Until ready, setup() applies dev_config_
+  if (this->is_ready() && i2c_configure(this->i2c_dev_, dev_config) < 0) {
+    return ERROR_UNKNOWN;
+  }
+  this->dev_config_ = dev_config;
+  this->frequency_ = frequency;
+  return ERROR_OK;
+}
+#endif
 
 }  // namespace esphome::i2c
 

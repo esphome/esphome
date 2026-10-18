@@ -9,8 +9,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 
 enum ENUMPollingCommand {
   POLLING_QPIRI = 0,
@@ -20,6 +19,8 @@ enum ENUMPollingCommand {
   POLLING_QPIWS = 4,
   POLLING_QT = 5,
   POLLING_QMN = 6,
+  POLLING_QET = 7,
+  POLLING_QLT = 8,
 };
 struct PollingCommand {
   uint8_t *command;
@@ -57,7 +58,7 @@ struct QFLAGValues {
   PIPSOLAR_ENTITY_(binary_sensor::BinarySensor, name, polling_command)
 #define PIPSOLAR_TEXT_SENSOR(name, polling_command) PIPSOLAR_ENTITY_(text_sensor::TextSensor, name, polling_command)
 
-class Pipsolar : public uart::UARTDevice, public PollingComponent {
+class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   // QPIGS values
   PIPSOLAR_SENSOR(grid_voltage, QPIGS)
   PIPSOLAR_SENSOR(grid_frequency, QPIGS)
@@ -116,6 +117,12 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_SENSOR(battery_redischarge_voltage, QPIRI)
   PIPSOLAR_SENSOR(pv_ok_condition_for_parallel, QPIRI)
   PIPSOLAR_SENSOR(pv_power_balance, QPIRI)
+
+  // QET value
+  PIPSOLAR_SENSOR(total_pv_generated_energy, QET)
+
+  // QLT value
+  PIPSOLAR_SENSOR(total_output_load_energy, QLT)
 
   // QMOD values
   PIPSOLAR_TEXT_SENSOR(device_mode, QMOD)
@@ -176,6 +183,8 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_TEXT_SENSOR(last_qpiws, QPIWS)
   PIPSOLAR_TEXT_SENSOR(last_qt, QT)
   PIPSOLAR_TEXT_SENSOR(last_qmn, QMN)
+  PIPSOLAR_TEXT_SENSOR(last_qet, QET)
+  PIPSOLAR_TEXT_SENSOR(last_qlt, QLT)
 
   PIPSOLAR_SWITCH(output_source_priority_utility_switch, QPIRI)
   PIPSOLAR_SWITCH(output_source_priority_solar_switch, QPIRI)
@@ -214,6 +223,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void handle_qpiws_(const char *message);
   void handle_qt_(const char *message);
   void handle_qmn_(const char *message);
+  void handle_single_int_(const char *message, text_sensor::TextSensor *raw, sensor::Sensor *value);
 
   void skip_start_(const char *message, size_t *pos);
   void skip_field_(const char *message, size_t *pos);
@@ -246,5 +256,4 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   PollingCommand enabled_polling_commands_[POLLING_COMMANDS_MAX];
 };
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

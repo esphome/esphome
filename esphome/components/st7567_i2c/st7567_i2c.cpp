@@ -1,18 +1,16 @@
 #include "st7567_i2c.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7567_i2c {
+namespace esphome::st7567_i2c {
 
-static const char *const TAG = "st7567_i2c";
+ESPHOME_LOG_TAG(TAG, "st7567_i2c");
 
 void I2CST7567::setup() {
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   ST7567::setup();
@@ -20,19 +18,15 @@ void I2CST7567::setup() {
 
 void I2CST7567::dump_config() {
   LOG_DISPLAY("", "I2CST7567", this);
-  LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s\n"
                 "  Invert Colors: %s",
-                YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->invert_colors_));
+                this->model_str_(), YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->invert_colors_));
+  LOG_I2C_DEVICE(this);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_UPDATE_INTERVAL(this);
-
-  if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void I2CST7567::command(uint8_t value) { this->write_byte(0x00, value); }
@@ -58,5 +52,4 @@ void HOT I2CST7567::write_display_data() {
   }
 }
 
-}  // namespace st7567_i2c
-}  // namespace esphome
+}  // namespace esphome::st7567_i2c

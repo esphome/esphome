@@ -2,9 +2,11 @@ from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["output"]
 CODEOWNERS = ["@BoukeHaarsma23", "@matika77", "@dd32"]
+DOMAIN = "sm2135"
 
 sm2135_ns = cg.esphome_ns.namespace("sm2135")
 SM2135 = sm2135_ns.class_("SM2135", cg.Component)
@@ -15,29 +17,31 @@ CONF_SEPARATE_MODES = "separate_modes"
 
 SM2135Current = sm2135_ns.enum("SM2135Current")
 
-DRIVE_STRENGTHS_CW = {
-    "10mA": SM2135Current.SM2135_CURRENT_10MA,
-    "15mA": SM2135Current.SM2135_CURRENT_15MA,
-    "20mA": SM2135Current.SM2135_CURRENT_20MA,
-    "25mA": SM2135Current.SM2135_CURRENT_25MA,
-    "30mA": SM2135Current.SM2135_CURRENT_30MA,
-    "35mA": SM2135Current.SM2135_CURRENT_35MA,
-    "40mA": SM2135Current.SM2135_CURRENT_40MA,
-    "45mA": SM2135Current.SM2135_CURRENT_45MA,
-    "50mA": SM2135Current.SM2135_CURRENT_50MA,
-    "55mA": SM2135Current.SM2135_CURRENT_55MA,
-    "60mA": SM2135Current.SM2135_CURRENT_60MA,
-}
-DRIVE_STRENGTHS_RGB = {
-    "10mA": SM2135Current.SM2135_CURRENT_10MA,
-    "15mA": SM2135Current.SM2135_CURRENT_15MA,
-    "20mA": SM2135Current.SM2135_CURRENT_20MA,
-    "25mA": SM2135Current.SM2135_CURRENT_25MA,
-    "30mA": SM2135Current.SM2135_CURRENT_30MA,
-    "35mA": SM2135Current.SM2135_CURRENT_35MA,
-    "40mA": SM2135Current.SM2135_CURRENT_40MA,
-    "45mA": SM2135Current.SM2135_CURRENT_45MA,
-}
+DRIVE_STRENGTHS_CW = SM2135Current.options(
+    "10mA",
+    "15mA",
+    "20mA",
+    "25mA",
+    "30mA",
+    "35mA",
+    "40mA",
+    "45mA",
+    "50mA",
+    "55mA",
+    "60mA",
+    prefix="SM2135_CURRENT_",
+)
+DRIVE_STRENGTHS_RGB = SM2135Current.options(
+    "10mA",
+    "15mA",
+    "20mA",
+    "25mA",
+    "30mA",
+    "35mA",
+    "40mA",
+    "45mA",
+    prefix="SM2135_CURRENT_",
+)
 
 
 MULTI_CONF = True
@@ -53,7 +57,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

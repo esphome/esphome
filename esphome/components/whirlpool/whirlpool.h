@@ -2,13 +2,13 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace whirlpool {
+namespace esphome::whirlpool {
 
 /// Simple enum to represent models.
 enum Model {
-  MODEL_DG11J1_3A = 0,  /// Temperature range is from 18 to 32
-  MODEL_DG11J1_91 = 1,  /// Temperature range is from 16 to 30
+  MODEL_DG11J1_3A = 0,    /// Temperature range is from 18 to 32
+  MODEL_DG11J1_91 = 1,    /// Temperature range is from 16 to 30
+  MODEL_HISENSE_ARG = 2,  /// Hisense/BGH (Argentina), 16 to 30
 };
 
 // Temperature
@@ -17,13 +17,9 @@ const float WHIRLPOOL_DG11J1_3A_TEMP_MIN = 18.0;
 const float WHIRLPOOL_DG11J1_91_TEMP_MAX = 30.0;
 const float WHIRLPOOL_DG11J1_91_TEMP_MIN = 16.0;
 
-class WhirlpoolClimate : public climate_ir::ClimateIR {
+class WhirlpoolClimate final : public climate_ir::ClimateIR {
  public:
-  WhirlpoolClimate()
-      : climate_ir::ClimateIR(temperature_min_(), temperature_max_(), 1.0f, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
+  WhirlpoolClimate();
 
   void setup() override {
     climate_ir::ClimateIR::setup();
@@ -37,7 +33,11 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
     climate_ir::ClimateIR::control(call);
   }
 
-  void set_model(Model model) { this->model_ = model; }
+  void set_model(Model model) {
+    this->model_ = model;
+    this->minimum_temperature_ = temperature_min_();
+    this->maximum_temperature_ = temperature_max_();
+  }
 
   // used to track when to send the power toggle command
   bool powered_on_assumed;
@@ -47,10 +47,22 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   void transmit_state() override;
   /// Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
+  /// False when the model is compiled out, so the compiler drops the Hisense ARG branches.
+  bool is_hisense_arg_() const {
+#ifdef USE_WHIRLPOOL_HISENSE_ARG
+    return this->model_ == MODEL_HISENSE_ARG;
+#else
+    return false;
+#endif
+  }
+  /// Modes in which the Hisense ARG model sends a fixed temperature.
+  bool fixed_temp_mode_() const;
+  /// Add the Hisense ARG bytes on top of the common whirlpool frame.
+  void encode_hisense_arg_(uint8_t *remote_state, bool power_toggle, uint8_t temp_step) const;
   /// Set the time of the last transmission.
-  int32_t last_transmit_time_{};
+  uint32_t last_transmit_time_{};
 
-  bool send_swing_cmd_{false};
+  bool send_swing_cmd_{false};  // the DG11J1 remotes send swing as a toggle, only on the call that changed it
   Model model_;
 
   float temperature_min_() {
@@ -61,5 +73,4 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   }
 };
 
-}  // namespace whirlpool
-}  // namespace esphome
+}  // namespace esphome::whirlpool

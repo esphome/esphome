@@ -6,10 +6,11 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace xgzp68xx {
+namespace esphome::xgzp68xx {
 
-static const char *const TAG = "xgzp68xx.sensor";
+ESPHOME_LOG_TAG(TAG, "xgzp68xx.sensor");
+
+static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 
 static const uint8_t CMD_ADDRESS = 0x30;
 static const uint8_t SYSCONFIG_ADDRESS = 0xA5;
@@ -55,7 +56,7 @@ void XGZP68XXComponent::update() {
   this->write_register(0x30, &READ_COMMAND, 1);
 
   // Wait 20mS per datasheet
-  this->set_timeout("measurement", 20, [this]() {
+  this->set_timeout(MEASUREMENT_TIMEOUT_ID, 20, [this]() {
     uint8_t data[5] = {};
     uint32_t pressure_raw = 0;
     uint16_t temperature_raw = 0;
@@ -72,12 +73,10 @@ void XGZP68XXComponent::update() {
     temperature_raw = encode_uint16(data[3], data[4]);
 
     // Convert the pressure data to hPa
-    ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u", pressure_raw, temperature_raw);
-    ESP_LOGV(TAG, "K value is %u", this->k_value_);
+    ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u, K value=%u", pressure_raw, temperature_raw,
+             this->k_value_);
 
-    // Sign extend the pressure
-    float pressure_in_pa = (float) (((int32_t) pressure_raw << 8) >> 8);
-    pressure_in_pa /= (float) (this->k_value_);
+    const float pressure_in_pa = static_cast<float>(sign_extend<24>(pressure_raw)) / this->k_value_;
 
     float temperature = ((float) (int16_t) temperature_raw) / 256.0f;
 
@@ -94,11 +93,11 @@ void XGZP68XXComponent::setup() {
 
   // Display some sample bits to confirm we are talking to the sensor
   if (i2c::ErrorCode::ERROR_OK != this->read_register(SYSCONFIG_ADDRESS, &config1, 1)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (i2c::ErrorCode::ERROR_OK != this->read_register(PCONFIG_ADDRESS, &config2, 1)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   ESP_LOGD(TAG, "sys_config 0x%x, p_config 0x%x", config1, config2);
@@ -112,11 +111,7 @@ void XGZP68XXComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
   }
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Connection failed");
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace xgzp68xx
-}  // namespace esphome
+}  // namespace esphome::xgzp68xx

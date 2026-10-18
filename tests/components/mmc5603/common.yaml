@@ -2,6 +2,7 @@ sensor:
   - platform: mmc5603
     i2c_id: i2c_bus
     address: 0x30
+    auto_set_reset: true
     field_strength_x:
       name: HMC5883L Field Strength X
     field_strength_y:

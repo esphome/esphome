@@ -4,28 +4,26 @@
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateBinaryOutput : public output::BinaryOutput {
+class TemplateBinaryOutput final : public output::BinaryOutput {
  public:
-  Trigger<bool> *get_trigger() const { return trigger_; }
+  Trigger<bool> *get_trigger() { return &this->trigger_; }
 
  protected:
-  void write_state(bool state) override { this->trigger_->trigger(state); }
+  void write_state(bool state) override { this->trigger_.trigger(state); }
 
-  Trigger<bool> *trigger_ = new Trigger<bool>();
+  Trigger<bool> trigger_;
 };
 
-class TemplateFloatOutput : public output::FloatOutput {
+class TemplateFloatOutput final : public output::FloatOutput {
  public:
-  Trigger<float> *get_trigger() const { return trigger_; }
+  Trigger<float> *get_trigger() { return &this->trigger_; }
 
  protected:
-  void write_state(float state) override { this->trigger_->trigger(state); }
+  void write_state(float state) override { this->trigger_.trigger(state); }
 
-  Trigger<float> *trigger_ = new Trigger<float>();
+  Trigger<float> trigger_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

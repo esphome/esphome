@@ -11,7 +11,5 @@ file is included in the build, LVGL is always included.
 #endif                  // LV_CONF_H
 
 #include <lvgl.h>
-namespace esphome {
-namespace lvgl {}  // namespace lvgl
-}  // namespace esphome
-#endif  // USE_LVGL
+namespace esphome::lvgl {}  // namespace esphome::lvgl
+#endif                      // USE_LVGL

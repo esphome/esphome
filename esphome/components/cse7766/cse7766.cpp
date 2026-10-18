@@ -1,11 +1,15 @@
 #include "cse7766.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <cmath>
 
-namespace esphome {
-namespace cse7766 {
+namespace esphome::cse7766 {
 
-static const char *const TAG = "cse7766";
+ESPHOME_LOG_TAG(TAG, "cse7766");
+
+// The chip only sends the time since the last pulse once a cycle is longer than 1 s (in us)
+static constexpr uint32_t MIN_HELD_POWER_CYCLE = 1000000;
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -14,28 +18,41 @@ void CSE7766Component::loop() {
     this->raw_data_index_ = 0;
   }
 
-  if (this->available() == 0) {
+  // Early return prevents updating last_transmission_ when no data is available.
+  size_t avail = this->available();
+  if (avail == 0) {
     return;
   }
 
   this->last_transmission_ = now;
-  while (this->available() != 0) {
-    this->read_byte(&this->raw_data_[this->raw_data_index_]);
-    if (!this->check_byte_()) {
-      this->raw_data_index_ = 0;
-      this->status_set_warning();
-      continue;
-    }
 
-    if (this->raw_data_index_ == 23) {
-      this->parse_data_();
-      this->status_clear_warning();
+  // Read all available bytes in batches to reduce UART call overhead.
+  // At 4800 baud (~480 bytes/sec) with ~122 Hz loop rate, typically ~4 bytes per call.
+  uint8_t buf[CSE7766_RAW_DATA_SIZE];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
     }
+    avail -= to_read;
 
-    this->raw_data_index_ = (this->raw_data_index_ + 1) % 24;
+    for (size_t i = 0; i < to_read; i++) {
+      this->raw_data_[this->raw_data_index_] = buf[i];
+      if (!this->check_byte_()) {
+        this->raw_data_index_ = 0;
+        this->status_set_warning();
+        continue;
+      }
+
+      if (this->raw_data_index_ == CSE7766_RAW_DATA_SIZE - 1) {
+        this->parse_data_();
+        this->status_clear_warning();
+      }
+
+      this->raw_data_index_ = (this->raw_data_index_ + 1) % CSE7766_RAW_DATA_SIZE;
+    }
   }
 }
-float CSE7766Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool CSE7766Component::check_byte_() {
   uint8_t index = this->raw_data_index_;
@@ -52,14 +69,12 @@ bool CSE7766Component::check_byte_() {
     return true;
   }
 
-  if (index == 23) {
-    uint8_t checksum = 0;
-    for (uint8_t i = 2; i < 23; i++) {
-      checksum += this->raw_data_[i];
-    }
+  if (index == CSE7766_RAW_DATA_SIZE - 1) {
+    const uint8_t checksum = sum_bytes(this->raw_data_ + 2, CSE7766_RAW_DATA_SIZE - 3);
 
-    if (checksum != this->raw_data_[23]) {
-      ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum, this->raw_data_[23]);
+    if (checksum != this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]) {
+      ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum,
+               this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]);
       return false;
     }
     return true;
@@ -70,8 +85,8 @@ bool CSE7766Component::check_byte_() {
 void CSE7766Component::parse_data_() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    std::string s = format_hex_pretty(this->raw_data_, sizeof(this->raw_data_));
-    ESP_LOGVV(TAG, "Raw data: %s", s.c_str());
+    char hex_buf[format_hex_pretty_size(CSE7766_RAW_DATA_SIZE)];
+    ESP_LOGVV(TAG, "Raw data: %s", format_hex_pretty_to(hex_buf, this->raw_data_, sizeof(this->raw_data_)));
   }
 #endif
 
@@ -142,13 +157,32 @@ void CSE7766Component::parse_data_() {
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
     have_power = true;
+    this->last_power_cycle_ = 0;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(0.0f);
     }
   } else if (have_power) {
     power = power_coeff / float(power_cycle);
+    this->last_power_cycle_ = power_cycle;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
+    }
+  } else if (this->last_power_cycle_ > MIN_HELD_POWER_CYCLE && power_cycle <= 2 * this->last_power_cycle_) {
+    // No new measurement in this frame. With cycles over 1 s the register holds the last
+    // cycle or the time elapsed since the last pulse. While that time is within twice the
+    // last cycle, the next pulse is not overdue, so the last measurement still applies.
+    // Shorter cycles never get here in normal operation and keep the previous behaviour.
+    have_power = true;
+    power = power_coeff / float(this->last_power_cycle_);
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(power);
+    }
+  } else {
+    // The next pulse is overdue: the load has dropped, report 0 W. A load that drops to less
+    // than half also reads 0 W here until its first new pulse arrives.
+    this->last_power_cycle_ = 0;
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(0.0f);
     }
   }
 
@@ -174,21 +208,22 @@ void CSE7766Component::parse_data_() {
       this->apparent_power_sensor_->publish_state(apparent_power);
     }
     if (have_power && this->reactive_power_sensor_ != nullptr) {
-      const float reactive_power = apparent_power - power;
-      if (reactive_power < 0.0f) {
-        ESP_LOGD(TAG, "Impossible reactive power: %.4f is negative", reactive_power);
+      const float q_squared = apparent_power * apparent_power - power * power;
+      if (q_squared < 0.0f) {
+        ESP_LOGD(TAG, "Impossible reactive power: S^2-P^2 is negative (%.4f)", q_squared);
         this->reactive_power_sensor_->publish_state(0.0f);
       } else {
-        this->reactive_power_sensor_->publish_state(reactive_power);
+        this->reactive_power_sensor_->publish_state(std::sqrt(q_squared));
       }
     }
     if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
       float pf = NAN;
       if (apparent_power > 0) {
         pf = power / apparent_power;
-        if (pf < 0 || pf > 1) {
-          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
-          pf = NAN;
+        if (pf > 1) {
+          // Noise near the chip's resolution limit, seen during inrush, pushes the ratio past unity
+          ESP_LOGD(TAG, "Power factor %.4f above 1, clamped", pf);
+          pf = 1.0f;
         }
       } else if (apparent_power == 0 && power == 0) {
         // No load, report ideal power factor
@@ -205,20 +240,24 @@ void CSE7766Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    std::string buf = "Parsed:";
+    // Buffer: 7 + 15 + 33 + 15 + 25 = 95 chars max + null, rounded to 128 for safety margin.
+    // Float sizes with %.4f can be up to 11 chars for large values (e.g., 999999.9999).
+    char buf[128];
+    size_t pos = buf_append_printf(buf, sizeof(buf), 0, "Parsed:");
     if (have_voltage) {
-      buf += str_sprintf(" V=%fV", voltage);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " V=%.4fV", voltage);
     }
     if (have_current) {
-      buf += str_sprintf(" I=%fmA (~%fmA)", current * 1000.0f, calculated_current * 1000.0f);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " I=%.4fmA (~%.4fmA)", current * 1000.0f,
+                              calculated_current * 1000.0f);
     }
     if (have_power) {
-      buf += str_sprintf(" P=%fW", power);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " P=%.4fW", power);
     }
     if (energy != 0.0f) {
-      buf += str_sprintf(" E=%fkWh (%u)", energy, cf_pulses);
+      buf_append_printf(buf, sizeof(buf), pos, " E=%.4fkWh (%u)", energy, cf_pulses);
     }
-    ESP_LOGVV(TAG, "%s", buf.c_str());
+    ESP_LOGVV(TAG, "%s", buf);
   }
 #endif
 }
@@ -232,8 +271,6 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
   LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
-  this->check_uart_settings(4800, 1, uart::UART_CONFIG_PARITY_EVEN);
 }
 
-}  // namespace cse7766
-}  // namespace esphome
+}  // namespace esphome::cse7766

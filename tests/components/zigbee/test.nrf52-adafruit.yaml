@@ -1,0 +1,1 @@
+<<: !include common_nrf52.yaml

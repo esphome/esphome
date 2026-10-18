@@ -3,16 +3,16 @@
 
 #include "bme280_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
 
-#define BME280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+namespace esphome::bme280_base {
 
-namespace esphome {
-namespace bme280_base {
+ESPHOME_LOG_TAG(TAG, "bme280.sensor");
 
-static const char *const TAG = "bme280.sensor";
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 static const uint8_t BME280_REGISTER_DIG_T1 = 0x88;
 static const uint8_t BME280_REGISTER_DIG_T2 = 0x8A;
@@ -99,19 +99,17 @@ void BME280Component::setup() {
   }
 
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x60) {
-    this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(BME280_ERROR_WRONG_CHIP_ID);
+    this->mark_failed(LOG_STR("Wrong chip ID or no response"));
     return;
   }
 
   // Send a soft reset.
   if (!this->write_byte(BME280_REGISTER_RESET, BME280_SOFT_RESET)) {
-    this->mark_failed("Reset failed");
+    this->mark_failed(LOG_STR("Reset failed"));
     return;
   }
   // Wait until the NVM data has finished loading.
@@ -120,12 +118,12 @@ void BME280Component::setup() {
   do {  // NOLINT
     delay(2);
     if (!this->read_byte(BME280_REGISTER_STATUS, &status)) {
-      this->mark_failed("Error reading status register");
+      this->mark_failed(LOG_STR("Error reading status register"));
       return;
     }
   } while ((status & BME280_STATUS_IM_UPDATE) && (--retry));
   if (status & BME280_STATUS_IM_UPDATE) {
-    this->mark_failed("Timeout loading NVM");
+    this->mark_failed(LOG_STR("Timeout loading NVM"));
     return;
   }
 
@@ -147,48 +145,39 @@ void BME280Component::setup() {
   this->calibration_.h1 = read_u8_(BME280_REGISTER_DIG_H1);
   this->calibration_.h2 = read_s16_le_(BME280_REGISTER_DIG_H2);
   this->calibration_.h3 = read_u8_(BME280_REGISTER_DIG_H3);
-  this->calibration_.h4 = read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F);
-  this->calibration_.h5 = read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4);
+  this->calibration_.h4 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F));
+  this->calibration_.h5 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4));
   this->calibration_.h6 = read_u8_(BME280_REGISTER_DIG_H6);
 
   uint8_t humid_control_val = 0;
   if (!this->read_byte(BME280_REGISTER_CONTROLHUMID, &humid_control_val)) {
-    this->mark_failed("Read humidity control");
+    this->mark_failed(LOG_STR("Read humidity control"));
     return;
   }
   humid_control_val &= ~0b00000111;
   humid_control_val |= this->humidity_oversampling_ & 0b111;
   if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, humid_control_val)) {
-    this->mark_failed("Write humidity control");
+    this->mark_failed(LOG_STR("Write humidity control"));
     return;
   }
 
   uint8_t config_register = 0;
   if (!this->read_byte(BME280_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed("Read config");
+    this->mark_failed(LOG_STR("Read config"));
     return;
   }
   config_register &= ~0b11111100;
   config_register |= 0b101 << 5;  // 1000 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->write_byte(BME280_REGISTER_CONFIG, config_register)) {
-    this->mark_failed("Write config");
+    this->mark_failed(LOG_STR("Write config"));
     return;
   }
 }
 void BME280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME280:");
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, BME280_ERROR_WRONG_CHIP_ID);
-      break;
-    case NONE:
-    default:
-      break;
-  }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
 
@@ -199,7 +188,6 @@ void BME280Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->humidity_oversampling_));
 }
-float BME280Component::get_setup_priority() const { return setup_priority::DATA; }
 
 inline uint8_t oversampling_to_time(BME280Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }
 
@@ -220,7 +208,7 @@ void BME280Component::update() {
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
   meas_time += 2.3f * oversampling_to_time(this->humidity_oversampling_) + 0.575f;
 
-  this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ceilf(meas_time)), [this]() {
     uint8_t data[8];
     if (!this->read_bytes(BME280_REGISTER_MEASUREMENTS, data, 8)) {
       ESP_LOGW(TAG, "Error reading registers");
@@ -340,7 +328,6 @@ void BME280Component::set_pressure_oversampling(BME280Oversampling pressure_over
 void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
   this->humidity_oversampling_ = humidity_over_sampling;
 }
-void BME280Component::set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BME280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->read_byte(a_register, &data);
@@ -353,5 +340,4 @@ uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bme280_base
-}  // namespace esphome
+}  // namespace esphome::bme280_base

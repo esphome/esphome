@@ -1,10 +1,9 @@
 #include "smt100.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace smt100 {
+namespace esphome::smt100 {
 
-static const char *const TAG = "smt100";
+ESPHOME_LOG_TAG(TAG, "smt100");
 
 void SMT100Component::update() {
   ESP_LOGV(TAG, "Sending measurement request");
@@ -12,14 +11,33 @@ void SMT100Component::update() {
 }
 
 void SMT100Component::loop() {
-  static char buffer[MAX_LINE_LENGTH];
   while (this->available() != 0) {
-    if (readline_(read(), buffer, MAX_LINE_LENGTH) > 0) {
-      int counts = (int) strtol((strtok(buffer, ",")), nullptr, 10);
-      float permittivity = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float moisture = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float temperature = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float voltage = (float) strtod((strtok(nullptr, ",")), nullptr);
+    const int readch = this->read();
+    if (readch <= 0)
+      continue;
+    char *line = this->line_reader_.feed(readch);
+    this->line_reader_.log_if_overflowed(TAG);
+    if (line != nullptr && line[0] != '\0') {
+      char *token = strtok(line, ",");
+      if (!token)
+        continue;
+      int counts = (int) strtol(token, nullptr, 10);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float permittivity = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float moisture = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float temperature = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float voltage = (float) strtod(token, nullptr);
 
       if (this->counts_sensor_ != nullptr) {
         counts_sensor_->publish_state(counts);
@@ -44,8 +62,6 @@ void SMT100Component::loop() {
   }
 }
 
-float SMT100Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void SMT100Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SMT100:");
 
@@ -54,31 +70,6 @@ void SMT100Component::dump_config() {
   LOG_SENSOR(TAG, "Temperature", this->temperature_sensor_);
   LOG_SENSOR(TAG, "Moisture", this->moisture_sensor_);
   LOG_UPDATE_INTERVAL(this);
-  this->check_uart_settings(9600);
 }
 
-int SMT100Component::readline_(int readch, char *buffer, int len) {
-  static int pos = 0;
-  int rpos;
-
-  if (readch > 0) {
-    switch (readch) {
-      case '\n':  // Ignore new-lines
-        break;
-      case '\r':  // Return on CR
-        rpos = pos;
-        pos = 0;  // Reset position index ready for next time
-        return rpos;
-      default:
-        if (pos < len - 1) {
-          buffer[pos++] = readch;
-          buffer[pos] = 0;
-        }
-    }
-  }
-  // No end of line has been found, so return -1.
-  return -1;
-}
-
-}  // namespace smt100
-}  // namespace esphome
+}  // namespace esphome::smt100

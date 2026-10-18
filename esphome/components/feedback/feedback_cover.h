@@ -8,18 +8,17 @@
 #endif
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace feedback {
+namespace esphome::feedback {
 
-class FeedbackCover : public cover::Cover, public Component {
+class FeedbackCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
 
-  Trigger<> *get_open_trigger() const { return this->open_trigger_; }
-  Trigger<> *get_close_trigger() const { return this->close_trigger_; }
-  Trigger<> *get_stop_trigger() const { return this->stop_trigger_; }
+  Trigger<> *get_open_trigger() { return &this->open_trigger_; }
+  Trigger<> *get_close_trigger() { return &this->close_trigger_; }
+  Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
 
 #ifdef USE_BINARY_SENSOR
   void set_open_endstop(binary_sensor::BinarySensor *open_endstop);
@@ -34,6 +33,9 @@ class FeedbackCover : public cover::Cover, public Component {
   void set_has_built_in_endstop(bool value) { this->has_built_in_endstop_ = value; }
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
   void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+  void set_overshoot_duration(uint32_t overshoot_duration) { this->overshoot_duration_ = overshoot_duration; }
+#endif
   void set_obstacle_rollback(float obstacle_rollback) { this->obstacle_rollback_ = obstacle_rollback; }
   void set_update_interval(uint32_t interval) { this->update_interval_ = interval; }
   void set_infer_endstop(bool infer_endstop) { this->infer_endstop_ = infer_endstop; }
@@ -61,13 +63,16 @@ class FeedbackCover : public cover::Cover, public Component {
   binary_sensor::BinarySensor *close_obstacle_{nullptr};
 
 #endif
-  Trigger<> *open_trigger_{new Trigger<>()};
-  Trigger<> *close_trigger_{new Trigger<>()};
-  Trigger<> *stop_trigger_{new Trigger<>()};
+  Trigger<> open_trigger_;
+  Trigger<> close_trigger_;
+  Trigger<> stop_trigger_;
 
   uint32_t open_duration_{0};
   uint32_t close_duration_{0};
   uint32_t max_duration_{UINT32_MAX};
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+  uint32_t overshoot_duration_{0};
+#endif
   optional<uint32_t> direction_change_waittime_{};
   uint32_t acceleration_wait_time_{0};
   bool has_built_in_endstop_{false};
@@ -81,9 +86,11 @@ class FeedbackCover : public cover::Cover, public Component {
   uint32_t last_recompute_time_{0};
   uint32_t start_dir_time_{0};
   uint32_t last_publish_time_{0};
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+  uint32_t start_overshoot_time_{0};
+#endif
   float target_position_{0};
   uint32_t update_interval_{1000};
 };
 
-}  // namespace feedback
-}  // namespace esphome
+}  // namespace esphome::feedback

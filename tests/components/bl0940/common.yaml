@@ -1,11 +1,11 @@
 button:
   - platform: bl0940
-    bl0940_id: test_id
+    bl0940_id: bl0940_test_id
     name: Cal Reset
 
 sensor:
   - platform: bl0940
-    id: test_id
+    id: bl0940_test_id
     voltage:
       name: BL0940 Voltage
     current:
@@ -22,7 +22,7 @@ sensor:
 number:
   - platform: bl0940
     id: bl0940_number_id
-    bl0940_id: test_id
+    bl0940_id: bl0940_test_id
     current_calibration:
       name: Cal Current
       min_value: -5

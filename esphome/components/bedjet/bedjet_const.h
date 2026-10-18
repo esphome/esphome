@@ -1,11 +1,11 @@
 #pragma once
 
 #include <set>
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
-static const char *const TAG = "bedjet";
+ESPHOME_LOG_TAG(TAG, "bedjet");
 
 /// Converts a BedJet fan step to a speed percentage, in the range of 5% to 100%.
 inline static uint8_t bedjet_fan_step_to_speed(const uint8_t fan) {
@@ -101,5 +101,4 @@ static const uint8_t BEDJET_FAN_SPEED_COUNT = 20;
 
 static constexpr const char *const BEDJET_FAN_STEP_NAMES[BEDJET_FAN_SPEED_COUNT] = BEDJET_FAN_STEP_NAMES_;
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet

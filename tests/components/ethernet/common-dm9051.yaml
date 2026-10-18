@@ -13,3 +13,7 @@ ethernet:
     subnet: 255.255.255.0
   domain: .local
   mac_address: "02:AA:BB:CC:DD:01"
+  on_connect:
+    - logger.log: "Ethernet connected!"
+  on_disconnect:
+    - logger.log: "Ethernet disconnected!"

@@ -1,8 +1,7 @@
 #include "mcp9808.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp9808 {
+namespace esphome::mcp9808 {
 
 static const uint8_t MCP9808_REG_AMBIENT_TEMP = 0x05;
 static const uint8_t MCP9808_REG_MANUF_ID = 0x06;
@@ -15,28 +14,33 @@ static const uint8_t MCP9808_AMBIENT_CLEAR_FLAGS = 0x1F;
 static const uint8_t MCP9808_AMBIENT_CLEAR_SIGN = 0x0F;
 static const uint8_t MCP9808_AMBIENT_TEMP_NEGATIVE = 0x10;
 
-static const char *const TAG = "mcp9808";
+ESPHOME_LOG_TAG(TAG, "mcp9808");
 
 void MCP9808Sensor::setup() {
   uint16_t manu = 0;
-  if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu) || manu != MCP9808_MANUF_ID) {
-    this->mark_failed();
+  if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  if (manu != MCP9808_MANUF_ID) {
     ESP_LOGE(TAG, "Incorrect manufacturer ID (%X) for '%s'", manu, this->name_.c_str());
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
   uint16_t dev_id = 0;
-  if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id) || dev_id != MCP9808_DEV_ID) {
-    this->mark_failed();
+  if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  if (dev_id != MCP9808_DEV_ID) {
     ESP_LOGE(TAG, "Incorrect device ID (%X) for '%s'", dev_id, this->name_.c_str());
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 }
 void MCP9808Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "%s:", this->name_.c_str());
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->name_.c_str());
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this);
 }
@@ -73,7 +77,5 @@ void MCP9808Sensor::update() {
   this->publish_state(temp);
   this->status_clear_warning();
 }
-float MCP9808Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
-}  // namespace mcp9808
-}  // namespace esphome
+}  // namespace esphome::mcp9808

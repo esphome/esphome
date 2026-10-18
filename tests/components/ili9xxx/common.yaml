@@ -11,6 +11,7 @@ display:
     cs_pin: ${cs_pin1}
     dc_pin: ${dc_pin1}
     reset_pin: ${reset_pin1}
+    data_rate: 20MHz
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
@@ -27,5 +28,6 @@ display:
     reset_pin: ${reset_pin2}
     auto_clear_enabled: false
     rotation: 90
+    data_rate: 20MHz
     lambda: |-
       it.fill(Color::WHITE);

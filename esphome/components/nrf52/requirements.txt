@@ -1,0 +1,4 @@
+west==1.5.0
+ninja==1.13.0
+cmake==4.3.2
+adafruit-nrfutil @ git+https://github.com/adafruit/Adafruit_nRF52_nrfutil.git@7fdfe15feee5f304fb7d9b031721dcefa1f72b58

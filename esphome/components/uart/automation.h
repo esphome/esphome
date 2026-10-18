@@ -5,38 +5,18 @@
 
 #include <vector>
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
-template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Parented<UARTComponent> {
- public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
-    this->static_ = false;
-  }
-  void set_data_static(std::vector<uint8_t> &&data) {
-    this->data_static_ = std::move(data);
-    this->static_ = true;
-  }
-  void set_data_static(std::initializer_list<uint8_t> data) {
-    this->data_static_ = std::vector<uint8_t>(data);
-    this->static_ = true;
-  }
+template<typename... Ts> class UARTWriteAction final : public Action<Ts...>, public Parented<UARTComponent> {
+  TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-    if (this->static_) {
-      this->parent_->write_array(this->data_static_);
+    if (this->data_.is_static()) {
+      this->parent_->write_array_progmem(this->data_.data(), this->data_.size());
     } else {
-      auto val = this->data_func_(x...);
-      this->parent_->write_array(val);
+      this->parent_->write_array(this->data_.value(x...));
     }
   }
-
- protected:
-  bool static_{false};
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

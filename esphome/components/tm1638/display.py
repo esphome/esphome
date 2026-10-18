@@ -7,9 +7,9 @@ from esphome.const import (
     CONF_DIO_PIN,
     CONF_ID,
     CONF_INTENSITY,
-    CONF_LAMBDA,
     CONF_STB_PIN,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@skykingjwc"]
 
@@ -31,7 +31,7 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 
@@ -46,9 +46,4 @@ async def to_code(config):
 
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(TM1638ComponentRef, "it")], return_type=cg.void
-        )
-
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, TM1638ComponentRef)

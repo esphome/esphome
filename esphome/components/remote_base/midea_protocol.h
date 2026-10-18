@@ -4,11 +4,11 @@
 #include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 class MideaData {
  public:
@@ -22,6 +22,9 @@ class MideaData {
   MideaData(const std::vector<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
+  MideaData(const uint8_t *data, size_t len) {
+    progmem_memcpy(this->data_.data(), data, std::min(len, this->data_.size()));
+  }
 
   uint8_t *data() { return this->data_.data(); }
   const uint8_t *data() const { return this->data_.data(); }
@@ -29,7 +32,13 @@ class MideaData {
   bool is_valid() const { return this->data_[OFFSET_CS] == this->calc_cs_(); }
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool is_compliment(const MideaData &rhs) const;
-  std::string to_string() const { return format_hex_pretty(this->data_.data(), this->data_.size()); }
+  /// Buffer size for to_str(): 6 bytes = "AA.BB.CC.DD.EE.FF\0"
+  static constexpr size_t TO_STR_BUFFER_SIZE = format_hex_pretty_size(6);
+  /// Format to buffer, returns pointer to buffer
+  const char *to_str(char *buffer) const {
+    format_hex_pretty_to(buffer, TO_STR_BUFFER_SIZE, this->data_.data(), this->data_.size(), '.');
+    return buffer;
+  }
   // compare only 40-bits
   bool operator==(const MideaData &rhs) const {
     return std::equal(this->data_.begin(), this->data_.begin() + OFFSET_CS, rhs.data_.begin());
@@ -53,7 +62,7 @@ class MideaData {
     this->data_[idx] |= (value << shift);
   }
   void set_mask_(uint8_t idx, bool state, uint8_t mask = 255) { this->set_value_(idx, state ? mask : 0, mask); }
-  static const uint8_t OFFSET_CS = 5;
+  static constexpr uint8_t OFFSET_CS = 5;
   // 48-bits data
   std::array<uint8_t, 6> data_;
   // Calculate checksum
@@ -62,22 +71,11 @@ class MideaData {
 
 class MideaProtocol : public RemoteProtocol<MideaData> {
  public:
-  void encode(RemoteTransmitData *dst, const MideaData &src) override;
-  optional<MideaData> decode(RemoteReceiveData src) override;
-  void dump(const MideaData &data) override;
+  void encode(RemoteTransmitData *dst, const MideaData &src);
+  optional<MideaData> decode(RemoteReceiveData src);
+  void dump(const MideaData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Midea)
 
-template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<Ts...> {
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, code)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    MideaData data(this->code_.value(x...));
-    data.finalize();
-    MideaProtocol().encode(dst, data);
-  }
-};
-
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

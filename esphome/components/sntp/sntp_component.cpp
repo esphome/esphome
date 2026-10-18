@@ -9,10 +9,9 @@
 #include "lwip/apps/sntp.h"
 #endif
 
-namespace esphome {
-namespace sntp {
+namespace esphome::sntp {
 
-static const char *const TAG = "sntp";
+ESPHOME_LOG_TAG(TAG, "sntp");
 
 #if defined(USE_ESP32)
 SNTPComponent *SNTPComponent::instance = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -61,6 +60,7 @@ void SNTPComponent::dump_config() {
   for (auto &server : this->servers_) {
     ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server);
   }
+  RealTimeClock::dump_config();
 }
 void SNTPComponent::update() {
 #if !defined(USE_ESP32)
@@ -101,5 +101,4 @@ void SNTPComponent::time_synced() {
   this->time_sync_callback_.call();
 }
 
-}  // namespace sntp
-}  // namespace esphome
+}  // namespace esphome::sntp

@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ina260 {
+namespace esphome::ina260 {
 
-static const char *const TAG = "ina260";
+ESPHOME_LOG_TAG(TAG, "ina260");
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -37,8 +36,7 @@ static const uint8_t INA260_REGISTER_DEVICE_ID = 0xFF;
 void INA260Component::setup() {
   // Reset device on setup
   if (!this->write_byte_16(INA260_REGISTER_CONFIG, 0x8000)) {
-    this->error_code_ = DEVICE_RESET_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Device reset failed - Is the device connected?"));
     return;
   }
 
@@ -48,44 +46,27 @@ void INA260Component::setup() {
   this->read_byte_16(INA260_REGISTER_DEVICE_ID, &this->device_id_);
 
   if (this->manufacture_id_ != (uint16_t) 0x5449 || this->device_id_ != (uint16_t) 0x2270) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Connected device does not match a known INA260 sensor"));
     return;
   }
 
   if (!this->write_byte_16(INA260_REGISTER_CONFIG, (uint16_t) 0b0000001100000111)) {
-    this->error_code_ = FAILED_TO_UPDATE_CONFIGURATION;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to update device configuration"));
     return;
   }
 }
 
 void INA260Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "INA260:");
+  ESP_LOGCONFIG(TAG,
+                "INA260:\n"
+                "  Manufacture ID: 0x%x\n"
+                "  Device ID: 0x%x",
+                this->manufacture_id_, this->device_id_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-
-  ESP_LOGCONFIG(TAG, "  Manufacture ID: 0x%x", this->manufacture_id_);
-  ESP_LOGCONFIG(TAG, "  Device ID: 0x%x", this->device_id_);
-
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
-
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Connected device does not match a known INA260 sensor");
-      break;
-    case DEVICE_RESET_FAILED:
-      ESP_LOGE(TAG, "Device reset failed - Is the device connected?");
-      break;
-    case FAILED_TO_UPDATE_CONFIGURATION:
-      ESP_LOGE(TAG, "Failed to update device configuration");
-      break;
-    case NONE:
-    default:
-      break;
-  }
 }
 
 void INA260Component::update() {
@@ -122,5 +103,4 @@ void INA260Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace ina260
-}  // namespace esphome
+}  // namespace esphome::ina260

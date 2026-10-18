@@ -1,9 +1,16 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
+DOMAIN = "sx127x"
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["spi"]
@@ -15,11 +22,9 @@ CONF_BANDWIDTH = "bandwidth"
 CONF_BITRATE = "bitrate"
 CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
-CONF_CRC_ENABLE = "crc_enable"
 CONF_DEVIATION = "deviation"
 CONF_DIO0_PIN = "dio0_pin"
 CONF_MODULATION = "modulation"
-CONF_ON_PACKET = "on_packet"
 CONF_PA_PIN = "pa_pin"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
@@ -77,16 +82,9 @@ CODING_RATE = {
     "CR_4_8": SX127xModemCfg1.CODING_RATE_4_8,
 }
 
-MOD = {
-    "LORA": SX127xOpMode.MOD_LORA,
-    "FSK": SX127xOpMode.MOD_FSK,
-    "OOK": SX127xOpMode.MOD_OOK,
-}
+MOD = SX127xOpMode.options("LORA", "FSK", "OOK", prefix="MOD_")
 
-PA_PIN = {
-    "RFO": SX127xPaConfig.PA_PIN_RFO,
-    "BOOST": SX127xPaConfig.PA_PIN_BOOST,
-}
+PA_PIN = SX127xPaConfig.options("RFO", "BOOST", prefix="PA_PIN_")
 
 RAMP = {
     "10us": SX127xPaRamp.PA_RAMP_10,
@@ -116,27 +114,12 @@ SHAPING = {
     "NONE": SX127xPaRamp.SHAPING_NONE,
 }
 
-RunImageCalAction = sx127x_ns.class_(
-    "RunImageCalAction", automation.Action, cg.Parented.template(SX127x)
-)
 SendPacketAction = sx127x_ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(SX127x)
 )
-SetModeTxAction = sx127x_ns.class_(
-    "SetModeTxAction", automation.Action, cg.Parented.template(SX127x)
-)
-SetModeRxAction = sx127x_ns.class_(
-    "SetModeRxAction", automation.Action, cg.Parented.template(SX127x)
-)
-SetModeSleepAction = sx127x_ns.class_(
-    "SetModeSleepAction", automation.Action, cg.Parented.template(SX127x)
-)
-SetModeStandbyAction = sx127x_ns.class_(
-    "SetModeStandbyAction", automation.Action, cg.Parented.template(SX127x)
-)
 
 
-def validate_raw_data(value):
+def validate_raw_data(value: Any) -> bytes | list[int]:
     if isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(value, list):
@@ -146,7 +129,12 @@ def validate_raw_data(value):
     )
 
 
-def validate_config(config):
+MAX_PACKET_SIZE = 255
+# The radio's payload length register is 8 bits, and empty packets are rejected.
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
+
+
+def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_MODULATION] == "LORA":
         bws = [
             "7_8kHz",
@@ -196,16 +184,22 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BITSYNC): cv.boolean,
             cv.Optional(CONF_CODING_RATE, default="CR_4_5"): cv.enum(CODING_RATE),
             cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
-            cv.Optional(CONF_DEVIATION, default=5000): cv.int_range(min=0, max=100000),
+            cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
+                cv.frequency, cv.int_range(min=0, max=100000)
+            ),
             cv.Optional(CONF_DIO0_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Required(CONF_FREQUENCY): cv.int_range(min=137000000, max=1020000000),
+            cv.Required(CONF_FREQUENCY): cv.All(
+                cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
+            ),
             cv.Required(CONF_MODULATION): cv.enum(MOD),
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
             cv.Optional(CONF_PA_PIN, default="BOOST"): cv.enum(PA_PIN),
             cv.Optional(CONF_PA_POWER, default=17): cv.int_range(min=0, max=17),
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
             cv.Optional(CONF_PACKET_MODE): cv.boolean,
-            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(min=0, max=256),
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
+                min=0, max=MAX_PACKET_SIZE
+            ),
             cv.Optional(CONF_PREAMBLE_DETECT, default=0): cv.int_range(min=0, max=3),
             cv.Optional(CONF_PREAMBLE_ERRORS, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_PREAMBLE_POLARITY, default=0xAA): cv.All(
@@ -226,10 +220,8 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await spi.new_spi_component(config)
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),
@@ -278,48 +270,46 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "sx127x.run_image_cal", RunImageCalAction, NO_ARGS_ACTION_SCHEMA
-)
-@automation.register_action(
-    "sx127x.set_mode_tx", SetModeTxAction, NO_ARGS_ACTION_SCHEMA
-)
-@automation.register_action(
-    "sx127x.set_mode_rx", SetModeRxAction, NO_ARGS_ACTION_SCHEMA
-)
-@automation.register_action(
-    "sx127x.set_mode_sleep", SetModeSleepAction, NO_ARGS_ACTION_SCHEMA
-)
-@automation.register_action(
-    "sx127x.set_mode_standby", SetModeStandbyAction, NO_ARGS_ACTION_SCHEMA
-)
-async def no_args_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("sx127x.run_image_cal", "run_image_cal()"),
+    ("sx127x.set_mode_tx", "set_mode_tx()"),
+    ("sx127x.set_mode_rx", "set_mode_rx()"),
+    ("sx127x.set_mode_sleep", "set_mode_sleep()"),
+    ("sx127x.set_mode_standby", "set_mode_standby()"),
+):
+    automation.register_apply_action(
+        _name, NO_ARGS_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(SX127x),
-        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+        cv.Required(CONF_DATA): cv.templatable(validate_packet_data),
     },
     key=CONF_DATA,
 )
 
 
 @automation.register_action(
-    "sx127x.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+    "sx127x.send_packet",
+    SendPacketAction,
+    SEND_PACKET_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def send_packet_action_to_code(config, action_id, template_arg, args):
+async def send_packet_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        cg.add(var.set_data_static(data))
+    await automation.templatable_bytes(
+        config[CONF_DATA],
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "sx127x_data",
+    )
     return var

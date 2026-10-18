@@ -4,37 +4,21 @@
 #ifdef USE_NETWORK
 #include "esphome/core/automation.h"
 
-#include <vector>
+namespace esphome::udp {
 
-namespace esphome {
-namespace udp {
+/// Constant payloads up to this size are sent from the stack on ESP8266.
+static constexpr size_t STACK_PAYLOAD_SIZE = 128;
 
-template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Parented<UDPComponent> {
- public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
-    this->static_ = false;
-  }
-  void set_data_static(const std::vector<uint8_t> &data) {
-    this->data_static_ = data;
-    this->static_ = true;
-  }
+template<typename... Ts> class UDPWriteAction final : public Action<Ts...>, public Parented<UDPComponent> {
+  TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-    if (this->static_) {
-      this->parent_->send_packet(this->data_static_);
-    } else {
-      auto val = this->data_func_(x...);
-      this->parent_->send_packet(val);
-    }
+    // One sendto per packet, so a failed allocation never sends a partial packet
+    this->data_.template visit<STACK_PAYLOAD_SIZE>(
+        [this](const uint8_t *data, size_t len) { this->parent_->send_packet(data, len); }, x...);
   }
-
- protected:
-  bool static_{false};
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
 };
 
-}  // namespace udp
-}  // namespace esphome
+}  // namespace esphome::udp
+
 #endif

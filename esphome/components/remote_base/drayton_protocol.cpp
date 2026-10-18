@@ -3,23 +3,21 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.drayton";
+ESPHOME_LOG_TAG(TAG, "remote.drayton");
 
-static const uint32_t BIT_TIME_US = 500;
-static const uint8_t CARRIER_KHZ = 2;
-static const uint8_t NBITS_PREAMBLE = 12;
-static const uint8_t NBITS_SYNC = 4;
-static const uint8_t NBITS_ADDRESS = 16;
-static const uint8_t NBITS_CHANNEL = 5;
-static const uint8_t NBITS_COMMAND = 7;
-static const uint8_t NDATABITS = NBITS_ADDRESS + NBITS_CHANNEL + NBITS_COMMAND;
-static const uint8_t MIN_RX_SRC = (NDATABITS + NBITS_SYNC / 2);
-
-static const uint8_t CMD_ON = 0x41;
-static const uint8_t CMD_OFF = 0x02;
+static constexpr uint32_t BIT_TIME_US = 500;
+static constexpr uint8_t CARRIER_KHZ = 2;
+static constexpr uint8_t NBITS_PREAMBLE = 12;
+static constexpr uint8_t NBITS_SYNC = 4;
+static constexpr uint8_t NBITS_ADDRESS = 16;
+static constexpr uint8_t NBITS_DATA = 4;
+static constexpr uint8_t NBITS_CHECKSUM = 8;
+static constexpr uint8_t NBITS_COMMAND = 7;
+static constexpr uint8_t NBITS_CHANNEL = 5;
+static constexpr uint8_t NBITS_PKT = NBITS_ADDRESS + NBITS_DATA + NBITS_CHECKSUM;
+static constexpr uint8_t MIN_RX_SRC = (NBITS_PKT + NBITS_SYNC / 2);
 
 /*
 Drayton Protocol
@@ -32,58 +30,71 @@ The number of these bits seen at the receiver varies depending on the state
 of the bias when the packet transmission starts. The receiver algoritmn takes
 account of this.
 
-The packet appears to be Manchester encoded, with a '10' tranmitted pair
-representing a '1' bit and a '01' pair representing a '0' bit. Each packet is
-begun with a '1100' syncronisation symbol which breaks this rule. Following
+The packet is Manchester coded, with a '10' tranmitted pair representing
+a '1' bit and a '01' pair representing a '0' bit. Each packet is begun
+with a '1100' syncronisation symbol which breaks this rule. Following
 the sync are 28 '01' or '10' pairs.
 
 --------------------
 
-Boiler On Command as received:
+Sample Boiler On Command as received:
 101010101010110001101001010101101001010101010101100101010101101001011001
 ppppppppppppSSSS-0-1-1-0-0-0-0-1-1-0-0-0-0-0-0-0-1-0-0-0-0-0-1-1-0-0-1-0
 
 (Where pppp represents the preamble bits and SSSS represents the sync symbol)
 
-28 bits of data received 01100001100000001000001 10010 (bin) or 6180832 (hex)
+28 bits received 01100001100000001000001 10010 (bin) or 6180832 (hex)
 
-Boiler Off Command as received:
+Sample Boiler Off Command as received:
 101010101010110001101001010101101001010101010101010101010110011001011001
 ppppppppppppSSSS-0-1-1-0-0-0-0-1-1-0-0-0-0-0-0-0-0-0-0-0-0-1-0-1-0-0-1-0
 
-28 bits of data received 0110000110000000000001010010 (bin) or 6180052 (hex)
+28 bits received 0110000110000000000001010010 (bin) or 6180052 (hex)
 
 --------------------
 
-I have used 'RFLink' software (RLink Firmware Version: 1.1 Revision: 48) to
-capture and retransmit the Digistat packets. RFLink splits each packet into an
-ID, SWITCH, and CMD field.
+The 28 bits consist of 20 bits of payload and 8 bits of checksum.
 
-0;17;Drayton;ID=c300;SWITCH=12;CMD=ON;
-20;18;Drayton;ID=c300;SWITCH=12;CMD=OFF;
+In order of transmission the payload consists of the following fields:
 
---------------------
+Bits Description
+12   ID of the thermostat. A Digistat receiver will only respond to a packet if its ID
+     matches the ID that the receiver has previously learnt.
+4    Pairing field, normally 0000. The first packets sent by the thermostat after its
+     batteries are inserted have this field set to 0001, which lets a Digistat receiver
+     in pairing mode learn the ID of the thermostat.
+1    Thermostat on (1) or off (0).
+1    Always 0.
+1    Low battery (1) or battery OK (0).
+1    Always 0.
 
-Spliting my received data into three parts of 16, 7 and 5 bits gives address,
-channel and Command values of:
+The YAML/lambda 'address' is the first 16 bits as sent (the 12 bit ID followed by the
+pairing field, so the pairing flag is the address LSB), and 'data' is the next 4 bits
+(0x8 = on, 0x2 = low battery).
 
-On  6180832  0110000110000000 1000001 10010
-address: '0x6180' channel: '0x12' command: '0x41'
+Checksum: see calc_cs(); the +1 when the sum is above 0x7F is empirical. The captured
+packets above give 0x32 (On) and 0x52 (Off). Packets that fail it are logged at verbose level.
 
-Off 6180052  0110000110000000 0000010 10010
-address: '0x6180' channel: '0x12' command: '0x02'
-
-These values are slightly different to those used by RFLink (the RFLink
-ID/Adress value is rotated/manipulated), and I don't know who's interpretation
-is correct. A larger data sample would help (I have only found five different
-packet captures online) or definitive information from Drayton.
-
-Splitting each packet in this way works well for me with esphome. Any
-corrections or additional data samples would be gratefully received.
-
-marshn
+Legacy split (from RFLink): address (16), command (7: data + top 3 checksum bits), channel (5: low checksum bits).
+When channel and command are set they are sent as is, with no checksum calculated.
 
 */
+
+static uint8_t calc_cs(uint32_t out_data) {
+  uint16_t cs = 0;
+  uint32_t rev = reverse_bits(out_data);
+
+  for (uint8_t i = 4; i <= 20; i += 4) {
+    cs <<= 1;
+    cs += (rev >> i) & 0x0F;
+  }
+
+  if (cs > 0x7F) {
+    cs += 1;
+  }
+  // Sent LSB first
+  return reverse_bits(uint8_t(cs << 1));
+}
 
 void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
   uint16_t khz = CARRIER_KHZ;
@@ -109,17 +120,21 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
     }
   }
 
-  ESP_LOGD(TAG, "Send Drayton: address=%04x channel=%03x cmd=%02x", data.address, data.channel, data.command);
+  if (data.channel || data.command) {
+    out_data = data.address;
+    out_data <<= NBITS_COMMAND;
+    out_data |= data.command;
+    out_data <<= NBITS_CHANNEL;
+    out_data |= data.channel;
+  } else {
+    out_data = data.address << (NBITS_DATA + NBITS_CHECKSUM);
+    out_data |= (data.data & ((1u << NBITS_DATA) - 1)) << NBITS_CHECKSUM;  // a lambda may exceed 4 bits
+    out_data |= calc_cs(out_data);
+  }
+  ESP_LOGD(TAG, "addr=%04x data=%x channel=%02x command=%02x", data.address, data.data, data.channel, data.command);
+  ESP_LOGV(TAG, "out_data %07" PRIx32, out_data);
 
-  out_data = data.address;
-  out_data <<= NBITS_COMMAND;
-  out_data |= data.command;
-  out_data <<= NBITS_CHANNEL;
-  out_data |= data.channel;
-
-  ESP_LOGV(TAG, "Send Drayton: out_data %08" PRIx32, out_data);
-
-  for (uint32_t mask = 1UL << (NDATABITS - 1); mask != 0; mask >>= 1) {
+  for (uint32_t mask = 1UL << (NBITS_PKT - 1); mask != 0; mask >>= 1) {
     if (out_data & mask) {
       dst->mark(BIT_TIME_US);
       dst->space(BIT_TIME_US);
@@ -131,21 +146,9 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
 }
 
 optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
-  DraytonData out{
-      .address = 0,
-      .channel = 0,
-      .command = 0,
-  };
+  DraytonData out{};
 
   while (src.size() - src.get_index() >= MIN_RX_SRC) {
-    ESP_LOGVV(TAG,
-              "Decode Drayton: %" PRId32 ", %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
-              " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
-              " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 "",
-              src.size() - src.get_index(), src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4),
-              src.peek(5), src.peek(6), src.peek(7), src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12),
-              src.peek(13), src.peek(14), src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
-
     // If first preamble item is a space, skip it
     if (src.peek_space_at_least(1)) {
       src.advance(1);
@@ -153,12 +156,12 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
 
     // Look for sync pulse, after. If sucessful index points to space of sync symbol
     while (src.size() - src.get_index() >= MIN_RX_SRC) {
-      ESP_LOGVV(TAG, "Decode Drayton: sync search %" PRIu32 ", %" PRId32 " %" PRId32, src.size() - src.get_index(),
-                src.peek(), src.peek(1));
+      ESP_LOGVV(TAG, "sync search %" PRIu32 ", %" PRId32 " %" PRId32, src.size() - src.get_index(), src.peek(),
+                src.peek(1));
       if (src.peek_mark(2 * BIT_TIME_US) &&
           (src.peek_space(2 * BIT_TIME_US, 1) || src.peek_space(3 * BIT_TIME_US, 1))) {
         src.advance(1);
-        ESP_LOGVV(TAG, "Decode Drayton: Found SYNC, - %" PRIu32, src.get_index());
+        ESP_LOGVV(TAG, "Found SYNC %" PRIu32, src.get_index());
         break;
       } else {
         src.advance(2);
@@ -166,8 +169,8 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     }
 
     // No point continuing if not enough samples remaining to complete a packet
-    if (src.size() - src.get_index() < NDATABITS) {
-      ESP_LOGV(TAG, "Decode Drayton: Fail 1, - %" PRIu32, src.get_index());
+    if (src.size() - src.get_index() < NBITS_PKT) {
+      ESP_LOGV(TAG, "Fail1 %" PRIu32, src.get_index());
       break;
     }
 
@@ -175,17 +178,14 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     // Extract first bit
     // Checks next bit to leave index pointing correctly
     uint32_t out_data = 0;
-    uint8_t bit = NDATABITS - 1;
-    ESP_LOGVV(TAG, "Decode Drayton: first bit %" PRId32 "  %" PRId32 ", %" PRId32, src.peek(0), src.peek(1),
-              src.peek(2));
+    uint8_t bit = NBITS_PKT - 1;
     if (src.expect_space(3 * BIT_TIME_US) && (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
       out_data |= 0 << bit;
     } else if (src.expect_space(2 * BIT_TIME_US) && src.expect_mark(BIT_TIME_US) &&
                (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
       out_data |= 1 << bit;
     } else {
-      ESP_LOGV(TAG, "Decode Drayton: Fail 2, - %" PRId32 " %" PRId32 " %" PRId32, src.peek(-1), src.peek(0),
-               src.peek(1));
+      ESP_LOGVV(TAG, "Fail2 %" PRId32 " %" PRId32 " %" PRId32, src.peek(-1), src.peek(0), src.peek(1));
       continue;
     }
 
@@ -193,7 +193,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     // if there is no transition at the start of the bit period, then the transition in the middle of
     // the previous bit period.
     while (--bit >= 1) {
-      ESP_LOGVV(TAG, "Decode Drayton: Data, %2d %08" PRIx32, bit, out_data);
+      ESP_LOGVV(TAG, "Data %2d %08" PRIx32, bit, out_data);
       if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
           (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
         out_data |= 0 << bit;
@@ -206,8 +206,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     }
 
     if (bit > 0) {
-      ESP_LOGVV(TAG, "Decode Drayton: Fail 3, %" PRId32 " %" PRId32 " %" PRId32, src.peek(-1), src.peek(0),
-                src.peek(1));
+      ESP_LOGVV(TAG, "Fail3 %" PRId32 " %" PRId32 " %" PRId32, src.peek(-1), src.peek(0), src.peek(1));
       continue;
     }
 
@@ -219,22 +218,28 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
       continue;
     }
 
-    ESP_LOGV(TAG, "Decode Drayton: Data, %2d %08" PRIx32, bit, out_data);
+    uint8_t cs = out_data & 0xFF;
+    uint8_t expected_cs = calc_cs(out_data);
 
-    out.channel = (uint8_t) (out_data & 0x1F);
-    out_data >>= NBITS_CHANNEL;
-    out.command = (uint8_t) (out_data & 0x7F);
-    out_data >>= NBITS_COMMAND;
-    out.address = (uint16_t) (out_data & 0xFFFF);
+    if (cs != expected_cs) {
+      ESP_LOGV(TAG, "Dropped %07" PRIx32 ": checksum 0x%02x, expected 0x%02x", out_data, cs, expected_cs);
+      continue;
+    }
+
+    ESP_LOGV(TAG, "Data %07" PRIx32, out_data);
+
+    out.data = (out_data >> NBITS_CHECKSUM) & ((1u << NBITS_DATA) - 1);
+    out.address = out_data >> (NBITS_CHECKSUM + NBITS_DATA);
+    out.channel = out_data & ((1u << NBITS_CHANNEL) - 1);
+    out.command = (out_data >> NBITS_CHANNEL) & ((1u << NBITS_COMMAND) - 1);
 
     return out;
   }
   return {};
 }
+
 void DraytonProtocol::dump(const DraytonData &data) {
-  ESP_LOGI(TAG, "Received Drayton: address=0x%04X (0x%04x), channel=0x%03x command=0x%03X", data.address,
-           ((data.address << 1) & 0xffff), data.channel, data.command);
+  ESP_LOGI(TAG, "Received Drayton: address=0x%04X, data=0x%X", data.address, data.data);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

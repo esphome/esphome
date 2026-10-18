@@ -1,8 +1,12 @@
 ld2450:
   - id: ld2450_radar
+    on_data:
+      then:
+        - logger.log: "LD2450 Radar Data Received"
 
 button:
   - platform: ld2450
+    id: ld2450_button
     ld2450_id: ld2450_radar
     factory_reset:
       name: LD2450 Factory Reset
@@ -13,6 +17,7 @@ button:
 
 sensor:
   - platform: ld2450
+    id: ld2450_sensor
     ld2450_id: ld2450_radar
     target_count:
       name: Presence Target Count
@@ -83,6 +88,7 @@ sensor:
 
 binary_sensor:
   - platform: ld2450
+    id: ld2450_binary
     ld2450_id: ld2450_radar
     has_target:
       name: Presence
@@ -90,9 +96,24 @@ binary_sensor:
       name: Moving Target
     has_still_target:
       name: Still Target
+    polygon_zones:
+      - polygon_zone_id: ld2450_couch_zone
+        name: Couch Occupied
+      - polygon_zone_id: ld2450_desk_zone
+        name: Desk Occupied
+
+text:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    polygon_zones:
+      - id: ld2450_couch_zone
+        name: Couch Zone Polygon
+      - id: ld2450_desk_zone
+        name: Desk Zone Polygon
 
 switch:
   - platform: ld2450
+    id: ld2450_switch
     ld2450_id: ld2450_radar
     bluetooth:
       name: Bluetooth
@@ -101,6 +122,7 @@ switch:
 
 text_sensor:
   - platform: ld2450
+    id: ld2450_textsensor
     ld2450_id: ld2450_radar
     version:
       name: LD2450 Firmware
@@ -118,6 +140,7 @@ text_sensor:
 
 number:
   - platform: ld2450
+    id: ld2450_number
     ld2450_id: ld2450_radar
     presence_timeout:
       name: Timeout
@@ -151,6 +174,7 @@ number:
 
 select:
   - platform: ld2450
+    id: ld2450_select
     ld2450_id: ld2450_radar
     baud_rate:
       name: Baud Rate

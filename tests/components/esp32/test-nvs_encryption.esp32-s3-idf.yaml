@@ -1,0 +1,9 @@
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      nvs_encryption:
+        key_id: 0
+
+<<: !include common.yaml

@@ -1,0 +1,28 @@
+#pragma once
+
+#include "epaper_spi.h"
+
+namespace esphome::epaper_spi {
+/**
+ * A class for monochrome epaper displays.
+ */
+class EPaperMono : public EPaperBase {
+ public:
+  EPaperMono(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
+             size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY, uint8_t bits_per_pixel = 1)
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, display_type, bits_per_pixel) {}
+
+ protected:
+  void refresh_screen(bool partial) override;
+  void power_on() override {}
+  void power_off() override{};
+  void deep_sleep() override;
+  bool reset() override;
+  virtual void set_window();
+  bool transfer_data() override;
+  bool send_red_{true};
+  // When set, the red RAM pass writes the image rather than blank data.
+  bool send_red_as_image_{false};
+};
+
+}  // namespace esphome::epaper_spi

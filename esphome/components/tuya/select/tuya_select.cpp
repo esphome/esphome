@@ -1,10 +1,9 @@
 #include "esphome/core/log.h"
 #include "tuya_select.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
-static const char *const TAG = "tuya.select";
+ESPHOME_LOG_TAG(TAG, "tuya.select");
 
 void TuyaSelect::setup() {
   this->parent_->register_listener(this->select_id_, [this](const TuyaDatapoint &datapoint) {
@@ -21,23 +20,17 @@ void TuyaSelect::setup() {
   });
 }
 
-void TuyaSelect::control(const std::string &value) {
+void TuyaSelect::control(size_t index) {
   if (this->optimistic_)
-    this->publish_state(value);
+    this->publish_state(index);
 
-  auto idx = this->index_of(value);
-  if (idx.has_value()) {
-    uint8_t mapping = this->mappings_.at(idx.value());
-    ESP_LOGV(TAG, "Setting %u datapoint value to %u:%s", this->select_id_, mapping, value.c_str());
-    if (this->is_int_) {
-      this->parent_->set_integer_datapoint_value(this->select_id_, mapping);
-    } else {
-      this->parent_->set_enum_datapoint_value(this->select_id_, mapping);
-    }
-    return;
+  uint8_t mapping = this->mappings_.at(index);
+  ESP_LOGV(TAG, "Setting %u datapoint value to %u:%s", this->select_id_, mapping, this->option_at(index));
+  if (this->is_int_) {
+    this->parent_->set_integer_datapoint_value(this->select_id_, mapping);
+  } else {
+    this->parent_->set_enum_datapoint_value(this->select_id_, mapping);
   }
-
-  ESP_LOGW(TAG, "Invalid value %s", value.c_str());
 }
 
 void TuyaSelect::dump_config() {
@@ -46,12 +39,11 @@ void TuyaSelect::dump_config() {
                 "  Select has datapoint ID %u\n"
                 "  Data type: %s\n"
                 "  Options are:",
-                this->select_id_, this->is_int_ ? "int" : "enum");
+                this->select_id_, this->is_int_ ? LOG_STR_LITERAL("int") : LOG_STR_LITERAL("enum"));
   const auto &options = this->traits.get_options();
   for (size_t i = 0; i < this->mappings_.size(); i++) {
     ESP_LOGCONFIG(TAG, "    %i: %s", this->mappings_.at(i), options.at(i));
   }
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

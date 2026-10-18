@@ -8,8 +8,7 @@
 #include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace sgp30 {
+namespace esphome::sgp30 {
 
 struct SGP30Baselines {
   uint16_t eco2;
@@ -17,7 +16,7 @@ struct SGP30Baselines {
 } PACKED;
 
 /// This class implements support for the Sensirion SGP30 i2c GAS (VOC and CO2eq) sensors.
-class SGP30Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SGP30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void set_eco2_sensor(sensor::Sensor *eco2) { eco2_sensor_ = eco2; }
   void set_tvoc_sensor(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
@@ -47,14 +46,6 @@ class SGP30Component : public PollingComponent, public sensirion_common::Sensiri
   uint16_t tvoc_baseline_{0x0000};
   bool store_baseline_;
 
-  enum ErrorCode : uint8_t {
-    COMMUNICATION_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    INVALID_ID,
-    UNSUPPORTED_ID,
-    UNKNOWN
-  } error_code_{UNKNOWN};
-
   ESPPreferenceObject pref_;
   SGP30Baselines baselines_storage_;
 
@@ -67,5 +58,4 @@ class SGP30Component : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *temperature_sensor_{nullptr};
 };
 
-}  // namespace sgp30
-}  // namespace esphome
+}  // namespace esphome::sgp30

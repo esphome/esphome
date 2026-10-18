@@ -6,10 +6,10 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA_PIN,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_READ_PIN,
     CONF_WRITE_PIN,
 )
+from esphome.types import ConfigType
 
 tm1621_ns = cg.esphome_ns.namespace("tm1621")
 TM1621Display = tm1621_ns.class_("TM1621Display", cg.PollingComponent)
@@ -26,7 +26,7 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 
@@ -39,8 +39,4 @@ async def to_code(config):
     write = await cg.gpio_pin_expression(config[CONF_WRITE_PIN])
     cg.add(var.set_write_pin(write))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(TM1621DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, TM1621DisplayRef)

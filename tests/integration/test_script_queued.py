@@ -26,6 +26,7 @@ async def test_script_queued(
         "stop": {"processed": [], "stop_logged": False},
         "rejection": {"processed": [], "rejections": 0},
         "no_params": {"executions": 0},
+        "boot": {"ended": []},
     }
 
     # Patterns for Test 1: Queue depth
@@ -49,12 +50,21 @@ async def test_script_queued(
     # Patterns for Test 5: No params
     no_params_end = re.compile(r"No params: END")
 
+    # Patterns for boot script (executed twice from on_boot before setup)
+    boot_end = re.compile(r"Boot queued: END (\d+)")
+
+    # Patterns for Test 6: Re-execute after stop
+    after_stop_end = re.compile(r"Stop test: END (\d+)")
+
     # Test completion futures
+    boot_complete = loop.create_future()
     test1_complete = loop.create_future()
     test2_complete = loop.create_future()
     test3_complete = loop.create_future()
     test4_complete = loop.create_future()
     test5_complete = loop.create_future()
+    test5_again_complete = loop.create_future()
+    test6_complete = loop.create_future()
 
     def check_output(line: str) -> None:
         """Check log output for all test messages."""
@@ -98,9 +108,11 @@ async def test_script_queued(
             if not test3_complete.done():
                 loop.call_later(
                     0.3,
-                    lambda: test3_complete.set_result(True)
-                    if not test3_complete.done()
-                    else None,
+                    lambda: (
+                        test3_complete.set_result(True)
+                        if not test3_complete.done()
+                        else None
+                    ),
                 )
 
         # Test 4: Rejection
@@ -120,11 +132,24 @@ async def test_script_queued(
         # Test 5: No params
         if no_params_end.search(line):
             test_results["no_params"]["executions"] += 1
-            if (
-                test_results["no_params"]["executions"] == 3
-                and not test5_complete.done()
-            ):
-                test5_complete.set_result(True)
+            executions = test_results["no_params"]["executions"]
+            for count, future in ((3, test5_complete), (6, test5_again_complete)):
+                if executions == count and not future.done():
+                    future.set_result(True)
+
+        # Boot script (queued from on_boot before setup)
+        if match := boot_end.search(line):
+            test_results["boot"]["ended"].append(int(match.group(1)))
+            if len(test_results["boot"]["ended"]) == 2 and not boot_complete.done():
+                boot_complete.set_result(True)
+
+        # Test 6: Re-execute after stop
+        if (
+            (match := after_stop_end.search(line))
+            and int(match.group(1)) == 9
+            and not test6_complete.done()
+        ):
+            test6_complete.set_result(True)
 
     async with (
         run_compiled(yaml_config, line_callback=check_output),
@@ -133,10 +158,17 @@ async def test_script_queued(
         # Get services
         _, services = await client.list_entities_services()
 
+        # Boot: both executions from on_boot must complete, including the one
+        # that was queued before QueueingScript::setup() ran
+        await asyncio.wait_for(boot_complete, timeout=2.0)
+        assert sorted(test_results["boot"]["ended"]) == [1, 2], (
+            f"Boot: Expected both on_boot executions to complete, got {sorted(test_results['boot']['ended'])}"
+        )
+
         # Test 1: Queue depth limit
         test_service = next((s for s in services if s.name == "test_queue_depth"), None)
         assert test_service is not None, "test_queue_depth service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test1_complete, timeout=2.0)
         await asyncio.sleep(0.1)  # Give time for rejections
 
@@ -151,7 +183,7 @@ async def test_script_queued(
         # Test 2: Ring buffer order
         test_service = next((s for s in services if s.name == "test_ring_buffer"), None)
         assert test_service is not None, "test_ring_buffer service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test2_complete, timeout=2.0)
 
         # Verify Test 2
@@ -165,7 +197,7 @@ async def test_script_queued(
         # Test 3: Stop clears queue
         test_service = next((s for s in services if s.name == "test_stop_clears"), None)
         assert test_service is not None, "test_stop_clears service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test3_complete, timeout=2.0)
 
         # Verify Test 3
@@ -179,7 +211,7 @@ async def test_script_queued(
         # Test 4: Rejection enforcement (max_runs=3)
         test_service = next((s for s in services if s.name == "test_rejection"), None)
         assert test_service is not None, "test_rejection service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test4_complete, timeout=2.0)
         await asyncio.sleep(0.1)  # Give time for rejections
 
@@ -194,10 +226,27 @@ async def test_script_queued(
         # Test 5: No parameters
         test_service = next((s for s in services if s.name == "test_no_params"), None)
         assert test_service is not None, "test_no_params service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test5_complete, timeout=2.0)
 
         # Verify Test 5
         assert test_results["no_params"]["executions"] == 3, (
             f"Test 5: Expected 3 executions, got {test_results['no_params']['executions']}"
         )
+
+        # Test 5 again: after the queue fully drained (loop disabled while
+        # idle), executing again must still work
+        test_service = next((s for s in services if s.name == "test_no_params"), None)
+        assert test_service is not None, "test_no_params service not found"
+        await client.execute_service(test_service, {})
+        await asyncio.wait_for(test5_again_complete, timeout=2.0)
+        assert test_results["no_params"]["executions"] == 6, (
+            f"Test 5 again: Expected 6 executions total, got {test_results['no_params']['executions']}"
+        )
+
+        # Test 6: a stopped script (queue cleared, loop disabled) must run
+        # again on the next execute; the future resolves only on "END 9"
+        test_service = next((s for s in services if s.name == "test_after_stop"), None)
+        assert test_service is not None, "test_after_stop service not found"
+        await client.execute_service(test_service, {})
+        await asyncio.wait_for(test6_complete, timeout=2.0)

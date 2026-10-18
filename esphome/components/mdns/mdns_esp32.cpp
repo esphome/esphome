@@ -2,59 +2,120 @@
 #if defined(USE_ESP32) && defined(USE_MDNS)
 
 #include <mdns.h>
+#include <cstring>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
-static const char *const TAG = "mdns";
+ESPHOME_LOG_TAG(TAG, "mdns");
 
-void MDNSComponent::setup() {
-#ifdef USE_MDNS_STORE_SERVICES
-  this->compile_records_(this->services_);
-  const auto &services = this->services_;
-#else
-  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
-  this->compile_records_(services);
+#ifndef USE_OPENTHREAD_SRP
+static esp_err_t add_service(const MDNSService &service) {
+  // Stack buffer for up to 16 txt records, heap fallback for more
+  SmallBufferWithHeapFallback<16, mdns_txt_item_t> txt_records(service.txt_records.size());
+  for (size_t i = 0; i < service.txt_records.size(); i++) {
+    const auto &record = service.txt_records[i];
+    // key and value are either compile-time string literals in flash or pointers to dynamic_txt_values_
+    // Both remain valid for the lifetime of this function, and ESP-IDF makes internal copies
+    txt_records.get()[i].key = MDNS_STR_ARG(record.key);
+    txt_records.get()[i].value = MDNS_STR_ARG(record.value);
+  }
+  uint16_t port = service.port.value();
+  return mdns_service_add(nullptr, MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto), port,
+                          txt_records.get(), service.txt_records.size());
+}
 #endif
 
+static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+#ifdef USE_OPENTHREAD_SRP
+  // OpenThread handles service registration via SRP client
+  // Services are compiled by MDNSComponent::compile_records_() and consumed by OpenThreadSrpComponent
+#else
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Init failed: %s", esp_err_to_name(err));
-    this->mark_failed();
+    comp->mark_failed();
     return;
   }
 
-  mdns_hostname_set(this->hostname_.c_str());
-  mdns_instance_name_set(this->hostname_.c_str());
+  const char *hostname = App.get_name().c_str();
+  mdns_hostname_set(hostname);
+  mdns_instance_name_set(hostname);
 
-  for (const auto &service : services) {
-    auto txt_records = std::make_unique<mdns_txt_item_t[]>(service.txt_records.size());
-    for (size_t i = 0; i < service.txt_records.size(); i++) {
-      const auto &record = service.txt_records[i];
-      // key and value are either compile-time string literals in flash or pointers to dynamic_txt_values_
-      // Both remain valid for the lifetime of this function, and ESP-IDF makes internal copies
-      txt_records[i].key = MDNS_STR_ARG(record.key);
-      txt_records[i].value = MDNS_STR_ARG(record.value);
-    }
-    uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
-    err = mdns_service_add(nullptr, MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto), port,
-                           txt_records.get(), service.txt_records.size());
-
+  for (auto &service : services) {
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+    if (!service.enabled)
+      continue;
+#endif
+    err = add_service(service);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to register service %s: %s", MDNS_STR_ARG(service.service_type), esp_err_to_name(err));
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+      // Let a later enable call retry
+      service.enabled = false;
+#endif
     }
   }
+#endif
+}
+
+#if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && !defined(USE_OPENTHREAD_SRP)
+bool MDNSComponent::set_service_enabled(const char *service_type, const char *proto, bool enabled) {
+  // services_ is compiled in setup()
+  if (!this->is_ready()) {
+    ESP_LOGW(TAG, "Cannot %s service %s before setup", enabled ? "enable" : "disable", service_type);
+    return false;
+  }
+  for (auto &service : this->services_) {
+    if (strcmp(MDNS_STR_ARG(service.service_type), service_type) != 0 ||
+        strcmp(MDNS_STR_ARG(service.proto), proto) != 0) {
+      continue;
+    }
+    if (service.enabled == enabled)
+      return true;
+    esp_err_t err = enabled ? add_service(service) : mdns_service_remove(service_type, proto);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to %s service %s: %s", enabled ? "enable" : "disable", service_type, esp_err_to_name(err));
+      return false;
+    }
+    service.enabled = enabled;
+    return true;
+  }
+  ESP_LOGW(TAG, "Service %s not found", service_type);
+  return false;
+}
+#endif  // USE_MDNS_SUPPORTS_ENABLE_DISABLE && !USE_OPENTHREAD_SRP
+
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+bool MDNSComponent::publish_network_txt_(const char *network) {
+  // ESP-IDF copies the value and announces the changed record
+  esp_err_t err = mdns_service_txt_item_set("_esphomelib", "_tcp", "network", network);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to update network TXT: %s", esp_err_to_name(err));
+    return false;
+  }
+  return true;
+}
+#endif
+
+void MDNSComponent::setup() {
+  this->setup_buffers_and_register_(register_esp32);
+#if defined(USE_MDNS_DYNAMIC_NETWORK_TXT) && !defined(USE_MDNS_ACTIVE_INTERFACE_LISTENER)
+  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS,
+                     [this]() { this->update_network_txt_(this->connected_network_()); });
+#endif
 }
 
 void MDNSComponent::on_shutdown() {
+#ifndef USE_OPENTHREAD_SRP
   mdns_free();
   delay(40);  // Allow the mdns packets announcing service removal to be sent
+#endif
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif  // USE_ESP32

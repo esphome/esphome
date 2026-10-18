@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import ICON_CURRENT_DC, ICON_SOLAR_PANEL, ICON_SOLAR_POWER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_VOLTAGE,
@@ -7,6 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
@@ -16,6 +18,7 @@ from esphome.const import (
     ICON_FLASH,
     ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_HERTZ,
@@ -23,15 +26,14 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_VOLT_AMPS,
     UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA
 
 DEPENDENCIES = ["uart"]
 
-ICON_SOLAR_POWER = "mdi:solar-power"
-ICON_SOLAR_PANEL = "mdi:solar-panel"
-ICON_CURRENT_DC = "mdi:current-dc"
 
 # QPIRI sensors
 CONF_GRID_RATING_VOLTAGE = "grid_rating_voltage"
@@ -81,6 +83,10 @@ CONF_BATTERY_VOLTAGE_OFFSET_FOR_FANS_ON = "battery_voltage_offset_for_fans_on"
 CONF_EEPROM_VERSION = "eeprom_version"
 CONF_PV_CHARGING_POWER = "pv_charging_power"
 
+# QET / QLT sensors
+CONF_TOTAL_PV_GENERATED_ENERGY = "total_pv_generated_energy"
+CONF_TOTAL_OUTPUT_LOAD_ENERGY = "total_output_load_energy"
+
 TYPES = {
     CONF_GRID_RATING_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
@@ -104,46 +110,56 @@ TYPES = {
         unit_of_measurement=UNIT_HERTZ,
         icon=ICON_CURRENT_AC,
         accuracy_decimals=1,
+        device_class=DEVICE_CLASS_FREQUENCY,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_AC_OUTPUT_RATING_CURRENT: sensor.sensor_schema(
         unit_of_measurement=UNIT_AMPERE,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_AC_OUTPUT_RATING_APPARENT_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_APPARENT_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_AC_OUTPUT_RATING_ACTIVE_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_WATT,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_BATTERY_RATING_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_BATTERY_RECHARGE_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_BATTERY_UNDER_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_BATTERY_BULK_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_BATTERY_FLOAT_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_BATTERY_TYPE: sensor.sensor_schema(
         accuracy_decimals=0,
@@ -152,11 +168,13 @@ TYPES = {
         unit_of_measurement=UNIT_AMPERE,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_CURRENT_MAX_CHARGING_CURRENT: sensor.sensor_schema(
         unit_of_measurement=UNIT_AMPERE,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_INPUT_VOLTAGE_RANGE: sensor.sensor_schema(
         accuracy_decimals=0,
@@ -296,6 +314,7 @@ TYPES = {
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_EEPROM_VERSION: sensor.sensor_schema(
         accuracy_decimals=0,
@@ -307,6 +326,18 @@ TYPES = {
         device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
+    CONF_TOTAL_PV_GENERATED_ENERGY: sensor.sensor_schema(
+        unit_of_measurement=UNIT_WATT_HOURS,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_ENERGY,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+    ),
+    CONF_TOTAL_OUTPUT_LOAD_ENERGY: sensor.sensor_schema(
+        unit_of_measurement=UNIT_WATT_HOURS,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_ENERGY,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+    ),
 }
 
 CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
@@ -314,7 +345,7 @@ CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_PIPSOLAR_ID])
 
     for type in TYPES:

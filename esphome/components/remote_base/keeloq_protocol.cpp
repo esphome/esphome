@@ -3,41 +3,45 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.keeloq";
+ESPHOME_LOG_TAG(TAG, "remote.keeloq");
 
-static const uint32_t BIT_TIME_US = 380;
-static const uint8_t NBITS_PREAMBLE = 12;
-static const uint8_t NBITS_REPEAT = 1;
-static const uint8_t NBITS_VLOW = 1;
-static const uint8_t NBITS_SERIAL = 28;
-static const uint8_t NBITS_BUTTONS = 4;
-static const uint8_t NBITS_DISC = 12;
-static const uint8_t NBITS_SYNC_CNT = 16;
+static constexpr uint32_t BIT_TIME_US = 380;
+static constexpr uint8_t NBITS_PREAMBLE = 12;
+static constexpr uint8_t NBITS_REPEAT = 1;
+static constexpr uint8_t NBITS_VLOW = 1;
+static constexpr uint8_t NBITS_SERIAL = 28;
+static constexpr uint8_t NBITS_BUTTONS = 4;
+static constexpr uint8_t NBITS_DISC = 12;
+static constexpr uint8_t NBITS_SYNC_CNT = 16;
 
-static const uint8_t NBITS_FIXED_DATA = NBITS_REPEAT + NBITS_VLOW + NBITS_BUTTONS + NBITS_SERIAL;
-static const uint8_t NBITS_ENCRYPTED_DATA = NBITS_BUTTONS + NBITS_DISC + NBITS_SYNC_CNT;
-static const uint8_t NBITS_DATA = NBITS_FIXED_DATA + NBITS_ENCRYPTED_DATA;
+static constexpr uint8_t NBITS_FIXED_DATA = NBITS_REPEAT + NBITS_VLOW + NBITS_BUTTONS + NBITS_SERIAL;
+static constexpr uint8_t NBITS_ENCRYPTED_DATA = NBITS_BUTTONS + NBITS_DISC + NBITS_SYNC_CNT;
+static constexpr uint8_t NBITS_DATA = NBITS_FIXED_DATA + NBITS_ENCRYPTED_DATA;
+static constexpr uint8_t NBITS_SUFFIX_MAX = 16;
+// A space this long is not part of the PWM: data spaces are at most 2 bit times, the guard is 39.
+static constexpr uint32_t GAP_TIME_US = 4 * BIT_TIME_US;
 
 /*
 KeeLoq Protocol
 
 Coded using information from datasheet for Microchip HCS301 KeeLow Code Hopping Encoder
 
-Encoder - Hopping code is generated at random.
+Encoder - Hopping code is not generated. Send the encrypted field from the caller.
+Optional suffix bits may follow the 66-bit HCS301 word (same PWM coding).
 
 Decoder - Hopping code is ignored and not checked when received. Serial number of
-transmitter and nutton command is decoded.
+transmitter and button command is decoded. Extra bits after the word are returned
+as suffix / suffix_bits when present.
 
 */
 
 void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
   uint32_t out_data = 0x0;
 
-  ESP_LOGD(TAG, "Send Keeloq: address=%07" PRIx32 " command=%03x encrypted=%08" PRIx32, data.address, data.command,
-           data.encrypted);
+  ESP_LOGD(TAG, "Send Keeloq: address=%07" PRIx32 " command=%03x encrypted=%08" PRIx32 " suffix_bits=%u", data.address,
+           data.command, data.encrypted, data.suffix_bits);
   ESP_LOGV(TAG, "Send Keeloq: data bits (%d + %d)", NBITS_ENCRYPTED_DATA, NBITS_FIXED_DATA);
 
   // Preamble = '01' x 12
@@ -89,9 +93,25 @@ void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
     dst->space(1 * BIT_TIME_US);
   }
 
-  // repeat flag - always sent as a '1'
-  dst->mark(1 * BIT_TIME_US);
-  dst->space(2 * BIT_TIME_US);
+  // repeat flag
+  if (data.repeat) {
+    dst->mark(1 * BIT_TIME_US);
+    dst->space(2 * BIT_TIME_US);
+  } else {
+    dst->mark(2 * BIT_TIME_US);
+    dst->space(1 * BIT_TIME_US);
+  }
+
+  const uint8_t extra = data.suffix_bits > NBITS_SUFFIX_MAX ? NBITS_SUFFIX_MAX : data.suffix_bits;
+  for (uint8_t i = 0; i < extra; i++) {
+    if (data.suffix & (1 << i)) {
+      dst->mark(1 * BIT_TIME_US);
+      dst->space(2 * BIT_TIME_US);
+    } else {
+      dst->mark(2 * BIT_TIME_US);
+      dst->space(1 * BIT_TIME_US);
+    }
+  }
 
   // Guard time  at end of packet
   dst->space(39 * BIT_TIME_US);
@@ -104,10 +124,11 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
       .command = 0,
       .repeat = false,
       .vlow = false,
-
+      .suffix = 0,
+      .suffix_bits = 0,
   };
 
-  if (src.size() != (NBITS_PREAMBLE + NBITS_DATA) * 2) {
+  if (src.size() < (NBITS_PREAMBLE + NBITS_DATA) * 2) {
     return {};
   }
 
@@ -183,12 +204,49 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
+  if (out.repeat) {
+    src.expect_space(2 * BIT_TIME_US);
+  } else {
+    src.expect_space(BIT_TIME_US);
+  }
+
+  while (out.suffix_bits < NBITS_SUFFIX_MAX) {
+    bool one = false;
+    if (src.expect_mark(2 * BIT_TIME_US)) {
+      one = false;
+    } else if (src.expect_mark(BIT_TIME_US)) {
+      one = true;
+    } else {
+      break;
+    }
+    // The last bit's space is merged into the guard gap, or the capture ends at idle.
+    if (!src.expect_space(one ? 2 * BIT_TIME_US : BIT_TIME_US) && src.is_valid() &&
+        !src.peek_space_at_least(GAP_TIME_US)) {
+      break;
+    }
+    if (one) {
+      out.suffix |= 1 << out.suffix_bits;
+    }
+    out.suffix_bits++;
+  }
+  // The suffix ends at a gap or at the end of the capture. PWM that goes on is not a suffix.
+  if (src.is_valid() && !src.peek_space_at_least(GAP_TIME_US)) {
+    out.suffix = 0;
+    out.suffix_bits = 0;
+  }
+
   return out;
 }
 
 void KeeloqProtocol::dump(const KeeloqData &data) {
-  ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x", data.address, data.command);
+  if (data.suffix_bits == 6) {
+    // Jarolift TDEF frame: show the group as transmit_keeloq takes it.
+    ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", group=0x%02x",
+             data.address, data.command, data.encrypted, data.group());
+    return;
+  }
+  ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", suffix=0x%04x/%u",
+           data.address, data.command, data.encrypted, data.suffix, data.suffix_bits);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

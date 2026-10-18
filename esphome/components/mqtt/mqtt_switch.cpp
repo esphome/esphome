@@ -6,10 +6,9 @@
 #ifdef USE_MQTT
 #ifdef USE_SWITCH
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.switch";
+ESPHOME_LOG_TAG(TAG, "mqtt.switch");
 
 using namespace esphome::switch_;
 
@@ -29,20 +28,20 @@ void MQTTSwitchComponent::setup() {
         break;
       case PARSE_NONE:
       default:
-        ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
-        this->status_momentary_warning("state", 5000);
+        ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
+        this->status_momentary_warning(5000);
         break;
     }
   });
   this->switch_->add_on_state_callback(
-      [this](bool enabled) { this->defer("send", [this, enabled]() { this->publish_state(enabled); }); });
+      [this](bool enabled) { this->defer(SEND_DEFER_ID, [this, enabled]() { this->publish_state(enabled); }); });
 }
 void MQTTSwitchComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Switch '%s': ", this->switch_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTSwitchComponent::component_type() const { return "switch"; }
+MQTT_COMPONENT_TYPE(MQTTSwitchComponent, "switch")
 const EntityBase *MQTTSwitchComponent::get_entity() const { return this->switch_; }
 void MQTTSwitchComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
@@ -53,12 +52,12 @@ void MQTTSwitchComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 bool MQTTSwitchComponent::send_initial_state() { return this->publish_state(this->switch_->state); }
 
 bool MQTTSwitchComponent::publish_state(bool state) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   const char *state_s = state ? "ON" : "OFF";
-  return this->publish(this->get_state_topic_(), state_s);
+  return this->publish(this->get_state_topic_to_(topic_buf), state_s);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

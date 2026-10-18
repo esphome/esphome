@@ -2,9 +2,9 @@
 
 #include <cstdint>
 #include "esphome/core/finite_set_mask.h"
+#include "esphome/core/hal.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 /// Color capabilities are the various outputs that a light has and that can be independently controlled by the user.
 enum class ColorCapability : uint8_t {
@@ -109,8 +109,9 @@ constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
 using color_mode_bitmask_t = uint16_t;
 
 // Lookup table for ColorMode bit mapping
-// This array defines the canonical order of color modes (bit 0-9)
-constexpr ColorMode COLOR_MODE_LOOKUP[] = {
+// This array defines the canonical order of color modes (bit 0-9). One shared copy in flash; read it at run time
+// through color_mode_at().
+inline constexpr ColorMode COLOR_MODE_LOOKUP[] PROGMEM = {
     ColorMode::UNKNOWN,                // bit 0
     ColorMode::ON_OFF,                 // bit 1
     ColorMode::BRIGHTNESS,             // bit 2
@@ -123,6 +124,12 @@ constexpr ColorMode COLOR_MODE_LOOKUP[] = {
     ColorMode::RGB_COLD_WARM_WHITE,    // bit 9
 };
 
+constexpr ColorMode color_mode_at(unsigned bit) {
+  if (__builtin_is_constant_evaluated())
+    return COLOR_MODE_LOOKUP[bit];
+  return static_cast<ColorMode>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&COLOR_MODE_LOOKUP[bit])));
+}
+
 /// Bit mapping policy for ColorMode
 /// Uses lookup table for non-contiguous enum values
 struct ColorModeBitPolicy {
@@ -130,17 +137,15 @@ struct ColorModeBitPolicy {
   static constexpr int MAX_BITS = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
 
   static constexpr unsigned to_bit(ColorMode mode) {
-    // Linear search through lookup table
-    // Compiler optimizes this to efficient code since array is constexpr
     for (int i = 0; i < MAX_BITS; ++i) {
-      if (COLOR_MODE_LOOKUP[i] == mode)
+      if (color_mode_at(i) == mode)
         return i;
     }
     return 0;
   }
 
   static constexpr ColorMode from_bit(unsigned bit) {
-    return (bit < MAX_BITS) ? COLOR_MODE_LOOKUP[bit] : ColorMode::UNKNOWN;
+    return (bit < MAX_BITS) ? color_mode_at(bit) : ColorMode::UNKNOWN;
   }
 };
 
@@ -158,7 +163,7 @@ constexpr uint16_t compute_capability_bitmask(ColorCapability capability) {
   // Check each ColorMode to see if it has this capability
   constexpr int color_mode_count = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
   for (int bit = 0; bit < color_mode_count; ++bit) {
-    uint8_t mode_val = static_cast<uint8_t>(COLOR_MODE_LOOKUP[bit]);
+    uint8_t mode_val = static_cast<uint8_t>(color_mode_at(bit));
     if ((mode_val & cap_bit) != 0) {
       mask |= (1 << bit);
     }
@@ -210,5 +215,4 @@ inline bool has_capability(const ColorModeMask &mask, ColorCapability capability
   return (mask.get_mask() & CAPABILITY_BITMASKS[capability_to_index(capability)]) != 0;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
