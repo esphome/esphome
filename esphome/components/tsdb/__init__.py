@@ -43,7 +43,8 @@ ESP_TSDB_VERSION = "2.4.3"
 ESP_LITTLEFS_COMPONENT = "joltwallet/littlefs"
 ESP_LITTLEFS_VERSION = "1.22.3"
 
-# Managed IDF components the C++ needs (see clang_tidy.py).
+# Managed IDF components the C++ needs; esphome/idf_component.yml declares them
+# too, so the clang-tidy project resolves their headers without a config.
 IDF_COMPONENTS = {
     ESP_TSDB_COMPONENT: ESP_TSDB_VERSION,
     ESP_LITTLEFS_COMPONENT: ESP_LITTLEFS_VERSION,
