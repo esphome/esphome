@@ -21,7 +21,18 @@ TEST(AudioStreamInfo, MsToBytesAboveTheThirtyTwoBitProduct) {
   // ms * 8 bytes * 96000 Hz no longer fits 32 bits above 5592 ms.
   AudioStreamInfo info(32, 2, 96000);
   EXPECT_EQ(info.ms_to_bytes(10000), 7680000U);
-  EXPECT_EQ(info.ms_to_samples(10000), 1920000U);
+}
+
+TEST(AudioStreamInfo, MsToSamplesAboveTheThirtyTwoBitProduct) {
+  // ms * 2 channels * 48000 Hz no longer fits 32 bits above 44739 ms; sound_level allows 60 s.
+  AudioStreamInfo info(16, 2, 48000);
+  EXPECT_EQ(info.ms_to_samples(60000), 5760000U);
+}
+
+TEST(AudioStreamInfo, MsToFramesAboveTheThirtyTwoBitProduct) {
+  // ms * 96000 Hz no longer fits 32 bits above 44739 ms.
+  AudioStreamInfo info(16, 2, 96000);
+  EXPECT_EQ(info.ms_to_frames(60000), 5760000U);
 }
 
 TEST(AudioStreamInfo, BytesToMsAboveFourMegabytes) {

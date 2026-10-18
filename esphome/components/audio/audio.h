@@ -60,7 +60,7 @@ class AudioStreamInfo {
   /// @brief Converts duration to frames.
   /// @param ms Duration in milliseconds
   /// @return Audio frames that will store `ms` milliseconds of audio.  May round down for certain sample rates.
-  uint32_t ms_to_frames(uint32_t ms) const { return (ms * this->sample_rate_) / 1000; }
+  uint32_t ms_to_frames(uint32_t ms) const { return (static_cast<uint64_t>(ms) * this->sample_rate_) / 1000; }
 
   /// @brief Converts duration to samples.
   /// @param ms Duration in milliseconds
