@@ -46,9 +46,8 @@ ESP_TSDB_VERSION = "2.4.3"
 ESP_LITTLEFS_COMPONENT = "joltwallet/littlefs"
 ESP_LITTLEFS_VERSION = "1.22.3"
 
-# Managed IDF components tsdb's C++ needs in every build that compiles it.
-# to_code() adds them for a configured build; the clang-tidy project runs no
-# config and reads this attribute instead (see esphome/espidf/clang_tidy.py).
+# Managed IDF components tsdb's C++ needs; to_code() adds them for a configured
+# build, the clang-tidy project reads this attribute instead (see clang_tidy.py).
 IDF_COMPONENTS = {
     ESP_TSDB_COMPONENT: ESP_TSDB_VERSION,
     ESP_LITTLEFS_COMPONENT: ESP_LITTLEFS_VERSION,
@@ -59,8 +58,7 @@ TSDB_MAX_NAME_LENGTH = 31
 # Mirrors tsdbmath::INDEX_DEFAULT_STRIDE; keep the two in step.
 TSDB_DEFAULT_INDEX_STRIDE = 380
 LITTLEFS_BLOCK_BYTES = 0x1000
-# LittleFS keeps its own metadata (a few 4KB blocks plus an entry per file), so a
-# budget that fills the partition exactly cannot be written to.
+# LittleFS keeps its own metadata, so a budget that fills the partition cannot be written to.
 LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 
 CONF_MOUNT_POINT = "mount_point"

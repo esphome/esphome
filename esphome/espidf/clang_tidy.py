@@ -5,8 +5,7 @@ running codegen on a config, it generates a minimal ESP-IDF CMake project:
 
 * the managed-component dependencies come from ESPHome's own
   ``idf_component.yml`` (arduinojson, lvgl, mdns, ...), plus the registry
-  components an ESP-IDF-only component adds from ``to_code()`` (tsdb's esp_tsdb
-  and littlefs) -- no config is loaded here, so ``to_code()`` never runs;
+  components a config would add from ``to_code()`` (tsdb's esp_tsdb and littlefs);
 * the PlatformIO ``lib_deps`` (qr-code, mlx90393, ...) are converted to local
   IDF components via the ESPHome PlatformIO->IDF converter;
 * the ``main`` component ``REQUIRES`` every target-available builtin IDF
@@ -33,9 +32,8 @@ from esphome.build_helpers.idedata import (
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
-# A component that needs managed IDF components whenever its sources are
-# compiled declares them under this name in its ``__init__.py``; the tidy
-# project has no config, so it merges them in (see _component_idf_deps).
+# A component that needs managed IDF components whenever its sources are compiled
+# declares them under this name in its ``__init__.py`` (see _component_idf_deps).
 IDF_COMPONENTS_ATTRIBUTE = "IDF_COMPONENTS"
 
 # A do-nothing C++ app: just enough for IDF to configure a valid project. It's
@@ -459,11 +457,9 @@ def _generate_compile_commands(
         # libsodium clash with noise-c and ~26 unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
     else:
-        # Managed components the tsdb engine needs: tsdb is ESP-IDF only and
-        # adds them from to_code(), which never runs here. The arduino envs must
-        # not get them: littlefs is one of the components they stub out
-        # (_arduino_excluded_stubs), and a real dep alongside that stub does not
-        # resolve.
+        # Managed components the tsdb engine needs: tsdb adds them from
+        # to_code(), which never runs here. The arduino envs must not get them,
+        # since littlefs is one of the components they stub out.
         extra_deps.update(_component_idf_deps())
 
     # Phase 1: discover the components available for this target.

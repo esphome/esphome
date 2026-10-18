@@ -27,7 +27,6 @@ ESPHOME_LOG_TAG(TAG, "tsdb");
 static constexpr uint8_t LITTLEFS_SUBTYPE = 0x83;
 // Diagnostics refresh period.
 static constexpr uint32_t STATS_INTERVAL_MS = 60000;
-// Every Nth dropped record logs at WARN, the rest at DEBUG.
 static constexpr uint32_t DROP_LOG_EVERY = 10;
 // Rate limit for the free-space and out-of-range warnings.
 static constexpr uint32_t PROBE_LOG_EVERY = 100;
@@ -79,7 +78,6 @@ static_assert(static_cast<int>(tsdbmath::MEMORY_PSRAM) == static_cast<int>(TSDB_
 static_assert(static_cast<int>(tsdbmath::MEMORY_AUTO) == static_cast<int>(TSDB_ALLOC_AUTO),
               "esp_tsdb changed tsdb_alloc_strategy_t");
 
-// True when every byte of the partition is 0xFF (scanned in 256-byte chunks).
 static bool partition_is_blank(const esp_partition_t *partition) {
   static constexpr size_t CHUNK = 256;
   uint8_t buffer[CHUNK];
@@ -159,8 +157,7 @@ bool TsdbComponent::mount_filesystem_() {
              this->partition_label_.c_str());
     return false;
   }
-  // A partition_size change needs the table reflashed; a stale, smaller one
-  // would make max_file_size wrong and surface later as ENOSPC write errors.
+  // A stale, smaller partition would make max_file_size wrong (later ENOSPC).
   if (partition->size < this->partition_size_) {
     this->mount_error_ = ESP_ERR_INVALID_SIZE;
     ESP_LOGE(TAG, "%s: partition '%s' is %" PRIu32 " bytes but %" PRIu32 " configured - flash the partition table",
@@ -326,9 +323,8 @@ bool TsdbComponent::open_database_() {
     return false;
   }
 
-  // An existing file keeps the capacity and the index stride it was created
-  // with; the engine only applies the config values to a new file. Report the
-  // layout the file actually uses, and flag a configuration that has no effect.
+  // An existing file keeps the capacity and index stride it was created with;
+  // report what it uses, and flag a configuration the file ignores.
   tsdb_stats_t stats = {};
   const bool have_stats = tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) == ESP_OK;
   uint32_t saved_stride = 0;
@@ -357,8 +353,7 @@ bool TsdbComponent::open_database_() {
   return true;
 }
 
-// The engine keeps a saved file's index stride and offers no getter for it, but
-// the geometry sits in the first bytes of the file, so read that one field.
+// The engine has no getter for a saved file's index stride; read it from the header.
 bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
   const std::string path = this->mount_point_ + "/" + this->file_;
   FILE *file = fopen(path.c_str(), "rb");
@@ -377,8 +372,7 @@ bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
 void TsdbComponent::close_database_() {
   if (this->db_ == nullptr)
     return;
-  // The final header and index write happens here, so a failure means a
-  // possibly inconsistent file on the next boot.
+  // The final header and index write happens here; a failure may leave a bad file.
   const esp_err_t err = tsdb_close_h(static_cast<tsdb_t *>(this->db_));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "%s: closing the database failed: %s", this->file_.c_str(), esp_err_to_name(err));
@@ -386,9 +380,8 @@ void TsdbComponent::close_database_() {
   this->db_ = nullptr;
 }
 
-// esp_tsdb marks a handle closed when the fclose/reopen inside tsdb_sync_h()
-// fails, and every later write returns ESP_ERR_INVALID_STATE. Drop the handle
-// and let a later interval reopen the database instead of failing until reboot.
+// tsdb_sync_h() closes the handle when its fclose/reopen fails and every later
+// write returns ESP_ERR_INVALID_STATE, so drop it and reopen on a later interval.
 void TsdbComponent::invalidate_database_(const LogString *reason) {
   if (this->db_ == nullptr)
     return;
@@ -396,16 +389,14 @@ void TsdbComponent::invalidate_database_(const LogString *reason) {
            LOG_STR_ARG(reason));
   this->close_database_();
   this->db_lost_ = true;
-  // Report the state instead of leaving the component looking ready while it
-  // cannot store anything.
+  // Report the state: the component is not ready while it cannot store anything.
   this->status_set_warning(LOG_STR("history database unavailable"));
 }
 
 void TsdbComponent::reopen_if_lost_() {
   if (!this->db_lost_)
     return;
-  // A failed open logs an error, so retry at most every REOPEN_RETRY_MS rather
-  // than repeating it on every interval on a device whose filesystem stays bad.
+  // A failed open logs an error, so retry at most every REOPEN_RETRY_MS.
   const uint32_t now = App.get_loop_component_start_time();
   if (this->last_reopen_ != 0 && now - this->last_reopen_ < REOPEN_RETRY_MS)
     return;
@@ -527,8 +518,7 @@ bool TsdbComponent::write_record_() {
   }
 
   // Records are ordered by timestamp, so refuse one that sorts before the newest
-  // already stored, whatever its source: a clock that an NTP correction moved
-  // back, or uptime that restarted at 0 after a reboot under require_time: false.
+  // stored: an NTP correction moved back, or uptime restarting at 0 after a reboot.
   if (this->last_timestamp_ != 0 && timestamp < this->last_timestamp_) {
     if (!this->warned_backwards_) {
       this->warned_backwards_ = true;
@@ -557,8 +547,7 @@ bool TsdbComponent::write_record_() {
       continue;
     }
     if (this->missing_policy_ == tsdbmath::MISSING_HOLD && column.held != tsdbmath::RAW_UNKNOWN) {
-      // A held value is a stale one: count and report it, so a column that
-      // stopped reporting reads as data loss instead of looking normal.
+      // A held value is a stale one: count it so data loss stays visible.
       this->held_++;
       if (!column.hold_warned) {
         column.hold_warned = true;
@@ -573,8 +562,7 @@ bool TsdbComponent::write_record_() {
       continue;
     }
     this->dropped_++;
-    // Log-rate limited on its own count: dropped_ also counts the skipped
-    // intervals of a clock that has not synced, which would silence this.
+    // Rate limited on its own count: dropped_ also counts unsynced-clock skips.
     this->dropped_missing_++;
     if (this->dropped_missing_ == 1 || this->dropped_missing_ % DROP_LOG_EVERY == 0) {
       ESP_LOGW(TAG, "%s: %s has no value - record dropped", this->file_.c_str(), column.name.c_str());
@@ -589,8 +577,7 @@ bool TsdbComponent::write_record_() {
   if (err != ESP_OK) {
     this->write_errors_++;
     ESP_LOGE(TAG, "%s: writing a record failed: %s", this->file_.c_str(), esp_err_to_name(err));
-    // A write only fails this way once the engine has closed an unusable
-    // handle; recover instead of failing every write until the next boot.
+    // The engine closed the handle; recover instead of failing every write.
     if (!tsdb_is_initialized_h(static_cast<tsdb_t *>(this->db_)))
       this->invalidate_database_(LOG_STR("a write failed and closed the database"));
     this->publish_errors_();
@@ -639,8 +626,7 @@ void TsdbComponent::flush_(bool force) {
   if (err != ESP_OK) {
     this->write_errors_++;
     ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
-    // A failed sync leaves the engine's handle closed; reopen it rather than
-    // keep writing to a database that can no longer accept records.
+    // A failed sync closes the handle; reopen rather than write into a dead database.
     if (!tsdb_is_initialized_h(static_cast<tsdb_t *>(this->db_)))
       this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
     this->publish_errors_();

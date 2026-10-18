@@ -31,8 +31,8 @@ static constexpr uint32_t HEADER_BYTES = 584;
 static constexpr uint32_t TIMESTAMP_BYTES = 4;
 static constexpr uint32_t COLUMN_BYTES = 2;
 static constexpr uint32_t INDEX_ENTRY_BYTES = 8;
-// New files (esp_tsdb 2.4.3) place the sparse index after the 584-byte header,
-// at 1024; legacy files started it at 512. Data blocks follow the index.
+// New files place the sparse index at 1024, after the 584-byte header (legacy
+// files started it at 512); the data blocks follow it.
 static constexpr uint32_t INDEX_OFFSET = 1024;
 static constexpr uint32_t INDEX_DEFAULT_STRIDE = 380;  // mirrors TSDB_DEFAULT_INDEX_STRIDE in __init__.py
 static constexpr uint32_t MAX_RECORDS_RESERVE = 2048;
@@ -77,9 +77,8 @@ constexpr uint32_t max_records_for_bytes(uint64_t bytes, uint32_t columns) {
   return static_cast<uint32_t>((bytes - MAX_RECORDS_RESERVE) / record);
 }
 
-// Complete on-disk layout of a database with `records` slots: the index region
-// (esp_tsdb reserves records / index_stride + 1 entries) plus the data blocks.
-// Mirrors esp_tsdb's tsdb_calc_block_offset() and its creation-time sizing.
+// Complete on-disk layout of a database with `records` slots, mirroring
+// esp_tsdb's tsdb_calc_block_offset() and its creation-time sizing.
 constexpr uint64_t file_bytes_for(uint32_t records, uint32_t columns, uint32_t index_stride = INDEX_DEFAULT_STRIDE) {
   if (records == 0 || columns == 0 || index_stride == 0)
     return 0;
@@ -92,9 +91,8 @@ constexpr uint64_t file_bytes_for(uint32_t records, uint32_t columns, uint32_t i
 }
 
 // Largest capacity whose complete layout fits the budget. A binary search, not a
-// greedy shrink: when index entries cost more per record than the record bytes
-// do (a small index_stride), subtracting over / record_bytes can skip past zero
-// even though a smaller capacity still fits.
+// greedy shrink: when index entries cost more per record than the record bytes do
+// (a small index_stride), subtracting over / record_bytes can skip past zero.
 constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t index_stride = INDEX_DEFAULT_STRIDE) {
   if (columns == 0 || index_stride == 0 || records_per_block(columns) == 0)
     return 0;
@@ -112,13 +110,13 @@ constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t
 }
 
 // raw = round(value * scale + offset), clamped to int16.
-// *saturated reports that the scaled value fell outside int16 and was clamped,
-// so a scale_factor that is too small for the sensor's range does not pass silently.
+// *saturated reports a value that fell outside int16 and was clamped, so a
+// scale_factor too small for the sensor's range does not pass silently.
 inline int16_t encode(double value, double scale, double offset = 0.0, bool *saturated = nullptr) {
   if (saturated != nullptr)
     *saturated = false;
-  // A non-finite scale or offset (YAML .nan/.inf) would push `raw` out of every
-  // comparison below and through an undefined int16 cast; treat it as unknown.
+  // A non-finite scale or offset (YAML .nan/.inf) would reach an undefined int16
+  // cast; treat it as unknown.
   if (!std::isfinite(value) || !std::isfinite(scale) || !std::isfinite(offset) || scale == 0.0)
     return RAW_UNKNOWN;
   const double raw = std::round(value * scale + offset);

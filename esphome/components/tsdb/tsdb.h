@@ -154,8 +154,7 @@ class TsdbComponent : public PollingComponent {
 
   void *db_{nullptr};
   bool mounted_{false};
-  // A handle esp_tsdb invalidated (a failed sync fclose/reopen); reopened on a
-  // later interval instead of failing every write until reboot.
+  // A handle esp_tsdb invalidated; reopened on a later interval.
   bool db_lost_{false};
   uint32_t last_reopen_{0};
   uint32_t writes_{0};
