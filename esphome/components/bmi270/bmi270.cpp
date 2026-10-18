@@ -314,7 +314,7 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   };
   float scale = ACCEL_SCALE[this->accel_range_];
 
-  data.acceleration[motion::X_AXIS] = encode_value_le<int16_t>(&raw_data[0]) * scale;
+  data.acceleration[motion::X_AXIS] = encode_value_le<int16_t>(raw_data) * scale;
   data.acceleration[motion::Y_AXIS] = encode_value_le<int16_t>(&raw_data[2]) * scale;
   data.acceleration[motion::Z_AXIS] = encode_value_le<int16_t>(&raw_data[4]) * scale;
 
@@ -326,7 +326,7 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   static constexpr uint8_t GYR_OFFS = BMI270_REG_DATA_14 - BMI270_REG_DATA_8;
   scale = GYRO_SCALE[this->gyro_range_];
 
-  data.angular_rate[motion::X_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 0]) * scale;
+  data.angular_rate[motion::X_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS]) * scale;
   data.angular_rate[motion::Y_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 2]) * scale;
   data.angular_rate[motion::Z_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 4]) * scale;
 

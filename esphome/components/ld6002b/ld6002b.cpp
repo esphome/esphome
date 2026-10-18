@@ -203,11 +203,7 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 }
 #endif
 
-uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) { return encode_value<uint16_t>(data); }
-
 uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) { return encode_value_le<uint32_t>(data); }
-
-int32_t LD6002BComponent::read_int32_le(const uint8_t *data) { return encode_value_le<int32_t>(data); }
 
 float LD6002BComponent::read_f32_le(const uint8_t *data) {
   uint32_t raw = read_u32_le(data);
@@ -532,9 +528,9 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
         this->header_xor_ ^= byte;
         this->header_pos_++;
         if (this->header_pos_ == 6) {
-          this->frame_id_ = read_u16_be(this->data_buf_);
-          this->data_len_ = read_u16_be(this->data_buf_ + 2);
-          this->frame_type_ = read_u16_be(this->data_buf_ + 4);
+          this->frame_id_ = encode_value<uint16_t>(this->data_buf_);
+          this->data_len_ = encode_value<uint16_t>(this->data_buf_ + 2);
+          this->frame_type_ = encode_value<uint16_t>(this->data_buf_ + 4);
           // The length is only trustworthy once the header checksum has been verified, so just
           // remember that the frame is oversized and let the HCK state act on it.
           this->frame_oversize_ = this->data_len_ > this->max_data_len_;
@@ -699,7 +695,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   std::array<uint8_t, MAX_TARGETS> slot_wire{};
   for (uint8_t i = 0; i < count; i++) {
     uint16_t cluster_offset = 4 + (i * TARGET_DATA_LEN) + 16;
-    wire_cluster[i] = static_cast<int32_t>(read_u32_le(data + cluster_offset));
+    wire_cluster[i] = encode_value_le<int32_t>(data + cluster_offset);
   }
   for (uint8_t i = 0; i < count; i++) {
     for (uint8_t s = 0; s < MAX_TARGETS; s++) {
@@ -756,7 +752,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       float x = read_f32_le(data + offset + 0);
       float y = read_f32_le(data + offset + 4);
       float z = read_f32_le(data + offset + 8);
-      int32_t dop_idx = read_int32_le(data + offset + 12);
+      int32_t dop_idx = encode_value_le<int32_t>(data + offset + 12);
       int32_t cluster_id = this->slot_cluster_[i];
       TargetSensors &target = this->targets_[i];
       if (target.x != nullptr) {

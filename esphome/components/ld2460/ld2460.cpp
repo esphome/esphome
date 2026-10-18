@@ -117,7 +117,7 @@ void LD2460Component::handle_periodic_data_() {
       continue;
     }
     const uint8_t *p = &data[7 + i * 4];
-    auto raw_x = encode_value_le<int16_t>(&p[0]);
+    auto raw_x = encode_value_le<int16_t>(p);
     auto raw_y = encode_value_le<int16_t>(&p[2]);
     if (raw_x == t.last_x && raw_y == t.last_y) {
       continue;
