@@ -8,6 +8,13 @@
 
 namespace esphome::packet_interface::encryption_testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 using Packet = std::vector<uint8_t>;
 
 // A link layer that records what is sent, so a test can deliver it to the peer
@@ -15,7 +22,7 @@ class MockLink : public PacketInterface {
  public:
   explicit MockLink(size_t max_packet_size = 64) { this->set_max_packet_size(max_packet_size); }
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
-    this->sent.push_back(data.to_vector());
+    this->sent.push_back(to_vector(data));
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
@@ -40,7 +47,7 @@ struct Peer {
     this->encryption = std::make_unique<TestEncryption>(&this->link, rolling_code);
     this->encryption->set_key({key_word, 2, 3, 4, 5, 6, 7, 8});
     this->encryption->add_packet_interface_listener(
-        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(data.to_vector()); });
+        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->encryption->setup();
   }
   bool send(const Packet &data) { return this->encryption->send_to_interface(PacketBuffer(data), {}); }
