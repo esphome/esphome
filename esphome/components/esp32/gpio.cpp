@@ -68,6 +68,7 @@ struct ISRFuncArg {
   void *arg;
 };
 
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
 esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
   if (idf_type == GPIO_INTR_LOW_LEVEL)
     return ESP_EXT1_WAKEUP_ANY_LOW;
@@ -75,7 +76,7 @@ esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
     return ESP_EXT1_WAKEUP_ANY_HIGH;
   return ESP_EXT1_WAKEUP_ANY_LOW;
 }
-
+#endif
 #endif
 
 #ifdef USE_GPIO_HOLD
@@ -123,6 +124,7 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
 static void IRAM_ATTR gpio_intr_(void *arg) {
   // emulate edge interrupt
   auto func_arg = reinterpret_cast<ISRFuncArg *>(arg);
@@ -133,7 +135,7 @@ static void IRAM_ATTR gpio_intr_(void *arg) {
     esp_sleep_enable_ext1_wakeup_io(1 << pin, ESP_EXT1_WAKEUP_ANY_LOW);
 #endif
 #if SOC_RTCIO_WAKE_SUPPORTED
-    rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_LOW_LEVEL);
+    // rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_LOW_LEVEL);
 #endif
     gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_LOW_LEVEL);
     if ((type == GPIO_INTR_POSEDGE) || (type == GPIO_INTR_ANYEDGE)) {
@@ -144,7 +146,7 @@ static void IRAM_ATTR gpio_intr_(void *arg) {
     esp_sleep_enable_ext1_wakeup_io(1 << pin, ESP_EXT1_WAKEUP_ANY_HIGH);
 #endif
 #if SOC_RTCIO_WAKE_SUPPORTED
-    rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_HIGH_LEVEL);
+    // rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_HIGH_LEVEL);
 #endif
     gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_HIGH_LEVEL);
     if ((type == GPIO_INTR_NEGEDGE) || (type == GPIO_INTR_ANYEDGE)) {
@@ -153,6 +155,7 @@ static void IRAM_ATTR gpio_intr_(void *arg) {
   }
   gpio_hal_clear_intr_status_bit(&GPIO_HAL, pin);
 }
+#endif
 
 void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;

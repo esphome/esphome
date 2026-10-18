@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include <esp_idf_version.h>
 
+#include "hal/rtc_hal.h"
 namespace esphome::deep_sleep {
 
 // Deep Sleep feature support matrix for ESP32 variants:
@@ -111,11 +112,6 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
 
-#if defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
-  // disable all existing wakeup pins
-  esp_sleep_disable_ext1_wakeup_io(0);
-#endif
-
 #ifndef SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
 #ifdef USE_GPIO_HOLD
   // Variants without per-pin deep sleep hold need the global enable
@@ -126,6 +122,15 @@ void DeepSleepComponent::deep_sleep_() {
 #endif
 #endif
 
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  // disable all existing wakeup pins and prevent re-enable from ISR
+  gpio_uninstall_isr_service();
+  esp_sleep_disable_ext1_wakeup_io(0);
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
+#endif
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
+#endif
   // Single pin wakeup (ext0) - ESP32, S2, S3 only
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
     !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
@@ -186,7 +191,6 @@ void DeepSleepComponent::deep_sleep_() {
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
   }
 #endif
-
   esp_deep_sleep_start();
 }
 
