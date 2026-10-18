@@ -1030,7 +1030,10 @@ _filter_platform_sources = filter_source_files_from_platform(
 
 # util.cpp holds only the out-of-line MQTT connectivity helpers; without
 # USE_MQTT the header provides inline stubs and the file must not compile.
-_filter_define_sources = filter_source_files_from_defines({"util.cpp": "USE_MQTT"})
+# line_reader.cpp compiles only for components that opt in with USE_LINE_READER.
+_filter_define_sources = filter_source_files_from_defines(
+    {"util.cpp": "USE_MQTT", "line_reader.cpp": "USE_LINE_READER"}
+)
 
 
 def FILTER_SOURCE_FILES() -> list[str]:

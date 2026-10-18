@@ -366,11 +366,7 @@ async def to_code(config: ConfigType) -> None:
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)
 
-    if lambda_config := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
     if reset_pin := config.get(CONF_RESET_PIN):
         cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
     if busy_pin := config.get(CONF_BUSY_PIN):

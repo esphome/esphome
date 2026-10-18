@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
@@ -198,6 +197,7 @@ async def to_code(config: ConfigType) -> None:
         model.get_dimensions(config)
     )
     var = cg.new_Pvariable(config[CONF_ID], width, height, color_depth, pixel_mode)
+    cg.add(var.set_big_endian(config[CONF_BYTE_ORDER] == BYTE_ORDER_BIG))
 
     sequence = model.get_sequence(config)
     cg.add(var.set_model(config[CONF_MODEL]))
@@ -223,8 +223,4 @@ async def to_code(config: ConfigType) -> None:
     if model.rotation_as_transform(config):
         config[CONF_ROTATION] = 0
     await display.register_display(var, config)
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

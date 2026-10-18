@@ -66,7 +66,8 @@ struct UrlMatch {
 #ifdef USE_DEVICES
   StringRef device_name;  ///< Device name within URL, empty for main device
 #endif
-  bool valid{false};  ///< Whether this match is valid
+  bool valid{false};             ///< Whether this match is valid
+  bool include_internal{false};  ///< Whether internal entities may match, the web server's include_internal
 
   // Helper methods for string comparisons
   bool domain_equals(const char *str) const { return this->domain == str; }
@@ -78,7 +79,7 @@ struct UrlMatch {
   bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
 #endif
 
-  /// Match entity by name
+  /// Match entity by name; internal entities match only if include_internal is set
   /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
 };
@@ -669,7 +670,7 @@ class WebServer final : public Component, public AsyncWebHandler {
   void cover_json_(cover::Cover *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_NUMBER
-  void number_json_(number::Number *obj, float value, JsonDetail start_config, json::JsonBuilder &builder);
+  void number_json_(number::Number *obj, JsonDetail start_config, json::JsonBuilder &builder);
 #endif
 #ifdef USE_DATETIME_DATE
   void date_json_(datetime::DateEntity *obj, JsonDetail start_config, json::JsonBuilder &builder);
