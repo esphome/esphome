@@ -130,3 +130,9 @@ def test_reply_timeout_is_accepted_for_a_server_link() -> None:
 def test_reply_timeout_is_rejected_for_a_client_link() -> None:
     with pytest.raises(cv.Invalid, match="only used with role: server"):
         CONFIG_SCHEMA({"tcp_uart_id": "sock", "reply_timeout": "3s"})
+
+
+def test_reply_timeout_of_zero_is_rejected() -> None:
+    # With 0 a new request would replace the one still waiting for its reply.
+    with pytest.raises(cv.Invalid, match="higher than 0s"):
+        CONFIG_SCHEMA({"tcp_uart_id": "sock", "role": "server", "reply_timeout": "0s"})

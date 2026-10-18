@@ -49,7 +49,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ROLE, default="client"): cv.one_of(
                 "client", "server", lower=True
             ),
+            # 0 would let every new request replace the one still waiting for its reply.
             cv.Optional(CONF_REPLY_TIMEOUT): cv.All(
+                cv.positive_not_null_time_period,
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
