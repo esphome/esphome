@@ -186,9 +186,12 @@ void HdlcReliability::start_timer_() {
 void HdlcReliability::on_timeout_() {
   if (this->state_ != LinkState::LINK_STATE_CONNECTED) {
     // Counted up to max_retries_ only, so the warning is logged once until the link comes up
-    if (this->retries_ < this->max_retries_ && ++this->retries_ == this->max_retries_) {
-      ESP_LOGW(TAG, "%s: No answer to the link reset after %u tries; check that the peer has a reliability layer",
-               this->name_, this->max_retries_);
+    if (this->retries_ < this->max_retries_) {
+      this->retries_++;
+      if (this->retries_ == this->max_retries_) {
+        ESP_LOGW(TAG, "%s: No answer to the link reset after %u tries; check that the peer has a reliability layer",
+                 this->name_, this->max_retries_);
+      }
     }
     this->send_frame_(UNNUMBERED_SABM, nullptr, 0);
     this->start_timer_();
