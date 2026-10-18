@@ -10,10 +10,16 @@
 #include "esphome/core/application.h"
 #include "esphome/core/base_automation.h"
 
-// PCM capture is outside these response tests. Fail if a scenario starts using it.
+// Capture state is simulated only for direct-speaker tests. PCM conversion is out of scope.
 namespace esphome::microphone {
-void MicrophoneSource::start() { ADD_FAILURE() << "Unexpected microphone capture"; }
-void MicrophoneSource::stop() {}
+void MicrophoneSource::start() {
+  this->enabled_ = true;
+  this->mic_->start();
+}
+void MicrophoneSource::stop() {
+  this->enabled_ = false;
+  this->mic_->stop();
+}
 void MicrophoneSource::process_audio_(const std::vector<uint8_t> &, std::vector<uint8_t> &) {
   ADD_FAILURE() << "Unexpected microphone PCM";
 }
@@ -24,7 +30,11 @@ namespace esphome::voice_assistant::testing {
 
 class TestMicrophone : public microphone::Microphone {
  public:
-  void start() override { this->state_ = microphone::STATE_RUNNING; }
+  unsigned starts{0};
+  void start() override {
+    ++this->starts;
+    this->state_ = microphone::STATE_RUNNING;
+  }
   void stop() override { this->state_ = microphone::STATE_STOPPED; }
 };
 
@@ -73,7 +83,12 @@ class VoiceAssistantResponseTest : public ::testing::Test {
     this->client_->start();
     this->voice_.client_subscription(this->client_.get(), true);
     this->voice_.set_microphone_source(&this->mic_source_);
-    this->voice_.set_media_player(&this->player_);
+    this->voice_.set_use_wake_word(false);
+    this->voice_.set_noise_suppression_level(0);
+    this->voice_.set_auto_gain(0);
+    this->voice_.set_volume_multiplier(1.0f);
+    this->voice_.set_conversation_timeout(300000);
+    this->configure_output();
     this->voice_.setup();
     this->intent_automation_.add_action(&this->intent_action_);
     this->error_automation_.add_action(&this->error_action_);
@@ -87,6 +102,7 @@ class VoiceAssistantResponseTest : public ::testing::Test {
       App.scheduler.cancel_timeout(&this->voice_, id);
       App.scheduler.cancel_interval(&this->voice_, id);
     }
+    EXPECT_EQ(this->mic_.starts, this->expected_microphone_starts_);
     this->client_.reset();
     this->peer_.reset();
     global_voice_assistant = this->previous_voice_;
@@ -97,6 +113,8 @@ class VoiceAssistantResponseTest : public ::testing::Test {
     App.scheduler.process_to_add();
     App.scheduler.call(millis());
   }
+
+  virtual void configure_output() { this->voice_.set_media_player(&this->player_); }
 
   void event_(api::enums::VoiceAssistantEvent event, const char *key = nullptr, const char *value = nullptr) {
     api::VoiceAssistantEventResponse msg;
@@ -139,6 +157,7 @@ class VoiceAssistantResponseTest : public ::testing::Test {
   VoiceAssistant *previous_voice_{global_voice_assistant};
   api::APIServer *previous_server_{api::global_api_server};
   TestMicrophone mic_;
+  unsigned expected_microphone_starts_{0};
   microphone::MicrophoneSource mic_source_{&this->mic_, 16, 1, false};
   TestMediaPlayer player_;
   VoiceAssistant voice_;
@@ -156,6 +175,86 @@ class VoiceAssistantResponseTest : public ::testing::Test {
   std::unique_ptr<api::APIConnection> client_;
   std::unique_ptr<api::APIPlaintextFrameHelper> peer_;
 };
+
+class TestSpeaker : public speaker::Speaker {
+ public:
+  std::vector<uint8_t> pcm;
+  size_t play(const uint8_t *data, size_t length) override {
+    this->pcm.insert(this->pcm.end(), data, data + length);
+    return length;
+  }
+  void start() override { this->state_ = speaker::STATE_RUNNING; }
+  void stop() override { this->state_ = speaker::STATE_STOPPED; }
+  bool has_buffered_data() const override { return false; }
+};
+
+class VoiceAssistantSpeakerResponseTest : public VoiceAssistantResponseTest {
+ protected:
+  void TearDown() override {
+    this->speaker_.stop();
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_STREAM_END);
+    for (unsigned i = 0; i < 3; ++i)
+      this->voice_.loop();
+    VoiceAssistantResponseTest::TearDown();
+  }
+  void configure_output() override { this->voice_.set_speaker(&this->speaker_); }
+  void start_speaker_response_() {
+    ++this->expected_microphone_starts_;
+    this->voice_.request_start(false, false);
+    this->voice_.loop();
+    this->voice_.loop();
+    this->voice_.loop();
+    this->voice_.start_streaming();
+    this->event_(api::enums::VOICE_ASSISTANT_STT_VAD_END);
+    this->voice_.loop();
+    this->voice_.loop();
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_START, "text", "Test response");
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/tts.wav");
+    this->flush_();
+  }
+  void send_pcm_() {
+    const uint8_t pcm[]{1, 2, 3, 4, 5, 6};
+    api::VoiceAssistantAudio msg;
+    msg.data = pcm;
+    msg.data_len = sizeof(pcm);
+    this->voice_.on_audio(msg);
+  }
+  TestSpeaker speaker_;
+};
+
+TEST_F(VoiceAssistantSpeakerResponseTest, DirectSpeakerStreamEndAndReuseWithoutMediaPlayer) {
+  for (unsigned i = 0; i < 2; ++i) {
+    this->speaker_.pcm.clear();
+    this->start_speaker_response_();
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_STREAM_START);
+    this->send_pcm_();
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_STREAM_END);
+    this->voice_.loop();
+    this->speaker_.stop();  // The sink has consumed its output.
+    this->voice_.loop();
+    EXPECT_FALSE(this->voice_.is_running());
+    EXPECT_EQ(this->speaker_.pcm, std::vector<uint8_t>({1, 2, 3, 4, 5, 6}));
+    EXPECT_TRUE(this->completions_().empty());
+  }
+  EXPECT_EQ(this->player_.play_requests, 0);
+  EXPECT_TRUE(this->errors_.empty());
+}
+
+TEST_F(VoiceAssistantSpeakerResponseTest, DirectSpeakerKeepsConfiguredLegacyTimeout) {
+  this->voice_.set_tts_playback_start_timeout(20);
+  this->start_speaker_response_();
+  this->send_pcm_();
+  this->voice_.loop();
+  this->speaker_.stop();
+  delay(30);
+  this->flush_();
+  this->voice_.loop();
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->completions_(), std::vector<bool>({true}));
+  EXPECT_EQ(this->speaker_.pcm, std::vector<uint8_t>({1, 2, 3, 4, 5, 6}));
+  EXPECT_EQ(this->player_.play_requests, 0);
+  EXPECT_TRUE(this->errors_.empty());
+}
 
 TEST_F(VoiceAssistantResponseTest, LateTtsEndDoesNotReopenFinishedResponse) {
   this->start_streamed_response_();
