@@ -9,6 +9,7 @@ from esphome.components.tsdb import (
     CONF_MAX_FILE_SIZE,
     CONF_MIN_FREE_BYTES,
     CONF_NAME,
+    CONF_OFFSET,
     CONF_PARTITION_SIZE,
     CONF_SCALE_FACTOR,
     CONF_SENSOR,
@@ -113,7 +114,12 @@ def test_validate_min_free_bytes_allows_zero() -> None:
 
 
 def _column(name: str = "value", **kwargs: object) -> dict:
-    column: dict = {CONF_NAME: name, CONF_SCALE_FACTOR: 1.0, CONF_SENSOR: "source"}
+    column: dict = {
+        CONF_NAME: name,
+        CONF_SCALE_FACTOR: 1.0,
+        CONF_OFFSET: 0.0,
+        CONF_SENSOR: "source",
+    }
     column.update(kwargs)
     return column
 
@@ -172,6 +178,28 @@ def test_sensor_platform_rejects_an_unknown_column() -> None:
 def test_validate_config_rejects_a_budget_that_does_not_fit() -> None:
     with pytest.raises(cv.Invalid, match="min_free_bytes must stay below"):
         _validate_config(_config(min_free_bytes=512 * 1024))
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_validate_config_rejects_non_finite_scale_factor(bad: float) -> None:
+    # A NaN scale reaches the int16 cast (undefined behaviour) and infinity is
+    # emitted as the invalid C++ literal `inff`.
+    with pytest.raises(cv.Invalid, match="scale_factor must be a finite number"):
+        _validate_config(_config(columns=[_column(scale_factor=bad)]))
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_validate_config_rejects_non_finite_offset(bad: float) -> None:
+    with pytest.raises(cv.Invalid, match="offset must be a finite number"):
+        _validate_config(_config(columns=[_column(offset=bad)]))
+
+
+def test_validate_config_accepts_finite_boundaries() -> None:
+    config = _config(columns=[_column(scale_factor=1e300, offset=-1e300)])
+    assert _validate_config(config) is config
+
+
+def test_validate_config_rejects_budget_over_partition() -> None:
     with pytest.raises(cv.Invalid, match="do not fit into partition_size"):
         _validate_config(_config(max_file_size=500 * 1024))
 
@@ -189,3 +217,11 @@ def test_validate_memory_rejects_unknown_mode() -> None:
 def test_validate_memory_requires_the_psram_component() -> None:
     with pytest.raises(cv.Invalid, match="requires component psram"):
         _validate_memory("psram")
+
+
+def test_validate_config_reserves_room_for_filesystem_metadata() -> None:
+    # 480KB + 32KB exactly fills a 512KB partition, which LittleFS cannot write
+    # to because it needs blocks for its own metadata.
+    with pytest.raises(cv.Invalid, match="filesystem metadata"):
+        _validate_config(_config(max_file_size=480 * 1024))
+    assert _validate_config(_config())[CONF_MAX_FILE_SIZE] == 384 * 1024

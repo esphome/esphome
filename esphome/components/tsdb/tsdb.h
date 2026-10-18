@@ -14,7 +14,9 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#endif
 
 #include "esp_err.h"
 
@@ -28,6 +30,7 @@ struct TsdbColumn {
   double scale{1.0};
   double offset{0.0};
   int16_t held{tsdbmath::RAW_UNKNOWN};
+  bool hold_warned{false};
 };
 
 #ifdef USE_SENSOR
@@ -75,7 +78,9 @@ class TsdbComponent : public PollingComponent {
   void set_aggregate_window(uint32_t seconds) { this->aggregate_window_ = seconds; }
   void set_aggregate_interval(uint32_t ms) { this->aggregate_interval_ = ms; }
   void set_dump_rows(uint32_t rows) { this->dump_rows_ = rows; }
+#ifdef USE_TIME
   void set_time_source(time::RealTimeClock *clock) { this->time_ = clock; }
+#endif
 
   void add_column(const char *name, double scale, double offset);
   void set_column_source(size_t index, sensor::Sensor *source);
@@ -102,6 +107,8 @@ class TsdbComponent : public PollingComponent {
   void fail_setup_(const LogString *reason);
   void close_database_();
   void handle_requests_();
+  void invalidate_database_(const LogString *reason);
+  void reopen_if_lost_();
   bool write_record_();
   void publish_errors_();
   void flush_(bool force);
@@ -134,7 +141,9 @@ class TsdbComponent : public PollingComponent {
   // Sized by TSDB_COLUMN_COUNT, emitted by the Python config; defines.h covers static analysis.
   StaticVector<TsdbColumn, TSDB_COLUMN_COUNT> columns_;
   StaticVector<int16_t, TSDB_COLUMN_COUNT> values_;
+#ifdef USE_TIME
   time::RealTimeClock *time_{nullptr};
+#endif
 #ifdef USE_SENSOR
   std::array<TsdbAggregateSensors, TSDB_COLUMN_COUNT> aggregates_{};
 #endif
@@ -144,11 +153,18 @@ class TsdbComponent : public PollingComponent {
 
   void *db_{nullptr};
   bool mounted_{false};
+  // A handle esp_tsdb invalidated (a failed sync fclose/reopen); reopened on a
+  // later interval instead of failing every write until reboot.
+  bool db_lost_{false};
+  uint32_t last_reopen_{0};
   uint32_t writes_{0};
   uint32_t write_errors_{0};
   uint32_t dropped_{0};
+  uint32_t dropped_missing_{0};
   uint32_t saturated_{0};
+  uint32_t held_{0};
   uint32_t last_sync_{0};
+  uint32_t last_timestamp_{0};
   bool dirty_{false};
   uint32_t last_aggregate_{0};
   uint32_t last_stats_{0};
@@ -157,6 +173,7 @@ class TsdbComponent : public PollingComponent {
   uint32_t dump_requested_{0};
   bool clear_requested_{false};
   bool warned_time_{false};
+  bool warned_backwards_{false};
   esp_err_t mount_error_{ESP_OK};
   bool format_attempted_{false};
   esp_err_t format_error_{ESP_OK};

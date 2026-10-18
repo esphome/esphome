@@ -31,6 +31,9 @@ static constexpr uint32_t HEADER_BYTES = 584;
 static constexpr uint32_t TIMESTAMP_BYTES = 4;
 static constexpr uint32_t COLUMN_BYTES = 2;
 static constexpr uint32_t INDEX_ENTRY_BYTES = 8;
+// New files (esp_tsdb 2.4.3) place the sparse index after the 584-byte header,
+// at 1024; legacy files started it at 512. Data blocks follow the index.
+static constexpr uint32_t INDEX_OFFSET = 1024;
 static constexpr uint32_t INDEX_DEFAULT_STRIDE = 380;  // mirrors TSDB_DEFAULT_INDEX_STRIDE in __init__.py
 static constexpr uint32_t MAX_RECORDS_RESERVE = 2048;
 
@@ -74,26 +77,37 @@ constexpr uint32_t max_records_for_bytes(uint64_t bytes, uint32_t columns) {
   return static_cast<uint32_t>((bytes - MAX_RECORDS_RESERVE) / record);
 }
 
+// Complete on-disk layout of a database with `records` slots: the index region
+// (esp_tsdb reserves records / index_stride + 1 entries) plus the data blocks.
+// Mirrors esp_tsdb's tsdb_calc_block_offset() and its creation-time sizing.
 constexpr uint64_t file_bytes_for(uint32_t records, uint32_t columns, uint32_t index_stride = INDEX_DEFAULT_STRIDE) {
   if (records == 0 || columns == 0 || index_stride == 0)
     return 0;
   const uint32_t per_block = records_per_block(columns);
   if (per_block == 0)
     return 0;
-  const uint64_t blocks = (records + per_block - 1) / per_block;
-  const uint64_t index_entries = (records + index_stride - 1) / index_stride;
-  return HEADER_BYTES + blocks * BLOCK_SIZE + index_entries * INDEX_ENTRY_BYTES;
+  const uint64_t blocks = (static_cast<uint64_t>(records) + per_block - 1) / per_block;
+  const uint64_t index_entries = static_cast<uint64_t>(records) / index_stride + 1;
+  return INDEX_OFFSET + blocks * BLOCK_SIZE + index_entries * INDEX_ENTRY_BYTES;
 }
 
-// Shrinks the estimate until file_bytes_for() really fits the budget.
+// Largest capacity whose complete layout fits the budget. A binary search, not a
+// greedy shrink: when index entries cost more per record than the record bytes
+// do (a small index_stride), subtracting over / record_bytes can skip past zero
+// even though a smaller capacity still fits.
 constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t index_stride = INDEX_DEFAULT_STRIDE) {
-  uint32_t records = max_records_for_bytes(bytes, columns);
-  while (records > 0 && file_bytes_for(records, columns, index_stride) > bytes) {
-    const uint64_t over = file_bytes_for(records, columns, index_stride) - bytes;
-    const uint32_t step = static_cast<uint32_t>(over / record_bytes(columns)) + 1;
-    records = step >= records ? 0 : records - step;
+  if (columns == 0 || index_stride == 0 || records_per_block(columns) == 0)
+    return 0;
+  uint32_t low = 0;
+  uint32_t high = max_records_for_bytes(bytes, columns);
+  while (low < high) {
+    const uint32_t mid = low + (high - low) / 2 + 1;
+    if (file_bytes_for(mid, columns, index_stride) <= bytes)
+      low = mid;
+    else
+      high = mid - 1;
   }
-  return records;
+  return low;
 }
 
 // raw = round(value * scale + offset), clamped to int16.
@@ -102,7 +116,9 @@ constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t
 inline int16_t encode(double value, double scale, double offset = 0.0, bool *saturated = nullptr) {
   if (saturated != nullptr)
     *saturated = false;
-  if (!std::isfinite(value) || scale == 0.0)
+  // A non-finite scale or offset (YAML .nan/.inf) would push `raw` out of every
+  // comparison below and through an undefined int16 cast; treat it as unknown.
+  if (!std::isfinite(value) || !std::isfinite(scale) || !std::isfinite(offset) || scale == 0.0)
     return RAW_UNKNOWN;
   const double raw = std::round(value * scale + offset);
   if (raw < static_cast<double>(RAW_MIN)) {
