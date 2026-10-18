@@ -69,10 +69,9 @@ class UC8179Gray4(UC8179):
 
     # fmt: off
     def get_init_sequence(self, config: dict) -> tuple:
-        """Panel configuration and the grayscale LUTs; the driver sends power-on after them."""
+        """Panel configuration and the grayscale LUTs, sent once the driver has powered the panel on."""
         width, height = self.get_dimensions(config)
         return (
-            (0x01, 0x07, 0x07, 0x3F, 0x3F, 0x03),  # POWER SETTING
             (0x00, 0x3F),  # PANEL SETTING (LUT from registers)
             ultrachip_resolution(width, height),
             (0x15, 0x00),  # DUAL SPI MODE (disabled)

@@ -4,6 +4,21 @@
 
 namespace esphome::epaper_spi {
 
+// The order the panel was tested with: power on right after the power setting, then the rest of the setup
+// and the LUTs while powered. The busy wait between the two steps is armed here, since the state does not change
+bool EPaperUC8179Gray4::initialise(bool partial) {
+  if (!this->init_powered_) {
+    this->cmd_data(CMD_POWER_SETTING, {0x07, 0x07, 0x3F, 0x3F, 0x03});
+    this->command(CMD_POWER_ON);
+    this->init_powered_ = true;
+    this->delay_until_ = millis() + 100;
+    this->wait_for_idle_(true);
+    return false;
+  }
+  this->init_powered_ = false;
+  return EPaperBase::initialise(partial);
+}
+
 bool HOT EPaperUC8179Gray4::transfer_data() {
   const uint32_t start_time = millis();
   const size_t plane_length = this->buffer_length_ / 2;
