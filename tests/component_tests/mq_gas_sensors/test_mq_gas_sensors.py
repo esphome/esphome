@@ -1,0 +1,152 @@
+"""Tests for the MQ gas sensors code generation."""
+
+from collections.abc import Callable
+from pathlib import Path
+
+import pytest
+
+from esphome import config_validation as cv
+from esphome.components.mq_gas_sensors.coefficients import (
+    MQ_MAX_A,
+    MQ_MAX_B,
+    SENSOR_TYPES,
+    resolve_sensor,
+)
+from esphome.components.mq_gas_sensors.sensor import CONFIG_SCHEMA
+
+
+def test_voltage_source_is_a_constructor_argument(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Every reading needs the sampler, so it is passed at construction."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "new(mq8_boot) mq_gas_sensors::MQGasSensor(mq8_adc);" in main_cpp
+    assert "new(mq4_fixed) mq_gas_sensors::MQGasSensor(mq8_adc);" in main_cpp
+    assert "set_source(" not in main_cpp
+
+
+def test_built_in_curve_reaches_the_sensor(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The coefficients of the configured type/gas are compiled in."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert 'mq8_boot->set_type("MQ-8");' in main_cpp
+    assert 'mq8_boot->set_gas("H2");' in main_cpp
+    assert "mq8_boot->set_a(976.97f);" in main_cpp
+    assert "mq8_boot->set_b(-0.688f);" in main_cpp
+    assert "mq8_boot->set_regression_method(1);" in main_cpp
+    assert "mq8_boot->set_ratio_in_clean_air(70.0f);" in main_cpp
+    assert "mq8_boot->set_voltage_multiplier(1.5f);" in main_cpp
+    assert "mq8_boot->set_samples(4);" in main_cpp
+    assert "mq8_boot->set_calibration(5000, 5, 20);" in main_cpp
+    # A fixed R0 skips the boot calibration.
+    assert "mq4_fixed->set_r0(10.0f);" in main_cpp
+    assert "mq4_fixed->set_calibration(" not in main_cpp
+    # The primary gas is assumed when `gas:` is not written.
+    assert 'mq4_fixed->set_gas("CH4");' in main_cpp
+
+
+def test_every_built_in_type_resolves() -> None:
+    """Every gas in the table resolves to the coefficients the datasheet fit needs."""
+    for type_key, definition in SENSOR_TYPES.items():
+        for gas in definition["gases"]:
+            resolved = resolve_sensor(type_key, gas)
+            assert resolved.a != 0.0
+            assert resolved.max_ppm > 0.0
+
+
+def test_every_curve_stays_within_the_firmware_clamp() -> None:
+    """The device clamps `a` / `b`, so no resolved curve may promise more than that."""
+    for type_key, definition in SENSOR_TYPES.items():
+        for gas in definition["gases"]:
+            resolved = resolve_sensor(type_key, gas)
+            assert abs(resolved.a) <= MQ_MAX_A
+            assert abs(resolved.b) <= MQ_MAX_B
+
+
+def test_published_curve_above_the_clamp_resolves_to_the_clamp() -> None:
+    """MQ-3 CH4 publishes a = 2e31, above what the firmware can evaluate."""
+    assert SENSOR_TYPES["MQ3"]["gases"]["CH4"][0] == 2e31
+    assert resolve_sensor("MQ3", "CH4").a == MQ_MAX_A
+    assert resolve_sensor("MQ3", "CH4").built_in_clamped
+    assert not resolve_sensor("MQ8", "H2").built_in_clamped
+
+
+def test_unusable_built_in_curve_is_reported(caplog: pytest.LogCaptureFixture) -> None:
+    """MQ-3 CH4 is the one built-in fit above the firmware clamp, so it is reported."""
+    with caplog.at_level("WARNING"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq3_ch4",
+                "name": "MQ-3 CH4",
+                "sensor_type": "MQ-3",
+                "gas": "CH4",
+                "voltage": "mq8_adc",
+                "r0": 10.0,
+            }
+        )
+    assert "the built-in fit is outside the range the firmware evaluates" in caplog.text
+
+
+def test_mq8_h2_matches_the_reference_curve() -> None:
+    """The MQ-8 H2 curve is the anchor of the component tests below."""
+    resolved = resolve_sensor("MQ8", "H2")
+
+    assert resolved.a == pytest.approx(976.97)
+    assert resolved.b == pytest.approx(-0.688)
+    assert resolved.method == "exponential"
+    assert resolved.ratio_in_clean_air == pytest.approx(70.0)
+    assert resolved.max_ppm == pytest.approx(10000.0)
+
+
+def test_unknown_sensor_type_is_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="not a supported MQ sensor type"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-999",
+                "voltage": "mq8_adc",
+            }
+        )
+
+
+def test_unknown_gas_for_type_is_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="has no curve for gas"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "gas": "O3",
+                "voltage": "mq8_adc",
+            }
+        )
+
+
+def test_r0_and_calibration_are_exclusive() -> None:
+    """A fixed R0 and a boot calibration cannot both define the reference."""
+    with pytest.raises(cv.Invalid, match="Cannot specify more than one of"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "voltage": "mq8_adc",
+                "r0": 9.5,
+                "calibration": {"delay": "5s"},
+            }
+        )
+
+
+def test_sample_limits_follow_the_main_loop() -> None:
+    """A burst longer than 16 conversions and a spacing under the loop tick are rejected."""
+    base = {"id": "mq8", "name": "MQ-8", "sensor_type": "MQ-8", "voltage": "mq8_adc"}
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({**base, "sample_count": 17})
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({**base, "calibration": {"sample_interval": "10ms"}})
