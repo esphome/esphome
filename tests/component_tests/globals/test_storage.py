@@ -8,6 +8,11 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components import globals as globals_component
 from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32C2
+from esphome.components.esp8266.const import (
+    KEY_ESP8266,
+    KEY_PREFERENCES,
+    preference_words,
+)
 from esphome.const import (
     CONF_ID,
     CONF_RESTORE_VALUE,
@@ -87,3 +92,12 @@ def test_omitted_storage_keeps_platform_default(
     )
     assert "globals::Storage" not in main_cpp
     assert "USE_ESP32_RTC_PREFERENCES" not in _define_names()
+
+
+def test_restored_string_reserves_esp8266_store(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("globals_esp8266_storage_test.yaml"))
+    # 15 characters plus the length byte, in RTC memory
+    assert CORE.data[KEY_ESP8266][KEY_PREFERENCES] == [(preference_words(16), False)]
