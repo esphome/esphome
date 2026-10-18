@@ -56,6 +56,9 @@ TEST_F(UdpPacketInterfaceTest, SendsContiguousAndSplitPackets) {
   uint8_t header = 0;
   PacketBuffer body(packet);
   EXPECT_TRUE(this->link_.send_to_interface(PacketBuffer(&header, 1, &body, nullptr, 0), {}));
+  // A packet split across buffers is joined in the copy buffer before it is sent
+  const auto *storage = this->link_.tx_buffer_storage;
+  EXPECT_EQ(Packet(storage, storage + 5), (Packet{0, 1, 2, 3, 4}));
 }
 
 TEST_F(UdpPacketInterfaceTest, OversizedPacketNotSent) {

@@ -209,7 +209,8 @@ void UDPComponent::loop() {
     this->disable_loop();
     return;
   }
-  std::array<uint8_t, MAX_PACKET_SIZE> buf;
+  // One byte more than the largest packet, as a read cuts a longer datagram to fit and so cannot report it
+  std::array<uint8_t, MAX_PACKET_SIZE + 1> buf;
   for (;;) {
     if (!this->listen_socket_->ready())
       break;
@@ -217,6 +218,10 @@ void UDPComponent::loop() {
     if (len <= 0)
       break;
     size_t packet_len = static_cast<size_t>(len);
+    if (packet_len > MAX_PACKET_SIZE) {
+      ESP_LOGV(TAG, "Packet longer than %zu bytes dropped", MAX_PACKET_SIZE);
+      continue;
+    }
     ESP_LOGV(TAG, "Received packet of length %zu", packet_len);
     this->packet_listeners_.call(std::span<const uint8_t>(buf.data(), packet_len));
   }
