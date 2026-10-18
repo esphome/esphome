@@ -1,2 +1,0 @@
-packages:
-  usb_audio: !include common.yaml
