@@ -81,13 +81,11 @@ async def to_code(config: ConfigType) -> None:
     else:
         args = [type_]
         type = RestoringGlobalsComponent if restore else GlobalsComponent
+    in_flash = None
     if (storage := config.get(CONF_STORAGE)) is not None:
         # is_in_flash() also requests the RTC backend when rtc is chosen
-        args.append(
-            Storage.STORAGE_FLASH
-            if preferences.is_in_flash(storage)
-            else Storage.STORAGE_RTC
-        )
+        in_flash = preferences.is_in_flash(storage)
+        args.append(Storage.STORAGE_FLASH if in_flash else Storage.STORAGE_RTC)
     template_args = cg.TemplateArguments(*args)
 
     res_type = type.template(template_args)
@@ -105,6 +103,10 @@ async def to_code(config: ConfigType) -> None:
             value = value.encode()
         hash_ = int(hashlib.md5(value).hexdigest()[:8], 16)
         cg.add(glob.set_name_hash(hash_))
+        if type is RestoringGlobalStringComponent:
+            # The ESP8266 adds up every saved value to check that they fit its store; only the
+            # string's size is known here
+            preferences.reserve_preferences(1, args[1], in_flash)
 
 
 # A lambda returns the global's own type so `return 42;` reduces to a cast; the value
