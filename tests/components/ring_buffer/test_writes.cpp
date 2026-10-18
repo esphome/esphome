@@ -1,8 +1,10 @@
+#ifdef USE_HOST
 #include "common.h"
 
 // Keep host allocation/logging, and compile the actual ESP32-only implementation
 // in this translation unit against the FreeRTOS API double.
 #define USE_ESP32
+// NOLINTNEXTLINE(bugprone-suspicious-include): exercise production code with the host FreeRTOS double.
 #include "esphome/components/ring_buffer/ring_buffer.cpp"
 #undef USE_ESP32
 
@@ -11,7 +13,7 @@ class RingBufferWrites : public ::testing::Test {
  protected:
   void SetUp() override { ringbuf_test::reset(); }
   void TearDown() override { ringbuf_test::reset(); }
-  std::unique_ptr<RingBuffer> filled() {
+  std::unique_ptr<RingBuffer> filled_() {
     auto buffer = RingBuffer::create(8);
     const uint8_t initial[]{0, 1, 2, 3, 4, 5, 6, 7};
     EXPECT_EQ(buffer->write_without_replacement(initial, sizeof(initial)), sizeof(initial));
@@ -21,7 +23,7 @@ class RingBufferWrites : public ::testing::Test {
 };
 
 TEST_F(RingBufferWrites, OversizedFullWriteReachesTheWaitPath) {
-  auto buffer = filled();
+  auto buffer = this->filled_();
   const uint8_t data[32]{};
   EXPECT_EQ(buffer->write_without_replacement(data, sizeof(data), 20), 0);
   EXPECT_EQ(ringbuf_test::waits, std::vector<TickType_t>{20});
@@ -32,7 +34,7 @@ TEST_F(RingBufferWrites, OversizedFullWriteReachesTheWaitPath) {
 }
 
 TEST_F(RingBufferWrites, ReaderReleaseAllowsOversizedWriterToProgress) {
-  auto buffer = filled();
+  auto buffer = this->filled_();
   ringbuf_test::on_wait = [&]() {
     uint8_t output[3];
     EXPECT_EQ(buffer->read(output, sizeof(output)), 3);
@@ -50,7 +52,7 @@ TEST_F(RingBufferWrites, ReaderReleaseAllowsOversizedWriterToProgress) {
 }
 
 TEST_F(RingBufferWrites, OversizedWriteUsesAvailablePrefix) {
-  auto buffer = filled();
+  auto buffer = this->filled_();
   uint8_t discarded[3];
   ASSERT_EQ(buffer->read(discarded, sizeof(discarded)), 3);
   ringbuf_test::reset();
@@ -65,7 +67,7 @@ TEST_F(RingBufferWrites, OversizedWriteUsesAvailablePrefix) {
 }
 
 TEST_F(RingBufferWrites, AtomicOversizedWriteStillFailsWithoutConsumingData) {
-  auto buffer = filled();
+  auto buffer = this->filled_();
   const uint8_t data[32]{};
   EXPECT_EQ(buffer->write_without_replacement(data, sizeof(data), 20, false), 0);
   EXPECT_TRUE(ringbuf_test::waits.empty());
@@ -84,7 +86,7 @@ TEST_F(RingBufferWrites, NormalWriteKeepsTheFastPath) {
 }
 
 TEST_F(RingBufferWrites, PartialFallbackUsesOnlyOneWaitBudget) {
-  auto buffer = filled();
+  auto buffer = this->filled_();
   ringbuf_test::on_wait = [&]() {
     uint8_t discarded[3];
     EXPECT_EQ(buffer->read(discarded, sizeof(discarded)), 3);
@@ -97,7 +99,7 @@ TEST_F(RingBufferWrites, PartialFallbackUsesOnlyOneWaitBudget) {
 }
 
 TEST_F(RingBufferWrites, NonblockingAndEmptyWritesDoNotWait) {
-  auto buffer = filled();
+  auto buffer = this->filled_();
   const uint8_t data[32]{};
   EXPECT_EQ(buffer->write_without_replacement(data, sizeof(data), 0), 0);
   EXPECT_EQ(buffer->write_without_replacement(nullptr, 0, 20), 0);
@@ -120,3 +122,4 @@ TEST_F(RingBufferWrites, PartialWritesAndWrapPreserveEveryByte) {
   EXPECT_EQ(output, input);
 }
 }  // namespace esphome::ring_buffer
+#endif  // USE_HOST
