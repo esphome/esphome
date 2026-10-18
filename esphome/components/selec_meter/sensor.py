@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_EXPORT_ACTIVE_ENERGY,
     CONF_EXPORT_REACTIVE_ENERGY,
     CONF_FREQUENCY,
-    CONF_ID,
     CONF_IMPORT_ACTIVE_ENERGY,
     CONF_IMPORT_REACTIVE_ENERGY,
     CONF_MODEL,
@@ -337,9 +336,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+    var = await modbus.new_modbus_client_component(config)
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_word_swap(config[CONF_BYTE_ORDER]))
     if config[CONF_MODEL] == MODEL_EM4M:

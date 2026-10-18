@@ -127,7 +127,7 @@ def _schema(
             {
                 cv.GenerateID(): cv.declare_id(AS734XComponent),
                 cv.Optional(CONF_GAIN, default="X8"): cv.enum(gains),
-                cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
+                cv.Optional(CONF_ATIME, default=29): cv.uint8_t,
                 cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
                 cv.Optional(CONF_CALIBRATION, default={}): _calibration_schema(bands),
                 cv.Optional(CONF_NORMALIZE_BASIC_COUNTS, default="NONE"): cv.enum(
