@@ -218,6 +218,7 @@ void HdlcReliability::start_reset_() {
 void HdlcReliability::link_up_() {
   ESP_LOGD(TAG, "%s: Link connected", this->name_);
   this->state_ = LinkState::LINK_STATE_CONNECTED;
+  this->peer_frame_seen_ = false;
   this->retries_ = 0;
   this->cancel_timeout(RETRANSMIT_TIMER_ID);
   if (this->outstanding_() != 0) {
@@ -277,7 +278,9 @@ void HdlcReliability::receive_(const PacketBuffer &data, const PacketMetaData &m
 
   uint8_t command = control & ~POLL_FINAL_BIT;
   if (command == UNNUMBERED_SABM) {
-    if (this->state_ == LinkState::LINK_STATE_CONNECTED) {
+    // A peer that has not heard our UA repeats its SABM, and cannot have sent a numbered frame meanwhile; answering
+    // again keeps this side connected, and the queued frames, instead of treating the repeat as a restart.
+    if (this->state_ == LinkState::LINK_STATE_CONNECTED && this->peer_frame_seen_) {
       // The peer has restarted, so frames it has not acknowledged are lost
       ESP_LOGD(TAG, "%s: Link reset by peer", this->name_);
       this->start_reset_();
@@ -297,6 +300,7 @@ void HdlcReliability::receive_(const PacketBuffer &data, const PacketMetaData &m
   // Numbered frames are ignored until the link is reset; the peer answers our SABM first
   if (this->state_ != LinkState::LINK_STATE_CONNECTED)
     return;
+  this->peer_frame_seen_ = true;
 
   uint8_t nr = control >> 5;
   if ((control & 1) == 0) {

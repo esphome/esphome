@@ -142,6 +142,40 @@ TEST_F(HdlcReliabilityTest, ResetHandshake) {
   EXPECT_TRUE(b.hdlc->is_connected());
 }
 
+TEST_F(HdlcReliabilityTest, RepeatedSabmBeforeNumberedFramesKeepsQueue) {
+  Peer a, b;
+  pump(a, b);
+  // A frame is queued and sent, but has not reached A, so A has sent no numbered frame
+  ASSERT_TRUE(b.send({0x42}));
+  auto held = std::move(b.link.sent);
+  b.link.sent.clear();
+  EXPECT_EQ(b.hdlc->get_send_capacity(), 3);
+
+  // A repeats its SABM because it did not hear the UA; that is not a restart
+  b.link.inject(make_frame(0x2F, {}));  // SABM
+  EXPECT_TRUE(b.hdlc->is_connected());
+  EXPECT_TRUE(b.states.empty());              // no session lost reported
+  EXPECT_EQ(b.hdlc->get_send_capacity(), 3);  // the queued frame was kept
+  ASSERT_FALSE(b.link.sent.empty());
+  EXPECT_EQ(b.link.sent[0], make_frame(0x63, {}));  // UA, then the frame is sent again
+
+  // The frame is still delivered when it reaches A
+  for (auto &frame : held)
+    a.link.inject(frame);
+  EXPECT_EQ(a.received, std::vector<Frame>{{0x42}});
+}
+
+TEST_F(HdlcReliabilityTest, SabmAfterNumberedFramesIsARestart) {
+  Peer a, b;
+  pump(a, b);
+  // B has heard a numbered frame, so a SABM now means A has started again
+  ASSERT_TRUE(a.send({0x10}));
+  pump(a, b);
+  b.link.inject(make_frame(0x2F, {}));  // SABM
+  EXPECT_TRUE(b.hdlc->is_connected());
+  EXPECT_EQ(b.states, std::vector<bool>{false});
+}
+
 TEST_F(HdlcReliabilityTest, QueuedBeforeConnectIsSentAfter) {
   Peer a, b;
   ASSERT_TRUE(a.send({0x01}));
@@ -243,6 +277,10 @@ TEST_F(HdlcReliabilityTest, CrcErrorDropped) {
 TEST_F(HdlcReliabilityTest, RetriesExhaustedResetsLink) {
   Peer a, b;
   pump(a, b);
+  // One frame is delivered first, so b can tell a reset from a repeated SABM
+  ASSERT_TRUE(a.send({0x00}));
+  pump(a, b);
+  ASSERT_EQ(b.received, std::vector<Frame>{{0x00}});
   a.send({0x01});
   pump(a, b, [](const Frame &frame) { return is_info(frame); });
   for (int i = 0; i != 4; i++) {
@@ -250,13 +288,13 @@ TEST_F(HdlcReliabilityTest, RetriesExhaustedResetsLink) {
     pump(a, b, [](const Frame &frame) { return is_info(frame); });
   }
   // The unacknowledged frame was discarded and the link was reset, which both report as data lost
-  EXPECT_TRUE(b.received.empty());
+  EXPECT_EQ(b.received, std::vector<Frame>{{0x00}});
   EXPECT_TRUE(a.hdlc->is_connected());
   EXPECT_EQ(a.states, std::vector<bool>{false});
   EXPECT_EQ(b.states, std::vector<bool>{false});
   a.send({0x02});
   pump(a, b);
-  EXPECT_EQ(b.received, (std::vector<Frame>{{0x02}}));
+  EXPECT_EQ(b.received, (std::vector<Frame>{{0x00}, {0x02}}));
 }
 
 TEST_F(HdlcReliabilityTest, PeerRestart) {
