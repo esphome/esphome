@@ -25,13 +25,9 @@ struct NVSData {
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // The FlashDB name of a key: its decimal digits, with a prefix for storage: rtc so one pass over the
-// database finds every rtc entry
+// database finds every rtc entry. Without rtc storage is_rtc() is a constant false and the branch folds away.
 static constexpr size_t KEY_NAME_SIZE = UINT32_MAX_STR_SIZE + 1;
-#ifdef USE_LIBRETINY_RTC_PREFERENCES
 static constexpr char RTC_KEY_PREFIX = 'r';
-// Marks a discard pass in progress or left incomplete, so the next boot of any kind runs it again; written
-// before the pass and removed after a complete one
-static constexpr const char *RTC_DISCARD_PENDING_KEY = "r!";
 static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool rtc) {
   char *digits = buf;
   if (rtc)
@@ -39,6 +35,7 @@ static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool rtc) {
   uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE>(digits, UINT32_MAX_STR_SIZE), key);
 }
 
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
 // Whether this boot followed a reset that RTC memory survives on ESP32 and ESP8266. LibreTiny chips
 // have no such memory, so storage: rtc keeps preferences in flash and uses this to forget them.
 static bool boot_kept_rtc_preferences() {
@@ -53,10 +50,6 @@ static bool boot_kept_rtc_preferences() {
     default:  // power-on, brown-out, reset pin, debugger, unknown
       return false;
   }
-}
-#else
-static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool) {
-  uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE>(buf, UINT32_MAX_STR_SIZE), key);
 }
 #endif  // USE_LIBRETINY_RTC_PREFERENCES
 
@@ -92,14 +85,6 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-#ifdef USE_LIBRETINY_RTC_PREFERENCES
-  // A discard that failed at open leaves old rtc values in flash; every rtc key then counts as nothing stored
-  // for this boot, including one saved and synced since, and the discard runs again at the next boot
-  if (this->is_rtc() && get_preferences()->rtc_discard_failed()) {
-    ESP_LOGV(TAG, "rtc preference %" PRIu32 " reads as empty: the discard at boot failed", this->key);
-    return false;
-  }
-#endif
   char key_str[KEY_NAME_SIZE];
   key_name(key_str, this->key, this->is_rtc());
   fdb_blob_make(this->blob, data, len);
@@ -122,59 +107,39 @@ void LibreTinyPreferences::open() {
   }
   LT_I("Preferences initialized");
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
-  struct fdb_kv kv;
-  if (!boot_kept_rtc_preferences() || fdb_kv_get_obj(&this->db, RTC_DISCARD_PENDING_KEY, &kv) != nullptr)
+  if (!boot_kept_rtc_preferences())
     this->discard_rtc_entries_();
 #endif
 }
 
 #ifdef USE_LIBRETINY_RTC_PREFERENCES
 ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {
-  LibreTinyPreferenceBackend backend = this->make_backend_(type);
-  backend.rtc = !in_flash;
-  return ESPPreferenceObject(new LibreTinyPreferenceBackend(backend));  // NOLINT(cppcoreguidelines-owning-memory)
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  return ESPPreferenceObject(new LibreTinyPreferenceBackend(this->make_backend_(type, !in_flash)));
 }
 
 // Every entry with the rtc prefix goes. The walk restarts after each delete so it never depends on
 // FlashDB tolerating a delete mid-iteration; an entry whose delete fails is passed over, and the walk ends
 // once a pass deletes nothing. This runs before the logger exists, so it logs through LibreTiny.
+// One pass over the database deletes every rtc entry. FlashDB only marks a deleted entry's status in place
+// and its iterator steps by address, so deleting the current entry is safe. This runs before the logger
+// exists, so it logs through LibreTiny; a failed delete is a flash fault the next write will report as well.
 void LibreTinyPreferences::discard_rtc_entries_() {
-  // The marker goes down first: a reset during the pass then leaves it behind, and the next boot resumes.
-  // A failed write is logged, since nothing would then record a pass cut short.
-  static constexpr uint8_t PENDING = 1;
-  fdb_blob_make(&this->blob, &PENDING, sizeof(PENDING));
-  if (const fdb_err_t err = fdb_kv_set_blob(&this->db, RTC_DISCARD_PENDING_KEY, &this->blob); err != FDB_NO_ERR) {
-    LT_E("Failed to record the rtc discard: %d", err);
-  }
   uint16_t discarded = 0;
   fdb_kv_iterator iterator;
-  bool deleted = true;
-  while (deleted) {
-    deleted = false;
-    fdb_kv_iterator_init(&iterator);
-    while (fdb_kv_iterate(&this->db, &iterator)) {
-      const char *name = iterator.curr_kv.name;
-      if (name[0] != RTC_KEY_PREFIX || strcmp(name, RTC_DISCARD_PENDING_KEY) == 0)
-        continue;
-      const fdb_err_t err = fdb_kv_del(&this->db, name);
-      if (err != FDB_NO_ERR) {
-        LT_E("Failed to discard rtc preference %s: %d", name, err);
-        this->rtc_discard_failed_ = true;
-        continue;
-      }
-      discarded++;
-      deleted = true;
-      break;
+  fdb_kv_iterator_init(&iterator);
+  while (fdb_kv_iterate(&this->db, &iterator)) {
+    const char *name = iterator.curr_kv.name;
+    if (name[0] != RTC_KEY_PREFIX)
+      continue;
+    if (const fdb_err_t err = fdb_kv_del(&this->db, name); err != FDB_NO_ERR) {
+      LT_E("Failed to discard rtc preference %s: %d", name, err);
+      continue;
     }
+    discarded++;
   }
   if (discarded != 0) {
     LT_D("Discarded %u rtc preferences after a hard reset", discarded);
-  }
-  if (this->rtc_discard_failed_)
-    return;  // the marker stays, so the next boot tries the leftovers again
-  if (const fdb_err_t err = fdb_kv_del(&this->db, RTC_DISCARD_PENDING_KEY);
-      err != FDB_NO_ERR && err != FDB_KV_NAME_ERR) {
-    LT_E("Failed to clear the rtc discard marker: %d", err);
   }
 }
 #endif
@@ -184,11 +149,14 @@ ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_
   return ESPPreferenceObject(new LibreTinyPreferenceBackend(this->make_backend_(type)));
 }
 
-LibreTinyPreferenceBackend LibreTinyPreferences::make_backend_(uint32_t type) {
+LibreTinyPreferenceBackend LibreTinyPreferences::make_backend_(uint32_t type, bool rtc) {
   LibreTinyPreferenceBackend backend;
   backend.key = type;
   backend.db = &this->db;
   backend.blob = &this->blob;
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  backend.rtc = rtc;
+#endif
   return backend;
 }
 
