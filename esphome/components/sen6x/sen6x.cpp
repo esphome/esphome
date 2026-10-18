@@ -3,10 +3,34 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 #include <cmath>
+#include <iterator>
 
 namespace esphome::sen6x {
 
 ESPHOME_LOG_TAG(TAG, "sen6x");
+
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+// Bit of the status register behind each kind; the CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C
+static uint8_t status_bit(Sen6xStatus status, SEN6XComponent::Sen6xType type) {
+  switch (status) {
+    case Sen6xStatus::SEN6X_STATUS_FAN_ERROR:
+      return 4;
+    case Sen6xStatus::SEN6X_STATUS_FAN_SPEED_WARNING:
+      return 21;
+    case Sen6xStatus::SEN6X_STATUS_RHT_ERROR:
+      return 6;
+    case Sen6xStatus::SEN6X_STATUS_GAS_ERROR:
+      return 7;
+    case Sen6xStatus::SEN6X_STATUS_CO2_ERROR:
+      return type == SEN6XComponent::SEN66 ? 9 : 12;
+    case Sen6xStatus::SEN6X_STATUS_HCHO_ERROR:
+      return 10;
+    case Sen6xStatus::SEN6X_STATUS_PM_ERROR:
+      return 11;
+  }
+  return 0;
+}
+#endif
 
 static constexpr uint8_t POLL_RETRIES = 24;     // 24 attempts
 static constexpr uint32_t I2C_READ_DELAY = 20;  // 20 ms to wait for I2C read to complete
@@ -30,6 +54,7 @@ static constexpr uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
 static constexpr uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
 static constexpr uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
 static constexpr uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
+static constexpr uint16_t SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS = 0xD210;
 
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x0300;  // SEN66 only!
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN62 = 0x04A3;
@@ -38,6 +63,9 @@ static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
 
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+static constexpr uint16_t SEN6X_CMD_READ_NUMBER_CONCENTRATION = 0x0316;
+#endif
 static constexpr uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
 static constexpr uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
 static constexpr uint16_t SEN6X_CMD_START_FAN_CLEANING = 0x5607;
@@ -154,6 +182,22 @@ void SEN6XComponent::setup() {
           ESP_LOGE(TAG, "Formaldehyde requires SEN68 or SEN69C");
           this->hcho_sensor_ = nullptr;
         }
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+        // A status sensor for a feature this variant lacks is dropped like the measurement sensors above, so
+        // an empty table skips the status read; the kept ones learn their register bit here
+        size_t kept = 0;
+        for (auto entry : this->status_sensors_) {
+          if ((entry.status == Sen6xStatus::SEN6X_STATUS_GAS_ERROR && !has_voc_nox) ||
+              (entry.status == Sen6xStatus::SEN6X_STATUS_CO2_ERROR && !has_co2) ||
+              (entry.status == Sen6xStatus::SEN6X_STATUS_HCHO_ERROR && !has_hcho)) {
+            ESP_LOGE(TAG, "'%s' needs a variant with that feature", entry.sensor->get_name().c_str());
+            continue;
+          }
+          entry.bit = status_bit(entry.status, this->sen6x_type_);
+          this->status_sensors_[kept++] = entry;
+        }
+        this->status_sensors_.resize(kept);
+#endif
 
         // Step 3: Read firmware version and start measurements in next loop iteration
         this->set_timeout(0, [this]() {
@@ -323,12 +367,24 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+  LOG_SENSOR("  ", "PMC  0.5", this->pmc_0_5_sensor_);
+  LOG_SENSOR("  ", "PMC  1.0", this->pmc_1_0_sensor_);
+  LOG_SENSOR("  ", "PMC  2.5", this->pmc_2_5_sensor_);
+  LOG_SENSOR("  ", "PMC  4.0", this->pmc_4_0_sensor_);
+  LOG_SENSOR("  ", "PMC 10.0", this->pmc_10_0_sensor_);
+#endif
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "VOC", this->voc_sensor_);
   LOG_SENSOR("  ", "NOx", this->nox_sensor_);
   LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  for (const auto &entry : this->status_sensors_) {
+    LOG_BINARY_SENSOR("  ", "Device status", entry.sensor);
+  }
+#endif
 }
 
 void SEN6XComponent::update() {
@@ -352,6 +408,11 @@ void SEN6XComponent::update() {
   // Polling uses chained timeouts to guarantee each I2C operation completes
   // before the next begins. The flow is:
   //
+  //   read_device_status_()
+  //     with status sensors: write_command (read and clear device status)
+  //       -> timeout I2C_READ_DELAY -> parse_and_publish_device_status_()
+  //     -> poll_data_ready_()
+  //
   //   poll_data_ready_()
   //     -> write_command (data ready status)
   //     -> timeout I2C_READ_DELAY
@@ -361,14 +422,21 @@ void SEN6XComponent::update() {
   //                      -> write_command (read measurement)
   //                      -> timeout I2C_READ_DELAY
   //                        -> parse_and_publish_measurements_()
+  //                          -> with pmc_* sensors: read_number_concentration_()
+  //                               -> write_command (read number concentration)
+  //                               -> timeout I2C_READ_DELAY
+  //                                 -> parse_and_publish_number_concentration_()
   //
   // All timeouts share a single ID (TIMEOUT_POLL) since only one is active
   // at a time. cancel_timeout in update() stops any in-flight chain.
   this->poll_retries_remaining_ = POLL_RETRIES;
-  this->poll_data_ready_();
+  this->read_device_status_();
 }
 
 void SEN6XComponent::poll_data_ready_() {
+  // stop_measurement() may have run from a publish callback while the chain was in flight
+  if (!this->measuring_)
+    return;
   if (this->poll_retries_remaining_ == 0) {
     this->status_set_warning();
     ESP_LOGD(TAG, "Data not ready");
@@ -544,8 +612,85 @@ void SEN6XComponent::parse_and_publish_measurements_() {
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(co2);
 
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+  // The define says some device in the build has pmc sensors; this one may not
+  if (this->has_number_concentration_sensor_()) {
+    this->read_number_concentration_();  // the chain ends there, with the warning cleared
+    return;
+  }
+#endif
   this->status_clear_warning();
 }
+
+// Reads the status register first, so the error sensors update even when the measurement read fails, then runs
+// the measurement poll chain. Read And Clear (0xD210) is used because error flags are sticky on the device;
+// clearing each cycle makes the sensors report whether a problem occurred since the last update.
+void SEN6XComponent::read_device_status_() {
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  if (!this->status_sensors_.empty()) {
+    // The pressure write in update() may still be executing; the device rejects commands until it is done
+    if (const uint32_t wait = this->command_wait_remaining_(); wait != 0) {
+      this->set_timeout(TIMEOUT_POLL, wait, [this]() { this->read_device_status_(); });
+      return;
+    }
+    if (this->write_command(SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS)) {
+      this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_device_status_(); });
+      return;
+    }
+    ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
+  }
+#endif
+  this->poll_data_ready_();
+}
+
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+void SEN6XComponent::parse_and_publish_device_status_() {
+  uint16_t words[2];
+  if (this->read_data(words, 2)) {
+    const uint32_t status = (static_cast<uint32_t>(words[0]) << 16) | words[1];
+    for (const auto &entry : this->status_sensors_)
+      entry.sensor->publish_state(((status >> entry.bit) & 1) != 0);
+  } else {
+    ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
+  }
+  this->poll_data_ready_();
+}
+#endif
+
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+bool SEN6XComponent::has_number_concentration_sensor_() const {
+  return this->pmc_0_5_sensor_ != nullptr || this->pmc_1_0_sensor_ != nullptr || this->pmc_2_5_sensor_ != nullptr ||
+         this->pmc_4_0_sensor_ != nullptr || this->pmc_10_0_sensor_ != nullptr;
+}
+
+void SEN6XComponent::read_number_concentration_() {
+  if (!this->write_command(SEN6X_CMD_READ_NUMBER_CONCENTRATION)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read number concentration failed (%d)", this->last_error_);
+    return;
+  }
+
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_number_concentration_(); });
+}
+
+void SEN6XComponent::parse_and_publish_number_concentration_() {
+  sensor::Sensor *sensors[] = {this->pmc_0_5_sensor_, this->pmc_1_0_sensor_, this->pmc_2_5_sensor_,
+                               this->pmc_4_0_sensor_, this->pmc_10_0_sensor_};
+  uint16_t measurements[std::size(sensors)];
+
+  if (!this->read_data(measurements, std::size(measurements))) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
+    return;
+  }
+
+  for (size_t i = 0; i < std::size(sensors); i++) {
+    if (sensors[i] != nullptr)
+      sensors[i]->publish_state(measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
+  }
+  this->status_clear_warning();
+}
+#endif
 
 void SEN6XComponent::write_ambient_pressure_(uint16_t pressure_hpa) {
   if (this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, pressure_hpa))
