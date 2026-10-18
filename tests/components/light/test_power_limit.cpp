@@ -226,4 +226,22 @@ TEST(PowerLimit, AHeavyLimitStaysWithinOneStepOfTheBudget) {
   EXPECT_LE(strip.get_estimated_current_ma(), 0.3f + 20.0f / 255.0f);
 }
 
+TEST(PowerLimit, AChangedFrameTakesAStepOfOneAtALowScale) {
+  Strip strip(10);
+  strip.configure_power(20, 1, 20);  // white pixels draw 60 mA each against 10 mA left for the pixels
+  for (int i = 0; i < 8; i++)
+    strip[i] = Color(255, 255, 255, 0);
+  strip.limit();
+  const uint8_t eight = strip.power_brightness();
+  EXPECT_NEAR(eight, 5, 1);
+  // Two more pixels lit: a real change, so the scale drops by its one step
+  strip.all() = Color(255, 255, 255, 0);
+  strip.limit();
+  const uint8_t ten = strip.power_brightness();
+  EXPECT_LT(ten, eight);
+  // A retry with nothing rewritten then holds it
+  strip.limit();
+  EXPECT_EQ(strip.power_brightness(), ten);
+}
+
 }  // namespace esphome::light::testing

@@ -35,6 +35,10 @@ float AddressableLight::frame_ma_() const {
     sums[2] += view.get_blue_raw();
     sums[3] += view.get_white_raw();
   }
+  return this->draw_ma_(sums);
+}
+
+float AddressableLight::draw_ma_(const uint32_t sums[4]) const {
   const auto &power = *this->power_estimation_;
   float ma = power.idle_ma;
   for (size_t channel = 0; channel < 4; channel++)
@@ -45,6 +49,7 @@ float AddressableLight::frame_ma_() const {
 void AddressableLight::setup_power_budget_() {
   auto &power = *this->power_estimation_;
   power.idle_ma = this->size() * power.idle_ma_per_led;
+  power.last_frame_ma = NAN;
   if (std::isnan(power.max_current_ma))
     return;
   power.budget_ma = power.max_current_ma - power.idle_ma;
@@ -66,31 +71,40 @@ static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
 
 // The frame is moved to the new scale before it goes out, so every write path is limited
 void AddressableLight::limit_power_() {
-  const auto *power = this->power_estimation_;
+  auto *power = this->power_estimation_;
   if (power == nullptr || std::isnan(power->budget_ma))
     return;
+  // A frame the last pass already left in the buffer, as a driver retry sends, is not limited again: its
+  // levels were rounded up on the way down and read as a hair over budget, which would walk the scale down
+  const float frame_ma = this->frame_ma_();
+  if (frame_ma == power->last_frame_ma)
+    return;
+  power->last_frame_ma = frame_ma;
   // The stored levels already carry the limit in force; the scale comes from the draw the frame asked for
   const uint8_t previous = this->correction_.get_power_brightness();
-  const float intended_ma = (this->frame_ma_() - power->idle_ma) * 255.0f / previous;
+  const float intended_ma = (frame_ma - power->idle_ma) * 255.0f / previous;
   // Never 0, which would black the strip out and swing the next estimate back to full
   const uint8_t scale = intended_ma <= power->budget_ma
                             ? 255
                             : static_cast<uint8_t>(std::max(power->budget_ma / intended_ma * 255.0f, 1.0f));
-  // A step of one is rounding noise: the levels round up on the way down, so an unchanged frame can read as
-  // a hair over budget on every pass, and following it would walk the scale down without changing a byte.
-  // Below a scale of 32 one step is a real share of the budget, so there every step is taken
-  static constexpr uint8_t DEAD_BAND_MIN_SCALE = 32;
-  const int step = static_cast<int>(scale) - static_cast<int>(previous);
-  if (step == 0 || (std::abs(step) == 1 && scale != 255 && previous >= DEAD_BAND_MIN_SCALE))
+  if (scale == previous)
     return;
   this->correction_.set_power_brightness(scale);
   // One divide per level instead of one per channel; ESP8266 has no hardware divide
   uint8_t map[256];
   for (size_t level = 0; level < 256; level++)
     map[level] = rescale_level(level, scale, previous);
-  for (auto view : *this)
-    view.set_raw(map[view.get_red_raw()], map[view.get_green_raw()], map[view.get_blue_raw()],
-                 map[view.get_white_raw()]);
+  uint32_t sums[4]{};
+  for (auto view : *this) {
+    const uint8_t r = map[view.get_red_raw()], g = map[view.get_green_raw()], b = map[view.get_blue_raw()],
+                  w = map[view.get_white_raw()];
+    view.set_raw(r, g, b, w);
+    sums[0] += r;
+    sums[1] += g;
+    sums[2] += b;
+    sums[3] += w;
+  }
+  power->last_frame_ma = this->draw_ma_(sums);
 }
 
 #endif

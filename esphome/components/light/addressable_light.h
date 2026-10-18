@@ -42,6 +42,8 @@ struct PowerEstimation {
   // Set by call_setup() once size() is known; the budget is what is left for the pixels, NAN for no limit
   float idle_ma{0.0f};
   float budget_ma{NAN};
+  // The draw the last pass left in the buffer; a pass that sees it again has nothing new to limit
+  float last_frame_ma{NAN};
 };
 #endif
 
@@ -139,6 +141,7 @@ class AddressableLight : public LightOutput, public Component {
   void limit_power_();
   void setup_power_budget_();
   float frame_ma_() const;
+  float draw_ma_(const uint32_t sums[4]) const;
 #endif
 
   ESPColorCorrection correction_{};
