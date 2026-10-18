@@ -521,6 +521,42 @@ def test_uc8179_e1001_code_generation(
     assert "97, 4, 3, 32, 1, 224" in main_cpp
 
 
+def test_uc8179_gray4_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The 7.5" V2 grayscale model generates its own driver with the LUTs in the init sequence."""
+    main_cpp = generate_main(component_config_path("uc8179_gray4_test.yaml"))
+
+    assert "epaper_spi::EPaperUC8179Gray4" in main_cpp
+    assert re.search(r'"WAVESHARE-7.5IN-V2-GRAY4",\s*800,\s*480', main_cpp)
+    # PANEL SETTING with LUT from registers, then the 42-byte LUT WW (0x21) upload
+    assert "0, 1, 63," in main_cpp
+    assert "33, 42, 128, 18, 4, 1, 0, 1, 0," in main_cpp
+
+
+def test_uc8179_gray4_rejects_partial_updates(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The grayscale model only does full refreshes."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="full_update_every must be 1"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "waveshare-7.5in-v2-gray4",
+                "dc_pin": 21,
+                "full_update_every": 4,
+            }
+        )
+
+
 def test_uc8279_width_must_be_a_multiple_of_8(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
