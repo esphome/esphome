@@ -37,8 +37,7 @@ async def register_one_wire_device(var: MockObj, config: ConfigType) -> None:
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_ONE_WIRE_ID])
-    cg.add(var.set_one_wire_bus(parent))
+    await cg.add_variable(var.set_one_wire_bus, config[CONF_ONE_WIRE_ID])
     if (address := config.get(CONF_ADDRESS)) is not None:
         cg.add(var.set_address(address))
     if (index := config.get(CONF_INDEX)) is not None:

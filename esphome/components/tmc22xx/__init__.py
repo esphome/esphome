@@ -176,8 +176,7 @@ async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
         (CONF_INDEX_PIN, var.set_index_pin),
         (CONF_DIAG_PIN, var.set_diag_pin),
     ):
-        if (pin := config.get(key)) is not None:
-            cg.add(setter(await cg.gpio_pin_expression(pin)))
+        await cg.add_pin(setter, config.get(key))
     for key, setter in (
         (CONF_RSENSE, var.set_rsense),
         (CONF_VSENSE, var.set_vsense),

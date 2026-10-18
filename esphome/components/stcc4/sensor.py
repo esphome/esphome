@@ -107,13 +107,11 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
     await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
-    if (temperature_source := config.get(CONF_TEMPERATURE_SOURCE)) is not None:
-        sens = await cg.get_variable(temperature_source)
-        cg.add(var.set_temperature_source(sens))
+    await cg.add_variable(
+        var.set_temperature_source, config.get(CONF_TEMPERATURE_SOURCE)
+    )
 
-    if (humidity_source := config.get(CONF_HUMIDITY_SOURCE)) is not None:
-        sens = await cg.get_variable(humidity_source)
-        cg.add(var.set_humidity_source(sens))
+    await cg.add_variable(var.set_humidity_source, config.get(CONF_HUMIDITY_SOURCE))
 
     if (
         ambient_pressure_compensation := config.get(CONF_AMBIENT_PRESSURE_COMPENSATION)
@@ -124,12 +122,9 @@ async def to_code(config: ConfigType) -> None:
             )
         )
 
-    if (
-        ambient_pressure_compensation_source := config.get(
-            CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE
-        )
-    ) is not None:
-        sens = await cg.get_variable(ambient_pressure_compensation_source)
-        cg.add(var.set_ambient_pressure_source(sens))
+    await cg.add_variable(
+        var.set_ambient_pressure_source,
+        config.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
+    )
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
