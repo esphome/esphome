@@ -27,14 +27,24 @@ CONF_VALUES = "values"
 CONF_MAX_PENDING_MESSAGES = "max_pending_messages"
 CONF_MAX_PENDING_AGE = "max_pending_age"
 CONF_CLEANUP_INTERVAL = "cleanup_interval"
+CONF_MAX_FRAMES_PER_MESSAGE = "max_frames_per_message"
+CONF_WRITE_MIN_INTERVAL = "write_min_interval"
+CONF_REJECT_WRITES_BEFORE_READ = "reject_writes_before_read"
 
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
 TopTronicBase = toptronic.class_("TopTronicBase", cg.PollingComponent)
 
 TT_TYPE = toptronic.enum("TypeName")
-_TT_TYPES = ("U8", "U16", "U32", "S8", "S16", "S32", "S64")
-TT_TYPE_OPTIONS = {name: getattr(TT_TYPE, name) for name in _TT_TYPES}
+TT_TYPE_OPTIONS = {
+    "U8": TT_TYPE.U8,
+    "U16": TT_TYPE.U16,
+    "U32": TT_TYPE.U32,
+    "S8": TT_TYPE.S8,
+    "S16": TT_TYPE.S16,
+    "S32": TT_TYPE.S32,
+    "S64": TT_TYPE.S64,
+}
 
 
 class DeviceType(Enum):
@@ -54,10 +64,12 @@ class DeviceType(Enum):
 _device_types = {t.name: t.value for t in DeviceType}
 
 PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
+
 _IDS_KEY = "toptronic_used_ids"
 
 
 def _shared_used_ids():
+    """Build-wide set of used IDs, shared across all hub instances."""
     if _IDS_KEY not in CORE.data:
         CORE.data[_IDS_KEY] = set()
     return CORE.data[_IDS_KEY]
@@ -76,11 +88,24 @@ def _validate_preset(config):
             f"Device type '{device_type}' is not a known TopTronic device type"
         )
     if not (PRESETS_DIR / device_type).is_dir():
-        raise cv.Invalid(f"No preset directory found for device type '{device_type}'")
+        available = (
+            sorted(d.name for d in PRESETS_DIR.iterdir() if d.is_dir())
+            if PRESETS_DIR.is_dir()
+            else []
+        )
+        raise cv.Invalid(
+            f"No preset directory found for device type '{device_type}'. "
+            f"Available presets: {', '.join(available)}"
+        )
     return config
 
 
 def _validate_options_values_lengths(config):
+    """Validate that 'options' and 'values' lists have matching lengths (select/text_sensor).
+
+    Per instructions.md §7.3 these MUST match; a mismatch would otherwise surface as a
+    bare IndexError during code generation instead of a clean validation error.
+    """
     if len(config[CONF_OPTIONS]) != len(config[CONF_VALUES]):
         raise cv.Invalid(
             f"'options' length ({len(config[CONF_OPTIONS])}) must match "
@@ -99,6 +124,15 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 
 
 def config_schema_polling(update_interval: str = "30s"):
+    """Return CONFIG_SCHEMA_BASE extended with a configurable polling interval.
+
+    Read-only entities (sensor/text_sensor) poll the bus via their inherited
+    PollingComponent update() at this interval. Write-only entities (number,
+    select, button) use plain CONFIG_SCHEMA_BASE instead — they have no update
+    callback, so polling them every interval would only wake the scheduler for a
+    no-op. Without the polling schema, register_component() does not emit
+    set_update_interval(), leaving the PollingComponent default SCHEDULER_DONT_RUN.
+    """
     return CONFIG_SCHEMA_BASE.extend(cv.polling_component_schema(update_interval))
 
 
@@ -120,6 +154,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_CLEANUP_INTERVAL, default="5000ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_MAX_FRAMES_PER_MESSAGE, default=8): cv.int_range(
+                min=3, max=31
+            ),
+            cv.Optional(
+                CONF_WRITE_MIN_INTERVAL, default="2s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_REJECT_WRITES_BEFORE_READ, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_preset,
@@ -140,7 +181,13 @@ def _load_entities(device_type: str):
 
 
 def _resolve_ids(obj, used=None):
-    # Preset entities bypass config.py's ID pass; resolve nested IDs here.
+    """Resolve auto-generated IDs inside a validated entity config.
+
+    Entities synthesized from presets bypass config.py's global ID pass, so
+    nested IDs (e.g. filter IDs) keep id=None. Resolve them now to avoid
+    duplicate empty-ID registrations during code generation, and record
+    Component-derived declarations in CORE.component_ids as config.py would.
+    """
     if used is None:
         used = set()
     if isinstance(obj, ID):
@@ -183,6 +230,7 @@ async def _generate_entities(hub, config):
         hub_ref = config[CONF_ID].copy()
         hub_ref.is_declaration = False
         entity_conf[CONF_TOPTRONIC_ID] = hub_ref
+
         schema, codegen = platforms[platform_name]
         validated = schema(entity_conf)
         _resolve_ids(validated, used_ids)
@@ -193,10 +241,22 @@ async def to_code(config):
     cbus = await cg.get_variable(config[CONF_CANBUS_ID])
     var = cg.new_Pvariable(config[CONF_ID], cbus)
     await cg.register_component(var, config)
-    cg.add(var.set_device_type(get_device_type(config["device_type"])))
+
+    device_type = get_device_type(config["device_type"])
+    cg.add(var.set_device_type(device_type))
     cg.add(var.set_device_addr(config[CONF_DEVICE_ADDR]))
     cg.add(var.set_max_pending_messages(config[CONF_MAX_PENDING_MESSAGES]))
     cg.add(var.set_max_pending_age_ms(config[CONF_MAX_PENDING_AGE]))
     cg.add(var.set_cleanup_interval_ms(config[CONF_CLEANUP_INTERVAL]))
+    cg.add(var.set_max_frames_per_message(config[CONF_MAX_FRAMES_PER_MESSAGE]))
+    cg.add(var.set_write_min_interval(config[CONF_WRITE_MIN_INTERVAL]))
+    cg.add(var.set_reject_writes_before_read(config[CONF_REJECT_WRITES_BEFORE_READ]))
+
     await _generate_entities(var, config)
+
+    # Critical wiring (update callbacks, command queue, pump, boot-refresh gate)
+    # must not depend on ESPHome invoking setup(): ESPHOME_COMPONENT_COUNT is
+    # computed from CORE.component_ids before preset entities are registered, so
+    # a hub can be silently dropped from components_ and setup() never runs.
+    # Config-phase statements always run for every hub.
     cg.add(var.configure_hub())

@@ -14,3 +14,6 @@ toptronic:
     max_pending_messages: 24
     max_pending_age: 6s
     cleanup_interval: 9s
+    max_frames_per_message: 8
+    write_min_interval: 3s
+    reject_writes_before_read: false

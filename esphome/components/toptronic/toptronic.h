@@ -22,7 +22,7 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
-#include <vector>
+#include <unordered_set>
 
 namespace esphome::toptronic {
 
@@ -98,6 +98,7 @@ class TopTronicBase : public PollingComponent {
   CallbackManager<void()> update_callback_;
   CallbackManager<void(const std::vector<uint8_t> &)> set_callback_;
 };
+
 #ifdef USE_SENSOR
 // Read-only numeric sensor: receives CAN responses and publishes a float state.
 class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
@@ -108,8 +109,8 @@ class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
   // data/len point into the reassembly buffer or the received CAN frame — no copy.
   float parse_value(const uint8_t *data, size_t len);
   // Number of value bytes a complete RESPONSE must carry for this sensor's
-  // configured type (1/2/4/8) - used to reject truncated responses before they
-  // are decoded.
+  // configured type (1/2/4/8) - used to reject truncated frames before they
+  // are decoded and before the cold-cache write guard is unlocked.
   size_t value_width() const;
   SensorType type() override { return SENSOR; }
   const StringRef &get_name() const override { return this->sensor::Sensor::get_name(); }
@@ -118,13 +119,14 @@ class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
   TypeName type_;
 };
 #endif
+
 #ifdef USE_NUMBER
 // Writable numeric entity: sends a SET request on the CAN bus when the user changes the value.
 // The multiplier converts between the HA-facing value (e.g. °C) and the raw boiler integer.
 class TopTronicNumber : public number::Number, public TopTronicBase {
  public:
   // Write-only entity: never polls (no update callback registered). The schema
-  // does not emit set_update_interval(), so this guards against any future
+  // no longer emits set_update_interval(), so this guards against any future
   // codegen change that would re-enable the no-op polling tick.
   TopTronicNumber() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
@@ -137,9 +139,10 @@ class TopTronicNumber : public number::Number, public TopTronicBase {
 
  protected:
   TypeName type_;
-  float multiplier_{1.0f};  // set from YAML decimal: field (e.g. decimal: 1 -> multiplier 10)
+  float multiplier_{1.0f};  // set from YAML decimal: field (e.g. decimal: 1 → multiplier 10)
 };
 #endif
+
 #ifdef USE_TEXT_SENSOR
 // Read-only text sensor: maps raw boiler integer codes to human-readable strings.
 // Both directions are stored (int→text for reading, text→int for the paired select).
@@ -164,6 +167,7 @@ class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase
   std::map<std::string, uint8_t> to_value_;  // label string → raw boiler code
 };
 #endif
+
 #ifdef USE_SELECT
 // Writable select entity: sends a SET request when the user picks a new option.
 // Mirrors TopTronicTextSensor but exposes a dropdown in Home Assistant.
@@ -192,14 +196,15 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   void control(const std::string &text) override;
 };
 #endif
+
 // Groups all sensors and writable inputs that belong to a single CAN device (device_type | device_addr).
 // Lifetime of sensors/inputs is managed by the ESPHome component registry — these are non-owning pointers.
 class TopTronicDevice {
  public:
   // unordered_map: integer keys allow O(1) lookup on every received CAN frame.
-  // The maps stay private (pointer lifetime safety — the pointers are owned by the
-  // ESPHome registry, never deleted here); the hub reaches them only through these
-  // accessors.
+  // Per §5.9 the maps stay private (pointer lifetime safety — the pointers are
+  // owned by the ESPHome registry, never deleted here); the hub reaches them
+  // only through these accessors.
   std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() { return this->sensors_; }
   const std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() const { return this->sensors_; }
   std::unordered_map<uint32_t, TopTronicBase *> &get_inputs() { return this->inputs_; }
@@ -209,11 +214,15 @@ class TopTronicDevice {
   std::unordered_map<uint32_t, TopTronicBase *> sensors_;  // keyed by get_id()
   std::unordered_map<uint32_t, TopTronicBase *> inputs_;   // keyed by get_id()
 };
+
 // Root component: owns all TopTronicDevice instances and is the entry point
 // for every incoming CAN frame (parse_frame is called from the internal
-// canbus callback registered in the constructor).
+// canbus callback registered in setup()).
 class TopTronic : public Component {
  public:
+  // Arms the CAN receive path immediately. All hubs are constructed in generated
+  // main.cpp before App.setup() runs, so a hub can receive and parse frames even
+  // if its setup() is deferred by another slow component.
   explicit TopTronic(canbus::Canbus *canbus);
 
   // Register sensors and inputs (called from generated YAML code).
@@ -229,9 +238,10 @@ class TopTronic : public Component {
   // Wire up write callbacks for inputs so they send SET requests over CAN.
   void register_input_callbacks();
 
-  // One-time functional wiring (link_inputs_, sensor/input callbacks). Called from
-  // the CONFIG phase (emitted by __init__.py right after all add_sensor/add_input
-  // calls) instead of setup(): ESPHome sizes components_ from ESPHOME_COMPONENT_COUNT,
+  // One-time functional wiring (link_inputs_, sensor/input callbacks). Called
+  // from the CONFIG phase (emitted by __init__.py right after all
+  // add_sensor/add_input calls)
+  // instead of setup(): ESPHome sizes components_ from ESPHOME_COMPONENT_COUNT,
   // which is computed before this component registers its preset-entity IDs, so
   // a hub can be silently dropped from components_ and its setup() never runs.
   // Config-phase statements always run for every hub.
@@ -245,12 +255,32 @@ class TopTronic : public Component {
   void set_device_addr(uint8_t device_addr) { this->device_addr_ = device_addr; }
   uint16_t get_device_id() { return this->device_type_ | this->device_addr_; }
 
-  // Tuning knobs for the multi-frame reassembly buffer, its stale-fragment sweep
-  // and the start-frame count guard. All optional in YAML; the defaults match the
-  // historical built-in constants (32 / 5000 ms / 5000 ms).
+  // Tuning knobs for the multi-frame reassembly buffer, stale-fragment sweep,
+  // refresh burst throttle, and start-frame count guard. All optional in YAML;
+  // the defaults match the historical built-in constants.
   void set_max_pending_messages(size_t max_pending_messages) { this->max_pending_messages_ = max_pending_messages; }
   void set_max_pending_age_ms(uint32_t max_pending_age_ms) { this->max_pending_age_ms_ = max_pending_age_ms; }
   void set_cleanup_interval_ms(uint32_t cleanup_interval_ms) { this->cleanup_interval_ms_ = cleanup_interval_ms; }
+  void set_max_frames_per_message(uint8_t max_frames_per_message) {
+    this->max_frames_per_message_ = max_frames_per_message;
+  }
+  // Write safety: minimum spacing (ms) between two SET requests for the same
+  // datapoint. 0 disables the rate limit (default 2000 ms). Protects the
+  // 50 kbps bus and the boiler controller from rapid SET spamming.
+  void set_write_min_interval(uint32_t ms) { this->write_min_interval_ms_ = ms; }
+  // Write safety (cold-cache guard): reject SET requests for datapoints that
+  // have not delivered at least one RESPONSE since boot, so we never write
+  // blind. Datapoints without a registered read sensor (e.g. the HV
+  // filter-maintenance button) are never blocked. Default true.
+  void set_reject_writes_before_read(bool reject) { this->reject_writes_before_read_ = reject; }
+
+  // Pause/resume CAN frame processing. Used during OTA to free the main loop
+  // and logging path so the update connection is not starved.
+  // Implemented in toptronic.cpp so transitions are logged (makes a stuck-pause
+  // bug visible instead of silently freezing polls and refresh bursts).
+  void pause();
+  void resume();
+  bool is_paused() { return this->paused_; }
 
   void setup() override;
   void loop() override;
@@ -273,7 +303,7 @@ class TopTronic : public Component {
   TopTronicBase *get_sensor_(uint32_t device_id, uint32_t sensor_id);
   // Parse a fully reassembled CAN message and update the matching sensor or input.
   // data/len reference the reassembly buffer directly — no per-frame heap copies.
-  void interpret_message_(const uint8_t *data, size_t len, uint32_t can_id);
+  void interpret_message_(const uint8_t *data, size_t len, uint32_t can_id, bool remote_transmission_request);
 
   // True if a device with this sender node id is registered on this hub. The
   // sender node id (bits 21-11 of a CAN id) is exactly the devices_ map key, so
@@ -303,9 +333,23 @@ class TopTronic : public Component {
   uint32_t max_pending_age_ms_{5000};
   // Throttle interval for the stale-fragment sweep in loop() (default 5000 ms).
   uint32_t cleanup_interval_ms_{5000};
-
+  // Largest sane multi-frame message in total frames (default 8).
+  uint8_t max_frames_per_message_{8};
   // Timestamp of the last stale-fragment sweep in loop().
   uint32_t last_cleanup_ms_{0};
+
+  // Write safety state.
+  // Last SET timestamp per datapoint (keyed by get_id()) for the rate limit.
+  std::unordered_map<uint32_t, uint32_t> last_write_ms_;
+  // Datapoints (get_id()) that have published at least one value since boot.
+  std::unordered_set<uint32_t> read_ok_ids_;
+  // Minimum ms between two SETs of the same datapoint (0 = no limit).
+  uint32_t write_min_interval_ms_{2000};
+  // Cold-cache guard: reject SETs until the datapoint answered a GET.
+  bool reject_writes_before_read_{true};
+
+  // When true, parse_frame() ignores incoming CAN frames (used during OTA).
+  bool paused_{false};
 };
 
 }  // namespace esphome::toptronic
