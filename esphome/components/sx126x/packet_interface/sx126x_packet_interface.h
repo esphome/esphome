@@ -11,7 +11,8 @@ namespace esphome::sx126x {
 /// sends, so sending is refused while the radio is receiving a packet; the layers above send again shortly.
 class SX126xPacketInterface : public packet_interface::PacketInterface, public SX126xListener {
  public:
-  explicit SX126xPacketInterface(SX126x *radio) : radio_(radio) {}
+  SX126xPacketInterface(SX126x *radio, size_t max_packet_size)
+      : packet_interface::PacketInterface(max_packet_size), radio_(radio) {}
 
   void setup() override { this->radio_->register_listener(this); }
   void set_max_busy(uint32_t max_busy_ms) { this->listen_before_talk_.set_max_busy(max_busy_ms); }
