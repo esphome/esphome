@@ -50,9 +50,7 @@ CONFIG_SCHEMA = (
     # # modbus_device_schema only checks for a sane Modbus server address.
     .extend(
         {
-            cv.Optional(
-                CONF_ADDRESS, default=HCP2_DEFAULT_ADDRESS
-            ): cv.All(
+            cv.Optional(CONF_ADDRESS, default=HCP2_DEFAULT_ADDRESS): cv.All(
                 cv.hex_uint8_t,
                 cv.int_range(min=1, max=HCP2_MAX_ADDRESS),
                 _validate_hcp2_address,
