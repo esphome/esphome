@@ -1,0 +1,17 @@
+sx127x:
+  cs_pin: ${cs_pin}
+  rst_pin: ${rst_pin}
+  dio0_pin: ${dio0_pin}
+  frequency: 917MHz
+  modulation: LORA
+  preamble_size: 8
+  crc_enable: true
+
+packet_interface:
+  - platform: sx127x
+    id: sx127x_packet_interface
+    addressing:
+      address: 0x0001
+      destination: 0x0002
+    reliability:
+      timeout: 500ms
