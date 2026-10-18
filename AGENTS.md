@@ -287,7 +287,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           `from esphome.components.my_component import DOMAIN`. Keep it in alphabetical order with the other
           metadata constants. CI (`lint_component_domain`) fails without it.
         - `DEPENDENCIES`: List of required components
-        - `AUTO_LOAD`: Components to automatically load
+        - `AUTO_LOAD`: Components to automatically load. Not a way to put entities under the component's
+          own key; see "Entities of a hub" below.
         - `CONFLICTS_WITH`: Incompatible components
         - `CODEOWNERS`: GitHub usernames responsible for maintenance
         - `MULTI_CONF`: Whether multiple instances are allowed
@@ -379,6 +380,26 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
+        - **Entities of a hub:** a new component's entities go in platform files (`sensor.py`,
+          `binary_sensor.py`, ...) that take the hub's id, never under the hub's own key with their platforms
+          added to `AUTO_LOAD` to make that work. Auto loading a platform because the C++ uses its type is
+          fine. See https://developers.esphome.io/architecture/components/#exposing-multiple-entities.
+          ```yaml
+          # Bad - entities under the hub's key
+          my_hub:
+            connected:
+              name: Connected
+
+          # Good - the hub, then one platform entry that holds its entities
+          my_hub:
+            id: hub1
+          binary_sensor:
+            - platform: my_hub
+              my_hub_id: hub1  # optional with a single hub
+              connected:
+                name: Connected
+          ```
+
         - **Optional child entities of a hub:** bind the config once with `sensor.sub_sensors(config)` (or
           `sub_binary_sensors`, `sub_text_sensors`, `sub_buttons`, `sub_switches`, `sub_numbers`,
           `sub_selects` in their domains), adding `parent=hub` for entities that derive from `Parented<T>`,
@@ -389,13 +410,19 @@ file does, and it is the authority when they disagree. The most useful starting 
           itself, `hub` for one fetched with `cg.get_variable`) so the calls fit on one line. Loops whose
           setter also takes an index, such as `set_gate_threshold(x, n)`, stay as they are.
           ```python
+          # my_hub/sensor.py
           async def to_code(config):
-              var = cg.new_Pvariable(config[CONF_ID])
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
               sensors = sensor.sub_sensors(config)
-              await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
-              await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
-              buttons = button.sub_buttons(config, parent=var)
-              await buttons(CONF_RESTART, var.set_restart_button)
+              await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)
+              await sensors(CONF_HUMIDITY, hub.set_humidity_sensor)
+
+
+          # my_hub/button.py
+          async def to_code(config):
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
+              buttons = button.sub_buttons(config, parent=hub)
+              await buttons(CONF_RESTART, hub.set_restart_button)
           ```
 
         - **Pins and referenced components:** set them with `await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])`

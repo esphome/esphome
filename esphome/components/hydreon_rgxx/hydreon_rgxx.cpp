@@ -38,9 +38,7 @@ void HydreonRGxxComponent::dump_config() {
 }
 
 void HydreonRGxxComponent::setup() {
-  while (this->available() != 0) {
-    this->read();
-  }
+  this->discard_available();
   this->schedule_reboot_();
 }
 
