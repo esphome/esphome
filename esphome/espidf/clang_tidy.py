@@ -4,8 +4,7 @@ Produces idedata for clang-tidy **without an ESPHome YAML config**. Instead of
 running codegen on a config, it generates a minimal ESP-IDF CMake project:
 
 * the managed-component dependencies come from ESPHome's own
-  ``idf_component.yml`` (arduinojson, lvgl, mdns, ...), plus the registry
-  components a config would add from ``to_code()`` (tsdb's esp_tsdb and littlefs);
+  ``idf_component.yml`` (arduinojson, lvgl, mdns, ...);
 * the PlatformIO ``lib_deps`` (qr-code, mlx90393, ...) are converted to local
   IDF components via the ESPHome PlatformIO->IDF converter;
 * the ``main`` component ``REQUIRES`` every target-available builtin IDF
@@ -31,9 +30,6 @@ from esphome.build_helpers.idedata import (
 )
 
 TIDY_PROJECT_NAME = "esphome_tidy"
-
-# A component declares the managed IDF components its sources need under this name.
-IDF_COMPONENTS_ATTRIBUTE = "IDF_COMPONENTS"
 
 # A do-nothing C++ app: just enough for IDF to configure a valid project. It's
 # C++ (not C) so the compile command uses the C++ compiler and flags, matching
@@ -129,32 +125,6 @@ def _arduino_framework_deps(version: str) -> dict[str, dict]:
     from esphome.components.esp32 import ARDUINO_ESP32_COMPONENT_NAME
 
     return {ARDUINO_ESP32_COMPONENT_NAME: {"version": version}}
-
-
-def _component_idf_deps() -> dict[str, dict]:
-    """Registry components needed to compile component sources without a config.
-
-    A component that needs managed (registry) components present in every build
-    that compiles its sources declares them as ``IDF_COMPONENTS`` in its
-    ``__init__.py`` -- the versions live with the component because the file
-    format does. A configured build adds them from ``to_code()``; the tidy
-    project loads no config, so they are merged into its manifest here. Only
-    components whose source mentions the attribute are imported, which keeps the
-    scan cheap and the tooling free of component-specific knowledge.
-    """
-    import importlib
-
-    import esphome.components
-
-    deps: dict[str, dict] = {}
-    components_dir = Path(esphome.components.__file__).parent
-    for init in sorted(components_dir.glob("*/__init__.py")):
-        if IDF_COMPONENTS_ATTRIBUTE not in init.read_text(encoding="utf-8"):
-            continue
-        module = importlib.import_module(f"esphome.components.{init.parent.name}")
-        for name, version in getattr(module, IDF_COMPONENTS_ATTRIBUTE, {}).items():
-            deps[name] = {"version": version}
-    return deps
 
 
 _TOP_CMAKELISTS = """\
@@ -455,10 +425,6 @@ def _generate_compile_commands(
         # Stub the arduino-bundled components ESPHome doesn't use (avoids the
         # libsodium clash with noise-c and ~26 unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
-    else:
-        # Managed components tsdb adds from to_code(), which never runs here; the
-        # arduino envs must not get them (littlefs is one they stub out).
-        extra_deps.update(_component_idf_deps())
 
     # Phase 1: discover the components available for this target.
     _write_tidy_project(work_dir, [], extra_deps, settings)
