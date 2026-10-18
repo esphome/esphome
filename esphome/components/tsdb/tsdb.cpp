@@ -325,8 +325,9 @@ bool TsdbComponent::open_database_() {
   // An existing file keeps its capacity and index stride it was created with.
   tsdb_stats_t stats = {};
   const bool have_stats = tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) == ESP_OK;
+  this->stats_unknown_ = !have_stats;
   if (!have_stats) {
-    ESP_LOGW(TAG, "%s: reading the stored statistics failed - the timestamp guard starts empty", this->file_.c_str());
+    ESP_LOGW(TAG, "%s: reading the stored statistics failed - uptime timestamps are refused", this->file_.c_str());
   }
   uint32_t saved_stride = 0;
   const bool have_stride = this->read_saved_index_stride_(&saved_stride) && saved_stride > 0;
@@ -338,7 +339,11 @@ bool TsdbComponent::open_database_() {
   if (have_stats) {
     // Seed the monotonic timestamp guard with the newest record already stored.
     this->last_timestamp_ = stats.newest_timestamp;
-    this->uptime_offset_ = stats.newest_timestamp + 1;
+    // A reopen runs partway through a boot, where the newest record already
+    // includes this boot's uptime; adding it to the full uptime again would
+    // count that time twice, so the offset is taken from the first open only.
+    if (this->uptime_offset_ == 0)
+      this->uptime_offset_ = stats.newest_timestamp + 1;
     if (records != max_records) {
       ESP_LOGW(TAG,
                "%s: saved capacity is %" PRIu32 " records, the configured budget asks for %" PRIu32
@@ -511,7 +516,9 @@ bool TsdbComponent::write_record_() {
 #endif
 
   if (!have_time) {
-    if (this->require_time_) {
+    // Without the stored statistics the offset is unknown, so an uptime timestamp
+    // would restart near 0 and sort before the history already on disk.
+    if (this->require_time_ || this->stats_unknown_) {
       if (!this->warned_time_) {
         this->warned_time_ = true;
         ESP_LOGW(TAG, "%s: no valid time yet - no record written", this->file_.c_str());
@@ -519,11 +526,13 @@ bool TsdbComponent::write_record_() {
       // Count the skipped interval so a clock that never syncs is visible.
       this->dropped_++;
       this->publish_errors_();
+      this->status_set_warning(LOG_STR("no valid time yet"));
       return false;
     }
     // Without a clock the value counts seconds since boot and restarts at 0 on every
     // reboot; the offset continues the series after the newest stored record. It is
-    // added only here, so it can never make an unsynced clock look like a real time.
+    // added only after the check above, so require_time still refuses an unsynced
+    // clock, and the result is a position in the series, not a clock time.
     timestamp += this->uptime_offset_;
     if (!this->warned_time_) {
       this->warned_time_ = true;
@@ -542,6 +551,7 @@ bool TsdbComponent::write_record_() {
     }
     this->dropped_++;
     this->publish_errors_();
+    this->status_set_warning(LOG_STR("clock moved back"));
     return false;
   }
 
@@ -594,6 +604,7 @@ bool TsdbComponent::write_record_() {
   if (err != ESP_OK) {
     this->write_errors_++;
     ESP_LOGE(TAG, "%s: writing a record failed: %s", this->file_.c_str(), esp_err_to_name(err));
+    this->status_set_warning(LOG_STR("writing a record failed"));
     // The engine closed the handle; recover instead of failing every write.
     if (!tsdb_is_initialized_h(static_cast<tsdb_t *>(this->db_)))
       this->invalidate_database_(LOG_STR("a write failed and closed the database"));
@@ -604,6 +615,8 @@ bool TsdbComponent::write_record_() {
   this->last_timestamp_ = timestamp;
   this->warned_backwards_ = false;
   this->dirty_ = true;
+  // Data is flowing again; a drop or a failed write is what raises the warning.
+  this->status_clear_warning();
   return true;
 }
 

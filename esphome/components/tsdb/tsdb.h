@@ -177,6 +177,9 @@ class TsdbComponent : public PollingComponent {
   bool clear_requested_{false};
   bool warned_time_{false};
   bool warned_backwards_{false};
+  // Set when the stored statistics could not be read, so an uptime timestamp
+  // cannot be placed after the history already on disk.
+  bool stats_unknown_{false};
   esp_err_t mount_error_{ESP_OK};
   bool format_attempted_{false};
   esp_err_t format_error_{ESP_OK};
