@@ -48,6 +48,8 @@ class USBAudioMicrophone : public microphone::Microphone,
   // log.
   static constexpr uint32_t RETRY_MIN_MS = 1000;
   static constexpr uint32_t RETRY_MAX_MS = 30000;
+  // Scheduler ids.
+  static constexpr uint32_t RETRY_START_ID = 0;
   static constexpr uint32_t MIC_TASK_STACK_SIZE = 4096;
   static constexpr UBaseType_t MIC_TASK_PRIORITY = 18;
 

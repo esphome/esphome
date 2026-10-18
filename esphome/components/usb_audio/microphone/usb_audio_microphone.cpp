@@ -39,11 +39,14 @@ void USBAudioMicrophone::dump_config() {
 
 void USBAudioMicrophone::loop() {
   const uint8_t commands = this->commands_.exchange(0);
+  if (commands & COMMAND_STOP) {
+    // Also when a failed start left the microphone STOPPED, so the next session's retries start from the minimum.
+    this->cancel_timeout(RETRY_START_ID);
+    this->retry_delay_ms_ = RETRY_MIN_MS;
+  }
   if ((commands & COMMAND_STOP) &&
       (this->state_ == microphone::STATE_STARTING || this->state_ == microphone::STATE_RUNNING)) {
     this->parent_->suspend(Endpoint::MICROPHONE);
-    this->cancel_timeout("retry_start");
-    this->retry_delay_ms_ = RETRY_MIN_MS;
     // The task notices within one read timeout; the stop finishes below once it is idle.
     this->running_ = false;
     this->state_ = microphone::STATE_STOPPING;
@@ -129,7 +132,7 @@ void USBAudioMicrophone::on_stream_state(StreamEvent event) {
         // A MicrophoneSource calls start() once and then waits for data, and start() only asks for the stream when
         // the first listener arrives, so retry here for the listeners still held.
         if (this->listeners_ > 0) {
-          this->set_timeout("retry_start", this->retry_delay_ms_, [this]() {
+          this->set_timeout(RETRY_START_ID, this->retry_delay_ms_, [this]() {
             if (this->listeners_ > 0) {
               this->request_(COMMAND_START, 0);
             }
