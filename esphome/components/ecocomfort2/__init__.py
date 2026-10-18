@@ -6,7 +6,7 @@ from esphome.components.esp32_ble import (
     CONF_MAX_KEY_SIZE,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TIME_ID
+from esphome.const import CONF_TIME_ID
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -50,9 +50,7 @@ async def register_ecocomfort2_child(var: MockObj, config: ConfigType) -> None:
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+    var = await ble_client.new_ble_node_component(config)
     await cg.add_variable(var.set_time, config.get(CONF_TIME_ID))
 
 
