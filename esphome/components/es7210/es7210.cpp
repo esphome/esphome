@@ -13,7 +13,7 @@ static const size_t MCLK_DIV_FRE = 256;
 // Mark the component as failed; use only in setup
 #define ES7210_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 
@@ -31,11 +31,6 @@ void ES7210::dump_config() {
                 "  Channel Gains: %.1f dB, %.1f dB, %.1f dB, %.1f dB",
                 this->bits_per_sample_, this->sample_rate_, this->channel_gains_[0], this->channel_gains_[1],
                 this->channel_gains_[2], this->channel_gains_[3]);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Failed to initialize");
-    return;
-  }
 }
 
 void ES7210::setup() {

@@ -161,7 +161,7 @@ static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 namespace esphome::esp32 {
 
-ESPHOME_LOG_TAG(TAG, "esp32.crash");
+ESPHOME_LOG_TAG(TAG, CRASH_LOG_TAG);
 
 // RAM copy of the build timestamp. The generated constant lives in flash,
 // which the panic handler must not read (cache may be disabled during
@@ -175,7 +175,8 @@ static uint32_t s_current_build_time = static_cast<uint32_t>(ESPHOME_BUILD_TIME)
 
 // Validate the NOINIT record. Runs on every has_data() call; re-running is
 // harmless and the magic is left alone so the record survives an OTA
-// rollback reboot, crash_handler_clear() drops it once an API client has it.
+// rollback reboot, crash_handler_clear() drops it once a log client has it
+// (logger::log_crash_to_client(), for the API and MQTT).
 static void read_crash_data() {
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;

@@ -256,9 +256,6 @@ void TMC22XXStepper::dump_config() {
   LOG_PIN("  INDEX Pin: ", this->index_pin_);
   LOG_PIN("  DIAG Pin: ", this->diag_pin_);
   LOG_STEPPER(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void TMC22XXStepper::loop() {
@@ -360,6 +357,13 @@ void TMC22XXStepper::set_enabled(bool enabled) {
     this->write_field(TOFF, enabled ? this->toff_ : 0);
   }
   this->enabled_ = enabled;
+}
+
+void TMC22XXStepper::set_toff(uint8_t toff) {
+  this->toff_ = toff;
+  // Without an ENN pin, TOFF=0 is what keeps the outputs disabled
+  if (this->enabled_ || this->enn_pin_ != nullptr)
+    this->write_field(TOFF, toff);
 }
 
 void TMC22XXStepper::set_microsteps(uint16_t microsteps) {

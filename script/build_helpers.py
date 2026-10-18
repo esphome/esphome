@@ -285,10 +285,15 @@ def load_test_manifest_overrides(
     defines ``override_manifest(manifest)``, it is called to customise
     the override (e.g. ``manifest.enable_codegen()``).
     """
+    wrapped: dict[str, ComponentManifestOverride] = {}
     for comp_name in components:
-        override = _wrap_manifest(comp_name)
+        # tests/components/core and tests/components/esphome both override the
+        # "esphome" core manifest, so they share one wrapper
+        manifest_name = ESPHOME_KEY if comp_name == "core" else comp_name
+        override = wrapped.get(manifest_name) or _wrap_manifest(manifest_name)
         if override is None:
             continue
+        wrapped[manifest_name] = override
 
         if "." in comp_name:
             domain, component = comp_name.split(".", maxsplit=1)

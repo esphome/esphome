@@ -2,13 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BRIGHTNESS,
-    CONF_EXTERNAL_VCC,
-    CONF_LAMBDA,
-    CONF_MODEL,
-    CONF_RESET_PIN,
-)
+from esphome.const import CONF_BRIGHTNESS, CONF_EXTERNAL_VCC, CONF_MODEL, CONF_RESET_PIN
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -50,8 +44,4 @@ async def setup_ssd1325(var: MockObj, config: ConfigType) -> None:
         cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
     if CONF_EXTERNAL_VCC in config:
         cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
