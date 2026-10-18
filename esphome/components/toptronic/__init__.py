@@ -6,7 +6,7 @@ import yaml
 import esphome.codegen as cg
 from esphome.components.canbus import CanbusComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_OPTIONS
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
 
@@ -22,6 +22,8 @@ CONF_DEVICE_ADDR = "device_addr"
 CONF_FUNCTION_GROUP = "function_group"
 CONF_FUNCTION_NUMBER = "function_number"
 CONF_DATAPOINT = "datapoint"
+CONF_DECIMAL = "decimal"
+CONF_VALUES = "values"
 
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
@@ -72,6 +74,15 @@ def _validate_preset(config):
         )
     if not (PRESETS_DIR / device_type).is_dir():
         raise cv.Invalid(f"No preset directory found for device type '{device_type}'")
+    return config
+
+
+def _validate_options_values_lengths(config):
+    if len(config[CONF_OPTIONS]) != len(config[CONF_VALUES]):
+        raise cv.Invalid(
+            f"'options' length ({len(config[CONF_OPTIONS])}) must match "
+            f"'values' length ({len(config[CONF_VALUES])})"
+        )
     return config
 
 
@@ -140,9 +151,14 @@ def _resolve_ids(obj, used=None):
 
 
 async def _generate_entities(hub, config):
-    from . import sensor
+    from . import number, select, sensor, text_sensor
 
-    platforms = {"sensor": (sensor.CONFIG_SCHEMA, sensor.to_code)}
+    platforms = {
+        "sensor": (sensor.CONFIG_SCHEMA, sensor.to_code),
+        "text_sensor": (text_sensor.CONFIG_SCHEMA, text_sensor.to_code),
+        "number": (number.CONFIG_SCHEMA, number.to_code),
+        "select": (select.CONFIG_SCHEMA, select.to_code),
+    }
     used_ids = _shared_used_ids()
     for platform_name, entity_conf in _load_entities(config["device_type"]):
         if platform_name not in platforms:
