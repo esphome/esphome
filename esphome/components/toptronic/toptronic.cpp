@@ -27,19 +27,65 @@ static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 // Minimum decodable TopTronic message: cmd | function_group | function_number | dp_hi | dp_lo.
 static constexpr size_t MIN_MESSAGE_LEN = 5;
 
-// Constructor: arm the receive path immediately. All hubs are constructed in
-// generated main.cpp before App.setup() runs, so even if a hub's setup() is
-// deferred/stalled by another slow component, it can still receive and parse
-// frames. (Sensor GET/set wiring stays in setup(): at construction time
+// Receive-dispatch installation flag (see the constructor): the build-wide canbus
+// receive callback is installed exactly once, no matter how many hubs exist.
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_receive_callback_registered = false;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Behavioral constants — named per §5.4 (no magic numbers).
+static constexpr uint32_t BURST_STALL_TIMEOUT_MS = 5000;  // refresh burst watchdog idle threshold
+static constexpr UBaseType_t COMMAND_QUEUE_LENGTH = 8;    // producer/consumer bridge depth
+
+// ---------------------------------------------------------------------------
+// Build-wide multi-hub refresh coordination.
+//
+// Every TopTronic hub registers itself in s_all_instances during setup(), so a
+// single refresh_all() call (button or boot) can fan out to ALL hubs. Each hub's
+// update_all() batch is staggered by REFRESH_STAGGER_MS so the 50 kbps bus is
+// not hit with a simultaneous burst of GET frames. The stagger is scheduled on
+// the ESPHome main-loop task via set_timeout(), so this is non-blocking and
+// thread-safe.
+// ---------------------------------------------------------------------------
+static std::vector<TopTronic *> s_all_instances;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static constexpr uint32_t REFRESH_STAGGER_MS = 15000;
+// One-shot post-boot refresh state. The deadline is captured from the FIRST hub
+// that has a non-zero boot_refresh_delay, and fired once from loop() (which only
+// runs after App.setup() has fully completed — so every hub has registered). The
+// boot refresh must NOT be scheduled from setup(): App.setup() can stall on a
+// slow component while the scheduler still ticks, which would let an early
+// timeout fire while s_all_instances is incomplete (e.g. only HV registered).
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+static uint32_t s_boot_refresh_delay_ms = 0;
+static uint32_t s_boot_refresh_start_ms = 0;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Constructor: register this hub in the build-wide registry and arm the RECEIVE
+// path immediately. All hubs are constructed in generated main.cpp before
+// App.setup() runs, so even if a hub's setup() is deferred/stalled by another
+// slow component, it can still receive and parse frames and is already known to
+// refresh_all(). (Sensor GET/set wiring stays in setup(): at construction time
 // device_addr_/device_type_ are not yet set and devices_ is still empty.)
 TopTronic::TopTronic(canbus::Canbus *canbus) : canbus_(canbus) {
-  // Receive path: route every CAN frame to this hub when the sender node is one
-  // of its devices. This does NOT depend on the sensor configuration (frames are
-  // matched at receipt time), so it is safe to install before setup().
-  this->canbus_->add_callback([this](uint32_t can_id, bool, bool rtr, const std::vector<uint8_t> &data) {
-    if (this->owns_device_((can_id >> 11) & 0x7FF))
-      this->parse_frame(data, can_id, rtr);
-  });
+  s_all_instances.push_back(this);
+
+  // Receive path: one build-wide callback routes every CAN frame to the hub(s)
+  // that registered the sender node. This does NOT depend on device_/sensor
+  // configuration (frames are matched at receipt time), so it is safe to install
+  // before setup(). A single dispatch point (instead of one callback per hub)
+  // keeps the per-frame cost of foreign traffic to a single hash lookup.
+  if (!s_receive_callback_registered) {
+    s_receive_callback_registered = true;
+    this->canbus_->add_callback([](uint32_t can_id, bool, bool rtr, const std::vector<uint8_t> &data) {
+      uint32_t device_id = (can_id >> 11) & 0x7FF;
+      for (TopTronic *hub : s_all_instances) {
+        // owns_device_() checks the hub's full devices_ map (every device it has
+        // registered), so the sender is never limited to a single address.
+        if (hub->owns_device_(device_id))
+          hub->parse_frame(data, can_id, rtr);
+      }
+    });
+  }
 }
 
 // Logging shortcuts used throughout this component: one shared tag, and the level
@@ -455,10 +501,117 @@ void TopTronic::register_input_callbacks() {
 // Request an immediate refresh from every registered sensor by firing its update
 // callback (the same path the polling scheduler takes). Writable inputs (number/
 // select) follow automatically through the linked sensors set up in link_inputs_().
+//
+// The refresh is THROTTLED: sensors are queued into pending_refresh_ and released
+// with an effective per-GET spacing of refresh_gap_ms_ / max_refresh_per_loop_
+// preset does not saturate the 50 kbps bus with a burst of GET frames and does
+// not compress the boiler's responses into a main-loop-stalling avalanche.
 void TopTronic::update_all() {
+  // A burst is already draining. Instead of dropping the request, defer it:
+  // remember that a fresh refresh is wanted and let loop() start a new burst
+  // once the current one empties — so a "Refresh all" press during a burst is
+  // honored, never silently lost.
+  if (!this->pending_refresh_.empty()) {
+    this->refresh_pending_ = true;
+    TT_LOGI("Refresh already in progress (%zu sensors pending) [paused=%d], will re-run after it finishes",
+            this->pending_refresh_.size(), (int) this->paused_);
+    return;  // loop() kicks off the deferred run when the burst empties
+  }
+  size_t sensor_count = 0;
   for (const auto &d : this->devices_) {
-    for (const auto &s : d.second->get_sensors())
-      s.second->update();
+    auto *device = d.second.get();
+    sensor_count += device->get_sensors().size();
+    for (const auto &s : device->get_sensors()) {
+      RefreshEntry entry;
+      entry.sensor = s.second;
+      entry.last_send_ms = 0;  // attempts==0 → first send goes out immediately
+      entry.attempts = 0;
+      this->pending_refresh_.push_back(entry);
+    }
+  }
+  // This queueing begins a throttled burst. Arm the observability counters
+  // (completion log + stall watchdog) for it.
+  this->burst_in_progress_ = true;
+  this->burst_queued_ = sensor_count;
+  this->burst_answered_ = 0;
+  this->burst_dropped_ = 0;
+  this->last_burst_progress_ms_ = millis();
+
+  TT_LOGI("Refresh requested for device 0x%04X (%zu sensors) [paused=%d]", (unsigned) this->get_device_id(),
+          sensor_count, (int) this->paused_);
+  // Kick the scheduler-driven drain so the burst starts even if this hub's
+  // component loop() is not invoked by ESPHome.
+  this->set_timeout("refresh_drain", 1, [this]() { this->drain_refresh_burst(); });
+}
+
+// Refresh EVERY registered hub, staggering each hub's batch by REFRESH_STAGGER_MS
+// so the 50 kbps bus is not spammed. Called from the "Refresh all" button and by
+// the (single) one-shot boot refresh. Rapid repeated presses simply push later
+// batches further out via absolute cumulative delays — the bus still only sees
+// one hub's batch at a time.
+void TopTronic::refresh_all() {
+  size_t total_sensors = 0;
+  size_t hubs = 0;
+  for (TopTronic *hub : s_all_instances) {
+    size_t count = 0;
+    for (const auto &d : hub->devices_) {
+      count += d.second->get_sensors().size();
+    }
+    total_sensors += count;
+    ++hubs;
+  }
+  TT_LOGI("Refresh-all scheduled for %zu hub(s), %zu sensors (stagger %u s)", hubs, total_sensors,
+          (unsigned) (REFRESH_STAGGER_MS / 1000));
+
+  uint32_t offset = 0;
+  for (TopTronic *hub : s_all_instances) {
+    if (offset > 0) {
+      // Stagger: schedule this hub's batch after the previous ones. Keyed by the
+      // hub's stable object address so repeated refreshes reschedule only this
+      // hub's pending batch (device addresses are identical across hubs).
+      hub->set_timeout(reinterpret_cast<uintptr_t>(hub), offset, [hub]() { hub->update_all(); });
+    } else {
+      hub->update_all();  // first hub runs immediately
+    }
+    offset += REFRESH_STAGGER_MS;
+  }
+}
+
+// Thread-safe producers. Safe to call from any FreeRTOS task: they only enqueue a
+// command (non-blocking). The main loop task drains the queue in loop() and performs
+// the actual work, so component state is never touched from other tasks.
+void TopTronic::request_refresh() {
+  Command cmd = Command::REFRESH;
+  if (this->cmd_queue_ != nullptr && xQueueSend(this->cmd_queue_, &cmd, 0) != pdTRUE) {
+    TT_LOGD("Command queue full — refresh request dropped");
+  }
+}
+
+void TopTronic::request_pause() {
+  Command cmd = Command::PAUSE;
+  if (this->cmd_queue_ != nullptr && xQueueSend(this->cmd_queue_, &cmd, 0) != pdTRUE) {
+    TT_LOGD("Command queue full — pause request dropped");
+  }
+}
+
+void TopTronic::request_resume() {
+  Command cmd = Command::RESUME;
+  if (this->cmd_queue_ != nullptr && xQueueSend(this->cmd_queue_, &cmd, 0) != pdTRUE) {
+    TT_LOGD("Command queue full — resume request dropped");
+  }
+}
+
+// Fan out Pause/Resume to every registered hub. Same build-wide registry used
+// by refresh_all(), so targeting any one hub id covers all hubs.
+void TopTronic::request_pause_all() {
+  for (TopTronic *hub : s_all_instances) {
+    hub->request_pause();
+  }
+}
+
+void TopTronic::request_resume_all() {
+  for (TopTronic *hub : s_all_instances) {
+    hub->request_resume();
   }
 }
 
@@ -537,6 +690,23 @@ void TopTronic::configure_hub() {
   // paused (e.g. an OTA whose on_end/on_abort never ran): polls and refresh
   // bursts must not stay frozen across reboots.
   this->paused_ = false;
+
+  // Capture the earliest non‑zero post‑boot refresh delay across all hubs.
+  if (this->boot_refresh_delay_ms_ != 0) {
+    if (s_boot_refresh_delay_ms == 0 || this->boot_refresh_delay_ms_ < s_boot_refresh_delay_ms) {
+      s_boot_refresh_delay_ms = this->boot_refresh_delay_ms_;
+      s_boot_refresh_start_ms = millis();
+    }
+  }
+
+  // Producer/consumer bridge for commands issued from other FreeRTOS tasks.
+  // Producers only enqueue; the main loop task drains and executes in loop().
+  this->cmd_queue_ = xQueueCreate(COMMAND_QUEUE_LENGTH, sizeof(Command));
+
+  // Drive the work pump from the scheduler (Phase A) so the hub stays fully
+  // functional even if ESPHome does not invoke its component loop() (Phase B) -
+  // the loop partition can silently drop hubs depending on registration order.
+  this->set_interval("pump", 50, [this]() { this->pump(); });
 }
 
 void TopTronic::setup() {
@@ -550,24 +720,196 @@ void TopTronic::setup() {
     sensor_count += device->get_sensors().size();
     input_count += device->get_inputs().size();
   }
-  TT_LOGI("Hub 0x%04X registered (%zu sensors, %zu inputs)", (unsigned) this->get_device_id(), sensor_count,
-          input_count);
+  TT_LOGI("Hub 0x%04X registered, total hubs: %zu (%zu sensors, %zu inputs)", (unsigned) this->get_device_id(),
+          s_all_instances.size(), sensor_count, input_count);
 }
 
-void TopTronic::loop() {
-  // Sweep stale multi-frame fragments. A message arrives as a start frame plus
-  // continuations; if the boiler is reset (or a frame is lost) the remainder
-  // never arrives and the partial buffer would otherwise sit in RAM forever.
+void TopTronic::drain_refresh_burst() {
+  // Time-gated refresh burst with per-sensor retry. max_refresh_per_loop_ is the
+  // GET burst budget per refresh_gap_ms_ window, so the effective per-GET spacing
+  // is ceil(refresh_gap_ms_ / max_refresh_per_loop_). Both knobs stay active:
+  // raising max_refresh_per_loop_ sends more GETs per window (faster burst),
+  // lowering it paces harder. Spreading the burst evenly across the window
+  // (rather than sending N back-to-back) keeps the boiler responses interleaved.
+  //
+  // Each entry is a sensor whose GET is still awaiting a response. Spacing
+  // between sends is effective_gap_ms_, exactly as before; additionally, an
+  // entry that has not been answered within refresh_retry_interval_ms_ is
+  // re-sent (up to max_refresh_retries_ attempts). interpret_message_() removes
+  // an entry as soon as its response arrives, so only genuinely unanswered GETs
+  // are retried. This makes the burst self-healing and independent of bus/hub
+  // ordering - a single lost GET (e.g. BM 83-0-0 colliding with boiler
+  // broadcasts) is retried instead of leaving the sensor unknown until the next
+  // 30 s poll.
+  const uint32_t refresh_burst = (this->max_refresh_per_loop_ == 0) ? 1 : this->max_refresh_per_loop_;
+  const uint32_t effective_gap_ms = (this->refresh_gap_ms_ + refresh_burst - 1) / refresh_burst;
+  if (!this->paused_ && !this->pending_refresh_.empty()) {
+    const uint32_t now = millis();
+    if (now - this->last_refresh_send_ms_ >= effective_gap_ms) {
+      RefreshEntry entry = this->pending_refresh_.front();
+      const uint32_t since_last = now - entry.last_send_ms;
+      if (entry.attempts == 0 || since_last >= this->refresh_retry_interval_ms_) {
+        if (entry.attempts > 0) {
+          TT_LOGD("[GET] Retry %u/%u device 0x%04X sensor 0x%08X", (unsigned) entry.attempts,
+                  (unsigned) this->max_refresh_retries_, (unsigned) this->get_device_id(),
+                  (unsigned) entry.sensor->get_id());
+        }
+        entry.sensor->update();
+        entry.last_send_ms = now;
+        entry.attempts++;
+        this->pending_refresh_.pop_front();
+        this->last_burst_progress_ms_ = now;  // burst made progress: a GET was sent
+        if (entry.attempts > this->max_refresh_retries_) {
+          // Retries exhausted - give up on this sensor for this burst. The
+          // normal 30 s poll remains the backstop, so a dead/absent device is
+          // never hammered.
+          this->burst_dropped_++;  // counted in the completion log
+          TT_LOGD("[GET] Giving up device 0x%04X sensor 0x%08X after %u tries", (unsigned) this->get_device_id(),
+                  (unsigned) entry.sensor->get_id(), (unsigned) entry.attempts);
+        } else {
+          // Re-queue so every other sensor is tried before this one is retried.
+          this->pending_refresh_.push_back(entry);
+        }
+        this->last_refresh_send_ms_ = now;
+      }
+    }
+  }
+
+  // Refresh-burst observability: log when a throttled burst finishes draining so
+  // the log proves the queue is being processed. Accounting: queued = sensors
+  // queued by update_all(), answered = responses erased in interpret_message_(),
+  // dropped = retries exhausted or stall-aborted (watchdog below).
+  if (this->burst_in_progress_ && this->pending_refresh_.empty()) {
+    this->burst_in_progress_ = false;
+    TT_LOGI("Refresh burst finished for device 0x%04X: %zu queued, %zu answered, %zu dropped",
+            (unsigned) this->get_device_id(), this->burst_queued_, this->burst_answered_, this->burst_dropped_);
+  }
+
+  // Burst stall watchdog: a draining burst must keep making progress (a GET
+  // sent, or a response erasing an entry) at roughly the retry cadence. If it
+  // has been idle for 5 s + refresh_retry_interval_ms_, the burst is wedged
+  // (loop task starved, bus dead, device gone silent). Abort it so a later
+  // refresh can start fresh - the normal 30 s polls remain the backstop.
+  // Skipped while paused_ (OTA) so an intentional freeze is not flagged.
+  if (this->burst_in_progress_ && !this->paused_ && !this->pending_refresh_.empty()) {
+    const uint32_t now = millis();
+    const uint32_t stall_timeout = BURST_STALL_TIMEOUT_MS + this->refresh_retry_interval_ms_;
+    if (now - this->last_burst_progress_ms_ >= stall_timeout) {
+      const size_t abandoned = this->pending_refresh_.size();
+      TT_LOGW("Refresh burst stalled (%zu sensors pending, no progress for %u ms) - aborting", abandoned,
+              (unsigned) (now - this->last_burst_progress_ms_));
+      this->pending_refresh_.clear();
+      this->burst_dropped_ += abandoned;
+      this->burst_in_progress_ = false;
+      TT_LOGI("Refresh burst finished for device 0x%04X: %zu queued, %zu answered, %zu dropped (stall-aborted)",
+              (unsigned) this->get_device_id(), this->burst_queued_, this->burst_answered_, this->burst_dropped_);
+    }
+  }
+
+  // The burst has finished (either drained or empty). If a refresh was requested
+  // while it was running, honor it now with a fresh burst - a "Refresh all" press
+  // during a burst is deferred, never lost.
+  if (this->refresh_pending_ && this->pending_refresh_.empty()) {
+    this->refresh_pending_ = false;
+    this->update_all();
+  }
+
+  // Re-schedule a drain while sensors remain pending, so the burst keeps draining
+  // even on a hub whose component loop() is not invoked by ESPHome (the ESPHome
+  // scheduler runs independently of the Phase-B component loop). loop() calls
+  // drain_refresh_burst() as well; the effective_gap_ms throttle makes the
+  // double-invocation a harmless no-op.
+  if (!this->pending_refresh_.empty()) {
+    this->set_timeout("refresh_drain", effective_gap_ms > 0 ? effective_gap_ms : 1u,
+                      [this]() { this->drain_refresh_burst(); });
+  }
+}
+
+void TopTronic::loop() { this->pump(); }
+
+// Scheduler-driven work pump (order-independent). ESPHome may not invoke a hub's
+// component loop() (Phase B) depending on registration order - its loop partition
+// (a fixed-capacity vector) silently drops hubs that do not fit. The Phase-A
+// scheduler, however, always runs this hub's set_interval()/set_timeout()
+// callbacks, so all critical work (command bridge, burst drain, boot refresh,
+// cleanup) is driven from here via set_interval() in setup(). loop() calls pump()
+// too; the operations are time-gated/once-only so the redundancy is harmless.
+void TopTronic::pump() {
+  // Drain cross-task commands first (non-blocking), so requests issued from other
+  // FreeRTOS tasks are serviced on the main loop task — keeping all component state
+  // single-threaded (the ESPHome model). Duplicate commands in one drain cycle are
+  // coalesced into a single action; the queue itself caps backlog, and the overflow
+  // is logged by the producers. Nothing here blocks.
+  bool handled_refresh = false;
+  bool handled_pause = false;
+  bool handled_resume = false;
+  Command cmd;
+  while (this->cmd_queue_ != nullptr && xQueueReceive(this->cmd_queue_, &cmd, 0) == pdTRUE) {
+    switch (cmd) {
+      case Command::REFRESH:
+        if (!handled_refresh) {
+          this->update_all();
+          handled_refresh = true;
+        }
+        break;
+      case Command::PAUSE:
+        if (!handled_pause) {
+          this->pause();
+          handled_pause = true;
+        }
+        break;
+      case Command::RESUME:
+        if (!handled_resume) {
+          this->resume();
+          handled_resume = true;
+        }
+        break;
+    }
+  }
+
+  // Burst processing (send/retry/drop, completion, stall watchdog, heartbeat,
+  // deferred run) lives in drain_refresh_burst(), which loop() calls and which
+  // also re-schedules itself through the ESPHome scheduler, so a hub whose
+  // component loop() is not invoked still drains its burst.
+  this->drain_refresh_burst();
+
   const uint32_t now = millis();
+
+  // One-shot post-boot refresh. loop() only runs after App.setup() has fully
+  // completed, so by now every hub is registered in s_all_instances — firing
+  // refresh_all() from here always covers all hubs (HV, BM, …, staggered 15 s).
+  if (s_boot_refresh_delay_ms != 0 && now - s_boot_refresh_start_ms >= s_boot_refresh_delay_ms) {
+    s_boot_refresh_delay_ms = 0;  // fire exactly once
+    // Call through the first registered hub so the gate is explicitly
+    // hub-order independent; refresh_all() fans out to every hub regardless.
+    if (!s_all_instances.empty()) {
+      s_all_instances[0]->refresh_all();
+    }
+  }
+
+  // Periodically evict stale multi-frame reassembly buffers so a lost fragment (or a
+  // device going offline mid-message) cannot pin an entry forever. The map is tiny
+  // (capped at this->max_pending_messages_), so the sweep is throttled to avoid per-loop work.
   if (now - this->last_cleanup_ms_ < this->cleanup_interval_ms_)
     return;
   this->last_cleanup_ms_ = now;
+
   for (auto it = this->pending_messages_.begin(); it != this->pending_messages_.end();) {
     if (now - it->second.last_update_ms > this->max_pending_age_ms_) {
+      TT_LOGD("Expiring stale pending message 0x%08X (%zu bytes, %u frames remaining)", (unsigned int) it->first,
+              it->second.data.size(), it->second.remaining_frames);
       it = this->pending_messages_.erase(it);
     } else {
       ++it;
     }
+  }
+}
+
+void TopTronic::on_shutdown() {
+  // Free the command bridge queue created in setup().
+  if (this->cmd_queue_ != nullptr) {
+    vQueueDelete(this->cmd_queue_);
+    this->cmd_queue_ = nullptr;
   }
 }
 
@@ -582,6 +924,7 @@ void TopTronic::dump_config() {
   ESP_LOGCONFIG(TAG, "  Device type: 0x%04X, device address: 0x%02X", this->device_type_, this->device_addr_);
   ESP_LOGCONFIG(TAG, "  Devices: %u, sensors: %u, inputs: %u", (unsigned) this->devices_.size(),
                 (unsigned) sensor_count, (unsigned) input_count);
+  ESP_LOGCONFIG(TAG, "  Boot refresh delay: %u ms", (unsigned) this->boot_refresh_delay_ms_);
   ESP_LOGCONFIG(TAG, "  Write safety: min SET interval %u ms, reject writes before read: %s",
                 (unsigned) this->write_min_interval_ms_,
                 this->reject_writes_before_read_ ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
@@ -852,6 +1195,25 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
   // cold-cache write guard (reject_writes_before_read_) may let SET requests
   // through from now on.
   this->read_ok_ids_.insert(id);
+
+  // This sensor was answered — drop it from the refresh-retry queue so loop()
+  // does not re-poll it. The deque is small (self-hub sensors) and the burst
+  // drain is O(1) at the front, so a linear erase here is cheap and only runs
+  // when a response for a pending refresh sensor actually arrives.
+  if (!this->pending_refresh_.empty()) {
+    for (auto rit = this->pending_refresh_.begin(); rit != this->pending_refresh_.end(); ++rit) {
+      if (rit->sensor == sensor_base) {
+        this->pending_refresh_.erase(rit);
+        // Burst progress: a pending GET was answered. Count it for the
+        // completion log and refresh the stall-watchdog timestamp.
+        if (this->burst_in_progress_) {
+          this->burst_answered_++;
+          this->last_burst_progress_ms_ = millis();
+        }
+        break;
+      }
+    }
+  }
 
   // Downcast to the concrete type and publish the decoded value.
   // data[value_off..] contains the raw value bytes.
