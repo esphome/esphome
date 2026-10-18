@@ -26,8 +26,10 @@ static std::atomic<A2DPSourceSpeaker *> desired_speaker{nullptr};
 static A2DPSourceSpeaker *owner_speaker = nullptr;
 static A2DPSourceSpeaker *registered_speakers[8]{};
 static bool profile_initialized = false;
+static bool profile_initialization_failed = false;
 static std::atomic<bool> classic_profile_ready{false};
-static constexpr size_t PCM_BUFFER_BYTES = 8192;
+static uint32_t handoff_started_ms = 0;
+static constexpr size_t PCM_BUFFER_BYTES = 32768;
 static constexpr size_t MAX_DISCOVERED = 6;
 
 struct DiscoveredDevice {
@@ -45,6 +47,23 @@ static std::string format_address(const uint8_t *address) {
   char result[18];
   std::snprintf(result, sizeof(result), "%02X:%02X:%02X:%02X:%02X:%02X", address[0], address[1], address[2], address[3],
                 address[4], address[5]);
+  return result;
+}
+
+static std::string quote_json_string(const char *value, size_t length) {
+  std::string result = "\"";
+  for (size_t i = 0; i < length; i++) {
+    const unsigned char ch = static_cast<unsigned char>(value[i]);
+    if (ch == '"' || ch == '\\') {
+      result += '\\';
+      result += static_cast<char>(ch);
+    } else if (ch < 0x20) {
+      result += '?';
+    } else {
+      result += static_cast<char>(ch);
+    }
+  }
+  result += '"';
   return result;
 }
 
@@ -170,6 +189,13 @@ bool A2DPSourceSpeaker::select_bond(const char *address) {
       this->connect_pending_.load() || this->pairing_.load() || this->remove_bond_pending_.load() ||
       (owner_speaker != nullptr && owner_speaker->forget_pending_.load()) || !this->is_bonded_(parsed))
     return false;
+  for (auto *other : registered_speakers) {
+    if (other != nullptr && other != this && other->has_address_() &&
+        std::memcmp(other->address_, parsed, sizeof(parsed)) == 0) {
+      ESP_LOGW(TAG, "Speaker is already assigned to another slot");
+      return false;
+    }
+  }
   if (std::memcmp(this->address_, parsed, sizeof(parsed)) == 0)
     return true;
   uint8_t previous[6];
@@ -293,6 +319,8 @@ bool A2DPSourceSpeaker::pair(const char *address, const char *pin, bool require_
   this->confirmation_pending_.store(false);
   this->pair_deadline_ms_ = millis() + 30000;
   this->next_connect_attempt_ms_ = 0;
+  this->connect_attempts_.store(0);
+  this->connection_session_active_.store(false);
   this->pairing_status_ = PairingStatus::CONNECTING;
   this->pairing_.store(true);
   desired_speaker.store(this);
@@ -361,6 +389,33 @@ void A2DPSourceSpeaker::cancel_discovery() {
 
 bool A2DPSourceSpeaker::discovery_running() const { return classic_discovery_running.load(); }
 
+size_t A2DPSourceSpeaker::discovery_count() const {
+  portENTER_CRITICAL(&discovery_mux);
+  const size_t count = discovered_count;
+  portEXIT_CRITICAL(&discovery_mux);
+  return count;
+}
+
+std::string A2DPSourceSpeaker::discovery_device(size_t index) const {
+  DiscoveredDevice device{};
+  portENTER_CRITICAL(&discovery_mux);
+  const bool found = index < discovered_count;
+  if (found)
+    device = discovered[index];
+  portEXIT_CRITICAL(&discovery_mux);
+  if (!found)
+    return "null";
+
+  std::string result = "{\"address\":\"" + format_address(device.address) + "\",\"name\":";
+  result += device.name[0] ? quote_json_string(device.name, strnlen(device.name, sizeof(device.name))) : "null";
+  result += ",\"rssi_dbm\":";
+  result += device.rssi == -128 ? "null" : std::to_string(device.rssi);
+  result += ",\"bonded_to_gateway\":";
+  result += this->is_bonded_(device.address) ? "true" : "false";
+  result += '}';
+  return result;
+}
+
 std::string A2DPSourceSpeaker::discovery_results(uint8_t page) const {
   DiscoveredDevice snapshot[MAX_DISCOVERED]{};
   size_t count;
@@ -380,7 +435,9 @@ std::string A2DPSourceSpeaker::discovery_results(uint8_t page) const {
       result += " ";
       result.append(snapshot[i].name, strnlen(snapshot[i].name, 24));
     }
-    result += " (" + std::to_string(snapshot[i].rssi) + " dBm)";
+    result += snapshot[i].rssi == -128 ? " (RSSI unavailable)"
+                                       : " (" + std::to_string(snapshot[i].rssi) + " dBm)";
+    result += this->is_bonded_(snapshot[i].address) ? " [paired]" : " [not paired]";
   }
   return result;
 }
@@ -389,9 +446,21 @@ void A2DPSourceSpeaker::reset_connection_state_() {
   this->connected_.store(false);
   this->streaming_.store(false);
   this->connect_pending_.store(false);
+  this->connection_failed_.store(false);
+  this->connection_failed_latched_.store(false);
+  this->connect_attempts_.store(0);
+  this->connection_session_active_.store(false);
   this->disconnect_pending_.store(false);
+  this->acl_connected_.store(false);
   this->media_check_pending_.store(false);
   this->media_start_pending_.store(false);
+  this->avrcp_connected_.store(false);
+  this->avrcp_ready_.store(false);
+  this->avrcp_actual_volume_.store(-1);
+  this->avrcp_response_volume_.store(-1);
+  this->avrcp_command_pending_ = false;
+  this->avrcp_connect_deadline_ms_ = 0;
+  this->avrcp_last_requested_ = 255;
   this->next_connect_attempt_ms_ = 0;
   this->remove_bond_pending_.store(false);
   this->remove_bond_result_.store(0);
@@ -406,9 +475,64 @@ void A2DPSourceSpeaker::reset_connection_state_() {
   }
 }
 
+void A2DPSourceSpeaker::abort_connection_(const char *reason) {
+  ESP_LOGW(TAG, "A2DP slot %u: %s; stopping this playback attempt", this->slot_, reason);
+  this->connection_failed_latched_.store(true);
+  this->requested_.store(false);
+  this->connect_pending_.store(false);
+  if (this->pairing_.exchange(false))
+    this->pairing_status_ = PairingStatus::FAILED;
+  this->finish_pending_.store(false);
+  this->avrcp_ready_.store(false);
+  this->preempted_.store(true);
+  this->state_ = speaker::STATE_STOPPED;
+  this->next_connect_attempt_ms_ = millis() + 60000;
+  esp_a2d_source_disconnect(this->address_);
+}
+
+void A2DPSourceSpeaker::retry_or_abort_connection_(const char *reason) {
+  if (this->connection_failed_latched_.load()) {
+    this->connect_pending_.store(false);
+    return;
+  }
+  if (!this->connection_session_active_.load() && !this->pairing_.load()) {
+    this->connect_pending_.store(false);
+    return;
+  }
+  this->connection_failure_count_.fetch_add(1);
+  if ((this->pairing_.load() && !this->connection_session_active_.load()) || this->connect_attempts_.load() >= 4) {
+    this->abort_connection_(reason);
+    return;
+  }
+  ESP_LOGW(TAG, "A2DP slot %u: %s; retry %u/4 after 12 s", this->slot_, reason,
+           static_cast<unsigned>(this->connect_attempts_.load() + 1));
+  this->connect_pending_.store(false);
+  this->next_connect_attempt_ms_ = millis() + 12000;
+  esp_a2d_source_disconnect(this->address_);
+}
+
+bool A2DPSourceSpeaker::waiting_for_retry() const {
+  const int32_t remaining = static_cast<int32_t>(this->next_connect_attempt_ms_.load() - millis());
+  return (this->connection_session_active_.load() || this->pairing_.load()) && !this->connected_.load() &&
+         !this->connect_pending_.load() && remaining > 2000 && remaining <= 12000;
+}
+
+void A2DPSourceSpeaker::reset_connection_sequence() {
+  if (this->pairing_.load())
+    return;
+  this->connection_session_active_.store(false);
+  this->requested_.store(false);
+  this->connect_attempts_.store(0);
+  this->next_connect_attempt_ms_.store(0);
+  this->connection_failed_.store(false);
+  this->connection_failed_latched_.store(false);
+  this->preempted_.store(false);
+}
+
 void A2DPSourceSpeaker::setup() {
   this->audio_stream_info_ = audio::AudioStreamInfo(16, 2, 44100);
   this->volume_ = 0.02f;
+  this->avrcp_target_volume_.store(3);
   if (this->slot_) {
     this->address_pref_ = global_preferences->make_preference<uint8_t[8]>(0xA2D00000UL + this->slot_, true);
     uint8_t saved[8]{};
@@ -430,11 +554,15 @@ void A2DPSourceSpeaker::loop() {
     this->profile_ready_.store(false);
     if (this == owner_speaker) {
       profile_initialized = false;
+      profile_initialization_failed = false;
       classic_profile_ready.store(false);
       classic_discovery_running.store(false);
     }
     return;
   }
+
+  if (this == owner_speaker && profile_initialization_failed)
+    return;
 
   if (this == owner_speaker && !profile_initialized) {
     esp_err_t err = esp_bt_gap_register_callback(A2DPSourceSpeaker::gap_event_);
@@ -446,6 +574,15 @@ void A2DPSourceSpeaker::loop() {
       esp_bt_pin_code_t pin_code{};
       err = esp_bt_gap_set_pin(ESP_BT_PIN_TYPE_VARIABLE, 0, pin_code);
     }
+    if (err == ESP_OK) {
+      const esp_err_t page_err = esp_bt_gap_set_page_timeout(0x1000);  // 2.56 s per attempt.
+      if (page_err != ESP_OK)
+        ESP_LOGW(TAG, "Could not shorten Classic page timeout: %s", esp_err_to_name(page_err));
+    }
+    if (err == ESP_OK)
+      err = esp_avrc_ct_init();
+    if (err == ESP_OK)
+      err = esp_avrc_ct_register_callback(A2DPSourceSpeaker::avrcp_event_);
     if (err == ESP_OK)
       err = esp_a2d_source_init();
     if (err == ESP_OK)
@@ -454,6 +591,7 @@ void A2DPSourceSpeaker::loop() {
       err = esp_a2d_source_register_data_callback(A2DPSourceSpeaker::audio_data_);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "A2DP init failed: %s", esp_err_to_name(err));
+      profile_initialization_failed = true;
       this->mark_failed();
       return;
     }
@@ -510,11 +648,25 @@ void A2DPSourceSpeaker::loop() {
     auto *desired = desired_speaker.load();
     if (desired && current == desired) {
       desired_speaker.store(nullptr);
+      handoff_started_ms = 0;
     } else if (desired) {
       if (classic_discovery_running.load())
         esp_bt_gap_cancel_discovery();
-      if (current && current->connected_.load()) {
-        if (!current->disconnect_pending_) {
+      // The underlying Classic ACL can outlive both A2DP and AVRCP. Wait for
+      // its GAP disconnect event before opening a link to another receiver.
+      if (current &&
+          (current->connected_.load() || current->avrcp_connected_.load() || current->acl_connected_.load() ||
+           current->connect_pending_.load() || current->disconnect_pending_.load())) {
+        if (handoff_started_ms == 0)
+          handoff_started_ms = millis();
+        if (static_cast<int32_t>(millis() - handoff_started_ms) >= 10000) {
+          ESP_LOGW(TAG, "A2DP/AVRCP handoff timed out; keeping the next output disconnected");
+          desired->requested_.store(false);
+          desired->preempted_.store(true);
+          desired->state_ = speaker::STATE_STOPPED;
+          desired_speaker.store(nullptr);
+          handoff_started_ms = 0;
+        } else if (current->connected_.load() && !current->disconnect_pending_) {
           if (current->requested_.load())
             current->preempted_.store(true);
           current->requested_.store(false);
@@ -527,19 +679,77 @@ void A2DPSourceSpeaker::loop() {
       } else if (!current || !current->connect_pending_) {
         if (current && current->requested_.load())
           current->preempted_.store(true);
+        if (handoff_started_ms != 0) {
+          // Let the shared Wi-Fi/Bluetooth radio settle after the old A2DP
+          // and AVRCP links close before paging the next receiver.
+          const uint32_t earliest_connect_ms = millis() + 5000;
+          if (static_cast<int32_t>(desired->next_connect_attempt_ms_ - earliest_connect_ms) < 0)
+            desired->next_connect_attempt_ms_ = earliest_connect_ms;
+          ESP_LOGI(TAG, "A2DP handoff: waiting 5 s before connecting slot %u", desired->slot_);
+        }
         active_speaker.store(desired);
         desired_speaker.store(nullptr);
+        handoff_started_ms = 0;
       }
+    } else {
+      handoff_started_ms = 0;
     }
   }
 
   if (active_speaker.load() != this)
     return;
 
+  // The PCM ring buffer accepts audio while the previous receiver disconnects
+  // and this receiver connects. Keep the upstream resampler running during
+  // that handoff; streaming_ separately reports when Bluetooth audio starts.
   if (this->requested_.load())
-    this->state_ = this->streaming_.load() ? speaker::STATE_RUNNING : speaker::STATE_STARTING;
+    this->state_ = speaker::STATE_RUNNING;
 
   const uint32_t now = millis();
+  if (this->connection_failed_.exchange(false) && (this->connection_session_active_.load() || this->pairing_.load()))
+    this->retry_or_abort_connection_("Classic connection failed");
+  if (this->requested_.load() && this->connected_.load()) {
+    if (this->avrcp_connect_deadline_ms_ == 0)
+      this->avrcp_connect_deadline_ms_ = now + 15000;
+    if (this->avrcp_connected_.load()) {
+      int response = this->avrcp_response_volume_.exchange(-1);
+      if (response >= 0 && this->avrcp_command_pending_) {
+        this->avrcp_actual_volume_.store(response);
+        this->avrcp_ready_.store(true);
+        this->avrcp_command_pending_ = false;
+        this->avrcp_attempts_ = 0;
+        ESP_LOGI(TAG, "AVRCP slot %u accepted receiver volume %d/127", this->slot_, response);
+      }
+      if (this->avrcp_command_pending_ && static_cast<int32_t>(now - this->avrcp_command_deadline_ms_) >= 0) {
+        this->avrcp_command_pending_ = false;
+        if (this->avrcp_attempts_ >= 3)
+          this->avrcp_failed_.store(true);
+      }
+      const uint8_t target = this->avrcp_target_volume_.load();
+      if (!this->avrcp_command_pending_ && !this->avrcp_failed_.load() &&
+          (!this->avrcp_ready_.load() || target != this->avrcp_last_requested_)) {
+        if (this->avrcp_last_requested_ == 255)
+          this->avrcp_attempts_ = 0;
+        esp_err_t err = esp_avrc_ct_send_set_absolute_volume_cmd(this->avrcp_transaction_++ & 0x0F, target);
+        if (err == ESP_OK) {
+          this->avrcp_last_requested_ = target;
+          this->avrcp_command_pending_ = true;
+          this->avrcp_command_deadline_ms_ = now + 1500;
+          this->avrcp_attempts_++;
+        } else {
+          ESP_LOGW(TAG, "AVRCP volume command failed for slot %u: %s", this->slot_, esp_err_to_name(err));
+          this->avrcp_failed_.store(true);
+        }
+      }
+    }
+    if (!this->avrcp_ready_.load() && !this->avrcp_failed_.load() &&
+        static_cast<int32_t>(now - this->avrcp_connect_deadline_ms_) >= 0)
+      this->avrcp_failed_.store(true);
+    if (this->avrcp_failed_.load() && !this->avrcp_ready_.load()) {
+      ESP_LOGW(TAG, "AVRCP receiver volume unavailable for slot %u; stopping audio", this->slot_);
+      this->stop();
+    }
+  }
   if (this->pairing_ && static_cast<int32_t>(now - this->pair_deadline_ms_) >= 0) {
     if (this->confirmation_pending_.exchange(false))
       esp_bt_gap_ssp_confirm_reply(this->confirmation_address_, false);
@@ -562,10 +772,7 @@ void A2DPSourceSpeaker::loop() {
     std::memcpy(this->address_, this->previous_address_, 6);
   }
   if (this->connect_pending_ && static_cast<int32_t>(now - this->next_connect_attempt_ms_) >= 0) {
-    ESP_LOGW(TAG, "A2DP connection timed out");
-    this->connect_pending_ = false;
-    esp_a2d_source_disconnect(this->address_);
-    this->next_connect_attempt_ms_ = now + 5000;
+    this->retry_or_abort_connection_("connection timed out");
   }
   if (this->media_check_pending_ && static_cast<int32_t>(now - this->next_media_check_ms_) >= 0)
     this->media_check_pending_ = false;
@@ -574,14 +781,17 @@ void A2DPSourceSpeaker::loop() {
   if (this->requested_.load() || this->pairing_) {
     if (!this->connected_.load() && !this->connect_pending_ &&
         static_cast<int32_t>(now - this->next_connect_attempt_ms_) >= 0) {
+      this->connect_attempts_.fetch_add(1);
       esp_err_t err = esp_a2d_source_connect(this->address_);
       this->next_connect_attempt_ms_ = now + 15000;
       if (err == ESP_OK)
         this->connect_pending_ = true;
-      else
+      else {
         ESP_LOGW(TAG, "A2DP connect failed: %s", esp_err_to_name(err));
-    } else if (this->requested_.load() && this->connected_.load() && !this->streaming_.load() &&
-               !this->media_check_pending_ && !this->media_start_pending_ &&
+        this->retry_or_abort_connection_("A2DP connect call failed");
+      }
+    } else if (this->requested_.load() && this->connected_.load() && this->avrcp_ready_.load() &&
+               !this->streaming_.load() && !this->media_check_pending_ && !this->media_start_pending_ &&
                static_cast<int32_t>(now - this->next_media_check_ms_) >= 0) {
       if (esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY) == ESP_OK)
         this->media_check_pending_ = true;
@@ -608,16 +818,33 @@ void A2DPSourceSpeaker::dump_config() {
 
 void A2DPSourceSpeaker::set_volume(float volume) {
   this->volume_ = std::clamp(volume, 0.0f, 1.0f);
-  this->gain_q15_.store(static_cast<uint16_t>(this->volume_ * 32768.0f));
+  this->avrcp_target_volume_.store(this->muted_.load() ? 0 : static_cast<uint8_t>(this->volume_ * 127.0f + 0.5f));
 }
 
 void A2DPSourceSpeaker::set_mute_state(bool mute_state) {
   this->mute_state_ = mute_state;
   this->muted_.store(mute_state);
+  this->avrcp_target_volume_.store(mute_state ? 0 : static_cast<uint8_t>(this->volume_ * 127.0f + 0.5f));
+}
+
+const char *A2DPSourceSpeaker::avrcp_status() const {
+  if (this->avrcp_failed_.load())
+    return this->avrcp_ready_.load() ? "volume update failed" : "unavailable";
+  if (!this->connected_.load() && this->avrcp_connected_.load())
+    return "closing AVRCP";
+  if (this->avrcp_command_pending_.load())
+    return "setting receiver volume";
+  if (this->avrcp_ready_.load())
+    return "receiver volume confirmed";
+  if (this->avrcp_connected_.load())
+    return "setting receiver volume";
+  if (this->connected_.load())
+    return "waiting for AVRCP";
+  return "disconnected";
 }
 
 void A2DPSourceSpeaker::start() {
-  if (this->preempted_.load()) {
+  if (this->preempted_.load() || this->connection_failed_latched_.load()) {
     this->state_ = speaker::STATE_STOPPED;
     return;
   }
@@ -650,7 +877,15 @@ void A2DPSourceSpeaker::start() {
   this->received_first_data_.store(false);
   this->previous_callback_us_ = 0;
   this->requested_.store(true);
-  this->state_ = speaker::STATE_STARTING;
+  this->connection_session_active_.store(true);
+  this->avrcp_failed_.store(false);
+  this->avrcp_ready_.store(false);
+  this->avrcp_connect_deadline_ms_ = 0;
+  this->avrcp_command_pending_ = false;
+  this->avrcp_last_requested_ = 255;
+  this->avrcp_attempts_ = 0;
+  // Buffer PCM immediately, including while Classic paging is still pending.
+  this->state_ = speaker::STATE_RUNNING;
   desired_speaker.store(this);
 }
 
@@ -683,6 +918,31 @@ size_t A2DPSourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ti
 void A2DPSourceSpeaker::a2dp_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
   if (auto *speaker = active_speaker.load())
     speaker->process_event_(event, param);
+}
+
+void A2DPSourceSpeaker::avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
+  if (auto *speaker = active_speaker.load())
+    speaker->process_avrcp_event_(event, param);
+}
+
+void A2DPSourceSpeaker::process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
+  if (event == ESP_AVRC_CT_CONNECTION_STATE_EVT) {
+    if (std::memcmp(param->conn_stat.remote_bda, this->address_, 6) != 0)
+      return;
+    bool connected = param->conn_stat.connected;
+    this->avrcp_connected_.store(connected);
+    this->avrcp_ready_.store(false);
+    this->avrcp_response_volume_.store(-1);
+    this->avrcp_actual_volume_.store(-1);
+    this->avrcp_last_requested_ = 255;
+    this->avrcp_command_pending_ = false;
+    ESP_LOGI(TAG, "AVRCP slot %u %s", this->slot_, connected ? "connected" : "disconnected");
+  } else if (event == ESP_AVRC_CT_REMOTE_FEATURES_EVT) {
+    if (std::memcmp(param->rmt_feats.remote_bda, this->address_, 6) == 0)
+      ESP_LOGI(TAG, "AVRCP slot %u remote features 0x%" PRIx32, this->slot_, param->rmt_feats.feat_mask);
+  } else if (event == ESP_AVRC_CT_SET_ABSOLUTE_VOLUME_RSP_EVT && this->avrcp_connected_.load()) {
+    this->avrcp_response_volume_.store(param->set_volume_rsp.volume);
+  }
 }
 
 void A2DPSourceSpeaker::gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
@@ -734,6 +994,9 @@ void A2DPSourceSpeaker::gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_pa
         discovered_count++;
       if (!device.name[0] && discovered[index].name[0])
         std::memcpy(device.name, discovered[index].name, sizeof(device.name));
+      // Inquiry may report the same address again without an RSSI property.
+      if (device.rssi == -128 && discovered[index].rssi != -128)
+        device.rssi = discovered[index].rssi;
       discovered[index] = device;
     }
     portEXIT_CRITICAL(&discovery_mux);
@@ -743,7 +1006,22 @@ void A2DPSourceSpeaker::gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_pa
 }
 
 void A2DPSourceSpeaker::process_gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
-  if (event == ESP_BT_GAP_AUTH_CMPL_EVT) {
+  if (event == ESP_BT_GAP_ACL_CONN_CMPL_STAT_EVT) {
+    if (std::memcmp(param->acl_conn_cmpl_stat.bda, this->address_, 6) != 0)
+      return;
+    const bool connected = param->acl_conn_cmpl_stat.stat == ESP_BT_STATUS_SUCCESS;
+    this->acl_connected_.store(connected);
+    if (!connected && this->connect_pending_.load())
+      this->connection_failed_.store(true);
+    ESP_LOGI(TAG, "Classic ACL slot %u connection %s (handle 0x%04x)", this->slot_, connected ? "open" : "failed",
+             param->acl_conn_cmpl_stat.handle);
+  } else if (event == ESP_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT) {
+    if (std::memcmp(param->acl_disconn_cmpl_stat.bda, this->address_, 6) != 0)
+      return;
+    this->acl_connected_.store(false);
+    ESP_LOGI(TAG, "Classic ACL slot %u closed (handle 0x%04x, reason 0x%02x)", this->slot_,
+             param->acl_disconn_cmpl_stat.handle, param->acl_disconn_cmpl_stat.reason);
+  } else if (event == ESP_BT_GAP_AUTH_CMPL_EVT) {
     if (std::memcmp(param->auth_cmpl.bda, this->address_, 6) != 0)
       return;
     if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
@@ -792,14 +1070,31 @@ void A2DPSourceSpeaker::process_event_(esp_a2d_cb_event_t event, esp_a2d_cb_para
              format_address(param->conn_stat.remote_bda).c_str());
     if (std::memcmp(param->conn_stat.remote_bda, this->address_, 6) != 0)
       return;
-    bool connected = param->conn_stat.state == ESP_A2D_CONNECTION_STATE_CONNECTED;
-    this->connected_.store(connected);
-    this->connect_pending_ = false;
-    this->disconnect_pending_ = false;
-    if (!connected) {
+    const auto state = param->conn_stat.state;
+    if (state == ESP_A2D_CONNECTION_STATE_CONNECTING) {
+      this->connect_pending_ = true;
+    } else if (state == ESP_A2D_CONNECTION_STATE_CONNECTED) {
+      this->connected_ = true;
+      this->connect_pending_ = false;
+      this->disconnect_pending_ = false;
+      this->next_connect_attempt_ms_ = 0;
+      this->connect_attempts_.store(0);
+    } else if (state == ESP_A2D_CONNECTION_STATE_DISCONNECTING) {
+      // Keep the old sink active until A2DP, AVRCP, and Classic ACL close.
+      this->disconnect_pending_ = true;
+    } else if (state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
+      const bool failed_connect = this->connect_pending_.exchange(false);
+      const bool dropped_while_requested = this->connected_.exchange(false) && this->requested_.load();
+      this->disconnect_pending_ = false;
+      if (failed_connect || dropped_while_requested) {
+        this->connection_failed_.store(true);
+      }
+    }
+    if (state != ESP_A2D_CONNECTION_STATE_CONNECTED) {
       this->streaming_.store(false);
       this->media_check_pending_ = false;
       this->media_start_pending_ = false;
+      this->avrcp_ready_.store(false);
     }
   } else if (event == ESP_A2D_AUDIO_STATE_EVT) {
     bool streaming = param->audio_stat.state == ESP_A2D_AUDIO_STATE_STARTED;
@@ -846,10 +1141,10 @@ int32_t A2DPSourceSpeaker::audio_data_(uint8_t *data, int32_t length) {
   speaker->pcm_bytes_.fetch_add(bytes);
   if (bytes != 0)
     speaker->audio_output_callback_(bytes / 4, now_us);
-  const int32_t gain_q15 = speaker->muted_.load() ? 0 : speaker->gain_q15_.load();
-  auto *samples = reinterpret_cast<int16_t *>(data);
-  for (int32_t i = 0; i < length / 2; i++)
-    samples[i] = static_cast<int16_t>((static_cast<int32_t>(samples[i]) * gain_q15) >> 15);
+  if (!speaker->avrcp_ready_.load() || speaker->avrcp_failed_.load() || speaker->avrcp_command_pending_.load() ||
+      speaker->avrcp_target_volume_.load() != speaker->avrcp_last_requested_.load() || speaker->muted_.load() ||
+      speaker->avrcp_target_volume_.load() == 0)
+    std::memset(data, 0, length);
   return length;
 }
 
