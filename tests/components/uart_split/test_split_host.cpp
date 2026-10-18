@@ -254,20 +254,6 @@ TEST_F(UartSplitCopy, EmptyBufferEndsARunOfDrops) {
   EXPECT_TRUE(this->tap_.start_dropping());
 }
 
-TEST_F(UartSplitCopy, TwoWritersBothReachThePins) {
-  UartSplitOutput other{&this->split_};
-  this->split_.add_output(&other);
-  const uint8_t first = 0x41;
-  const uint8_t second = 0x42;
-  this->bus_.write_array(&first, 1);
-  other.write_array(&second, 1);
-  EXPECT_EQ(this->pins_.tx_len_, 2u);
-  EXPECT_EQ(this->pins_.tx_[0], 0x41);
-  EXPECT_EQ(this->pins_.tx_[1], 0x42);
-  EXPECT_EQ(this->read_one(&this->tap_), 0x41);
-  EXPECT_EQ(this->read_one(&this->tap_), 0x42);
-}
-
 }  // namespace esphome::uart_split::testing
 
 #endif

@@ -34,6 +34,27 @@ uart_split:
         rx_only: true
 """
 
+TWO_WRITERS = """
+uart_split:
+  - id: split_bus
+    uart_id: pins
+    outputs:
+      - id: bus
+      - id: second_bus
+"""
+
+ONE_WRITER_TWO_TAPS = """
+uart_split:
+  - id: split_bus
+    uart_id: pins
+    outputs:
+      - id: bus
+      - id: tap
+        rx_only: true
+      - id: second_tap
+        rx_only: true
+"""
+
 DUMMY_RECEIVER = """
     debug:
       dummy_receiver: true
@@ -94,6 +115,24 @@ def test_device_that_transmits_on_a_receive_only_output_is_rejected(
         "dfplayer requires the uart referenced by uart_id to transmit" in err
         for err in errors
     ), errors
+
+
+def test_two_writers_are_rejected(tmp_path: Path) -> None:
+    yaml = BASE + UART.format(baud_rate=9600) + TWO_WRITERS
+    errors = _errors(tmp_path, yaml)
+    assert any(
+        "Only one output may write, but 'bus', 'second_bus' do" in err for err in errors
+    ), errors
+
+
+def test_two_writers_without_ids_are_named_by_position() -> None:
+    with pytest.raises(cv.Invalid, match="but output 0, output 1 do"):
+        uart_split.CONFIG_SCHEMA({CONF_UART_ID: "pins", CONF_OUTPUTS: [{}, {}]})
+
+
+def test_one_writer_and_two_receive_only_outputs_are_valid(tmp_path: Path) -> None:
+    yaml = BASE + UART.format(baud_rate=9600) + ONE_WRITER_TWO_TAPS
+    assert _errors(tmp_path, yaml) == []
 
 
 def test_receive_only_output_with_a_generated_id_rejects_tx() -> None:

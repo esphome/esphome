@@ -32,6 +32,26 @@ def _default_direction(config: ConfigType) -> ConfigType:
     return config
 
 
+def _one_writer(config: ConfigType) -> ConfigType:
+    # Two writers would share the transmit line and both read every answer.
+    writers = [
+        (index, output[CONF_ID])
+        for index, output in enumerate(config[CONF_OUTPUTS])
+        if not output[CONF_RX_ONLY]
+    ]
+    if len(writers) > 1:
+        names = ", ".join(
+            f"'{output_id.id}'" if output_id.is_manual else f"output {index}"
+            for index, output_id in writers
+        )
+        raise cv.Invalid(
+            f"Only one output may write, but {names} do. "
+            "Set rx_only: true on all of them but one.",
+            [CONF_OUTPUTS, writers[1][0]],
+        )
+    return config
+
+
 def _inherit_settings(config: ConfigType) -> ConfigType:
     # Devices on an output are checked against the baud rate and framing of the UART it copies.
     for output in config[CONF_OUTPUTS]:
@@ -61,6 +81,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    _one_writer,
     _default_direction,
     _inherit_settings,
 )
