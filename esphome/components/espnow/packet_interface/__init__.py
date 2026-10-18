@@ -5,7 +5,10 @@ from esphome.components.packet_interface import (
     new_packet_interface,
     packet_interface_schema,
 )
-from esphome.components.packet_interface.layers import CONF_ADDRESSING
+from esphome.components.packet_interface.layers import (
+    CONF_ADDRESSING,
+    check_broadcast_link,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import HexInt
@@ -39,7 +42,9 @@ def _is_broadcast(config: ConfigType) -> bool:
 
 
 def _validate_addressing(config: ConfigType) -> ConfigType:
-    if not _is_broadcast(config) and CONF_ADDRESSING in config:
+    if _is_broadcast(config):
+        check_broadcast_link(config)
+    elif CONF_ADDRESSING in config:
         raise cv.Invalid(
             f"Packets to one '{CONF_PEER_ADDRESS}' are already addressed, so '{CONF_ADDRESSING}' is only "
             "for broadcast",

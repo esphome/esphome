@@ -7,7 +7,10 @@ from esphome.components.packet_interface import (
     new_packet_interface,
     packet_interface_schema,
 )
-from esphome.components.packet_interface.layers import CONF_ADDRESSING
+from esphome.components.packet_interface.layers import (
+    CONF_ADDRESSING,
+    check_broadcast_link,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE, HexInt
@@ -53,10 +56,9 @@ def _udp_config(full_config: ConfigType, config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    if (
-        CONF_ADDRESSING in config
-        and (peer := _peer(_udp_config(fv.full_config.get(), config))) is not None
-    ):
+    if (peer := _peer(_udp_config(fv.full_config.get(), config))) is None:
+        check_broadcast_link(config)
+    elif CONF_ADDRESSING in config:
         raise cv.Invalid(
             f"The UDP component sends only to {peer}, so packets are already addressed; "
             f"'{CONF_ADDRESSING}' is only for broadcast or multicast",
