@@ -67,6 +67,15 @@ struct ISRFuncArg {
   void (*func)(void *);
   void *arg;
 };
+
+esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
+  if (idf_type == GPIO_INTR_LOW_LEVEL)
+    return ESP_EXT1_WAKEUP_ANY_LOW;
+  if (idf_type == GPIO_INTR_HIGH_LEVEL)
+    return ESP_EXT1_WAKEUP_ANY_HIGH;
+  return ESP_EXT1_WAKEUP_ANY_LOW;
+}
+
 #endif
 
 #ifdef USE_GPIO_HOLD
@@ -120,6 +129,9 @@ static void IRAM_ATTR gpio_intr_(void *arg) {
   gpio_num_t pin = func_arg->pin;
   gpio_int_type_t type = func_arg->type;
   if (gpio_hal_get_level(&GPIO_HAL, pin)) {
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+    esp_sleep_enable_ext1_wakeup_io(1 << pin, ESP_EXT1_WAKEUP_ANY_LOW);
+#endif
 #if SOC_RTCIO_WAKE_SUPPORTED
     rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_LOW_LEVEL);
 #endif
@@ -128,6 +140,9 @@ static void IRAM_ATTR gpio_intr_(void *arg) {
       func_arg->func(func_arg->arg);
     }
   } else {
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+    esp_sleep_enable_ext1_wakeup_io(1 << pin, ESP_EXT1_WAKEUP_ANY_HIGH);
+#endif
 #if SOC_RTCIO_WAKE_SUPPORTED
     rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_HIGH_LEVEL);
 #endif
@@ -160,6 +175,30 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
   }
 
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
+    // use ext1 wakeup for RTC pins
+    if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
+      esp_sleep_enable_ext1_wakeup_io(1 << this->get_pin_num(), get_ext1_type(idf_type));
+      gpio_set_intr_type(this->get_pin_num(), idf_type);
+    } else {
+      // edge interrupt is not supported, so we need to emulate
+      if (gpio_get_level(this->get_pin_num())) {
+        esp_sleep_enable_ext1_wakeup_io(1 << this->get_pin_num(), ESP_EXT1_WAKEUP_ANY_LOW);
+        gpio_set_intr_type(this->get_pin_num(), GPIO_INTR_LOW_LEVEL);
+      } else {
+        esp_sleep_enable_ext1_wakeup_io(1 << this->get_pin_num(), ESP_EXT1_WAKEUP_ANY_HIGH);
+        gpio_set_intr_type(this->get_pin_num(), GPIO_INTR_HIGH_LEVEL);
+      }
+    }
+  } else {
+    // fallback for non-RTC pins
+    ESP_LOGW(TAG, "No valid rtc GPIO, might miss wakes");
+    gpio_set_intr_type(this->get_pin_num(), idf_type);
+  }
+  gpio_intr_enable(this->get_pin_num());
+#else
+  // use gpio wakeup
   if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
     gpio_wakeup_enable(this->get_pin_num(), idf_type);
   } else {
@@ -170,6 +209,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
       gpio_wakeup_enable(this->get_pin_num(), GPIO_INTR_HIGH_LEVEL);
     }
   }
+#endif
 #else
   gpio_set_intr_type(this->get_pin_num(), idf_type);
   gpio_intr_enable(this->get_pin_num());
@@ -185,18 +225,27 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
   }
 
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
-  if (idf_type != GPIO_INTR_LOW_LEVEL && idf_type != GPIO_INTR_HIGH_LEVEL) {
-    // edge interrupt is not supported, so we need to emulate
-    static ISRFuncArg *func_args = new ISRFuncArg();
-    func_args->pin = this->get_pin_num();
-    func_args->type = idf_type;
-    func_args->func = func;
-    func_args->arg = arg;
-    gpio_isr_handler_add(this->get_pin_num(), gpio_intr_, func_args);
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
+#endif
+    if (idf_type != GPIO_INTR_LOW_LEVEL && idf_type != GPIO_INTR_HIGH_LEVEL) {
+      // edge interrupt is not supported, so we need to emulate
+      static ISRFuncArg *func_args = new ISRFuncArg();  // NOLINT(cppcoreguidelines-owning-memory)
+      func_args->pin = this->get_pin_num();
+      func_args->type = idf_type;
+      func_args->func = func;
+      func_args->arg = arg;
+      gpio_isr_handler_add(this->get_pin_num(), gpio_intr_, func_args);
+    } else {
+      gpio_isr_handler_add(this->get_pin_num(), func, arg);
+    }
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   } else {
     gpio_isr_handler_add(this->get_pin_num(), func, arg);
   }
+#else
   esp_sleep_enable_gpio_wakeup();
+#endif
 #else
   gpio_isr_handler_add(this->get_pin_num(), func, arg);
 #endif
@@ -279,7 +328,13 @@ void ESP32InternalGPIOPin::digital_write(bool value) {
 }
 void ESP32InternalGPIOPin::detach_interrupt() const {
   gpio_intr_disable(this->get_pin_num());
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  esp_sleep_disable_ext1_wakeup_io(1 << this->get_pin_num());
+#else
   gpio_wakeup_disable(this->get_pin_num());
+#endif
+#endif
 }
 
 }  // namespace esp32

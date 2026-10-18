@@ -111,6 +111,11 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
 
+#if defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
+  // disable all existing wakeup pins
+  esp_sleep_disable_ext1_wakeup_io(0);
+#endif
+
 #ifndef SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
 #ifdef USE_GPIO_HOLD
   // Variants without per-pin deep sleep hold need the global enable
