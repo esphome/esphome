@@ -1,0 +1,6 @@
+packet_interface:
+  - platform: uart
+
+uart:
+  port: /dev/ttyUSB0
+  baud_rate: 9600
