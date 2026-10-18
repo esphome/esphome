@@ -19,10 +19,16 @@ BasicFragmentation::BasicFragmentation(PacketInterface *lower, size_t max_packet
 
 size_t BasicFragmentation::fragments_for_(size_t size) const {
   size_t fragment_size = this->fragment_size_();
+  if (fragment_size == 0)
+    return SIZE_MAX;
   return std::max<size_t>(1, (size + fragment_size - 1) / fragment_size);
 }
 
 void BasicFragmentation::setup() {
+  if (this->fragment_size_() == 0) {
+    this->mark_failed(LOG_STR("max_packet_size too small for the configured layers"));
+    return;
+  }
   if (this->fragments_for_(this->max_packet_size_) > MAX_FRAGMENTS) {
     this->mark_failed(LOG_STR("max_packet_size needs more than 128 fragments"));
     return;

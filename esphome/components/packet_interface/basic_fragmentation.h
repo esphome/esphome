@@ -36,7 +36,10 @@ class BasicFragmentation : public PacketInterface {
 
  protected:
   void receive_(const PacketBuffer &data, const PacketMetaData &meta_data);
-  size_t fragment_size_() const { return this->lower_->get_max_packet_size() - HEADER_SIZE; }
+  size_t fragment_size_() const {
+    size_t lower_size = this->lower_->get_max_packet_size();
+    return lower_size > HEADER_SIZE ? lower_size - HEADER_SIZE : 0;
+  }
   size_t fragments_for_(size_t size) const;
 
   PacketInterface *lower_;

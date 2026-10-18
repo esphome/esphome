@@ -80,6 +80,14 @@ TEST(BasicAddressingTest, HeaderAndCapability) {
   EXPECT_EQ(a.link.sent, (std::vector<Packet>{{0x78, 0x56, 0x34, 0x12, 0xAA}, {0x42, 0x00, 0x34, 0x12, 0xBB}}));
 }
 
+TEST(BasicAddressingTest, LinkTooSmallLeavesNoRoom) {
+  MockLink link;
+  link.set_max_packet_size(BasicAddressing::HEADER_SIZE);
+  BasicAddressing addressing(&link, 0x0001);
+  AddressingPort port(&addressing, 0x0002, true);
+  EXPECT_EQ(port.get_max_packet_size(), 0);
+}
+
 TEST(BasicAddressingTest, BroadcastReachesEveryoneButSender) {
   Device a(1), b(2), c(3);
   a.port().send({0x10});

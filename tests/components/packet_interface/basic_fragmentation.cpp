@@ -191,4 +191,13 @@ TEST_F(BasicFragmentationTest, OversizedSingleFragmentDropped) {
   EXPECT_EQ(received, std::vector<Packet>{Packet({1, 2, 3, 4})});
 }
 
+TEST_F(BasicFragmentationTest, LinkTooSmallFailsSetup) {
+  this->link_a.set_max_packet_size(BasicFragmentation::HEADER_SIZE);
+  BasicFragmentation fragmentation(&this->link_a, 100);
+  fragmentation.setup();
+  EXPECT_TRUE(fragmentation.is_failed());
+  Packet packet{1};
+  EXPECT_FALSE(fragmentation.send_to_interface(PacketBuffer(packet), {}));
+}
+
 }  // namespace esphome::packet_interface::fragmentation_testing
