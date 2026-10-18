@@ -27,6 +27,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
@@ -289,6 +290,20 @@ def has_external_writer(display_id: ID) -> bool:
 async def register_display(var, config):
     await cg.register_component(var, config)
     await setup_display_core_(var, config)
+
+
+async def add_writer(
+    var: cg.MockObj, config: ConfigType, ref: cg.MockObj = DisplayRef
+) -> None:
+    """Pass the configured lambda, if any, to var.set_writer.
+
+    ref is the type of `it`; drivers with their own drawing class pass theirs.
+    """
+    if (lambda_config := config.get(CONF_LAMBDA)) is not None:
+        lambda_ = await cg.process_lambda(
+            lambda_config, [(ref, "it")], return_type=cg.void
+        )
+        cg.add(var.set_writer(lambda_))
 
 
 @automation.register_action(

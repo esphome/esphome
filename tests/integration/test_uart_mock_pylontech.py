@@ -79,7 +79,7 @@ async def test_uart_mock_pylontech(
     def line_callback(line: str) -> None:
         if "Line over 199 chars dropped" in line:
             overflow_lines.append(line)
-        if "malformed battery lines" in line:
+        if "malformed lines" in line:
             rejected_lines.append(line)
 
     collector = SensorStateCollector(
