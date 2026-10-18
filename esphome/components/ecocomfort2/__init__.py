@@ -53,8 +53,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)
-    if (time_id := config.get(CONF_TIME_ID)) is not None:
-        cg.add(var.set_time(await cg.get_variable(time_id)))
+    await cg.add_variable(var.set_time, config.get(CONF_TIME_ID))
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
