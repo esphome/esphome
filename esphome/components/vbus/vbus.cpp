@@ -96,6 +96,7 @@ void VBus::loop() {
       this->fbcount_ = 0;
       if (!checksum(this->fbytes_, 0, 6)) {
         ESP_LOGE(TAG, "frame checksum failed");
+        this->state_ = 0;
         continue;
       }
       septet_spread(this->fbytes_, 0, 4, this->fbytes_[4]);
