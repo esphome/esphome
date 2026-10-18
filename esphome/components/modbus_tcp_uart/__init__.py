@@ -103,8 +103,8 @@ def _served_units(full: ConfigType, link_id: str) -> list[int]:
 
 def _reply_timeout_ms(config: ConfigType, full: ConfigType) -> int:
     """Server: room for one transaction ahead of a forwarded request on a client hub, then its own."""
-    if CONF_REPLY_TIMEOUT in config:
-        return config[CONF_REPLY_TIMEOUT].total_milliseconds
+    if (timeout := config.get(CONF_REPLY_TIMEOUT)) is not None:
+        return timeout.total_milliseconds
     waits = [
         hub[modbus.CONF_TURNAROUND_TIME].total_milliseconds
         + hub[modbus.CONF_SEND_WAIT_TIME].total_milliseconds
