@@ -715,8 +715,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         if (spi_id := config.get(CONF_SPI_ID)) is not None:
             # Pins and host come from the shared spi bus.
-            spi_parent = await cg.get_variable(spi_id)
-            cg.add(var.set_spi_parent(spi_parent))
+            await cg.add_variable(var.set_spi_parent, spi_id)
         else:
             cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
             cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
