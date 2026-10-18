@@ -102,10 +102,11 @@ constexpr uint32_t capacity_for_bytes(uint64_t bytes, uint32_t columns, uint32_t
   uint32_t high = max_records_for_bytes(bytes, columns);
   while (low < high) {
     const uint32_t mid = low + (high - low) / 2 + 1;
-    if (file_bytes_for(mid, columns, index_stride) <= bytes)
+    if (file_bytes_for(mid, columns, index_stride) <= bytes) {
       low = mid;
-    else
+    } else {
       high = mid - 1;
+    }
   }
   return low;
 }

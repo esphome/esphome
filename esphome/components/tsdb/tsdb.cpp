@@ -364,7 +364,7 @@ bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
   FILE *file = fopen(path.c_str(), "rb");
   if (file == nullptr)
     return false;
-  const long field = static_cast<long>(offsetof(tsdb_header_t, index_stride));
+  const int32_t field = static_cast<int32_t>(offsetof(tsdb_header_t, index_stride));
   uint32_t value = 0;
   const bool ok = fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
   fclose(file);
