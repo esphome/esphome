@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "esphome/components/vbus/vbus.h"
+#include "esphome/components/vbus/sensor/vbus_sensor.h"
 #include "esphome/core/application.h"
 
 namespace esphome::vbus::testing {
@@ -1342,6 +1343,99 @@ TEST_P(VBusPollingBatchTest, EveryBatchSizeSplitsAtTheExactLimit) {
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBatchSizes, VBusPollingBatchTest, ::testing::Range(1u, 17u));
+
+class VBusP2SensorTest : public VBusPollingTest {
+ protected:
+  void SetUp() override {
+    VBusPollingTest::SetUp();
+    this->signed_.setup();
+    this->unsigned_.setup();
+    this->duplicate_.setup();
+    this->signed_.add_on_state_callback([this](float) { ++this->signed_updates_; });
+    this->unsigned_.add_on_state_callback([this](float) { ++this->unsigned_updates_; });
+  }
+  VBusP2Sensor signed_{&this->polling_, 1, true};
+  VBusP2Sensor unsigned_{&this->polling_, 2, false};
+  VBusP2Sensor duplicate_{&this->polling_, 1, false};
+  unsigned signed_updates_{0};
+  unsigned unsigned_updates_{0};
+};
+
+TEST_F(VBusP2SensorTest, PublishesOnlyItsIdAndInterpretsSignedRawValues) {
+  EXPECT_FALSE(this->signed_.has_state());
+  EXPECT_FALSE(this->unsigned_.has_state());
+  this->grant_();
+  this->answer_(1, 0xffffffff);
+  EXPECT_FLOAT_EQ(this->signed_.state, -1);
+  EXPECT_FLOAT_EQ(this->duplicate_.state, static_cast<float>(0xffffffffu));
+  EXPECT_FALSE(this->unsigned_.has_state());
+  this->answer_(2, 0xffffffff);
+  EXPECT_FLOAT_EQ(this->unsigned_.state, static_cast<float>(0xffffffffu));
+  EXPECT_EQ(this->signed_updates_, 1u);
+  EXPECT_EQ(this->unsigned_updates_, 1u);
+  this->tick_(20);
+  EXPECT_EQ(this->uart_.writes.size(), 3u);
+}
+
+TEST_F(VBusP2SensorTest, UnchangedReadsAndFailedRefreshDoNotRepublishOrClearState) {
+  this->finish_initial_();
+  EXPECT_TRUE(this->bus_.queue_read(1));
+  this->grant_();
+  this->answer_(1, 10);
+  this->tick_(20);
+  EXPECT_EQ(this->signed_updates_, 1u);
+  EXPECT_TRUE(this->bus_.queue_read(1));
+  this->grant_();
+  this->tick_(100);
+  EXPECT_EQ(this->signed_updates_, 1u);
+  EXPECT_FLOAT_EQ(this->signed_.state, 10);
+  EXPECT_TRUE(this->signed_.has_state());
+}
+
+TEST_F(VBusP2SensorTest, OnlyVerifiedWritesChangeTheSensor) {
+  this->finish_initial_();
+  EXPECT_TRUE(this->bus_.queue_write(1, 123));
+  this->grant_();
+  EXPECT_FLOAT_EQ(this->signed_.state, 10);
+  this->answer_(1, 123);
+  EXPECT_FLOAT_EQ(this->signed_.state, 10);
+  this->answer_(1, 123);
+  EXPECT_FLOAT_EQ(this->signed_.state, 123);
+  EXPECT_EQ(this->signed_updates_, 2u);
+}
+
+TEST_F(VBusP2SensorTest, WrongReadbackCannotReplaceTheLastConfirmedValue) {
+  this->finish_initial_();
+  EXPECT_TRUE(this->bus_.queue_write(1, 123));
+  this->grant_();
+  this->answer_(1, 123);
+  this->answer_(1, 124);
+  EXPECT_FLOAT_EQ(this->signed_.state, 10);
+  EXPECT_EQ(this->signed_updates_, 1u);
+}
+
+TEST_F(VBusP2SensorTest, ASeparatePollingInstanceCannotPublishIntoThisSensor) {
+  VBus other_bus;
+  VBusTransmitter other_tx{&other_bus};
+  VBusTransactions other_transactions{&other_bus, &other_tx};
+  VBusPolling other_polling{&other_transactions, &other_tx};
+  VBusP2Sensor other_sensor{&other_polling, 1, true};
+  other_sensor.setup();
+  this->finish_initial_();
+  EXPECT_FALSE(other_sensor.has_state());
+  EXPECT_FLOAT_EQ(this->signed_.state, 10);
+}
+
+class VBusP2SignedValueTest : public VBusP2SensorTest, public ::testing::WithParamInterface<int32_t> {};
+
+TEST_P(VBusP2SignedValueTest, PreservesSignedBoundaryAndNegativeValues) {
+  this->grant_();
+  this->answer_(1, static_cast<uint32_t>(GetParam()));
+  EXPECT_FLOAT_EQ(this->signed_.state, static_cast<float>(GetParam()));
+}
+
+INSTANTIATE_TEST_SUITE_P(RawBoundaries, VBusP2SignedValueTest,
+                         ::testing::Values(INT32_MIN, -999, -32768, -1, 0, 1, 32767, INT32_MAX));
 
 #endif
 

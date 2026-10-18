@@ -306,6 +306,23 @@ void DeltaSolBS2Sensor::handle_message(std::vector<uint8_t> &message) {
     this->version_sensor_->publish_state(get_u16(message, 24) * 0.01f);
 }
 
+#ifdef USE_VBUS_POLLING
+void VBusP2Sensor::setup() {
+  this->polling_->add_on_value_callback([this](uint16_t value_id, uint32_t value) {
+    if (value_id == this->value_id_) {
+      this->publish_state(this->is_signed_ ? static_cast<float>(static_cast<int32_t>(value))
+                                           : static_cast<float>(value));
+    }
+  });
+  this->disable_loop();
+}
+
+void VBusP2Sensor::dump_config() {
+  LOG_SENSOR("", "VBus P2", this);
+  ESP_LOGCONFIG(TAG, "  Value ID: 0x%04x", this->value_id_);
+}
+#endif
+
 void VBusCustomSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus Custom Sensor:");
   if (this->source_ == 0xffff) {
