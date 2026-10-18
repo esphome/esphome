@@ -262,6 +262,8 @@ bool RuntimeImage::end_decode() {
 
 bool RuntimeImage::is_decode_finished() const { return this->is_decoding() && this->decoder_->is_finished(); }
 
+bool RuntimeImage::decoder_knows_end() const { return this->is_decoding() && this->decoder_->knows_end(); }
+
 void RuntimeImage::release() {
   this->release_buffer_();
   // End any active decode session; decoders free the format-specific working buffers

@@ -137,7 +137,7 @@ async def to_code(config):
         )
     )
 
-    cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
+    await cg.add_variable(var.set_srctime, config[CONF_TIME_ID])
 
     if config[CONF_REQUIRE_CONNECTION_TO_PROCEED]:
         cg.add(var.disable_auto_proceed())

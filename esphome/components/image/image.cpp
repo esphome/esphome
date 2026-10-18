@@ -59,8 +59,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       return;
     const bool rgb565 = this->type_ == IMAGE_TYPE_RGB565;
     display->draw_pixels_at(x + x_start, y + y_start, x_end - x_start, y_end - y_start, this->data_start_,
-                            display::COLOR_ORDER_RGB, rgb565 ? display::COLOR_BITNESS_565 : display::COLOR_BITNESS_888,
-                            this->big_endian_, x_start, y_start, this->width_ - x_end);
+                            rgb565 ? display::COLOR_BITNESS_565 : display::COLOR_BITNESS_888, this->big_endian_,
+                            x_start, y_start, this->width_ - x_end);
     return;
   }
 #endif

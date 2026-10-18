@@ -140,7 +140,7 @@ i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
     return i2c::ERROR_CRC;
   }
 
-  data = encode_uint16(buf[4], buf[3]);
+  data = encode_value_le<uint16_t>(&buf[3]);
   return i2c::ERROR_OK;
 }
 

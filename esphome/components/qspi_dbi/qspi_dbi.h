@@ -112,12 +112,12 @@ class QspiDbi final : public display::DisplayBuffer,
   }
   void write_sequence_(const std::vector<uint8_t> &vec);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
-  void copy_to_buffer_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
+  void copy_to_buffer_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                       bool big_endian, int x_offset, int y_offset, int x_pad);
   /**
    * the RM67162 in quad SPI mode seems to work like this (not in the datasheet, this is deduced from the
    * sample code.)
