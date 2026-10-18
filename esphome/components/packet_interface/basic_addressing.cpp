@@ -61,15 +61,16 @@ void BasicAddressing::receive_(const PacketBuffer &data, const PacketMetaData &m
 }
 
 AddressingPort::AddressingPort(BasicAddressing *addressing, uint16_t destination, bool only_port)
-    : addressing_(addressing), destination_(destination) {
+    : PacketInterface(
+          remaining_packet_size(addressing->get_link()->get_max_packet_size(), BasicAddressing::HEADER_SIZE)),
+      addressing_(addressing),
+      destination_(destination) {
   if (only_port) {
     this->stack_on_(addressing->get_link(), CAPABILITY_ADDRESSING);
   } else {
     this->inherit_from_(addressing->get_link(), CAPABILITY_ADDRESSING);
   }
-  size_t link_size = addressing->get_link()->get_max_packet_size();
   // A link with no room leaves the layers above none either, so they fail their setup
-  this->max_packet_size_ = link_size > BasicAddressing::HEADER_SIZE ? link_size - BasicAddressing::HEADER_SIZE : 0;
   addressing->add_port(this);
 }
 

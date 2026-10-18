@@ -23,7 +23,7 @@ static constexpr uint16_t BROADCAST = BasicAddressing::BROADCAST_ADDRESS;
 // A link layer that records what is sent, so a test can deliver it to other devices
 class MockLink : public PacketInterface {
  public:
-  MockLink() { this->set_max_packet_size(64); }
+  explicit MockLink(size_t max_packet_size = 64) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
     this->sent.push_back(to_vector(data));
     return true;
@@ -88,8 +88,7 @@ TEST(BasicAddressingTest, HeaderAndCapability) {
 }
 
 TEST(BasicAddressingTest, LinkTooSmallLeavesNoRoom) {
-  MockLink link;
-  link.set_max_packet_size(BasicAddressing::HEADER_SIZE);
+  MockLink link(BasicAddressing::HEADER_SIZE);
   BasicAddressing addressing(&link, 0x0001);
   AddressingPort port(&addressing, 0x0002, true);
   EXPECT_EQ(port.get_max_packet_size(), 0);

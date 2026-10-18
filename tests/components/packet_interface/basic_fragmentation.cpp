@@ -20,7 +20,7 @@ using Packet = std::vector<uint8_t>;
 // A link layer that records what is sent, with a limited send capacity
 class MockLink : public PacketInterface {
  public:
-  MockLink() { this->set_max_packet_size(12); }
+  explicit MockLink(size_t max_packet_size = 12) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
     this->sent.push_back(to_vector(data));
     return true;
@@ -205,8 +205,8 @@ TEST_F(BasicFragmentationTest, OversizedSingleFragmentDropped) {
 }
 
 TEST_F(BasicFragmentationTest, LinkTooSmallFailsSetup) {
-  this->link_a_.set_max_packet_size(BasicFragmentation::HEADER_SIZE);
-  BasicFragmentation fragmentation(&this->link_a_, 100);
+  MockLink link(BasicFragmentation::HEADER_SIZE);
+  BasicFragmentation fragmentation(&link, 100);
   fragmentation.setup();
   EXPECT_TRUE(fragmentation.is_failed());
   Packet packet{1};

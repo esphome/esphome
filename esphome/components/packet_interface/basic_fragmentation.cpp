@@ -12,9 +12,9 @@ ESPHOME_LOG_TAG(TAG, "packet_interface.fragmentation");
 static constexpr uint8_t LAST_FRAGMENT = 0x80;
 static constexpr uint8_t INDEX_MASK = 0x7F;
 
-BasicFragmentation::BasicFragmentation(PacketInterface *lower, size_t max_packet_size) : lower_(lower) {
+BasicFragmentation::BasicFragmentation(PacketInterface *lower, size_t max_packet_size)
+    : PacketInterface(max_packet_size), lower_(lower) {
   this->stack_on_(lower, CAPABILITY_FRAGMENTATION);
-  this->max_packet_size_ = max_packet_size;
 }
 
 size_t BasicFragmentation::fragments_for_(size_t size) const {
