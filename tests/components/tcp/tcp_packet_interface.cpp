@@ -66,7 +66,9 @@ class TcpPacketInterfaceTest : public ::testing::Test {
   void SetUp() override {
     signal(SIGPIPE, SIG_IGN);
     new (&App) Application;
-    App.pre_setup("tcp-tests", 9, "", 0);
+    static char name[] = "tcp-tests";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     set_time(1000);
     int fds[2];
     ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
@@ -192,7 +194,9 @@ class TcpServerTest : public ::testing::Test {
   void SetUp() override {
     signal(SIGPIPE, SIG_IGN);
     new (&App) Application;
-    App.pre_setup("tcp-tests", 9, "", 0);
+    static char name[] = "tcp-tests";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     set_time(1000);
     this->port = free_port();
     this->server.link.set_server(true);
