@@ -22,13 +22,15 @@ using Packet = std::vector<uint8_t>;
 
 class TestUdp : public UdpPacketInterface {
  public:
-  explicit TestUdp(UDPComponent *udp) : UdpPacketInterface(udp) {
+  explicit TestUdp(UDPComponent *udp) : UdpPacketInterface(udp, this->tx_buffer_storage) {
     this->set_max_packet_size(8);
     this->add_packet_interface_listener(
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
   }
   using UdpPacketInterface::receive_;
 
+  // The base class only keeps the pointer, so the storage can be a member set up after it
+  uint8_t tx_buffer_storage[8]{};
   std::vector<Packet> received;
 };
 

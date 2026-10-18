@@ -4,7 +4,6 @@
 
 // udp_component.h declares nothing without USE_NETWORK
 #ifdef USE_NETWORK
-#include <memory>
 #include <span>
 
 #include "esphome/components/packet_interface/packet_interface.h"
@@ -20,7 +19,8 @@ namespace esphome::udp {
  */
 class UdpPacketInterface : public packet_interface::PacketInterface {
  public:
-  explicit UdpPacketInterface(UDPComponent *udp_component) : parent_(udp_component) {}
+  /// @param tx_buffer Holds max_packet_size bytes, for packets split across buffers; must outlive the link
+  UdpPacketInterface(UDPComponent *udp_component, uint8_t *tx_buffer) : parent_(udp_component), tx_buffer_(tx_buffer) {}
 
   void setup() override;
   bool send_to_interface(const packet_interface::PacketBuffer &data,
@@ -30,8 +30,7 @@ class UdpPacketInterface : public packet_interface::PacketInterface {
   void receive_(std::span<const uint8_t> data);
 
   UDPComponent *parent_;
-  // For packets split across buffers, allocated in setup()
-  std::unique_ptr<uint8_t[]> tx_buffer_;
+  uint8_t *const tx_buffer_;
 };
 }  // namespace esphome::udp
 #endif
