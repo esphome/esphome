@@ -48,6 +48,7 @@ void SenseAirComponent::update() {
     ESP_LOGW(TAG, "SenseAir checksum doesn't match: 0x%02X!=0x%02X", resp_checksum, calc_checksum);
     return;
   }
+
   const uint8_t length = response[2];
   const uint16_t status = encode_uint16(response[3], response[4]);
   const uint16_t ppm = encode_uint16(response[length + 1], response[length + 2]);

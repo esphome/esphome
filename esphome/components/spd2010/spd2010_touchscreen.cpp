@@ -148,7 +148,8 @@ bool SPD2010Touchscreen::read_data_() {
   }
   if (!(status_low & (STATUS_POINT | STATUS_GESTURE))) {
     const bool needs_clear = (status_high & STATUS_RUNNING) && (status_low & STATUS_AUX);
-    this->status_comm_result(!needs_clear || this->clear_interrupt_(), LOG_STR("Failed to clear interrupt"));
+    const bool cleared = !needs_clear || this->clear_interrupt_();
+    this->status_comm_result(cleared, LOG_STR("Failed to clear interrupt"));
     return false;
   }
   if (length < REPORT_HEADER_LENGTH || length > MAX_REPORT_LENGTH ||

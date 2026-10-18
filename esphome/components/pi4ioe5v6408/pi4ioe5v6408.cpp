@@ -104,7 +104,7 @@ bool PI4IOE5V6408Component::read_gpio_modes_() {
   if (this->is_failed())
     return false;
 
-  uint8_t data{0};
+  uint8_t data;
   if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_IO_DIR, &data),
                                 LOG_STR("Failed to read GPIO modes")))
     return false;

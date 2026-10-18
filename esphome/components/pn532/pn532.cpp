@@ -106,11 +106,12 @@ void PN532::update() {
     obj->on_scan_end();
 #endif
 
-  if (!this->status_comm_result(this->write_command_({
-          PN532_COMMAND_INLISTPASSIVETARGET,
-          0x01,  // max 1 card
-          0x00,  // baud rate ISO14443A (106 kbit/s)
-      }))) {
+  const bool ok = this->write_command_({
+      PN532_COMMAND_INLISTPASSIVETARGET,
+      0x01,  // max 1 card
+      0x00,  // baud rate ISO14443A (106 kbit/s)
+  });
+  if (!this->status_comm_result(ok)) {
     ESP_LOGW(TAG, "Requesting tag read failed!");
     return;
   }
