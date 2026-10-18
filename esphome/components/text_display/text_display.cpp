@@ -64,6 +64,9 @@ void TextDisplay::print(const std::string &str) { this->print(str.c_str()); }
 void TextDisplay::vprintf_(uint8_t column, uint8_t row, const char *format, va_list arg) {
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  if (ret >= static_cast<int>(sizeof(buffer))) {
+    ESP_LOGW(TAG, "printf output cut at %u characters", sizeof(buffer) - 1);
+  }
   if (ret > 0)
     this->print(column, row, buffer);
 }
@@ -83,8 +86,11 @@ void TextDisplay::printf(const char *format, ...) {
 void TextDisplay::strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
-  if (ret > 0)
+  if (ret > 0) {
     this->print(column, row, buffer);
+  } else if (format[0] != '\0') {
+    ESP_LOGW(TAG, "strftime result does not fit in %u characters", sizeof(buffer) - 1);
+  }
 }
 void TextDisplay::strftime(const char *format, ESPTime time) { this->strftime(0, 0, format, time); }
 

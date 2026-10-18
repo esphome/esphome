@@ -88,6 +88,8 @@ void LCDDisplay::setup() {
 
 float LCDDisplay::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void HOT LCDDisplay::display() {
+  if (this->buffer_ == nullptr)
+    return;
   this->command_(LCD_DISPLAY_COMMAND_SET_DDRAM_ADDR | 0);
 
   for (uint8_t i = 0; i < this->columns_; i++)
