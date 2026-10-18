@@ -43,11 +43,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_CONTROLLER_ID): cv.use_id(ResolDeltaSolCSPlus),
             cv.Required(CONF_PARAMETER): cv.one_of(*SELECT_PARAMETERS, lower=True),
             cv.Optional(CONF_OPTIONS): cv.Schema(
-                {
-                    cv.int_range(min=0, max=31): cv.All(
-                        cv.string_strict, cv.Length(min=1)
-                    )
-                }
+                {cv.int_: cv.All(cv.string_strict, cv.Length(min=1))}
             ),
         }
     ),

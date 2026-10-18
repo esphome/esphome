@@ -61,6 +61,8 @@ def test_select_rejects_numbers_and_unknown_parameters(
     "options",
     [
         {1: "One"},
+        {**{i: str(i) for i in range(1, 11)}, -1: "Negative"},
+        {**{i: str(i) for i in range(1, 11)}, 32: "Outside range"},
         {**dict.fromkeys(range(1, 11), "Same")},
         {**{i: str(i) for i in range(1, 11)}, 11: "Extra"},
         {**{i: str(i) for i in range(1, 11)}, 1: ""},
