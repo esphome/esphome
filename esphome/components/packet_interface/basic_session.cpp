@@ -15,7 +15,8 @@ static constexpr size_t KEEP_ALIVE_SIZE = 5;
 
 BasicSession::BasicSession(PacketInterface *lower) : lower_(lower) {
   this->stack_on_(lower, CAPABILITY_SESSION);
-  this->max_packet_size_ = lower->get_max_packet_size() - HEADER_SIZE;
+  size_t lower_size = lower->get_max_packet_size();
+  this->max_packet_size_ = lower_size > HEADER_SIZE ? lower_size - HEADER_SIZE : 0;
   // Data lost by a reliability layer below must be sent again, as after a restart of the peer
   if (lower->has_capability(CAPABILITY_RELIABILITY)) {
     lower->add_on_session_state_callback([this](bool connected) {
@@ -26,6 +27,10 @@ BasicSession::BasicSession(PacketInterface *lower) : lower_(lower) {
 }
 
 void BasicSession::setup() {
+  if (this->lower_->get_max_packet_size() < KEEP_ALIVE_SIZE) {
+    this->mark_failed(LOG_STR("max_packet_size too small for the configured layers"));
+    return;
+  }
   this->boot_id_ = random_uint32();
 #ifdef USE_BINARY_SENSOR
   if (this->connected_sensor_ != nullptr)
@@ -51,6 +56,8 @@ void BasicSession::dump_config() {
 }
 
 bool BasicSession::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
+  if (this->is_failed())
+    return false;
   uint8_t header = PACKET_TYPE_DATA;
   PacketBuffer packet(&header, HEADER_SIZE, &data, nullptr, 0);
   return this->lower_->send_to_interface(packet, meta_data);

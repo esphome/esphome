@@ -53,6 +53,7 @@ class XxteaEncryption : public PacketInterface {
   uint32_t peer_counter_{0};
   uint32_t echo_boot_{0};  // highest boot number heard from the peer
   bool peer_seen_{false};
+  bool old_boot_warned_{false};
   const bool rolling_code_;
 };
 

@@ -30,6 +30,7 @@ class TestEncryption : public XxteaEncryption {
  public:
   using XxteaEncryption::XxteaEncryption;
   uint32_t get_boot() const { return this->boot_; }
+  void set_counter(uint32_t counter) { this->counter_ = counter; }
 };
 
 struct Peer {
@@ -232,6 +233,29 @@ TEST_F(XxteaEncryptionTest, PacketsFromBeforeRestartDropped) {
   a.send({3});
   a.deliver_to(*b);
   EXPECT_EQ(b->received, std::vector<Packet>{{3}});
+}
+
+TEST_F(XxteaEncryptionTest, LinkTooSmallFailsSetup) {
+  MockLink link(ROLLING_TRAILER_SIZE + 3);
+  TestEncryption encryption(&link, true);
+  EXPECT_EQ(encryption.get_max_packet_size(), 0);
+  encryption.setup();
+  EXPECT_TRUE(encryption.is_failed());
+  Packet packet{1};
+  EXPECT_FALSE(encryption.send_to_interface(PacketBuffer(packet), {}));
+}
+
+TEST_F(XxteaEncryptionTest, CounterWrapStartsNewBoot) {
+  Peer a, b(0x12345678);
+  a.introduce(b);
+  uint32_t boot = a.encryption->get_boot();
+  a.encryption->set_counter(UINT32_MAX);
+  ASSERT_TRUE(a.send({1}));
+  EXPECT_EQ(a.encryption->get_boot(), boot + 1);
+  ASSERT_TRUE(a.send({2}));
+  a.deliver_to(b);
+  // Both were accepted: the last packet of the old boot, then the first of the new one
+  EXPECT_EQ(b.received, (std::vector<Packet>{{1}, {2}}));
 }
 
 }  // namespace esphome::packet_interface::encryption_testing

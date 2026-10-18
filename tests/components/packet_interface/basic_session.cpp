@@ -226,4 +226,15 @@ TEST_F(BasicSessionTest, DataLostBelowReportedAsSessionLost) {
   EXPECT_EQ(states, (std::vector<bool>{true, false, true}));
 }
 
+TEST_F(BasicSessionTest, LinkTooSmallForKeepAliveFailsSetup) {
+  MockLink link;
+  link.set_max_packet_size(4);
+  TestSession session(&link);
+  session.setup();
+  EXPECT_TRUE(session.is_failed());
+  EXPECT_TRUE(link.sent.empty());
+  Packet packet{1};
+  EXPECT_FALSE(session.send_to_interface(PacketBuffer(packet), {}));
+}
+
 }  // namespace esphome::packet_interface::session_testing

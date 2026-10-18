@@ -34,7 +34,8 @@ XxteaEncryption::XxteaEncryption(PacketInterface *lower, bool rolling_code)
     : lower_(lower), trailer_size_(rolling_code ? ROLLING_SIZE + CHECK_SIZE : CHECK_SIZE), rolling_code_(rolling_code) {
   this->stack_on_(lower, CAPABILITY_ENCRYPTION);
   // XXTEA works on whole 32-bit words
-  this->max_packet_size_ = (lower->get_max_packet_size() & ~size_t{3}) - this->trailer_size_;
+  size_t lower_size = lower->get_max_packet_size() & ~size_t{3};
+  this->max_packet_size_ = lower_size > this->trailer_size_ ? lower_size - this->trailer_size_ : 0;
 }
 
 void XxteaEncryption::set_key(std::initializer_list<uint32_t> key) {
@@ -42,6 +43,10 @@ void XxteaEncryption::set_key(std::initializer_list<uint32_t> key) {
 }
 
 void XxteaEncryption::setup() {
+  if (this->max_packet_size_ == 0) {
+    this->mark_failed(LOG_STR("max_packet_size too small for the configured layers"));
+    return;
+  }
   size_t words = this->lower_->get_max_packet_size() / 4;
   this->tx_buffer_ = std::make_unique<uint32_t[]>(words);
   this->rx_buffer_ = std::make_unique<uint32_t[]>(words);
@@ -69,11 +74,14 @@ void XxteaEncryption::dump_config() {
 void XxteaEncryption::next_boot_() {
   this->boot_++;
   this->counter_ = 0;
-  this->pref_.save(&this->boot_);
-  global_preferences->sync();
+  if (!this->pref_.save(&this->boot_) || !global_preferences->sync()) {
+    ESP_LOGW(TAG, "%s: Could not save the boot number, so a restart could reuse it", this->name_);
+  }
 }
 
 bool XxteaEncryption::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
+  if (this->is_failed())
+    return false;
   size_t size = data.size();
   if (size > this->max_packet_size_) {
     ESP_LOGW(TAG, "%s: Packet of %zu bytes is larger than %zu", this->name_, size, this->max_packet_size_);
@@ -145,6 +153,14 @@ void XxteaEncryption::receive_(const PacketBuffer &data, const PacketMetaData &m
       return;
     }
     if (!this->accept_counter_(boot, counter)) {
+      // A boot number lower than one already heard means the peer lost its saved boot number, or a replay
+      if (boot < this->peer_boot_ && !this->old_boot_warned_) {
+        this->old_boot_warned_ = true;
+        ESP_LOGW(TAG,
+                 "%s: Packets from an older boot %" PRIu32 " of the peer are dropped; if its flash was erased, "
+                 "restart this device",
+                 this->name_, boot);
+      }
       ESP_LOGV(TAG, "%s: Old packet %" PRIu32 ":%" PRIu32 " dropped", this->name_, boot, counter);
       return;
     }
