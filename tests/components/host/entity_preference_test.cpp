@@ -10,7 +10,7 @@
 namespace esphome::host::testing {
 namespace fs = std::filesystem;
 
-/// The preference key is derived from object_id_hash_; two instances with the same value share stored state.
+/// Same object_id_hash_ means same preference key.
 class TestEntity : public EntityBase {
  public:
   void set_test_id(uint32_t hash) { this->object_id_hash_ = hash; }
@@ -25,7 +25,7 @@ class EntityPreferenceTest : public ::testing::Test {
     setenv("ESPHOME_PREFDIR", this->temp_dir_.c_str(), 1);
     App.pre_setup("test_entity_pref", strlen("test_entity_pref"), "", 0);
     setup_preferences();
-    // Host preferences also keep an in-memory store, which would leak between tests and GTEST_REPEAT iterations.
+    // Clear the in-memory store so values do not leak between tests.
     host_preferences->reset();
   }
 
@@ -37,8 +37,7 @@ class EntityPreferenceTest : public ::testing::Test {
   fs::path temp_dir_;
 };
 
-// The in_flash overload must use the same key as make_entity_preference(version), so choosing a storage never
-// orphans a value saved without one. Host ignores flash vs RTC, so only the key is observable here.
+// in_flash must not change the key; host ignores the storage type, so only the key is checked.
 TEST_F(EntityPreferenceTest, InFlashOverloadKeepsTheEntityKey) {
   TestEntity entity;
   entity.set_test_id(0x6001);
