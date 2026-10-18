@@ -12,10 +12,10 @@
 using namespace esphome;
 
 // Boot report kept for the alive line, so a boot the host could not capture is still visible
-static char ltprefs_report[96];
+static char ltprefs_report[128];
 // Last boots' reports, kept in a flash preference so boots the host never saw stay readable
 struct LtprefsHistory {
-  char line[8][72];
+  char line[8][128];
 };
 static LtprefsHistory ltprefs_hist;
 
@@ -32,10 +32,20 @@ inline int ltprefs_boot(int &step, uint32_t run) {
   auto rtcp = global_preferences->make_preference<uint32_t>(0x1B210070u ^ run, false);
   auto flp = global_preferences->make_preference<uint32_t>(0x2B210070u ^ run, true);
   uint32_t rv = 0, fv = 0;
+  // a second pair sharing one key as rtc and as flash, and a third rtc entry, so a hard reset drops three
+  auto rtcp2 = global_preferences->make_preference<uint32_t>(0x5B210070u ^ run, false);
+  auto flp2 = global_preferences->make_preference<uint32_t>(0x5B210070u ^ run, true);
+  auto rtcp3 = global_preferences->make_preference<uint32_t>(0x6B210070u ^ run, false);
+  uint32_t rv2 = 0, fv2 = 0, rv3 = 0;
   bool rok = rtcp.load(&rv);
   bool fok = flp.load(&fv);
-  snprintf(ltprefs_report, sizeof(ltprefs_report), "step=%d reason=%s(%d) rtc=%s%u flash=%s%u", step,
-           lt_get_reboot_reason_name(reason), (int) reason, rok ? "" : "none ", rv, fok ? "" : "none ", fv);
+  bool rok2 = rtcp2.load(&rv2);
+  bool fok2 = flp2.load(&fv2);
+  bool rok3 = rtcp3.load(&rv3);
+  snprintf(ltprefs_report, sizeof(ltprefs_report),
+           "step=%d reason=%s(%d) rtc=%s%u flash=%s%u sharedkey rtc=%s%u flash=%s%u rtc3=%s%u", step,
+           lt_get_reboot_reason_name(reason), (int) reason, rok ? "" : "none ", rv, fok ? "" : "none ", fv,
+           rok2 ? "" : "none ", rv2, fok2 ? "" : "none ", fv2, rok3 ? "" : "none ", rv3);
   ESP_LOGI("lttest", "%s", ltprefs_report);
   auto histp = global_preferences->make_preference<LtprefsHistory>(0x4B210070u ^ run, true);
   if (!histp.load(&ltprefs_hist))
@@ -89,11 +99,15 @@ inline int ltprefs_boot(int &step, uint32_t run) {
       break;
   }
   if (save) {
-    uint32_t v = 100 + step;
+    uint32_t v = 100 + step, v2r = 200 + step, v2f = 300 + step, v3 = 400 + step;
     bool srtc = rtcp.save(&v);
     bool sfl = flp.save(&v);
+    bool srtc2 = rtcp2.save(&v2r);
+    bool sfl2 = flp2.save(&v2f);
+    bool srtc3 = rtcp3.save(&v3);
     bool synced = global_preferences->sync();
-    ESP_LOGI("lttest", "save %u: rtc=%d flash=%d sync=%d", v, srtc, sfl, synced);
+    ESP_LOGI("lttest", "save %u/%u/%u/%u: rtc=%d flash=%d sharedkey rtc=%d flash=%d rtc3=%d sync=%d", v, v2r, v2f, v3,
+             srtc, sfl, srtc2, sfl2, srtc3, synced);
   }
   ESP_LOGI("lttest", "exit action=%d", act);
   return act;

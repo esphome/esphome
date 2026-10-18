@@ -10,7 +10,7 @@ One file per component, named after it:
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
 - [`ld2450.md`](ld2450.md): polygon zones
-- [`libretiny.md`](libretiny.md): rtc preference emulation
+- [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx crash report on the next boot
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT
 - [`nrf52.md`](nrf52.md): dongle board support
 - [`online_image.md`](online_image.md): stalled and malformed downloads

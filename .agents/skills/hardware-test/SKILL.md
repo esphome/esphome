@@ -19,7 +19,8 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    under a session-specific name (`cap<topic>.py`) so another session's `pkill` cannot take your capture
    down. Never run `esphome logs` in a `while true` loop: the loop respawns it and holds the port.
 2. **Credentials stay local.** Put a `secrets.yaml` next to the scratch configs and reference it with
-   `!secret`. Never paste a config with credentials into a PR, never commit scratch configs or logs.
+   `!secret`. A copy of a device's own config keeps using the secrets file next to that config: two
+   checkouts can hold different networks, and the wrong one leaves the device unreachable after the OTA. Never paste a config with credentials into a PR, never commit scratch configs or logs.
 3. **Build from the tree under test.** `python -m esphome` puts the current directory first on
    `sys.path`, so run it with the checkout or worktree as the working directory and pass the yaml by
    its absolute path. A venv `esphome` entry point may import an installed snapshot instead of the
@@ -111,7 +112,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 (server, image generator, API driver), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
-Zephyr tools), `libretiny_prefs/` (rtc preference harness header).
+Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
+capture decoder).
 
 ## Templates in `$SKILL/templates`
 
@@ -123,7 +125,7 @@ Zephyr tools), `libretiny_prefs/` (rtc preference harness header).
 - Per-topic device configs, each described in `reference/recipes/<component>.md`: `online-image-dut.yaml`,
   `usb-cdc-acm-dongle-dut.yaml`, `nrf52-preferences-dut.yaml`, `rtsp-waveshare-s3-eth-dut.yaml`,
   `waveshare-s3-eth-camdiag.yaml`, `s31-cse7766-dut.yaml`, `nrf52-coredump-crash-dut.yaml`,
-  `bk72xx-rtc-prefs-dut.yaml`, `dut-ap-only-wipe-once-bk72xx.yaml`.
+  `bk72xx-rtc-prefs-dut.yaml`, `bk72xx-crash-probe-dut.yaml`, `dut-ap-only-wipe-once-bk72xx.yaml`.
 
 ## When something looks wrong
 

@@ -94,8 +94,22 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   assuming either.
 - `flash_bk72xx.py` misses the link now and then (`Timed out attempting to link with chip`); retry up to 3
   times before suspecting the board.
-- A store to an unmapped address does not fault on the ARM968; use `__builtin_trap()` to force a crash. The
-  SDK crash handler prints the registers and reboots about 10 s later, reported as Crash.
+- Crashes: `__builtin_trap()` and a call into unmapped memory both end as an undefined-instruction trap
+  (`bk_misc_get_start_type()` 6, `lt_get_reboot_reason()` Crash); reads, unaligned loads and stores to
+  unmapped addresses never fault on the ARM968. Without Wi-Fi the SDK trap handler spins with interrupts off
+  for 10 s and the hardware watchdog resets the chip. With Wi-Fi connected a dev build hangs forever after a
+  crash, and never resets from a plain `portDISABLE_INTERRUPTS(); while (1) {}` either: the boot-time
+  watchdog is dead once Wi-Fi is up, for any lockup. The crash handler fix (#21012) re-arms the watchdog
+  from its wrapper, after which the reboot comes within a second (BK7238 and BK7231N).
+- The SDK prints nothing on UART1 under `sdk_silent: all`; the bootloader then prints the banked
+  `cpsr/spsr/r13/r14` of SVC, IRQ, FIQ and SYS plus `ST:` (the retention register) before `go os_addr`.
+  A CEN or power reset wipes ITCM (reads `0xaaaaaaaa`), so only a watchdog reset keeps a record there. What
+  survives that reboot on the BK7238: ITCM (`0x3F0000..0x3F4000`) and the top 96 KB of SRAM
+  (`0x428000..0x440000`, the heap); the bootloader zeroes SRAM up to about `0x420000` and rewrites
+  `0x400024..0x4000FF` with its own register dump every boot, so neither a `.noinit` after `.bss` nor the
+  SDK's saved register banks are usable. Code is compiled Thumb, the SDK assembly is ARM; in an exception
+  handler only r0 to r3 are shared by all modes. BK7231N ITCM is `0x3FEE00..0x400000` (4.5 KB); a `.noinit`
+  placed there after `.itcm.code` works for a crash record.
 - Callbacks run on the `async_tcp` task and log lines can lose a byte. Wi-Fi connect takes tens of ms;
   radio enable 160 to 278 ms, disable about 200 ms.
 
