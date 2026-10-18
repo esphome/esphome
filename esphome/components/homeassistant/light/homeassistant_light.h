@@ -40,7 +40,7 @@ class HomeassistantLight final : public light::LightOutput, public Component {
 
   /// Parses a Home Assistant attribute as an integer from 1 to max, logging anything else
   optional<uint16_t> parse_integer_(const char *name, StringRef value, uint16_t max);
-  /// A state or attribute report: answers a pending echo and schedules the apply
+  /// A state or attribute report: answers a pending echo when it changed something, and schedules the apply
   void on_report_(bool changed);
   /// A state at the resolution Home Assistant gets, to see a transition retargeted by a newer call
   static uint32_t state_hash(const light::LightColorValues &values);

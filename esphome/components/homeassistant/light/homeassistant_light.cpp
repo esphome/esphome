@@ -200,8 +200,9 @@ optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRe
 }
 
 void HomeassistantLight::on_report_(bool changed) {
-  // A report answers the change that armed the echo timeout; a trait does not
-  if (this->echo_pending_) {
+  // A report that changed an attribute answers the change that armed the echo timeout; a repeated
+  // value (or a trait) does not, so a refused change still gets its warning
+  if (changed && this->echo_pending_) {
     this->echo_pending_ = false;
     this->cancel_timeout(ECHO_TIMEOUT_ID);
   }
