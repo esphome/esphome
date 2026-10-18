@@ -30,13 +30,9 @@ static const size_t RING_BUFFER_SIZE = RING_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t SEND_BUFFER_SAMPLES = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
 static const size_t SEND_BUFFER_SIZE = SEND_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
-// Watchdog for a player that stops making progress; re-armed from loop() for as
-// long as playback is running. Waiting for playback to *start* uses the separate,
-// longer tts_playback_start_timeout_: with one shared 2000 ms timer a player that
-// took longer to start was indistinguishable from one that had finished, so the
-// state machine moved on and, with continue_conversation set, opened the
-// microphone in the middle of the device's own reply (home-assistant-voice-pe#621).
-static const uint32_t PLAYBACK_STALL_TIMEOUT_MS = 2000;
+// Stall watchdog, re-armed from loop() while playback runs. Waiting for playback
+// to start uses tts_playback_start_timeout_ instead (home-assistant-voice-pe#621).
+static constexpr uint32_t PLAYBACK_STALL_TIMEOUT_MS = 2000;
 
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
 
@@ -533,10 +529,11 @@ void VoiceAssistant::loop() {
 #endif
 #ifdef USE_MEDIA_PLAYER
       // Counterpart to the speaker checks above: while the media player is
-      // still announcing, the microphone must stay shut, otherwise the device
-      // records its own response and answers it.
+      // still announcing our response, the microphone must stay shut, otherwise
+      // the device records its own response and answers it. Only our own
+      // response counts; an unrelated announcement does not hold this state.
       if ((this->speaker_ == nullptr) && (this->media_player_ != nullptr) &&
-          (this->media_player_->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING)) {
+          (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
         break;
       }
 #endif
@@ -759,6 +756,17 @@ void VoiceAssistant::request_stop() {
 #endif
       break;
     case State::RESPONSE_FINISHED:
+#ifdef USE_MEDIA_PLAYER
+      // loop() holds this state while our response is still being announced;
+      // stop it the same way STREAMING_RESPONSE does.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
+        this->media_player_->make_call()
+            .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
+            .set_announcement(true)
+            .perform();
+      }
+#endif
       break;  // Let the incoming audio stream finish then it will go to idle.
   }
 }
