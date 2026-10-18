@@ -132,11 +132,16 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 FIFO_VARIANTS = (VARIANT_ESP32S2, VARIANT_ESP32S3)
 FIFO_LINES = 256
 FIFO_LINE_BYTES = 4
-# Control and bulk packets are at most 64 bytes at full speed.
-FIFO_NPTX_LINES = 16
-# The shares ESP-IDF's default split leaves each way: 128 bytes. The controller reserves 2 of the RX lines for status.
-FIFO_PTX_MIN_LINES = 32
+# The controller reserves 2 of the RX lines for status.
 FIFO_RX_STATUS_LINES = 2
+# ESP-IDF's default (balanced) split: 632 bytes of received packets, 256 of control and bulk OUT, 128 of periodic OUT.
+# Requests that fit it keep it.
+FIFO_DEFAULT_RX_LINES = 160
+FIFO_DEFAULT_PTX_LINES = 32
+# A custom split: control and bulk packets are at most 64 bytes at full speed, and each direction keeps at least 128
+# bytes for other devices' packets.
+FIFO_NPTX_LINES = 16
+FIFO_PTX_MIN_LINES = 32
 FIFO_RX_MIN_LINES = 32 + FIFO_RX_STATUS_LINES
 # usb_host_config_t::fifo_settings_custom
 FIFO_CUSTOM_MIN_IDF = cv.Version(5, 5, 0)
@@ -148,7 +153,7 @@ def request_periodic_fifo(in_bytes: int = 0, out_bytes: int = 0) -> None:
     """Request FIFO space for the largest periodic IN and OUT packet a component's endpoints use.
 
     On the ESP32-S2 and ESP32-S3, usb_host then sizes the controller's FIFO split so the largest requested packet in
-    each direction fits; other variants keep ESP-IDF's default split. Call it from CONFIG_SCHEMA validation, so the
+    each direction fits, unless ESP-IDF's default split already fits them; other variants keep the default split. Call it from CONFIG_SCHEMA validation, so the
     request is recorded before usb_host's final validation checks it.
 
     Example:
@@ -172,14 +177,18 @@ def _fifo_lines(size: int) -> int:
 def fifo_split() -> tuple[int, int, int] | None:
     """The (RX, non-periodic TX, periodic TX) FIFO lines for the requested packets.
 
-    None when nothing was requested or the variant keeps ESP-IDF's default split.
+    None when the variant keeps ESP-IDF's default split, or the requested packets already fit it.
     """
     requested = CORE.data.get(DOMAIN, {}).get(KEY_PERIODIC_FIFO)
     if requested is None or get_esp32_variant() not in FIFO_VARIANTS:
         return None
     in_bytes, out_bytes = requested
-    rx = max(FIFO_RX_MIN_LINES, _fifo_lines(in_bytes) + FIFO_RX_STATUS_LINES)
-    ptx = max(FIFO_PTX_MIN_LINES, _fifo_lines(out_bytes))
+    rx = _fifo_lines(in_bytes) + FIFO_RX_STATUS_LINES
+    ptx = _fifo_lines(out_bytes)
+    if rx <= FIFO_DEFAULT_RX_LINES and ptx <= FIFO_DEFAULT_PTX_LINES:
+        return None
+    rx = max(FIFO_RX_MIN_LINES, rx)
+    ptx = max(FIFO_PTX_MIN_LINES, ptx)
     spare = FIFO_LINES - FIFO_NPTX_LINES - rx - ptx
     if spare < 0:
         raise cv.Invalid(
