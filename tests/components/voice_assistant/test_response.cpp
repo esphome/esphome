@@ -8,6 +8,7 @@
 #include "esphome/components/api/api_server.h"
 #include "esphome/components/voice_assistant/voice_assistant.h"
 #include "esphome/core/application.h"
+#include "esphome/core/base_automation.h"
 
 // PCM capture is outside these response tests. Fail if a scenario starts using it.
 namespace esphome::microphone {
@@ -74,6 +75,8 @@ class VoiceAssistantResponseTest : public ::testing::Test {
     this->voice_.set_microphone_source(&this->mic_source_);
     this->voice_.set_media_player(&this->player_);
     this->voice_.setup();
+    this->intent_automation_.add_action(&this->intent_action_);
+    this->error_automation_.add_action(&this->error_action_);
   }
 
   void TearDown() override {
@@ -139,6 +142,16 @@ class VoiceAssistantResponseTest : public ::testing::Test {
   microphone::MicrophoneSource mic_source_{&this->mic_, 16, 1, false};
   TestMediaPlayer player_;
   VoiceAssistant voice_;
+  std::function<void(std::string)> intent_hook_;
+  LambdaAction<std::string> intent_action_{[this](const std::string &url) {
+    if (this->intent_hook_)
+      this->intent_hook_(url);
+  }};
+  Automation<std::string> intent_automation_{this->voice_.get_intent_progress_trigger()};
+  std::vector<std::string> errors_;
+  LambdaAction<std::string, std::string> error_action_{
+      [this](const std::string &code, const std::string &) { this->errors_.push_back(code); }};
+  Automation<std::string, std::string> error_automation_{this->voice_.get_error_trigger()};
   api::APIServer server_;
   std::unique_ptr<api::APIConnection> client_;
   std::unique_ptr<api::APIPlaintextFrameHelper> peer_;
@@ -179,6 +192,7 @@ TEST_F(VoiceAssistantResponseTest, StopPendingResponseReportsFailureOnce) {
 }
 
 TEST_F(VoiceAssistantResponseTest, StopPlayingResponseReportsFailureOnce) {
+  this->voice_.set_tts_playback_start_timeout(20);
   this->start_streamed_response_();
   this->player_.report(media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
   this->voice_.loop();
@@ -188,7 +202,8 @@ TEST_F(VoiceAssistantResponseTest, StopPlayingResponseReportsFailureOnce) {
   EXPECT_FALSE(this->voice_.is_running());
   EXPECT_EQ(this->completions_(), std::vector<bool>({false}));
   EXPECT_EQ(this->player_.stop_requests, 1);
-  App.scheduler.call(millis() + 5000);
+  delay(30);
+  this->flush_();
   EXPECT_TRUE(this->completions_().empty());
 }
 
@@ -269,6 +284,92 @@ TEST_F(VoiceAssistantResponseTest, StopAfterPlayerCompletionKeepsSuccessfulResul
   EXPECT_FALSE(this->voice_.is_running());
   EXPECT_EQ(this->player_.stop_requests, 0);
   EXPECT_EQ(this->completions_(), std::vector<bool>({true}));
+}
+
+TEST_F(VoiceAssistantResponseTest, IntentProgressPreparesPlayerBeforeStreamingStarts) {
+  int hooks = 0;
+  this->intent_hook_ = [this, &hooks](const std::string &url) {
+    ++hooks;
+    EXPECT_EQ(url, "http://example.test/tts.wav");
+    EXPECT_EQ(this->player_.play_requests, 0);
+  };
+  this->start_streamed_response_();
+  EXPECT_EQ(hooks, 1);
+}
+
+TEST_F(VoiceAssistantResponseTest, StopFromIntentProgressPreventsStreamingPlayback) {
+  this->intent_hook_ = [this](const std::string &) { this->voice_.request_stop(); };
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_START, "url", "http://example.test/tts.wav");
+  this->event_(api::enums::VOICE_ASSISTANT_INTENT_PROGRESS, "tts_start_streaming", "1");
+  this->flush_();
+  this->voice_.loop();
+  EXPECT_EQ(this->player_.play_requests, 0);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->completions_(), std::vector<bool>({false}));
+}
+
+TEST_F(VoiceAssistantResponseTest, IntentProgressWithoutAudioStillRunsItsHook) {
+  int hooks = 0;
+  this->intent_hook_ = [&hooks](const std::string &url) {
+    ++hooks;
+    EXPECT_TRUE(url.empty());
+  };
+  this->event_(api::enums::VOICE_ASSISTANT_INTENT_PROGRESS);
+  this->flush_();
+  EXPECT_EQ(hooks, 1);
+  EXPECT_EQ(this->player_.play_requests, 0);
+}
+
+TEST_F(VoiceAssistantResponseTest, PlaybackStartTimeoutReportsFailureAndRejectsLateEvents) {
+  this->voice_.set_tts_playback_start_timeout(20);
+  this->start_streamed_response_();
+  // The host scheduler uses its native 64-bit clock, not call()'s timestamp.
+  delay(30);
+  this->flush_();
+  this->flush_();
+  this->voice_.loop();
+  EXPECT_EQ(this->completions_(), std::vector<bool>({false}));
+  EXPECT_EQ(this->player_.stop_requests, 1);
+  EXPECT_EQ(this->errors_, std::vector<std::string>({"tts-start-timeout"}));
+  EXPECT_FALSE(this->voice_.is_running());
+  this->event_(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/tts.wav");
+  this->flush_();
+  this->voice_.loop();
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->player_.play_requests, 1);
+  EXPECT_TRUE(this->completions_().empty());
+}
+
+TEST_F(VoiceAssistantResponseTest, ErrorBeforeDeferredTtsEndPreventsPlayback) {
+  this->event_(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/tts.wav");
+  this->event_(api::enums::VOICE_ASSISTANT_ERROR, "code", "tts-failed");
+  this->flush_();
+  EXPECT_EQ(this->player_.play_requests, 0);
+  EXPECT_EQ(this->errors_, std::vector<std::string>({"tts-failed"}));
+}
+
+TEST_F(VoiceAssistantResponseTest, ErrorRejectsLateStreamingUrl) {
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_START, "url", "http://example.test/tts.wav");
+  this->event_(api::enums::VOICE_ASSISTANT_ERROR, "code", "tts-failed");
+  this->event_(api::enums::VOICE_ASSISTANT_INTENT_PROGRESS, "tts_start_streaming", "1");
+  this->flush_();
+  EXPECT_EQ(this->player_.play_requests, 0);
+}
+
+TEST_F(VoiceAssistantResponseTest, LateTtsStartDoesNotTriggerFinishedResponse) {
+  this->start_streamed_response_();
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
+  this->voice_.loop();
+  this->voice_.loop();
+  int hooks = 0;
+  LambdaAction<std::string> action([&hooks](const std::string &) { ++hooks; });
+  Automation<std::string> automation(this->voice_.get_tts_start_trigger());
+  automation.add_action(&action);
+  this->event_(api::enums::VOICE_ASSISTANT_TTS_START, "text", "Late response text");
+  this->flush_();
+  EXPECT_EQ(hooks, 0);
+  EXPECT_FALSE(this->voice_.is_running());
 }
 
 }  // namespace esphome::voice_assistant::testing
