@@ -630,10 +630,11 @@ bool TsdbComponent::write_record_() {
   this->warned_backwards_ = false;
   this->dirty_ = true;
   // Only a clean record clears the warning: a held, sentinel or clamped value is not healthy.
-  if (degraded != nullptr)
+  if (degraded != nullptr) {
     this->status_set_warning(degraded);
-  else if (!this->sync_failed_)
+  } else if (!this->sync_failed_) {
     this->status_clear_warning();
+  }
   return true;
 }
 
