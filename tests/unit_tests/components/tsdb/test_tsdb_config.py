@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
+from pathlib import Path
 
+import pytest
+import yaml
+
+import esphome.components
 from esphome.components.tsdb import (
     CONF_COLUMNS,
     CONF_MAX_FILE_SIZE,
@@ -11,6 +15,7 @@ from esphome.components.tsdb import (
     CONF_OFFSET,
     CONF_PARTITION_SIZE,
     CONF_SCALE_FACTOR,
+    IDF_COMPONENTS,
     _validate_config,
     _validate_file_name,
     _validate_mount_point,
@@ -151,3 +156,12 @@ def test_validate_config_reserves_room_for_filesystem_metadata() -> None:
     with pytest.raises(cv.Invalid, match="leaves no room for the filesystem metadata"):
         _validate_config(_config(max_file_size=500 * 1024))
     assert _validate_config(_config())[CONF_MAX_FILE_SIZE] == 384 * 1024
+
+
+def test_idf_manifest_declares_the_engine_versions() -> None:
+    """The clang-tidy project reads the manifest, so the pins must not drift."""
+    manifest = Path(esphome.components.__file__).parent.parent / "idf_component.yml"
+    deps = yaml.safe_load(manifest.read_text(encoding="utf-8"))["dependencies"]
+
+    for name, version in IDF_COMPONENTS.items():
+        assert deps[name]["version"] == version
