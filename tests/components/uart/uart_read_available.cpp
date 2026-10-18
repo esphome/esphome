@@ -155,6 +155,22 @@ TEST(UARTReadAvailableTest, DiscardWithNothingAvailableDoesNotRead) {
   EXPECT_TRUE(uart.read_sizes.empty());
 }
 
+TEST(UARTReadAvailableTest, DiscardDropsBytesThatArriveWhileDraining) {
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{1, 2});
+  bool appended = false;
+  ON_CALL(uart, available()).WillByDefault(Invoke([&]() -> size_t {
+    if (!appended && uart.read_sizes.size() == 1) {
+      uart.append({9, 9});
+      appended = true;
+    }
+    return uart.remaining();
+  }));
+  UARTDevice dev(&uart);
+  dev.discard_available();
+  EXPECT_TRUE(appended);
+  EXPECT_EQ(uart.remaining(), 0u);
+}
+
 TEST(UARTReadAvailableTest, DiscardStopsOnReadFailure) {
   ::testing::NiceMock<FakeRxUART> uart(make_bytes(5));
   uart.fail_after_reads = 2;
