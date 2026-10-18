@@ -12,9 +12,10 @@ static constexpr size_t MIN_MESSAGE_LEN = 5;  // cmd | fg | fn | dp_hi | dp_lo
 static constexpr size_t MAX_PENDING_MESSAGES = 32;
 static constexpr uint32_t MAX_PENDING_AGE_MS = 5000;
 static constexpr uint32_t CLEANUP_INTERVAL_MS = 5000;
+static constexpr uint16_t GATEWAY_DEVICE_TYPE = 1153;  // GW
 TopTronic::TopTronic(canbus::Canbus *canbus) : canbus_(canbus) {
   this->canbus_->add_callback([this](uint32_t can_id, bool, bool rtr, const std::vector<uint8_t> &data) {
-    if (((can_id >> 11) & 0x7FF) == this->get_device_id())
+    if (this->owns_device_((can_id >> 11) & 0x7FF))
       this->parse_frame(data, can_id, rtr);
   });
 }
@@ -30,6 +31,86 @@ std::vector<uint8_t> build_set_request(uint8_t function_group, uint8_t function_
       0x01, SET_REQ, function_group, function_number, (uint8_t) (datapoint >> 8), (uint8_t) datapoint};
   data.insert(data.end(), value.begin(), value.end());
   return data;
+}
+uint32_t TopTronicBase::get_id() {
+  return this->function_group_ + (this->function_number_ << 8) + (this->datapoint_ << 16);
+}
+const std::vector<uint8_t> &TopTronicBase::get_request_data() { return this->request_data_; }
+void TopTronicBase::cache_request_data() {
+  this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
+}
+void TopTronicBase::add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback) {
+  this->set_callback_.add(std::move(callback));
+}
+void TopTronicBase::add_on_update_callback(std::function<void()> &&callback) {
+  this->update_callback_.add(std::move(callback));
+}
+void TopTronicBase::update() { this->update_callback_.call(); }
+template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
+  uint64_t u = 0;
+  for (size_t i = 0; i < len; i++)
+    u = (u << 8) | data[i];
+  return static_cast<T>(u);
+}
+#ifdef USE_SENSOR
+float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
+  switch (this->type_) {
+    case U8:
+      return (float) bytes_to_number<uint8_t>(data, len);
+    case U16:
+      return (float) bytes_to_number<uint16_t>(data, len);
+    case U32:
+      return (float) bytes_to_number<uint32_t>(data, len);
+    case S8:
+      return (float) bytes_to_number<int8_t>(data, len);
+    case S16:
+      return (float) bytes_to_number<int16_t>(data, len);
+    case S32:
+      return (float) bytes_to_number<int32_t>(data, len);
+    case S64:
+      return (float) bytes_to_number<int64_t>(data, len);
+  }
+  return 0.0f;
+}
+size_t TopTronicSensor::value_width() const {
+  switch (this->type_) {
+    case U8:
+    case S8:
+      return 1;
+    case U16:
+    case S16:
+      return 2;
+    case U32:
+    case S32:
+      return 4;
+    case S64:
+      return 8;
+  }
+  return 1;
+}
+#endif
+TopTronicDevice *TopTronic::get_or_create_device_(uint32_t device_id) {
+  auto &device_ptr = this->devices_[device_id];
+  if (!device_ptr)
+    device_ptr = std::make_unique<TopTronicDevice>();
+  return device_ptr.get();
+}
+void TopTronic::add_sensor(TopTronicBase *sensor) {
+  this->get_or_create_device_(this->get_device_id())->get_sensors()[sensor->get_id()] = sensor;
+}
+void TopTronic::register_sensor_callbacks() {
+  for (const auto &d : this->devices_) {
+    for (const auto &s : d.second->get_sensors()) {
+      auto *sensor = s.second;
+      sensor->cache_request_data();
+      auto *canbus = this->canbus_;
+      uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | this->device_addr_, this->get_device_id());
+      sensor->add_on_update_callback([canbus, sensor, can_id]() -> void {
+        const auto &data = sensor->get_request_data();
+        canbus->send_data(can_id, true, data);
+      });
+    }
+  }
 }
 static uint32_t reflect(uint32_t val, uint8_t width) {
   uint32_t out = 0;
@@ -63,7 +144,13 @@ static uint16_t compute_crc16(const uint8_t *data, size_t len) {
   }
   return static_cast<uint16_t>(reflect(crc, 16));
 }
-void TopTronic::setup() { ESP_LOGI(TAG, "Hub 0x%04X", (unsigned) this->get_device_id()); }
+void TopTronic::configure_hub() { this->register_sensor_callbacks(); }
+void TopTronic::setup() {
+  size_t sensors = 0;
+  for (const auto &d : this->devices_)
+    sensors += d.second->get_sensors().size();
+  ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors)", (unsigned) this->get_device_id(), sensors);
+}
 void TopTronic::loop() {
   const uint32_t now = millis();
   if (now - this->last_cleanup_ms_ < CLEANUP_INTERVAL_MS)
@@ -83,7 +170,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
   uint8_t msg_id = can_id >> 24;
   uint32_t device_id = (can_id >> 11) & 0x7FF;
   const uint32_t now = millis();
-  if (device_id != this->get_device_id())
+  if (!this->owns_device_(device_id))
     return;
   if (msg_id == START_OF_MESSAGE_ID) {
     if (data.size() < 2)
@@ -146,8 +233,27 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
   const size_t value_off = (data[0] == RESPONSE_EXT) ? 7 : 5;
   if (len < value_off)
     return;
-  ESP_LOGV(TAG, "Response 0x%02X from 0x%03X: fg=%u fn=%u datapoint=%u, %zu value bytes", data[0],
-           (unsigned) ((can_id >> 11) & 0x7FF), (unsigned) data[1], (unsigned) data[2],
-           (unsigned) ((data[3] << 8) | data[4]), len - value_off);
+  auto device_it = this->devices_.find((can_id >> 11) & 0x7FF);
+  if (device_it == this->devices_.end())
+    return;
+  uint32_t id = data[1] + (data[2] << 8) + ((data[4] + (data[3] << 8)) << 16);
+  auto sensor_it = device_it->second->get_sensors().find(id);
+  if (sensor_it == device_it->second->get_sensors().end())
+    return;
+  TopTronicBase *sensor_base = sensor_it->second;
+  const size_t value_len = len - value_off;
+  size_t required_value_len = 1;
+#ifdef USE_SENSOR
+  if (sensor_base->type() == SENSOR)
+    required_value_len = static_cast<TopTronicSensor *>(sensor_base)->value_width();
+#endif
+  if (value_len < required_value_len)
+    return;
+#ifdef USE_SENSOR
+  if (sensor_base->type() == SENSOR) {
+    auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
+    sensor->publish_state(sensor->parse_value(data + value_off, value_len));
+  }
+#endif
 }
 }  // namespace esphome::toptronic
