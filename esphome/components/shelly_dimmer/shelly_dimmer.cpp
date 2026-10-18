@@ -483,7 +483,6 @@ void ShellyDimmer::reset_(bool boot0) {
   // Wait 50ms for the STM32 to reset.
   delay(50);  // NOLINT
 
-  // Clear receive buffer.
   this->discard_available();
 
   this->pin_nrst_->digital_write(true);

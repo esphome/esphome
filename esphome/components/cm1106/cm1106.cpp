@@ -115,7 +115,6 @@ bool CM1106Component::send_command_expect_ack_(const uint8_t *command, size_t co
 
 bool CM1106Component::cm1106_write_command_(const uint8_t *command, size_t command_len, uint8_t *response,
                                             size_t response_len) {
-  // Empty RX Buffer
   this->discard_available();
   this->write_array(command, command_len - 1);
   this->write_byte(cm1106_checksum(command, command_len));

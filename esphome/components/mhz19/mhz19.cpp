@@ -120,7 +120,6 @@ void MHZ19Component::range_set(MHZ19DetectionRange detection_range) {
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
-  // Empty RX Buffer
   this->discard_available();
   this->write_array(command, MHZ19_REQUEST_LENGTH);
   this->write_byte(mhz19_checksum(command));

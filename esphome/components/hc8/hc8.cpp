@@ -18,7 +18,6 @@ void HC8Component::setup() {
   this->write_array(HC8_COMMAND_GET_PPM);
   this->flush();
 
-  // ensure the buffer is empty
   this->discard_available();
 }
 

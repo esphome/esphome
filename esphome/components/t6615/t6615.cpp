@@ -47,7 +47,6 @@ void T6615Component::loop() {
   if (response_buffer[0] != T6615_MAGIC || response_buffer[1] != T6615_ADDR_HOST) {
     ESP_LOGW(TAG, "Got bad data from T6615! Magic was %02X and address was %02X", response_buffer[0],
              response_buffer[1]);
-    /* make sure the buffer is empty */
     this->discard_available();
     /* try again to read the sensor */
     this->send_ppm_command_();

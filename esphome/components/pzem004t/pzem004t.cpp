@@ -8,7 +8,6 @@ namespace esphome::pzem004t {
 ESPHOME_LOG_TAG(TAG, "pzem004t");
 
 void PZEM004T::setup() {
-  // Clear UART buffer
   this->discard_available();
   // Set module address
   this->write_state_(SET_ADDRESS);

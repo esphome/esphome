@@ -73,7 +73,7 @@ DlmsMeterComponent::DlmsMeterComponent(const uint32_t receive_timeout_ms, const 
   }
 }
 
-void DlmsMeterComponent::setup() { this->flush_rx_buffer_(); }
+void DlmsMeterComponent::setup() { this->discard_available(); }
 
 void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DLMS Meter:");
@@ -122,10 +122,6 @@ void DlmsMeterComponent::loop() {
   }
 }
 
-void DlmsMeterComponent::flush_rx_buffer_() {
-  this->discard_available();
-}
-
 void DlmsMeterComponent::read_rx_buffer_() {
   int available = this->available();
   if (available == 0)
@@ -135,7 +131,7 @@ void DlmsMeterComponent::read_rx_buffer_() {
     ESP_LOGW(TAG, "RX Buffer overflow. Frame too large! Dropping frame.");
     this->bytes_accumulated_ = 0;
 
-    this->flush_rx_buffer_();
+    this->discard_available();
     return;
   }
 
@@ -143,7 +139,7 @@ void DlmsMeterComponent::read_rx_buffer_() {
   if (!success) {
     ESP_LOGW(TAG, "UART read failed. Dropping frame.");
     this->bytes_accumulated_ = 0;
-    this->flush_rx_buffer_();
+    this->discard_available();
     return;
   }
 
