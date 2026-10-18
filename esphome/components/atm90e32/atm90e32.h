@@ -1,10 +1,13 @@
 #pragma once
 
-#include <span>
-#include <unordered_map>
 #include "atm90e32_reg.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
+#include <span>
+#include <unordered_map>
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
@@ -47,9 +50,9 @@ inline void prepare_offset_rollback(const OffsetCalibration (&previous)[3], bool
     rollback[phase] = had_stored_values ? previous[phase] : OffsetCalibration{};
 }
 
-class ATM90E32Component final : public PollingComponent,
-                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                      spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
+class ATM90E32Component : public PollingComponent,
+                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   static const uint8_t PHASEA = 0;
   static const uint8_t PHASEB = 1;
@@ -127,15 +130,16 @@ class ATM90E32Component final : public PollingComponent,
   void set_chip_temperature_sensor(sensor::Sensor *chip_temperature_sensor) {
     chip_temperature_sensor_ = chip_temperature_sensor;
   }
-  void set_threshold_voltage_nominal(float voltage) { this->threshold_voltage_nominal_v_ = voltage; }
   void set_threshold_voltage_sag_v(float voltage) { this->threshold_voltage_sag_v_ = voltage; }
   void set_threshold_voltage_peak_v(float voltage) { this->threshold_voltage_peak_v_ = voltage; }
-  void set_threshold_current_peak_a(float current) {
+  void set_threshold_current_peak_a(float current, uint16_t default_oith = 0) {
     this->threshold_current_peak_a_ = current;
-    this->has_threshold_current_peak_a_ = true;
+    this->default_oith_ = default_oith;
   }
-  void set_threshold_frequency_low_hz(float frequency) { this->threshold_frequency_low_hz_ = frequency; }
-  void set_threshold_frequency_high_hz(float frequency) { this->threshold_frequency_high_hz_ = frequency; }
+  void set_frequency_thresholds(uint16_t low, uint16_t high) {
+    this->frequency_low_threshold_ = low;
+    this->frequency_high_threshold_ = high;
+  }
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
@@ -172,18 +176,13 @@ class ATM90E32Component final : public PollingComponent,
 #ifdef USE_TEXT_SENSOR
   void check_phase_status();
   void check_freq_status();
-  void check_over_current();
   void set_phase_status_text_sensor(uint8_t phase, text_sensor::TextSensor *sensor) {
     this->phase_status_text_sensor_[phase] = sensor;
   }
   void set_freq_status_text_sensor(text_sensor::TextSensor *sensor) { this->freq_status_text_sensor_ = sensor; }
 #endif
-  static constexpr float DEFAULT_CURRENT_PEAK_A = 65.53f;
-  static constexpr float MAX_CURRENT_PEAK_A = 65.535f;
   static uint16_t calculate_voltage_threshold_from_volts(float voltage_rms, uint16_t ugain);
   static uint16_t calculate_current_threshold_from_amps(float current_rms, uint16_t igain);
-  static uint16_t calculate_frequency_threshold_from_hz(float frequency_hz);
-  uint16_t calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier);
 
  protected:
 #ifdef USE_NUMBER
@@ -229,6 +228,7 @@ class ATM90E32Component final : public PollingComponent,
   void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
                                    OffsetCalibrationType type);
   void write_gains_to_registers_();
+  void write_thresholds_();
   bool verify_gain_writes_();
   bool verify_offset_writes_(OffsetCalibrationType type);
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
@@ -305,14 +305,13 @@ class ATM90E32Component final : public PollingComponent,
   bool peak_current_signed_{false};
   bool enable_offset_calibration_{false};
   bool enable_gain_calibration_{false};
-  bool has_threshold_current_peak_a_{false};
-  float threshold_voltage_nominal_v_{0.0f};
   float threshold_voltage_sag_v_{0.0f};
   float threshold_voltage_peak_v_{0.0f};
   float threshold_current_peak_a_{0.0f};
-  float threshold_frequency_low_hz_{0.0f};
-  float threshold_frequency_high_hz_{0.0f};
-  float active_current_peak_threshold_a_{DEFAULT_CURRENT_PEAK_A};
+  uint16_t frequency_low_threshold_{0};
+  uint16_t frequency_high_threshold_{0};
+  uint16_t default_oith_{0xC000};  // Zero selects the configured RMS threshold
+                                   // instead of the legacy register value.
   const char *instance_id_{nullptr};
   bool has_stored_offset_calibration_{false};
   bool has_stored_power_offset_calibration_{false};

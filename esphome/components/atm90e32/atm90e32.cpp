@@ -1,4 +1,5 @@
 #include "atm90e32.h"
+#include <algorithm>
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
@@ -126,7 +127,6 @@ void ATM90E32Component::update() {
 
 #ifdef USE_TEXT_SENSOR
   this->check_phase_status();
-  this->check_over_current();
   this->check_freq_status();
 #endif
 }
@@ -273,53 +273,10 @@ void ATM90E32Component::setup() {
     }
   }
 
-  const float voltage_nominal = this->threshold_voltage_nominal_v_;
-  const float sag_voltage = this->threshold_voltage_sag_v_;
-  const float peak_voltage = this->threshold_voltage_peak_v_;
-  const float frequency_low_hz = this->threshold_frequency_low_hz_;
-  const float frequency_high_hz = this->threshold_frequency_high_hz_;
-  const float current_peak_a_raw =
-      this->has_threshold_current_peak_a_ ? this->threshold_current_peak_a_ : DEFAULT_CURRENT_PEAK_A;
-  const float current_peak_a = (current_peak_a_raw > MAX_CURRENT_PEAK_A) ? MAX_CURRENT_PEAK_A : current_peak_a_raw;
-  if (current_peak_a != current_peak_a_raw) {
-    ESP_LOGW(TAG,
-             "Configured current peak threshold %.3f A exceeds the ATM90E32 native limit of %.3f A; "
-             "clamping to %.3f A to avoid OITH register overflow. Lowering gain_ct and scaling published "
-             "current or power values does not extend the valid current_peak threshold range.",
-             current_peak_a_raw, MAX_CURRENT_PEAK_A, current_peak_a);
-  }
-  this->active_current_peak_threshold_a_ = current_peak_a;
-  uint16_t oith = 0xC000;  // Preserve legacy behavior when current threshold is not configured.
-  if (this->has_threshold_current_peak_a_) {
-    oith = calculate_current_threshold_from_amps(current_peak_a, this->phase_[0].ct_gain_);
-  }
-
-  const uint16_t sagth = calculate_voltage_threshold_from_volts(sag_voltage, this->phase_[0].voltage_gain_);
-  const uint16_t ovth = calculate_voltage_threshold_from_volts(peak_voltage, this->phase_[0].voltage_gain_);
-  const uint16_t low_thresh = calculate_frequency_threshold_from_hz(frequency_low_hz);
-  const uint16_t high_thresh = calculate_frequency_threshold_from_hz(frequency_high_hz);
-
-  ESP_LOGD(TAG, "Threshold frequency: low %.2f Hz -> 0x%04" PRIX16 ", high %.2f Hz -> 0x%04" PRIX16, frequency_low_hz,
-           low_thresh, frequency_high_hz, high_thresh);
-  ESP_LOGD(TAG, "Threshold voltage sag: %.1f%% (%.2f V RMS, gain %u) -> 0x%04" PRIX16,
-           (sag_voltage / voltage_nominal) * 100.0f, sag_voltage, this->phase_[0].voltage_gain_, sagth);
-  ESP_LOGD(TAG, "Threshold voltage peak: %.1f%% (%.2f V RMS, gain %u) -> 0x%04" PRIX16,
-           (peak_voltage / voltage_nominal) * 100.0f, peak_voltage, this->phase_[0].voltage_gain_, ovth);
-  if (this->has_threshold_current_peak_a_) {
-    ESP_LOGD(TAG, "Threshold current peak: %.3f A RMS (gain %u) -> 0x%04" PRIX16, current_peak_a,
-             this->phase_[0].ct_gain_, oith);
-  } else {
-    ESP_LOGD(TAG, "Threshold current peak warning: %.3f A RMS (software); OITH legacy default -> 0x%04" PRIX16,
-             current_peak_a, oith);
-  }
-
-  // Write to registers
-  this->write16_(ATM90E32_REGISTER_FREQHITH, high_thresh);
-  this->write16_(ATM90E32_REGISTER_FREQLOTH, low_thresh);
-  this->write16_(ATM90E32_REGISTER_SAGTH, sagth);
-  this->write16_(ATM90E32_REGISTER_OVTH, ovth);
-  this->write16_(ATM90E32_REGISTER_OITH, oith);
-
+  this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);
+  this->write16_(ATM90E32_REGISTER_FREQHITH, this->frequency_high_threshold_);
+  this->write16_(ATM90E32_REGISTER_FREQLOTH, this->frequency_low_threshold_);
+  this->write_thresholds_();
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);  // end configuration
 }
 
@@ -926,7 +883,45 @@ void ATM90E32Component::write_gains_to_registers_() {
     this->write16_(current_gain_registers[phase], this->gain_phase_[phase].current_gain);
   }
 
+  this->write_thresholds_();
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);
+}
+
+void ATM90E32Component::write_thresholds_() {
+  uint16_t min_voltage_gain = UINT16_MAX;
+  uint16_t max_voltage_gain = 0;
+  uint16_t min_current_gain = UINT16_MAX;
+  uint16_t max_current_gain = 0;
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->has_config_voltage_gain_[phase]) {
+      const uint16_t gain = this->read16_(this->voltage_gain_registers[phase]);
+      min_voltage_gain = std::min(min_voltage_gain, gain);
+      max_voltage_gain = std::max(max_voltage_gain, gain);
+    }
+    if (this->has_config_current_gain_[phase]) {
+      const uint16_t gain = this->read16_(this->current_gain_registers[phase]);
+      min_current_gain = std::min(min_current_gain, gain);
+      max_current_gain = std::max(max_current_gain, gain);
+    }
+  }
+  if (max_voltage_gain == 0)
+    min_voltage_gain = 0;
+  if (max_current_gain == 0)
+    min_current_gain = 0;
+  // Shared thresholds trip conservatively if calibration gives channels different gains.
+  if (min_voltage_gain != max_voltage_gain || min_current_gain != max_current_gain) {
+    ESP_LOGW(TAG, "Phase gains differ: shared sag uses the lowest gain; peak thresholds use the highest gain");
+  }
+
+  const uint16_t sagth = calculate_voltage_threshold_from_volts(this->threshold_voltage_sag_v_, min_voltage_gain);
+  const uint16_t ovth = calculate_voltage_threshold_from_volts(this->threshold_voltage_peak_v_, max_voltage_gain);
+  const uint16_t oith = this->default_oith_ != 0
+                            ? this->default_oith_
+                            : calculate_current_threshold_from_amps(this->threshold_current_peak_a_, max_current_gain);
+  ESP_LOGD(TAG, "Thresholds: SAGTH=0x%04" PRIX16 ", OVTH=0x%04" PRIX16 ", OITH=0x%04" PRIX16, sagth, ovth, oith);
+  this->write16_(ATM90E32_REGISTER_SAGTH, sagth);
+  this->write16_(ATM90E32_REGISTER_OVTH, ovth);
+  this->write16_(ATM90E32_REGISTER_OITH, oith);
 }
 
 void ATM90E32Component::write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
@@ -1298,9 +1293,14 @@ void ATM90E32Component::check_phase_status() {
   uint16_t state1 = this->read16_(ATM90E32_REGISTER_EMMSTATE1);
 
   for (int phase = 0; phase < 3; phase++) {
+    auto *sensor = this->phase_status_text_sensor_[phase];
+    if (sensor == nullptr)
+      continue;
+
     std::string status;
 
-    if (state0 & over_current_flags[phase])
+    const float current = this->has_config_current_gain_[phase] ? this->get_phase_current_(phase) : 0.0f;
+    if ((state0 & this->over_current_flags[phase]) || current > this->threshold_current_peak_a_)
       status += "Over Current; ";
     if (state0 & over_voltage_flags[phase])
       status += "Over Voltage; ";
@@ -1308,10 +1308,6 @@ void ATM90E32Component::check_phase_status() {
       status += "Voltage Sag; ";
     if (state1 & phase_loss_flags[phase])
       status += "Phase Loss; ";
-
-    auto *sensor = this->phase_status_text_sensor_[phase];
-    if (sensor == nullptr)
-      continue;
 
     if (!status.empty()) {
       status.pop_back();  // remove space
@@ -1346,23 +1342,15 @@ void ATM90E32Component::check_freq_status() {
   }
 }
 
-void ATM90E32Component::check_over_current() {
-  const float max_current_threshold = this->active_current_peak_threshold_a_;
-
-  for (uint8_t phase = 0; phase < 3; phase++) {
-    float current_val =
-        this->phase_[phase].current_sensor_ != nullptr ? this->phase_[phase].current_sensor_->state : 0.0f;
-
-    if (current_val > max_current_threshold) {
-      ESP_LOGW(TAG, "Over current detected on Phase %c: %.2f A", 'A' + phase, current_val);
-      ESP_LOGW(TAG, "You may need to half your gain_ct: value & multiply the current and power values by 2");
-      if (this->phase_status_text_sensor_[phase] != nullptr) {
-        this->phase_status_text_sensor_[phase]->publish_state("Over Current; ");
-      }
-    }
-  }
-}
 #endif
+
+static uint16_t encode_threshold(float value) {
+  if (!std::isfinite(value) || value > UINT16_MAX) {
+    ESP_LOGW(TAG, "Threshold exceeds the 16-bit register range; clamping to 65535");
+    return UINT16_MAX;
+  }
+  return static_cast<uint16_t>(std::round(std::max(value, 0.0f)));
+}
 
 // Datasheet equation (section "Power Quality Monitoring"): xxThRegValue =
 // RmsRegValue * sqrt(2) / (VIgain / 2^14). For voltage, RmsRegValue is in 0.01V.
@@ -1373,7 +1361,7 @@ uint16_t ATM90E32Component::calculate_voltage_threshold_from_volts(float voltage
 
   const float peak_01v = voltage_rms * 100.0f * std::numbers::sqrt2_v<float>;  // RMS to peak, scaled in 0.01V
   const float divider = (2.0f * ugain) / 32768.0f;
-  return static_cast<uint16_t>(peak_01v / divider);  // Keep truncation for backward-compatible defaults.
+  return encode_threshold(peak_01v / divider);
 }
 
 // Datasheet equation (section "Power Quality Monitoring"): xxThRegValue =
@@ -1385,19 +1373,7 @@ uint16_t ATM90E32Component::calculate_current_threshold_from_amps(float current_
 
   const float peak_001a = current_rms * 1000.0f * std::numbers::sqrt2_v<float>;  // RMS to peak, scaled in 0.001A
   const float divider = (2.0f * igain) / 32768.0f;
-  return static_cast<uint16_t>(peak_001a / divider);  // Keep truncation for backward-compatible defaults.
-}
-
-// Freq register and threshold registers use 0.01Hz/LSB.
-uint16_t ATM90E32Component::calculate_frequency_threshold_from_hz(float frequency_hz) {
-  return static_cast<uint16_t>(frequency_hz * 100.0f);  // Keep truncation for backward-compatible defaults.
-}
-
-uint16_t ATM90E32Component::calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier) {
-  // this assumes that 60Hz electrical systems use 120V mains,
-  // which is usually, but not always the case
-  const float nominal_voltage = (line_freq == 60) ? 120.0f : 220.0f;
-  return calculate_voltage_threshold_from_volts(nominal_voltage * multiplier, ugain);
+  return encode_threshold(peak_001a / divider);
 }
 
 bool ATM90E32Component::validate_spi_read_(uint16_t expected, const char *context) {
