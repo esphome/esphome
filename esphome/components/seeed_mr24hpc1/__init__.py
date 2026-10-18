@@ -42,7 +42,5 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-# The async def keyword is used to define a concurrent function.
-# Concurrent functions are special functions designed to work with Python's asyncio library to support asynchronous I/O operations.
 async def to_code(config: ConfigType) -> None:
     await uart.new_uart_component(config)

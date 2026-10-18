@@ -226,9 +226,7 @@ def model_schema(config: ConfigType) -> cv.All | cv.Schema:
     )
     if model.get_default(CONF_BRIGHTNESS, None) is not None or model.name == "CUSTOM":
         schema = schema.extend(
-            {
-                model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.uint8_t,
-            }
+            {model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.uint8_t}
         )
     if bus_mode != TYPE_SINGLE:
         return cv.All(schema, cv.only_on_esp32)
