@@ -66,7 +66,9 @@ class BasicFragmentationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     new (&App) Application;
-    App.pre_setup("fragmentation-tests", 19, "", 0);
+    static char name[] = "fragmentation-tests";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
   void TearDown() override { App.~Application(); }
 
@@ -77,46 +79,46 @@ class BasicFragmentationTest : public ::testing::Test {
     from.sent.clear();
   }
 
-  MockLink link_a, link_b;
+  MockLink link_a_, link_b_;
 };
 
 TEST_F(BasicFragmentationTest, SizesAndCapability) {
-  Peer a(&this->link_a);
+  Peer a(&this->link_a_);
   EXPECT_EQ(a.fragmentation.get_max_packet_size(), 100);
   EXPECT_TRUE(a.fragmentation.has_capability(CAPABILITY_FRAGMENTATION));
-  EXPECT_EQ(this->link_a.top(), &a.fragmentation);
+  EXPECT_EQ(this->link_a_.top(), &a.fragmentation);
 }
 
 TEST_F(BasicFragmentationTest, SmallPacketIsOneFragment) {
-  Peer a(&this->link_a), b(&this->link_b);
+  Peer a(&this->link_a_), b(&this->link_b_);
   a.send({1, 2, 3});
-  ASSERT_EQ(this->link_a.sent.size(), 1);
-  EXPECT_EQ(this->link_a.sent[0].size(), 3 + BasicFragmentation::HEADER_SIZE);
-  EXPECT_EQ(this->link_a.sent[0][1], 0x80);  // index 0, last
-  deliver(this->link_a, this->link_b);
+  ASSERT_EQ(this->link_a_.sent.size(), 1);
+  EXPECT_EQ(this->link_a_.sent[0].size(), 3 + BasicFragmentation::HEADER_SIZE);
+  EXPECT_EQ(this->link_a_.sent[0][1], 0x80);  // index 0, last
+  deliver(this->link_a_, this->link_b_);
   EXPECT_EQ(b.received, (std::vector<Packet>{{1, 2, 3}}));
 }
 
 TEST_F(BasicFragmentationTest, LargePacketSplitAndJoined) {
-  Peer a(&this->link_a), b(&this->link_b);
+  Peer a(&this->link_a_), b(&this->link_b_);
   for (size_t size : {10, 11, 50, 100}) {
     Packet packet = make_packet(size);
     ASSERT_TRUE(a.send(packet));
-    EXPECT_EQ(this->link_a.sent.size(), (size + 9) / 10);  // 10 bytes of payload in each 12 byte fragment
-    EXPECT_EQ(this->link_a.sent.back()[1] & 0x80, 0x80);
-    deliver(this->link_a, this->link_b);
+    EXPECT_EQ(this->link_a_.sent.size(), (size + 9) / 10);  // 10 bytes of payload in each 12 byte fragment
+    EXPECT_EQ(this->link_a_.sent.back()[1] & 0x80, 0x80);
+    deliver(this->link_a_, this->link_b_);
     EXPECT_EQ(b.received.back(), packet);
   }
   EXPECT_EQ(b.received.size(), 4);
 }
 
 TEST_F(BasicFragmentationTest, CompositePacketSplitAcrossFragments) {
-  Peer a(&this->link_a), b(&this->link_b);
+  Peer a(&this->link_a_), b(&this->link_b_);
   Packet pre = make_packet(7), mid(13, 0xAA), post(9, 0x55);
   PacketBuffer body(mid.data(), mid.size());
   ASSERT_TRUE(
       a.fragmentation.send_to_interface(PacketBuffer(pre.data(), pre.size(), &body, post.data(), post.size()), {}));
-  deliver(this->link_a, this->link_b);
+  deliver(this->link_a_, this->link_b_);
   Packet expected = pre;
   expected.insert(expected.end(), mid.begin(), mid.end());
   expected.insert(expected.end(), post.begin(), post.end());
@@ -124,37 +126,37 @@ TEST_F(BasicFragmentationTest, CompositePacketSplitAcrossFragments) {
 }
 
 TEST_F(BasicFragmentationTest, MissingFragmentDropsOnlyThatPacket) {
-  Peer a(&this->link_a), b(&this->link_b);
+  Peer a(&this->link_a_), b(&this->link_b_);
   a.send(make_packet(30));
-  this->link_a.sent.erase(this->link_a.sent.begin() + 1);
-  deliver(this->link_a, this->link_b);
+  this->link_a_.sent.erase(this->link_a_.sent.begin() + 1);
+  deliver(this->link_a_, this->link_b_);
   EXPECT_TRUE(b.received.empty());
   a.send(make_packet(25));
-  deliver(this->link_a, this->link_b);
+  deliver(this->link_a_, this->link_b_);
   EXPECT_EQ(b.received, std::vector<Packet>{make_packet(25)});
 }
 
 TEST_F(BasicFragmentationTest, NotStartedWithoutRoomForAllFragments) {
-  Peer a(&this->link_a);
-  this->link_a.capacity = 2;
+  Peer a(&this->link_a_);
+  this->link_a_.capacity = 2;
   EXPECT_FALSE(a.send(make_packet(30)));  // needs 3
-  EXPECT_TRUE(this->link_a.sent.empty());
+  EXPECT_TRUE(this->link_a_.sent.empty());
   EXPECT_TRUE(a.send(make_packet(20)));
   EXPECT_FALSE(a.send(make_packet(101)));
 }
 
 TEST_F(BasicFragmentationTest, InterleavedSourcesNotMixed) {
-  Peer a(&this->link_a), c(&this->link_a), b(&this->link_b);
+  Peer a(&this->link_a_), c(&this->link_a_), b(&this->link_b_);
   a.send(make_packet(20));
-  auto from_a = std::move(this->link_a.sent);
-  this->link_a.sent.clear();
+  auto from_a = std::move(this->link_a_.sent);
+  this->link_a_.sent.clear();
   c.send(make_packet(20));
-  auto from_c = std::move(this->link_a.sent);
+  auto from_c = std::move(this->link_a_.sent);
   // Fragments from devices 1 and 2 arrive interleaved, perhaps with the same packet number
-  this->link_b.inject(from_a[0], 1);
-  this->link_b.inject(from_c[0], 2);
-  this->link_b.inject(from_a[1], 1);
-  this->link_b.inject(from_c[1], 2);
+  this->link_b_.inject(from_a[0], 1);
+  this->link_b_.inject(from_c[0], 2);
+  this->link_b_.inject(from_a[1], 1);
+  this->link_b_.inject(from_c[1], 2);
   for (auto &packet : b.received)
     EXPECT_EQ(packet, make_packet(20));  // nothing mixed from the two
 }
@@ -162,7 +164,7 @@ TEST_F(BasicFragmentationTest, InterleavedSourcesNotMixed) {
 TEST_F(BasicFragmentationTest, OverReliabilityWithLosses) {
   // Fragmentation above HDLC on each side, with every fourth frame from a dropped on the way; not every third, as
   // each resend is a burst of three, so the same fragment would be lost every time
-  TestHdlc hdlc_a(&this->link_a), hdlc_b(&this->link_b);
+  TestHdlc hdlc_a(&this->link_a_), hdlc_b(&this->link_b_);
   hdlc_a.setup();
   hdlc_b.setup();
   // HDLC adds 3 bytes to the 12 byte link, leaving 7 bytes of payload in each fragment
@@ -175,32 +177,32 @@ TEST_F(BasicFragmentationTest, OverReliabilityWithLosses) {
     hdlc_b.loop();
     if (i % 5 == 4)
       hdlc_a.on_timeout_();
-    for (auto &frame : this->link_a.sent) {
+    for (auto &frame : this->link_a_.sent) {
       if (++count % 4 != 0)
-        this->link_b.inject(frame);
+        this->link_b_.inject(frame);
     }
-    this->link_a.sent.clear();
-    deliver(this->link_b, this->link_a);
+    this->link_a_.sent.clear();
+    deliver(this->link_b_, this->link_a_);
   }
   EXPECT_EQ(b.received, std::vector<Packet>{packet});
 }
 
 TEST_F(BasicFragmentationTest, OversizedSingleFragmentDropped) {
   // A link packet holds more than this layer's max_packet_size
-  BasicFragmentation fragmentation(&this->link_a, 4);
+  BasicFragmentation fragmentation(&this->link_a_, 4);
   std::vector<Packet> received;
   fragmentation.add_packet_interface_listener(
       [&received](const PacketBuffer &data, const PacketMetaData &) { received.push_back(to_vector(data)); });
   fragmentation.setup();
-  this->link_a.inject({0x01, 0x80, 1, 2, 3, 4, 5});
+  this->link_a_.inject({0x01, 0x80, 1, 2, 3, 4, 5});
   EXPECT_TRUE(received.empty());
-  this->link_a.inject({0x02, 0x80, 1, 2, 3, 4});
+  this->link_a_.inject({0x02, 0x80, 1, 2, 3, 4});
   EXPECT_EQ(received, std::vector<Packet>{Packet({1, 2, 3, 4})});
 }
 
 TEST_F(BasicFragmentationTest, LinkTooSmallFailsSetup) {
-  this->link_a.set_max_packet_size(BasicFragmentation::HEADER_SIZE);
-  BasicFragmentation fragmentation(&this->link_a, 100);
+  this->link_a_.set_max_packet_size(BasicFragmentation::HEADER_SIZE);
+  BasicFragmentation fragmentation(&this->link_a_, 100);
   fragmentation.setup();
   EXPECT_TRUE(fragmentation.is_failed());
   Packet packet{1};
