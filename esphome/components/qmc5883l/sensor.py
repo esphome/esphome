@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
     CONF_HEADING,
-    CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RANGE,
     CONF_TEMPERATURE,
@@ -143,9 +142,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_datarate(config[CONF_DATA_RATE]))

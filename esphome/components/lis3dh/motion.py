@@ -21,12 +21,7 @@ CONF_HIGH_PASS_FILTER = "high_pass_filter"
 
 # Enum values must match the C++ enums.
 LIS3DHRange = lis3dh_ns.enum("LIS3DHRange")
-RANGE_OPTIONS = {
-    "2G": LIS3DHRange.LIS3DH_RANGE_2G,
-    "4G": LIS3DHRange.LIS3DH_RANGE_4G,
-    "8G": LIS3DHRange.LIS3DH_RANGE_8G,
-    "16G": LIS3DHRange.LIS3DH_RANGE_16G,
-}
+RANGE_OPTIONS = LIS3DHRange.options("2G", "4G", "8G", "16G", prefix="LIS3DH_RANGE_")
 
 LIS3DHDataRate = lis3dh_ns.enum("LIS3DHDataRate")
 DATA_RATE_OPTIONS = {
@@ -58,17 +53,14 @@ ODR_HZ = {
 DURATION_MAX_REG = 0x7F
 
 LIS3DHOperatingMode = lis3dh_ns.enum("LIS3DHOperatingMode")
-OPERATING_MODE_OPTIONS = {
-    "LOW_POWER": LIS3DHOperatingMode.LIS3DH_MODE_LOW_POWER,
-    "NORMAL": LIS3DHOperatingMode.LIS3DH_MODE_NORMAL,
-    "HIGH_RESOLUTION": LIS3DHOperatingMode.LIS3DH_MODE_HIGH_RESOLUTION,
-}
+OPERATING_MODE_OPTIONS = LIS3DHOperatingMode.options(
+    "LOW_POWER", "NORMAL", "HIGH_RESOLUTION", prefix="LIS3DH_MODE_"
+)
 
 LIS3DHInterruptPin = lis3dh_ns.enum("LIS3DHInterruptPin")
-INTERRUPT_PIN_OPTIONS = {
-    "INT1": LIS3DHInterruptPin.LIS3DH_INT_PIN_INT1,
-    "INT2": LIS3DHInterruptPin.LIS3DH_INT_PIN_INT2,
-}
+INTERRUPT_PIN_OPTIONS = LIS3DHInterruptPin.options(
+    "INT1", "INT2", prefix="LIS3DH_INT_PIN_"
+)
 
 # INT1_CFG high-event bit per axis.
 INT_CFG_HIGH_EVENT = {"x": 0x02, "y": 0x08, "z": 0x20}

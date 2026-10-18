@@ -20,10 +20,9 @@ from esphome.types import ConfigType
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
 
 RotaryEncoderRestoreMode = rotary_encoder_ns.enum("RotaryEncoderRestoreMode")
-RESTORE_MODES = {
-    "RESTORE_DEFAULT_ZERO": RotaryEncoderRestoreMode.ROTARY_ENCODER_RESTORE_DEFAULT_ZERO,
-    "ALWAYS_ZERO": RotaryEncoderRestoreMode.ROTARY_ENCODER_ALWAYS_ZERO,
-}
+RESTORE_MODES = RotaryEncoderRestoreMode.options(
+    "RESTORE_DEFAULT_ZERO", "ALWAYS_ZERO", prefix="ROTARY_ENCODER_"
+)
 
 RotaryEncoderResolution = rotary_encoder_ns.enum("RotaryEncoderResolution")
 RESOLUTIONS = {

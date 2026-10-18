@@ -2,7 +2,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TIME_ID
+from esphome.const import CONF_SENSOR_DATAPOINT, CONF_TIME_ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -83,9 +83,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     if (time_id := config.get(CONF_TIME_ID)) is not None:
         time_ = await cg.get_variable(time_id)
         cg.add(var.set_time_id(time_))
