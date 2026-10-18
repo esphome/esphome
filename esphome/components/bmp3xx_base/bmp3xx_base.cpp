@@ -222,7 +222,7 @@ bool BMP3XXComponent::get_temperature(float &temperature) {
     return false;
   }
   // Copy the temperature data into the adc variables
-  int32_t adc_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
+  int32_t adc_temp = encode_uint24(data[2], data[1], data[0]);
   // Temperature compensation (function from BMP388 datasheet)
   temperature = bmp388_compensate_temperature_((float) adc_temp);
   return true;
@@ -249,8 +249,8 @@ bool BMP3XXComponent::get_measurements(float &temperature, float &pressure) {
     return false;
   }
   // Copy the temperature and pressure data into the adc variables
-  int32_t adc_pres = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
-  int32_t adc_temp = (int32_t) data[5] << 16 | (int32_t) data[4] << 8 | (int32_t) data[3];
+  int32_t adc_pres = encode_uint24(data[2], data[1], data[0]);
+  int32_t adc_temp = encode_uint24(data[5], data[4], data[3]);
 
   // Temperature compensation (function from BMP388 datasheet)
   temperature = bmp388_compensate_temperature_((float) adc_temp);

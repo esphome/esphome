@@ -410,7 +410,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
   temperature = (float) (raw_temp / 65536.0);  // convert measurement to degrees Celsius (page 22 of datasheet)
 
   // pressure MSB is in data[5], LSB is in data[4], XLSB in data[3]
-  int32_t raw_press = (int32_t) data[5] << 16 | (int32_t) data[4] << 8 | (int32_t) data[3];
+  int32_t raw_press = encode_uint24(data[5], data[4], data[3]);
   pressure = (float) (raw_press / 64.0);  // Divide by 2^6=64 for Pa (page 22 of datasheet)
 
   return true;

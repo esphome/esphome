@@ -69,8 +69,7 @@ bool DPS310Component::setup_registers_() {
                (((uint32_t) coef_data_raw[5] >> 4) & 0x0F);
   this->c00_ = DPS310Component::twos_complement(c00_, 20);
 
-  this->c10_ =
-      (((uint32_t) coef_data_raw[5] & 0x0F) << 16) | ((uint32_t) coef_data_raw[6] << 8) | (uint32_t) coef_data_raw[7];
+  this->c10_ = encode_uint24(coef_data_raw[5] & 0x0F, coef_data_raw[6], coef_data_raw[7]);
   this->c10_ = DPS310Component::twos_complement(c10_, 20);
 
   this->c01_ = int16_t(((uint16_t) coef_data_raw[8] << 8) | (uint16_t) coef_data_raw[9]);
@@ -133,8 +132,7 @@ void DPS310Component::read_pressure_() {
     return;
   }
   this->got_pres_ = true;
-  this->raw_pressure_ = DPS310Component::twos_complement(
-      int32_t((uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]))), 24);
+  this->raw_pressure_ = DPS310Component::twos_complement(int32_t(encode_uint24(bytes[0], bytes[1], bytes[2])), 24);
 }
 
 void DPS310Component::read_temperature_() {
@@ -144,8 +142,7 @@ void DPS310Component::read_temperature_() {
     return;
   }
   this->got_temp_ = true;
-  this->raw_temperature_ = DPS310Component::twos_complement(
-      int32_t((uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]))), 24);
+  this->raw_temperature_ = DPS310Component::twos_complement(int32_t(encode_uint24(bytes[0], bytes[1], bytes[2])), 24);
 }
 
 // Calculations are taken from the datasheet which can be found here:

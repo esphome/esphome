@@ -279,8 +279,7 @@ void WaveshareEPaper7C::send_buffers_() {
   uint8_t byte_to_send;
   for (auto &buffer : this->buffers_) {
     for (uint32_t buffer_pos = 0; buffer_pos < small_buffer_length; buffer_pos += 3) {
-      std::bitset<24> triplet =
-          buffer[buffer_pos + 0] << 16 | buffer[buffer_pos + 1] << 8 | buffer[buffer_pos + 2] << 0;
+      std::bitset<24> triplet = encode_uint24(buffer[buffer_pos + 0], buffer[buffer_pos + 1], buffer[buffer_pos + 2]);
       // 8 bitset<3> are stored in 3 bytes
       // |aaabbbaa|abbbaaab|bbaaabbb|
       // | byte 1 | byte 2 | byte 3 |

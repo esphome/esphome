@@ -52,7 +52,7 @@ void MS5611Component::read_temperature_() {
     this->status_set_warning();
     return;
   }
-  const uint32_t raw_temperature = (uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]));
+  const uint32_t raw_temperature = encode_uint24(bytes[0], bytes[1], bytes[2]);
 
   // request pressure reading
   if (!this->write_bytes(MS5611_CMD_CONV_D1 + 0x08, nullptr, 0)) {
@@ -68,7 +68,7 @@ void MS5611Component::read_pressure_(uint32_t raw_temperature) {
     this->status_set_warning();
     return;
   }
-  const uint32_t raw_pressure = (uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]));
+  const uint32_t raw_pressure = encode_uint24(bytes[0], bytes[1], bytes[2]);
   this->calculate_values_(raw_temperature, raw_pressure);
 }
 
