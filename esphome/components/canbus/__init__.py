@@ -80,6 +80,17 @@ CAN_SPEEDS = {
     "1000KBPS": CanSpeed.CAN_1000KBPS,
 }
 
+CAN_DATA_SPEEDS = {
+    **CAN_SPEEDS,
+    "2000KBPS": CanSpeed.CAN_2000KBPS,
+    "3000KBPS": CanSpeed.CAN_3000KBPS,
+    "4000KBPS": CanSpeed.CAN_4000KBPS,
+    "5000KBPS": CanSpeed.CAN_5000KBPS,
+    "6000KBPS": CanSpeed.CAN_6000KBPS,
+    "7000KBPS": CanSpeed.CAN_7000KBPS,
+    "8000KBPS": CanSpeed.CAN_8000KBPS,
+}
+
 
 def get_rate(value: str) -> int:
     match = re.match(r"(\d+)(?:K(\d+)?)?BPS", value, re.IGNORECASE)
