@@ -9,8 +9,8 @@ namespace esphome::usb_host {
 
 void USBHost::setup() {
   usb_host_config_t config{};
-#ifdef USB_HOST_FIFO_RX_LINES
-  // Set by a component whose endpoints need more of the FIFO in one direction than the default split leaves.
+#ifdef USE_USB_HOST_FIFO_CONFIG
+  // Sized in Python from the periodic packets other components requested.
   config.fifo_settings_custom.rx_fifo_lines = USB_HOST_FIFO_RX_LINES;
   config.fifo_settings_custom.nptx_fifo_lines = USB_HOST_FIFO_NPTX_LINES;
   config.fifo_settings_custom.ptx_fifo_lines = USB_HOST_FIFO_PTX_LINES;
