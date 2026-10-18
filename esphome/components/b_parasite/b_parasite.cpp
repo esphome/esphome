@@ -1,4 +1,5 @@
 #include "b_parasite.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::b_parasite {
@@ -68,10 +69,10 @@ bool BParasite::parse_device(const ble_device_base::ESPBTDevice &device) {
   // Temperature in 1000 * Celsius (protocol v1) or 100 * Celsius (protocol v2).
   float temp_celsius;
   if (protocol_version == 1) {
-    uint16_t temp_millicelsius = data[4] << 8 | data[5];
+    uint16_t temp_millicelsius = encode_value<uint16_t>(&data[4]);
     temp_celsius = temp_millicelsius / 1000.0f;
   } else {
-    int16_t temp_centicelsius = data[4] << 8 | data[5];
+    int16_t temp_centicelsius = encode_value<int16_t>(&data[4]);
     temp_celsius = temp_centicelsius / 100.0f;
   }
 
