@@ -53,11 +53,10 @@ ILI9341.extend(
     requires={"psram"},
 )
 
-# GC9107 memory is 130x160; the default visible area is the M5Stack AtomS3R one
 GC9107 = ST7789V.extend(
     "GC9107",
-    native_width=130,
-    native_height=160,
+    native_width=132,
+    native_height=130,
     width=128,
     height=128,
     offset_width=2,
@@ -78,10 +77,6 @@ GC9107.extend(
 
 GC9107.extend(
     "M5STACK-ATOMS3",
-    offset_width=0,
-    offset_height=32,
-    pad_width=2,
-    pad_height=0,
     data_rate="40MHz",
     invert_colors=True,
     reset_pin=34,

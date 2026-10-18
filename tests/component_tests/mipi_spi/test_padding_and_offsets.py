@@ -617,8 +617,8 @@ class TestGC9107Dimensions:
                     "dimensions": {
                         "width": 128,
                         "height": 128,
-                        "offset_width": 0,
-                        "offset_height": 32,
+                        "offset_width": 2,
+                        "offset_height": 1,
                     },
                 },
                 id="gc9107_explicit_offsets",
@@ -632,7 +632,7 @@ class TestGC9107Dimensions:
         rotation: int,
         set_core_config: SetCoreConfigCallable,
     ) -> None:
-        """Pads come from the 130x160 GC9107 memory, so rotation 180 lands on the visible area."""
+        """Pads come from the 132x130 GC9107 memory, so rotation 180 lands on the visible area."""
         set_core_config(
             PlatformFramework.ESP32_IDF,
             platform_data={
@@ -645,7 +645,7 @@ class TestGC9107Dimensions:
         _, templateargs = get_instance(config)
 
         # WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT, PAD_WIDTH, PAD_HEIGHT
-        assert templateargs[5:11] == [128, 128, 0, 32, 2, 0]
+        assert templateargs[5:11] == [128, 128, 2, 1, 2, 1]
         # Hardware rotation swaps in the pads as offsets for rotation 180
         assert templateargs[12] is True
 
