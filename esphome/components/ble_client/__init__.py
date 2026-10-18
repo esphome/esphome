@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 import functools
 from typing import Any
 
@@ -363,6 +363,13 @@ async def register_gatt_node(var, config):
     parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
     _request_gatt_node_build()
     cg.add(parent.register_gatt_node(var))
+
+
+def new_ble_node_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Construct, register and attach to the BLE client; args go to the constructor."""
+    return cg.new_bus_component(register_ble_node, config, *args)
 
 
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(

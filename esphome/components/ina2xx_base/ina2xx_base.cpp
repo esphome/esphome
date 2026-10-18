@@ -50,15 +50,13 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 
 void INA2XX::setup() {
   if (!this->reset_config_()) {
-    ESP_LOGE(TAG, "Reset failed, check connection");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Reset failed, check connection"));
     return;
   }
   delay(2);
 
   if (!this->check_device_model_()) {
-    ESP_LOGE(TAG, "Device not supported or model selected improperly in yaml file");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Device not supported or model selected improperly in yaml file"));
     return;
   }
   delay(1);
@@ -196,9 +194,6 @@ void INA2XX::dump_config() {
   if (this->device_mismatch_) {
     ESP_LOGE(TAG, "  Device model mismatch. Found device with ID = %x. Please check your configuration.",
              this->dev_id_);
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,

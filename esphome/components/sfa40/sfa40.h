@@ -25,14 +25,8 @@ class SFA40Component final : public PollingComponent, public sensirion_common::S
     PRODUCTION = 1,
     PROTOTYPE = 2,
   };
-  enum ErrorCode : uint8_t {
-    UNKNOWN_ERROR = 0,
-    PROTOCOL_DETECTION_FAILED,
-    MEASUREMENT_INIT_FAILED,
-  };
   bool detect_protocol_();
   ProtocolVersion protocol_version_{UNKNOWN};
-  ErrorCode error_code_{UNKNOWN_ERROR};
   char device_marking_[11]{};
   bool initialized_{false};
   bool wait_for_ready_{true};

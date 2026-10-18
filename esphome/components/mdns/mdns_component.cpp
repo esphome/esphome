@@ -62,12 +62,9 @@ const char *MDNSComponent::connected_network_() const {
   return nullptr;
 }
 
-void MDNSComponent::update_network_txt_() {
-  if (this->network_txt_ == nullptr)
-    return;
+void MDNSComponent::update_network_txt_(const char *network) {
   // With no interface connected, keep the last value instead of flapping to wifi
-  const char *network = this->connected_network_();
-  if (network == nullptr || network == this->network_txt_)
+  if (this->network_txt_ == nullptr || network == nullptr || network == this->network_txt_)
     return;
   if (!this->publish_network_txt_(network)) {
     // The _esphomelib service is missing, so a retry would fail too
@@ -80,6 +77,21 @@ void MDNSComponent::update_network_txt_() {
   this->network_record_->value = MDNS_STR(network);
 #endif
 }
+
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+void MDNSComponent::on_active_interface(network::NetworkInterface interface) {
+  switch (interface) {
+    case network::NetworkInterface::NETWORK_INTERFACE_ETHERNET:
+      this->update_network_txt_(NETWORK_ETHERNET);
+      break;
+    case network::NetworkInterface::NETWORK_INTERFACE_WIFI:
+      this->update_network_txt_(NETWORK_WIFI);
+      break;
+    default:
+      break;
+  }
+}
+#endif
 #endif
 
 void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_register) {

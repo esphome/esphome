@@ -101,6 +101,8 @@ class BME680Component final : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
+  /// Configure the sensor registers; false on an I2C failure.
+  bool setup_registers_();
   /// Calculate the heater resistance value to send to the BME680 register.
   uint8_t calc_heater_resistance_(uint16_t temperature);
   /// Calculate the heater duration value to send to the BME680 register.

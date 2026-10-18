@@ -39,4 +39,5 @@ async def to_code(config: ConfigType) -> None:
         step=0,
     )
     await cg.register_component(var, config)
-    setup_home_assistant_entity(var, config)
+    # 1 state + min/max/step fetches in HomeassistantNumber::setup()
+    setup_home_assistant_entity(var, config, state_subscription_count=4)
