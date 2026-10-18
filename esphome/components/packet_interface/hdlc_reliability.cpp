@@ -28,10 +28,9 @@ static uint16_t frame_crc(uint8_t control, const uint8_t *payload, size_t length
   return crc16(payload, length, crc);
 }
 
-HdlcReliability::HdlcReliability(PacketInterface *lower) : lower_(lower) {
+HdlcReliability::HdlcReliability(PacketInterface *lower)
+    : PacketInterface(remaining_packet_size(lower->get_max_packet_size(), FRAME_OVERHEAD)), lower_(lower) {
   this->stack_on_(lower, CAPABILITY_RELIABILITY);
-  size_t lower_size = lower->get_max_packet_size();
-  this->max_packet_size_ = lower_size > FRAME_OVERHEAD ? lower_size - FRAME_OVERHEAD : 0;
 }
 
 void HdlcReliability::setup() {

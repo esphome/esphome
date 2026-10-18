@@ -22,7 +22,7 @@ using Frame = std::vector<uint8_t>;
 // A link layer that records what is sent, so a test can deliver it to the peer
 class MockLink : public PacketInterface {
  public:
-  MockLink() { this->set_max_packet_size(64); }
+  explicit MockLink(size_t max_packet_size = 64) : PacketInterface(max_packet_size) {}
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &) override {
     if (this->budget == 0) {
       this->refused++;
@@ -374,8 +374,7 @@ TEST_F(HdlcReliabilityTest, OversizedFrameDropped) {
 }
 
 TEST_F(HdlcReliabilityTest, LinkTooSmallFailsSetup) {
-  MockLink link;
-  link.set_max_packet_size(HdlcReliability::FRAME_OVERHEAD);
+  MockLink link(HdlcReliability::FRAME_OVERHEAD);
   TestHdlc hdlc(&link);
   EXPECT_EQ(hdlc.get_max_packet_size(), 0);
   hdlc.setup();
