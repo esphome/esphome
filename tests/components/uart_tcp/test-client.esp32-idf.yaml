@@ -13,7 +13,15 @@ uart_tcp:
     port: 502
     reconnect_interval: 10s
     timeout: 30s
+
+binary_sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     connected:
       name: UART TCP Connected
+
+sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     disconnects:
       name: UART TCP Disconnects

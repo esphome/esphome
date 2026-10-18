@@ -89,29 +89,27 @@ BW = {
     "500_0kHz": SX126xBw.SX126X_BW_500000,
 }
 
-CODING_RATE = {
-    "CR_4_5": SX126xLoraCr.LORA_CR_4_5,
-    "CR_4_6": SX126xLoraCr.LORA_CR_4_6,
-    "CR_4_7": SX126xLoraCr.LORA_CR_4_7,
-    "CR_4_8": SX126xLoraCr.LORA_CR_4_8,
-}
+CODING_RATE = SX126xLoraCr.options(
+    "CR_4_5", "CR_4_6", "CR_4_7", "CR_4_8", prefix="LORA_"
+)
 
 MOD = {
     "LORA": SX126xPacketType.PACKET_TYPE_LORA,
     "FSK": SX126xPacketType.PACKET_TYPE_GFSK,
 }
 
-TCXO_VOLTAGE = {
-    "1_6V": SX126xTcxoCtrl.TCXO_CTRL_1_6V,
-    "1_7V": SX126xTcxoCtrl.TCXO_CTRL_1_7V,
-    "1_8V": SX126xTcxoCtrl.TCXO_CTRL_1_8V,
-    "2_2V": SX126xTcxoCtrl.TCXO_CTRL_2_2V,
-    "2_4V": SX126xTcxoCtrl.TCXO_CTRL_2_4V,
-    "2_7V": SX126xTcxoCtrl.TCXO_CTRL_2_7V,
-    "3_0V": SX126xTcxoCtrl.TCXO_CTRL_3_0V,
-    "3_3V": SX126xTcxoCtrl.TCXO_CTRL_3_3V,
-    "NONE": SX126xTcxoCtrl.TCXO_CTRL_NONE,
-}
+TCXO_VOLTAGE = SX126xTcxoCtrl.options(
+    "1_6V",
+    "1_7V",
+    "1_8V",
+    "2_2V",
+    "2_4V",
+    "2_7V",
+    "3_0V",
+    "3_3V",
+    "NONE",
+    prefix="TCXO_CTRL_",
+)
 
 RAMP = {
     "10us": SX126xRampTime.PA_RAMP_10,
@@ -240,9 +238,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),

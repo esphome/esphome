@@ -11,8 +11,16 @@ tcp_uart:
     allowed_ips:
       - 192.0.2.20
       - 192.0.2.0/24
+
+binary_sensor:
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_server
     connected:
       name: TCP UART Server Connected
+
+sensor:
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_server
     disconnects:
       name: TCP UART Server Disconnects
 

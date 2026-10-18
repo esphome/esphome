@@ -39,9 +39,6 @@ void Husb238Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HUSB238:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "PD Attached", this->attached_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "CC Direction", this->cc_direction_binary_sensor_);

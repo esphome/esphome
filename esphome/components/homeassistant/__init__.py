@@ -1,8 +1,11 @@
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ATTRIBUTE, CONF_ENTITY_ID, CONF_ID, CONF_INTERNAL
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -59,7 +62,28 @@ def final_validate_entity_id(config: ConfigType) -> ConfigType:
     return config
 
 
-def setup_home_assistant_entity(var: MockObj, config: ConfigType) -> None:
+@dataclass
+class HomeAssistantData:
+    state_subscription_count: int = 0
+
+
+def _get_data() -> HomeAssistantData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = HomeAssistantData()
+    return CORE.data[DOMAIN]
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _emit_state_subscription_count_define() -> None:
+    """Emit the HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT define with the total count."""
+    count = _get_data().state_subscription_count
+    if count > 0:
+        cg.add_define("HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT", count)
+
+
+def setup_home_assistant_entity(
+    var: MockObj, config: ConfigType, state_subscription_count: int = 1
+) -> None:
     from esphome.components.api import wizard
 
     if (buffer := wizard.wizard_input_buffer(config[CONF_ID])) is not None:
@@ -70,3 +94,8 @@ def setup_home_assistant_entity(var: MockObj, config: ConfigType) -> None:
     if CONF_ATTRIBUTE in config:
         cg.add(var.set_attribute(config[CONF_ATTRIBUTE]))
     cg.add_define("USE_API_HOMEASSISTANT_STATES")
+    if state_subscription_count > 0:
+        data = _get_data()
+        if data.state_subscription_count == 0:
+            CORE.add_job(_emit_state_subscription_count_define)
+        data.state_subscription_count += state_subscription_count

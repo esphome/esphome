@@ -4,7 +4,6 @@ from esphome.components import display
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_RESET_PIN,
@@ -51,8 +50,4 @@ async def setup_st7567(var: MockObj, config: ConfigType) -> None:
         cg.add(var.init_mirror_x(transform[CONF_MIRROR_X]))
         cg.add(var.init_mirror_y(transform[CONF_MIRROR_Y]))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

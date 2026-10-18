@@ -84,10 +84,7 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
 
   // Read a minimal packet
   if (this->read_array(cmd, 6)) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(6)];
-    ESP_LOGV(TAG, "[%04d] Reading from dimmer: %s", this->write_count_, format_hex_pretty_to(hex_buf, cmd, 6));
-#endif
+    ESP_LOGV_HEX(TAG, cmd, 6, 6, "[%04d] Reading from dimmer: %s", this->write_count_);
 
     if (cmd[0] != 0xAA || cmd[1] != 0x55) {
       ESP_LOGW(TAG, "[%04d] RX: wrong header (%x%x, must be AA55)", this->write_count_, cmd[0], cmd[1]);
@@ -101,10 +98,7 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
       return false;
     }
     if (this->read_array(&cmd[6], cmd[5] + 1 /*checksum suffix*/)) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf2[format_hex_pretty_size(SONOFF_D1_MAX_CMD_SIZE)];
-      ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty_to(hex_buf2, &cmd[6], cmd[5] + 1));
-#endif
+      ESP_LOGV_HEX(TAG, &cmd[6], cmd[5] + 1, SONOFF_D1_MAX_CMD_SIZE, "[%04d] %s", this->write_count_);
 
       // Check the checksum
       uint8_t valid_checksum = this->calc_checksum_(cmd, cmd[5] + 7);
@@ -178,10 +172,7 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   // 2. UART command initiated by this component can clash with a command initiated by RF
   uint32_t retries = 10;
   do {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(SONOFF_D1_MAX_CMD_SIZE)];
-    ESP_LOGV(TAG, "[%04d] Writing to the dimmer: %s", this->write_count_, format_hex_pretty_to(hex_buf, cmd, len));
-#endif
+    ESP_LOGV_HEX(TAG, cmd, len, SONOFF_D1_MAX_CMD_SIZE, "[%04d] Writing to the dimmer: %s", this->write_count_);
     this->write_array(cmd, len);
     this->write_count_++;
     if (!needs_ack)

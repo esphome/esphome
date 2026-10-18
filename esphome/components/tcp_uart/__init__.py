@@ -1,8 +1,7 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, sensor, socket, uart
+from esphome.components import socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
-    CONF_CONNECTED,
     CONF_DATA_BITS,
     CONF_HOST,
     CONF_PARITY,
@@ -11,24 +10,16 @@ from esphome.components.const import (
     CONF_STOP_BITS,
 )
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BAUD_RATE,
-    CONF_ID,
-    CONF_PORT,
-    CONF_TIMEOUT,
-    DEVICE_CLASS_CONNECTIVITY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_TOTAL_INCREASING,
-)
+from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_PORT, CONF_TIMEOUT
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["uart", "binary_sensor", "sensor", "socket"]
+AUTO_LOAD = ["uart", "socket"]
 DOMAIN = "tcp_uart"
 MULTI_CONF = True
 
-CONF_DISCONNECTS = "disconnects"
+CONF_TCP_UART_ID = "tcp_uart_id"
 
 tcp_uart_ns = cg.esphome_ns.namespace("tcp_uart")
 TcpUart = tcp_uart_ns.class_("TcpUart", uart.UARTComponent, cg.Component)
@@ -48,15 +39,6 @@ BASE_SCHEMA = cv.Schema(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_CONNECTIVITY,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
-        cv.Optional(CONF_DISCONNECTS): sensor.sensor_schema(
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -106,7 +88,3 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_parity(config[CONF_PARITY]))
     if (host := config.get(CONF_HOST)) is not None:
         cg.add(var.set_host(host))
-    binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
-    sensors = sensor.sub_sensors(config)
-    await sensors(CONF_DISCONNECTS, var.set_disconnects_sensor)
