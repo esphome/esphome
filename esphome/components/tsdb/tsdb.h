@@ -91,21 +91,21 @@ class TsdbComponent : public PollingComponent {
   uint32_t last_reopen_{0};
   uint32_t writes_{0};
   uint32_t write_errors_{0};
+  // Apart from write_errors_: a database that never returns is not a write failure.
+  uint32_t reopen_errors_{0};
   uint32_t dropped_{0};
   uint32_t dropped_missing_{0};
   uint32_t saturated_{0};
   uint32_t held_{0};
   uint32_t last_sync_{0};
   uint32_t last_timestamp_{0};
-  // Added to an uptime timestamp (a device without a clock) so the series
-  // continues after the newest stored record instead of restarting at 0.
+  // Added to an uptime timestamp so the series continues after the newest stored record.
   uint32_t uptime_offset_{0};
   bool dirty_{false};
   bool warned_time_{false};
   bool warned_backwards_{false};
-  // Set when the stored statistics could not be read, so an uptime timestamp
-  // cannot be placed after the history already on disk.
-  bool stats_unknown_{false};
+  // Raised by a failed sync, cleared by the next one, so a successful write cannot.
+  bool sync_failed_{false};
 };
 
 }  // namespace esphome::tsdb
