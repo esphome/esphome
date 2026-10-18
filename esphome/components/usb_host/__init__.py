@@ -157,13 +157,10 @@ def _fifo_lines(size: int) -> int:
     return -(-size // FIFO_LINE_BYTES)
 
 
-def _bias_split() -> tuple[int, int, int] | None:
+def _bias_option() -> str | None:
     framework = fv.full_config.get().get("esp32", {}).get(CONF_FRAMEWORK, {})
     options = framework.get("sdkconfig_options", {})
-    for option, split in FIFO_BIAS_SPLITS.items():
-        if options.get(option) in ("y", True):
-            return split
-    return None
+    return next((o for o in FIFO_BIAS_SPLITS if options.get(o) in ("y", True)), None)
 
 
 def fifo_split() -> tuple[int, int, int] | None:
@@ -174,14 +171,17 @@ def fifo_split() -> tuple[int, int, int] | None:
     in_bytes, out_bytes = requested
     rx = _fifo_lines(in_bytes) + FIFO_RX_STATUS_LINES
     ptx = _fifo_lines(out_bytes)
-    bias = _bias_split()
-    default_rx, _, default_ptx = bias or FIFO_BALANCED_SPLIT
+    bias = _bias_option()
+    default_rx, _, default_ptx = FIFO_BIAS_SPLITS[bias] if bias else FIFO_BALANCED_SPLIT
     if rx <= default_rx and ptx <= default_ptx:
         return None
-    # Keep what a user-selected bias reserves
-    min_rx, _, min_ptx = bias or (FIFO_RX_MIN_LINES, 0, FIFO_PTX_MIN_LINES)
-    rx = max(min_rx, rx)
-    ptx = max(min_ptx, ptx)
+    if bias:
+        raise cv.Invalid(
+            f"The requested USB packets don't fit the FIFO split {bias} selects; remove it from "
+            "sdkconfig_options so usb_host can size the FIFO"
+        )
+    rx = max(FIFO_RX_MIN_LINES, rx)
+    ptx = max(FIFO_PTX_MIN_LINES, ptx)
     spare = FIFO_LINES - FIFO_NPTX_LINES - rx - ptx
     if spare < 0:
         raise cv.Invalid(

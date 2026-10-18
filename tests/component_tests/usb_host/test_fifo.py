@@ -158,7 +158,7 @@ def test_request_conflicting_with_the_selected_bias_is_rejected(
 ) -> None:
     _set_bias(set_core_config, option)
     usb_host.request_periodic_fifo(in_bytes=in_bytes, out_bytes=out_bytes)
-    with pytest.raises(cv.Invalid, match="bytes of USB FIFO"):
+    with pytest.raises(cv.Invalid, match=f"FIFO split {option} selects"):
         usb_host.fifo_split()
 
 
