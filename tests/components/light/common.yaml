@@ -83,6 +83,12 @@ esphome:
           call.perform();
 
       - light.toggle: test_binary_light
+      - light.toggle:
+          id: test_monochromatic_light
+          transition_length: 500ms
+      - light.toggle:
+          id: test_monochromatic_light
+          transition_length: !lambda "return 250;"
       - light.turn_off: test_rgb_light
       - if:
           condition:
