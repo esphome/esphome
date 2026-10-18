@@ -189,13 +189,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_draw_from_origin(config[CONF_DRAW_FROM_ORIGIN]))
     cg.add(var.set_draw_rounding(config[CONF_DRAW_ROUNDING]))
-    if enable_pin := config.get(CONF_ENABLE_PIN):
-        enable = await cg.gpio_pin_expression(enable_pin)
-        cg.add(var.set_enable_pin(enable))
-
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     if transform := config.get(CONF_TRANSFORM):
         cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))

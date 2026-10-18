@@ -171,13 +171,8 @@ async def to_code(config: ConfigType) -> None:
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
 
-    if enable_pin := config.get(CONF_ENABLE_PIN):
-        enable = await cg.gpio_pin_expression(enable_pin)
-        cg.add(var.set_enable_pin(enable))
-
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     if CONF_DIMENSIONS in config:
         dimensions = config[CONF_DIMENSIONS]
@@ -198,11 +193,7 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_writer(lambda_))
 
-    pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
-    cg.add(var.set_de_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
-    cg.add(var.set_pclk_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_HSYNC_PIN])
-    cg.add(var.set_hsync_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_VSYNC_PIN])
-    cg.add(var.set_vsync_pin(pin))
+    await cg.add_pin(var.set_de_pin, config[CONF_DE_PIN])
+    await cg.add_pin(var.set_pclk_pin, config[CONF_PCLK_PIN])
+    await cg.add_pin(var.set_hsync_pin, config[CONF_HSYNC_PIN])
+    await cg.add_pin(var.set_vsync_pin, config[CONF_VSYNC_PIN])

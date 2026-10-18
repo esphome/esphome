@@ -23,9 +23,7 @@ SSD1331_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 async def setup_ssd1331(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     if CONF_BRIGHTNESS in config:
         cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
     if CONF_LAMBDA in config:

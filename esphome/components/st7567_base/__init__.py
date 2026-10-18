@@ -40,9 +40,7 @@ ST7567_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 async def setup_st7567(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     cg.add(var.init_invert_colors(config[CONF_INVERT_COLORS]))
 

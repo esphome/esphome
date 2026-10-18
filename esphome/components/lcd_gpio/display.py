@@ -44,15 +44,9 @@ async def to_code(config: ConfigType) -> None:
     await lcd_base.setup_lcd_display(var, config)
     pins_ = [await cg.gpio_pin_expression(conf) for conf in config[CONF_DATA_PINS]]
     cg.add(var.set_data_pins(*pins_))
-    enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
-    cg.add(var.set_enable_pin(enable))
-
-    rs = await cg.gpio_pin_expression(config[CONF_RS_PIN])
-    cg.add(var.set_rs_pin(rs))
-
-    if CONF_RW_PIN in config:
-        rw = await cg.gpio_pin_expression(config[CONF_RW_PIN])
-        cg.add(var.set_rw_pin(rw))
+    await cg.add_pin(var.set_enable_pin, config[CONF_ENABLE_PIN])
+    await cg.add_pin(var.set_rs_pin, config[CONF_RS_PIN])
+    await cg.add_pin(var.set_rw_pin, config.get(CONF_RW_PIN))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

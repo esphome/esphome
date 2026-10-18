@@ -81,9 +81,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 async def setup_st7735(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
@@ -111,5 +109,4 @@ async def to_code(config: ConfigType) -> None:
     await setup_st7735(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])

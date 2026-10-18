@@ -32,9 +32,7 @@ async def setup_sh1122(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
-    if (reset_pin := config.get(CONF_RESET_PIN)) is not None:
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
     if (lambda_config := config.get(CONF_LAMBDA)) is not None:
         lambda_ = await cg.process_lambda(

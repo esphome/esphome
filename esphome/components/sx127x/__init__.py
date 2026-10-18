@@ -232,11 +232,8 @@ async def to_code(config: ConfigType) -> None:
             ],
             config[CONF_ON_PACKET],
         )
-    if CONF_DIO0_PIN in config:
-        dio0_pin = await cg.gpio_pin_expression(config[CONF_DIO0_PIN])
-        cg.add(var.set_dio0_pin(dio0_pin))
-    rst_pin = await cg.gpio_pin_expression(config[CONF_RST_PIN])
-    cg.add(var.set_rst_pin(rst_pin))
+    await cg.add_pin(var.set_dio0_pin, config.get(CONF_DIO0_PIN))
+    await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
     cg.add(var.set_auto_cal(config[CONF_AUTO_CAL]))
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
