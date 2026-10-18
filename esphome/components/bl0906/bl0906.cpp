@@ -20,8 +20,7 @@ constexpr uint8_t bl0906_checksum(const uint8_t address, const DataPacket *data)
 }
 
 void BL0906::loop() {
-  while (this->available())
-    this->read();
+  this->discard_available();
 
   if (this->current_stage_ == STAGE_IDLE) {
     // Woken up between cycles to drain the action queue. Go back to sleep.
@@ -92,8 +91,7 @@ void BL0906::advance_stage_() {
 }
 
 void BL0906::setup() {
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write_array(USR_WRPROT_WITABLE, sizeof(USR_WRPROT_WITABLE));
   // Calibration (1: register address; 2: value before calibration; 3: value after calibration)
   this->bias_correction_(BL0906_RMSOS_1, 0.01600, 0);  // Calibration current_1
@@ -134,9 +132,7 @@ void BL0906::handle_actions_() {
     }
   }
 
-  while (this->available()) {
-    this->read();
-  }
+  this->discard_available();
 
   this->action_queue_.clear();
 }

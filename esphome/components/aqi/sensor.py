@@ -53,11 +53,8 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    pm_2_5_sensor = await cg.get_variable(config[CONF_PM_2_5])
-    cg.add(var.set_pm_2_5_sensor(pm_2_5_sensor))
-
-    pm_10_0_sensor = await cg.get_variable(config[CONF_PM_10_0])
-    cg.add(var.set_pm_10_0_sensor(pm_10_0_sensor))
+    await cg.add_variable(var.set_pm_2_5_sensor, config[CONF_PM_2_5])
+    await cg.add_variable(var.set_pm_10_0_sensor, config[CONF_PM_10_0])
 
     cg.add(var.set_aqi_calculation_type(config[CONF_CALCULATION_TYPE]))
     cg.add(var.set_extended_range(config.get(CONF_EXTENDED_RANGE, False)))
