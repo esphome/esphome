@@ -91,6 +91,7 @@ class BME68xBSEC2Component : public Component {
   void read_(int64_t trigger_time_ns);
   void publish_(const bsec_output_t *outputs, uint8_t num_outputs);
   int64_t get_time_ns_();
+  void check_status_();
 
 #ifdef USE_SENSOR
   void publish_sensor_(sensor::Sensor *sensor, float value, bool change_only = false);

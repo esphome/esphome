@@ -3,11 +3,10 @@
 
 #include "bme280_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
-
-#define BME280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
 namespace esphome::bme280_base {
 
@@ -100,13 +99,11 @@ void BME280Component::setup() {
   }
 
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x60) {
-    this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(LOG_STR(BME280_ERROR_WRONG_CHIP_ID));
+    this->mark_failed(LOG_STR("Wrong chip ID or no response"));
     return;
   }
 
@@ -148,11 +145,10 @@ void BME280Component::setup() {
   this->calibration_.h1 = read_u8_(BME280_REGISTER_DIG_H1);
   this->calibration_.h2 = read_s16_le_(BME280_REGISTER_DIG_H2);
   this->calibration_.h3 = read_u8_(BME280_REGISTER_DIG_H3);
-  // h4 and h5 are signed 12-bit values; shift left then arithmetic right shift to sign-extend
-  int16_t h4_raw = read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F);
-  this->calibration_.h4 = static_cast<int16_t>(h4_raw << 4) >> 4;
-  int16_t h5_raw = read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4);
-  this->calibration_.h5 = static_cast<int16_t>(h5_raw << 4) >> 4;
+  this->calibration_.h4 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F));
+  this->calibration_.h5 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4));
   this->calibration_.h6 = read_u8_(BME280_REGISTER_DIG_H6);
 
   uint8_t humid_control_val = 0;
@@ -182,17 +178,6 @@ void BME280Component::setup() {
 }
 void BME280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME280:");
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, BME280_ERROR_WRONG_CHIP_ID);
-      break;
-    case NONE:
-    default:
-      break;
-  }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
 
@@ -350,8 +335,8 @@ uint8_t BME280Component::read_u8_(uint8_t a_register) {
 }
 uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
-  this->read_byte_16(a_register, &data);
-  return (data >> 8) | (data << 8);
+  this->read_byte_16_le(a_register, &data);
+  return data;
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 

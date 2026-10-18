@@ -152,11 +152,6 @@ class PN532 : public PollingComponent {
     FORMAT,
     WRITE,
   };
-  enum PN532Error : uint8_t {
-    NONE = 0,
-    WAKEUP_FAILED,
-    SAM_COMMAND_FAILED,
-  };
 
   // members are ordered by alignment, widest first, to minimize padding
   LazyCallbackManager<void()> on_finished_write_callback_;
@@ -174,7 +169,6 @@ class PN532 : public PollingComponent {
   uint32_t rd_start_time_{0};  // valid only while rd_started_ is set
   PN532ReadReady rd_ready_{WOULDBLOCK};
   NfcTask next_task_{READ};
-  PN532Error error_code_{NONE};
   bool rd_started_{false};
   bool updates_enabled_{true};
   bool requested_read_{false};

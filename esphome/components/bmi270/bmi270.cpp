@@ -78,30 +78,19 @@ bool BMI270Component::load_config_file_() {
 void BMI270Component::setup() {
   MotionComponent::setup();
   // 1. Verify chip ID
-  uint8_t chip_id = 0;
-  if (!this->read_byte(BMI270_REG_CHIP_ID, &chip_id)) {
-    ESP_LOGE(TAG, "Failed to read chip ID – check wiring / address");
-    this->mark_failed();
+  if (!this->check_chip_id(this, BMI270_REG_CHIP_ID, BMI270_CHIP_ID_VALUE))
     return;
-  }
-  if (chip_id != BMI270_CHIP_ID_VALUE) {
-    ESP_LOGE(TAG, "Wrong chip ID: 0x%02X (expected 0x%02X)", chip_id, BMI270_CHIP_ID_VALUE);
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGD(TAG, "Chip ID: 0x%02X", chip_id);
 
   // 2. Soft-reset via CMD register (0x7E = 0xB6)
   if (!this->write_byte(BMI270_REG_CMD, BMI270_CMD_SOFT_RESET)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(20);
 
   // 4. Upload the configuration blob
   if (!load_config_file_()) {
-    ESP_LOGE(TAG, "Config file upload failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Config file upload failed"));
     return;
   }
   ESP_LOGD(TAG, "Config blob uploaded ✓");
@@ -111,11 +100,11 @@ void BMI270Component::setup() {
   uint8_t acc_conf =
       (uint8_t) (accel_odr_) | (BMI270_CONF_BWP_NORMAL << BMI270_CONF_BWP_SHIFT) | BMI270_ACC_CONF_PERF_MODE;
   if (!this->write_byte(BMI270_REG_ACC_CONF, acc_conf)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(BMI270_REG_ACC_RANGE, (uint8_t) accel_range_)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -124,18 +113,18 @@ void BMI270Component::setup() {
   uint8_t gyr_conf = (uint8_t) (gyro_odr_) | (BMI270_CONF_BWP_NORMAL << BMI270_CONF_BWP_SHIFT) |
                      BMI270_GYR_CONF_NOISE_PERF | BMI270_GYR_CONF_FILTER_PERF;
   if (!this->write_byte(BMI270_REG_GYR_CONF, gyr_conf)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(BMI270_REG_GYR_RANGE, (uint8_t) gyro_range_)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // 7. Enable accelerometer, gyroscope, and temperature sensor
   //    PWR_CTRL bits: temp_en[3] | gyr_en[2] | acc_en[1]
   if (!this->write_byte(BMI270_REG_PWR_CTRL, BMI270_PWR_CTRL_IMU)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(5);
@@ -143,7 +132,7 @@ void BMI270Component::setup() {
   // 8. Re-enable advanced power save (optional; keeps current low between reads)
   // Disabled here for simplicity – leave in performance mode
   if (!this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_FIFO_SELF_WAKEUP)) {  // bit1 = fifo_self_wakeup
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -272,10 +261,8 @@ bool BMI270Component::setup_magnetometer_() {
 void BMI270Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMI270 IMU:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Communication failed!");
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Accel range : %s",
                 LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_, AccelRangeStrings::LAST_INDEX)));
