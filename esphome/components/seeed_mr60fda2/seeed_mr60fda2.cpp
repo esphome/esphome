@@ -329,10 +329,7 @@ void MR60FDA2Component::set_install_height(uint8_t index) {
   float_to_bytes(INSTALL_HEIGHT[index], &send_data[8]);
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(13)];
-#endif
-  ESP_LOGV(TAG, "SEND INSTALL HEIGHT FRAME: %s", format_hex_pretty_to(hex_buf, send_data, 13));
+  ESP_LOGV_HEX(TAG, send_data, 13, 13, "SEND INSTALL HEIGHT FRAME: %s");
 }
 
 void MR60FDA2Component::set_height_threshold(uint8_t index) {
@@ -342,10 +339,7 @@ void MR60FDA2Component::set_height_threshold(uint8_t index) {
   float_to_bytes(HEIGHT_THRESHOLD[index], &send_data[8]);
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(13)];
-#endif
-  ESP_LOGV(TAG, "SEND HEIGHT THRESHOLD: %s", format_hex_pretty_to(hex_buf, send_data, 13));
+  ESP_LOGV_HEX(TAG, send_data, 13, 13, "SEND HEIGHT THRESHOLD: %s");
 }
 
 void MR60FDA2Component::set_sensitivity(uint8_t index) {
@@ -357,28 +351,19 @@ void MR60FDA2Component::set_sensitivity(uint8_t index) {
 
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(13)];
-#endif
-  ESP_LOGV(TAG, "SEND SET SENSITIVITY: %s", format_hex_pretty_to(hex_buf, send_data, 13));
+  ESP_LOGV_HEX(TAG, send_data, 13, 13, "SEND SET SENSITIVITY: %s");
 }
 
 void MR60FDA2Component::get_radar_parameters() {
   uint8_t send_data[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x06, 0xF6};
   this->write_array(send_data, 8);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(8)];
-#endif
-  ESP_LOGV(TAG, "SEND GET PARAMETERS: %s", format_hex_pretty_to(hex_buf, send_data, 8));
+  ESP_LOGV_HEX(TAG, send_data, 8, 8, "SEND GET PARAMETERS: %s");
 }
 
 void MR60FDA2Component::factory_reset() {
   uint8_t send_data[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x21, 0x10, 0xCF};
   this->write_array(send_data, 8);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(8)];
-#endif
-  ESP_LOGV(TAG, "SEND RESET: %s", format_hex_pretty_to(hex_buf, send_data, 8));
+  ESP_LOGV_HEX(TAG, send_data, 8, 8, "SEND RESET: %s");
   this->get_radar_parameters();
 }
 
