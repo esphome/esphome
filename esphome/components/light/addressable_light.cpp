@@ -51,8 +51,10 @@ static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
 // scale and sent again, so every write path is limited and each pixel reads back as the level it
 // was written with
 void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
-  const uint8_t previous = this->correction_.get_power_brightness();
   const uint8_t scale = this->power_scale_for_(sums);
+  if (this->max_current_ma_ <= 0.0f)
+    return;  // estimate only; a partition's factor mirrors the strip it draws on
+  const uint8_t previous = this->correction_.get_power_brightness();
   if (scale == previous)
     return;
   this->correction_.set_power_brightness(scale);

@@ -87,6 +87,19 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
     }
 )
 
+
+def _no_power_estimation(config: ConfigType) -> ConfigType:
+    if light.CONF_POWER_ESTIMATION in config:
+        raise cv.Invalid(
+            "power_estimation belongs on the strip a partition draws from; "
+            "the strip's limit covers every partition on it",
+            [light.CONF_POWER_ESTIMATION],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _no_power_estimation)
+
 FINAL_VALIDATE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SEGMENTS): [validate_segment],

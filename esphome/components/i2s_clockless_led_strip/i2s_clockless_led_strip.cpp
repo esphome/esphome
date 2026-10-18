@@ -186,6 +186,8 @@ void I2SClocklessLedStrip::write_state(light::LightState *state) {
     this->schedule_show();
     return;
   }
+  // Before the encoding below, so the transmit buffer carries the limited frame
+  this->mark_shown_();
 
   const size_t color_data_bytes = this->color_data_bytes_;
   uint8_t *color_data = this->color_data_;
@@ -199,8 +201,6 @@ void I2SClocklessLedStrip::write_state(light::LightState *state) {
 
   this->i2s_data_sent_ = 0;
   this->i2s_data_ready_.store(true, std::memory_order_release);
-
-  this->mark_shown_();
 }
 
 bool IRAM_ATTR HOT I2SClocklessLedStrip::i2s_on_sent_callback(i2s_chan_handle_t handle, i2s_event_data_t *event,

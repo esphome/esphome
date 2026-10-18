@@ -128,8 +128,8 @@ TEST(PowerLimit, LevelsDoNotCreepOverALimitCycle) {
   // Lit channels stay lit while limited
   for (int i = 0; i < 4; i++)
     EXPECT_GE(strip[i].get_green_raw(), 1) << i;
-  // The budget goes away and the next frame restores the scale
-  strip.set_power_estimation(255, 255, 255, 255, 0, 0);
+  // A budget the strip cannot reach, and the next frame restores the scale
+  strip.set_power_estimation(255, 255, 255, 255, 0, 100000);
   strip.shown();
   ASSERT_EQ(strip.power_brightness(), 255);
   // Each level comes back within one quantisation step of where it started, never below it
@@ -140,6 +140,27 @@ TEST(PowerLimit, LevelsDoNotCreepOverALimitCycle) {
     EXPECT_LE(strip[i].get_red_raw(), red + step) << i;
     EXPECT_GE(strip[i].get_blue_raw(), 100) << i;
     EXPECT_LE(strip[i].get_blue_raw(), 100 + step) << i;
+  }
+}
+
+TEST(PowerLimit, ADimPixelSettlesWhileDemandAlternates) {
+  Strip strip(2);
+  strip.set_power_estimation(20, 20, 20, 20, 0, 10.04f);  // two full red pixels would draw 40 mA
+  strip[0].set_raw(1, 0, 0, 0);
+  uint8_t dim = 0;
+  for (int cycle = 0; cycle < 4; cycle++) {
+    strip[1].set_raw(255, 0, 0, 0);
+    strip.shown();
+    ASSERT_LT(strip.power_brightness(), 255) << cycle;
+    strip[1].set_raw(0, 0, 0, 0);
+    strip.shown();
+    ASSERT_EQ(strip.power_brightness(), 255) << cycle;
+    // The first cycle may move the level by one quantisation step; after that it stays put
+    if (cycle > 0)
+      EXPECT_EQ(strip[0].get_red_raw(), dim) << cycle;
+    dim = strip[0].get_red_raw();
+    EXPECT_GE(dim, 1) << cycle;
+    EXPECT_LE(dim, 3) << cycle;
   }
 }
 

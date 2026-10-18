@@ -89,6 +89,7 @@ class ESPColorView : public ESPColorSettable {
       return 0;
     return *this->effect_data_;
   }
+  const ESPColorCorrection *get_color_correction() const { return this->color_correction_; }
   void raw_set_color_correction(const ESPColorCorrection *color_correction) {
     this->color_correction_ = color_correction;
   }

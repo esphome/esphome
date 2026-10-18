@@ -85,6 +85,12 @@ class PartitionLightOutput final : public light::AddressableLight {
     }
 
     auto view = (*seg.get_src())[src_off];
+#ifdef USE_LIGHT_POWER_ESTIMATION
+    // The strip encodes its buffer at its power limit; a partition writes through that factor with its own
+    // brightness. The partition has no limit of its own, so the factor is only ever a mirror of the strip's.
+    const_cast<light::ESPColorCorrection &>(this->correction_)
+        .set_power_brightness(view.get_color_correction()->get_power_brightness());
+#endif
     view.raw_set_color_correction(&this->correction_);
     return view;
   }
