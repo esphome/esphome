@@ -91,7 +91,7 @@ class BME280Component : public PollingComponent {
   virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
   virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
   virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
-  virtual bool read_byte_16(uint8_t a_register, uint16_t *data) = 0;
+  virtual bool read_byte_16_le(uint8_t a_register, uint16_t *data) = 0;
 
   BME280CalibrationData calibration_;
   BME280Oversampling temperature_oversampling_{BME280_OVERSAMPLING_16X};
