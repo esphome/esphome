@@ -15,15 +15,37 @@ TEST(MqMath, SensorResistanceFollowsTheDivider) {
 }
 
 TEST(MqMath, RatioIsRsOverR0) {
-  EXPECT_FLOAT_EQ(1.0f, ratio_from_rs(10.0f, 10.0f));
-  EXPECT_FLOAT_EQ(7.0f, ratio_from_rs(70.0f, 10.0f));
+  EXPECT_FLOAT_EQ(1.0f, ratio_from_rs(10.0f, 10.0f, 0.0f, RATIO_RS_R0));
+  EXPECT_FLOAT_EQ(7.0f, ratio_from_rs(70.0f, 10.0f, 0.0f, RATIO_RS_R0));
   // RS = 0 is a real reading (V_AO at VCC), the saturated end of the range.
-  EXPECT_FLOAT_EQ(0.0f, ratio_from_rs(0.0f, 10.0f));
+  EXPECT_FLOAT_EQ(0.0f, ratio_from_rs(0.0f, 10.0f, 0.0f, RATIO_RS_R0));
+  // The same reading in the library convention: R0 / RS grows without bound, so
+  // the ratio of 0 that reports the top of the range answers for both.
+  EXPECT_FLOAT_EQ(0.0f, ratio_from_rs(0.0f, 10.0f, 0.0f, RATIO_R0_RS));
   // Any other unusable input reads unknown, never a ratio the curve would turn
   // into an alarm reading at the top of the range.
-  EXPECT_TRUE(std::isnan(ratio_from_rs(10.0f, 0.0f)));
-  EXPECT_TRUE(std::isnan(ratio_from_rs(NAN, 10.0f)));
-  EXPECT_TRUE(std::isnan(ratio_from_rs(-1.0f, 10.0f)));
+  EXPECT_TRUE(std::isnan(ratio_from_rs(10.0f, 0.0f, 0.0f, RATIO_RS_R0)));
+  EXPECT_TRUE(std::isnan(ratio_from_rs(NAN, 10.0f, 0.0f, RATIO_RS_R0)));
+  EXPECT_TRUE(std::isnan(ratio_from_rs(-1.0f, 10.0f, 0.0f, RATIO_RS_R0)));
+}
+
+TEST(MqMath, CorrectionFactorMovesTheRatioOnly) {
+  // The factor is added to the ratio ...
+  EXPECT_FLOAT_EQ(1.5f, ratio_from_rs(10.0f, 10.0f, 0.5f, RATIO_RS_R0));
+  // ... while R0 stays what clean air measured, so it is applied once.
+  EXPECT_FLOAT_EQ(10.0f, r0_from_clean_air(700.0f, 70.0f));
+  // A negative factor can push the ratio past zero at a real concentration. RS / R0
+  // falls as the concentration rises, so the reading is above the range the curve
+  // covers there: the saturated end (clamped to max_ppm), not unknown, which would
+  // hide the reading instead.
+  EXPECT_FLOAT_EQ(0.0f, ratio_from_rs(10.0f, 10.0f, -1.0f, RATIO_RS_R0));
+  const float saturated_ratio = ratio_from_rs(10.0f, 10.0f, -2.0f, RATIO_RS_R0);
+  EXPECT_FLOAT_EQ(0.0f, saturated_ratio);
+  const float saturated_ppm = ppm_from_ratio(H2_A, H2_B, saturated_ratio, REGRESSION_EXPONENTIAL);
+  EXPECT_FLOAT_EQ(H2_MAX_PPM, clamp_ppm(saturated_ppm, 0.0f, H2_MAX_PPM));
+  // R0 / RS rises with the concentration, so a ratio pushed past zero there sits
+  // below the clean-air end of the curve: unknown, not an alarm.
+  EXPECT_TRUE(std::isnan(ratio_from_rs(100.0f, 10.0f, -0.2f, RATIO_R0_RS)));
 }
 
 TEST(MqMath, CleanAirReadingGivesR0) {
