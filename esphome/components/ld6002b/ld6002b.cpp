@@ -497,10 +497,7 @@ void LD6002BComponent::dump_config() {
 }
 
 void LD6002BComponent::loop() {
-  while (this->available()) {
-    uint8_t byte = this->read();
-    this->parse_byte_(byte);
-  }
+  this->read_available([this](uint8_t byte) { this->parse_byte_(byte); });
   this->process_command_queue_();
 }
 
