@@ -570,3 +570,96 @@ def test_external_platform_resolves_at_construction(
 
     mock_import.assert_called_once()
     assert processor.backtrace_state is False
+
+
+# --- shared crash handler report decoder (rp2, bk72xx) ---
+
+REPORT_PC_LINE = "[E][libretiny.crash:118]:   PC:  0x0001D6DC  (fault location)"
+REPORT_HINT_LINE = "Use: addr2line -pfiaC -e raw_firmware.elf 0x0001D6DC"
+
+
+def _idedata(
+    tmp_path: Path, *, addr2line: str | None = "addr2line", elf: bool = True
+) -> Mock:
+    idedata = Mock()
+    idedata.addr2line_path = addr2line
+    idedata.firmware_elf_path = tmp_path / "raw_firmware.elf"
+    if elf:
+        idedata.firmware_elf_path.write_bytes(b"")
+    return idedata
+
+
+def test_crash_report_marker_opens_the_dump_region() -> None:
+    assert stacktrace.process_crash_handler_line(
+        CONFIG, "*** CRASH DETECTED ON PREVIOUS BOOT ***", False
+    )
+
+
+def test_crash_report_lines_outside_the_region_are_ignored(
+    mock_get_idedata: Mock,
+) -> None:
+    assert not stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, False)
+    mock_get_idedata.assert_not_called()
+
+
+def test_crash_report_address_is_decoded(
+    tmp_path: Path, mock_get_idedata: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    mock_get_idedata.return_value = _idedata(tmp_path)
+    with patch.object(stacktrace, "_addr2line", return_value="main.cpp:12") as decode:
+        assert stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, True)
+    decode.assert_called_once_with(
+        "addr2line", tmp_path / "raw_firmware.elf", "0x0001D6DC"
+    )
+    assert "0x0001D6DC => main.cpp:12" in caplog.text
+
+
+def test_crash_report_hint_line_closes_the_region(mock_get_idedata: Mock) -> None:
+    assert not stacktrace.process_crash_handler_line(CONFIG, REPORT_HINT_LINE, True)
+
+
+@pytest.mark.parametrize(
+    ("addr2line", "elf", "reason"),
+    [(None, True, "no addr2line"), ("addr2line", False, "missing")],
+)
+def test_crash_report_says_why_it_cannot_decode(
+    tmp_path: Path,
+    mock_get_idedata: Mock,
+    caplog: pytest.LogCaptureFixture,
+    addr2line: str | None,
+    elf: bool,
+    reason: str,
+) -> None:
+    mock_get_idedata.return_value = _idedata(tmp_path, addr2line=addr2line, elf=elf)
+    assert stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, True)
+    assert reason in caplog.text
+
+
+def test_addr2line_returns_the_tool_output(tmp_path: Path) -> None:
+    with patch("subprocess.run", return_value=Mock(stdout="  decoded \n")) as run:
+        assert (
+            stacktrace._addr2line("addr2line", tmp_path / "fw.elf", "0x1") == "decoded"
+        )
+    assert run.call_args.args[0] == [
+        "addr2line",
+        "-pfiaC",
+        "-e",
+        str(tmp_path / "fw.elf"),
+        "0x1",
+    ]
+
+
+def test_addr2line_reports_the_failure(tmp_path: Path) -> None:
+    import subprocess
+
+    error = subprocess.CalledProcessError(1, "addr2line", stderr="bad ELF\n")
+    with patch("subprocess.run", side_effect=error):
+        assert (
+            stacktrace._addr2line("addr2line", tmp_path / "fw.elf", "0x1")
+            == "0x1 (decode failed: bad ELF)"
+        )
+    with patch("subprocess.run", side_effect=OSError("no such tool")):
+        assert (
+            stacktrace._addr2line("addr2line", tmp_path / "fw.elf", "0x1")
+            == "0x1 (decode failed: no such tool)"
+        )
