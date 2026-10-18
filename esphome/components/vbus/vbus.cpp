@@ -1,4 +1,5 @@
 #include "vbus.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
@@ -10,6 +11,7 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
+static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
@@ -28,12 +30,20 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
-  if (!available())
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!available()) {
+    // Preserve queued bytes even if a delayed loop would otherwise exceed the timeout.
+    if (this->state_ != 0 && now - this->last_rx_ms_ >= VBUS_RX_IDLE_TIMEOUT_MS) {
+      this->state_ = 0;
+      this->buffer_.clear();
+    }
     return;
+  }
 
   while (available()) {
     uint8_t c;
     read_byte(&c);
+    this->last_rx_ms_ = now;
 
     if (c == 0xaa) {
       this->state_ = 1;
@@ -49,6 +59,8 @@ void VBus::loop() {
 
     if (this->state_ == 1) {
       this->buffer_.push_back(c);
+      if (this->buffer_.size() < 7)
+        continue;
       if (this->buffer_.size() == 7) {
         this->protocol_ = this->buffer_[4];
         this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
