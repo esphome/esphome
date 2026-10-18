@@ -82,6 +82,7 @@ class AddressableLight : public LightOutput, public Component {
     this->ma_per_level_[3] = ma_white / 255.0f;
     this->idle_ma_per_led_ = idle_ma_per_led;
     this->max_current_ma_ = max_current_ma;
+    this->power_estimation_ = true;
   }
   // The draw of the last frame sent
   float get_estimated_current_ma() const { return this->estimated_ma_; }
@@ -109,22 +110,27 @@ class AddressableLight : public LightOutput, public Component {
   // over budget before the resend
   void mark_shown_() {
 #ifdef USE_LIGHT_POWER_ESTIMATION
-    uint32_t sums[4] = {};
-    for (const auto &c : *this) {
-      sums[0] += c.get_red_raw();
-      sums[1] += c.get_green_raw();
-      sums[2] += c.get_blue_raw();
-      sums[3] += c.get_white_raw();
-    }
-    this->apply_power_limit_(sums);
+    // The define says the code is built; only a light with power_estimation configured pays the pixel pass
+    if (this->power_estimation_) {
+      uint32_t sums[4] = {};
+      for (const auto &c : *this) {
+        sums[0] += c.get_red_raw();
+        sums[1] += c.get_green_raw();
+        sums[2] += c.get_blue_raw();
+        sums[3] += c.get_white_raw();
+      }
+      this->apply_power_limit_(sums);
 #ifdef USE_POWER_SUPPLY
-    if ((sums[0] | sums[1] | sums[2] | sums[3]) != 0) {
-      this->power_.request();
-    } else {
-      this->power_.unrequest();
+      if ((sums[0] | sums[1] | sums[2] | sums[3]) != 0) {
+        this->power_.request();
+      } else {
+        this->power_.unrequest();
+      }
+#endif
+      return;
     }
 #endif
-#elif defined(USE_POWER_SUPPLY)
+#ifdef USE_POWER_SUPPLY
     for (const auto &c : *this) {
       if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
         this->power_.request();
@@ -154,6 +160,7 @@ class AddressableLight : public LightOutput, public Component {
 #endif
   bool effect_active_{false};
 #ifdef USE_LIGHT_POWER_ESTIMATION
+  bool power_estimation_{false};
   bool budget_warned_{false};
 #endif
 };
