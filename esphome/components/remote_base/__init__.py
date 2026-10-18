@@ -154,8 +154,7 @@ async def attach_receiver(
 
 
 async def register_transmittable(var, config, key: str = CONF_TRANSMITTER_ID):
-    transmitter_ = await cg.get_variable(config[key])
-    cg.add(var.set_transmitter(transmitter_))
+    await cg.add_variable(var.set_transmitter, config[key])
 
 
 # Registry names that share a protocol source file

@@ -214,9 +214,9 @@ bool LIS2DW12Component::read_acceleration_data_(float &x, float &y, float &z) {
     return false;
   }
 
-  int16_t raw_x = static_cast<int16_t>(encode_uint16(accel_data[1], accel_data[0])) >> this->shift_;
-  int16_t raw_y = static_cast<int16_t>(encode_uint16(accel_data[3], accel_data[2])) >> this->shift_;
-  int16_t raw_z = static_cast<int16_t>(encode_uint16(accel_data[5], accel_data[4])) >> this->shift_;
+  int16_t raw_x = encode_value_le<int16_t>(accel_data) >> this->shift_;
+  int16_t raw_y = encode_value_le<int16_t>(&accel_data[2]) >> this->shift_;
+  int16_t raw_z = encode_value_le<int16_t>(&accel_data[4]) >> this->shift_;
 
   if (this->swap_xy_) {
     std::swap(raw_x, raw_y);

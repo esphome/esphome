@@ -101,19 +101,19 @@ bool ICM20689Component::update_data(motion::MotionData &data) {
 
   const float accel_factor = accel_scale(accel_range);
 
-  data.acceleration[motion::X_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[0], raw_data[1])) * accel_factor;
-  data.acceleration[motion::Y_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[2], raw_data[3])) * accel_factor;
-  data.acceleration[motion::Z_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[4], raw_data[5])) * accel_factor;
+  data.acceleration[motion::X_AXIS] = encode_value<int16_t>(raw_data) * accel_factor;
+  data.acceleration[motion::Y_AXIS] = encode_value<int16_t>(&raw_data[2]) * accel_factor;
+  data.acceleration[motion::Z_AXIS] = encode_value<int16_t>(&raw_data[4]) * accel_factor;
 
   const float gyro_factor = gyro_scale(gyro_range);
 
-  data.angular_rate[motion::X_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[8], raw_data[9])) * gyro_factor;
-  data.angular_rate[motion::Y_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[10], raw_data[11])) * gyro_factor;
-  data.angular_rate[motion::Z_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[12], raw_data[13])) * gyro_factor;
+  data.angular_rate[motion::X_AXIS] = encode_value<int16_t>(&raw_data[8]) * gyro_factor;
+  data.angular_rate[motion::Y_AXIS] = encode_value<int16_t>(&raw_data[10]) * gyro_factor;
+  data.angular_rate[motion::Z_AXIS] = encode_value<int16_t>(&raw_data[12]) * gyro_factor;
 
   if (!this->temperature_callback_.empty()) {
     // Datasheet formula: temperature (°C) = raw / 326.8 + 25.
-    const float temperature = static_cast<int16_t>(encode_uint16(raw_data[6], raw_data[7])) / 326.8f + 25.0f;
+    const float temperature = encode_value<int16_t>(&raw_data[6]) / 326.8f + 25.0f;
     this->temperature_callback_.call(temperature);
   }
 
