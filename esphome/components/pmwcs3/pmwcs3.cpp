@@ -1,5 +1,6 @@
 #include "pmwcs3.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pmwcs3 {
@@ -80,22 +81,22 @@ void PMWCS3Component::read_data_() {
       return;
     }
     if (this->e25_sensor_ != nullptr) {
-      e25 = ((data[1] << 8) | data[0]) / 100.0;
+      e25 = encode_value_le<uint16_t>(&data[0]) / 100.0;
       this->e25_sensor_->publish_state(e25);
       ESP_LOGVV(TAG, "e25: data[0]=%d, data[1]=%d, result=%f", data[0], data[1], e25);
     }
     if (this->ec_sensor_ != nullptr) {
-      ec = ((data[3] << 8) | data[2]) / 10.0;
+      ec = encode_value_le<uint16_t>(&data[2]) / 10.0;
       this->ec_sensor_->publish_state(ec);
       ESP_LOGVV(TAG, "ec: data[2]=%d, data[3]=%d, result=%f", data[2], data[3], ec);
     }
     if (this->temperature_sensor_ != nullptr) {
-      temperature = ((data[5] << 8) | data[4]) / 100.0;
+      temperature = encode_value_le<uint16_t>(&data[4]) / 100.0;
       this->temperature_sensor_->publish_state(temperature);
       ESP_LOGVV(TAG, "temp: data[4]=%d, data[5]=%d, result=%f", data[4], data[5], temperature);
     }
     if (this->vwc_sensor_ != nullptr) {
-      vwc = ((data[7] << 8) | data[6]) / 10.0;
+      vwc = encode_value_le<uint16_t>(&data[6]) / 10.0;
       this->vwc_sensor_->publish_state(vwc);
       ESP_LOGVV(TAG, "vwc: data[6]=%d, data[7]=%d, result=%f", data[6], data[7], vwc);
     }

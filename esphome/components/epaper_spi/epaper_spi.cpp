@@ -397,7 +397,7 @@ void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, size_t row_widt
                           const Rgb565ToMono &to_mono) {
   const ptrdiff_t byte_step = SwapAxes ? step * static_cast<ptrdiff_t>(row_width) : 0;
   for (; count != 0; count--, source += 2) {
-    const uint16_t value = BigEndianSource ? (source[0] << 8) | source[1] : source[0] | (source[1] << 8);
+    const uint16_t value = BigEndianSource ? encode_uint16(source[0], source[1]) : encode_value_le<uint16_t>(source);
     if (to_mono(value)) {
       *byte |= mask;
     } else {

@@ -58,14 +58,7 @@ void MR60BHA2Component::loop() {
  * @param len The length of the byte array.
  * @return The calculated checksum.
  */
-static uint8_t calculate_checksum(const uint8_t *data, size_t len) {
-  uint8_t checksum = 0;
-  for (size_t i = 0; i < len; i++) {
-    checksum ^= data[i];
-  }
-  checksum = ~checksum;
-  return checksum;
-}
+static uint8_t calculate_checksum(const uint8_t *data, size_t len) { return ~xor_bytes(data, len); }
 
 /**
  * @brief Validate the checksum of a byte array.

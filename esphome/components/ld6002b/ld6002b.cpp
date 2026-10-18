@@ -203,19 +203,11 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 }
 #endif
 
-uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) { return (static_cast<uint16_t>(data[0]) << 8) | data[1]; }
+uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) { return encode_value<uint16_t>(data); }
 
-uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) {
-  return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
-         (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
-}
+uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) { return encode_value_le<uint32_t>(data); }
 
-int32_t LD6002BComponent::read_int32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
-  int32_t value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
+int32_t LD6002BComponent::read_int32_le(const uint8_t *data) { return encode_value_le<int32_t>(data); }
 
 float LD6002BComponent::read_f32_le(const uint8_t *data) {
   uint32_t raw = read_u32_le(data);

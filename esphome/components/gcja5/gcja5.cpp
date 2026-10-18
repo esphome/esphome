@@ -65,10 +65,7 @@ void GCJA5Component::loop() {
 }
 
 bool GCJA5Component::calculate_checksum_() {
-  uint8_t crc = 0;
-
-  for (uint8_t i = 1; i < 30; i++)
-    crc = crc ^ this->rx_message_[i];
+  uint8_t crc = xor_bytes(&this->rx_message_[1], 29);
 
   ESP_LOGVV(TAG, "Checksum packet was (0x%02X), calculated checksum was (0x%02X)", this->rx_message_[30], crc);
 
