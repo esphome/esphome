@@ -1,7 +1,5 @@
 #pragma once
 
-#include <memory>
-
 #include "esphome/components/packet_interface/packet_interface.h"
 #include "esphome/components/packet_transport/packet_transport.h"
 
@@ -26,8 +24,6 @@ class PacketInterfaceTransport : public packet_transport::PacketTransport {
   void receive_(const PacketBuffer &data);
 
   PacketInterface *interface_;
-  // Only allocated if the interface delivers a packet split across several buffers
-  std::unique_ptr<uint8_t[]> rx_copy_;
 };
 
 }  // namespace esphome::packet_interface
