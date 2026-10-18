@@ -9,7 +9,14 @@ The busy pin of these displays is low while busy, so configure it with ``inverte
 
 from typing import Any
 
+import esphome.config_validation as cv
+from esphome.const import CONF_DIMENSIONS
+from esphome.types import ConfigType
+
 from . import EpaperModel
+
+MAX_SOURCES = 160
+MAX_GATES = 296
 
 
 class UC8151(EpaperModel):
@@ -18,6 +25,15 @@ class UC8151(EpaperModel):
     def __init__(self, name: str, **defaults: Any) -> None:
         super().__init__(name, "EPaperWaveshareBWR", **defaults)
 
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        width, height = self.get_dimensions(config)
+        if width > MAX_SOURCES or height > MAX_GATES:
+            raise cv.Invalid(
+                f"{self.name} supports at most {MAX_SOURCES}x{MAX_GATES} pixels (width x height)",
+                path=[CONF_DIMENSIONS],
+            )
+        return config
+
     def get_init_sequence(self, config: dict) -> tuple:
         width, height = self.get_dimensions(config)
         return (
@@ -25,7 +41,7 @@ class UC8151(EpaperModel):
             (0x00, 0x0F, 0x89),
             # RESOLUTION SETTING: sources, then gates
             (0x61, width, height >> 8, height & 0xFF),
-            # VCOM AND DATA INTERVAL SETTING
+            # VCOM AND DATA INTERVAL SETTING; 0x57, not Waveshare's 0x77, so that 1 in DTM2 is red
             (0x50, 0x57),
         )
 
