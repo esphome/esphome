@@ -1,12 +1,24 @@
 """MQ gas sensor library for ESPHome.
 
-A native ESPHome port of the MQUnifiedsensor PPM model
-(``PPM = a * ratio^b`` with ``ratio = RS / R0``) for the sensor types with
-built-in curves (see ``coefficients.py``).
+A native ESPHome port of the MQUnifiedsensor PPM model used by the
+`MQSensorsLib` / `esp-iot-solution MQSensorLIB` ESP-IDF component
+(https://github.com/RapportTecnologia/esp-iot-solution/tree/MQSensorLib/components/sensors/gas/MQSensorLIB).
+
+It supports every MQ sensor of the MQUnifiedsensor family:
+
+    MQ-2, MQ-3, MQ-4, MQ-5, MQ-6, MQ-7, MQ-8, MQ-9, MQ-131, MQ-135,
+    MQ-136, MQ-137, MQ-138, MQ-214, MQ-303A, MQ-309A and CUSTOM.
 
 The analog signal is either taken from an existing ESPHome voltage-sampler
 sensor (``voltage:``) or from a pin owned by this component (``pin:``, which
 creates a hidden, internal ``adc`` sensor for you).
+
+Optional extras ported from https://github.com/abcdaaaaaaaaa/MQDataScience:
+
+* ``correction_mode: mqdatascience`` compensates the RS/R0 ratio for the
+  ambient temperature and humidity (``temperature:``/``humidity:`` sensor ids).
+* ``curve: mqdatascience`` selects their ``coefficient_a`` / ``coefficient_b``
+  dataset instead of the SolderedElectronics/MQUnifiedsensor one.
 """
 
 import logging
@@ -39,6 +51,14 @@ MQGasSensor = mq_gas_sensors_ns.class_(
     "MQGasSensor", sensor.Sensor, cg.PollingComponent
 )
 
+# The C++ enums of `mq_math.h`, so the code generation passes the named values
+# instead of bare integers and a renamed enumerator breaks the build.
+mqmath_ns = mq_gas_sensors_ns.namespace("mqmath")
+RegressionMethod = mqmath_ns.enum("RegressionMethod")
+RatioMode = mqmath_ns.enum("RatioMode")
+CorrectionMode = mqmath_ns.enum("CorrectionMode")
+CorrectionClamp = mqmath_ns.enum("CorrectionClamp")
+
 # ---------------------------------------------------------------------------
 # Configuration keys
 # ---------------------------------------------------------------------------
@@ -64,30 +84,40 @@ CONF_SAMPLE_INTERVAL = "sample_interval"
 CONF_MIN_PPM = "min_ppm"
 CONF_MAX_PPM = "max_ppm"
 CONF_CORRECTION_FACTOR = "correction_factor"
+CONF_CORRECTION_MODE = "correction_mode"
+CONF_CORRECTION_CLAMP = "correction_clamp"
+CONF_CORRECTION_SENSOR = "correction_sensor"
+CONF_CURVE = "curve"
 CONF_LOG_SENSOR = "log_sensor"
 CONF_LOG_PPM = "log_ppm"
+CONF_PERSIST = "persist"
+CONF_R0_SENSOR = "r0_sensor"
 CONF_RATIO_SENSOR = "ratio_sensor"
 CONF_RS_SENSOR = "rs_sensor"
 CONF_VOLTAGE_SENSOR = "voltage_sensor"
 
-# MQUnifiedsensor::setRegressionMethod() values.
-REGRESSION_METHODS = {
-    "exponential": 1,  # _PPM = a * ratio^b
-    "linear": 2,  # log10(_PPM) = (log10(ratio) - b) / a
-    "inverse": 3,  # _PPM = (ratio / a)^(1 / b)
-}
+# MQUnifiedsensor::setRegressionMethod() values plus the MQDataScience inverse
+# form (used by their published MQ-8 H2 coefficients: ppm = (ratio / a)^(1 / b)).
+# exponential: _PPM = a * ratio^b; linear: log10(_PPM) = (log10(ratio) - b) / a;
+# inverse: _PPM = (ratio / a)^(1 / b).
+REGRESSION_METHODS = RegressionMethod.options(
+    "exponential", "linear", "inverse", prefix="REGRESSION_"
+)
 
-# MQUnifiedsensor uses R0/RS (see readSensorR0Rs(), "INVERTED for MQ-131"),
-# while the published datasheet coefficients are fitted against RS/R0.
-RATIO_MODES = {
-    "rs_r0": 0,  # datasheet convention (default)
-    "r0_rs": 1,  # MQUnifiedsensor readSensorR0Rs() convention
-}
+# Temperature/humidity compensation of the RS/R0 ratio.
+# none: no compensation (default); mqdatascience: a + c * exp(b * T).
+CORRECTION_MODES = CorrectionMode.options("none", "mqdatascience", prefix="CORRECTION_")
+
+# How the corrected PPM value is clamped: absolute clips to the configured
+# max_ppm, so the alarm ceiling never moves; scaled clips to max_ppm *
+# correction, MQDataScience's own behaviour, where the ceiling drops with the
+# correction (not recommended for a safety limit).
+CORRECTION_CLAMPS = CorrectionClamp.options("absolute", "scaled", prefix="CLAMP_")
 
 # Default ADC input limits used by the divider guard when the attenuation of an
 # owned ESP32 pin does not apply (an external sampler, or a non-ESP32 target):
 # the recommended maximum input voltage (VDD) and the datasheet's absolute
-# maximum (VDD + 0.3 V). Override them per sensor for other samplers, e.g.
+# maximum (VDD + 0.3 V).  Override them per sensor for other samplers, e.g.
 # `adc_input_max: 6.144` / `adc_pin_max: 6.144` for an ADS1115 at the widest gain.
 ESP32_ADC_INPUT_MAX_V = 3.3
 ESP32_ADC_PIN_MAX_V = 3.6
@@ -139,3 +169,8 @@ def esp32_attenuation_range_is_known(variant: str) -> bool:
 #: when the divider arithmetic lands a few millivolts above it, so that
 #: `adc_input_max: 3.33` accepts the 5 V * (20/30) = 3.3333 V of a 10k/20k divider.
 ADC_LIMIT_MARGIN_V = 0.01
+
+# MQUnifiedsensor uses R0/RS (see readSensorR0Rs(), "INVERTED for MQ-131"),
+# while the published datasheet coefficients are fitted against RS/R0:
+# rs_r0 is the datasheet convention (default), r0_rs the MQUnifiedsensor one.
+RATIO_MODES = RatioMode.options("rs_r0", "r0_rs", prefix="RATIO_")
