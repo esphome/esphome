@@ -6,6 +6,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #ifdef USE_HOERMANN_HCP_IDENTITY
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
@@ -55,6 +58,9 @@ struct HoermannHcpCommand {
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(actuator_error)
+#endif
 #ifdef USE_HOERMANN_HCP_IDENTITY
   // The motor is asked for these only when one of them is configured.
   SUB_TEXT_SENSOR(serial_number)
@@ -186,6 +192,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool light_requested_{false};
   bool light_command_sent_{false};
   bool light_target_{false};
+  // Last reported, kept across a quiet bus so a reconnect logs only a real change.
+  bool actuator_error_{false};
   bool door_state_seen_{false};
   bool short_broadcast_logged_{false};
   // Only the read half right after a 0x17 write carries a command, so a second read without a new write does not.

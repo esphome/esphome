@@ -20,10 +20,9 @@ from esphome.types import ConfigType
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
 
 RotaryEncoderRestoreMode = rotary_encoder_ns.enum("RotaryEncoderRestoreMode")
-RESTORE_MODES = {
-    "RESTORE_DEFAULT_ZERO": RotaryEncoderRestoreMode.ROTARY_ENCODER_RESTORE_DEFAULT_ZERO,
-    "ALWAYS_ZERO": RotaryEncoderRestoreMode.ROTARY_ENCODER_ALWAYS_ZERO,
-}
+RESTORE_MODES = RotaryEncoderRestoreMode.options(
+    "RESTORE_DEFAULT_ZERO", "ALWAYS_ZERO", prefix="ROTARY_ENCODER_"
+)
 
 RotaryEncoderResolution = rotary_encoder_ns.enum("RotaryEncoderResolution")
 RESOLUTIONS = {
@@ -94,16 +93,12 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    pin_a = await cg.gpio_pin_expression(config[CONF_PIN_A])
-    cg.add(var.set_pin_a(pin_a))
-    pin_b = await cg.gpio_pin_expression(config[CONF_PIN_B])
-    cg.add(var.set_pin_b(pin_b))
+    await cg.add_pin(var.set_pin_a, config[CONF_PIN_A])
+    await cg.add_pin(var.set_pin_b, config[CONF_PIN_B])
     cg.add(var.set_publish_initial_value(config[CONF_PUBLISH_INITIAL_VALUE]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-    if CONF_PIN_RESET in config:
-        pin_i = await cg.gpio_pin_expression(config[CONF_PIN_RESET])
-        cg.add(var.set_reset_pin(pin_i))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_PIN_RESET))
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
     if CONF_MIN_VALUE in config:
         cg.add(var.set_min_value(config[CONF_MIN_VALUE]))

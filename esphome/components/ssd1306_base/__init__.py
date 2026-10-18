@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_FLIP_X,
     CONF_FLIP_Y,
     CONF_INVERT,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_OFFSET_X,
     CONF_OFFSET_Y,
@@ -81,9 +80,7 @@ async def setup_ssd1306(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     if CONF_BRIGHTNESS in config:
         cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
     if CONF_CONTRAST in config:
@@ -100,8 +97,4 @@ async def setup_ssd1306(var: MockObj, config: ConfigType) -> None:
         cg.add(var.init_offset_y(config[CONF_OFFSET_Y]))
     if CONF_INVERT in config:
         cg.add(var.init_invert(config[CONF_INVERT]))
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

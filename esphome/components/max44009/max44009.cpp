@@ -39,15 +39,12 @@ void MAX44009Sensor::setup() {
     }
   }
   if (!state_ok)
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 }
 
 void MAX44009Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX44009:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void MAX44009Sensor::update() {

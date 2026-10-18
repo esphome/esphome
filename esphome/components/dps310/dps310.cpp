@@ -1,4 +1,5 @@
 #include "dps310.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -9,13 +10,17 @@ ESPHOME_LOG_TAG(TAG, "dps310");
 static constexpr uint32_t READ_RETRY_TIMEOUT_ID = 0;
 
 void DPS310Component::setup() {
+  if (!this->setup_registers_())
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+}
+
+bool DPS310Component::setup_registers_() {
   uint8_t coef_data_raw[DPS310_NUM_COEF_REGS];
   auto timer = DPS310_INIT_TIMEOUT;
   uint8_t reg = 0;
   // first, reset the sensor
   if (!this->write_byte(DPS310_REG_RESET, DPS310_CMD_RESET)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   delay(10);
   // wait for the sensor and its coefficients to be ready
@@ -25,40 +30,32 @@ void DPS310Component::setup() {
   }
 
   if (!(reg & DPS310_BIT_SENSOR_RDY) || !(reg & DPS310_BIT_COEF_RDY)) {  // the flags were not set in time
-    this->mark_failed();
-    return;
+    return false;
   }
   // read device ID
   if (!this->read_byte(DPS310_REG_PROD_REV_ID, &this->prod_rev_id_)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   // read in coefficients used to calculate the compensated pressure and temperature values
   if (!this->read_bytes(DPS310_REG_COEF, coef_data_raw, DPS310_NUM_COEF_REGS)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   // read in coefficients source register, too -- we need this a few lines down
   if (!this->read_byte(DPS310_REG_TMP_COEF_SRC, &reg)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   // set up operational stuff
   if (!this->write_byte(DPS310_REG_PRS_CFG, DPS310_VAL_PRS_CFG)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   if (!this->write_byte(DPS310_REG_TMP_CFG, DPS310_VAL_TMP_CFG | (reg & DPS310_BIT_TMP_COEF_SRC))) {
-    this->mark_failed();
-    return;
+    return false;
   }
   if (!this->write_byte(DPS310_REG_CFG, DPS310_VAL_REG_CFG)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   if (!this->write_byte(DPS310_REG_MEAS_CFG, 0x07)) {  // enable background mode
-    this->mark_failed();
-    return;
+    return false;
   }
 
   this->c0_ =  // we only ever use c0/2, so just divide by 2 here to save time later
@@ -73,8 +70,7 @@ void DPS310Component::setup() {
                (((uint32_t) coef_data_raw[5] >> 4) & 0x0F);
   this->c00_ = DPS310Component::twos_complement(c00_, 20);
 
-  this->c10_ =
-      (((uint32_t) coef_data_raw[5] & 0x0F) << 16) | ((uint32_t) coef_data_raw[6] << 8) | (uint32_t) coef_data_raw[7];
+  this->c10_ = encode_uint24(coef_data_raw[5] & 0x0F, coef_data_raw[6], coef_data_raw[7]);
   this->c10_ = DPS310Component::twos_complement(c10_, 20);
 
   this->c01_ = int16_t(((uint16_t) coef_data_raw[8] << 8) | (uint16_t) coef_data_raw[9]);
@@ -82,6 +78,7 @@ void DPS310Component::setup() {
   this->c20_ = int16_t(((uint16_t) coef_data_raw[12] << 8) | (uint16_t) coef_data_raw[13]);
   this->c21_ = int16_t(((uint16_t) coef_data_raw[14] << 8) | (uint16_t) coef_data_raw[15]);
   this->c30_ = int16_t(((uint16_t) coef_data_raw[16] << 8) | (uint16_t) coef_data_raw[17]);
+  return true;
 }
 
 void DPS310Component::dump_config() {
@@ -91,9 +88,6 @@ void DPS310Component::dump_config() {
                 "  Revision ID: %u",
                 this->prod_rev_id_ & 0x0F, (this->prod_rev_id_ >> 4) & 0x0F);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
@@ -139,8 +133,7 @@ void DPS310Component::read_pressure_() {
     return;
   }
   this->got_pres_ = true;
-  this->raw_pressure_ = DPS310Component::twos_complement(
-      int32_t((uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]))), 24);
+  this->raw_pressure_ = DPS310Component::twos_complement(encode_uint24(bytes[0], bytes[1], bytes[2]), 24);
 }
 
 void DPS310Component::read_temperature_() {
@@ -150,8 +143,7 @@ void DPS310Component::read_temperature_() {
     return;
   }
   this->got_temp_ = true;
-  this->raw_temperature_ = DPS310Component::twos_complement(
-      int32_t((uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]))), 24);
+  this->raw_temperature_ = DPS310Component::twos_complement(encode_uint24(bytes[0], bytes[1], bytes[2]), 24);
 }
 
 // Calculations are taken from the datasheet which can be found here:
