@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_CLK_PIN,
     CONF_GAMMA_CORRECT,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_OE_PIN,
     CONF_ROTATION,
     CONF_UPDATE_INTERVAL,
@@ -603,11 +602,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], hub75_config)
     await display.register_display(var, config)
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
 
 
 automation.register_apply_action(

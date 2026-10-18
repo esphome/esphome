@@ -164,11 +164,7 @@ async def to_code(config: ConfigType) -> None:
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
 
     cg.add(var.set_greyscale(config[CONF_GREYSCALE]))
     if transform := config.get(CONF_TRANSFORM):

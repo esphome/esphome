@@ -84,11 +84,7 @@ async def setup_st7735(var: MockObj, config: ConfigType) -> None:
     if CONF_RESET_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
 
 
 async def to_code(config: ConfigType) -> None:

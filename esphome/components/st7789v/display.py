@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_DC_PIN,
     CONF_HEIGHT,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
@@ -211,11 +210,7 @@ async def to_code(config: ConfigType) -> None:
         bl = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
         cg.add(var.set_backlight_pin(bl))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
 
     if CONF_POWER_SUPPLY in config:
         ps = await cg.get_variable(config[CONF_POWER_SUPPLY])
