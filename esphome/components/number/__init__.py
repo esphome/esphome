@@ -177,20 +177,13 @@ NumberMode = number_ns.enum("NumberMode")
 # skips the setter when the config equals it.
 DEFAULT_MODE = "AUTO"
 
-NUMBER_MODES = {
-    "AUTO": NumberMode.NUMBER_MODE_AUTO,
-    "BOX": NumberMode.NUMBER_MODE_BOX,
-    "SLIDER": NumberMode.NUMBER_MODE_SLIDER,
-}
+NUMBER_MODES = NumberMode.options("AUTO", "BOX", "SLIDER", prefix="NUMBER_MODE_")
 
 NumberOperation = number_ns.enum("NumberOperation")
 
-NUMBER_OPERATION_OPTIONS = {
-    "INCREMENT": NumberOperation.NUMBER_OP_INCREMENT,
-    "DECREMENT": NumberOperation.NUMBER_OP_DECREMENT,
-    "TO_MIN": NumberOperation.NUMBER_OP_TO_MIN,
-    "TO_MAX": NumberOperation.NUMBER_OP_TO_MAX,
-}
+NUMBER_OPERATION_OPTIONS = NumberOperation.options(
+    "INCREMENT", "DECREMENT", "TO_MIN", "TO_MAX", prefix="NUMBER_OP_"
+)
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.All(
