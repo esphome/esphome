@@ -31,8 +31,8 @@ class Strip : public AddressableLight {
   void clear_effect_data() override {}
   LightTraits get_traits() override { return {}; }
   void write_state(LightState *state) override {}
-  // What a driver does after sending a frame
-  void shown() { this->mark_shown_(); }
+  // What the light state does before a frame goes out
+  void shown() { this->limit_power_(); }
   uint8_t power_brightness() const { return this->correction_.get_power_brightness(); }
 
  protected:

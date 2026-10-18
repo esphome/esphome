@@ -308,9 +308,13 @@ class LightState : public EntityBase, public Component {
   bool is_transformer_active() const { return this->is_transformer_active_; }
 
  protected:
+  // The two halves of loop(): effects and transitions write into the output, then the pending frame goes out
+  void apply_effect_and_transformer_();
+  void write_if_pending_();
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
+  friend class AddressableLightState;
   friend class LightFlashTransformer;
 
   /// Internal method to start an effect with the given index

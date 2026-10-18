@@ -55,7 +55,6 @@ void SpiLedStrip::write_state(light::LightState *state) {
     esph_log_v(TAG, "write_state: buf = %s", strbuf);
   }
 #endif
-  this->mark_shown_();
   this->enable();
   this->write_array(this->buf_, this->buffer_size_);
   this->disable();

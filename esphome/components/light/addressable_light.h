@@ -28,6 +28,7 @@ class AddressableLightState final : public LightState {
 #ifdef USE_LIGHT_POWER_ESTIMATION
   // The output's estimate, so a lambda can read it from the light's id
   float get_estimated_current_ma();
+  void loop() override;
 #endif
 };
 
@@ -105,31 +106,7 @@ class AddressableLight : public LightOutput, public Component {
  protected:
   friend class AddressableLightTransformer;
 
-  // Called by the driver once per frame, before or after it is sent, as it always has been. When the limit
-  // changes the frame is rescaled and sent again, so a driver that calls it after sending shows one frame
-  // over budget before the resend
   void mark_shown_() {
-#ifdef USE_LIGHT_POWER_ESTIMATION
-    // The define says the code is built; only a light with power_estimation configured pays the pixel pass
-    if (this->power_estimation_) {
-      uint32_t sums[4] = {};
-      for (const auto &c : *this) {
-        sums[0] += c.get_red_raw();
-        sums[1] += c.get_green_raw();
-        sums[2] += c.get_blue_raw();
-        sums[3] += c.get_white_raw();
-      }
-      this->apply_power_limit_(sums);
-#ifdef USE_POWER_SUPPLY
-      if ((sums[0] | sums[1] | sums[2] | sums[3]) != 0) {
-        this->power_.request();
-      } else {
-        this->power_.unrequest();
-      }
-#endif
-      return;
-    }
-#endif
 #ifdef USE_POWER_SUPPLY
     for (const auto &c : *this) {
       if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
@@ -143,6 +120,9 @@ class AddressableLight : public LightOutput, public Component {
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
+  friend class AddressableLightState;
+  // Run by the light state before each frame goes out: the estimate, and with a budget the limit
+  void limit_power_();
   uint8_t power_scale_for_(const uint32_t sums[4]);
   void apply_power_limit_(const uint32_t sums[4]);
 #endif

@@ -47,9 +47,30 @@ static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
   return std::max<uint32_t>(moved, 1);
 }
 
-// Called with the frame the driver is sending. When the limit changes, the frame is moved to the new
-// scale and sent again, so every write path is limited and each pixel reads back as the level it
-// was written with
+void AddressableLightState::loop() {
+  this->apply_effect_and_transformer_();
+  if (this->next_write_)
+    static_cast<AddressableLight *>(this->output_)->limit_power_();
+  this->write_if_pending_();
+}
+
+// The define says the code is built; only a light with power_estimation configured pays the pixel pass
+void AddressableLight::limit_power_() {
+  if (!this->power_estimation_)
+    return;
+  uint32_t sums[4] = {};
+  for (const auto &c : *this) {
+    sums[0] += c.get_red_raw();
+    sums[1] += c.get_green_raw();
+    sums[2] += c.get_blue_raw();
+    sums[3] += c.get_white_raw();
+  }
+  this->apply_power_limit_(sums);
+}
+
+// Called with the frame about to be sent. When the limit changes, the frame is moved to the new scale
+// before it goes out, so every write path is limited and each pixel reads back as the level it was
+// written with
 void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
   const uint8_t scale = this->power_scale_for_(sums);
   if (this->max_current_ma_ <= 0.0f)
@@ -63,8 +84,6 @@ void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
         rescale_level(view.get_red_raw(), scale, previous), rescale_level(view.get_green_raw(), scale, previous),
         rescale_level(view.get_blue_raw(), scale, previous), rescale_level(view.get_white_raw(), scale, previous));
   }
-  if (this->state_parent_ != nullptr)
-    this->schedule_show();
 }
 
 #endif
