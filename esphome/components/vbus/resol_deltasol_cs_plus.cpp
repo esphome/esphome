@@ -63,6 +63,10 @@ void ResolDeltaSolCSPlus::setup() {
 void ResolDeltaSolCSPlus::dump_config() {
   ESP_LOGCONFIG(TAG, "RESOL DeltaSol CS Plus:\n  Firmware: 1.11\n  Snapshot expiry: 660s\n  Read batch: 16");
   LOG_UPDATE_INTERVAL(this);
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+  for (auto *listener : this->setting_listeners_)
+    listener->dump_setting_config();
+#endif
 }
 
 bool ResolDeltaSolCSPlus::telemetry_online() const {
@@ -88,6 +92,8 @@ bool ResolDeltaSolCSPlus::get_value(uint16_t index, int32_t &value) const {
   if (!this->has_fresh_snapshot())
     return false;
   if (index == 2) {
+    if (!this->clock_valid_)
+      return false;
     value = this->clock_minutes_;
     return true;
   }
@@ -98,13 +104,26 @@ bool ResolDeltaSolCSPlus::get_value(uint16_t index, int32_t &value) const {
   return true;
 }
 
+void ResolDeltaSolCSPlus::notify_entities_() {
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+  this->notify_position_ = 0;
+  if (!this->setting_listeners_.empty())
+    this->enable_loop();
+#endif
+}
+
+void ResolDeltaSolCSPlus::notify_snapshot_() {
+  this->notify_entities_();
+  this->snapshot_callback_.call();
+}
+
 void ResolDeltaSolCSPlus::check_age_() {
   if (this->stopped_)
     return;
   if (this->snapshot_retained_ && App.get_loop_component_start_time() - this->snapshot_at_ > SNAPSHOT_MAX_AGE_MS) {
     this->has_snapshot_ = false;
     this->snapshot_retained_ = false;
-    this->snapshot_callback_.call();
+    this->notify_snapshot_();
   }
 }
 
@@ -117,11 +136,17 @@ void ResolDeltaSolCSPlus::handle_message(std::vector<uint8_t> &message) {
     if (this->snapshot_retained_) {
       this->has_snapshot_ = false;
       this->snapshot_retained_ = false;
-      this->snapshot_callback_.call();
+      this->notify_snapshot_();
     }
     return;
   }
-  this->clock_minutes_ = message[22] | (uint16_t(message[23]) << 8);
+  const uint16_t clock = message[22] | (uint16_t(message[23]) << 8);
+  if (clock <= 1439 && (!this->clock_valid_ || this->clock_minutes_ != clock)) {
+    this->clock_minutes_ = clock;
+    this->clock_valid_ = true;
+    if (this->has_fresh_snapshot())
+      this->notify_entities_();
+  }
   ++this->telemetry_count_;
   this->telemetry_at_ = App.get_loop_component_start_time();
   if (this->phase_ == Phase::PHASE_TELEMETRY &&
@@ -269,7 +294,22 @@ void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index,
 }
 
 void ResolDeltaSolCSPlus::loop() {
-  if (this->stopped_ || this->phase_ == Phase::PHASE_IDLE)
+  if (this->stopped_)
+    return;
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+  if (this->notify_position_ < this->setting_listeners_.size()) {
+    this->setting_listeners_[this->notify_position_++]->on_setting_snapshot();
+    if (this->notify_position_ == this->setting_listeners_.size()) {
+      if (this->metadata_dirty_) {
+        ++this->metadata_revision_;
+        this->metadata_dirty_ = false;
+      }
+      if (this->phase_ == Phase::PHASE_IDLE)
+        this->disable_loop();
+    }
+  }
+#endif
+  if (this->phase_ == Phase::PHASE_IDLE)
     return;
 #ifdef USE_VBUS_CS_PLUS_WRITE
   if (this->write_phase_ != WritePhase::IDLE &&
@@ -322,7 +362,7 @@ void ResolDeltaSolCSPlus::loop() {
 #endif
   this->phase_ = Phase::PHASE_IDLE;
   this->disable_loop();
-  this->snapshot_callback_.call();
+  this->notify_snapshot_();
 }
 
 void ResolDeltaSolCSPlus::abort_() {

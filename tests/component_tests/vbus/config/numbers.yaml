@@ -1,0 +1,251 @@
+esphome:
+  name: vbus-numbers-codegen
+host:
+logger:
+uart:
+  id: test_uart
+  port: /dev/null
+  baud_rate: 9600
+vbus:
+  id: number_bus
+  transmit:
+    destination: 0x2211
+    transactions:
+      controller:
+        id: number_controller
+        model: deltasol_cs_plus
+        writes:
+          require_write_arm: false
+number:
+  - platform: vbus
+    controller_id: number_controller
+    parameter: system_time
+    name: System Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: loading_break_time
+    name: Loading Break Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: loading_run_time
+    name: Loading Run Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: min_pump_speed_1
+    name: Min Pump Speed 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: min_pump_speed_2
+    name: Min Pump Speed 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: max_pump_speed_1
+    name: Max Pump Speed 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: max_pump_speed_2
+    name: Max Pump Speed 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: system_cooling_delta_on
+    name: System Cooling Delta On
+  - platform: vbus
+    controller_id: number_controller
+    parameter: system_cooling_delta_off
+    name: System Cooling Delta Off
+  - platform: vbus
+    controller_id: number_controller
+    parameter: holiday_temperature
+    name: Holiday Temperature
+  - platform: vbus
+    controller_id: number_controller
+    parameter: parallel_loading_delta
+    name: Parallel Loading Delta
+  - platform: vbus
+    controller_id: number_controller
+    parameter: max_flow
+    name: Max Flow
+  - platform: vbus
+    controller_id: number_controller
+    parameter: antifreeze_concentration
+    name: Antifreeze Concentration
+  - platform: vbus
+    controller_id: number_controller
+    parameter: circuit_3_minimum_limit
+    name: Circuit 3 Minimum Limit
+  - platform: vbus
+    controller_id: number_controller
+    parameter: circuit_3_minimum_recovery
+    name: Circuit 3 Minimum Recovery
+  - platform: vbus
+    controller_id: number_controller
+    parameter: circuit_3_maximum_limit
+    name: Circuit 3 Maximum Limit
+  - platform: vbus
+    controller_id: number_controller
+    parameter: circuit_3_maximum_recovery
+    name: Circuit 3 Maximum Recovery
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_1_on
+    name: Delta Temperature 1 On
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_2_on
+    name: Delta Temperature 2 On
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_3_on
+    name: Delta Temperature 3 On
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_1_off
+    name: Delta Temperature 1 Off
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_2_off
+    name: Delta Temperature 2 Off
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_3_off
+    name: Delta Temperature 3 Off
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_1_nominal
+    name: Delta Temperature 1 Nominal
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_2_nominal
+    name: Delta Temperature 2 Nominal
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_3_nominal
+    name: Delta Temperature 3 Nominal
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_1_rise
+    name: Delta Temperature 1 Rise
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_2_rise
+    name: Delta Temperature 2 Rise
+  - platform: vbus
+    controller_id: number_controller
+    parameter: delta_temperature_3_rise
+    name: Delta Temperature 3 Rise
+  - platform: vbus
+    controller_id: number_controller
+    parameter: max_storage_temperature_2
+    name: Max Storage Temperature 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: max_storage_temperature_1
+    name: Max Storage Temperature 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: collector_emergency_temperature_1
+    name: Collector Emergency Temperature 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: collector_emergency_temperature_2
+    name: Collector Emergency Temperature 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: max_collector_temperature_1
+    name: Max Collector Temperature 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: max_collector_temperature_2
+    name: Max Collector Temperature 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: min_collector_temperature_1
+    name: Min Collector Temperature 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: min_collector_temperature_2
+    name: Min Collector Temperature 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: collector_frost_temperature_1
+    name: Collector Frost Temperature 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: collector_frost_temperature_2
+    name: Collector Frost Temperature 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: disinfection_period
+    name: Disinfection Period
+  - platform: vbus
+    controller_id: number_controller
+    parameter: disinfection_temperature
+    name: Disinfection Temperature
+  - platform: vbus
+    controller_id: number_controller
+    parameter: disinfection_duration
+    name: Disinfection Duration
+  - platform: vbus
+    controller_id: number_controller
+    parameter: disinfection_start_time
+    name: Disinfection Start Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: drainback_activation_time
+    name: Drainback Activation Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: drainback_fill_time
+    name: Drainback Fill Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: drainback_stabilisation_time
+    name: Drainback Stabilisation Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: thermostat_on_temperature
+    name: Thermostat On Temperature
+  - platform: vbus
+    controller_id: number_controller
+    parameter: thermostat_start_time_1
+    name: Thermostat Start Time 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: thermostat_off_temperature
+    name: Thermostat Off Temperature
+  - platform: vbus
+    controller_id: number_controller
+    parameter: thermostat_end_time_1
+    name: Thermostat End Time 1
+  - platform: vbus
+    controller_id: number_controller
+    parameter: thermostat_start_time_2
+    name: Thermostat Start Time 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: thermostat_end_time_2
+    name: Thermostat End Time 2
+  - platform: vbus
+    controller_id: number_controller
+    parameter: thermostat_start_time_3
+    name: Thermostat Start Time 3
+  - platform: vbus
+    controller_id: number_controller
+    parameter: thermostat_end_time_3
+    name: Thermostat End Time 3
+  - platform: vbus
+    controller_id: number_controller
+    parameter: tube_collector_start_time
+    name: Tube Collector Start Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: tube_collector_end_time
+    name: Tube Collector End Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: tube_collector_run_time
+    name: Tube Collector Run Time
+  - platform: vbus
+    controller_id: number_controller
+    parameter: tube_collector_interval
+    name: Tube Collector Interval

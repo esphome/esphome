@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
@@ -29,6 +29,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "resol_deltasol_cs_plus.cpp": "USE_VBUS_CS_PLUS",
         "vbus_cs_plus_policy.cpp": "USE_VBUS_CS_PLUS",
         "resol_deltasol_cs_plus_write.cpp": "USE_VBUS_CS_PLUS_WRITE",
+        "vbus_setting_entity.cpp": "USE_VBUS_CS_PLUS_ENTITIES",
     }
 )
 
@@ -39,6 +40,7 @@ VBusTransactions = vbus_ns.class_("VBusTransactions", cg.Component)
 VBusPolling = vbus_ns.class_("VBusPolling", cg.PollingComponent)
 ResolDeltaSolCSPlus = vbus_ns.class_("ResolDeltaSolCSPlus", cg.PollingComponent)
 _request_poll_value_slot = cg.slot_counter("VBUS_POLL_VALUE_COUNT")
+_request_setting_entity_slot = cg.slot_counter("VBUS_SETTING_ENTITY_COUNT")
 TransactionStatus = vbus_ns.enum("TransactionStatus", is_class=True)
 SettingWriteStatus = vbus_ns.enum("SettingWriteStatus", is_class=True)
 
@@ -64,6 +66,8 @@ CONF_ON_SNAPSHOT = "on_snapshot"
 CONF_WRITES = "writes"
 CONF_REQUIRE_WRITE_ARM = "require_write_arm"
 CONF_ON_SETTING_RESULT = "on_setting_result"
+CONF_CONTROLLER_ID = "controller_id"
+CONF_PARAMETER = "parameter"
 CS_PLUS_SETTING_COUNT = 84
 
 
@@ -596,10 +600,20 @@ automation.register_apply_action(
 )
 
 
-def validate_setting_action(config: ConfigType) -> ConfigType:
+def require_controller_writes(controller: ID) -> None:
     CORE.data.setdefault(DOMAIN, {}).setdefault("setting_actions", set()).add(
-        str(config[CONF_ID])
+        str(controller)
     )
+
+
+def register_setting_entity(controller: cg.MockObj, entity: cg.MockObj) -> None:
+    cg.add_define("USE_VBUS_CS_PLUS_ENTITIES")
+    _request_setting_entity_slot(str(controller))
+    cg.add(controller.register_setting_listener(entity))
+
+
+def validate_setting_action(config: ConfigType) -> ConfigType:
+    require_controller_writes(config[CONF_ID])
     return config
 
 

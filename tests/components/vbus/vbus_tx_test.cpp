@@ -10,6 +10,7 @@
 #include "esphome/components/vbus/vbus.h"
 #include "esphome/components/vbus/resol_deltasol_cs_plus.h"
 #include "esphome/components/vbus/sensor/vbus_sensor.h"
+#include "esphome/components/vbus/number/vbus_number.h"
 #include "esphome/core/application.h"
 
 namespace esphome::vbus::testing {
@@ -2186,6 +2187,154 @@ TEST_F(CSPlusSettingWriteTest, IncompatibleFirmwareDiscardsRetainedContextBefore
   this->message_();
   EXPECT_FALSE(this->controller_.has_recent_snapshot());
 }
+
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+class CSPlusNumberTest : public CSPlusSettingWriteTest {
+ protected:
+  void SetUp() override {
+    CSPlusSettingWriteTest::SetUp();
+    this->minimum_.add_on_state_callback([this](float) { ++this->number_updates_; });
+    this->controller_.register_setting_listener(&this->minimum_);
+    this->controller_.register_setting_listener(&this->delta_);
+    this->tick_();
+    this->tick_();
+  }
+  void refresh_() {
+    this->tick_(60000);
+    this->message_();
+    ASSERT_TRUE(this->controller_.start_scan());
+    this->complete_();
+  }
+  VBusSettingNumber minimum_{&this->controller_, 48};
+  VBusSettingNumber delta_{&this->controller_, 385};
+  VBusSettingNumber clock_{&this->controller_, 2};
+  size_t number_updates_{0};
+};
+
+TEST_F(CSPlusNumberTest, ConfirmedStateUsesScalingAndTheCurrentRelationalRange) {
+  ASSERT_TRUE(this->minimum_.has_state());
+  EXPECT_FLOAT_EQ(this->minimum_.state, 35);
+  EXPECT_FLOAT_EQ(this->minimum_.traits.get_min_value(), 10);
+  EXPECT_FLOAT_EQ(this->minimum_.traits.get_max_value(), 60);
+  EXPECT_FLOAT_EQ(this->minimum_.traits.get_step(), 5);
+  EXPECT_FLOAT_EQ(this->delta_.state, 10);
+  EXPECT_FLOAT_EQ(this->delta_.traits.get_min_value(), 4.5);
+  EXPECT_FLOAT_EQ(this->delta_.traits.get_max_value(), 11.5);
+  EXPECT_FLOAT_EQ(this->delta_.traits.get_step(), 0.5);
+}
+
+TEST_F(CSPlusNumberTest, ControlDoesNotPublishUntilReadbackReleaseAndResumedTelemetry) {
+  auto call = this->minimum_.make_call();
+  call.set_value(60);
+  call.perform();
+  EXPECT_FLOAT_EQ(this->minimum_.state, 35);
+  this->group_();
+  this->message_();
+  this->acquire_write_();
+  this->reply_write_(60);
+  EXPECT_FLOAT_EQ(this->minimum_.state, 35);
+  EXPECT_EQ(this->number_updates_, 1u);
+  this->message_();
+  this->tick_();
+  this->tick_();
+  EXPECT_FLOAT_EQ(this->minimum_.state, 60);
+  EXPECT_EQ(this->number_updates_, 2u);
+  EXPECT_EQ(this->controller_.writes_verified(), 1u);
+}
+
+TEST_F(CSPlusNumberTest, UnchangedRefreshPreservesAvailabilityStateAndMetadataRevision) {
+  const uint32_t revision = this->controller_.metadata_revision();
+  this->refresh_();
+  this->tick_();
+  this->tick_();
+  EXPECT_TRUE(this->minimum_.has_state());
+  EXPECT_EQ(this->number_updates_, 1u);
+  EXPECT_EQ(this->controller_.metadata_revision(), revision);
+}
+
+TEST_F(CSPlusNumberTest, ContextRefreshAfterAnEnumWriteKeepsConfirmedNumbersAvailableWithoutRepublishing) {
+  const uint32_t revision = this->controller_.metadata_revision();
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  this->message_();
+  ASSERT_FALSE(this->controller_.has_fresh_snapshot());
+  this->tick_();
+  this->tick_();
+  EXPECT_TRUE(this->minimum_.has_state());
+  EXPECT_FLOAT_EQ(this->minimum_.state, 35);
+  EXPECT_EQ(this->number_updates_, 1u);
+  this->source_values_[55] = 4;
+  this->controller_.update();
+  this->complete_();
+  this->tick_();
+  this->tick_();
+  EXPECT_TRUE(this->minimum_.has_state());
+  EXPECT_EQ(this->number_updates_, 1u);
+  EXPECT_EQ(this->controller_.metadata_revision(), revision);
+}
+
+TEST_F(CSPlusNumberTest, MetadataChangesOnceAfterAllBoundedEntityNotificationsComplete) {
+  const uint32_t revision = this->controller_.metadata_revision();
+  this->source_values_[50] = 70;
+  this->refresh_();
+  EXPECT_FLOAT_EQ(this->minimum_.traits.get_max_value(), 60);
+  this->tick_();
+  EXPECT_FLOAT_EQ(this->minimum_.traits.get_max_value(), 65);
+  EXPECT_EQ(this->controller_.metadata_revision(), revision);
+  this->tick_();
+  EXPECT_EQ(this->controller_.metadata_revision(), revision + 1);
+  EXPECT_EQ(this->number_updates_, 1u);
+}
+
+TEST_F(CSPlusNumberTest, InapplicabilityAndRecoveryChangeAvailabilityWithoutDiscardingAdvertisedTraits) {
+  const uint32_t revision = this->controller_.metadata_revision();
+  this->source_values_[12549] = 0;
+  this->refresh_();
+  this->tick_();
+  this->tick_();
+  EXPECT_FALSE(this->minimum_.has_state());
+  EXPECT_FLOAT_EQ(this->minimum_.traits.get_max_value(), 60);
+  this->source_values_[12549] = 2;
+  this->refresh_();
+  this->tick_();
+  this->tick_();
+  EXPECT_TRUE(this->minimum_.has_state());
+  EXPECT_FLOAT_EQ(this->minimum_.state, 35);
+  EXPECT_EQ(this->number_updates_, 2u);
+  EXPECT_EQ(this->controller_.metadata_revision(), revision);
+}
+
+TEST_F(CSPlusNumberTest, ExpiredSnapshotsInvalidateTheValueButRetainTheLastAdvertisedRange) {
+  this->tick_(660001);
+  this->minimum_.on_setting_snapshot();
+  this->minimum_.on_setting_snapshot();
+  EXPECT_FALSE(this->minimum_.has_state());
+  EXPECT_FLOAT_EQ(this->minimum_.traits.get_max_value(), 60);
+  EXPECT_EQ(this->number_updates_, 1u);
+}
+
+TEST_F(CSPlusNumberTest, ClockUsesChangedValidBroadcastsWithoutQueriesOrSnapshotCallbacks) {
+  this->controller_.register_setting_listener(&this->clock_);
+  const size_t frames = this->uart_.writes.size();
+  const size_t snapshots = this->snapshots_;
+  std::vector<uint8_t> payload(40);
+  payload[32] = 111;
+  payload[22] = 120;
+  this->controller_.on_message(0x0100, 0x2211, 0x0010, payload);
+  this->tick_();
+  this->tick_();
+  this->tick_();
+  EXPECT_FLOAT_EQ(this->clock_.state, 120);
+  payload[22] = 0xff;
+  payload[23] = 0xff;
+  this->controller_.on_message(0x0100, 0x2211, 0x0010, payload);
+  this->tick_();
+  EXPECT_FLOAT_EQ(this->clock_.state, 120);
+  EXPECT_EQ(this->snapshots_, snapshots);
+  EXPECT_EQ(this->uart_.writes.size(), frames);
+}
+#endif
 #endif
 #endif
 
