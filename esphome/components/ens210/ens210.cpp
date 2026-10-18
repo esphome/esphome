@@ -7,6 +7,7 @@
 //   https://github.com/sciosense/ENS210_driver
 
 #include "ens210.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 

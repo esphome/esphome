@@ -1,6 +1,7 @@
 #include "bl0906.h"
 #include "constants.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bl0906 {

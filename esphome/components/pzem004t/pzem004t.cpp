@@ -1,4 +1,5 @@
 #include "pzem004t.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cinttypes>
