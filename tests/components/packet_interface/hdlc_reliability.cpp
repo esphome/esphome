@@ -10,6 +10,13 @@
 
 namespace esphome::packet_interface::testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 using Frame = std::vector<uint8_t>;
 
 // A link layer that records what is sent, so a test can deliver it to the peer
@@ -22,7 +29,7 @@ class MockLink : public PacketInterface {
       return false;
     }
     this->budget--;
-    this->sent.push_back(data.to_vector());
+    this->sent.push_back(to_vector(data));
     return true;
   }
   void inject(const Frame &frame) { this->on_receive_from_interface_(PacketBuffer(frame), {}); }
@@ -46,7 +53,7 @@ struct Peer {
     this->hdlc->set_max_retries(3);
     this->hdlc->setup();
     this->hdlc->add_packet_interface_listener(
-        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(data.to_vector()); });
+        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->hdlc->add_on_session_state_callback([this](bool connected) { this->states.push_back(connected); });
   }
   bool send(const Frame &data) { return this->hdlc->send_to_interface(PacketBuffer(data), {}); }
