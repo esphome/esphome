@@ -1,8 +1,4 @@
-"""Integration test for a BL0906 that leaves a stray byte in the receive buffer.
-
-The first temperature answer carries one extra byte. The next stage must drain it and go on to read the
-voltage; waiting for the transmit side to drain instead never empties the receive buffer and hangs the loop.
-"""
+"""A BL0906 that leaves a stray byte in the receive buffer keeps reading."""
 
 from __future__ import annotations
 

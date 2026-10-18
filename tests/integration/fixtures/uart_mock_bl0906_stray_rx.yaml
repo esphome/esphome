@@ -17,15 +17,14 @@ uart:
   baud_rate: 9600
   port: /dev/null
 
-# A model of a BL0906 that answers register reads. The first temperature answer carries one stray
-# trailing byte, which the component must drain before the voltage read in a later stage of the cycle
+# Answers register reads; the first temperature answer has one stray trailing byte
 uart_mock:
   id: mock_uart
   baud_rate: 19200
   on_tx:
     - then:
         - lambda: |-
-            // The read command and the register address arrive as two writes of one byte each
+            // Command and register address arrive as separate one-byte writes
             static bool read_pending = false;
             static bool stray_sent = false;
             if (data.size() != 1)
