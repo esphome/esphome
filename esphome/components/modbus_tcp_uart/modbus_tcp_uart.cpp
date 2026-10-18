@@ -34,10 +34,16 @@ void ModbusTcpUart::note_drop_(const LogString *message) {
 }
 
 void ModbusTcpUart::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Modbus TCP UART:\n"
-                "  Role: %s",
-                this->server_ ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"));
+  if (this->server_) {
+    ESP_LOGCONFIG(TAG,
+                  "Modbus TCP UART:\n"
+                  "  Role: server\n"
+                  "  Reply timeout: %" PRIu32 " ms",
+                  this->reply_timeout_ms_);
+  } else {
+    ESP_LOGCONFIG(TAG, "Modbus TCP UART:\n"
+                       "  Role: client");
+  }
 }
 
 bool ModbusTcpUart::is_connected() { return this->parent_->is_connected(); }
