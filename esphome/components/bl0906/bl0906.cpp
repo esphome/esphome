@@ -134,9 +134,7 @@ void BL0906::handle_actions_() {
     }
   }
 
-  while (this->available()) {
-    this->read();
-  }
+  this->discard_available();
 
   this->action_queue_.clear();
 }
