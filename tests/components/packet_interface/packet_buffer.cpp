@@ -3,9 +3,7 @@
 #include <cstdint>
 #include "esphome/components/packet_interface/packet_buffer.h"
 
-namespace esphome {
-namespace packet_interface {
-namespace testing {
+namespace esphome::packet_interface::testing {
 
 // Test default constructor
 TEST(PacketBufferTest, DefaultConstructor) {
@@ -243,6 +241,4 @@ TEST(PacketBufferTest, LargeBuffer) {
   EXPECT_EQ(buffer[999], 231);  // 999 % 256 = 231
 }
 
-}  // namespace testing
-}  // namespace packet_interface
-}  // namespace esphome
+}  // namespace esphome::packet_interface::testing

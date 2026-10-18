@@ -44,8 +44,8 @@ class PacketMetaData {
  *
  * The operations defined are:
  *
- * Transmit: the function transmit() takes a PacketBuffer of bytes, and returns when all bytes are queued for
- * transmission at least.
+ * Transmit: the function send_to_interface() takes a PacketBuffer of bytes, and returns when all data is
+ * written or buffered for transmission.
  *
  * Receive: The callbacks for an instance of this class are called with currently received data.
  */
@@ -119,7 +119,7 @@ class PacketInterface : public Component {
     lower->upper_ = this;
     this->inherit_from_(lower, capability);
   }
-  /// Takes the name and capabilities of \p lower without becoming its top, for one of several stacks on a link.
+  /// Takes the name and capabilities of `lower` without becoming its top, for one of several stacks on a link.
   void inherit_from_(PacketInterface *lower, Capability capability) {
     this->name_ = lower->name_;
     this->capabilities_ = lower->capabilities_ | capability;

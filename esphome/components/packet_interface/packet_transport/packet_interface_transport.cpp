@@ -13,19 +13,12 @@ void PacketInterfaceTransport::setup() {
 }
 
 void PacketInterfaceTransport::receive_(const PacketBuffer &data) {
-  if (data.is_contiguous()) {
-    this->process_(data.as_span());
+  // Packet interface layers deliver packets in one piece
+  if (!data.is_contiguous()) {
+    ESP_LOGW(TAG, "Packet split across buffers is not supported");
     return;
   }
-  size_t max_size = this->interface_->get_max_packet_size();
-  if (data.size() > max_size) {
-    ESP_LOGW(TAG, "Received packet of %zu bytes is larger than %zu", data.size(), max_size);
-    return;
-  }
-  if (!this->rx_copy_)
-    this->rx_copy_ = std::make_unique<uint8_t[]>(max_size);
-  size_t len = data.copy_to(this->rx_copy_.get(), max_size);
-  this->process_(std::span<const uint8_t>(this->rx_copy_.get(), len));
+  this->process_(data.as_span());
 }
 
 void PacketInterfaceTransport::send_packet(const std::vector<uint8_t> &buf) const {
