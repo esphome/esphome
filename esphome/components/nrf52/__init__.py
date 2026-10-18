@@ -904,7 +904,10 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
     # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
     # before find_package(Zephyr) so the modules are picked up). Only
     # framework-agnostic libraries actually compile under Zephyr.
-    from esphome.components.zephyr.library import generate_zephyr_modules
+    from esphome.components.zephyr.library import (
+        generate_zephyr_modules,
+        library_compile_options_cmake,
+    )
 
     module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
 
@@ -919,6 +922,7 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
         lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
 
+    lines += library_compile_options_cmake(compile_flags)
     lines += [
         "find_package(Zephyr REQUIRED)",
         "",
