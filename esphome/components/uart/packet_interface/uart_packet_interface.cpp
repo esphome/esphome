@@ -14,8 +14,6 @@ static constexpr uint8_t ESCAPE_XOR = 0x20;
 // Raw bytes escaped and written per UART write
 static constexpr size_t TX_CHUNK_SIZE = 32;
 
-void UartPacketInterface::setup() { this->rx_buffer_ = std::make_unique<uint8_t[]>(this->max_packet_size_); }
-
 void UartPacketInterface::loop() {
   while (this->available()) {
     uint8_t byte;
@@ -26,7 +24,7 @@ void UartPacketInterface::loop() {
     if (byte == FLAG_BYTE) {
       // A flag that ends a frame also starts the next, so an unfinished frame cannot hide the one after it
       if (this->rx_started_ && this->rx_length_ != 0)
-        this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_.get(), this->rx_length_), {});
+        this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_, this->rx_length_), {});
       this->rx_started_ = true;
       this->rx_length_ = 0;
       this->rx_control_ = false;
@@ -60,7 +58,7 @@ bool UartPacketInterface::send_to_interface(const PacketBuffer &data, const Pack
     ESP_LOGW(TAG, "Packet of %zu bytes is larger than %zu", size, this->max_packet_size_);
     return false;
   }
-  uint8_t raw[TX_CHUNK_SIZE];
+  uint8_t raw[TX_CHUNK_SIZE]{};
   // Every byte may be escaped, plus a flag byte at each end
   uint8_t out[TX_CHUNK_SIZE * 2 + 2];
   size_t out_len = 0;

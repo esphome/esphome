@@ -28,9 +28,12 @@ void PacketInterface::on_receive_from_interface_(const PacketBuffer &data, const
 void PacketInterface::note_received_(bool understood) {
   if (understood) {
     this->not_understood_count_ = 0;
-  } else if (this->not_understood_count_ < MISMATCH_COUNT && ++this->not_understood_count_ == MISMATCH_COUNT) {
-    ESP_LOGW(TAG, "%s: %u packets in a row could not be understood; check that both ends have the same layers",
-             this->name_, MISMATCH_COUNT);
+  } else if (this->not_understood_count_ < MISMATCH_COUNT) {
+    this->not_understood_count_++;
+    if (this->not_understood_count_ == MISMATCH_COUNT) {
+      ESP_LOGW(TAG, "%s: %u packets in a row could not be understood; check that both ends have the same layers",
+               this->name_, MISMATCH_COUNT);
+    }
   }
 }
 }  // namespace esphome::packet_interface

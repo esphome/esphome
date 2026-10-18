@@ -16,7 +16,9 @@ using packet_interface::PacketMetaData;
 class UartPacketInterfaceTest : public ::testing::Test {
  protected:
   MockUARTComponent uart_{};
-  UartPacketInterface interface_{};
+  // As large as the default max_packet_size; tests only make it smaller
+  uint8_t rx_buffer_[512]{};
+  UartPacketInterface interface_{this->rx_buffer_};
   std::vector<std::vector<uint8_t>> received_packets_;
 
   void SetUp() override {

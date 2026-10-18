@@ -1,7 +1,5 @@
 #pragma once
 
-#include <memory>
-
 #include "esphome/components/packet_interface/packet_interface.h"
 #include "esphome/components/uart/uart.h"
 
@@ -16,14 +14,15 @@ namespace esphome::uart {
  */
 class UartPacketInterface : public packet_interface::PacketInterface, public UARTDevice {
  public:
-  void setup() override;
+  /// @param rx_buffer Holds max_packet_size bytes of unescaped received data; must outlive the link
+  explicit UartPacketInterface(uint8_t *rx_buffer) : rx_buffer_(rx_buffer) {}
+
   void loop() override;
   bool send_to_interface(const packet_interface::PacketBuffer &data,
                          const packet_interface::PacketMetaData &meta_data) override;
 
  protected:
-  // Holds max_packet_size_ bytes of unescaped received data
-  std::unique_ptr<uint8_t[]> rx_buffer_;
+  uint8_t *const rx_buffer_;
   size_t rx_length_{0};
   bool rx_started_{};
   bool rx_control_{};
