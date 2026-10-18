@@ -30,6 +30,9 @@ class MockUART : public uart::UARTComponent {
   MOCK_METHOD(void, write_array, (const uint8_t *data, size_t size), (override));
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
   void check_logger_conflict() override {}
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  void load_settings(bool dump_config) override {}
+#endif
 
  protected:
   std::vector<uint8_t> rx_;
