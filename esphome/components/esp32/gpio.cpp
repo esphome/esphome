@@ -7,6 +7,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "driver/gpio.h"
+#include "esp_sleep.h"
 #include "driver/rtc_io.h"
 #include "hal/gpio_hal.h"
 #include "soc/soc_caps.h"
@@ -59,6 +60,15 @@ struct ISRPinArg {
 #endif
 };
 
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+struct ISRFuncArg {
+  gpio_num_t pin;
+  gpio_int_type_t type;
+  void (*func)(void *);
+  void *arg;
+};
+#endif
+
 #ifdef USE_GPIO_HOLD
 // Re-latch a held pad onto the values just written to its registers.
 static inline void refresh_hold(const ESP32InternalGPIOPin &pin) {
@@ -104,6 +114,31 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
+static void IRAM_ATTR gpio_intr_(void *arg) {
+  // emulate edge interrupt
+  auto func_arg = reinterpret_cast<ISRFuncArg *>(arg);
+  gpio_num_t pin = func_arg->pin;
+  gpio_int_type_t type = func_arg->type;
+  if (gpio_hal_get_level(&GPIO_HAL, pin)) {
+#if SOC_RTCIO_WAKE_SUPPORTED
+    rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_LOW_LEVEL);
+#endif
+    gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_LOW_LEVEL);
+    if ((type == GPIO_INTR_POSEDGE) || (type == GPIO_INTR_ANYEDGE)) {
+      func_arg->func(func_arg->arg);
+    }
+  } else {
+#if SOC_RTCIO_WAKE_SUPPORTED
+    rtcio_hal_wakeup_enable(RTCIO_GPIO9_CHANNEL, GPIO_INTR_HIGH_LEVEL);
+#endif
+    gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_HIGH_LEVEL);
+    if ((type == GPIO_INTR_NEGEDGE) || (type == GPIO_INTR_ANYEDGE)) {
+      func_arg->func(func_arg->arg);
+    }
+  }
+  gpio_hal_clear_intr_status_bit(&GPIO_HAL, pin);
+}
+
 void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;
   switch (type) {
@@ -123,8 +158,23 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
       idf_type = this->pin_flags_.inverted ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL;
       break;
   }
+
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
+    gpio_wakeup_enable(this->get_pin_num(), idf_type);
+  } else {
+    // edge interrupt is not supported, so we need to emulate
+    if (gpio_get_level(this->get_pin_num())) {
+      gpio_wakeup_enable(this->get_pin_num(), GPIO_INTR_LOW_LEVEL);
+    } else {
+      gpio_wakeup_enable(this->get_pin_num(), GPIO_INTR_HIGH_LEVEL);
+    }
+  }
+#else
   gpio_set_intr_type(this->get_pin_num(), idf_type);
   gpio_intr_enable(this->get_pin_num());
+#endif
+
   if (!isr_service_installed) {
     auto res = gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
     if (res != ESP_OK) {
@@ -133,7 +183,23 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     }
     isr_service_installed = true;
   }
+
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  if (idf_type != GPIO_INTR_LOW_LEVEL && idf_type != GPIO_INTR_HIGH_LEVEL) {
+    // edge interrupt is not supported, so we need to emulate
+    static ISRFuncArg *func_args = new ISRFuncArg();
+    func_args->pin = this->get_pin_num();
+    func_args->type = idf_type;
+    func_args->func = func;
+    func_args->arg = arg;
+    gpio_isr_handler_add(this->get_pin_num(), gpio_intr_, func_args);
+  } else {
+    gpio_isr_handler_add(this->get_pin_num(), func, arg);
+  }
+  esp_sleep_enable_gpio_wakeup();
+#else
   gpio_isr_handler_add(this->get_pin_num(), func, arg);
+#endif
 }
 
 size_t ESP32InternalGPIOPin::dump_summary(char *buffer, size_t len) const {
@@ -211,7 +277,10 @@ void ESP32InternalGPIOPin::digital_write(bool value) {
   refresh_hold(*this);
 #endif
 }
-void ESP32InternalGPIOPin::detach_interrupt() const { gpio_intr_disable(this->get_pin_num()); }
+void ESP32InternalGPIOPin::detach_interrupt() const {
+  gpio_intr_disable(this->get_pin_num());
+  gpio_wakeup_disable(this->get_pin_num());
+}
 
 }  // namespace esp32
 
