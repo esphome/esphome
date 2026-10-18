@@ -1,7 +1,17 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+udp:
+  - id: packet_interface_udp
+
 packet_interface:
   - platform: uart
     id: packet_interface_uart
     max_packet_size: 256
+  - platform: udp
+    id: packet_interface_network
+    udp_id: packet_interface_udp
 
 sensor:
   - platform: template
@@ -11,5 +21,9 @@ sensor:
 packet_transport:
   - platform: packet_interface
     packet_interface: packet_interface_uart
+    sensors:
+      - packet_interface_sensor
+  - platform: packet_interface
+    packet_interface: packet_interface_network
     sensors:
       - packet_interface_sensor
