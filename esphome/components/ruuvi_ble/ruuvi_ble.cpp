@@ -41,7 +41,7 @@ bool parse_ruuvi_data_byte(const ble_device_base::adv_data_t &adv_data, RuuviPar
       if (adv_data.size() != 24)
         return false;
 
-      const float temperature = encode_value<int16_t>(&data[0]) * 0.005f;
+      const float temperature = encode_value<int16_t>(data) * 0.005f;
       const float humidity = encode_uint16(data[2], data[3]) / 400.0f;
       const float pressure = (encode_uint16(data[4], data[5]) + 50000.0f) / 100.0f;
       const float acceleration_x = encode_value<int16_t>(&data[6]) / 1000.0f;
