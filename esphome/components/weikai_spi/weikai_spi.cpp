@@ -4,69 +4,11 @@
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai_spi.h"
+#include <cstring>
 
 namespace esphome::weikai_spi {
 using namespace weikai;
 ESPHOME_LOG_TAG(TAG, "weikai_spi");
-
-/// @brief measure the time elapsed between two calls
-/// @param last_time time of the previous call
-/// @return the elapsed time in microseconds
-uint32_t elapsed_ms(uint32_t &last_time) {
-  uint32_t e = millis() - last_time;
-  last_time = millis();
-  return e;
-};
-
-/// @brief Converts the parity enum value to a C string
-/// @param parity enum
-/// @return the string
-const char *p2s(uart::UARTParityOptions parity) {
-  using namespace uart;
-  switch (parity) {
-    case UART_CONFIG_PARITY_NONE:
-      return "NONE";
-    case UART_CONFIG_PARITY_EVEN:
-      return "EVEN";
-    case UART_CONFIG_PARITY_ODD:
-      return "ODD";
-    default:
-      return "UNKNOWN";
-  }
-}
-
-/// @brief Display a buffer in hexadecimal format (32 hex values / line).
-void print_buffer(const uint8_t *data, size_t length) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < length; i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31) {
-      ESP_LOGVV(TAG, "   %s", hex_buffer);
-    }
-  }
-  if (length % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (length % 32) + 2] = 0;
-    ESP_LOGVV(TAG, "   %s", hex_buffer);
-  }
-}
-
-static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
-                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
-static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
-                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
-
-// method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) {
-  if (reg == WKREG_GPDAT) {
-    return "GPDAT";
-  } else if (reg == WKREG_GPDIR) {
-    return "GPDIR";
-  } else {
-    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
-  }
-}
 
 enum RegType { REG = 0, FIFO = 1 };            ///< Register or FIFO
 enum CmdType { WRITE_CMD = 0, READ_CMD = 1 };  ///< Read or Write transfer
@@ -94,11 +36,14 @@ inline static uint8_t cmd_byte(RegType fifo, CmdType transfer_type, uint8_t chan
 ///////////////////////////////////////////////////////////////////////////////
 uint8_t WeikaiRegisterSPI::read_reg() const {
   auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
-  uint8_t cmd = cmd_byte(REG, READ_CMD, this->channel_, this->register_);
+  // one single full duplex transfer: the command goes out in the first byte, the register value comes back in the
+  // second one (saves one call to the SPI driver compared to write_byte() + read_byte())
+  uint8_t buf[2]{cmd_byte(REG, READ_CMD, this->channel_, this->register_), 0x00};
+  [[maybe_unused]] uint8_t const cmd = buf[0];
   spi_comp->enable();
-  spi_comp->write_byte(cmd);
-  uint8_t val = spi_comp->read_byte();
+  spi_comp->transfer_array(buf, 2);
   spi_comp->disable();
+  uint8_t const val = buf[1];
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, cmd), cmd,
             reg_to_str(this->register_, this->comp_->page1()), this->channel_, val);
@@ -108,10 +53,14 @@ uint8_t WeikaiRegisterSPI::read_reg() const {
 void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
   uint8_t cmd = cmd_byte(FIFO, READ_CMD, this->channel_, this->register_);
+  // one single driver call: the command goes out in the first byte, the FIFO data comes back in the following ones
+  uint8_t buf[XFER_MAX_SIZE + 1];
+  buf[0] = cmd;
+  memset(buf + 1, 0, length);
   spi_comp->enable();
-  spi_comp->write_byte(cmd);
-  spi_comp->read_array(data, length);
+  spi_comp->transfer_array(buf, length + 1);
   spi_comp->disable();
+  memcpy(data, buf + 1, length);
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
@@ -134,9 +83,12 @@ void WeikaiRegisterSPI::write_reg(uint8_t value) {
 void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
   auto *spi_comp = static_cast<WeikaiComponentSPI *>(this->comp_);
   uint8_t cmd = cmd_byte(FIFO, WRITE_CMD, this->channel_, this->register_);
+  // one single driver call: command byte followed by the data
+  uint8_t buf[XFER_MAX_SIZE + 1];
+  buf[0] = cmd;
+  memcpy(buf + 1, data, length);
   spi_comp->enable();
-  spi_comp->write_byte(cmd);
-  spi_comp->write_array(data, length);
+  spi_comp->write_array(buf, length + 1);
   spi_comp->disable();
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
