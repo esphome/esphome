@@ -248,7 +248,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
         cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
 
-    await display.add_writer(var, config)
+    if CONF_LAMBDA in config:
+        lambda_ = await cg.process_lambda(
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
+        )
+        cg.add(var.set_writer(lambda_))
 
     if CONF_RESET_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])

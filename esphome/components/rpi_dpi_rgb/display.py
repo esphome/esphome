@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INVERT_COLORS,
+    CONF_LAMBDA,
     CONF_NUMBER,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
@@ -191,7 +192,11 @@ async def to_code(config: ConfigType) -> None:
             (width, height) = dimensions
             cg.add(var.set_dimensions(width, height))
 
-    await display.add_writer(var, config)
+    if lamb := config.get(CONF_LAMBDA):
+        lambda_ = await cg.process_lambda(
+            lamb, [(display.DisplayRef, "it")], return_type=cg.void
+        )
+        cg.add(var.set_writer(lambda_))
 
     pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
     cg.add(var.set_de_pin(pin))

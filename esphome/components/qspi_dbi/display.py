@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
+    CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
@@ -215,4 +216,8 @@ async def to_code(config: ConfigType) -> None:
             (width, height) = dimensions
             cg.add(var.set_dimensions(width, height))
 
-    await display.add_writer(var, config)
+    if lamb := config.get(CONF_LAMBDA):
+        lambda_ = await cg.process_lambda(
+            lamb, [(display.DisplayRef, "it")], return_type=cg.void
+        )
+        cg.add(var.set_writer(lambda_))
