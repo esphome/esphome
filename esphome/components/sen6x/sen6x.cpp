@@ -190,7 +190,7 @@ void SEN6XComponent::setup() {
           if ((entry.status == Sen6xStatus::SEN6X_STATUS_GAS_ERROR && !has_voc_nox) ||
               (entry.status == Sen6xStatus::SEN6X_STATUS_CO2_ERROR && !has_co2) ||
               (entry.status == Sen6xStatus::SEN6X_STATUS_HCHO_ERROR && !has_hcho)) {
-            ESP_LOGE(TAG, "'%s' needs a variant with that feature", entry.sensor->get_name().c_str());
+            ESP_LOGE(TAG, "'%s' needs a variant with that feature", LOG_STR_ARG(entry.sensor->get_log_name()));
             continue;
           }
           entry.bit = status_bit(entry.status, this->sen6x_type_);
@@ -360,7 +360,7 @@ void SEN6XComponent::dump_config() {
     }
     if (this->ambient_pressure_source_ != nullptr) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation source: %s",
-                    this->ambient_pressure_source_->get_name().c_str());
+                    LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
     }
   }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
