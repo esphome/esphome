@@ -1,0 +1,10 @@
+esp32_ble:
+  classic_bt: true
+  classic_max_acl_connections: 2
+
+speaker:
+  - platform: a2dp_source
+    id: a2dp_source_speaker
+    slot: 1
+    num_channels: 2
+    sample_rate: 44100
