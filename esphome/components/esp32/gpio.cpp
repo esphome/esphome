@@ -125,9 +125,9 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
 }
 
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
-static void IRAM_ATTR gpio_intr_(void *arg) {
+static void IRAM_ATTR gpio_intr(void *arg) {
   // emulate edge interrupt
-  auto func_arg = reinterpret_cast<ISRFuncArg *>(arg);
+  auto *func_arg = reinterpret_cast<ISRFuncArg *>(arg);
   gpio_num_t pin = func_arg->pin;
   gpio_int_type_t type = func_arg->type;
   if (gpio_hal_get_level(&GPIO_HAL, pin)) {
@@ -232,7 +232,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
       func_args->type = idf_type;
       func_args->func = func;
       func_args->arg = arg;
-      gpio_isr_handler_add(this->get_pin_num(), gpio_intr_, func_args);
+      gpio_isr_handler_add(this->get_pin_num(), gpio_intr, func_args);
     } else {
       gpio_isr_handler_add(this->get_pin_num(), func, arg);
     }
