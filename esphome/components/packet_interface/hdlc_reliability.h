@@ -32,7 +32,10 @@ class HdlcReliability : public PacketInterface {
   void loop() override;
   void dump_config() override;
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override;
-  size_t get_send_capacity() const override { return this->max_queue_length_ - this->outstanding_(); }
+  /// No room while the layer has no send queue: before setup(), or when setup() failed.
+  size_t get_send_capacity() const override {
+    return this->tx_slots_ == nullptr ? 0 : this->max_queue_length_ - this->outstanding_();
+  }
 
   void set_ack_timeout(uint32_t timeout_ms) { this->timeout_ms_ = timeout_ms; }
   void set_ack_delay(uint32_t ack_delay_ms) { this->ack_delay_ms_ = ack_delay_ms; }

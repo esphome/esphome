@@ -70,11 +70,17 @@ using DropFilter = std::function<bool(const Frame &)>;
 static bool is_info(const Frame &frame) { return (frame[0] & 1) == 0; }
 static bool is_ack(const Frame &frame) { return (frame[0] & 0x0F) == 0x01; }
 
+// Runs a layer's loop only while it has asked for it, as the main loop does
+static void run_loop(TestHdlc &hdlc) {
+  if (!hdlc.is_idle())
+    hdlc.loop();
+}
+
 // Move frames between the peers and run their loops until nothing more is sent
 static void pump(Peer &a, Peer &b, const DropFilter &drop_a_to_b = nullptr, const DropFilter &drop_b_to_a = nullptr) {
   for (int i = 0; i != 50; i++) {
-    a.hdlc->loop();
-    b.hdlc->loop();
+    run_loop(*a.hdlc);
+    run_loop(*b.hdlc);
     if (a.link.sent.empty() && b.link.sent.empty())
       return;
     auto from_a = std::move(a.link.sent);
@@ -102,20 +108,25 @@ static Frame make_frame(uint8_t control, const Frame &payload) {
   return frame;
 }
 
-// The test main does not construct App; the retransmit timer needs its scheduler
+// Each test replaces App with a fresh one; the retransmit timer needs its scheduler
 class HdlcReliabilityTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "hdlc-tests";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
-  void TearDown() override { App.~Application(); }
+  void TearDown() override {
+    App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
+  }
 };
 
 TEST_F(HdlcReliabilityTest, MaxPacketSizeAllowsForOverhead) {
   Peer a;
+  EXPECT_EQ(a.hdlc->get_send_capacity(), 4);
   EXPECT_EQ(a.hdlc->get_max_packet_size(), 64 - HdlcReliability::FRAME_OVERHEAD);
   EXPECT_EQ(a.link.top(), a.hdlc.get());
   EXPECT_EQ(a.hdlc->get_capabilities(), CAPABILITY_RELIABILITY);
@@ -267,8 +278,21 @@ TEST_F(HdlcReliabilityTest, PeerRestart) {
   EXPECT_TRUE(b->states.empty());
 }
 
+// Waits past the retry after a refused send, servicing timers as the main loop does
+static void run_send_retry() {
+  const uint32_t start = millis();
+  while (millis() - start < 60) {
+    App.scheduler.call(millis());
+    delay(1);
+  }
+  App.scheduler.call(millis());
+}
+
 TEST_F(HdlcReliabilityTest, RefusedFramesSentAgainWithoutTimeout) {
   Peer a, b;
+  // Only the retry of a refused send can fire while the test runs, not a retransmit
+  a.hdlc->set_ack_timeout(10000);
+  b.hdlc->set_ack_timeout(10000);
   for (uint8_t i = 0; i != 3; i++)
     ASSERT_TRUE(a.send({i}));
   a.link.budget = 3;  // SABM, UA to the peer's SABM, and the first queued frame
@@ -276,6 +300,10 @@ TEST_F(HdlcReliabilityTest, RefusedFramesSentAgainWithoutTimeout) {
   EXPECT_GE(a.link.refused, 1);
   EXPECT_EQ(b.received, (std::vector<Frame>{{0}}));
   a.link.budget = SIZE_MAX;  // the lower layer accepts again, as when a radio stops receiving
+  // The layer waits for its retry rather than running every loop
+  pump(a, b);
+  EXPECT_EQ(b.received, (std::vector<Frame>{{0}}));
+  run_send_retry();
   pump(a, b);
   EXPECT_EQ(b.received, (std::vector<Frame>{{0}, {1}, {2}}));
   EXPECT_EQ(a.hdlc->outstanding_(), 0);
@@ -283,6 +311,8 @@ TEST_F(HdlcReliabilityTest, RefusedFramesSentAgainWithoutTimeout) {
 
 TEST_F(HdlcReliabilityTest, RefusedAckSentAgain) {
   Peer a, b;
+  a.hdlc->set_ack_timeout(10000);
+  b.hdlc->set_ack_timeout(10000);
   pump(a, b);
   a.send({1});
   for (auto &frame : a.link.sent)
@@ -292,6 +322,9 @@ TEST_F(HdlcReliabilityTest, RefusedAckSentAgain) {
   b.hdlc->loop();
   EXPECT_TRUE(b.link.sent.empty());
   b.link.budget = SIZE_MAX;
+  pump(a, b);
+  EXPECT_EQ(a.hdlc->outstanding_(), 1);  // the RR waits for the retry
+  run_send_retry();
   pump(a, b);
   EXPECT_EQ(a.hdlc->outstanding_(), 0);
 }
@@ -349,6 +382,7 @@ TEST_F(HdlcReliabilityTest, LinkTooSmallFailsSetup) {
   EXPECT_TRUE(hdlc.is_failed());
   Frame packet{1};
   EXPECT_FALSE(hdlc.send_to_interface(PacketBuffer(packet), {}));
+  EXPECT_EQ(hdlc.get_send_capacity(), 0);
 }
 
 TEST_F(HdlcReliabilityTest, AckDelayTimerSendsAck) {
