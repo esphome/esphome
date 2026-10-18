@@ -132,7 +132,7 @@ void DPS310Component::read_pressure_() {
     return;
   }
   this->got_pres_ = true;
-  this->raw_pressure_ = DPS310Component::twos_complement(int32_t(encode_uint24(bytes[0], bytes[1], bytes[2])), 24);
+  this->raw_pressure_ = DPS310Component::twos_complement(encode_uint24(bytes[0], bytes[1], bytes[2]), 24);
 }
 
 void DPS310Component::read_temperature_() {
@@ -142,7 +142,7 @@ void DPS310Component::read_temperature_() {
     return;
   }
   this->got_temp_ = true;
-  this->raw_temperature_ = DPS310Component::twos_complement(int32_t(encode_uint24(bytes[0], bytes[1], bytes[2])), 24);
+  this->raw_temperature_ = DPS310Component::twos_complement(encode_uint24(bytes[0], bytes[1], bytes[2]), 24);
 }
 
 // Calculations are taken from the datasheet which can be found here:
