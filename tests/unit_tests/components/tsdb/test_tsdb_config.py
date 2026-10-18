@@ -14,8 +14,10 @@ from esphome.components.tsdb import (
     CONF_NAME,
     CONF_OFFSET,
     CONF_PARTITION_SIZE,
+    CONF_REQUIRE_TIME,
     CONF_SCALE_FACTOR,
     IDF_COMPONENTS,
+    _final_validate,
     _validate_config,
     _validate_file_name,
     _validate_mount_point,
@@ -23,6 +25,8 @@ from esphome.components.tsdb import (
     _validate_size,
 )
 import esphome.config_validation as cv
+from esphome.const import CONF_TIME, CONF_TIME_ID
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -165,3 +169,38 @@ def test_idf_manifest_declares_the_engine_versions() -> None:
 
     for name, version in IDF_COMPONENTS.items():
         assert deps[name]["version"] == version
+
+
+def _with_full_config(full_config: dict, func) -> None:
+    token = fv.full_config.set(full_config)
+    try:
+        func()
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_accepts_a_time_component() -> None:
+    _with_full_config(
+        {CONF_TIME: [{"platform": "sntp"}]},
+        lambda: _final_validate({CONF_REQUIRE_TIME: True}),
+    )
+
+
+def test_final_validate_accepts_an_explicit_time_id() -> None:
+    _with_full_config(
+        {}, lambda: _final_validate({CONF_REQUIRE_TIME: True, CONF_TIME_ID: "clock"})
+    )
+
+
+def test_final_validate_accepts_require_time_off() -> None:
+    _with_full_config({}, lambda: _final_validate({CONF_REQUIRE_TIME: False}))
+
+
+def test_final_validate_rejects_require_time_without_a_time_source() -> None:
+    # Without a time component the clock never reaches an epoch, so every
+    # interval would be dropped for as long as the device runs.
+    def check() -> None:
+        with pytest.raises(cv.Invalid, match="require_time needs a time source"):
+            _final_validate({CONF_REQUIRE_TIME: True})
+
+    _with_full_config({}, check)

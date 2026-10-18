@@ -69,28 +69,26 @@ class TsdbComponent : public PollingComponent {
   bool write_record_();
   void flush_(bool force);
 
+  std::vector<TsdbColumn> columns_{};
+  std::vector<int16_t> values_{};
   StringRef file_{"history.tsdb"};
   StringRef mount_point_{"/littlefs"};
   StringRef partition_label_{"littlefs"};
+#ifdef USE_TIME
+  time::RealTimeClock *time_{nullptr};
+#endif
+  void *db_{nullptr};
   uint32_t partition_size_{512 * 1024};
-  bool format_on_first_boot_{true};
   uint32_t max_file_size_{384 * 1024};
   uint32_t index_stride_{tsdbmath::INDEX_DEFAULT_STRIDE};
   uint32_t buffer_pool_size_{4096};
   uint32_t sync_interval_{60000};
-  bool require_time_{true};
   tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
-  std::vector<TsdbColumn> columns_{};
-  std::vector<int16_t> values_{};
-#ifdef USE_TIME
-  time::RealTimeClock *time_{nullptr};
-#endif
-
-  void *db_{nullptr};
-  bool mounted_{false};
-  // A handle esp_tsdb invalidated; reopened on a later interval.
-  bool db_lost_{false};
   uint32_t last_reopen_{0};
+  uint32_t last_sync_{0};
+  uint32_t last_timestamp_{0};
+  // Added to an uptime timestamp so the series continues after the newest stored record.
+  uint32_t uptime_offset_{0};
   uint32_t writes_{0};
   uint32_t write_errors_{0};
   // Apart from write_errors_: a database that never returns is not a write failure.
@@ -100,10 +98,12 @@ class TsdbComponent : public PollingComponent {
   uint32_t saturated_{0};
   uint32_t held_{0};
   uint32_t sentinel_{0};
-  uint32_t last_sync_{0};
-  uint32_t last_timestamp_{0};
-  // Added to an uptime timestamp so the series continues after the newest stored record.
-  uint32_t uptime_offset_{0};
+
+  bool format_on_first_boot_{true};
+  bool require_time_{true};
+  bool mounted_{false};
+  // A handle esp_tsdb invalidated; reopened on a later interval.
+  bool db_lost_{false};
   bool dirty_{false};
   bool warned_time_{false};
   bool warned_backwards_{false};

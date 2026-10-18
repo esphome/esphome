@@ -21,11 +21,13 @@ from esphome.const import (
     CONF_NAME,
     CONF_OFFSET,
     CONF_SENSOR,
+    CONF_TIME,
     CONF_TIME_ID,
     CONF_UPDATE_INTERVAL,
     Framework,
     PlatformFramework,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
@@ -43,8 +45,7 @@ ESP_TSDB_VERSION = "2.4.3"
 ESP_LITTLEFS_COMPONENT = "joltwallet/littlefs"
 ESP_LITTLEFS_VERSION = "1.22.3"
 
-# Managed IDF components the C++ needs; esphome/idf_component.yml declares them
-# too, so the clang-tidy project resolves their headers without a config.
+# Managed IDF components the C++ needs; esphome/idf_component.yml declares the same pins.
 IDF_COMPONENTS = {
     ESP_TSDB_COMPONENT: ESP_TSDB_VERSION,
     ESP_LITTLEFS_COMPONENT: ESP_LITTLEFS_VERSION,
@@ -53,7 +54,6 @@ IDF_COMPONENTS = {
 TSDB_MAX_BASE_PARAMS = 16
 TSDB_MAX_NAME_LENGTH = 31
 LITTLEFS_BLOCK_BYTES = 0x1000
-# LittleFS keeps its own metadata, so a budget that fills the partition cannot be written to.
 LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 
 CONF_MOUNT_POINT = "mount_point"
@@ -155,8 +155,7 @@ def _validate_config(config: ConfigType) -> ConfigType:
     for column in columns:
         name = column[CONF_NAME]
         scale = column[CONF_SCALE_FACTOR]
-        # YAML `.nan`/`.inf` pass cv.float_ and would reach the int16 conversion
-        # (undefined behaviour) or be emitted as the invalid C++ literal `inff`.
+        # YAML `.nan`/`.inf` pass cv.float_ and reach the int16 cast as UB, or as the literal `inff`.
         if not math.isfinite(scale):
             raise cv.Invalid(f"'{name}': scale_factor must be a finite number")
         if scale == 0:
@@ -226,6 +225,21 @@ CONFIG_SCHEMA = cv.All(
     ),
     _validate_config,
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if (
+        not config[CONF_REQUIRE_TIME]
+        or CONF_TIME_ID in config
+        or CONF_TIME in fv.full_config.get()
+    ):
+        return
+    raise cv.Invalid(
+        "require_time needs a time source: add a time component or set require_time: false"
+    )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
