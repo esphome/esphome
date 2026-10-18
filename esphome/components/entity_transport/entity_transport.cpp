@@ -70,17 +70,19 @@ void EntityTransport::setup() {
   // [&entity] is safe: FixedVector never reallocates, and the parent pointer keeps the capture to one pointer
   for (auto &entity : this->entities_) {
 #ifdef USE_SENSOR
-    if (entity.is_sensor)
+    if (entity.is_sensor) {
       static_cast<sensor::Sensor *>(entity.entity)->add_on_state_callback([&entity](float) {
         entity.parent->mark_updated_(entity);
       });
+    }
 #endif
 #ifdef USE_BINARY_SENSOR
-    if (!entity.is_sensor)
+    if (!entity.is_sensor) {
       // The full state callback also fires for the first state
       static_cast<binary_sensor::BinarySensor *>(entity.entity)
           ->add_full_state_callback(
               [&entity](optional<bool>, optional<bool>) { entity.parent->mark_updated_(entity); });
+    }
 #endif
   }
   this->interface_->add_packet_interface_listener(
@@ -90,10 +92,11 @@ void EntityTransport::setup() {
   if (session)
     this->interface_->add_on_session_state_callback([this](bool connected) { this->on_session_(connected); });
   // Without a session and reliable delivery, a lost dictionary or state is only replaced by a periodic resend
-  if (this->update_interval_ms_ == 0)
+  if (this->update_interval_ms_ == 0) {
     this->update_interval_ms_ = session && this->interface_->has_capability(packet_interface::CAPABILITY_RELIABILITY)
                                     ? SCHEDULER_DONT_RUN
                                     : DEFAULT_UPDATE_INTERVAL_MS;
+  }
   if (this->update_interval_ms_ != SCHEDULER_DONT_RUN)
     this->set_interval(this->update_interval_ms_, [this] { this->send_all_(); });
   if (this->remote_timeout_ms_ != 0)
