@@ -34,8 +34,9 @@ void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UART
 }
 
 void UARTDevice::discard_available() {
+  UARTComponent *parent = this->parent_;
   uint8_t byte;
-  while (this->available() && this->read_byte(&byte)) {
+  while (parent->available() && parent->read_byte(&byte)) {
   }
 }
 
