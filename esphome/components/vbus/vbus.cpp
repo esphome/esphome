@@ -33,7 +33,8 @@ void VBus::loop() {
 
   while (available()) {
     uint8_t c;
-    read_byte(&c);
+    if (!this->read_byte(&c))
+      break;
 
     if (c == 0xaa) {
       this->state_ = 1;
