@@ -61,18 +61,13 @@ class OutgoingConnectionManager {
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
   static constexpr uint32_t PRECONDITION_RETRY_MS = 5000;
   // A deep sleep wake window is too short to spend on the delay, so those
-  // builds dial out as soon as the target is gone, recheck the network on
-  // every loop and notice the connect completing on the loop it does
+  // builds dial out as soon as the target is gone
 #ifdef USE_DEEP_SLEEP
   static constexpr uint32_t BOOT_WAIT_MS = 0;
   static constexpr uint32_t IDLE_WAIT_MS = BACKOFF_MIN_MS;
-  static constexpr uint32_t CONNECT_POLL_INTERVAL_MS = 0;
-  static constexpr uint32_t NETWORK_RETRY_MS = 0;
 #else
   static constexpr uint32_t BOOT_WAIT_MS = API_OUTGOING_CONNECTION_DELAY;
   static constexpr uint32_t IDLE_WAIT_MS = API_OUTGOING_CONNECTION_DELAY;
-  static constexpr uint32_t CONNECT_POLL_INTERVAL_MS = 250;
-  static constexpr uint32_t NETWORK_RETRY_MS = 500;
 #endif
 
   void try_dial_(APIServer *server, uint32_t now);
@@ -107,7 +102,6 @@ class OutgoingConnectionManager {
   uint32_t backoff_{BACKOFF_MIN_MS};
   uint32_t wait_{BOOT_WAIT_MS};
   uint32_t state_ts_{0};
-  uint32_t last_poll_{0};
 
   // Byte-aligned types last
 #ifndef API_OUTGOING_CONNECTION_HOST
