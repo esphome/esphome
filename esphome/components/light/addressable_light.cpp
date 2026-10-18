@@ -47,7 +47,7 @@ static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
   return std::max<uint32_t>(moved, 1);
 }
 
-// Called with the frame about to be sent. When the limit changes, the frame is moved to the new
+// Called with the frame the driver is sending. When the limit changes, the frame is moved to the new
 // scale and sent again, so every write path is limited and each pixel reads back as the level it
 // was written with
 void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {

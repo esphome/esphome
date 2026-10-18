@@ -104,7 +104,9 @@ class AddressableLight : public LightOutput, public Component {
  protected:
   friend class AddressableLightTransformer;
 
-  // Called by the driver once per frame it sends
+  // Called by the driver once per frame, before or after it is sent, as it always has been. When the limit
+  // changes the frame is rescaled and sent again, so a driver that calls it after sending shows one frame
+  // over budget before the resend
   void mark_shown_() {
 #ifdef USE_LIGHT_POWER_ESTIMATION
     uint32_t sums[4] = {};
