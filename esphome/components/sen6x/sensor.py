@@ -233,9 +233,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_NORMALIZED_OFFSET_SLOPE, default=0
                     ): cv.float_range(min=-3.2768, max=3.2767),
-                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(
-                        min=0, max=65535
-                    ),
+                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.uint16_t,
                 }
             ),
             cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(

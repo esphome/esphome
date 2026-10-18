@@ -115,10 +115,5 @@ async def to_code(config: ConfigType) -> None:
         CORE.add_job(_add_serial_proxy_count_define)
     data.count += 1
 
-    if CONF_RTS_PIN in config:
-        rts_pin = await cg.gpio_pin_expression(config[CONF_RTS_PIN])
-        cg.add(var.set_rts_pin(rts_pin))
-
-    if CONF_DTR_PIN in config:
-        dtr_pin = await cg.gpio_pin_expression(config[CONF_DTR_PIN])
-        cg.add(var.set_dtr_pin(dtr_pin))
+    await cg.add_pin(var.set_rts_pin, config.get(CONF_RTS_PIN))
+    await cg.add_pin(var.set_dtr_pin, config.get(CONF_DTR_PIN))

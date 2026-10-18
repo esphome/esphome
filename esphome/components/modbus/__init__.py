@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 import logging
 from typing import Any, Literal, NamedTuple
 
@@ -11,7 +11,6 @@ from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
 from esphome.cpp_generator import MockObj
-from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -307,9 +306,7 @@ async def to_code(config: ConfigType) -> None:
 
     await uart.register_uart_device(var, config)
 
-    if CONF_FLOW_CONTROL_PIN in config:
-        pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
-        cg.add(var.set_flow_control_pin(pin))
+    await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
 
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
@@ -387,6 +384,13 @@ def final_validate_modbus_device(
 async def register_modbus_client_device(var: MockObj, config: ConfigType) -> None:
     await cg.register_parented(var, config[CONF_MODBUS_ID])
     cg.add(var.set_address(config[CONF_ADDRESS]))
+
+
+def new_modbus_client_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, MockObj]:
+    """Construct, register and attach to the modbus bus; args go to the constructor."""
+    return cg.new_bus_component(register_modbus_client_device, config, *args)
 
 
 async def register_modbus_server_device(var: MockObj, config: ConfigType) -> None:
