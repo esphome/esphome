@@ -3,6 +3,7 @@
 import pytest
 
 from esphome.components.modbus_tcp_uart import (
+    CONFIG_SCHEMA,
     _final_validate,
     _reply_timeout_ms,
     _served_units,
@@ -97,5 +98,35 @@ def test_reply_timeout_outlasts_two_transactions_on_a_client_hub() -> None:
         ],
     }
     # 1 s for the reply, plus 2 x (0.6 s + 2 s): the transaction ahead and this one
-    assert _reply_timeout_ms(full) == 6200
-    assert _reply_timeout_ms({"modbus": [{"id": ID("tcp"), "role": "server"}]}) == 1000
+    assert _reply_timeout_ms({}, full) == 6200
+    assert (
+        _reply_timeout_ms({}, {"modbus": [{"id": ID("tcp"), "role": "server"}]}) == 1000
+    )
+
+
+def test_reply_timeout_replaces_the_computed_wait() -> None:
+    full = {
+        "modbus": [
+            {
+                "id": ID("rtu"),
+                "role": "client",
+                "send_wait_time": TimePeriod(seconds=2),
+                "turnaround_time": TimePeriod(milliseconds=600),
+            },
+        ],
+    }
+    config = {"reply_timeout": TimePeriod(milliseconds=3000)}
+    # Without the key this client hub gives 6200 ms, as in the test above.
+    assert _reply_timeout_ms(config, full) == 3000
+
+
+def test_reply_timeout_is_accepted_for_a_server_link() -> None:
+    config = CONFIG_SCHEMA(
+        {"tcp_uart_id": "sock", "role": "server", "reply_timeout": "3s"}
+    )
+    assert config["reply_timeout"].total_milliseconds == 3000
+
+
+def test_reply_timeout_is_rejected_for_a_client_link() -> None:
+    with pytest.raises(cv.Invalid, match="only used with role: server"):
+        CONFIG_SCHEMA({"tcp_uart_id": "sock", "reply_timeout": "3s"})

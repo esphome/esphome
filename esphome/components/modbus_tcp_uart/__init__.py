@@ -23,6 +23,7 @@ DEPENDENCIES = ["modbus", "tcp_uart"]
 DOMAIN = "modbus_tcp_uart"
 MULTI_CONF = True
 
+CONF_REPLY_TIMEOUT = "reply_timeout"
 CONF_TCP_UART_ID = "tcp_uart_id"
 DEFAULT_REPLY_TIMEOUT_MS = 1000
 
@@ -31,16 +32,33 @@ ModbusTcpUart = modbus_tcp_uart_ns.class_(
     "ModbusTcpUart", uart.VirtualUARTComponent, cg.Component
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(ModbusTcpUart),
-        cv.Required(CONF_TCP_UART_ID): cv.use_id(tcp_uart.TcpUart),
-        cv.Optional(CONF_ROLE, default="client"): cv.one_of(
-            "client", "server", lower=True
-        ),
-        cv.Optional(CONF_DEBUG): uart.maybe_empty_debug,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+
+def _reply_timeout_needs_server(config: ConfigType) -> ConfigType:
+    if CONF_REPLY_TIMEOUT in config and config[CONF_ROLE] != "server":
+        raise cv.Invalid(
+            "reply_timeout is only used with role: server", [CONF_REPLY_TIMEOUT]
+        )
+    return config
+
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ModbusTcpUart),
+            cv.Required(CONF_TCP_UART_ID): cv.use_id(tcp_uart.TcpUart),
+            cv.Optional(CONF_ROLE, default="client"): cv.one_of(
+                "client", "server", lower=True
+            ),
+            cv.Optional(CONF_REPLY_TIMEOUT): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+            ),
+            cv.Optional(CONF_DEBUG): uart.maybe_empty_debug,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .add_extra(_reply_timeout_needs_server)
+)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -83,8 +101,10 @@ def _served_units(full: ConfigType, link_id: str) -> list[int]:
     )
 
 
-def _reply_timeout_ms(full: ConfigType) -> int:
+def _reply_timeout_ms(config: ConfigType, full: ConfigType) -> int:
     """Server: room for one transaction ahead of a forwarded request on a client hub, then its own."""
+    if CONF_REPLY_TIMEOUT in config:
+        return config[CONF_REPLY_TIMEOUT].total_milliseconds
     waits = [
         hub[modbus.CONF_TURNAROUND_TIME].total_milliseconds
         + hub[modbus.CONF_SEND_WAIT_TIME].total_milliseconds
@@ -107,7 +127,8 @@ async def to_code(config: ConfigType) -> None:
         await uart.debug_to_code(debug, var)
     if config[CONF_ROLE] == "server":
         cg.add(var.set_server(True))
-        if (timeout := _reply_timeout_ms(CORE.config)) != DEFAULT_REPLY_TIMEOUT_MS:
+        timeout = _reply_timeout_ms(config, CORE.config)
+        if timeout != DEFAULT_REPLY_TIMEOUT_MS:
             cg.add(var.set_reply_timeout(timeout))
         if units := _served_units(CORE.config, str(config[CONF_ID])):
             arr = cg.static_const_array(
