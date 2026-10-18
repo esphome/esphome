@@ -226,22 +226,41 @@ TEST(PowerLimit, AHeavyLimitStaysWithinOneStepOfTheBudget) {
   EXPECT_LE(strip.get_estimated_current_ma(), 0.3f + 20.0f / 255.0f);
 }
 
-TEST(PowerLimit, AChangedFrameTakesAStepOfOneAtALowScale) {
+TEST(PowerLimit, AChangedFrameTakesTheDropAtALowScale) {
   Strip strip(10);
   strip.configure_power(20, 1, 20);  // white pixels draw 60 mA each against 10 mA left for the pixels
-  for (int i = 0; i < 8; i++)
+  for (int i = 0; i < 5; i++)
     strip[i] = Color(255, 255, 255, 0);
   strip.limit();
-  const uint8_t eight = strip.power_brightness();
-  EXPECT_NEAR(eight, 5, 1);
-  // Two more pixels lit: a real change, so the scale drops by its one step
+  const uint8_t five = strip.power_brightness();
+  EXPECT_NEAR(five, 8, 1);
+  // Twice the pixels lit: well past one level per channel over the budget, so the scale drops
   strip.all() = Color(255, 255, 255, 0);
   strip.limit();
   const uint8_t ten = strip.power_brightness();
-  EXPECT_LT(ten, eight);
+  EXPECT_LT(ten, five);
   // A retry with nothing rewritten then holds it
   strip.limit();
   EXPECT_EQ(strip.power_brightness(), ten);
+}
+
+TEST(PowerLimit, AChangingPixelOverAStaticBackgroundDoesNotWalkTheScaleDown) {
+  Strip strip(100);
+  strip.configure_power(20, 0, 60);  // 99 pixels at red 100 ask for 776 mA
+  for (int i = 1; i < 100; i++)
+    strip[i] = Color(100, 0, 0, 0);
+  strip[0] = Color(255, 0, 0, 0);
+  strip.limit();
+  const uint8_t first = strip.power_brightness();
+  EXPECT_NEAR(first, 19, 2);
+  // A dot blinks over the background: every frame differs, so every pass runs
+  for (int pass = 0; pass < 40; pass++) {
+    strip[0] = Color(pass % 2 ? 255 : 0, 0, 0, 0);
+    strip.limit();
+  }
+  EXPECT_NEAR(strip.power_brightness(), first, 2);
+  // One raw level at this scale is about 13 logical levels
+  EXPECT_NEAR(strip[50].get_red(), 100, 16);
 }
 
 }  // namespace esphome::light::testing

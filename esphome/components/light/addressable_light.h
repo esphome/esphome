@@ -140,7 +140,9 @@ class AddressableLight : public LightOutput, public Component {
   // Run by the light state before each frame goes out
   void limit_power_();
   void setup_power_budget_();
-  float frame_ma_() const;
+  // slack_ma, when asked for, is one level's draw for every lit channel: the most the round-up on the way
+  // down can have added to the frame
+  float frame_ma_(float *slack_ma = nullptr) const;
   float draw_ma_(const uint32_t sums[4]) const;
 #endif
 

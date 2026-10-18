@@ -25,15 +25,23 @@ float AddressableLight::get_estimated_current_ma() const {
 }
 
 // Idle draw plus the weighted levels in the buffer
-float AddressableLight::frame_ma_() const {
+float AddressableLight::frame_ma_(float *slack_ma) const {
   uint32_t sums[4]{};
+  uint32_t lit[4]{};
   const int32_t count = this->size();
   for (int32_t i = 0; i < count; i++) {
     const auto view = this->get_view_internal(i);
-    sums[0] += view.get_red_raw();
-    sums[1] += view.get_green_raw();
-    sums[2] += view.get_blue_raw();
-    sums[3] += view.get_white_raw();
+    const uint8_t levels[4] = {view.get_red_raw(), view.get_green_raw(), view.get_blue_raw(), view.get_white_raw()};
+    for (size_t channel = 0; channel < 4; channel++) {
+      sums[channel] += levels[channel];
+      lit[channel] += levels[channel] != 0;
+    }
+  }
+  if (slack_ma != nullptr) {
+    const auto &power = *this->power_estimation_;
+    *slack_ma = 0.0f;
+    for (size_t channel = 0; channel < 4; channel++)
+      *slack_ma += lit[channel] * power.ma_per_level[channel];
   }
   return this->draw_ma_(sums);
 }
@@ -76,7 +84,8 @@ void AddressableLight::limit_power_() {
     return;
   // A frame the last pass already left in the buffer, as a driver retry sends, is not limited again: its
   // levels were rounded up on the way down and read as a hair over budget, which would walk the scale down
-  const float frame_ma = this->frame_ma_();
+  float slack_ma;
+  const float frame_ma = this->frame_ma_(&slack_ma);
   if (frame_ma == power->last_frame_ma)
     return;
   power->last_frame_ma = frame_ma;
@@ -88,6 +97,11 @@ void AddressableLight::limit_power_() {
                             ? 255
                             : static_cast<uint8_t>(std::max(power->budget_ma / intended_ma * 255.0f, 1.0f));
   if (scale == previous)
+    return;
+  // Levels were rounded up on the way down, so a frame can read as over budget by up to one level per lit
+  // channel. A drop the frame does not need once that is taken off would only move the scale under levels
+  // that stay where they are, and inflate what they read back as
+  if (scale < previous && frame_ma - power->idle_ma - slack_ma <= power->budget_ma)
     return;
   this->correction_.set_power_brightness(scale);
   // One divide per level instead of one per channel; ESP8266 has no hardware divide
