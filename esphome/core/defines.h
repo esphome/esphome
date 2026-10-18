@@ -802,6 +802,9 @@
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_LOGGER_EARLY_MESSAGE
+// Emitted by logger/__init__.py for hardware_uart: RAM or SEMIHOST.
+#define USE_LOGGER_CONSOLE
+#define LOGGER_CONSOLE_NAME "RAM"
 #define USE_OTA_ROLLBACK
 // All USE_ZEPHYR variants default to BSD sockets.
 #define USE_SOCKET_IMPL_BSD_SOCKETS
