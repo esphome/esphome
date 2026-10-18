@@ -98,10 +98,10 @@ void AddressableLight::limit_power_() {
                             : static_cast<uint8_t>(std::max(power->budget_ma / intended_ma * 255.0f, 1.0f));
   if (scale == previous)
     return;
-  // Levels were rounded up on the way down, so a frame can read as over budget by up to one level per lit
-  // channel. A drop the frame does not need once that is taken off would only move the scale under levels
-  // that stay where they are, and inflate what they read back as
-  if (scale < previous && frame_ma - power->idle_ma - slack_ma <= power->budget_ma)
+  // Below full scale the levels were rounded up on the way down, so a frame can read as over budget by up
+  // to one level per lit channel. A drop the frame does not need once that is taken off would only move the
+  // scale under levels that stay where they are, and inflate what they read back as
+  if (previous < 255 && scale < previous && frame_ma - power->idle_ma - slack_ma <= power->budget_ma)
     return;
   this->correction_.set_power_brightness(scale);
   // One divide per level instead of one per channel; ESP8266 has no hardware divide

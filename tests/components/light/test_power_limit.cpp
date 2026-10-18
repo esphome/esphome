@@ -263,4 +263,14 @@ TEST(PowerLimit, AChangingPixelOverAStaticBackgroundDoesNotWalkTheScaleDown) {
   EXPECT_NEAR(strip[50].get_red(), 100, 16);
 }
 
+TEST(PowerLimit, AFrameJustOverBudgetAtFullScaleIsLimited) {
+  Strip strip(10);
+  strip.configure_power(20, 0, 199);  // ten full red pixels draw 200 mA
+  strip.all() = Color(255, 0, 0, 0);
+  strip.limit();
+  // Nothing was rounded at full scale, so the overshoot is real and the scale drops
+  EXPECT_LT(strip.power_brightness(), 255);
+  EXPECT_LE(strip.get_estimated_current_ma(), 199.0f + 10 * 20.0f / 255.0f);
+}
+
 }  // namespace esphome::light::testing
