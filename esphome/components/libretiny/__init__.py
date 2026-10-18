@@ -55,7 +55,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-# SDK fault handlers the crash handler wraps on BK7238 and BK7231N
+# Fault handlers the crash handler wraps (BK7238, BK7231N)
 BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
 
 CODEOWNERS = ["@kuba2k2"]

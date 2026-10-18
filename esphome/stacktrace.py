@@ -164,7 +164,7 @@ def process_crash_handler_line(
             addr = match.group(1)
             idedata = get_idedata(config)
             elf = idedata.firmware_elf_path
-            # Warn once and leave the dump region, so the report's other lines pass through
+            # Warn once per report and leave the dump region
             if not idedata.addr2line_path:
                 _LOGGER.warning(
                     "Cannot decode the crash report: no addr2line in the toolchain"

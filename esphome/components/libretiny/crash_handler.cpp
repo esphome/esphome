@@ -18,12 +18,10 @@ extern "C" {
 #include <intc.h>         // struct arm_registers
 }
 
-// On a fault the SDK (driver/entry/boot_handlers.S, PUSH_SVC_REG) builds a struct arm_registers frame
-// on the exception stack and branches to bk_trap_udef/pabt/dabt. Those record the crash type in a
-// retention register, print a dump that sdk_silent hides, and spin for the watchdog. The build wraps
-// them (-Wl,--wrap) so the fault location and a stack scan reach the next boot.
-//
-// pc in the frame is the exception mode's LR; PUSH_SVC_REG stores pc and spsr at these word offsets.
+// On a fault the SDK (boot_handlers.S, PUSH_SVC_REG) builds a struct arm_registers frame and branches
+// to bk_trap_udef/pabt/dabt, which record the crash type, print a dump sdk_silent hides and spin for
+// the watchdog. The wrappers (-Wl,--wrap) first save the fault location and a stack scan for the
+// next boot. pc is the exception LR; PUSH_SVC_REG stores pc and spsr at these word offsets.
 static_assert(sizeof(arm_registers) == 18 * sizeof(uint32_t), "SDK exception frame changed size");
 static_assert(offsetof(arm_registers, pc) == 15 * 4 && offsetof(arm_registers, spsr) == 16 * 4,
               "SDK exception frame layout changed");
@@ -34,7 +32,7 @@ extern "C" {
 void __real_bk_trap_udef(arm_registers *regs);
 void __real_bk_trap_pabt(arm_registers *regs);
 void __real_bk_trap_dabt(arm_registers *regs);
-// Linker symbols bounding the app's flash image (code and rodata) and its ITCM code copy.
+// Bounds of the app's flash image and its ITCM code (linker symbols).
 extern char _vector_start[];
 extern char _data_flash_begin[];
 extern char _itcmcode_ram_begin[];
@@ -46,7 +44,7 @@ namespace esphome::libretiny {
 
 ESPHOME_LOG_TAG(TAG, "libretiny.crash");
 
-// 0xDEAD sentinel in the upper half, record layout version in the lower half.
+// 0xDEAD sentinel, then the record layout version.
 static constexpr uint32_t CRASH_MAGIC_V1 = 0xDEAD0001;
 
 static constexpr uint32_t CRASH_REASON_UNDEFINED = 1;
@@ -54,16 +52,16 @@ static constexpr uint32_t CRASH_REASON_PREFETCH_ABORT = 2;
 static constexpr uint32_t CRASH_REASON_DATA_ABORT = 3;
 PROGMEM_STRING_TABLE(CrashReasonStrings, "Unknown", "Undefined instruction", "Prefetch abort", "Data abort");
 
-// Once Wi-Fi is up the watchdog armed at boot no longer fires (BK7238 and BK7231N: any spin with
-// interrupts off hangs until power is cycled; not explained by the open SDK sources), so the wrapper
-// re-arms it. Long enough for the SDK's register dump when sdk_silent is off.
+// With Wi-Fi up the boot-time watchdog no longer fires: any interrupts-off spin hangs until power is
+// cycled (BK7238 and BK7231N; cause not in the open SDK). Re-armed here, long enough for the SDK's
+// register dump when sdk_silent is off.
 static constexpr uint32_t CRASH_REBOOT_WDT_MS = 500;
 
 static constexpr size_t MAX_BACKTRACE = 8;
-// Words scanned above the faulting context's sp for return addresses.
+// Words scanned above sp for return addresses.
 static constexpr size_t STACK_SCAN_WORDS = 64;
 
-// SRAM range a task stack can be in: 192 KB on the BK7231N, 256 KB on the BK7238.
+// SRAM: 192 KB on the BK7231N, 256 KB on the BK7238.
 static constexpr uint32_t SRAM_START = 0x00400000;
 #ifdef USE_LIBRETINY_VARIANT_BK7231N
 static constexpr uint32_t SRAM_END = 0x00430000;
@@ -101,13 +99,13 @@ bool crash_handler_has_data() {
   if (!s_record_read) {
     s_record_read = true;
     s_record_valid = s_record.magic == CRASH_MAGIC_V1;
-    // Only the magic is cleared so the data does not count again after the next reboot.
+    // Clear the magic so the record is reported once.
     s_record.magic = 0;
   }
   return s_record_valid;
 }
 
-// One ESP_LOGE per line: partial output survives a crash during boot and the CLI decodes per line.
+// One ESP_LOGE per line: the CLI decodes per line and partial output still shows.
 void crash_handler_log() {
   if (!crash_handler_has_data())
     return;
@@ -121,7 +119,7 @@ void crash_handler_log() {
   for (; count < MAX_BACKTRACE && s_record.backtrace[count] != 0; count++) {
     ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (stack backtrace)", count, s_record.backtrace[count]);
   }
-  // addr2line hint with every captured address for easy copy-paste
+  // addr2line hint with every address
   char hint[160];
   int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e raw_firmware.elf 0x%08" PRIX32 " 0x%08" PRIX32,
                      s_record.pc, s_record.lr);
@@ -131,8 +129,8 @@ void crash_handler_log() {
   ESP_LOGE(TAG, "%s", hint);
 }
 
-// --- Crash time: exception mode (UND or ABT), IRQ and FIQ masked, a few dozen bytes of stack, so no
-// printing and no large locals.
+// --- Crash time: exception mode, interrupts masked, a few dozen bytes of stack: no printing, no
+// large locals.
 
 static inline bool is_code_addr(uint32_t val) {
   uint32_t addr = val & ~1u;  // clear the Thumb bit of a return address
@@ -140,8 +138,8 @@ static inline bool is_code_addr(uint32_t val) {
          (addr >= (uint32_t) _itcmcode_ram_begin && addr < (uint32_t) _itcmcode_ram_end);
 }
 
-// Before branching to bk_trap_*, PUSH_ALL_ARM_REG (boot_handlers.S) saves every mode's registers at
-// the addresses arm_mcu_pub.h names; sp (r13) is followed by lr (r14).
+// PUSH_ALL_ARM_REG (boot_handlers.S) saves every mode's registers at the arm_mcu_pub.h addresses
+// before bk_trap_*; lr (r14) follows sp (r13).
 struct SavedBank {
   uint32_t mode;
   uint32_t sp_addr;
@@ -152,7 +150,7 @@ static constexpr SavedBank SAVED_BANKS[] = {
     {CPSR_MODE_UND, MCU_REG_BACKUP_SP_UND}, {CPSR_MODE_SVC, MCU_REG_BACKUP_SP_SVC},
 };
 
-// Leaves sp and lr at 0 for a mode the table does not know (a corrupt spsr).
+// sp and lr stay 0 for an unknown mode (corrupt spsr).
 static void read_saved_sp_lr(uint32_t mode, uint32_t *sp, uint32_t *lr) {
   for (const auto &bank : SAVED_BANKS) {
     if (bank.mode != mode)
@@ -195,8 +193,7 @@ static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offse
   lt_wdt_enable(CRASH_REBOOT_WDT_MS);
 }
 
-// The exception LR is past the fault: one instruction for undefined, 4 bytes for prefetch abort,
-// 8 for data abort.
+// The exception LR is past the fault: one instruction (undefined), 4 bytes (prefetch), 8 (data abort).
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" void __wrap_bk_trap_udef(arm_registers *regs) {
   record_crash(regs, CRASH_REASON_UNDEFINED, (regs->spsr & CPSR_THUMB) ? 2 : 4);

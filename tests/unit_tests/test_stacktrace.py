@@ -245,8 +245,7 @@ GATE_EXEMPT_PATTERNS = {
 
 
 def _decoder_module(platform: str):
-    """The module holding a platform's decoder patterns: the platform package,
-    or the shared module its process_stacktrace hook comes from."""
+    """Where a platform's decoder patterns live: its package, or its hook's module."""
     module = importlib.import_module(f"esphome.components.{platform}")
     return importlib.import_module(module.process_stacktrace.__module__)
 
@@ -296,7 +295,7 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
         name
         for name, value in vars(decoder).items()
         if isinstance(value, re.Pattern)
-        and ("STACKTRACE" in name or name.startswith("_CRASH"))
+        and ("STACKTRACE" in name or name.startswith(("_CRASH", "CRASH_HANDLER")))
         and name not in DECODER_PATTERNS[platform]
     ]
     assert not undeclared, (
@@ -640,7 +639,7 @@ def test_crash_report_warns_once_when_it_cannot_decode(
     reason: str,
 ) -> None:
     mock_get_idedata.return_value = _idedata(tmp_path, addr2line=addr2line, elf=elf)
-    # One warning for the report, then its remaining lines are left alone
+    # One warning per report
     assert not stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, True)
     assert caplog.text.count(reason) == 1
 
