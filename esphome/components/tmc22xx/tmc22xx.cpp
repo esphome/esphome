@@ -256,9 +256,6 @@ void TMC22XXStepper::dump_config() {
   LOG_PIN("  INDEX Pin: ", this->index_pin_);
   LOG_PIN("  DIAG Pin: ", this->diag_pin_);
   LOG_STEPPER(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void TMC22XXStepper::loop() {

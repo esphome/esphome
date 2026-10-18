@@ -1,7 +1,9 @@
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
+from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -55,6 +57,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
 
 _LOGGER = getLogger(__name__)
@@ -125,6 +128,12 @@ MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
 
 
+def is_host_uart(uart_id: ID, full_config: ConfigType) -> bool:
+    return CORE.is_host and any(
+        conf[CONF_ID] == uart_id for conf in full_config.get(DOMAIN) or []
+    )
+
+
 def validate_raw_data(value):
     if isinstance(value, str):
         return value.encode("utf-8")
@@ -192,11 +201,9 @@ def _uart_declare_type(value):
 
 
 UARTParityOptions = uart_ns.enum("UARTParityOptions")
-UART_PARITY_OPTIONS = {
-    "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
-    "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
-    "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
-}
+UART_PARITY_OPTIONS = UARTParityOptions.options(
+    "NONE", "EVEN", "ODD", prefix="UART_CONFIG_PARITY_"
+)
 
 CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
@@ -204,13 +211,9 @@ CONF_RX_TIMEOUT = "rx_timeout"
 CONF_CLOCK_SOURCE = "clock_source"
 
 UARTClockSource = cg.global_ns.enum("uart_sclk_t")
-UART_CLOCK_SOURCES = {
-    "DEFAULT": UARTClockSource.UART_SCLK_DEFAULT,
-    "APB": UARTClockSource.UART_SCLK_APB,
-    "XTAL": UARTClockSource.UART_SCLK_XTAL,
-    "RTC": UARTClockSource.UART_SCLK_RTC,
-    "REF_TICK": UARTClockSource.UART_SCLK_REF_TICK,
-}
+UART_CLOCK_SOURCES = UARTClockSource.options(
+    "DEFAULT", "APB", "XTAL", "RTC", "REF_TICK", prefix="UART_SCLK_"
+)
 
 # Keep in sync with SOC_UART_SUPPORT_* in ESP-IDF's per-variant soc_caps.h.
 UART_CLOCK_SOURCES_BY_VARIANT = {
@@ -230,11 +233,7 @@ UART_CLOCK_SOURCES_BY_VARIANT = {
 }
 
 UARTDirection = uart_ns.enum("UARTDirection")
-UART_DIRECTIONS = {
-    "RX": UARTDirection.UART_DIRECTION_RX,
-    "TX": UARTDirection.UART_DIRECTION_TX,
-    "BOTH": UARTDirection.UART_DIRECTION_BOTH,
-}
+UART_DIRECTIONS = UARTDirection.options("RX", "TX", "BOTH", prefix="UART_DIRECTION_")
 
 # The reason for having CONF_BYTES at 150 by default:
 #
@@ -592,6 +591,16 @@ async def register_uart_device(var, config):
     """
     parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))
+
+
+def new_uart_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on a UART bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_uart_device, config, *args)
 
 
 @automation.register_action(

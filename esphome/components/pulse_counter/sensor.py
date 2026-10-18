@@ -28,11 +28,9 @@ CONF_USE_PCNT = "use_pcnt"
 
 pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
 PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
-COUNT_MODES = {
-    "DISABLE": PulseCounterCountMode.PULSE_COUNTER_DISABLE,
-    "INCREMENT": PulseCounterCountMode.PULSE_COUNTER_INCREMENT,
-    "DECREMENT": PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
-}
+COUNT_MODES = PulseCounterCountMode.options(
+    "DISABLE", "INCREMENT", "DECREMENT", prefix="PULSE_COUNTER_"
+)
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 

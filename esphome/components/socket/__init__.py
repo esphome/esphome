@@ -293,6 +293,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "lwip_raw_udp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
+        "ipv4_allow.cpp": "USE_SOCKET_IPV4_ALLOW",
         "ipv4_resolve.cpp": "USE_SOCKET_IPV4_RESOLVE",
         "tcp_client_link.cpp": "USE_SOCKET_TCP_CLIENT_LINK",
         "tcp_listener.cpp": "USE_SOCKET_TCP_LISTENER",

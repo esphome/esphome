@@ -1,5 +1,8 @@
 """Tests for the deep sleep component."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 
 from esphome import config_validation as cv
@@ -186,3 +189,32 @@ def test_deep_sleep_bk72xx_global_wakeup_pin_mode_with_multiple_pins_rejected(
     with pytest.raises(cv.Invalid, match="define it per pin") as exc:
         deep_sleep.validate_config(config)
     assert exc.value.path == [deep_sleep.CONF_WAKEUP_PIN_MODE]
+
+
+def test_deep_sleep_esp32_nested_wakeup_pin_mode(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """On ESP32, a wakeup_pin_mode nested under the pin entry is applied, not dropped."""
+    main_cpp = generate_main(
+        "tests/component_tests/deep_sleep/test_deep_sleep_nested_wakeup_pin_mode.yaml"
+    )
+
+    assert "deepsleep->set_wakeup_pin(" in main_cpp
+    assert "deepsleep->set_wakeup_pin_mode(" in main_cpp
+    assert "WAKEUP_PIN_MODE_KEEP_AWAKE" in main_cpp
+
+
+def test_deep_sleep_esp32_wakeup_pin_mode_at_both_levels_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On ESP32, wakeup_pin_mode at the top level and under the pin entry is an error."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = {
+        CONF_WAKEUP_PIN: [
+            {"pin": "GPIO4", deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+        ],
+        deep_sleep.CONF_WAKEUP_PIN_MODE: "INVERT_WAKEUP",
+    }
+    with pytest.raises(cv.Invalid, match="not both") as exc:
+        deep_sleep.validate_config(config)
+    assert exc.value.path == [CONF_WAKEUP_PIN, 0, deep_sleep.CONF_WAKEUP_PIN_MODE]

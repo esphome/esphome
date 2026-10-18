@@ -1,8 +1,7 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, noise, sensor, socket, uart
+from esphome.components import noise, socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
-    CONF_CONNECTED,
     CONF_HOST,
     CONF_RECONNECT_INTERVAL,
     CONF_ROLE,
@@ -18,9 +17,6 @@ from esphome.const import (
     CONF_PORT,
     CONF_TIMEOUT,
     CONF_UART_ID,
-    DEVICE_CLASS_CONNECTIVITY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_TOTAL_INCREASING,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
@@ -29,10 +25,10 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@Bascht74"]
 DOMAIN = "uart_tcp"
 DEPENDENCIES = ["network", "uart"]
-AUTO_LOAD = noise.stream_auto_load(DOMAIN, ["binary_sensor", "sensor", "socket"])
+AUTO_LOAD = noise.stream_auto_load(DOMAIN, ["socket"])
 MULTI_CONF = True
 
-CONF_DISCONNECTS = "disconnects"
+CONF_UART_TCP_ID = "uart_tcp_id"
 
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
@@ -48,15 +44,6 @@ BASE_SCHEMA = cv.Schema(
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_ENCRYPTION): noise.STREAM_ENCRYPTION_SCHEMA,
-        cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_CONNECTIVITY,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
-        cv.Optional(CONF_DISCONNECTS): sensor.sensor_schema(
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -139,9 +126,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     if config[CONF_ROLE] == "server":
         socket.require_tcp_listener()
         cg.add(var.set_server(True))
@@ -162,7 +147,3 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_ID], encryption[CONF_KEY], config[CONF_ROLE] == "client"
         )
         cg.add(var.set_noise_stream(stream))
-    binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
-    sensors = sensor.sub_sensors(config)
-    await sensors(CONF_DISCONNECTS, var.set_disconnects_sensor)
