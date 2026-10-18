@@ -9,6 +9,13 @@
 
 namespace esphome::uart::testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 using packet_interface::PacketBuffer;
 using packet_interface::PacketMetaData;
 
@@ -26,9 +33,8 @@ class UartPacketInterfaceTest : public ::testing::Test {
     interface_.set_uart_parent(&uart_);
     interface_.setup();
 
-    interface_.add_packet_interface_listener([this](const PacketBuffer &data, const PacketMetaData &meta) {
-      received_packets_.push_back(data.to_vector());
-    });
+    interface_.add_packet_interface_listener(
+        [this](const PacketBuffer &data, const PacketMetaData &meta) { received_packets_.push_back(to_vector(data)); });
   }
 };
 

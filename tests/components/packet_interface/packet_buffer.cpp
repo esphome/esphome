@@ -5,6 +5,13 @@
 
 namespace esphome::packet_interface::testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 // Test default constructor
 TEST(PacketBufferTest, DefaultConstructor) {
   PacketBuffer buffer;
@@ -154,19 +161,6 @@ TEST(PacketBufferTest, CopyToComposite) {
   EXPECT_EQ(dest[5], 0x06);
 }
 
-// Test to_vector method
-TEST(PacketBufferTest, ToVector) {
-  uint8_t data[] = {0xAA, 0xBB, 0xCC};
-  PacketBuffer buffer(data, 3);
-
-  std::vector<uint8_t> vec = buffer.to_vector();
-
-  EXPECT_EQ(vec.size(), 3);
-  EXPECT_EQ(vec[0], 0xAA);
-  EXPECT_EQ(vec[1], 0xBB);
-  EXPECT_EQ(vec[2], 0xCC);
-}
-
 // Test copying from an offset past the mid buffer
 TEST(PacketBufferTest, CopyToOffsetPastMid) {
   uint8_t pre[] = {0x01, 0x02};
@@ -221,7 +215,7 @@ TEST(PacketBufferTest, EmptyBuffer) {
   EXPECT_EQ(copied, 0);
   EXPECT_EQ(dest[0], 0xFF);  // Unchanged
 
-  std::vector<uint8_t> vec = buffer.to_vector();
+  std::vector<uint8_t> vec = to_vector(buffer);
   EXPECT_EQ(vec.size(), 0);
 }
 

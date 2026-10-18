@@ -18,8 +18,8 @@ namespace esphome::packet_interface {
  *
  * WARNING: PacketBuffer holds raw pointers to data. The user must ensure that the data remains valid
  * for the lifetime of the PacketBuffer instance. Storing PacketBuffer instances beyond the scope of the data they
- * reference will lead to dangling pointers and undefined behavior, so if you need to store a PacketBuffer, consider
- * copying the data into a std::vector or similar.
+ * reference will lead to dangling pointers and undefined behavior, so to keep a packet, copy it with copy_to() into a
+ * buffer allocated in setup().
  */
 class PacketBuffer {
  public:
@@ -160,17 +160,6 @@ class PacketBuffer {
     }
 
     return copied;
-  }
-
-  /**
-   * Convert the buffer to a std::vector.
-   */
-  std::vector<uint8_t> to_vector() const {
-    std::vector<uint8_t> result;
-    size_t total_size = this->size();
-    result.resize(total_size);
-    this->copy_to(result.data(), total_size);
-    return result;
   }
 
  private:
