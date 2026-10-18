@@ -97,6 +97,9 @@ class TsdbComponent : public PollingComponent {
   uint32_t held_{0};
   uint32_t last_sync_{0};
   uint32_t last_timestamp_{0};
+  // Added to an uptime timestamp (a device without a clock) so the series
+  // continues after the newest stored record instead of restarting at 0.
+  uint32_t uptime_offset_{0};
   bool dirty_{false};
   bool warned_time_{false};
   bool warned_backwards_{false};
