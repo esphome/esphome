@@ -1,11 +1,17 @@
-"""Tests for the FIFO split usb_host sizes from periodic packet requests."""
+"""Tests for the usb_host FIFO split sized from periodic packet requests."""
 
 import pytest
 
 from esphome import config_validation as cv
 from esphome.components import usb_host
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
-from esphome.const import KEY_IDF_VERSION, KEY_VARIANT, PlatformFramework
+from esphome.config import Config
+from esphome.const import (
+    CONF_FRAMEWORK,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
+    PlatformFramework,
+)
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -71,7 +77,7 @@ def test_requests_that_fit_the_default_need_no_newer_idf(
     _set_variant(set_core_config, VARIANT_ESP32S3, idf=cv.Version(5, 4, 3))
     usb_host.request_periodic_fifo(in_bytes=34, out_bytes=128)
     usb_host.FINAL_VALIDATE_SCHEMA({})
-    assert usb_host.KEY_FIFO_SPLIT not in CORE.data[usb_host.DOMAIN]
+    assert "USE_USB_HOST_FIFO_CONFIG" not in _defines()
 
 
 def test_requests_keep_the_largest_packet(
@@ -100,13 +106,42 @@ def test_requests_that_do_not_fit_are_rejected(
         usb_host.fifo_split()
 
 
-def test_final_validate_stores_the_split(
+def _defines() -> dict[str, str]:
+    return {define.name: str(define.value) for define in CORE.defines}
+
+
+def test_final_validate_emits_the_split(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     _set_variant(set_core_config, VARIANT_ESP32S3)
     usb_host.request_periodic_fifo(out_bytes=196)
     usb_host.FINAL_VALIDATE_SCHEMA({})
-    assert CORE.data[usb_host.DOMAIN][usb_host.KEY_FIFO_SPLIT] == (34, 16, 206)
+    defines = _defines()
+    assert "USE_USB_HOST_FIFO_CONFIG" in defines
+    assert (
+        defines["USB_HOST_FIFO_RX_LINES"],
+        defines["USB_HOST_FIFO_NPTX_LINES"],
+        defines["USB_HOST_FIFO_PTX_LINES"],
+    ) == ("34", "16", "206")
+
+
+def test_request_beyond_the_selected_bias_gets_a_custom_split(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The periodic OUT bias leaves RX 34 lines (128 bytes), too few for 196-byte IN packets.
+    full = Config()
+    full["esp32"] = {
+        CONF_FRAMEWORK: {
+            "sdkconfig_options": {"CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT": "y"}
+        }
+    }
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32S3, KEY_IDF_VERSION: IDF_5_5},
+        full_config=full,
+    )
+    usb_host.request_periodic_fifo(in_bytes=196)
+    assert usb_host.fifo_split() == (208, 16, 32)
 
 
 def test_final_validate_needs_idf_5_5(set_core_config: SetCoreConfigCallable) -> None:

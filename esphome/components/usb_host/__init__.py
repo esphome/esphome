@@ -16,7 +16,7 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICES, CONF_ID
+from esphome.const import CONF_DEVICES, CONF_FRAMEWORK, CONF_ID
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component
@@ -118,53 +118,35 @@ def _final_validate(config: ConfigType) -> ConfigType:
             if redundant
             else "narrow its filter so it no longer matches that device",
         )
-    _validate_fifo()
+    _reconcile_fifo()
     return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-# The full-speed controller of these variants shares one FIFO of 256 4-byte lines between received packets, control
-# and bulk OUT packets, and periodic (interrupt and isochronous) OUT packets, and rejects an endpoint whose max packet
-# size does not fit its share. ESP-IDF's default split leaves 128 bytes for periodic OUT, so components with larger
-# periodic packets request space and the split is sized from the requests.
+# S2/S3 full-speed controller: one FIFO of 256 4-byte lines shared by RX, non-periodic TX and periodic TX.
 FIFO_VARIANTS = (VARIANT_ESP32S2, VARIANT_ESP32S3)
 FIFO_LINES = 256
 FIFO_LINE_BYTES = 4
-# The controller reserves 2 of the RX lines for status.
 FIFO_RX_STATUS_LINES = 2
-# ESP-IDF's default (balanced) split: 632 bytes of received packets, 256 of control and bulk OUT, 128 of periodic OUT.
-# Requests that fit it keep it.
-FIFO_DEFAULT_RX_LINES = 160
-FIFO_DEFAULT_PTX_LINES = 32
-# A custom split: control and bulk packets are at most 64 bytes at full speed, and each direction keeps at least 128
-# bytes for other devices' packets.
+# (RX, NPTX, PTX) lines ESP-IDF picks for each CONFIG_USB_HOST_HW_BUFFER_BIAS_* option
+FIFO_BIAS_SPLITS = {
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN": (208, 16, 32),
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT": (34, 16, 206),
+}
+FIFO_BALANCED_SPLIT = (160, 64, 32)
+# Custom split: 64-byte control/bulk, at least 128 bytes each way
 FIFO_NPTX_LINES = 16
 FIFO_PTX_MIN_LINES = 32
 FIFO_RX_MIN_LINES = 32 + FIFO_RX_STATUS_LINES
-# usb_host_config_t::fifo_settings_custom
+# Added usb_host_config_t::fifo_settings_custom
 FIFO_CUSTOM_MIN_IDF = cv.Version(5, 5, 0)
 KEY_PERIODIC_FIFO = "periodic_fifo"
-KEY_FIFO_SPLIT = "fifo_split"
 
 
 def request_periodic_fifo(in_bytes: int = 0, out_bytes: int = 0) -> None:
-    """Request FIFO space for the largest periodic IN and OUT packet a component's endpoints use.
-
-    On the ESP32-S2 and ESP32-S3, usb_host then sizes the controller's FIFO split so the largest requested packet in
-    each direction fits, unless ESP-IDF's default split already fits them; other variants keep the default split. Call it from CONFIG_SCHEMA validation, so the
-    request is recorded before usb_host's final validation checks it.
-
-    Example:
-        from esphome.components import usb_host
-
-        def _request_fifo(config):
-            usb_host.request_periodic_fifo(out_bytes=196)
-            return config
-
-        CONFIG_SCHEMA = cv.All(..., _request_fifo)
-    """
+    """Request FIFO space for the largest periodic IN/OUT packet. Call from CONFIG_SCHEMA validation."""
     requested = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_PERIODIC_FIFO, [0, 0])
     requested[0] = max(requested[0], in_bytes)
     requested[1] = max(requested[1], out_bytes)
@@ -174,18 +156,25 @@ def _fifo_lines(size: int) -> int:
     return -(-size // FIFO_LINE_BYTES)
 
 
-def fifo_split() -> tuple[int, int, int] | None:
-    """The (RX, non-periodic TX, periodic TX) FIFO lines for the requested packets.
+def _default_split() -> tuple[int, int, int]:
+    framework = fv.full_config.get().get("esp32", {}).get(CONF_FRAMEWORK, {})
+    options = framework.get("sdkconfig_options", {})
+    for option, split in FIFO_BIAS_SPLITS.items():
+        if options.get(option) in ("y", True):
+            return split
+    return FIFO_BALANCED_SPLIT
 
-    None when the variant keeps ESP-IDF's default split, or the requested packets already fit it.
-    """
+
+def fifo_split() -> tuple[int, int, int] | None:
+    """(RX, NPTX, PTX) lines for the requests, or None when the default split fits them."""
     requested = CORE.data.get(DOMAIN, {}).get(KEY_PERIODIC_FIFO)
     if requested is None or get_esp32_variant() not in FIFO_VARIANTS:
         return None
     in_bytes, out_bytes = requested
     rx = _fifo_lines(in_bytes) + FIFO_RX_STATUS_LINES
     ptx = _fifo_lines(out_bytes)
-    if rx <= FIFO_DEFAULT_RX_LINES and ptx <= FIFO_DEFAULT_PTX_LINES:
+    default_rx, _, default_ptx = _default_split()
+    if rx <= default_rx and ptx <= default_ptx:
         return None
     rx = max(FIFO_RX_MIN_LINES, rx)
     ptx = max(FIFO_PTX_MIN_LINES, ptx)
@@ -195,7 +184,7 @@ def fifo_split() -> tuple[int, int, int] | None:
             f"The requested USB packets need {(rx + ptx + FIFO_NPTX_LINES) * FIFO_LINE_BYTES} bytes of USB FIFO, "
             f"but the {get_esp32_variant()} has {FIFO_LINES * FIFO_LINE_BYTES}"
         )
-    # A device can declare a larger max packet size than the request, so the requested directions share the rest.
+    # Devices may declare a larger max packet size, so the requested directions share the rest
     if in_bytes and out_bytes:
         rx += spare // 2
         ptx += spare - spare // 2
@@ -206,14 +195,18 @@ def fifo_split() -> tuple[int, int, int] | None:
     return rx, FIFO_NPTX_LINES, ptx
 
 
-def _validate_fifo() -> None:
+def _reconcile_fifo() -> None:
     if (split := fifo_split()) is None:
         return
     if idf_version() < FIFO_CUSTOM_MIN_IDF:
         raise cv.Invalid(
             f"Sizing the USB FIFO on the {get_esp32_variant()} needs ESP-IDF {FIFO_CUSTOM_MIN_IDF} or later"
         )
-    CORE.data[DOMAIN][KEY_FIFO_SPLIT] = split
+    rx, nptx, ptx = split
+    cg.add_define("USE_USB_HOST_FIFO_CONFIG")
+    cg.add_define("USB_HOST_FIFO_RX_LINES", rx)
+    cg.add_define("USB_HOST_FIFO_NPTX_LINES", nptx)
+    cg.add_define("USB_HOST_FIFO_PTX_LINES", ptx)
 
 
 def _set_max_packet_size(config: dict) -> dict:
@@ -279,12 +272,6 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("USB_HOST_MAX_REQUESTS", config[CONF_MAX_TRANSFER_REQUESTS])
     cg.add_define("USB_HOST_MAX_PACKET_SIZE", config[CONF_MAX_PACKET_SIZE])
-    if (split := CORE.data[DOMAIN].get(KEY_FIFO_SPLIT)) is not None:
-        rx, nptx, ptx = split
-        cg.add_define("USE_USB_HOST_FIFO_CONFIG")
-        cg.add_define("USB_HOST_FIFO_RX_LINES", rx)
-        cg.add_define("USB_HOST_FIFO_NPTX_LINES", nptx)
-        cg.add_define("USB_HOST_FIFO_PTX_LINES", ptx)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
