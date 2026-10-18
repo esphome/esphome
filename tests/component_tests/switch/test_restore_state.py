@@ -104,7 +104,7 @@ def esp8266(set_core_config: SetCoreConfigCallable) -> None:
 @pytest.mark.usefixtures("esp8266")
 def test_restore_mode_and_restore_state_are_exclusive() -> None:
     with pytest.raises(cv.Invalid, match="restore"):
-        _validate({"restore_mode": "RESTORE_DEFAULT_OFF", "restore_state": "KEEP"})
+        _validate({"restore_mode": "RESTORE_DEFAULT_OFF", "restore_state": "all"})
 
 
 @pytest.mark.usefixtures("esp8266")
@@ -121,10 +121,32 @@ def test_storage_rejected_when_nothing_is_restored() -> None:
 
 
 @pytest.mark.usefixtures("esp8266")
-@pytest.mark.parametrize("value", ["RESTORE", "ON", "OFF", {"state": "ON"}])
+@pytest.mark.parametrize("value", ["RESTORE", "ON", "OFF", "KEEP", "INVERT", "INITIAL"])
 def test_unsupported_restore_state_values_rejected(value: object) -> None:
-    with pytest.raises(cv.Invalid):
+    # Only light's shorthands (all, none) are accepted as a string
+    with pytest.raises(cv.Invalid, match="expected 'all', 'none' or a mapping"):
         _validate({"restore_state": value})
+
+
+@pytest.mark.usefixtures("esp8266")
+@pytest.mark.parametrize("state", [True, False, "ON", "off"])
+def test_restore_state_on_off_explains_what_to_use(state: object) -> None:
+    # Valid on light, so people will try it; YAML turns ON into True
+    with pytest.raises(
+        cv.Invalid, match="initial_state: ON' \\(or OFF\\) with 'restore_state: none'"
+    ):
+        _validate({"restore_state": {"state": state}})
+
+
+@pytest.mark.usefixtures("esp8266")
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(True, True), (False, False), ({"state": True}, True), ({"state": "OFF"}, False)],
+)
+def test_initial_state_accepts_lights_mapping_form(
+    value: object, expected: bool
+) -> None:
+    assert _validate({"initial_state": value})["initial_state"] is expected
 
 
 @pytest.mark.parametrize(
@@ -168,7 +190,7 @@ def test_rtc_accepted_on_esp8266() -> None:
 def test_platform_default_restore_mode_applies_only_when_nothing_is_set() -> None:
     """Platforms such as haier default to DISABLED; restore_state must still be usable there."""
     assert _validate({}, default_restore_mode="DISABLED")["restore_mode"] == "DISABLED"
-    configured = _validate({"restore_state": "KEEP"}, default_restore_mode="DISABLED")
+    configured = _validate({"restore_state": "all"}, default_restore_mode="DISABLED")
     assert "restore_mode" not in configured
 
 

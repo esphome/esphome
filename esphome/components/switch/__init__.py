@@ -85,11 +85,24 @@ def _validate_restore_state_storage(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_restore_state_state(value):
+    # light accepts ON/OFF here (restore, then force a state); a switch has no such mode, and
+    # YAML turns ON into True, so say what to use instead of asking for quotes
+    if isinstance(value, bool) or (
+        isinstance(value, str) and value.upper() in ("ON", "OFF")
+    ):
+        raise cv.Invalid(
+            "a switch can't restore and then force ON or OFF; to always start in a fixed state, "
+            "use 'initial_state: ON' (or OFF) with 'restore_state: none'"
+        )
+    return cv.one_of(*_RESTORE_STATE_STATES, upper=True)(value)
+
+
 _RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_STATE, default=RESTORE_STATE_KEEP): cv.one_of(
-            *_RESTORE_STATE_STATES, upper=True
-        ),
+        cv.Optional(
+            CONF_STATE, default=RESTORE_STATE_KEEP
+        ): _validate_restore_state_state,
         # No default: when unset, the existing restore_mode storage applies (on ESP8266,
         # restore_from_flash decides), as with wifi
         cv.Optional(CONF_STORAGE): preferences.validate_storage,
@@ -100,7 +113,7 @@ _RESTORE_STATE_FIELDS_SCHEMA.add_extra(_validate_restore_state_storage)
 
 @schema_extractor("schema")
 def RESTORE_STATE_SCHEMA(value):
-    """A mapping of `state` and `storage`, or a shorthand: a state, `all` (KEEP) or `none`."""
+    """A mapping of `state` and `storage`, or light's shorthands `all` (KEEP) and `none`."""
     if value == SCHEMA_EXTRACT:
         return _RESTORE_STATE_FIELDS_SCHEMA
     if isinstance(value, str):
@@ -110,7 +123,10 @@ def RESTORE_STATE_SCHEMA(value):
         elif upper == RESTORE_STATE_NONE:
             value = {CONF_STATE: RESTORE_STATE_INITIAL}
         else:
-            value = {CONF_STATE: upper}
+            raise cv.Invalid(
+                f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
+                "for example '{state: INVERT}'"
+            )
     return _RESTORE_STATE_FIELDS_SCHEMA(value)
 
 
@@ -140,8 +156,8 @@ _STATE_FOR_RESTORE_MODE = {
 
 def _apply_default_restore_mode(default_restore_mode: str):
     # cv.Exclusive has no default, so apply it here when no restore option is configured.
-    # With only initial_state set, a restoring default keeps restoring (as light does) and
-    # initial_state supplies the state used when nothing is saved.
+    # With only initial_state set, a restoring default keeps restoring and initial_state
+    # supplies the state used when nothing is saved.
     default = cv.enum(RESTORE_MODES, upper=True, space="_")(default_restore_mode)
     state = _STATE_FOR_RESTORE_MODE.get(str(default), RESTORE_STATE_INITIAL)
 
@@ -179,7 +195,13 @@ _SWITCH_SCHEMA = (
                 RESTORE_MODES, upper=True, space="_"
             ),
             cv.Exclusive(CONF_RESTORE_STATE, "restore"): RESTORE_STATE_SCHEMA,
-            cv.Optional(CONF_INITIAL_STATE): cv.boolean,
+            # ON/OFF, or light's mapping form {state: ON}; either way a boolean afterwards
+            cv.Optional(CONF_INITIAL_STATE): cv.All(
+                cv.maybe_simple_value(
+                    {cv.Required(CONF_STATE): cv.boolean}, key=CONF_STATE
+                ),
+                lambda value: value[CONF_STATE],
+            ),
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation({}),
