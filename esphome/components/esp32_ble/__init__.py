@@ -268,6 +268,8 @@ CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
+CONF_CLASSIC_BT = "classic_bt"
+CONF_CLASSIC_MAX_ACL_CONNECTIONS = "classic_max_acl_connections"
 
 # BLE connection limits
 # ESP-IDF CONFIG_BT_ACL_CONNECTIONS has range 1-9, default 4
@@ -359,6 +361,10 @@ CONFIG_SCHEMA = cv.Schema(
             cv.positive_int,
             cv.Range(min=1, max=64),
         ),
+        cv.Optional(CONF_CLASSIC_BT, default=False): cv.boolean,
+        cv.Optional(CONF_CLASSIC_MAX_ACL_CONNECTIONS, default=1): cv.int_range(
+            min=1, max=7
+        ),
         cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
             cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
         ),
@@ -448,6 +454,10 @@ def validate_connection_slots(max_connections: int) -> None:
 
 def final_validation(config: ConfigType) -> None:
     validate_variant(config)
+    if config[CONF_CLASSIC_BT] and (
+        get_esp32_variant() != const.VARIANT_ESP32 or CORE.using_arduino
+    ):
+        raise cv.Invalid("classic_bt requires the original ESP32 with ESP-IDF")
     if (name := config.get(CONF_NAME)) is not None:
         full_config = fv.full_config.get()
         max_length = 20
@@ -555,6 +565,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
     request_bluetooth()
+
+    if config[CONF_CLASSIC_BT]:
+        cg.add_define("USE_ESP32_BLE_CLASSIC_BT")
+        add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
+        add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
+        add_idf_sdkconfig_option(
+            "CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN",
+            config[CONF_CLASSIC_MAX_ACL_CONNECTIONS],
+        )
+        add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BR_EDR_MAX_SYNC_CONN", 0)
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
