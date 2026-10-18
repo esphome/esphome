@@ -9,6 +9,13 @@
 
 namespace esphome::entity_transport::testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 using packet_interface::PacketBuffer;
 using packet_interface::PacketMetaData;
 using Packet = std::vector<uint8_t>;
@@ -26,7 +33,7 @@ class MockInterface : public packet_interface::PacketInterface {
     if (!this->accept || this->budget == 0)
       return false;
     this->budget--;
-    this->sent.push_back(data.to_vector());
+    this->sent.push_back(to_vector(data));
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
