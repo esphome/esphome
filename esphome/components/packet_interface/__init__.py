@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import importlib
 import pkgutil
 from typing import Any
@@ -13,9 +14,16 @@ from esphome.types import ConfigType
 
 from . import layers
 from .layers import (
+    ADDRESSING,
+    BROADCAST_ADDRESS,
+    CONF_ADDRESSING,
+    CONF_DESTINATION,
+    CONF_PEERS,
+    STACK_ORDER,
     PacketInterface,
     build_stack,
     check_session,
+    check_single_peer,
     packet_interface_ns,
     stack_auto_load,
     stack_schema,
@@ -31,13 +39,17 @@ CONF_PACKET_INTERFACE = "packet_interface"
 for module_info in pkgutil.iter_modules(layers.__path__):
     importlib.import_module(f".layers.{module_info.name}", package=__package__)
 
-LINK_LAYER_SCHEMAS = stack_schema()
+LINK_LAYER_SCHEMAS = {
+    cv.Optional(CONF_ADDRESSING): ADDRESSING.schema(),
+    **stack_schema(),
+}
 
 __all__ = [
     "CONF_MAX_PACKET_SIZE",
     "CONF_PACKET_INTERFACE",
     "interface_layers",
     "PacketInterface",
+    "final_validate_interface",
     "new_packet_interface",
     "packet_interface_ns",
     "packet_interface_schema",
@@ -45,7 +57,7 @@ __all__ = [
 
 
 def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
-    """Load only what the configured layers use.
+    """Load only what the configured layers use, on the link and in each addressing peer.
 
     Without a config, as tooling that lists dependencies calls it, everything a layer could load.
     """
@@ -54,20 +66,59 @@ def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
     loads: set[str] = set()
     for interface in config:
         loads |= stack_auto_load(interface)
+        for peer in interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS, []):
+            loads |= stack_auto_load(peer)
     return sorted(loads)
 
 
 def _validate_layers(config: ConfigType) -> ConfigType:
+    """With peers, the layers go in each peer; otherwise check them against the one destination."""
     check_session(config)
+    if (addressing := config.get(CONF_ADDRESSING)) is None:
+        return config
+    if CONF_PEERS in addressing:
+        for kind in STACK_ORDER:
+            if kind.key in config:
+                raise cv.Invalid(
+                    f"With '{CONF_PEERS}', '{kind.key}' goes in each peer",
+                    path=[kind.key],
+                )
+        return config
+    addressing.setdefault(CONF_DESTINATION, BROADCAST_ADDRESS)
+    check_single_peer(config, addressing[CONF_DESTINATION])
     return config
 
 
 def interface_layers(interface_id: ID) -> ConfigType | None:
-    """During final validation, the configuration holding the layers of the packet interface with this id."""
+    """During final validation, the configuration holding the layers of the packet interface with this id.
+
+    The id is a link's, or an addressing peer's.
+    """
     for interface in fv.full_config.get().get(DOMAIN, []):
         if interface[CONF_ID].id == interface_id.id:
             return interface
+        for peer in interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS, []):
+            if peer[CONF_ID].id == interface_id.id:
+                return peer
     return None
+
+
+def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
+    """Final validation for an application: a link with several peers must be used through one of the peers."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        interface_id: ID = config[key]
+        for interface in fv.full_config.get().get(DOMAIN, []):
+            if interface[CONF_ID].id == interface_id.id and CONF_PEERS in interface.get(
+                CONF_ADDRESSING, {}
+            ):
+                raise cv.Invalid(
+                    f"'{interface_id.id}' has several peers, so use the id of one of them",
+                    path=[key],
+                )
+        return config
+
+    return validator
 
 
 def packet_interface_schema(
@@ -97,10 +148,17 @@ async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:
     The link's constructor takes its maximum packet size, usually as a std::span over a buffer that code generation
     sized from the configuration, so the two cannot differ.
 
-    Returns the link layer; applications reach the top layer with PacketInterface::top().
+    Returns the link layer; applications reach the top layer with PacketInterface::top(). With several addressing
+    peers, applications use the peers' ids instead.
     """
     var = cg.new_Pvariable(config[CONF_ID], *args)
     cg.add(var.set_name(config[CONF_ID].id))
     await cg.register_component(var, config)
-    await build_stack(config, var)
+    if (addressing := config.get(CONF_ADDRESSING)) is None:
+        await build_stack(config, var)
+        return var
+    for port, layers_config in await ADDRESSING.get_type(addressing).build(
+        addressing, var
+    ):
+        await build_stack(config if layers_config is None else layers_config, port)
     return var

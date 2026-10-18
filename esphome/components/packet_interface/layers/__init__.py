@@ -2,7 +2,7 @@
 
 Each module in this package implements one layer type and registers it with its kind, for example:
 
-    @RELIABILITY.register("hdlc", schema=HDLC_SCHEMA)
+    @RELIABILITY.register("hdlc", schema=HDLC_SCHEMA, single_peer=lambda config: True)
     async def build_hdlc(config: ConfigType, lower: MockObj) -> MockObj:
         ...
 
@@ -16,17 +16,23 @@ from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ENCRYPTION, CONF_KEY, CONF_TYPE
+from esphome.const import CONF_ENCRYPTION, CONF_FRAGMENTATION, CONF_KEY, CONF_TYPE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 packet_interface_ns = cg.esphome_ns.namespace("packet_interface")
 PacketInterface = packet_interface_ns.class_("PacketInterface", cg.Component)
 
+CONF_ADDRESSING = "addressing"
+CONF_DESTINATION = "destination"
+CONF_PEERS = "peers"
 CONF_RELIABILITY = "reliability"
 CONF_SESSION = "session"
 
-# Builds a layer above lower and returns it
+BROADCAST_ADDRESS = 0xFFFF
+
+# Builds a layer above lower and returns it. An addressing layer instead returns a list of (port, config) pairs, one
+# for each stack it carries, where config holds the layers for that stack, or is None for the layers on the link.
 LayerBuilder = Callable[[ConfigType, MockObj], Awaitable[Any]]
 
 
@@ -42,8 +48,11 @@ def _nothing(config: ConfigType) -> list[str]:
 class LayerType:
     """One implementation of a kind of layer."""
 
-    schema: Any
+    # Returns the schema; called once every layer type is registered, as some schemas contain other layers
+    schema_factory: Callable[[], Any]
     build: LayerBuilder
+    # True if this configuration keeps state for one peer, so cannot be used with broadcast addressing
+    single_peer: Callable[[ConfigType], bool]
     # True if this configuration works only when the peer sends packets back, which a session layer makes sure of
     needs_session: Callable[[ConfigType], bool]
     # The components this configuration needs loaded
@@ -68,11 +77,16 @@ class LayerKind:
         self,
         name: str,
         *,
-        schema: Any,
+        schema: Any = None,
+        schema_factory: Callable[[], Any] | None = None,
+        single_peer: Callable[[ConfigType], bool] = _never,
         needs_session: Callable[[ConfigType], bool] = _never,
         auto_load: Callable[[ConfigType], list[str]] = _nothing,
     ) -> Callable[[LayerBuilder], LayerBuilder]:
-        """Register a type with its schema."""
+        """Register a type with its schema, or with a function returning a schema that contains other layers."""
+
+        def fixed_schema() -> Any:
+            return schema
 
         def decorator(build: LayerBuilder) -> LayerBuilder:
             if self.frozen:
@@ -84,7 +98,13 @@ class LayerKind:
                 raise ValueError(
                     f"{self.key} layer type '{name}' is already registered"
                 )
-            self.types[name] = LayerType(schema, build, needs_session, auto_load)
+            self.types[name] = LayerType(
+                schema_factory or fixed_schema,
+                build,
+                single_peer,
+                needs_session,
+                auto_load,
+            )
             return build
 
         return decorator
@@ -103,7 +123,7 @@ class LayerKind:
         return cv.All(
             self._expand,
             cv.typed_schema(
-                {name: layer.schema for name, layer in self.types.items()},
+                {name: layer.schema_factory() for name, layer in self.types.items()},
                 default_type=self.default_type,
             ),
         )
@@ -112,11 +132,15 @@ class LayerKind:
         return self.types[config[CONF_TYPE]]
 
 
+# An addressing type's configuration has either a destination or a list of peers, each with an id, a destination
+# and its own layers.
+ADDRESSING = LayerKind(CONF_ADDRESSING, "basic")
 ENCRYPTION = LayerKind(CONF_ENCRYPTION, "xxtea", shorthand=CONF_KEY)
 RELIABILITY = LayerKind(CONF_RELIABILITY, "hdlc")
+FRAGMENTATION = LayerKind(CONF_FRAGMENTATION, "basic")
 SESSION = LayerKind(CONF_SESSION, "basic")
-# The kinds stacked above the link, from the bottom up
-STACK_ORDER = (ENCRYPTION, RELIABILITY, SESSION)
+# The kinds stacked above the link, or above each port of an addressing layer, from the bottom up
+STACK_ORDER = (ENCRYPTION, RELIABILITY, FRAGMENTATION, SESSION)
 
 
 def stack_schema() -> dict:
@@ -135,6 +159,21 @@ def check_session(config: ConfigType) -> None:
             raise cv.Invalid(
                 f"This '{kind.key}' needs packets from the peer, so it needs a '{CONF_SESSION}' layer, whose "
                 "keep-alives make sure they are sent",
+                path=[kind.key],
+            )
+
+
+def check_single_peer(config: ConfigType, destination: int) -> None:
+    """Layers that keep state for one peer need a destination other than broadcast."""
+    if destination != BROADCAST_ADDRESS:
+        return
+    for kind in STACK_ORDER:
+        if (layer := config.get(kind.key)) is not None and kind.get_type(
+            layer
+        ).single_peer(layer):
+            raise cv.Invalid(
+                f"This '{kind.key}' works between two devices only, so it needs a '{CONF_DESTINATION}' other than "
+                "broadcast",
                 path=[kind.key],
             )
 

@@ -47,7 +47,7 @@ HDLC_SCHEMA = cv.All(
 )
 
 
-@RELIABILITY.register("hdlc", schema=HDLC_SCHEMA)
+@RELIABILITY.register("hdlc", schema=HDLC_SCHEMA, single_peer=lambda config: True)
 async def build_hdlc(config: ConfigType, lower: MockObj) -> MockObj:
     cg.add_define("USE_PACKET_INTERFACE_HDLC")
     var = cg.new_Pvariable(config[CONF_ID], lower)

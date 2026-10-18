@@ -9,24 +9,40 @@ packet_interface:
   - platform: uart
     id: packet_interface_uart
     max_packet_size: 256
-    reliability:
-      timeout: 300ms
-      ack_delay: 50ms
-      max_queue_length: 3
-      max_retries: 4
-    encryption:
-      key: Johnny Cash
-      rolling_code_enable: true
-    session:
-      keep_alive: 5s
-      timeout: 12s
-      binary_sensor:
-        name: UART session
+    addressing:
+      address: 0x0001
+      peers:
+        - id: packet_interface_peer_a
+          destination: 0x0002
+          encryption:
+            key: Johnny Cash
+            rolling_code_enable: true
+          reliability:
+            timeout: 300ms
+            max_queue_length: 3
+            max_retries: 4
+          session:
+            keep_alive: 5s
+            timeout: 12s
+            binary_sensor:
+              name: Peer A session
+        - id: packet_interface_peer_b
+          destination: 0x0003
+          reliability:
+          fragmentation:
+            max_packet_size: 2048
+          session:
+        - id: packet_interface_bus
+          destination: broadcast
   - platform: udp
     id: packet_interface_network
     udp_id: packet_interface_udp
+    addressing:
+      address: 0x0001
+      destination: 0x0002
     encryption: Johnny Cash
     reliability:
+    fragmentation:
     session:
 
 sensor:
@@ -36,7 +52,7 @@ sensor:
 
 packet_transport:
   - platform: packet_interface
-    packet_interface: packet_interface_uart
+    packet_interface: packet_interface_peer_a
     sensors:
       - packet_interface_sensor
   - platform: packet_interface
