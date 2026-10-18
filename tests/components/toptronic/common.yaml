@@ -11,6 +11,7 @@ toptronic:
     canbus_id: canbus_toptronic
     device_type: HV
     device_addr: 8
+    language: en
     max_pending_messages: 24
     max_pending_age: 6s
     cleanup_interval: 9s
