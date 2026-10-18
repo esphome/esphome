@@ -177,10 +177,7 @@ async def register_ble_node(var, config):
 def new_ble_node_component(
     config: ConfigType, *args: Any
 ) -> Coroutine[Any, Any, cg.MockObj]:
-    """Create a component on a BLE client: construct, register, attach to the client.
-
-    Extra args go to the constructor.
-    """
+    """Construct, register and attach to the BLE client; args go to the constructor."""
     return cg.new_bus_component(register_ble_node, config, *args)
 
 

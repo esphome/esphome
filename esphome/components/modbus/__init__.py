@@ -393,10 +393,7 @@ async def register_modbus_client_device(var: MockObj, config: ConfigType) -> Non
 def new_modbus_client_component(
     config: ConfigType, *args: Any
 ) -> Coroutine[Any, Any, MockObj]:
-    """Create a modbus client component: construct, register, attach to the bus.
-
-    Extra args go to the constructor.
-    """
+    """Construct, register and attach to the modbus bus; args go to the constructor."""
     return cg.new_bus_component(register_modbus_client_device, config, *args)
 
 
