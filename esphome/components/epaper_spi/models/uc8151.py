@@ -2,7 +2,7 @@
 
 Supported models:
 - uc8151: the controller on its own; dimensions and pins must be configured
-- waveshare-2.13in-bv3: 104x212 pixels (2.13" B V3, EDP_2in13b_V3)
+- waveshare-2.13in-bv3: 104x212 pixels (2.13" B V3, EPD_2in13b_V3)
 
 The busy pin of these displays is low while busy, so configure it with ``inverted: true``.
 """
@@ -23,8 +23,8 @@ class UC8151(EpaperModel):
         return (
             # PANEL SETTING (black/white/red mode, LUT from OTP)
             (0x00, 0x0F, 0x89),
-            # RESOLUTION SETTING: sources (multiple of 8), then gates
-            (0x61, width & 0xF8, height >> 8, height & 0xFF),
+            # RESOLUTION SETTING: sources, then gates
+            (0x61, width, height >> 8, height & 0xFF),
             # VCOM AND DATA INTERVAL SETTING
             (0x50, 0x57),
         )
@@ -34,6 +34,7 @@ uc8151 = UC8151(
     "uc8151",
     data_rate="10MHz",
     minimum_update_interval="15s",
+    width_multiple=8,
 )
 
 uc8151.extend(

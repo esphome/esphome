@@ -6,7 +6,7 @@ namespace esphome::epaper_spi {
 
 /**
  * Waveshare 3-color e-paper displays (UC8179 and UC8151D controllers).
- * Supports: 7.5" V2 BWR (EDP_7in5b_V2), 800x480 pixels; 2.13" B V3 (EDP_2in13b_V3), 104x212 pixels.
+ * Supports: 7.5" V2 BWR (EPD_7in5b_V2), 800x480 pixels; 2.13" B V3 (EPD_2in13b_V3), 104x212 pixels.
  *
  * Color scheme: Black, White, Red (BWR)
  * Buffer layout: 1 bit per pixel, separate planes

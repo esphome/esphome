@@ -1,7 +1,7 @@
 """Waveshare Black/White/Red e-paper displays using UC8179 controller.
 
 Supported models:
-- waveshare-7.5in-bv2-bwr: 800x480 pixels (7.5" BWR display, EDP_7in5b_V2)
+- waveshare-7.5in-bv2-bwr: 800x480 pixels (7.5" BWR display, EPD_7in5b_V2)
 
 These displays use the UC8179 controller. Power and panel configuration are sent
 during the INITIALISE state. Power-on is handled in the POWER_ON state, after data
@@ -48,7 +48,7 @@ class WaveshareBWR(EpaperModel):
         )
 
 
-# Model: Waveshare 7.5" V2 BWR (EDP_7in5b_V2) — 800x480, UC8179 controller
+# Model: Waveshare 7.5" V2 BWR (EPD_7in5b_V2) — 800x480, UC8179 controller
 WaveshareBWR(
     "waveshare-7.5in-bv2-bwr",
     width=800,
