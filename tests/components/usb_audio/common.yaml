@@ -1,8 +1,5 @@
 usb_audio:
   id: usb_audio_id
-  connect_timeout: 2s
-  microphone_buffer_size: 6400
-  speaker_buffer_size: 6400
 
 microphone:
   - platform: usb_audio
@@ -11,7 +8,7 @@ microphone:
     sample_rate: 48000
     bits_per_sample: 16bit
     num_channels: 2
-    channels: [0]
+    buffer_size: 6400
 
 speaker:
   - platform: usb_audio
@@ -20,4 +17,5 @@ speaker:
     sample_rate: 48000
     bits_per_sample: 16bit
     num_channels: 2
+    buffer_size: 6400
     write_timeout: 20ms

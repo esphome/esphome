@@ -2,76 +2,76 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32) && defined(USE_USB_AUDIO) && \
-    (defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
+#ifdef USE_USB_AUDIO
 
 #include <array>
 #include <atomic>
 
+#include "esphome/components/audio/audio.h"
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/static_task.h"
 
 extern "C" {
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "usb/usb_host.h"
 #include "usb/uac_host.h"
 }
 
 namespace esphome::usb_audio {
 
-struct AudioEndpointConfig {
-  uint32_t sample_rate{0};
-  uint16_t bits_per_sample{0};
-  uint8_t channels{0};
-  bool configured{false};
+enum class Endpoint : uint8_t {
+  SPEAKER,
+  MICROPHONE,
+};
+
+/// A speaker or microphone platform that streams through the hub. The hub calls it on the main loop only.
+class USBAudioStream {
+ public:
+  explicit USBAudioStream(uint32_t buffer_size) : buffer_size_(buffer_size) {}
+
+  uint32_t get_buffer_size() const { return this->buffer_size_; }
+  /// The fixed format the hub opens the stream with.
+  virtual audio::AudioStreamInfo get_usb_stream_info() = 0;
+  /// The stream is running (true), or the device went away (false).
+  virtual void on_stream_state(bool running) = 0;
+
+ protected:
+  uint32_t buffer_size_;
 };
 
 struct USBAudioEvent {
   enum class Type : uint8_t {
-    DRIVER_TX_CONNECTED,
-    DRIVER_RX_CONNECTED,
+    CONNECTED,
     // The driver reports disconnects through the device callback, not the driver callback.
-    DEVICE_DISCONNECTED,
-    DEVICE_EVENT,
+    DISCONNECTED,
   };
 
-  struct {
-    uac_host_device_handle_t handle{nullptr};
-    uac_host_device_event_t event{UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR};
-  } device{};
-  struct {
-    uint8_t addr{0};
-    uint8_t iface_num{0};
-  } driver{};
-  Type type{Type::DEVICE_EVENT};
+  union {
+    uac_host_device_handle_t handle{nullptr};  // DISCONNECTED
+    struct {
+      uint8_t addr;
+      uint8_t iface_num;
+    } driver;  // CONNECTED
+  };
+  Type type{Type::CONNECTED};
+  Endpoint endpoint{Endpoint::SPEAKER};
 };
 
 class USBAudioComponent : public Component {
  public:
-  enum class Endpoint : uint8_t {
-    SPEAKER,
-    MICROPHONE,
-  };
-
   void setup() override;
   void dump_config() override;
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::BUS; }
+  // Just after usb_host, which installs the USB host library that uac_host_install needs.
+  float get_setup_priority() const override { return setup_priority::BUS - 1.0f; }
   bool teardown() override;
 
-  void set_connect_timeout(uint32_t timeout_ms) { this->connect_timeout_ms_ = timeout_ms; }
+  void register_speaker(USBAudioStream *speaker) { this->endpoint_(Endpoint::SPEAKER).platform = speaker; }
+  void register_microphone(USBAudioStream *microphone) { this->endpoint_(Endpoint::MICROPHONE).platform = microphone; }
 
-  void set_microphone_params(uint8_t channels, uint16_t bits, uint32_t sample_rate);
-  void set_speaker_params(uint8_t channels, uint16_t bits, uint32_t sample_rate);
-
-  bool ensure_started(Endpoint endpoint);
-  void resume_microphone();
-  void suspend_microphone();
-  void resume_speaker();
-  void suspend_speaker();
+  /// Start streaming as soon as the device is connected; the platform hears back through on_stream_state().
+  void resume(Endpoint endpoint);
+  void suspend(Endpoint endpoint);
 
   void set_speaker_volume_level(float volume);
   void set_speaker_mute_state(bool mute_state);
@@ -79,68 +79,52 @@ class USBAudioComponent : public Component {
   esp_err_t read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms);
   esp_err_t write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms);
 
-  /// Safe to call from any task; the speaker uses it to avoid blocking while the device is gone.
-  bool speaker_connected() const { return this->speaker_connected_.load(std::memory_order_relaxed); }
-
  protected:
-  static constexpr size_t EVENT_QUEUE_LENGTH = 64;
+  static constexpr size_t EVENT_QUEUE_LENGTH = 8;
 
+  struct EndpointState {
+    uac_host_device_handle_t handle{nullptr};
+    USBAudioStream *platform{nullptr};
+    uint8_t iface{0};
+    bool stream_started{false};
+    // The platform asked for the stream and has not stopped it.
+    bool active{false};
+  };
+
+  struct ControlState {
+    bool pending{false};
+    bool supported{true};
+    uint8_t attempts{0};
+  };
+
+  EndpointState &endpoint_(Endpoint endpoint) { return this->endpoints_[static_cast<size_t>(endpoint)]; }
+  const EndpointState &endpoint_(Endpoint endpoint) const { return this->endpoints_[static_cast<size_t>(endpoint)]; }
   void process_event_(const USBAudioEvent &event);
-  void handle_driver_event_(const USBAudioEvent &event);
-  void handle_device_disconnect_(uac_host_device_handle_t handle);
-  void handle_device_event_(const USBAudioEvent &event);
-  bool open_stream_(const USBAudioEvent &event);
-  bool start_speaker_stream_();
-  bool start_microphone_stream_();
-  bool populate_stream_config_(uac_host_device_handle_t handle, const AudioEndpointConfig &config,
-                               uac_host_stream_config_t &stream_config, const char *role);
-  void log_alt_capabilities_(const char *role, const AudioEndpointConfig &config, const uac_host_dev_info_t &info,
-                             uac_host_device_handle_t handle);
+  void open_stream_(const USBAudioEvent &event);
+  void start_stream_(Endpoint endpoint);
+  bool populate_stream_config_(Endpoint endpoint, uac_host_stream_config_t &stream_config);
   void handle_disconnect_(uac_host_device_handle_t handle);
-  void close_all_devices_();
-  bool apply_speaker_volume_();
-  bool apply_speaker_mute_();
-  void drain_events_();
+  void mark_controls_pending_();
+  void apply_controls_();
+  void apply_control_(ControlState &control, esp_err_t err, const LogString *name);
+  bool controls_pending_() const;
 
   static void driver_event_stub(uint8_t addr, uint8_t iface_num, uac_host_driver_event_t event, void *user_data);
   static void device_event_stub(uac_host_device_handle_t handle, uac_host_device_event_t event, void *user_data);
-  static void usb_host_task_stub(void *param);
-  void usb_host_task_();
 
   // Filled from the USB driver task, drained on the main loop.
   QueueHandle_t event_queue_{nullptr};
-  uac_host_device_handle_t speaker_handle_{nullptr};
-  uac_host_device_handle_t microphone_handle_{nullptr};
-  uint32_t connect_timeout_ms_{5000};
+  std::array<EndpointState, 2> endpoints_{};
   float speaker_volume_level_{1.0f};
-  StaticTask host_task_;
+  uint32_t last_control_attempt_ms_{0};
+  // Counted on the USB driver task, logged from loop().
+  std::atomic<uint32_t> transfer_errors_{0};
   StaticQueue_t event_queue_struct_{};
   std::array<uint8_t, EVENT_QUEUE_LENGTH * sizeof(USBAudioEvent)> event_queue_storage_{};
-  AudioEndpointConfig mic_config_{};
-  AudioEndpointConfig speaker_config_{};
-
-  // Shared between the main loop and the USB host task.
-  std::atomic<bool> host_task_running_{false};
-  std::atomic<bool> host_task_parked_{true};
-  std::atomic<bool> speaker_connected_{false};
-
-  uint8_t speaker_iface_{0};
-  uint8_t microphone_iface_{0};
-  uint8_t speaker_addr_{0};
-  uint8_t microphone_addr_{0};
-  bool host_installed_{false};
+  ControlState volume_{};
+  ControlState mute_{};
   bool uac_installed_{false};
-  bool speaker_stream_started_{false};
-  bool microphone_stream_started_{false};
-  bool device_connected_{false};
-  bool teardown_initiated_{false};
   bool speaker_muted_{false};
-  bool pending_speaker_volume_{true};
-  bool pending_speaker_mute_{true};
-  bool speaker_volume_supported_{true};
-  bool speaker_mute_supported_{true};
-  bool speaker_volume_warned_{false};
-  bool speaker_mute_warned_{false};
 };
 
 }  // namespace esphome::usb_audio

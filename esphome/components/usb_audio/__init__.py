@@ -1,61 +1,93 @@
 import esphome.codegen as cg
-from esphome.components import esp32
+from esphome.components import audio, esp32
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import (
+    CONF_BITS_PER_SAMPLE,
+    CONF_BUFFER_SIZE,
+    CONF_ID,
+    CONF_NUM_CHANNELS,
+    CONF_SAMPLE_RATE,
+)
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ab-tools"]
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["audio"]
+# usb_host installs the USB host library, services its events and limits the variants
+AUTO_LOAD = ["audio", "usb_host"]
 DOMAIN = "usb_audio"
 
 usb_audio_ns = cg.esphome_ns.namespace("usb_audio")
 USBAudioComponent = usb_audio_ns.class_("USBAudioComponent", cg.Component)
+AudioStreamInfo = audio.audio_ns.class_("AudioStreamInfo")
 
-CONF_CONNECT_TIMEOUT = "connect_timeout"
 CONF_USB_AUDIO_ID = "usb_audio_id"
-CONF_MICROPHONE_BUFFER_SIZE = "microphone_buffer_size"
-CONF_SPEAKER_BUFFER_SIZE = "speaker_buffer_size"
+BITS_PER_SAMPLE_OPTIONS = [8, 16, 24, 32]
 DEFAULT_BUFFER_SIZE = 6400
-
-SUPPORTED_VARIANTS = [
-    esp32.const.VARIANT_ESP32S2,
-    esp32.const.VARIANT_ESP32S3,
-    esp32.const.VARIANT_ESP32P4,
-]
-
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(USBAudioComponent),
-            cv.Optional(
-                CONF_CONNECT_TIMEOUT, default="5000ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_MICROPHONE_BUFFER_SIZE, default=DEFAULT_BUFFER_SIZE
-            ): cv.positive_not_null_int,
-            cv.Optional(
-                CONF_SPEAKER_BUFFER_SIZE, default=DEFAULT_BUFFER_SIZE
-            ): cv.positive_not_null_int,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_framework("esp-idf"),
-    esp32.only_on_variant(supported=SUPPORTED_VARIANTS),
+    # usb_host covers the other variants; usb_host_uac does not list the ESP32-S31
+    esp32.only_on_variant(unsupported=[esp32.const.VARIANT_ESP32S31]),
 )
 
 
+def stream_schema(default_sample_rate: int, default_num_channels: int) -> cv.Schema:
+    """Stream format and buffer options shared by the speaker and microphone platforms."""
+    return cv.Schema(
+        {
+            cv.GenerateID(CONF_USB_AUDIO_ID): cv.use_id(USBAudioComponent),
+            cv.Optional(CONF_SAMPLE_RATE, default=default_sample_rate): cv.int_range(
+                min=8000, max=96000
+            ),
+            cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): cv.All(
+                cv.float_with_unit("bits", "bit"), cv.one_of(*BITS_PER_SAMPLE_OPTIONS)
+            ),
+            cv.Optional(CONF_NUM_CHANNELS, default=default_num_channels): cv.int_range(
+                min=1, max=2
+            ),
+            cv.Optional(
+                CONF_BUFFER_SIZE, default=DEFAULT_BUFFER_SIZE
+            ): cv.positive_not_null_int,
+        }
+    ).extend(cv.COMPONENT_SCHEMA)
+
+
+def set_stream_limits(config: ConfigType) -> ConfigType:
+    """Pin the audio stream limits to the one configured format."""
+    bits_per_sample = int(config[CONF_BITS_PER_SAMPLE])
+    channels = config[CONF_NUM_CHANNELS]
+    sample_rate = config[CONF_SAMPLE_RATE]
+    # The limits validator edits the config in place and returns None
+    audio.set_stream_limits(
+        min_bits_per_sample=bits_per_sample,
+        max_bits_per_sample=bits_per_sample,
+        min_channels=channels,
+        max_channels=channels,
+        min_sample_rate=sample_rate,
+        max_sample_rate=sample_rate,
+    )(config)
+    return config
+
+
+def stream_info(config: ConfigType) -> MockObj:
+    """The C++ AudioStreamInfo for a platform's configured format."""
+    return AudioStreamInfo(
+        int(config[CONF_BITS_PER_SAMPLE]),
+        config[CONF_NUM_CHANNELS],
+        config[CONF_SAMPLE_RATE],
+    )
+
+
 async def to_code(config: ConfigType) -> None:
-    # Keep in sync with esphome/idf_component.yml. Pulls in espressif/usb itself on IDF 6.0 and later.
+    # Keep in sync with esphome/idf_component.yml. usb_host adds espressif/usb on IDF 6.0 and later.
     esp32.add_idf_component(name="espressif/usb_host_uac", ref="1.3.1")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
     cg.add_define("USE_USB_AUDIO")
-    # The hub is single-instance, so the buffers are sized at compile time.
-    cg.add_define(
-        "USB_AUDIO_MICROPHONE_BUFFER_SIZE", config[CONF_MICROPHONE_BUFFER_SIZE]
-    )
-    cg.add_define("USB_AUDIO_SPEAKER_BUFFER_SIZE", config[CONF_SPEAKER_BUFFER_SIZE])
-    cg.add(var.set_connect_timeout(config[CONF_CONNECT_TIMEOUT].total_milliseconds))
