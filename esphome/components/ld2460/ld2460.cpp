@@ -1,6 +1,7 @@
 #include "ld2460.h"
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #include <cmath>
 #include <cstring>

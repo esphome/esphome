@@ -203,10 +203,8 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 }
 #endif
 
-uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) { return encode_value_le<uint32_t>(data); }
-
 float LD6002BComponent::read_f32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
+  uint32_t raw = encode_value_le<uint32_t>(data);
   float value;
   std::memcpy(&value, &raw, sizeof(value));
   return value;
@@ -616,7 +614,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   const uint32_t active_control_command =
       (this->command_active_ && this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
-          ? read_u32_le(this->active_command_.data.data())
+          ? encode_value_le<uint32_t>(this->active_command_.data.data())
           : 0;
   if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
     ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", frame_type_name(type), type,
@@ -682,7 +680,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   if (len < 4)
     return;
 
-  uint32_t target_num = read_u32_le(data);
+  uint32_t target_num = encode_value_le<uint32_t>(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
   // Un-narrowed: a report of e.g. 256 targets must not truncate to 0 and read as "absent".
   const uint32_t reported = std::min<uint32_t>(target_num, available);
@@ -802,7 +800,7 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
     return;
 
 #ifdef USE_SENSOR
-  uint32_t point_num = read_u32_le(data);
+  uint32_t point_num = encode_value_le<uint32_t>(data);
   if (this->point_count_sensor_ != nullptr) {
     if (point_num != this->last_point_count_) {
       this->point_count_sensor_->publish_state(point_num);
@@ -823,7 +821,7 @@ void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) 
 
   this->area_presence_any_ = false;
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    uint32_t state = read_u32_le(data + (i * AREA_PRESENCE_ENTRY_LEN));
+    uint32_t state = encode_value_le<uint32_t>(data + (i * AREA_PRESENCE_ENTRY_LEN));
     bool present = state != 0;
     this->area_presence_any_ = this->area_presence_any_ || present;
 #ifdef USE_BINARY_SENSOR
@@ -894,7 +892,7 @@ void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 #ifdef USE_NUMBER
-  uint32_t delay = read_u32_le(data);
+  uint32_t delay = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->hold_delay_number_, delay);
 #endif
 }
@@ -969,7 +967,7 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
   if (len < 4)
     return;
 #ifdef USE_NUMBER
-  uint32_t sleep_ms = read_u32_le(data);
+  uint32_t sleep_ms = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->low_power_sleep_number_, sleep_ms);
 #endif
 }
@@ -1106,7 +1104,7 @@ void LD6002BComponent::process_command_queue_() {
     if (this->command_sent_ && now - this->last_send_ms_ >= ack_timeout) {
       const uint32_t active_control_command =
           (this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
-              ? read_u32_le(this->active_command_.data.data())
+              ? encode_value_le<uint32_t>(this->active_command_.data.data())
               : 0;
       if (this->retries_left_ > 0) {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
