@@ -54,9 +54,13 @@ void USBAudioSpeaker::loop() {
     this->parent_->resume(Endpoint::SPEAKER);
   }
 
-  if ((commands & COMMAND_FINISH) && !this->finishing_ && this->state_ == speaker::STATE_RUNNING) {
-    this->finishing_ = true;
-    this->pad_remaining_ = this->transfer_bytes_;
+  if (commands & COMMAND_FINISH) {
+    if (this->state_ == speaker::STATE_RUNNING) {
+      this->begin_finishing_();
+    } else if (this->state_ == speaker::STATE_STARTING) {
+      // The stream is still starting; on_stream_state() finishes it once it runs.
+      this->finish_after_start_ = true;
+    }
   }
   if (this->finishing_ && this->pad_remaining_ > 0) {
     this->pad_with_silence_();
@@ -87,8 +91,19 @@ void USBAudioSpeaker::stop() { this->request_(COMMAND_STOP, COMMAND_START | COMM
 
 void USBAudioSpeaker::finish() { this->request_(COMMAND_FINISH, 0); }
 
+void USBAudioSpeaker::begin_finishing_() {
+  if (this->finishing_) {
+    return;
+  }
+  this->finishing_ = true;
+  this->pad_remaining_ = this->transfer_bytes_;
+  // loop() pads the last transfer and stops once the audio has played.
+  this->enable_loop();
+}
+
 void USBAudioSpeaker::stop_() {
   this->finishing_ = false;
+  this->finish_after_start_ = false;
   this->pad_remaining_ = 0;
   if (this->state_ == speaker::STATE_STOPPED) {
     return;
@@ -101,6 +116,10 @@ void USBAudioSpeaker::on_stream_state(bool running) {
   if (running) {
     if (this->state_ == speaker::STATE_STARTING) {
       this->state_ = speaker::STATE_RUNNING;
+      if (this->finish_after_start_) {
+        this->finish_after_start_ = false;
+        this->begin_finishing_();
+      }
     }
     return;
   }

@@ -94,7 +94,9 @@ void USBAudioComponent::process_events_() {
   this->finish_closes_();
 
   USBAudioEvent event;
-  while (xQueuePeek(this->event_queue_, &event, 0) == pdTRUE) {
+  // Only the events already queued: one posted again while this runs waits for the next loop().
+  for (UBaseType_t queued = uxQueueMessagesWaiting(this->event_queue_);
+       queued > 0 && xQueuePeek(this->event_queue_, &event, 0) == pdTRUE; queued--) {
     // A device that came back waits until its old handle is closed.
     if (event.type == USBAudioEvent::Type::CONNECTED && this->endpoint_(event.endpoint).closing != nullptr) {
       break;
@@ -281,9 +283,12 @@ void USBAudioComponent::open_stream_(const USBAudioEvent &event) {
   op.endpoint = event.endpoint;
   op.addr = event.addr;
   op.iface_num = event.iface_num;
-  if (this->queue_op_(op)) {
-    ep.op_pending = true;
+  if (!this->queue_op_(op)) {
+    // The event is already off the queue, so post it again for a later loop() instead of losing the device.
+    this->post_event_(event);
+    return;
   }
+  ep.op_pending = true;
 }
 
 void USBAudioComponent::on_opened_(const USBAudioEvent &event) {
@@ -296,11 +301,13 @@ void USBAudioComponent::on_opened_(const USBAudioEvent &event) {
   ep.iface = event.iface_num;
   ESP_LOGI(TAG, "%s interface %u connected (addr=%u)", LOG_STR_ARG(endpoint_name(event.endpoint)), ep.iface,
            event.addr);
-  if (event.handle == this->lost_while_opening_) {
-    // It went away while the worker was opening it.
-    this->lost_while_opening_ = nullptr;
-    this->handle_disconnect_(event.handle);
-    return;
+  for (auto &lost : this->lost_while_opening_) {
+    if (lost == event.handle) {
+      // It went away while the worker was opening it.
+      lost = nullptr;
+      this->handle_disconnect_(event.handle);
+      return;
+    }
   }
   if (ep.active) {
     this->start_stream_(event.endpoint);
@@ -386,10 +393,16 @@ void USBAudioComponent::queue_controls_() {
   if (this->op_queue_ == nullptr) {
     return;
   }
+  if (this->controls_queued_.exchange(true)) {
+    // The queued op sends the latest values, so lifecycle ops keep their queue slots.
+    return;
+  }
   Op op;
   op.type = Op::Type::CONTROLS;
-  // Dropped when the queue is full: the controls stay pending and the next start or change queues them again.
-  xQueueSend(this->op_queue_, &op, 0);
+  if (xQueueSend(this->op_queue_, &op, 0) != pdTRUE) {
+    // The controls stay pending and the next start or change queues them again.
+    this->controls_queued_ = false;
+  }
 }
 
 void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
@@ -405,7 +418,14 @@ void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
   if (std::any_of(this->endpoints_.begin(), this->endpoints_.end(),
                   [](const EndpointState &ep) { return ep.op_pending && ep.handle.load() == nullptr; })) {
     // Its open is still running on the worker; close it once it reports back.
-    this->lost_while_opening_ = handle;
+    for (auto &lost : this->lost_while_opening_) {
+      if (lost == nullptr || lost == handle) {
+        lost = handle;
+        return;
+      }
+    }
+    // Both endpoints are already waiting on a lost open; the oldest one is the least likely to still report back.
+    this->lost_while_opening_[0] = handle;
     return;
   }
   ESP_LOGD(TAG, "Disconnect event for an interface with no active stream");
@@ -575,6 +595,8 @@ void USBAudioComponent::run_op_(const Op &op) {
       return;
     }
     case Op::Type::CONTROLS: {
+      // Cleared first, so a change made during the transfer queues another op.
+      this->controls_queued_ = false;
       if (this->apply_pending_speaker_controls_()) {
         // Give the device a moment before retrying; the queue keeps any other work in order.
         this->unlock_driver_();

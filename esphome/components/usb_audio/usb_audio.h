@@ -178,8 +178,9 @@ class USBAudioComponent : public Component {
   // Filled on the main loop (and by volume/mute changes from any task), drained by the worker.
   QueueHandle_t op_queue_{nullptr};
   std::array<EndpointState, 2> endpoints_{};
-  // A disconnect for a device whose open is still running on the worker; closed once its OPENED arrives.
-  uac_host_device_handle_t lost_while_opening_{nullptr};
+  // Disconnects for devices whose open is still running on the worker, one per endpoint since a speakerphone opens
+  // two interfaces; each is closed once its OPENED arrives.
+  std::array<uac_host_device_handle_t, 2> lost_while_opening_{};
   // Counted on the USB driver task, logged from loop().
   std::atomic<uint32_t> transfer_errors_{0};
   StaticQueue_t event_queue_struct_{};
@@ -190,6 +191,8 @@ class USBAudioComponent : public Component {
   ControlState mute_{};
   std::atomic<uint8_t> speaker_volume_{100};
   std::atomic<bool> speaker_muted_{false};
+  // A CONTROLS op is queued; the pending flags carry the latest values, so one is enough.
+  std::atomic<bool> controls_queued_{false};
   // Set while the worker runs a driver call; platform reads and writes counted in driver_users_ back off.
   std::atomic<bool> driver_busy_{false};
   std::atomic<uint8_t> driver_users_{0};

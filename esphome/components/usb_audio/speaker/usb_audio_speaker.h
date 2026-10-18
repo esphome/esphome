@@ -50,6 +50,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   static constexpr uint8_t COMMAND_STOP = 1 << 1;
   static constexpr uint8_t COMMAND_FINISH = 1 << 2;
   void request_(uint8_t set, uint8_t clear);
+  void begin_finishing_();
   void stop_();
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
   /// Write silence until a whole USB transfer is padded, so the driver sends a final partial transfer.
@@ -79,6 +80,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   // Set while play() rejects audio in a format other than usb_stream_info_, so the error is logged once.
   std::atomic<bool> format_mismatch_{false};
   bool finishing_{false};
+  // finish() arrived while the stream was still starting.
+  bool finish_after_start_{false};
 };
 
 }  // namespace esphome::usb_audio
