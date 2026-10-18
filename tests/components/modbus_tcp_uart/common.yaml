@@ -16,7 +16,6 @@ modbus_tcp_uart:
   - id: answer
     tcp_uart_id: inbound
     role: server
-    reply_timeout: 3s
     debug:
 
 modbus:
