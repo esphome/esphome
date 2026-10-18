@@ -4,7 +4,6 @@
 #ifdef USE_PACKET_INTERFACE_XXTEA
 #include <array>
 #include <initializer_list>
-#include <memory>
 
 #include "esphome/core/preferences.h"
 #include "packet_interface.h"
@@ -43,9 +42,10 @@ class XxteaEncryption : public PacketInterface {
   PacketInterface *lower_;
   const size_t trailer_size_;
   std::array<uint32_t, 8> key_{};
-  // Separate buffers, as a layer above may send a reply while a received packet is being passed up
-  std::unique_ptr<uint32_t[]> tx_buffer_;
-  std::unique_ptr<uint32_t[]> rx_buffer_;
+  // Separate buffers, as a layer above may send a reply while a received packet is being passed up; both are in one
+  // block allocated in setup(), and tx_buffer_ stays null if that fails
+  uint32_t *tx_buffer_{nullptr};
+  uint32_t *rx_buffer_{nullptr};
   ESPPreferenceObject pref_;
   uint32_t boot_{0};
   uint32_t counter_{0};

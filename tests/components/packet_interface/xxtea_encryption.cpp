@@ -258,6 +258,14 @@ TEST_F(XxteaEncryptionTest, LinkTooSmallFailsSetup) {
   EXPECT_FALSE(encryption.send_to_interface(PacketBuffer(packet), {}));
 }
 
+TEST_F(XxteaEncryptionTest, SendWithoutBuffersRefused) {
+  MockLink link(64);
+  TestEncryption encryption(&link, false);
+  Packet packet{1};
+  EXPECT_FALSE(encryption.send_to_interface(PacketBuffer(packet), {}));
+  EXPECT_TRUE(link.sent.empty());
+}
+
 TEST_F(XxteaEncryptionTest, CounterWrapStartsNewBoot) {
   Peer a, b(0x12345678);
   a.introduce(b);

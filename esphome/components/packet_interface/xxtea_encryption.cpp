@@ -53,8 +53,13 @@ void XxteaEncryption::setup() {
     return;
   }
   size_t words = this->lower_->get_max_packet_size() / 4;
-  this->tx_buffer_ = std::make_unique<uint32_t[]>(words);
-  this->rx_buffer_ = std::make_unique<uint32_t[]>(words);
+  RAMAllocator<uint32_t> allocator;
+  this->tx_buffer_ = allocator.allocate(words * 2);
+  if (this->tx_buffer_ == nullptr) {
+    this->mark_failed(LOG_STR("Not enough memory for the packet buffers"));
+    return;
+  }
+  this->rx_buffer_ = this->tx_buffer_ + words;
   if (this->rolling_code_) {
     this->pref_ = global_preferences->make_preference<uint32_t>(fnv1a_hash_extend(PREF_HASH, this->name_), true);
     this->pref_.load(&this->boot_);
@@ -85,7 +90,7 @@ void XxteaEncryption::next_boot_() {
 }
 
 bool XxteaEncryption::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
-  if (this->is_failed())
+  if (this->tx_buffer_ == nullptr)
     return false;
   size_t size = data.size();
   if (size > this->max_packet_size_) {
@@ -96,7 +101,7 @@ bool XxteaEncryption::send_to_interface(const PacketBuffer &data, const PacketMe
   if (size + padding + this->trailer_size_ < MIN_LENGTH)
     padding += 4;
   size_t length = size + padding + this->trailer_size_;
-  auto *buf = reinterpret_cast<uint8_t *>(this->tx_buffer_.get());
+  auto *buf = reinterpret_cast<uint8_t *>(this->tx_buffer_);
   data.copy_to(buf, size);
   memset(buf + size, 0, padding);
   uint8_t *check = buf + length - CHECK_SIZE;
@@ -111,7 +116,7 @@ bool XxteaEncryption::send_to_interface(const PacketBuffer &data, const PacketMe
     memcpy(check, CHECK_BYTES, sizeof(CHECK_BYTES));
   }
   check[CHECK_SIZE - 1] = padding;
-  xxtea::encrypt(this->tx_buffer_.get(), length / 4, this->key_.data());
+  xxtea::encrypt(this->tx_buffer_, length / 4, this->key_.data());
   return this->lower_->send_to_interface(PacketBuffer(buf, length), meta_data);
 }
 
@@ -132,9 +137,9 @@ void XxteaEncryption::receive_(const PacketBuffer &data, const PacketMetaData &m
     this->note_received_(false);
     return;
   }
-  auto *buf = reinterpret_cast<uint8_t *>(this->rx_buffer_.get());
+  auto *buf = reinterpret_cast<uint8_t *>(this->rx_buffer_);
   data.copy_to(buf, length);
-  xxtea::decrypt(this->rx_buffer_.get(), length / 4, this->key_.data());
+  xxtea::decrypt(this->rx_buffer_, length / 4, this->key_.data());
   const uint8_t *check = buf + length - CHECK_SIZE;
   const uint8_t *expected = this->rolling_code_ ? ROLLING_CHECK_BYTES : CHECK_BYTES;
   size_t padding = check[CHECK_SIZE - 1];
