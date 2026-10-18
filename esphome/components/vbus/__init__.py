@@ -6,6 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMMAND,
     CONF_ID,
+    CONF_MODEL,
     CONF_ON_VALUE,
     CONF_SOURCE,
     CONF_UART_ID,
@@ -24,6 +25,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "vbus_tx.cpp": "USE_VBUS_TX",
         "vbus_transactions.cpp": "USE_VBUS_TRANSACTIONS",
         "vbus_polling.cpp": "USE_VBUS_POLLING",
+        "resol_deltasol_cs_plus.cpp": "USE_VBUS_CS_PLUS",
+        "vbus_cs_plus_policy.cpp": "USE_VBUS_CS_PLUS",
     }
 )
 
@@ -32,6 +35,7 @@ VBus = vbus_ns.class_("VBus", uart.UARTDevice, cg.Component)
 VBusTransmitter = vbus_ns.class_("VBusTransmitter", uart.UARTDevice, cg.Component)
 VBusTransactions = vbus_ns.class_("VBusTransactions", cg.Component)
 VBusPolling = vbus_ns.class_("VBusPolling", cg.PollingComponent)
+ResolDeltaSolCSPlus = vbus_ns.class_("ResolDeltaSolCSPlus", cg.PollingComponent)
 _request_poll_value_slot = cg.slot_counter("VBUS_POLL_VALUE_COUNT")
 TransactionStatus = vbus_ns.enum("TransactionStatus", is_class=True)
 
@@ -51,6 +55,10 @@ CONF_POLLING = "polling"
 CONF_VALUE_IDS = "value_ids"
 CONF_RX_VALUE_IDS = "rx_value_ids"
 CONF_BATCH_SIZE = "batch_size"
+CONF_CONTROLLER = "controller"
+CONF_SCHEDULER_ID = "scheduler_id"
+CONF_ON_SNAPSHOT = "on_snapshot"
+CS_PLUS_SETTING_COUNT = 84
 
 
 def validate_address(value: object) -> int:
@@ -65,7 +73,8 @@ def validate_address(value: object) -> int:
 def validate_transmit(config: ConfigType) -> ConfigType:
     if config[CONF_SOURCE] == config[CONF_DESTINATION]:
         raise cv.Invalid("VBus source and controller destination must differ")
-    if (transactions := config.get(CONF_TRANSACTIONS)) and CONF_POLLING in transactions:
+    transactions = config.get(CONF_TRANSACTIONS, {})
+    if CONF_POLLING in transactions or CONF_CONTROLLER in transactions:
         if CONF_ON_BUS_GRANT in config:
             raise cv.Invalid("Polling owns bus grants; remove on_bus_grant")
         if config[CONF_LEASE_DURATION].total_milliseconds <= (
@@ -74,6 +83,10 @@ def validate_transmit(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 "Polling lease_duration must exceed 140ms + 3 * response_timeout"
             )
+    if CONF_CONTROLLER in transactions and (
+        config[CONF_DESTINATION] != 0x2211 or config[CONF_SOURCE] != 0x0020
+    ):
+        raise cv.Invalid("CS Plus requires destination 0x2211 and source 0x0020")
     return config
 
 
@@ -115,6 +128,25 @@ POLLING_SCHEMA = cv.All(
 )
 
 
+def validate_controller(config: ConfigType) -> ConfigType:
+    if config[CONF_UPDATE_INTERVAL].total_milliseconds < 60000:
+        raise cv.Invalid("Controller update_interval must be at least 60s or never")
+    return config
+
+
+CONTROLLER_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ResolDeltaSolCSPlus),
+            cv.GenerateID(CONF_SCHEDULER_ID): cv.declare_id(VBusPolling),
+            cv.Required(CONF_MODEL): cv.one_of("deltasol_cs_plus", lower=True),
+            cv.Optional(CONF_ON_SNAPSHOT): automation.validate_automation({}),
+        }
+    ).extend(cv.polling_component_schema("5min")),
+    validate_controller,
+)
+
+
 TRANSACTIONS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(VBusTransactions),
@@ -125,7 +157,8 @@ TRANSACTIONS_SCHEMA = cv.Schema(
             ),
         ),
         cv.Optional(CONF_ON_RESULT): automation.validate_automation({}),
-        cv.Optional(CONF_POLLING): POLLING_SCHEMA,
+        cv.Exclusive(CONF_POLLING, "scheduler"): POLLING_SCHEMA,
+        cv.Exclusive(CONF_CONTROLLER, "scheduler"): CONTROLLER_SCHEMA,
     }
 )
 
@@ -180,12 +213,23 @@ def final_validate(config: ConfigType) -> None:
     polling = transmit is not None and CONF_POLLING in transmit.get(
         CONF_TRANSACTIONS, {}
     )
+    controller = transmit is not None and CONF_CONTROLLER in transmit.get(
+        CONF_TRANSACTIONS, {}
+    )
     data = CORE.data.get(DOMAIN, {})
+    if controller and str(config[CONF_ID]) in data.get("queue_actions", set()):
+        raise cv.Invalid("Controller owns TX; raw queue actions are not allowed")
     if str(config[CONF_ID]) in data.get("queue_actions", set()) and not polling:
         raise cv.Invalid(
             "VBus queue actions require transmit.transactions.polling on this hub"
         )
-    if polling and (
+    if str(config[CONF_ID]) in data.get("polling_actions", set()) and not (
+        polling or controller
+    ):
+        raise cv.Invalid(
+            "VBus polling actions require transmit.transactions.polling or controller on this hub"
+        )
+    if (polling or controller) and (
         str(config[CONF_ID]) in data.get("tx_actions", set())
         or str(config[CONF_ID]) in data.get("transaction_actions", set())
     ):
@@ -299,6 +343,30 @@ async def to_code(config: ConfigType) -> None:
                             (TransactionStatus, "status"),
                         ],
                         conf,
+                    )
+            if controller_config := transactions.get(CONF_CONTROLLER):
+                cg.add_define("USE_VBUS_CS_PLUS")
+                cg.add_define("USE_VBUS_POLLING")
+                poller = cg.new_Pvariable(
+                    controller_config[CONF_SCHEDULER_ID], manager, tx, False
+                )
+                await cg.register_component(
+                    poller,
+                    {
+                        CONF_ID: controller_config[CONF_SCHEDULER_ID],
+                        CONF_UPDATE_INTERVAL: cv.update_interval("never"),
+                    },
+                )
+                cg.add(var.set_polling(poller))
+                for _ in range(CS_PLUS_SETTING_COUNT):
+                    _request_poll_value_slot(str(var))
+                controller = cg.new_Pvariable(
+                    controller_config[CONF_ID], var, poller, tx
+                )
+                await cg.register_component(controller, controller_config)
+                for conf in controller_config.get(CONF_ON_SNAPSHOT, []):
+                    await automation.build_callback_automation(
+                        controller, "add_on_snapshot_callback", [], conf
                     )
         for conf in transmit.get(CONF_ON_BUS_GRANT, []):
             await automation.build_callback_automation(
@@ -432,6 +500,13 @@ def validate_queue_action(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_polling_action(config: ConfigType) -> ConfigType:
+    CORE.data.setdefault(DOMAIN, {}).setdefault("polling_actions", set()).add(
+        str(config[CONF_ID])
+    )
+    return config
+
+
 QUEUE_READ_SCHEMA = cv.All(
     TX_ID_SCHEMA.extend({cv.Required(CONF_VALUE_ID): cv.templatable(cv.uint16_t)}),
     validate_queue_action,
@@ -470,11 +545,17 @@ automation.register_apply_action(
 
 automation.register_apply_action(
     "vbus.suspend_polling",
-    cv.All(TX_ID_SCHEMA, validate_queue_action),
+    cv.All(TX_ID_SCHEMA, validate_polling_action),
     automation.ApplyCall("suspend_polling()"),
 )
 automation.register_apply_action(
     "vbus.resume_polling",
-    cv.All(TX_ID_SCHEMA, validate_queue_action),
+    cv.All(TX_ID_SCHEMA, validate_polling_action),
     automation.ApplyCall("resume_polling()"),
+)
+
+automation.register_apply_action(
+    "vbus.scan_controller",
+    cv.Schema({cv.Required(CONF_ID): cv.use_id(ResolDeltaSolCSPlus)}),
+    automation.ApplyCall("start_scan()"),
 )

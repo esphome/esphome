@@ -45,7 +45,7 @@ void VBusPolling::dump_config() {
 }
 
 void VBusPolling::update() {
-  if (this->stopped_ || this->suspended_)
+  if (this->stopped_ || this->suspended_ || !this->accepts_manual_requests())
     return;
   for (auto &entry : this->values_) {
     if (!entry.rx_only && (!this->in_flight_ || this->active_.command != 0x0300 || this->active_.id != entry.id))
@@ -80,10 +80,19 @@ bool VBusPolling::pending_() const {
          std::any_of(this->values_.begin(), this->values_.end(), [](const Value &entry) { return entry.pending; });
 }
 
-void VBusPolling::release_() {
+void VBusPolling::release_([[maybe_unused]] bool group_end) {
+#ifdef USE_VBUS_CS_PLUS
+  const bool notify = group_end && !this->automatic_ && this->grant_id_ != 0;
+#endif
   if (this->grant_id_ != 0)
     this->transmitter_->release_bus(this->grant_id_);
   this->grant_id_ = 0;
+#ifdef USE_VBUS_CS_PLUS
+  if (notify) {
+    this->held_ = true;
+    this->group_callback_.call();
+  }
+#endif
 }
 
 void VBusPolling::on_result_(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value,
@@ -112,6 +121,10 @@ void VBusPolling::on_result_(uint32_t grant_id, uint16_t command, uint16_t value
 void VBusPolling::loop() {
   if (this->stopped_ || this->suspended_ || this->in_flight_)
     return;
+#ifdef USE_VBUS_CS_PLUS
+  if (this->held_)
+    return;
+#endif
   const uint32_t now = App.get_loop_component_start_time();
   // Expire one unsent write per pass, before callbacks can enqueue more work.
   if (!this->writes_.empty() && now - this->writes_.front().queued_at >= QUEUE_TIMEOUT_MS) {
@@ -121,7 +134,7 @@ void VBusPolling::loop() {
     return;
   }
   if (!this->pending_()) {
-    this->release_();
+    this->release_(true);
     this->waiting_ = false;
     this->transmitter_->release_bus(0);
     this->disable_loop();
@@ -150,7 +163,7 @@ void VBusPolling::loop() {
   const bool write = !this->writes_.empty();
   const uint32_t budget = this->transactions_->get_response_timeout() * (write ? 3 : 1);
   if ((!write && this->reads_ >= this->batch_size_) || !this->transmitter_->has_time(this->grant_id_, budget)) {
-    this->release_();
+    this->release_(true);
     return;
   }
   if (!this->transmitter_->ready_to_send(this->grant_id_))
@@ -198,6 +211,9 @@ void VBusPolling::suspend() {
     entry.pending = false;
   this->disable_loop();
   this->transmitter_->cancel_bus();
+#ifdef USE_VBUS_CS_PLUS
+  this->suspended_callback_.call(true);
+#endif
   this->transactions_->cancel();
   if (active && !this->stopped_) {
     this->result_callback_.call(grant_id, request.command, request.id, 0,
@@ -214,8 +230,26 @@ void VBusPolling::resume() {
   if (!this->stopped_ && this->suspended_) {
     this->suspended_ = false;
     this->update();
+#ifdef USE_VBUS_CS_PLUS
+    this->suspended_callback_.call(false);
+#endif
   }
 }
+
+#ifdef USE_VBUS_CS_PLUS
+void VBusPolling::clear_pending_reads() {
+  for (auto &entry : this->values_)
+    entry.pending = false;
+}
+
+void VBusPolling::resume_group() {
+  if (!this->stopped_ && !this->suspended_) {
+    this->held_ = false;
+    if (this->pending_())
+      this->enable_loop();
+  }
+}
+#endif
 
 void VBusPolling::on_shutdown() {
   this->stopped_ = true;
