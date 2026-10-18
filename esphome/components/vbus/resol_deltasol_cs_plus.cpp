@@ -269,7 +269,13 @@ void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index,
 }
 
 void ResolDeltaSolCSPlus::loop() {
-  if (this->stopped_ || this->phase_ == Phase::PHASE_IDLE)
+  if (this->stopped_)
+    return;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->phase_ == Phase::PHASE_IDLE && this->context_refresh_pending_ && !this->start_scan())
+    this->disable_loop();
+#endif
+  if (this->phase_ == Phase::PHASE_IDLE)
     return;
 #ifdef USE_VBUS_CS_PLUS_WRITE
   if (this->write_phase_ != WritePhase::IDLE &&

@@ -142,6 +142,8 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
     }
     ESP_LOGW(TAG, "Setting %u was not confirmed; no write retry", index);
   }
+  if (this->context_refresh_pending_)
+    this->enable_loop();
   this->setting_result_callback_.call(index, status);
 }
 

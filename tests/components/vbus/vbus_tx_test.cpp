@@ -2136,7 +2136,7 @@ TEST_F(CSPlusSettingWriteTest, EnumContextRefreshBypassesThePeriodicLimitOnceAnd
   EXPECT_FALSE(this->controller_.has_fresh_snapshot());
   EXPECT_TRUE(this->controller_.has_recent_snapshot());
   this->source_values_[55] = 4;
-  this->controller_.update();
+  this->tick_();
   ASSERT_TRUE(this->controller_.is_scanning());
   this->complete_();
   EXPECT_TRUE(this->controller_.has_fresh_snapshot());
@@ -2152,7 +2152,7 @@ TEST_F(CSPlusSettingWriteTest, UncertainWriteRequestsAReadOnlyRefreshWithoutWait
   EXPECT_FALSE(this->controller_.has_fresh_snapshot());
   EXPECT_TRUE(this->controller_.has_recent_snapshot());
   this->source_values_[48] = 40;
-  this->controller_.update();
+  this->tick_();
   ASSERT_TRUE(this->controller_.is_scanning());
   this->complete_();
   int32_t value = 0;
