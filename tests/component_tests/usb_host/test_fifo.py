@@ -125,27 +125,38 @@ def test_final_validate_emits_the_split(
     ) == ("34", "16", "150")
 
 
-def test_request_beyond_the_selected_bias_gets_a_custom_split(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    # The periodic OUT bias leaves RX 34 lines (128 bytes), too few for 196-byte IN packets.
+def _set_bias(set_core_config: SetCoreConfigCallable, option: str) -> None:
     full = Config()
-    full["esp32"] = {
-        CONF_FRAMEWORK: {
-            "sdkconfig_options": {"CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT": "y"}
-        }
-    }
+    full["esp32"] = {CONF_FRAMEWORK: {"sdkconfig_options": {option: "y"}}}
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_VARIANT: VARIANT_ESP32S3, KEY_IDF_VERSION: IDF_5_5},
         full_config=full,
     )
-    usb_host.request_periodic_fifo(in_bytes=196)
-    assert usb_host.fifo_split() == (152, 16, 32)
 
 
-def test_final_validate_needs_idf_5_5(set_core_config: SetCoreConfigCallable) -> None:
-    _set_variant(set_core_config, VARIANT_ESP32S3, idf=cv.Version(5, 4, 3))
-    usb_host.request_periodic_fifo(out_bytes=196)
-    with pytest.raises(cv.Invalid, match="needs ESP-IDF 5.5.0 or later"):
-        usb_host.FINAL_VALIDATE_SCHEMA({})
+def test_request_that_fits_the_selected_bias_keeps_it(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The IN bias leaves RX 152 lines, enough for 512-byte IN packets.
+    _set_bias(set_core_config, "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN")
+    usb_host.request_periodic_fifo(in_bytes=512)
+    assert usb_host.fifo_split() is None
+
+
+@pytest.mark.parametrize(
+    ("option", "in_bytes", "out_bytes"),
+    [
+        # The IN bias reserves 152 RX lines, leaving no room for more than 128-byte OUT packets.
+        ("CONFIG_USB_HOST_HW_BUFFER_BIAS_IN", 0, 196),
+        # The periodic OUT bias reserves 150 PTX lines, leaving no room for more than 128-byte IN packets.
+        ("CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT", 196, 0),
+    ],
+)
+def test_request_conflicting_with_the_selected_bias_is_rejected(
+    set_core_config: SetCoreConfigCallable, option: str, in_bytes: int, out_bytes: int
+) -> None:
+    _set_bias(set_core_config, option)
+    usb_host.request_periodic_fifo(in_bytes=in_bytes, out_bytes=out_bytes)
+    with pytest.raises(cv.Invalid, match="bytes of USB FIFO"):
+        usb_host.fifo_split()
