@@ -7,7 +7,7 @@ import re
 # Adds a .noinit section for the crash handler's record (crash_handler.cpp)
 # to the BK7238 / BK7231N linker script, in ITCM right after .itcm.code.
 # ITCM survives the watchdog reset after a crash and the SDK startup only
-# copies .itcm.code there; the bootloader clears the first ~144 KB of SRAM
+# copies .itcm.code there; the bootloader clears at least 128 KB of SRAM
 # and rewrites the SDK's saved-register area on every boot (measured on a
 # BK7238), so SRAM is no use. The LMA stays in ITCM, no flash is used.
 #

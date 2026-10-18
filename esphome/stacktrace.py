@@ -144,8 +144,9 @@ def _addr2line(tool: str, elf: Path, addr: str) -> str:
             check=True,
         )
         return result.stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        return f"{addr} (decode failed)"
+    except (OSError, subprocess.CalledProcessError) as err:
+        detail = getattr(err, "stderr", None) or str(err)
+        return f"{addr} (decode failed: {detail.strip()})"
 
 
 def process_crash_handler_line(
@@ -161,11 +162,20 @@ def process_crash_handler_line(
             from esphome.platformio.toolchain import get_idedata
 
             idedata = get_idedata(config)
-            if idedata.addr2line_path:
-                elf = idedata.firmware_elf_path
-                if elf.exists():
-                    decoded = _addr2line(idedata.addr2line_path, elf, match.group(1))
-                    _LOGGER.error("  %s => %s", match.group(1), decoded)
+            elf = idedata.firmware_elf_path
+            if not idedata.addr2line_path:
+                _LOGGER.warning(
+                    "Cannot decode %s: no addr2line in the toolchain", match.group(1)
+                )
+            elif not elf.exists():
+                _LOGGER.warning(
+                    "Cannot decode %s: %s missing, compile locally first",
+                    match.group(1),
+                    elf,
+                )
+            else:
+                decoded = _addr2line(idedata.addr2line_path, elf, match.group(1))
+                _LOGGER.error("  %s => %s", match.group(1), decoded)
 
         # The addr2line hint is the last line of the report
         if "addr2line" in line:

@@ -141,25 +141,28 @@ static inline bool is_code_addr(uint32_t val) {
          (addr >= (uint32_t) _itcmcode_ram_begin && addr < (uint32_t) _itcmcode_ram_end);
 }
 
-static inline bool is_banked_mode(uint32_t mode) {
-  return mode == CPSR_MODE_SYS || mode == CPSR_MODE_FIQ || mode == CPSR_MODE_IRQ || mode == CPSR_MODE_SVC ||
-         mode == CPSR_MODE_ABT || mode == CPSR_MODE_UND;
-}
+// Before branching to bk_trap_*, PUSH_ALL_ARM_REG (boot_handlers.S) saves every mode's registers to
+// SRAM: cpsr, then spsr for all but SYS, then r8-r14. bk_show_register() reads the same table. The
+// faulting mode's sp (r13) and lr (r14) are taken from there.
+struct SavedBank {
+  uint32_t mode;
+  uint32_t sp_addr;  // r13; r14 follows
+};
+static constexpr SavedBank SAVED_BANKS[] = {
+    {CPSR_MODE_SYS, 0x400024 + 6 * 4}, {CPSR_MODE_IRQ, 0x400044 + 7 * 4}, {CPSR_MODE_FIQ, 0x400068 + 7 * 4},
+    {CPSR_MODE_ABT, 0x40008C + 7 * 4}, {CPSR_MODE_UND, 0x4000B0 + 7 * 4}, {CPSR_MODE_SVC, 0x4000D4 + 7 * 4},
+};
 
-// Read the faulting context's sp and lr by switching to its mode (interrupts stay masked) and back.
-// msr/mrs need ARM state (target("arm") in a Thumb build), and only r0-r3 are shared by every mode,
-// so the saved CPSR and return address must not sit in a banked register such as lr.
-__attribute__((target("arm"), naked, noinline)) static void read_banked_sp_lr(uint32_t mode, uint32_t *sp,
-                                                                              uint32_t *lr) {
-  __asm__ volatile("orr r0, r0, #0xC0\n"  // keep IRQ and FIQ masked in the target mode
-                   "mrs r3, cpsr\n"
-                   "msr cpsr_c, r0\n"
-                   "mov r0, sp\n"
-                   "str r0, [r1]\n"
-                   "mov r0, lr\n"
-                   "str r0, [r2]\n"
-                   "msr cpsr_c, r3\n"
-                   "bx lr\n");
+static bool read_saved_sp_lr(uint32_t mode, uint32_t *sp, uint32_t *lr) {
+  for (const auto &bank : SAVED_BANKS) {
+    if (bank.mode != mode)
+      continue;
+    const auto *regs = (const volatile uint32_t *) bank.sp_addr;  // NOLINT(performance-no-int-to-ptr)
+    *sp = regs[0];
+    *lr = regs[1];
+    return true;
+  }
+  return false;
 }
 
 static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offset) {
@@ -168,8 +171,7 @@ static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offse
     mode = CPSR_MODE_SYS;  // same register bank
   uint32_t sp = regs->sp;
   uint32_t lr = regs->lr;
-  if (is_banked_mode(mode))
-    read_banked_sp_lr(mode, &sp, &lr);
+  read_saved_sp_lr(mode, &sp, &lr);
 
   s_record.reason = reason;
   s_record.pc = regs->pc - pc_offset;
