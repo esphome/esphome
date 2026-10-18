@@ -4,7 +4,7 @@
 
 namespace esphome::hdc1080 {
 
-static const char *const TAG = "hdc1080";
+ESPHOME_LOG_TAG(TAG, "hdc1080");
 
 static const uint8_t HDC1080_CMD_CONFIGURATION = 0x02;
 static const uint8_t HDC1080_CMD_TEMPERATURE = 0x00;
@@ -24,9 +24,6 @@ void HDC1080Component::setup() {
 void HDC1080Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HDC1080:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);

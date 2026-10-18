@@ -4,7 +4,9 @@
 
 namespace esphome::veml3235 {
 
-static const char *const TAG = "veml3235.sensor";
+ESPHOME_LOG_TAG(TAG, "veml3235.sensor");
+
+static constexpr uint32_t REREAD_TIMEOUT_ID = 0;
 
 // ADC counts at or above this value (98% of full scale) are treated as clipped: the true light level cannot
 // be estimated from such a reading, so auto-gain restarts from minimum sensitivity instead
@@ -19,16 +21,14 @@ static const uint8_t MAX_ADJUSTMENTS_PER_UPDATE = 2;
 void VEML3235Sensor::setup() {
   uint8_t device_id[] = {0, 0};
   if (!this->refresh_config_reg()) {
-    ESP_LOGE(TAG, "Unable to write configuration");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unable to write configuration"));
     return;
   }
   if ((this->read_register(ID_REG, device_id, sizeof device_id) != i2c::ERROR_OK)) {
-    ESP_LOGE(TAG, "Unable to read ID");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unable to read ID"));
   } else if (device_id[0] != DEVICE_ID) {
     ESP_LOGE(TAG, "Incorrect device ID - expected 0x%.2x, read 0x%.2x", DEVICE_ID, device_id[0]);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Incorrect device ID"));
   }
 }
 
@@ -71,7 +71,7 @@ void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
     const uint32_t old_integration_time_ms = this->integration_time_ms_();
     if (this->adjust_sensitivity_(als_counts)) {
       const uint32_t wait_ms = old_integration_time_ms + 2 * this->integration_time_ms_();
-      this->set_timeout("reread", wait_ms,
+      this->set_timeout(REREAD_TIMEOUT_ID, wait_ms,
                         [this, adjustments_left]() { this->read_and_publish_(adjustments_left - 1); });
       return;
     }
@@ -185,9 +185,6 @@ void VEML3235Sensor::dump_config() {
 
   LOG_SENSOR("", "VEML3235", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Auto-gain enabled: %s", YESNO(this->auto_gain_));
   if (this->auto_gain_) {

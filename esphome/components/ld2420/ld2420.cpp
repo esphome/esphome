@@ -60,7 +60,7 @@ Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_
 
 namespace esphome::ld2420 {
 
-static const char *const TAG = "ld2420";
+ESPHOME_LOG_TAG(TAG, "ld2420");
 
 // Local const's
 static constexpr uint16_t REFRESH_RATE_MS = 1000;
@@ -161,13 +161,8 @@ template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::
   return 0xFF;  // Not found
 }
 
-static uint8_t calc_checksum(void *data, size_t size) {
-  uint8_t checksum = 0;
-  uint8_t *data_bytes = (uint8_t *) data;
-  for (size_t i = 0; i < size; i++) {
-    checksum ^= data_bytes[i];  // XOR operation
-  }
-  return checksum;
+static uint8_t calc_checksum(const void *data, size_t size) {
+  return xor_bytes(static_cast<const uint8_t *>(data), size);
 }
 
 static int32_t get_firmware_int(const char *version_string) {

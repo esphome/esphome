@@ -92,16 +92,13 @@ def test_check_and_install_mirror_skips_pinned_toolchain(tmp_path: Path) -> None
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
         patch.object(framework, "ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS", ["http://f"]),
         patch.object(framework, "ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS", ["http://m"]),
-        patch.object(framework, "install_package") as mock_install,
+        patch.object(framework, "install_packages") as mock_install,
         patch.object(framework, "prefetch_packages") as mock_prefetch,
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
     ):
         framework.check_and_install(cv.Version(3, 1, 2))
     assert mock_prefetch.call_args.args[2] == {}
-    assert [call.kwargs["resolve"] for call in mock_install.call_args_list] == [
-        None,
-        None,
-    ]
+    assert mock_install.call_args.args[2] == {}
 
 
 def test_check_and_install_installed_toolchain_on_unsupported_host(
@@ -142,7 +139,7 @@ def test_check_and_install_unsupported_host_without_toolchain_raises(
 def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
-        patch.object(framework, "install_package") as mock_install,
+        patch.object(framework, "install_packages") as mock_install,
         patch.object(framework, "prefetch_packages") as mock_prefetch,
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
     ):
@@ -150,53 +147,37 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     assert paths.framework == tmp_path / "frameworks" / _recommended().tag
     assert paths.toolchain == tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION
     assert paths.ninja == tmp_path / "ninja"
-    assert mock_install.call_count == 2
     # Full argument pinning: a copy-paste swap between the two near-identical
-    # calls (mirrors, destination) must not stay green
-    fw_call, tc_call = mock_install.call_args_list
-    assert fw_call.args == (
-        framework.FRAMEWORK_PACKAGE,
-        _recommended().tag,
-        tmp_path / "frameworks" / _recommended().tag,
-        framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
-        tmp_path / "downloads",
-    )
-    assert fw_call.kwargs == {
-        "expect": ("cores/esp8266", "tools/sdk", "libraries"),
-        "resolve": _recommended().download,
-    }
-    assert tc_call.args == (
-        framework.TOOLCHAIN_PACKAGE,
-        framework.TOOLCHAIN_VERSION,
-        tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION,
-        framework.ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
-        tmp_path / "downloads",
-    )
-    assert tc_call.kwargs == {
-        "expect": ("bin", "xtensa-lx106-elf"),
-        "resolve": framework.toolchain_download,
-    }
-    # The prefetch sees the same package specs as the installs
-    assert mock_prefetch.call_args.args == (
-        [
+    # specs (mirrors, destination) must not stay green
+    assert mock_install.call_args.args == (
+        (
             (
                 framework.FRAMEWORK_PACKAGE,
                 _recommended().tag,
                 tmp_path / "frameworks" / _recommended().tag,
                 framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+                ("cores/esp8266", "tools/sdk", "libraries"),
             ),
             (
                 framework.TOOLCHAIN_PACKAGE,
                 framework.TOOLCHAIN_VERSION,
                 tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION,
                 framework.ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
+                ("bin", "xtensa-lx106-elf"),
             ),
-        ],
+        ),
         tmp_path / "downloads",
         {
             framework.FRAMEWORK_PACKAGE: _recommended().download,
             framework.TOOLCHAIN_PACKAGE: framework.toolchain_download,
         },
+    )
+    # One spec list feeds both phases, so they cannot drift
+    assert mock_prefetch.call_args.args == mock_install.call_args.args
+    # PackageSpec instances, not bare tuples: the batch header reads .name
+    assert all(
+        isinstance(spec, framework.PackageSpec)
+        for spec in mock_install.call_args.args[0]
     )
 
 

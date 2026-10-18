@@ -72,7 +72,7 @@ CONFIG_TEXT_COMPONENT_SCHEMA = CONFIG_BASE_COMPONENT_SCHEMA.extend(
     cv.Schema(
         {
             cv.Required(CONF_COMPONENT_NAME): NextionName,
-            cv.Optional(CONF_FONT_ID): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_FONT_ID): cv.uint8_t,
         }
     )
 )
@@ -89,7 +89,7 @@ CONFIG_BINARY_SENSOR_SCHEMA = CONFIG_BASE_COMPONENT_SCHEMA.extend(
 CONFIG_SENSOR_COMPONENT_SCHEMA = CONFIG_BINARY_SENSOR_SCHEMA.extend(
     cv.Schema(
         {
-            cv.Optional(CONF_FONT_ID): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_FONT_ID): cv.uint8_t,
         }
     )
 )

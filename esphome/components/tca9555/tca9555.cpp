@@ -12,15 +12,15 @@ static const uint8_t TCA9555_CONFIGURATION_PORT_1 = 0x07;
 
 namespace esphome::tca9555 {
 
-static const char *const TAG = "tca9555";
+ESPHOME_LOG_TAG(TAG, "tca9555");
 
 void TCA9555Component::setup() {
   if (!this->read_gpio_modes_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->read_gpio_outputs_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -36,9 +36,6 @@ void TCA9555Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TCA9555:");
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {

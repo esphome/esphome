@@ -3,6 +3,8 @@
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_buffer.h"
 #include "esphome/components/light/color_mode.h"
+#include "esphome/components/light/light_effect.h"
+#include "esphome/components/light/light_effect_names.h"
 
 namespace esphome::api::benchmarks {
 
@@ -150,7 +152,17 @@ BENCHMARK(CalcAndEncode_ListEntitiesBinarySensorResponse);
 // --- ListEntitiesLightResponse ---
 
 static light::ColorModeMask light_color_modes;
-static FixedVector<const char *> light_effects;
+
+class BenchEffect : public light::LightEffect {
+ public:
+  explicit BenchEffect(const char *name) : LightEffect(name) {}
+  void apply() override {}
+};
+static BenchEffect rainbow_effect("Rainbow");
+static BenchEffect strobe_effect("Strobe");
+static light::LightEffect *const LIGHT_EFFECT_TABLE[] = {&rainbow_effect, &strobe_effect};
+static const ConstVector<light::LightEffect *> light_effect_list(LIGHT_EFFECT_TABLE, 2);
+static const light::LightEffectNames light_effects(light_effect_list);
 
 static ListEntitiesLightResponse make_light_response() {
   // Initialize static data on first call
@@ -158,10 +170,6 @@ static ListEntitiesLightResponse make_light_response() {
   if (!initialized) {
     light_color_modes.insert(light::ColorMode::RGB_WHITE);
     light_color_modes.insert(light::ColorMode::COLOR_TEMPERATURE);
-    light_effects.init(3);
-    light_effects.push_back("None");
-    light_effects.push_back("Rainbow");
-    light_effects.push_back("Strobe");
     initialized = true;
   }
 

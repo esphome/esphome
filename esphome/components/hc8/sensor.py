@@ -51,13 +51,10 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
-    if co2 := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2)
-        cg.add(var.set_co2_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
 
     cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
 

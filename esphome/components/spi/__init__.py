@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 import re
 from typing import Any
 
@@ -18,6 +19,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     only_on_variant,
 )
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -44,6 +46,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
+DOMAIN = "spi"
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 QuadSPIComponent = spi_ns.class_("QuadSPIComponent", cg.Component)
@@ -157,7 +160,7 @@ def _validate_psram_dma(value: Any) -> bool:
             msg_prefix="PSRAM DMA",
         ),
         cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
-        cv.requires_component("psram"),
+        cv.requires_component(PSRAM_DOMAIN),
     )(value)
 
 
@@ -433,12 +436,9 @@ async def to_code(configs: list[ConfigType]) -> None:
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
-        clk = await cg.gpio_pin_expression(spi[CONF_CLK_PIN])
-        cg.add(var.set_clk(clk))
-        if miso := spi.get(CONF_MISO_PIN):
-            cg.add(var.set_miso(await cg.gpio_pin_expression(miso)))
-        if mosi := spi.get(CONF_MOSI_PIN):
-            cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
+        await cg.add_pin(var.set_clk, spi[CONF_CLK_PIN])
+        await cg.add_pin(var.set_miso, spi.get(CONF_MISO_PIN))
+        await cg.add_pin(var.set_mosi, spi.get(CONF_MOSI_PIN))
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
@@ -488,9 +488,7 @@ async def register_spi_device(
     cg.add(var.set_spi_parent(parent))
     if write_only:
         cg.add(var.set_write_only(True))
-    if cs_pin := config.get(CONF_CS_PIN):
-        pin = await cg.gpio_pin_expression(cs_pin)
-        cg.add(var.set_cs_pin(pin))
+    await cg.add_pin(var.set_cs_pin, config.get(CONF_CS_PIN))
     if data_rate := config.get(CONF_DATA_RATE):
         cg.add(var.set_data_rate(data_rate))
     if spi_mode := config.get(CONF_SPI_MODE):
@@ -500,6 +498,17 @@ async def register_spi_device(
     if psram_dma := config.get(CONF_PSRAM_DMA):
         cg.add_define("USE_SPI_PSRAM_DMA")
         cg.add(var.set_psram_dma(psram_dma))
+
+
+def new_spi_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on an SPI bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor. Write-only devices call register_spi_device
+    themselves with write_only=True.
+    """
+    return cg.new_bus_component(register_spi_device, config, *args)
 
 
 def final_validate_device_schema(

@@ -1,22 +1,23 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 import logging
 from typing import Any, Literal, NamedTuple
 
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
 from esphome.cpp_generator import MockObj
-from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["uart"]
+DOMAIN = "modbus"
 # Loading the hub makes the modbus_client.* actions available (they are registry entries only; no code is
 # generated unless a config uses one).
 AUTO_LOAD = ["modbus_client"]
@@ -45,12 +46,17 @@ MULTI_CONF = True
 
 CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
-CONF_ROLE = "role"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
 MODBUS_ROLES = ["client", "server"]
+
+# The client hub takes these times as 16-bit milliseconds; a Modbus timeout is far shorter anyway.
+_HUB_TIME_PERIOD = cv.All(
+    cv.positive_time_period_milliseconds,
+    cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+)
 
 
 # The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17
@@ -273,12 +279,8 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(): cv.declare_id(ModbusClient),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(
-                    CONF_SEND_WAIT_TIME, default="2000ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TURNAROUND_TIME, default="600ms"
-                ): cv.positive_time_period_milliseconds,
+                cv.Optional(CONF_SEND_WAIT_TIME, default="2000ms"): _HUB_TIME_PERIOD,
+                cv.Optional(CONF_TURNAROUND_TIME, default="600ms"): _HUB_TIME_PERIOD,
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
@@ -304,9 +306,7 @@ async def to_code(config: ConfigType) -> None:
 
     await uart.register_uart_device(var, config)
 
-    if CONF_FLOW_CONTROL_PIN in config:
-        pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
-        cg.add(var.set_flow_control_pin(pin))
+    await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
 
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
@@ -385,6 +385,13 @@ async def register_modbus_client_device(var: MockObj, config: ConfigType) -> Non
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
+
+
+def new_modbus_client_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, MockObj]:
+    """Construct, register and attach to the modbus bus; args go to the constructor."""
+    return cg.new_bus_component(register_modbus_client_device, config, *args)
 
 
 async def register_modbus_server_device(var: MockObj, config: ConfigType) -> None:

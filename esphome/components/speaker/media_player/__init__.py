@@ -57,10 +57,7 @@ SpeakerMediaPlayer = speaker_ns.class_(
 
 AudioPipeline = speaker_ns.class_("AudioPipeline")
 AudioPipelineType = speaker_ns.enum("AudioPipelineType", is_class=True)
-AUDIO_PIPELINE_TYPE_ENUM = {
-    "MEDIA": AudioPipelineType.MEDIA,
-    "ANNOUNCEMENT": AudioPipelineType.ANNOUNCEMENT,
-}
+AUDIO_PIPELINE_TYPE_ENUM = AudioPipelineType.options("MEDIA", "ANNOUNCEMENT")
 
 StopStreamAction = speaker_ns.class_(
     "StopStreamAction", automation.Action, cg.Parented.template(SpeakerMediaPlayer)
@@ -251,7 +248,7 @@ automation.register_apply_action(
             # so a trigger arg with the same name cannot shadow it.
             (
                 CONF_MEDIA_FILE,
-                audio.AudioFile.operator("ptr"),
+                audio.AudioFile.operator("const").operator("ptr"),
                 lambda _, value: f"::{value}",
             ),
             (CONF_ANNOUNCEMENT, cg.bool_),

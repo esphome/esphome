@@ -5,7 +5,7 @@
 
 namespace esphome::safe_mode {
 
-static const char *const TAG = "safe_mode.switch";
+ESPHOME_LOG_TAG(TAG, "safe_mode.switch");
 
 void SafeModeSwitch::write_state(bool state) {
   // Acknowledge

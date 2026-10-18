@@ -4,7 +4,7 @@
 
 namespace esphome::ssd1322_base {
 
-static const char *const TAG = "ssd1322";
+ESPHOME_LOG_TAG(TAG, "ssd1322");
 
 static const uint8_t SSD1322_MAX_CONTRAST = 255;
 static const uint8_t SSD1322_COLORMASK = 0x0f;

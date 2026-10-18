@@ -3,7 +3,7 @@
 
 namespace esphome::output {
 
-static const char *const TAG = "output.switch";
+ESPHOME_LOG_TAG(TAG, "output.switch");
 
 void OutputSwitch::dump_config() { LOG_SWITCH("", "Output Switch", this); }
 void OutputSwitch::setup() { this->control(this->get_initial_state_with_restore_mode().value_or(false)); }

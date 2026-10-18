@@ -21,14 +21,25 @@ from esphome.arduino8266.framework import InstalledPaths, toolchain_tool
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
+    _elf2bin_flash_size,
     _flag_defines,
     _flash_size_str,
     _resolve_build_config,
     get_flash_ld_path,
 )
-from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
+from esphome.components.esp8266.boards import (
+    BOARDS,
+    ESP8266_BOARD_BUILD,
+    KEY_FLASH_SIZE,
+    board_ld_script,
+)
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
-from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
+from esphome.components.esp8266.const import (
+    KEY_BOARD,
+    KEY_ESP8266,
+    KEY_SCANF_FLOAT,
+    THROW_STUBS_HEADER,
+)
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -354,18 +365,22 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     # Assembly and C sources compile through their own rules
     assert "cont.S.o: aspp" in content
     assert "abi.c.o: c" in content
-    # throw_stubs is force-included for ESPHome sources only, via one shared
-    # srcflags variable rather than a copy of the flags line per edge
+    # throw_stubs reaches src through srcflags (after the pch include) and the
+    # core through frameworkflags: one shared variable each, not a copy per edge
     src_lines = [line for line in content.splitlines() if "obj/src/" in line]
     assert any("main.cpp.o: cxx" in line for line in src_lines)
-    assert content.count("throw_stubs.h") == 1
+    assert content.count("throw_stubs.h") == 2
     assert "srcflags = -include" in content
     flags_lines = [
         line for line in content.splitlines() if line.startswith("  flags = ")
     ]
     assert flags_lines
     # C++ src edges consume the precompiled header; C/assembly keep srcflags
-    assert set(flags_lines) == {"  flags = $srcflags", "  flags = $srccxxflags"}
+    assert set(flags_lines) == {
+        "  flags = $srcflags",
+        "  flags = $srccxxflags",
+        "  flags = $frameworkflags",
+    }
 
 
 def test_write_project_pch(tmp_path: Path) -> None:
@@ -709,6 +724,8 @@ def test_write_project_libraries_and_variant(
     assert "libHeadersOnly.a" not in content
     assert "Library HeadersOnly has no source files" in caplog.text
     assert "  flags = -DMYLIB=1" in content
+    # With exceptions on, nothing gets the stubs
+    assert "throw_stubs.h" not in content
     # A library's own include dirs lead its compile lines
     assert "  own_includes = -I" in content
     assert "$own_includes $cxxflags $flags" in content
@@ -721,6 +738,30 @@ def test_write_project_libraries_and_variant(
     assert "-fexceptions" in content
     assert "-lstdc++-exc" in content
     assert f"ccache = {_shq('/cc/ccache')}" in content
+
+
+def test_write_project_throw_stubs_reach_core_and_libraries(tmp_path: Path) -> None:
+    """Without exceptions the core and libraries take the throw stubs too."""
+    paths = _make_framework(tmp_path)
+    lib_dir = tmp_path / "libsrc"
+    lib_dir.mkdir()
+    (lib_dir / "lib.cpp").write_text("")
+    library = ArduinoLibrary(
+        name="MyLib",
+        sources=[lib_dir / "lib.cpp"],
+        include_dirs=[lib_dir],
+        flags=["-DMYLIB=1"],
+    )
+    content = _write_ninja(paths, libraries=[library])
+    stubs = CORE.relative_src_path() / THROW_STUBS_HEADER
+    assert f"frameworkflags = -include {_shq(str(stubs))}" in content
+    # Before the library's own flags; core edges take the variable alone
+    assert "  flags = $frameworkflags -DMYLIB=1" in content
+    lines = content.splitlines()
+    core_edge = next(
+        i for i, line in enumerate(lines) if "core_esp8266_main.cpp.o: cxx" in line
+    )
+    assert lines[core_edge + 1] == "  flags = $frameworkflags"
 
 
 def test_get_flash_ld_path(tmp_path: Path) -> None:
@@ -745,6 +786,54 @@ def test_get_flash_ld_path(tmp_path: Path) -> None:
 def test_flash_size_str() -> None:
     assert _flash_size_str(4 * 1024 * 1024) == "4M"
     assert _flash_size_str(512 * 1024) == "512K"
+
+
+def test_elf2bin_flash_size() -> None:
+    """The image-header size follows the ldscript filename like PlatformIO,
+    falling back to board_upload.maximum_size and then the board table."""
+    assert _elf2bin_flash_size("esp8285", "eagle.flash.2m.ld") == "2M"
+    assert _elf2bin_flash_size("esp01", "eagle.flash.512k.ld") == "512K"
+    assert _elf2bin_flash_size("nodemcuv2", "eagle.flash.4m1m.ld") == "4M"
+    # The testing-mode prefix still matches (search, not match)
+    assert _elf2bin_flash_size("esp8285", "testing_eagle.flash.2m.ld") == "2M"
+    # Custom ldscript name: board_upload.maximum_size wins over the board
+    CORE.platformio_options["board_upload.maximum_size"] = "2097152"
+    assert _elf2bin_flash_size("esp8285", "custom.ld") == "2M"
+    del CORE.platformio_options["board_upload.maximum_size"]
+    assert _elf2bin_flash_size("esp8285", "custom.ld") == "1M"
+
+
+@pytest.mark.parametrize("bad", ["2MB", "3145728", "-1"])
+def test_elf2bin_flash_size_rejects_bad_maximum_size(bad: str) -> None:
+    """A non-numeric or unsupported board_upload.maximum_size fails by name
+    instead of a ValueError or a late elf2bin choices error."""
+    CORE.platformio_options["board_upload.maximum_size"] = bad
+    with pytest.raises(EsphomeError, match="board_upload.maximum_size"):
+        _elf2bin_flash_size("esp8285", "custom.ld")
+
+
+def test_elf2bin_flash_size_default_matches_board_table() -> None:
+    """Without an ldscript override, every board's own ldscript parses to
+    the board-table size, so the emitted --flash_size is unchanged."""
+    for board, entry in BOARDS.items():
+        assert _elf2bin_flash_size(board, board_ld_script(entry)) == _flash_size_str(
+            entry[KEY_FLASH_SIZE]
+        ), board
+
+
+def test_write_project_flash_size_follows_ldscript_override(
+    tmp_path: Path,
+) -> None:
+    """An ldscript overriding the board's flash size drives the image header
+    too (the Athom shape: esp8285 with eagle.flash.2m.ld). A 1M header over
+    a 2M layout clamps the chip below the OTA scratch area and bricks OTA."""
+    paths = _make_framework(tmp_path)
+    (paths.framework / "variants" / "esp8285").mkdir()
+    CORE.data[KEY_ESP8266][KEY_BOARD] = "esp8285"
+    CORE.platformio_options["board_build.ldscript"] = "eagle.flash.2m.ld"
+    content = _write_ninja(paths)
+    assert "--flash_size 2M" in content
+    assert "eagle.flash.2m.ld" in content
 
 
 def test_write_project_testing_mode(tmp_path: Path) -> None:
@@ -799,8 +888,9 @@ def test_write_project_plain_asm_rule_skips_preprocessor(tmp_path: Path) -> None
     _set_flags()
     content = _write_ninja(paths)
     assert "lowlevel.s.o: asm " in content
+    assert "rule asm\n  command = $cc -x assembler $asflags -c $in -o $out" in content
     assert "rule asm\n  command = $ccache $cc -x assembler $asflags -c $in -o $out" in (
-        content
+        _write_ninja(paths, ccache="/cc/ccache")
     )
 
 
