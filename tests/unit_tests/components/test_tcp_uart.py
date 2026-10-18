@@ -37,6 +37,14 @@ def test_turn_timeout_with_one_connection_is_rejected() -> None:
         CONFIG_SCHEMA({"role": "server", "port": 502, "turn_timeout": "200ms"})
 
 
+def test_turn_timeout_of_zero_is_rejected() -> None:
+    # With 0 the turn would end before the reply to its client is written.
+    with pytest.raises(cv.Invalid, match="higher than 0s"):
+        CONFIG_SCHEMA(
+            {"role": "server", "port": 502, "max_connections": 2, "turn_timeout": "0s"}
+        )
+
+
 def test_more_than_eight_connections_are_rejected() -> None:
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA({"role": "server", "port": 502, "max_connections": 9})

@@ -65,9 +65,11 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_MAX_CONNECTIONS, default=1): cv.int_range(
                         min=1, max=8
                     ),
-                    cv.Optional(
-                        CONF_TURN_TIMEOUT
-                    ): cv.positive_time_period_milliseconds,
+                    # 0 would end every turn before its reply is written.
+                    cv.Optional(CONF_TURN_TIMEOUT): cv.All(
+                        cv.positive_not_null_time_period,
+                        cv.positive_time_period_milliseconds,
+                    ),
                 }
             ),
         },
