@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_ACCELERATION_Z,
     CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_MEASUREMENT_SEQUENCE_NUMBER,
     CONF_MOVEMENT_COUNTER,
@@ -123,9 +122,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
