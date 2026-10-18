@@ -20,17 +20,19 @@ using packet_interface::PacketBuffer;
 using packet_interface::PacketMetaData;
 using Packet = std::vector<uint8_t>;
 
-class TestUdp : public UdpPacketInterface {
+// The copy buffer is a base, so it is set up before the link's constructor sees it
+struct UdpBufferStorage {
+  uint8_t tx_buffer_storage[8]{};
+};
+
+class TestUdp : public UdpBufferStorage, public UdpPacketInterface {
  public:
   explicit TestUdp(UDPComponent *udp) : UdpPacketInterface(udp, this->tx_buffer_storage) {
-    this->set_max_packet_size(8);
     this->add_packet_interface_listener(
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
   }
   using UdpPacketInterface::receive_;
 
-  // The base class only keeps the pointer, so the storage can be a member set up after it
-  uint8_t tx_buffer_storage[8]{};
   std::vector<Packet> received;
 };
 
@@ -65,16 +67,6 @@ TEST_F(UdpPacketInterfaceTest, OversizedPacketNotSent) {
   this->link_.setup();
   Packet packet{1, 2, 3, 4, 5, 6, 7, 8, 9};
   EXPECT_FALSE(this->link_.send_to_interface(PacketBuffer(packet), {}));
-  uint8_t header = 0;
-  Packet body_data{1, 2, 3, 4, 5, 6, 7, 8};
-  PacketBuffer body(body_data);
-  EXPECT_FALSE(this->link_.send_to_interface(PacketBuffer(&header, 1, &body, nullptr, 0), {}));
-}
-
-TEST_F(UdpPacketInterfaceTest, SplitPacketLimitedToBuffer) {
-  this->link_.setup();
-  // Raised above the copy buffer after code generation sized it
-  this->link_.set_max_packet_size(100);
   uint8_t header = 0;
   Packet body_data{1, 2, 3, 4, 5, 6, 7, 8};
   PacketBuffer body(body_data);

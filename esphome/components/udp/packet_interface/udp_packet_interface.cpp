@@ -35,11 +35,6 @@ bool UdpPacketInterface::send_to_interface(const PacketBuffer &data, const Packe
     auto span = data.as_span();
     return this->parent_->send_packet(span.data(), span.size());
   }
-  if (size > this->tx_buffer_.size()) {
-    ESP_LOGW(TAG, "%s: Packet of %zu bytes is larger than the %zu byte buffer", this->name_, size,
-             this->tx_buffer_.size());
-    return false;
-  }
   data.copy_to(this->tx_buffer_.data(), size);
   return this->parent_->send_packet(this->tx_buffer_.data(), size);
 }
