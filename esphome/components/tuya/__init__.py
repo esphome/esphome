@@ -89,9 +89,7 @@ async def to_code(config):
         cg.add(var.set_time_id(time_))
         if config[CONF_FORCE_TIME_SYNC]:
             cg.add(var.set_force_time_sync(True))
-    if CONF_STATUS_PIN in config:
-        status_pin_ = await cg.gpio_pin_expression(config[CONF_STATUS_PIN])
-        cg.add(var.set_status_pin(status_pin_))
+    await cg.add_pin(var.set_status_pin, config.get(CONF_STATUS_PIN))
     if CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS in config:
         for dp in config[CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS]:
             cg.add(var.add_ignore_mcu_update_on_datapoints(dp))

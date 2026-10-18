@@ -191,13 +191,8 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_RS3, var.set_rs3_sensor)
     await sensors(CONF_ERROR_CODE, var.set_error_code_sensor)
 
-    if (set_pin_config := config.get(CONF_SET_PIN)) is not None:
-        set_pin = await cg.gpio_pin_expression(set_pin_config)
-        cg.add(var.set_set_pin(set_pin))
-
-    if (reset_pin_config := config.get(CONF_RESET_PIN)) is not None:
-        reset_pin = await cg.gpio_pin_expression(reset_pin_config)
-        cg.add(var.set_reset_pin(reset_pin))
+    await cg.add_pin(var.set_set_pin, config.get(CONF_SET_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
 
 APC1_ACTION_SCHEMA = maybe_simple_id(
