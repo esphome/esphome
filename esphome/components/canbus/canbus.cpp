@@ -115,27 +115,35 @@ void Canbus::loop() {
     this->last_event_check_time_ = now;
   }
 
-  struct CanFrame can_message;
   uint32_t message_counter = 0;
   for (; message_counter < this->max_frames_per_loop_; message_counter++) {
+    struct CanFrame can_message {};
     if (this->read_message(&can_message) != canbus::ERROR_OK) {
       break;
     }
 
-    if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") extended can_id=0x%" PRIx32 " size=%d", message_counter + 1,
-               can_message.can_id, can_message.can_data_length_code);
-    } else {
-      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") std can_id=0x%" PRIx32 " size=%d", message_counter + 1,
-               can_message.can_id, can_message.can_data_length_code);
+    uint8_t size = can_dlc_to_len(can_message.can_data_length_code);
+    if (size == CAN_INVALID_DLC) {
+      ESP_LOGW(TAG, "Ignoring CAN frame with invalid DLC=%" PRIu8, can_message.can_data_length_code);
+      continue;
+    }
+    if (!can_message.fd) {
+      size = std::min(size, CAN_MAX_DATA_LENGTH);
     }
 
-    std::vector<uint8_t> data;
+    if (can_message.use_extended_id) {
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") extended can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+               can_message.can_id, size);
+    } else {
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") std can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+               can_message.can_id, size);
+    }
+
+    std::vector<uint8_t> data(can_message.data, can_message.data + size);
 
     // show data received
-    for (int i = 0; i < std::min(can_message.can_data_length_code, CAN_MAX_DATA_LENGTH); i++) {
+    for (int i = 0; i < size; i++) {
       ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
-      data.push_back(can_message.data[i]);
     }
 
     this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
