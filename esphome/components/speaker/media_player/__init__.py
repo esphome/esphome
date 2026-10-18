@@ -5,6 +5,7 @@ import esphome.codegen as cg
 from esphome.components import (
     audio,
     audio_file,
+    esp32,
     media_player,
     network,
     ota,
@@ -22,13 +23,17 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_FILES,
     CONF_FORMAT,
+    CONF_FRAMEWORK,
     CONF_NUM_CHANNELS,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
     CONF_TASK_STACK_IN_PSRAM,
+    PLATFORM_ESP32,
 )
+import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 DEPENDENCIES = ["network"]
@@ -38,6 +43,7 @@ DOMAIN = "media_player"
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ANNOUNCEMENT_PIPELINE = "announcement_pipeline"
+CONF_AUDIO_PIPELINE_CORE = "audio_pipeline_core"
 CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"  # Remove before 2027.4.0
 CONF_ENQUEUE = "enqueue"
 CONF_MEDIA_FILE = "media_file"
@@ -98,6 +104,27 @@ def _final_validate(config):
     return config
 
 
+def _validate_audio_pipeline_core(config: ConfigType) -> ConfigType:
+    if config.get(CONF_AUDIO_PIPELINE_CORE) != 1:
+        return config
+    esp32.only_on_variant(
+        supported=[
+            esp32.VARIANT_ESP32,
+            esp32.VARIANT_ESP32S3,
+            esp32.VARIANT_ESP32P4,
+            esp32.VARIANT_ESP32H4,
+            esp32.VARIANT_ESP32S31,
+        ],
+        msg_prefix="speaker media_player audio_pipeline_core: 1",
+    )(config)
+    sdkconfig = fv.full_config.get()[PLATFORM_ESP32][CONF_FRAMEWORK][
+        esp32.CONF_SDKCONFIG_OPTIONS
+    ]
+    if sdkconfig.get("CONFIG_FREERTOS_UNICORE") == "y":
+        raise cv.Invalid("audio_pipeline_core: 1 requires FreeRTOS dual-core mode")
+    return config
+
+
 PIPELINE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(AudioPipeline),
@@ -136,6 +163,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FILES): audio_file.audio_files_schema(),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            cv.Optional(CONF_AUDIO_PIPELINE_CORE): cv.int_range(min=0, max=1),
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
             cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
@@ -160,6 +188,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         extra=cv.ALLOW_EXTRA,
     ),
     _final_validate,
+    _validate_audio_pipeline_core,
 )
 
 
@@ -177,6 +206,9 @@ async def to_code(config):
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
+
+    if (core := config.get(CONF_AUDIO_PIPELINE_CORE)) is not None:
+        cg.add(var.set_audio_pipeline_core(core))
 
     cg.add(var.set_volume_increment(config[CONF_VOLUME_INCREMENT]))
     cg.add(var.set_volume_initial(config[CONF_VOLUME_INITIAL]))

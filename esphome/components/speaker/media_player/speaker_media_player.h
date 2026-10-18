@@ -64,6 +64,7 @@ class SpeakerMediaPlayer final : public Component,
 
   void set_buffer_size(size_t buffer_size) { this->buffer_size_ = buffer_size; }
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
+  void set_audio_pipeline_core(int core) { this->audio_pipeline_core_ = core; }
 
   // Percentage to increase or decrease the volume for volume up or volume down commands
   void set_volume_increment(float volume_increment) { this->volume_increment_ = volume_increment; }
@@ -144,6 +145,7 @@ class SpeakerMediaPlayer final : public Component,
   size_t buffer_size_;
 
   bool task_stack_in_psram_;
+  int audio_pipeline_core_{-1};
 
   bool is_paused_{false};
   bool is_muted_{false};
