@@ -466,3 +466,15 @@ automation.register_apply_action(
         ),
     ),
 )
+
+
+automation.register_apply_action(
+    "vbus.suspend_polling",
+    cv.All(TX_ID_SCHEMA, validate_queue_action),
+    automation.ApplyCall("suspend_polling()"),
+)
+automation.register_apply_action(
+    "vbus.resume_polling",
+    cv.All(TX_ID_SCHEMA, validate_queue_action),
+    automation.ApplyCall("resume_polling()"),
+)

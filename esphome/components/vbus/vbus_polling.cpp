@@ -45,7 +45,7 @@ void VBusPolling::dump_config() {
 }
 
 void VBusPolling::update() {
-  if (this->stopped_)
+  if (this->stopped_ || this->suspended_)
     return;
   for (auto &entry : this->values_) {
     if (!entry.rx_only && (!this->in_flight_ || this->active_.command != 0x0300 || this->active_.id != entry.id))
@@ -57,7 +57,7 @@ void VBusPolling::update() {
 
 bool VBusPolling::queue_read(uint16_t value_id) {
   auto *entry = this->find_value_(value_id);
-  if (this->stopped_ || entry == nullptr || entry->rx_only)
+  if (this->stopped_ || this->suspended_ || entry == nullptr || entry->rx_only)
     return false;
   if (!this->in_flight_ || this->active_.command != 0x0300 || this->active_.id != value_id)
     entry->pending = true;
@@ -66,9 +66,9 @@ bool VBusPolling::queue_read(uint16_t value_id) {
 }
 
 bool VBusPolling::queue_write(uint16_t value_id, uint32_t value, uint16_t command) {
-  if (this->stopped_ || (command != 0x0200 && command != 0x0400) ||
+  if (this->stopped_ || this->suspended_ || (command != 0x0200 && command != 0x0400) ||
       !this->writes_.push({value, App.get_loop_component_start_time(), value_id, command})) {
-    ESP_LOGW(TAG, "Write rejected: stopped, invalid command or full queue");
+    ESP_LOGW(TAG, "Write rejected: stopped/suspended, invalid command or full queue");
     return false;
   }
   this->enable_loop();
@@ -110,7 +110,7 @@ void VBusPolling::on_result_(uint32_t grant_id, uint16_t command, uint16_t value
 }
 
 void VBusPolling::loop() {
-  if (this->stopped_ || this->in_flight_)
+  if (this->stopped_ || this->suspended_ || this->in_flight_)
     return;
   const uint32_t now = App.get_loop_component_start_time();
   // Expire one unsent write per pass, before callbacks can enqueue more work.
@@ -177,6 +177,44 @@ void VBusPolling::loop() {
     }
   }
   this->in_flight_ = true;
+}
+
+void VBusPolling::suspend() {
+  if (this->stopped_ || this->suspended_)
+    return;
+  const bool active = this->in_flight_;
+  const auto request = this->active_;
+  const uint32_t grant_id = this->grant_id_;
+  StaticVector<Request, 16> cancelled;
+  for (const auto &pending : this->writes_)
+    cancelled.push_back(pending);
+  // Clear ownership and pending work before cancellation callbacks can reenter.
+  this->suspended_ = true;
+  this->in_flight_ = false;
+  this->waiting_ = false;
+  this->grant_id_ = 0;
+  this->writes_.clear();
+  for (auto &entry : this->values_)
+    entry.pending = false;
+  this->disable_loop();
+  this->transmitter_->cancel_bus();
+  this->transactions_->cancel();
+  if (active && !this->stopped_) {
+    this->result_callback_.call(grant_id, request.command, request.id, 0,
+                                TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+  }
+  for (const auto &pending : cancelled) {
+    if (this->stopped_)
+      break;
+    this->result_callback_.call(0, pending.command, pending.id, 0, TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+  }
+}
+
+void VBusPolling::resume() {
+  if (!this->stopped_ && this->suspended_) {
+    this->suspended_ = false;
+    this->update();
+  }
 }
 
 void VBusPolling::on_shutdown() {

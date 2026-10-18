@@ -1208,6 +1208,8 @@ TEST_F(VBusPollingTest, RawCallbacksAndRxOnlyHubRemainAvailableButManualTxIsReje
   EXPECT_FALSE(this->bus_.write_value(1, 1, 1));
   EXPECT_FALSE(this->bus_.send_datagram(1, 0x0300, 1, 0));
   VBus rx_only;
+  rx_only.suspend_polling();
+  rx_only.resume_polling();
   EXPECT_FALSE(rx_only.queue_read(1));
   EXPECT_FALSE(rx_only.queue_write(1, 1));
   this->grant_();
@@ -1436,6 +1438,209 @@ TEST_P(VBusP2SignedValueTest, PreservesSignedBoundaryAndNegativeValues) {
 
 INSTANTIATE_TEST_SUITE_P(RawBoundaries, VBusP2SignedValueTest,
                          ::testing::Values(INT32_MIN, -999, -32768, -1, 0, 1, 32767, INT32_MAX));
+
+TEST_F(VBusPollingTest, SuspensionBeforeGrantCancelsUnsentWritesAndRejectsNewWork) {
+  ASSERT_TRUE(this->bus_.queue_write(9, 99));
+  this->tick_();
+  this->bus_.suspend_polling();
+  this->bus_.suspend_polling();
+  EXPECT_FALSE(this->bus_.queue_read(1));
+  EXPECT_FALSE(this->bus_.queue_write(9, 100));
+  this->polling_.update();
+  this->grant_();
+  this->tick_(20000);
+  EXPECT_TRUE(this->uart_.writes.empty());
+  ASSERT_EQ(this->queue_results_.size(), 1u);
+  EXPECT_EQ(this->queue_results_[0].grant_id, 0u);
+  EXPECT_EQ(this->queue_results_[0].status, TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+}
+
+TEST_F(VBusPollingTest, SuspensionCancelsActiveReadAndIgnoresItsLateReply) {
+  this->grant_();
+  const uint32_t old_grant = this->grant_id_;
+  this->bus_.suspend_polling();
+  this->answer_(1, 10);
+  this->tick_(1000);
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+  EXPECT_TRUE(this->values_.empty());
+  ASSERT_EQ(this->queue_results_.size(), 1u);
+  EXPECT_EQ(this->queue_results_[0].grant_id, old_grant);
+  EXPECT_EQ(this->queue_results_[0].status, TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+  EXPECT_FALSE(this->transactions_.is_busy());
+}
+
+TEST_F(VBusPollingTest, SuspensionReportsActiveAndFullQueuedWriteFifoExactlyOnceInOrder) {
+  ASSERT_TRUE(this->bus_.queue_write(9, 99));
+  this->grant_();
+  for (uint16_t id = 10; id < 26; ++id)
+    ASSERT_TRUE(this->bus_.queue_write(id, id));
+  this->bus_.suspend_polling();
+  this->answer_(9, 99);
+  this->bus_.suspend_polling();
+  ASSERT_EQ(this->queue_results_.size(), 17u);
+  for (size_t i = 0; i < this->queue_results_.size(); ++i) {
+    EXPECT_EQ(this->queue_results_[i].value_id, i + 9);
+    EXPECT_EQ(this->queue_results_[i].status, TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+    EXPECT_EQ(this->queue_results_[i].grant_id != 0, i == 0);
+  }
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+  EXPECT_TRUE(this->values_.empty());
+}
+
+TEST_F(VBusPollingTest, SuspensionWhileVerificationWaitsForCapacityCannotSendItLater) {
+  ASSERT_TRUE(this->bus_.queue_write(9, 99));
+  this->grant_();
+  this->uart_.room = 15;
+  this->answer_(9, 99);
+  this->bus_.suspend_polling();
+  this->uart_.room = 16;
+  this->tick_(1000);
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+  EXPECT_FALSE(this->transactions_.is_busy());
+  ASSERT_EQ(this->queue_results_.size(), 1u);
+  EXPECT_EQ(this->queue_results_[0].status, TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+}
+
+TEST_F(VBusPollingTest, SuspensionWhileWaitingForVerificationCannotAcceptLateReadback) {
+  ASSERT_TRUE(this->bus_.queue_write(1, 99));
+  this->grant_();
+  this->answer_(1, 99);
+  ASSERT_EQ(this->uart_.writes.size(), 2u);
+  this->bus_.suspend_polling();
+  this->answer_(1, 99);
+  this->tick_(500);
+  EXPECT_EQ(this->uart_.writes.size(), 2u);
+  EXPECT_TRUE(this->values_.empty());
+  ASSERT_EQ(this->queue_results_.size(), 1u);
+  EXPECT_EQ(this->queue_results_[0].status, TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+}
+
+TEST_F(VBusPollingTest, ResumeOnlyStartsFreshReadsAndNeverReplaysCancelledWrites) {
+  ASSERT_TRUE(this->bus_.queue_write(9, 99));
+  this->grant_();
+  this->bus_.suspend_polling();
+  this->bus_.resume_polling();
+  this->bus_.resume_polling();
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0300, 0x0020, 0x2211, 1));
+  this->answer_(1, 10);
+  this->answer_(2, 20);
+  this->tick_(20);
+  EXPECT_EQ(this->uart_.writes.size(), 4u);
+  EXPECT_EQ(
+      std::count(this->uart_.writes.begin(), this->uart_.writes.end(), wire_datagram(0x0200, 0x0020, 0x2211, 9, 99)),
+      1);
+}
+
+TEST_F(VBusPollingTest, CancelledResultsCanResumeAndQueueNewExplicitWork) {
+  this->polling_.add_on_result_callback([this](uint32_t, uint16_t, uint16_t id, uint32_t, TransactionStatus status) {
+    if (id == 9 && status == TransactionStatus::TRANSACTION_STATUS_CANCELLED) {
+      this->bus_.resume_polling();
+      EXPECT_TRUE(this->bus_.queue_write(10, 100));
+    }
+  });
+  ASSERT_TRUE(this->bus_.queue_write(9, 99));
+  this->grant_();
+  this->bus_.suspend_polling();
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0200, 0x0020, 0x2211, 10, 100));
+}
+
+TEST_F(VBusPollingTest, ShutdownFromCancellationCallbackStopsFurtherNotificationsAndResume) {
+  this->polling_.add_on_result_callback([this](uint32_t, uint16_t, uint16_t, uint32_t, TransactionStatus status) {
+    if (status == TransactionStatus::TRANSACTION_STATUS_CANCELLED)
+      this->polling_.on_shutdown();
+  });
+  ASSERT_TRUE(this->bus_.queue_write(9, 99));
+  ASSERT_TRUE(this->bus_.queue_write(10, 100));
+  this->grant_();
+  this->bus_.suspend_polling();
+  this->bus_.resume_polling();
+  EXPECT_FALSE(this->bus_.queue_write(11, 101));
+  this->grant_();
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+  EXPECT_EQ(this->queue_results_.size(), 1u);
+}
+
+TEST_F(VBusP2SensorTest, SuspensionPreservesConfirmedSensorAndRecoversWithoutDuplicatePublication) {
+  this->finish_initial_();
+  this->bus_.suspend_polling();
+  this->bus_.resume_polling();
+  this->grant_();
+  this->answer_(1, 10);
+  this->answer_(2, 20);
+  this->tick_(20);
+  EXPECT_EQ(this->signed_updates_, 1u);
+  EXPECT_EQ(this->unsigned_updates_, 1u);
+  EXPECT_FLOAT_EQ(this->signed_.state, 10);
+}
+
+TEST_F(VBusPollingTest, RxPacketsContinueWhilePollingIsSuspended) {
+  class Observer : public VBusListener {
+   public:
+    unsigned count{0};
+
+   protected:
+    void handle_message(std::vector<uint8_t> &) override { ++this->count; }
+  } observer;
+  this->bus_.register_listener(&observer);
+  this->bus_.suspend_polling();
+  this->uart_.inject({0xaa, 0x10, 0, 0x11, 0x22, 0x10, 0, 1, 1, 0x2a, 1, 2, 3, 4, 0, 0x75});
+  this->tick_();
+  EXPECT_EQ(observer.count, 1u);
+  EXPECT_TRUE(this->uart_.writes.empty());
+}
+
+TEST_F(VBusPollingTest, ResumeOnAnAlreadyRunningPollerDoesNotScheduleAnotherScan) {
+  this->finish_initial_();
+  this->bus_.resume_polling();
+  this->grant_();
+  EXPECT_EQ(this->uart_.writes.size(), 3u);
+}
+
+TEST_F(VBusTransactionTest, ExplicitCancellationNotifiesOnceAndRetiresTheLease) {
+  this->acquire_();
+  ASSERT_TRUE(this->bus_.write_value(this->grant_id_, 2, 123));
+  this->transactions_.cancel();
+  this->transactions_.cancel();
+  ASSERT_EQ(this->results_.size(), 1u);
+  EXPECT_EQ(this->results_[0].status, TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+  EXPECT_FALSE(this->bus_.read_value(this->grant_id_, 2));
+  this->step_(20);
+  this->reply_(123);
+  EXPECT_EQ(this->results_.size(), 1u);
+}
+
+class VBusSuspendBeforeResultTest : public VBusPollingTest {
+ protected:
+  void SetUp() override {
+    VBusTransactionTest::SetUp();
+    this->transactions_.add_on_result_callback(
+        [this](uint32_t, uint16_t, uint16_t, uint32_t, TransactionStatus status) {
+          if (status == TransactionStatus::TRANSACTION_STATUS_SUCCESS)
+            this->bus_.suspend_polling();
+        });
+    this->bus_.set_polling(&this->polling_);
+    this->polling_.register_value(1, false);
+    this->polling_.add_on_value_callback(
+        [this](uint16_t id, uint32_t value) { this->values_.emplace_back(id, value); });
+    this->polling_.add_on_result_callback(
+        [this](uint32_t grant, uint16_t command, uint16_t id, uint32_t value, TransactionStatus status) {
+          this->queue_results_.push_back({grant, command, id, value, status});
+        });
+    this->polling_.setup();
+  }
+};
+
+TEST_F(VBusSuspendBeforeResultTest, EarlierTransactionCallbackCanCancelBeforeCachePublication) {
+  this->grant_();
+  this->answer_(1, 10);
+  EXPECT_TRUE(this->values_.empty());
+  ASSERT_EQ(this->queue_results_.size(), 1u);
+  EXPECT_EQ(this->queue_results_[0].status, TransactionStatus::TRANSACTION_STATUS_CANCELLED);
+  this->tick_(1000);
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+}
 
 #endif
 

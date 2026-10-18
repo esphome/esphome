@@ -93,6 +93,14 @@ class VBus final : public uart::UARTDevice, public Component {
 #endif
 #ifdef USE_VBUS_POLLING
   void set_polling(VBusPolling *polling) { this->polling_ = polling; }
+  void suspend_polling() {
+    if (this->polling_ != nullptr)
+      this->polling_->suspend();
+  }
+  void resume_polling() {
+    if (this->polling_ != nullptr)
+      this->polling_->resume();
+  }
   bool queue_read(uint16_t value_id) { return this->polling_ != nullptr && this->polling_->queue_read(value_id); }
   bool queue_write(uint16_t value_id, uint32_t value, uint16_t command = 0x0200) {
     return this->polling_ != nullptr && this->polling_->queue_write(value_id, value, command);
