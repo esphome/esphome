@@ -213,4 +213,17 @@ TEST(PowerLimit, RepeatedPassesOverAnUnchangedFrameHoldTheScale) {
   EXPECT_NEAR(strip[0].get_red(), 128, 2);
 }
 
+TEST(PowerLimit, AHeavyLimitStaysWithinOneStepOfTheBudget) {
+  Strip strip(1);
+  strip.configure_power(20, 0, 0.3f);  // a full red pixel asks for 20 mA against a 0.3 mA budget
+  strip[0] = Color(255, 0, 0, 0);
+  for (int pass = 0; pass < 20; pass++)
+    strip.limit();
+  const uint8_t scale = strip.power_brightness();
+  EXPECT_GE(scale, 1);
+  EXPECT_LE(scale, 4);
+  // No dead band this low: the frame is within one level of the budget
+  EXPECT_LE(strip.get_estimated_current_ma(), 0.3f + 20.0f / 255.0f);
+}
+
 }  // namespace esphome::light::testing
