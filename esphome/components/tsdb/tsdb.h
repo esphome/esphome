@@ -10,7 +10,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#endif
 
 #include "esp_err.h"
 
@@ -24,6 +26,7 @@ struct TsdbColumn {
   double scale{1.0};
   double offset{0.0};
   int16_t held{tsdbmath::RAW_UNKNOWN};
+  bool hold_warned{false};
 };
 
 class TsdbComponent : public PollingComponent {
@@ -49,7 +52,9 @@ class TsdbComponent : public PollingComponent {
   void set_min_free_bytes(uint32_t bytes) { this->min_free_bytes_ = bytes; }
   void set_require_time(bool require) { this->require_time_ = require; }
   void set_missing_policy(tsdbmath::MissingPolicy policy) { this->missing_policy_ = policy; }
+#ifdef USE_TIME
   void set_time_source(time::RealTimeClock *clock) { this->time_ = clock; }
+#endif
 
   void add_column(const char *name, double scale, double offset);
   void set_column_source(size_t index, sensor::Sensor *source);
@@ -63,6 +68,8 @@ class TsdbComponent : public PollingComponent {
   void log_init_failure_();
   void fail_setup_(const LogString *reason);
   void close_database_();
+  void invalidate_database_(const LogString *reason);
+  void reopen_if_lost_();
   bool write_record_();
   void publish_errors_();
   void flush_(bool force);
@@ -82,17 +89,27 @@ class TsdbComponent : public PollingComponent {
   tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   std::vector<TsdbColumn> columns_{};
   std::vector<int16_t> values_{};
+#ifdef USE_TIME
   time::RealTimeClock *time_{nullptr};
+#endif
 
   void *db_{nullptr};
   bool mounted_{false};
+  // A handle esp_tsdb invalidated (a failed sync fclose/reopen); reopened on a
+  // later interval instead of failing every write until reboot.
+  bool db_lost_{false};
+  uint32_t last_reopen_{0};
   uint32_t writes_{0};
   uint32_t write_errors_{0};
   uint32_t dropped_{0};
+  uint32_t dropped_missing_{0};
   uint32_t saturated_{0};
+  uint32_t held_{0};
   uint32_t last_sync_{0};
+  uint32_t last_timestamp_{0};
   bool dirty_{false};
   bool warned_time_{false};
+  bool warned_backwards_{false};
   esp_err_t mount_error_{ESP_OK};
   bool format_attempted_{false};
   esp_err_t format_error_{ESP_OK};

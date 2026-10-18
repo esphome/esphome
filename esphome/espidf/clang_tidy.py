@@ -33,6 +33,11 @@ from esphome.build_helpers.idedata import (
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
+# A component that needs managed IDF components whenever its sources are
+# compiled declares them under this name in its ``__init__.py``; the tidy
+# project has no config, so it merges them in (see _component_idf_deps).
+IDF_COMPONENTS_ATTRIBUTE = "IDF_COMPONENTS"
+
 # A do-nothing C++ app: just enough for IDF to configure a valid project. It's
 # C++ (not C) so the compile command uses the C++ compiler and flags, matching
 # how clang-tidy analyzes ESPHome's C++ sources.
@@ -129,25 +134,30 @@ def _arduino_framework_deps(version: str) -> dict[str, dict]:
     return {ARDUINO_ESP32_COMPONENT_NAME: {"version": version}}
 
 
-def _tsdb_idf_deps() -> dict[str, dict]:
-    """Registry engines tsdb needs, for the ``idf`` tidy envs.
+def _component_idf_deps() -> dict[str, dict]:
+    """Registry components needed to compile component sources without a config.
 
-    tsdb is ESP-IDF only and adds its managed components (esp_tsdb, littlefs)
-    from ``to_code()``; the tidy project loads no config, so nothing does that
-    here and tsdb's sources cannot find the engine headers. The versions come
-    from tsdb itself -- the database file format belongs to it.
+    A component that needs managed (registry) components present in every build
+    that compiles its sources declares them as ``IDF_COMPONENTS`` in its
+    ``__init__.py`` -- the versions live with the component because the file
+    format does. A configured build adds them from ``to_code()``; the tidy
+    project loads no config, so they are merged into its manifest here. Only
+    components whose source mentions the attribute are imported, which keeps the
+    scan cheap and the tooling free of component-specific knowledge.
     """
-    from esphome.components.tsdb import (
-        ESP_LITTLEFS_COMPONENT,
-        ESP_LITTLEFS_VERSION,
-        ESP_TSDB_COMPONENT,
-        ESP_TSDB_VERSION,
-    )
+    import importlib
 
-    return {
-        ESP_TSDB_COMPONENT: {"version": ESP_TSDB_VERSION},
-        ESP_LITTLEFS_COMPONENT: {"version": ESP_LITTLEFS_VERSION},
-    }
+    import esphome.components
+
+    deps: dict[str, dict] = {}
+    components_dir = Path(esphome.components.__file__).parent
+    for init in sorted(components_dir.glob("*/__init__.py")):
+        if IDF_COMPONENTS_ATTRIBUTE not in init.read_text(encoding="utf-8"):
+            continue
+        module = importlib.import_module(f"esphome.components.{init.parent.name}")
+        for name, version in getattr(module, IDF_COMPONENTS_ATTRIBUTE, {}).items():
+            deps[name] = {"version": version}
+    return deps
 
 
 _TOP_CMAKELISTS = """\
@@ -449,11 +459,12 @@ def _generate_compile_commands(
         # libsodium clash with noise-c and ~26 unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
     else:
-        # tsdb's engines: tsdb is ESP-IDF only and adds them from to_code(),
-        # which never runs here. The arduino envs must not get them: littlefs is
-        # one of the components they stub out (_arduino_excluded_stubs), and a
-        # real dep alongside that stub does not resolve.
-        extra_deps.update(_tsdb_idf_deps())
+        # Managed components the tsdb engine needs: tsdb is ESP-IDF only and
+        # adds them from to_code(), which never runs here. The arduino envs must
+        # not get them: littlefs is one of the components they stub out
+        # (_arduino_excluded_stubs), and a real dep alongside that stub does not
+        # resolve.
+        extra_deps.update(_component_idf_deps())
 
     # Phase 1: discover the components available for this target.
     _write_tidy_project(work_dir, [], extra_deps, settings)

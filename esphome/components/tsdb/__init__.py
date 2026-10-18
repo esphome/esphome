@@ -1,5 +1,6 @@
 """tsdb - ESPHome data-logging hub on the esp_tsdb engine and LittleFS."""
 
+import math
 import re
 
 import esphome.codegen as cg
@@ -43,9 +44,20 @@ ESP_TSDB_VERSION = "2.4.3"
 ESP_LITTLEFS_COMPONENT = "joltwallet/littlefs"
 ESP_LITTLEFS_VERSION = "1.22.3"
 
+# Managed IDF components tsdb's C++ needs in every build that compiles it.
+# to_code() adds them for a configured build; the clang-tidy project runs no
+# config and reads this attribute instead (see esphome/espidf/clang_tidy.py).
+IDF_COMPONENTS = {
+    ESP_TSDB_COMPONENT: ESP_TSDB_VERSION,
+    ESP_LITTLEFS_COMPONENT: ESP_LITTLEFS_VERSION,
+}
+
 TSDB_MAX_BASE_PARAMS = 16
 TSDB_MAX_NAME_LENGTH = 31
 LITTLEFS_BLOCK_BYTES = 0x1000
+# LittleFS keeps its own metadata (a few 4KB blocks plus an entry per file), so a
+# budget that fills the partition exactly cannot be written to.
+LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 
 CONF_MOUNT_POINT = "mount_point"
 CONF_PARTITION = "partition"
@@ -149,8 +161,16 @@ def _validate_config(config: ConfigType) -> ConfigType:
     if duplicates:
         raise cv.Invalid(f"duplicate column name(s): {', '.join(duplicates)}")
     for column in columns:
-        if column[CONF_SCALE_FACTOR] == 0:
-            raise cv.Invalid(f"'{column[CONF_NAME]}': scale_factor must not be 0")
+        name = column[CONF_NAME]
+        scale = column[CONF_SCALE_FACTOR]
+        # YAML `.nan`/`.inf` pass cv.float_ and would reach the int16 conversion
+        # (undefined behaviour) or be emitted as the invalid C++ literal `inff`.
+        if not math.isfinite(scale):
+            raise cv.Invalid(f"'{name}': scale_factor must be a finite number")
+        if scale == 0:
+            raise cv.Invalid(f"'{name}': scale_factor must not be 0")
+        if not math.isfinite(column[CONF_OFFSET]):
+            raise cv.Invalid(f"'{name}': offset must be a finite number")
     partition = config[CONF_PARTITION_SIZE]
     min_free = config[CONF_MIN_FREE_BYTES]
     max_file = config[CONF_MAX_FILE_SIZE]
@@ -159,6 +179,12 @@ def _validate_config(config: ConfigType) -> ConfigType:
     if max_file + min_free > partition:
         raise cv.Invalid(
             "max_file_size + min_free_bytes do not fit into partition_size"
+        )
+    if max_file + min_free + LITTLEFS_RESERVED_BYTES > partition:
+        raise cv.Invalid(
+            "max_file_size + min_free_bytes leave no room for the filesystem "
+            f"metadata in partition_size (at least {LITTLEFS_RESERVED_BYTES // 1024}KB "
+            "is needed)"
         )
     return config
 
@@ -220,8 +246,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    add_idf_component(name=ESP_TSDB_COMPONENT, ref=ESP_TSDB_VERSION)
-    add_idf_component(name=ESP_LITTLEFS_COMPONENT, ref=ESP_LITTLEFS_VERSION)
+    for name, ref in IDF_COMPONENTS.items():
+        add_idf_component(name=name, ref=ref)
     add_partition(
         config[CONF_PARTITION], "data", "littlefs", config[CONF_PARTITION_SIZE]
     )

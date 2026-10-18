@@ -8,6 +8,7 @@
 #include <string>
 #include <sys/stat.h>
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -28,6 +29,8 @@ static constexpr uint32_t DROP_LOG_EVERY = 10;
 // Rate limit for the free-space and out-of-range warnings.
 static constexpr uint32_t PROBE_LOG_EVERY = 100;
 static constexpr uint32_t SATURATION_LOG_EVERY = 100;
+// Shortest wait between attempts to reopen an invalidated database.
+static constexpr uint32_t REOPEN_RETRY_MS = 300000;
 
 // esp_tsdb free-space callback takes no context; the mounted label lives here.
 static const char *g_free_space_label = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -41,6 +44,7 @@ static_assert(tsdbmath::records_per_block(4) == (TSDB_BLOCK_SIZE - TSDB_BLOCK_HE
 static_assert(tsdbmath::max_records_for_bytes(3072, 4) == TSDB_CALC_MAX_RECORDS(3072, 4),
               "esp_tsdb changed TSDB_CALC_MAX_RECORDS()");
 static_assert(sizeof(tsdb_header_t) == tsdbmath::HEADER_BYTES, "esp_tsdb changed sizeof(tsdb_header_t)");
+static_assert(tsdbmath::HEADER_BYTES == TSDB_V4_EXT_NAMES_OFFSET, "esp_tsdb changed the header size");
 
 // True when every byte of the partition is 0xFF (scanned in 256-byte chunks).
 static bool partition_is_blank(const esp_partition_t *partition) {
@@ -244,6 +248,21 @@ bool TsdbComponent::open_database_() {
 
   ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records at %s", this->file_.c_str(),
            static_cast<uint32_t>(names.size()), max_records, path.c_str());
+
+  // An existing file keeps the capacity and index stride it was created with;
+  // the engine only applies the config values to a new file. Report a mismatch
+  // instead of silently reporting a capacity that is not in use, and seed the
+  // monotonic timestamp guard with the newest record already stored.
+  tsdb_stats_t stats = {};
+  if (tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) == ESP_OK) {
+    this->last_timestamp_ = stats.newest_timestamp;
+    if (stats.max_records != max_records) {
+      ESP_LOGW(TAG,
+               "%s: saved capacity is %" PRIu32 " records, the configured budget asks for %" PRIu32
+               " - recreate the history to change it",
+               this->file_.c_str(), stats.max_records, max_records);
+    }
+  }
   return true;
 }
 
@@ -259,6 +278,37 @@ void TsdbComponent::close_database_() {
   this->db_ = nullptr;
 }
 
+// esp_tsdb marks a handle closed when the fclose/reopen inside tsdb_sync_h()
+// fails, and every later write returns ESP_ERR_INVALID_STATE. Drop the handle
+// and let a later interval reopen the database instead of failing until reboot.
+void TsdbComponent::invalidate_database_(const LogString *reason) {
+  if (this->db_ == nullptr)
+    return;
+  ESP_LOGE(TAG, "%s: database unusable (%s) - will reopen on a later interval", this->file_.c_str(),
+           LOG_STR_ARG(reason));
+  this->close_database_();
+  this->db_lost_ = true;
+  // Report the state instead of leaving the component looking ready while it
+  // cannot store anything.
+  this->status_set_warning(LOG_STR("history database unavailable"));
+}
+
+void TsdbComponent::reopen_if_lost_() {
+  if (!this->db_lost_)
+    return;
+  // A failed open logs an error, so retry at most every REOPEN_RETRY_MS rather
+  // than repeating it on every interval on a device whose filesystem stays bad.
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_reopen_ != 0 && now - this->last_reopen_ < REOPEN_RETRY_MS)
+    return;
+  this->last_reopen_ = now == 0 ? 1 : now;
+  if (!this->open_database_())
+    return;
+  this->db_lost_ = false;
+  ESP_LOGI(TAG, "%s: history reopened", this->file_.c_str());
+  this->status_clear_warning();
+}
+
 uint64_t TsdbComponent::free_space_probe() {
   size_t total = 0;
   size_t used = 0;
@@ -269,12 +319,17 @@ uint64_t TsdbComponent::free_space_probe() {
     }
     return 0;
   }
+  // A working probe clears the failure count, so a new outage warns at once
+  // instead of after PROBE_LOG_EVERY more failures.
+  g_probe_failures = 0;
   return static_cast<uint64_t>(total) - static_cast<uint64_t>(used);
 }
 
 void TsdbComponent::update() {
-  if (this->db_ == nullptr)
+  if (this->db_ == nullptr) {
+    this->reopen_if_lost_();
     return;
+  }
   this->write_record_();
   this->flush_(false);
 }
@@ -282,11 +337,13 @@ void TsdbComponent::update() {
 bool TsdbComponent::write_record_() {
   // Any synced time platform also sets the system clock, so ::time() is a usable fallback.
   uint32_t timestamp = static_cast<uint32_t>(::time(nullptr));
+#ifdef USE_TIME
   if (this->time_ != nullptr) {
     const ESPTime now = this->time_->now();
     if (now.is_valid())
       timestamp = static_cast<uint32_t>(now.timestamp);
   }
+#endif
 
   if (!tsdbmath::is_valid_timestamp(timestamp)) {
     if (this->require_time_) {
@@ -307,6 +364,19 @@ bool TsdbComponent::write_record_() {
     this->warned_time_ = false;
   }
 
+  // Records are ordered by timestamp, so refuse one that sorts before the newest
+  // already stored, whatever its source: a clock that an NTP correction moved
+  // back, or uptime that restarted at 0 after a reboot under require_time: false.
+  if (this->last_timestamp_ != 0 && timestamp < this->last_timestamp_) {
+    if (!this->warned_backwards_) {
+      this->warned_backwards_ = true;
+      ESP_LOGW(TAG, "%s: time is earlier than the last stored record - no record written", this->file_.c_str());
+    }
+    this->dropped_++;
+    this->publish_errors_();
+    return false;
+  }
+
   this->values_.clear();
   for (TsdbColumn &column : this->columns_) {
     const bool has_value =
@@ -325,6 +395,14 @@ bool TsdbComponent::write_record_() {
       continue;
     }
     if (this->missing_policy_ == tsdbmath::MISSING_HOLD && column.held != tsdbmath::RAW_UNKNOWN) {
+      // A held value is a stale one: count and report it, so a column that
+      // stopped reporting reads as data loss instead of looking normal.
+      this->held_++;
+      if (!column.hold_warned) {
+        column.hold_warned = true;
+        ESP_LOGW(TAG, "%s: %s has no value - holding the last value", this->file_.c_str(), column.name.c_str());
+      }
+      this->publish_errors_();
       this->values_.push_back(column.held);
       continue;
     }
@@ -333,7 +411,10 @@ bool TsdbComponent::write_record_() {
       continue;
     }
     this->dropped_++;
-    if (this->dropped_ == 1 || this->dropped_ % DROP_LOG_EVERY == 0) {
+    // Log-rate limited on its own count: dropped_ also counts the skipped
+    // intervals of a clock that has not synced, which would silence this.
+    this->dropped_missing_++;
+    if (this->dropped_missing_ == 1 || this->dropped_missing_ % DROP_LOG_EVERY == 0) {
       ESP_LOGW(TAG, "%s: %s has no value - record dropped", this->file_.c_str(), column.name.c_str());
     } else {
       ESP_LOGD(TAG, "%s: %s has no value - record dropped", this->file_.c_str(), column.name.c_str());
@@ -346,38 +427,58 @@ bool TsdbComponent::write_record_() {
   if (err != ESP_OK) {
     this->write_errors_++;
     ESP_LOGE(TAG, "%s: writing a record failed: %s", this->file_.c_str(), esp_err_to_name(err));
+    // A write only fails this way once the engine has closed an unusable
+    // handle; recover instead of failing every write until the next boot.
+    if (!tsdb_is_initialized_h(static_cast<tsdb_t *>(this->db_)))
+      this->invalidate_database_(LOG_STR("a write failed and closed the database"));
     this->publish_errors_();
     return false;
   }
   this->writes_++;
+  this->last_timestamp_ = timestamp;
+  this->warned_backwards_ = false;
   this->dirty_ = true;
   return true;
 }
 
 // The diagnostics sensor counts every anomaly - failed writes/syncs, dropped
-// records and clamped values - so data loss or corruption is visible.
+// records, clamped values and substituted stale ones - so data loss or
+// corruption is visible.
 void TsdbComponent::publish_errors_() {
 #ifdef USE_SENSOR
   if (this->errors_sensor_ == nullptr)
     return;
-  this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_ + this->saturated_);
+  this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_ + this->saturated_ + this->held_);
 #endif
 }
 
 void TsdbComponent::flush_(bool force) {
   if (this->db_ == nullptr)
     return;
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (!force && !this->dirty_)
     return;
   if (!force && this->last_sync_ != 0 && this->sync_interval_ > 0 && now - this->last_sync_ < this->sync_interval_)
     return;
   this->last_sync_ = now == 0 ? 1 : now;
 
+  // esp_tsdb's only durability entry point is tsdb_sync_h(), and after any write
+  // it folds the in-file header at offset 0 back into the database. littlefs
+  // copy-on-writes everything from the modified offset to end of file, which the
+  // engine measures at 3.7-5.1 s for a 192-268 KB file, so this call blocks the
+  // main loop for seconds once the history has grown. Records themselves are
+  // written to a small sidecar file on every write, so the fold is the expensive
+  // part and the engine (2.4.3) offers no way to flush without it. Until it does,
+  // sync_interval is the knob: a longer interval stalls less often, at the cost
+  // of a longer window in which records exist only in the sidecar.
   const esp_err_t err = tsdb_sync_h(static_cast<tsdb_t *>(this->db_));
   if (err != ESP_OK) {
     this->write_errors_++;
     ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
+    // A failed sync leaves the engine's handle closed; reopen it rather than
+    // keep writing to a database that can no longer accept records.
+    if (!tsdb_is_initialized_h(static_cast<tsdb_t *>(this->db_)))
+      this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
     this->publish_errors_();
     return;
   }
@@ -395,8 +496,9 @@ void TsdbComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  write interval: %" PRIu32 " ms, sync interval: %" PRIu32 " ms", this->get_update_interval(),
                 this->sync_interval_);
-  ESP_LOGCONFIG(TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32,
-                this->writes_, this->write_errors_, this->dropped_, this->saturated_);
+  ESP_LOGCONFIG(
+      TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32,
+      this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_);
 }
 
 }  // namespace esphome::tsdb
