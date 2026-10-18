@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace esphome::light {
 
@@ -75,7 +76,10 @@ void AddressableLight::limit_power_() {
   const uint8_t scale = intended_ma <= power->budget_ma
                             ? 255
                             : static_cast<uint8_t>(std::max(power->budget_ma / intended_ma * 255.0f, 1.0f));
-  if (scale == previous)
+  // A step of one is rounding noise: the levels round up on the way down, so an unchanged frame can read as
+  // a hair over budget on every pass, and following it would walk the scale down without changing a byte
+  const int step = static_cast<int>(scale) - static_cast<int>(previous);
+  if (step == 0 || (std::abs(step) == 1 && scale != 255))
     return;
   this->correction_.set_power_brightness(scale);
   // One divide per level instead of one per channel; ESP8266 has no hardware divide

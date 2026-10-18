@@ -199,4 +199,18 @@ TEST(PowerLimit, ALevelPastTheScaleInForceSaturatesWhenTheScaleRises) {
   EXPECT_EQ(strip[0].get_red_raw(), 255);
 }
 
+TEST(PowerLimit, RepeatedPassesOverAnUnchangedFrameHoldTheScale) {
+  Strip strip(1);
+  strip.configure_power(20, 0, 5);  // a half-red pixel asks for 10 mA
+  strip[0] = Color(128, 0, 0, 0);
+  strip.limit();
+  const uint8_t scale = strip.power_brightness();
+  EXPECT_NEAR(scale, 127, 2);
+  // A driver retry re-runs the pass with nothing rewritten: the scale and the read-back stay put
+  for (int pass = 0; pass < 20; pass++)
+    strip.limit();
+  EXPECT_EQ(strip.power_brightness(), scale);
+  EXPECT_NEAR(strip[0].get_red(), 128, 2);
+}
+
 }  // namespace esphome::light::testing
