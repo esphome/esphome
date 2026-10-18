@@ -107,7 +107,9 @@ class HdlcReliabilityTest : public ::testing::Test {
  protected:
   void SetUp() override {
     new (&App) Application;
-    App.pre_setup("hdlc-tests", 10, "", 0);
+    static char name[] = "hdlc-tests";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
   }
   void TearDown() override { App.~Application(); }
 };
