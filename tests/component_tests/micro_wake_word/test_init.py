@@ -11,7 +11,6 @@ from esphome.components.micro_wake_word import (
     CONF_RING_BUFFER_DURATION,
     CONFIG_SCHEMA,
     LOCAL_SCHEMA,
-    _validate_ring_buffer_duration,
 )
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
@@ -35,22 +34,6 @@ MANIFEST: dict[str, Any] = {
 }
 
 
-@pytest.mark.parametrize(
-    ("duration", "expected_ms"),
-    [("120ms", 120), ("400ms", 400), ("800ms", 800), ("1s", 1000)],
-)
-def test_ring_buffer_duration_accepts_supported_range(
-    duration: str, expected_ms: int
-) -> None:
-    assert _validate_ring_buffer_duration(duration).total_milliseconds == expected_ms
-
-
-@pytest.mark.parametrize("duration_ms", [119, 1001])
-def test_ring_buffer_duration_rejects_unsupported_range(duration_ms: int) -> None:
-    with pytest.raises(cv.Invalid, match="between 120ms and 1s"):
-        _validate_ring_buffer_duration(f"{duration_ms}ms")
-
-
 def test_ring_buffer_duration_is_absent_by_default(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
@@ -58,12 +41,16 @@ def test_ring_buffer_duration_is_absent_by_default(
     assert CONF_RING_BUFFER_DURATION not in CONFIG_SCHEMA({})
 
 
+@pytest.mark.parametrize(
+    ("duration", "expected_ms"),
+    [("120ms", 120), ("400ms", 400), ("800ms", 800), ("1s", 1000)],
+)
 def test_ring_buffer_duration_is_configurable(
-    set_core_config: SetCoreConfigCallable,
+    duration: str, expected_ms: int, set_core_config: SetCoreConfigCallable
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
-    config = CONFIG_SCHEMA({CONF_RING_BUFFER_DURATION: "800ms"})
-    assert config[CONF_RING_BUFFER_DURATION].total_milliseconds == 800
+    config = CONFIG_SCHEMA({CONF_RING_BUFFER_DURATION: duration})
+    assert config[CONF_RING_BUFFER_DURATION].total_milliseconds == expected_ms
 
 
 @pytest.mark.parametrize("duration", ["119ms", "1001ms", "0ms"])

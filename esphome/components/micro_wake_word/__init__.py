@@ -31,7 +31,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
-from esphome.core import CORE, HexInt, TimePeriodMilliseconds
+from esphome.core import CORE, HexInt
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -434,11 +434,9 @@ def _validate_task_core(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_ring_buffer_duration(value: object) -> TimePeriodMilliseconds:
-    duration = cv.positive_time_period_milliseconds(value)
-    if not 120 <= duration.total_milliseconds <= 1000:
-        raise cv.Invalid("ring_buffer_duration must be between 120ms and 1s")
-    return duration
+# The capture buffer holds at least one feature window and at most a second of audio
+MIN_RING_BUFFER_DURATION = cv.TimePeriod(milliseconds=120)
+MAX_RING_BUFFER_DURATION = cv.TimePeriod(seconds=1)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -463,7 +461,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_STOP_AFTER_DETECTION, default=True): cv.boolean,
             cv.Optional(CONF_TASK_CORE, default=-1): cv.int_range(min=-1, max=1),
             cv.Optional(CONF_PREFER_INTERNAL_RAM, default=False): cv.boolean,
-            cv.Optional(CONF_RING_BUFFER_DURATION): _validate_ring_buffer_duration,
+            cv.Optional(CONF_RING_BUFFER_DURATION): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=MIN_RING_BUFFER_DURATION, max=MAX_RING_BUFFER_DURATION),
+            ),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_MODEL): cv.invalid(
                 f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
