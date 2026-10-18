@@ -328,11 +328,10 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_altitude_compensation(altitude))
         if (pressure := co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION)) is not None:
             cg.add(var.set_ambient_pressure_compensation(pressure))
-        if (
-            source := co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE)
-        ) is not None:
-            sens = await cg.get_variable(source)
-            cg.add(var.set_ambient_pressure_source(sens))
+        await cg.add_variable(
+            var.set_ambient_pressure_source,
+            co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
+        )
 
 
 SEN6X_ACTION_SCHEMA = maybe_simple_id(

@@ -30,8 +30,6 @@ async def to_code(config: ConfigType) -> None:
     if CONF_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))
-    if CONF_OUTPUT in config:
-        out = await cg.get_variable(config[CONF_OUTPUT])
-        cg.add(var.set_output(out))
+    await cg.add_variable(var.set_output, config.get(CONF_OUTPUT))
     await cg.register_component(var, config)
     await light.register_light(var, config)

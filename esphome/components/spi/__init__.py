@@ -487,8 +487,7 @@ def spi_device_schema(
 async def register_spi_device(
     var: cg.MockObj, config: ConfigType, write_only: bool = False
 ) -> None:
-    parent = await cg.get_variable(config[CONF_SPI_ID])
-    cg.add(var.set_spi_parent(parent))
+    await cg.add_variable(var.set_spi_parent, config[CONF_SPI_ID])
     if write_only:
         cg.add(var.set_write_only(True))
     if cs_pin := config.get(CONF_CS_PIN):
