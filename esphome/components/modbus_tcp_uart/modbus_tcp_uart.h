@@ -13,7 +13,8 @@ class TcpUart;
 namespace esphome::modbus_tcp_uart {
 
 /// RTU toward the reader, Modbus TCP on a tcp_uart. Client: a response must match the request's transaction id.
-/// Server: one request at a time; the reply gets its transaction id.
+/// Server: one request at a time, from any of the tcp_uart's connections; the reply gets its transaction id and goes
+/// to the connection that asked.
 class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
  public:
   explicit ModbusTcpUart(tcp_uart::TcpUart *parent) : VirtualUARTComponent(RTU_FRAME_SIZE), parent_(parent) {}
@@ -43,6 +44,9 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   void consume_tx_(size_t len);
   void clear_tx_();
   void discard_parent_();
+  /// Server: bytes still missing from the request at the front of tcp_buf_.
+  size_t request_left_() const;
+  void release_turn_();
   bool drop_log_due_();
   void note_drop_(const LogString *message);
 
@@ -60,6 +64,9 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   // Server: when the last request was handed to the hub.
   uint32_t request_ms_{0};
   uint16_t txn_{0};
+  // Server: the parent's turn when the open request was handed to the hub, and the turn read last.
+  uint16_t request_turn_{0};
+  uint16_t seen_turn_{0};
   uint16_t tcp_len_{0};
   // tx_[0, tx_len_): written, not sent; a whole frame of tx_frame_len_ bytes at the front waits for room.
   uint16_t tx_len_{0};
@@ -70,8 +77,8 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   uint8_t function_{0};
   // Client: a request was sent. Server: a request was delivered.
   bool txn_pending_{false};
-  // Server: the open request came on a connection that has closed.
-  bool orphan_{false};
+  // Server: this link holds the parent's turn for the open request.
+  bool turn_held_{false};
   bool server_{false};
   bool tx_hold_logged_{false};
   bool link_was_up_{false};

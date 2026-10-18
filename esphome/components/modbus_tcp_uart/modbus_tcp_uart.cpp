@@ -71,14 +71,17 @@ void ModbusTcpUart::loop() {
     this->link_was_up_ = false;
     this->resync_ = false;
     this->tcp_len_ = 0;
-    // A request the hub has read but not answered stays open, so its late reply cannot reach the next connection.
-    this->orphan_ = this->server_ && this->txn_pending_ && this->available() == 0 && this->tx_len_ == 0;
+    // A request the hub has read but not answered stays open until its late reply, which the turn check drops.
+    this->txn_pending_ = this->server_ && this->txn_pending_ && this->available() == 0 && this->tx_len_ == 0;
     this->clear_tx_();
     this->rx_.clear();
-    this->txn_pending_ = this->orphan_;
     return;
   }
   this->link_was_up_ = true;
+  // Overdue: the other connections may ask. A late reply still goes out while this connection keeps the turn.
+  if (this->turn_held_ && App.get_loop_component_start_time() - this->request_ms_ >= this->reply_timeout_ms_) {
+    this->release_turn_();
+  }
   if (this->tx_frame_len_ != 0) {
     this->send_tx_(0);
   }
@@ -160,7 +163,39 @@ uart::UARTFlushResult ModbusTcpUart::flush() {
   return this->parent_->flush();
 }
 
+void ModbusTcpUart::release_turn_() {
+  // After a disconnect the parent's turn belongs to another connection already.
+  if (this->turn_held_ && this->parent_->turn() == this->request_turn_) {
+    this->parent_->release_turn();
+  }
+  this->turn_held_ = false;
+}
+
+size_t ModbusTcpUart::request_left_() const {
+  if (this->tcp_len_ < MBAP_HEADER_SIZE) {
+    return MBAP_HEADER_SIZE - this->tcp_len_;
+  }
+  // 0 for a complete frame, and for an unusable length that deliver_mbap_() handles.
+  size_t size = mbap_announced_size(this->tcp_buf_, this->tcp_len_);
+  return size > this->tcp_len_ ? size - this->tcp_len_ : 0;
+}
+
 void ModbusTcpUart::read_parent_() {
+  if (this->server_) {
+    if (this->parent_->turn() != this->seen_turn_) {
+      this->seen_turn_ = this->parent_->turn();
+      if (this->tcp_len_ != 0) {
+        this->note_drop_(LOG_STR("Partial request of a connection whose turn ended, dropped"));
+      }
+      this->tcp_len_ = 0;
+      this->resync_ = false;
+    }
+    // The next request waits in the parent, with its own connection, until this one is answered or overdue.
+    if ((this->txn_pending_ || this->available() != 0) &&
+        App.get_loop_component_start_time() - this->request_ms_ < this->reply_timeout_ms_) {
+      return;
+    }
+  }
   if (this->tcp_len_ != 0) {
     this->deliver_mbap_();
   }
@@ -175,21 +210,22 @@ void ModbusTcpUart::read_parent_() {
     }
     this->resync_ = false;
   }
-  size_t room = sizeof(this->tcp_buf_) - this->tcp_len_;
-  // A full buffer holds a whole frame that waits for the reader.
-  if (room == 0) {
-    return;
+  // Server: the header, then the rest of that one request, and nothing beyond it.
+  const uint8_t passes = this->server_ ? 2 : 1;
+  for (uint8_t pass = 0; pass < passes; pass++) {
+    size_t n = std::min(sizeof(this->tcp_buf_) - this->tcp_len_, this->parent_->available());
+    if (this->server_) {
+      n = std::min(n, this->request_left_());
+    }
+    if (n == 0) {
+      break;
+    }
+    if (!this->parent_->read_array(this->tcp_buf_ + this->tcp_len_, n)) {
+      this->note_drop_(LOG_STR("Read failed"));
+      return;
+    }
+    this->tcp_len_ += static_cast<uint16_t>(n);
   }
-  size_t have = this->parent_->available();
-  if (have == 0) {
-    return;
-  }
-  size_t n = std::min(room, have);
-  if (!this->parent_->read_array(this->tcp_buf_ + this->tcp_len_, n)) {
-    this->note_drop_(LOG_STR("Read failed"));
-    return;
-  }
-  this->tcp_len_ += static_cast<uint16_t>(n);
   this->deliver_mbap_();
 }
 
@@ -251,7 +287,6 @@ void ModbusTcpUart::deliver_mbap_() {
           uint8_t rtu[RTU_FRAME_SIZE];
           size_t rtu_len = write_rtu(rtu, frame.unit, frame.pdu, frame.pdu_len);
           this->request_ms_ = now;
-          this->orphan_ = false;
           // Address 0 is a broadcast. Nothing answers it.
           if (frame.unit != 0) {
             this->txn_ = frame.txn;
@@ -262,6 +297,11 @@ void ModbusTcpUart::deliver_mbap_() {
           if (!this->inject_rx(rtu, rtu_len)) {
             this->txn_pending_ = false;
             this->note_drop_(LOG_STR("RX buffer full, dropped the request"));
+          } else if (this->txn_pending_) {
+            // The reply goes to this connection; no other one is read until then.
+            this->request_turn_ = this->parent_->turn();
+            this->parent_->hold_turn();
+            this->turn_held_ = true;
           }
           break;
         }
@@ -302,6 +342,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
     this->clear_tx_();
     if (this->server_) {
       this->txn_pending_ = false;
+      this->release_turn_();
     }
     return;
   }
@@ -314,10 +355,11 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
       this->consume_tx_(this->tx_frame_len_);
       return;
     }
-    if (this->orphan_) {
-      this->note_drop_(LOG_STR("Reply to a request from a closed connection, dropped"));
+    if (this->parent_->turn() != this->request_turn_) {
+      this->note_drop_(LOG_STR("Reply to a connection whose turn ended, dropped"));
       this->consume_tx_(this->tx_frame_len_);
       this->txn_pending_ = false;
+      this->turn_held_ = false;
       return;
     }
     txn = this->txn_;
@@ -331,6 +373,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
     this->consume_tx_(this->tx_frame_len_);
     if (this->server_) {
       this->txn_pending_ = false;
+      this->release_turn_();
     }
     return;
   }
@@ -354,6 +397,9 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   this->parent_->write_array(frame, n);
   // Send now, not on the next pass.
   uart::UARTFlushResult sent = this->parent_->flush();
+  if (this->server_) {
+    this->release_turn_();
+  }
   // TIMEOUT: still queued on a link that is up.
   if (sent == uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED) {
     this->note_drop_(LOG_STR("Send failed"));

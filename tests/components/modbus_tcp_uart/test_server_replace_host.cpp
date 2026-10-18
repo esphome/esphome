@@ -39,6 +39,8 @@ class Pipe : public tcp_uart::TcpUart {
     std::memcpy(this->rx_ + this->rx_n_, data, len);
     this->rx_n_ += len;
   }
+  // tcp_uart starts a new turn for each session.
+  void next_session() { this->turn_++; }
   void feed_mbap(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
     size_t n = write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
@@ -194,6 +196,7 @@ TEST(ModbusTcpUartServer, ReplyToARequestFromAClosedConnectionIsDropped) {
   pipe.up_ = false;
   link.loop();
   pipe.up_ = true;
+  pipe.next_session();
   pipe.feed_mbap(1, 1, PDU, sizeof(PDU));
   link.loop();
   // Request 1 waits for the old one's reply.
@@ -223,6 +226,7 @@ TEST(ModbusTcpUartServer, RequestTheHubHasNotReadIsForgottenWhenTheConnectionClo
   pipe.up_ = false;
   link.loop();
   pipe.up_ = true;
+  pipe.next_session();
   pipe.feed_mbap(1, 1, PDU, sizeof(PDU));
   link.loop();
   // The hub never read 7, so request 1 goes to it at once.
@@ -247,6 +251,7 @@ TEST(ModbusTcpUartServer, AReplyHeldWhenTheConnectionClosesDoesNotHoldUpTheNextC
   pipe.up_ = false;
   link.loop();
   pipe.up_ = true;
+  pipe.next_session();
   pipe.room_ = 1024;
   pipe.feed_mbap(1, 1, PDU, sizeof(PDU));
   link.loop();
@@ -412,6 +417,8 @@ TEST(ModbusTcpUartServer, BadProtocolIdSkipsOnlyThatFrame) {
   const uint8_t bad[] = {0x00, 0x01, 0x00, 0x01, 0x00, 0x06, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01};
   pipe.feed(bad, sizeof(bad));
   pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
+  // The server reads one frame per pass.
+  link.loop();
   link.loop();
   EXPECT_EQ(link.txn(), 7);
   EXPECT_EQ(link.available(), sizeof(PDU) + 3);

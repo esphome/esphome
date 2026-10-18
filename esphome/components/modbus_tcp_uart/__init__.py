@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_DEBUG,
     CONF_ID,
+    CONF_MAX_CONNECTIONS,
     CONF_UART_ID,
 )
 from esphome.core import CORE, ID
@@ -68,6 +69,17 @@ def _final_validate(config: ConfigType) -> None:
     full = fv.full_config.get()
     link_id = str(config[CONF_ID])
     want = config.get(CONF_ROLE, "client")
+    if want == "client":
+        # The client matches each response to the one request it sent on its connection.
+        for parent in full.get(tcp_uart.DOMAIN) or []:
+            if str(parent[CONF_ID]) == str(config[CONF_TCP_UART_ID]) and (
+                parent.get(CONF_MAX_CONNECTIONS, 1) > 1
+            ):
+                raise cv.Invalid(
+                    "A client link needs a tcp_uart with one connection. Remove "
+                    "max_connections from the tcp_uart, or use role: server",
+                    [CONF_ROLE],
+                )
     for hub in full.get("modbus") or []:
         if str(hub.get(CONF_UART_ID, "")) != link_id:
             continue

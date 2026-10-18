@@ -9,6 +9,7 @@ tcp_uart:
   - id: inbound
     role: server
     port: 1502
+    max_connections: 2
 
 modbus_tcp_uart:
   - id: shelly_uart
