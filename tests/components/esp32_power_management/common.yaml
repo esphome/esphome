@@ -14,8 +14,3 @@ binary_sensor:
   - platform: gpio
     pin: ${esp32_power_management_binary_sensor_pin}
     id: pm_gpio_binary_sensor
-
-output:
-  - platform: gpio
-    pin: ${esp32_power_management_output_pin}
-    id: pm_gpio_output

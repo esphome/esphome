@@ -4,7 +4,6 @@ substitutions:
   esp32_power_management_power_down_peripherals: "true"
   esp32_power_management_power_down_flash: "false"
   esp32_power_management_binary_sensor_pin: GPIO9
-  esp32_power_management_output_pin: GPIO22
 
 packages:
   esp32_power_management: !include common.yaml
