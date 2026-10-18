@@ -90,8 +90,8 @@ class UARTDevice {
         count);
   }
 
-  /// Read and drop every byte available now, in chunks; returns how many were dropped.
-  size_t discard_available();
+  /// Read and drop every byte waiting in the receive buffer.
+  void discard_available();
 
   UARTFlushResult flush() { return this->parent_->flush(); }
 

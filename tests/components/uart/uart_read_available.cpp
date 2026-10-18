@@ -141,19 +141,26 @@ TEST(UARTReadAvailableTest, ChunksWithCountStopEarly) {
   EXPECT_EQ(uart.remaining(), 14u);
 }
 
-TEST(UARTReadAvailableTest, DiscardDropsAvailableBytesInChunks) {
-  ::testing::NiceMock<FakeRxUART> uart(make_bytes(40));
+TEST(UARTReadAvailableTest, DiscardDropsEveryWaitingByte) {
+  ::testing::NiceMock<FakeRxUART> uart(make_bytes(5));
   UARTDevice dev(&uart);
-  EXPECT_EQ(dev.discard_available(), 40u);
+  dev.discard_available();
   EXPECT_EQ(uart.remaining(), 0u);
-  EXPECT_EQ(uart.read_sizes, (std::vector<size_t>{16, 16, 8}));
 }
 
 TEST(UARTReadAvailableTest, DiscardWithNothingAvailableDoesNotRead) {
   ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{});
   UARTDevice dev(&uart);
-  EXPECT_EQ(dev.discard_available(), 0u);
+  dev.discard_available();
   EXPECT_TRUE(uart.read_sizes.empty());
+}
+
+TEST(UARTReadAvailableTest, DiscardStopsOnReadFailure) {
+  ::testing::NiceMock<FakeRxUART> uart(make_bytes(5));
+  uart.fail_after_reads = 2;
+  UARTDevice dev(&uart);
+  dev.discard_available();
+  EXPECT_EQ(uart.read_sizes.size(), 3u);
 }
 
 }  // namespace esphome::uart::testing

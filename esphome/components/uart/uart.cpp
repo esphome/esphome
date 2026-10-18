@@ -33,10 +33,10 @@ void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UART
   }
 }
 
-size_t UARTDevice::discard_available() {
-  size_t discarded = 0;
-  this->read_available_chunks<16>([&discarded](const uint8_t *, size_t len) { discarded += len; });
-  return discarded;
+void UARTDevice::discard_available() {
+  uint8_t byte;
+  while (this->available() && this->read_byte(&byte)) {
+  }
 }
 
 const LogString *parity_to_str(UARTParityOptions parity) {
