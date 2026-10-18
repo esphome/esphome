@@ -45,6 +45,8 @@ static_assert(tsdbmath::max_records_for_bytes(3072, 4) == TSDB_CALC_MAX_RECORDS(
               "esp_tsdb changed TSDB_CALC_MAX_RECORDS()");
 static_assert(sizeof(tsdb_header_t) == tsdbmath::HEADER_BYTES, "esp_tsdb changed sizeof(tsdb_header_t)");
 static_assert(tsdbmath::HEADER_BYTES == TSDB_V4_EXT_NAMES_OFFSET, "esp_tsdb changed the header size");
+static_assert(offsetof(tsdb_header_t, index_stride) + sizeof(uint32_t) <= tsdbmath::HEADER_BYTES,
+              "esp_tsdb moved index_stride out of the header");
 
 // True when every byte of the partition is 0xFF (scanned in 256-byte chunks).
 static bool partition_is_blank(const esp_partition_t *partition) {
@@ -246,23 +248,51 @@ bool TsdbComponent::open_database_() {
     return false;
   }
 
-  ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records at %s", this->file_.c_str(),
-           static_cast<uint32_t>(names.size()), max_records, path.c_str());
-
-  // An existing file keeps the capacity and index stride it was created with;
-  // the engine only applies the config values to a new file. Report a mismatch
-  // instead of silently reporting a capacity that is not in use, and seed the
-  // monotonic timestamp guard with the newest record already stored.
+  // An existing file keeps the capacity and the index stride it was created
+  // with; the engine only applies the config values to a new file. Report the
+  // layout the file actually uses, and flag a configuration that has no effect.
   tsdb_stats_t stats = {};
-  if (tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) == ESP_OK) {
+  const bool have_stats = tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) == ESP_OK;
+  uint32_t saved_stride = 0;
+  const bool have_stride = this->read_saved_index_stride_(&saved_stride) && saved_stride > 0;
+  const uint32_t records = have_stats && stats.max_records > 0 ? stats.max_records : max_records;
+  const uint32_t stride = have_stride ? saved_stride : this->index_stride_;
+  const uint64_t bytes = tsdbmath::file_bytes_for(records, names.size(), stride);
+  ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records (up to %" PRIu32 " KB) at %s", this->file_.c_str(),
+           static_cast<uint32_t>(names.size()), records, static_cast<uint32_t>(bytes / 1024), path.c_str());
+  if (have_stats) {
+    // Seed the monotonic timestamp guard with the newest record already stored.
     this->last_timestamp_ = stats.newest_timestamp;
-    if (stats.max_records != max_records) {
+    if (records != max_records) {
       ESP_LOGW(TAG,
                "%s: saved capacity is %" PRIu32 " records, the configured budget asks for %" PRIu32
                " - recreate the history to change it",
-               this->file_.c_str(), stats.max_records, max_records);
+               this->file_.c_str(), records, max_records);
     }
   }
+  if (have_stride && saved_stride != this->index_stride_) {
+    ESP_LOGW(TAG,
+             "%s: saved index stride is %" PRIu32 ", the configured value is %" PRIu32
+             " - recreate the history to change it",
+             this->file_.c_str(), saved_stride, this->index_stride_);
+  }
+  return true;
+}
+
+// The engine keeps a saved file's index stride and offers no getter for it, but
+// the geometry sits in the first bytes of the file, so read that one field.
+bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
+  const std::string path = this->mount_point_ + "/" + this->file_;
+  FILE *file = fopen(path.c_str(), "rb");
+  if (file == nullptr)
+    return false;
+  const long field = static_cast<long>(offsetof(tsdb_header_t, index_stride));
+  uint32_t value = 0;
+  const bool ok = fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
+  fclose(file);
+  if (!ok)
+    return false;
+  *stride = value;
   return true;
 }
 
