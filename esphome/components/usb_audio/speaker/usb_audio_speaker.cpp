@@ -10,16 +10,23 @@
 #include "esphome/core/log.h"
 #include "esp_err.h"
 #include "esp_timer.h"
+#include "sdkconfig.h"
 
 namespace esphome::usb_audio {
 
 ESPHOME_LOG_TAG(TAG, "usb_audio.spk");
 
 static constexpr size_t MAX_TIMEOUT_RETRIES = 4;
+// Zeros are silence for the signed PCM the driver streams; 240 is a whole number of frames for every format.
+static const uint8_t SILENCE[240] = {};
 
 void USBAudioSpeaker::setup() {
   const auto &info = this->usb_stream_info_;
   this->write_chunk_ = info.frames_to_bytes(std::max<uint32_t>(info.bytes_to_frames(this->buffer_size_ / 4), 1));
+  // The driver sends 1 ms packets, rounded up to whole frames, grouped into transfers it keeps in flight.
+  const uint32_t frames_per_packet = (info.get_sample_rate() + 999) / 1000;
+  this->transfer_bytes_ = info.frames_to_bytes(frames_per_packet * CONFIG_UAC_NUM_PACKETS_PER_URB);
+  this->in_flight_bytes_ = this->transfer_bytes_ * CONFIG_UAC_NUM_ISOC_URBS;
   if (!this->control_task_.create(&USBAudioSpeaker::control_task, "usb_spk_ctrl", CONTROL_TASK_STACK_SIZE, this,
                                   CONTROL_TASK_PRIORITY, false)) {
     this->mark_failed(LOG_STR("Failed to create control task"));
@@ -52,11 +59,15 @@ void USBAudioSpeaker::loop() {
     this->parent_->resume(Endpoint::SPEAKER);
   }
 
-  if (commands & COMMAND_FINISH) {
+  if ((commands & COMMAND_FINISH) && !this->finishing_ && this->state_ == speaker::STATE_RUNNING) {
     this->finishing_ = true;
+    this->pad_remaining_ = this->transfer_bytes_;
   }
-  // has_buffered_data_() turns false once the queued audio has had time to play out.
-  if (this->finishing_ && !this->has_buffered_data_(App.get_loop_component_start_time())) {
+  if (this->finishing_ && this->pad_remaining_ > 0) {
+    this->pad_with_silence_();
+  }
+  // has_buffered_data_() turns false once the queued audio, including the transfers in flight, has had time to play.
+  if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_(millis())) {
     this->stop_();
   }
   if (!this->finishing_) {
@@ -83,6 +94,7 @@ void USBAudioSpeaker::finish() { this->request_(COMMAND_FINISH, 0); }
 
 void USBAudioSpeaker::stop_() {
   this->finishing_ = false;
+  this->pad_remaining_ = 0;
   if (this->state_ == speaker::STATE_STOPPED) {
     return;
   }
@@ -176,16 +188,52 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
   this->writes_in_flight_.fetch_sub(1);
 
   if (written > 0) {
-    // Whatever was queued at the last write has partly played out since; the driver holds at most buffer_size_.
-    const auto &info = this->usb_stream_info_;
-    const uint32_t queued = this->queued_bytes_;
-    const uint32_t elapsed_ms = now - this->last_write_ms_;
-    const uint32_t remaining = elapsed_ms < info.bytes_to_ms(queued) ? queued - info.ms_to_bytes(elapsed_ms) : 0;
-    this->queued_bytes_ = std::min<uint32_t>(remaining + written, this->buffer_size_);
-    this->last_write_ms_ = now;
-    this->audio_output_callback_(this->usb_stream_info_.bytes_to_frames(written), esp_timer_get_time());
+    this->track_written_(written, now, true);
   }
   return written;
+}
+
+void USBAudioSpeaker::pad_with_silence_() {
+  if (this->state_ != speaker::STATE_RUNNING) {
+    this->pad_remaining_ = 0;
+    return;
+  }
+  // Counted before the hub's handle is read, so the hub never closes the device under this call.
+  this->writes_in_flight_.fetch_add(1);
+  const size_t piece = sizeof(SILENCE) - sizeof(SILENCE) % this->usb_stream_info_.frames_to_bytes(1);
+  size_t written = 0;
+  while (this->pad_remaining_ > 0) {
+    const size_t chunk = std::min<size_t>(this->pad_remaining_, piece);
+    if (this->parent_->write_speaker(SILENCE, chunk, 0) != ESP_OK) {
+      // A full buffer; the rest is written on a later loop().
+      break;
+    }
+    this->pad_remaining_ -= chunk;
+    written += chunk;
+  }
+  this->writes_in_flight_.fetch_sub(1);
+  if (written > 0) {
+    // Padding is not audio from the caller, so it is not reported as played.
+    this->track_written_(written, millis(), false);
+  }
+}
+
+void USBAudioSpeaker::track_written_(size_t bytes, uint32_t now, bool report) {
+  const auto &info = this->usb_stream_info_;
+  // Whatever was queued at the last write has partly played out since. The driver holds at most buffer_size_ in its
+  // ring buffer plus the transfers it has in flight.
+  const uint32_t queued = this->queued_bytes_;
+  const uint32_t elapsed_ms = now - this->last_write_ms_;
+  const uint32_t remaining = elapsed_ms < info.bytes_to_ms(queued) ? queued - info.ms_to_bytes(elapsed_ms) : 0;
+  this->queued_bytes_ = std::min<uint32_t>(remaining + bytes, this->buffer_size_ + this->in_flight_bytes_);
+  this->last_write_ms_ = now;
+  if (report) {
+    // The new frames reach the DAC once the audio queued ahead of them has played.
+    const int64_t played_at_us =
+        esp_timer_get_time() + info.frames_to_microseconds(info.bytes_to_frames(
+                                   std::min<uint32_t>(remaining, this->buffer_size_ + this->in_flight_bytes_)));
+    this->audio_output_callback_(info.bytes_to_frames(bytes), played_at_us);
+  }
 }
 
 bool USBAudioSpeaker::has_buffered_data_(uint32_t now) const {

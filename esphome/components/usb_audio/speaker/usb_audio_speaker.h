@@ -58,6 +58,10 @@ class USBAudioSpeaker : public speaker::Speaker,
   void request_(uint8_t set, uint8_t clear);
   void stop_();
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
+  /// Write silence until a whole USB transfer is padded, so the driver sends a final partial transfer.
+  void pad_with_silence_();
+  /// Account for bytes the driver accepted; reports them as played when `report` is set.
+  void track_written_(size_t bytes, uint32_t now, bool report);
   bool has_buffered_data_(uint32_t now) const;
 
   // Sends volume and mute to the device: the control transfers can block for seconds, too long for the main loop
@@ -69,7 +73,13 @@ class USBAudioSpeaker : public speaker::Speaker,
   uint32_t write_timeout_ms_;
   // Frame-aligned size of each driver write, set in setup().
   uint32_t write_chunk_{0};
-  // Written by play() on the caller's task: an estimate of the bytes still queued in the driver as of the last write.
+  // Bytes in one USB transfer, and in all transfers the driver keeps in flight; set in setup().
+  uint32_t transfer_bytes_{0};
+  uint32_t in_flight_bytes_{0};
+  // Silence still to write while finishing.
+  uint32_t pad_remaining_{0};
+  // Written by play() on the caller's task: an estimate of the bytes still queued in the driver, in its ring buffer
+  // and in flight, as of the last write.
   std::atomic<uint32_t> last_write_ms_{0};
   std::atomic<uint32_t> queued_bytes_{0};
   std::atomic<uint8_t> commands_{0};
