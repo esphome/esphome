@@ -205,7 +205,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PREAMBLE_POLARITY, default=0xAA): cv.All(
                 cv.hex_int, cv.one_of(0xAA, 0x55)
             ),
-            cv.Optional(CONF_PREAMBLE_SIZE, default=0): cv.int_range(min=0, max=65535),
+            cv.Optional(CONF_PREAMBLE_SIZE, default=0): cv.uint16_t,
             cv.Required(CONF_RST_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_FLOOR, default=-94): cv.float_range(min=-128, max=-1),
             cv.Optional(CONF_RX_START, default=True): cv.boolean,
