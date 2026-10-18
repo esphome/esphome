@@ -239,11 +239,11 @@ void USBAudioSpeaker::track_written_(size_t bytes, uint32_t now, bool report) {
   this->queued_bytes_ = std::min<uint32_t>(remaining + bytes, this->buffer_size_ + this->in_flight_bytes_);
   this->last_write_ms_ = now;
   if (report) {
-    // The new frames reach the DAC once the audio queued ahead of them has played.
-    const int64_t played_at_us =
-        esp_timer_get_time() + info.frames_to_microseconds(info.bytes_to_frames(
-                                   std::min<uint32_t>(remaining, this->buffer_size_ + this->in_flight_bytes_)));
-    this->audio_output_callback_(info.bytes_to_frames(bytes), played_at_us);
+    // Reported when written, with the time the last of them finishes playing: after the audio queued ahead of them
+    // and their own duration. Sendspin and the other listeners take that as when the next written audio starts.
+    const int64_t finished_at_us =
+        esp_timer_get_time() + info.frames_to_microseconds(info.bytes_to_frames(this->queued_bytes_));
+    this->audio_output_callback_(info.bytes_to_frames(bytes), finished_at_us);
   }
 }
 
