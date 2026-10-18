@@ -39,7 +39,7 @@ and hex dumps of the low SRAM, a set of marker words and the record area after `
 loop, which a crash 50 ms later never reaches; save an `ESPPreferenceObject` and `global_preferences->sync()`
 first. Bump `run:` for fresh keys. Keep the `wifi:` block: the bug the fix addresses only shows with Wi-Fi up.
 
-Flow: `flash_bk72xx.py` (retry up to 4 times), one `serial_capture.py ... --reset` capture of 150 to 230 s,
+Flow: `flash_bk72xx.py` (retry up to three times), one `serial_capture.py ... --reset` capture of 150 to 230 s,
 then `grep -a "libretiny.crash\|probe"`. Decode with
 `arm-none-eabi-addr2line -pfiaC -e .pioenvs/<name>/raw_firmware.elf <addr...>` (the ELF is `raw_firmware.elf`
 on LibreTiny), or run `scripts/libretiny_crash/decode_capture.py <yaml> <capture>` from the config directory
