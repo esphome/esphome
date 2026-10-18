@@ -1,0 +1,36 @@
+espnow:
+  id: espnow_component
+  channel: 1
+
+packet_interface:
+  - platform: espnow
+    id: espnow_peer_link
+    peer_address: 11:22:33:44:55:66
+    encryption: Johnny Cash
+    reliability:
+    session:
+  - platform: espnow
+    id: espnow_broadcast_link
+    addressing:
+      address: 0x0001
+      peers:
+        - id: espnow_bus_link
+          destination: broadcast
+        - id: espnow_pump_link
+          destination: 0x0002
+          reliability:
+
+sensor:
+  - platform: template
+    id: espnow_sensor
+    lambda: return 1.0;
+
+packet_transport:
+  - platform: packet_interface
+    packet_interface: espnow_peer_link
+    sensors:
+      - espnow_sensor
+  - platform: packet_interface
+    packet_interface: espnow_bus_link
+    sensors:
+      - espnow_sensor

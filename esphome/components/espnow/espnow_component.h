@@ -123,6 +123,7 @@ class ESPNowComponent final : public Component {
   uint8_t get_wifi_channel();
 
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
+  bool get_auto_add_peer() const { return this->auto_add_peer_; }
 
 #if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
   // WiFiConnectStateListener interface: refresh the cached channel after each (re)connect
