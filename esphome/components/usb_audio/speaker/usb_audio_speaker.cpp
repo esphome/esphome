@@ -18,7 +18,7 @@ ESPHOME_LOG_TAG(TAG, "usb_audio.spk");
 
 static constexpr size_t MAX_TIMEOUT_RETRIES = 4;
 // Zeros are silence for the signed PCM the driver streams; 240 is a whole number of frames for every format.
-static const uint8_t SILENCE[240] = {};
+static constexpr uint8_t SILENCE[240] = {};
 
 void USBAudioSpeaker::setup() {
   const auto &info = this->usb_stream_info_;

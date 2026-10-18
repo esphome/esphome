@@ -50,9 +50,8 @@ def stream_schema(default_sample_rate: int, default_num_channels: int) -> cv.Sch
             cv.Optional(CONF_NUM_CHANNELS, default=default_num_channels): cv.int_range(
                 min=1, max=2
             ),
-            cv.Optional(
-                CONF_BUFFER_SIZE, default=DEFAULT_BUFFER_SIZE
-            ): cv.positive_not_null_int,
+            # The default depends on the format; see apply_buffer_size()
+            cv.Optional(CONF_BUFFER_SIZE): cv.positive_not_null_int,
         }
     ).extend(cv.COMPONENT_SCHEMA)
 
@@ -77,6 +76,21 @@ def set_stream_limits(config: ConfigType) -> ConfigType:
 def bytes_per_frame(config: ConfigType) -> int:
     """Bytes in one frame (one sample for every channel) of a platform's configured format."""
     return config[CONF_NUM_CHANNELS] * int(config[CONF_BITS_PER_SAMPLE]) // 8
+
+
+def apply_buffer_size(config: ConfigType, min_size: int, minimum: str) -> ConfigType:
+    """Default buffer_size to DEFAULT_BUFFER_SIZE, or the format's minimum when that is larger; reject smaller ones.
+
+    `minimum` describes what min_size holds, for the error message.
+    """
+    if CONF_BUFFER_SIZE not in config:
+        config[CONF_BUFFER_SIZE] = max(DEFAULT_BUFFER_SIZE, min_size)
+    elif config[CONF_BUFFER_SIZE] < min_size:
+        raise cv.Invalid(
+            f"buffer_size must be at least {min_size} bytes ({minimum}) for this format",
+            path=[CONF_BUFFER_SIZE],
+        )
+    return config
 
 
 def final_validate_one_per_hub(domain: str) -> Callable[[ConfigType], ConfigType]:

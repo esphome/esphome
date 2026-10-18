@@ -67,6 +67,35 @@ def test_microphone_buffer_floor() -> None:
         usb_microphone.validate_buffer_size(_stream(16000, 1, 16, 1279))
 
 
+def _unset_buffer(sample_rate: int, channels: int, bits: int) -> ConfigType:
+    config = _stream(sample_rate, channels, bits, 0)
+    del config[CONF_BUFFER_SIZE]
+    return config
+
+
+def test_default_buffer_size() -> None:
+    assert (
+        usb_speaker.validate_buffer_size(_unset_buffer(48000, 2, 16))[CONF_BUFFER_SIZE]
+        == 6400
+    )
+    assert (
+        usb_microphone.validate_buffer_size(_unset_buffer(16000, 1, 16))[
+            CONF_BUFFER_SIZE
+        ]
+        == 6400
+    )
+
+
+def test_default_buffer_size_grows_to_the_floor() -> None:
+    # 48 kHz 16-bit stereo is 192000 bytes/s, so 40 ms need 7680 bytes, more than the 6400 default.
+    assert (
+        usb_microphone.validate_buffer_size(_unset_buffer(48000, 2, 16))[
+            CONF_BUFFER_SIZE
+        ]
+        == 7680
+    )
+
+
 def test_one_speaker_per_hub_accepted(set_core_config: SetCoreConfigCallable) -> None:
     entries = [_entry("hub_a"), _entry("hub_b"), _entry("hub_a", "i2s_audio")]
     _set_full_config(set_core_config, speaker=entries)

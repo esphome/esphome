@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_USB_AUDIO_ID,
+    apply_buffer_size,
     bytes_per_frame,
     final_validate_one_per_hub,
     set_stream_limits,
@@ -26,13 +27,7 @@ def validate_buffer_size(config: ConfigType) -> ConfigType:
     """The driver only sends complete transfers, so the buffer must hold two of them to keep audio flowing."""
     frames_per_packet = -(-config[CONF_SAMPLE_RATE] // 1000)
     transfer_size = PACKETS_PER_TRANSFER * frames_per_packet * bytes_per_frame(config)
-    min_size = 2 * transfer_size
-    if config[CONF_BUFFER_SIZE] < min_size:
-        raise cv.Invalid(
-            f"buffer_size must be at least {min_size} bytes (two USB transfers) for this format",
-            path=[CONF_BUFFER_SIZE],
-        )
-    return config
+    return apply_buffer_size(config, 2 * transfer_size, "two USB transfers")
 
 
 CONFIG_SCHEMA = cv.All(

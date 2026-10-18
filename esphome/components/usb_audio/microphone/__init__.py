@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_USB_AUDIO_ID,
+    apply_buffer_size,
     bytes_per_frame,
     final_validate_one_per_hub,
     set_stream_limits,
@@ -26,12 +27,7 @@ def validate_buffer_size(config: ConfigType) -> ConfigType:
     """The driver buffer must hold the audio that arrives between two reads, with room to spare."""
     bytes_per_second = config[CONF_SAMPLE_RATE] * bytes_per_frame(config)
     min_size = bytes_per_second * 2 * READ_PERIOD_MS // 1000
-    if config[CONF_BUFFER_SIZE] < min_size:
-        raise cv.Invalid(
-            f"buffer_size must be at least {min_size} bytes ({2 * READ_PERIOD_MS} ms of audio) for this format",
-            path=[CONF_BUFFER_SIZE],
-        )
-    return config
+    return apply_buffer_size(config, min_size, f"{2 * READ_PERIOD_MS} ms of audio")
 
 
 CONFIG_SCHEMA = cv.All(
