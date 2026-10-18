@@ -1,0 +1,24 @@
+one_wire:
+  - platform: gpio
+    id: ow_rmt
+    pin: GPIO4
+    use_rmt: true
+
+sensor:
+  - platform: dallas_temp
+    one_wire_id: ow_rmt
+    address: 0x9E06050403020128
+    name: RMT Dallas Temperature 1
+    resolution: 10
+
+  - platform: dallas_temp
+    one_wire_id: ow_rmt
+    address: 0x8F3C32281E140A28
+    name: RMT Dallas Temperature 2
+    resolution: 10
+
+  - platform: dallas_temp
+    one_wire_id: ow_rmt
+    address: 0x6701EEDDCCBBAA28
+    name: RMT Dallas Temperature 3
+    resolution: 10
