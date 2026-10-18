@@ -12,6 +12,9 @@ globals:
   - id: pump_limit
     type: int
     initial_value: "35"
+  - id: display_language_raw
+    type: int
+    initial_value: "4"
 uart:
   baud_rate: 9600
   port: /dev/null
@@ -34,6 +37,7 @@ uart_mock:
                 for (size_t i = 0; i < 4; ++i)
                   written |= uint32_t(data[10 + i] | (((data[14] >> (2 + i)) & 1u) << 7)) << (8 * i);
                 if (index == 48) id(pump_limit) = written;
+                if (index == 55) id(display_language_raw) = written;
               }
               const auto spec = vbus::cs_plus::find_setting(index);
               if (!spec) return;
@@ -43,7 +47,7 @@ uart_mock:
                 case 10: value = 0; break;
                 case 48: value = id(pump_limit); break;
                 case 50: value = 65; break;
-                case 55: value = 4; break;
+                case 55: value = id(display_language_raw); break;
                 case 81: value = 1; break;
                 case 90: value = 1; break;
                 case 385: value = 100; break;
@@ -137,3 +141,12 @@ number:
     parameter: delta_temperature_1_on
     name: Switch On Temperature Difference
     unit_of_measurement: K
+select:
+  - platform: vbus
+    controller_id: controller
+    parameter: display_language
+    name: Display Language
+  - platform: vbus
+    controller_id: controller
+    parameter: flow_sensor_type
+    name: Flow Sensor Type
