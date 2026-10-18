@@ -9,6 +9,13 @@
 
 namespace esphome::udp::testing {
 
+// Copies a packet into a vector, for comparing in tests
+static std::vector<uint8_t> to_vector(const esphome::packet_interface::PacketBuffer &data) {
+  std::vector<uint8_t> result(data.size());
+  data.copy_to(result.data(), result.size());
+  return result;
+}
+
 using packet_interface::PacketBuffer;
 using packet_interface::PacketMetaData;
 using Packet = std::vector<uint8_t>;
@@ -18,7 +25,7 @@ class TestUdp : public UdpPacketInterface {
   explicit TestUdp(UDPComponent *udp) : UdpPacketInterface(udp) {
     this->set_max_packet_size(8);
     this->add_packet_interface_listener(
-        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(data.to_vector()); });
+        [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
   }
   using UdpPacketInterface::receive_;
 
