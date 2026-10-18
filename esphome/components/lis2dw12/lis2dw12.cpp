@@ -312,7 +312,7 @@ void LIS2DW12Component::loop() {
 }
 
 void LIS2DW12Component::update() {
-  float x, y, z;
+  float x{}, y{}, z{};
   if (!this->status_comm_result(this->read_acceleration_data_(x, y, z)))
     return;
 

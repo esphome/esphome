@@ -39,7 +39,7 @@ void HoermannHcpCover::control(const cover::CoverCall &call) {
 }
 
 void HoermannHcpCover::update_from_state_() {
-  if (!this->status_comm_result(this->parent_->is_valid())) {
+  if (!this->status_comm_result(this->parent_->is_valid(), LOG_STR("bus controller not responding"))) {
     // The door can now move unheard, so drop the baseline a direction would be inferred from and stop
     // reporting motion instead of leaving the cover travelling until the controller returns.
     this->previous_position_ = NAN;

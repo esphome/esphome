@@ -101,7 +101,7 @@ bool CM1106Component::send_command_expect_ack_(const uint8_t *command, size_t co
   uint8_t response[4] = {0};
   if (!this->cm1106_write_command_(command, command_len, response, sizeof(response))) {
     ESP_LOGW(TAG, "Command %02X failed", command[2]);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   if (!this->status_comm_result(memcmp(response, ack, sizeof(response)) == 0)) {
