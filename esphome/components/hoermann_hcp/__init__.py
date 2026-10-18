@@ -47,7 +47,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("500ms"))
     .extend(modbus.modbus_device_schema(HCP2_DEFAULT_ADDRESS, role="server"))
     # Re-declare CONF_ADDRESS with Hörmann-specific validation. The plain
-    # # modbus_device_schema only checks for a sane Modbus server address.
+    # modbus_device_schema only checks for a sane Modbus server address.
     .extend(
         {
             cv.Optional(CONF_ADDRESS, default=HCP2_DEFAULT_ADDRESS): cv.All(
