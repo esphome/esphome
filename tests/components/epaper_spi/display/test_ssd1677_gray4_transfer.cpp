@@ -53,22 +53,6 @@ class TestableSSD1677Gray4 : public EPaperSSD1677Gray4 {
 
 using Bytes = std::vector<uint8_t>;
 
-namespace {
-
-/// A gray that lands squarely on each of the four levels.
-Color color_for_level(uint8_t level) {
-  static const uint8_t GRAYS[4] = {0, 64, 128, 255};
-  const uint8_t v = GRAYS[level];
-  return Color(v, v, v);
-}
-
-void draw_row(TestableSSD1677Gray4 &display, int y, const std::vector<uint8_t> &levels) {
-  for (size_t x = 0; x != levels.size(); x++)
-    display.draw_pixel_at((int) x, y, color_for_level(levels[x]));
-}
-
-}  // namespace
-
 /// Each pixel's 2-bit level is split across the RAM planes: the high bit to 0x24, the low bit to
 /// 0x26, both inverted because the four-level waveform reads 1 as white.
 TEST(EPaperSSD1677Gray4, SplitsEachLevelAcrossBothPlanes) {

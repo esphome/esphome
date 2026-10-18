@@ -67,14 +67,6 @@ class UC8179(EpaperModel):
 class UC8179Gray4(UC8179):
     """Four-level grayscale on the UC8179 7.5" V2 panel, full refresh only."""
 
-    def __init__(
-        self, name: str, class_name: str = "EPaperUC8179Gray4", **defaults: Any
-    ) -> None:
-        defaults.setdefault("partial_update", False)
-        # each plane byte is built from two whole buffer bytes
-        defaults.setdefault("width_multiple", 8)
-        super().__init__(name, class_name=class_name, **defaults)
-
     # fmt: off
     def get_init_sequence(self, config: dict) -> tuple:
         """Panel configuration and the grayscale LUTs; the driver sends power-on after them."""
@@ -84,7 +76,7 @@ class UC8179Gray4(UC8179):
             (0x00, 0x3F),  # PANEL SETTING (LUT from registers)
             ultrachip_resolution(width, height),
             (0x15, 0x00),  # DUAL SPI MODE (disabled)
-            (0x50, 0x00, 0x07),  # VCOM AND DATA INTERVAL SETTING
+            (0x50, 0x00, 0x07),  # VCOM AND DATA INTERVAL SETTING, replaced after power-on
             (0x60, 0x22),  # TCON SETTING
             (0x82, 0x12),  # VCOM DC SETTING
             (0x20,) + _gray4_lut(0x00, 0x12, 0x04),  # LUT VCOM
@@ -131,4 +123,12 @@ waveshare_7_5_v2.extend(
 )
 
 # Waveshare 7.5" V2 (EPD_7in5_V2) in four-level grayscale
-UC8179Gray4("waveshare-7.5in-v2-gray4", width=800, height=480)
+UC8179Gray4(
+    "waveshare-7.5in-v2-gray4",
+    class_name="EPaperUC8179Gray4",
+    partial_update=False,
+    # each plane byte is built from two whole buffer bytes
+    width_multiple=8,
+    width=800,
+    height=480,
+)

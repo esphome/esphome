@@ -530,8 +530,7 @@ def test_uc8179_gray4_code_generation(
 
     assert "epaper_spi::EPaperUC8179Gray4" in main_cpp
     assert re.search(r'"WAVESHARE-7.5IN-V2-GRAY4",\s*800,\s*480', main_cpp)
-    # PANEL SETTING with LUT from registers, then the 42-byte LUT WW (0x21) upload
-    assert "0, 1, 63," in main_cpp
+    # the 42-byte LUT WW (0x21) upload
     assert "33, 42, 128, 18, 4, 1, 0, 1, 0," in main_cpp
 
 

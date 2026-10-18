@@ -27,9 +27,7 @@ namespace esphome::epaper_spi {
  */
 class EPaperSSD1677Gray4 : public EPaperGray4<EPaperSSD1677> {
  public:
-  EPaperSSD1677Gray4(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                     size_t init_sequence_length)
-      : EPaperGray4(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_GRAYSCALE, 2) {}
+  using EPaperGray4::EPaperGray4;
 
  protected:
   // A partial update if partial updates are enabled and this is not a full one.

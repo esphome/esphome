@@ -37,29 +37,12 @@ class TestableUC8179Gray4 : public EPaperUC8179Gray4 {
     }
   }
 
-  using EPaperUC8179Gray4::refresh_screen;
   using EPaperUC8179Gray4::transfer_data;
 
   RecordingPin dc;
 };
 
 using Bytes = std::vector<uint8_t>;
-
-namespace {
-
-/// A gray that lands squarely on each of the four levels.
-Color color_for_level(uint8_t level) {
-  static const uint8_t GRAYS[4] = {0, 64, 128, 255};
-  const uint8_t v = GRAYS[level];
-  return Color(v, v, v);
-}
-
-void draw_row(TestableUC8179Gray4 &display, int y, const std::vector<uint8_t> &levels) {
-  for (size_t x = 0; x != levels.size(); x++)
-    display.draw_pixel_at((int) x, y, color_for_level(levels[x]));
-}
-
-}  // namespace
 
 /// The high bit of each level goes to DTM1 (0x10), the low bit to DTM2 (0x13), neither inverted.
 TEST(EPaperUC8179Gray4, SplitsEachLevelAcrossBothPlanes) {
@@ -103,19 +86,6 @@ TEST(EPaperUC8179Gray4, FillWhiteSetsBothPlanes) {
   EXPECT_EQ(bus.data[0x13], (Bytes{0xFF, 0xFF, 0xFF, 0xFF}));
 }
 
-/// The refresh registers go first, then DTM1, then DTM2, each once.
-TEST(EPaperUC8179Gray4, SendsRefreshRegistersThenHighThenLowPlane) {
-  TestableUC8179Gray4 display(8, 1);
-  RecordingDelegate bus(&display.dc);
-  display.install(&bus);
-
-  display.run_push();
-
-  EXPECT_EQ(bus.commands, (Bytes{0x50, 0xE5, 0x92, 0x10, 0x13}));
-  EXPECT_EQ(bus.data[0x50], (Bytes{0xA9, 0x07}));
-  EXPECT_EQ(bus.data[0xE5], (Bytes{0x5A}));
-}
-
 /// A push that yields partway through resumes the right plane at the right byte.
 TEST(EPaperUC8179Gray4, ResumesBothPlanesAfterYielding) {
   // 300 bytes per plane: three chunks each
@@ -142,16 +112,6 @@ TEST(EPaperUC8179Gray4, ResumesBothPlanesAfterYielding) {
   }
 }
 
-TEST(EPaperUC8179Gray4, RefreshSendsDisplayRefresh) {
-  TestableUC8179Gray4 display(8, 1);
-  RecordingDelegate bus(&display.dc);
-  display.install(&bus);
-
-  display.refresh_screen(false);
-
-  EXPECT_EQ(bus.commands, (Bytes{0x12}));
-}
-
 /// A whole update: power on, refresh registers, both planes, refresh, power off, deep sleep.
 TEST(EPaperUC8179Gray4, FullUpdateSequence) {
   TestableUC8179Gray4 display(8, 1);
@@ -161,6 +121,8 @@ TEST(EPaperUC8179Gray4, FullUpdateSequence) {
   display.run_update();
 
   EXPECT_EQ(bus.commands, (Bytes{0x04, 0x50, 0xE5, 0x92, 0x10, 0x13, 0x12, 0x02, 0x07}));
+  EXPECT_EQ(bus.data[0x50], (Bytes{0xA9, 0x07}));
+  EXPECT_EQ(bus.data[0xE5], (Bytes{0x5A}));
   EXPECT_EQ(bus.data[0x07], (Bytes{0xA5}));
 }
 
