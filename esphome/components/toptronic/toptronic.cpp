@@ -357,6 +357,23 @@ void TopTronicSelect::control(const std::string &text) {
 }
 #endif
 
+#ifdef USE_BUTTON
+void TopTronicButton::press_action() {
+  std::vector<uint8_t> bytes = float_to_bytes(this->value_, this->type_);
+  std::vector<uint8_t> data = build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes);
+  this->set_callback_.call(data);
+
+  TT_LOGD("[SET] %s: %f, Data: 0x%s", this->get_name().c_str(), this->value_,
+          hex_str(data.data(), data.size()).c_str());
+}
+
+void TopTronicRefreshButton::press_action() {
+  if (this->parent_ != nullptr) {
+    this->parent_->refresh_all();
+  }
+}
+#endif
+
 // Return the TopTronicDevice for this ID, creating it on first access.
 // operator[] performs a single map lookup rather than count() + operator[] (two lookups).
 TopTronicDevice *TopTronic::get_or_create_device_(uint32_t device_id) {
@@ -702,6 +719,9 @@ void TopTronic::link_inputs_() {
     auto *device = d.second.get();
     for (const auto &i : device->get_inputs()) {
       auto *input_base = i.second;
+      if (input_base->type() == BUTTON) {
+        continue;  // buttons are fire-and-forget — no linked sensor to sync
+      }
       auto *sensor_base = this->get_sensor_(this->get_device_id(), input_base->get_id());
       if (sensor_base == nullptr) {
         TT_LOGD("Input 0x%08X has no matching sensor — sync skipped", (unsigned) input_base->get_id());

@@ -18,6 +18,9 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
@@ -52,6 +55,7 @@ enum TypeName {
 enum SensorType {
   SENSOR,      // read-only numeric (TopTronicSensor)
   TEXTSENSOR,  // read-only string  (TopTronicTextSensor) or read-write (TopTronicSelect)
+  BUTTON,      // fire-and-forget action (TopTronicButton)
 };
 
 // Build a 29-bit extended CAN ID from sender and receiver addresses.
@@ -201,6 +205,43 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   TypeName type_{U8};  // value encoding width (U8 default; U16 used by party duration)
   // Called by ESPHome when the user picks a new option from Home Assistant.
   void control(const std::string &text) override;
+};
+#endif
+
+#ifdef USE_BUTTON
+// Fire-and-forget button: sends a fixed SET request on the CAN bus when pressed.
+// The value is configured in YAML (e.g. an acknowledgment or reset command).
+class TopTronicButton : public button::Button, public TopTronicBase {
+ public:
+  // Fire-and-forget: never polls (no update callback registered). See
+  // TopTronicNumber for the SCHEDULER_DONT_RUN rationale.
+  TopTronicButton() { this->set_update_interval(SCHEDULER_DONT_RUN); }
+  void set_type(TypeName type) { this->type_ = type; }
+  void set_value(float value) { this->value_ = value; }
+  SensorType type() override { return BUTTON; }
+  const StringRef &get_name() const override { return this->button::Button::get_name(); }
+
+ protected:
+  TypeName type_;
+  float value_{0.0f};
+
+  // Called by ESPHome when the user presses the button from Home Assistant.
+  void press_action() override;
+};
+
+// Build-wide "Refresh all" button, generated once by the component codegen
+// (__init__.py). press_action() calls the parent hub's refresh_all(), which
+// fans out to EVERY registered hub (HV, BM, WEZ …) and staggers each hub's
+// batch by REFRESH_STAGGER_MS so the 50 kbps bus is not spammed.
+class TopTronicRefreshButton : public button::Button, public Component {
+ public:
+  void set_parent(TopTronic *parent) { this->parent_ = parent; }
+
+ protected:
+  // Called by ESPHome when the user presses the button from Home Assistant.
+  void press_action() override;
+
+  TopTronic *parent_{nullptr};
 };
 #endif
 

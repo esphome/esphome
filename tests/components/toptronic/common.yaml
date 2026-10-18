@@ -28,3 +28,13 @@ switch:
     toptronic_id: tt_hv
     debug_mode: candump
     name: CAN dump
+
+button:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    function_group: 20
+    function_number: 0
+    datapoint: 1
+    type: U8
+    value: 1
+    name: Setpoint reset

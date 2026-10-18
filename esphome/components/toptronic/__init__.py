@@ -231,13 +231,14 @@ def _resolve_ids(obj, used=None):
 
 
 async def _generate_entities(hub, config):
-    from . import number, select, sensor, text_sensor
+    from . import button, number, select, sensor, text_sensor
 
     platforms = {
         "sensor": (sensor.CONFIG_SCHEMA, sensor.to_code),
         "text_sensor": (text_sensor.CONFIG_SCHEMA, text_sensor.to_code),
         "number": (number.CONFIG_SCHEMA, number.to_code),
         "select": (select.CONFIG_SCHEMA, select.to_code),
+        "button": (button.CONFIG_SCHEMA, button.to_code),
     }
 
     used_ids = _shared_used_ids()
