@@ -201,11 +201,15 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_eightbitcolor(config[CONF_EIGHTBITCOLOR]))
 
-    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])
-    await cg.add_pin(var.set_reset_pin, config[CONF_RESET_PIN])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
+    cg.add(var.set_dc_pin(dc))
+
+    reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    cg.add(var.set_reset_pin(reset))
 
     if CONF_BACKLIGHT_PIN in config and config[CONF_BACKLIGHT_PIN]:
-        await cg.add_pin(var.set_backlight_pin, config[CONF_BACKLIGHT_PIN])
+        bl = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
+        cg.add(var.set_backlight_pin(bl))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

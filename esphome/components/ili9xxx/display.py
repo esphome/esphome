@@ -230,7 +230,8 @@ async def to_code(config: ConfigType) -> None:
 
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
-    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
+    cg.add(var.set_dc_pin(dc))
     if init_sequences := config.get(CONF_INIT_SEQUENCE):
         sequence = []
         for seq in init_sequences:
@@ -253,7 +254,9 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_writer(lambda_))
 
-    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    if CONF_RESET_PIN in config:
+        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+        cg.add(var.set_reset_pin(reset))
 
     if CONF_DIMENSIONS in config:
         dimensions = config[CONF_DIMENSIONS]
