@@ -43,8 +43,8 @@ void VBus::loop() {
   while (available()) {
     uint8_t c;
     read_byte(&c);
-    this->last_rx_ms_ = now;
 
+    this->last_rx_ms_ = now;
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
