@@ -74,7 +74,7 @@ def test_requests_that_fit_the_default_keep_it(
 def test_requests_that_fit_the_default_need_no_newer_idf(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    _set_variant(set_core_config, VARIANT_ESP32S3, idf=cv.Version(5, 4, 3))
+    _set_variant(set_core_config, VARIANT_ESP32S3, idf=cv.Version(5, 4, 2))
     usb_host.request_periodic_fifo(in_bytes=34, out_bytes=128)
     usb_host.FINAL_VALIDATE_SCHEMA({})
     assert "USE_USB_HOST_FIFO_CONFIG" not in _defines()
@@ -160,3 +160,25 @@ def test_request_conflicting_with_the_selected_bias_is_rejected(
     usb_host.request_periodic_fifo(in_bytes=in_bytes, out_bytes=out_bytes)
     with pytest.raises(cv.Invalid, match="bytes of USB FIFO"):
         usb_host.fifo_split()
+
+
+@pytest.mark.parametrize("idf", [cv.Version(5, 3, 3), cv.Version(5, 4, 2)])
+def test_final_validate_needs_custom_fifo_support(
+    set_core_config: SetCoreConfigCallable, idf: cv.Version
+) -> None:
+    _set_variant(set_core_config, VARIANT_ESP32S3, idf=idf)
+    usb_host.request_periodic_fifo(out_bytes=196)
+    with pytest.raises(cv.Invalid, match="needs ESP-IDF 5.3.4, 5.4.3, 5.5.0 or later"):
+        usb_host.FINAL_VALIDATE_SCHEMA({})
+
+
+@pytest.mark.parametrize(
+    "idf", [cv.Version(5, 3, 4), cv.Version(5, 4, 3), cv.Version(6, 0, 0)]
+)
+def test_final_validate_accepts_backported_custom_fifo(
+    set_core_config: SetCoreConfigCallable, idf: cv.Version
+) -> None:
+    _set_variant(set_core_config, VARIANT_ESP32S3, idf=idf)
+    usb_host.request_periodic_fifo(out_bytes=196)
+    usb_host.FINAL_VALIDATE_SCHEMA({})
+    assert "USE_USB_HOST_FIFO_CONFIG" in _defines()
