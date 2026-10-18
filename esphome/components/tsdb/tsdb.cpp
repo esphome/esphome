@@ -68,6 +68,8 @@ static_assert(tsdbmath::FILE_MAGIC == static_cast<uint32_t>(TSDB_MAGIC), "esp_ts
 static_assert(tsdbmath::MAX_COLUMNS == static_cast<uint32_t>(TSDB_MAX_PARAMS), "esp_tsdb changed TSDB_MAX_PARAMS");
 static_assert(offsetof(tsdb_header_t, magic) == tsdbmath::HEADER_MAGIC_OFFSET, "esp_tsdb moved magic");
 static_assert(offsetof(tsdb_header_t, num_params) == tsdbmath::HEADER_COLUMNS_OFFSET, "esp_tsdb moved num_params");
+static_assert(offsetof(tsdb_header_t, index_stride) + sizeof(uint32_t) <= tsdbmath::HEADER_BYTES,
+              "esp_tsdb moved index_stride out of the header");
 static_assert(tsdbmath::capacity_for_bytes(384 * 1024, 4) <= TSDB_CALC_MAX_RECORDS(384 * 1024, 4),
               "capacity solver may never exceed the engine formula");
 static_assert(static_cast<int>(tsdbmath::MEMORY_INTERNAL) == static_cast<int>(TSDB_ALLOC_INTERNAL_RAM),
@@ -324,24 +326,51 @@ bool TsdbComponent::open_database_() {
     return false;
   }
 
-  const uint64_t bytes = tsdbmath::file_bytes_for(max_records, columns, this->index_stride_);
-  ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records (up to %" PRIu32 " KB) at %s", this->file_.c_str(),
-           static_cast<uint32_t>(names.size()), max_records, static_cast<uint32_t>(bytes / 1024), path.c_str());
-
-  // An existing file keeps the capacity and index stride it was created with;
-  // the engine only applies the config values to a new file. Report a mismatch
-  // instead of silently reporting a capacity that is not in use, and seed the
-  // monotonic timestamp guard with the newest record already stored.
+  // An existing file keeps the capacity and the index stride it was created
+  // with; the engine only applies the config values to a new file. Report the
+  // layout the file actually uses, and flag a configuration that has no effect.
   tsdb_stats_t stats = {};
-  if (tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) == ESP_OK) {
+  const bool have_stats = tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) == ESP_OK;
+  uint32_t saved_stride = 0;
+  const bool have_stride = this->read_saved_index_stride_(&saved_stride) && saved_stride > 0;
+  const uint32_t records = have_stats && stats.max_records > 0 ? stats.max_records : max_records;
+  const uint32_t stride = have_stride ? saved_stride : this->index_stride_;
+  const uint64_t bytes = tsdbmath::file_bytes_for(records, columns, stride);
+  ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records (up to %" PRIu32 " KB) at %s", this->file_.c_str(),
+           static_cast<uint32_t>(names.size()), records, static_cast<uint32_t>(bytes / 1024), path.c_str());
+  if (have_stats) {
+    // Seed the monotonic timestamp guard with the newest record already stored.
     this->last_timestamp_ = stats.newest_timestamp;
-    if (stats.max_records != max_records) {
+    if (records != max_records) {
       ESP_LOGW(TAG,
                "%s: saved capacity is %" PRIu32 " records, the configured budget asks for %" PRIu32
                " - recreate the history to change it",
-               this->file_.c_str(), stats.max_records, max_records);
+               this->file_.c_str(), records, max_records);
     }
   }
+  if (have_stride && saved_stride != this->index_stride_) {
+    ESP_LOGW(TAG,
+             "%s: saved index stride is %" PRIu32 ", the configured value is %" PRIu32
+             " - recreate the history to change it",
+             this->file_.c_str(), saved_stride, this->index_stride_);
+  }
+  return true;
+}
+
+// The engine keeps a saved file's index stride and offers no getter for it, but
+// the geometry sits in the first bytes of the file, so read that one field.
+bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
+  const std::string path = this->mount_point_ + "/" + this->file_;
+  FILE *file = fopen(path.c_str(), "rb");
+  if (file == nullptr)
+    return false;
+  const long field = static_cast<long>(offsetof(tsdb_header_t, index_stride));
+  uint32_t value = 0;
+  const bool ok = fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
+  fclose(file);
+  if (!ok)
+    return false;
+  *stride = value;
   return true;
 }
 
