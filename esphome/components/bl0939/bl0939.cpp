@@ -45,7 +45,8 @@ void BL0939::loop() {
     }
   } else {
     ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
-    this->discard_available();
+    while (read() >= 0)
+      ;
   }
 }
 
