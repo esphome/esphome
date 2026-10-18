@@ -4,5 +4,4 @@ substitutions:
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
   i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
-
-<<: !include common.yaml
+  resampler: !include common.yaml
