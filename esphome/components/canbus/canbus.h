@@ -46,9 +46,67 @@ class CanbusTrigger;
 template<typename... Ts> class CanbusSendAction;
 
 /* CAN payload length definitions according to ISO 11898-1 */
-static const uint8_t CAN_MAX_DATA_LENGTH = 8;
+static constexpr uint8_t CAN_MAX_DATA_LENGTH = 8;
+static constexpr uint8_t CAN_FD_MAX_DATA_LENGTH = 64;
 
-static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
+static constexpr uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
+
+/* Returned by either length conversion when the input cannot be represented. */
+static constexpr uint8_t CAN_INVALID_DLC = UINT8_MAX;
+
+/* Decode using the CAN FD mapping. Classic CAN callers must cap valid results at eight bytes. */
+constexpr uint8_t can_dlc_to_len(uint8_t dlc) {
+  if (dlc <= CAN_MAX_DATA_LENGTH) {
+    return dlc;
+  }
+
+  switch (dlc) {
+    case 9:
+      return 12;
+    case 10:
+      return 16;
+    case 11:
+      return 20;
+    case 12:
+      return 24;
+    case 13:
+      return 32;
+    case 14:
+      return 48;
+    case 15:
+      return 64;
+    default:
+      return CAN_INVALID_DLC;
+  }
+}
+
+/* With pad, round up to the next CAN FD length. The caller must fill the extra payload bytes. */
+constexpr uint8_t can_len_to_dlc(size_t len, bool pad) {
+  if (len > CAN_FD_MAX_DATA_LENGTH) {
+    return CAN_INVALID_DLC;
+  }
+
+  if (len <= CAN_MAX_DATA_LENGTH) {
+    return static_cast<uint8_t>(len);
+  }
+
+  if (len <= 12)
+    return (len == 12 || pad) ? 9 : CAN_INVALID_DLC;
+  if (len <= 16)
+    return (len == 16 || pad) ? 10 : CAN_INVALID_DLC;
+  if (len <= 20)
+    return (len == 20 || pad) ? 11 : CAN_INVALID_DLC;
+  if (len <= 24)
+    return (len == 24 || pad) ? 12 : CAN_INVALID_DLC;
+  if (len <= 32)
+    return (len == 32 || pad) ? 13 : CAN_INVALID_DLC;
+  if (len <= 48)
+    return (len == 48 || pad) ? 14 : CAN_INVALID_DLC;
+  if (len <= 64)
+    return (len == 64 || pad) ? 15 : CAN_INVALID_DLC;
+
+  return CAN_INVALID_DLC;
+}
 
 /*
 Can Frame describes a normative CAN Frame
@@ -56,11 +114,17 @@ The RTR = Remote Transmission Request is implemented in every CAN controller but
 So currently the flag is passed to and from the hardware but currently ignored to the user application.
 */
 struct CanFrame {
-  bool use_extended_id = false;
-  bool remote_transmission_request = false;
   uint32_t can_id;              /* 29 or 11 bit CAN_ID  */
-  uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DATA_LENGTH) */
-  uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
+  uint8_t can_data_length_code; /* Wire DLC (0..15), not byte length. For RTR, the requested length. */
+
+  bool use_extended_id : 1 = false;
+  bool remote_transmission_request : 1 = false;
+  bool fd : 1 = false; /* FD frames cannot use RTR. BRS and ESI are only meaningful for FD frames. */
+  bool bit_rate_switch : 1 = false;
+  bool error_state_indicator : 1 =
+      false; /* Received transmitter error state. Transmit handling is controller-specific. */
+
+  uint8_t data[CAN_FD_MAX_DATA_LENGTH] __attribute__((aligned(8)));
 };
 
 enum CanEventFlags : uint8_t {
