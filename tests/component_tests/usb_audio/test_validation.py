@@ -1,8 +1,10 @@
-"""Tests for the usb_audio buffer floors and the one-platform-per-hub check."""
+"""Tests for the usb_audio buffer floors, the one-platform-per-hub check and the USB FIFO split."""
 
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components import usb_audio
+from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 from esphome.components.usb_audio import (
     CONF_USB_AUDIO_ID,
     microphone as usb_microphone,
@@ -15,6 +17,8 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_PLATFORM,
     CONF_SAMPLE_RATE,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
     PlatformFramework,
 )
 from esphome.core import ID
@@ -119,3 +123,85 @@ def test_two_microphones_on_one_hub_rejected(
     _set_full_config(set_core_config, microphone=entries, speaker=[_entry("hub_a")])
     with pytest.raises(cv.Invalid, match="Only one usb_audio microphone"):
         usb_microphone.FINAL_VALIDATE_SCHEMA(entries[0])
+
+
+IDF_5_5 = cv.Version(5, 5, 6)
+
+
+def _fifo_config(
+    set_core_config: SetCoreConfigCallable,
+    variant: str,
+    idf: cv.Version = IDF_5_5,
+    **domains: list[ConfigType],
+) -> Config:
+    full = Config()
+    full.update(domains)
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: variant, KEY_IDF_VERSION: idf},
+        full_config=full,
+    )
+    return full
+
+
+def _stream_entry(sample_rate: int, channels: int, bits: int) -> ConfigType:
+    return {**_entry("hub_a"), **_stream(sample_rate, channels, bits, 6400)}
+
+
+def test_fifo_split_fits_48k_stereo_speaker_and_microphone(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # 49 frames x 4 bytes = 196 bytes per packet each way; the 140 spare lines are shared.
+    full = _fifo_config(
+        set_core_config,
+        VARIANT_ESP32S3,
+        speaker=[_stream_entry(48000, 2, 16)],
+        microphone=[_stream_entry(48000, 2, 16)],
+    )
+    rx, nptx, ptx = usb_audio.fifo_split(full)
+    assert (rx, nptx, ptx) == (121, 16, 119)
+    assert ptx * 4 >= 196
+    assert (rx - 2) * 4 >= 196
+    assert rx + nptx + ptx == 256
+
+
+def test_fifo_split_speaker_only_gets_the_rest(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    full = _fifo_config(
+        set_core_config, VARIANT_ESP32S2, speaker=[_stream_entry(48000, 2, 16)]
+    )
+    assert usb_audio.fifo_split(full) == (34, 16, 206)
+
+
+def test_fifo_split_only_on_full_speed_variants(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    full = _fifo_config(
+        set_core_config, VARIANT_ESP32P4, speaker=[_stream_entry(48000, 2, 16)]
+    )
+    assert usb_audio.fifo_split(full) is None
+
+
+def test_fifo_split_rejects_formats_that_do_not_fit(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    full = _fifo_config(
+        set_core_config,
+        VARIANT_ESP32S3,
+        speaker=[_stream_entry(96000, 2, 32)],
+        microphone=[_stream_entry(96000, 2, 32)],
+    )
+    with pytest.raises(cv.Invalid, match="bytes of USB FIFO"):
+        usb_audio.fifo_split(full)
+
+
+def test_fifo_split_needs_idf_5_5(set_core_config: SetCoreConfigCallable) -> None:
+    _fifo_config(
+        set_core_config,
+        VARIANT_ESP32S3,
+        idf=cv.Version(5, 4, 3),
+        speaker=[_stream_entry(48000, 2, 16)],
+    )
+    with pytest.raises(cv.Invalid, match="needs ESP-IDF 5.5.0 or later"):
+        usb_audio.FINAL_VALIDATE_SCHEMA({})
