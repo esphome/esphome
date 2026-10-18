@@ -1,4 +1,5 @@
 #include "vbus.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
@@ -10,6 +11,10 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
+static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
+
+// Keep a busy UART from monopolizing the component loop.
+static constexpr size_t VBUS_MAX_BYTES_PER_LOOP = 64;
 
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
@@ -28,13 +33,22 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
-  if (!available())
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!available()) {
+    // Preserve queued bytes even if a delayed loop would otherwise exceed the timeout.
+    if (this->state_ != 0 && now - this->last_rx_ms_ >= VBUS_RX_IDLE_TIMEOUT_MS) {
+      this->state_ = 0;
+      this->buffer_.clear();
+    }
     return;
+  }
 
-  while (available()) {
+  for (size_t processed = 0; processed < VBUS_MAX_BYTES_PER_LOOP && this->available(); ++processed) {
     uint8_t c;
-    read_byte(&c);
+    if (!this->read_byte(&c))
+      break;
 
+    this->last_rx_ms_ = now;
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
@@ -49,6 +63,8 @@ void VBus::loop() {
 
     if (this->state_ == 1) {
       this->buffer_.push_back(c);
+      if (this->buffer_.size() < 7)
+        continue;
       if (this->buffer_.size() == 7) {
         this->protocol_ = this->buffer_[4];
         this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
@@ -61,11 +77,18 @@ void VBus::loop() {
           ESP_LOGE(TAG, "P2 checksum failed");
           continue;
         }
+        if (this->buffer_[13] & 0x40) {
+          ESP_LOGE(TAG, "Invalid P2 septet");
+          continue;
+        }
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
         uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
-        ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
+        ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
+#ifdef USE_VBUS_DATAGRAM
+        this->datagram_callback_.call(this->command_, this->source_, this->dest_, id, value);
+#endif
       } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {
         if (!checksum(this->buffer_.data(), 0, 9)) {
           ESP_LOGE(TAG, "P1 checksum failed");
@@ -96,6 +119,7 @@ void VBus::loop() {
       this->fbcount_ = 0;
       if (!checksum(this->fbytes_, 0, 6)) {
         ESP_LOGE(TAG, "frame checksum failed");
+        this->state_ = 0;
         continue;
       }
       septet_spread(this->fbytes_, 0, 4, this->fbytes_[4]);
