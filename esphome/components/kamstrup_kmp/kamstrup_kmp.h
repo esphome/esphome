@@ -114,7 +114,6 @@ class KamstrupKMPComponent final : public PollingComponent, public uart::UARTDev
   // Sends a message to the meter. A prefix/suffix and CRC are added
   void send_message_(const uint8_t *msg, int msg_len);
   // Clears and data that might be in the UART Rx buffer
-  void clear_uart_rx_buffer_();
   // Reads and validates the response to a send command
   void read_command_(uint16_t command);
   // Parses a received message
