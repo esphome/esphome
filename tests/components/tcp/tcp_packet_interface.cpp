@@ -65,7 +65,8 @@ class TcpPacketInterfaceTest : public ::testing::Test {
  protected:
   void SetUp() override {
     signal(SIGPIPE, SIG_IGN);
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "tcp-tests";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
@@ -80,6 +81,7 @@ class TcpPacketInterfaceTest : public ::testing::Test {
     this->a.link.link().close();
     this->b.link.link().close();
     App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
   }
   static void set_time(uint32_t now) { LoopBlockingGuard guard{nullptr, nullptr, now}; }
   void loops(int count) {
@@ -193,7 +195,8 @@ class TcpServerTest : public ::testing::Test {
  protected:
   void SetUp() override {
     signal(SIGPIPE, SIG_IGN);
-    new (&App) Application;
+    App.~Application();
+    new (&App) Application();
     static char name[] = "tcp-tests";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
@@ -207,6 +210,7 @@ class TcpServerTest : public ::testing::Test {
     for (int fd : this->clients)
       ::close(fd);
     App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
   }
   static void set_time(uint32_t now) { LoopBlockingGuard guard{nullptr, nullptr, now}; }
   static uint16_t free_port() {
