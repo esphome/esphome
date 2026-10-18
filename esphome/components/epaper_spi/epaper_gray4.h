@@ -33,7 +33,8 @@ template<typename Base> class EPaperGray4 : public Base {
 
   void fill(Color color) override {
     if (this->get_clipping().is_set()) {
-      display::Display::fill(color);
+      // The base's clipped path draws pixel by pixel through this class's draw_pixel_at()
+      Base::fill(color);
       return;
     }
     const uint8_t level = color_to_gray4(color);

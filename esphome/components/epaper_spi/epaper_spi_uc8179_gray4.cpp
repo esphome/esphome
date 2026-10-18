@@ -16,7 +16,8 @@ bool EPaperUC8179Gray4::initialise(bool partial) {
     return false;
   }
   this->init_powered_ = false;
-  return EPaperBase::initialise(partial);
+  this->send_init_sequence_(this->init_sequence_, this->init_sequence_length_);
+  return true;
 }
 
 bool HOT EPaperUC8179Gray4::transfer_data() {
