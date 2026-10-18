@@ -279,6 +279,7 @@ esphome/components/hmac_sha256/* @dwmw2
 esphome/components/hoermann_hcp/* @zweckj
 esphome/components/homeassistant/* @esphome/core @OttoWinter
 esphome/components/homeassistant/button/* @jesserockz
+esphome/components/homeassistant/light/* @egormanga
 esphome/components/homeassistant/number/* @landonr
 esphome/components/homeassistant/select/* @jesserockz
 esphome/components/homeassistant/switch/* @Links2004
