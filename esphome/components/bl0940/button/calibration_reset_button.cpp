@@ -4,10 +4,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace bl0940 {
+namespace esphome::bl0940 {
 
-static const char *const TAG = "bl0940.button.calibration_reset";
+ESPHOME_LOG_TAG(TAG, "bl0940.button.calibration_reset");
 
 void CalibrationResetButton::dump_config() { LOG_BUTTON("", "Calibration Reset Button", this); }
 
@@ -16,5 +15,4 @@ void CalibrationResetButton::press_action() {
   this->parent_->reset_calibration();
 }
 
-}  // namespace bl0940
-}  // namespace esphome
+}  // namespace esphome::bl0940

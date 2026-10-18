@@ -1,10 +1,9 @@
 #include "sm16716.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sm16716 {
+namespace esphome::sm16716 {
 
-static const char *const TAG = "sm16716";
+ESPHOME_LOG_TAG(TAG, "sm16716");
 
 void SM16716::setup() {
   this->data_pin_->setup();
@@ -49,5 +48,4 @@ void SM16716::loop() {
   this->update_ = false;
 }
 
-}  // namespace sm16716
-}  // namespace esphome
+}  // namespace esphome::sm16716

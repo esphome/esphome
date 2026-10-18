@@ -5,9 +5,7 @@
 #include <initializer_list>
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-
-namespace fan {
+namespace esphome::fan {
 
 class Fan;  // Forward declaration
 
@@ -95,5 +93,4 @@ class FanTraits {
   std::vector<const char *> compat_preset_modes_;
 };
 
-}  // namespace fan
-}  // namespace esphome
+}  // namespace esphome::fan

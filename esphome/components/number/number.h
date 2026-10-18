@@ -28,7 +28,7 @@ class Number;
  */
 class Number : public EntityBase {
  public:
-  float state;
+  float state{};
 
   void publish_state(float state);
 

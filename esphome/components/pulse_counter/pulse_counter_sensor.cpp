@@ -7,10 +7,9 @@
 #include <hal/pcnt_ll.h>
 #endif
 
-namespace esphome {
-namespace pulse_counter {
+namespace esphome::pulse_counter {
 
-static const char *const TAG = "pulse_counter";
+ESPHOME_LOG_TAG(TAG, "pulse_counter");
 
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
@@ -210,5 +209,4 @@ void PulseCounterSensor::update() {
   this->last_time_ = now;
 }
 
-}  // namespace pulse_counter
-}  // namespace esphome
+}  // namespace esphome::pulse_counter

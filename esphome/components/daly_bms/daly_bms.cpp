@@ -4,10 +4,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace daly_bms {
+namespace esphome::daly_bms {
 
-static const char *const TAG = "daly_bms";
+ESPHOME_LOG_TAG(TAG, "daly_bms");
 
 static const uint8_t DALY_FRAME_SIZE = 13;
 static const uint8_t DALY_TEMPERATURE_OFFSET = 40;
@@ -23,10 +22,7 @@ static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() { this->next_request_ = 1; }
 
-void DalyBmsComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Daly BMS:");
-  this->check_uart_settings(9600);
-}
+void DalyBmsComponent::dump_config() { ESP_LOGCONFIG(TAG, "Daly BMS:"); }
 
 void DalyBmsComponent::update() {
   this->trigger_next_ = true;
@@ -133,12 +129,7 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
 
   while ((it = std::find(it, data.end(), 0xA5)) != data.end()) {
     if (data.end() - it >= DALY_FRAME_SIZE && it[1] == 0x01) {
-      uint8_t checksum;
-      int sum = 0;
-      for (int i = 0; i < 12; i++) {
-        sum += it[i];
-      }
-      checksum = sum;
+      const uint8_t checksum = sum_bytes(&*it, 12);
 
       if (checksum == it[12]) {
         switch (it[2]) {
@@ -321,5 +312,4 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
   }
 }
 
-}  // namespace daly_bms
-}  // namespace esphome
+}  // namespace esphome::daly_bms

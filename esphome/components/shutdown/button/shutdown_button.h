@@ -3,10 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace shutdown {
+namespace esphome::shutdown {
 
-class ShutdownButton : public button::Button, public Component {
+class ShutdownButton final : public button::Button, public Component {
  public:
   void dump_config() override;
 
@@ -14,5 +13,4 @@ class ShutdownButton : public button::Button, public Component {
   void press_action() override;
 };
 
-}  // namespace shutdown
-}  // namespace esphome
+}  // namespace esphome::shutdown

@@ -8,10 +8,11 @@
 #endif
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::ld2410 {
 
-static const char *const TAG = "ld2410";
+ESPHOME_LOG_TAG(TAG, "ld2410");
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -178,7 +179,7 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 }
 
 void LD2410Component::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
   const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
   ld24xx::format_version_str(this->version_, version_s);
@@ -360,8 +361,8 @@ void LD2410Component::handle_periodic_data_() {
   */
 #ifdef USE_SENSOR
   SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
-                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
-  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]));
+  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY]);
   SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
                       encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]));
   SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
@@ -375,26 +376,26 @@ void LD2410Component::handle_periodic_data_() {
       Moving energy: 20~28th bytes
     */
     for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-      SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+      SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i]);
     }
     /*
       Still energy: 29~37th bytes
     */
     for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-      SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
+      SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i]);
     }
     /*
       Light sensor: 38th bytes
     */
-    SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
+    SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR]);
   } else {
     for (auto &gate_move_sensor : this->gate_move_sensors_) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor)
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor);
     }
     for (auto &gate_still_sensor : this->gate_still_sensors_) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor)
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor);
     }
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_)
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_);
   }
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -511,7 +512,7 @@ bool LD2410Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      char mac_s[18];
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
@@ -606,17 +607,11 @@ void LD2410Component::readline_(int readch) {
     return;  // Not enough data to process yet
   }
   if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
     this->handle_periodic_data_();
     this->buffer_pos_ = 0;  // Reset position index for next message
   } else if (ld2410::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
     if (this->handle_ack_data_()) {
       this->buffer_pos_ = 0;  // Reset position index for next message
     } else {
@@ -786,13 +781,12 @@ void LD2410Component::set_light_out_control() {
 }
 
 #ifdef USE_SENSOR
-// These could leak memory, but they are only set once prior to 'setup()' and should never be used again.
 void LD2410Component::set_gate_move_sensor(uint8_t gate, sensor::Sensor *s) {
-  this->gate_move_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+  this->gate_move_sensors_[gate].set_sensor(s);
 }
 
 void LD2410Component::set_gate_still_sensor(uint8_t gate, sensor::Sensor *s) {
-  this->gate_still_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+  this->gate_still_sensors_[gate].set_sensor(s);
 }
 #endif
 

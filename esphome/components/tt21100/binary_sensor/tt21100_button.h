@@ -5,13 +5,12 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace tt21100 {
+namespace esphome::tt21100 {
 
-class TT21100Button : public binary_sensor::BinarySensor,
-                      public Component,
-                      public TT21100ButtonListener,
-                      public Parented<TT21100Touchscreen> {
+class TT21100Button final : public binary_sensor::BinarySensor,
+                            public Component,
+                            public TT21100ButtonListener,
+                            public Parented<TT21100Touchscreen> {
  public:
   void setup() override;
   void dump_config() override;
@@ -24,5 +23,4 @@ class TT21100Button : public binary_sensor::BinarySensor,
   uint8_t index_;
 };
 
-}  // namespace tt21100
-}  // namespace esphome
+}  // namespace esphome::tt21100

@@ -2,10 +2,9 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
-static const char *const TAG = "tuya.text_sensor";
+ESPHOME_LOG_TAG(TAG, "tuya.text_sensor");
 
 void TuyaTextSensor::setup() {
   this->parent_->register_listener(this->sensor_id_, [this](const TuyaDatapoint &datapoint) {
@@ -43,5 +42,4 @@ void TuyaTextSensor::dump_config() {
                 this->sensor_id_);
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

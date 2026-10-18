@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hte501 {
+namespace esphome::hte501 {
 
-static const char *const TAG = "hte501";
+ESPHOME_LOG_TAG(TAG, "hte501");
 
 static constexpr size_t HTE501_SERIAL_NUMBER_SIZE = 7;
 
@@ -71,5 +70,4 @@ void HTE501Component::update() {
     this->status_clear_warning();
   });
 }
-}  // namespace hte501
-}  // namespace esphome
+}  // namespace esphome::hte501

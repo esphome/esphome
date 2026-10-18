@@ -1,11 +1,10 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 
-namespace esphome {
-namespace midea {
+namespace esphome::midea {
 
 using remote_base::RemoteTransmitterBase;
 using IrData = remote_base::MideaData;
@@ -84,8 +83,7 @@ class IrTransmitter {
   RemoteTransmitterBase *transmitter_{nullptr};
 };
 
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea
 
-#endif
-#endif  // USE_ARDUINO
+#endif  // USE_REMOTE_TRANSMITTER
+#endif  // USE_ARDUINO || USE_ESP_IDF

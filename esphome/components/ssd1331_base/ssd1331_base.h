@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace ssd1331_base {
+namespace esphome::ssd1331_base {
 
 class SSD1331 : public display::DisplayBuffer {
  public:
@@ -43,5 +42,4 @@ class SSD1331 : public display::DisplayBuffer {
   float brightness_{1.0};
 };
 
-}  // namespace ssd1331_base
-}  // namespace esphome
+}  // namespace esphome::ssd1331_base

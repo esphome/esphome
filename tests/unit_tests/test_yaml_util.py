@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import io
 from pathlib import Path
 import shutil
@@ -9,64 +10,72 @@ from esphome import core, yaml_util
 from esphome.components import substitutions
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
-from esphome.core import EsphomeError
+from esphome.core import DocumentLocation, DocumentRange, EsphomeError
 from esphome.util import OrderedDict
+from esphome.yaml_util import (
+    DiscoveredYamlFiles,
+    ESPHomeDataBase,
+    ESPLiteralValue,
+    SensitiveStr,
+    discover_user_yaml_files,
+    force_load_include_files,
+    format_path,
+    make_data_base,
+    make_literal,
+    track_yaml_loads,
+)
 
 
 @pytest.fixture(autouse=True)
-def clear_secrets_cache() -> None:
-    """Clear the secrets cache before each test."""
-    yaml_util._SECRET_VALUES.clear()
-    yaml_util._SECRET_CACHE.clear()
+def clear_core_frontmatter() -> None:
+    """Reset CORE.frontmatter between tests."""
+    core.CORE.frontmatter = {}
     yield
-    yaml_util._SECRET_VALUES.clear()
-    yaml_util._SECRET_CACHE.clear()
+    core.CORE.frontmatter = {}
 
 
-def test_include_with_vars(fixture_path: Path) -> None:
+def test_include(fixture_path: Path) -> None:
+    """Test !include with and without vars, with and without conditions"""
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
     actual = yaml_util.load_yaml(yaml_file)
     actual = substitutions.do_substitution_pass(actual, None)
     assert actual["esphome"]["name"] == "original"
+    assert actual["esphome"]["name_add_mac_suffix"]
     assert actual["esphome"]["libraries"][0] == "Wire"
     assert actual["esp8266"]["board"] == "nodemcu"
     assert actual["wifi"]["ssid"] == "my_custom_ssid"
 
 
-def test_loading_a_broken_yaml_file(fixture_path):
-    """Ensure we fallback to pure python to give good errors."""
-    yaml_file = fixture_path / "yaml_util" / "broken_includetest.yaml"
+def test_include_with_no_file(fixture_path: Path) -> None:
+    """Ensure that an error is emitted when the file field is missing."""
+    yaml_file = fixture_path / "yaml_util" / "includetest_no_file.yaml"
 
-    try:
+    with pytest.raises(EsphomeError, match=r"Must include 'file'"):
         yaml_util.load_yaml(yaml_file)
-    except EsphomeError as err:
-        assert "broken_included.yaml" in str(err)
 
 
-def test_loading_a_yaml_file_with_a_missing_component(fixture_path):
-    """Ensure we show the filename for a yaml file with a missing component."""
-    yaml_file = fixture_path / "yaml_util" / "missing_comp.yaml"
+def test_include_with_invalid_condition_type(fixture_path: Path) -> None:
+    """Ensure that an error is emitted when the condition field is an invalid type."""
+    yaml_file = fixture_path / "yaml_util" / "includetest_invalid_condition_type.yaml"
 
-    try:
+    with pytest.raises(
+        EsphomeError, match=r"Include 'condition' must be a boolean or string"
+    ):
         yaml_util.load_yaml(yaml_file)
-    except EsphomeError as err:
-        assert "missing_comp.yaml" in str(err)
 
 
 def test_loading_a_missing_file(fixture_path):
     """We throw EsphomeError when loading a missing file."""
     yaml_file = fixture_path / "yaml_util" / "missing.yaml"
 
-    try:
+    with pytest.raises(EsphomeError, match=r"missing.yaml"):
         yaml_util.load_yaml(yaml_file)
-    except EsphomeError as err:
-        assert "missing.yaml" in str(err)
 
 
 def test_parsing_with_custom_loader(fixture_path):
     """Test custom loader used for vscode connection
-    Default loader is tested in test_include_with_vars
+    Default loader is tested in test_include
     """
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
@@ -80,10 +89,11 @@ def test_parsing_with_custom_loader(fixture_path):
         # substitute config to expand includes:
         substitutions.substitute(config, [], substitutions.ContextVars(), False)
 
-    assert len(loader_calls) == 3
+    assert len(loader_calls) == 4
     assert loader_calls[0].parts[-2:] == ("includes", "included.yaml")
-    assert loader_calls[1].parts[-2:] == ("includes", "list.yaml")
-    assert loader_calls[2].parts[-2:] == ("includes", "scalar.yaml")
+    assert loader_calls[1].parts[-2:] == ("includes", "true.yaml")
+    assert loader_calls[2].parts[-2:] == ("includes", "list.yaml")
+    assert loader_calls[3].parts[-2:] == ("includes", "scalar.yaml")
 
 
 def test_construct_secret_simple(fixture_path: Path) -> None:
@@ -262,8 +272,54 @@ test: !include_dir_named test_dir
     assert ".hidden_dir" not in actual["test"]
 
 
+def test_include_dir_list(tmp_path: Path) -> None:
+    """!include_dir_list loads every .yaml file in the directory as a list."""
+    test_dir = tmp_path / "test_dir"
+    test_dir.mkdir()
+    (test_dir / "a.yaml").write_text("key: value_a")
+    (test_dir / "b.yaml").write_text("key: value_b")
+
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("test: !include_dir_list test_dir\n")
+
+    actual = yaml_util.load_yaml(test_yaml)
+
+    assert len(actual["test"]) == 2
+    assert {entry["key"] for entry in actual["test"]} == {"value_a", "value_b"}
+
+
+def test_include_dir_merge_list(tmp_path: Path) -> None:
+    """!include_dir_merge_list concatenates the lists from every .yaml file."""
+    test_dir = tmp_path / "test_dir"
+    test_dir.mkdir()
+    (test_dir / "a.yaml").write_text("- item_a1\n- item_a2\n")
+    (test_dir / "b.yaml").write_text("- item_b1\n")
+
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("test: !include_dir_merge_list test_dir\n")
+
+    actual = yaml_util.load_yaml(test_yaml)
+
+    assert sorted(actual["test"]) == ["item_a1", "item_a2", "item_b1"]
+
+
+def test_include_dir_merge_named(tmp_path: Path) -> None:
+    """!include_dir_merge_named merges the mappings from every .yaml file."""
+    test_dir = tmp_path / "test_dir"
+    test_dir.mkdir()
+    (test_dir / "a.yaml").write_text("key_a: value_a")
+    (test_dir / "b.yaml").write_text("key_b: value_b")
+
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("test: !include_dir_merge_named test_dir\n")
+
+    actual = yaml_util.load_yaml(test_yaml)
+
+    assert actual["test"] == {"key_a": "value_a", "key_b": "value_b"}
+
+
 def test_find_files_recursive(fixture_path: Path, tmp_path: Path) -> None:
-    """Test that _find_files works recursively through include_dir_named."""
+    """Test that find_files works recursively through include_dir_named."""
     # Copy fixture directory to temporary location
     src_dir = fixture_path / "yaml_util"
     dst_dir = tmp_path / "yaml_util"
@@ -375,12 +431,47 @@ def test_track_yaml_loads_empty_outside_context(tmp_path: Path) -> None:
 
 def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
     """Listener is removed even if the body raises."""
-    before = len(yaml_util._load_listeners)
+    before = len(yaml_util.load_listeners)
 
     with pytest.raises(RuntimeError), yaml_util.track_yaml_loads():
         raise RuntimeError("boom")
 
-    assert len(yaml_util._load_listeners) == before
+    assert len(yaml_util.load_listeners) == before
+
+
+def test_load_listener_removing_itself_does_not_skip_the_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A listener that removes itself while notified does not skip the one after it."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text("key: value\n")
+    listeners: list[Callable[[Path], None]] = []
+    monkeypatch.setattr(yaml_util, "load_listeners", listeners)
+    seen: list[Path] = []
+
+    def first(fname: Path) -> None:
+        listeners.remove(first)
+
+    listeners.extend((first, seen.append))
+    yaml_util.load_yaml(yaml_file)
+
+    assert seen == [yaml_file.resolve()]
+    assert listeners == [seen.append]
+
+
+def test_track_yaml_loads_no_duplicate_load_on_top_level_include_failure(
+    tmp_path: Path,
+) -> None:
+    """A failed top-level !include must not record any file twice in track_yaml_loads."""
+    main = tmp_path / "main.yaml"
+    main.write_text("!include missing.yaml\n")
+
+    with yaml_util.track_yaml_loads() as loaded, pytest.raises(EsphomeError):
+        yaml_util.load_yaml(main)
+
+    assert len(loaded) == len(set(loaded)), (
+        f"Files loaded more than once during a failed top-level include: {loaded}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -498,6 +589,29 @@ def test_config_context_defaults_explicit_vars_override() -> None:
     assert "defaults" not in tagged
 
 
+def test_config_context_defaults_empty_raises() -> None:
+    """Test that an empty defaults: key raises EsphomeError, not a bare TypeError.
+
+    A ``defaults:`` block with an empty (or comments-only) body parses as None.
+    Unpacking it used to fail with ``TypeError: 'NoneType' object is not a
+    mapping``, which escapes the EsphomeError handler in resolve_include and
+    reaches the user as an unhandled traceback naming no file.
+    """
+    data = {"defaults": None, "key": "value"}
+
+    with pytest.raises(EsphomeError, match="'defaults' is empty"):
+        yaml_util.add_context(data, None)
+
+
+@pytest.mark.parametrize("defaults", ["oops", ["a", "b"], 42])
+def test_config_context_defaults_non_mapping_raises(defaults) -> None:
+    """Test that a non-mapping defaults: value raises EsphomeError naming the type."""
+    data = {"defaults": defaults, "key": "value"}
+
+    with pytest.raises(EsphomeError, match="'defaults' must be a key to value mapping"):
+        yaml_util.add_context(data, None)
+
+
 def test_represent_extend() -> None:
     """Test that Extend objects are dumped as plain !extend scalars."""
     assert yaml_util.dump({"key": Extend("my_id")}) == "key: !extend 'my_id'\n"
@@ -511,7 +625,7 @@ def test_represent_remove() -> None:
 def test_represent_include_file() -> None:
     """Test that IncludeFile objects are dumped as !include scalars."""
     include = yaml_util.IncludeFile(
-        Path("/fake/main.yaml"), "path/to/file.yaml", None, lambda _: {}
+        Path("/fake/main.yaml"), "path/to/file.yaml", lambda _: {}
     )
     assert yaml_util.dump({"key": include}) == "key: !include 'path/to/file.yaml'\n"
 
@@ -521,13 +635,27 @@ def test_represent_include_file_with_vars() -> None:
     include = yaml_util.IncludeFile(
         Path("/fake/main.yaml"),
         "path/to/file.yaml",
-        {"key": "value"},
         lambda _: {},
+        vars={"key": "value"},
     )
-    result = yaml_util.dump({"key": include})
-    assert "!include" in result
-    assert "file: path/to/file.yaml" in result
-    assert "key: value" in result
+    assert (
+        yaml_util.dump({"key": include})
+        == "key: !include\n  file: path/to/file.yaml\n  vars:\n    key: value\n"
+    )
+
+
+def test_represent_include_file_with_condition() -> None:
+    """Test that IncludeFile with condition is dumped as !include mapping form."""
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"),
+        "path/to/file.yaml",
+        lambda _: {},
+        condition="true",
+    )
+    assert (
+        yaml_util.dump({"key": include})
+        == "key: !include\n  file: path/to/file.yaml\n  condition: 'true'\n"
+    )
 
 
 def test_represent_include_file_with_data_base_mixin() -> None:
@@ -537,7 +665,7 @@ def test_represent_include_file_with_data_base_mixin() -> None:
     subclass. add_multi_representer must match this subclass through the MRO.
     """
     include = yaml_util.IncludeFile(
-        Path("/fake/main.yaml"), "common/spi.yaml", None, lambda _: {}
+        Path("/fake/main.yaml"), "common/spi.yaml", lambda _: {}
     )
     wrapped = yaml_util.make_data_base(include)
     assert isinstance(wrapped, yaml_util.ESPHomeDataBase)
@@ -550,7 +678,7 @@ def test_represent_include_file_with_data_base_mixin() -> None:
 def test_include_file_repr(tmp_path: Path) -> None:
     """repr() includes the filename so it appears usefully in error messages."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, "some/nested.yaml", None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, "some/nested.yaml", lambda _: {})
     assert repr(include) == "IncludeFile(some/nested.yaml)"
 
 
@@ -565,7 +693,7 @@ def test_include_file_load_caches_result(tmp_path: Path) -> None:
         call_count += 1
         return content
 
-    include = yaml_util.IncludeFile(parent, "child.yaml", None, counting_loader)
+    include = yaml_util.IncludeFile(parent, "child.yaml", counting_loader)
     first = include.load()
     second = include.load()
 
@@ -582,7 +710,7 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
         nonlocal call_count
         call_count += 1
 
-    include = yaml_util.IncludeFile(parent, "empty.yaml", None, counting_loader)
+    include = yaml_util.IncludeFile(parent, "empty.yaml", counting_loader)
     first = include.load()
     second = include.load()
 
@@ -594,7 +722,7 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
 def test_include_file_load_raises_on_unresolved_expressions(tmp_path: Path) -> None:
     """load() raises if the filename contains unresolved substitutions or expressions."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", lambda _: {})
     with pytest.raises(cv.Invalid, match="unresolved"):
         include.load()
 
@@ -611,13 +739,108 @@ def test_include_file_load_raises_on_unresolved_expressions(tmp_path: Path) -> N
         ("price-100$.yaml", False),  # $ at end, not followed by valid substitution
     ],
 )
-def test_include_file_has_unresolved_expressions(
+def test_include_file_has_unresolved_file(
     tmp_path: Path, filename: str, expected: bool
 ) -> None:
-    """has_unresolved_expressions() detects substitution patterns in the filename."""
+    """has_unresolved_file() detects substitution patterns in the filename."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, filename, None, lambda _: {})
-    assert include.has_unresolved_expressions() == expected
+    include = yaml_util.IncludeFile(parent, filename, lambda _: {})
+    assert include.has_unresolved_file() == expected
+
+
+@pytest.mark.parametrize(
+    ("condition", "expected"),
+    [
+        (None, False),
+        (True, False),
+        (False, False),
+        ("true", False),
+        ("false", False),
+        ("$has_feature", True),  # whole substitution
+        ("${has_feature}", True),  # whole substitution
+        ("tr$ue", True),  # partial substitution
+        ("$.", False),  # malformed substitution
+        ("${1 == 1}", True),  # Jinja expression
+        ("${", False),  # malformed expression
+    ],
+)
+def test_include_file_has_unresolved_condition(
+    tmp_path: Path, condition: bool | str | None, expected: bool
+) -> None:
+    """has_unresolved_condition() detects substitution patterns in the condition."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(
+        parent, "device.yaml", lambda _: {}, condition=condition
+    )
+    assert include.has_unresolved_condition() == expected
+
+
+@pytest.mark.parametrize(
+    ("condition", "expected_result_or_error"),
+    [
+        (None, True),
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("yes", True),
+        ("on", True),
+        ("enable", True),
+        ("false", False),
+        ("False", False),
+        ("FALSE", False),
+        ("no", False),
+        ("off", False),
+        ("disable", False),
+        (
+            "$sub",
+            "Cannot evaluate include condition for 'device.yaml' with unresolved substitutions",
+        ),
+        ("", "Cannot convert include condition for 'device.yaml' to a boolean"),
+        ("trues", "Cannot convert include condition for 'device.yaml' to a boolean"),
+    ],
+)
+def test_include_file_should_load(
+    tmp_path: Path,
+    condition: bool | str | None,
+    expected_result_or_error: bool | str,
+) -> None:
+    """should_load() evaluates the condition and raises an error if it is malformed."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(
+        parent, "device.yaml", lambda _: {}, condition=condition
+    )
+    if isinstance(expected_result_or_error, bool):
+        assert include.should_load() == expected_result_or_error
+    else:
+        with pytest.raises(cv.Invalid, match=expected_result_or_error):
+            include.should_load()
+
+
+def test_mapping_include_non_string_file_rejected(tmp_path: Path) -> None:
+    """The mapping !include form rejects a non-string 'file' with a clear error."""
+    entry = tmp_path / "entry.yaml"
+    entry.write_text("wifi: !include\n  file: [not, a, string]\n")
+    with pytest.raises(EsphomeError, match="Include 'file' must be a string"):
+        yaml_util.load_yaml(entry)
+
+
+def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> None:
+    """A templated filename keeps its verbatim text (issue #18545)."""
+    parent = tmp_path / "main.yaml"
+    expr = '${ "bluetooth/proxy.yaml" if enable_bluetooth_proxy else "../empty.yaml" }'
+    include = yaml_util.IncludeFile(parent, expr, lambda _: {})
+    assert include.file == expr
+    assert include.has_unresolved_file()
+    assert repr(include) == f"IncludeFile({expr})"
+
+
+def test_represent_include_file_templated() -> None:
+    """Dumping a templated IncludeFile emits the raw expression unchanged."""
+    expr = '${ "a/b.yaml" if flag else "../c.yaml" }'
+    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), expr, lambda _: {})
+    assert yaml_util.dump({"key": include}) == f"key: !include '{expr}'\n"
 
 
 def test_include_in_list_context() -> None:
@@ -626,12 +849,12 @@ def test_include_in_list_context() -> None:
     parent = Path("/fake/main.yaml")
 
     # The nested IncludeFile resolves to a plain string value
-    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: "gamma")
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", lambda _: "gamma")
 
     # The outer IncludeFile returns a list whose last element is itself an IncludeFile,
     # exercising the substitution pass's ability to recurse into loaded content.
     outer = yaml_util.IncludeFile(
-        parent, "items.yaml", None, lambda _: ["alpha", "beta", inner]
+        parent, "items.yaml", lambda _: ["alpha", "beta", inner]
     )
 
     config = OrderedDict({"values": outer})
@@ -652,15 +875,48 @@ def test_top_level_include_resolved_by_load_yaml(tmp_path: Path) -> None:
     assert result["key"] == "value"
 
 
+@pytest.mark.parametrize(
+    ("condition", "expected_result_or_error"),
+    [
+        ("true", True),
+        ("false", False),
+        ('"TRUE"', True),
+        ('"FALSE"', False),
+        ('"x"', "Cannot convert include condition for 'child.yaml' to a boolean"),
+        (
+            "$sub",
+            "Cannot evaluate include condition for 'child.yaml' with unresolved substitutions",
+        ),
+    ],
+)
+def test_top_level_include_with_condition_resolved_by_load_yaml(
+    tmp_path: Path, condition: bool | str | None, expected_result_or_error: bool | str
+) -> None:
+    """load_yaml evaluates the condition for a top-level !include."""
+    child = tmp_path / "child.yaml"
+    child.write_text("key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text(f"!include {{ file: child.yaml, condition: {condition} }}\n")
+
+    if isinstance(expected_result_or_error, bool):
+        result = yaml_util.load_yaml(main)
+        assert isinstance(result, dict)
+        if expected_result_or_error:
+            assert result["key"] == "value"
+        else:
+            assert result == {}
+    else:
+        with pytest.raises(cv.Invalid, match=expected_result_or_error):
+            result = yaml_util.load_yaml(main)
+
+
 def test_include_plain_filename_loads_after_deferred_refactor() -> None:
     """!include with a plain filename (no $ expressions) still loads correctly.
 
     Regression guard: the deferred-loading refactor must not break the simple case.
     """
     parent = Path("/fake/main.yaml")
-    include = yaml_util.IncludeFile(
-        parent, "child.yaml", None, lambda _: {"answer": 42}
-    )
+    include = yaml_util.IncludeFile(parent, "child.yaml", lambda _: {"answer": 42})
 
     config = OrderedDict({"result": include})
     config = substitutions.do_substitution_pass(config)
@@ -672,7 +928,23 @@ def test_yaml_merge_include_with_filename_substitution_raises() -> None:
     """<<: !include ${expr} raises a clear error — substitutions in merge-key filenames
     are not yet supported, and the error message must say so."""
     yaml_text = "base:\n  existing: value\n  <<: !include ${filename}.yaml\n"
-    with pytest.raises(EsphomeError, match="not supported yet"):
+    with pytest.raises(
+        EsphomeError,
+        match="Substitution in include filename with merge keys is not supported yet",
+    ):
+        yaml_util.parse_yaml(
+            Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
+        )
+
+
+def test_yaml_merge_include_with_condition_substitution_raises() -> None:
+    """<<: !include { file: ${expr}, condition: {} } raises a clear error — substitutions in merge-key conditions
+    are not yet supported, and the error message must say so."""
+    yaml_text = "base:\n  existing: value\n  <<: !include\n    file: filename.yaml\n    condition: ${expr}\n"
+    with pytest.raises(
+        EsphomeError,
+        match="Substitution in include condition with merge keys is not supported yet",
+    ):
         yaml_util.parse_yaml(
             Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
         )
@@ -691,8 +963,8 @@ def test_yaml_merge_chain_include_resolves() -> None:
     """Chained includes in merge keys resolve through multiple IncludeFile layers."""
     parent = Path("/fake/main.yaml")
 
-    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: {"x": 1})
-    outer = yaml_util.IncludeFile(parent, "outer.yaml", None, lambda _: inner)
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", lambda _: {"x": 1})
+    outer = yaml_util.IncludeFile(parent, "outer.yaml", lambda _: inner)
 
     yaml_text = "base:\n  existing: value\n  <<: !include outer.yaml\n"
     config = yaml_util.parse_yaml(parent, io.StringIO(yaml_text), lambda _: outer)
@@ -702,13 +974,1384 @@ def test_yaml_merge_chain_include_resolves() -> None:
     assert config["base"]["existing"] == "value"
 
 
+def test_parse_yaml_custom_loader_resolves_root_include() -> None:
+    """A document that is only `!include` is resolved for a custom loader too."""
+    parent = Path("/fake/main.yaml")
+    loader_calls: list[Path] = []
+
+    def custom_loader(fname: Path) -> dict[str, int]:
+        loader_calls.append(fname)
+        return {"x": 1}
+
+    config = yaml_util.parse_yaml(
+        parent, io.StringIO("!include inner.yaml\n"), custom_loader
+    )
+
+    assert config == {"x": 1}
+    assert loader_calls == [Path("/fake/inner.yaml")]
+
+
 def test_yaml_merge_chain_include_depth_exceeded() -> None:
     """Chain includes in merge keys exceeding depth limit raise a clear error."""
     parent = Path("/fake/main.yaml")
 
     def self_referencing_loader(path: Path) -> yaml_util.IncludeFile:
-        return yaml_util.IncludeFile(parent, path.name, None, self_referencing_loader)
+        return yaml_util.IncludeFile(parent, path.name, self_referencing_loader)
 
     yaml_text = "base:\n  <<: !include loop.yaml\n"
     with pytest.raises(EsphomeError, match="Maximum include chain depth"):
         yaml_util.parse_yaml(parent, io.StringIO(yaml_text), self_referencing_loader)
+
+
+def _located(value, doc: str, line: int, col: int):
+    """Return *value* wrapped with a fake ESPHomeDataBase source location."""
+    loc = DocumentLocation(doc, line, col)
+    obj = make_data_base(value)
+    if isinstance(obj, ESPHomeDataBase):
+        obj._esp_range = DocumentRange(loc, loc)
+    return obj
+
+
+def test_format_path_no_location_info_returns_flat_path():
+    """Plain path items with no esp_range produce a simple flat 'In:' line."""
+    result = format_path(["wifi", "ssid"], None)
+    assert result == "In: wifi->ssid"
+
+
+def test_format_path_no_location_info_current_obj_adds_file():
+    """When path has no location but current_obj does, its location is shown."""
+    obj = _located("${var}", "main.yaml", 5, 10)
+    result = format_path(["wifi", "ssid"], obj)
+    assert result == "In: wifi->ssid in main.yaml 6:11"
+
+
+def test_format_path_single_frame_no_include_boundary():
+    """All located keys from the same document → single 'In:' line, no 'Included from'."""
+    path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
+    result = format_path(path, None)
+    assert result.startswith("In: packages->pkg1 in root.yaml 6:3")
+    assert "Included from" not in result
+
+
+def test_format_path_two_frames_shows_included_from():
+    """Keys from two different documents produce 'In:' + one 'Included from' line."""
+    path = [
+        "packages",
+        _located("device", "root.yaml", 10, 2),
+        "packages",
+        _located("inner", "hardware.yaml", 3, 2),
+    ]
+    result = format_path(path, None)
+    assert "In: packages->inner in hardware.yaml 4:3" in result
+    assert "Included from packages->device in root.yaml 11:3" in result
+
+
+def test_format_path_three_frames_full_include_stack():
+    """Three document levels produce two 'Included from' lines in correct order."""
+    path = [
+        "packages",
+        _located("device", "root.yaml", 10, 2),
+        "packages",
+        _located("_wifi_", "hardware.yaml", 43, 2),
+        "packages",
+        _located("_roam_", "wifi.yaml", 25, 2),
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0].startswith("In: packages->_roam_ in wifi.yaml")
+    assert lines[1].startswith("  Included from packages->_wifi_ in hardware.yaml")
+    assert lines[2].startswith("  Included from packages->device in root.yaml")
+
+
+def test_format_path_current_obj_overrides_innermost_location():
+    """current_obj's esp_range replaces the key's column for the 'In:' line."""
+    path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
+    # Value (the expression) sits at column 10, not column 2 like the key
+    value = _located("${undefined}", "root.yaml", 5, 10)
+    result = format_path(path, value)
+    assert "6:11" in result
+    assert "6:3" not in result
+
+
+def test_format_path_empty_path_with_no_location():
+    """Empty path with no location info returns 'In: '."""
+    result = format_path([], None)
+    assert result == "In: "
+
+
+def test_format_path_integer_path_items_formatted_as_subscript():
+    """Integer indices are rendered as [n] subscripts in the flat fallback."""
+    result = format_path(["packages", 0], None)
+    assert result == "In: packages[0]"
+
+
+def test_format_path_integer_list_index_attached_to_previous_frame():
+    """A list index between two include boundaries attaches to the outer frame."""
+    path = [
+        "packages",
+        _located("packages", "main.yaml", 5, 0),
+        0,
+        _located("packages", "level1.yaml", 2, 0),
+        0,
+        _located("esphome", "level2.yaml", 0, 0),
+        _located("name", "level2.yaml", 1, 8),
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0].startswith("In: esphome->name in level2.yaml")
+    assert "packages[0]" in lines[1] and "level1.yaml" in lines[1]
+    assert "packages[0]" in lines[2] and "main.yaml" in lines[2]
+
+
+def test_format_path_trailing_unlocated_string_after_located_key():
+    """Plain string keys after the last located key must still appear in output."""
+    path = [_located("packages", "main.yaml", 5, 0), "sub", "key"]
+    result = format_path(path, None)
+    assert result == "In: packages->sub->key in main.yaml 6:1"
+
+
+def test_format_path_trailing_unlocated_int_attaches_to_current_frame():
+    """Trailing ints attach to the open frame's last key (subscript), strings
+    buffer until end-of-path and then flush behind."""
+    path = [_located("packages", "main.yaml", 5, 0), 0, "sub"]
+    result = format_path(path, None)
+    # Int attaches to 'packages' as [0] subscript; trailing 'sub' is flushed
+    # at end and appears after.
+    assert result == "In: packages[0]->sub in main.yaml 6:1"
+
+
+def test_format_path_only_trailing_unlocated_strings_are_preserved():
+    """Trailing pending items must not be silently dropped after the last frame."""
+    path = [
+        _located("packages", "main.yaml", 5, 0),
+        _located("inner", "hardware.yaml", 3, 0),
+        "tail1",
+        "tail2",
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0] == "In: inner->tail1->tail2 in hardware.yaml 4:1"
+    assert lines[1] == "  Included from packages in main.yaml 6:1"
+
+
+def test_format_path_leading_int_with_no_current_doc_goes_to_pending():
+    """An int before any located key is buffered and shown in the first frame."""
+    path = [0, _located("name", "main.yaml", 1, 0)]
+    result = format_path(path, None)
+    # Leading ints have no preceding name to subscript onto, so they render
+    # as bare [n] in the formatted segment.
+    assert result == "In: [0]->name in main.yaml 2:1"
+
+
+def test_format_path_only_unlocated_int_returns_flat_fallback():
+    """Path with only an int and no location info renders via the flat fallback."""
+    result = format_path([0], None)
+    assert result == "In: [0]"
+
+
+def test_format_path_current_obj_in_different_doc_than_innermost_frame():
+    """current_obj's location is preferred even when its document differs from the frame's."""
+    path = [_located("packages", "root.yaml", 1, 0)]
+    value = _located("${var}", "other.yaml", 9, 4)
+    result = format_path(path, value)
+    # Innermost line uses current_obj's mark (other.yaml 10:5), not the key's.
+    assert result == "In: packages in other.yaml 10:5"
+
+
+def test_format_path_current_obj_without_location_falls_back_to_key():
+    """An ESPHomeDataBase current_obj with no esp_range falls back to the key's location."""
+
+    class _NoRange(ESPHomeDataBase, str):
+        __slots__ = ()
+
+    obj = _NoRange.__new__(_NoRange, "value")
+    str.__init__(obj)
+    # No _esp_range set on this instance.
+    assert obj.esp_range is None
+
+    path = [_located("packages", "main.yaml", 5, 2)]
+    result = format_path(path, obj)
+    assert result == "In: packages in main.yaml 6:3"
+
+
+def test_format_path_empty_path_with_located_current_obj():
+    """An empty path with a located current_obj still surfaces the location."""
+    obj = _located("${var}", "main.yaml", 0, 0)
+    result = format_path([], obj)
+    assert result == "In:  in main.yaml 1:1"
+
+
+def test_make_literal_wraps_dict() -> None:
+    """A dict is wrapped so it becomes an ESPLiteralValue instance."""
+    value = {"key": "${var}"}
+    result = make_literal(value)
+    assert isinstance(result, ESPLiteralValue)
+    assert isinstance(result, dict)
+    assert result == {"key": "${var}"}
+
+
+def test_make_literal_wraps_list() -> None:
+    """A list is wrapped so it becomes an ESPLiteralValue instance."""
+    value = ["${var}", "plain"]
+    result = make_literal(value)
+    assert isinstance(result, ESPLiteralValue)
+    assert isinstance(result, list)
+    assert result == ["${var}", "plain"]
+
+
+def test_make_literal_wraps_string() -> None:
+    """A string is wrapped so it becomes an ESPLiteralValue instance."""
+    result = make_literal("${var}")
+    assert isinstance(result, ESPLiteralValue)
+    assert result == "${var}"
+
+
+def test_make_literal_returns_already_wrapped_value_unchanged() -> None:
+    """Wrapping a value that is already an ESPLiteralValue returns it as-is."""
+    value = make_literal({"key": "value"})
+    assert isinstance(value, ESPLiteralValue)
+    result = make_literal(value)
+    assert result is value
+
+
+def test_make_literal_returns_none_unchanged() -> None:
+    """Values whose class cannot be augmented (e.g. ``None``) are returned as-is."""
+    result = make_literal(None)
+    assert result is None
+
+
+def test_make_literal_blocks_substitution() -> None:
+    """A value wrapped with make_literal is skipped by the substitution pass."""
+    value = make_literal({"pin": "${PIN}"})
+    result = substitutions.substitute(
+        value,
+        path=[],
+        parent_context=substitutions.ContextVars(),
+        strict_undefined=False,
+    )
+    # The literal block must remain untouched, even though the variable is
+    # undefined in the context.
+    assert result == {"pin": "${PIN}"}
+    assert isinstance(result, ESPLiteralValue)
+
+
+# ---------------------------------------------------------------------------
+# force_load_include_files / discover_user_yaml_files
+# ---------------------------------------------------------------------------
+
+
+class _StubInclude:
+    """Stand-in for `IncludeFile` that records how `load()` was called.
+
+    Patched in via `esphome.yaml_util.IncludeFile` so the recursion in
+    `force_load_include_files` treats instances as deferred includes without
+    needing an actual on-disk file.
+    """
+
+    def __init__(
+        self,
+        file: str = "stub.yaml",
+        parent_file: Path | None = None,
+        *,
+        unresolved: bool = False,
+        load_result: object = None,
+        raise_on_load: EsphomeError | None = None,
+    ) -> None:
+        # Default parent lives in a nonexistent directory so unresolved
+        # stubs never glob real files during candidate expansion.
+        self.file = file
+        self.parent_file = parent_file or Path("/nonexistent/parent.yaml")
+        self._unresolved = unresolved
+        self._load_result = load_result if load_result is not None else {}
+        self._raise = raise_on_load
+        self.load_calls = 0
+
+    def has_unresolved_file(self) -> bool:
+        return self._unresolved
+
+    def load(self) -> object:
+        self.load_calls += 1
+        if self._raise is not None:
+            raise self._raise
+        return self._load_result
+
+
+@pytest.fixture
+def patch_include_file():
+    """Replace `IncludeFile` with `_StubInclude` so isinstance checks in
+    `force_load_include_files` match the stubs constructed by tests."""
+    with patch("esphome.yaml_util.IncludeFile", _StubInclude):
+        yield
+
+
+def test_force_load_include_files_resolves_nested_includes(
+    patch_include_file: None,
+) -> None:
+    """A tree of dict/list/IncludeFile is walked and every IncludeFile is loaded."""
+    inner = _StubInclude("inner.yaml")
+    outer = _StubInclude("outer.yaml", load_result={"nested": inner})
+    force_load_include_files([{"a": outer}, "scalar"])
+    assert outer.load_calls == 1
+    assert inner.load_calls == 1
+
+
+def test_force_load_include_files_seen_guard_prevents_double_load(
+    patch_include_file: None,
+) -> None:
+    """The same IncludeFile referenced from two branches loads once."""
+    stub = _StubInclude("once.yaml")
+    force_load_include_files({"a": stub, "b": [stub]})
+    assert stub.load_calls == 1
+
+
+def test_force_load_include_files_handles_cyclic_containers() -> None:
+    """Cyclic dict/list references don't trigger infinite recursion."""
+    cyclic_dict: dict[str, object] = {}
+    cyclic_dict["self"] = cyclic_dict
+    cyclic_list: list[object] = []
+    cyclic_list.append(cyclic_list)
+    # Both calls must return without recursing forever.
+    force_load_include_files(cyclic_dict)
+    force_load_include_files(cyclic_list)
+
+
+@pytest.mark.parametrize(
+    ("warn_on_unresolved", "expect_level"),
+    [
+        pytest.param(True, "WARNING", id="default-warns"),
+        pytest.param(False, "DEBUG", id="opt-in-demotes"),
+    ],
+)
+def test_force_load_include_files_unresolved_log_level(
+    patch_include_file: None,
+    caplog: pytest.LogCaptureFixture,
+    warn_on_unresolved: bool,
+    expect_level: str,
+) -> None:
+    """Substitution-templated include paths skip the load and log at the
+    level chosen by `warn_on_unresolved`."""
+    stub = _StubInclude("${var}.yaml", unresolved=True)
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        force_load_include_files({"k": stub}, warn_on_unresolved=warn_on_unresolved)
+    assert stub.load_calls == 0
+    matching = [
+        r.levelname for r in caplog.records if "Cannot resolve !include" in r.message
+    ]
+    assert matching == [expect_level]
+
+
+def test_force_load_include_files_returns_unresolved_paths(
+    patch_include_file: None,
+) -> None:
+    """Includes with substitution-templated paths are reported back to the
+    caller; resolvable ones are not."""
+    templated = _StubInclude("${var}.yaml", unresolved=True)
+    plain = _StubInclude("ok.yaml")
+    result = force_load_include_files({"a": templated, "b": plain})
+    assert result.unresolved == [str(templated.file)]
+    assert result.errors == []
+    assert plain.load_calls == 1
+
+
+def test_force_load_include_files_warns_on_load_failure(
+    patch_include_file: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An `EsphomeError` raised by `load()` is caught, logged, and reported to
+    the caller — not propagated."""
+    stub = _StubInclude("missing.yaml", raise_on_load=EsphomeError("boom"))
+    with caplog.at_level("WARNING", logger="esphome.yaml_util"):
+        result = force_load_include_files({"k": stub})
+    assert any(
+        "Failed to load !include" in r.message and "missing.yaml" in r.message
+        for r in caplog.records
+    )
+    assert result.errors == [f"{stub.file}: boom"]
+    assert result.unresolved == []
+
+
+def test_force_load_include_files_load_failure_quiet_when_caller_reports(
+    patch_include_file: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With warn_on_load_error=False the failure is still returned but only
+    logged at debug, so a caller that reports it does not duplicate it."""
+    stub = _StubInclude("missing.yaml", raise_on_load=EsphomeError("boom"))
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        result = force_load_include_files({"k": stub}, warn_on_load_error=False)
+    assert result.errors == [f"{stub.file}: boom"]
+    failures = [r for r in caplog.records if "Failed to load !include" in r.message]
+    assert [r.levelname for r in failures] == ["DEBUG"]
+
+
+def test_discovered_yaml_files_holds_files_and_secrets() -> None:
+    """`DiscoveredYamlFiles` is a small data carrier."""
+    files = [Path("/tmp/a.yaml")]
+    secrets = {Path("/tmp/a.yaml")}
+    discovered = DiscoveredYamlFiles(files, secrets)
+    assert discovered.files is files
+    assert discovered.secrets is secrets
+
+
+def _write(tmp_path: Path, name: str, content: str) -> Path:
+    """Write `content` to `tmp_path/name`, creating parent dirs as needed."""
+    path = tmp_path / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
+    return path
+
+
+def _write_entry_including(tmp_path: Path, included_name: str) -> Path:
+    """Write a minimal entry yaml that `!include`s `included_name`."""
+    return _write(
+        tmp_path,
+        "entry.yaml",
+        f"esphome:\n  name: test\nwifi: !include {included_name}\n",
+    )
+
+
+def test_discover_user_yaml_files_captures_includes(tmp_path: Path) -> None:
+    """A `!include` in the entry yaml is force-loaded so the listener fires."""
+    _write(tmp_path, "wifi.yaml", "ssid: my_ssid\npassword: my_pw\n")
+    discovered = discover_user_yaml_files(_write_entry_including(tmp_path, "wifi.yaml"))
+    names = {p.name for p in discovered.files}
+    assert names == {"entry.yaml", "wifi.yaml"}
+    assert discovered.secrets == set()
+
+
+@pytest.mark.parametrize(
+    "secret_name",
+    [
+        pytest.param("secrets.yaml", id="yaml"),
+        pytest.param("secrets.yml", id="yml"),
+    ],
+)
+def test_discover_user_yaml_files_flags_secrets_filename(
+    tmp_path: Path, secret_name: str
+) -> None:
+    """Both `secrets.yaml` and `secrets.yml` get flagged in `.secrets`."""
+    _write(tmp_path, secret_name, "key: value\n")
+    discovered = discover_user_yaml_files(_write_entry_including(tmp_path, secret_name))
+    assert (tmp_path / secret_name).resolve() in discovered.secrets
+
+
+def test_discover_user_yaml_files_flags_secrets_symlink(tmp_path: Path) -> None:
+    """`secrets.yaml` symlinked to a non-secrets-named target is still flagged
+    because the un-resolved basename is what gets recorded."""
+    target = _write(tmp_path, "real_creds.yaml", "key: value\n")
+    (tmp_path / "secrets.yaml").symlink_to(target)
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "secrets.yaml")
+    )
+    # The recorded "secret path" is the resolved target — even though its
+    # basename is `real_creds.yaml`, it's still in `.secrets`.
+    assert target.resolve() in discovered.secrets
+
+
+def test_discover_user_yaml_files_reports_parse_errors(tmp_path: Path) -> None:
+    """A YAML parse failure is surfaced in `.load_errors` (not raised), so
+    consumers can tell the file set is incomplete."""
+    entry = _write(tmp_path, "entry.yaml", "esphome: [unterminated\n")
+    discovered = discover_user_yaml_files(entry)
+    assert isinstance(discovered, DiscoveredYamlFiles)
+    assert len(discovered.load_errors) == 1
+    assert "entry.yaml" in discovered.load_errors[0]
+
+
+def test_discover_user_yaml_files_reports_unresolved_includes(
+    tmp_path: Path,
+) -> None:
+    """A substitution-templated `!include` path is surfaced in `.unresolved`."""
+    entry = _write_entry_including(tmp_path, "${board}.yaml")
+    discovered = discover_user_yaml_files(entry)
+    assert len(discovered.unresolved) == 1
+    assert "${board}.yaml" in discovered.unresolved[0]
+
+
+def test_discover_user_yaml_files_deduplicates(tmp_path: Path) -> None:
+    """The same file referenced twice appears once in `.files`."""
+    _write(tmp_path, "wifi.yaml", "ssid: a\n")
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        "esphome:\n  name: test\nwifi: !include wifi.yaml\nfoo: !include wifi.yaml\n",
+    )
+    discovered = discover_user_yaml_files(entry)
+    wifi_resolved = (tmp_path / "wifi.yaml").resolve()
+    assert discovered.files.count(wifi_resolved) == 1
+
+
+def test_discover_user_yaml_files_expands_directory_substitution(
+    tmp_path: Path,
+) -> None:
+    """A substitution spanning a directory segment globs across directories."""
+    _write(tmp_path, "network/eth01/config.yaml", "ethernet:\n")
+    _write(tmp_path, "network/eth02/config.yaml", "ethernet:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "network/${eth_model}/config.yaml")
+    )
+    resolved = set(discovered.files)
+    assert (tmp_path / "network/eth01/config.yaml").resolve() in resolved
+    assert (tmp_path / "network/eth02/config.yaml").resolve() in resolved
+
+
+def test_discover_user_yaml_files_loads_both_branches_of_issue_conditional(
+    tmp_path: Path,
+) -> None:
+    """Both branch files of the issue-17650 conditional load when present,
+    including the filename with spaces."""
+    _write(tmp_path, "empty.yaml", "{}\n")
+    _write(tmp_path, "boards/NO BLUETOOTH SUPPORT ON ESP8266.yaml", "api:\n")
+    _write(
+        tmp_path,
+        "boards/esp8266.yaml",
+        "packages:\n"
+        '  - !include ${ "NO BLUETOOTH SUPPORT ON ESP8266.yaml"'
+        ' if enable_bluetooth_proxy else "../empty.yaml" }\n',
+    )
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "boards/esp8266.yaml")
+    )
+    resolved = set(discovered.files)
+    assert (tmp_path / "boards/NO BLUETOOTH SUPPORT ON ESP8266.yaml").resolve() in (
+        resolved
+    )
+    assert (tmp_path / "empty.yaml").resolve() in resolved
+
+
+def test_discover_user_yaml_files_glob_matches_bracket_filenames(
+    tmp_path: Path,
+) -> None:
+    """Glob metacharacters in the literal filename text stay literal."""
+    _write(tmp_path, "sensor [a].yaml", "api:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "sensor [${x}].yaml")
+    )
+    assert "sensor [a].yaml" in {p.name for p in discovered.files}
+
+
+def test_discover_user_yaml_files_ascending_glob(tmp_path: Path) -> None:
+    """A templated include reaching into a sibling directory via ``..`` globs."""
+    _write(tmp_path, "shared/common.yaml", "api:\n")
+    _write(tmp_path, "nodes/dev.yaml", "p: !include ../shared/${x}.yaml\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "nodes/dev.yaml")
+    )
+    assert (tmp_path / "shared/common.yaml").resolve() in discovered.files
+
+
+def test_discover_user_yaml_files_mapping_include_with_vars(tmp_path: Path) -> None:
+    """The mapping !include form (file + vars) expands a templated filename."""
+    _write(tmp_path, "keys/a.yaml", "pin: ${num}\n")
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        "wifi: !include\n  file: keys/${n}.yaml\n  vars:\n    num: 4\n",
+    )
+    discovered = discover_user_yaml_files(entry)
+    assert (tmp_path / "keys/a.yaml").resolve() in discovered.files
+
+
+def test_discover_user_yaml_files_absolute_templated_include_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An absolute templated include is skipped gracefully instead of crashing."""
+    shared = tmp_path / "shared"
+    _write(tmp_path, "shared/common.yaml", "api:\n")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        discovered = discover_user_yaml_files(
+            _write_entry_including(tmp_path, f"{shared}/${{x}}.yaml")
+        )
+    assert (shared / "common.yaml").resolve() not in discovered.files
+    assert any("Cannot glob include pattern" in r.message for r in caplog.records)
+
+
+def test_discover_user_yaml_files_glob_skips_dollar_named_files(
+    tmp_path: Path,
+) -> None:
+    """An on-disk filename containing ``$`` can't load; the glob skips it."""
+    _write(tmp_path, "keys/a.yaml", "api:\n")
+    _write(tmp_path, "keys/b$roken.yaml", "api:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "keys/${n}.yaml")
+    )
+    names = {p.name for p in discovered.files}
+    assert "a.yaml" in names
+    assert "b$roken.yaml" not in names
+
+
+def test_discover_user_yaml_files_glob_error_skips_include(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A filesystem error during candidate globbing warns and skips the include."""
+    entry = _write_entry_including(tmp_path, "keys/${n}.yaml")
+    with (
+        patch.object(Path, "glob", side_effect=OSError("boom")),
+        caplog.at_level("DEBUG", logger="esphome.yaml_util"),
+    ):
+        discovered = discover_user_yaml_files(entry)
+    assert [p.name for p in discovered.files] == ["entry.yaml"]
+    matching = [
+        r.levelname
+        for r in caplog.records
+        if "I/O error globbing include pattern" in r.message
+    ]
+    assert matching == ["WARNING"]
+
+
+def test_force_load_candidate_failure_warns_by_default(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A broken candidate logs at WARNING outside the discovery re-parse."""
+    _write(tmp_path, "keys/bad.yaml", "esphome: [unterminated\n")
+    entry = _write_entry_including(tmp_path, "keys/${n}.yaml")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        force_load_include_files(yaml_util.load_yaml(entry))
+    matching = [
+        r.levelname for r in caplog.records if "Failed to load candidate" in r.message
+    ]
+    assert matching == ["WARNING"]
+
+
+def test_discover_user_yaml_files_glob_skips_hidden_files(tmp_path: Path) -> None:
+    """Candidate globs exclude hidden files, matching ``!include_dir_*``."""
+    _write(tmp_path, "keys/device-a.yaml", "api:\n")
+    _write(tmp_path, "keys/.hidden.yaml", "api:\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "keys/${name}.yaml")
+    )
+    names = {p.name for p in discovered.files}
+    assert "device-a.yaml" in names
+    assert ".hidden.yaml" not in names
+
+
+def test_discover_user_yaml_files_bare_expression_not_expanded(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A fully dynamic filename never globs the whole directory."""
+    _write(tmp_path, "sibling.yaml", "api:\n")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        discovered = discover_user_yaml_files(
+            _write_entry_including(tmp_path, "${file}")
+        )
+    assert (tmp_path / "sibling.yaml").resolve() not in discovered.files
+    assert any(
+        "Cannot resolve !include" in r.message and r.levelname == "DEBUG"
+        for r in caplog.records
+    )
+
+
+def test_discover_user_yaml_files_self_glob_match_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A glob whose only match is the including file itself claims nothing."""
+    entry = _write_entry_including(tmp_path, "${platform}.yaml")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        discovered = discover_user_yaml_files(entry)
+    assert [p.name for p in discovered.files] == ["entry.yaml"]
+    assert any("Cannot resolve !include" in r.message for r in caplog.records)
+
+
+def test_discover_user_yaml_files_candidate_cycle_terminates(tmp_path: Path) -> None:
+    """Mutually glob-matching includes expand finitely and capture both files."""
+    _write(tmp_path, "sub/a.yaml", "p: !include ${x}.yaml\n")
+    _write(tmp_path, "sub/b.yaml", "p: !include ${y}.yaml\n")
+    entry = _write(tmp_path, "entry.yaml", "wifi: !include sub/a.yaml\n")
+    discovered = discover_user_yaml_files(entry)
+    names = {p.name for p in discovered.files}
+    assert names == {"entry.yaml", "a.yaml", "b.yaml"}
+
+
+def test_discover_user_yaml_files_many_candidates_keep_nested_includes(
+    tmp_path: Path,
+) -> None:
+    """Every candidate's nested includes are discovered.
+
+    Regression test: the id()-based cycle guard is only safe while every
+    traversed tree stays alive. Candidate trees used to be freed between
+    loop iterations, so CPython recycled their addresses and later
+    candidates' fresh trees were skipped as already seen, silently dropping
+    their nested includes. Needs several candidates to manifest; two were
+    not enough to trigger the reuse."""
+    count = 12
+    for i in range(count):
+        _write(
+            tmp_path, f"keys/k{i}.yaml", f"sensor{i}: !include ../nested/n{i}.yaml\n"
+        )
+        _write(tmp_path, f"nested/n{i}.yaml", f"api{i}: true\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "keys/${x}.yaml")
+    )
+    names = {p.name for p in discovered.files}
+    expected = {f"n{i}.yaml" for i in range(count)}
+    expected |= {f"k{i}.yaml" for i in range(count)}
+    expected.add("entry.yaml")
+    assert names == expected
+
+
+def test_discover_user_yaml_files_bad_candidate_still_tracked(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A matched candidate that fails to parse is reported in ``load_errors``
+    (logged only at debug, the caller reports it), stays tracked (the load
+    listener fires before parsing), and doesn't block other candidates."""
+    _write(tmp_path, "keys/good.yaml", "api:\n")
+    _write(tmp_path, "keys/bad.yaml", "esphome: [unterminated\n")
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        discovered = discover_user_yaml_files(
+            _write_entry_including(tmp_path, "keys/${name}.yaml")
+        )
+    resolved = set(discovered.files)
+    assert (tmp_path / "keys/good.yaml").resolve() in resolved
+    assert (tmp_path / "keys/bad.yaml").resolve() in resolved
+    matching = [
+        r.levelname for r in caplog.records if "Failed to load candidate" in r.message
+    ]
+    assert matching == ["DEBUG"]
+    assert any("bad.yaml" in e for e in discovered.load_errors)
+
+
+def test_discover_user_yaml_files_tolerates_templated_top_level_include(
+    tmp_path: Path,
+) -> None:
+    """A literal include whose entire content is a templated ``!include`` is
+    tracked and skipped instead of aborting discovery."""
+    _write(tmp_path, "wrapper.yaml", "!include ${x}_settings.yaml\n")
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "wrapper.yaml")
+    )
+    assert (tmp_path / "wrapper.yaml").resolve() in discovered.files
+
+
+def test_track_yaml_loads_records_resolved_paths(tmp_path: Path) -> None:
+    """`track_yaml_loads` is the building block — sanity-check it resolves
+    symlinks so callers can dedupe by identity."""
+    target = _write(tmp_path, "actual.yaml", "esphome:\n  name: t\n")
+    link = tmp_path / "alias.yaml"
+    link.symlink_to(target)
+    with track_yaml_loads() as loaded:
+        yaml_util.load_yaml(link)
+    assert target.resolve() in loaded
+
+
+# ---------------------------------------------------------------------------
+# YAML frontmatter
+# ---------------------------------------------------------------------------
+
+
+def test_frontmatter_parsed_and_stored_on_core(tmp_path: Path) -> None:
+    """A leading `---`-separated YAML document is stored as frontmatter and
+    stripped from the returned config."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "author: Jesse\nlabels: [office, climate]\n---\nesphome:\n  name: my_node\n"
+    )
+
+    config = yaml_util.load_yaml(yaml_file)
+
+    # Config does not contain frontmatter keys
+    assert "author" not in config
+    assert "labels" not in config
+    assert config["esphome"]["name"] == "my_node"
+
+    # Frontmatter is stored on CORE keyed by resolved path
+    frontmatter = core.CORE.frontmatter[yaml_file.resolve()]
+    assert frontmatter["author"] == "Jesse"
+    assert frontmatter["labels"] == ["office", "climate"]
+
+
+def test_frontmatter_absent_when_single_document(tmp_path: Path) -> None:
+    """A YAML file with a single document does not populate CORE.frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("esphome:\n  name: my_node\n")
+
+    yaml_util.load_yaml(yaml_file)
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_absent_when_leading_doc_separator(tmp_path: Path) -> None:
+    """A leading `---` with no content above it is just a document start marker,
+    not frontmatter, and must not populate CORE.frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("---\nesphome:\n  name: my_node\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config["esphome"]["name"] == "my_node"
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_supports_arbitrary_keys(tmp_path: Path) -> None:
+    """Frontmatter keys are not validated — any structure is accepted."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "any_key: any_value\n"
+        "nested:\n"
+        "  count: 42\n"
+        "  items:\n"
+        "    - a\n"
+        "    - b\n"
+        "---\n"
+        "esphome:\n"
+        "  name: t\n"
+    )
+
+    yaml_util.load_yaml(yaml_file)
+    frontmatter = core.CORE.frontmatter[yaml_file.resolve()]
+    assert frontmatter["any_key"] == "any_value"
+    assert frontmatter["nested"]["count"] == 42
+    assert frontmatter["nested"]["items"] == ["a", "b"]
+
+
+def test_frontmatter_supports_deeply_nested_paths(tmp_path: Path) -> None:
+    """Frontmatter preserves deeply nested dict/list structures intact."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "device:\n"
+        "  metadata:\n"
+        "    location:\n"
+        "      building: HQ\n"
+        "      floor: 3\n"
+        "      room:\n"
+        "        number: 302\n"
+        "        occupants:\n"
+        "          - name: Jesse\n"
+        "            role:\n"
+        "              title: maintainer\n"
+        "              since: 2021\n"
+        "          - name: Alice\n"
+        "            role:\n"
+        "              title: contributor\n"
+        "              since: 2024\n"
+        "---\n"
+        "esphome:\n"
+        "  name: t\n"
+    )
+
+    yaml_util.load_yaml(yaml_file)
+    fm = core.CORE.frontmatter[yaml_file.resolve()]
+    room = fm["device"]["metadata"]["location"]["room"]
+    assert room["number"] == 302
+    assert room["occupants"][0]["name"] == "Jesse"
+    assert room["occupants"][0]["role"]["title"] == "maintainer"
+    assert room["occupants"][0]["role"]["since"] == 2021
+    assert room["occupants"][1]["role"]["title"] == "contributor"
+
+
+def test_frontmatter_more_than_two_documents_raises(tmp_path: Path) -> None:
+    """Three or more YAML documents is unsupported and must raise."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("a: 1\n---\nb: 2\n---\nc: 3\n")
+
+    with pytest.raises(EsphomeError, match="at most two are supported"):
+        yaml_util.load_yaml(yaml_file)
+
+
+def test_frontmatter_empty_frontmatter_doc_not_stored(tmp_path: Path) -> None:
+    """An empty (null) frontmatter document is treated as no frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("---\n---\nesphome:\n  name: t\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config["esphome"]["name"] == "t"
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_empty_config_doc(tmp_path: Path) -> None:
+    """An empty config document after a frontmatter document yields an empty config."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("only: frontmatter\n---\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config == {}
+    assert core.CORE.frontmatter[yaml_file.resolve()]["only"] == "frontmatter"
+
+
+def test_frontmatter_included_file_stored(tmp_path: Path) -> None:
+    """Frontmatter on an !include'd file is also captured on CORE, keyed by
+    that file's resolved path."""
+    inc = tmp_path / "child.yaml"
+    inc.write_text("child_meta: hello\n---\nchild_key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("esphome:\n  name: t\nchild: !include child.yaml\n")
+
+    config = yaml_util.load_yaml(main)
+    # !include is deferred; force resolution so the child file actually loads
+    force_load_include_files(config)
+    assert config["child"].load()["child_key"] == "value"
+    # Main file has no frontmatter
+    assert main.resolve() not in core.CORE.frontmatter
+    # Included file's frontmatter is captured
+    assert core.CORE.frontmatter[inc.resolve()]["child_meta"] == "hello"
+
+
+def test_sensitive_str__is_a_str_subclass() -> None:
+    value = SensitiveStr("hunter2")
+    assert isinstance(value, str)
+    assert value == "hunter2"
+
+
+def test_dump_path_without_relative_to_is_unchanged() -> None:
+    """Test that Path values dump as str(path) when relative_to is not given."""
+    path = Path("some") / "dir" / "file.ttf"
+    output = yaml_util.dump({"file": path})
+    assert output.strip() == f"file: {path}"
+
+
+def test_dump_path_relative_to_anchor_dir() -> None:
+    """Test that Path values under relative_to dump as relative POSIX paths."""
+    anchor = Path("/config/esphome").absolute()
+    data = {"file": anchor / "fonts" / "arial.ttf"}
+    output = yaml_util.dump(data, relative_to=anchor)
+    assert output.strip() == "file: fonts/arial.ttf"
+
+
+def test_dump_path_outside_anchor_dir_walks_up() -> None:
+    """Test that Path values outside relative_to walk up with ".." segments."""
+    anchor = Path("/config/esphome").absolute()
+    outside = Path("/config/fonts/file.ttf").absolute()
+    output = yaml_util.dump({"file": outside}, relative_to=anchor)
+    assert output.strip() == "file: ../fonts/file.ttf"
+
+
+def test_dump_path_with_dotdot_segments_is_normalized() -> None:
+    """Test that ".." segments do not defeat relativization.
+
+    A path like /config/other/../esphome/fonts/x.ttf is under the anchor
+    once normalized, so it must dump as a plain relative path.
+    """
+    anchor = Path("/config/esphome").absolute()
+    path = Path("/config/other/../esphome/fonts/x.ttf").absolute()
+    output = yaml_util.dump({"file": path}, relative_to=anchor)
+    assert output.strip() == "file: fonts/x.ttf"
+
+
+def test_dump_path_dotdot_reference_outside_anchor() -> None:
+    """Test the relative_config_path("../...") shape stays relative."""
+    anchor = Path("/config/esphome").absolute()
+    path = anchor / ".." / "shared" / "font.ttf"
+    output = yaml_util.dump({"file": path}, relative_to=anchor)
+    assert output.strip() == "file: ../shared/font.ttf"
+
+
+@pytest.mark.parametrize(
+    "data_dir",
+    [
+        pytest.param(Path("/config/.esphome"), id="cli"),
+        pytest.param(Path("/data"), id="addon"),
+    ],
+)
+def test_dump_path_under_data_dir_uses_default_location(data_dir: Path) -> None:
+    """Test that Path values under data_dir dump as .esphome/<rest> for any layout."""
+    anchor = Path("/config").absolute()
+    path = data_dir.absolute() / "image" / "c44630d6"
+    output = yaml_util.dump(
+        {"file": path}, relative_to=anchor, data_dir=data_dir.absolute()
+    )
+    assert output.strip() == "file: .esphome/image/c44630d6"
+
+
+def test_dump_path_equal_to_data_dir() -> None:
+    """Test that the data dir itself dumps as .esphome, matching the default layout."""
+    anchor = Path("/config").absolute()
+    data_dir = Path("/data").absolute()
+    output = yaml_util.dump({"dir": data_dir}, relative_to=anchor, data_dir=data_dir)
+    assert output.strip() == "dir: .esphome"
+    default = yaml_util.dump(
+        {"dir": anchor / ".esphome"}, relative_to=anchor, data_dir=anchor / ".esphome"
+    )
+    assert default == output
+
+
+def test_dump_path_outside_data_dir_still_relative_to_anchor() -> None:
+    """Test that data_dir does not affect paths that are not under it."""
+    anchor = Path("/config").absolute()
+    path = anchor / "fonts" / "arial.ttf"
+    output = yaml_util.dump(
+        {"file": path}, relative_to=anchor, data_dir=Path("/data").absolute()
+    )
+    assert output.strip() == "file: fonts/arial.ttf"
+
+
+def test_dump_path_data_dir_without_relative_to_is_unchanged() -> None:
+    """Test that data_dir alone does not change the output."""
+    data_dir = Path("/data").absolute()
+    path = data_dir / "image" / "c44630d6"
+    output = yaml_util.dump({"file": path}, data_dir=data_dir)
+    assert output.strip() == f"file: {path}"
+
+
+def test_dump_relative_to_does_not_leak_between_calls() -> None:
+    """Test that the relative_to flag is scoped to a single dump call."""
+    anchor = Path("/config/esphome").absolute()
+    path = anchor / "fonts" / "arial.ttf"
+    assert "fonts/arial.ttf" in yaml_util.dump({"file": path}, relative_to=anchor)
+    assert yaml_util.dump({"file": path}).strip() == f"file: {path}"
+
+
+def test_dump__redacts_sensitive_str_by_default() -> None:
+    out = yaml_util.dump({"password": SensitiveStr("hunter2")})
+    assert "\\033[8mhunter2\\033[28m" in out
+    assert "hunter2" not in out.replace(
+        "\\033[8mhunter2\\033[28m", ""
+    )  # the raw value is only present inside the wrap
+
+
+@pytest.mark.parametrize(
+    ("validator", "value", "rendered"),
+    [
+        (cv.uint32_t, 305419896, "305419896"),
+        (
+            cv.hex_int,
+            0x00112233445566778899AABBCCDDEEFF,
+            "0x112233445566778899AABBCCDDEEFF",
+        ),
+        (cv.int_, -42, "-42"),
+    ],
+)
+def test_dump__redacts_sensitive_integer(
+    validator: Callable[[int], int], value: int, rendered: str
+) -> None:
+    """Mask integer credentials without changing their numeric value or format."""
+    sensitive = cv.sensitive(validator)(value)
+    assert sensitive == value
+    assert str(sensitive) == rendered
+    out = yaml_util.dump({"credential": sensitive})
+    assert f"\\033[8m{rendered}\\033[28m" in out
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (SensitiveStr("hunter2"), "password: hunter2"),
+        (cv.sensitive(cv.hex_int)(0x12345678), "password: 0x12345678"),
+    ],
+)
+def test_dump__show_secrets_emits_sensitive_raw(value: object, expected: str) -> None:
+    out = yaml_util.dump({"password": value}, show_secrets=True)
+    assert out.strip() == expected
+    assert "\\033[8m" not in out
+    assert "\\033[28m" not in out
+
+
+def test_dump__plain_str_is_not_redacted() -> None:
+    out = yaml_util.dump({"hostname": "myserver"})
+    assert "myserver" in out
+    assert "\\033[8m" not in out
+
+
+@pytest.mark.parametrize(
+    "value", [SensitiveStr("hunter2"), cv.sensitive(cv.uint32_t)(305419896)]
+)
+def test_dump__secret_reference_wins_over_redaction(
+    value: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # If the value also has an entry in _SECRET_VALUES (i.e., it was loaded
+    # via !secret), the dump should render it as !secret <name>, not as a
+    # redacted scalar. The sensitive marker layered on top must not change that.
+    monkeypatch.setitem(yaml_util._SECRET_VALUES, str(value), "my_secret_name")
+    out = yaml_util.dump({"password": value})
+    assert "!secret" in out
+    assert "my_secret_name" in out
+    assert "\\033[8m" not in out
+
+
+def test_dump__redaction_flag_does_not_leak_between_calls() -> None:
+    # Per-call _Dumper subclass means show_secrets in one call doesn't
+    # affect another. Run them in both orders to catch any leakage.
+    redacted = yaml_util.dump({"password": SensitiveStr("hunter2")})
+    raw = yaml_util.dump({"password": SensitiveStr("hunter2")}, show_secrets=True)
+    redacted_again = yaml_util.dump({"password": SensitiveStr("hunter2")})
+
+    assert "\\033[8m" in redacted
+    assert "\\033[8m" not in raw
+    assert "\\033[8m" in redacted_again
+
+
+def test_secret_values_registered_swaps_scalars_in_dump() -> None:
+    """Registered value→name mappings make dump() emit `!secret <name>` for
+    matching scalars, and are removed again on exit."""
+    with yaml_util.secret_values_registered({"hunter2": "wifi_password"}):
+        out = yaml_util.dump({"password": make_data_base("hunter2")})
+        assert "password: !secret 'wifi_password'" in out
+        assert "hunter2" not in out
+    out_after = yaml_util.dump({"password": make_data_base("hunter2")})
+    assert "hunter2" in out_after
+    assert "!secret" not in out_after
+    assert yaml_util.is_secret("hunter2") is None
+
+
+def test_secret_values_registered_collects_emitted_names() -> None:
+    """The context yields a set recording exactly the `!secret` names the
+    dumper emitted, including real secrets, and not names never swapped."""
+    yaml_util._SECRET_VALUES["real_value"] = "real_name"
+    with yaml_util.secret_values_registered({"hunter2": "wifi_password"}) as emitted:
+        yaml_util.dump(
+            {
+                "password": make_data_base("hunter2"),
+                "key": make_data_base("real_value"),
+                "plain": make_data_base("nothing"),
+            }
+        )
+    assert emitted == {"wifi_password", "real_name"}
+
+
+def test_secret_values_registered_does_not_clobber_real_secrets() -> None:
+    """A value already mapped by a real `!secret` keeps its original name."""
+    yaml_util._SECRET_VALUES["hunter2"] = "original_name"
+    with yaml_util.secret_values_registered({"hunter2": "generated_name"}):
+        out = yaml_util.dump({"password": make_data_base("hunter2")})
+        assert "!secret 'original_name'" in out
+    # The pre-existing mapping survives the context exit.
+    assert yaml_util.is_secret("hunter2") == "original_name"
+
+
+def test_secret_values_registered_keeps_a_real_secret_loaded_meanwhile() -> None:
+    """A real `!secret` registered inside the context survives its exit."""
+    with yaml_util.secret_values_registered({"hunter2": "generated_name"}):
+        yaml_util._SECRET_VALUES["hunter2"] = "real_name"
+    assert yaml_util.is_secret("hunter2") == "real_name"
+
+
+def test_secret_values_registered_nested_keeps_the_outer_collector() -> None:
+    """The outer context also collects names emitted inside an inner one."""
+    with yaml_util.secret_values_registered({"outer_value": "outer"}) as outer:
+        with yaml_util.secret_values_registered({"inner_value": "inner"}) as inner:
+            yaml_util.dump({"a": make_data_base("inner_value")})
+        yaml_util.dump({"b": make_data_base("outer_value")})
+    assert inner == {"inner"}
+    assert outer == {"inner", "outer"}
+
+
+def test_registered_secret_names(tmp_path: Path) -> None:
+    """Every loaded name is returned, even two sharing a value, but not names
+    registered only for a dump."""
+    (tmp_path / "secrets.yaml").write_text("wifi_password: same\nap_password: same\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("a: !secret wifi_password\nb: !secret ap_password\n")
+    yaml_util.load_yaml(main)
+    with yaml_util.secret_values_registered({"other": "temp_name"}):
+        assert yaml_util.registered_secret_names() == {"wifi_password", "ap_password"}
+
+
+@pytest.fixture(autouse=True)
+def clear_dropped_merge_keys() -> None:
+    """Reset the dropped-merge-key queue between tests."""
+    core.CORE.data.pop(yaml_util._MERGE_WARNINGS_KEY, None)
+    yield
+    core.CORE.data.pop(yaml_util._MERGE_WARNINGS_KEY, None)
+
+
+def test_merge_include_records_dropped_keys(tmp_path: Path) -> None:
+    """A `<<` merge that overlaps an existing key records it (shallow first-wins)."""
+    (tmp_path / "a.yaml").write_text("api:\n  reboot_timeout: 5min\n")
+    (tmp_path / "b.yaml").write_text("api:\n  password: secret\n")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("<<: !include a.yaml\n<<: !include b.yaml\n")
+
+    with patch.object(core.CORE, "config_path", test_yaml):
+        result = yaml_util.load_yaml(test_yaml)
+
+    # First definition wins; the second `api` block is dropped entirely.
+    assert result["api"] == {"reboot_timeout": "5min"}
+
+    dropped = yaml_util.take_dropped_merge_keys()
+    assert len(dropped) == 1
+    key, location = dropped[0]
+    assert key == "api"
+    assert "b.yaml" in location
+    # Queue is drained after being taken.
+    assert yaml_util.take_dropped_merge_keys() == []
+
+
+def test_merge_include_no_overlap_records_nothing(tmp_path: Path) -> None:
+    """A `<<` merge with distinct top-level keys drops nothing."""
+    (tmp_path / "a.yaml").write_text("api:\n  reboot_timeout: 5min\n")
+    (tmp_path / "b.yaml").write_text("logger:\n  level: DEBUG\n")
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("<<: !include a.yaml\n<<: !include b.yaml\n")
+
+    with patch.object(core.CORE, "config_path", test_yaml):
+        result = yaml_util.load_yaml(test_yaml)
+
+    assert result["api"] == {"reboot_timeout": "5min"}
+    assert result["logger"] == {"level": "DEBUG"}
+    assert yaml_util.take_dropped_merge_keys() == []
+
+
+def test_wrapper_representers_consult_is_secret(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """!extend / !remove payloads and scalar !include paths equal to a
+    registered secret are swapped, never written in cleartext, and the lost
+    tag is logged."""
+    from esphome.config_helpers import Extend, Remove
+
+    with (
+        caplog.at_level("WARNING", logger="esphome.yaml_util"),
+        yaml_util.secret_values_registered({"hunter2": "the_secret"}),
+    ):
+        out = yaml_util.dump(
+            {
+                "a": Extend("hunter2"),
+                "b": Remove("hunter2"),
+                "c": Extend("plain_id"),
+            }
+        )
+    assert out.count("!secret 'the_secret'") == 2
+    assert "hunter2" not in out
+    assert "!extend 'plain_id'" in out
+    lost = [r.message for r in caplog.records if "dropping the" in r.message]
+    assert len(lost) == 2
+    assert all("hunter2" not in m for m in lost)
+
+
+def test_scalar_include_path_equal_to_secret_is_swapped() -> None:
+    """A scalar !include whose path equals a registered secret is swapped,
+    matching the other wrapper representers."""
+    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), "hunter2", lambda _: {})
+    with yaml_util.secret_values_registered({"hunter2": "the_secret"}):
+        out = yaml_util.dump({"key": include})
+    assert out == "key: !secret 'the_secret'\n"
+
+
+# ---------------------------------------------------------------------------
+# track_document_range=False (validated-config-cache fast path)
+# ---------------------------------------------------------------------------
+
+FAST_MODE_MAIN_YAML = """\
+defaults: &defaults
+  port: 6053
+  reboot_timeout: 15min
+
+esphome:
+  name: !secret devname
+
+api:
+  <<: *defaults
+  port: 6054
+
+number_value: 42
+float_value: 3.5
+lambda_value: !lambda 'return x * 2;'
+extend_value: !extend some_id
+remove_value: !remove some_id
+literal_value: !literal keep_me_verbatim
+included: !include included.yaml
+"""
+
+
+@pytest.fixture
+def fast_mode_config_dir(tmp_path: Path) -> Path:
+    _write(tmp_path, "main.yaml", FAST_MODE_MAIN_YAML)
+    _write(tmp_path, "included.yaml", "inner_key: inner_value\ninner_num: 7\n")
+    _write(tmp_path, "secrets.yaml", "devname: livingroom\n")
+    return tmp_path
+
+
+def _resolve_includes(config: dict) -> dict:
+    return {
+        key: value.load() if isinstance(value, yaml_util.IncludeFile) else value
+        for key, value in config.items()
+    }
+
+
+def test_load_yaml_fast_mode_matches_default(fast_mode_config_dir: Path) -> None:
+    """Both modes produce equal values; only the metadata wrapping differs."""
+    yaml_file = fast_mode_config_dir / "main.yaml"
+
+    normal = _resolve_includes(yaml_util.load_yaml(yaml_file))
+    fast = _resolve_includes(yaml_util.load_yaml(yaml_file, track_document_range=False))
+
+    # Lambda has no __eq__; compare it by value and the rest structurally.
+    fast_lambda = fast.pop("lambda_value")
+    normal_lambda = normal.pop("lambda_value")
+    assert fast == normal
+    assert isinstance(fast_lambda, core.Lambda)
+    assert fast_lambda.value == normal_lambda.value == "return x * 2;"
+    assert fast["esphome"]["name"] == "livingroom"
+    assert fast["api"]["port"] == 6054
+    assert fast["api"]["reboot_timeout"] == "15min"
+    assert fast["extend_value"] == Extend("some_id")
+    assert fast["remove_value"] == Remove("some_id")
+    # !literal wraps via make_literal, independent of range tracking.
+    assert isinstance(fast["literal_value"], ESPLiteralValue)
+    assert fast["literal_value"] == "keep_me_verbatim"
+
+    # Fast mode returns plain values; default mode keeps the range metadata.
+    assert not isinstance(fast["number_value"], ESPHomeDataBase)
+    assert not isinstance(fast["float_value"], ESPHomeDataBase)
+    assert all(type(key) is str for key in fast)
+    assert isinstance(normal["number_value"], ESPHomeDataBase)
+    assert normal["number_value"].esp_range is not None
+    assert all(isinstance(key, ESPHomeDataBase) for key in normal)
+
+    # Nested includes inherit fast mode through the recursive loader.
+    included = fast["included"]
+    assert not isinstance(included["inner_num"], ESPHomeDataBase)
+    assert all(type(key) is str for key in included)
+
+
+def test_load_yaml_fast_mode_survives_pure_python_fallback(
+    fast_mode_config_dir: Path,
+) -> None:
+    """The ESPHomePurePythonLoader retry must honour fast mode too."""
+    yaml_file = fast_mode_config_dir / "main.yaml"
+
+    class _AlwaysFailingLoader(yaml_util.ESPHomeLoader):
+        def __init__(self, *args, **kwargs) -> None:
+            raise EsphomeError("forced fallback to the pure-Python loader")
+
+    with patch.object(yaml_util, "ESPHomeLoader", _AlwaysFailingLoader):
+        fast = yaml_util.load_yaml(yaml_file, track_document_range=False)
+
+    assert not isinstance(fast["number_value"], ESPHomeDataBase)
+    assert all(type(key) is str for key in fast)
+
+
+def test_load_yaml_fast_mode_rejects_custom_loader() -> None:
+    """A caller-supplied yaml_loader cannot combine with fast mode."""
+    with pytest.raises(ValueError, match="default yaml_loader"):
+        yaml_util.parse_yaml(
+            Path("x.yaml"),
+            io.StringIO("a: 1"),
+            lambda f: {},
+            track_document_range=False,
+        )
+
+
+def test_load_yaml_fast_mode_records_dropped_merge_keys(
+    fast_mode_config_dir: Path,
+) -> None:
+    """The duplicate-merge-key bookkeeping must not crash on plain str keys.
+
+    With plain keys there is no esp_range, so the recorded location falls
+    back to the parent file name.
+    """
+    yaml_file = fast_mode_config_dir / "main.yaml"
+
+    yaml_util.load_yaml(yaml_file, track_document_range=False)
+    assert yaml_util.take_dropped_merge_keys() == [("port", str(yaml_file))]
+
+
+def test_find_secret_references_in_flow_collections() -> None:
+    """Flow mapping and sequence punctuation is not part of the secret name."""
+    text = "a: {password: !secret wifi_pw}\nb: [!secret one, !secret 'two']\n"
+    assert yaml_util.find_secret_references(text) == {"wifi_pw", "one", "two"}
+
+
+@pytest.mark.parametrize(
+    ("yaml_text", "expected_offset"),
+    [
+        ("value: return 42;\n", 0),
+        ('value: "return 42;"\n', 0),
+        ("value: |-\n  return 42;\n", 1),
+        ("value: >-\n  return 42;\n", 1),
+    ],
+)
+def test_content_offset_only_for_block_scalars(
+    yaml_text: str, expected_offset: int
+) -> None:
+    """A one-line lambda starts on its own line; only | and > move it to the next."""
+    doc = yaml_util.parse_yaml(Path("test.yaml"), io.StringIO(yaml_text))
+    assert doc["value"].content_offset == expected_offset
+    assert doc["value"].content_start.line == expected_offset

@@ -46,11 +46,16 @@ static constexpr size_t MIN_BUFFER_SIZE = 256;
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.esp8266";
+ESPHOME_LOG_TAG(TAG, "ota");
 
 std::unique_ptr<ESP8266OTABackend> make_ota_backend() { return make_unique<ESP8266OTABackend>(); }
 
-OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
+OTAResponseTypes ESP8266OTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
+  if (ota_type != OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
   // Handle UPDATE_SIZE_UNKNOWN (0) by calculating available space
   if (image_size == 0) {
     // Round down to sector boundary: subtract one sector, then mask to sector alignment
@@ -60,6 +65,7 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
 
   // Check boot mode - if boot mode is UART download mode,
   // we will not be able to reset into normal mode once update is done
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- GPI is MMIO at a fixed address
   int boot_mode = (GPI >> BOOT_MODE_SHIFT) & BOOT_MODE_MASK;
   if (boot_mode == BOOT_MODE_UART_DOWNLOAD) {
     return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
@@ -299,10 +305,13 @@ OTAResponseTypes ESP8266OTABackend::end() {
   this->buffer_.reset();
   esp8266::preferences_prevent_write(false);
 
+  this->lock_.hold_until_reboot();
   return OTA_RESPONSE_OK;
 }
 
 void ESP8266OTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin()
+    return;
   this->buffer_.reset();
   this->buffer_len_ = 0;
   this->image_size_ = 0;

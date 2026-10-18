@@ -2,10 +2,9 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gp8403 {
+namespace esphome::gp8403 {
 
-static const char *const TAG = "gp8403.output";
+ESPHOME_LOG_TAG(TAG, "gp8403.output");
 
 void GP8403Output::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -16,5 +15,4 @@ void GP8403Output::dump_config() {
 
 void GP8403Output::write_state(float state) { this->parent_->write_state(state, this->channel_); }
 
-}  // namespace gp8403
-}  // namespace esphome
+}  // namespace esphome::gp8403

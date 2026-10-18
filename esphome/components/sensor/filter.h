@@ -239,8 +239,8 @@ class ExponentialMovingAverageFilter : public Filter {
 
   optional<float> new_value(float value) override;
 
-  void set_send_every(uint16_t send_every);
-  void set_alpha(float alpha);
+  void set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
+  void set_alpha(float alpha) { this->alpha_ = alpha; }
 
  protected:
   float accumulator_{NAN};
@@ -254,21 +254,22 @@ class ExponentialMovingAverageFilter : public Filter {
  *
  * It takes the average of all the values received in a period of time.
  */
-class ThrottleAverageFilter : public Filter, public Component {
+class ThrottleAverageFilter : public Filter {
  public:
   explicit ThrottleAverageFilter(uint32_t time_period);
 
-  void setup() override;
+  void initialize(Sensor *parent, Filter *next) override;
 
   optional<float> new_value(float value) override;
 
-  float get_setup_priority() const override;
-
  protected:
   float sum_{0.0f};
-  unsigned int n_{0};
   uint32_t time_period_;
-  bool have_nan_{false};
+  // Sample count packed with NaN-seen flag in a single 32-bit word.
+  // n_ is bounded by YAML cap on time_period_ (24 h) × max plausible source
+  // rate (1 kHz) = 86.4M ≪ 2^31, so 31 bits has 25x headroom.
+  uint32_t n_ : 31 {0};
+  uint32_t have_nan_ : 1 {0};
 };
 
 using lambda_filter_t = std::function<optional<float>(float)>;
@@ -329,36 +330,27 @@ class MultiplyFilter : public Filter {
   TemplatableFn<float> multiplier_;
 };
 
-/// Non-template helper for value matching (implementation in filter.cpp)
-bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count);
+// Value tables are read in place from flash, which ESP8266 only allows for whole words.
+static_assert(sizeof(TemplatableFn<float>) == sizeof(void *), "TemplatableFn<float> must stay a single pointer");
 
-/** Base class for filters that compare sensor values against a fixed list of configured values.
- *
- * Templated on N (the number of values) so the list is stored inline in a std::array,
- * avoiding heap allocation and the overhead of FixedVector.
- *
- * @tparam N Number of values in the filter list, set by code generation to match
- *           the exact number of values configured in YAML.
- */
-template<size_t N> class ValueListFilter : public Filter {
+/// Base class for filters that compare sensor values against a fixed list of configured values.
+class ValueListFilter : public Filter {
  protected:
-  explicit ValueListFilter(std::initializer_list<TemplatableFn<float>> values) {
-    init_array_from(this->values_, values);
-  }
+  explicit ValueListFilter(const TemplatableFn<float> *values) : values_(values) {}
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
-  bool value_matches_any_(float sensor_value) {
-    return value_list_matches_any(this->parent_, sensor_value, this->values_.data(), N);
-  }
+  bool value_matches_any_(float sensor_value);
 
-  std::array<TemplatableFn<float>, N> values_{};
+  // Shared PROGMEM table ended by an empty entry, so no count is stored; entries are function
+  // pointers, so aligned 32-bit loads from flash are safe on ESP8266.
+  const TemplatableFn<float> *values_;
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
-template<size_t N> class FilterOutValueFilter : public ValueListFilter<N> {
+class FilterOutValueFilter : public ValueListFilter {
  public:
-  explicit FilterOutValueFilter(std::initializer_list<TemplatableFn<float>> values_to_filter_out)
-      : ValueListFilter<N>(values_to_filter_out) {}
+  explicit FilterOutValueFilter(const TemplatableFn<float> *values_to_filter_out)
+      : ValueListFilter(values_to_filter_out) {}
 
   optional<float> new_value(float value) override {
     if (this->value_matches_any_(value))
@@ -378,28 +370,57 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
-/// Non-template helper for ThrottleWithPriorityFilter (implementation in filter.cpp)
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
-                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs);
-
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
-template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> {
+class ThrottleWithPriorityFilter : public ValueListFilter {
  public:
-  explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::initializer_list<TemplatableFn<float>> prioritized_values)
-      : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
+  ThrottleWithPriorityFilter(uint32_t min_time_between_inputs, const TemplatableFn<float> *prioritized_values)
+      : ValueListFilter(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
-  optional<float> new_value(float value) override {
-    return throttle_with_priority_new_value(this->parent_, value, this->values_.data(), N, this->last_input_,
-                                            this->min_time_between_inputs_);
-  }
+  optional<float> new_value(float value) override;
 
  protected:
   uint32_t last_input_{0};
   uint32_t min_time_between_inputs_;
 };
 
-// Base class for timeout filters - contains common loop logic
+/// Specialization of ThrottleWithPriorityFilter for the common "prioritize NaN"
+/// case: skips the TemplatableFn<float> array + lambda and inlines the check.
+class ThrottleWithPriorityNanFilter : public Filter {
+ public:
+  explicit ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+};
+
+// Base class for timeout filters - contains common loop logic.
+//
+// Why this intentionally inherits Component (and does NOT use the self-keyed
+// `App.scheduler.set_timeout(this, ...)` pattern that the other Filter classes
+// migrated to):
+//
+// Timeout filters re-arm on every input, so on devices with many sensors
+// using timeout filters (e.g. multi-LD2450 boards) every armed filter would
+// require a live SchedulerItem in RAM at the same time. A SchedulerItem is
+// substantially larger than the Component bookkeeping bytes carried by this
+// class, so paying the Component cost per filter (one-time, BSS) is cheaper
+// than paying for a SchedulerItem per filter (live, while armed). #11922
+// is the original symptom and switchover to the loop-based design; #16173
+// attempted to migrate this onto the scheduler and was closed for exactly
+// this reason — even if the scheduler pool were unbounded, RAM per armed
+// filter would still be dominated by the SchedulerItem itself, not by
+// anything we can shrink in the scheduler.
+//
+// The loop-based design has additional advantages on top of the RAM win:
+// `enable_loop()` / `disable_loop()` partitions the cost away when no
+// timeout is armed; while armed, work is a single timestamp compare per
+// active filter, with no per-input scheduler cancel/insert path.
+//
+// Don't try to migrate this class onto the self-keyed scheduler. The math
+// doesn't work — at scale, this design is the smaller one.
 class TimeoutFilterBase : public Filter, public Component {
  public:
   void loop() override;
@@ -441,25 +462,35 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
-class DebounceFilter : public Filter, public Component {
+/// Codegen use only: `timeout` (value `last`) followed by `throttle_with_priority` (NaN only) with the
+/// same period, as one object. Output matches the two filter chain exactly.
+class TimeoutThrottleFilter : public TimeoutFilterLast {
+ public:
+  explicit TimeoutThrottleFilter(uint32_t time_period) : TimeoutFilterLast(time_period) {}
+
+  optional<float> new_value(float value) override;
+  void loop() override;
+
+ protected:
+  uint32_t last_input_{0};  // When the throttle stage last let a value through
+};
+
+class DebounceFilter : public Filter {
  public:
   explicit DebounceFilter(uint32_t time_period);
 
   optional<float> new_value(float value) override;
 
-  float get_setup_priority() const override;
-
  protected:
   uint32_t time_period_;
 };
 
-class HeartbeatFilter : public Filter, public Component {
+class HeartbeatFilter : public Filter {
  public:
   explicit HeartbeatFilter(uint32_t time_period);
 
-  void setup() override;
+  void initialize(Sensor *parent, Filter *next) override;
   optional<float> new_value(float value) override;
-  float get_setup_priority() const override;
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
@@ -497,6 +528,9 @@ optional<float> or_filter_new_value(Filter **filters, size_t count, float value,
 template<size_t N> class OrFilter : public Filter {
  public:
   explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
+  // Codegen passes each filter as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Fs>
+  requires(sizeof...(Fs) == N) explicit OrFilter(Fs *...filters) : filters_{filters...} {}
 
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);
@@ -528,38 +562,24 @@ template<size_t N> class OrFilter : public Filter {
   bool has_value_{false};
 };
 
-/// Non-template helper for linear calibration (implementation in filter.cpp)
-optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value);
-
-/// N is set by code generation to match the exact number of calibration segments.
-template<size_t N> class CalibrateLinearFilter : public Filter {
+/// Piecewise linear calibration; the segments are a PROGMEM table shared by filters with the same data.
+class CalibrateLinearFilter : public Filter {
  public:
-  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
-    init_array_from(this->linear_functions_, linear_functions);
-  }
-  optional<float> new_value(float value) override {
-    return calibrate_linear_compute(this->linear_functions_.data(), N, value);
-  }
+  explicit CalibrateLinearFilter(const std::array<float, 3> *functions) : functions_(functions) {}
+  optional<float> new_value(float value) override;
 
  protected:
-  std::array<std::array<float, 3>, N> linear_functions_{};
+  const std::array<float, 3> *functions_;  // Last segment has a NaN boundary, which ends the table
 };
 
-/// Non-template helper for polynomial calibration (implementation in filter.cpp)
-optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value);
-
-/// N is set by code generation to match the exact number of polynomial coefficients.
-template<size_t N> class CalibratePolynomialFilter : public Filter {
+/// Polynomial calibration; the coefficients are a PROGMEM table shared by filters with the same data.
+class CalibratePolynomialFilter : public Filter {
  public:
-  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
-    init_array_from(this->coefficients_, coefficients);
-  }
-  optional<float> new_value(float value) override {
-    return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
-  }
+  explicit CalibratePolynomialFilter(const float *coefficients) : coefficients_(coefficients) {}
+  optional<float> new_value(float value) override;
 
  protected:
-  std::array<float, N> coefficients_{};
+  const float *coefficients_;  // [count, c0, c1, ...]
 };
 
 class ClampFilter : public Filter {
@@ -589,6 +609,19 @@ class RoundMultipleFilter : public Filter {
 
  protected:
   float multiple_;
+};
+
+template<uint8_t Digits> class RoundSignificantDigitsFilter : public Filter {
+ public:
+  optional<float> new_value(float value) override {
+    if (std::isfinite(value)) {
+      if (value == 0.0f)
+        return 0.0f;
+      float factor = pow10_int(Digits - 1 - ilog10(value));
+      return roundf(value * factor) / factor;
+    }
+    return value;
+  }
 };
 
 class ToNTCResistanceFilter : public Filter {

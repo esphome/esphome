@@ -4,7 +4,7 @@
 
 namespace esphome::hdc2080 {
 
-static const char *const TAG = "hdc2080";
+ESPHOME_LOG_TAG(TAG, "hdc2080");
 
 // Register map (Table 8-6)
 static constexpr uint8_t REG_TEMPERATURE_LOW = 0x00;      // Temperature [7:0]
@@ -22,7 +22,7 @@ static constexpr uint8_t MEAS_CONF_HUM = 0x04;   // Bits 2:1 = 10: humidity only
 void HDC2080Component::setup() {
   const uint8_t data = 0x00;  // automatic measurement mode disabled, heater off
   if (this->write_register(REG_RESET_DRDY_INT_CONF, &data, 1) != i2c::ERROR_OK) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -33,9 +33,6 @@ void HDC2080Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void HDC2080Component::update() {

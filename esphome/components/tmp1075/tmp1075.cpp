@@ -1,10 +1,9 @@
 #include "esphome/core/log.h"
 #include "tmp1075.h"
 
-namespace esphome {
-namespace tmp1075 {
+namespace esphome::tmp1075 {
 
-static const char *const TAG = "tmp1075";
+ESPHOME_LOG_TAG(TAG, "tmp1075");
 
 constexpr uint8_t REG_TEMP = 0x0;   // Temperature result
 constexpr uint8_t REG_CFGR = 0x1;   // Configuration
@@ -21,7 +20,7 @@ void TMP1075Sensor::setup() {
   uint8_t cfg;
   if (!this->read_byte(REG_CFGR, &cfg)) {
     ESP_LOGE(TAG, "'%s' - unable to read", this->name_.c_str());
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -43,10 +42,8 @@ void TMP1075Sensor::update() {
 
 void TMP1075Sensor::dump_config() {
   LOG_SENSOR("", "TMP1075 Sensor", this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
   ESP_LOGCONFIG(TAG,
                 "  limit low  : %.4f °C\n"
                 "  limit high : %.4f °C\n"
@@ -127,5 +124,4 @@ static float regvalue2temp(const uint16_t regvalue) {
   return (signed_value >> 4) * 0.0625f;
 }
 
-}  // namespace tmp1075
-}  // namespace esphome
+}  // namespace esphome::tmp1075

@@ -2,17 +2,16 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ads1115 {
+namespace esphome::ads1115 {
 
-static const char *const TAG = "ads1115";
+ESPHOME_LOG_TAG(TAG, "ads1115");
 static const uint8_t ADS1115_REGISTER_CONVERSION = 0x00;
 static const uint8_t ADS1115_REGISTER_CONFIG = 0x01;
 
 void ADS1115Component::setup() {
   uint16_t value;
   if (!this->read_byte_16(ADS1115_REGISTER_CONVERSION, &value)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -59,7 +58,7 @@ void ADS1115Component::setup() {
   config |= 0b0000000000000011;
 
   if (!this->write_byte_16(ADS1115_REGISTER_CONFIG, config)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->prev_config_ = config;
@@ -67,9 +66,6 @@ void ADS1115Component::setup() {
 void ADS1115Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ADS1115:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1115Gain gain,
                                             ADS1115Resolution resolution, ADS1115Samplerate samplerate) {
@@ -208,5 +204,4 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
   return millivolts / 1e3f;
 }
 
-}  // namespace ads1115
-}  // namespace esphome
+}  // namespace esphome::ads1115

@@ -1,13 +1,15 @@
 #include "display.h"
+#include <cmath>
 #include <utility>
 #include <numbers>
 #include "display_color_utils.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display {
-static const char *const TAG = "display";
+namespace esphome::display {
+ESPHOME_LOG_TAG(TAG, "display");
 
 // COLOR_OFF and COLOR_ON are now inline constexpr in display.h
 
@@ -42,46 +44,110 @@ void Display::line_at_angle(int x, int y, int angle, int length, Color color) {
 
 void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color) {
   // Calculate start and end points
-  int x1 = (start_radius * cos(angle * M_PI / 180)) + x;
-  int y1 = (start_radius * sin(angle * M_PI / 180)) + y;
-  int x2 = (stop_radius * cos(angle * M_PI / 180)) + x;
-  int y2 = (stop_radius * sin(angle * M_PI / 180)) + y;
+  int x1 = (start_radius * std::cos(angle * std::numbers::pi_v<float> / 180)) + x;
+  int y1 = (start_radius * std::sin(angle * std::numbers::pi_v<float> / 180)) + y;
+  int x2 = (stop_radius * std::cos(angle * std::numbers::pi_v<float> / 180)) + x;
+  int y2 = (stop_radius * std::sin(angle * std::numbers::pi_v<float> / 180)) + y;
 
   // Draw line
   this->line(x1, y1, x2, y2, color);
 }
 
-void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-  size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
-  uint32_t color_value;
+// flatten keeps to_color() inlined in the pixel loop; in PSRAM builds GCC at
+// -Os stops inlining it once there are two call sites, which costs a call and
+// spills per pixel. Without PSRAM there is one call site and it changes
+// nothing, and draw_pixel_at() stays a virtual call either way.
+// HIGH_BYTE_FIRST (big endian) only matters for 565; as a template argument its test leaves the pixel loop.
+template<ColorBitness BITNESS, bool HIGH_BYTE_FIRST = false>
+static void __attribute__((flatten)) draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h,
+                                                        const uint8_t *ptr, int x_offset, int y_offset, int x_pad) {
+  const size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
+  // BITNESS is a constant here, so to_color()'s three per pixel divisions
+  // become a multiply and shift and its bitness switch folds.
+  const auto draw_source_pixel = [&](int x, int y, size_t source_idx) ESPHOME_ALWAYS_INLINE {
+    display->draw_pixel_at(
+        x + x_start, y + y_start,
+        ColorUtil::to_color(ColorUtil::read_packed<BITNESS>(ptr, source_idx, HIGH_BYTE_FIRST), BITNESS));
+  };
+  // The source and frame buffers are row-major, so walking rows keeps the read
+  // and the write sequential. When the display swaps the axes before writing,
+  // walking columns keeps the write sequential instead; with the frame buffer
+  // in PSRAM a strided write costs more than a strided read.
+#ifdef USE_PSRAM
+  if (display->pixel_axes_swapped()) {
+    size_t column_idx = y_offset * line_stride + x_offset;
+    for (int x = 0; x != w; x++, column_idx++) {
+      size_t source_idx = column_idx;
+      for (int y = 0; y != h; y++, source_idx += line_stride) {
+        draw_source_pixel(x, y, source_idx);
+      }
+    }
+    return;
+  }
+#endif
+  // Row walk: builds without PSRAM, and PSRAM builds whose axes are not swapped.
   for (int y = 0; y != h; y++) {
     size_t source_idx = (y_offset + y) * line_stride + x_offset;
-    size_t source_idx_mod;
     for (int x = 0; x != w; x++, source_idx++) {
-      switch (bitness) {
-        default:
-          color_value = ptr[source_idx];
-          break;
-        case COLOR_BITNESS_565:
-          source_idx_mod = source_idx * 2;
-          if (big_endian) {
-            color_value = (ptr[source_idx_mod] << 8) + ptr[source_idx_mod + 1];
-          } else {
-            color_value = ptr[source_idx_mod] + (ptr[source_idx_mod + 1] << 8);
-          }
-          break;
-        case COLOR_BITNESS_888:
-          source_idx_mod = source_idx * 3;
-          if (big_endian) {
-            color_value = (ptr[source_idx_mod + 0] << 16) + (ptr[source_idx_mod + 1] << 8) + ptr[source_idx_mod + 2];
-          } else {
-            color_value = ptr[source_idx_mod + 0] + (ptr[source_idx_mod + 1] << 8) + (ptr[source_idx_mod + 2] << 16);
-          }
-          break;
-      }
-      this->draw_pixel_at(x + x_start, y + y_start, ColorUtil::to_color(color_value, order, bitness));
+      draw_source_pixel(x, y, source_idx);
     }
+  }
+}
+
+// Remove before 2027.5.0. Draws a block in the deprecated BGR or GRB order, pixel by pixel. Not inlined, so
+// the RGB loops above compile as tightly as before.
+static void __attribute__((noinline))
+draw_ordered_pixels(Display *display, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                    ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  const size_t line_stride = x_offset + w + x_pad;
+  for (int y = 0; y != h; y++) {
+    size_t source_idx = (y_offset + y) * line_stride + x_offset;
+    for (int x = 0; x != w; x++, source_idx++) {
+      uint32_t code;
+      if (bitness == COLOR_BITNESS_565) {
+        code = ColorUtil::read_packed<COLOR_BITNESS_565>(ptr, source_idx, big_endian);
+      } else if (bitness == COLOR_BITNESS_888) {
+        code = ColorUtil::read_packed<COLOR_BITNESS_888>(ptr, source_idx, big_endian);
+      } else {
+        code = ColorUtil::read_packed<COLOR_BITNESS_332>(ptr, source_idx, big_endian);
+      }
+      display->draw_pixel_at(x + x_start, y + y_start, apply_color_order(ColorUtil::to_color(code, bitness), order));
+    }
+  }
+}
+
+void Display::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                                   bool big_endian, int x_offset, int y_offset, int x_pad) {
+  // Through the deprecated form, so a driver that still overrides only that one keeps its fast path.
+  // Remove before 2027.5.0, when the per pixel drawing below moves here.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  this->draw_pixels_at(x_start, y_start, w, h, ptr, COLOR_ORDER_RGB, bitness, big_endian, x_offset, y_offset, x_pad);
+#pragma GCC diagnostic pop
+}
+
+// Must not call draw_pixels_at() without a color order or draw_pixels_internal(): those call this, and a legacy
+// override's fallback ends up here.
+void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  if (order != COLOR_ORDER_RGB) {
+    draw_ordered_pixels(this, x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    return;
+  }
+  switch (bitness) {
+    case COLOR_BITNESS_565:
+      if (big_endian) {
+        draw_packed_pixels<COLOR_BITNESS_565, true>(this, x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+      } else {
+        draw_packed_pixels<COLOR_BITNESS_565, false>(this, x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+      }
+      break;
+    case COLOR_BITNESS_888:
+      draw_packed_pixels<COLOR_BITNESS_888>(this, x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+      break;
+    default:
+      draw_packed_pixels<COLOR_BITNESS_332>(this, x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+      break;
   }
 }
 
@@ -228,7 +294,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
   int e2max, e2min;
   progress = std::max(0, std::min(progress, 100));  // 0..100
   int draw_progress = progress > 50 ? (100 - progress) : progress;
-  float tan_a = (progress == 50) ? 65535 : tan(float(draw_progress) * M_PI / 100);  // slope
+  float tan_a = (progress == 50) ? 65535 : tanf(float(draw_progress) * std::numbers::pi_v<float> / 100);  // slope
 
   do {
     // outer dots
@@ -239,7 +305,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
       int lhline_width = -(dxmax - dxmin) + 1;
       if (progress >= 50) {
         if (float(dymax) < float(-dxmax) * tan_a) {
-          upd_dxmax = ceil(float(dymax) / tan_a);
+          upd_dxmax = std::ceil(float(dymax) / tan_a);
         } else {
           upd_dxmax = -dxmax;
         }
@@ -254,7 +320,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
         }
       } else {
         if (float(dymin) > float(-dxmin) * tan_a) {
-          upd_dxmin = ceil(float(dymin) / tan_a);
+          upd_dxmin = std::ceil(float(dymin) / tan_a);
         } else {
           upd_dxmin = -dxmin;
         }
@@ -269,12 +335,12 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
       int hline_width = 2 * (-dxmax) + 1;
       if (progress >= 50) {
         if (dymax < float(-dxmax) * tan_a) {
-          upd_dxmax = ceil(float(dymax) / tan_a);
+          upd_dxmax = std::ceil(float(dymax) / tan_a);
           hline_width = -dxmax + upd_dxmax + 1;
         }
       } else {
         if (dymax < float(-dxmax) * tan_a) {
-          upd_dxmax = ceil(float(dymax) / tan_a);
+          upd_dxmax = std::ceil(float(dymax) / tan_a);
           hline_width = -dxmax - upd_dxmax + 1;
         } else {
           hline_width = 0;
@@ -444,17 +510,17 @@ void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *
     // hence we rotate the shape by 270° to orient the polygon up.
     rotation_degrees += ROTATION_270_DEGREES;
     // Convert the rotation to radians, easier to use in trigonometrical calculations
-    float rotation_radians = rotation_degrees * std::numbers::pi / 180;
+    float rotation_radians = rotation_degrees * std::numbers::pi_v<float> / 180;
     // A pointy top variation means the first vertex of the polygon is at the top center of the shape, this requires no
     // additional rotation of the shape.
     // A flat top variation means the first point of the polygon has to be rotated so that the first edge is horizontal,
     // this requires to rotate the shape by π/edges radians counter-clockwise so that the first point is located on the
     // left side of the first horizontal edge.
-    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? std::numbers::pi / edges : 0.0;
+    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? std::numbers::pi_v<float> / edges : 0.0f;
 
-    float vertex_angle = ((float) vertex_id) / edges * 2 * std::numbers::pi + rotation_radians;
-    *vertex_x = (int) round(cos(vertex_angle) * radius) + center_x;
-    *vertex_y = (int) round(sin(vertex_angle) * radius) + center_y;
+    float vertex_angle = ((float) vertex_id) / edges * 2 * std::numbers::pi_v<float> + rotation_radians;
+    *vertex_x = (int) std::round(std::cos(vertex_angle) * radius) + center_x;
+    *vertex_y = (int) std::round(std::sin(vertex_angle) * radius) + center_y;
   }
 }
 
@@ -677,16 +743,15 @@ void Display::set_pages(std::vector<DisplayPage *> pages) {
 }
 
 void Display::show_page(DisplayPage *page) {
-  this->previous_page_ = this->page_;
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  DisplayPage *previous = this->page_;
   this->page_ = page;
-  if (this->previous_page_ != this->page_) {
-    for (auto *t : on_page_change_triggers_)
-      t->process(this->previous_page_, this->page_);
-  }
+  if (previous != page)
+    this->page_change_callback_.call(previous, page);
+#else
+  this->page_ = page;
+#endif
 }
-
-void Display::show_next_page() { this->page_->show_next(); }
-void Display::show_prev_page() { this->page_->show_prev(); }
 
 void Display::do_update_() {
   if (this->auto_clear_enabled_) {
@@ -700,11 +765,6 @@ void Display::do_update_() {
     (*this->writer_)(*this);
   }
   this->clear_clipping_();
-}
-
-void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
-  if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
-    this->trigger(from, to);
 }
 
 void Display::strftime(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
@@ -773,10 +833,12 @@ Rect Display::get_clipping() const {
 
 void Display::clear_clipping_() { this->clipping_rectangle_.clear(); }
 
+void Display::feed_wdt_pixel_slow_() { App.feed_wdt(); }
+
 bool Display::clip(int x, int y) {
   if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height())
     return false;
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   return true;
 }
@@ -820,7 +882,6 @@ constexpr uint8_t TESTCARD_FONT[3][8] PROGMEM = {{0x41, 0x7F, 0x7F, 0x09, 0x19, 
 void Display::test_card() {
   int w = get_width(), h = get_height(), image_w, image_h;
   this->clear();
-  this->show_test_card_ = false;
   image_w = std::min(w - 20, 310);
   image_h = std::min(h - 20, 255);
   int shift_x = (w - image_w) / 2;
@@ -892,9 +953,6 @@ void DisplayPage::show_prev() {
   this->prev_->show();
 }
 
-void DisplayPage::set_parent(Display *parent) { this->parent_ = parent; }
-void DisplayPage::set_prev(DisplayPage *prev) { this->prev_ = prev; }
-void DisplayPage::set_next(DisplayPage *next) { this->next_ = next; }
 const display_writer_t &DisplayPage::get_writer() const { return this->writer_; }
 
 const LogString *text_align_to_string(TextAlign textalign) {
@@ -927,5 +985,4 @@ const LogString *text_align_to_string(TextAlign textalign) {
       return LOG_STR("UNKNOWN");
   }
 }
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

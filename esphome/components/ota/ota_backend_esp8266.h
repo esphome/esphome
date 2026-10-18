@@ -14,15 +14,16 @@ namespace esphome::ota {
 /// by not having a global Update object in .bss.
 class ESP8266OTABackend final {
  public:
-  OTAResponseTypes begin(size_t image_size);
+  OTAResponseTypes begin(size_t image_size, OTAType ota_type = OTA_TYPE_UPDATE_APP);
   void set_update_md5(const char *md5);
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
   void abort();
   // Compression supported in all ESP8266 Arduino versions ESPHome supports (>= 2.7.0)
-  bool supports_compression() { return true; }
+  static constexpr bool supports_compression() { return true; }
 
  protected:
+  UpdateLock lock_;
   /// Erase flash sector if current address is at sector boundary
   bool erase_sector_if_needed_();
 

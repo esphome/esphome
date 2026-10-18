@@ -52,14 +52,14 @@ from ..lv_validation import (
     lv_text,
     opacity,
     pixels,
+    pixels_or_percent,
     size,
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
-from ..types import LvType, ObjUpdateAction
+from ..types import LvType, ObjUpdateAction, lv_point_precise_t
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
-from .line import lv_point_precise_t, process_coord
 
 CONF_CANVAS = "canvas"
 CONF_BUFFER_ID = "buffer_id"
@@ -99,7 +99,7 @@ class CanvasType(WidgetType):
         if config[CONF_TRANSPARENT]:
             color_format = "LV_COLOR_FORMAT_ARGB8888"
         else:
-            color_format = "LV_COLOR_FORMAT_NATIVE"
+            color_format = "LV_COLOR_FORMAT_RGB565"
 
         # LVGL 9.4: LV_CANVAS_BUF_SIZE(width, height, bits_per_pixel, stride)
         # stride is 0 for default (width * bytes_per_pixel)
@@ -141,7 +141,7 @@ async def canvas_fill(config, action_id, template_arg, args):
     async def do_fill(w: Widget):
         lv.canvas_fill_bg(w.obj, color, opa)
 
-    return await action_to_code(widget, do_fill, action_id, template_arg, args, config)
+    return await action_to_code(widget, do_fill, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -176,9 +176,7 @@ async def canvas_set_pixel(config, action_id, template_arg, args):
             x, y = point
             lv.canvas_set_px(w.obj, x, y, color, opa)
 
-    return await action_to_code(
-        widget, do_set_pixels, action_id, template_arg, args, config
-    )
+    return await action_to_code(widget, do_set_pixels, action_id, template_arg, args)
 
 
 DRAW_SCHEMA = {
@@ -214,9 +212,7 @@ async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg
                 await do_draw(addr(layer), x, y, dsc)
             lv.canvas_finish_layer(w.obj, addr(layer))
 
-    return await action_to_code(
-        widget, action_func, action_id, template_arg, args, config
-    )
+    return await action_to_code(widget, action_func, action_id, template_arg, args)
 
 
 RECT_PROPS = {
@@ -434,6 +430,13 @@ LINE_PROPS = {
 }
 
 
+def _validate_points(config):
+    for index, point in enumerate(config[CONF_POINTS]):
+        if not all(isinstance(p, int) for p in point.values()):
+            raise cv.Invalid("Points must be integers", path=[CONF_POINTS, index])
+    return config
+
+
 @automation.register_action(
     "lvgl.canvas.draw_line",
     ObjUpdateAction,
@@ -444,12 +447,15 @@ LINE_PROPS = {
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
             **{cv.Optional(prop): validator for prop, validator in LINE_PROPS.items()},
         }
-    ),
+    ).add_extra(_validate_points),
     synchronous=True,
 )
 async def canvas_draw_line(config, action_id, template_arg, args):
     points = [
-        [await process_coord(p[CONF_X]), await process_coord(p[CONF_Y])]
+        [
+            await pixels.process(p[CONF_X]),
+            await pixels.process(p[CONF_Y]),
+        ]
         for p in config[CONF_POINTS]
     ]
 
@@ -470,12 +476,15 @@ async def canvas_draw_line(config, action_id, template_arg, args):
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
             **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
         },
-    ),
+    ).add_extra(_validate_points),
     synchronous=True,
 )
 async def canvas_draw_polygon(config, action_id, template_arg, args):
     points = [
-        [await process_coord(p[CONF_X]), await process_coord(p[CONF_Y])]
+        [
+            await pixels_or_percent.process(p[CONF_X]),
+            await pixels_or_percent.process(p[CONF_Y]),
+        ]
         for p in config[CONF_POINTS]
     ]
     # Close the polygon

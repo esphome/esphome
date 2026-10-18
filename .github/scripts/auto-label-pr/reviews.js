@@ -41,16 +41,51 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
 
     let message = `${TOO_BIG_MARKER}\n### 📦 Pull Request Size\n\n`;
 
+    message +=
+      `Hey @${prAuthor}, thanks for the contribution. This PR is on the ` +
+      `large side `;
+
     if (tooManyLabels && tooManyChanges) {
-      message += `This PR is too large with ${nonTestChanges} line changes (excluding tests) and affects ${originalLabelCount} different components/areas.`;
+      message +=
+        `(${nonTestChanges} line changes excluding tests, across ` +
+        `${originalLabelCount} different components/areas)`;
     } else if (tooManyLabels) {
-      message += `This PR affects ${originalLabelCount} different components/areas.`;
+      message +=
+        `(it touches ${originalLabelCount} different components/areas)`;
     } else {
-      message += `This PR is too large with ${nonTestChanges} line changes (excluding tests).`;
+      message += `(${nonTestChanges} line changes excluding tests)`;
     }
 
-    message += ` Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\n`;
-    message += `For guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#how-to-approach-large-submissions`;
+    message += `, which makes it harder for maintainers to review.\n\n`;
+    let condition;
+    if (tooManyLabels && tooManyChanges) {
+      condition =
+        `is at most ${TOO_BIG_THRESHOLD} lines (excluding tests) and touches ` +
+        `at most ${MAX_LABELS} components/areas`;
+    } else if (tooManyLabels) {
+      condition = `touches at most ${MAX_LABELS} components/areas`;
+    } else {
+      condition = `is at most ${TOO_BIG_THRESHOLD} lines (excluding tests)`;
+    }
+    message +=
+      `**This PR will not be reviewed until it ${condition}.** We know ` +
+      `that is not what you want to hear after this much work, and we want ` +
+      `to be upfront so you do not wait for a review that is not coming: ` +
+      `please split the change. The label is removed automatically once ` +
+      `the PR ${condition}.\n\n`;
+    message +=
+      `There is no exception you can request. Rarely, a maintainer agrees in ` +
+      `\`#devs\` on [Discord](https://esphome.io/chat) to review a change that ` +
+      `genuinely cannot be split as one piece and adds the \`mega-pr\` label, ` +
+      `but that is rare enough that you should plan on splitting rather than ` +
+      `wait for it. Smaller, focused PRs are picked up much faster because ` +
+      `they fit into the short gaps between other maintainer work. For a new ` +
+      `component, the first PR brings the hub and a single platform (for ` +
+      `example \`sensor\`); each further platform is its own PR on top of it.\n\n`;
+    message +=
+      `For more details (including how to split the work up), see: ` +
+      `https://developers.esphome.io/contributing/submitting-your-work/` +
+      `#how-to-approach-large-submissions`;
 
     messages.push(message);
   }
@@ -194,6 +229,7 @@ async function handleMaintainerAccessComment(github, context, maintainerAccess) 
 }
 
 module.exports = {
+  generateReviewMessages,
   handleReviews,
   handleMaintainerAccessComment
 };

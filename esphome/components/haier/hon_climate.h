@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <queue>
 #ifdef USE_SENSOR
@@ -14,12 +15,35 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 #include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
 #include "haier_base.h"
 #include "hon_packet.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
+
+#ifdef USE_SELECT
+// Positions in the order the select platform lists them; in flash on ESP8266, so read with airflow_order_at()
+inline constexpr std::array<hon_protocol::VerticalSwingMode, 7> VERTICAL_SWING_MODES_ORDER PROGMEM{
+    hon_protocol::VerticalSwingMode::HEALTH_UP,   hon_protocol::VerticalSwingMode::MAX_UP,
+    hon_protocol::VerticalSwingMode::UP,          hon_protocol::VerticalSwingMode::CENTER,
+    hon_protocol::VerticalSwingMode::DOWN,        hon_protocol::VerticalSwingMode::MAX_DOWN,
+    hon_protocol::VerticalSwingMode::HEALTH_DOWN,
+};
+inline constexpr std::array<hon_protocol::HorizontalSwingMode, 5> HORIZONTAL_SWING_MODES_ORDER PROGMEM{
+    hon_protocol::HorizontalSwingMode::MAX_LEFT,  hon_protocol::HorizontalSwingMode::LEFT,
+    hon_protocol::HorizontalSwingMode::CENTER,    hon_protocol::HorizontalSwingMode::RIGHT,
+    hon_protocol::HorizontalSwingMode::MAX_RIGHT,
+};
+
+template<typename Mode, size_t N> Mode airflow_order_at(const std::array<Mode, N> &order, size_t index) {
+  static_assert(sizeof(Mode) == 1);
+  return static_cast<Mode>(progmem_read_byte(reinterpret_cast<const uint8_t *>(order.data() + index)));
+}
+#endif
 
 enum class CleaningState : uint8_t {
   NO_CLEANING = 0,
@@ -36,7 +60,7 @@ struct HonSettings {
   bool quiet_mode_state{false};
 };
 
-class HonClimate : public HaierClimateBase {
+class HonClimate final : public HaierClimateBase {
 #ifdef USE_SENSOR
  public:
   enum class SubSensorType {
@@ -90,7 +114,7 @@ class HonClimate : public HaierClimateBase {
   void set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSensor *sens);
 
  protected:
-  void update_sub_text_sensor_(SubTextSensorType type, const std::string &value);
+  void update_sub_text_sensor_(SubTextSensorType type, const char *value);
   text_sensor::TextSensor *sub_text_sensors_[(size_t) SubTextSensorType::SUB_TEXT_SENSOR_TYPE_COUNT]{nullptr};
 #endif
 #ifdef USE_SWITCH
@@ -101,6 +125,16 @@ class HonClimate : public HaierClimateBase {
  protected:
   switch_::Switch *beeper_switch_{nullptr};
   switch_::Switch *quiet_mode_switch_{nullptr};
+#endif
+#ifdef USE_SELECT
+ public:
+  void set_vertical_airflow_select(select::Select *sel) { this->vertical_airflow_select_ = sel; }
+  void set_horizontal_airflow_select(select::Select *sel) { this->horizontal_airflow_select_ = sel; }
+
+ protected:
+  void publish_airflow_selects_();
+  select::Select *vertical_airflow_select_{nullptr};
+  select::Select *horizontal_airflow_select_{nullptr};
 #endif
  public:
   HonClimate();
@@ -116,7 +150,7 @@ class HonClimate : public HaierClimateBase {
   void set_vertical_airflow(hon_protocol::VerticalSwingMode direction);
   esphome::optional<hon_protocol::HorizontalSwingMode> get_horizontal_airflow() const;
   void set_horizontal_airflow(hon_protocol::HorizontalSwingMode direction);
-  std::string get_cleaning_status_text() const;
+  const char *get_cleaning_status_text() const;
   CleaningState get_cleaning_status() const;
   void start_self_cleaning();
   void start_steri_cleaning();
@@ -166,11 +200,12 @@ class HonClimate : public HaierClimateBase {
   void fill_control_messages_queue_();
   void clear_control_messages_queue_();
 
+  static constexpr size_t HARDWARE_INFO_STR_SIZE = 9;
   struct HardwareInfo {
-    std::string protocol_version_;
-    std::string software_version_;
-    std::string hardware_version_;
-    std::string device_name_;
+    char protocol_version_[HARDWARE_INFO_STR_SIZE];
+    char software_version_[HARDWARE_INFO_STR_SIZE];
+    char hardware_version_[HARDWARE_INFO_STR_SIZE];
+    char device_name_[HARDWARE_INFO_STR_SIZE];
     bool functions_[5];
   };
 
@@ -195,10 +230,12 @@ class HonClimate : public HaierClimateBase {
   uint8_t big_data_counter_{0};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
+  // millis() of the last user-set position per axis, 0 when none
+  uint32_t vertical_direction_set_time_{0};
+  uint32_t horizontal_direction_set_time_{0};
   HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
-  SwitchState quiet_mode_state_{SwitchState::OFF};
+  SwitchState quiet_mode_state_{SwitchState::SWITCH_OFF};
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

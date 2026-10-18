@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 
-static const char *const TAG = "pipsolar";
+ESPHOME_LOG_TAG(TAG, "pipsolar");
 
 void Pipsolar::setup() {
   this->state_ = STATE_IDLE;
@@ -287,6 +286,12 @@ void Pipsolar::handle_poll_response_(ENUMPollingCommand polling_command, const c
     case POLLING_QMN:
       handle_qmn_(message);
       break;
+    case POLLING_QET:
+      handle_single_int_(message, this->last_qet_, this->total_pv_generated_energy_);
+      break;
+    case POLLING_QLT:
+      handle_single_int_(message, this->last_qlt_, this->total_output_load_energy_);
+      break;
     default:
       break;
   }
@@ -433,13 +438,17 @@ void Pipsolar::handle_qpigs_(const char *message) {
 }
 
 void Pipsolar::handle_qmod_(const char *message) {
-  std::string mode;
-  char device_mode = char(message[1]);
   if (this->last_qmod_) {
     this->last_qmod_->publish_state(message);
   }
+  // QMOD response is "(M" where M is the device-mode character. Bail out if the
+  // message is shorter than 2 chars (e.g. empty error response from
+  // handle_poll_error_) — reading message[1] would otherwise be out of bounds.
+  if (message[0] == '\0' || message[1] == '\0')
+    return;
   if (this->device_mode_) {
-    mode = device_mode;
+    std::string mode;
+    mode = char(message[1]);
     this->device_mode_->publish_state(mode);
   }
 }
@@ -685,6 +694,17 @@ void Pipsolar::handle_qmn_(const char *message) {
   }
 }
 
+// QET and QLT each answer with one integer
+void Pipsolar::handle_single_int_(const char *message, text_sensor::TextSensor *raw, sensor::Sensor *value) {
+  if (raw) {
+    raw->publish_state(message);
+  }
+
+  size_t pos = 0;
+  this->skip_start_(message, &pos);
+  this->read_int_sensor_(message, &pos, value);
+}
+
 void Pipsolar::skip_start_(const char *message, size_t *pos) {
   if (message[*pos] == '(') {
     (*pos)++;
@@ -807,5 +827,4 @@ uint16_t Pipsolar::pipsolar_crc_(uint8_t *msg, uint8_t len) {
   return crc;
 }
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

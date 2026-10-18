@@ -8,8 +8,9 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
+
+static constexpr size_t SX126X_MAX_PACKET_SIZE = 255;
 
 enum SX126xBw : uint8_t {
   // FSK
@@ -47,16 +48,16 @@ enum SX126xBw : uint8_t {
   SX126X_BW_500000,
 };
 
-enum class SX126xError { NONE = 0, TIMEOUT, INVALID_PARAMS };
+enum class SX126xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX126X_ERROR_NOT_READY };
 
 class SX126xListener {
  public:
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 
-class SX126x : public Component,
-               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                     spi::DATA_RATE_8MHZ> {
+class SX126x final : public Component,
+                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                           spi::DATA_RATE_8MHZ> {
  public:
   size_t get_max_packet_size();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -72,6 +73,8 @@ class SX126x : public Component,
   void set_crc_size(uint8_t crc_size) { this->crc_size_ = crc_size; }
   void set_crc_polynomial(uint16_t crc_polynomial) { this->crc_polynomial_ = crc_polynomial; }
   void set_crc_initial(uint16_t crc_initial) { this->crc_initial_ = crc_initial; }
+  void set_whitening_enable(bool whitening_enable) { this->whitening_enable_ = whitening_enable; }
+  void set_whitening_initial(uint16_t whitening_initial) { this->whitening_initial_ = whitening_initial; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio1_pin(GPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
@@ -79,7 +82,7 @@ class SX126x : public Component,
   void set_mode_rx();
   void set_mode_tx();
   void set_mode_standby(SX126xStandbyMode mode);
-  void set_mode_sleep();
+  void set_mode_sleep(bool cold = false);
   void set_modulation(uint8_t modulation) { this->modulation_ = modulation; }
   void set_pa_power(int8_t power) { this->pa_power_ = power; }
   void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
@@ -96,7 +99,10 @@ class SX126x : public Component,
   void set_tcxo_delay(uint32_t tcxo_delay) { this->tcxo_delay_ = tcxo_delay; }
   void run_image_cal();
   void configure();
-  SX126xError transmit_packet(const std::vector<uint8_t> &packet);
+  SX126xError transmit_packet(const uint8_t *data, size_t len);
+  SX126xError transmit_packet(const std::vector<uint8_t> &packet) {
+    return this->transmit_packet(packet.data(), packet.size());
+  }
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
@@ -106,7 +112,7 @@ class SX126x : public Component,
   void configure_lora_();
   void set_packet_params_(uint8_t payload_length);
   uint8_t read_fifo_(uint8_t offset, std::vector<uint8_t> &packet);
-  void write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet);
+  void write_fifo_(uint8_t offset, const uint8_t *data, size_t len);
   void write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
   uint8_t read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
   void write_register_(uint16_t reg, uint8_t *data, uint8_t size);
@@ -129,6 +135,8 @@ class SX126x : public Component,
   uint8_t crc_size_{0};
   uint16_t crc_polynomial_{0};
   uint16_t crc_initial_{0};
+  bool whitening_enable_{false};
+  uint16_t whitening_initial_{0};
   uint32_t deviation_{0};
   uint32_t frequency_{0};
   uint32_t payload_length_{0};
@@ -146,5 +154,4 @@ class SX126x : public Component,
   bool rf_switch_{false};
 };
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

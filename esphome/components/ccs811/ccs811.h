@@ -6,10 +6,9 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ccs811 {
+namespace esphome::ccs811 {
 
-class CCS811Component : public PollingComponent, public i2c::I2CDevice {
+class CCS811Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_co2(sensor::Sensor *co2) { co2_ = co2; }
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }
@@ -32,15 +31,6 @@ class CCS811Component : public PollingComponent, public i2c::I2CDevice {
   bool status_has_data_() { return this->read_status_().value_or(0) & (1 << 3); }
   void send_env_data_();
 
-  enum ErrorCode {
-    UNKNOWN,
-    COMMUNICATION_FAILED,
-    INVALID_ID,
-    SENSOR_REPORTED_ERROR,
-    APP_INVALID,
-    APP_START_FAILED,
-  } error_code_{UNKNOWN};
-
   sensor::Sensor *co2_{nullptr};
   sensor::Sensor *tvoc_{nullptr};
   text_sensor::TextSensor *version_{nullptr};
@@ -51,5 +41,4 @@ class CCS811Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_{nullptr};
 };
 
-}  // namespace ccs811
-}  // namespace esphome
+}  // namespace esphome::ccs811

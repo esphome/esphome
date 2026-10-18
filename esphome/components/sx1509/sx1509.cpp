@@ -2,26 +2,25 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
-static const char *const TAG = "sx1509";
+ESPHOME_LOG_TAG(TAG, "sx1509");
 
 void SX1509Component::setup() {
   ESP_LOGV(TAG, "  Resetting devices");
   if (!this->write_byte(REG_RESET, 0x12)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->write_byte(REG_RESET, 0x34);
 
   uint16_t data;
   if (!this->read_byte_16(REG_INTERRUPT_MASK_A, &data)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (data != 0xFF00) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unexpected reset value"));
     return;
   }
   clock_(INTERNAL_CLOCK_2MHZ);
@@ -32,9 +31,6 @@ void SX1509Component::setup() {
 
 void SX1509Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SX1509:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up SX1509 failed!");
-  }
   LOG_I2C_DEVICE(this);
 }
 
@@ -49,7 +45,7 @@ void SX1509Component::loop() {
     uint16_t key_data = this->read_key_data();
     for (auto *binary_sensor : this->keypad_binary_sensors_)
       binary_sensor->process(key_data);
-    if (this->keys_.empty())
+    if (this->keys_ == nullptr)
       return;
     if (key_data == 0) {
       this->last_key_ = 0;
@@ -65,7 +61,9 @@ void SX1509Component::loop() {
         break;
     }
     col -= 8;
-    uint8_t key = this->keys_[row * this->cols_ + col];
+    if (row >= this->rows_ || col >= this->cols_)  // a partial read can leave only a row or a column bit
+      return;
+    uint8_t key = progmem_read_byte(&this->keys_[row * this->cols_ + col]);
     if (key == this->last_key_)
       return;
     this->last_key_ = key;
@@ -313,5 +311,4 @@ void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8
     set_debounce_pin_(i + 8);
 }
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

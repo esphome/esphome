@@ -1,6 +1,6 @@
 number:
   - platform: template
-    id: test_number
+    id: lcd_menu_test_number
     min_value: 0
     step: 1
     max_value: 10
@@ -22,7 +22,7 @@ switch:
 
 display:
   - platform: lcd_gpio
-    id: my_lcd_gpio
+    id: lcd_menu_my_lcd_gpio
     dimensions: 18x4
     data_pins:
       - number: ${d0_pin}
@@ -36,7 +36,7 @@ display:
 
 lcd_menu:
   id: test_lcd_menu
-  display_id: my_lcd_gpio
+  display_id: lcd_menu_my_lcd_gpio
   mark_back: 0x5e
   mark_selected: 0x3e
   mark_editing: 0x2a
@@ -83,7 +83,7 @@ lcd_menu:
           lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
       text: Number
-      number: test_number
+      number: lcd_menu_test_number
       on_enter:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'

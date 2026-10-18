@@ -3,11 +3,11 @@ from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
-    CONF_ID,
     DEVICE_CLASS_CARBON_DIOXIDE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@tylermenezes"]
 DEPENDENCIES = ["uart"]
@@ -32,15 +32,18 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "t6615", baud_rate=19200, require_rx=True, require_tx=True
+    "t6615",
+    baud_rate=19200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await uart.new_uart_component(config)
 
-    if co2 := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2)
-        cg.add(var.set_co2_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)

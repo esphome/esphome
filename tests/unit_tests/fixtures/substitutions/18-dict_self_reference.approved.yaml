@@ -1,0 +1,16 @@
+substitutions:
+  device:
+    manufacturer: espressif
+    model: esp32
+    mac_suffix: ffffff
+    name: espressif-esp32-ffffff
+  network:
+    host: example.com
+    port: 8080
+    url: http://example.com:8080/api
+esphome:
+  name: espressif-esp32-ffffff
+test_list:
+  - espressif-esp32-ffffff
+  - http://example.com:8080/api
+  - espressif/esp32

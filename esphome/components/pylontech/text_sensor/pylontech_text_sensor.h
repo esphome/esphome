@@ -3,12 +3,11 @@
 #include "../pylontech.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace pylontech {
+namespace esphome::pylontech {
 
-class PylontechTextSensor : public PylontechListener {
+class PylontechTextSensor final : public PylontechListener {
  public:
-  PylontechTextSensor(int8_t bat_num);
+  explicit PylontechTextSensor(uint8_t bat_num) : PylontechListener(bat_num) {}
   void dump_config() override;
 
   SUB_TEXT_SENSOR(base_state)
@@ -17,10 +16,6 @@ class PylontechTextSensor : public PylontechListener {
   SUB_TEXT_SENSOR(temperature_state)
 
   void on_line_read(LineContents *line) override;
-
- protected:
-  int8_t bat_num_;
 };
 
-}  // namespace pylontech
-}  // namespace esphome
+}  // namespace esphome::pylontech

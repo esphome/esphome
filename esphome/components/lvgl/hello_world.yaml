@@ -89,10 +89,12 @@
                       id: hello_world_label_
                       text: "Hello World!"
                       align: center
-            - obj:
+            - container:
                 id: hello_world_qrcode_
                 outline_width: 0
                 border_width: 0
+                height: 100
+                width: 100
                 hidden: !lambda |-
                     return lv_obj_get_width(lv_screen_active()) < 300 && lv_obj_get_height(lv_screen_active()) < 400;
                 widgets:

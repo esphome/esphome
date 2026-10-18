@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace htu21d {
+namespace esphome::htu21d {
 
-static const char *const TAG = "htu21d";
+ESPHOME_LOG_TAG(TAG, "htu21d");
 
 static const uint8_t HTU21D_ADDRESS = 0x40;
 static const uint8_t HTU21D_REGISTER_RESET = 0xFE;
@@ -19,7 +18,7 @@ static const uint8_t HTU21D_REG_HTRE_BIT = 0x02;        /**< Control Register He
 
 void HTU21DComponent::setup() {
   if (!this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -29,9 +28,6 @@ void HTU21DComponent::setup() {
 void HTU21DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU21D:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
@@ -143,5 +139,4 @@ uint8_t HTU21DComponent::get_heater_level() {
   return raw_heater & 0xF;
 }
 
-}  // namespace htu21d
-}  // namespace esphome
+}  // namespace esphome::htu21d

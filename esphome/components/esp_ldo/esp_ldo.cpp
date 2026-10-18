@@ -3,10 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace esp_ldo {
+namespace esphome::esp_ldo {
 
-static const char *const TAG = "esp_ldo";
+ESPHOME_LOG_TAG(TAG, "esp_ldo");
 void EspLdo::setup() {
   esp_ldo_channel_config_t config{};
   config.chan_id = this->channel_;
@@ -41,7 +40,6 @@ void EspLdo::adjust_voltage(float voltage) {
   }
 }
 
-}  // namespace esp_ldo
-}  // namespace esphome
+}  // namespace esphome::esp_ldo
 
 #endif  // USE_ESP32_VARIANT_ESP32P4

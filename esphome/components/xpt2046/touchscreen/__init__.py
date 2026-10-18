@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import spi, touchscreen
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_THRESHOLD
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@numo68", "@nielsnl68"]
 DEPENDENCIES = ["spi"]
@@ -31,7 +32,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await spi.register_spi_device(var, config)
     await touchscreen.register_touchscreen(var, config)

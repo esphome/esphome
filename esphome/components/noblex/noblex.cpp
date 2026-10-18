@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace noblex {
+namespace esphome::noblex {
 
-static const char *const TAG = "noblex.climate";
+ESPHOME_LOG_TAG(TAG, "noblex.climate");
 
 const uint16_t NOBLEX_HEADER_MARK = 9000;
 const uint16_t NOBLEX_HEADER_SPACE = 4500;
@@ -299,5 +298,4 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }  // end on_receive()
 
-}  // namespace noblex
-}  // namespace esphome
+}  // namespace esphome::noblex

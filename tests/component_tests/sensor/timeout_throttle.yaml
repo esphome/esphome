@@ -1,0 +1,52 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    id: merged
+    filters:
+      - timeout:
+          timeout: 1s
+          value: last
+      - throttle_with_priority: 1s
+  - platform: template
+    id: other_periods
+    filters:
+      - timeout:
+          timeout: 1s
+          value: last
+      - throttle_with_priority: 2s
+  - platform: template
+    id: other_order
+    filters:
+      - throttle_with_priority: 1s
+      - timeout:
+          timeout: 1s
+          value: last
+  - platform: template
+    id: value_list
+    filters:
+      - timeout:
+          timeout: 1s
+          value: last
+      - throttle_with_priority:
+          timeout: 1s
+          value: [0.0]
+  - platform: template
+    id: configured_value
+    filters:
+      - timeout:
+          timeout: 1s
+          value: 0.0
+      - throttle_with_priority: 1s
+  - platform: template
+    id: inside_or
+    filters:
+      - or:
+          - timeout:
+              timeout: 1s
+              value: last
+          - throttle_with_priority: 1s

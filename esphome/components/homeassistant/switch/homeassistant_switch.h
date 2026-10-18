@@ -3,10 +3,9 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
-class HomeassistantSwitch : public switch_::Switch, public Component {
+class HomeassistantSwitch final : public switch_::Switch, public Component {
  public:
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
   void setup() override;
@@ -18,5 +17,4 @@ class HomeassistantSwitch : public switch_::Switch, public Component {
   const char *entity_id_{nullptr};
 };
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

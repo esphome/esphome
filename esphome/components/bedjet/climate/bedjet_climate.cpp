@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 using namespace esphome::climate;
 
@@ -359,7 +358,6 @@ void BedJetClimate::update() {
   ESP_LOGD(TAG, "[%s] update_status result=%s", this->get_name().c_str(), result ? "true" : "false");
 }
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

@@ -4,11 +4,10 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace scd30 {
+namespace esphome::scd30 {
 
 /// This class implements support for the Sensirion scd30 i2c GAS (VOC and CO2eq) sensors.
-class SCD30Component : public Component, public sensirion_common::SensirionI2CDevice {
+class SCD30Component final : public Component, public sensirion_common::SensirionI2CDevice {
  public:
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
@@ -30,13 +29,6 @@ class SCD30Component : public Component, public sensirion_common::SensirionI2CDe
  protected:
   bool is_data_ready_();
 
-  enum ErrorCode {
-    COMMUNICATION_FAILED,
-    FIRMWARE_IDENTIFICATION_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    FORCE_RECALIBRATION_FAILED,
-    UNKNOWN
-  } error_code_{UNKNOWN};
   bool enable_asc_{true};
   uint16_t altitude_compensation_{0xFFFF};
   uint16_t ambient_pressure_compensation_{0x0000};
@@ -48,5 +40,4 @@ class SCD30Component : public Component, public sensirion_common::SensirionI2CDe
   sensor::Sensor *temperature_sensor_{nullptr};
 };
 
-}  // namespace scd30
-}  // namespace esphome
+}  // namespace esphome::scd30

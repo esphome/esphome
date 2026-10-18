@@ -1,6 +1,6 @@
 #pragma once
-namespace esphome {
-namespace havells_solar {
+
+namespace esphome::havells_solar {
 
 static const float TWO_DEC_UNIT = 0.01;
 static const float ONE_DEC_UNIT = 0.1;
@@ -45,5 +45,4 @@ static const uint16_t HAVELLS_GFCI_VALUE = 0x002A;
 static const uint16_t HAVELLS_DCI_OF_R = 0x002B;
 static const uint16_t HAVELLS_DCI_OF_S = 0x002C;
 static const uint16_t HAVELLS_DCI_OF_T = 0x002D;
-}  // namespace havells_solar
-}  // namespace esphome
+}  // namespace esphome::havells_solar

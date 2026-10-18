@@ -3,10 +3,9 @@
 #include "esphome/components/button/button.h"
 #include "../hon_climate.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
-class SelfCleaningButton : public button::Button, public Parented<HonClimate> {
+class SelfCleaningButton final : public button::Button, public Parented<HonClimate> {
  public:
   SelfCleaningButton() = default;
 
@@ -14,5 +13,4 @@ class SelfCleaningButton : public button::Button, public Parented<HonClimate> {
   void press_action() override;
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier
