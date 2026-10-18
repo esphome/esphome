@@ -162,8 +162,15 @@ class Canbus : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
+  canbus::Error send_data(CanFrame &frame);
+
+  // Explicit frame format. pad_data permits zero-padding to the next representable FD length.
   canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const uint8_t *data,
-                          size_t len);
+                          size_t len, bool fd, bool bit_rate_switch, bool pad_data = false);
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const uint8_t *data,
+                          size_t len) {
+    return this->send_data(can_id, use_extended_id, remote_transmission_request, data, len, false, false);
+  }
   canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
                           const std::vector<uint8_t> &data) {
     return this->send_data(can_id, use_extended_id, remote_transmission_request, data.data(), data.size());
