@@ -37,12 +37,12 @@ def test_no_request_keeps_the_default_split(
 def test_in_and_out_requests_share_the_spare_lines(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    # 196-byte packets each way, such as 48 kHz 16-bit stereo audio: 49 + 51 lines, plus 140 spare.
+    # 196-byte packets each way, such as 48 kHz 16-bit stereo audio: 49 + 51 lines, plus 84 spare.
     _set_variant(set_core_config, VARIANT_ESP32S3)
     usb_host.request_periodic_fifo(in_bytes=196, out_bytes=196)
     rx, nptx, ptx = usb_host.fifo_split()
-    assert (rx, nptx, ptx) == (121, 16, 119)
-    assert rx + nptx + ptx == 256
+    assert (rx, nptx, ptx) == (93, 16, 91)
+    assert rx + nptx + ptx == 200
     assert ptx * 4 >= 196
     assert (rx - 2) * 4 >= 196
 
@@ -50,18 +50,18 @@ def test_in_and_out_requests_share_the_spare_lines(
 def test_out_request_gets_the_rest(set_core_config: SetCoreConfigCallable) -> None:
     _set_variant(set_core_config, VARIANT_ESP32S2)
     usb_host.request_periodic_fifo(out_bytes=196)
-    assert usb_host.fifo_split() == (34, 16, 206)
+    assert usb_host.fifo_split() == (34, 16, 150)
 
 
 def test_in_request_gets_the_rest(set_core_config: SetCoreConfigCallable) -> None:
-    # 776 bytes, such as 96 kHz 32-bit stereo audio, is more than the default 632 bytes of RX.
+    # 512 bytes is more than the default 408 bytes of RX.
     _set_variant(set_core_config, VARIANT_ESP32S3)
-    usb_host.request_periodic_fifo(in_bytes=776)
-    assert usb_host.fifo_split() == (208, 16, 32)
+    usb_host.request_periodic_fifo(in_bytes=512)
+    assert usb_host.fifo_split() == (152, 16, 32)
 
 
 @pytest.mark.parametrize(
-    ("in_bytes", "out_bytes"), [(0, 0), (196, 0), (632, 128), (0, 128)]
+    ("in_bytes", "out_bytes"), [(0, 0), (196, 0), (408, 128), (0, 128)]
 )
 def test_requests_that_fit_the_default_keep_it(
     set_core_config: SetCoreConfigCallable, in_bytes: int, out_bytes: int
@@ -122,7 +122,7 @@ def test_final_validate_emits_the_split(
         defines["USB_HOST_FIFO_RX_LINES"],
         defines["USB_HOST_FIFO_NPTX_LINES"],
         defines["USB_HOST_FIFO_PTX_LINES"],
-    ) == ("34", "16", "206")
+    ) == ("34", "16", "150")
 
 
 def test_request_beyond_the_selected_bias_gets_a_custom_split(
@@ -141,7 +141,7 @@ def test_request_beyond_the_selected_bias_gets_a_custom_split(
         full_config=full,
     )
     usb_host.request_periodic_fifo(in_bytes=196)
-    assert usb_host.fifo_split() == (208, 16, 32)
+    assert usb_host.fifo_split() == (152, 16, 32)
 
 
 def test_final_validate_needs_idf_5_5(set_core_config: SetCoreConfigCallable) -> None:

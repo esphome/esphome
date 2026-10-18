@@ -125,17 +125,18 @@ def _final_validate(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-# S2/S3 full-speed controller: one FIFO of 256 4-byte lines shared by RX, non-periodic TX and periodic TX.
+# S2/S3 full-speed controller: 200 usable 4-byte FIFO lines (EPINFO takes the rest of 256) shared by RX,
+# non-periodic TX and periodic TX
 FIFO_VARIANTS = (VARIANT_ESP32S2, VARIANT_ESP32S3)
-FIFO_LINES = 256
+FIFO_LINES = 200
 FIFO_LINE_BYTES = 4
 FIFO_RX_STATUS_LINES = 2
 # (RX, NPTX, PTX) lines ESP-IDF picks for each CONFIG_USB_HOST_HW_BUFFER_BIAS_* option
 FIFO_BIAS_SPLITS = {
-    "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN": (208, 16, 32),
-    "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT": (34, 16, 206),
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN": (152, 16, 32),
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT": (34, 16, 150),
 }
-FIFO_BALANCED_SPLIT = (160, 64, 32)
+FIFO_BALANCED_SPLIT = (104, 64, 32)
 # Custom split: 64-byte control/bulk, at least 128 bytes each way
 FIFO_NPTX_LINES = 16
 FIFO_PTX_MIN_LINES = 32
@@ -182,7 +183,7 @@ def fifo_split() -> tuple[int, int, int] | None:
     if spare < 0:
         raise cv.Invalid(
             f"The requested USB packets need {(rx + ptx + FIFO_NPTX_LINES) * FIFO_LINE_BYTES} bytes of USB FIFO, "
-            f"but the {get_esp32_variant()} has {FIFO_LINES * FIFO_LINE_BYTES}"
+            f"but the {get_esp32_variant()} has {FIFO_LINES * FIFO_LINE_BYTES} usable"
         )
     # Devices may declare a larger max packet size, so the requested directions share the rest
     if in_bytes and out_bytes:
