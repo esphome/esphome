@@ -49,6 +49,22 @@ def _unique_destinations(peers: list[ConfigType]) -> list[ConfigType]:
     return peers
 
 
+def _not_own_address(config: ConfigType) -> ConfigType:
+    """Packets from this device's own address are dropped as echoes, so it cannot be a destination."""
+    address = config[CONF_ADDRESS]
+    if config.get(CONF_DESTINATION) == address:
+        raise cv.Invalid(
+            "Must not be this device's own address", path=[CONF_DESTINATION]
+        )
+    for index, peer in enumerate(config.get(CONF_PEERS, [])):
+        if peer[CONF_DESTINATION] == address:
+            raise cv.Invalid(
+                "Must not be this device's own address",
+                path=[CONF_PEERS, index, CONF_DESTINATION],
+            )
+    return config
+
+
 # A function, as each peer holds the other layers, whose schemas exist only once every layer type is registered
 def _basic_addressing_schema() -> cv.Schema:
     peer_schema = cv.All(
@@ -74,6 +90,7 @@ def _basic_addressing_schema() -> cv.Schema:
             }
         ).extend(cv.COMPONENT_SCHEMA),
         cv.has_at_most_one_key(CONF_DESTINATION, CONF_PEERS),
+        _not_own_address,
     )
 
 

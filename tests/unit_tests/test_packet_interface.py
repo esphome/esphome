@@ -25,6 +25,8 @@ from esphome.components.packet_interface.layers.hdlc_reliability import (
 from esphome.components.uart import packet_interface as uart_packet_interface
 from esphome.components.udp import packet_interface as udp_packet_interface
 from esphome.const import CONF_ENCRYPTION
+from esphome.core import ID
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -310,3 +312,36 @@ def test_xxtea_key_stretched() -> None:
     assert key != xxtea_encryption.derive_key("Johnny Cash ")
     sha = hashlib.sha256(b"Johnny Cash").digest()
     assert key[0] != int.from_bytes(sha[:4], "little")
+
+
+@pytest.mark.parametrize(
+    "addressing",
+    [
+        {"address": 1, "destination": 1},
+        {"address": 1, "peers": [_peer("a", 2), _peer("b", 1)]},
+    ],
+)
+def test_addressing_own_address_rejected(setup_core, addressing: dict) -> None:
+    """A device cannot send to its own address, as its own packets are dropped as echoes."""
+    with pytest.raises(cv.Invalid, match="own address"):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_ADDRESSING: addressing})
+
+
+def test_application_needs_peer_id_with_several_peers(setup_core) -> None:
+    """An application must use one peer's id, not the id of a link with several peers."""
+    validator = packet_interface.final_validate_interface("packet_interface")
+    token = fv.full_config.set(
+        {
+            "packet_interface": [
+                {"id": ID("bus"), CONF_ADDRESSING: {"peers": [_peer("a", 2)]}},
+                {"id": ID("single"), CONF_ADDRESSING: {"destination": 2}},
+            ]
+        }
+    )
+    try:
+        with pytest.raises(cv.Invalid, match="several peers"):
+            validator({"packet_interface": ID("bus")})
+        assert validator({"packet_interface": ID("single")})
+        assert validator({"packet_interface": ID("a")})
+    finally:
+        fv.full_config.reset(token)

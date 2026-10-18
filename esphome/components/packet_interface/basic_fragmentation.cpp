@@ -44,7 +44,8 @@ void BasicFragmentation::setup() {
 }
 
 void BasicFragmentation::dump_config() {
-  size_t fragments = this->fragments_for_(this->max_packet_size_);
+  // A link with no room for fragments fails setup, which core reports below
+  size_t fragments = this->fragment_size_() == 0 ? 0 : this->fragments_for_(this->max_packet_size_);
   ESP_LOGCONFIG(TAG,
                 "Basic Fragmentation on '%s':\n"
                 "  Max Packet Size: %zu\n"
