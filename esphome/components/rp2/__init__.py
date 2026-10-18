@@ -32,11 +32,7 @@ from esphome.core import (
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 from esphome.platformio.toolchain import copy_ccache_script
-from esphome.stacktrace import (  # noqa: F401
-    CRASH_HANDLER_ADDR_RE,
-    CRASH_HANDLER_RE,
-    process_crash_handler_line as process_stacktrace,
-)
+from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 

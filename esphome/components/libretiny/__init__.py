@@ -55,6 +55,9 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+# SDK fault handlers the crash handler wraps on BK7238 and BK7231N
+BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
+
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 DOMAIN = "libretiny"
@@ -531,13 +534,11 @@ async def component_to_code(config):
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
-        # Wrap the SDK's fault handlers (crash_handler.cpp); the record needs
-        # the ITCM region only these BK chips have (patch_noinit.py.script).
+        # Crash handler (crash_handler.cpp, patch_noinit.py.script)
         cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
-        for trap in ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt"):
+        for trap in BK_TRAP_HANDLERS:
             cg.add_build_flag(f"-Wl,--wrap={trap}")
-            cg.add_build_flag(f"-Wl,--undefined=__wrap_{trap}")
         cg.add_platformio_option("extra_scripts", ["pre:patch_noinit.py"])
     # Match the 1-byte enums of the LN882H SDK's prebuilt WiFi library.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:

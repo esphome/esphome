@@ -14,7 +14,8 @@
 #include <cstdio>
 
 extern "C" {
-#include <intc.h>  // struct arm_registers
+#include <arm_mcu_pub.h>  // MCU_REG_BACKUP_SP_*
+#include <intc.h>         // struct arm_registers
 }
 
 // On a fault the SDK (driver/entry/boot_handlers.S, PUSH_SVC_REG) builds a struct arm_registers frame
@@ -22,11 +23,9 @@ extern "C" {
 // retention register, print a dump that sdk_silent hides, and spin for the watchdog. The build wraps
 // them (-Wl,--wrap) so the fault location and a stack scan reach the next boot.
 //
-// sp, lr and pc in the frame are the exception mode's; PUSH_SVC_REG stores them at these word offsets.
+// pc in the frame is the exception mode's LR; PUSH_SVC_REG stores pc and spsr at these word offsets.
 static_assert(sizeof(arm_registers) == 18 * sizeof(uint32_t), "SDK exception frame changed size");
-static_assert(offsetof(arm_registers, sp) == 13 * 4 && offsetof(arm_registers, lr) == 14 * 4 &&
-                  offsetof(arm_registers, pc) == 15 * 4 && offsetof(arm_registers, spsr) == 16 * 4 &&
-                  offsetof(arm_registers, cpsr) == 17 * 4,
+static_assert(offsetof(arm_registers, pc) == 15 * 4 && offsetof(arm_registers, spsr) == 16 * 4,
               "SDK exception frame layout changed");
 static_assert(LT_HW_WATCHDOG, "the crash reboot relies on the hardware watchdog");
 
@@ -141,36 +140,36 @@ static inline bool is_code_addr(uint32_t val) {
          (addr >= (uint32_t) _itcmcode_ram_begin && addr < (uint32_t) _itcmcode_ram_end);
 }
 
-// Before branching to bk_trap_*, PUSH_ALL_ARM_REG (boot_handlers.S) saves every mode's registers to
-// SRAM: cpsr, then spsr for all but SYS, then r8-r14. bk_show_register() reads the same table. The
-// faulting mode's sp (r13) and lr (r14) are taken from there.
+// Before branching to bk_trap_*, PUSH_ALL_ARM_REG (boot_handlers.S) saves every mode's registers at
+// the addresses arm_mcu_pub.h names; sp (r13) is followed by lr (r14).
 struct SavedBank {
   uint32_t mode;
-  uint32_t sp_addr;  // r13; r14 follows
+  uint32_t sp_addr;
 };
 static constexpr SavedBank SAVED_BANKS[] = {
-    {CPSR_MODE_SYS, 0x400024 + 6 * 4}, {CPSR_MODE_IRQ, 0x400044 + 7 * 4}, {CPSR_MODE_FIQ, 0x400068 + 7 * 4},
-    {CPSR_MODE_ABT, 0x40008C + 7 * 4}, {CPSR_MODE_UND, 0x4000B0 + 7 * 4}, {CPSR_MODE_SVC, 0x4000D4 + 7 * 4},
+    {CPSR_MODE_SYS, MCU_REG_BACKUP_SP_SYS}, {CPSR_MODE_IRQ, MCU_REG_BACKUP_SP_IRQ},
+    {CPSR_MODE_FIQ, MCU_REG_BACKUP_SP_FIQ}, {CPSR_MODE_ABT, MCU_REG_BACKUP_SP_ABT},
+    {CPSR_MODE_UND, MCU_REG_BACKUP_SP_UND}, {CPSR_MODE_SVC, MCU_REG_BACKUP_SP_SVC},
 };
 
-static bool read_saved_sp_lr(uint32_t mode, uint32_t *sp, uint32_t *lr) {
+// Leaves sp and lr at 0 for a mode the table does not know (a corrupt spsr).
+static void read_saved_sp_lr(uint32_t mode, uint32_t *sp, uint32_t *lr) {
   for (const auto &bank : SAVED_BANKS) {
     if (bank.mode != mode)
       continue;
     const auto *regs = (const volatile uint32_t *) bank.sp_addr;  // NOLINT(performance-no-int-to-ptr)
     *sp = regs[0];
     *lr = regs[1];
-    return true;
+    return;
   }
-  return false;
 }
 
 static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offset) {
   uint32_t mode = regs->spsr & CPSR_MODE_MASK;
   if (mode == CPSR_MODE_USR)
     mode = CPSR_MODE_SYS;  // same register bank
-  uint32_t sp = regs->sp;
-  uint32_t lr = regs->lr;
+  uint32_t sp = 0;
+  uint32_t lr = 0;
   read_saved_sp_lr(mode, &sp, &lr);
 
   s_record.reason = reason;
@@ -189,8 +188,8 @@ static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offse
         s_record.backtrace[count++] = val;
     }
   }
-  for (; count < MAX_BACKTRACE; count++)
-    s_record.backtrace[count] = 0;
+  if (count < MAX_BACKTRACE)
+    s_record.backtrace[count] = 0;  // terminator, the reader stops at the first 0
   s_record.magic = CRASH_MAGIC_V1;
 
   lt_wdt_enable(CRASH_REBOOT_WDT_MS);

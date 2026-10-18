@@ -29,11 +29,7 @@ from esphome.components.libretiny.const import (
 )
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
-from esphome.stacktrace import (  # noqa: F401
-    CRASH_HANDLER_ADDR_RE,
-    CRASH_HANDLER_RE,
-    process_crash_handler_line as process_stacktrace,
-)
+from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401
 from esphome.types import ConfigType
 
 from .boards import BK72XX_BOARD_PINS, BK72XX_BOARDS

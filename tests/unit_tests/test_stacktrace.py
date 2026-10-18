@@ -6,6 +6,7 @@ import importlib
 import inspect
 from pathlib import Path
 import re
+import subprocess
 from unittest.mock import Mock, patch
 
 from hypothesis import given, settings
@@ -243,6 +244,13 @@ GATE_EXEMPT_PATTERNS = {
 }
 
 
+def _decoder_module(platform: str):
+    """The module holding a platform's decoder patterns: the platform package,
+    or the shared module its process_stacktrace hook comes from."""
+    module = importlib.import_module(f"esphome.components.{platform}")
+    return importlib.import_module(module.process_stacktrace.__module__)
+
+
 @pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
 def test_platform_declarations_match_decoder(platform: str) -> None:
     r"""Samples, declared patterns, and the decoder must agree.
@@ -260,9 +268,10 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
     pointer branch's ``\b`` are invisible to it.
     """
     module = importlib.import_module(f"esphome.components.{platform}")
+    decoder = _decoder_module(platform)
     patterns: dict[str, re.Pattern] = {}
     for name in DECODER_PATTERNS[platform]:
-        pattern = getattr(module, name, None)
+        pattern = getattr(decoder, name, None)
         if pattern is None:
             pytest.fail(
                 f"{platform} no longer defines {name}; update DECODER_PATTERNS "
@@ -285,7 +294,7 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
         )
     undeclared = [
         name
-        for name, value in vars(module).items()
+        for name, value in vars(decoder).items()
         if isinstance(value, re.Pattern)
         and ("STACKTRACE" in name or name.startswith("_CRASH"))
         and name not in DECODER_PATTERNS[platform]
@@ -339,7 +348,7 @@ def test_address_gate_covers_decoder_pattern_languages(
     """Each platform's gate must be a superset of its decoder patterns;
     generated inputs catch a widened decoder the finite samples miss.
     """
-    pattern = getattr(importlib.import_module(f"esphome.components.{platform}"), name)
+    pattern = getattr(_decoder_module(platform), name)
     example = data.draw(from_regex(pattern, fullmatch=True))
     gate = re.compile(stacktrace.platform_hooks.STACKTRACE_GATES[platform])
     assert gate.search(example), (
@@ -636,30 +645,24 @@ def test_crash_report_says_why_it_cannot_decode(
 
 
 def test_addr2line_returns_the_tool_output(tmp_path: Path) -> None:
+    elf = tmp_path / "fw.elf"
     with patch("subprocess.run", return_value=Mock(stdout="  decoded \n")) as run:
-        assert (
-            stacktrace._addr2line("addr2line", tmp_path / "fw.elf", "0x1") == "decoded"
-        )
-    assert run.call_args.args[0] == [
-        "addr2line",
-        "-pfiaC",
-        "-e",
-        str(tmp_path / "fw.elf"),
-        "0x1",
-    ]
+        assert stacktrace._addr2line("addr2line", elf, "0x1") == "decoded"
+    assert run.call_args.args[0] == ["addr2line", "-pfiaC", "-e", str(elf), "0x1"]
 
 
-def test_addr2line_reports_the_failure(tmp_path: Path) -> None:
-    import subprocess
-
-    error = subprocess.CalledProcessError(1, "addr2line", stderr="bad ELF\n")
+@pytest.mark.parametrize(
+    ("error", "detail"),
+    [
+        (subprocess.CalledProcessError(1, "addr2line", stderr="bad ELF\n"), "bad ELF"),
+        (OSError("no such tool"), "no such tool"),
+    ],
+)
+def test_addr2line_reports_the_failure(
+    tmp_path: Path, error: Exception, detail: str
+) -> None:
     with patch("subprocess.run", side_effect=error):
         assert (
             stacktrace._addr2line("addr2line", tmp_path / "fw.elf", "0x1")
-            == "0x1 (decode failed: bad ELF)"
-        )
-    with patch("subprocess.run", side_effect=OSError("no such tool")):
-        assert (
-            stacktrace._addr2line("addr2line", tmp_path / "fw.elf", "0x1")
-            == "0x1 (decode failed: no such tool)"
+            == f"0x1 (decode failed: {detail})"
         )

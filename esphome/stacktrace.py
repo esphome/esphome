@@ -161,21 +161,19 @@ def process_crash_handler_line(
         if match := CRASH_HANDLER_ADDR_RE.search(line):
             from esphome.platformio.toolchain import get_idedata
 
+            addr = match.group(1)
             idedata = get_idedata(config)
             elf = idedata.firmware_elf_path
             if not idedata.addr2line_path:
-                _LOGGER.warning(
-                    "Cannot decode %s: no addr2line in the toolchain", match.group(1)
-                )
+                _LOGGER.warning("Cannot decode %s: no addr2line in the toolchain", addr)
             elif not elf.exists():
                 _LOGGER.warning(
-                    "Cannot decode %s: %s missing, compile locally first",
-                    match.group(1),
-                    elf,
+                    "Cannot decode %s: %s missing, compile locally first", addr, elf
                 )
             else:
-                decoded = _addr2line(idedata.addr2line_path, elf, match.group(1))
-                _LOGGER.error("  %s => %s", match.group(1), decoded)
+                _LOGGER.error(
+                    "  %s => %s", addr, _addr2line(idedata.addr2line_path, elf, addr)
+                )
 
         # The addr2line hint is the last line of the report
         if "addr2line" in line:
