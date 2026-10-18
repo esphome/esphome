@@ -35,7 +35,7 @@ class USBAudioMicrophone : public microphone::Microphone,
   void stop() override;
 
   audio::AudioStreamInfo get_usb_stream_info() override { return this->audio_stream_info_; }
-  void on_stream_state(bool running) override;
+  void on_stream_state(StreamEvent event) override;
   bool stream_idle() const override { return this->task_idle_; }
 
  protected:

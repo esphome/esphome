@@ -112,8 +112,8 @@ void USBAudioSpeaker::stop_() {
   this->state_ = speaker::STATE_STOPPED;
 }
 
-void USBAudioSpeaker::on_stream_state(bool running) {
-  if (running) {
+void USBAudioSpeaker::on_stream_state(StreamEvent event) {
+  if (event == StreamEvent::RUNNING) {
     if (this->state_ == speaker::STATE_STARTING) {
       this->state_ = speaker::STATE_RUNNING;
       if (this->finish_after_start_) {
@@ -123,7 +123,8 @@ void USBAudioSpeaker::on_stream_state(bool running) {
     }
     return;
   }
-  if (this->state_ == speaker::STATE_RUNNING) {
+  // Playback stops on a lost device as well as a failed start; the next start() opens it again.
+  if (event == StreamEvent::LOST && this->state_ == speaker::STATE_RUNNING) {
     ESP_LOGW(TAG, "USB device disconnected, stopping playback");
   }
   this->stop_();

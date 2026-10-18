@@ -25,6 +25,16 @@ enum class Endpoint : uint8_t {
   MICROPHONE,
 };
 
+/// What the hub reports to a platform about its stream.
+enum class StreamEvent : uint8_t {
+  // The stream runs.
+  RUNNING,
+  // The device went away; the hub restarts the stream when it returns while the platform still wants it.
+  LOST,
+  // The stream failed to start; the platform goes back to stopped and its next start() retries.
+  FAILED,
+};
+
 /// A speaker or microphone platform that streams through the hub. The hub calls it on the main loop only.
 class USBAudioStream {
  public:
@@ -33,10 +43,7 @@ class USBAudioStream {
   uint32_t get_buffer_size() const { return this->buffer_size_; }
   /// The fixed format the hub opens the stream with.
   virtual audio::AudioStreamInfo get_usb_stream_info() = 0;
-  /// The stream is running (true), or it stopped (false): the device went away, and the hub restarts the stream
-  /// when it returns while the platform still wants it, or the stream failed to start and the platform must start
-  /// again.
-  virtual void on_stream_state(bool running) = 0;
+  virtual void on_stream_state(StreamEvent event) = 0;
   /// No platform task is inside a read or write call on the device; the hub closes a lost device only then.
   virtual bool stream_idle() const = 0;
 
@@ -59,6 +66,8 @@ struct USBAudioEvent {
   uac_host_device_handle_t handle{nullptr};
   uint8_t addr{0};
   uint8_t iface_num{0};
+  // RESUMED: the request it answers; only the latest request's result is acted on.
+  uint8_t seq{0};
   Type type{Type::CONNECTED};
   Endpoint endpoint{Endpoint::SPEAKER};
   bool ok{false};
@@ -107,9 +116,16 @@ class USBAudioComponent : public Component {
     bool active{false};
     // The connected device rejected the configured format; cleared when it is closed.
     bool format_rejected{false};
-    // An open, start or resume is queued on the worker; its result event clears it.
-    bool op_pending{false};
+    // An open or start is queued on the worker; its result event clears it.
+    bool open_pending{false};
+    bool start_pending{false};
     bool close_queued{false};
+    // Counts resume() and suspend() calls, so a RESUMED that a later suspend overtook is ignored.
+    uint8_t request_seq{0};
+    // A reconnect that arrived while the old handle was still closing; opened once it is closed.
+    bool connect_deferred{false};
+    uint8_t deferred_addr{0};
+    uint8_t deferred_iface{0};
   };
 
   struct ControlState {
@@ -133,6 +149,8 @@ class USBAudioComponent : public Component {
     uac_host_device_handle_t handle{nullptr};
     uint8_t addr{0};
     uint8_t iface_num{0};
+    // RESUME: copied to the result, see EndpointState::request_seq.
+    uint8_t seq{0};
     Type type{Type::OPEN};
     Endpoint endpoint{Endpoint::SPEAKER};
     // CLOSE: stop the stream before closing.
@@ -143,7 +161,7 @@ class USBAudioComponent : public Component {
   const EndpointState &endpoint_(Endpoint endpoint) const { return this->endpoints_[static_cast<size_t>(endpoint)]; }
   void process_events_();
   void process_event_(const USBAudioEvent &event);
-  void open_stream_(const USBAudioEvent &event);
+  void open_stream_(Endpoint endpoint, uint8_t addr, uint8_t iface_num);
   void on_opened_(const USBAudioEvent &event);
   void on_started_(const USBAudioEvent &event);
   void on_resumed_(const USBAudioEvent &event);

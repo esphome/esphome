@@ -42,7 +42,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   void set_mute_state(bool mute_state) override;
 
   audio::AudioStreamInfo get_usb_stream_info() override { return this->usb_stream_info_; }
-  void on_stream_state(bool running) override;
+  void on_stream_state(StreamEvent event) override;
   bool stream_idle() const override { return this->writes_in_flight_ == 0; }
 
  protected:

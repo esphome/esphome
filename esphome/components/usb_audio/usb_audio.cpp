@@ -96,12 +96,7 @@ void USBAudioComponent::process_events_() {
   USBAudioEvent event;
   // Only the events already queued: one posted again while this runs waits for the next loop().
   for (UBaseType_t queued = uxQueueMessagesWaiting(this->event_queue_);
-       queued > 0 && xQueuePeek(this->event_queue_, &event, 0) == pdTRUE; queued--) {
-    // A device that came back waits until its old handle is closed.
-    if (event.type == USBAudioEvent::Type::CONNECTED && this->endpoint_(event.endpoint).closing != nullptr) {
-      break;
-    }
-    xQueueReceive(this->event_queue_, &event, 0);
+       queued > 0 && xQueueReceive(this->event_queue_, &event, 0) == pdTRUE; queued--) {
     this->process_event_(event);
   }
 }
@@ -151,13 +146,14 @@ bool USBAudioComponent::teardown() {
 void USBAudioComponent::resume(Endpoint endpoint) {
   auto &ep = this->endpoint_(endpoint);
   ep.active = true;
+  ep.request_seq++;
   const uac_host_device_handle_t handle = ep.handle;
   if (handle == nullptr) {
     ESP_LOGD(TAG, "%s interface not connected yet", LOG_STR_ARG(endpoint_name(endpoint)));
     return;
   }
-  if (ep.op_pending) {
-    // The pending start or resume reports back to the platform.
+  if (ep.start_pending) {
+    // The pending start reports back to the platform, and checks `active` first.
     return;
   }
   if (!ep.stream_started) {
@@ -169,20 +165,22 @@ void USBAudioComponent::resume(Endpoint endpoint) {
     this->start_stream_(endpoint);
     return;
   }
+  // Queued even while an earlier resume or suspend is pending: the worker runs them in order, so the driver ends in
+  // the latest requested state, and only this request's RESUMED reports back.
   Op op;
   op.type = Op::Type::RESUME;
   op.endpoint = endpoint;
   op.handle = handle;
+  op.seq = ep.request_seq;
   if (!this->queue_op_(op)) {
     this->stream_failed_(endpoint);
-    return;
   }
-  ep.op_pending = true;
 }
 
 void USBAudioComponent::suspend(Endpoint endpoint) {
   auto &ep = this->endpoint_(endpoint);
   ep.active = false;
+  ep.request_seq++;
   const uac_host_device_handle_t handle = ep.handle;
   // A start still running on the worker is suspended once its STARTED arrives.
   if (!ep.stream_started || handle == nullptr) {
@@ -246,9 +244,19 @@ esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, u
 
 void USBAudioComponent::process_event_(const USBAudioEvent &event) {
   switch (event.type) {
-    case USBAudioEvent::Type::CONNECTED:
-      this->open_stream_(event);
+    case USBAudioEvent::Type::CONNECTED: {
+      auto &ep = this->endpoint_(event.endpoint);
+      if (ep.closing != nullptr) {
+        // A device that came back waits until its old handle is closed; the queue keeps draining meanwhile, so the
+        // worker's CLOSED can arrive.
+        ep.connect_deferred = true;
+        ep.deferred_addr = event.addr;
+        ep.deferred_iface = event.iface_num;
+        break;
+      }
+      this->open_stream_(event.endpoint, event.addr, event.iface_num);
       break;
+    }
     case USBAudioEvent::Type::DISCONNECTED:
       this->handle_disconnect_(event.handle);
       break;
@@ -267,33 +275,38 @@ void USBAudioComponent::process_event_(const USBAudioEvent &event) {
   }
 }
 
-void USBAudioComponent::open_stream_(const USBAudioEvent &event) {
-  auto &ep = this->endpoint_(event.endpoint);
-  const LogString *name = endpoint_name(event.endpoint);
+void USBAudioComponent::open_stream_(Endpoint endpoint, uint8_t addr, uint8_t iface_num) {
+  auto &ep = this->endpoint_(endpoint);
+  const LogString *name = endpoint_name(endpoint);
   if (ep.platform == nullptr) {
     ESP_LOGD(TAG, "%s interface connected but not configured", LOG_STR_ARG(name));
     return;
   }
-  if (ep.handle.load() != nullptr || ep.op_pending) {
+  if (ep.handle.load() != nullptr || ep.open_pending) {
     ESP_LOGW(TAG, "%s interface already open, ignoring duplicate event", LOG_STR_ARG(name));
     return;
   }
   Op op;
   op.type = Op::Type::OPEN;
-  op.endpoint = event.endpoint;
-  op.addr = event.addr;
-  op.iface_num = event.iface_num;
+  op.endpoint = endpoint;
+  op.addr = addr;
+  op.iface_num = iface_num;
   if (!this->queue_op_(op)) {
     // The event is already off the queue, so post it again for a later loop() instead of losing the device.
+    USBAudioEvent event;
+    event.type = USBAudioEvent::Type::CONNECTED;
+    event.endpoint = endpoint;
+    event.addr = addr;
+    event.iface_num = iface_num;
     this->post_event_(event);
     return;
   }
-  ep.op_pending = true;
+  ep.open_pending = true;
 }
 
 void USBAudioComponent::on_opened_(const USBAudioEvent &event) {
   auto &ep = this->endpoint_(event.endpoint);
-  ep.op_pending = false;
+  ep.open_pending = false;
   if (!event.ok) {
     return;
   }
@@ -324,12 +337,12 @@ void USBAudioComponent::start_stream_(Endpoint endpoint) {
     this->stream_failed_(endpoint);
     return;
   }
-  ep.op_pending = true;
+  ep.start_pending = true;
 }
 
 void USBAudioComponent::on_started_(const USBAudioEvent &event) {
   auto &ep = this->endpoint_(event.endpoint);
-  ep.op_pending = false;
+  ep.start_pending = false;
   if (event.handle != ep.handle.load()) {
     // The device went away meanwhile; the platform was already told.
     return;
@@ -353,28 +366,27 @@ void USBAudioComponent::on_started_(const USBAudioEvent &event) {
     this->suspend(event.endpoint);
     return;
   }
-  ep.platform->on_stream_state(true);
+  ep.platform->on_stream_state(StreamEvent::RUNNING);
 }
 
 void USBAudioComponent::on_resumed_(const USBAudioEvent &event) {
   auto &ep = this->endpoint_(event.endpoint);
-  ep.op_pending = false;
-  if (event.handle != ep.handle.load() || !ep.active) {
-    // The device went away, or the platform stopped and its suspend is queued behind this resume.
+  if (event.handle != ep.handle.load() || event.seq != ep.request_seq || !ep.active) {
+    // The device went away, or a later suspend or resume is queued behind this one and decides the state.
     return;
   }
   if (!event.ok) {
     this->stream_failed_(event.endpoint);
     return;
   }
-  ep.platform->on_stream_state(true);
+  ep.platform->on_stream_state(StreamEvent::RUNNING);
 }
 
 void USBAudioComponent::stream_failed_(Endpoint endpoint) {
   auto &ep = this->endpoint_(endpoint);
   // The platform goes back to stopped, so a reconnect must not restart the stream; its next start() retries.
   ep.active = false;
-  ep.platform->on_stream_state(false);
+  ep.platform->on_stream_state(StreamEvent::FAILED);
 }
 
 void USBAudioComponent::set_speaker_volume_level(float volume) {
@@ -416,7 +428,7 @@ void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
     }
   }
   if (std::any_of(this->endpoints_.begin(), this->endpoints_.end(),
-                  [](const EndpointState &ep) { return ep.op_pending && ep.handle.load() == nullptr; })) {
+                  [](const EndpointState &ep) { return ep.open_pending; })) {
     // Its open is still running on the worker; close it once it reports back.
     for (auto &lost : this->lost_while_opening_) {
       if (lost == nullptr || lost == handle) {
@@ -440,7 +452,8 @@ void USBAudioComponent::begin_close_(Endpoint endpoint) {
   }
   ep.closing = handle;
   ep.close_queued = false;
-  ep.platform->on_stream_state(false);
+  // `active` is kept, so the stream restarts when the device returns.
+  ep.platform->on_stream_state(StreamEvent::LOST);
 }
 
 bool USBAudioComponent::finish_closes_() {
@@ -471,7 +484,12 @@ void USBAudioComponent::on_closed_(const USBAudioEvent &event) {
   ep.close_queued = false;
   ep.stream_started = false;
   ep.format_rejected = false;
-  ep.op_pending = false;
+  ep.start_pending = false;
+  if (ep.connect_deferred) {
+    // The device came back while its old handle was closing.
+    ep.connect_deferred = false;
+    this->open_stream_(event.endpoint, ep.deferred_addr, ep.deferred_iface);
+  }
 }
 
 bool USBAudioComponent::queue_op_(const Op &op) {
@@ -558,6 +576,7 @@ void USBAudioComponent::run_op_(const Op &op) {
     case Op::Type::RESUME: {
       esp_err_t err = uac_host_device_resume(op.handle);
       result.type = USBAudioEvent::Type::RESUMED;
+      result.seq = op.seq;
       result.ok = err == ESP_OK || err == ESP_ERR_INVALID_STATE;
       if (!result.ok) {
         ESP_LOGW(TAG, "Failed to resume %s stream: %s", LOG_STR_ARG(name), esp_err_to_name(err));
@@ -624,24 +643,38 @@ bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_devi
     return false;
   }
 
+  // uac_host_device_start() picks the alternate setting itself from channels, bit depth and rate: the last match with
+  // discrete rates, or the first match with a rate range. Find the one it will pick, so its subframe size is checked.
+  uint8_t selected_alt = 0;
+  uint8_t selected_subframe = 0;
   for (uint8_t alt = 1; alt <= dev_info.iface_alt_num; alt++) {
     uac_host_dev_alt_param_t alt_param{};
-    if (uac_host_get_device_alt_param(handle, alt, &alt_param) != ESP_OK) {
+    if (uac_host_get_device_alt_param(handle, alt, &alt_param) != ESP_OK || alt_param.channels != channels ||
+        alt_param.bit_resolution != bits || !alt_supports_rate(alt_param, sample_rate)) {
       continue;
     }
-    // ESPHome's samples are packed, so a device that pads them (e.g. 24-bit samples in 4-byte subframes) cannot be
-    // streamed unchanged.
-    if (alt_param.channels == channels && alt_param.bit_resolution == bits && alt_param.subframe_size * 8 == bits &&
-        alt_supports_rate(alt_param, sample_rate)) {
-      stream_config.channels = channels;
-      stream_config.bit_resolution = bits;
-      stream_config.sample_freq = sample_rate;
-      stream_config.flags = 0;
-      return true;
+    selected_alt = alt;
+    selected_subframe = alt_param.subframe_size;
+    if (alt_param.sample_freq_type == 0) {
+      break;
     }
   }
 
+  // ESPHome's samples are packed, so a device that pads them (e.g. 24-bit samples in 4-byte subframes) cannot be
+  // streamed unchanged.
+  if (selected_alt != 0 && selected_subframe * 8 == bits) {
+    stream_config.channels = channels;
+    stream_config.bit_resolution = bits;
+    stream_config.sample_freq = sample_rate;
+    stream_config.flags = 0;
+    return true;
+  }
+
   format_rejected = true;
+  if (selected_alt != 0) {
+    ESP_LOGW(TAG, "%s interface %u would stream alt %u with %u-bit samples padded to %u bytes, which is not supported",
+             LOG_STR_ARG(name), dev_info.iface_num, selected_alt, bits, selected_subframe);
+  }
   ESP_LOGW(TAG, "%s interface %u does not support requested format (channels=%u bits=%u sample_rate=%" PRIu32 " Hz)",
            LOG_STR_ARG(name), dev_info.iface_num, channels, bits, sample_rate);
   for (uint8_t alt = 1; alt <= dev_info.iface_alt_num; alt++) {

@@ -78,24 +78,31 @@ void USBAudioMicrophone::start() {
 
 void USBAudioMicrophone::stop() { this->request_(COMMAND_STOP, COMMAND_START); }
 
-void USBAudioMicrophone::on_stream_state(bool running) {
-  if (running) {
-    if (this->state_ == microphone::STATE_STARTING) {
-      this->task_idle_ = false;
-      this->running_ = true;
-      xTaskNotifyGive(this->mic_task_.get_handle());
-      this->state_ = microphone::STATE_RUNNING;
-    }
-    return;
-  }
-  if (this->state_ == microphone::STATE_RUNNING) {
-    ESP_LOGW(TAG, "USB device disconnected, waiting for it to return");
-    // The hub restarts the stream on reconnect, since the microphone still wants it.
-    this->running_ = false;
-    this->state_ = microphone::STATE_STARTING;
-  } else if (this->state_ == microphone::STATE_STARTING) {
-    // The stream failed to start; the next start() retries.
-    this->state_ = microphone::STATE_STOPPED;
+void USBAudioMicrophone::on_stream_state(StreamEvent event) {
+  switch (event) {
+    case StreamEvent::RUNNING:
+      if (this->state_ == microphone::STATE_STARTING) {
+        this->task_idle_ = false;
+        this->running_ = true;
+        xTaskNotifyGive(this->mic_task_.get_handle());
+        this->state_ = microphone::STATE_RUNNING;
+      }
+      break;
+    case StreamEvent::LOST:
+      // The hub restarts the stream on reconnect, since the microphone still wants it, so keep waiting in STARTING;
+      // this also covers a disconnect while the stream was still starting.
+      if (this->state_ == microphone::STATE_RUNNING) {
+        ESP_LOGW(TAG, "USB device disconnected, waiting for it to return");
+        this->running_ = false;
+        this->state_ = microphone::STATE_STARTING;
+      }
+      break;
+    case StreamEvent::FAILED:
+      // Only a start or resume fails, so the task is idle; the next start() retries.
+      if (this->state_ == microphone::STATE_STARTING) {
+        this->state_ = microphone::STATE_STOPPED;
+      }
+      break;
   }
 }
 
