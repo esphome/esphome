@@ -124,8 +124,8 @@ void DeepSleepComponent::deep_sleep_() {
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
   // disable all existing wakeup pins and prevent re-enable from ISR
   gpio_uninstall_isr_service();
-  esp_sleep_disable_ext1_wakeup_io(0);
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  esp_sleep_disable_ext1_wakeup_io(0);
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
 #endif
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);

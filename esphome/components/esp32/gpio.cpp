@@ -132,7 +132,7 @@ static void IRAM_ATTR gpio_intr(void *arg) {
   gpio_int_type_t type = func_arg->type;
   if (gpio_hal_get_level(&GPIO_HAL, pin)) {
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-    esp_sleep_enable_ext1_wakeup_io(1 << pin, ESP_EXT1_WAKEUP_ANY_LOW);
+    esp_sleep_enable_ext1_wakeup_io(1ULL << pin, ESP_EXT1_WAKEUP_ANY_LOW);
 #endif
     gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_LOW_LEVEL);
     if ((type == GPIO_INTR_POSEDGE) || (type == GPIO_INTR_ANYEDGE)) {
@@ -140,7 +140,7 @@ static void IRAM_ATTR gpio_intr(void *arg) {
     }
   } else {
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-    esp_sleep_enable_ext1_wakeup_io(1 << pin, ESP_EXT1_WAKEUP_ANY_HIGH);
+    esp_sleep_enable_ext1_wakeup_io(1ULL << pin, ESP_EXT1_WAKEUP_ANY_HIGH);
 #endif
     gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_HIGH_LEVEL);
     if ((type == GPIO_INTR_NEGEDGE) || (type == GPIO_INTR_ANYEDGE)) {
@@ -177,15 +177,15 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     // use ext1 wakeup for RTC pins.
     // Some variants could also use gpio wakeup instead.
     if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
-      esp_sleep_enable_ext1_wakeup_io(1 << this->get_pin_num(), get_ext1_type(idf_type));
+      esp_sleep_enable_ext1_wakeup_io(1ULL << this->get_pin_num(), get_ext1_type(idf_type));
       gpio_set_intr_type(this->get_pin_num(), idf_type);
     } else {
       // edge interrupt is not supported, so we need to emulate
       if (gpio_get_level(this->get_pin_num())) {
-        esp_sleep_enable_ext1_wakeup_io(1 << this->get_pin_num(), ESP_EXT1_WAKEUP_ANY_LOW);
+        esp_sleep_enable_ext1_wakeup_io(1ULL << this->get_pin_num(), ESP_EXT1_WAKEUP_ANY_LOW);
         gpio_set_intr_type(this->get_pin_num(), GPIO_INTR_LOW_LEVEL);
       } else {
-        esp_sleep_enable_ext1_wakeup_io(1 << this->get_pin_num(), ESP_EXT1_WAKEUP_ANY_HIGH);
+        esp_sleep_enable_ext1_wakeup_io(1ULL << this->get_pin_num(), ESP_EXT1_WAKEUP_ANY_HIGH);
         gpio_set_intr_type(this->get_pin_num(), GPIO_INTR_HIGH_LEVEL);
       }
     }
@@ -228,7 +228,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
 #endif
     if (idf_type != GPIO_INTR_LOW_LEVEL && idf_type != GPIO_INTR_HIGH_LEVEL) {
       // edge interrupt is not supported, so we need to emulate
-      static ISRFuncArg *func_args = new ISRFuncArg();  // NOLINT(cppcoreguidelines-owning-memory)
+      ISRFuncArg *func_args = new ISRFuncArg();  // NOLINT(cppcoreguidelines-owning-memory)
       func_args->pin = this->get_pin_num();
       func_args->type = idf_type;
       func_args->func = func;
