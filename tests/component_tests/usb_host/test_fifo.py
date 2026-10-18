@@ -48,9 +48,30 @@ def test_out_request_gets_the_rest(set_core_config: SetCoreConfigCallable) -> No
 
 
 def test_in_request_gets_the_rest(set_core_config: SetCoreConfigCallable) -> None:
+    # 776 bytes, such as 96 kHz 32-bit stereo audio, is more than the default 632 bytes of RX.
     _set_variant(set_core_config, VARIANT_ESP32S3)
-    usb_host.request_periodic_fifo(in_bytes=196)
+    usb_host.request_periodic_fifo(in_bytes=776)
     assert usb_host.fifo_split() == (208, 16, 32)
+
+
+@pytest.mark.parametrize(
+    ("in_bytes", "out_bytes"), [(0, 0), (196, 0), (632, 128), (0, 128)]
+)
+def test_requests_that_fit_the_default_keep_it(
+    set_core_config: SetCoreConfigCallable, in_bytes: int, out_bytes: int
+) -> None:
+    _set_variant(set_core_config, VARIANT_ESP32S3)
+    usb_host.request_periodic_fifo(in_bytes=in_bytes, out_bytes=out_bytes)
+    assert usb_host.fifo_split() is None
+
+
+def test_requests_that_fit_the_default_need_no_newer_idf(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set_variant(set_core_config, VARIANT_ESP32S3, idf=cv.Version(5, 4, 3))
+    usb_host.request_periodic_fifo(in_bytes=34, out_bytes=128)
+    usb_host.FINAL_VALIDATE_SCHEMA({})
+    assert usb_host.KEY_FIFO_SPLIT not in CORE.data[usb_host.DOMAIN]
 
 
 def test_requests_keep_the_largest_packet(
