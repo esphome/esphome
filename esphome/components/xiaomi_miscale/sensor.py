@@ -50,7 +50,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device(config)
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_clear_impedance(config[CONF_CLEAR_IMPEDANCE]))

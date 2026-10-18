@@ -71,7 +71,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device(
+    var = await ble_device_base.new_ble_device_component(
         config, config[CONF_MAC_ADDRESS].as_hex, config[CONF_BINDKEY]
     )
 
