@@ -45,6 +45,7 @@ enum SX127xReg : uint8_t {
   REG_PAYLOAD_LENGTH_LSB = 0x32,
   REG_FIFO_THRESH = 0x35,
   REG_IMAGE_CAL = 0x3B,
+  REG_IRQ_FLAGS_1 = 0x3E,
   // LoRa registers
   REG_FIFO_ADDR_PTR = 0x0D,
   REG_FIFO_TX_BASE_ADDR = 0x0E,
@@ -257,6 +258,11 @@ enum SX127xIrqFlags : uint8_t {
   CAD_DONE = 0x04,
   FHSS_CHANGE_CHANNEL = 0x02,
   CAD_DETECTED = 0x01,
+};
+
+enum SX127xIrqFlags1 : uint8_t {
+  IRQ_FLAGS_1_PREAMBLE_DETECT = 0x02,
+  IRQ_FLAGS_1_SYNC_ADDRESS_MATCH = 0x01,
 };
 
 enum SX127xModemStat : uint8_t {

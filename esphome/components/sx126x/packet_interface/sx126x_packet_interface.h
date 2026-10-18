@@ -14,6 +14,7 @@ class SX126xPacketInterface : public packet_interface::PacketInterface, public S
   explicit SX126xPacketInterface(SX126x *radio) : radio_(radio) {}
 
   void setup() override { this->radio_->register_listener(this); }
+  void set_max_busy(uint32_t max_busy_ms) { this->listen_before_talk_.set_max_busy(max_busy_ms); }
   bool send_to_interface(const packet_interface::PacketBuffer &data,
                          const packet_interface::PacketMetaData &meta_data) override;
   void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) override;

@@ -358,8 +358,11 @@ bool SX127x::is_receiving() {
   // In receive mode DIO0 signals a received packet; the transmit FIFO would overwrite it
   if (this->dio0_pin_ != nullptr && this->dio0_pin_->digital_read())
     return true;
-  if (this->modulation_ != MOD_LORA)
-    return false;
+  if (this->modulation_ != MOD_LORA) {
+    // Set from a detected preamble or sync word until the packet has been read
+    return (this->read_register_(REG_IRQ_FLAGS_1) & (IRQ_FLAGS_1_PREAMBLE_DETECT | IRQ_FLAGS_1_SYNC_ADDRESS_MATCH)) !=
+           0;
+  }
   return (this->read_register_(REG_MODEM_STAT) &
           (MODEM_STAT_SIGNAL_DETECTED | MODEM_STAT_SIGNAL_SYNCHRONIZED | MODEM_STAT_HEADER_VALID)) != 0;
 }
