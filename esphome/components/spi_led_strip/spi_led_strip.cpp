@@ -55,10 +55,10 @@ void SpiLedStrip::write_state(light::LightState *state) {
     esph_log_v(TAG, "write_state: buf = %s", strbuf);
   }
 #endif
+  this->mark_shown_();
   this->enable();
   this->write_array(this->buf_, this->buffer_size_);
   this->disable();
-  this->mark_shown_();
 }
 light::ESPColorView SpiLedStrip::get_view_internal(int32_t index) const {
   size_t pos = index * 4 + 5;

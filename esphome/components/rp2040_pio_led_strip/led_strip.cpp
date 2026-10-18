@@ -138,8 +138,9 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
   sem_acquire_blocking(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem[this->dma_chan_]);
-  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
+  // After the previous transfer is done, so a power limit rewrite never races the DMA
   this->mark_shown_();
+  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 
 light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {

@@ -36,15 +36,18 @@ uint8_t AddressableLight::power_scale_for_(const uint32_t sums[4]) {
   return static_cast<uint8_t>(std::max(budget_ma / intended_ma * 255.0f, 1.0f));
 }
 
-// A hardware level moved to a new scale; a lit channel stays lit, so the demand it stands for is
-// never read back as zero
+// A hardware level moved to a new scale. Rounded up on the way down so a lit channel stays lit and is
+// never read back as zero, rounded down on the way up so a level does not creep brighter over a
+// down-and-up cycle
 static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
   if (level == 0)
     return 0;
-  return std::max<uint32_t>((static_cast<uint32_t>(level) * scale + previous - 1) / previous, 1);
+  const uint32_t scaled = static_cast<uint32_t>(level) * scale;
+  const uint32_t moved = scale < previous ? (scaled + previous - 1) / previous : scaled / previous;
+  return std::max<uint32_t>(moved, 1);
 }
 
-// Called with the frame that was just sent. When the limit changes, the frame is moved to the new
+// Called with the frame about to be sent. When the limit changes, the frame is moved to the new
 // scale and sent again, so every write path is limited and each pixel reads back as the level it
 // was written with
 void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {

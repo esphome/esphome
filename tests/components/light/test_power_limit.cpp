@@ -115,4 +115,32 @@ TEST(PowerLimit, RescalesAFrameWrittenOutsideTheState) {
   EXPECT_NEAR(strip[1].get_red(), 128, 2);
 }
 
+TEST(PowerLimit, LevelsDoNotCreepOverALimitCycle) {
+  Strip strip(4);
+  // Levels written once and never touched again, as a lambda would leave them
+  for (int i = 0; i < 4; i++)
+    strip[i].set_raw(1 + i * 40, 2, 100, 0);
+  // 1020 mA at full level, so the budget of 300 mA limits the strip
+  strip.set_power_estimation(255, 255, 255, 255, 0, 300);
+  strip.shown();
+  const uint8_t limited = strip.power_brightness();
+  ASSERT_LT(limited, 255);
+  // Lit channels stay lit while limited
+  for (int i = 0; i < 4; i++)
+    EXPECT_GE(strip[i].get_green_raw(), 1) << i;
+  // The budget goes away and the next frame restores the scale
+  strip.set_power_estimation(255, 255, 255, 255, 0, 0);
+  strip.shown();
+  ASSERT_EQ(strip.power_brightness(), 255);
+  // Each level comes back within one quantisation step of where it started, never below it
+  const int step = (255 + limited - 1) / limited;
+  for (int i = 0; i < 4; i++) {
+    const int red = 1 + i * 40;
+    EXPECT_GE(strip[i].get_red_raw(), red) << i;
+    EXPECT_LE(strip[i].get_red_raw(), red + step) << i;
+    EXPECT_GE(strip[i].get_blue_raw(), 100) << i;
+    EXPECT_LE(strip[i].get_blue_raw(), 100 + step) << i;
+  }
+}
+
 }  // namespace esphome::light::testing
