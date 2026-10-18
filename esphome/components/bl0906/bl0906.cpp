@@ -1,13 +1,14 @@
 #include "bl0906.h"
 #include "constants.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bl0906 {
 
 ESPHOME_LOG_TAG(TAG, "bl0906");
 
-constexpr uint32_t to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+constexpr uint32_t to_uint32_t(ube24_t input) { return encode_uint24(input.h, input.m, input.l); }
 
 constexpr int32_t to_int32_t(sbe24_t input) {
   return static_cast<int32_t>(encode_uint32((uint8_t) input.h, input.m, input.l, 0)) >> 8;
@@ -133,9 +134,7 @@ void BL0906::handle_actions_() {
     }
   }
 
-  while (this->available()) {
-    this->read();
-  }
+  this->discard_available();
 
   this->action_queue_.clear();
 }

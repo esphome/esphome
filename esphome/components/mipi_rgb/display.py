@@ -315,28 +315,16 @@ async def to_code(config: ConfigType) -> None:
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
 
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc))
-
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     if model.rotation_as_transform(config):
         config[CONF_ROTATION] = 0
 
-    if de_pin := config.get(CONF_DE_PIN):
-        pin = await cg.gpio_pin_expression(de_pin)
-        cg.add(var.set_de_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
-    cg.add(var.set_pclk_pin(pin))
-    if hsync_pin := config.get(CONF_HSYNC_PIN):
-        pin = await cg.gpio_pin_expression(hsync_pin)
-        cg.add(var.set_hsync_pin(pin))
-    if vsync_pin := config.get(CONF_VSYNC_PIN):
-        pin = await cg.gpio_pin_expression(vsync_pin)
-        cg.add(var.set_vsync_pin(pin))
+    await cg.add_pin(var.set_de_pin, config.get(CONF_DE_PIN))
+    await cg.add_pin(var.set_pclk_pin, config[CONF_PCLK_PIN])
+    await cg.add_pin(var.set_hsync_pin, config.get(CONF_HSYNC_PIN))
+    await cg.add_pin(var.set_vsync_pin, config.get(CONF_VSYNC_PIN))
 
     await display.register_display(var, config)
     await display.add_writer(var, config)
