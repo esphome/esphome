@@ -18,7 +18,7 @@ ESPHOME_LOG_TAG(TAG, "usb_audio.spk");
 static constexpr size_t MAX_TIMEOUT_RETRIES = 4;
 
 void USBAudioSpeaker::setup() {
-  const auto &info = this->audio_stream_info_;
+  const auto &info = this->usb_stream_info_;
   this->write_chunk_ = info.frames_to_bytes(std::max<uint32_t>(info.bytes_to_frames(this->buffer_size_ / 4), 1));
   if (!this->control_task_.create(&USBAudioSpeaker::control_task, "usb_spk_ctrl", CONTROL_TASK_STACK_SIZE, this,
                                   CONTROL_TASK_PRIORITY, false)) {
@@ -37,8 +37,8 @@ void USBAudioSpeaker::dump_config() {
                 "  Channels: %u\n"
                 "  Buffer size: %" PRIu32 "\n"
                 "  Write timeout: %" PRIu32 " ms",
-                this->audio_stream_info_.get_sample_rate(), this->audio_stream_info_.get_bits_per_sample(),
-                this->audio_stream_info_.get_channels(), this->buffer_size_, this->write_timeout_ms_);
+                this->usb_stream_info_.get_sample_rate(), this->usb_stream_info_.get_bits_per_sample(),
+                this->usb_stream_info_.get_channels(), this->buffer_size_, this->write_timeout_ms_);
 }
 
 void USBAudioSpeaker::loop() {
@@ -117,6 +117,22 @@ size_t USBAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t tick
 size_t USBAudioSpeaker::play(const uint8_t *data, size_t length) { return this->play(data, length, 0); }
 
 size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms) {
+  if (this->audio_stream_info_ != this->usb_stream_info_) {
+    // Playing it through the configured stream would change the speed and channel layout.
+    if (!this->format_mismatch_.exchange(true)) {
+      const auto &info = this->audio_stream_info_;
+      ESP_LOGE(TAG,
+               "Audio format (%" PRIu32 " Hz, %u bits, %u channels) does not match the USB stream; use a resampler "
+               "speaker",
+               info.get_sample_rate(), info.get_bits_per_sample(), info.get_channels());
+    }
+    if (budget_ms > 0) {
+      vTaskDelay(pdMS_TO_TICKS(budget_ms));
+    }
+    return 0;
+  }
+  this->format_mismatch_ = false;
+
   if (this->state_ != speaker::STATE_RUNNING) {
     this->start();
     // Wait out the budget so a pipeline task retrying play() does not spin.
@@ -161,13 +177,13 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
 
   if (written > 0) {
     // Whatever was queued at the last write has partly played out since; the driver holds at most buffer_size_.
-    const auto &info = this->audio_stream_info_;
+    const auto &info = this->usb_stream_info_;
     const uint32_t queued = this->queued_bytes_;
     const uint32_t elapsed_ms = now - this->last_write_ms_;
     const uint32_t remaining = elapsed_ms < info.bytes_to_ms(queued) ? queued - info.ms_to_bytes(elapsed_ms) : 0;
     this->queued_bytes_ = std::min<uint32_t>(remaining + written, this->buffer_size_);
     this->last_write_ms_ = now;
-    this->audio_output_callback_(this->audio_stream_info_.bytes_to_frames(written), esp_timer_get_time());
+    this->audio_output_callback_(this->usb_stream_info_.bytes_to_frames(written), esp_timer_get_time());
   }
   return written;
 }
@@ -176,7 +192,7 @@ bool USBAudioSpeaker::has_buffered_data_(uint32_t now) const {
   // Signed, since the cached loop time can be a little older than a write made on another task.
   const auto elapsed_ms = static_cast<int32_t>(now - this->last_write_ms_);
   return this->state_ == speaker::STATE_RUNNING &&
-         elapsed_ms < static_cast<int32_t>(this->audio_stream_info_.bytes_to_ms(this->queued_bytes_));
+         elapsed_ms < static_cast<int32_t>(this->usb_stream_info_.bytes_to_ms(this->queued_bytes_));
 }
 
 bool USBAudioSpeaker::has_buffered_data() const { return this->has_buffered_data_(millis()); }

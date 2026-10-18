@@ -287,7 +287,9 @@ bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_stre
     if (uac_host_get_device_alt_param(ep.handle, alt, &alt_param) != ESP_OK) {
       continue;
     }
-    if (alt_param.channels == channels && alt_param.bit_resolution == bits &&
+    // ESPHome's samples are packed, so a device that pads them (e.g. 24-bit samples in 4-byte subframes) cannot be
+    // streamed unchanged.
+    if (alt_param.channels == channels && alt_param.bit_resolution == bits && alt_param.subframe_size * 8 == bits &&
         alt_supports_rate(alt_param, sample_rate)) {
       stream_config.channels = channels;
       stream_config.bit_resolution = bits;
@@ -305,11 +307,13 @@ bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_stre
       continue;
     }
     if (alt_param.sample_freq_type == 0) {
-      ESP_LOGI(TAG, "  alt %u: channels=%u bits=%u sample rate range=%" PRIu32 "-%" PRIu32 " Hz", alt,
-               alt_param.channels, alt_param.bit_resolution, alt_param.sample_freq_lower, alt_param.sample_freq_upper);
+      ESP_LOGI(TAG, "  alt %u: channels=%u bits=%u subframe=%u bytes sample rate range=%" PRIu32 "-%" PRIu32 " Hz", alt,
+               alt_param.channels, alt_param.bit_resolution, alt_param.subframe_size, alt_param.sample_freq_lower,
+               alt_param.sample_freq_upper);
       continue;
     }
-    ESP_LOGI(TAG, "  alt %u: channels=%u bits=%u sample rates:", alt, alt_param.channels, alt_param.bit_resolution);
+    ESP_LOGI(TAG, "  alt %u: channels=%u bits=%u subframe=%u bytes sample rates:", alt, alt_param.channels,
+             alt_param.bit_resolution, alt_param.subframe_size);
     const uint8_t count = discrete_rate_count(alt_param);
     for (uint8_t i = 0; i < count; i++) {
       ESP_LOGI(TAG, "    %" PRIu32 " Hz", alt_param.sample_freq[i]);

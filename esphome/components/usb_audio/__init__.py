@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import esphome.codegen as cg
 from esphome.components import audio, esp32
 import esphome.config_validation as cv
@@ -6,9 +8,11 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_ID,
     CONF_NUM_CHANNELS,
+    CONF_PLATFORM,
     CONF_SAMPLE_RATE,
 )
 from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ab-tools"]
@@ -68,6 +72,32 @@ def set_stream_limits(config: ConfigType) -> ConfigType:
         max_sample_rate=sample_rate,
     )(config)
     return config
+
+
+def bytes_per_frame(config: ConfigType) -> int:
+    """Bytes in one frame (one sample for every channel) of a platform's configured format."""
+    return config[CONF_NUM_CHANNELS] * int(config[CONF_BITS_PER_SAMPLE]) // 8
+
+
+def final_validate_one_per_hub(domain: str) -> Callable[[ConfigType], ConfigType]:
+    """The hub streams one speaker and one microphone, so reject a second platform of the same kind on a hub."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        hub_id = str(config[CONF_USB_AUDIO_ID])
+        count = sum(
+            1
+            for platform_config in fv.full_config.get().get(domain, [])
+            if platform_config.get(CONF_PLATFORM) == DOMAIN
+            and str(platform_config.get(CONF_USB_AUDIO_ID)) == hub_id
+        )
+        if count > 1:
+            raise cv.Invalid(
+                f"Only one usb_audio {domain} per usb_audio component is supported",
+                path=[CONF_USB_AUDIO_ID],
+            )
+        return config
+
+    return validator
 
 
 def stream_info(config: ConfigType) -> MockObj:

@@ -22,7 +22,7 @@ class USBAudioSpeaker : public speaker::Speaker,
                         public USBAudioStream {
  public:
   USBAudioSpeaker(const audio::AudioStreamInfo &stream_info, uint32_t buffer_size, uint32_t write_timeout_ms)
-      : USBAudioStream(buffer_size), write_timeout_ms_(write_timeout_ms) {
+      : USBAudioStream(buffer_size), usb_stream_info_(stream_info), write_timeout_ms_(write_timeout_ms) {
     this->audio_stream_info_ = stream_info;
   }
 
@@ -42,7 +42,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   void set_volume(float volume) override;
   void set_mute_state(bool mute_state) override;
 
-  audio::AudioStreamInfo get_usb_stream_info() override { return this->audio_stream_info_; }
+  audio::AudioStreamInfo get_usb_stream_info() override { return this->usb_stream_info_; }
   void on_stream_state(bool running) override;
   bool stream_idle() const override { return this->writes_in_flight_ == 0; }
 
@@ -63,6 +63,9 @@ class USBAudioSpeaker : public speaker::Speaker,
   // Sends volume and mute to the device: the control transfers can block for seconds, too long for the main loop
   // and for play(). Created once in setup() and parked until woken.
   StaticTask control_task_;
+  // The configured format the USB stream runs with. Callers such as the media pipeline set audio_stream_info_ for
+  // each item, so play() checks it against this instead of reopening the stream with another format.
+  const audio::AudioStreamInfo usb_stream_info_;
   uint32_t write_timeout_ms_;
   // Frame-aligned size of each driver write, set in setup().
   uint32_t write_chunk_{0};
@@ -73,6 +76,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   // play() calls and control transfers that may be using the device handle; the hub closes a lost device only at
   // zero.
   std::atomic<uint8_t> writes_in_flight_{0};
+  // Set while play() rejects audio in a format other than usb_stream_info_, so the error is logged once.
+  std::atomic<bool> format_mismatch_{false};
   bool finishing_{false};
 };
 
