@@ -256,9 +256,6 @@ void TMC22XXStepper::dump_config() {
   LOG_PIN("  INDEX Pin: ", this->index_pin_);
   LOG_PIN("  DIAG Pin: ", this->diag_pin_);
   LOG_STEPPER(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void TMC22XXStepper::loop() {
@@ -449,8 +446,7 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
                                      0};
   datagram[7] = datagram_crc(datagram, 7);
 
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write_array(datagram, DATAGRAM_SIZE);
   this->flush();
   // On the single wire bus every byte sent is also received, drop that echo
@@ -478,8 +474,7 @@ optional<uint32_t> TMC22XXStepper::read_register(uint8_t reg) {
   uint8_t request[READ_REQUEST_SIZE] = {SYNC_BYTE, this->address_, reg, 0};
   request[3] = datagram_crc(request, 3);
 
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write_array(request, READ_REQUEST_SIZE);
   this->flush();
   uint8_t reply[DATAGRAM_SIZE];

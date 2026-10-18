@@ -456,6 +456,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
       }
       return ESP_ERR_NOT_SUPPORTED;
     }
+    this->current_stream_info_ = audio_stream_info;
     // The speaker task will enable the channel after preloading.
     return this->acquire_full_duplex_channel_(I2S_EVENT_QUEUE_COUNT);
   }
