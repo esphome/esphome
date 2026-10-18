@@ -145,6 +145,7 @@ TEST_F(ATM90E32ThresholdRegisters, ClampsWhenCalibrationExceedsTheRegisterRange)
   EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_OITH], 65535);
 }
 
+#ifdef USE_HOST
 TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsAfterRestoringAndClearingStoredGains) {
   if (global_preferences == nullptr)
     host::setup_preferences();
@@ -171,6 +172,7 @@ TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsAfterRestoringAndClearingS
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 45675, 1);
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], 8287, 1);
 }
+#endif  // USE_HOST
 
 TEST_F(ATM90E32ThresholdRegisters, CombinesNativeCurrentWithOtherPhaseAlarms) {
   sensor::Sensor current;
