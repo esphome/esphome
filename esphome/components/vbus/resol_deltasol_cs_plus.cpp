@@ -47,6 +47,9 @@ void ResolDeltaSolCSPlus::setup() {
     this->resume_pending_ =
         !suspended && !this->stopped_ && (this->attempted_ || this->get_update_interval() != SCHEDULER_DONT_RUN);
     if (suspended) {
+#ifdef USE_VBUS_CS_PLUS_WRITE
+      this->write_armed_ = false;
+#endif
       this->abort_();
     }
   });
@@ -222,6 +225,12 @@ void ResolDeltaSolCSPlus::start_group_() {
 
 void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index, uint32_t value,
                                      TransactionStatus status) {
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_phase_ == WritePhase::VERIFY && command == 0x0200) {
+    this->on_write_result_(index, value, status);
+    return;
+  }
+#endif
   if (this->phase_ != Phase::PHASE_GROUP || command != 0x0300)
     return;
   const auto position = cs_plus::setting_position(index);
@@ -241,6 +250,13 @@ void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index,
 void ResolDeltaSolCSPlus::loop() {
   if (this->stopped_ || this->phase_ == Phase::PHASE_IDLE)
     return;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_phase_ != WritePhase::IDLE &&
+      App.get_loop_component_start_time() - this->write_started_at_ >= GROUP_TIMEOUT_MS) {
+    this->abort_();
+    return;
+  }
+#endif
   this->request_count_ = this->transmitter_->get_read_count() - this->reads_at_start_;
   const uint32_t releases = this->transmitter_->get_release_count() - this->releases_at_start_;
   if (releases != this->release_count_)
@@ -261,6 +277,12 @@ void ResolDeltaSolCSPlus::loop() {
     this->polling_->resume_group();
     return;
   }
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_phase_ != WritePhase::IDLE) {
+    this->advance_write_();
+    return;
+  }
+#endif
   if (this->position_ == this->plan_count_)
     this->extend_plan_();
   if (this->position_ < this->plan_count_) {
@@ -273,12 +295,22 @@ void ResolDeltaSolCSPlus::loop() {
   this->elapsed_ms_ = this->snapshot_at_ - this->attempt_at_;
   ++this->completed_scans_;
   this->has_snapshot_ = true;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  this->write_uncertain_ = false;
+#endif
   this->phase_ = Phase::PHASE_IDLE;
   this->disable_loop();
   this->snapshot_callback_.call();
 }
 
 void ResolDeltaSolCSPlus::abort_() {
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_phase_ != WritePhase::IDLE) {
+    this->finish_write_(this->transmitter_->get_write_count() != this->writes_before_ ? SettingWriteStatus::UNCERTAIN
+                                                                                      : SettingWriteStatus::FAILED);
+    return;
+  }
+#endif
   if (this->phase_ == Phase::PHASE_IDLE)
     return;
   ESP_LOGW(TAG, "Scan incomplete; retaining the previous snapshot");

@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_ENABLED
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -27,6 +28,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "vbus_polling.cpp": "USE_VBUS_POLLING",
         "resol_deltasol_cs_plus.cpp": "USE_VBUS_CS_PLUS",
         "vbus_cs_plus_policy.cpp": "USE_VBUS_CS_PLUS",
+        "resol_deltasol_cs_plus_write.cpp": "USE_VBUS_CS_PLUS_WRITE",
     }
 )
 
@@ -38,6 +40,7 @@ VBusPolling = vbus_ns.class_("VBusPolling", cg.PollingComponent)
 ResolDeltaSolCSPlus = vbus_ns.class_("ResolDeltaSolCSPlus", cg.PollingComponent)
 _request_poll_value_slot = cg.slot_counter("VBUS_POLL_VALUE_COUNT")
 TransactionStatus = vbus_ns.enum("TransactionStatus", is_class=True)
+SettingWriteStatus = vbus_ns.enum("SettingWriteStatus", is_class=True)
 
 CONF_VBUS_ID = "vbus_id"
 CONF_ON_DATAGRAM = "on_datagram"
@@ -58,6 +61,9 @@ CONF_BATCH_SIZE = "batch_size"
 CONF_CONTROLLER = "controller"
 CONF_SCHEDULER_ID = "scheduler_id"
 CONF_ON_SNAPSHOT = "on_snapshot"
+CONF_WRITES = "writes"
+CONF_REQUIRE_WRITE_ARM = "require_write_arm"
+CONF_ON_SETTING_RESULT = "on_setting_result"
 CS_PLUS_SETTING_COUNT = 84
 
 
@@ -141,6 +147,14 @@ CONTROLLER_SCHEMA = cv.All(
             cv.GenerateID(CONF_SCHEDULER_ID): cv.declare_id(VBusPolling),
             cv.Required(CONF_MODEL): cv.one_of("deltasol_cs_plus", lower=True),
             cv.Optional(CONF_ON_SNAPSHOT): automation.validate_automation({}),
+            cv.Optional(CONF_WRITES): cv.Schema(
+                {
+                    cv.Optional(CONF_REQUIRE_WRITE_ARM, default=True): cv.boolean,
+                    cv.Optional(CONF_ON_SETTING_RESULT): automation.validate_automation(
+                        {}
+                    ),
+                }
+            ),
         }
     ).extend(cv.polling_component_schema("5min")),
     validate_controller,
@@ -217,6 +231,15 @@ def final_validate(config: ConfigType) -> None:
         CONF_TRANSACTIONS, {}
     )
     data = CORE.data.get(DOMAIN, {})
+    if controller:
+        profile = transmit[CONF_TRANSACTIONS][CONF_CONTROLLER]
+        if (
+            str(profile[CONF_ID]) in data.get("setting_actions", set())
+            and CONF_WRITES not in profile
+        ):
+            raise cv.Invalid(
+                "Setting actions require controller.writes on this controller"
+            )
     if controller and str(config[CONF_ID]) in data.get("queue_actions", set()):
         raise cv.Invalid("Controller owns TX; raw queue actions are not allowed")
     if str(config[CONF_ID]) in data.get("queue_actions", set()) and not polling:
@@ -364,6 +387,18 @@ async def to_code(config: ConfigType) -> None:
                     controller_config[CONF_ID], var, poller, tx
                 )
                 await cg.register_component(controller, controller_config)
+                if writes := controller_config.get(CONF_WRITES):
+                    cg.add_define("USE_VBUS_CS_PLUS_WRITE")
+                    cg.add(
+                        controller.set_require_write_arm(writes[CONF_REQUIRE_WRITE_ARM])
+                    )
+                    for conf in writes.get(CONF_ON_SETTING_RESULT, []):
+                        await automation.build_callback_automation(
+                            controller,
+                            "add_on_setting_result_callback",
+                            [(cg.uint16, "value_id"), (SettingWriteStatus, "status")],
+                            conf,
+                        )
                 for conf in controller_config.get(CONF_ON_SNAPSHOT, []):
                     await automation.build_callback_automation(
                         controller, "add_on_snapshot_callback", [], conf
@@ -558,4 +593,42 @@ automation.register_apply_action(
     "vbus.scan_controller",
     cv.Schema({cv.Required(CONF_ID): cv.use_id(ResolDeltaSolCSPlus)}),
     automation.ApplyCall("start_scan()"),
+)
+
+
+def validate_setting_action(config: ConfigType) -> ConfigType:
+    CORE.data.setdefault(DOMAIN, {}).setdefault("setting_actions", set()).add(
+        str(config[CONF_ID])
+    )
+    return config
+
+
+automation.register_apply_action(
+    "vbus.set_setting",
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(ResolDeltaSolCSPlus),
+                cv.Required(CONF_VALUE_ID): cv.templatable(cv.uint16_t),
+                cv.Required(CONF_VALUE): cv.templatable(cv.float_),
+            }
+        ),
+        validate_setting_action,
+    ),
+    automation.ApplyCall(
+        "request_setting({}, {})", ((CONF_VALUE_ID, cg.uint16), (CONF_VALUE, cg.float_))
+    ),
+)
+automation.register_apply_action(
+    "vbus.arm_writes",
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(ResolDeltaSolCSPlus),
+                cv.Required(CONF_ENABLED): cv.templatable(cv.boolean),
+            }
+        ),
+        validate_setting_action,
+    ),
+    automation.ApplyCall("arm_writes({})", ((CONF_ENABLED, cg.bool_),)),
 )
