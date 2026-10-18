@@ -3,12 +3,14 @@
 #include <csignal>
 #include <cstdint>
 #include <memory>
+#include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <vector>
 
 #include "esphome/components/tcp/packet_interface/tcp_packet_interface.h"
 #include "esphome/core/application.h"
+#include "esphome/core/wake.h"
 
 #ifdef USE_HOST
 
@@ -154,6 +156,115 @@ TEST_F(TcpPacketInterfaceTest, NotSentWhileDown) {
   this->a.link.link().close();
   this->a.link.loop();
   EXPECT_FALSE(this->a.send({1}));
+}
+
+TEST_F(TcpPacketInterfaceTest, FrameAssembledAcrossReads) {
+  End c;
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  c.link.link().adopt(std::make_unique<socket::Socket>(fds[0]));
+  c.link.loop();
+  // A keep-alive, then a 3 byte packet in three writes: half the length, the rest of it, then the payload
+  const uint8_t keep_alive[2] = {0x00, 0x00};
+  ASSERT_EQ(::write(fds[1], keep_alive, 2), 2);
+  c.link.loop();
+  const uint8_t length_low = 0x03;
+  ASSERT_EQ(::write(fds[1], &length_low, 1), 1);
+  c.link.loop();
+  const uint8_t length_high_and_start[2] = {0x00, 0xAA};
+  ASSERT_EQ(::write(fds[1], length_high_and_start, 2), 2);
+  c.link.loop();
+  EXPECT_TRUE(c.received.empty());
+  const uint8_t rest[2] = {0xBB, 0xCC};
+  ASSERT_EQ(::write(fds[1], rest, 2), 2);
+  c.link.loop();
+  EXPECT_EQ(c.received, (std::vector<Packet>{{0xAA, 0xBB, 0xCC}}));
+  EXPECT_TRUE(c.link.is_connected());
+  ::close(fds[1]);
+}
+
+// Waits in the main loop's select(), which marks the sockets that are ready to read
+static void wait_for_sockets() { esphome::internal::wakeable_delay(5); }
+
+// The server role, accepting connections on a loopback port
+class TcpServerTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    signal(SIGPIPE, SIG_IGN);
+    new (&App) Application;
+    App.pre_setup("tcp-tests", 9, "", 0);
+    set_time(1000);
+    this->port = free_port();
+    this->server.link.set_server(true);
+    this->server.link.set_port(this->port);
+  }
+  void TearDown() override {
+    this->server.link.on_shutdown();
+    for (int fd : this->clients)
+      ::close(fd);
+    App.~Application();
+  }
+  static void set_time(uint32_t now) { LoopBlockingGuard guard{nullptr, nullptr, now}; }
+  static uint16_t free_port() {
+    int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in addr {};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    socklen_t len = sizeof(addr);
+    EXPECT_EQ(::bind(fd, reinterpret_cast<struct sockaddr *>(&addr), len), 0);
+    EXPECT_EQ(::getsockname(fd, reinterpret_cast<struct sockaddr *>(&addr), &len), 0);
+    ::close(fd);
+    return ntohs(addr.sin_port);
+  }
+  // Connects a client and runs the server's loop until it has accepted it
+  int connect_client() {
+    int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in addr {};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons(this->port);
+    EXPECT_EQ(::connect(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
+    this->clients.push_back(fd);
+    for (int i = 0; i != 100 && !this->server.link.is_connected(); i++) {
+      this->server.link.loop();
+      wait_for_sockets();
+    }
+    return fd;
+  }
+
+  End server;
+  uint16_t port{0};
+  std::vector<int> clients;
+};
+
+TEST_F(TcpServerTest, AcceptsClientAndReceives) {
+  this->server.link.loop();  // starts listening
+  int client = this->connect_client();
+  ASSERT_TRUE(this->server.link.is_connected());
+  EXPECT_EQ(this->server.states, std::vector<bool>{true});
+  const uint8_t frame[3] = {0x01, 0x00, 0x42};
+  ASSERT_EQ(::write(client, frame, sizeof(frame)), 3);
+  for (int i = 0; i != 100 && this->server.received.empty(); i++) {
+    this->server.link.loop();
+    wait_for_sockets();
+  }
+  EXPECT_EQ(this->server.received, std::vector<Packet>{{0x42}});
+}
+
+TEST_F(TcpServerTest, AcceptsNextClientAfterDisconnect) {
+  this->server.link.loop();
+  int first = this->connect_client();
+  ASSERT_TRUE(this->server.link.is_connected());
+  ::close(first);
+  this->clients.clear();
+  for (int i = 0; i != 100 && this->server.link.is_connected(); i++) {
+    this->server.link.loop();
+    wait_for_sockets();
+  }
+  EXPECT_EQ(this->server.states, (std::vector<bool>{true, false}));
+  this->connect_client();
+  EXPECT_TRUE(this->server.link.is_connected());
+  EXPECT_EQ(this->server.states, (std::vector<bool>{true, false, true}));
 }
 
 }  // namespace esphome::tcp::testing

@@ -69,15 +69,19 @@ BASE_SCHEMA = packet_interface_schema(
     }
 )
 
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): socket.ipv4_host}),
-        "server": BASE_SCHEMA.extend(
-            {cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA}
-        ),
-    },
-    key=CONF_ROLE,
-    default_type="client",
+CONFIG_SCHEMA = cv.All(
+    cv.typed_schema(
+        {
+            "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): socket.ipv4_host}),
+            "server": BASE_SCHEMA.extend(
+                {cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA}
+            ),
+        },
+        key=CONF_ROLE,
+        default_type="client",
+    ),
+    # A client uses one socket; a server one listener and one accepted socket
+    socket.consume_role_sockets("tcp.packet_interface"),
 )
 
 
