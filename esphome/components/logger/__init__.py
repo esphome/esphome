@@ -156,6 +156,7 @@ UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
 
 UART_SELECTION_HOST_ZEPHYR = [UART0, UART1, UART2]
+ZEPHYR_UART_RE = re.compile(r"UART[0-9]+")
 # esp32_h2 and esp32_c6 both expose a native USB-Serial/JTAG peripheral as a Zephyr UART
 # device (see the USB_SERIAL_JTAG codegen branch below) -- shared list for both.
 UART_SELECTION_ZEPHYR_ESP32_JTAG = [UART0, UART1, USB_SERIAL_JTAG]
@@ -219,6 +220,9 @@ def uart_selection(value: Any) -> str:
             and (override := validate_uart_label_override(value)) is not None
         ):
             return override
+        # Any UARTn; resolve_uart_node_label() maps it to the board's real node.
+        if isinstance(value, str) and ZEPHYR_UART_RE.fullmatch(value.upper()):
+            return value.upper()
         if zephyr_variant() in (
             ZEPHYR_VARIANT_ESP32_H2,
             ZEPHYR_VARIANT_ESP32_C6,
@@ -460,18 +464,18 @@ async def to_code(config: ConfigType) -> None:
     # uart_ is UART0 in C++ except on LibreTiny where it is DEFAULT; skip the
     # setter when the config matches it.
     cpp_default_uart = DEFAULT if CORE.is_libretiny else UART0
-    if (
-        hardware_uart := config.get(CONF_HARDWARE_UART)
-    ) is not None and hardware_uart != cpp_default_uart:
-        # An explicit "&<label>" override is always a plain hardware UART -- on Zephyr,
-        # UART_SELECTION_UART0/UART1 both resolve identically via LOGGER_UART_NODE_LABEL
-        # (see logger_zephyr.cpp), so either works as the runtime discriminator.
-        selected_uart = (
-            logger_ns.UART_SELECTION_UART0
-            if hardware_uart.startswith("&")
-            else HARDWARE_UART_TO_UART_SELECTION[hardware_uart]
-        )
-        cg.add(log.set_uart_selection(selected_uart))
+    hardware_uart = config.get(CONF_HARDWARE_UART)
+    # An explicit "&<label>" override is always a plain hardware UART -- on Zephyr,
+    # UART_SELECTION_UART0/UART1 both resolve identically via LOGGER_UART_NODE_LABEL
+    # (see logger_zephyr.cpp), so either works as the runtime discriminator. The same
+    # goes for UART2 and up, which have no UART_SELECTION_* of their own on Zephyr.
+    if hardware_uart is not None and (
+        hardware_uart.startswith("&")
+        or (CORE.is_zephyr and hardware_uart not in (UART1, USB_CDC, USB_SERIAL_JTAG))
+    ):
+        hardware_uart = UART0
+    if hardware_uart is not None and hardware_uart != cpp_default_uart:
+        cg.add(log.set_uart_selection(HARDWARE_UART_TO_UART_SELECTION[hardware_uart]))
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
@@ -614,7 +618,7 @@ async def _late_logger_init(config: ConfigType) -> None:
         # instances (uart20/uart30) instead of nRF52/ESP32's uart0/uart1 -- and some
         # variants (e.g. stm32l4) declare no portable mapping at all, resolved per board
         # from DTS instead. See resolve_uart_node_label()'s own docstring.
-        if hw_uart.startswith("&") or hw_uart in (UART0, UART1, UART2):
+        if hw_uart.startswith("&") or ZEPHYR_UART_RE.fullmatch(hw_uart):
             if hw_uart.startswith("&"):
                 from esphome.components.zephyr.dts_lookup import (
                     validate_dts_label_exists,
