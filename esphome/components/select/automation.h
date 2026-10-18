@@ -6,17 +6,6 @@
 
 namespace esphome::select {
 
-class SelectStateTrigger final : public Trigger<StringRef, size_t> {
- public:
-  explicit SelectStateTrigger(Select *parent) : parent_(parent) {
-    parent->add_on_state_callback(
-        [this](size_t index) { this->trigger(StringRef(this->parent_->option_at(index)), index); });
-  }
-
- protected:
-  Select *parent_;
-};
-
 template<size_t N, typename... Ts> class SelectIsCondition final : public Condition<Ts...> {
  public:
   SelectIsCondition(Select *parent, const char *const *option_list) : parent_(parent), option_list_(option_list) {}

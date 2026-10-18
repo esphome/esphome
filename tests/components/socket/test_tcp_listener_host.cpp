@@ -19,7 +19,7 @@ class ListenerUnderTest : public TcpListener {
  public:
   void set_listen(std::unique_ptr<ListenSocket> sock) { this->listen_ = std::move(sock); }
   bool listening() const { return this->listen_ != nullptr; }
-  void accept(TcpClientLink &link) { this->accept_(link); }
+  void accept_into(TcpClientLink &link) { this->accept_into_(link); }
 };
 
 class TcpListenerAccept : public ::testing::Test {
@@ -74,10 +74,52 @@ class TcpListenerAccept : public ::testing::Test {
   int client_fd_{-1};
 };
 
+TEST_F(TcpListenerAccept, PollListenWaitsOutTheBackoff) {
+  this->link_.note_attempt();
+  EXPECT_FALSE(this->listener_.poll_listen(this->link_));
+  EXPECT_FALSE(this->listener_.listening());
+}
+
+TEST_F(TcpListenerAccept, AcceptHandsOverTheSocketWithoutALink) {
+  this->connect_client(this->listen_on_loopback());
+  EXPECT_NE(this->listener_.accept(this->link_), nullptr);
+  // The caller decides which link takes it.
+  EXPECT_FALSE(this->link_.connected());
+  EXPECT_TRUE(this->listener_.listening());
+}
+
+TEST_F(TcpListenerAccept, TwoClientsGoIntoTwoLinks) {
+  uint16_t port = this->listen_on_loopback();
+  this->connect_client(port);
+  int first_fd = this->client_fd_;
+  this->link_.adopt(this->listener_.accept(this->link_));
+  this->connect_client(port);
+  TcpClientLink second;
+  second.begin("listener_test");
+  second.adopt(this->listener_.accept(this->link_));
+  EXPECT_TRUE(this->link_.connected());
+  EXPECT_TRUE(second.connected());
+  second.close();
+  ::close(first_fd);
+}
+
+TEST_F(TcpListenerAccept, PollLeavesASecondClientWaitingWhileTheLinkIsUp) {
+  uint16_t port = this->listen_on_loopback();
+  this->connect_client(port);
+  int first_fd = this->client_fd_;
+  this->listener_.poll(this->link_, true);
+  ASSERT_TRUE(this->link_.connected());
+  this->connect_client(port);
+  this->listener_.poll(this->link_, true);
+  // Not accepted by poll(), so it is still there for the next accept().
+  EXPECT_NE(this->listener_.accept(this->link_), nullptr);
+  ::close(first_fd);
+}
+
 TEST_F(TcpListenerAccept, AcceptErrorRebuildsAfterTheBackoff) {
   // accept() on a bad descriptor fails with EBADF, which no retry fixes.
   this->listener_.set_listen(std::make_unique<ListenSocket>(-1));
-  this->listener_.accept(this->link_);
+  this->listener_.accept_into(this->link_);
   EXPECT_FALSE(this->listener_.listening());
   EXPECT_TRUE(this->link_.in_backoff());
   // No new listen socket until the backoff has passed.
@@ -87,7 +129,7 @@ TEST_F(TcpListenerAccept, AcceptErrorRebuildsAfterTheBackoff) {
 
 TEST_F(TcpListenerAccept, NothingPendingKeepsTheListener) {
   this->listen_on_loopback();
-  this->listener_.accept(this->link_);
+  EXPECT_EQ(this->listener_.accept(this->link_), nullptr);
   EXPECT_TRUE(this->listener_.listening());
   EXPECT_FALSE(this->link_.connected());
   EXPECT_FALSE(this->link_.in_backoff());
@@ -95,7 +137,7 @@ TEST_F(TcpListenerAccept, NothingPendingKeepsTheListener) {
 
 TEST_F(TcpListenerAccept, AcceptedClientIsAdopted) {
   this->connect_client(this->listen_on_loopback());
-  this->listener_.accept(this->link_);
+  this->listener_.accept_into(this->link_);
   EXPECT_TRUE(this->link_.connected());
   EXPECT_TRUE(this->listener_.listening());
 }
@@ -105,7 +147,7 @@ TEST_F(TcpListenerAccept, PeerOutsideTheAllowListIsClosed) {
   static const Ipv4AllowEntry ONLY_TEN[] = {{htonl(0x0A000000), htonl(0xFF000000)}};
   this->listener_.set_allow(ONLY_TEN, 1);
   this->connect_client(this->listen_on_loopback());
-  this->listener_.accept(this->link_);
+  EXPECT_EQ(this->listener_.accept(this->link_), nullptr);
   EXPECT_FALSE(this->link_.connected());
   EXPECT_TRUE(this->listener_.listening());
   EXPECT_FALSE(this->link_.in_backoff());
@@ -122,7 +164,7 @@ TEST_F(TcpListenerAccept, PeerInsideTheAllowListIsAdopted) {
   static const Ipv4AllowEntry LOOPBACK_ONLY[] = {{htonl(INADDR_LOOPBACK), htonl(0xFFFFFFFF)}};
   this->listener_.set_allow(LOOPBACK_ONLY, 1);
   this->connect_client(this->listen_on_loopback());
-  this->listener_.accept(this->link_);
+  this->listener_.accept_into(this->link_);
   EXPECT_TRUE(this->link_.connected());
 }
 #endif

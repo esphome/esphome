@@ -21,13 +21,13 @@ from esphome.const import (
     CONF_PAGES,
     CONF_ROTATION,
     CONF_TO,
-    CONF_TRIGGER_ID,
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
@@ -39,13 +39,12 @@ DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
 DisplayPageShowAction = display_ns.class_("DisplayPageShowAction", automation.Action)
-DisplayOnPageChangeTrigger = display_ns.class_(
-    "DisplayOnPageChangeTrigger", automation.Trigger
-)
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
 CONF_SHOW_TEST_CARD = "show_test_card"
 CONF_UNSPECIFIED = "unspecified"
+
+_request_page_change_slot = cg.slot_counter("DISPLAY_PAGE_CHANGE_CALLBACK_COUNT")
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -99,9 +98,6 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
         ),
         cv.Optional(CONF_ON_PAGE_CHANGE): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    DisplayOnPageChangeTrigger
-                ),
                 cv.Optional(CONF_FROM): cv.use_id(DisplayPage),
                 cv.Optional(CONF_TO): cv.use_id(DisplayPage),
             }
@@ -137,15 +133,18 @@ async def setup_display_core_(var, config):
             pages.append(page)
         cg.add(var.set_pages(pages))
     for conf in config.get(CONF_ON_PAGE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        if CONF_FROM in conf:
-            page = await cg.get_variable(conf[CONF_FROM])
-            cg.add(trigger.set_from(page))
-        if CONF_TO in conf:
-            page = await cg.get_variable(conf[CONF_TO])
-            cg.add(trigger.set_to(page))
-        await automation.build_automation(
-            trigger, [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")], conf
+        _request_page_change_slot(str(var))
+        checks = []
+        for key, name in ((CONF_FROM, "from"), (CONF_TO, "to")):
+            if (page_id := conf.get(key)) is not None:
+                page = await cg.get_variable(page_id)
+                checks.append(f"{name} == ::{page}")
+        await automation.build_callback_automation(
+            var,
+            "add_on_page_change_callback",
+            [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")],
+            conf,
+            when=" && ".join(checks) or None,
         )
     if config.get(CONF_SHOW_TEST_CARD):
         cg.add(var.show_test_card())
@@ -252,9 +251,59 @@ def add_metadata(
     )
 
 
+KEY_EXTERNAL_WRITERS = "external_writers"
+
+
+def _get_external_writer_list() -> list[tuple[ID, str]]:
+    """Get the raw external writer list. Each entry is (display id, owner)."""
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_EXTERNAL_WRITERS, [])
+
+
+def register_external_writer(display_id: ID, owner: str) -> None:
+    """Declare that ``owner`` draws into the display from outside its lambda or pages.
+
+    Call from the owner's CONFIG_SCHEMA. The ID may still be unresolved; the ID pass
+    resolves it in place before final validation.
+    """
+    _get_external_writer_list().append((display_id, owner))
+
+
+def get_external_writers(display_id: ID) -> list[str]:
+    """Get the owners registered for a display. Only valid once IDs are resolved."""
+    return [
+        owner
+        for id_, owner in _get_external_writer_list()
+        if id_.id is not None and id_.id == display_id.id
+    ]
+
+
+def has_external_writer(display_id: ID) -> bool:
+    """Tell a driver's final validation that something else draws into the display.
+
+    LVGL anywhere in the config also counts, as the drivers assumed before.
+    """
+    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
+
+    return LVGL_DOMAIN in full_config.get() or bool(get_external_writers(display_id))
+
+
 async def register_display(var, config):
     await cg.register_component(var, config)
     await setup_display_core_(var, config)
+
+
+async def add_writer(
+    var: cg.MockObj, config: ConfigType, ref: cg.MockObj = DisplayRef
+) -> None:
+    """Pass the configured lambda, if any, to var.set_writer.
+
+    ref is the type of `it`; drivers with their own drawing class pass theirs.
+    """
+    if (lambda_config := config.get(CONF_LAMBDA)) is not None:
+        lambda_ = await cg.process_lambda(
+            lambda_config, [(ref, "it")], return_type=cg.void
+        )
+        cg.add(var.set_writer(lambda_))
 
 
 @automation.register_action(
