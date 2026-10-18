@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_VALUE_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMMAND,
@@ -60,7 +61,6 @@ VBusCustom = vbus_ns.class_("VBusCustomSensor", cg.Component)
 VBusP2Sensor = vbus_ns.class_("VBusP2Sensor", sensor.Sensor, cg.Component)
 CONF_P2 = "p2"
 CONF_POLLING_ID = "polling_id"
-CONF_VALUE_TYPE = "value_type"
 
 VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", cg.Component)
 
