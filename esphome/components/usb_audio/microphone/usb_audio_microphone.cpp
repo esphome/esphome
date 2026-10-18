@@ -117,8 +117,10 @@ void USBAudioMicrophone::mic_task_loop_() {
       if (err == ESP_OK && bytes_read > 0) {
         this->frame_.resize(bytes_read);
         this->data_callbacks_.call(this->frame_);
-      } else if (err == ESP_ERR_TIMEOUT || err == ESP_ERR_INVALID_STATE) {
-        // No data yet (the driver returns at once on an empty buffer), or the stream is starting or suspended.
+      } else if (err == ESP_ERR_TIMEOUT) {
+        // The driver already waited READ_TIMEOUT_MS for data; read again.
+      } else if (err == ESP_ERR_INVALID_STATE) {
+        // The stream is starting or suspended.
         vTaskDelay(pdMS_TO_TICKS(READ_TIMEOUT_MS));
       } else if (err != ESP_OK) {
         ESP_LOGW(TAG, "Read error: %s", esp_err_to_name(err));

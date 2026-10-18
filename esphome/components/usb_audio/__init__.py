@@ -32,8 +32,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_framework("esp-idf"),
-    # usb_host covers the other variants; usb_host_uac does not list the ESP32-S31
-    esp32.only_on_variant(unsupported=[esp32.const.VARIANT_ESP32S31]),
 )
 
 
@@ -86,7 +84,7 @@ def stream_info(config: ConfigType) -> MockObj:
 
 async def to_code(config: ConfigType) -> None:
     # Keep in sync with esphome/idf_component.yml. usb_host adds espressif/usb on IDF 6.0 and later.
-    esp32.add_idf_component(name="espressif/usb_host_uac", ref="1.3.1")
+    esp32.add_idf_component(name="espressif/usb_host_uac", ref="1.5.0")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

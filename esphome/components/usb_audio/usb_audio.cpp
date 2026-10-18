@@ -165,12 +165,10 @@ esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_
   if (handle == nullptr) {
     return ESP_ERR_INVALID_STATE;
   }
+  // The driver collects up to `size` bytes for the whole timeout and returns what it got, or ESP_ERR_TIMEOUT when
+  // nothing arrived.
   uint32_t actual = 0;
   esp_err_t err = uac_host_device_read(handle, buffer, static_cast<uint32_t>(size), &actual, pdMS_TO_TICKS(timeout_ms));
-  if (err == ESP_FAIL && actual == 0) {
-    // The driver returns ESP_FAIL at once when its ring buffer is empty; it never waits for the timeout.
-    err = ESP_ERR_TIMEOUT;
-  }
   *bytes_read = actual;
   return err;
 }
