@@ -98,6 +98,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (pin := config.get(CONF_INTERRUPT_PIN)) is not None:
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(pin)))
+        cg.add(var.set_monitor_alarms(True))
     if (frequency := config.get(CONF_SQUARE_WAVE_FREQUENCY)) is not None:
         cg.add(var.set_square_wave_frequency(frequency))
     if (bbsqw := config.get(CONF_BATTERY_BACKED_SQUARE_WAVE)) is not None:

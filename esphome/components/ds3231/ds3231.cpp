@@ -98,23 +98,29 @@ void DS3231Component::setup() {
   }
   this->publish_oscillator_stopped_();
 
+  if (!this->monitor_alarms_) {
+    this->disable_loop();
+    return;
+  }
+
+  // Start from a known state; an alarm that fired while the ESP was off is picked up by the first
+  // check, which runs from the loop right after setup.
+  this->publish_alarm_state_(1, false);
+  this->publish_alarm_state_(2, false);
+
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
     // INT/SQW is open drain and active low: a falling edge means an enabled alarm matched.
     // The handler only wakes the loop; the flags are read from there.
     this->interrupt_pin_->attach_interrupt(&DS3231Component::interrupt_handler, this, gpio::INTERRUPT_FALLING_EDGE);
-    // An alarm may already have fired while the ESP was off: check once from the loop.
-    return;
   }
-
-  if (this->monitor_alarms_) {
-    this->set_interval(this->alarm_check_interval_, [this]() { this->check_alarms_(); });
-  }
-  this->disable_loop();
+  // Without an interrupt pin this is how alarms are seen. With one it is a fallback: it picks up an
+  // edge that was missed, and latched flags (auto_clear_alarms: false) that were cleared elsewhere.
+  this->set_interval(this->alarm_check_interval_, [this]() { this->check_alarms_(); });
 }
 
 void DS3231Component::loop() {
-  // Only runs when woken by the interrupt pin (and once after setup).
+  // Only runs once after setup and when woken by the interrupt pin.
   this->disable_loop();
   this->check_alarms_();
 }
@@ -144,7 +150,7 @@ void DS3231Component::dump_config() {
   if (this->aging_offset_configured_) {
     ESP_LOGCONFIG(TAG, "  Aging offset: %d", this->aging_offset_);
   }
-  if (this->monitor_alarms_ && this->interrupt_pin_ == nullptr) {
+  if (this->monitor_alarms_) {
     ESP_LOGCONFIG(TAG, "  Alarm check interval: %" PRIu32 " ms", this->alarm_check_interval_);
   }
 #ifdef USE_BINARY_SENSOR
@@ -164,12 +170,13 @@ bool DS3231Component::read_time(ESPTime &out) {
     ESP_LOGW(TAG, "Can't read time registers.");
     return false;
   }
-  if (this->read_control_status_()) {
-    this->publish_oscillator_stopped_();
-    if ((this->status_reg_ & STATUS_OSF) != 0) {
-      ESP_LOGW(TAG, "Oscillator stop flag set, the RTC time is invalid. Write a valid time first.");
-      return false;
-    }
+  // Without a valid status the oscillator-stop flag is unknown, so the time can't be trusted.
+  if (!this->read_control_status_())
+    return false;
+  this->publish_oscillator_stopped_();
+  if ((this->status_reg_ & STATUS_OSF) != 0) {
+    ESP_LOGW(TAG, "Oscillator stop flag set, the RTC time is invalid. Write a valid time first.");
+    return false;
   }
 
   uint8_t hour;
@@ -226,10 +233,14 @@ bool DS3231Component::write_time(const ESPTime &time) {
   ESP_LOGD(TAG, "Wrote UTC time: %04u-%02u-%02u %02u:%02u:%02u", time.year, time.month, time.day_of_month, time.hour,
            time.minute, time.second);
 
-  // The time is valid again: clear the oscillator stop flag.
-  if (this->read_control_status_() && (this->status_reg_ & STATUS_OSF) != 0) {
-    if (this->write_status_(STATUS_OSF))
-      this->status_reg_ &= ~STATUS_OSF;
+  // The time is valid again: clear the oscillator stop flag. If that fails, the RTC would keep
+  // reporting its time as invalid, so the write is not reported as successful.
+  if (!this->read_control_status_())
+    return false;
+  if ((this->status_reg_ & STATUS_OSF) != 0) {
+    if (!this->write_status_(STATUS_OSF))
+      return false;
+    this->status_reg_ &= ~STATUS_OSF;
   }
   this->publish_oscillator_stopped_();
   return true;
@@ -343,8 +354,12 @@ void DS3231Component::write_alarm_(uint8_t alarm, const uint8_t *regs, size_t le
     ESP_LOGW(TAG, "Can't write alarm %u registers.", alarm);
     return;
   }
-  // Changing the registers may have matched on the way: start from a clean flag.
-  this->clear_alarm(alarm);
+  // Changing the registers may have matched on the way: start from a clean flag. Enabling the
+  // alarm with a stale flag would assert INT/SQW right away.
+  if (!this->clear_alarm_flag_(alarm)) {
+    ESP_LOGW(TAG, "Alarm %u written, but its flag could not be cleared; not changing its enable.", alarm);
+    return;
+  }
   this->set_alarm_enabled_(alarm, enabled);
 }
 
@@ -369,18 +384,25 @@ void DS3231Component::set_alarm_enabled_(uint8_t alarm, bool enabled) {
   }
 }
 
-void DS3231Component::clear_alarm(uint8_t alarm) {
+void DS3231Component::clear_alarm(uint8_t alarm) { this->clear_alarm_flag_(alarm); }
+
+bool DS3231Component::clear_alarm_flag_(uint8_t alarm) {
   if (alarm != 1 && alarm != 2) {
     ESP_LOGE(TAG, "Invalid alarm number %u.", alarm);
-    return;
+    return false;
   }
   if (this->is_failed() || !this->read_control_status_())
-    return;
+    return false;
   const uint8_t flag = alarm == 1 ? STATUS_A1F : STATUS_A2F;
-  if ((this->status_reg_ & flag) != 0 && this->write_status_(flag))
+  if ((this->status_reg_ & flag) != 0) {
+    // On failure the flag is still set on the chip: keep reporting the alarm as it is.
+    if (!this->write_status_(flag))
+      return false;
     this->status_reg_ &= ~flag;
+  }
   this->alarm_active_[alarm - 1] = false;
   this->publish_alarm_state_(alarm, false);
+  return true;
 }
 
 bool DS3231Component::is_alarm_triggered(uint8_t alarm) {

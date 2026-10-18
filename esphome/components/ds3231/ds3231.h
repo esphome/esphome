@@ -120,6 +120,8 @@ class DS3231Component final : public Component, public i2c::I2CDevice {
   bool write_control_();
   /// Write the status register, clearing the flags in @p clear (writing 1 to a flag leaves it unchanged).
   bool write_status_(uint8_t clear);
+  /// Clear the flag of @p alarm and report it off. Returns false (state unchanged) if that fails.
+  bool clear_alarm_flag_(uint8_t alarm);
   void set_alarm_enabled_(uint8_t alarm, bool enabled);
   /// Write the alarm registers, clear the stale flag and set the interrupt enable.
   void write_alarm_(uint8_t alarm, const uint8_t *regs, size_t len, bool enabled);
