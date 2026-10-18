@@ -81,8 +81,9 @@ void TsdbComponent::setup() {
     return;
   }
   // A handle that opened without readable statistics was already dropped again.
-  if (this->db_ != nullptr)
+  if (this->db_ != nullptr) {
     ESP_LOGI(TAG, "%s: history opened", this->file_.c_str());
+  }
 }
 
 void TsdbComponent::on_shutdown() {
@@ -451,8 +452,9 @@ void TsdbComponent::dump_config() {
   ESP_LOGCONFIG(
       TAG, "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32,
       this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_);
-  if (this->reopen_errors_ > 0)
+  if (this->reopen_errors_ > 0) {
     ESP_LOGCONFIG(TAG, "  failed reopens: %" PRIu32, this->reopen_errors_);
+  }
 }
 
 }  // namespace esphome::tsdb
