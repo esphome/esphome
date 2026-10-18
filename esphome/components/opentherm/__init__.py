@@ -103,8 +103,9 @@ async def to_code(config: dict[str, Any]) -> None:
         if key in non_sensors:
             continue
         if key in schema.INPUTS:
-            input_sensor = await cg.get_variable(value)
-            cg.add(getattr(var, f"set_{key}_{const.INPUT_SENSOR}")(input_sensor))
+            await cg.add_variable(
+                getattr(var, f"set_{key}_{const.INPUT_SENSOR}"), value
+            )
             input_sensors.append(key)
         elif key in schema.SETTINGS:
             if value == schema.SETTINGS[key].default_value:

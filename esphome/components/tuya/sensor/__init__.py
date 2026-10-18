@@ -27,7 +27,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
 
     cg.add(var.set_sensor_id(config[CONF_SENSOR_DATAPOINT]))
