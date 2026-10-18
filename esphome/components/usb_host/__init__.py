@@ -141,8 +141,8 @@ FIFO_BALANCED_SPLIT = (104, 64, 32)
 FIFO_NPTX_LINES = 16
 FIFO_PTX_MIN_LINES = 32
 FIFO_RX_MIN_LINES = 32 + FIFO_RX_STATUS_LINES
-# Added usb_host_config_t::fifo_settings_custom in 5.5.0, backported to 5.4.3 and 5.3.4
-FIFO_CUSTOM_MIN_IDF = (cv.Version(5, 3, 4), cv.Version(5, 4, 3), cv.Version(5, 5, 0))
+# usb_host_config_t::fifo_settings_custom; USB host is not reliable on older releases
+FIFO_CUSTOM_MIN_IDF = cv.Version(5, 5, 0)
 KEY_PERIODIC_FIFO = "periodic_fifo"
 
 
@@ -199,23 +199,12 @@ def fifo_split() -> tuple[int, int, int] | None:
     return rx, FIFO_NPTX_LINES, ptx
 
 
-def _has_custom_fifo(version: cv.Version) -> bool:
-    newest = FIFO_CUSTOM_MIN_IDF[-1]
-    return version >= newest or any(
-        version >= minimum
-        and version.major == minimum.major
-        and version.minor == minimum.minor
-        for minimum in FIFO_CUSTOM_MIN_IDF
-    )
-
-
 def _reconcile_fifo() -> None:
     if (split := fifo_split()) is None:
         return
-    if not _has_custom_fifo(idf_version()):
+    if idf_version() < FIFO_CUSTOM_MIN_IDF:
         raise cv.Invalid(
-            f"Sizing the USB FIFO on the {get_esp32_variant()} needs ESP-IDF "
-            f"{', '.join(map(str, FIFO_CUSTOM_MIN_IDF))} or later"
+            f"Sizing the USB FIFO on the {get_esp32_variant()} needs ESP-IDF {FIFO_CUSTOM_MIN_IDF} or later"
         )
     rx, nptx, ptx = split
     cg.add_define("USE_USB_HOST_FIFO_CONFIG")
