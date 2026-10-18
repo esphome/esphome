@@ -19,8 +19,10 @@ namespace esphome::udp {
  */
 class UdpPacketInterface : public packet_interface::PacketInterface {
  public:
-  /// @param tx_buffer Holds max_packet_size bytes, for packets split across buffers; must outlive the link
-  UdpPacketInterface(UDPComponent *udp_component, uint8_t *tx_buffer) : parent_(udp_component), tx_buffer_(tx_buffer) {}
+  /// @param tx_buffer Joins packets split across buffers, sized by code generation to max_packet_size; must outlive
+  /// the link. A larger max_packet_size set later is limited to it for those packets.
+  UdpPacketInterface(UDPComponent *udp_component, std::span<uint8_t> tx_buffer)
+      : parent_(udp_component), tx_buffer_(tx_buffer) {}
 
   void setup() override;
   bool send_to_interface(const packet_interface::PacketBuffer &data,
@@ -30,7 +32,7 @@ class UdpPacketInterface : public packet_interface::PacketInterface {
   void receive_(std::span<const uint8_t> data);
 
   UDPComponent *parent_;
-  uint8_t *const tx_buffer_;
+  const std::span<uint8_t> tx_buffer_;
 };
 }  // namespace esphome::udp
 #endif

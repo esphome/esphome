@@ -71,6 +71,16 @@ TEST_F(UdpPacketInterfaceTest, OversizedPacketNotSent) {
   EXPECT_FALSE(this->link_.send_to_interface(PacketBuffer(&header, 1, &body, nullptr, 0), {}));
 }
 
+TEST_F(UdpPacketInterfaceTest, SplitPacketLimitedToBuffer) {
+  this->link_.setup();
+  // Raised above the copy buffer after code generation sized it
+  this->link_.set_max_packet_size(100);
+  uint8_t header = 0;
+  Packet body_data{1, 2, 3, 4, 5, 6, 7, 8};
+  PacketBuffer body(body_data);
+  EXPECT_FALSE(this->link_.send_to_interface(PacketBuffer(&header, 1, &body, nullptr, 0), {}));
+}
+
 }  // namespace esphome::udp::testing
 
 #endif
