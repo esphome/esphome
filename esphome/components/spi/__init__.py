@@ -436,12 +436,9 @@ async def to_code(configs: list[ConfigType]) -> None:
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
-        clk = await cg.gpio_pin_expression(spi[CONF_CLK_PIN])
-        cg.add(var.set_clk(clk))
-        if miso := spi.get(CONF_MISO_PIN):
-            cg.add(var.set_miso(await cg.gpio_pin_expression(miso)))
-        if mosi := spi.get(CONF_MOSI_PIN):
-            cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
+        await cg.add_pin(var.set_clk, spi[CONF_CLK_PIN])
+        await cg.add_pin(var.set_miso, spi.get(CONF_MISO_PIN))
+        await cg.add_pin(var.set_mosi, spi.get(CONF_MOSI_PIN))
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
@@ -487,13 +484,10 @@ def spi_device_schema(
 async def register_spi_device(
     var: cg.MockObj, config: ConfigType, write_only: bool = False
 ) -> None:
-    parent = await cg.get_variable(config[CONF_SPI_ID])
-    cg.add(var.set_spi_parent(parent))
+    await cg.add_variable(var.set_spi_parent, config[CONF_SPI_ID])
     if write_only:
         cg.add(var.set_write_only(True))
-    if cs_pin := config.get(CONF_CS_PIN):
-        pin = await cg.gpio_pin_expression(cs_pin)
-        cg.add(var.set_cs_pin(pin))
+    await cg.add_pin(var.set_cs_pin, config.get(CONF_CS_PIN))
     if data_rate := config.get(CONF_DATA_RATE):
         cg.add(var.set_data_rate(data_rate))
     if spi_mode := config.get(CONF_SPI_MODE):

@@ -107,6 +107,4 @@ async def to_code(config: ConfigType) -> None:
     if CONF_ACTIVE_PULLUP_RESISTANCE in config:
         cg.add(var.set_val_rwpu(config[CONF_ACTIVE_PULLUP_RESISTANCE]))
 
-    if CONF_SLEEP_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_SLEEP_PIN])
-        cg.add(var.set_sleep_pin(pin))
+    await cg.add_pin(var.set_sleep_pin, config.get(CONF_SLEEP_PIN))
