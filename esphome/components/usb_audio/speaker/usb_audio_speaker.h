@@ -43,6 +43,7 @@ class USBAudioSpeaker : public speaker::Speaker,
 
   audio::AudioStreamInfo get_usb_stream_info() override { return this->audio_stream_info_; }
   void on_stream_state(bool running) override;
+  bool stream_idle() const override { return this->writes_in_flight_ == 0; }
 
  protected:
   static constexpr uint8_t COMMAND_START = 1 << 0;
@@ -57,9 +58,12 @@ class USBAudioSpeaker : public speaker::Speaker,
   uint32_t write_timeout_ms_;
   // Frame-aligned size of each driver write, set in setup().
   uint32_t write_chunk_{0};
-  uint32_t last_write_ms_{0};
-  uint32_t finish_deadline_ms_{0};
+  // Written by play() on the caller's task: an estimate of the bytes still queued in the driver as of the last write.
+  std::atomic<uint32_t> last_write_ms_{0};
+  std::atomic<uint32_t> queued_bytes_{0};
   std::atomic<uint8_t> commands_{0};
+  // play() calls that may be using the device handle; the hub closes a lost device only at zero.
+  std::atomic<uint8_t> writes_in_flight_{0};
   bool finishing_{false};
 };
 

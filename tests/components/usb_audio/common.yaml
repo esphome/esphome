@@ -8,7 +8,7 @@ microphone:
     sample_rate: 48000
     bits_per_sample: 16bit
     num_channels: 2
-    buffer_size: 6400
+    buffer_size: 9600
 
 speaker:
   - platform: usb_audio

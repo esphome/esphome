@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import microphone
 import esphome.config_validation as cv
-from esphome.const import CONF_BUFFER_SIZE, CONF_ID
+from esphome.const import (
+    CONF_BITS_PER_SAMPLE,
+    CONF_BUFFER_SIZE,
+    CONF_ID,
+    CONF_NUM_CHANNELS,
+    CONF_SAMPLE_RATE,
+)
 from esphome.types import ConfigType
 
 from .. import (
@@ -16,6 +22,27 @@ USBAudioMicrophone = usb_audio_ns.class_(
     "USBAudioMicrophone", microphone.Microphone, cg.Component
 )
 
+# Keep in sync with USBAudioMicrophone::READ_TIMEOUT_MS in usb_audio_microphone.h
+READ_PERIOD_MS = 20
+
+
+def validate_buffer_size(config: ConfigType) -> ConfigType:
+    """The driver buffer must hold the audio that arrives between two reads, with room to spare."""
+    bytes_per_second = (
+        config[CONF_SAMPLE_RATE]
+        * config[CONF_NUM_CHANNELS]
+        * int(config[CONF_BITS_PER_SAMPLE])
+        // 8
+    )
+    min_size = bytes_per_second * 2 * READ_PERIOD_MS // 1000
+    if config[CONF_BUFFER_SIZE] < min_size:
+        raise cv.Invalid(
+            f"buffer_size must be at least {min_size} bytes ({2 * READ_PERIOD_MS} ms of audio) for this format",
+            path=[CONF_BUFFER_SIZE],
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     microphone.MICROPHONE_SCHEMA.extend(stream_schema(16000, 1)).extend(
         {
@@ -23,6 +50,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     set_stream_limits,
+    validate_buffer_size,
 )
 
 

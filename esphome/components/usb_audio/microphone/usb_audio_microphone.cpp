@@ -93,6 +93,9 @@ void USBAudioMicrophone::on_stream_state(bool running) {
     // The hub restarts the stream on reconnect, since the microphone still wants it.
     this->running_ = false;
     this->state_ = microphone::STATE_STARTING;
+  } else if (this->state_ == microphone::STATE_STARTING) {
+    // The stream failed to start; the next start() retries.
+    this->state_ = microphone::STATE_STOPPED;
   }
 }
 
@@ -115,7 +118,7 @@ void USBAudioMicrophone::mic_task_loop_() {
         this->frame_.resize(bytes_read);
         this->data_callbacks_.call(this->frame_);
       } else if (err == ESP_ERR_TIMEOUT || err == ESP_ERR_INVALID_STATE) {
-        // No data yet, or the stream is starting or suspended.
+        // No data yet (the driver returns at once on an empty buffer), or the stream is starting or suspended.
         vTaskDelay(pdMS_TO_TICKS(READ_TIMEOUT_MS));
       } else if (err != ESP_OK) {
         ESP_LOGW(TAG, "Read error: %s", esp_err_to_name(err));

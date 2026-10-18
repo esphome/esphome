@@ -47,13 +47,11 @@ void USBAudioSpeaker::loop() {
     this->parent_->resume(Endpoint::SPEAKER);
   }
 
-  const uint32_t now = App.get_loop_component_start_time();
-  if ((commands & COMMAND_FINISH) && !this->finishing_) {
+  if (commands & COMMAND_FINISH) {
     this->finishing_ = true;
-    this->finish_deadline_ms_ = now + this->write_timeout_ms_ * 3;
   }
-  if (this->finishing_ && (this->state_ != speaker::STATE_RUNNING || !this->has_buffered_data_(now) ||
-                           static_cast<int32_t>(now - this->finish_deadline_ms_) >= 0)) {
+  // has_buffered_data_() turns false once the queued audio has had time to play out.
+  if (this->finishing_ && !this->has_buffered_data_(App.get_loop_component_start_time())) {
     this->stop_();
   }
   if (!this->finishing_) {
@@ -101,26 +99,28 @@ void USBAudioSpeaker::on_stream_state(bool running) {
 }
 
 size_t USBAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
-  uint32_t budget_ms = this->write_timeout_ms_;
-  if (ticks_to_wait != portMAX_DELAY) {
-    const uint32_t ticks_ms = static_cast<uint32_t>(ticks_to_wait) * portTICK_PERIOD_MS;
-    if (ticks_ms > 0) {
-      budget_ms = std::min(budget_ms, ticks_ms);
-    }
-  }
+  // 0 ticks is one non-blocking pass; portMAX_DELAY is capped by the configured write timeout.
+  const uint32_t budget_ms = ticks_to_wait == portMAX_DELAY ? this->write_timeout_ms_ : pdTICKS_TO_MS(ticks_to_wait);
   return this->play_internal_(data, length, budget_ms);
 }
 
-size_t USBAudioSpeaker::play(const uint8_t *data, size_t length) {
-  return this->play_internal_(data, length, this->write_timeout_ms_);
-}
+// Callers such as voice_assistant and rtttl call this from loop(), so it never blocks.
+size_t USBAudioSpeaker::play(const uint8_t *data, size_t length) { return this->play(data, length, 0); }
 
 size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms) {
   if (this->state_ != speaker::STATE_RUNNING) {
     this->start();
     // Wait out the budget so a pipeline task retrying play() does not spin.
-    vTaskDelay(pdMS_TO_TICKS(std::max<uint32_t>(budget_ms, 1)));
+    if (budget_ms > 0) {
+      vTaskDelay(pdMS_TO_TICKS(budget_ms));
+    }
     return 0;
+  }
+
+  // Counted before the hub's handle is read, so the hub never closes the device under this call.
+  this->writes_in_flight_.fetch_add(1);
+  if (this->parent_->speaker_controls_pending()) {
+    this->parent_->apply_pending_speaker_controls();
   }
 
   // Runs on the caller's task, so the cached loop time does not apply.
@@ -128,23 +128,38 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
   uint32_t now = start_ms;
   size_t written = 0;
   size_t timeout_retries = 0;
-  while (written < length && now - start_ms < budget_ms) {
+  while (written < length) {
+    const uint32_t elapsed = now - start_ms;
+    if (budget_ms > 0 && elapsed >= budget_ms) {
+      break;
+    }
     const size_t chunk = std::min<size_t>(length - written, this->write_chunk_);
-    const esp_err_t err = this->parent_->write_speaker(data + written, chunk, budget_ms - (now - start_ms));
+    const uint32_t timeout_ms = budget_ms > 0 ? budget_ms - elapsed : 0;
+    const esp_err_t err = this->parent_->write_speaker(data + written, chunk, timeout_ms);
     now = millis();
     if (err == ESP_OK) {
       written += chunk;
       timeout_retries = 0;
+    } else if (err == ESP_ERR_INVALID_STATE) {
+      // The device went away.
+      break;
     } else if (err != ESP_ERR_TIMEOUT) {
       ESP_LOGW(TAG, "Write error: %s", esp_err_to_name(err));
       break;
-    } else if (++timeout_retries >= MAX_TIMEOUT_RETRIES) {
+    } else if (budget_ms == 0 || ++timeout_retries >= MAX_TIMEOUT_RETRIES) {
       // A full driver buffer is back-pressure; the caller retries.
       break;
     }
   }
+  this->writes_in_flight_.fetch_sub(1);
 
   if (written > 0) {
+    // Whatever was queued at the last write has partly played out since; the driver holds at most buffer_size_.
+    const auto &info = this->audio_stream_info_;
+    const uint32_t queued = this->queued_bytes_;
+    const uint32_t elapsed_ms = now - this->last_write_ms_;
+    const uint32_t remaining = elapsed_ms < info.bytes_to_ms(queued) ? queued - info.ms_to_bytes(elapsed_ms) : 0;
+    this->queued_bytes_ = std::min<uint32_t>(remaining + written, this->buffer_size_);
     this->last_write_ms_ = now;
     this->audio_output_callback_(this->audio_stream_info_.bytes_to_frames(written), esp_timer_get_time());
   }
@@ -152,7 +167,10 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
 }
 
 bool USBAudioSpeaker::has_buffered_data_(uint32_t now) const {
-  return this->state_ == speaker::STATE_RUNNING && (now - this->last_write_ms_) < (this->write_timeout_ms_ * 2);
+  // Signed, since the cached loop time can be a little older than a write made on another task.
+  const auto elapsed_ms = static_cast<int32_t>(now - this->last_write_ms_);
+  return this->state_ == speaker::STATE_RUNNING &&
+         elapsed_ms < static_cast<int32_t>(this->audio_stream_info_.bytes_to_ms(this->queued_bytes_));
 }
 
 bool USBAudioSpeaker::has_buffered_data() const { return this->has_buffered_data_(millis()); }
