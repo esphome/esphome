@@ -511,9 +511,9 @@ class TopTronic : public Component {
   // per-window GET budget.
   uint32_t refresh_gap_ms_{50};
   // Maximum number of re-sends for an unanswered GET during a refresh burst
-  // (default 0 = single-pass, no retries; the normal 30 s poll is the backstop).
-  // If you enable it, keep it small: a burst should never hammer a dead/absent device.
-  uint32_t max_refresh_retries_{0};
+  // (default 1 = one re-send; the normal 30 s poll is the backstop).
+  // Keep it small: a burst should never hammer a dead/absent device.
+  uint32_t max_refresh_retries_{1};
   // Wall-clock delay (ms) before an unanswered GET is re-sent during a refresh
   // burst (default 200 ms). Longer than the worst-case multi-frame response so
   // a slow device response is not needlessly re-polled.
