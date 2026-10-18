@@ -5,6 +5,10 @@ The values are the published `a` / `b` pairs of the MQUnifiedsensor PPM model
 the SolderedElectronics MQ library, cross-checked against the per-sensor tables
 in the ``examples/`` of miguel5612/MQSensorsLib.
 
+MQ-136, MQ-214, MQ-303A, MQ-309A and CUSTOM have no published coefficients, so
+``coefficient_a`` and ``coefficient_b`` must be given explicitly in the YAML
+configuration.
+
 Everything here is resolved at code generation time, so a wrong ``sensor_type`` /
 ``gas`` combination fails the build instead of silently producing garbage at
 runtime.
@@ -13,8 +17,19 @@ runtime.
 from dataclasses import dataclass
 import math
 
+#: Upper clamp of the magnitude of ``a`` / ``b`` in the firmware, mirroring
+#: MQUnifiedsensor's ``MQ_MAX_A`` / ``MQ_MAX_B`` (``mqmath::clamp_a()`` /
+#: ``mqmath::clamp_b()``). A coefficient outside this range is clamped here as
+#: well, so that the firmware evaluates exactly what :func:`resolve_sensor`
+#: returns; a user supplied value is checked against it in ``sensor.py`` before
+#: it gets this far.
 MQ_MAX_A = 1e30
 MQ_MAX_B = 100.0
+
+CUSTOM_TYPE = "CUSTOM"
+
+#: Sensors that need user supplied coefficients.
+TYPES_REQUIRING_COEFFICIENTS = ("MQ136", "MQ214", "MQ303A", "MQ309A")
 
 
 @dataclass(frozen=True)
@@ -50,6 +65,10 @@ def label_for(type_key: str) -> str:
     return SENSOR_TYPES[type_key]["label"]
 
 
+def requires_coefficients(type_key: str) -> bool:
+    return type_key == CUSTOM_TYPE or type_key in TYPES_REQUIRING_COEFFICIENTS
+
+
 # ---------------------------------------------------------------------------
 # type key -> label, method, RS/R0 in clean air, primary gas, max ppm, gases
 # (gas -> (a, b) regression coefficients)
@@ -79,6 +98,11 @@ SENSOR_TYPES: dict[str, dict] = {
         "max_ppm": 10000.0,
         "gases": {  # alcohol
             "LPG": (44771.0, -3.245),
+            # The collected MQ-3 CH4 fit is the only published value above
+            # `MQ_MAX_A`, so it is the only curve the build clamps (to 1e30, 20
+            # times below the published `a`). The curve is unusable either way -
+            # it reports the top of the range for every ratio above ~0.04 - and
+            # is kept here to stay faithful to the source table.
             "CH4": (2e31, 19.01),
             "CO": (521853.0, -3.821),
             "ALCOHOL": (0.3934, -1.504),
@@ -212,15 +236,57 @@ SENSOR_TYPES: dict[str, dict] = {
             "ACETONE": (-0.52356, 0.49225),
         },
     },
+    "MQ136": {
+        "label": "MQ-136",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 200.0,  # datasheet: 1 - 200 ppm H2S
+        "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
+    },
+    "MQ214": {
+        "label": "MQ-214",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 10000.0,  # natural gas / methane
+        "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
+    },
+    "MQ303A": {
+        "label": "MQ-303A",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm alcohol
+        "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
+    },
+    "MQ309A": {
+        "label": "MQ-309A",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm CO
+        "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
+    },
+    CUSTOM_TYPE: {
+        "label": "CUSTOM",
+        "method": "exponential",
+        "ratio_in_clean_air": 1.0,
+        "primary_gas": "",
+        "max_ppm": 10000.0,
+        "gases": {},  # set coefficient_a:/coefficient_b: in the YAML
+    },
 }
 
 
 def _clamp_coefficient(value: float, limit: float) -> float:
-    """Clamp a coefficient to the range the firmware can evaluate (see `MQ_MAX_A`).
+    """Clamp a built-in coefficient to the range the firmware can evaluate.
 
-    Only the collected MQ-3 CH4 entry is above the limit, and the clamp changes
-    that curve, so `resolve_sensor()` marks it and ``_validate_config()`` in
-    ``sensor.py`` warns about it.
+    Only the collected MQ-3 CH4 entry is above the limit (see `MQ_MAX_A`), and the
+    clamp changes that curve, so `resolve_sensor()` marks it and
+    ``_validate_config()`` in ``sensor.py`` warns about it. A user supplied
+    coefficient does not pass unreported either: the schema rejects a non-finite
+    value and the same validator warns about a clamped one.
     """
     if not math.isfinite(value):
         return 0.0
@@ -231,13 +297,18 @@ def resolve_sensor(
     type_key: str,
     gas: str | None = None,
     *,
+    a: float | None = None,
+    b: float | None = None,
+    method: str | None = None,
     ratio_in_clean_air: float | None = None,
     rl: float | None = None,
     vcc: float | None = None,
+    min_ppm: float | None = None,
+    max_ppm: float | None = None,
 ) -> ResolvedSensor:
-    """Merge the built-in curve of `type_key` / `gas` with the hardware facts.
+    """Merge the built-in curve of `type_key` / `gas` with explicit YAML overrides.
 
-    Raises :class:`ValueError` for an unknown type/gas combination.
+    Raises :class:`ValueError` for an unknown type/gas or a missing coefficient.
     """
     if type_key not in SENSOR_TYPES:
         raise ValueError(
@@ -248,24 +319,43 @@ def resolve_sensor(
     gases: dict = definition["gases"]
 
     gas_key = normalize_gas(gas) if gas else definition["primary_gas"]
-    if gas_key not in gases:
-        raise ValueError(
-            f"{definition['label']} has no curve for gas '{gas_key}', "
-            f"available gases: {', '.join(sorted(gases))}"
-        )
+    #: A clamp of a built-in value is worth a warning; a user supplied value is
+    #: reported from `sensor.py` (see `_validate_config()`), whether it is clamped
+    #: here or not. Each coefficient is judged on its own: overriding one of them
+    #: must not hide that the other one came from the table and was clamped.
+    built_in_a = a is None
+    built_in_b = b is None
 
-    clamped_a = _clamp_coefficient(float(gases[gas_key][0]), MQ_MAX_A)
-    clamped_b = _clamp_coefficient(float(gases[gas_key][1]), MQ_MAX_B)
+    if gases:
+        if gas_key not in gases:
+            raise ValueError(
+                f"{definition['label']} has no curve for gas '{gas_key}', "
+                f"available gases: {', '.join(sorted(gases))}"
+            )
+        curve_a, curve_b = gases[gas_key]
+        if a is None:
+            a = curve_a
+        if b is None:
+            b = curve_b
+    else:
+        gas_key = gas_key or "CUSTOM"
+        if a is None or b is None:
+            raise ValueError(
+                f"{definition['label']} has no built-in coefficients, "
+                f"set both 'coefficient_a:' and 'coefficient_b:' in the configuration"
+            )
+
+    clamped_a = _clamp_coefficient(float(a), MQ_MAX_A)
+    clamped_b = _clamp_coefficient(float(b), MQ_MAX_B)
     return ResolvedSensor(
         type_key=type_key,
         label=definition["label"],
         gas=gas_key,
-        method=definition["method"],
+        method=method or definition["method"],
         a=clamped_a,
         b=clamped_b,
-        # A clamped built-in fit is not the published curve (see `_clamp_coefficient()`).
-        built_in_clamped=clamped_a != float(gases[gas_key][0])
-        or clamped_b != float(gases[gas_key][1]),
+        built_in_clamped=(built_in_a and clamped_a != float(a))
+        or (built_in_b and clamped_b != float(b)),
         ratio_in_clean_air=float(
             definition["ratio_in_clean_air"]
             if ratio_in_clean_air is None
@@ -273,6 +363,6 @@ def resolve_sensor(
         ),
         rl=float(10.0 if rl is None else rl),
         vcc=float(5.0 if vcc is None else vcc),
-        min_ppm=0.0,
-        max_ppm=float(definition["max_ppm"]),
+        min_ppm=float(0.0 if min_ppm is None else min_ppm),
+        max_ppm=float(definition["max_ppm"] if max_ppm is None else max_ppm),
     )
