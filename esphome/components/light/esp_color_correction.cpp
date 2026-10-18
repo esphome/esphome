@@ -35,19 +35,30 @@ Color ESPColorCorrection::color_uncorrect(Color color) const {
 uint8_t ESPColorCorrection::color_uncorrect_channel_(uint8_t value, uint8_t max_brightness) const {
   if (max_brightness == 0 || this->local_brightness_ == 0)
     return 0;
+  uint8_t level;
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  // The limit is undone on read-back, so an effect that reads, changes and writes a pixel sees the
-  // level it asked for and the dimming does not compound from frame to frame
   if (this->power_brightness_ != 255) {
-    // The exact inverse of esp_scale8, rounded up, so a stored level re-encodes to itself
-    const uint32_t divisor = static_cast<uint32_t>(this->power_brightness_) + 1;
-    const uint32_t unscaled = (static_cast<uint32_t>(value) * 256UL + divisor - 1) / divisor;
-    value = static_cast<uint8_t>(std::min(unscaled, uint32_t(255)));
-  }
+    // Under the limit, gamma and the limit are undone together: the largest level that encodes to at most the
+    // stored one, so a read, change and write of a pixel re-encodes to what was stored
+    uint8_t lo = 0;
+    uint8_t hi = 255;
+    while (lo < hi) {
+      const uint8_t mid = (lo + hi + 1) / 2;
+      if (this->limit_(this->gamma_correct_(mid)) <= value) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    level = lo;
+  } else
 #endif
+  {
+    level = this->gamma_uncorrect_(value);
+  }
   // Use 32-bit intermediates: when max_brightness and local_brightness_ are small but non-zero,
   // (uncorrected / max_brightness) * 255 can exceed 65535 before the std::min(255) clamp runs.
-  uint32_t uncorrected = this->gamma_uncorrect_(value) * 255UL;
+  uint32_t uncorrected = level * 255UL;
   uint32_t res = ((uncorrected / max_brightness) * 255UL) / this->local_brightness_;
   return static_cast<uint8_t>(std::min(res, uint32_t(255)));
 }

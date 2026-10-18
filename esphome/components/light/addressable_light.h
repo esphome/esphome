@@ -26,7 +26,6 @@ class AddressableLightState final : public LightState {
 
  public:
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  // The output's estimate, so a lambda can read it from the light's id
   float get_estimated_current_ma();
   void loop() override;
 #endif
@@ -73,10 +72,9 @@ class AddressableLight : public LightOutput, public Component {
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  // The draw of a pixel at full level per channel, its idle draw, and the budget (0 for no limit)
+  // Per-channel draw at full level, idle draw per LED, and the budget (0 for no limit)
   void set_power_estimation(float ma_red, float ma_green, float ma_blue, float ma_white, float idle_ma_per_led,
                             float max_current_ma) {
-    // Stored per raw level, so a frame's draw is the raw channel sums times these
     this->ma_per_level_[0] = ma_red / 255.0f;
     this->ma_per_level_[1] = ma_green / 255.0f;
     this->ma_per_level_[2] = ma_blue / 255.0f;
@@ -85,7 +83,6 @@ class AddressableLight : public LightOutput, public Component {
     this->max_current_ma_ = max_current_ma;
     this->power_estimation_ = true;
   }
-  // The draw of the last frame sent
   float get_estimated_current_ma() const { return this->estimated_ma_; }
 #endif
   void setup_state(LightState *state) override {
@@ -121,10 +118,10 @@ class AddressableLight : public LightOutput, public Component {
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
   friend class AddressableLightState;
-  // Run by the light state before each frame goes out: the estimate, and with a budget the limit
+  // Run by the light state before each frame goes out
   void limit_power_();
-  uint8_t power_scale_for_(const uint32_t sums[4]);
-  void apply_power_limit_(const uint32_t sums[4]);
+  void sum_channels_(uint32_t sums[4]);
+  float draw_ma_(const uint32_t sums[4]) const;
 #endif
 
   ESPColorCorrection correction_{};

@@ -30,7 +30,8 @@ class Strip : public AddressableLight {
   int32_t size() const override { return this->buffer_.size() / 4; }
   void clear_effect_data() override {}
   LightTraits get_traits() override { return {}; }
-  void write_state(LightState *state) override {}
+  void write_state(LightState *state) override { this->sent_red = (*this)[0].get_red_raw(); }
+  uint8_t sent_red{0};
   // What the light state does before a frame goes out
   void shown() { this->limit_power_(); }
   uint8_t power_brightness() const { return this->correction_.get_power_brightness(); }
@@ -55,8 +56,11 @@ TEST(PowerLimit, CorrectionRoundTripsUnderTheLimit) {
     correction.set_power_brightness(128);
     // Below this the gamma curve leaves the halved hardware range too few levels to tell apart
     for (int value = with_gamma ? 96 : 2; value < 256; value++) {
-      const int back = correction.color_uncorrect_red(correction.color_correct_red(value));
+      const uint8_t stored = correction.color_correct_red(value);
+      const int back = correction.color_uncorrect_red(stored);
       EXPECT_LE(std::abs(back - value), with_gamma ? 4 : 2) << "gamma=" << with_gamma << " value=" << value;
+      // A read, change-nothing and write re-encodes to the stored level, so the dimming never compounds
+      EXPECT_EQ(correction.color_correct_red(back), stored) << "gamma=" << with_gamma << " value=" << value;
     }
   }
 }
@@ -89,6 +93,8 @@ TEST(PowerLimit, SettlesOnTheBudgetAndKeepsLogicalLevels) {
   strip.shown();
   const uint8_t scale = strip.power_brightness();
   EXPECT_NEAR(scale, 128, 2);
+  // The estimate is of the frame that goes out, not of what was asked for
+  EXPECT_NEAR(strip.get_estimated_current_ma(), 310.0f, 5.0f);
   // The sent frame was rescaled, so a second pass sees the same draw and keeps the scale
   strip.shown();
   EXPECT_EQ(strip.power_brightness(), scale);
@@ -162,6 +168,22 @@ TEST(PowerLimit, ADimPixelSettlesWhileDemandAlternates) {
     EXPECT_GE(dim, 1) << cycle;
     EXPECT_LE(dim, 3) << cycle;
   }
+}
+
+TEST(PowerLimit, TheStateLimitsAFrameBeforeTheDriverSendsIt) {
+  Strip strip(2);
+  AddressableLightState state(&strip);
+  strip.setup_state(&state);
+  strip.set_power_estimation(20, 20, 20, 20, 0, 10);  // two full red pixels would draw 40 mA
+  strip.all() = Color(255, 0, 0, 0);
+  strip.schedule_show();
+  state.loop();
+  EXPECT_LT(strip.sent_red, 255);
+  EXPECT_EQ(strip.sent_red, strip[0].get_red_raw());
+  // Nothing pending: the next loop neither limits nor writes
+  strip[0].set_raw(255, 0, 0, 0);
+  state.loop();
+  EXPECT_EQ(strip[0].get_red_raw(), 255);
 }
 
 }  // namespace esphome::light::testing

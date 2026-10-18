@@ -12,33 +12,32 @@ float AddressableLightState::get_estimated_current_ma() {
   return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
 }
 
-// sums are the raw channel totals of a frame as the hardware sees it, so they already carry the
-// limit in force; the scale for the next frame comes from the draw the frame asked for
-uint8_t AddressableLight::power_scale_for_(const uint32_t sums[4]) {
-  const float idle_ma = this->size() * this->idle_ma_per_led_;
-  float pixel_ma = 0.0f;
-  for (size_t channel = 0; channel < 4; channel++) {
-    pixel_ma += sums[channel] * this->ma_per_level_[channel];
-  }
-  this->estimated_ma_ = idle_ma + pixel_ma;
-  if (this->max_current_ma_ <= 0.0f)
-    return 255;
-  const float budget_ma = this->max_current_ma_ - idle_ma;
-  if (budget_ma <= 0.0f && !this->budget_warned_) {
-    this->budget_warned_ = true;
-    ESP_LOGW(TAG, "max_current_ma %.0f leaves nothing for the pixels after the idle draw of %.0f mA",
-             this->max_current_ma_, idle_ma);
-  }
-  const float intended_ma = pixel_ma * 255.0f / this->correction_.get_power_brightness();
-  if (intended_ma <= budget_ma)
-    return 255;
-  // Never 0: that would black the strip out and the next frame's estimate would swing back to full
-  return static_cast<uint8_t>(std::max(budget_ma / intended_ma * 255.0f, 1.0f));
+void AddressableLightState::loop() {
+  this->apply_effect_and_transformer_();
+  if (this->next_write_)
+    static_cast<AddressableLight *>(this->output_)->limit_power_();
+  this->write_if_pending_();
 }
 
-// A hardware level moved to a new scale. Rounded up on the way down so a lit channel stays lit and is
-// never read back as zero, rounded down on the way up so a level does not creep brighter over a
-// down-and-up cycle
+void AddressableLight::sum_channels_(uint32_t sums[4]) {
+  for (size_t channel = 0; channel < 4; channel++)
+    sums[channel] = 0;
+  for (const auto &c : *this) {
+    sums[0] += c.get_red_raw();
+    sums[1] += c.get_green_raw();
+    sums[2] += c.get_blue_raw();
+    sums[3] += c.get_white_raw();
+  }
+}
+
+float AddressableLight::draw_ma_(const uint32_t sums[4]) const {
+  float ma = this->size() * this->idle_ma_per_led_;
+  for (size_t channel = 0; channel < 4; channel++)
+    ma += sums[channel] * this->ma_per_level_[channel];
+  return ma;
+}
+
+// Rounded up on the way down so a lit channel stays lit, down on the way up so a level does not creep
 static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
   if (level == 0)
     return 0;
@@ -47,35 +46,28 @@ static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
   return std::max<uint32_t>(moved, 1);
 }
 
-void AddressableLightState::loop() {
-  this->apply_effect_and_transformer_();
-  if (this->next_write_)
-    static_cast<AddressableLight *>(this->output_)->limit_power_();
-  this->write_if_pending_();
-}
-
-// The define says the code is built; only a light with power_estimation configured pays the pixel pass
+// The frame is moved to the new scale before it goes out, so every write path is limited
 void AddressableLight::limit_power_() {
   if (!this->power_estimation_)
     return;
-  uint32_t sums[4] = {};
-  for (const auto &c : *this) {
-    sums[0] += c.get_red_raw();
-    sums[1] += c.get_green_raw();
-    sums[2] += c.get_blue_raw();
-    sums[3] += c.get_white_raw();
-  }
-  this->apply_power_limit_(sums);
-}
-
-// Called with the frame about to be sent. When the limit changes, the frame is moved to the new scale
-// before it goes out, so every write path is limited and each pixel reads back as the level it was
-// written with
-void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
-  const uint8_t scale = this->power_scale_for_(sums);
+  uint32_t sums[4];
+  this->sum_channels_(sums);
+  this->estimated_ma_ = this->draw_ma_(sums);
   if (this->max_current_ma_ <= 0.0f)
-    return;  // estimate only; a partition's factor mirrors the strip it draws on
+    return;
+  const float idle_ma = this->size() * this->idle_ma_per_led_;
+  const float budget_ma = this->max_current_ma_ - idle_ma;
+  if (budget_ma <= 0.0f && !this->budget_warned_) {
+    this->budget_warned_ = true;
+    ESP_LOGW(TAG, "max_current_ma %.0f leaves nothing for the pixels after the idle draw of %.0f mA",
+             this->max_current_ma_, idle_ma);
+  }
+  // The raw sums already carry the limit in force; the scale comes from the draw the frame asked for
   const uint8_t previous = this->correction_.get_power_brightness();
+  const float intended_ma = (this->estimated_ma_ - idle_ma) * 255.0f / previous;
+  // Never 0, which would black the strip out and swing the next estimate back to full
+  const uint8_t scale =
+      intended_ma <= budget_ma ? 255 : static_cast<uint8_t>(std::max(budget_ma / intended_ma * 255.0f, 1.0f));
   if (scale == previous)
     return;
   this->correction_.set_power_brightness(scale);
@@ -84,6 +76,8 @@ void AddressableLight::apply_power_limit_(const uint32_t sums[4]) {
         rescale_level(view.get_red_raw(), scale, previous), rescale_level(view.get_green_raw(), scale, previous),
         rescale_level(view.get_blue_raw(), scale, previous), rescale_level(view.get_white_raw(), scale, previous));
   }
+  this->sum_channels_(sums);
+  this->estimated_ma_ = this->draw_ma_(sums);
 }
 
 #endif

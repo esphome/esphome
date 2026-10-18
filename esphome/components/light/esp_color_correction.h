@@ -33,7 +33,7 @@ class ESPColorCorrection {
   void set_max_brightness(const Color &max_brightness) { this->max_brightness_ = max_brightness; }
   void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  // The current limit's factor, applied after gamma so the stored level scales with the draw
+  // The current limit's factor, applied after gamma
   void set_power_brightness(uint8_t power_brightness) { this->power_brightness_ = power_brightness; }
   uint8_t get_power_brightness() const { return this->power_brightness_; }
 #endif
@@ -71,9 +71,11 @@ class ESPColorCorrection {
 
  protected:
   inline uint8_t color_correct_channel_(uint8_t value, uint8_t max_brightness) const ESPHOME_ALWAYS_INLINE {
-    uint8_t res = this->gamma_correct_(esp_scale8_twice(value, max_brightness, this->local_brightness_));
+    return this->limit_(this->gamma_correct_(esp_scale8_twice(value, max_brightness, this->local_brightness_)));
+  }
+  // The limit on a gamma-corrected level; rounded up, so a lit channel stays lit
+  inline uint8_t limit_(uint8_t res) const ESPHOME_ALWAYS_INLINE {
 #ifdef USE_LIGHT_POWER_ESTIMATION
-    // Rounded up, so a lit channel stays lit under the limit
     if (res != 0)
       res = std::max<uint8_t>(esp_scale8(res, this->power_brightness_), 1);
 #endif
