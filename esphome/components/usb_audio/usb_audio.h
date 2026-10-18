@@ -9,6 +9,7 @@
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/core/component.h"
+#include "esphome/core/static_task.h"
 
 extern "C" {
 #include "freertos/FreeRTOS.h"
@@ -43,22 +44,26 @@ class USBAudioStream {
   uint32_t buffer_size_;
 };
 
+/// Posted to the main loop, by the USB driver task (CONNECTED, DISCONNECTED) or the hub's worker (the results).
 struct USBAudioEvent {
   enum class Type : uint8_t {
     CONNECTED,
     // The driver reports disconnects through the device callback, not the driver callback.
     DISCONNECTED,
+    OPENED,
+    STARTED,
+    RESUMED,
+    CLOSED,
   };
 
-  union {
-    uac_host_device_handle_t handle{nullptr};  // DISCONNECTED
-    struct {
-      uint8_t addr;
-      uint8_t iface_num;
-    } driver;  // CONNECTED
-  };
+  uac_host_device_handle_t handle{nullptr};
+  uint8_t addr{0};
+  uint8_t iface_num{0};
   Type type{Type::CONNECTED};
   Endpoint endpoint{Endpoint::SPEAKER};
+  bool ok{false};
+  // STARTED: the device does not support the configured format.
+  bool format_rejected{false};
 };
 
 class USBAudioComponent : public Component {
@@ -77,25 +82,23 @@ class USBAudioComponent : public Component {
   void resume(Endpoint endpoint);
   void suspend(Endpoint endpoint);
 
-  // Safe from any task; the values reach the device through apply_pending_speaker_controls() on the speaker's
-  // control task.
+  /// Safe from any task; the worker sends the values to the device.
   void set_speaker_volume_level(float volume);
   void set_speaker_mute_state(bool mute_state);
-  bool speaker_controls_pending() const { return this->volume_.pending || this->mute_.pending; }
-  /// Send pending volume and mute to the device. These control transfers can block for seconds, so only the
-  /// speaker's control task calls this, never the main loop.
-  void apply_pending_speaker_controls();
 
+  // Safe from any task. While the worker holds the driver for a control transfer, these return ESP_ERR_TIMEOUT after
+  // waiting out timeout_ms instead of blocking on the driver's interface lock for up to seconds.
   esp_err_t read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms);
   esp_err_t write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms);
 
  protected:
-  static constexpr size_t EVENT_QUEUE_LENGTH = 8;
+  static constexpr size_t EVENT_QUEUE_LENGTH = 16;
+  static constexpr size_t OP_QUEUE_LENGTH = 8;
 
   struct EndpointState {
-    // Read by the platform tasks; cleared first when the device goes away.
+    // Read by the platform tasks and the worker; cleared first when the device goes away.
     std::atomic<uac_host_device_handle_t> handle{nullptr};
-    // A lost device, closed once the platform reports stream_idle().
+    // A lost device, closed by the worker once the platform reports stream_idle().
     uac_host_device_handle_t closing{nullptr};
     USBAudioStream *platform{nullptr};
     uint8_t iface{0};
@@ -104,41 +107,92 @@ class USBAudioComponent : public Component {
     bool active{false};
     // The connected device rejected the configured format; cleared when it is closed.
     bool format_rejected{false};
+    // An open, start or resume is queued on the worker; its result event clears it.
+    bool op_pending{false};
+    bool close_queued{false};
   };
 
   struct ControlState {
     std::atomic<bool> pending{false};
-    // Only touched by the speaker's control task, and reset while it is idle.
+    // Only touched by the worker, and reset while the speaker is closed.
     bool supported{true};
     uint8_t attempts{0};
   };
 
+  /// A blocking driver call, run on the worker.
+  struct Op {
+    enum class Type : uint8_t {
+      OPEN,
+      START,
+      RESUME,
+      SUSPEND,
+      CLOSE,
+      CONTROLS,
+    };
+
+    uac_host_device_handle_t handle{nullptr};
+    uint8_t addr{0};
+    uint8_t iface_num{0};
+    Type type{Type::OPEN};
+    Endpoint endpoint{Endpoint::SPEAKER};
+    // CLOSE: stop the stream before closing.
+    bool stop{false};
+  };
+
   EndpointState &endpoint_(Endpoint endpoint) { return this->endpoints_[static_cast<size_t>(endpoint)]; }
   const EndpointState &endpoint_(Endpoint endpoint) const { return this->endpoints_[static_cast<size_t>(endpoint)]; }
+  void process_events_();
   void process_event_(const USBAudioEvent &event);
   void open_stream_(const USBAudioEvent &event);
+  void on_opened_(const USBAudioEvent &event);
+  void on_started_(const USBAudioEvent &event);
+  void on_resumed_(const USBAudioEvent &event);
+  void on_closed_(const USBAudioEvent &event);
   void start_stream_(Endpoint endpoint);
-  bool populate_stream_config_(Endpoint endpoint, uac_host_stream_config_t &stream_config);
   void stream_failed_(Endpoint endpoint);
   void handle_disconnect_(uac_host_device_handle_t handle);
   void begin_close_(Endpoint endpoint);
   bool finish_closes_();
-  void apply_control_(ControlState &control, esp_err_t err, const LogString *name);
+  bool queue_op_(const Op &op);
+  void queue_controls_();
+  void post_event_(const USBAudioEvent &event);
+
+  // Worker side: the only place that makes blocking driver calls after setup().
+  static void worker_task(void *param);
+  void run_op_(const Op &op);
+  /// Keep platform reads and writes out of the driver while the worker uses it.
+  void lock_driver_();
+  void unlock_driver_();
+  bool populate_stream_config_(Endpoint endpoint, uac_host_device_handle_t handle,
+                               uac_host_stream_config_t &stream_config, bool &format_rejected);
+  /// Send pending volume and mute; returns true when one should be retried later.
+  bool apply_pending_speaker_controls_();
+  bool apply_control_(ControlState &control, esp_err_t err, const LogString *name);
 
   static void driver_event_stub(uint8_t addr, uint8_t iface_num, uac_host_driver_event_t event, void *user_data);
   static void device_event_stub(uac_host_device_handle_t handle, uac_host_device_event_t event, void *user_data);
 
-  // Filled from the USB driver task, drained on the main loop.
+  StaticTask worker_;
+  // Filled from the USB driver task and the worker, drained on the main loop.
   QueueHandle_t event_queue_{nullptr};
+  // Filled on the main loop (and by volume/mute changes from any task), drained by the worker.
+  QueueHandle_t op_queue_{nullptr};
   std::array<EndpointState, 2> endpoints_{};
+  // A disconnect for a device whose open is still running on the worker; closed once its OPENED arrives.
+  uac_host_device_handle_t lost_while_opening_{nullptr};
   // Counted on the USB driver task, logged from loop().
   std::atomic<uint32_t> transfer_errors_{0};
   StaticQueue_t event_queue_struct_{};
+  StaticQueue_t op_queue_struct_{};
   std::array<uint8_t, EVENT_QUEUE_LENGTH * sizeof(USBAudioEvent)> event_queue_storage_{};
+  std::array<uint8_t, OP_QUEUE_LENGTH * sizeof(Op)> op_queue_storage_{};
   ControlState volume_{};
   ControlState mute_{};
   std::atomic<uint8_t> speaker_volume_{100};
   std::atomic<bool> speaker_muted_{false};
+  // Set while the worker runs a driver call; platform reads and writes counted in driver_users_ back off.
+  std::atomic<bool> driver_busy_{false};
+  std::atomic<uint8_t> driver_users_{0};
   bool uac_installed_{false};
 };
 

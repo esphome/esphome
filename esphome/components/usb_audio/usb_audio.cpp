@@ -18,8 +18,12 @@ ESPHOME_LOG_TAG(TAG, "usb_audio");
 
 static constexpr UBaseType_t UAC_TASK_PRIORITY = 8;
 static constexpr uint32_t UAC_TASK_STACK_SIZE = 4096;
-// The speaker's control task retries volume and mute up to this many times.
+// Below the driver's task, so its transfers are not held up by control requests.
+static constexpr UBaseType_t WORKER_TASK_PRIORITY = 5;
+static constexpr uint32_t WORKER_TASK_STACK_SIZE = 4096;
+// The worker retries volume and mute up to this many times, this far apart.
 static constexpr uint8_t MAX_CONTROL_ATTEMPTS = 5;
+static constexpr uint32_t CONTROL_RETRY_MS = 100;
 
 static const LogString *endpoint_name(Endpoint endpoint) {
   return endpoint == Endpoint::SPEAKER ? LOG_STR("Speaker") : LOG_STR("Microphone");
@@ -40,6 +44,8 @@ static bool alt_supports_rate(const uac_host_dev_alt_param_t &alt, uint32_t samp
 void USBAudioComponent::setup() {
   this->event_queue_ = xQueueCreateStatic(EVENT_QUEUE_LENGTH, sizeof(USBAudioEvent), this->event_queue_storage_.data(),
                                           &this->event_queue_struct_);
+  this->op_queue_ =
+      xQueueCreateStatic(OP_QUEUE_LENGTH, sizeof(Op), this->op_queue_storage_.data(), &this->op_queue_struct_);
 
   uac_host_driver_config_t uac_cfg = {
       .create_background_task = true,
@@ -57,22 +63,20 @@ void USBAudioComponent::setup() {
     return;
   }
   this->uac_installed_ = true;
-  // The USB callbacks wake the loop when there is work.
+
+  // Opening, starting, suspending and closing streams and setting volume are control transfers that can block for
+  // seconds, so they run here instead of on the main loop.
+  if (!this->worker_.create(&USBAudioComponent::worker_task, "usb_audio", WORKER_TASK_STACK_SIZE, this,
+                            WORKER_TASK_PRIORITY, false)) {
+    this->mark_failed(LOG_STR("Failed to create worker task"));
+    return;
+  }
+  // The USB callbacks and the worker wake the loop when there is work.
   this->disable_loop();
 }
 
 void USBAudioComponent::loop() {
-  this->finish_closes_();
-
-  USBAudioEvent event;
-  while (xQueuePeek(this->event_queue_, &event, 0) == pdTRUE) {
-    // A device that came back waits until its old handle is closed.
-    if (event.type == USBAudioEvent::Type::CONNECTED && this->endpoint_(event.endpoint).closing != nullptr) {
-      break;
-    }
-    xQueueReceive(this->event_queue_, &event, 0);
-    this->process_event_(event);
-  }
+  this->process_events_();
 
   if (const uint32_t errors = this->transfer_errors_.exchange(0); errors != 0) {
     ESP_LOGW(TAG, "%" PRIu32 " USB transfer errors", errors);
@@ -84,6 +88,20 @@ void USBAudioComponent::loop() {
     return;
   }
   this->disable_loop();
+}
+
+void USBAudioComponent::process_events_() {
+  this->finish_closes_();
+
+  USBAudioEvent event;
+  while (xQueuePeek(this->event_queue_, &event, 0) == pdTRUE) {
+    // A device that came back waits until its old handle is closed.
+    if (event.type == USBAudioEvent::Type::CONNECTED && this->endpoint_(event.endpoint).closing != nullptr) {
+      break;
+    }
+    xQueueReceive(this->event_queue_, &event, 0);
+    this->process_event_(event);
+  }
 }
 
 void USBAudioComponent::dump_config() {
@@ -99,10 +117,18 @@ void USBAudioComponent::dump_config() {
 }
 
 bool USBAudioComponent::teardown() {
-  // Stop the platforms first, then close each device once its platform is idle.
+  if (this->event_queue_ == nullptr) {
+    return true;
+  }
+  // Stop the platforms first, then let the worker close each device once its platform is idle.
   this->begin_close_(Endpoint::SPEAKER);
   this->begin_close_(Endpoint::MICROPHONE);
+  this->process_events_();
   if (!this->finish_closes_()) {
+    return false;
+  }
+  // Wait for the worker to finish whatever it was still running.
+  if (uxQueueMessagesWaiting(this->op_queue_) != 0 || this->driver_busy_) {
     return false;
   }
   xQueueReset(this->event_queue_);
@@ -128,6 +154,10 @@ void USBAudioComponent::resume(Endpoint endpoint) {
     ESP_LOGD(TAG, "%s interface not connected yet", LOG_STR_ARG(endpoint_name(endpoint)));
     return;
   }
+  if (ep.op_pending) {
+    // The pending start or resume reports back to the platform.
+    return;
+  }
   if (!ep.stream_started) {
     if (ep.format_rejected) {
       // Already probed and logged for this device; a retrying caller must not flood the log.
@@ -137,49 +167,74 @@ void USBAudioComponent::resume(Endpoint endpoint) {
     this->start_stream_(endpoint);
     return;
   }
-  esp_err_t err = uac_host_device_resume(handle);
-  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-    ESP_LOGW(TAG, "Failed to resume %s stream: %s", LOG_STR_ARG(endpoint_name(endpoint)), esp_err_to_name(err));
+  Op op;
+  op.type = Op::Type::RESUME;
+  op.endpoint = endpoint;
+  op.handle = handle;
+  if (!this->queue_op_(op)) {
     this->stream_failed_(endpoint);
     return;
   }
-  ep.platform->on_stream_state(true);
+  ep.op_pending = true;
 }
 
 void USBAudioComponent::suspend(Endpoint endpoint) {
   auto &ep = this->endpoint_(endpoint);
   ep.active = false;
   const uac_host_device_handle_t handle = ep.handle;
+  // A start still running on the worker is suspended once its STARTED arrives.
   if (!ep.stream_started || handle == nullptr) {
     return;
   }
-  esp_err_t err = uac_host_device_suspend(handle);
-  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-    ESP_LOGW(TAG, "Failed to suspend %s stream: %s", LOG_STR_ARG(endpoint_name(endpoint)), esp_err_to_name(err));
-  }
+  Op op;
+  op.type = Op::Type::SUSPEND;
+  op.endpoint = endpoint;
+  op.handle = handle;
+  this->queue_op_(op);
 }
 
 esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms) {
   *bytes_read = 0;
+  // Counted before the busy check, so the worker waits for this read to leave the driver before it takes it.
+  this->driver_users_.fetch_add(1);
+  if (this->driver_busy_) {
+    this->driver_users_.fetch_sub(1);
+    vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+    return ESP_ERR_TIMEOUT;
+  }
   uac_host_device_handle_t handle = this->endpoint_(Endpoint::MICROPHONE).handle;
   if (handle == nullptr) {
+    this->driver_users_.fetch_sub(1);
     return ESP_ERR_INVALID_STATE;
   }
   // The driver collects up to `size` bytes for the whole timeout and returns what it got, or ESP_ERR_TIMEOUT when
   // nothing arrived.
   uint32_t actual = 0;
   esp_err_t err = uac_host_device_read(handle, buffer, static_cast<uint32_t>(size), &actual, pdMS_TO_TICKS(timeout_ms));
+  this->driver_users_.fetch_sub(1);
   *bytes_read = actual;
   return err;
 }
 
 esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms) {
+  // Counted before the busy check, so the worker waits for this write to leave the driver before it takes it.
+  this->driver_users_.fetch_add(1);
+  if (this->driver_busy_) {
+    this->driver_users_.fetch_sub(1);
+    // Back-pressure: a caller with a budget waits it out, a non-blocking caller retries later.
+    if (timeout_ms > 0) {
+      vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+    }
+    return ESP_ERR_TIMEOUT;
+  }
   uac_host_device_handle_t handle = this->endpoint_(Endpoint::SPEAKER).handle;
   if (handle == nullptr) {
+    this->driver_users_.fetch_sub(1);
     return ESP_ERR_INVALID_STATE;
   }
   esp_err_t err = uac_host_device_write(handle, const_cast<uint8_t *>(data), static_cast<uint32_t>(length),
                                         pdMS_TO_TICKS(timeout_ms));
+  this->driver_users_.fetch_sub(1);
   if (err == ESP_FAIL || err == ESP_ERR_INVALID_STATE) {
     // Ring buffer full or stream inactive; report as timeout so callers back off and retry.
     err = ESP_ERR_TIMEOUT;
@@ -195,6 +250,18 @@ void USBAudioComponent::process_event_(const USBAudioEvent &event) {
     case USBAudioEvent::Type::DISCONNECTED:
       this->handle_disconnect_(event.handle);
       break;
+    case USBAudioEvent::Type::OPENED:
+      this->on_opened_(event);
+      break;
+    case USBAudioEvent::Type::STARTED:
+      this->on_started_(event);
+      break;
+    case USBAudioEvent::Type::RESUMED:
+      this->on_resumed_(event);
+      break;
+    case USBAudioEvent::Type::CLOSED:
+      this->on_closed_(event);
+      break;
   }
 }
 
@@ -205,31 +272,36 @@ void USBAudioComponent::open_stream_(const USBAudioEvent &event) {
     ESP_LOGD(TAG, "%s interface connected but not configured", LOG_STR_ARG(name));
     return;
   }
-  if (ep.handle.load() != nullptr) {
+  if (ep.handle.load() != nullptr || ep.op_pending) {
     ESP_LOGW(TAG, "%s interface already open, ignoring duplicate event", LOG_STR_ARG(name));
     return;
   }
+  Op op;
+  op.type = Op::Type::OPEN;
+  op.endpoint = event.endpoint;
+  op.addr = event.addr;
+  op.iface_num = event.iface_num;
+  if (this->queue_op_(op)) {
+    ep.op_pending = true;
+  }
+}
 
-  const uint32_t buffer_size = ep.platform->get_buffer_size();
-  uac_host_device_config_t dev_cfg = {
-      .addr = event.driver.addr,
-      .iface_num = event.driver.iface_num,
-      .buffer_size = buffer_size,
-      .buffer_threshold = std::max<uint32_t>(buffer_size / 4, 1U),
-      .callback = &USBAudioComponent::device_event_stub,
-      .callback_arg = this,
-  };
-
-  uac_host_device_handle_t handle{nullptr};
-  esp_err_t err = uac_host_device_open(&dev_cfg, &handle);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to open %s interface: %s", LOG_STR_ARG(name), esp_err_to_name(err));
+void USBAudioComponent::on_opened_(const USBAudioEvent &event) {
+  auto &ep = this->endpoint_(event.endpoint);
+  ep.op_pending = false;
+  if (!event.ok) {
     return;
   }
-  ep.handle = handle;
-
-  ep.iface = event.driver.iface_num;
-  ESP_LOGI(TAG, "%s interface %u connected (addr=%u)", LOG_STR_ARG(name), ep.iface, event.driver.addr);
+  ep.handle = event.handle;
+  ep.iface = event.iface_num;
+  ESP_LOGI(TAG, "%s interface %u connected (addr=%u)", LOG_STR_ARG(endpoint_name(event.endpoint)), ep.iface,
+           event.addr);
+  if (event.handle == this->lost_while_opening_) {
+    // It went away while the worker was opening it.
+    this->lost_while_opening_ = nullptr;
+    this->handle_disconnect_(event.handle);
+    return;
+  }
   if (ep.active) {
     this->start_stream_(event.endpoint);
   }
@@ -237,25 +309,56 @@ void USBAudioComponent::open_stream_(const USBAudioEvent &event) {
 
 void USBAudioComponent::start_stream_(Endpoint endpoint) {
   auto &ep = this->endpoint_(endpoint);
-  uac_host_stream_config_t stm_cfg{};
-  if (!this->populate_stream_config_(endpoint, stm_cfg)) {
-    ep.format_rejected = true;
+  Op op;
+  op.type = Op::Type::START;
+  op.endpoint = endpoint;
+  op.handle = ep.handle;
+  if (!this->queue_op_(op)) {
     this->stream_failed_(endpoint);
     return;
   }
+  ep.op_pending = true;
+}
 
-  esp_err_t err = uac_host_device_start(ep.handle, &stm_cfg);
-  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-    ESP_LOGW(TAG, "Failed to start %s stream: %s", LOG_STR_ARG(endpoint_name(endpoint)), esp_err_to_name(err));
-    this->stream_failed_(endpoint);
+void USBAudioComponent::on_started_(const USBAudioEvent &event) {
+  auto &ep = this->endpoint_(event.endpoint);
+  ep.op_pending = false;
+  if (event.handle != ep.handle.load()) {
+    // The device went away meanwhile; the platform was already told.
     return;
   }
-
+  if (!event.ok) {
+    ep.format_rejected = event.format_rejected;
+    if (ep.active) {
+      this->stream_failed_(event.endpoint);
+    }
+    return;
+  }
   ep.stream_started = true;
-  if (endpoint == Endpoint::SPEAKER) {
+  if (event.endpoint == Endpoint::SPEAKER) {
     // Send the current volume and mute to the newly started stream.
     this->volume_.pending = true;
     this->mute_.pending = true;
+    this->queue_controls_();
+  }
+  if (!ep.active) {
+    // The platform stopped while the stream was starting.
+    this->suspend(event.endpoint);
+    return;
+  }
+  ep.platform->on_stream_state(true);
+}
+
+void USBAudioComponent::on_resumed_(const USBAudioEvent &event) {
+  auto &ep = this->endpoint_(event.endpoint);
+  ep.op_pending = false;
+  if (event.handle != ep.handle.load() || !ep.active) {
+    // The device went away, or the platform stopped and its suspend is queued behind this resume.
+    return;
+  }
+  if (!event.ok) {
+    this->stream_failed_(event.endpoint);
+    return;
   }
   ep.platform->on_stream_state(true);
 }
@@ -267,16 +370,233 @@ void USBAudioComponent::stream_failed_(Endpoint endpoint) {
   ep.platform->on_stream_state(false);
 }
 
-bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_stream_config_t &stream_config) {
-  const auto &ep = this->endpoint_(endpoint);
+void USBAudioComponent::set_speaker_volume_level(float volume) {
+  this->speaker_volume_ = static_cast<uint8_t>(std::lround(std::clamp(volume, 0.0f, 1.0f) * 100.0f));
+  this->volume_.pending = true;
+  this->queue_controls_();
+}
+
+void USBAudioComponent::set_speaker_mute_state(bool mute_state) {
+  this->speaker_muted_ = mute_state;
+  this->mute_.pending = true;
+  this->queue_controls_();
+}
+
+void USBAudioComponent::queue_controls_() {
+  if (this->op_queue_ == nullptr) {
+    return;
+  }
+  Op op;
+  op.type = Op::Type::CONTROLS;
+  // Dropped when the queue is full: the controls stay pending and the next start or change queues them again.
+  xQueueSend(this->op_queue_, &op, 0);
+}
+
+void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
+  for (size_t i = 0; i < this->endpoints_.size(); i++) {
+    auto &ep = this->endpoints_[i];
+    if (handle != nullptr && ep.handle.load() == handle) {
+      const auto endpoint = static_cast<Endpoint>(i);
+      ESP_LOGI(TAG, "%s interface %u disconnected", LOG_STR_ARG(endpoint_name(endpoint)), ep.iface);
+      this->begin_close_(endpoint);
+      return;
+    }
+  }
+  if (std::any_of(this->endpoints_.begin(), this->endpoints_.end(),
+                  [](const EndpointState &ep) { return ep.op_pending && ep.handle.load() == nullptr; })) {
+    // Its open is still running on the worker; close it once it reports back.
+    this->lost_while_opening_ = handle;
+    return;
+  }
+  ESP_LOGD(TAG, "Disconnect event for an interface with no active stream");
+}
+
+void USBAudioComponent::begin_close_(Endpoint endpoint) {
+  auto &ep = this->endpoint_(endpoint);
+  // Platform reads and writes see nullptr from here on and return at once.
+  const uac_host_device_handle_t handle = ep.handle.exchange(nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  ep.closing = handle;
+  ep.close_queued = false;
+  ep.platform->on_stream_state(false);
+}
+
+bool USBAudioComponent::finish_closes_() {
+  bool done = true;
+  for (size_t i = 0; i < this->endpoints_.size(); i++) {
+    auto &ep = this->endpoints_[i];
+    if (ep.closing == nullptr) {
+      continue;
+    }
+    done = false;
+    // Closing frees the driver's interface, so wait until no platform task can still be using the handle.
+    if (ep.close_queued || !ep.platform->stream_idle()) {
+      continue;
+    }
+    Op op;
+    op.type = Op::Type::CLOSE;
+    op.endpoint = static_cast<Endpoint>(i);
+    op.handle = ep.closing;
+    op.stop = ep.stream_started;
+    ep.close_queued = this->queue_op_(op);
+  }
+  return done;
+}
+
+void USBAudioComponent::on_closed_(const USBAudioEvent &event) {
+  auto &ep = this->endpoint_(event.endpoint);
+  ep.closing = nullptr;
+  ep.close_queued = false;
+  ep.stream_started = false;
+  ep.format_rejected = false;
+  ep.op_pending = false;
+}
+
+bool USBAudioComponent::queue_op_(const Op &op) {
+  if (xQueueSend(this->op_queue_, &op, 0) != pdTRUE) {
+    ESP_LOGW(TAG, "USB audio work queue full, dropping %s request", LOG_STR_ARG(endpoint_name(op.endpoint)));
+    return false;
+  }
+  return true;
+}
+
+void USBAudioComponent::post_event_(const USBAudioEvent &event) {
+  if (xQueueSend(this->event_queue_, &event, 0) != pdTRUE) {
+    ESP_LOGW(TAG, "USB audio event queue full, dropping event");
+  }
+  this->enable_loop_soon_any_context();
+}
+
+void USBAudioComponent::worker_task(void *param) {
+  auto *self = static_cast<USBAudioComponent *>(param);
+  Op op;
+  while (true) {
+    if (xQueueReceive(self->op_queue_, &op, portMAX_DELAY) != pdTRUE) {
+      continue;
+    }
+    self->lock_driver_();
+    self->run_op_(op);
+    self->unlock_driver_();
+  }
+}
+
+void USBAudioComponent::lock_driver_() {
+  this->driver_busy_ = true;
+  // Reads and writes give up within their timeout; wait for those already inside the driver.
+  while (this->driver_users_ != 0) {
+    vTaskDelay(1);
+  }
+}
+
+void USBAudioComponent::unlock_driver_() { this->driver_busy_ = false; }
+
+void USBAudioComponent::run_op_(const Op &op) {
+  const LogString *name = endpoint_name(op.endpoint);
+  USBAudioEvent result;
+  result.endpoint = op.endpoint;
+  result.handle = op.handle;
+
+  switch (op.type) {
+    case Op::Type::OPEN: {
+      const uint32_t buffer_size = this->endpoint_(op.endpoint).platform->get_buffer_size();
+      uac_host_device_config_t dev_cfg = {
+          .addr = op.addr,
+          .iface_num = op.iface_num,
+          .buffer_size = buffer_size,
+          .buffer_threshold = std::max<uint32_t>(buffer_size / 4, 1U),
+          .callback = &USBAudioComponent::device_event_stub,
+          .callback_arg = this,
+      };
+      uac_host_device_handle_t handle{nullptr};
+      esp_err_t err = uac_host_device_open(&dev_cfg, &handle);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open %s interface: %s", LOG_STR_ARG(name), esp_err_to_name(err));
+      }
+      result.type = USBAudioEvent::Type::OPENED;
+      result.ok = err == ESP_OK;
+      result.handle = handle;
+      result.addr = op.addr;
+      result.iface_num = op.iface_num;
+      this->post_event_(result);
+      return;
+    }
+    case Op::Type::START: {
+      result.type = USBAudioEvent::Type::STARTED;
+      uac_host_stream_config_t stm_cfg{};
+      if (this->populate_stream_config_(op.endpoint, op.handle, stm_cfg, result.format_rejected)) {
+        esp_err_t err = uac_host_device_start(op.handle, &stm_cfg);
+        result.ok = err == ESP_OK || err == ESP_ERR_INVALID_STATE;
+        if (!result.ok) {
+          ESP_LOGW(TAG, "Failed to start %s stream: %s", LOG_STR_ARG(name), esp_err_to_name(err));
+        }
+      }
+      this->post_event_(result);
+      return;
+    }
+    case Op::Type::RESUME: {
+      esp_err_t err = uac_host_device_resume(op.handle);
+      result.type = USBAudioEvent::Type::RESUMED;
+      result.ok = err == ESP_OK || err == ESP_ERR_INVALID_STATE;
+      if (!result.ok) {
+        ESP_LOGW(TAG, "Failed to resume %s stream: %s", LOG_STR_ARG(name), esp_err_to_name(err));
+      }
+      this->post_event_(result);
+      return;
+    }
+    case Op::Type::SUSPEND: {
+      esp_err_t err = uac_host_device_suspend(op.handle);
+      if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "Failed to suspend %s stream: %s", LOG_STR_ARG(name), esp_err_to_name(err));
+      }
+      return;
+    }
+    case Op::Type::CLOSE: {
+      if (op.stop) {
+        esp_err_t err = uac_host_device_stop(op.handle);
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+          ESP_LOGW(TAG, "Failed to stop %s stream: %s", LOG_STR_ARG(name), esp_err_to_name(err));
+        }
+      }
+      esp_err_t err = uac_host_device_close(op.handle);
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "uac_host_device_close failed: %s", esp_err_to_name(err));
+      }
+      if (op.endpoint == Endpoint::SPEAKER) {
+        // A reconnected device may support different controls.
+        for (ControlState *control : {&this->volume_, &this->mute_}) {
+          control->supported = true;
+          control->attempts = 0;
+        }
+      }
+      result.type = USBAudioEvent::Type::CLOSED;
+      this->post_event_(result);
+      return;
+    }
+    case Op::Type::CONTROLS: {
+      if (this->apply_pending_speaker_controls_()) {
+        // Give the device a moment before retrying; the queue keeps any other work in order.
+        this->unlock_driver_();
+        vTaskDelay(pdMS_TO_TICKS(CONTROL_RETRY_MS));
+        this->lock_driver_();
+        this->queue_controls_();
+      }
+      return;
+    }
+  }
+}
+
+bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_device_handle_t handle,
+                                                uac_host_stream_config_t &stream_config, bool &format_rejected) {
   const LogString *name = endpoint_name(endpoint);
-  const audio::AudioStreamInfo info = ep.platform->get_usb_stream_info();
+  const audio::AudioStreamInfo info = this->endpoint_(endpoint).platform->get_usb_stream_info();
   const uint8_t channels = info.get_channels();
   const uint8_t bits = info.get_bits_per_sample();
   const uint32_t sample_rate = info.get_sample_rate();
 
   uac_host_dev_info_t dev_info{};
-  esp_err_t err = uac_host_get_device_info(ep.handle, &dev_info);
+  esp_err_t err = uac_host_get_device_info(handle, &dev_info);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Failed to query %s interface info: %s", LOG_STR_ARG(name), esp_err_to_name(err));
     return false;
@@ -284,7 +604,7 @@ bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_stre
 
   for (uint8_t alt = 1; alt <= dev_info.iface_alt_num; alt++) {
     uac_host_dev_alt_param_t alt_param{};
-    if (uac_host_get_device_alt_param(ep.handle, alt, &alt_param) != ESP_OK) {
+    if (uac_host_get_device_alt_param(handle, alt, &alt_param) != ESP_OK) {
       continue;
     }
     // ESPHome's samples are packed, so a device that pads them (e.g. 24-bit samples in 4-byte subframes) cannot be
@@ -299,11 +619,12 @@ bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_stre
     }
   }
 
+  format_rejected = true;
   ESP_LOGW(TAG, "%s interface %u does not support requested format (channels=%u bits=%u sample_rate=%" PRIu32 " Hz)",
            LOG_STR_ARG(name), dev_info.iface_num, channels, bits, sample_rate);
   for (uint8_t alt = 1; alt <= dev_info.iface_alt_num; alt++) {
     uac_host_dev_alt_param_t alt_param{};
-    if (uac_host_get_device_alt_param(ep.handle, alt, &alt_param) != ESP_OK) {
+    if (uac_host_get_device_alt_param(handle, alt, &alt_param) != ESP_OK) {
       continue;
     }
     if (alt_param.sample_freq_type == 0) {
@@ -322,107 +643,45 @@ bool USBAudioComponent::populate_stream_config_(Endpoint endpoint, uac_host_stre
   return false;
 }
 
-void USBAudioComponent::set_speaker_volume_level(float volume) {
-  this->speaker_volume_ = static_cast<uint8_t>(std::lround(std::clamp(volume, 0.0f, 1.0f) * 100.0f));
-  this->volume_.pending = true;
-}
-
-void USBAudioComponent::set_speaker_mute_state(bool mute_state) {
-  this->speaker_muted_ = mute_state;
-  this->mute_.pending = true;
-}
-
-void USBAudioComponent::apply_pending_speaker_controls() {
+bool USBAudioComponent::apply_pending_speaker_controls_() {
   const uac_host_device_handle_t handle = this->endpoint_(Endpoint::SPEAKER).handle;
   if (handle == nullptr) {
-    return;
+    // Sent once the stream starts.
+    return false;
   }
+  bool retry = false;
   if (this->volume_.pending.exchange(false) && this->volume_.supported) {
-    this->apply_control_(this->volume_, uac_host_device_set_volume(handle, this->speaker_volume_), LOG_STR("volume"));
+    retry |= this->apply_control_(this->volume_, uac_host_device_set_volume(handle, this->speaker_volume_),
+                                  LOG_STR("volume"));
   }
   if (this->mute_.pending.exchange(false) && this->mute_.supported) {
-    this->apply_control_(this->mute_, uac_host_device_set_mute(handle, this->speaker_muted_), LOG_STR("mute"));
+    retry |= this->apply_control_(this->mute_, uac_host_device_set_mute(handle, this->speaker_muted_), LOG_STR("mute"));
   }
+  return retry;
 }
 
-void USBAudioComponent::apply_control_(ControlState &control, esp_err_t err, const LogString *name) {
+bool USBAudioComponent::apply_control_(ControlState &control, esp_err_t err, const LogString *name) {
   if (err == ESP_OK) {
     control.attempts = 0;
-    return;
+    return false;
   }
   if (err == ESP_ERR_NOT_SUPPORTED) {
     ESP_LOGW(TAG, "Speaker %s control not supported by device", LOG_STR_ARG(name));
     control.supported = false;
-    return;
+    return false;
+  }
+  if (err == ESP_ERR_INVALID_STATE) {
+    // The stream is not started yet; starting it queues the controls again.
+    control.pending = true;
+    return false;
   }
   if (++control.attempts >= MAX_CONTROL_ATTEMPTS) {
     ESP_LOGW(TAG, "Failed to set speaker %s: %s", LOG_STR_ARG(name), esp_err_to_name(err));
     control.attempts = 0;
-    return;
+    return false;
   }
-  // The speaker's control task retries it.
   control.pending = true;
-}
-
-void USBAudioComponent::handle_disconnect_(uac_host_device_handle_t handle) {
-  for (size_t i = 0; i < this->endpoints_.size(); i++) {
-    auto &ep = this->endpoints_[i];
-    if (handle != nullptr && ep.handle.load() == handle) {
-      const auto endpoint = static_cast<Endpoint>(i);
-      ESP_LOGI(TAG, "%s interface %u disconnected", LOG_STR_ARG(endpoint_name(endpoint)), ep.iface);
-      this->begin_close_(endpoint);
-      return;
-    }
-  }
-  ESP_LOGD(TAG, "Disconnect event for an interface with no active stream");
-}
-
-void USBAudioComponent::begin_close_(Endpoint endpoint) {
-  auto &ep = this->endpoint_(endpoint);
-  // Platform reads and writes see nullptr from here on and return at once.
-  const uac_host_device_handle_t handle = ep.handle.exchange(nullptr);
-  if (handle == nullptr) {
-    return;
-  }
-  ep.closing = handle;
-  ep.platform->on_stream_state(false);
-}
-
-bool USBAudioComponent::finish_closes_() {
-  bool done = true;
-  for (size_t i = 0; i < this->endpoints_.size(); i++) {
-    auto &ep = this->endpoints_[i];
-    if (ep.closing == nullptr) {
-      continue;
-    }
-    // Closing frees the driver's interface, so wait until no platform task can still be using the handle.
-    if (!ep.platform->stream_idle()) {
-      done = false;
-      continue;
-    }
-    const auto endpoint = static_cast<Endpoint>(i);
-    if (ep.stream_started) {
-      esp_err_t err = uac_host_device_stop(ep.closing);
-      if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "Failed to stop %s stream: %s", LOG_STR_ARG(endpoint_name(endpoint)), esp_err_to_name(err));
-      }
-    }
-    esp_err_t err = uac_host_device_close(ep.closing);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "uac_host_device_close failed: %s", esp_err_to_name(err));
-    }
-    ep.closing = nullptr;
-    ep.stream_started = false;
-    ep.format_rejected = false;
-    if (endpoint == Endpoint::SPEAKER) {
-      // A reconnected device may support different controls.
-      for (ControlState *control : {&this->volume_, &this->mute_}) {
-        control->supported = true;
-        control->attempts = 0;
-      }
-    }
-  }
-  return done;
+  return true;
 }
 
 void USBAudioComponent::driver_event_stub(uint8_t addr, uint8_t iface_num, const uac_host_driver_event_t event,
@@ -439,13 +698,10 @@ void USBAudioComponent::driver_event_stub(uint8_t addr, uint8_t iface_num, const
     default:
       return;
   }
-  evt.driver.addr = addr;
-  evt.driver.iface_num = iface_num;
-
-  if (xQueueSend(self->event_queue_, &evt, 0) != pdTRUE) {
-    ESP_LOGW(TAG, "USB audio event queue full, dropping driver event");
-  }
-  self->enable_loop_soon_any_context();
+  evt.type = USBAudioEvent::Type::CONNECTED;
+  evt.addr = addr;
+  evt.iface_num = iface_num;
+  self->post_event_(evt);
 }
 
 void USBAudioComponent::device_event_stub(uac_host_device_handle_t handle, const uac_host_device_event_t event,
@@ -453,17 +709,13 @@ void USBAudioComponent::device_event_stub(uac_host_device_handle_t handle, const
   auto *self = static_cast<USBAudioComponent *>(user_data);
   if (event == UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR) {
     self->transfer_errors_.fetch_add(1, std::memory_order_relaxed);
+    self->enable_loop_soon_any_context();
   } else if (event == UAC_HOST_DRIVER_EVENT_DISCONNECTED) {
     USBAudioEvent evt;
     evt.type = USBAudioEvent::Type::DISCONNECTED;
     evt.handle = handle;
-    if (xQueueSend(self->event_queue_, &evt, 0) != pdTRUE) {
-      ESP_LOGW(TAG, "USB audio event queue full, dropping disconnect event");
-    }
-  } else {
-    return;
+    self->post_event_(evt);
   }
-  self->enable_loop_soon_any_context();
 }
 
 }  // namespace esphome::usb_audio
