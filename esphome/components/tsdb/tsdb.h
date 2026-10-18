@@ -103,6 +103,9 @@ class TsdbComponent : public PollingComponent {
   bool dirty_{false};
   bool warned_time_{false};
   bool warned_backwards_{false};
+  // Set when the stored statistics could not be read, so an uptime timestamp
+  // cannot be placed after the history already on disk.
+  bool stats_unknown_{false};
 };
 
 }  // namespace esphome::tsdb
