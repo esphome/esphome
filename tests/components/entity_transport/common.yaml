@@ -10,7 +10,7 @@ sensor:
     lambda: return 1.0;
   - platform: entity_transport
     provider: remote-device
-    remote_id: remote_sensor
+    remote_id: entity_transport_sensor
     name: Remote sensor
 
 binary_sensor:
@@ -20,6 +20,7 @@ binary_sensor:
   - platform: entity_transport
     id: remote_binary_sensor
     provider: remote-device
+    remote_id: door
     name: Remote binary sensor
 
 entity_transport:

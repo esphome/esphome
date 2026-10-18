@@ -1,4 +1,5 @@
 #include "entity_transport.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include "esphome/core/application.h"
@@ -41,16 +42,20 @@ static void put_uint32(uint8_t *buf, uint32_t value) {
 
 // True if the NUL terminated str is the same as the len bytes at data
 static bool matches(const char *str, const char *data, size_t len) {
-  return strncmp(str, data, len) == 0 && str[len] == 0;
+  return strlen(str) == len && memcmp(str, data, len) == 0;
 }
 
 void EntityTransport::setup() {
   this->interface_ = this->interface_->top();
   this->max_packet_size_ = this->interface_->get_max_packet_size();
   const auto &name = App.get_name();
-  if (name.size() > MAX_STRING_LENGTH ||
-      HEADER_SIZE + 1 + name.size() + SECTION_HEADER_SIZE >= this->max_packet_size_) {
-    this->mark_failed(LOG_STR("Device name too long"));
+  size_t longest_id = 0;
+  for (const auto &entity : this->entities_)
+    longest_id = std::max(longest_id, strlen(entity.id));
+  // A dictionary packet must hold the device name and any one id, which also leaves room for a data record
+  if (name.size() > MAX_STRING_LENGTH || longest_id > MAX_STRING_LENGTH ||
+      HEADER_SIZE + 1 + name.size() + SECTION_HEADER_SIZE + 1 + longest_id > this->max_packet_size_) {
+    this->mark_failed(LOG_STR("max_packet_size too small for the device name and entity ids"));
     return;
   }
   this->buffer_ = std::make_unique<uint8_t[]>(this->max_packet_size_);
@@ -174,11 +179,6 @@ bool EntityTransport::send_dictionary_() {
     const auto &entity = this->entities_[i];
     uint8_t type = entity.is_sensor ? TYPE_SENSOR : TYPE_BINARY_SENSOR;
     size_t id_length = strlen(entity.id);
-    if (id_length > MAX_STRING_LENGTH || header + SECTION_HEADER_SIZE + 1 + id_length > this->max_packet_size_) {
-      ESP_LOGW(TAG, "Id '%s' is too long to send", entity.id);
-      section_type = 0;  // the next entity starts a new section, as its number does not follow on
-      continue;
-    }
     bool new_section = type != section_type;
     if (length + (new_section ? SECTION_HEADER_SIZE : 0) + 1 + id_length > this->max_packet_size_) {
       if (!this->interface_->send_to_interface(PacketBuffer(buf, length), {}))
@@ -365,7 +365,7 @@ void EntityTransport::receive_data_(std::span<const uint8_t> packet, uint32_t di
     ESP_LOGV(TAG, "Data packet of %zu bytes is malformed", packet.size());
     return;
   }
-  uint32_t now = App.get_loop_component_start_time();
+  [[maybe_unused]] uint32_t now = App.get_loop_component_start_time();
 #ifdef ENTITY_TRANSPORT_REMOTE_SENSOR_COUNT
   for (size_t pos = DATA_HEADER_SIZE; pos != sensor_end; pos += SENSOR_RECORD_SIZE) {
     uint32_t bits = encode_uint32(packet[pos + 4], packet[pos + 3], packet[pos + 2], packet[pos + 1]);
@@ -421,7 +421,7 @@ void EntityTransport::on_session_(bool connected) {
 
 // Clears the state of every remote entity, or with timed_out_only, of those whose state is older than the timeout
 void EntityTransport::clear_remote_states_(bool timed_out_only) {
-  uint32_t now = App.get_loop_component_start_time();
+  [[maybe_unused]] uint32_t now = App.get_loop_component_start_time();
 #ifdef ENTITY_TRANSPORT_REMOTE_SENSOR_COUNT
   for (auto &remote : this->remote_sensors_) {
     if (timed_out_only && (!remote.has_state || now - remote.last_state_ms <= this->remote_timeout_ms_))

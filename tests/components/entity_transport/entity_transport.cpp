@@ -278,4 +278,28 @@ TEST_F(EntityTransportTest, RemoteStatesTimeOut) {
   EXPECT_FALSE(this->remote_door.has_state());
 }
 
+TEST_F(EntityTransportTest, IdMatchingOnlyUpToNulNotLearnt) {
+  auto receiver = this->make_receiver();
+  static constexpr uint32_t OTHER_ID = 0x0BADF00D;
+  Packet dictionary = header(PACKET_DICTIONARY, OTHER_ID);
+  dictionary.push_back(strlen(DEVICE_NAME));
+  dictionary.insert(dictionary.end(), DEVICE_NAME, DEVICE_NAME + strlen(DEVICE_NAME));
+  // The id "temp" followed by a NUL and more bytes, nine in all
+  dictionary.insert(dictionary.end(), {1, 0, 1, 9, 't', 'e', 'm', 'p', 0, 'a', 'b', 'c', 'd'});
+  this->link_b.inject(dictionary);
+  Packet data = header(PACKET_DATA, OTHER_ID);
+  data.insert(data.end(), {1, 0, 0x00, 0x00, 0x80, 0x3F});
+  this->link_b.inject(data);
+  EXPECT_FALSE(this->remote_temp.has_state());
+}
+
+TEST_F(EntityTransportTest, PacketTooSmallForIdsFailsSetup) {
+  // One byte short of a dictionary packet holding the device name and a four character id
+  this->link_a.set_max_packet_size(5 + 1 + strlen(DEVICE_NAME) + 3 + 1 + 4 - 1);
+  auto sender = this->make_sender();
+  EXPECT_TRUE(sender->is_failed());
+  this->link_a.set_max_packet_size(5 + 1 + strlen(DEVICE_NAME) + 3 + 1 + 4);
+  EXPECT_FALSE(this->make_sender()->is_failed());
+}
+
 }  // namespace esphome::entity_transport::testing

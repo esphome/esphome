@@ -38,6 +38,22 @@ _request_remote_binary_sensor_slot = cg.slot_counter(
 )
 
 
+def _advertised_id(conf: ConfigType) -> str:
+    return conf.get(CONF_BROADCAST_ID, conf[CONF_ID].id)
+
+
+def _unique_advertised_ids(entities: list[ConfigType]) -> list[ConfigType]:
+    """A receiver tells entities of one type apart by their advertised ids, so each must be different."""
+    seen: set[str] = set()
+    for index, conf in enumerate(entities):
+        if (advertised := _advertised_id(conf)) in seen:
+            raise cv.Invalid(
+                f"The id '{advertised}' is sent for two entities", path=[index]
+            )
+        seen.add(advertised)
+    return entities
+
+
 def _local_entity(cls: MockObjClass) -> Callable[[Any], Any]:
     return cv.maybe_simple_value(
         cv.Schema(
@@ -67,10 +83,14 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         # Entities are numbered with one byte
         cv.Optional(CONF_SENSORS): cv.All(
-            cv.ensure_list(_local_entity(Sensor)), cv.Length(max=255)
+            cv.ensure_list(_local_entity(Sensor)),
+            cv.Length(max=255),
+            _unique_advertised_ids,
         ),
         cv.Optional(CONF_BINARY_SENSORS): cv.All(
-            cv.ensure_list(_local_entity(BinarySensor)), cv.Length(max=255)
+            cv.ensure_list(_local_entity(BinarySensor)),
+            cv.Length(max=255),
+            _unique_advertised_ids,
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -128,9 +148,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_entity_count(count))
     for conf in sensors:
         sensor = await cg.get_variable(conf[CONF_ID])
-        cg.add(var.add_sensor(conf.get(CONF_BROADCAST_ID, conf[CONF_ID].id), sensor))
+        cg.add(var.add_sensor(_advertised_id(conf), sensor))
     for conf in binary_sensors:
         sensor = await cg.get_variable(conf[CONF_ID])
-        cg.add(
-            var.add_binary_sensor(conf.get(CONF_BROADCAST_ID, conf[CONF_ID].id), sensor)
-        )
+        cg.add(var.add_binary_sensor(_advertised_id(conf), sensor))

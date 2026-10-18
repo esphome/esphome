@@ -53,3 +53,13 @@ def test_timeout(setup_core) -> None:
     )
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA({**base, CONF_TIMEOUT: "500ms"})
+
+
+def test_advertised_ids_unique(setup_core) -> None:
+    """Two entities of one type cannot be sent with the same id."""
+    base = {"packet_interface": "link"}
+    assert CONFIG_SCHEMA({**base, "sensors": ["a", {"id": "b", "broadcast_id": "c"}]})
+    with pytest.raises(cv.Invalid, match="'a' is sent for two entities"):
+        CONFIG_SCHEMA({**base, "sensors": ["a", {"id": "b", "broadcast_id": "a"}]})
+    # Sensors and binary sensors are numbered separately, so may share an id
+    assert CONFIG_SCHEMA({**base, "sensors": ["a"], "binary_sensors": ["a"]})
