@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <memory>
 #include <vector>
 #include "esphome/components/entity_transport/entity_transport.h"
@@ -114,7 +115,8 @@ TEST_F(EntityTransportTest, SendsDictionaryThenStates) {
   dictionary.insert(dictionary.end(), DEVICE_NAME, DEVICE_NAME + strlen(DEVICE_NAME));
   dictionary.insert(dictionary.end(), {1, 0, 1, 4, 't', 'e', 'm', 'p', 2, 0, 1, 4, 'd', 'o', 'o', 'r'});
   Packet data = header(PACKET_DATA, id);
-  data.insert(data.end(), {1, 0, 0x00, 0x00, 0xAC, 0x41, 0, 1});
+  // Tags: sensor 0 with a 4 byte state, then binary sensor 0 with its state in the top bit
+  data.insert(data.end(), {0x00, 0x21, 0x00, 0x00, 0xAC, 0x41, 0x00, 0x82});
   ASSERT_EQ(this->link_a_.sent.size(), 2);
   EXPECT_EQ(this->link_a_.sent[0], dictionary);
   EXPECT_EQ(this->link_a_.sent[1], data);
@@ -127,7 +129,7 @@ TEST_F(EntityTransportTest, SendsOnlyChangedStates) {
   this->temp_.publish_state(3.0f);
   sender->loop();
   Packet data = header(PACKET_DATA, sender->get_dictionary_id());
-  data.insert(data.end(), {1, 0, 0x00, 0x00, 0x40, 0x40});
+  data.insert(data.end(), {0x00, 0x21, 0x00, 0x00, 0x40, 0x40});
   ASSERT_EQ(this->link_a_.sent.size(), 1);
   EXPECT_EQ(this->link_a_.sent[0], data);
 }
@@ -142,9 +144,14 @@ TEST_F(EntityTransportTest, StatesReachRemoteEntities) {
   EXPECT_EQ(this->remote_temp_.get_state(), 12.25f);
   EXPECT_TRUE(this->remote_door_.state);
   this->door_.invalidate_state();
+  this->temp_.publish_state(NAN);
   sender->loop();
+  ASSERT_EQ(this->link_a_.sent.size(), 1);
+  // Both records have no state, and so no payload
+  EXPECT_EQ(Packet(this->link_a_.sent[0].begin() + 5, this->link_a_.sent[0].end()), (Packet{0x00, 0x61, 0x00, 0x62}));
   this->link_a_.deliver_to(this->link_b_);
   EXPECT_FALSE(this->remote_door_.has_state());
+  EXPECT_TRUE(std::isnan(this->remote_temp_.get_state()));
 }
 
 TEST_F(EntityTransportTest, SplitsAcrossPackets) {
@@ -252,6 +259,74 @@ TEST_F(EntityTransportTest, MalformedPacketsIgnored) {
   EXPECT_FALSE(this->remote_temp_.has_state());
 }
 
+// Data packets from the sender's dictionary, holding the given records
+class EntityTransportRecordTest : public EntityTransportTest {
+ protected:
+  void SetUp() override {
+    EntityTransportTest::SetUp();
+    this->sender_ = this->make_sender_();
+    this->receiver_ = this->make_receiver_();
+    this->sender_->loop();
+    this->link_a_.sent.resize(1);  // the dictionary only
+    this->link_a_.deliver_to(this->link_b_);
+  }
+  void inject_data_(std::initializer_list<uint8_t> records) {
+    Packet data = header(PACKET_DATA, this->sender_->get_dictionary_id());
+    data.insert(data.end(), records);
+    this->link_b_.inject(data);
+  }
+
+  std::unique_ptr<TestTransport> sender_, receiver_;
+};
+
+TEST_F(EntityTransportRecordTest, WholePacketCheckedBeforeUse) {
+  // A good record for each entity, then a record cut short
+  this->inject_data_({0x00, 0x21, 0x00, 0x00, 0x10, 0x41, 0x00, 0x82, 0x00, 0x21, 0x00});
+  // A good record, then a sensor record without its state, then a binary sensor record with a payload
+  this->inject_data_({0x00, 0x21, 0x00, 0x00, 0x10, 0x41, 0x00, 0x01});
+  this->inject_data_({0x00, 0x82, 0x00, 0x22, 0x00, 0x00, 0x00, 0x00});
+  // The value bit is only for records without a payload, and type 0 is not used
+  this->inject_data_({0x00, 0xA1, 0x00, 0x00, 0x10, 0x41});
+  this->inject_data_({0x00, 0x82, 0x00, 0x00});
+  // A length byte past the end
+  this->inject_data_({0x00, 0x82, 0x00, 0x45, 0x03, 0x01});
+  EXPECT_FALSE(this->remote_temp_.has_state());
+  EXPECT_FALSE(this->remote_door_.has_state());
+  this->inject_data_({0x00, 0x21, 0x00, 0x00, 0x10, 0x41, 0x00, 0x82});
+  EXPECT_EQ(this->remote_temp_.get_state(), 9.0f);
+  EXPECT_TRUE(this->remote_door_.state);
+}
+
+TEST_F(EntityTransportRecordTest, UnknownTypesSkipped) {
+  // Type 5 with 3 bytes after a length byte, type 6 with a 4 byte payload, type 7 without a state, then the sensor
+  this->inject_data_({0x00, 0x45, 0x03, 0x01, 0x02, 0x03, 0x01, 0x26, 0x00, 0x00,
+                      0x00, 0x00, 0x02, 0x67, 0x00, 0x21, 0x00, 0x00, 0x10, 0x41});
+  EXPECT_EQ(this->remote_temp_.get_state(), 9.0f);
+}
+
+TEST_F(EntityTransportTest, PartlyValidDictionaryNotLearnt) {
+  auto receiver = this->make_receiver_();
+  static constexpr uint32_t OTHER_ID = 0x0BADF00D;
+  Packet dictionary = header(PACKET_DICTIONARY, OTHER_ID);
+  dictionary.push_back(strlen(DEVICE_NAME));
+  dictionary.insert(dictionary.end(), DEVICE_NAME, DEVICE_NAME + strlen(DEVICE_NAME));
+  // A good section naming the sensor, then sections cut short, of type 0, and of more than 255 numbers
+  dictionary.insert(dictionary.end(), {1, 0, 1, 4, 't', 'e', 'm', 'p'});
+  for (Packet bad : {Packet{2, 0, 2, 4, 'd', 'o', 'o', 'r'}, Packet{0, 0, 1, 1, 'x'}, Packet{2, 255, 2, 1, 'a', 1, 'b'},
+                     Packet{2, 0, 1}}) {
+    Packet packet = dictionary;
+    packet.insert(packet.end(), bad.begin(), bad.end());
+    this->link_b_.inject(packet);
+  }
+  Packet data = header(PACKET_DATA, OTHER_ID);
+  data.insert(data.end(), {0x00, 0x21, 0x00, 0x00, 0x80, 0x3F});
+  this->link_b_.inject(data);
+  EXPECT_FALSE(this->remote_temp_.has_state());
+  this->link_b_.inject(dictionary);
+  this->link_b_.inject(data);
+  EXPECT_EQ(this->remote_temp_.get_state(), 1.0f);
+}
+
 TEST_F(EntityTransportTest, UpdateIntervalFollowsCapabilities) {
   EXPECT_EQ(this->make_sender_()->get_update_interval(), 15000);
   this->link_a_.set_capabilities(packet_interface::CAPABILITY_SESSION);
@@ -329,7 +404,7 @@ TEST_F(EntityTransportTest, IdMatchingOnlyUpToNulNotLearnt) {
   dictionary.insert(dictionary.end(), {1, 0, 1, 9, 't', 'e', 'm', 'p', 0, 'a', 'b', 'c', 'd'});
   this->link_b_.inject(dictionary);
   Packet data = header(PACKET_DATA, OTHER_ID);
-  data.insert(data.end(), {1, 0, 0x00, 0x00, 0x80, 0x3F});
+  data.insert(data.end(), {0x00, 0x21, 0x00, 0x00, 0x80, 0x3F});
   this->link_b_.inject(data);
   EXPECT_FALSE(this->remote_temp_.has_state());
 }

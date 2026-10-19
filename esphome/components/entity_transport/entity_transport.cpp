@@ -16,16 +16,24 @@ ESPHOME_LOG_TAG(TAG, "entity_transport");
 static constexpr uint8_t PACKET_DICTIONARY = 0x11;
 static constexpr uint8_t PACKET_DATA = 0x12;
 static constexpr uint8_t PACKET_REQUEST = 0x13;
+// Entity types, in dictionary sections and data records; 0 is not used
 static constexpr uint8_t TYPE_SENSOR = 1;
 static constexpr uint8_t TYPE_BINARY_SENSOR = 2;
-static constexpr uint8_t BINARY_SENSOR_NO_STATE = 2;
+static constexpr uint8_t MAX_TYPE = 31;
 // Packet type and dictionary id
 static constexpr size_t HEADER_SIZE = 5;
-// The data packet header adds the number of sensor records
-static constexpr size_t SENSOR_COUNT_OFFSET = HEADER_SIZE;
-static constexpr size_t DATA_HEADER_SIZE = HEADER_SIZE + 1;
-static constexpr size_t SENSOR_RECORD_SIZE = 5;
-static constexpr size_t BINARY_SENSOR_RECORD_SIZE = 2;
+// A data record starts with a 16-bit tag: the entity's number in bits 0-7, its type in bits 8-12, the payload form in
+// bits 13-14, and with PAYLOAD_NONE, the state in bit 15. Any record can be skipped without knowing its type.
+static constexpr size_t TAG_SIZE = 2;
+static constexpr uint8_t TAG_TYPE_SHIFT = 8;
+static constexpr uint8_t TAG_PAYLOAD_SHIFT = 13;
+static constexpr uint16_t TAG_VALUE_BIT = 0x8000;
+static constexpr uint8_t PAYLOAD_NONE = 0;      // the state is in the tag's value bit
+static constexpr uint8_t PAYLOAD_WORD = 1;      // 4 bytes follow
+static constexpr uint8_t PAYLOAD_LENGTH = 2;    // a length byte follows, then that many bytes
+static constexpr uint8_t PAYLOAD_NO_STATE = 3;  // the entity has no state
+static constexpr size_t WORD_SIZE = 4;
+static constexpr size_t MAX_RECORD_SIZE = TAG_SIZE + WORD_SIZE;
 // A dictionary section starts with the entity type, first number and count
 static constexpr size_t SECTION_HEADER_SIZE = 3;
 static constexpr size_t MAX_STRING_LENGTH = 255;
@@ -43,6 +51,85 @@ static void put_uint32(uint8_t *buf, uint32_t value) {
 // True if the NUL terminated str is the same as the len bytes at data
 static bool matches(const char *str, const char *data, size_t len) {
   return strlen(str) == len && memcmp(str, data, len) == 0;
+}
+
+struct Record {
+  uint8_t number;
+  uint8_t type;
+  uint8_t payload;
+  bool value;
+  const uint8_t *data;  // what follows the tag
+};
+
+static Record parse_record(std::span<const uint8_t> packet, size_t pos) {
+  uint16_t tag = encode_uint16(packet[pos + 1], packet[pos]);
+  return {static_cast<uint8_t>(tag), static_cast<uint8_t>((tag >> TAG_TYPE_SHIFT) & MAX_TYPE),
+          static_cast<uint8_t>((tag >> TAG_PAYLOAD_SHIFT) & 3), (tag & TAG_VALUE_BIT) != 0,
+          packet.data() + pos + TAG_SIZE};
+}
+
+// The size of the data record at pos, or 0 if it does not fit in the packet
+static size_t record_size(std::span<const uint8_t> packet, size_t pos) {
+  if (pos + TAG_SIZE > packet.size())
+    return 0;
+  size_t size = TAG_SIZE;
+  uint8_t payload = parse_record(packet, pos).payload;
+  if (payload == PAYLOAD_WORD) {
+    size += WORD_SIZE;
+  } else if (payload == PAYLOAD_LENGTH) {
+    if (pos + TAG_SIZE == packet.size())
+      return 0;
+    size += 1 + packet[pos + TAG_SIZE];
+  }
+  return pos + size <= packet.size() ? size : 0;
+}
+
+// Checks every record of a data packet, so that a damaged or forged packet changes no state at all
+static bool data_well_formed(std::span<const uint8_t> packet) {
+  for (size_t pos = HEADER_SIZE; pos != packet.size();) {
+    size_t size = record_size(packet, pos);
+    if (size == 0)
+      return false;
+    Record record = parse_record(packet, pos);
+    if (record.type == 0 || (record.value && record.payload != PAYLOAD_NONE))
+      return false;
+    // Types this device knows must use their own payload form; others are skipped
+    if (record.type == TYPE_SENSOR && record.payload != PAYLOAD_WORD && record.payload != PAYLOAD_NO_STATE)
+      return false;
+    if (record.type == TYPE_BINARY_SENSOR && record.payload != PAYLOAD_NONE && record.payload != PAYLOAD_NO_STATE)
+      return false;
+    pos += size;
+  }
+  return true;
+}
+
+// Checks the device name and every section of a dictionary packet before anything is learnt from it
+static bool dictionary_well_formed(std::span<const uint8_t> packet) {
+  size_t pos = HEADER_SIZE;
+  if (pos == packet.size())
+    return false;
+  pos += 1 + packet[pos];
+  if (pos > packet.size())
+    return false;
+  while (pos != packet.size()) {
+    if (pos + SECTION_HEADER_SIZE > packet.size())
+      return false;
+    uint8_t type = packet[pos];
+    size_t first = packet[pos + 1];
+    size_t count = packet[pos + 2];
+    pos += SECTION_HEADER_SIZE;
+    // Numbers are one byte, and a data record can name types up to MAX_TYPE only
+    if (type == 0 || type > MAX_TYPE || count == 0 || first + count > 256)
+      return false;
+    for (size_t i = 0; i != count; i++) {
+      if (pos == packet.size())
+        return false;
+      pos += 1 + packet[pos];
+      if (pos > packet.size())
+        return false;
+    }
+  }
+  return true;
 }
 
 void EntityTransport::setup() {
@@ -214,49 +301,65 @@ bool EntityTransport::send_dictionary_() {
   return true;
 }
 
+// Writes the entity's data record, and returns its size
+size_t EntityTransport::write_record_(const LocalEntity &entity, uint8_t *record) const {
+  uint8_t type = entity.is_sensor ? TYPE_SENSOR : TYPE_BINARY_SENSOR;
+  uint8_t payload = PAYLOAD_NO_STATE;
+  bool value = false;
+  size_t size = TAG_SIZE;
+#ifdef USE_SENSOR
+  if (entity.is_sensor) {
+    float state = static_cast<sensor::Sensor *>(entity.entity)->get_state();
+    if (!std::isnan(state)) {
+      payload = PAYLOAD_WORD;
+      uint32_t bits;
+      memcpy(&bits, &state, sizeof(bits));
+      put_uint32(record + TAG_SIZE, bits);
+      size += WORD_SIZE;
+    }
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  if (!entity.is_sensor) {
+    auto *sensor = static_cast<binary_sensor::BinarySensor *>(entity.entity);
+    if (sensor->has_state()) {
+      payload = PAYLOAD_NONE;
+      value = sensor->state;
+    }
+  }
+#endif
+  uint16_t tag =
+      entity.number | (type << TAG_TYPE_SHIFT) | (payload << TAG_PAYLOAD_SHIFT) | (value ? TAG_VALUE_BIT : 0);
+  record[0] = tag;
+  record[1] = tag >> 8;
+  return size;
+}
+
 // Sends every updated entity, in as few packets as fit; returns false if a packet was refused
 bool EntityTransport::send_updated_() {
-  this->write_header_(PACKET_DATA);
-  this->buffer_[SENSOR_COUNT_OFFSET] = 0;
-  size_t length = DATA_HEADER_SIZE;
+  size_t length = this->write_header_(PACKET_DATA);
   size_t first = 0;
   for (size_t i = 0; i != this->entities_.size(); i++) {
     auto &entity = this->entities_[i];
     if (!entity.updated)
       continue;
-    size_t record_size = entity.is_sensor ? SENSOR_RECORD_SIZE : BINARY_SENSOR_RECORD_SIZE;
-    if (length + record_size > this->max_packet_size_) {
+    uint8_t record[MAX_RECORD_SIZE];
+    size_t size = this->write_record_(entity, record);
+    if (length + size > this->max_packet_size_) {
       if (!this->flush_(length, first, i))
         return false;
-      length = DATA_HEADER_SIZE;
-      this->buffer_[SENSOR_COUNT_OFFSET] = 0;
+      length = HEADER_SIZE;
       first = i;
     }
-    uint8_t *record = this->buffer_ + length;
-    record[0] = entity.number;
-#ifdef USE_SENSOR
-    if (entity.is_sensor) {
-      float state = static_cast<sensor::Sensor *>(entity.entity)->get_state();
-      uint32_t bits;
-      memcpy(&bits, &state, sizeof(bits));
-      put_uint32(record + 1, bits);
-      this->buffer_[SENSOR_COUNT_OFFSET]++;
-    }
-#endif
-#ifdef USE_BINARY_SENSOR
-    if (!entity.is_sensor) {
-      auto *sensor = static_cast<binary_sensor::BinarySensor *>(entity.entity);
-      record[1] = sensor->has_state() ? sensor->state : BINARY_SENSOR_NO_STATE;
-    }
-#endif
-    length += record_size;
+    memcpy(this->buffer_ + length, record, size);
+    length += size;
   }
   return this->flush_(length, first, this->entities_.size());
 }
 
 // Sends the packet holding the updated entities from first up to last, and clears their flags if it was accepted
 bool EntityTransport::flush_(size_t length, size_t first, size_t last) {
-  if (length == DATA_HEADER_SIZE)
+  if (length == HEADER_SIZE)
     return true;
   if (!this->interface_->send_to_interface(PacketBuffer(this->buffer_, length), {})) {
     ESP_LOGV(TAG, "Packet of %zu bytes not accepted, will retry", length);
@@ -279,7 +382,7 @@ void EntityTransport::receive_(const PacketBuffer &data) {
   uint32_t dictionary_id = encode_uint32(packet[4], packet[3], packet[2], packet[1]);
   if (dictionary_id == this->dictionary_id_) {
     // Either a request for our dictionary, or our own packet heard on a broadcast channel
-    if (packet[0] == PACKET_REQUEST) {
+    if (packet[0] == PACKET_REQUEST && packet.size() == HEADER_SIZE) {
       ESP_LOGD(TAG, "Dictionary requested");
       this->send_all_();
     }
@@ -295,9 +398,11 @@ void EntityTransport::receive_(const PacketBuffer &data) {
 }
 
 void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint32_t dictionary_id) {
-  size_t pos = HEADER_SIZE;
-  if (pos == packet.size() || pos + 1 + packet[pos] > packet.size())
+  if (!dictionary_well_formed(packet)) {
+    ESP_LOGV(TAG, "Dictionary packet of %zu bytes is malformed", packet.size());
     return;
+  }
+  size_t pos = HEADER_SIZE;
   if (!this->dictionary_seen_(dictionary_id)) {
     this->seen_dictionaries_[this->seen_next_] = dictionary_id;
     this->seen_next_ = (this->seen_next_ + 1) % this->seen_dictionaries_.size();
@@ -306,15 +411,11 @@ void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint3
   const auto *provider = reinterpret_cast<const char *>(packet.data() + pos);
   pos += provider_length;
   while (pos != packet.size()) {
-    if (pos + SECTION_HEADER_SIZE > packet.size())
-      return;
     uint8_t type = packet[pos];
     uint8_t number = packet[pos + 1];
     uint8_t count = packet[pos + 2];
     pos += SECTION_HEADER_SIZE;
     for (uint8_t i = 0; i != count; i++) {
-      if (pos == packet.size() || pos + 1 + packet[pos] > packet.size())
-        return;
       size_t id_length = packet[pos++];
       this->learn_(provider, provider_length, type, number + i, reinterpret_cast<const char *>(packet.data() + pos),
                    id_length, dictionary_id);
@@ -376,43 +477,45 @@ void EntityTransport::receive_data_(std::span<const uint8_t> packet, uint32_t di
       this->request_dictionary_(dictionary_id);
     return;
   }
-  if (packet.size() < DATA_HEADER_SIZE)
-    return;
-  size_t sensor_end = DATA_HEADER_SIZE + packet[SENSOR_COUNT_OFFSET] * SENSOR_RECORD_SIZE;
-  if (sensor_end > packet.size() || (packet.size() - sensor_end) % BINARY_SENSOR_RECORD_SIZE != 0) {
+  if (!data_well_formed(packet)) {
     ESP_LOGV(TAG, "Data packet of %zu bytes is malformed", packet.size());
     return;
   }
   [[maybe_unused]] uint32_t now = App.get_loop_component_start_time();
+  for (size_t pos = HEADER_SIZE; pos != packet.size(); pos += record_size(packet, pos)) {
+    [[maybe_unused]] Record record = parse_record(packet, pos);
 #ifdef ENTITY_TRANSPORT_REMOTE_SENSOR_COUNT
-  for (size_t pos = DATA_HEADER_SIZE; pos != sensor_end; pos += SENSOR_RECORD_SIZE) {
-    uint32_t bits = encode_uint32(packet[pos + 4], packet[pos + 3], packet[pos + 2], packet[pos + 1]);
-    float value;
-    memcpy(&value, &bits, sizeof(value));
-    for (auto &remote : this->remote_sensors_) {
-      if (remote.known && remote.dictionary_id == dictionary_id && remote.number == packet[pos]) {
-        remote.last_state_ms = now;
-        remote.has_state = true;
-        remote.entity->publish_state(value);
+    if (record.type == TYPE_SENSOR) {
+      float value = NAN;
+      if (record.payload == PAYLOAD_WORD) {
+        uint32_t bits = encode_uint32(record.data[3], record.data[2], record.data[1], record.data[0]);
+        memcpy(&value, &bits, sizeof(value));
+      }
+      for (auto &remote : this->remote_sensors_) {
+        if (remote.known && remote.dictionary_id == dictionary_id && remote.number == record.number) {
+          remote.last_state_ms = now;
+          remote.has_state = true;
+          remote.entity->publish_state(value);
+        }
       }
     }
-  }
 #endif
 #ifdef ENTITY_TRANSPORT_REMOTE_BINARY_SENSOR_COUNT
-  for (size_t pos = sensor_end; pos != packet.size(); pos += BINARY_SENSOR_RECORD_SIZE) {
-    for (auto &remote : this->remote_binary_sensors_) {
-      if (!remote.known || remote.dictionary_id != dictionary_id || remote.number != packet[pos])
-        continue;
-      remote.last_state_ms = now;
-      remote.has_state = true;
-      if (packet[pos + 1] == BINARY_SENSOR_NO_STATE) {
-        remote.entity->invalidate_state();
-      } else {
-        remote.entity->publish_state(packet[pos + 1] != 0);
+    if (record.type == TYPE_BINARY_SENSOR) {
+      for (auto &remote : this->remote_binary_sensors_) {
+        if (!remote.known || remote.dictionary_id != dictionary_id || remote.number != record.number)
+          continue;
+        remote.last_state_ms = now;
+        remote.has_state = true;
+        if (record.payload == PAYLOAD_NO_STATE) {
+          remote.entity->invalidate_state();
+        } else {
+          remote.entity->publish_state(record.value);
+        }
       }
     }
-  }
 #endif
+  }
 }
 
 void EntityTransport::request_dictionary_(uint32_t dictionary_id) {

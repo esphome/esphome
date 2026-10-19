@@ -36,9 +36,12 @@ namespace esphome::entity_transport {
  * Data packet:
  * - type: 1 byte, PACKET_DATA;
  * - dictionary id: 4 bytes;
- * - number of sensor records: 1 byte;
- * - sensor records: number (1 byte), then the state as a 4 byte float;
- * - binary sensor records, to the end: number (1 byte), then 0, 1, or 2 for no state.
+ * - records, to the end, each a 16-bit tag, then its payload. The tag holds the entity's number in bits 0-7, its type
+ *   in bits 8-12, and the payload form in bits 13-14: none, with the state in bit 15 (binary sensors); 4 bytes (a
+ *   sensor's float); a length byte, then that many bytes; or no state, with no payload. The form gives the record's
+ *   size, so a receiver skips records of types it does not know.
+ *
+ * Every packet is checked in full before anything in it is used, so a damaged or forged packet changes no state.
  *
  * Dictionary request packet, sent by a device that receives data with a dictionary id it has not received a dictionary
  * for:
@@ -110,6 +113,7 @@ class EntityTransport : public Component {
   void mark_updated_(LocalEntity &entity);
   bool send_dictionary_();
   bool send_updated_();
+  size_t write_record_(const LocalEntity &entity, uint8_t *record) const;
   bool flush_(size_t length, size_t first, size_t last);
   size_t write_header_(uint8_t type) const;
   void receive_(const packet_interface::PacketBuffer &data);
