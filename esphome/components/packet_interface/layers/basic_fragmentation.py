@@ -1,14 +1,13 @@
 """Fragmentation layer that splits packets larger than the layers below allow, and joins them again."""
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 from . import FRAGMENTATION, PacketInterface, packet_interface_ns
-
-CONF_MAX_PACKET_SIZE = "max_packet_size"
 
 BasicFragmentation = packet_interface_ns.class_("BasicFragmentation", PacketInterface)
 
