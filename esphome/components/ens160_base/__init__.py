@@ -70,9 +70,9 @@ async def to_code_base(config: ConfigType) -> MockObj:
     await sensors(CONF_AQI, var.set_aqi)
 
     if compensation_config := config.get(CONF_COMPENSATION):
-        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY])
-        cg.add(var.set_humidity(sens))
+        await cg.add_variable(
+            var.set_temperature, compensation_config[CONF_TEMPERATURE]
+        )
+        await cg.add_variable(var.set_humidity, compensation_config[CONF_HUMIDITY])
 
     return var
