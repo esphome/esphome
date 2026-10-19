@@ -524,7 +524,8 @@ class SubEntities:
         """Create the entity from ``conf``; ``setter`` may be None when the hub keeps no pointer.
 
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
-        ``parent->apply``, with ``publish`` ("before"/"after") placing the domain's publish.
+        ``parent->apply``, or ``apply`` as a free statement when no parent is bound, with
+        ``publish`` ("before"/"after") placing the domain's publish.
         """
         entity_id: ID = conf[CONF_ID]
         is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
@@ -536,8 +537,6 @@ class SubEntities:
             raise ValueError(
                 f"{entity_id}: apply= needs the domain's Apply class, not {entity_id.type}"
             )
-        if apply is not None and self.parent is None:
-            raise ValueError(f"{entity_id}: apply= needs a parent")
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
         if publish not in (None, "before", "after"):
@@ -562,7 +561,7 @@ class SubEntities:
         if isinstance(parent, ID):
             parent = await get_variable(parent)
         apply_entity = self.apply_entity
-        body = [f"{parent_ref(parent)}->{apply};"]
+        body = [f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"]
         if publish == "before":
             body.insert(0, apply_entity.publish)
         elif publish == "after":
