@@ -74,6 +74,9 @@ void ESP32ULP::dump_config() {
 bool ESP32ULP::load_and_run() {
   const size_t size = ULP_MAIN_BIN_END - ULP_MAIN_BIN_START;
 #if SOC_RISCV_COPROC_SUPPORTED
+  // ulp_riscv_load_binary() overwrites RTC memory without stopping a running
+  // program; the LP core variant stops the core itself.
+  ulp_riscv_halt();
   esp_err_t err = ulp_riscv_load_binary(ULP_MAIN_BIN_START, size);
 #else
   esp_err_t err = ulp_lp_core_load_binary(ULP_MAIN_BIN_START, size);
