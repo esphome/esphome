@@ -1,5 +1,6 @@
 #include "apds9930.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -103,16 +104,14 @@ void APDS9930Component::dump_config() {
 void APDS9930Component::update() {
   // STATUS, CH0DATAL/H, CH1DATAL/H, PDATAL/H
   uint8_t raw[7];
-  if (!this->read_bytes(APDS9930_STATUS | APDS9930_CMD_AUTO_INCREMENT, raw, sizeof(raw))) {
-    this->status_set_warning(LOG_STR("Reading data failed"));
+  if (!this->status_comm_result(this->read_bytes(APDS9930_STATUS | APDS9930_CMD_AUTO_INCREMENT, raw, sizeof(raw)),
+                                LOG_STR("Reading data failed")))
     return;
-  }
-  this->status_clear_warning();
   const uint8_t status = raw[0];
 
   if (this->illuminance_sensor_ != nullptr && (status & APDS9930_AVALID) != 0) {
-    const uint16_t ch0 = encode_uint16(raw[2], raw[1]);
-    const uint16_t ch1 = encode_uint16(raw[4], raw[3]);
+    const uint16_t ch0 = encode_value_le<uint16_t>(&raw[1]);
+    const uint16_t ch1 = encode_value_le<uint16_t>(&raw[3]);
     if (ch0 >= ALS_SATURATION || ch1 >= ALS_SATURATION) {
       // A saturated channel would give a lux value that is too low, not too high
       ESP_LOGW(TAG, "Light channel saturated, lower ambient_light_gain");
@@ -125,7 +124,7 @@ void APDS9930Component::update() {
   }
 
   if (this->proximity_sensor_ != nullptr && (status & APDS9930_PVALID) != 0) {
-    this->proximity_sensor_->publish_state(encode_uint16(raw[6], raw[5]));
+    this->proximity_sensor_->publish_state(encode_value_le<uint16_t>(&raw[5]));
   }
 }
 

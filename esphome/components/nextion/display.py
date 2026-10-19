@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_ON_TOUCH,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -232,11 +231,7 @@ async def to_code(config):
     if CONF_BRIGHTNESS in config:
         cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(nextion_ref, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, nextion_ref)
 
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
