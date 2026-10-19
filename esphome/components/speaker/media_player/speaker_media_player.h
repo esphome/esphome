@@ -27,6 +27,7 @@ struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
   optional<float> volume;
   optional<bool> announce;
+  bool is_announcement{false};
   optional<std::string *> url;  // Must be manually deleted after receiving this struct from a queue
   optional<const audio::AudioFile *> file;
   optional<bool> enqueue;
@@ -35,6 +36,7 @@ struct MediaCallCommand {
 struct PlaylistItem {
   optional<std::string> url;
   optional<const audio::AudioFile *> file;
+  bool is_announcement{false};
 };
 
 struct VolumeRestoreState {

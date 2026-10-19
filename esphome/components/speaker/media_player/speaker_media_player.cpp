@@ -146,6 +146,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
       }
 #endif
       PlaylistItem playlist_item;
+      playlist_item.is_announcement = media_command.is_announcement;
       if (media_command.url.has_value()) {
         playlist_item.url = *media_command.url.value();
         delete media_command.url.value();
@@ -161,9 +162,9 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           this->announcement_playlist_.clear();
           this->announcement_item_failed_ = false;
           if (media_command.file.has_value()) {
-            this->announcement_pipeline_->start_file(playlist_item.file.value());
+            this->announcement_pipeline_->start_file(playlist_item.file.value(), playlist_item.is_announcement);
           } else if (media_command.url.has_value()) {
-            this->announcement_pipeline_->start_url(playlist_item.url.value());
+            this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
           }
           this->announcement_pipeline_->set_pause_state(false);
         }
@@ -403,9 +404,9 @@ void SpeakerMediaPlayer::loop() {
         // Start the next announcement file
         PlaylistItem playlist_item = this->announcement_playlist_.front();
         if (playlist_item.url.has_value()) {
-          this->announcement_pipeline_->start_url(playlist_item.url.value());
+          this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
         } else if (playlist_item.file.has_value()) {
-          this->announcement_pipeline_->start_file(playlist_item.file.value());
+          this->announcement_pipeline_->start_file(playlist_item.file.value(), playlist_item.is_announcement);
         }
 
         if (timeout_ms > 0) {
@@ -508,6 +509,7 @@ void SpeakerMediaPlayer::play_file(const audio::AudioFile *media_file, bool anno
   MediaCallCommand media_command;
 
   media_command.file = media_file;
+  media_command.is_announcement = announcement;
   if (this->single_pipeline_() || announcement) {
     media_command.announce = true;
   } else {
@@ -526,6 +528,7 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   MediaCallCommand media_command;
 
   auto ann = call.get_announcement();
+  media_command.is_announcement = ann.has_value() && *ann;
   if (this->single_pipeline_() || (ann.has_value() && *ann)) {
     media_command.announce = true;
   } else {
