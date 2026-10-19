@@ -32,8 +32,6 @@ LockCall = lock_ns.class_("LockCall")
 
 LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 
-LockStateForwarder = lock_ns.class_("LockStateForwarder")
-
 LockState = lock_ns.enum("LockState")
 
 LOCK_STATES = LockState.options(
@@ -90,12 +88,16 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_LOCK,
         "add_on_state_callback",
-        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_LOCKED),
+        params=[(LockState, "state")],
+        forward=[],
+        when="state == lock::LOCK_STATE_LOCKED",
     ),
     automation.CallbackAutomation(
         CONF_ON_UNLOCK,
         "add_on_state_callback",
-        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_UNLOCKED),
+        params=[(LockState, "state")],
+        forward=[],
+        when="state == lock::LOCK_STATE_UNLOCKED",
     ),
 )
 

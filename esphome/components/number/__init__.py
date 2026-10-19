@@ -82,6 +82,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
@@ -160,6 +161,7 @@ IS_PLATFORM_COMPONENT = True
 number_ns = cg.esphome_ns.namespace("number")
 Number = number_ns.class_("Number", cg.EntityBase)
 NumberPtr = Number.operator("ptr")
+ApplyNumber = number_ns.class_("ApplyNumber", Number)
 
 # Triggers
 ValueRangeTrigger = number_ns.class_(
@@ -321,11 +323,18 @@ async def new_number(config, *args, min_value: float, max_value: float, step: fl
     return var
 
 
+APPLY_ENTITY = ApplyEntity(
+    ApplyNumber,
+    ((NumberPtr, "entity"), (cg.float_, "value")),
+    "entity->publish_state(value);",
+)
+
+
 def sub_numbers(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_number."""
-    return SubEntities(new_number, config, parent)
+    """Return a SubEntities bound to new_number; ``apply`` statements can use ``entity`` and ``value``."""
+    return SubEntities(new_number, config, parent, APPLY_ENTITY)
 
 
 NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(

@@ -797,14 +797,13 @@ void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len,
   }
 }
 
-void AsyncEventSource::deferrable_send_state(void *source, const char *event_type,
-                                             message_generator_t *message_generator) {
+void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator) {
   // Skip if no connected clients to avoid unnecessary processing
   if (this->empty())
     return;
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
-      ses->deferrable_send_state(source, event_type, message_generator);
+      ses->deferrable_send_state(source, detail_all, message_generator);
     }
   }
 }
@@ -1268,23 +1267,12 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   return this->stash_chunk_(prefix, prefix_len, message, message_len, g.total, sent);
 }
 
-void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *event_type,
+void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_all,
                                                      message_generator_t *message_generator) {
-  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
-  // up in the web GUI and reduces event load during initial connect
-  if (!this->entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
+  // Let the detail_all listing finish before bare state events, so the web UI never shows unnamed entries and
+  // initial connect sends less
+  if (!detail_all && !this->entities_iterator_.completed())
     return;
-
-  if (source == nullptr)
-    return;
-  if (event_type == nullptr)
-    return;
-  if (message_generator == nullptr)
-    return;
-
-  if (0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
-    ESP_LOGE(TAG, "Can't defer non-state event");
-  }
 
   drain_tail_();
   process_deferred_queue_();

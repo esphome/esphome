@@ -104,8 +104,7 @@ async def to_code(config: dict[str, Any]) -> None:
         cg.add(var.set_firmware_data(prog_arr))
         cg.add(var.set_firmware_size(len(firmware_data)))
     else:
-        http_request_var = await cg.get_variable(config[CONF_HTTP_REQUEST_ID])
-        cg.add(var.set_http_request_parent(http_request_var))
+        await cg.add_variable(var.set_http_request_parent, config[CONF_HTTP_REQUEST_ID])
         cg.add(var.set_source_url(config[CONF_SOURCE]))
         cg.add_define("USE_ESP32_HOSTED_HTTP_UPDATE")
 

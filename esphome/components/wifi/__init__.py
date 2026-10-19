@@ -3,7 +3,6 @@ import math
 from typing import Any
 
 from esphome import automation, preferences
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLED, CONF_USE_PSRAM
 from esphome.components.esp32 import (
@@ -241,12 +240,6 @@ def _validate_dns_servers(value: list) -> list:
     return value
 
 
-WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
-WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
-WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
-WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
-WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
-WiFiRoamAction = wifi_ns.class_("WiFiRoamAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
     "WiFiConfigureAction", automation.Action, cg.Component
 )
@@ -515,9 +508,15 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise cv.Invalid("Cannot have WiFi password without SSID!")
+
+    if CONF_HIDDEN in config and CONF_SSID not in config:
+        raise cv.Invalid(
+            "Cannot have 'hidden' without 'ssid'. If you are using the 'networks' "
+            "list, put 'hidden' inside the network entry instead."
+        )
 
     if CONF_SSID in config:
         # Automatically move single network to 'networks' section
@@ -527,6 +526,8 @@ def _validate(config):
             network[CONF_PASSWORD] = config.pop(CONF_PASSWORD)
         if CONF_EAP in config:
             network[CONF_EAP] = config.pop(CONF_EAP)
+        if CONF_HIDDEN in config:
+            network[CONF_HIDDEN] = config.pop(CONF_HIDDEN)
         if CONF_NETWORKS in config:
             # In testing mode, merged component tests may have both ssid and networks
             # Just use the networks list and ignore the single ssid
@@ -643,6 +644,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
             cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
+            cv.Optional(CONF_HIDDEN): cv.boolean,
             cv.Optional(
                 CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
             ): STA_MANUAL_IP_SCHEMA,
@@ -1033,49 +1035,27 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-automation.register_bare_condition(
-    "wifi.connected",
-    WiFiConnectedCondition,
-    cv.Schema({}),
+WIFI_AUTOMATION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(WiFiComponent),
+    }
 )
 
+for _name, _check in (
+    ("wifi.connected", "is_connected()"),
+    ("wifi.enabled", "is_disabled() == false"),
+    ("wifi.ap_active", "is_ap_active()"),
+):
+    automation.register_apply_condition(_name, WIFI_AUTOMATION_SCHEMA, _check)
 
-automation.register_bare_condition(
-    "wifi.enabled",
-    WiFiEnabledCondition,
-    cv.Schema({}),
-)
-
-
-automation.register_bare_condition(
-    "wifi.ap_active",
-    WiFiAPActiveCondition,
-    cv.Schema({}),
-)
-
-
-automation.register_bare_action(
-    "wifi.enable",
-    WiFiEnableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "wifi.disable",
-    WiFiDisableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "wifi.roam",
-    WiFiRoamAction,
-    cv.Schema({}),
-    synchronous=True,
-)
+for _name, _call in (
+    ("wifi.enable", "enable()"),
+    ("wifi.disable", "disable()"),
+    ("wifi.roam", "force_roam_check()"),
+):
+    automation.register_apply_action(
+        _name, WIFI_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
