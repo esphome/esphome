@@ -72,7 +72,7 @@ void MAX17043Component::update() {
   }
 #endif
 
-  ok ? this->status_clear_warning() : this->status_set_warning(LOG_STR("Register read failed"));
+  this->status_comm_result(ok, LOG_STR("Register read failed"));
 }
 
 void MAX17043Component::setup() {
