@@ -69,67 +69,68 @@ ClimateCall = climate_ns.class_("ClimateCall")
 ClimateTraits = climate_ns.class_("ClimateTraits")
 
 ClimateMode = climate_ns.enum("ClimateMode")
-CLIMATE_MODES = {
-    "OFF": ClimateMode.CLIMATE_MODE_OFF,
-    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
-    "COOL": ClimateMode.CLIMATE_MODE_COOL,
-    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
-    "DRY": ClimateMode.CLIMATE_MODE_DRY,
-    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
-}
+CLIMATE_MODES = ClimateMode.options(
+    "OFF",
+    "HEAT_COOL",
+    "COOL",
+    "HEAT",
+    "DRY",
+    "FAN_ONLY",
+    "AUTO",
+    prefix="CLIMATE_MODE_",
+)
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 ClimateFanMode = climate_ns.enum("ClimateFanMode")
-CLIMATE_FAN_MODES = {
-    "ON": ClimateFanMode.CLIMATE_FAN_ON,
-    "OFF": ClimateFanMode.CLIMATE_FAN_OFF,
-    "AUTO": ClimateFanMode.CLIMATE_FAN_AUTO,
-    "LOW": ClimateFanMode.CLIMATE_FAN_LOW,
-    "MEDIUM": ClimateFanMode.CLIMATE_FAN_MEDIUM,
-    "HIGH": ClimateFanMode.CLIMATE_FAN_HIGH,
-    "MIDDLE": ClimateFanMode.CLIMATE_FAN_MIDDLE,
-    "FOCUS": ClimateFanMode.CLIMATE_FAN_FOCUS,
-    "DIFFUSE": ClimateFanMode.CLIMATE_FAN_DIFFUSE,
-    "QUIET": ClimateFanMode.CLIMATE_FAN_QUIET,
-}
+CLIMATE_FAN_MODES = ClimateFanMode.options(
+    "ON",
+    "OFF",
+    "AUTO",
+    "LOW",
+    "MEDIUM",
+    "HIGH",
+    "MIDDLE",
+    "FOCUS",
+    "DIFFUSE",
+    "QUIET",
+    prefix="CLIMATE_FAN_",
+)
 
 validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
 
 ClimatePreset = climate_ns.enum("ClimatePreset")
-CLIMATE_PRESETS = {
-    "NONE": ClimatePreset.CLIMATE_PRESET_NONE,
-    "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
-    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
-    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "COMFORT": ClimatePreset.CLIMATE_PRESET_COMFORT,
-    "HOME": ClimatePreset.CLIMATE_PRESET_HOME,
-    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
-    "ACTIVITY": ClimatePreset.CLIMATE_PRESET_ACTIVITY,
-}
+CLIMATE_PRESETS = ClimatePreset.options(
+    "NONE",
+    "ECO",
+    "AWAY",
+    "BOOST",
+    "COMFORT",
+    "HOME",
+    "SLEEP",
+    "ACTIVITY",
+    prefix="CLIMATE_PRESET_",
+)
 
 validate_climate_preset = cv.enum(CLIMATE_PRESETS, upper=True)
 
 ClimateSwingMode = climate_ns.enum("ClimateSwingMode")
-CLIMATE_SWING_MODES = {
-    "OFF": ClimateSwingMode.CLIMATE_SWING_OFF,
-    "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
-    "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
-    "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
-}
+CLIMATE_SWING_MODES = ClimateSwingMode.options(
+    "OFF", "BOTH", "VERTICAL", "HORIZONTAL", prefix="CLIMATE_SWING_"
+)
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
 ClimateAction = climate_ns.enum("ClimateAction")
-CLIMATE_ACTIONS = {
-    "OFF": ClimateAction.CLIMATE_ACTION_OFF,
-    "COOLING": ClimateAction.CLIMATE_ACTION_COOLING,
-    "HEATING": ClimateAction.CLIMATE_ACTION_HEATING,
-    "IDLE": ClimateAction.CLIMATE_ACTION_IDLE,
-    "DRYING": ClimateAction.CLIMATE_ACTION_DRYING,
-    "FAN": ClimateAction.CLIMATE_ACTION_FAN,
-    "DEFROSTING": ClimateAction.CLIMATE_ACTION_DEFROSTING,
-}
+CLIMATE_ACTIONS = ClimateAction.options(
+    "OFF",
+    "COOLING",
+    "HEATING",
+    "IDLE",
+    "DRYING",
+    "FAN",
+    "DEFROSTING",
+    prefix="CLIMATE_ACTION_",
+)
 
 validate_climate_action = cv.enum(CLIMATE_ACTIONS, upper=True)
 
