@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
     require_vfs_dir,
 )
 from esphome.components.time import RealTimeClock
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
@@ -24,6 +25,7 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_UPDATE_INTERVAL,
     Framework,
+    PlatformFramework,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -273,3 +275,8 @@ async def to_code(config: ConfigType) -> None:
             )
         )
         cg.add(var.set_column_source(index, await cg.get_variable(column[CONF_SENSOR])))
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {"tsdb.cpp": {PlatformFramework.ESP32_IDF}}
+)
