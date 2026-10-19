@@ -1,4 +1,5 @@
 #include "whirlpool.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::whirlpool {
@@ -136,10 +137,8 @@ void WhirlpoolClimate::transmit_state() {
   }
 
   // Checksum
-  for (uint8_t i = 2; i < 13; i++)
-    remote_state[13] ^= remote_state[i];
-  for (uint8_t i = 14; i < 20; i++)
-    remote_state[20] ^= remote_state[i];
+  remote_state[13] = xor_bytes(&remote_state[2], 11, remote_state[13]);
+  remote_state[20] = xor_bytes(&remote_state[14], 6, remote_state[20]);
 
   ESP_LOGV(TAG,
            "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X "
@@ -269,13 +268,9 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t checksum13 = 0;
-  uint8_t checksum20 = 0;
   // Calculate  checksum and compare with signal value.
-  for (uint8_t i = 2; i < 13; i++)
-    checksum13 ^= remote_state[i];
-  for (uint8_t i = 14; i < 20; i++)
-    checksum20 ^= remote_state[i];
+  uint8_t checksum13 = xor_bytes(&remote_state[2], 11);
+  uint8_t checksum20 = xor_bytes(&remote_state[14], 6);
 
   if (checksum13 != remote_state[13] || (!skip_footer && checksum20 != remote_state[20])) {
     ESP_LOGVV(TAG, "Checksum fail");

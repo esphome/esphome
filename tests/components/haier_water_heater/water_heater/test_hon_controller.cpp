@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include <array>
 #include <deque>
-#include <new>
 #include <vector>
 
 #include "esphome/components/haier_water_heater/hon_water_heater.h"
@@ -53,9 +52,6 @@ class TestableHeater : public HonWaterHeater {
 class HonControllerTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    // The test runner skips generated setup(), which normally constructs App and its scheduler.
-    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-    (void) APP_CONSTRUCTED;
     this->heater_.set_uart_parent(&this->uart_);
     this->heater_.set_network_pending(false);
     this->set_clock_(100);
