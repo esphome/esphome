@@ -36,3 +36,12 @@ def test_unknown_id_raises_key_error() -> None:
     config, _, _ = _config()
     with pytest.raises(KeyError):
         fv.get_declaring_config(ID("missing"), config)
+
+
+def test_non_dict_parent_raises_type_error() -> None:
+    config, _, _ = _config()
+    list_id = ID("in_list", is_declaration=True)
+    config["listed"] = [list_id]
+    config.declare_ids.append((list_id, ["listed", 0]))
+    with pytest.raises(TypeError):
+        fv.get_declaring_config(ID("in_list"), config)
