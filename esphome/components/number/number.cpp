@@ -9,11 +9,9 @@ ESPHOME_LOG_TAG(TAG, "number");
 
 // Function implementation of LOG_NUMBER macro to reduce code size
 void log_number(const char *tag, const char *prefix, const char *type, Number *obj) {
-  if (obj == nullptr) {
+  if (!log_entity_header(tag, prefix, type, obj)) {
     return;
   }
-
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, LOG_STR_ARG(obj->get_log_name()));
   LOG_ENTITY_ICON(tag, prefix, *obj);
   LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, *obj);
   LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);

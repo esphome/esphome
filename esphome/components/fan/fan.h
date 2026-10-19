@@ -11,8 +11,7 @@
 namespace esphome::fan {
 
 #define LOG_FAN(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), LOG_STR_ARG((obj)->get_log_name())); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     (obj)->dump_traits_(TAG, prefix); \
   }
 

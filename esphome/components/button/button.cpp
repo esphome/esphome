@@ -7,11 +7,9 @@ ESPHOME_LOG_TAG(TAG, "button");
 
 // Function implementation of LOG_BUTTON macro to reduce code size
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj) {
-  if (obj == nullptr) {
+  if (!log_entity_header(tag, prefix, type, obj)) {
     return;
   }
-
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, LOG_STR_ARG(obj->get_log_name()));
   LOG_ENTITY_ICON(tag, prefix, *obj);
 }
 
