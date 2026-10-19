@@ -26,6 +26,7 @@ from .layers import (
     check_packet_sizes,
     check_session,
     check_single_peer,
+    layer_needing_session,
     packet_interface_ns,
     stack_auto_load,
     stack_schema,
@@ -135,15 +136,12 @@ def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
 
 def _check_provided_session(config: ConfigType) -> ConfigType:
     """A link's own session does not send packets through the layers, so none can need them from the peer."""
-    for kind in STACK_ORDER:
-        if (layer := config.get(kind.key)) is not None and kind.get_type(
-            layer
-        ).needs_session(layer):
-            raise cv.Invalid(
-                f"This '{kind.key}' needs packets from the peer, which this link does not send through its layers, "
-                "so it cannot be used on this link",
-                path=[kind.key],
-            )
+    if key := layer_needing_session(config):
+        raise cv.Invalid(
+            f"This '{key}' needs packets from the peer, which this link does not send through its layers, "
+            "so it cannot be used on this link",
+            path=[key],
+        )
     return config
 
 
