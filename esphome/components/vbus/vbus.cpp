@@ -31,89 +31,88 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
-  this->read_available(
-      [this](uint8_t c) {
-        if (c == 0xaa) {
-          this->state_ = 1;
-          this->buffer_.clear();
+  auto on_byte = [this](uint8_t c) {
+    if (c == 0xaa) {
+      this->state_ = 1;
+      this->buffer_.clear();
+      return;
+    }
+    if (c & 0x80) {
+      this->state_ = 0;
+      return;
+    }
+    if (this->state_ == 0)
+      return;
+
+    if (this->state_ == 1) {
+      this->buffer_.push_back(c);
+      if (this->buffer_.size() == 7) {
+        this->protocol_ = this->buffer_[4];
+        this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
+        this->dest_ = (this->buffer_[1] << 8) + this->buffer_[0];
+        this->command_ = (this->buffer_[6] << 8) + this->buffer_[5];
+      }
+      if ((this->protocol_ == 0x20) && (this->buffer_.size() == 15)) {
+        this->state_ = 0;
+        if (!checksum(this->buffer_.data(), 0, 15)) {
+          ESP_LOGE(TAG, "P2 checksum failed");
           return;
         }
-        if (c & 0x80) {
+        septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
+        uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
+        uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
+        ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
+                 this->dest_, id, value, value);
+      } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {
+        if (!checksum(this->buffer_.data(), 0, 9)) {
+          ESP_LOGE(TAG, "P1 checksum failed");
           this->state_ = 0;
           return;
         }
-        if (this->state_ == 0)
-          return;
-
-        if (this->state_ == 1) {
-          this->buffer_.push_back(c);
-          if (this->buffer_.size() == 7) {
-            this->protocol_ = this->buffer_[4];
-            this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
-            this->dest_ = (this->buffer_[1] << 8) + this->buffer_[0];
-            this->command_ = (this->buffer_[6] << 8) + this->buffer_[5];
-          }
-          if ((this->protocol_ == 0x20) && (this->buffer_.size() == 15)) {
-            this->state_ = 0;
-            if (!checksum(this->buffer_.data(), 0, 15)) {
-              ESP_LOGE(TAG, "P2 checksum failed");
-              return;
-            }
-            septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
-            uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
-            uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
-            ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
-                     this->dest_, id, value, value);
-          } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {
-            if (!checksum(this->buffer_.data(), 0, 9)) {
-              ESP_LOGE(TAG, "P1 checksum failed");
-              this->state_ = 0;
-              return;
-            }
-            this->frames_ = this->buffer_[7];
-            if (this->frames_) {
-              this->state_ = 2;
-              this->cframe_ = 0;
-              this->fbcount_ = 0;
-              this->buffer_.clear();
-            } else {
-              this->state_ = 0;
-              ESP_LOGD(TAG, "P1 empty message");
-            }
-          } else if (this->buffer_.size() > 15) {
-            ESP_LOGW(TAG, "Unknown protocol 0x%02x, discarding", this->protocol_);
-            this->state_ = 0;
-          }
-          return;
-        }
-
-        if (this->state_ == 2) {
-          this->fbytes_[this->fbcount_++] = c;
-          if (this->fbcount_ < 6)
-            return;
+        this->frames_ = this->buffer_[7];
+        if (this->frames_) {
+          this->state_ = 2;
+          this->cframe_ = 0;
           this->fbcount_ = 0;
-          if (!checksum(this->fbytes_, 0, 6)) {
-            ESP_LOGE(TAG, "frame checksum failed");
-            return;
-          }
-          septet_spread(this->fbytes_, 0, 4, this->fbytes_[4]);
-          for (int i = 0; i < 4; i++)
-            this->buffer_.push_back(this->fbytes_[i]);
-          if (++this->cframe_ < this->frames_)
-            return;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-          char hex_buf[format_hex_size(VBUS_MAX_LOG_BYTES)];
-          size_t log_bytes = std::min(this->buffer_.size(), static_cast<size_t>(VBUS_MAX_LOG_BYTES));
-#endif
-          ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_,
-                   format_hex_to(hex_buf, this->buffer_.data(), log_bytes));
-          for (auto &listener : this->listeners_)
-            listener->on_message(this->command_, this->source_, this->dest_, this->buffer_);
+          this->buffer_.clear();
+        } else {
           this->state_ = 0;
-          return;
+          ESP_LOGD(TAG, "P1 empty message");
         }
-      },
-      std::min(this->available(), VBUS_MAX_BYTES_PER_LOOP));
+      } else if (this->buffer_.size() > 15) {
+        ESP_LOGW(TAG, "Unknown protocol 0x%02x, discarding", this->protocol_);
+        this->state_ = 0;
+      }
+      return;
+    }
+
+    if (this->state_ == 2) {
+      this->fbytes_[this->fbcount_++] = c;
+      if (this->fbcount_ < 6)
+        return;
+      this->fbcount_ = 0;
+      if (!checksum(this->fbytes_, 0, 6)) {
+        ESP_LOGE(TAG, "frame checksum failed");
+        return;
+      }
+      septet_spread(this->fbytes_, 0, 4, this->fbytes_[4]);
+      for (int i = 0; i < 4; i++)
+        this->buffer_.push_back(this->fbytes_[i]);
+      if (++this->cframe_ < this->frames_)
+        return;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_size(VBUS_MAX_LOG_BYTES)];
+      size_t log_bytes = std::min(this->buffer_.size(), static_cast<size_t>(VBUS_MAX_LOG_BYTES));
+#endif
+      ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_,
+               format_hex_to(hex_buf, this->buffer_.data(), log_bytes));
+      for (auto &listener : this->listeners_)
+        listener->on_message(this->command_, this->source_, this->dest_, this->buffer_);
+      this->state_ = 0;
+      return;
+    }
+  };
+  this->read_available(on_byte, std::min(this->available(), VBUS_MAX_BYTES_PER_LOOP));
 }
 
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {
