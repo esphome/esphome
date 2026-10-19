@@ -32,6 +32,7 @@ display:
         it.filled_rectangle(it.get_width() / 2 - 10, it.get_height() / 2 - 10, 20, 20, Color::BLACK);
       } else if (frame == 1) {
         it.filled_rectangle(20, 20, 60, 20, Color::BLACK);
+        it.filled_rectangle(20, 50, 20, 20, Color::BLACK);
       } else if (frame == 2) {
         it.filled_rectangle(20, it.get_height() - 40, 60, 20, Color::BLACK);
       } else if (frame == 3) {

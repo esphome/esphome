@@ -96,7 +96,9 @@ Write a scratch config outside the checkout. Use one `name:` per board and inclu
   update (full-window check and scale);
 - a 60x20 bar near each corner, one bar per later update with `auto_clear_enabled: false`, so
   each bar is written by its own partial window. The bars are wider than tall, which shows a
-  90 or 270 degree rotation; the corners exercise the window alignment.
+  90 or 270 degree rotation; the corners exercise the window alignment;
+- a 20x20 square under the left end of the top-left bar, drawn in the same update, which marks
+  the top-left corner and shows a 180 degree rotation or a mirrored image.
 
 Use `Color::BLACK` and `Color::WHITE` in lambdas. Do not use the old `COLOR_OFF`/`COLOR_ON`
 constants; black must mean black.
@@ -126,9 +128,11 @@ power is removed, which is useful for checking that an image is bistable.
 
 ## What to check
 
-1. **Orientation**: test `rotation:` values with the same pattern. The logical width and height
-   swap at 90 and 270 degrees, so the 60x20 corner bars should then appear taller than wide on
-   the physical panel.
+1. **Orientation**: the extra square sits under the left end of the bar in the expected top-left
+   corner. In another corner, or at the inner end of its bar, the image is rotated or mirrored.
+   Test `rotation:` values with the same pattern. The logical width and height swap at 90 and
+   270 degrees, so the 60x20 corner bars should then appear taller than wide on the physical
+   panel.
 2. **Coverage**: the border touches all four edges, with no dead rows or columns at the edges.
 3. **Partial updates**: with `auto_clear_enabled: false`, draw one marker per update. Each should
    appear exactly at its requested position with no smearing, offset or mirrored placement.
