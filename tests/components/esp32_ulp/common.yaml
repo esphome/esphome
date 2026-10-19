@@ -1,6 +1,7 @@
 esp32_ulp:
   sources:
     - $component_dir/ulp/main.c
+    - $component_dir/ulp/counter.h
   wakeup_period: 100ms
   reserve_memory: 4096
 

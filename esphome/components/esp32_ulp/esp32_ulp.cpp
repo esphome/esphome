@@ -18,9 +18,9 @@ namespace esphome::esp32_ulp {
 ESPHOME_LOG_TAG(TAG, "esp32_ulp");
 
 #if SOC_RISCV_COPROC_SUPPORTED
-static const char *const BACKEND = "ULP RISC-V";
+static constexpr const char *BACKEND = "ULP RISC-V";
 #else
-static const char *const BACKEND = "LP core";
+static constexpr const char *BACKEND = "LP core";
 #endif
 
 void ESP32ULP::setup() {
@@ -44,7 +44,9 @@ void ESP32ULP::setup() {
     this->mark_failed();
     return;
   }
-  this->loaded_ = this->loaded_ || from_deep_sleep;
+  if (this->run_on_boot_ && from_deep_sleep) {
+    this->loaded_ = true;
+  }
   if (this->wakeup_from_sleep_) {
     esp_err_t err = esp_sleep_enable_ulp_wakeup();
     if (err != ESP_OK) {
@@ -110,6 +112,9 @@ void ESP32ULP::timer_stop() {
 }
 
 void ESP32ULP::timer_resume() {
+  if (!this->loaded_) {
+    return;
+  }
 #if SOC_RISCV_COPROC_SUPPORTED
   ulp_riscv_timer_resume();
 #else

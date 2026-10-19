@@ -69,6 +69,7 @@ WAKEUP_SOURCES = {
 RISCV_TOOLCHAIN_TARGET = "esp32c3"
 
 ULP_SOURCE_SUFFIXES = (".c", ".S", ".s")
+ULP_HEADER_SUFFIXES = (".h",)
 ULP_BUILD_SUBDIR = "ulp"
 ULP_APP_NAME = "ulp_main"
 
@@ -82,9 +83,9 @@ def get_backend() -> str:
 
 def _validate_source(value: object) -> Path:
     path = CORE.relative_config_path(cv.file_(value))
-    if path.suffix not in ULP_SOURCE_SUFFIXES:
+    if path.suffix not in ULP_SOURCE_SUFFIXES + ULP_HEADER_SUFFIXES:
         raise cv.Invalid(
-            f"ULP sources must be C or assembly files ({', '.join(ULP_SOURCE_SUFFIXES)})"
+            f"ULP sources must be C, assembly or header files ({', '.join(ULP_SOURCE_SUFFIXES + ULP_HEADER_SUFFIXES)})"
         )
     return path
 
@@ -96,6 +97,8 @@ def _validate_sources(value: list[Path]) -> list[Path]:
         raise cv.Invalid(
             f"ULP source file names must be unique, duplicated: {', '.join(sorted(duplicates))}"
         )
+    if not any(path.suffix in ULP_SOURCE_SUFFIXES for path in value):
+        raise cv.Invalid("At least one ULP source must be a C or assembly file")
     return value
 
 
@@ -165,10 +168,13 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     backend = get_backend()
 
+    # Headers are copied next to the sources so the program can include them,
+    # but only C and assembly files go to the ULP build.
     names: list[str] = []
     for path in config[CONF_SOURCES]:
         add_extra_build_file(f"{ULP_BUILD_SUBDIR}/{path.name}", path)
-        names.append(path.name)
+        if path.suffix in ULP_SOURCE_SUFFIXES:
+            names.append(path.name)
 
     add_idf_sdkconfig_option("CONFIG_ULP_COPROC_ENABLED", True)
     if backend == BACKEND_RISCV:
