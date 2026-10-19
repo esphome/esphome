@@ -423,7 +423,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   root[ESPHOME_F("ota")] = true;
 #endif
   root[ESPHOME_F("log")] = this->expose_log_;
-  root[ESPHOME_F("lang")] = linked(ESPHOME_F("en"));
+  root[ESPHOME_F("lang")] = "en";
   root[ESPHOME_F("uptime")] = uptime_seconds();
 
   return builder.serialize();
@@ -1483,12 +1483,11 @@ void WebServer::text_json_(text::Text *obj, const std::string &value, JsonDetail
   // A password entity shows the mask and prefills the input with nothing, so the secret never
   // reaches the JSON and the mask cannot be written back as the value
   const bool password = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD;
-  set_json_value(root, obj, "text", password ? linked("") : copied_value, start_config);
-  if (password) {
-    root[ESPHOME_F("state")] = linked(ESPHOME_F("********"));
-  } else {
-    root[ESPHOME_F("state")] = copied_value;
-  }
+  // The mask is copied out of flash so it shares the setter copied_value already needs
+  char mask[9];
+  ESPHOME_strncpy_P(mask, ESPHOME_PSTR("********"), sizeof(mask));
+  set_json_icon_state_value(root, obj, "text", password ? JsonString(mask, 8) : copied_value,
+                            password ? linked("") : copied_value, start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
   root[ESPHOME_F("pattern")] = linked(obj->traits.get_pattern_c_str());
