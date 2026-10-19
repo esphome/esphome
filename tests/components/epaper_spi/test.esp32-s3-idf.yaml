@@ -16,6 +16,7 @@ esphome:
 
 display:
   - platform: epaper_spi
+    spi_id: spi_bus
     model: XSRUPB-7.5-bwr
     cs_pin:
       allow_other_uses: true
