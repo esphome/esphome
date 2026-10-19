@@ -131,8 +131,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config, use_pcnt)
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
     count = config[CONF_COUNT_MODE]
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
