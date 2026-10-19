@@ -50,7 +50,11 @@ from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
-from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.schema_extractors import (
+    SCHEMA_EXTRACT,
+    EnableSchemaExtraction,
+    schema_extractor,
+)
 from esphome.types import ConfigType
 from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
@@ -74,16 +78,19 @@ from .encoders import (
 )
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
+from .layout import LAYOUT_SCHEMA, LAYOUT_UPDATE_SCHEMA
 from .lv_validation import lv_bool
 from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
+    FLAG_SCHEMA,
     FULL_STYLE_SCHEMA,
     SET_STATE_SCHEMA,
     STATE_SCHEMA,
     STYLE_REMAP,
     STYLE_SCHEMA,
     WIDGET_TYPES,
+    _build_theme_schema,
     any_widget_schema,
     apply_style_driven_defines,
     container_schema,
@@ -123,13 +130,20 @@ from .widgets.page import (  # page_spec used in LVGL_SCHEMA
     page_spec,
 )
 
-# These style schemas live in .schemas but are imported here so they land in
+# These schemas live in .schemas and .layout but are imported here so they land in
 # this module's namespace, where script/build_language_schema.py registers them
 # as *named* schemas and emits `extends` references — instead of inlining the
 # ~80-property STYLE_SCHEMA at every widget x part x state, which bloated the
 # dumped lvgl schema ~23x (17 MB vs ~750 KB). They are not otherwise used in
 # this file; this tuple keeps the imports live (and self-documents why).
-_SCHEMA_DUMPER_NAMED_SCHEMAS = (STYLE_SCHEMA, STATE_SCHEMA, SET_STATE_SCHEMA)
+_SCHEMA_DUMPER_NAMED_SCHEMAS = (
+    STYLE_SCHEMA,
+    STATE_SCHEMA,
+    SET_STATE_SCHEMA,
+    FLAG_SCHEMA,
+    LAYOUT_SCHEMA,
+    LAYOUT_UPDATE_SCHEMA,
+)
 
 # Widget registration happens via WidgetType.__init__ in individual widget files
 # The imports below trigger creation of the widget types
@@ -138,6 +152,12 @@ _SCHEMA_DUMPER_NAMED_SCHEMAS = (STYLE_SCHEMA, STATE_SCHEMA, SET_STATE_SCHEMA)
 
 for module_info in pkgutil.iter_modules(widgets.__path__):
     importlib.import_module(f".widgets.{module_info.name}", package=__package__)
+
+if EnableSchemaExtraction:
+    # Named so the dumper references one copy from theme: and lvgl.theme.update
+    THEME_WIDGETS_SCHEMA = _build_theme_schema(
+        tuple(WIDGET_TYPES.items()), include_dark_mode=False
+    )
 
 DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]

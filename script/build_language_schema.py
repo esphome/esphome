@@ -226,9 +226,13 @@ def module_schemas(module):
                 re.MULTILINE,
             )
             pos = match.start() if match else -1
-            schemas.append((pos, m_attr_name, m_attr_obj))
+            # Imported names share a position; convert the schema objects
+            # before the validators that reference them
+            schemas.append(
+                (pos, not isinstance(m_attr_obj, vol.Schema), m_attr_name, m_attr_obj)
+            )
 
-    for _, name, obj in sorted(schemas, key=lambda x: x[0]):
+    for _, _, name, obj in sorted(schemas, key=lambda x: x[:2]):
         yield name, obj
 
 
@@ -443,15 +447,35 @@ def fix_lvgl_widgets():
     schemas["WIDGET_TYPES"] = {S_TYPE: S_SCHEMA, S_SCHEMA: widgets[S_SCHEMA]}
     # 2. Reference it from the top-level widgets: list instead of inlining.
     widgets[S_SCHEMA] = {S_EXTENDS: ["lvgl.WIDGET_TYPES"]}
-    # 3. Let every widget contain child widgets, via the same named ref.
-    for widget in schemas["WIDGET_TYPES"][S_SCHEMA][S_CONFIG_VARS].values():
-        if widget.get(S_TYPE) == S_SCHEMA and S_SCHEMA in widget:
-            widget[S_SCHEMA].setdefault(S_CONFIG_VARS, {})["widgets"] = {
-                S_TYPE: S_SCHEMA,
-                "is_list": True,
-                "key": "Optional",
-                S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
-            }
+
+    # 3. Let every container hold child widgets, via the same named ref. The
+    # widgets: key is added per value at validation time, so the dumper never
+    # sees it; a container is anything that takes a layout.
+    def add_widgets(node):
+        if isinstance(node, dict):
+            config_vars = node.get(S_CONFIG_VARS)
+            layout = (
+                config_vars.get("layout") if isinstance(config_vars, dict) else None
+            )
+            if isinstance(layout, dict) and layout.get(S_SCHEMA, {}).get(S_EXTENDS) == [
+                "lvgl.LAYOUT_SCHEMA"
+            ]:
+                config_vars.setdefault(
+                    "widgets",
+                    {
+                        S_TYPE: S_SCHEMA,
+                        "is_list": True,
+                        "key": "Optional",
+                        S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
+                    },
+                )
+            for value in node.values():
+                add_widgets(value)
+        elif isinstance(node, list):
+            for value in node:
+                add_widgets(value)
+
+    add_widgets(output["lvgl"])
 
 
 def get_logger_tags():
@@ -660,8 +684,19 @@ def shrink():
                 if target_s.get(S_TYPE) not in INLINE_TYPES:
                     still_referenced = True
                     continue
-                assert target_s[S_SCHEMA][S_EXTENDS] == [x]
-                target_s.pop(S_SCHEMA)
+                schema = target_s[S_SCHEMA]
+                if S_EXTENDS in schema:
+                    assert schema[S_EXTENDS] == [x]
+                    schema.pop(S_EXTENDS)
+                elif schema:
+                    print("skipping simple spread for " + ".".join(target))
+                    continue
+                # cv.Any(cv.port, cv.Schema({...})): the union's own keys stay
+                # beside the spread simple type. Copies of a config var share
+                # the schema dict, so a sibling may already have taken the
+                # reference out.
+                if not schema:
+                    target_s.pop(S_SCHEMA)
                 target_s |= key_s
                 if key_s[S_TYPE] in ["integer", "string"]:
                     target_s["data_type"] = x.split(".")[1]

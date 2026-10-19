@@ -350,15 +350,18 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
     for name in ("STYLE_SCHEMA", "STATE_SCHEMA", "SET_STATE_SCHEMA"):
         assert name in schemas, f"style schema not registered as named: {name}"
 
-    # STYLE_SCHEMA must be referenced via `extends`, not inlined at every use
-    # site. Count the references to prove the dedup actually happened.
+    # The style schemas must be referenced via `extends`, not inlined at every
+    # use site (widgets extend STATE_SCHEMA, which holds the STYLE_SCHEMA refs).
+    # Count the references to prove the dedup actually happened.
     refs = 0
 
     def _count(node: object) -> None:
         nonlocal refs
         if isinstance(node, dict):
             extends = node.get("extends")
-            if isinstance(extends, list) and "lvgl.STYLE_SCHEMA" in extends:
+            if isinstance(extends, list) and (
+                "lvgl.STYLE_SCHEMA" in extends or "lvgl.STATE_SCHEMA" in extends
+            ):
                 refs += 1
             for value in node.values():
                 _count(value)
@@ -367,7 +370,7 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
                 _count(value)
 
     _count(lvgl_schema)
-    assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+    assert refs > 100, f"style schemas should be referenced via extends, got {refs}"
 
 
 # ---------------------------------------------------------------------------
@@ -479,3 +482,64 @@ def test_gsl3670_model_schema_is_extracted(language_schema_dir: Path) -> None:
     assert config_vars["model"]["key"] == "Optional"
     assert config_vars["model"]["default"] == "CUSTOM"
     assert "CUSTOM" in config_vars["model"]["values"]
+
+
+def test_wrapped_module_schemas_are_walked(language_schema_dir: Path) -> None:
+    """Validators that wrap a module-level schema expose it through SCHEMA_EXTRACT."""
+    wifi = _config_vars(language_schema_dir, "wifi", "wifi")
+    assert "ap_timeout" in wifi["ap"]["schema"]["config_vars"]
+    assert "device_info" in wifi["dpp"]["schema"]["config_vars"]
+    assert "max_age" in wifi["lease_cache"]["schema"]["config_vars"]
+    ota = _config_vars(language_schema_dir, "esphome", "esphome.ota")
+    assert "old_key" in ota["encryption"]["schema"]["config_vars"]
+    openthread = _config_vars(language_schema_dir, "openthread", "openthread")
+    assert "rcp" in openthread["border_router"]["schema"]["config_vars"]
+    codecs = _config_vars(language_schema_dir, "audio", "audio")["codecs"]
+    flac = codecs["schema"]["config_vars"]["flac"]
+    assert "buffer_memory" in flac["schema"]["config_vars"]
+
+
+def test_union_of_scalar_and_mapping_keeps_both(language_schema_dir: Path) -> None:
+    """cv.Any(cv.port, cv.Schema({...})) keeps the mapping keys beside the scalar type."""
+    port = _config_vars(language_schema_dir, "udp", "udp")["port"]
+    assert port["type"] == "integer"
+    assert "listen_port" in port["schema"]["config_vars"]
+    ntc = _config_vars(language_schema_dir, "ntc", "ntc.sensor")["calibration"]
+    assert "b_constant" in ntc["schema"]["config_vars"]
+    sensor = json.loads((language_schema_dir / "sensor.json").read_text())["sensor"]
+    calibration = sensor["filter"]["to_ntc_temperature"]["schema"]["config_vars"][
+        "calibration"
+    ]
+    assert calibration["schema"]["extends"] == ["sensor.ntc_process_calibration"]
+    forms = sensor["schemas"]["ntc_process_calibration"]["schema"]["config_vars"]
+    assert "b_constant" in forms
+    assert "a" in forms
+
+
+def test_lvgl_layouts_and_containers_are_exposed(lvgl_schema: dict) -> None:
+    """Containers take a layout, children, and the theme is one named schema."""
+    schemas = lvgl_schema["lvgl"]["schemas"]
+    layout = schemas["LAYOUT_SCHEMA"]
+    assert layout["type"] == "typed"
+    assert "flex_flow" in layout["types"]["flex"]["config_vars"]
+    assert "grid_rows" in layout["types"]["grid"]["config_vars"]
+    button = schemas["WIDGET_TYPES"]["schema"]["config_vars"]["button"]["schema"]
+    assert button["config_vars"]["layout"]["schema"]["extends"] == [
+        "lvgl.LAYOUT_SCHEMA"
+    ]
+    assert button["config_vars"]["widgets"]["schema"]["extends"] == [
+        "lvgl.WIDGET_TYPES"
+    ]
+    assert "grid_cell_row_pos" in button["config_vars"]
+    assert set(button["extends"]) == {"lvgl.STATE_SCHEMA", "lvgl.FLAG_SCHEMA"}
+    top = schemas["CONFIG_SCHEMA"]["schema"]["config_vars"]
+    assert top["theme"]["schema"]["extends"] == ["lvgl.THEME_WIDGETS_SCHEMA"]
+    assert "dark_mode" in top["theme"]["schema"]["config_vars"]
+    assert lvgl_schema["lvgl"]["action"]["theme.update"]["schema"]["extends"] == [
+        "lvgl.THEME_WIDGETS_SCHEMA"
+    ]
+    msgbox = schemas["MSGBOX_SCHEMA"]["schema"]["config_vars"]
+    assert "header_buttons" in msgbox
+    assert msgbox["buttons"]["schema"]["config_vars"]["main"]["schema"]["extends"] == [
+        "lvgl.STATE_SCHEMA"
+    ]
