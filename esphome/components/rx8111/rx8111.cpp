@@ -81,13 +81,11 @@ void RX8111Component::read_time() {
     this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
-  if (ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week != weekday) {
+  if (!this->status_comm_result(ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week == weekday,
+                                LOG_STR("Invalid RTC time"))) {
     ESP_LOGW(TAG, "RTC weekday does not match calendar date");
-    this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
-
-  this->status_clear_warning();
   ESP_LOGD(TAG, "Read UTC time: %04d-%02d-%02d %02d:%02d:%02d", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
            rtc_time.hour, rtc_time.minute, rtc_time.second);
   time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
