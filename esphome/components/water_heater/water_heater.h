@@ -279,4 +279,8 @@ class WaterHeater : public EntityBase {
 /// Convert the given WaterHeaterMode to a human-readable string for logging.
 const LogString *water_heater_mode_to_string(WaterHeaterMode mode);
 
+inline void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj) {
+  log_entity_header(tag, prefix, type, obj);
+}
+
 }  // namespace esphome::water_heater
