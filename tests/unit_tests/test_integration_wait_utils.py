@@ -78,3 +78,19 @@ async def test_wait_or_fail_reraises_a_timeout_from_the_awaitable() -> None:
 
     with pytest.raises(TimeoutError, match="api call timed out"):
         await wait_or_fail(inner(), 5.0, "no reply")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [0, -1.0])
+async def test_wait_or_fail_rejects_a_non_positive_timeout(timeout: float) -> None:
+    event = asyncio.Event()
+    event.set()
+    done: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+    done.set_result(1)
+
+    async def finished() -> int:
+        return 1
+
+    for aw in (finished(), event, done):
+        with pytest.raises(ValueError, match="must be positive"):
+            await wait_or_fail(aw, timeout)

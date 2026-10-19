@@ -38,9 +38,15 @@ async def wait_or_fail[T](
     """Await ``aw``, or wait for an ``asyncio.Event`` to be set, and fail the test on timeout.
 
     Behaves like ``asyncio.wait_for``, so a timed out future is cancelled; a TimeoutError raised
-    by ``aw`` itself propagates unchanged. ``context`` values are formatted only on failure, so
-    pass live collections; lists, tuples, deques and mappings show their last 20 items.
+    by ``aw`` itself propagates unchanged, and ``timeout`` must be positive. ``context`` values
+    are formatted only on failure, so pass live collections; lists, tuples, deques and mappings
+    show their last 20 items.
     """
+    if timeout <= 0:
+        # asyncio.wait_for treats this as already timed out; a test should never ask for it
+        if asyncio.iscoroutine(aw):
+            aw.close()
+        raise ValueError(f"wait_or_fail timeout must be positive, got {timeout}")
     if isinstance(aw, asyncio.Event):
         aw = aw.wait()
     deadline = asyncio.timeout(timeout)
