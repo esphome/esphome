@@ -29,12 +29,10 @@ void TMP1075Sensor::setup() {
 
 void TMP1075Sensor::update() {
   uint16_t regvalue;
-  if (!read_byte_16(REG_TEMP, &regvalue)) {
+  if (!this->status_comm_result(this->read_byte_16(REG_TEMP, &regvalue), LOG_STR("can't read"))) {
     ESP_LOGW(TAG, "'%s' - unable to read temperature register", this->name_.c_str());
-    this->status_set_warning(LOG_STR("can't read"));
     return;
   }
-  this->status_clear_warning();
 
   const float temp = regvalue2temp(regvalue);
   this->publish_state(temp);

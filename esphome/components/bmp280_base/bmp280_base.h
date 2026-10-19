@@ -69,7 +69,7 @@ class BMP280Component : public PollingComponent {
   virtual bool bmp_read_byte(uint8_t a_register, uint8_t *data) = 0;
   virtual bool bmp_write_byte(uint8_t a_register, uint8_t data) = 0;
   virtual bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
-  virtual bool bmp_read_byte_16(uint8_t a_register, uint16_t *data) = 0;
+  virtual bool bmp_read_byte_16_le(uint8_t a_register, uint16_t *data) = 0;
 
   /// Read the temperature value and store the calculated ambient temperature in t_fine.
   float read_temperature_(int32_t *t_fine);

@@ -61,7 +61,7 @@ void MPL3115A2Component::update() {
     if (this->pressure_ != nullptr)
       this->pressure_->publish_state(pressure);
   }
-  int16_t t = encode_uint16(buffer[3], buffer[4]);
+  int16_t t = encode_value<int16_t>(&buffer[3]);
   float temperature = float(t) / 256.0f;
   if (this->temperature_ != nullptr)
     this->temperature_->publish_state(temperature);
