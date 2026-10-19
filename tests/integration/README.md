@@ -392,6 +392,8 @@ async with run_compiled(yaml_config, line_callback=log.callback):
 
 - `expect(pattern)` only matches lines that arrive after the call. A `str` matches as a
   substring and resolves to the line; a compiled regex is searched and resolves to its match.
+  Each expectation resolves on the next matching line, so two armed for the same text both
+  resolve on its first occurrence: arm the second after the first resolves, or use `count`.
 - `wait(future)` fails the test on timeout with the pattern and the last 20 log lines.
 - `wait_for(*needles)` also matches lines seen before the call, but only one may be pending.
 - `count(pattern)` counts the lines seen so far.

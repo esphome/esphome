@@ -66,3 +66,16 @@ async def test_expect_resolves_from_callback_while_waiting() -> None:
     loop.call_soon(waiter.callback, "first")
     assert await waiter.wait(first) == "first"
     assert await waiter.wait(second) == "second"
+
+
+@pytest.mark.asyncio
+async def test_line_waiter_expectations_share_a_matching_line() -> None:
+    waiter = LineWaiter()
+    first = waiter.expect("tick")
+    second = waiter.expect("tick")
+    waiter.callback("tick 1")
+    assert first.result() == second.result() == "tick 1"
+    third = waiter.expect("tick")
+    waiter.callback("tick 2")
+    assert third.result() == "tick 2"
+    assert waiter.count("tick") == 2

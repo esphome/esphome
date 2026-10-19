@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from typing import Any, overload
 
 from .wait_utils import wait_or_fail
 
@@ -24,14 +25,16 @@ class LineWaiter:
     Pass ``callback`` as ``run_compiled``'s ``line_callback``; the callback runs
     on the test's own event loop, so futures are resolved directly. ``wait_for``
     also matches lines seen before the call, and only one may be outstanding at a
-    time. ``expect`` matches only later lines, and any number may be armed at once.
+    time. ``expect`` matches only later lines, and any number may be armed at once;
+    each resolves on the next matching line, so two armed for the same text both
+    resolve on its first occurrence. Arm the second after the first, or use ``count``.
     """
 
     def __init__(self) -> None:
         self.lines: list[str] = []
         self._needles: tuple[str, ...] = ()
         self._future: asyncio.Future | None = None
-        self._expectations: dict[asyncio.Future[LineMatch], LinePattern] = {}
+        self._expectations: dict[asyncio.Future[Any], LinePattern] = {}
 
     def callback(self, line: str) -> None:
         self.lines.append(line)
@@ -68,6 +71,12 @@ class LineWaiter:
             self._future = None
             self._needles = ()
 
+    @overload
+    def expect(self, pattern: str) -> asyncio.Future[str]: ...  # noqa: E704
+
+    @overload
+    def expect(self, pattern: re.Pattern[str]) -> asyncio.Future[re.Match[str]]: ...  # noqa: E704
+
     def expect(self, pattern: LinePattern) -> asyncio.Future[LineMatch]:
         """Arm a wait for the next line matching ``pattern``; earlier lines never match.
 
@@ -78,12 +87,12 @@ class LineWaiter:
         self._expectations[future] = pattern
         return future
 
-    async def wait(
+    async def wait[T: str | re.Match[str]](
         self,
-        future: asyncio.Future[LineMatch],
+        future: asyncio.Future[T],
         timeout: float = 5.0,
         msg: str = "log line not seen",
-    ) -> LineMatch:
+    ) -> T:
         """Await a future from ``expect``; on timeout fail with its pattern and the last lines."""
         return await wait_or_fail(
             future,
