@@ -8,7 +8,6 @@
 #include <driver/gpio.h>
 
 #include <cmath>
-#include <iterator>
 
 namespace esphome::es7243 {
 
@@ -31,11 +30,12 @@ static constexpr GainEntry GAIN_TABLE[] = {
     {1.0f, 0x11},  {3.5f, 0x13},  {18.0f, 0x21}, {20.5f, 0x23},
     {22.5f, 0x06}, {24.5f, 0x41}, {25.0f, 0x07}, {27.0f, 0x43},
 };
+static constexpr uint8_t GAIN_COUNT = sizeof(GAIN_TABLE) / sizeof(GAIN_TABLE[0]);
 
 // The table entry nearest the requested gain; values outside the table snap to its ends
 static uint8_t nearest_gain_index(float gain_db) {
   uint8_t best = 0;
-  for (uint8_t i = 1; i < std::size(GAIN_TABLE); i++) {
+  for (uint8_t i = 1; i < GAIN_COUNT; i++) {
     if (std::fabs(gain_db - GAIN_TABLE[i].db) < std::fabs(gain_db - GAIN_TABLE[best].db))
       best = i;
   }
