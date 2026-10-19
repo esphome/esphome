@@ -140,7 +140,12 @@ def packet_interface_schema(
 ) -> cv.Schema:
     """Schema for a link platform; provides names the layer keys, such as reliability, that the link does itself."""
     link_layers = {
-        key: schema for key, schema in LINK_LAYER_SCHEMAS.items() if key not in provides
+        key: (
+            cv.invalid(f"This link provides '{key}' itself, so it cannot be configured")
+            if key in provides
+            else schema
+        )
+        for key, schema in LINK_LAYER_SCHEMAS.items()
     }
     return (
         cv.Schema(

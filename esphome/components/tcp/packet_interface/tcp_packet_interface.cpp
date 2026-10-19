@@ -12,8 +12,6 @@ ESPHOME_LOG_TAG(TAG, "tcp.packet_interface");
 
 // The packet length before each packet
 static constexpr size_t LENGTH_SIZE = 2;
-// The peer is gone when nothing has been received for this many keep-alive intervals
-static constexpr uint32_t KEEP_ALIVE_MISSES = 3;
 
 TcpPacketInterface::TcpPacketInterface(std::span<uint8_t> rx_buffer)
     : packet_interface::PacketInterface(rx_buffer.size()), rx_buffer_(rx_buffer) {
@@ -25,6 +23,10 @@ void TcpPacketInterface::setup() {
   this->link_.begin(TAG);
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
+#endif
+#ifdef USE_BINARY_SENSOR
+  if (this->connected_sensor_ != nullptr)
+    this->connected_sensor_->publish_initial_state(false);
 #endif
 }
 
@@ -39,10 +41,11 @@ void TcpPacketInterface::dump_config() {
                 "  Address: %s:%u\n"
                 "  Reconnect Interval: %" PRIu32 "ms\n"
                 "  Keep Alive: %" PRIu32 "ms\n"
+                "  Timeout: %" PRIu32 "ms\n"
                 "  Max Packet Size: %zu",
                 this->name_, server ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"),
                 server ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
-                this->link_.reconnect_interval(), this->keep_alive_ms_, this->max_packet_size_);
+                this->link_.reconnect_interval(), this->keep_alive_ms_, this->timeout_ms_, this->max_packet_size_);
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
@@ -77,9 +80,8 @@ void TcpPacketInterface::loop() {
   if (!this->connected_)
     return;
   uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_rx_ms_ > KEEP_ALIVE_MISSES * this->keep_alive_ms_) {
-    ESP_LOGW(TAG, "%s: Nothing received for %" PRIu32 "ms, closing the connection", this->name_,
-             KEEP_ALIVE_MISSES * this->keep_alive_ms_);
+  if (now - this->last_rx_ms_ > this->timeout_ms_) {
+    ESP_LOGW(TAG, "%s: Nothing received for %" PRIu32 "ms, closing the connection", this->name_, this->timeout_ms_);
     this->link_.close();
     this->link_.note_attempt();
     this->on_connection_(false);

@@ -27,7 +27,7 @@ namespace esphome::tcp {
  *
  * A zero length packet is a keep-alive, sent when nothing else has been sent for keep_alive. TCP can take minutes to
  * notice a peer that has gone without closing the connection, so the link closes it, and reconnects or accepts again,
- * when nothing has been received for three keep-alive intervals.
+ * when nothing has been received for the timeout, which must be longer than the peer's keep-alive interval.
  */
 class TcpPacketInterface : public packet_interface::PacketInterface {
  public:
@@ -45,6 +45,8 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t interval_ms) { this->link_.set_reconnect_interval(interval_ms); }
   void set_keep_alive(uint32_t keep_alive_ms) { this->keep_alive_ms_ = keep_alive_ms; }
+  /// The connection is closed when nothing has been received for this long; the peer's keep_alive sets the pace.
+  void set_receive_timeout(uint32_t timeout_ms) { this->timeout_ms_ = timeout_ms; }
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW
@@ -72,6 +74,7 @@ class TcpPacketInterface : public packet_interface::PacketInterface {
 #endif
   const std::span<uint8_t> rx_buffer_;
   uint32_t keep_alive_ms_{10000};
+  uint32_t timeout_ms_{30000};
   uint32_t last_rx_ms_{0};
   uint32_t last_tx_ms_{0};
   uint16_t rx_length_{0};

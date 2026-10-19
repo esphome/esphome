@@ -22,7 +22,7 @@ def test_client_and_server(setup_core) -> None:
 @pytest.mark.parametrize("layer", ["reliability", "session", "addressing"])
 def test_provided_layers_rejected(setup_core, layer: str) -> None:
     """TCP provides these itself, so they cannot be configured on it."""
-    with pytest.raises(cv.Invalid, match=layer):
+    with pytest.raises(cv.Invalid, match=f"provides '{layer}' itself"):
         tcp_packet_interface.CONFIG_SCHEMA(
             {"host": "192.168.1.50", "port": 6060, layer: {"address": 1}}
         )
@@ -31,10 +31,29 @@ def test_provided_layers_rejected(setup_core, layer: str) -> None:
 def test_auto_load_binary_sensor_for_connected(setup_core) -> None:
     """The binary_sensor component is loaded only for the connected sensor."""
     assert tcp_packet_interface.AUTO_LOAD() == ["socket", "binary_sensor"]
+    assert tcp_packet_interface.AUTO_LOAD({}) == ["socket", "binary_sensor"]
     config = {"host": "192.168.1.50", "port": 6060}
     assert tcp_packet_interface.AUTO_LOAD(config) == ["socket"]
     config["connected"] = {"name": "Link"}
     assert tcp_packet_interface.AUTO_LOAD(config) == ["socket", "binary_sensor"]
+
+
+def test_timeout(setup_core) -> None:
+    """The timeout follows keep_alive unless given, and must be longer than it."""
+    base = {"host": "192.168.1.50", "port": 6060}
+    config = tcp_packet_interface.CONFIG_SCHEMA({**base, "keep_alive": "2s"})
+    assert config["timeout"].total_milliseconds == 6000
+    # A peer that sends keep-alives less often is matched with a longer timeout
+    config = tcp_packet_interface.CONFIG_SCHEMA({**base, "timeout": "90s"})
+    assert config["timeout"].total_milliseconds == 90000
+    with pytest.raises(cv.Invalid, match="longer than keep_alive"):
+        tcp_packet_interface.CONFIG_SCHEMA(
+            {**base, "keep_alive": "5s", "timeout": "5s"}
+        )
+    with pytest.raises(cv.Invalid):
+        tcp_packet_interface.CONFIG_SCHEMA({**base, "keep_alive": "2h"})
+    with pytest.raises(cv.Invalid):
+        tcp_packet_interface.CONFIG_SCHEMA({**base, "timeout": "4h"})
 
 
 @pytest.mark.parametrize(

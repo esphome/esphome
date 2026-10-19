@@ -140,9 +140,33 @@ TEST_F(TcpPacketInterfaceTest, KeepAliveKeepsIdleLinkUp) {
 
 TEST_F(TcpPacketInterfaceTest, SilentPeerClosesLink) {
   set_time(1000 + 30001);
-  this->a.link.loop();  // b has sent nothing for three keep-alive intervals
+  this->a.link.loop();  // b has sent nothing for the default timeout of 30 s
   EXPECT_FALSE(this->a.link.is_connected());
   EXPECT_EQ(this->a.states, (std::vector<bool>{true, false}));
+}
+
+TEST_F(TcpPacketInterfaceTest, SlowerPeerMatchedByTimeout) {
+  // b sends keep-alives every 20 s; three of a's own 5 s intervals would close the link
+  this->a.link.set_keep_alive(5000);
+  this->a.link.set_receive_timeout(60000);
+  this->b.link.set_keep_alive(20000);
+  this->b.link.set_receive_timeout(60000);
+  for (uint32_t now = 1000; now <= 121000; now += 5000) {
+    set_time(now);
+    this->loops(2);
+  }
+  EXPECT_TRUE(this->a.link.is_connected());
+  EXPECT_TRUE(this->b.link.is_connected());
+  EXPECT_EQ(this->a.states, std::vector<bool>{true});
+}
+
+TEST_F(TcpPacketInterfaceTest, ConnectedSensorStartsFalse) {
+  TestTcp link;
+  binary_sensor::BinarySensor sensor;
+  link.set_connected_sensor(&sensor);
+  link.setup();
+  EXPECT_TRUE(sensor.has_state());
+  EXPECT_FALSE(sensor.state);
 }
 
 TEST_F(TcpPacketInterfaceTest, OversizedLengthClosesLink) {

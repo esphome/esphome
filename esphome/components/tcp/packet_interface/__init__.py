@@ -22,6 +22,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PORT,
+    CONF_TIMEOUT,
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
@@ -33,7 +34,7 @@ DEPENDENCIES = ["network"]
 
 def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
     """The binary_sensor component only for the connected sensor; without a config, as tooling calls it, both."""
-    if config is None or CONF_CONNECTED in config:
+    if not config or CONF_CONNECTED in config:
         return ["socket", "binary_sensor"]
     return ["socket"]
 
@@ -45,6 +46,19 @@ tcp_ns = cg.esphome_ns.namespace("tcp")
 TcpPacketInterface = tcp_ns.class_(
     "TcpPacketInterface", packet_interface.PacketInterface
 )
+
+
+def _timeout(config: ConfigType) -> ConfigType:
+    """Default the timeout to three keep-alive intervals, and require it to be longer than one."""
+    keep_alive = config[CONF_KEEP_ALIVE].total_milliseconds
+    if (timeout := config.get(CONF_TIMEOUT)) is None:
+        config[CONF_TIMEOUT] = cv.positive_time_period_milliseconds(
+            f"{keep_alive * 3}ms"
+        )
+    elif timeout.total_milliseconds <= keep_alive:
+        raise cv.Invalid("Must be longer than keep_alive", path=[CONF_TIMEOUT])
+    return config
+
 
 BASE_SCHEMA = packet_interface_schema(
     TcpPacketInterface,
@@ -60,7 +74,12 @@ BASE_SCHEMA = packet_interface_schema(
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_KEEP_ALIVE, default="10s"): cv.All(
             cv.positive_time_period_milliseconds,
-            cv.Range(min=cv.TimePeriod(seconds=1)),
+            cv.Range(min=cv.TimePeriod(seconds=1), max=cv.TimePeriod(hours=1)),
+        ),
+        # Nothing received for this long closes the connection; it must be longer than the peer's keep_alive
+        cv.Optional(CONF_TIMEOUT): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(max=cv.TimePeriod(hours=3)),
         ),
         cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_CONNECTIVITY,
@@ -72,9 +91,15 @@ BASE_SCHEMA = packet_interface_schema(
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): socket.ipv4_host}),
-            "server": BASE_SCHEMA.extend(
-                {cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA}
+            "client": cv.All(
+                BASE_SCHEMA.extend({cv.Required(CONF_HOST): socket.ipv4_host}),
+                _timeout,
+            ),
+            "server": cv.All(
+                BASE_SCHEMA.extend(
+                    {cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA}
+                ),
+                _timeout,
             ),
         },
         key=CONF_ROLE,
@@ -104,5 +129,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     cg.add(var.set_keep_alive(config[CONF_KEEP_ALIVE]))
+    cg.add(var.set_receive_timeout(config[CONF_TIMEOUT]))
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
