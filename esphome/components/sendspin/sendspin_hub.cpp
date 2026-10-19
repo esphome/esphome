@@ -243,6 +243,14 @@ std::optional<std::string> SendspinHub::get_pairing_token() const {
   return this->client_->pairing_token();
 }
 
+// THREAD CONTEXT: Main loop
+StringRef SendspinHub::get_client_id() const {
+  if (this->client_ == nullptr) {
+    return StringRef();
+  }
+  return StringRef(this->client_->client_id());
+}
+
 // THREAD CONTEXT: Main loop (invoked from codegen before setup(), or from Sendspin components)
 void SendspinHub::set_unpaired_access_enabled(bool enabled) {
   this->unpaired_access_ = enabled;

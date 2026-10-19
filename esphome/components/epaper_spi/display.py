@@ -208,6 +208,7 @@ def _final_validate(config) -> None:
         else:
             # If no drawing methods are configured, and LVGL is not enabled, show a test card
             config[CONF_SHOW_TEST_CARD] = True
+            config[CONF_UPDATE_INTERVAL] = update_interval("1min")
     elif CONF_UPDATE_INTERVAL not in config:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")
 

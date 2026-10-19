@@ -403,6 +403,9 @@ message WizardCapabilities {
 message SendspinCapabilities {
   // Bitmask of the Sendspin features this device supports
   uint32 feature_flags = 1;
+  // The Sendspin client_id: base64url of the client's static public key, 43 characters.
+  // Empty until the Sendspin client has started once since boot.
+  string client_id = 2 [(max_data_length) = 43];
 }
 
 message DeviceCapabilitiesResponse {
@@ -3043,12 +3046,15 @@ enum SerialProxyIdentityFlag {
                                              // IDs below are empty
 }
 
-// The descriptor fields of a USB device as seen by the host stack
+// The descriptor fields of a USB device as seen by the host stack, and the port's index
+// among those a vendor driver exposes on the interface
 message UsbDeviceDescriptor {
   uint32 vendor_id = 1;
   uint32 product_id = 2;
   uint32 bcd_device = 3;
-  uint32 interface_number = 4;   // bInterfaceNumber the host driver binds to
+  uint32 interface_number = 4;  // bInterfaceNumber the port is bound through
+  uint32 interface_class = 5;   // bInterfaceClass of that interface
+  uint32 port_number = 6;
 }
 
 // The identity of the device behind a port. Identifies one physical device among others of

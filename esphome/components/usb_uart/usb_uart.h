@@ -39,6 +39,9 @@ struct CdcEps {
   // must remain valid even when the interface itself is not claimed.
   uint8_t interrupt_interface_number{0xFF};
   bool interrupt_interface_claimed{false};
+  // bInterfaceClass of each interface above, which decides how a host binds the port
+  uint8_t bulk_interface_class{0};
+  uint8_t interrupt_interface_class{0};
 };
 
 enum CH34xChipType : uint8_t {
@@ -186,6 +189,16 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
+  /// bInterfaceClass of the interface `get_interface_number()` names
+  uint8_t get_interface_class() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_class
+                                                             : this->cdc_dev_.bulk_interface_class;
+  }
+
+  /// Index of this port among the ports on its interface. Every driver here exposes one
+  /// port per interface; a multiplexed driver would index its channels.
+  uint8_t get_port_number() const { return 0; }
+
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
@@ -317,13 +330,17 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
-  USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+  USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {
+    // ch34x doesn't use the interrupt endpoint, and we don't have endpoints to spare. The
+    // comm interface is left in place unclaimed: on the CDC-style chips it is still the
+    // interface a host binds, and so the one the port is identified by.
+    this->claim_comm_interface_ = false;
+  }
   void dump_config() override;
 
  protected:
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
-  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
 
  private:
   CH34xChipType chiptype_{CHIP_UNKNOWN};
