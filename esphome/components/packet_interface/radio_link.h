@@ -28,9 +28,9 @@ class RadioLinkBase : public PacketInterface {
 /**
  * A packet interface link over a packet radio: each packet is one radio packet, with the RSSI and SNR of received
  * packets in the metadata. Sending waits for the radio to finish transmitting. A radio cannot hear while it sends, so
- * sending is refused while the radio is receiving a packet, and the layers above send again shortly. While a busy
- * period lasts, loop() watches the radio and ends the period as soon as the radio is free, so a later reception
- * starts a new one.
+ * sending is refused while the radio is receiving a packet. A reliability layer sends the packet again shortly, and
+ * entity_transport after a delay; other callers drop it, logging at debug level at most. While a busy period lasts,
+ * loop() watches the radio and ends the period as soon as the radio is free, so a later reception starts a new one.
  *
  * Radio provides is_receiving(), register_listener(Listener *) and transmit_packet(const uint8_t *, size_t), which
  * returns Error::NONE on success. Listener declares on_packet(packet, rssi, snr). MaxPacketSize is the radio's limit.
