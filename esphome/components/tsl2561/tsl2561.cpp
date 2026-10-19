@@ -119,15 +119,12 @@ void TSL2561Sensor::read_data_() {
     return;
   }
   // Power off
-  if (!this->tsl2561_write_byte(TSL2561_REGISTER_CONTROL, 0b00000000)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->tsl2561_write_byte(TSL2561_REGISTER_CONTROL, 0b00000000)))
     return;
-  }
 
   float lx = this->calculate_lx_(data0, data1);
   ESP_LOGD(TAG, "Got illuminance=%.1flx", lx);
   this->publish_state(lx);
-  this->status_clear_warning();
 }
 float TSL2561Sensor::get_integration_time_ms_() {
   switch (this->integration_time_) {

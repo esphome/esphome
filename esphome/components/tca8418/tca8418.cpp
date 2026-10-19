@@ -86,11 +86,8 @@ void TCA8418Component::loop() {
     return;
   this->last_poll_ = now;
 
-  if (!this->drain_events_(true)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->drain_events_(true)))
     return;
-  }
-  this->status_clear_warning();
 
   // Events that arrive during a read keep INT asserted without a new edge, so only stop once it is clear
   if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read())

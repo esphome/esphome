@@ -110,12 +110,10 @@ bool PCA9554Component::read_inputs_() {
   }
 
   this->last_error_ = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->last_error_ == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
-  this->status_clear_warning();
   this->input_mask_ = inputs[0];
   if (this->reg_width_ == 2) {
     this->input_mask_ |= inputs[1] << 8;
@@ -128,24 +126,15 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
   outputs[0] = (uint8_t) value;
   outputs[1] = (uint8_t) (value >> 8);
   this->last_error_ = this->write_register(reg * this->reg_width_, outputs, this->reg_width_);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->last_error_ == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCA9554GPIOPin::setup() { pin_mode(flags_); }
-void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PCA9554GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCA9554GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t PCA9554GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PCA9554", this->pin_);
-}
-
 }  // namespace esphome::pca9554
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pca9554::PCA9554Component, "%u via PCA9554")
