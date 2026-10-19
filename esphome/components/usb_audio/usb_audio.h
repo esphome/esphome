@@ -100,8 +100,8 @@ class USBAudioComponent : public Component {
   void set_speaker_volume_level(float volume);
   void set_speaker_mute_state(bool mute_state);
 
-  // Safe from any task. While the worker holds the driver for a control transfer, these return ESP_ERR_TIMEOUT after
-  // waiting out timeout_ms instead of blocking on the driver's interface lock for up to seconds.
+  // Safe from any task. While the worker holds the driver for a control transfer, these wait for it within timeout_ms
+  // and return ESP_ERR_TIMEOUT if it is still busy, instead of blocking on the driver's interface lock for seconds.
   esp_err_t read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms);
   esp_err_t write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms);
 
@@ -194,6 +194,9 @@ class USBAudioComponent : public Component {
   void run_op_(const Op &op);
   /// Keep platform reads and writes out of the driver while the worker uses it.
   void lock_driver_();
+  /// Platform side: wait, within timeout_ms, until the worker is not using the driver, and count the caller as a
+  /// driver user; timeout_ms is reduced by the wait. Returns false when the worker still holds it.
+  bool enter_driver_(uint32_t &timeout_ms);
   void unlock_driver_();
   bool populate_stream_config_(Endpoint endpoint, uac_host_device_handle_t handle,
                                uac_host_stream_config_t &stream_config, bool &rejected);

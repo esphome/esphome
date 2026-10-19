@@ -208,13 +208,28 @@ void USBAudioComponent::suspend(Endpoint endpoint) {
   this->queue_op_(op);
 }
 
+bool USBAudioComponent::enter_driver_(uint32_t &timeout_ms) {
+  const uint32_t start = millis();
+  while (true) {
+    // Counted before the busy check, so the worker waits for this call to leave the driver before it takes it.
+    this->driver_users_.fetch_add(1);
+    if (!this->driver_busy_) {
+      const uint32_t waited = millis() - start;
+      timeout_ms = waited < timeout_ms ? timeout_ms - waited : 0;
+      return true;
+    }
+    this->driver_users_.fetch_sub(1);
+    // A control request takes a few milliseconds, so go on as soon as the worker is done with it.
+    if (millis() - start >= timeout_ms) {
+      return false;
+    }
+    vTaskDelay(1);
+  }
+}
+
 esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_t *bytes_read, uint32_t timeout_ms) {
   *bytes_read = 0;
-  // Counted before the busy check, so the worker waits for this read to leave the driver before it takes it.
-  this->driver_users_.fetch_add(1);
-  if (this->driver_busy_) {
-    this->driver_users_.fetch_sub(1);
-    vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+  if (!this->enter_driver_(timeout_ms)) {
     return ESP_ERR_TIMEOUT;
   }
   uac_host_device_handle_t handle = this->endpoint_(Endpoint::MICROPHONE).handle;
@@ -232,14 +247,8 @@ esp_err_t USBAudioComponent::read_microphone(uint8_t *buffer, size_t size, size_
 }
 
 esp_err_t USBAudioComponent::write_speaker(const uint8_t *data, size_t length, uint32_t timeout_ms) {
-  // Counted before the busy check, so the worker waits for this write to leave the driver before it takes it.
-  this->driver_users_.fetch_add(1);
-  if (this->driver_busy_) {
-    this->driver_users_.fetch_sub(1);
-    // Back-pressure: a caller with a budget waits it out, a non-blocking caller retries later.
-    if (timeout_ms > 0) {
-      vTaskDelay(pdMS_TO_TICKS(timeout_ms));
-    }
+  if (!this->enter_driver_(timeout_ms)) {
+    // A non-blocking caller retries later.
     return ESP_ERR_TIMEOUT;
   }
   uac_host_device_handle_t handle = this->endpoint_(Endpoint::SPEAKER).handle;
