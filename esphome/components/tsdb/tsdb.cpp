@@ -1,5 +1,7 @@
 #include "tsdb.h"
 
+#ifdef USE_ESP_IDF
+
 #include <cinttypes>
 #include <cmath>
 #include <cstddef>
@@ -476,3 +478,5 @@ void TsdbComponent::dump_config() {
 }
 
 }  // namespace esphome::tsdb
+
+#endif  // USE_ESP_IDF
