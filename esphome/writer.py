@@ -814,9 +814,12 @@ def check_build_tree_not_tracked() -> None:
             env=env,
             timeout=5,
         )
+    except FileNotFoundError:
+        # No git installed, so the directory cannot be tracked.
+        return
     except (OSError, subprocess.TimeoutExpired) as err:
-        # This is a purely advisory check -- git missing, unreadable, or slow
-        # must never turn into a hard failure of the build itself.
+        # This is a purely advisory check -- an unusable or slow git must
+        # never turn into a hard failure of the build itself.
         _LOGGER.debug(
             "Could not check whether %s is tracked by git: %s", relative_data_dir, err
         )

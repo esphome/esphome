@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -1039,10 +1040,10 @@ def test_check_build_tree_not_tracked_silent_when_git_missing(
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.side_effect = FileNotFoundError()
 
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("DEBUG"):
         check_build_tree_not_tracked()
 
-    assert "tracked by git" not in caplog.text
+    assert caplog.text == ""
 
 
 @patch("esphome.writer.subprocess.run")
@@ -1060,10 +1061,11 @@ def test_check_build_tree_not_tracked_silent_on_other_os_error(
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.side_effect = PermissionError("git is not executable")
 
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("DEBUG"):
         check_build_tree_not_tracked()
 
-    assert "tracked by git" not in caplog.text
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert "Could not check whether" in caplog.text
 
 
 @patch("esphome.writer.subprocess.run")
@@ -1081,10 +1083,11 @@ def test_check_build_tree_not_tracked_silent_on_timeout(
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
 
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("DEBUG"):
         check_build_tree_not_tracked()
 
-    assert "tracked by git" not in caplog.text
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert "Could not check whether" in caplog.text
 
 
 @patch("esphome.writer.subprocess.run")
