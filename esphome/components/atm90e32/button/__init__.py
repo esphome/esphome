@@ -31,8 +31,11 @@ CONFIG_SCHEMA = {
 }
 
 
-def _press(action: str, *hints: str) -> str:
-    args = "".join(f", LOG_STR({cpp_string_escape(hint)})" for hint in hints)
+def _press(action: str, hint: str | None = None, hint2: str | None = None) -> str:
+    """press_calibration_button() logs at most two hint lines."""
+    args = "".join(
+        f", LOG_STR({cpp_string_escape(h)})" for h in (hint, hint2) if h is not None
+    )
     return f"press_calibration_button(entity, &{ATM90E32Component}::{action}{args})"
 
 

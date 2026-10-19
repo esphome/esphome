@@ -16,6 +16,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_SOURCE_ID): cv.use_id(button.Button),
         }
     )
+    # Kept so configs with setup_priority still validate; the Apply button is not a Component
     .extend(cv.COMPONENT_SCHEMA)
 )
 
