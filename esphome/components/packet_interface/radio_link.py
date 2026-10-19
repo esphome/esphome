@@ -7,7 +7,7 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -126,8 +126,13 @@ async def new_radio_link(
     radio = await cg.get_variable(config[radio_id_key])
     var = await new_packet_interface(config, radio, config[CONF_MAX_PACKET_SIZE])
     radio_config = next(
-        conf
-        for conf in CORE.config[radio_domain]
-        if conf[CONF_ID] == config[radio_id_key]
+        (
+            conf
+            for conf in CORE.config[radio_domain]
+            if conf[CONF_ID] == config[radio_id_key]
+        ),
+        None,
     )
+    if radio_config is None:
+        raise EsphomeError(f"No {radio_domain} radio with id '{config[radio_id_key]}'")
     cg.add(var.set_max_busy(max_busy_ms(radio_config, config[CONF_MAX_PACKET_SIZE])))

@@ -18,6 +18,8 @@ class RadioLinkBase : public PacketInterface {
   bool check_size_(size_t size) const;
   /// False if sending must wait, as the radio is busy; starts loop() to watch the radio.
   bool may_send_(bool busy);
+  /// Returns true for an empty packet, which the radios cannot send, so there is nothing to retry.
+  bool skip_empty_() const;
   /// Ends the busy period when loop() finds the radio free.
   void radio_free_();
   void receive_(const std::vector<uint8_t> &packet, float rssi, float snr);
@@ -56,7 +58,7 @@ class RadioLink : public RadioLinkBase, public Listener {
       return false;
     size_t size = data.size();
     if (size == 0)
-      return true;
+      return this->skip_empty_();
     if (!this->check_size_(size) || !this->may_send_(this->radio_->is_receiving()))
       return false;
     if (data.is_contiguous()) {

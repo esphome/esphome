@@ -21,8 +21,14 @@ bool RadioLinkBase::may_send_(bool busy) {
   if (!this->listen_before_talk_.may_send(busy, now))
     return false;
   if (busy) {
-    ESP_LOGD(TAG, "Radio busy for %" PRIu32 "ms, sending anyway", this->listen_before_talk_.busy_for(now));
+    // The limit is longer than any packet takes, so the radio's busy indication is stuck or the channel is jammed
+    ESP_LOGW(TAG, "Radio busy for %" PRIu32 "ms, sending anyway", this->listen_before_talk_.busy_for(now));
   }
+  return true;
+}
+
+bool RadioLinkBase::skip_empty_() const {
+  ESP_LOGV(TAG, "Empty packet not sent");
   return true;
 }
 
