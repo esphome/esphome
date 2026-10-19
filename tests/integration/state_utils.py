@@ -203,13 +203,11 @@ def require_only_entity[T: EntityInfo](
 def require_service(services: list[UserService], name: str) -> UserService:
     """Return the user service named exactly ``name``.
 
-    Fails the test with the available service names when it is missing.
+    Raises AssertionError with the available service names when it is missing.
     """
     service = next((s for s in services if s.name == name), None)
     if service is None:
-        import pytest
-
-        pytest.fail(
+        raise AssertionError(
             f"service '{name}' not found; available: {[s.name for s in services]}"
         )
     return service

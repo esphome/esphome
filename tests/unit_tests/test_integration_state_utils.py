@@ -60,7 +60,7 @@ def test_require_only_entity() -> None:
 def test_require_service() -> None:
     services = [UserService(name="set_level", key=1), UserService(name="set", key=2)]
     assert require_service(services, "set").key == 2
-    with pytest.raises(pytest.fail.Exception, match=r"'missing' not found.*set_level"):
+    with pytest.raises(AssertionError, match=r"'missing' not found.*set_level"):
         require_service(services, "missing")
 
 
