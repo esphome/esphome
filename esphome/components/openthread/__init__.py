@@ -412,11 +412,6 @@ def _validate_core_option_value(value: Any) -> str:
 
 
 def _validate_core_options_platform(options: dict[str, str]) -> dict[str, str]:
-    if CORE.is_nrf52:
-        raise cv.Invalid(
-            "core_options is not supported on nRF52: OpenThread is a prebuilt Nordic "
-            "library there"
-        )
     if not CORE.is_zephyr:
         return cv.only_on_esp32(options)
     if zephyr_framework_type() != "zephyr":
