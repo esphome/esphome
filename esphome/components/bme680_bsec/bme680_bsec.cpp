@@ -191,11 +191,7 @@ void BME680BSECComponent::loop() {
   } else {
     this->status_clear_error();
   }
-  if (this->bsec_status_ > BSEC_OK || this->bme680_status_ > BME680_OK) {
-    this->status_set_warning();
-  } else {
-    this->status_clear_warning();
-  }
+  this->status_comm_result(this->bsec_status_ <= BSEC_OK && this->bme680_status_ <= BME680_OK, nullptr);
 
   // Process a single action from the queue. These are primarily sensor state publishes
   // that in totality take too long to send in a single call.

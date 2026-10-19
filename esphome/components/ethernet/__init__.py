@@ -117,27 +117,28 @@ CONF_INTERFACE = "interface"
 CONF_CLOCK_SPEED = "clock_speed"
 
 EthernetType = ethernet_ns.enum("EthernetType")
-ETHERNET_TYPES = {
-    "LAN8720": EthernetType.ETHERNET_TYPE_LAN8720,
-    "RTL8201": EthernetType.ETHERNET_TYPE_RTL8201,
-    "DP83848": EthernetType.ETHERNET_TYPE_DP83848,
-    "IP101": EthernetType.ETHERNET_TYPE_IP101,
-    "JL1101": EthernetType.ETHERNET_TYPE_JL1101,
-    "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
-    "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
-    "W5100": EthernetType.ETHERNET_TYPE_W5100,
-    "W5500": EthernetType.ETHERNET_TYPE_W5500,
-    "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
-    "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
-    "LAN8670": EthernetType.ETHERNET_TYPE_LAN8670,
-    "ENC28J60": EthernetType.ETHERNET_TYPE_ENC28J60,
-    "W6100": EthernetType.ETHERNET_TYPE_W6100,
-    "W6300": EthernetType.ETHERNET_TYPE_W6300,
-    "GENERIC": EthernetType.ETHERNET_TYPE_GENERIC,
-    "YT8531": EthernetType.ETHERNET_TYPE_YT8531,
-    "CH390": EthernetType.ETHERNET_TYPE_CH390,
-    "KSZ8851SNL": EthernetType.ETHERNET_TYPE_KSZ8851SNL,
-}
+ETHERNET_TYPES = EthernetType.options(
+    "LAN8720",
+    "RTL8201",
+    "DP83848",
+    "IP101",
+    "JL1101",
+    "KSZ8081",
+    "KSZ8081RNA",
+    "W5100",
+    "W5500",
+    "OPENETH",
+    "DM9051",
+    "LAN8670",
+    "ENC28J60",
+    "W6100",
+    "W6300",
+    "GENERIC",
+    "YT8531",
+    "CH390",
+    "KSZ8851SNL",
+    prefix="ETHERNET_TYPE_",
+)
 
 # PHY types that need compile-time defines for conditional compilation
 # Each RMII PHY type gets a define so unused PHY drivers are excluded by the linker
@@ -207,10 +208,7 @@ SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 
-CLK_MODES = {
-    "CLK_EXT_IN": emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
-    "CLK_OUT": emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-}
+CLK_MODES = emac_rmii_clock_mode_t.options("CLK_EXT_IN", "CLK_OUT", prefix="EMAC_")
 
 spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
 
@@ -717,8 +715,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         if (spi_id := config.get(CONF_SPI_ID)) is not None:
             # Pins and host come from the shared spi bus.
-            spi_parent = await cg.get_variable(spi_id)
-            cg.add(var.set_spi_parent(spi_parent))
+            await cg.add_variable(var.set_spi_parent, spi_id)
         else:
             cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
             cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))

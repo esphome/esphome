@@ -27,7 +27,7 @@ void PCA6416AComponent::setup() {
   uint8_t value;
   if (!this->read_register_(PCA6416A_INPUT0, &value)) {
     ESP_LOGE(TAG, "PCA6416A not available under 0x%02X", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -77,9 +77,6 @@ void PCA6416AComponent::dump_config() {
   }
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 bool PCA6416AComponent::digital_read_hw(uint8_t pin) {
@@ -141,13 +138,10 @@ bool PCA6416AComponent::read_register_(uint8_t reg, uint8_t *value) {
   }
 
   this->last_error_ = this->read_register(reg, value, 1);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->last_error_ == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 
@@ -158,13 +152,10 @@ bool PCA6416AComponent::write_register_(uint8_t reg, uint8_t value) {
   }
 
   this->last_error_ = this->write_register(reg, &value, 1);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->last_error_ == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 

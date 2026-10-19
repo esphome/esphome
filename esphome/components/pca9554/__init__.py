@@ -48,8 +48,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pin_count(config[CONF_PIN_COUNT]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
 def validate_mode(value: ConfigType) -> ConfigType:

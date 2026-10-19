@@ -50,7 +50,6 @@ class TcpListener {
   std::unique_ptr<ListenSocket> listen_;
   const char *tag_{nullptr};
 #ifdef USE_SOCKET_IPV4_ALLOW
-  uint32_t last_reject_log_ms_{0};
   Ipv4Allow allow_;
 #endif
 };

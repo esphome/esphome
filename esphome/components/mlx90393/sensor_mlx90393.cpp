@@ -112,7 +112,7 @@ void MLX90393Cls::setup() {
   this->mlx_.begin_with_hal(this, 0, 0);
 
   if (!this->apply_all_settings_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 
   // start verify settings process
@@ -123,10 +123,8 @@ void MLX90393Cls::dump_config() {
   ESP_LOGCONFIG(TAG, "MLX90393:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
@@ -250,16 +248,12 @@ void MLX90393Cls::verify_settings_timeout_(MLX90393Setting stage) {
 
   if (!is_setting_ok) {
     if (this->mlx_.checkStatus(this->mlx_.reset()) != MLX90393::STATUS_OK) {
-      ESP_LOGE(TAG, "failed to reset device");
-      this->status_set_error();
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Failed to reset device"));
       return;
     }
 
     if (!this->apply_all_settings_()) {
-      ESP_LOGE(TAG, "failed to re-apply settings");
-      this->status_set_error();
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Failed to re-apply settings"));
     } else {
       ESP_LOGI(TAG, "reset and re-apply settings completed");
     }
