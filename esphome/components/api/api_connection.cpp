@@ -84,7 +84,7 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 
-static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
+static const char ESPHOME_VERSION_P[] PROGMEM = ESPHOME_VERSION;
 
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
@@ -1914,7 +1914,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 19;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
-  resp.server_info = ESPHOME_VERSION_REF;
+  resp.server_info = ProgmemStringRef::from_lit(ESPHOME_VERSION_P);
   resp.name = StringRef(App.get_name());
 
 #ifdef USE_PROVISIONING
@@ -1969,14 +1969,13 @@ bool APIConnection::send_device_info_response_() {
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);
 
-  resp.esphome_version = ESPHOME_VERSION_REF;
+  resp.esphome_version = ProgmemStringRef::from_lit(ESPHOME_VERSION_P);
 
   // Stack buffer for build time string
   char build_time_str[Application::BUILD_TIME_STR_SIZE];
   App.get_build_time_string(build_time_str);
   resp.compilation_time = StringRef(build_time_str);
 
-  // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 #define ESPHOME_MANUFACTURER "Espressif"
 #elif defined(USE_RP2)
@@ -1993,47 +1992,21 @@ bool APIConnection::send_device_info_response_() {
 #define ESPHOME_MANUFACTURER "Host"
 #endif
 
-#ifdef USE_ESP8266
-  // ESP8266 requires PROGMEM for flash storage, copy to stack for memcpy compatibility
-  static const char MANUFACTURER_PROGMEM[] PROGMEM = ESPHOME_MANUFACTURER;
-  char manufacturer_buf[sizeof(MANUFACTURER_PROGMEM)];
-  memcpy_P(manufacturer_buf, MANUFACTURER_PROGMEM, sizeof(MANUFACTURER_PROGMEM));
-  resp.manufacturer = StringRef(manufacturer_buf, sizeof(MANUFACTURER_PROGMEM) - 1);
-#else
-  static constexpr auto MANUFACTURER = StringRef::from_lit(ESPHOME_MANUFACTURER);
-  resp.manufacturer = MANUFACTURER;
-#endif
-  static_assert(sizeof(ESPHOME_MANUFACTURER) - 1 <= 20, "Update max_data_length for manufacturer in api.proto");
+  static const char MANUFACTURER[] PROGMEM = ESPHOME_MANUFACTURER;
+  resp.manufacturer = ProgmemStringRef::from_lit(MANUFACTURER);
+  static_assert(sizeof(MANUFACTURER) - 1 <= 20, "Update max_data_length for manufacturer in api.proto");
 #undef ESPHOME_MANUFACTURER
 
-#ifdef USE_ESP8266
-  static const char MODEL_PROGMEM[] PROGMEM = ESPHOME_BOARD;
-  char model_buf[sizeof(MODEL_PROGMEM)];
-  memcpy_P(model_buf, MODEL_PROGMEM, sizeof(MODEL_PROGMEM));
-  resp.model = StringRef(model_buf, sizeof(MODEL_PROGMEM) - 1);
-#else
-  static constexpr auto MODEL = StringRef::from_lit(ESPHOME_BOARD);
-  resp.model = MODEL;
-#endif
+  static const char MODEL[] PROGMEM = ESPHOME_BOARD;
+  resp.model = ProgmemStringRef::from_lit(MODEL);
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-#ifdef USE_ESP8266
-  static const char PROJECT_NAME_PROGMEM[] PROGMEM = ESPHOME_PROJECT_NAME;
-  static const char PROJECT_VERSION_PROGMEM[] PROGMEM = ESPHOME_PROJECT_VERSION;
-  char project_name_buf[sizeof(PROJECT_NAME_PROGMEM)];
-  char project_version_buf[sizeof(PROJECT_VERSION_PROGMEM)];
-  memcpy_P(project_name_buf, PROJECT_NAME_PROGMEM, sizeof(PROJECT_NAME_PROGMEM));
-  memcpy_P(project_version_buf, PROJECT_VERSION_PROGMEM, sizeof(PROJECT_VERSION_PROGMEM));
-  resp.project_name = StringRef(project_name_buf, sizeof(PROJECT_NAME_PROGMEM) - 1);
-  resp.project_version = StringRef(project_version_buf, sizeof(PROJECT_VERSION_PROGMEM) - 1);
-#else
-  static constexpr auto PROJECT_NAME = StringRef::from_lit(ESPHOME_PROJECT_NAME);
-  static constexpr auto PROJECT_VERSION = StringRef::from_lit(ESPHOME_PROJECT_VERSION);
-  resp.project_name = PROJECT_NAME;
-  resp.project_version = PROJECT_VERSION;
-#endif
+  static const char PROJECT_NAME[] PROGMEM = ESPHOME_PROJECT_NAME;
+  static const char PROJECT_VERSION[] PROGMEM = ESPHOME_PROJECT_VERSION;
+  resp.project_name = ProgmemStringRef::from_lit(PROJECT_NAME);
+  resp.project_version = ProgmemStringRef::from_lit(PROJECT_VERSION);
 #endif
 #ifdef USE_WEBSERVER
   resp.webserver_port = USE_WEBSERVER_PORT;
