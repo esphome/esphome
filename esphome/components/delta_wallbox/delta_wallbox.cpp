@@ -17,15 +17,18 @@ static constexpr uint8_t FC_READ_HOLDING_REGISTERS = 0x03;
 static constexpr uint8_t FC_WRITE_SINGLE_REGISTER = 0x06;
 static constexpr uint8_t FC_WRITE_MULTIPLE_REGISTERS = 0x10;
 static constexpr uint8_t FC_EXCEPTION_FLAG = 0x80;
+
 // Response lengths in bytes, CRC included
 static constexpr size_t READ_RESPONSE_OVERHEAD = 5;
 static constexpr size_t WRITE_RESPONSE_LEN = 8;
 static constexpr size_t EXCEPTION_RESPONSE_LEN = 5;
+
 // Frame bodies without CRC
 static constexpr size_t LOGIN_BODY_LEN = 35;
 static constexpr size_t LOGIN_PASS_LEN = 22;
 static constexpr size_t LOGIN_USER_LEN = 6;
 static constexpr size_t TIME_SYNC_BODY_LEN = 15;
+
 static constexpr uint8_t REGISTER_BYTE_COUNT = 2;
 static constexpr uint8_t TWO_REGISTER_BYTE_COUNT = 4;
 static constexpr uint8_t CHARGING_INFO_BYTE_COUNT = 18;
@@ -36,10 +39,12 @@ static constexpr uint16_t PAIRING_STATUS_READY = 0x0007;
 static constexpr uint16_t PAIRING_STATUS_WAITING = 0x0008;
 static constexpr uint8_t LOGIN_ACCEPTED = 0x01;
 static constexpr uint8_t CHARGING_STATE_ACTIVE = 0x03;
+
 // Clock used until the time source reports a valid time
 static constexpr int DEFAULT_TIME_YEAR = 2026;
 static constexpr int DEFAULT_TIME_MONTH = 1;
 static constexpr int DEFAULT_TIME_DAY = 1;
+
 static constexpr uint8_t CMD_POLL_CHARGING[] = {0x01, 0x03, 0x01, 0x1B, 0x00, 0x09};
 static constexpr uint8_t CMD_GET_MODEL[] = {0x01, 0x03, 0x01, 0x85, 0x00, 0x0E};
 static constexpr uint8_t CMD_GET_BT_FW_VERSION[] = {0x02, 0x03, 0x01, 0x00, 0x00, 0x01};
@@ -138,22 +143,11 @@ static std::array<uint8_t, LOGIN_BODY_LEN> build_login_body(StringRef user, Stri
 static std::array<uint8_t, TIME_SYNC_BODY_LEN> build_time_sync_body(int year, int month, int day, int hour, int minute,
                                                                     int second, int weekday) {
   const uint8_t weekday_bitmap = static_cast<uint8_t>(1 << weekday);  // Sunday=bit0, Mon=bit1...
-  return {
-      0x01,
-      0x10,
-      0x01,
-      0x14,
-      0x00,
-      0x04,
-      0x08,  // Unit, FC16, register 0x0114, 4 registers, 8 bytes
+  return {0x01,0x10,0x01,0x14,0x00,0x04,0x08,  // Unit, FC16, register 0x0114, 4 registers, 8 bytes
       static_cast<uint8_t>(year % 100),
-      static_cast<uint8_t>(month),
-      weekday_bitmap,
-      static_cast<uint8_t>(day),
-      static_cast<uint8_t>(hour),
-      static_cast<uint8_t>(minute),
-      static_cast<uint8_t>(second),
-      0x00,
+      static_cast<uint8_t>(month),weekday_bitmap,
+      static_cast<uint8_t>(day),static_cast<uint8_t>(hour),
+      static_cast<uint8_t>(minute),static_cast<uint8_t>(second),0x00,
   };
 }
 
@@ -293,6 +287,13 @@ void DeltaWallbox::send_next_state_command_() {
   this->last_tx_time_ = App.get_loop_component_start_time();
 }
 
+void DeltaWallbox::advance_to_(DeltaState next) {
+  ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
+           delta_state_to_string(next));
+  this->state_ = next;
+  this->send_next_state_command_();
+}
+
 void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
   ESP_LOGD(TAG, "Received valid frame in state %s: func=0x%02X len=%u", delta_state_to_string(this->state_), frame[1],
            (unsigned int) len);
@@ -317,10 +318,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       if (this->model_name_sensor_ != nullptr) {
         this->model_name_sensor_->publish_state(model);
       }
-      ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-               delta_state_to_string(DeltaState::DELTA_STATE_GET_BT_FW_VERSION));
-      this->state_ = DeltaState::DELTA_STATE_GET_BT_FW_VERSION;
-      this->send_next_state_command_();
+      this->advance_to_(DeltaState::DELTA_STATE_GET_BT_FW_VERSION);
       break;
     }
     case DeltaState::DELTA_STATE_GET_BT_FW_VERSION: {
@@ -334,10 +332,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->bt_fw_version_sensor_->publish_state(ver);
         }
       }
-      ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-               delta_state_to_string(DeltaState::DELTA_STATE_CHECK_PAIRING));
-      this->state_ = DeltaState::DELTA_STATE_CHECK_PAIRING;
-      this->send_next_state_command_();
+      this->advance_to_(DeltaState::DELTA_STATE_CHECK_PAIRING);
       break;
     }
     case DeltaState::DELTA_STATE_CHECK_PAIRING: {
@@ -348,10 +343,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->pairing_in_progress_ = false;
           this->pairing_attempts_ = 0;
           ESP_LOGI(TAG, "Pairing ready and confirmed!");
-          ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-                   delta_state_to_string(DeltaState::DELTA_STATE_GET_LOGIN_USER));
-          this->state_ = DeltaState::DELTA_STATE_GET_LOGIN_USER;
-          this->send_next_state_command_();
+          this->advance_to_(DeltaState::DELTA_STATE_GET_LOGIN_USER);
         } else if (status == PAIRING_STATUS_WAITING) {
           ESP_LOGW(TAG, "Wallbox is waiting to be paired by the system controller (attempt %u, in_progress=%s).",
                    this->pairing_attempts_ + 1,
@@ -377,24 +369,15 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       break;
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_USER: {
-      ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-               delta_state_to_string(DeltaState::DELTA_STATE_GET_LOGIN_RESULT0));
-      this->state_ = DeltaState::DELTA_STATE_GET_LOGIN_RESULT0;
-      this->send_next_state_command_();
+      this->advance_to_(DeltaState::DELTA_STATE_GET_LOGIN_RESULT0);
       break;
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_RESULT0: {
-      ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-               delta_state_to_string(DeltaState::DELTA_STATE_SEND_LOGIN_CREDENTIALS));
-      this->state_ = DeltaState::DELTA_STATE_SEND_LOGIN_CREDENTIALS;
-      this->send_next_state_command_();
+      this->advance_to_(DeltaState::DELTA_STATE_SEND_LOGIN_CREDENTIALS);
       break;
     }
     case DeltaState::DELTA_STATE_SEND_LOGIN_CREDENTIALS: {
-      ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-               delta_state_to_string(DeltaState::DELTA_STATE_GET_LOGIN_RESULT));
-      this->state_ = DeltaState::DELTA_STATE_GET_LOGIN_RESULT;
-      this->send_next_state_command_();
+      this->advance_to_(DeltaState::DELTA_STATE_GET_LOGIN_RESULT);
       break;
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_RESULT: {
@@ -402,10 +385,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         uint8_t login_val = frame[4];  // respondent data_lo
         if (login_val == LOGIN_ACCEPTED) {
           ESP_LOGI(TAG, "Credentials accepted! Logged in as Admin.");
-          ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-                   delta_state_to_string(DeltaState::DELTA_STATE_GET_LOGIN_ROLE));
-          this->state_ = DeltaState::DELTA_STATE_GET_LOGIN_ROLE;
-          this->send_next_state_command_();
+          this->advance_to_(DeltaState::DELTA_STATE_GET_LOGIN_ROLE);
         } else {
           ESP_LOGE(TAG, "Login validation failed (0x%02X). Check password.", login_val);
           this->reset_state_();
@@ -414,17 +394,11 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       break;
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_ROLE: {
-      ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-               delta_state_to_string(DeltaState::DELTA_STATE_TIME_SYNC));
-      this->state_ = DeltaState::DELTA_STATE_TIME_SYNC;
-      this->send_next_state_command_();
+      this->advance_to_(DeltaState::DELTA_STATE_TIME_SYNC);
       break;
     }
     case DeltaState::DELTA_STATE_TIME_SYNC: {
-      ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-               delta_state_to_string(DeltaState::DELTA_STATE_GET_CHARGER_FW_VERSION));
-      this->state_ = DeltaState::DELTA_STATE_GET_CHARGER_FW_VERSION;
-      this->send_next_state_command_();
+      this->advance_to_(DeltaState::DELTA_STATE_GET_CHARGER_FW_VERSION);
       break;
     }
     case DeltaState::DELTA_STATE_GET_CHARGER_FW_VERSION: {
@@ -436,9 +410,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->fw_version_sensor_->publish_state(ver);
         }
       }
-      ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-               delta_state_to_string(DeltaState::DELTA_STATE_CONNECTED));
-      this->state_ = DeltaState::DELTA_STATE_CONNECTED;
+      this->advance_to_(DeltaState::DELTA_STATE_CONNECTED);
       ESP_LOGI(TAG, "Authentication complete. Core parameters loaded.");
       this->status_clear_warning();
       this->update();  // perform first poll update immediately
@@ -689,10 +661,7 @@ void DeltaWallbox::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_c
                  param->ble_security.auth_cmpl.auth_mode, param->ble_security.auth_cmpl.addr_type);
         this->pairing_attempts_ = 0;
         if (this->node_state == esp32_ble_tracker::ClientState::ESTABLISHED) {
-          ESP_LOGD(TAG, "State transition: %s -> %s after BLE auth completion.", delta_state_to_string(this->state_),
-                   delta_state_to_string(DeltaState::DELTA_STATE_CHECK_PAIRING));
-          this->state_ = DeltaState::DELTA_STATE_CHECK_PAIRING;
-          this->send_next_state_command_();
+          this->advance_to_(DeltaState::DELTA_STATE_CHECK_PAIRING);
         }
       } else {
         ESP_LOGW(TAG, "BLE pairing failed, reason=%d", param->ble_security.auth_cmpl.fail_reason);
@@ -702,5 +671,7 @@ void DeltaWallbox::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_c
       break;
   }
 }
+
 }  // namespace esphome::delta_wallbox
+
 #endif
