@@ -1534,6 +1534,21 @@ async def test_sub_entities_apply_errors(
 
 
 @pytest.mark.asyncio
+async def test_sub_entities_apply_without_parent_needs_namespaced_call(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """A hub method with no parent bound fails in Python, not as an undeclared name in C++."""
+    calls: list[tuple[Any, ...]] = []
+    conf = _apply_conf("k_id", _BUTTON_APPLY.cls)
+    sub = _apply_sub(calls, {"k": conf}, _BUTTON_APPLY, parent=None)
+    with pytest.raises(ValueError, match="namespaced free function"):
+        await sub("k", None, apply="restart()")
+    assert calls == []
+    assert apply_functions == []
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("apply_entity", "type_", "publish", "params", "body"),
     [
