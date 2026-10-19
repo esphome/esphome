@@ -4,7 +4,7 @@ from esphome.components import i2c, key_provider
 from esphome.components.const import CONF_KEYS
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
+    CONF_ID as CONF_ID,
     CONF_INPUT,
     CONF_ON_KEY,
     CONF_OPEN_DRAIN,

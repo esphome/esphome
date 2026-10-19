@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
     CONF_ENABLE_PIN,
-    CONF_ID,
     CONF_INPUT,
     CONF_MODE,
     CONF_NUMBER,
