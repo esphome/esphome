@@ -108,6 +108,8 @@ class USBAudioComponent : public Component {
  protected:
   static constexpr size_t EVENT_QUEUE_LENGTH = 16;
   static constexpr size_t OP_QUEUE_LENGTH = 8;
+  // Extra driver ring buffer space above the speaker's buffer_size, see Op::Type::OPEN.
+  static constexpr uint32_t SPEAKER_RING_SLACK = 4;
 
   struct EndpointState {
     // Read by the platform tasks and the worker; cleared first when the device goes away.

@@ -599,11 +599,15 @@ void USBAudioComponent::run_op_(const Op &op) {
 
   switch (op.type) {
     case Op::Type::OPEN: {
-      const uint32_t buffer_size = this->endpoint_(op.endpoint).platform->get_buffer_size();
-      // The driver raises TX_DONE after taking a transfer only while the ring buffer holds at most the threshold, so
-      // the speaker sets it just below the size (the driver needs it smaller) to hear about every transfer.
-      const uint32_t threshold =
-          op.endpoint == Endpoint::SPEAKER ? buffer_size - 1 : std::max<uint32_t>(buffer_size / 4, 1U);
+      uint32_t buffer_size = this->endpoint_(op.endpoint).platform->get_buffer_size();
+      uint32_t threshold = std::max<uint32_t>(buffer_size / 4, 1U);
+      if (op.endpoint == Endpoint::SPEAKER) {
+        // The driver raises TX_DONE after taking a transfer only while the ring buffer holds at most the threshold,
+        // and it needs the threshold below the size. The speaker never fills past its buffer_size, so it hears about
+        // every transfer even when a waiting write lands right after one.
+        threshold = buffer_size;
+        buffer_size += SPEAKER_RING_SLACK;
+      }
       uac_host_device_config_t dev_cfg = {
           .addr = op.addr,
           .iface_num = op.iface_num,

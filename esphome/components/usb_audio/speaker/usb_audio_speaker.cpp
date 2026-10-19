@@ -190,7 +190,16 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     if (budget_ms > 0 && elapsed >= budget_ms) {
       break;
     }
-    const size_t chunk = std::min<size_t>(length - written, this->write_chunk_);
+    const size_t chunk = std::min<size_t>({length - written, this->write_chunk_, this->ring_room_()});
+    if (chunk == 0) {
+      // Back-pressure: wait for the driver to take a transfer.
+      if (budget_ms == 0) {
+        break;
+      }
+      vTaskDelay(1);
+      now = millis();
+      continue;
+    }
     const uint32_t timeout_ms = budget_ms > 0 ? budget_ms - elapsed : 0;
     const esp_err_t err = this->write_(data + written, chunk, timeout_ms, false);
     now = millis();
@@ -210,6 +219,13 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
   }
   this->writes_in_flight_.fetch_sub(1);
   return written;
+}
+
+size_t USBAudioSpeaker::ring_room_() const {
+  // Whole frames up to buffer_size_. ring_bytes_ is never below the real fill, so a write of this much does not wait.
+  const uint32_t ring = this->ring_bytes_;
+  const uint32_t room = ring < this->buffer_size_ ? this->buffer_size_ - ring : 0;
+  return room - room % this->frame_bytes_;
 }
 
 esp_err_t USBAudioSpeaker::write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding) {
@@ -238,8 +254,8 @@ void USBAudioSpeaker::pad_with_silence_() {
   this->writes_in_flight_.fetch_add(1);
   const size_t piece = sizeof(SILENCE) - sizeof(SILENCE) % this->usb_stream_info_.frames_to_bytes(1);
   while (this->pad_remaining_ > 0) {
-    const size_t chunk = std::min<size_t>(this->pad_remaining_, piece);
-    if (this->write_(SILENCE, chunk, 0, true) != ESP_OK) {
+    const size_t chunk = std::min<size_t>({this->pad_remaining_, piece, this->ring_room_()});
+    if (chunk == 0 || this->write_(SILENCE, chunk, 0, true) != ESP_OK) {
       // A full buffer; the rest is written on a later loop().
       break;
     }
