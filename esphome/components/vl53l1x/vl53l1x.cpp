@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <iterator>
 
@@ -391,16 +392,8 @@ void VL53L1XSensor::loop() {
   this->publish_state(distance_mm / 1000.0f);
 }
 
-static const LogString *distance_mode_name(DistanceMode mode) {
-  switch (mode) {
-    case DISTANCE_MODE_SHORT:
-      return LOG_STR("short");
-    case DISTANCE_MODE_MEDIUM:
-      return LOG_STR("medium");
-    default:
-      return LOG_STR("long");
-  }
-}
+// Indexed by DistanceMode
+PROGMEM_STRING_TABLE(DistanceModeStrings, "short", "medium", "long");
 
 void VL53L1XSensor::dump_config() {
   LOG_SENSOR("", "VL53L1X", this);
@@ -412,8 +405,8 @@ void VL53L1XSensor::dump_config() {
                 "  Timing Budget: %u ms\n"
                 "  ROI: %ux%u\n"
                 "  Offset: %d mm",
-                LOG_STR_ARG(distance_mode_name(this->distance_mode_)), this->budget_ms_, this->roi_width_,
-                this->roi_height_, this->offset_mm_);
+                LOG_STR_ARG(DistanceModeStrings::get_log_str(this->distance_mode_, DistanceModeStrings::LAST_INDEX)),
+                this->budget_ms_, this->roi_width_, this->roi_height_, this->offset_mm_);
   if (this->roi_center_ != 0) {
     ESP_LOGCONFIG(TAG, "  ROI Center: %u", this->roi_center_);
   }

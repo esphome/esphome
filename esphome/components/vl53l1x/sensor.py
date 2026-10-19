@@ -26,11 +26,9 @@ VL53L1XSensor = vl53l1x_ns.class_(
 )
 
 DistanceMode = vl53l1x_ns.enum("DistanceMode")
-DISTANCE_MODE_OPTIONS = {
-    "short": DistanceMode.DISTANCE_MODE_SHORT,
-    "medium": DistanceMode.DISTANCE_MODE_MEDIUM,
-    "long": DistanceMode.DISTANCE_MODE_LONG,
-}
+DISTANCE_MODE_OPTIONS = DistanceMode.options(
+    "short", "medium", "long", prefix="DISTANCE_MODE_"
+)
 
 CONF_DISTANCE_MODE = "distance_mode"
 CONF_TIMING_BUDGET = "timing_budget"
@@ -170,5 +168,4 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_roi_center(roi_center))
     cg.add(var.set_offset(config[CONF_OFFSET]))
 
-    if (enable_pin := config.get(CONF_ENABLE_PIN)) is not None:
-        cg.add(var.set_enable_pin(await cg.gpio_pin_expression(enable_pin)))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
