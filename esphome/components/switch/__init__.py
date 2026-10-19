@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import automation, preferences
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -87,7 +89,7 @@ def _validate_restore_state_storage(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_restore_state_state(value):
+def _validate_restore_state_state(value: object) -> str:
     # light accepts ON/OFF here (restore, then force a state); a switch has no such mode, and
     # YAML turns ON into True, so say what to use instead of asking for quotes
     if isinstance(value, bool) or (
@@ -114,7 +116,7 @@ _RESTORE_STATE_FIELDS_SCHEMA.add_extra(_validate_restore_state_storage)
 
 
 @schema_extractor("schema")
-def RESTORE_STATE_SCHEMA(value):
+def RESTORE_STATE_SCHEMA(value: object) -> ConfigType:
     """A mapping of `state` and `storage`, or light's shorthands `all` (KEEP) and `none`."""
     if value == SCHEMA_EXTRACT:
         return _RESTORE_STATE_FIELDS_SCHEMA
@@ -156,7 +158,9 @@ _STATE_FOR_RESTORE_MODE = {
 }
 
 
-def _apply_default_restore_mode(default_restore_mode: str):
+def _apply_default_restore_mode(
+    default_restore_mode: str,
+) -> Callable[[ConfigType], ConfigType]:
     # cv.Exclusive has no default, so apply it here when no restore option is configured.
     # With only initial_state set, a restoring default keeps restoring and initial_state
     # supplies the state used when nothing is saved.
