@@ -13,6 +13,8 @@ namespace esphome::dfrobot_sen0395 {
 ESPHOME_LOG_TAG(TAG, "dfrobot_sen0395");
 static constexpr float DET_RANGE_STEP_M = 0.15f;
 static constexpr float LATENCY_STEP_S = 0.025f;
+// Sent after a reset with no line end
+static constexpr char PROMPT[] PROGMEM = "leapMMW:/>";
 
 // What each CommandType cannot do while the sensor runs; empty for commands that do not need it stopped
 PROGMEM_STRING_TABLE(BusyActions, "", "configure range config", "configure output latency",
@@ -228,7 +230,7 @@ bool DfrobotSen0395Component::handle_reply_(const Command &cmd, const char *mess
       }
       return true;
     case CommandType::COMMAND_TYPE_RESET_SYSTEM:
-      if (!is(ESPHOME_PSTR("leapMMW:/>")))
+      if (!is(PROMPT))
         return false;
       ESP_LOGI(TAG, "Restarted sensor.");
       return true;
@@ -305,8 +307,7 @@ const char *DfrobotSen0395Component::read_message_() {
     if (byte >= 0x7F)
       byte = '?';  // needs to be valid utf8 string for log functions.
     const char *line = this->line_reader_.feed(byte);
-    // The "leapMMW:/>" prompt has no line end
-    if (line == nullptr && byte == '>' && this->line_reader_.length() == 10) {
+    if (line == nullptr && byte == '>' && this->line_reader_.length() == sizeof(PROMPT) - 1) {
       line = this->line_reader_.partial();
       this->line_reader_.reset();
     }
