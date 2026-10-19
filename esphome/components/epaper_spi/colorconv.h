@@ -85,8 +85,8 @@ constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_
 
 /** Map RGB color to discrete BWR (black/white/red) 3 color key
  *
- * Convenience wrapper over color_to_bwyr for panels without a yellow ink; the yellow corner is
- * folded into white.
+ * Grays map to black or white by luma; other colors map to whichever of black, white or red is
+ * nearest in RGB space, so e.g. orange renders as red rather than being folded into white.
  *
  * @tparam NATIVE_COLOR  Type of native hardware color values
  * @param color     RGB color to convert from
@@ -97,7 +97,24 @@ constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwr(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white, NATIVE_COLOR hw_red) {
-  return color_to_bwyr<NATIVE_COLOR>(color, hw_black, hw_white, /*hw_yellow=*/hw_white, hw_red);
+  const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
+
+  if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
+    return color_to_mono(color) ? hw_white : hw_black;
+  }
+
+  const int r = color.r;
+  const int g = color.g;
+  const int b = color.b;
+  const int d_black = r * r + g * g + b * b;
+  const int d_white = (255 - r) * (255 - r) + (255 - g) * (255 - g) + (255 - b) * (255 - b);
+  const int d_red = (255 - r) * (255 - r) + g * g + b * b;
+
+  if (d_red < d_white && d_red < d_black) {
+    return hw_red;
+  }
+  // Ties (e.g. yellow) go to white
+  return d_white <= d_black ? hw_white : hw_black;
 }
 
 /** Map RGB color to discrete BWYRGB hex 6 color key
