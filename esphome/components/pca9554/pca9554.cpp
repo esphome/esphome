@@ -150,12 +150,10 @@ bool PCA9554Component::read_inputs_() {
   }
 
   const i2c::ErrorCode err = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_);
-  if (err != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) err);
     return false;
   }
-  this->status_clear_warning();
   this->input_mask_ = inputs[0];
   if (this->reg_width_ == 2) {
     this->input_mask_ |= inputs[1] << 8;
@@ -172,13 +170,10 @@ bool PCA9554Component::write_address_(uint8_t address, uint16_t value) {
   outputs[0] = (uint8_t) value;
   outputs[1] = (uint8_t) (value >> 8);
   const i2c::ErrorCode err = this->write_register(address, outputs, this->reg_width_);
-  if (err != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "write_register(): I2C I/O error: %d", (int) err);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 
