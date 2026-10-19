@@ -84,13 +84,16 @@ async def test_uart_tcp_bridge(
 
             reader, writer = await asyncio.open_connection("127.0.0.1", server_port)
             await wait_log_count("Client connected", 1)
+            # The accept log precedes the stale discard in the same loop pass, so
+            # prove the device is past it with a client to UART round trip before
+            # writing the bytes the client must see.
+            writer.write(b"down1")
+            await writer.drain()
+            assert await read_uart(5) == b"down1"
             os.write(controller_fd, b"live!")
             assert await asyncio.wait_for(reader.readexactly(5), 10) == b"live!", (
                 "First bytes to the client were not the live payload"
             )
-            writer.write(b"down1")
-            await writer.drain()
-            assert await read_uart(5) == b"down1"
 
             # Drop the client; bytes while no client is connected are discarded
             # when the next one is accepted.
@@ -101,13 +104,13 @@ async def test_uart_tcp_bridge(
 
             reader, writer = await asyncio.open_connection("127.0.0.1", server_port)
             await wait_log_count("Client connected", 2)
+            writer.write(b"down2")
+            await writer.drain()
+            assert await read_uart(5) == b"down2"
             os.write(controller_fd, b"live2")
             assert await asyncio.wait_for(reader.readexactly(5), 10) == b"live2", (
                 "Second client received stale bytes from the gap"
             )
-            writer.write(b"down2")
-            await writer.drain()
-            assert await read_uart(5) == b"down2"
             writer.close()
 
             # A peer outside the allow list is rejected and closed.

@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_SIGNAL_STRENGTH,
     CONF_TEMPERATURE,
@@ -79,9 +78,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 

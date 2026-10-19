@@ -11,6 +11,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION
+from esphome.components.homeassistant import DOMAIN as HOMEASSISTANT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -19,6 +20,8 @@ from esphome.const import (
     CONF_ENTITY_ID,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MAX_LENGTH,
+    CONF_MULTIPLE,
     CONF_NAME,
     CONF_PAGES,
     CONF_PLATFORM,
@@ -50,6 +53,10 @@ WizardInput = _API.class_("WizardInput")
 WIZARD_ENTITY_ID_BUFFER_SIZE = (
     256  # api_wizard.h; Home Assistant entity IDs are at most 255 bytes
 )
+WIZARD_ENTITY_ID_MAX_LENGTH = WIZARD_ENTITY_ID_BUFFER_SIZE - 1
+# The value of a multiple input fits one WizardInputSetRequest, which the device accepts up to 8 KiB on ESP8266;
+# api.proto max_data_length documents the same value
+WIZARD_MULTIPLE_MAX_LENGTH = 4095
 # One API message must fit APIBuffer::MAX_SIZE (65535) together with the largest frame header (7 bytes,
 # Noise) and footer (16 bytes, Noise MAC)
 WIZARD_RESPONSE_MAX_SIZE = 65535 - 7 - 16
@@ -105,6 +112,21 @@ WIZARD_ENTITY_SCHEMA = cv.Schema(
 )
 
 
+def _validate_multiple(conf: ConfigType) -> ConfigType:
+    if conf[CONF_MULTIPLE] and CONF_ENTITY in conf:
+        raise cv.Invalid(
+            "A linked input follows the state of exactly one Home Assistant entity, so multiple "
+            "is only for standalone inputs (id)",
+            path=[CONF_MULTIPLE],
+        )
+    if CONF_MAX_LENGTH in conf and not conf[CONF_MULTIPLE]:
+        raise cv.Invalid(
+            "max_length only applies to an input with multiple: true",
+            path=[CONF_MAX_LENGTH],
+        )
+    return conf
+
+
 # An input is either standalone (id declares a new WizardInput) or linked to a homeassistant entity that has no
 # entity_id of its own: Home Assistant sets it
 WIZARD_INPUT_SCHEMA = cv.All(
@@ -113,6 +135,10 @@ WIZARD_INPUT_SCHEMA = cv.All(
             cv.Optional(CONF_ID): cv.declare_id(WizardInput),
             cv.Optional(CONF_ENTITY): cv.use_id(cg.EntityBase),
             cv.Optional(CONF_DESCRIPTION): _wizard_text(WIZARD_DESCRIPTION_MAX_LENGTH),
+            cv.Optional(CONF_MULTIPLE, default=False): cv.boolean,
+            cv.Optional(CONF_MAX_LENGTH): cv.int_range(
+                min=WIZARD_ENTITY_ID_MAX_LENGTH, max=WIZARD_MULTIPLE_MAX_LENGTH
+            ),
             cv.Optional(CONF_TARGET): cv.Schema(
                 {
                     cv.Required(CONF_ENTITY): cv.All(
@@ -123,6 +149,7 @@ WIZARD_INPUT_SCHEMA = cv.All(
         }
     ),
     cv.has_exactly_one_key(CONF_ID, CONF_ENTITY),
+    _validate_multiple,
 )
 
 WIZARD_PAGE_SCHEMA = cv.All(
@@ -181,6 +208,7 @@ WIZARD_SCHEMA = cv.All(
 WIZARD_INPUT_DOMAINS = (
     "binary_sensor",
     "button",
+    "light",
     "number",
     "select",
     "sensor",
@@ -189,7 +217,14 @@ WIZARD_INPUT_DOMAINS = (
     "text_sensor",
 )
 # Platforms that act on one family of Home Assistant domains, which the input's filters must stay within
-WIZARD_DOMAIN_LIMITED_PLATFORMS = ("button", "number", "select", "switch", "text")
+WIZARD_DOMAIN_LIMITED_PLATFORMS = (
+    "button",
+    "light",
+    "number",
+    "select",
+    "switch",
+    "text",
+)
 
 
 def wizard_input_ids(api_config: ConfigType) -> set[str]:
@@ -247,6 +282,8 @@ def _wizard_defines(wizard: ConfigType) -> set[str]:
         defines.add("USE_API_WIZARD_LINKED_INPUTS")
     if any(CONF_ID in conf for conf in inputs):
         defines.add("USE_API_WIZARD_STANDALONE_INPUTS")
+    if any(conf.get(CONF_MULTIPLE) for conf in inputs):
+        defines.add("USE_API_WIZARD_MULTIPLE_INPUTS")
     return defines
 
 
@@ -265,7 +302,7 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
         fv.full_config.get(), conf[CONF_ENTITY]
     )
     if (
-        declaration.get(CONF_PLATFORM) != "homeassistant"
+        declaration.get(CONF_PLATFORM) != HOMEASSISTANT_DOMAIN
         or domain not in WIZARD_INPUT_DOMAINS
     ):
         raise cv.Invalid(
@@ -370,6 +407,10 @@ def _input_document(conf: ConfigType, config: fv.FinalValidateConfig) -> ConfigT
     document: ConfigType = {"key": fnv1_hash(_wizard_input_id(conf).id)}
     if description := conf.get(CONF_DESCRIPTION):
         document[CONF_DESCRIPTION] = description
+    if conf.get(CONF_MULTIPLE):
+        document["multiple"] = True
+    if (max_length := conf.get(CONF_MAX_LENGTH)) is not None:
+        document["max_length"] = max_length
     if filters := _wizard_input_filters(conf, config):
         document["entity_filters"] = [dict(entity_filter) for entity_filter in filters]
     return document
@@ -383,7 +424,7 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
         {"version": 1,
          "pages": [{"title": "...", "description": "...",
            "entities": [{"key": 123, "device_id": 456, "description": "..."}],
-           "inputs": [{"key": 789, "description": "...",
+           "inputs": [{"key": 789, "description": "...", "multiple": true, "max_length": 1023,
              "entity_filters": [{"integration": "...", "domain": ["..."],
                                  "device_class": ["..."], "supported_features": ["..."]}]}]}]}
 
@@ -395,6 +436,14 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
       the device it belongs to (esphome/core/config.py), and is left out for the main device.
     - An input key is the FNV-1 hash of the ESPHome id of the input, or of the linked entity. A linked
       entity must not set entity_id, as that is a static entry kept apart from the ones the wizard sets.
+    - multiple means the user may pick several entities. The client sends them in one
+      WizardInputSetRequest as a comma separated list ("calendar.a,calendar.b") with no spaces; the
+      device trims spaces around each id and stores the list without them. The whole request is
+      ignored when any id is empty or has no '.', or when the list without spaces does not fit
+      max_length (only on a multiple input, 255 when left out). A single input is ignored when the id
+      is empty, longer than 255 bytes or has no '.'. The version stays 1: a client that does not know
+      multiple ignores it, shows a single picker and sends one entity id, which a multiple input
+      accepts.
     - entity_filters are the filters of the input, or the default filters of a linked switch,
       number, text, select or button.
     """
@@ -440,14 +489,15 @@ async def to_code(wizard: ConfigType) -> None:
         input_id = _wizard_input_id(conf)
         # Every buffer starts empty, until the wizard sets it. A linked homeassistant entity uses it as its entity id.
         buffer = _wizard_buffer_name(input_id)
-        cg.add_global(
-            cg.RawStatement(
-                f'static char {buffer}[{WIZARD_ENTITY_ID_BUFFER_SIZE}] = "";'
-            )
-        )
+        size = conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
+        cg.add_global(cg.RawStatement(f'static char {buffer}[{size}] = "";'))
         if CONF_ID in conf:
             cg.new_Pvariable(input_id, cg.RawExpression(buffer))
-        entries.append(cg.RawExpression(f"{{{fnv1_hash(input_id.id)}u, {buffer}}}"))
+        key = fnv1_hash(input_id.id)
+        if conf[CONF_MULTIPLE]:
+            entries.append(cg.RawExpression(f"{{{key}u, {buffer}, {size}}}"))
+        else:
+            entries.append(cg.RawExpression(f"{{{key}u, {buffer}}}"))
     if entries:
         cg.extern_progmem_array(
             "esphome::api::API_WIZARD_INPUTS",

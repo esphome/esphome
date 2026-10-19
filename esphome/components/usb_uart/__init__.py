@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
-from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
+from esphome.components.uart import (
+    CONF_DEBUG_PREFIX,
+    CONF_FLUSH_TIMEOUT,
+    UARTComponent,
+    UARTParityOptions,
+    mark_unclocked,
+)
 from esphome.components.usb_host import (
     get_max_packet_size,
     register_usb_client,
@@ -24,6 +30,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "usb_uart"
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
@@ -33,12 +40,11 @@ USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
     return any(
         channel[CONF_ID] == uart_id
-        for device in full_config.get("usb_uart") or []
+        for device in full_config.get(DOMAIN) or []
         for channel in device[CONF_CHANNELS]
     )
 
 
-UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
     "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
@@ -48,11 +54,9 @@ UART_PARITY_OPTIONS = {
 }
 
 UARTStopBitsOptions = usb_uart_ns.enum("UARTStopBitsOptions")
-UART_STOP_BITS_OPTIONS = {
-    "1": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_1,
-    "1.5": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_1_5,
-    "2": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_2,
-}
+UART_STOP_BITS_OPTIONS = UARTStopBitsOptions.options(
+    "1", "1.5", "2", prefix="UART_CONFIG_STOP_BITS_"
+)
 
 DEFAULT_BAUD_RATE = 9600
 CONF_CLAIM_COMM_INTERFACE = "claim_comm_interface"
@@ -157,7 +161,9 @@ def channel_schema(type_: "Type") -> cv.Schema:
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.All(
+                                cv.declare_id(USBUartChannel), mark_unclocked
+                            ),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),

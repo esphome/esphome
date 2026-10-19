@@ -136,7 +136,7 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+uint32_t EntityBase::entity_preference_key_(uint32_t version) {
   // The key hashes the sanitized object_id, so multiple entity names can collide on one
   // key and overwrite each other's stored preferences ("Living Room" and "living_room",
   // or two UTF-8 names that both sanitize to underscores). Keys hashed from the raw name
@@ -144,9 +144,16 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
   // esphome integration cannot handle yet. See: https://github.com/esphome/backlog/issues/85
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  uint32_t key = this->get_preference_hash() ^ version;
+  return this->get_preference_hash() ^ version;
 #pragma GCC diagnostic pop
-  return global_preferences->make_preference(size, key);
+}
+
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+  return global_preferences->make_preference(size, this->entity_preference_key_(version));
+}
+
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version, bool in_flash) {
+  return global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
 }
 
 #ifdef USE_ENTITY_ICON

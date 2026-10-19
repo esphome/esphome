@@ -16,6 +16,7 @@ from ipaddress import (
     ip_network,
 )
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -113,8 +114,14 @@ from esphome.schema_extractors import (
 # Deprecated re-export for external components; remove before 2027.2.0
 # pylint: disable-next=unused-import
 from esphome.util import parse_esphome_version  # noqa: F401
-from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import SensitiveStr, make_data_base
+from esphome.voluptuous_schema import KeyInvalid, _Schema
+from esphome.yaml_util import (
+    Sensitive,
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+    make_data_base,
+)
 
 if typing.TYPE_CHECKING:
     from esphome.types import ConfigType
@@ -452,6 +459,20 @@ def with_visibility(schema: Schema, visibility: Visibility, *keys: str) -> Schem
     return schema.extend(overrides)
 
 
+class SourceTraceInvalid(Invalid):
+    """An error whose message is followed by where the bad value came from.
+
+    ``detail`` is the message without that trace, for output that already
+    gives the location.
+    """
+
+    def __init__(
+        self, detail: str, source_trace: str, path: list[typing.Hashable] | None = None
+    ) -> None:
+        super().__init__(f"{detail}\n{source_trace}", path)
+        self.detail = detail
+
+
 class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
 
@@ -548,11 +569,17 @@ class SensitiveValidator:
 
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
-        # Tag string results so yaml_util.dump can mask them. Non-string
-        # results pass through unchanged; already-tagged values are not
-        # re-wrapped to keep nested cv.sensitive applications idempotent.
-        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+        # Already-tagged values are returned as-is so nested cv.sensitive is
+        # idempotent; bool is an int subclass and must stay bool. Other types
+        # (e.g. lambdas) pass through unmasked.
+        if isinstance(validated, (Sensitive, bool)):
+            return validated
+        if isinstance(validated, str):
             return SensitiveStr(validated)
+        if isinstance(validated, int):
+            return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
+                validated
+            )
         return validated
 
     def __repr__(self) -> str:
@@ -1390,12 +1417,16 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         if match is None:
             raise Invalid(f"Expected {quantity} with unit, got {value}")
 
-        mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
             raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
-        multiplier = METRIC_SUFFIXES[match.group(2)]
-        return mantissa * multiplier
+        # Parse the scaled decimal in one go: "91uA" is then the same float as the
+        # literal 91e-6, which a product of two floats is not always.
+        exponent = round(math.log10(METRIC_SUFFIXES[match.group(2)]))
+        try:
+            return float(f"{match.group(1)}e{exponent}")
+        except ValueError as err:
+            raise Invalid(f"Expected {quantity} with unit, got {value}") from err
 
     return validator
 
@@ -2293,7 +2324,7 @@ def validate_registry_entry(name, registry):
         if key is None:
             raise Invalid(f"Key missing from {name}! Got {value}")
         if key not in registry:
-            raise Invalid(f"Unable to find {name} with the name '{key}'", [key])
+            raise KeyInvalid(f"Unable to find {name} with the name '{key}'", [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid(

@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import button
+from esphome.components.const import CONF_QUERY_PARAMS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FACTORY_RESET,
@@ -19,8 +20,6 @@ from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 FactoryResetButton = ld2410_ns.class_("FactoryResetButton", button.Button)
 QueryButton = ld2410_ns.class_("QueryButton", button.Button)
 RestartButton = ld2410_ns.class_("RestartButton", button.Button)
-
-CONF_QUERY_PARAMS = "query_params"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),

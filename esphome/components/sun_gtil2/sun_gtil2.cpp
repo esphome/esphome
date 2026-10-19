@@ -39,11 +39,7 @@ static_assert(MESSAGE_SIZE == 350, "Expected the message size to be 350 bytes");
 void SunGTIL2::setup() { this->rx_message_.reserve(MESSAGE_SIZE); }
 
 void SunGTIL2::loop() {
-  while (this->available()) {
-    uint8_t c;
-    this->read_byte(&c);
-    this->handle_char_(c);
-  }
+  this->read_available([this](uint8_t c) { this->handle_char_(c); });
 }
 
 const char *SunGTIL2::state_to_string_(uint8_t state, std::span<char, STATE_BUFFER_SIZE> buffer) {

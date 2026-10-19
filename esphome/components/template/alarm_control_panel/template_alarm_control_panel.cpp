@@ -36,6 +36,11 @@ static const LogString *sensor_type_to_string(AlarmSensorType type) {
 #endif
 
 void TemplateAlarmControlPanel::dump_config() {
+  size_t num_codes = 0;
+  if (this->codes_ != nullptr) {
+    while (this->codes_[num_codes] != nullptr)
+      num_codes++;
+  }
   ESP_LOGCONFIG(TAG,
                 "TemplateAlarmControlPanel:\n"
                 "  Current State: %s\n"
@@ -47,8 +52,8 @@ void TemplateAlarmControlPanel::dump_config() {
                 "  Pending Time: %" PRIu32 "s\n"
                 "  Trigger Time: %" PRIu32 "s\n"
                 "  Supported Features: %" PRIu32,
-                LOG_STR_ARG(alarm_control_panel_state_to_string(this->current_state_)), this->codes_.size(),
-                YESNO(!this->codes_.empty() && this->requires_code_to_arm_), (this->arming_away_time_ / 1000),
+                LOG_STR_ARG(alarm_control_panel_state_to_string(this->current_state_)), num_codes,
+                YESNO(this->codes_ != nullptr && this->requires_code_to_arm_), (this->arming_away_time_ / 1000),
                 (this->arming_home_time_ / 1000), (this->arming_night_time_ / 1000), (this->pending_time_ / 1000),
                 (this->trigger_time_ / 1000), this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
@@ -194,13 +199,12 @@ void TemplateAlarmControlPanel::loop() {
 }
 
 bool TemplateAlarmControlPanel::is_code_valid_(optional<std::string> code) {
-  if (!this->codes_.empty()) {
+  if (this->codes_ != nullptr) {
     if (code.has_value()) {
       ESP_LOGVV(TAG, "Checking code: %s", code.value().c_str());
-      // Use strcmp for const char* comparison
       const char *code_cstr = code.value().c_str();
-      for (const char *stored_code : this->codes_) {
-        if (strcmp(stored_code, code_cstr) == 0)
+      for (const char *const *stored = this->codes_; *stored != nullptr; stored++) {
+        if (strcmp(*stored, code_cstr) == 0)
           return true;
       }
       return false;

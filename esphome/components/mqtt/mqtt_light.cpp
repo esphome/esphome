@@ -28,7 +28,7 @@ void MQTTJSONLightComponent::setup() {
 }
 
 void MQTTJSONLightComponent::on_light_remote_values_update() {
-  this->defer("send", [this]() { this->publish_state_(); });
+  this->defer(SEND_DEFER_ID, [this]() { this->publish_state_(); });
 }
 
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}

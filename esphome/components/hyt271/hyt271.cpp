@@ -6,6 +6,8 @@ namespace esphome::hyt271 {
 
 ESPHOME_LOG_TAG(TAG, "hyt271");
 
+static constexpr uint32_t WAIT_CONVERT_TIMEOUT_ID = 0;
+
 static const uint8_t HYT271_ADDRESS = 0x28;
 
 void HYT271Component::dump_config() {
@@ -23,7 +25,7 @@ void HYT271Component::update() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  this->set_timeout("wait_convert", 50, [this]() {
+  this->set_timeout(WAIT_CONVERT_TIMEOUT_ID, 50, [this]() {
     uint8_t raw_data[4];
     if (this->read(raw_data, 4) != i2c::ERROR_OK) {
       this->status_set_warning();

@@ -1,11 +1,14 @@
 #include "max31856.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
 
 namespace esphome::max31856 {
 
 ESPHOME_LOG_TAG(TAG, "max31856");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31856
 
@@ -42,7 +45,7 @@ void MAX31856Sensor::update() {
   this->one_shot_temperature_();
 
   // Datasheet max conversion time for 1 shot is 155ms for 60Hz / 185ms for 50Hz
-  this->set_timeout("MAX31856Sensor::read_thermocouple_temperature_", filter_ == FILTER_60HZ ? 155 : 185,
+  this->set_timeout(READ_TIMEOUT_ID, filter_ == FILTER_60HZ ? 155 : 185,
                     [this]() { this->read_thermocouple_temperature_(); });
 }
 
@@ -51,12 +54,8 @@ void MAX31856Sensor::read_thermocouple_temperature_() {
     // Faults have been logged, clear it for next loop
     this->clear_fault_();
   } else {
-    int32_t temp24 = this->read_register24_(MAX31856_LTCBH_REG);
-    if (temp24 & 0x800000) {
-      temp24 |= 0xFF000000;  // fix sign
-    }
-
-    temp24 >>= 5;  // bottom 5 bits are unused
+    // bottom 5 bits are unused
+    const int32_t temp24 = sign_extend<24>(this->read_register24_(MAX31856_LTCBH_REG)) >> 5;
 
     float temp_c = temp24;
     temp_c *= 0.0078125;
