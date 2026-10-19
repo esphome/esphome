@@ -43,7 +43,7 @@ def test_format_vol_invalid_appends_doc_link_when_known() -> None:
 
     message = _format_vol_invalid(err, config)
 
-    assert "See https://example.com/docs/components/wifi/ for documentation." in message
+    assert "See https://example.com/docs for documentation." in message
 
 
 def test_format_vol_invalid_no_link_when_doc_url_unknown() -> None:

@@ -30,9 +30,7 @@ jobs:
           script: |
             // Find a linked esphome.io documentation PR in the PR description, if any, and
             // return the base URL of its Netlify deploy preview. Supports both the shorthand
-            // the PR template asks for (esphome/esphome.io#1234) and a full PR URL. `doc_url`
-            // is used as a documentation *base* URL (ESPHome appends /components/<name>/ to
-            // it), so this must be a link to rendered docs, not the GitHub PR page itself.
+            // the PR template asks for (esphome/esphome.io#1234) and a full PR URL.
             // Returns null if no such link is present (e.g. the PR template's unfilled
             // placeholder, which has no digits and won't match).
             function extractDocsPreviewUrl(body) {
@@ -45,23 +43,25 @@ jobs:
             }
 
             // Generate external component usage instructions
-            function generateExternalComponentInstructions(prNumber, componentNames, owner, repo, docUrl) {
+            function generateExternalComponentInstructions(prNumber, componentNames, owner, repo, docsPreviewUrl) {
                 let source;
                 if (owner === 'esphome' && repo === 'esphome')
                     source = `github://pr#${prNumber}`;
                 else
                     source = `github://${owner}/${repo}@pull/${prNumber}/head`;
-                // Note: this literal is not subject to the workflow YAML's block-scalar
-                // dedent (that only strips the raw source layout), so it must already be
-                // written at the post-dedent indentation the surrounding lines end up at.
-                const docUrlLine = docUrl ? `\n    doc_url: ${docUrl}` : '';
+                // `doc_url` is a single documentation page, so give each component its own
+                // entry when a docs preview is known. Otherwise list them in one entry.
+                const entry = (names, docUrl) =>
+                    `  - source: ${source}\n    components: [${names.join(', ')}]\n    refresh: 1h` +
+                    (docUrl ? `\n    doc_url: ${docUrl}` : '');
+                const entries = docsPreviewUrl
+                    ? componentNames.map(name => entry([name], `${docsPreviewUrl}components/${name}/`))
+                    : [entry(componentNames)];
                 return `To use the changes from this PR as an external component, add the following to your ESPHome configuration YAML file:
 
             \`\`\`yaml
             external_components:
-              - source: ${source}
-                components: [${componentNames.join(', ')}]
-                refresh: 1h${docUrlLine}
+            ${entries.join('\n')}
             \`\`\``;
             }
 

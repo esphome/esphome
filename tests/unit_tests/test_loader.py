@@ -36,7 +36,7 @@ def _make_manifest(*, to_code=None, dependencies=None) -> ComponentManifest:
 
 
 def _make_named_manifest(
-    module_name: str, *, doc_url_override=None
+    module_name: str, *, doc_url_override: str | None = None
 ) -> ComponentManifest:
     """Return a ComponentManifest backed by a mock module with a real `__name__`."""
     mod = MagicMock()
@@ -52,22 +52,21 @@ def test_doc_url_none_when_not_registered() -> None:
 
 
 def test_doc_url_plain_component() -> None:
-    """A plain (non-platform) component links to components/<name>/."""
+    """A registered doc URL is returned as-is, not combined with the component name."""
     register_external_component_doc_url("foo", "https://example.com/docs")
     manifest = _make_named_manifest("esphome.components.foo")
-    assert manifest.doc_url == "https://example.com/docs/components/foo/"
+    assert manifest.doc_url == "https://example.com/docs"
 
 
 def test_doc_url_platform_component() -> None:
-    """A platform component (esphome.components.<name>.<platform>) links to
-    components/<platform>/<name>/, mirroring esphome.io's own doc layout."""
+    """A platform component resolves the URL registered for its parent component."""
     register_external_component_doc_url("foo", "https://example.com/docs")
     manifest = _make_named_manifest("esphome.components.foo.switch")
-    assert manifest.doc_url == "https://example.com/docs/components/switch/foo/"
+    assert manifest.doc_url == "https://example.com/docs"
 
 
 def test_doc_url_module_override_takes_precedence() -> None:
-    """A component-declared DOC_URL wins over the source-level computed URL."""
+    """A component-declared DOC_URL wins over the source-level URL."""
     register_external_component_doc_url("foo", "https://example.com/docs")
     manifest = _make_named_manifest(
         "esphome.components.foo", doc_url_override="https://custom.example/foo"
