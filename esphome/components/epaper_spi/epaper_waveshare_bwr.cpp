@@ -3,8 +3,7 @@
 namespace esphome::epaper_spi {
 
 void EPaperWaveshareBWR::power_on() {
-  this->cmd_data(0x01, {0x07, 0x17, 0x3F, 0x3F});  // POWER SETTING
-  this->command(0x04);                             // POWER ON
+  this->command(0x04);  // POWER ON
 }
 
 void EPaperWaveshareBWR::refresh_screen(bool /*partial*/) {

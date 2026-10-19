@@ -313,6 +313,7 @@ jobs:
           - "3.12"
           - "3.13"
           - "3.14"
+          - "3.15"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -395,6 +396,8 @@ jobs:
       - common
       - determine-jobs
     if: needs.determine-jobs.outputs.integration-tests == 'true'
+    # A hung test is failed by pytest's --timeout below; this bounds the rest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -471,7 +474,8 @@ jobs:
             exit 1
           fi
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
-          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
+          # A hung test fails after 30 min: the 15 min shared build lock wait plus a cold compile
+          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal --timeout=1800 \
             --junitxml=junit-integration.xml "${test_files[@]}"
       - name: Upload test artifacts
         # Tests that compare rendered output write the image they actually got here, so a
@@ -626,7 +630,7 @@ jobs:
             apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@f842b9a3ffe213dbb81768fd7f7eeb4dfcf1c369 # v5.4.2
+        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
         with:
           run: |
             . venv/bin/activate

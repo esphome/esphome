@@ -1,0 +1,7 @@
+substitutions:
+  i2s_din_pin1: GPIO6
+  i2s_din_pin2: GPIO7
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-s31-idf.yaml
+  microphone: !include common-pdm.yaml

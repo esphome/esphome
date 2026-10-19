@@ -71,7 +71,9 @@ class TMP102Test : public ::testing::Test {
   unsigned publications_{0};
 
   void SetUp() override {
-    new (&App) Application;
+    // The test main keeps App alive; this test replaces it with a fresh one it owns
+    App.~Application();
+    new (&App) Application();
     App.pre_setup("tmp102-regression-tests", 23, "TMP102 tests", 12);
     host::setup_preferences();
     host::host_preferences->reset();
@@ -93,6 +95,7 @@ class TMP102Test : public ::testing::Test {
     App.scheduler.call(millis());
     host::host_preferences->reset();
     App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
   }
 
   static void run_timers(uint32_t duration) {

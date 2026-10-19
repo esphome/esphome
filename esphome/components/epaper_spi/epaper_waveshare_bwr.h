@@ -5,13 +5,14 @@
 namespace esphome::epaper_spi {
 
 /**
- * Waveshare 3-color e-paper displays (UC8179 controller).
- * Supports: 7.5" V2 BWR (EDP_7in5b_V2), 800x480 pixels.
+ * Waveshare 3-color e-paper displays (UC8179 and UC8151D controllers).
+ * Supports: 7.5" V2 BWR (EPD_7in5b_V2), 800x480 pixels; 2.13" B V3 (EPD_2in13b_V3), 104x212 pixels.
  *
  * Buffer layout and data transfer: see EPaperBWR.
+ * The red plane is sent as is (1=red); on the UC8151D this relies on the 0x50 value in uc8151.py.
  *
- * The init sequence (INITIALISE state) sends panel configuration only.
- * Power-on (0x01 + 0x04) is sent in the POWER_ON state after data transfer;
+ * The init sequence (INITIALISE state) sends the power and panel configuration.
+ * Power-on (0x04) is sent in the POWER_ON state after data transfer;
  * the state machine then busy-waits before triggering REFRESH_SCREEN (0x12).
  */
 class EPaperWaveshareBWR : public EPaperBWR {
