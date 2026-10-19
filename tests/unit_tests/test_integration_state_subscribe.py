@@ -93,3 +93,16 @@ async def test_press_and_wait_presses_button_and_returns_state() -> None:
     state = await press_and_wait(client, ENTITIES, sub.waiter, "set_temp", SensorState)
     assert client.pressed == [3]
     assert state.state == 42.0
+
+
+@pytest.mark.asyncio
+async def test_press_and_wait_waits_for_the_given_key() -> None:
+    client = FakeClient()
+    sub = await _subscribe(client)
+    pending = asyncio.ensure_future(
+        press_and_wait(client, ENTITIES, sub.waiter, "set_temp", SensorState, key=2)
+    )
+    await asyncio.sleep(0)
+    assert not pending.done()  # the press published key 1
+    client.callback(SensorState(key=2, state=55.0))
+    assert (await pending).state == 55.0

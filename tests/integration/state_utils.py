@@ -401,11 +401,16 @@ async def press_and_wait[T: EntityState](
     waiter: StateWaiter,
     button: str,
     state_type: type[T],
+    *,
+    key: int | None = None,
     timeout: float = 5.0,
 ) -> T:
-    """Press the button whose object_id contains ``button`` and return the next ``state_type`` state."""
+    """Press the button whose object_id contains ``button`` and return the next ``state_type`` state.
+
+    Pass the entity's ``key`` when the fixture has more than one entity of that type.
+    """
     btn = require_entity(entities, button, ButtonInfo)
-    next_state = waiter.next_state(state_type=state_type, timeout=timeout)
+    next_state = waiter.next_state(key=key, state_type=state_type, timeout=timeout)
     client.button_command(btn.key)
     return await next_state
 

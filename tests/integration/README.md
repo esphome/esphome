@@ -58,9 +58,6 @@ The `InitialStateHelper` class solves a common problem in integration tests: whe
 - Provides debug logging to track state reception (use `--log-cli-level=DEBUG`)
 - Safe for concurrent use with multiple entity types
 
-**Future work:**
-Consider converting existing integration tests to use `InitialStateHelper` for more reliable state tracking and to eliminate race conditions related to initial state broadcasts.
-
 #### Subscribing after the initial states (`state_utils.py`)
 
 `subscribe_after_initial_states()` does the `InitialStateHelper` setup in one call: it subscribes, waits
@@ -68,7 +65,7 @@ for every entity's connect time state, and fails the test with the entities stil
 It returns a `StateSubscription` with `initial_states` (by key) and a `waiter`, a `StateWaiter` that sees
 every later state. `waiter.next_state(key=..., state_type=...)` arms a wait for the next matching state;
 call it before sending the command. `press_and_wait()` presses a button and returns the next state of a
-type:
+type, from one entity when `key=` is given:
 
 ```python
 from .state_utils import press_and_wait, subscribe_after_initial_states
