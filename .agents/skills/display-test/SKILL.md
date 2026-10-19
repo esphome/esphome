@@ -128,9 +128,9 @@ power is removed, which is useful for checking that an image is bistable.
 
 ## What to check
 
-1. **Orientation**: the extra square sits under the left end of the bar in the expected top-left
-   corner. In another corner, or at the inner end of its bar, the image is rotated or mirrored.
-   Test `rotation:` values with the same pattern. The logical width and height swap at 90 and
+1. **Orientation**: the extra square sits under the bar in the expected top-left corner. If it is
+   in another corner, the image is rotated or mirrored. Test `rotation:` values with the same
+   pattern. The logical width and height swap at 90 and
    270 degrees, so the 60x20 corner bars should then appear taller than wide on the physical
    panel.
 2. **Coverage**: the border touches all four edges, with no dead rows or columns at the edges.
