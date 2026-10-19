@@ -29,15 +29,13 @@ void SPS30Component::setup() {
   this->set_timeout(500, [this]() {
     /// Firmware version identification
     if (!this->get_register(SPS30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version_, 1)) {
-      this->error_code_ = FIRMWARE_VERSION_READ_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Unable to read firmware version"));
       return;
     }
     /// Serial number identification
     uint16_t raw_serial_number[8];
     if (!this->get_register(SPS30_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 1)) {
-      this->error_code_ = SERIAL_NUMBER_READ_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Unable to read serial number"));
       return;
     }
 
@@ -75,31 +73,6 @@ void SPS30Component::setup() {
 void SPS30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SPS30:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed");
-        break;
-      case SERIAL_NUMBER_REQUEST_FAILED:
-        ESP_LOGW(TAG, "Unable to request serial number");
-        break;
-      case SERIAL_NUMBER_READ_FAILED:
-        ESP_LOGW(TAG, "Unable to read serial number");
-        break;
-      case FIRMWARE_VERSION_REQUEST_FAILED:
-        ESP_LOGW(TAG, "Unable to request firmware version");
-        break;
-      case FIRMWARE_VERSION_READ_FAILED:
-        ESP_LOGW(TAG, "Unable to read firmware version");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error");
-        break;
-    }
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
                 "  Serial number: %s\n"

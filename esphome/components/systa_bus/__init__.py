@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -39,6 +38,4 @@ async def register_systa_bus_listener(systa_bus: MockObj, var: MockObj) -> None:
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    await uart.new_uart_component(config)

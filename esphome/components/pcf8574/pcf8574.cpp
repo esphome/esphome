@@ -1,4 +1,5 @@
 #include "pcf8574.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pcf8574 {
@@ -86,12 +87,9 @@ bool PCF8574Component::read_gpio_() {
   if (this->is_failed())
     return false;
   uint8_t data[2]{};  // Keep the bytes zero for the PCF8574's one-byte read.
-  if (!this->read_bytes_raw(data, this->pcf8575_ ? 2 : 1)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes_raw(data, this->pcf8575_ ? 2 : 1)))
     return false;
-  }
-  this->input_mask_ = (uint16_t(data[1]) << 8) | data[0];
-  this->status_clear_warning();
+  this->input_mask_ = encode_value_le<uint16_t>(data);
   return true;
 }
 bool PCF8574Component::write_gpio_() {
@@ -107,27 +105,10 @@ bool PCF8574Component::write_gpio_() {
   uint8_t data[2];
   data[0] = value;
   data[1] = value >> 8;
-  if (this->write(data, this->pcf8575_ ? 2 : 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return false;
-  }
-
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write(data, this->pcf8575_ ? 2 : 1) == i2c::ERROR_OK);
 }
 float PCF8574Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCF8574GPIOPin::setup() { pin_mode(flags_); }
-void PCF8574GPIOPin::set_flags(gpio::Flags flags) {
-  this->flags_ = flags;
-  if (flags & gpio::FLAG_INPUT)
-    this->parent_->register_input_pin(this->pin_);
-}
-void PCF8574GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PCF8574GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCF8574GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t PCF8574GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PCF8574", this->pin_);
-}
-
 }  // namespace esphome::pcf8574
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pcf8574::PCF8574Component, "%u via PCF8574")

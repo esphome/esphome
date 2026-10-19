@@ -38,15 +38,8 @@ CsiCapturePolicy = sdk_ns.enum("CsiCapturePolicy", is_class=True)
 TrafficGeneratorMode = sdk_ns.enum("TrafficGeneratorMode", is_class=True)
 WifiBandPolicy = sdk_ns.enum("WifiBandPolicy", is_class=True)
 
-DETECTION_ALGORITHMS = {
-    "lightweight": DetectionAlgorithm.LIGHTWEIGHT,
-    "high_accuracy": DetectionAlgorithm.HIGH_ACCURACY,
-}
-CSI_CAPTURE_PROFILES = {
-    "auto": CsiCapturePolicy.AUTO,
-    "lltf": CsiCapturePolicy.LLTF,
-    "ht_vht": CsiCapturePolicy.HT_VHT,
-}
+DETECTION_ALGORITHMS = DetectionAlgorithm.options("lightweight", "high_accuracy")
+CSI_CAPTURE_PROFILES = CsiCapturePolicy.options("auto", "lltf", "ht_vht")
 TRAFFIC_GENERATOR_MODES = {
     "ping": TrafficGeneratorMode.PING,
     "dns": TrafficGeneratorMode.DNS,

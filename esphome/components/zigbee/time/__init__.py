@@ -113,5 +113,4 @@ async def _add_time_zephyr(config: ConfigType) -> None:
 
     cg.add(var.set_endpoint(slot_index + 1))
     cg.add(var.set_cluster_attributes(time_attrs))
-    hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
-    cg.add(var.set_parent(hub))
+    await cg.register_parented(var, config[CONF_ZIGBEE_ID])
