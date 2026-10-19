@@ -61,7 +61,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   esp_err_t write_(const uint8_t *data, size_t length, uint32_t timeout_ms, bool padding);
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
   size_t ring_room_() const;
-  bool has_buffered_data_(int64_t now_us) const;
+  bool transfers_in_flight_() const;
+  bool has_buffered_data_() const;
   uint32_t next_transfer_bytes_(uint32_t &accum) const;
   uint32_t audio_tail_bytes_();
   bool flush_tail_();
@@ -83,8 +84,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   uint32_t transfer_us_{0};
   uint32_t in_flight_us_{0};
   uint32_t report_frames_{0};
-  // Silence still to write while finishing.
-  uint32_t pad_remaining_{0};
+  uint32_t pad_remaining_{0};  // Silence still to write while finishing or flushing a tail.
   // Bytes in the driver's ring buffer: added before each write, since the driver can take a transfer inside it, and
   // taken off for each transfer it takes. ring_padding_ is the silence padding at its end.
   std::atomic<uint32_t> ring_bytes_{0};

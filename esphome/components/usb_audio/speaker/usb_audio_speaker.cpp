@@ -83,7 +83,7 @@ void USBAudioSpeaker::loop() {
     this->pad_with_silence_();
   }
   // has_buffered_data_() turns false once the driver has taken the last whole transfer and it has had time to play.
-  if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_(esp_timer_get_time())) {
+  if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_()) {
     this->stop_();
   }
   if (!this->finishing_ && !this->flush_tail_()) {
@@ -107,16 +107,16 @@ uint32_t USBAudioSpeaker::next_transfer_bytes_(uint32_t &accum) const {
 
 // Less than the next transfer of the caller's audio: the driver parks its transfers until the ring holds a whole one.
 uint32_t USBAudioSpeaker::audio_tail_bytes_() {
-  if (this->state_ != speaker::STATE_RUNNING) {
+  // No transfer is larger than transfer_bytes_, so a full transfer in the ring rules a tail out without the lock.
+  const uint32_t ring = this->ring_bytes_;
+  if (this->state_ != speaker::STATE_RUNNING || ring >= this->transfer_bytes_ || ring <= this->ring_padding_) {
     return 0;
   }
   portENTER_CRITICAL(&this->taken_lock_);
   uint32_t accum = this->packet_frac_accum_;
   const uint32_t next = this->next_transfer_bytes_(accum);
-  const uint32_t ring = this->ring_bytes_;
-  const uint32_t padding = this->ring_padding_;
   portEXIT_CRITICAL(&this->taken_lock_);
-  return ring < next && ring > padding ? next - ring : 0;
+  return ring < next ? next - ring : 0;
 }
 
 // Pads an audio tail to a whole transfer once the bus has gone idle, so the driver takes it and the frames get
@@ -126,8 +126,7 @@ bool USBAudioSpeaker::flush_tail_() {
   if (this->audio_tail_bytes_() == 0) {
     return false;
   }
-  const auto since_taken_us = static_cast<int32_t>(static_cast<uint32_t>(esp_timer_get_time()) - this->last_taken_us_);
-  if (since_taken_us < static_cast<int32_t>(this->in_flight_us_)) {
+  if (this->transfers_in_flight_()) {
     return true;
   }
   // Padding must sit at the end of the ring, so no caller write may interleave with it: the flag is raised before the
@@ -145,8 +144,9 @@ bool USBAudioSpeaker::flush_tail_() {
   if (this->pad_remaining_ > 0) {
     return true;
   }
+  // The ring now holds exactly the next transfer (or nothing, if the driver took it meanwhile): no tail is left.
   this->flushing_ = false;
-  return this->audio_tail_bytes_() > 0;
+  return false;
 }
 
 void USBAudioSpeaker::request_(uint8_t set, uint8_t clear) {
@@ -171,6 +171,8 @@ void USBAudioSpeaker::begin_finishing_() {
     return;
   }
   this->finishing_ = true;
+  // finish() pads the last transfer itself, so a tail flush that was cut short hands over to it.
+  this->flushing_ = false;
   this->pad_remaining_ = this->transfer_bytes_;
   // loop() pads the last transfer and stops once the audio has played.
   this->enable_loop();
@@ -178,6 +180,7 @@ void USBAudioSpeaker::begin_finishing_() {
 
 void USBAudioSpeaker::stop_() {
   this->finishing_ = false;
+  this->flushing_ = false;
   this->finish_after_start_ = false;
   this->pad_remaining_ = 0;
   if (this->state_ == speaker::STATE_STOPPED) {
@@ -339,9 +342,17 @@ void USBAudioSpeaker::on_transfer_taken() {
   uint32_t accum = this->packet_frac_accum_;
   const uint32_t size = this->next_transfer_bytes_(accum);
   const uint32_t ring = this->ring_bytes_;
+  // A tail left behind (less than the next transfer of the caller's audio) is flushed from loop() once the bus idles.
+  bool tail = ring < size && ring > this->ring_padding_;
   if (ring >= size) {
     this->packet_frac_accum_ = accum;
     this->ring_bytes_.fetch_sub(size);
+    {
+      const uint32_t left = ring - size;
+      uint32_t next_accum = accum;
+      tail =
+          left < this->transfer_bytes_ && left > this->ring_padding_ && left < this->next_transfer_bytes_(next_accum);
+    }
     // Padding sits at the end of the ring buffer and is not audio from the caller, so it is not reported.
     const uint32_t padding = std::min<uint32_t>(this->ring_padding_, ring);
     const uint32_t audio = std::min(size, ring - padding);
@@ -368,9 +379,9 @@ void USBAudioSpeaker::on_transfer_taken() {
     }
   }
   portEXIT_CRITICAL(&this->taken_lock_);
-  if (report || this->audio_tail_bytes_() > 0) {
+  if (report || tail) {
     // The listeners can block, so loop() calls them; the frames and their finish time travel together, so the delay
-    // does not change what they compute. A tail left behind is flushed from loop() once the bus is idle.
+    // does not change what they compute.
     this->enable_loop_soon_any_context();
   }
 }
@@ -386,18 +397,20 @@ void USBAudioSpeaker::deliver_reports_() {
   }
 }
 
-bool USBAudioSpeaker::has_buffered_data_(int64_t now_us) const {
-  if (this->state_ != speaker::STATE_RUNNING) {
-    return false;
-  }
-  // The driver still holds a whole transfer to take, or one it took has not finished playing. Less than a transfer
-  // stays in the ring buffer until the next write.
-  return this->ring_bytes_ >= this->transfer_bytes_ ||
-         static_cast<int32_t>(static_cast<uint32_t>(now_us) - this->last_taken_us_) <
-             static_cast<int32_t>(this->in_flight_us_);
+bool USBAudioSpeaker::transfers_in_flight_() const {
+  // The take time is read before the clock, so a take that lands in between cannot make the difference negative.
+  const uint32_t taken_us = this->last_taken_us_;
+  return static_cast<uint32_t>(esp_timer_get_time()) - taken_us < this->in_flight_us_;
 }
 
-bool USBAudioSpeaker::has_buffered_data() const { return this->has_buffered_data_(esp_timer_get_time()); }
+bool USBAudioSpeaker::has_buffered_data_() const {
+  // The driver still holds a whole transfer to take, or one it took has not finished playing. Less than a transfer
+  // stays in the ring buffer until the next write.
+  return this->state_ == speaker::STATE_RUNNING &&
+         (this->ring_bytes_ >= this->transfer_bytes_ || this->transfers_in_flight_());
+}
+
+bool USBAudioSpeaker::has_buffered_data() const { return this->has_buffered_data_(); }
 
 // The hub's worker sends volume and mute to the device.
 void USBAudioSpeaker::set_volume(float volume) {
