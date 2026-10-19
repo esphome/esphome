@@ -3,12 +3,8 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.entity_transport import (
-    CONF_PROVIDER,
-    CONF_REMOTE_ID,
-    CONFIG_SCHEMA,
-    remote_entity_schema,
-)
+from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
+from esphome.components.entity_transport import CONFIG_SCHEMA, remote_entity_schema
 from esphome.components.sensor import sensor_schema
 from esphome.const import (
     CONF_ID,

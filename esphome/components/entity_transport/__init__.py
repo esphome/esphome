@@ -6,6 +6,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components import packet_interface
 from esphome.components.binary_sensor import BinarySensor
+from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
 from esphome.components.packet_interface import CONF_PACKET_INTERFACE
 from esphome.components.sensor import Sensor
 import esphome.config_validation as cv
@@ -26,8 +27,6 @@ MULTI_CONF = True
 
 CONF_BROADCAST_ID = "broadcast_id"
 CONF_ENTITY_TRANSPORT_ID = "entity_transport_id"
-CONF_PROVIDER = "provider"
-CONF_REMOTE_ID = "remote_id"
 
 entity_transport_ns = cg.esphome_ns.namespace("entity_transport")
 EntityTransport = entity_transport_ns.class_("EntityTransport", cg.Component)
