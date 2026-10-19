@@ -370,13 +370,7 @@ void MS8607Component::read_humidity_(float temperature) {
   this->finalize_update_();
 }
 
-void MS8607Component::finalize_update_() {
-  if (this->update_ok_) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning();
-  }
-}
+void MS8607Component::finalize_update_() { this->status_comm_result(this->update_ok_, nullptr); }
 
 CompensatedTemperature compensated_temperature(uint32_t d2_raw_temperature,
                                                const CalibrationValues &calibration_values) {
