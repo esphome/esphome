@@ -15,9 +15,6 @@ static constexpr uint8_t RX8111_CTRL_STOP = 0x01;
 // FLAG bits are write-zero-to-clear; keep UF/TF/AF/EVF even if they latch during the write.
 static constexpr uint8_t RX8111_KEEP_EVENT_FLAGS = 0x3C;
 
-static constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
-static constexpr uint8_t uint8_to_bcd(uint8_t val) { return ((val / 10) << 4) | (val % 10); }
-
 void RX8111Component::setup() { this->read_time(); }
 
 void RX8111Component::update() { this->read_time(); }
@@ -63,25 +60,13 @@ void RX8111Component::read_time() {
     this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
-  const uint8_t weekday = static_cast<uint8_t>(__builtin_ctz(onehot) + 1);
-  ESPTime rtc_time{
-      .second = bcd_to_uint8(buf[0]),
-      .minute = bcd_to_uint8(buf[1]),
-      .hour = bcd_to_uint8(buf[2]),
-      .day_of_week = weekday,
-      .day_of_month = bcd_to_uint8(buf[4]),
-      .month = bcd_to_uint8(buf[5]),
-      .year = static_cast<uint16_t>(bcd_to_uint8(buf[6]) + 2000),
-      .is_dst = false,
-      .timestamp = 0,
-  };
-  rtc_time.recalc_timestamp_utc(false);
+  ESPTime rtc_time = time::decode_bcd_calendar(buf);
   if (!rtc_time.is_valid(true, false) || rtc_time.second >= 60) {
     ESP_LOGW(TAG, "Invalid RTC time, not syncing to system clock");
     this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
-  if (!this->status_comm_result(ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week == weekday,
+  if (!this->status_comm_result(ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week == rtc_time.day_of_week,
                                 LOG_STR("Invalid RTC time"))) {
     ESP_LOGW(TAG, "RTC weekday does not match calendar date");
     return;
@@ -103,13 +88,7 @@ void RX8111Component::write_time() {
   }
 
   uint8_t buf[7];
-  buf[0] = uint8_to_bcd(now.second);
-  buf[1] = uint8_to_bcd(now.minute);
-  buf[2] = uint8_to_bcd(now.hour);
-  buf[3] = 1 << (now.day_of_week - 1);
-  buf[4] = uint8_to_bcd(now.day_of_month);
-  buf[5] = uint8_to_bcd(now.month);
-  buf[6] = uint8_to_bcd(static_cast<uint8_t>(now.year - 2000));
+  time::encode_bcd_calendar(now, buf);
   const bool written = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
   // Always try to restart the counter, even after a failed calendar write.
   const bool restarted = this->set_stop_bit_(false);
