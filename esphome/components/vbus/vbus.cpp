@@ -40,27 +40,24 @@ void VBus::loop() {
     return;
   }
 
-  while (available()) {
-    uint8_t c;
-    read_byte(&c);
-
+  this->read_available([this, now](uint8_t c) {
     this->last_rx_ms_ = now;
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
-      continue;
+      return;
     }
     if (c & 0x80) {
       this->state_ = 0;
-      continue;
+      return;
     }
     if (this->state_ == 0)
-      continue;
+      return;
 
     if (this->state_ == 1) {
       this->buffer_.push_back(c);
       if (this->buffer_.size() < 7)
-        continue;
+        return;
       if (this->buffer_.size() == 7) {
         this->protocol_ = this->buffer_[4];
         this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
@@ -71,7 +68,7 @@ void VBus::loop() {
         this->state_ = 0;
         if (!checksum(this->buffer_.data(), 0, 15)) {
           ESP_LOGE(TAG, "P2 checksum failed");
-          continue;
+          return;
         }
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
@@ -82,7 +79,7 @@ void VBus::loop() {
         if (!checksum(this->buffer_.data(), 0, 9)) {
           ESP_LOGE(TAG, "P1 checksum failed");
           this->state_ = 0;
-          continue;
+          return;
         }
         this->frames_ = this->buffer_[7];
         if (this->frames_) {
@@ -98,23 +95,23 @@ void VBus::loop() {
         ESP_LOGW(TAG, "Unknown protocol 0x%02x, discarding", this->protocol_);
         this->state_ = 0;
       }
-      continue;
+      return;
     }
 
     if (this->state_ == 2) {
       this->fbytes_[this->fbcount_++] = c;
       if (this->fbcount_ < 6)
-        continue;
+        return;
       this->fbcount_ = 0;
       if (!checksum(this->fbytes_, 0, 6)) {
         ESP_LOGE(TAG, "frame checksum failed");
-        continue;
+        return;
       }
       septet_spread(this->fbytes_, 0, 4, this->fbytes_[4]);
       for (int i = 0; i < 4; i++)
         this->buffer_.push_back(this->fbytes_[i]);
       if (++this->cframe_ < this->frames_)
-        continue;
+        return;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       char hex_buf[format_hex_size(VBUS_MAX_LOG_BYTES)];
       size_t log_bytes = std::min(this->buffer_.size(), static_cast<size_t>(VBUS_MAX_LOG_BYTES));
@@ -124,9 +121,9 @@ void VBus::loop() {
       for (auto &listener : this->listeners_)
         listener->on_message(this->command_, this->source_, this->dest_, this->buffer_);
       this->state_ = 0;
-      continue;
+      return;
     }
-  }
+  });
 }
 
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {

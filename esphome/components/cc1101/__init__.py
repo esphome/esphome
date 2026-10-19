@@ -281,9 +281,7 @@ async def to_code(config):
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
 
-    if CONF_GDO0_PIN in config:
-        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
-        cg.add(var.set_gdo0_pin(gdo0_pin))
+    await cg.add_pin(var.set_gdo0_pin, config.get(CONF_GDO0_PIN))
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),
