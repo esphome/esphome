@@ -922,9 +922,8 @@ void LD2420Component::set_gate_threshold_value(number::Number *n, float value) {
     const bool move = this->gate_move_threshold_numbers_[gate] == n;
     if (!move && this->gate_still_threshold_numbers_[gate] != n)
       continue;
-    if (this->is_gate_select())
-      gate = this->get_gate_select_value();
-    (move ? this->new_config.move_thresh : this->new_config.still_thresh)[gate] = value;
+    const uint8_t target = this->is_gate_select() ? this->get_gate_select_value() : gate;
+    (move ? this->new_config.move_thresh : this->new_config.still_thresh)[target] = value;
     return;
   }
 }
