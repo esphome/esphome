@@ -35,7 +35,7 @@ DEPENDENCIES = ["spi"]
 
 CONF_COLUMN_START = "column_start"
 CONF_COLUMN_END = "column_end"
-CONF_ORIENTATION = "orientation"
+CONF_PORTRAIT = "portrait"
 CONF_ROW_START = "row_start"
 CONF_ROW_END = "row_end"
 
@@ -43,10 +43,6 @@ st7305_ns = cg.esphome_ns.namespace("st7305")
 ST7305 = st7305_ns.class_("ST7305", display.DisplayBuffer, spi.SPIDevice)
 
 Orientation = st7305_ns.enum("Orientation")
-ORIENTATIONS = {
-    "LANDSCAPE": Orientation.ORIENTATION_LANDSCAPE,
-    "PORTRAIT": Orientation.ORIENTATION_PORTRAIT,
-}
 
 # CUSTOM must be registered before the model modules are imported.
 DriverChip("CUSTOM")
@@ -81,7 +77,7 @@ def _model_schema(model: DriverChip) -> cv.Schema:
                 model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_WIDTH): cv.int_range(min=8, max=1024),
                 cv.Optional(CONF_HEIGHT): cv.int_range(min=8, max=1024),
-                cv.Optional(CONF_ORIENTATION): cv.one_of(*ORIENTATIONS, upper=True),
+                cv.Optional(CONF_PORTRAIT): cv.boolean,
                 cv.Optional(CONF_COLUMN_START): cv.int_range(min=0, max=255),
                 cv.Optional(CONF_COLUMN_END): cv.int_range(min=0, max=255),
                 cv.Optional(CONF_ROW_START): cv.int_range(min=0, max=255),
@@ -103,28 +99,27 @@ def _resolve(config: ConfigType, model: DriverChip) -> None:
             raise cv.Invalid("'height' is required for this model", path=[CONF_HEIGHT])
         config[CONF_HEIGHT] = height
 
-    if (orientation := config.get(CONF_ORIENTATION)) is None:
-        if (default := model.get_default(CONF_ORIENTATION, None)) is None:
+    if config.get(CONF_PORTRAIT) is None:
+        if (default := model.get_default(CONF_PORTRAIT, None)) is None:
             raise cv.Invalid(
-                "'orientation' is required for this model", path=[CONF_ORIENTATION]
+                "'portrait' is required for this model", path=[CONF_PORTRAIT]
             )
-        orientation = cv.one_of(*ORIENTATIONS, upper=True)(default)
-        config[CONF_ORIENTATION] = orientation
+        config[CONF_PORTRAIT] = default
 
-    if orientation == "LANDSCAPE":
-        if width % 2 or height % 4:
-            raise cv.Invalid(
-                "landscape orientation requires a width divisible by 2 and a height divisible by 4"
-            )
-        columns = (height + 11) // 12
-        rows = (width + 1) // 2
-    else:
+    if config[CONF_PORTRAIT]:
         if width % 4 or height % 2:
             raise cv.Invalid(
                 "portrait orientation requires a width divisible by 4 and a height divisible by 2"
             )
         columns = (width + 11) // 12
         rows = (height + 1) // 2
+    else:
+        if width % 2 or height % 4:
+            raise cv.Invalid(
+                "landscape orientation requires a width divisible by 2 and a height divisible by 4"
+            )
+        columns = (height + 11) // 12
+        rows = (width + 1) // 2
 
     column_start = config.get(
         CONF_COLUMN_START, model.get_default(CONF_COLUMN_START, 0)
@@ -204,7 +199,9 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_MODEL],
         config[CONF_WIDTH],
         config[CONF_HEIGHT],
-        ORIENTATIONS[config[CONF_ORIENTATION]],
+        Orientation.ORIENTATION_PORTRAIT
+        if config[CONF_PORTRAIT]
+        else Orientation.ORIENTATION_LANDSCAPE,
         config[CONF_COLUMN_START],
         config[CONF_COLUMN_END],
         config[CONF_ROW_START],

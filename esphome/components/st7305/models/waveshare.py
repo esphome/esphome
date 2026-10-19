@@ -7,7 +7,7 @@ DriverChip(
     "WAVESHARE-400X300",
     width=400,
     height=300,
-    orientation="LANDSCAPE",
+    portrait=False,
     cs_pin=40,
     dc_pin=5,
     reset_pin=41,

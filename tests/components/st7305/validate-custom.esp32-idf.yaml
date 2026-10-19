@@ -10,7 +10,7 @@ display:
     model: CUSTOM
     width: 200
     height: 160
-    orientation: PORTRAIT
+    portrait: true
     cs_pin: ${cs_pin}
     dc_pin: ${dc_pin}
     init_sequence:
