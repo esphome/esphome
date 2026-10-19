@@ -491,8 +491,7 @@ async def deep_sleep_enter_to_code(
         until = config[CONF_UNTIL]
         cg.add(var.set_until(until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]))
 
-        time_ = await cg.get_variable(config[CONF_TIME_ID])
-        cg.add(var.set_time(time_))
+        await cg.add_variable(var.set_time, config[CONF_TIME_ID])
 
     return var
 
