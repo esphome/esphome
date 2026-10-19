@@ -137,7 +137,6 @@ class _FullConfig(dict):
                 "packet_mode": True,
                 "payload_length": 0,
                 "sync_value": [],
-                "preamble_detect": 0,
             },
             {},
             "sync_value",
