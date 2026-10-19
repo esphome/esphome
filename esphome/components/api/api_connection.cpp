@@ -85,11 +85,6 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 
-// A flash string on ESP8266, a mergeable literal elsewhere
-#define PROGMEM_STRING_REF(s) ProgmemStringRef(ESPHOME_PSTR(s), sizeof(s) - 1)
-// One flash copy for the hello and device info replies
-static ProgmemStringRef esphome_version_ref() { return PROGMEM_STRING_REF(ESPHOME_VERSION); }
-
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
               "Update max_data_length for mac_address/bluetooth_mac_address in api.proto");
@@ -1902,6 +1897,11 @@ void APIConnection::complete_authentication_() {
   }
 #endif
 }
+
+// A flash string on ESP8266, a mergeable literal elsewhere; #undef after the device info reply
+#define PROGMEM_STRING_REF(s) ProgmemStringRef(ESPHOME_PSTR(s), sizeof(s) - 1)
+// One flash copy for the hello and device info replies
+static ProgmemStringRef esphome_version_ref() { return PROGMEM_STRING_REF(ESPHOME_VERSION); }
 
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
