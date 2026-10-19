@@ -6,7 +6,9 @@
 
 #include <esp_sleep.h>
 #include <esp_system.h>
+#if SOC_RISCV_COPROC_SUPPORTED
 #include <ulp_riscv.h>
+#endif
 
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
@@ -15,7 +17,17 @@ namespace esphome::esp32_ulp {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ulp");
 
+#if SOC_RISCV_COPROC_SUPPORTED
+static const char *const BACKEND = "ULP RISC-V";
+#else
+static const char *const BACKEND = "LP core";
+#endif
+
 void ESP32ULP::setup() {
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_ULP) {
+    ESP_LOGI(TAG, "Woken from deep sleep by the %s", BACKEND);
+  }
+#if SOC_RISCV_COPROC_SUPPORTED
   if (this->wakeup_period_us_ > 0) {
     esp_err_t err = ulp_set_wakeup_period(0, this->wakeup_period_us_);
     if (err != ESP_OK) {
@@ -24,6 +36,7 @@ void ESP32ULP::setup() {
       return;
     }
   }
+#endif
   // After a deep sleep the program is still running in RTC memory; reloading
   // it would discard its state.
   const bool from_deep_sleep = esp_reset_reason() == ESP_RST_DEEPSLEEP;
@@ -42,26 +55,29 @@ void ESP32ULP::setup() {
 
 void ESP32ULP::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "ESP32 ULP RISC-V:\n"
+                "ESP32 ULP:\n"
+                "  Coprocessor: %s\n"
                 "  Program size: %u bytes\n"
                 "  Wakeup period: %" PRIu32 " us\n"
                 "  Run on boot: %s\n"
                 "  Wakeup from sleep: %s\n"
                 "  Loaded: %s",
-                static_cast<unsigned>(ulp_main_bin_end - ulp_main_bin_start), this->wakeup_period_us_,
+                BACKEND, static_cast<unsigned>(ulp_main_bin_end - ulp_main_bin_start), this->wakeup_period_us_,
                 YESNO(this->run_on_boot_), YESNO(this->wakeup_from_sleep_), YESNO(this->loaded_));
 }
 
 bool ESP32ULP::load_and_run() {
   const size_t size = ulp_main_bin_end - ulp_main_bin_start;
+#if SOC_RISCV_COPROC_SUPPORTED
   esp_err_t err = ulp_riscv_load_binary(ulp_main_bin_start, size);
+#else
+  esp_err_t err = ulp_lp_core_load_binary(ulp_main_bin_start, size);
+#endif
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "ulp_riscv_load_binary failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Loading the program failed: %s", esp_err_to_name(err));
     return false;
   }
-  err = ulp_riscv_run();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "ulp_riscv_run failed: %s", esp_err_to_name(err));
+  if (!this->run_()) {
     return false;
   }
   this->loaded_ = true;
@@ -69,9 +85,37 @@ bool ESP32ULP::load_and_run() {
   return true;
 }
 
-void ESP32ULP::timer_stop() { ulp_riscv_timer_stop(); }
+bool ESP32ULP::run_() {
+#if SOC_RISCV_COPROC_SUPPORTED
+  esp_err_t err = ulp_riscv_run();
+#else
+  ulp_lp_core_cfg_t cfg = {};
+  cfg.wakeup_source = this->wakeup_sources_;
+  cfg.lp_timer_sleep_duration_us = this->wakeup_period_us_;
+  esp_err_t err = ulp_lp_core_run(&cfg);
+#endif
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Starting the program failed: %s", esp_err_to_name(err));
+    return false;
+  }
+  return true;
+}
 
-void ESP32ULP::timer_resume() { ulp_riscv_timer_resume(); }
+void ESP32ULP::timer_stop() {
+#if SOC_RISCV_COPROC_SUPPORTED
+  ulp_riscv_timer_stop();
+#else
+  ulp_lp_core_stop();
+#endif
+}
+
+void ESP32ULP::timer_resume() {
+#if SOC_RISCV_COPROC_SUPPORTED
+  ulp_riscv_timer_resume();
+#else
+  this->run_();
+#endif
+}
 
 }  // namespace esphome::esp32_ulp
 
