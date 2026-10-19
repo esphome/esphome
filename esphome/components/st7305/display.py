@@ -5,10 +5,16 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.mipi import DriverChip, flatten_sequence, map_sequence
+from esphome.components.mipi import (
+    DriverChip,
+    flatten_sequence,
+    map_sequence,
+    model_schema_extractor,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_CS_PIN,
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_HEIGHT,
@@ -60,7 +66,7 @@ def _model_schema(model: DriverChip) -> cv.Schema:
     return (
         display.FULL_DISPLAY_SCHEMA.extend(
             spi.spi_device_schema(
-                cs_pin_required=True,
+                cs_pin_required=False,
                 default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
                 default_mode="MODE0",
             )
@@ -70,16 +76,17 @@ def _model_schema(model: DriverChip) -> cv.Schema:
             {
                 cv.GenerateID(): cv.declare_id(ST7305),
                 cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
+                model.option(CONF_CS_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
+                model.option(CONF_DC_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
+                model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
                 cv.Optional(CONF_WIDTH): cv.int_range(min=8, max=1024),
                 cv.Optional(CONF_HEIGHT): cv.int_range(min=8, max=1024),
-                cv.Optional(CONF_ORIENTATION): cv.enum(ORIENTATIONS, upper=True),
+                cv.Optional(CONF_ORIENTATION): cv.one_of(*ORIENTATIONS, upper=True),
                 cv.Optional(CONF_COLUMN_START): cv.int_range(min=0, max=255),
                 cv.Optional(CONF_COLUMN_END): cv.int_range(min=0, max=255),
                 cv.Optional(CONF_ROW_START): cv.int_range(min=0, max=255),
                 cv.Optional(CONF_ROW_END): cv.int_range(min=0, max=255),
                 iseqconf: cv.ensure_list(map_sequence),
-                cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             }
         )
     )
@@ -101,10 +108,10 @@ def _resolve(config: ConfigType, model: DriverChip) -> None:
             raise cv.Invalid(
                 "'orientation' is required for this model", path=[CONF_ORIENTATION]
             )
-        orientation = cv.enum(ORIENTATIONS, upper=True)(default)
+        orientation = cv.one_of(*ORIENTATIONS, upper=True)(default)
         config[CONF_ORIENTATION] = orientation
 
-    if orientation == ORIENTATIONS["LANDSCAPE"]:
+    if orientation == "LANDSCAPE":
         if width % 2 or height % 4:
             raise cv.Invalid(
                 "landscape orientation requires a width divisible by 2 and a height divisible by 4"
@@ -143,7 +150,17 @@ def _resolve(config: ConfigType, model: DriverChip) -> None:
     if config.get(CONF_INIT_SEQUENCE) is None:
         config[CONF_INIT_SEQUENCE] = model.initsequence
 
+    for key, label in ((CONF_CS_PIN, "cs_pin"), (CONF_DC_PIN, "dc_pin")):
+        if key not in config:
+            raise cv.Invalid(f"'{label}' is required for this model", path=[key])
 
+
+def model_schema(config: ConfigType) -> cv.Schema:
+    """Return the schema for the model selected in the config."""
+    return _model_schema(MODELS[config[CONF_MODEL]])
+
+
+@model_schema_extractor(MODELS, model_schema)
 def customise_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
@@ -187,7 +204,7 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_MODEL],
         config[CONF_WIDTH],
         config[CONF_HEIGHT],
-        config[CONF_ORIENTATION],
+        ORIENTATIONS[config[CONF_ORIENTATION]],
         config[CONF_COLUMN_START],
         config[CONF_COLUMN_END],
         config[CONF_ROW_START],
