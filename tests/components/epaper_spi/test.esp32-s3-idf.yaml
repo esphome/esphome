@@ -16,7 +16,7 @@ esphome:
 
 display:
   - platform: epaper_spi
-    model: XSRUPB-DEPG0750RWF86BF30-7.5in-BWR
+    model: XSRUPB-7.5-bwr
     cs_pin:
       allow_other_uses: true
       number: GPIO5

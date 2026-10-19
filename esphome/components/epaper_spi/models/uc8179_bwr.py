@@ -1,7 +1,7 @@
 """UC8179-based Black/White/Red e-paper displays.
 
 Supported models:
-- XSRUPB-DEPG0750RWF86BF30-7.5in-BWR: 800x480 pixels (7.5" V3 BWR XSRUPB 2025 panel)
+- XSRUPB-7.5-bwr: 800x480 pixels (7.5" V3 BWR XSRUPB 2025 panel)
 
 These displays use the UC8179 controller and the EPaperWaveshareBWR driver, with this
 init sequence and red data always sent inverted.
@@ -40,7 +40,7 @@ uc8179bwr = UC8179BWR("uc8179bwr", minimum_update_interval="30s")
 
 # Model: 7.5" V3 BWR XSRUPB 2025 - 800x480 pixels, UC8179 controller
 uc8179bwr.extend(
-    "XSRUPB-DEPG0750RWF86BF30-7.5in-BWR",
+    "XSRUPB-7.5-bwr",
     width=800,
     height=480,
     reset_duration="200ms",
