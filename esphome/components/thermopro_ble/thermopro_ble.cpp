@@ -1,5 +1,6 @@
 #include "thermopro_ble.h"
 #include <cmath>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::thermopro_ble {
@@ -113,16 +114,15 @@ void ThermoProBLE::update_device_type_(StringRef device_name) {
 }
 
 static inline uint16_t read_uint16(const uint8_t *data, std::size_t offset) {
-  return static_cast<uint16_t>(data[offset + 0]) | (static_cast<uint16_t>(data[offset + 1]) << 8);
+  return encode_value_le<uint16_t>(&data[offset]);
 }
 
 static inline int16_t read_int16(const uint8_t *data, std::size_t offset) {
-  return static_cast<int16_t>(read_uint16(data, offset));
+  return encode_value_le<int16_t>(&data[offset]);
 }
 
 static inline uint32_t read_uint32(const uint8_t *data, std::size_t offset) {
-  return static_cast<uint32_t>(data[offset + 0]) | (static_cast<uint32_t>(data[offset + 1]) << 8) |
-         (static_cast<uint32_t>(data[offset + 2]) << 16) | (static_cast<uint32_t>(data[offset + 3]) << 24);
+  return encode_value_le<uint32_t>(&data[offset]);
 }
 
 // Battery calculation used with permission from:
