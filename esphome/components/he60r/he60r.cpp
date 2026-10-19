@@ -152,13 +152,7 @@ void HE60rCover::update_() {
 }
 
 void HE60rCover::loop() {
-  uint8_t data;
-
-  while (this->available() > 0) {
-    if (this->read_byte(&data)) {
-      this->process_rx_(data);
-    }
-  }
+  this->read_available([this](uint8_t data) { this->process_rx_(data); });
 }
 
 void HE60rCover::control(const CoverCall &call) {

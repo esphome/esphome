@@ -25,6 +25,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
@@ -47,6 +48,7 @@ DEVICE_CLASSES = [
 switch_ns = cg.esphome_ns.namespace("switch_")
 Switch = switch_ns.class_("Switch", cg.EntityBase)
 SwitchPtr = Switch.operator("ptr")
+ApplySwitch = switch_ns.class_("ApplySwitch", Switch)
 
 SwitchRestoreMode = switch_ns.enum("SwitchRestoreMode")
 
@@ -312,11 +314,18 @@ async def new_switch(config, *args):
     return var
 
 
+APPLY_ENTITY = ApplyEntity(
+    ApplySwitch,
+    ((SwitchPtr, "entity"), (cg.bool_, "state")),
+    "entity->publish_state(state);",
+)
+
+
 def sub_switches(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_switch."""
-    return SubEntities(new_switch, config, parent)
+    """Return a SubEntities bound to new_switch; ``apply`` statements can use ``entity`` and ``state``."""
+    return SubEntities(new_switch, config, parent, APPLY_ENTITY)
 
 
 SWITCH_ACTION_SCHEMA = maybe_simple_id(

@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
 
 #include <vector>
@@ -73,10 +74,10 @@ class MPR121Component final : public Component, public i2c::I2CDevice {
 
   void set_max_touch_channel(uint8_t max_touch_channel) { this->max_touch_channel_ = max_touch_channel; }
 
-  // GPIO helper functions.
-  bool digital_read(uint8_t ionum);
-  void digital_write(uint8_t ionum, bool value);
-  void pin_mode(uint8_t ionum, gpio::Flags flags);
+  // GPIO helper functions; `pin` is the electrode number, 4 to 11, of the shared GPIO pins.
+  bool digital_read(uint8_t pin);
+  void digital_write(uint8_t pin, bool value);
+  void pin_mode(uint8_t pin, gpio::Flags flags);
 
  protected:
   std::vector<MPR121Channel *> channels_{};
@@ -98,26 +99,8 @@ class MPR121Component final : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose a MPR121 pin as an internal input GPIO pin.
-class MPR121GPIOPin final : public GPIOPin {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_parent(MPR121Component *parent) { this->parent_ = parent; }
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  MPR121Component *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
+using MPR121GPIOPin = gpio_expander::ExpanderGPIOPin<MPR121Component>;
 
 }  // namespace esphome::mpr121
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::mpr121::MPR121Component);

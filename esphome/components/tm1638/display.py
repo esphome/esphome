@@ -35,14 +35,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 
-    clk = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
-    cg.add(var.set_clk_pin(clk))
-
-    dio = await cg.gpio_pin_expression(config[CONF_DIO_PIN])
-    cg.add(var.set_dio_pin(dio))
-
-    stb = await cg.gpio_pin_expression(config[CONF_STB_PIN])
-    cg.add(var.set_stb_pin(stb))
+    await cg.add_pin(var.set_clk_pin, config[CONF_CLK_PIN])
+    await cg.add_pin(var.set_dio_pin, config[CONF_DIO_PIN])
+    await cg.add_pin(var.set_stb_pin, config[CONF_STB_PIN])
 
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
 
