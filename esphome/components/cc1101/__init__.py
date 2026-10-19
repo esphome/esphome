@@ -274,18 +274,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     for opt in CONFIG_MAP:
         key = opt.schema
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
 
-    if CONF_GDO0_PIN in config:
-        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
-        cg.add(var.set_gdo0_pin(gdo0_pin))
+    await cg.add_pin(var.set_gdo0_pin, config.get(CONF_GDO0_PIN))
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),

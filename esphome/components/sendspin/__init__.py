@@ -428,8 +428,7 @@ async def to_code(config: ConfigType) -> None:
 
     # Service starts disabled and the hub enables it; always advertised where unsupported
     if mdns.request_service_enable_disable():
-        mdns_var = await cg.get_variable(CORE.config[MDNS_DOMAIN][CONF_ID])
-        cg.add(var.set_mdns(mdns_var))
+        await cg.add_variable(var.set_mdns, CORE.config[MDNS_DOMAIN][CONF_ID])
 
     data = _get_data()
 
