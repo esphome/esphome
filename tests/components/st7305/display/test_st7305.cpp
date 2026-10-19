@@ -175,10 +175,10 @@ TEST_F(ST7305Test, WriteWindowEmitsWindowCommands) {
 }
 
 TEST_F(ST7305Test, PortraitPixelMapping) {
-  TestableST7305 portrait(200, 200, Orientation::ORIENTATION_PORTRAIT, 0x13, 0x25, 0x00, 0x63);
+  TestableST7305 portrait(168, 384, Orientation::ORIENTATION_PORTRAIT, 0x17, 0x24, 0x00, 0xBF);
   ASSERT_TRUE(portrait.init_buffer());
-  ASSERT_EQ(portrait.get_width(), 200);
-  ASSERT_EQ(portrait.get_height(), 200);
+  ASSERT_EQ(portrait.get_width(), 168);
+  ASSERT_EQ(portrait.get_height(), 384);
 
   struct PixelCase {
     int x;
@@ -188,7 +188,7 @@ TEST_F(ST7305Test, PortraitPixelMapping) {
   };
   const PixelCase cases[] = {
       {0, 0, 0, 0x80}, {1, 0, 0, 0x20}, {2, 0, 0, 0x08},  {3, 0, 0, 0x02},
-      {0, 1, 0, 0x40}, {4, 0, 1, 0x80}, {0, 2, 50, 0x80}, {199, 199, 4999, 0x01},
+      {0, 1, 0, 0x40}, {4, 0, 1, 0x80}, {0, 2, 42, 0x80}, {167, 383, 8063, 0x01},
   };
 
   for (const auto &pixel : cases) {
@@ -200,18 +200,18 @@ TEST_F(ST7305Test, PortraitPixelMapping) {
 }
 
 TEST_F(ST7305Test, PortraitWindowAlignsToAddressBlocks) {
-  TestableST7305 portrait(200, 200, Orientation::ORIENTATION_PORTRAIT, 0x13, 0x25, 0x00, 0x63);
+  TestableST7305 portrait(168, 384, Orientation::ORIENTATION_PORTRAIT, 0x17, 0x24, 0x00, 0xBF);
   ASSERT_TRUE(portrait.init_buffer());
 
-  portrait.draw_pixel_at(100, 100, Color::WHITE);
+  portrait.draw_pixel_at(84, 192, Color::WHITE);
   const auto window = portrait.compute_window();
-  EXPECT_EQ(window.outer_start, 50);
-  EXPECT_EQ(window.outer_end, 50);
-  EXPECT_EQ(window.stride, 50);
-  EXPECT_EQ(window.block_start, 24);
-  EXPECT_EQ(window.block_end, 26);
-  EXPECT_EQ(window.caset_start, 0x1B);
-  EXPECT_EQ(window.caset_end, 0x1B);
+  EXPECT_EQ(window.outer_start, 96);
+  EXPECT_EQ(window.outer_end, 96);
+  EXPECT_EQ(window.stride, 42);
+  EXPECT_EQ(window.block_start, 21);
+  EXPECT_EQ(window.block_end, 23);
+  EXPECT_EQ(window.caset_start, 0x1E);
+  EXPECT_EQ(window.caset_end, 0x1E);
   EXPECT_EQ(window.data_length(), 3u);
 
   portrait.fill(Color::BLACK);
@@ -223,9 +223,33 @@ TEST_F(ST7305Test, PortraitWindowAlignsToAddressBlocks) {
   EXPECT_EQ(corner.outer_end, 0);
   EXPECT_EQ(corner.block_start, 0);
   EXPECT_EQ(corner.block_end, 2);
-  EXPECT_EQ(corner.caset_start, 0x13);
-  EXPECT_EQ(corner.caset_end, 0x13);
+  EXPECT_EQ(corner.caset_start, 0x17);
+  EXPECT_EQ(corner.caset_end, 0x17);
   EXPECT_EQ(corner.data_length(), 3u);
+
+  portrait.fill(Color::BLACK);
+  portrait.clear_dirty();
+  portrait.draw_pixel_at(167, 200, Color::WHITE);
+  const auto right_edge = portrait.compute_window();
+  EXPECT_EQ(right_edge.outer_start, 100);
+  EXPECT_EQ(right_edge.outer_end, 100);
+  EXPECT_EQ(right_edge.block_start, 39);
+  EXPECT_EQ(right_edge.block_end, 41);
+  EXPECT_EQ(right_edge.caset_start, 0x24);
+  EXPECT_EQ(right_edge.caset_end, 0x24);
+  EXPECT_EQ(right_edge.data_length(), 3u);
+
+  portrait.fill(Color::BLACK);
+  portrait.clear_dirty();
+  portrait.draw_pixel_at(167, 383, Color::WHITE);
+  const auto bottom_right = portrait.compute_window();
+  EXPECT_EQ(bottom_right.outer_start, 191);
+  EXPECT_EQ(bottom_right.outer_end, 191);
+  EXPECT_EQ(bottom_right.block_start, 39);
+  EXPECT_EQ(bottom_right.block_end, 41);
+  EXPECT_EQ(bottom_right.caset_start, 0x24);
+  EXPECT_EQ(bottom_right.caset_end, 0x24);
+  EXPECT_EQ(bottom_right.data_length(), 3u);
 }
 
 }  // namespace esphome::st7305::testing

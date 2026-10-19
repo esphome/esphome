@@ -133,6 +133,13 @@ def _resolve(config: ConfigType, model: DriverChip) -> None:
     )
     if column_end < column_start or row_end < row_start:
         raise cv.Invalid("address window end must not be before its start")
+    if not (
+        0 <= column_start <= 255
+        and 0 <= column_end <= 255
+        and 0 <= row_start <= 255
+        and 0 <= row_end <= 255
+    ):
+        raise cv.Invalid("address window values must be between 0 and 255")
     if (column_end - column_start + 1) * (row_end - row_start + 1) * 3 < (
         width * height // 8
     ):

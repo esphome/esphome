@@ -205,21 +205,29 @@ void ST7305::fill(Color color) {
     return;
 
   const uint8_t value = color.is_on() ? 0xFF : 0x00;
+  size_t first = this->buffer_length_;
+  size_t last = 0;
   for (size_t index = 0; index < this->buffer_length_; index++) {
     if (this->buffer_[index] == value)
       continue;
     this->buffer_[index] = value;
-    if (this->orientation_ == Orientation::ORIENTATION_LANDSCAPE) {
-      const int stride = this->height_ / 4;
-      const int outer = static_cast<int>(index / stride);
-      const int block = static_cast<int>(index % stride);
-      this->extend_dirty_(outer * 2, this->height_ - 4 - block * 4, outer * 2 + 1, this->height_ - 1 - block * 4);
-    } else {
-      const int stride = this->width_ / 4;
-      const int outer = static_cast<int>(index / stride);
-      const int block = static_cast<int>(index % stride);
-      this->extend_dirty_(block * 4, outer * 2, block * 4 + 3, outer * 2 + 1);
-    }
+    if (first == this->buffer_length_)
+      first = index;
+    last = index;
+  }
+  if (first == this->buffer_length_)
+    return;
+
+  // Widen the changed index range to whole outer units, and the other axis to the full
+  // display. The extra pixels are current in the buffer, so sending them is harmless.
+  if (this->orientation_ == Orientation::ORIENTATION_LANDSCAPE) {
+    const int stride = this->height_ / 4;
+    this->extend_dirty_(static_cast<int>(first / stride) * 2, 0, static_cast<int>(last / stride) * 2 + 1,
+                        this->height_ - 1);
+  } else {
+    const int stride = this->width_ / 4;
+    this->extend_dirty_(0, static_cast<int>(first / stride) * 2, this->width_ - 1,
+                        static_cast<int>(last / stride) * 2 + 1);
   }
 }
 

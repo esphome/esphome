@@ -67,3 +67,8 @@ def test_portrait_rejects_inner_not_multiple_of_12(width: int) -> None:
             ),
             MODELS["CUSTOM"],
         )
+
+
+def test_window_ends_must_fit_in_a_byte() -> None:
+    with pytest.raises(cv.Invalid, match="between 0 and 255"):
+        _resolve(_config(**{CONF_WIDTH: 1024, CONF_HEIGHT: 300}), MODELS["CUSTOM"])
