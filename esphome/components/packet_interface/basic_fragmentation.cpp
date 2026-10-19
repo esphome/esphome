@@ -102,8 +102,10 @@ void BasicFragmentation::receive_(const PacketBuffer &data, const PacketMetaData
     return;
   }
   auto fragment = data.as_span();
-  if (fragment.size() < HEADER_SIZE)
+  if (fragment.size() < HEADER_SIZE) {
+    ESP_LOGV(TAG, "%s: Fragment of %zu bytes is shorter than its header, dropped", this->name_, fragment.size());
     return;
+  }
   uint8_t number = fragment[0];
   uint8_t index = fragment[1] & INDEX_MASK;
   bool last = (fragment[1] & LAST_FRAGMENT) != 0;

@@ -34,8 +34,11 @@ void BasicAddressing::receive_(const PacketBuffer &data, const PacketMetaData &m
     return;
   }
   auto packet = data.as_span();
-  if (packet.size() < HEADER_SIZE)
+  if (packet.size() < HEADER_SIZE) {
+    ESP_LOGV(TAG, "%s: Packet of %zu bytes is shorter than the address header, dropped", this->link_->get_name(),
+             packet.size());
     return;
+  }
   uint16_t destination = encode_uint16(packet[1], packet[0]);
   uint16_t source = encode_uint16(packet[3], packet[2]);
   if (source == this->address_ || (destination != this->address_ && destination != BROADCAST_ADDRESS))
