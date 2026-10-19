@@ -132,13 +132,19 @@ bool USBAudioSpeaker::flush_tail_() {
   }
   // Padding must sit at the end of the ring, so no caller write may interleave with it: the flag is raised before the
   // in-flight count is read and play_internal_() reads it after raising the count, so one side always sees the other.
-  this->flushing_ = true;
-  if (this->writes_in_flight_ > 0) {
-    this->flushing_ = false;
+  if (!this->flushing_) {
+    this->flushing_ = true;
+    if (this->writes_in_flight_ > 0) {
+      this->flushing_ = false;
+      return true;
+    }
+    this->pad_remaining_ = this->audio_tail_bytes_();
+  }
+  // A busy driver can cut the padding short; the hold stays until the rest is written on a later pass.
+  this->pad_with_silence_();
+  if (this->pad_remaining_ > 0) {
     return true;
   }
-  this->pad_remaining_ = this->audio_tail_bytes_();
-  this->pad_with_silence_();
   this->flushing_ = false;
   return this->audio_tail_bytes_() > 0;
 }
