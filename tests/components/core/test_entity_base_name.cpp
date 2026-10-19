@@ -42,4 +42,14 @@ TEST(EntityBaseName, PrecomputedHashIsKept) {
   EXPECT_EQ(entity.get_object_id_hash(), 0x1234u);
 }
 
+// Callers skip the rest of an entity's dump on false, so a null entity must return false and any
+// other entity true, whatever the log level
+TEST(EntityLogHeader, NullEntityReturnsFalse) { EXPECT_FALSE(log_entity_header("test", "", "Sensor", nullptr)); }
+
+TEST(EntityLogHeader, EntityReturnsTrue) {
+  TestEntity entity;
+  entity.configure("Living Room Temp", 0);
+  EXPECT_TRUE(log_entity_header("test", "  ", "Sensor", &entity));
+}
+
 }  // namespace esphome::core::testing
