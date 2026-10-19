@@ -1,7 +1,9 @@
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
+from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -368,15 +370,9 @@ async def to_code(config):
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
-    if CONF_TX_PIN in config:
-        tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
-        cg.add(var.set_tx_pin(tx_pin))
-    if CONF_RX_PIN in config:
-        rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
-        cg.add(var.set_rx_pin(rx_pin))
-    if CONF_FLOW_CONTROL_PIN in config:
-        flow_control_pin = await cg.gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
-        cg.add(var.set_flow_control_pin(flow_control_pin))
+    await cg.add_pin(var.set_tx_pin, config.get(CONF_TX_PIN))
+    await cg.add_pin(var.set_rx_pin, config.get(CONF_RX_PIN))
+    await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
     if CONF_PORT in config:
         cg.add(var.set_name(config[CONF_PORT]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
@@ -587,8 +583,17 @@ async def register_uart_device(var, config):
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_UART_ID])
-    cg.add(var.set_uart_parent(parent))
+    await cg.add_variable(var.set_uart_parent, config[CONF_UART_ID])
+
+
+def new_uart_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on a UART bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_uart_device, config, *args)
 
 
 @automation.register_action(

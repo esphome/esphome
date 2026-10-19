@@ -3,6 +3,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "logger.h"
+#ifdef USE_CRASH_HANDLER
+#include "esphome/components/zephyr_coredump/coredump.h"
+#endif
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
@@ -11,12 +14,6 @@
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
-
-namespace esphome::zephyr_coredump {
-
-__attribute__((weak)) void print_coredump() {}
-
-}  // namespace esphome::zephyr_coredump
 
 namespace esphome::logger {
 
@@ -56,6 +53,14 @@ void Logger::cdc_loop_() {
   if (!opened) {
     App.schedule_dump_config();
   }
+#ifdef USE_CRASH_HANDLER
+  // The new reader also gets a coredump stored by the last crash; a closed port keeps it for the next one
+  if (!opened) {
+    log_crash_to_client();
+  } else {
+    zephyr_coredump::stop_coredump();
+  }
+#endif
   opened = !opened;
 }
 #endif
@@ -103,7 +108,16 @@ void Logger::pre_setup() {
   const char *reset_reason = zephyr::get_reset_reason(std::span<char, zephyr::RESET_REASON_BUFFER_SIZE>(reason_buffer));
   ESP_LOGI(TAG, "Reset reason: %s", reset_reason);
   dump_crash_();
-  zephyr_coredump::print_coredump();
+#endif
+#ifdef USE_CRASH_HANDLER
+#ifdef USE_LOGGER_UART_SELECTION_USB_CDC
+  // Nobody reads a USB port this early; cdc_loop_() reports the dump once the port is opened
+  if (this->uart_ == UART_SELECTION_USB_CDC)
+    return;
+#endif
+  // Without a UART (baud_rate: 0, or one that did not come up) nothing reaches the console
+  if (this->uart_dev_ != nullptr)
+    log_crash_to_client();
 #endif
 }
 
@@ -194,6 +208,16 @@ void k_sys_fatal_error_handler(unsigned int reason, const FatalErrorEsf *esf) {
 #endif
   arch_restart();
 }
+
+#ifdef USE_CRASH_HANDLER
+bool crash_log_pending() { return zephyr_coredump::coredump_pending(); }
+void log_crash_to_client() {
+  // A level that drops the lines would erase the dump unseen; keep it for a client that can see it
+  if (global_logger->get_log_level(zephyr_coredump::CRASH_LOG_TAG) < ESPHOME_LOG_LEVEL_ERROR)
+    return;
+  zephyr_coredump::print_coredump();
+}
+#endif
 
 }  // namespace esphome::logger
 

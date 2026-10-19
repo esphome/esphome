@@ -918,29 +918,36 @@ def _tcp_retransmits(sock: socket.socket) -> int | None:
     return struct.unpack_from(fmt, info, offset)[0]
 
 
-def _link_lossy(
+def _loss_reason(
     tcp_sock: socket.socket, slowest_exchange: float, prefer_udp: bool
-) -> bool:
-    """Whether the handshake showed loss, so the data phase should use UDP."""
-    return (
-        prefer_udp
-        or slowest_exchange > UDP_SLOW_EXCHANGE
-        or bool(_tcp_retransmits(tcp_sock))
-    )
+) -> str | None:
+    """Why the link looks lossy, so the data phase should use UDP; None if clean."""
+    if prefer_udp:
+        return "an earlier attempt failed"
+    if slowest_exchange > UDP_SLOW_EXCHANGE:
+        return f"a handshake reply took {slowest_exchange:.1f}s"
+    if _tcp_retransmits(tcp_sock):
+        return "TCP resent data during the handshake"
+    return None
 
 
 def _start_udp(
-    sock: socket.socket | NoiseSocketWrapper, tcp_sock: socket.socket, lossy: bool
+    sock: socket.socket | NoiseSocketWrapper,
+    tcp_sock: socket.socket,
+    loss_reason: str | None,
 ) -> UdpChannel | None:
     """Move the data phase to UDP; None keeps it on TCP."""
     # A clean link asks to stay on TCP
-    send_check(sock, UDP_REQUEST if lossy else UDP_FALLBACK, "UDP request")
+    send_check(
+        sock, UDP_FALLBACK if loss_reason is None else UDP_REQUEST, "UDP request"
+    )
     token = receive_exactly(sock, 4, "UDP token", None, decode=False)
-    if not lossy:
+    if loss_reason is None:
         _LOGGER.debug("Link looks clean, staying on TCP")
         return None
+    _LOGGER.info("Link is lossy (%s), trying UDP", loss_reason)
     if token == bytes(4):
-        _LOGGER.debug("Device declined UDP")
+        _LOGGER.info("Device declined UDP, using TCP")
         return None
     udp_sock = socket.socket(tcp_sock.family, socket.SOCK_DGRAM)
     try:
@@ -1192,7 +1199,7 @@ def perform_ota(
     # Still under SETUP_TIMEOUT, which the device's commit wait is sized for
     if extended_proto and features & SERVER_FEATURE_SUPPORTS_UDP:
         udp = _start_udp(
-            sock, tcp_sock, _link_lossy(tcp_sock, slowest_exchange, prefer_udp)
+            sock, tcp_sock, _loss_reason(tcp_sock, slowest_exchange, prefer_udp)
         )
         if udp is not None:
             # The device drops TCP once it hears the committed channel

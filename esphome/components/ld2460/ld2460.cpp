@@ -1,6 +1,7 @@
 #include "ld2460.h"
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #include <cmath>
 #include <cstring>
@@ -117,8 +118,8 @@ void LD2460Component::handle_periodic_data_() {
       continue;
     }
     const uint8_t *p = &data[7 + i * 4];
-    auto raw_x = static_cast<int16_t>(encode_uint16(p[1], p[0]));
-    auto raw_y = static_cast<int16_t>(encode_uint16(p[3], p[2]));
+    auto raw_x = encode_value_le<int16_t>(p);
+    auto raw_y = encode_value_le<int16_t>(&p[2]);
     if (raw_x == t.last_x && raw_y == t.last_y) {
       continue;
     }
@@ -168,10 +169,7 @@ void LD2460Component::readline_(uint8_t readch) {
     return;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-  ESP_LOGV(TAG, "Frame: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+  ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Frame: %s");
 
   if (is_data) {
     this->handle_periodic_data_();
