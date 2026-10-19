@@ -917,6 +917,18 @@ void LD2420Component::init_gate_config_numbers() {
   }
 }
 
+void LD2420Component::set_gate_threshold_value(number::Number *n, float value) {
+  for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
+    const bool move = this->gate_move_threshold_numbers_[gate] == n;
+    if (!move && this->gate_still_threshold_numbers_[gate] != n)
+      continue;
+    if (this->is_gate_select())
+      gate = this->get_gate_select_value();
+    (move ? this->new_config.move_thresh : this->new_config.still_thresh)[gate] = value;
+    return;
+  }
+}
+
 void LD2420Component::refresh_gate_config_numbers() {
   this->gate_timeout_number_->publish_state(this->new_config.timeout);
   this->min_gate_distance_number_->publish_state(this->new_config.min_gate);
