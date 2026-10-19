@@ -530,12 +530,17 @@ bool TsdbComponent::resolve_timestamp_(uint32_t *timestamp) {
   }
   // Records are ordered by timestamp, so refuse one that sorts before the newest stored.
   if (this->last_timestamp_ != 0 && value < this->last_timestamp_) {
-    if (!this->warned_backwards_) {
-      this->warned_backwards_ = true;
-      ESP_LOGW(TAG, "%s: time is earlier than the last stored record - no record written", this->file_.c_str());
-    }
     this->dropped_++;
     this->publish_errors_();
+    // Rate limited like the missing-value path: one future-dated record refuses every later one.
+    this->dropped_backwards_++;
+    if (this->dropped_backwards_ == 1 || this->dropped_backwards_ % DROP_LOG_EVERY == 0) {
+      ESP_LOGW(TAG, "%s: time is %" PRIu32 " s earlier than the last stored record - no record written",
+               this->file_.c_str(), this->last_timestamp_ - value);
+    } else {
+      ESP_LOGD(TAG, "%s: time is %" PRIu32 " s earlier than the last stored record - no record written",
+               this->file_.c_str(), this->last_timestamp_ - value);
+    }
     this->status_set_warning(LOG_STR("clock moved back"));
     return false;
   }
@@ -632,7 +637,7 @@ bool TsdbComponent::write_record_() {
   }
   this->writes_++;
   this->last_timestamp_ = timestamp;
-  this->warned_backwards_ = false;
+  this->dropped_backwards_ = 0;
   this->dirty_ = true;
   // Only a clean record clears the warning: a held, sentinel or clamped value is not healthy.
   if (degraded != nullptr) {
