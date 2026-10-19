@@ -37,7 +37,8 @@ def _nrf52_state(tmp_path: Path, bootloader: str = V6) -> None:
 
 
 @pytest.mark.parametrize(
-    ("bootloader", "expected"), [(V6, True), (V7, True), ("mcuboot", False)]
+    ("bootloader", "expected"),
+    [(V6, True), (V7, True), ("nrf", True), ("mcuboot", False)],
 )
 def test_uses_serial_dfu(tmp_path: Path, bootloader: str, expected: bool) -> None:
     _nrf52_state(tmp_path, bootloader)
@@ -372,3 +373,64 @@ async def test_bootsel_touch_to_code_subscribes_to_the_usb_component() -> None:
     mock_usb.assert_awaited_once_with(advanced)
     mock_new.assert_called_once_with("touch_id", "usb")
     mock_register.assert_awaited_once()
+
+
+def _hex_file() -> Path:
+    hex_file = (
+        CORE.relative_build_path(".west_build") / "zephyr" / "zephyr" / "zephyr.hex"
+    )
+    hex_file.parent.mkdir(parents=True)
+    hex_file.write_text("")
+    return hex_file
+
+
+def test_build_dfu_package_open_dfu_uses_nordic_nrfutil(tmp_path: Path) -> None:
+    """The factory Open DFU bootloader takes Nordic's Secure DFU package, not adafruit-nrfutil's."""
+    _nrf52_state(tmp_path, "nrf")
+    hex_file = _hex_file()
+    with (
+        patch(
+            "esphome.components.nrf52.framework.ensure_nordic_nrfutil",
+            return_value="nrfutil",
+        ),
+        patch.object(nrf52, "_ensure_nrfutil") as mock_adafruit,
+        patch.object(nrf52, "run_command_ok", return_value=True) as mock_run,
+    ):
+        nrf52.build_dfu_package(Path("python"), {})
+    mock_adafruit.assert_not_called()
+    cmd = mock_run.call_args[0][0]
+    assert cmd[:4] == ["nrfutil", "nrf5sdk-tools", "pkg", "generate"]
+    assert cmd[cmd.index("--sd-req") + 1] == "0x00"
+    assert cmd[cmd.index("--application") + 1] == str(hex_file)
+    assert cmd[-1] == str(CORE.relative_build_path("firmware.zip"))
+
+
+def test_upload_serial_dfu_open_dfu_sends_to_the_bootloader_port(
+    tmp_path: Path,
+) -> None:
+    _nrf52_state(tmp_path, "nrf")
+    package = CORE.relative_build_path("firmware.zip")
+    package.parent.mkdir(parents=True)
+    package.write_text("")
+    patches = _upload_patches()
+    with (
+        patches[0],
+        patches[1],
+        patches[2] as mock_serial,
+        patches[3],
+        patch(
+            "esphome.components.nrf52.framework.ensure_nordic_nrfutil",
+            return_value="nrfutil",
+        ),
+        patch(
+            "esphome.components.nrf52._enter_open_dfu", return_value="/dev/ttyACM1"
+        ) as mock_enter,
+        patch.object(nrf52, "run_command_ok", return_value=True) as mock_run,
+    ):
+        assert nrf52.upload_serial_dfu("/dev/ttyACM0") is True
+    mock_enter.assert_called_once_with("/dev/ttyACM0")
+    mock_serial.assert_not_called()
+    cmd = mock_run.call_args[0][0]
+    assert cmd[:4] == ["nrfutil", "nrf5sdk-tools", "dfu", "usb-serial"]
+    assert cmd[cmd.index("-pkg") + 1] == str(package)
+    assert cmd[cmd.index("-p") + 1] == "/dev/ttyACM1"

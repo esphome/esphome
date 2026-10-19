@@ -1832,8 +1832,37 @@ def test_nrf52_dfu_config_validates_again() -> None:
 
 
 def test_nrf52_dfu_rejects_mcuboot() -> None:
-    with pytest.raises(cv.Invalid, match="needs an Adafruit bootloader"):
+    with pytest.raises(cv.Invalid, match="needs a serial DFU bootloader"):
         _nrf52_advanced(bootloader="mcuboot", dfu=True)
+
+
+def _dongle_config(**advanced: object) -> dict:
+    from esphome.config import path_context
+
+    _init_variant_schema_core()
+    # The reset pin schema reports its errors against the config path
+    token = path_context.set(["zephyr"])
+    try:
+        return _variant_config_schema(
+            {"variant": "NRF52", "board": "nrf52840dongle", "advanced": advanced}
+        )
+    finally:
+        path_context.reset(token)
+
+
+@pytest.mark.parametrize("dfu", [None, True, {}])
+def test_nrf52_dongle_dfu_defaults_to_the_reset_pin(dfu: object) -> None:
+    """The Open DFU bootloader ignores GPREGRET, so DFU resets through P0.19."""
+    advanced = (
+        {"bootloader": "nrf"} if dfu is None else {"bootloader": "nrf", "dfu": dfu}
+    )
+    reset_pin = _dongle_config(**advanced)["advanced"]["dfu"]["reset_pin"]
+    assert reset_pin["number"] == 19
+    assert reset_pin["inverted"] is True
+
+
+def test_nrf52_dongle_dfu_off_has_no_reset_pin() -> None:
+    assert _dongle_config(bootloader="nrf", dfu=False)["advanced"]["dfu"] is None
 
 
 def test_variant_config_schema_raises_for_unregistered_variant(
